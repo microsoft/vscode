@@ -33,6 +33,7 @@ import { AgentHostSessionTitleController, IAgentHostSessionTitleController } fro
 import { AgentHostTelemetryReporter, IAgentHostTelemetryReporter } from '../../node/agentHostTelemetryReporter.js';
 import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.js';
 import { AgentHostTurnTracker, IAgentHostTurnTracker } from '../../node/agentHostTurnTracker.js';
+import { AgentHostClientConnectionService, IAgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { IAgentHostChangesetService } from '../../common/agentHostChangesetService.js';
 import { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
@@ -229,6 +230,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 			[IAgentHostTerminalManager, disposables.add(new TestAgentHostTerminalManager())],
 			[ISessionDataService, sessionDataService],
 			[IAgentHostWorktreeIsolation, createNoopWorktreeIsolation()],
+			[IAgentHostClientConnectionService, disposables.add(new AgentHostClientConnectionService())],
 		);
 		const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
 		services.set(IAgentHostChatContributions, disposables.add(new AgentHostChatContributions(logService, instantiationService)));
@@ -236,7 +238,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 		services.set(IAgentHostProviderLocator, new AgentHostProviderLocator(() => agent));
 		const telemetryReporter = new AgentHostTelemetryReporter(telemetryService);
 		services.set(IAgentHostTelemetryReporter, telemetryReporter);
-		const turnTracker = disposables.add(new AgentHostTurnTracker(telemetryReporter));
+		const turnTracker = disposables.add(instantiationService.createInstance(AgentHostTurnTracker));
 		services.set(IAgentHostTurnTracker, turnTracker);
 		const localCommands = disposables.add(instantiationService.createInstance(AgentHostLocalCommands, new AgentHostLocalTurns(sessionDataService, logService)));
 		services.set(IAgentHostLocalCommands, localCommands);

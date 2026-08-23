@@ -25,6 +25,7 @@ import { ISessionDataService } from '../../common/sessionDataService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { buildChatUri, buildDefaultChatUri, MessageKind, PendingMessageKind, SessionStatus, TurnState, type ISessionGitHubState, type Message, type PendingMessage, type Turn } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
+import { AgentHostClientConnectionService, IAgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
 import { AgentHostChatContributions } from '../../node/agentHostChatContributionsService.js';
 import { IAgentHostProviderLocator } from '../../node/agentHostProviderLocator.js';
 import { IAgentHostSessionTitleController } from '../../node/agentHostSessionTitleController.js';
@@ -77,6 +78,7 @@ class RecordingTitleController implements IAgentHostSessionTitleController {
 		this._observed?.push('sessionTitle');
 	}
 	generateForkedTitle(): void { }
+	async generateExternalSessionTitle(): Promise<void> { }
 	cancelTitleGeneration(): void { }
 	clearSession(): void { }
 	markTitleAuto(): void { }
@@ -541,6 +543,7 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 		[ISessionDataService, sessionDataService],
 		[IAgentHostTerminalManager, disposables.add(new TestAgentHostTerminalManager())],
 		[IAgentHostWorktreeIsolation, new RecordingWorktreeIsolation(observed)],
+		[IAgentHostClientConnectionService, disposables.add(new AgentHostClientConnectionService())],
 	);
 	services.set(IAgentHostSessionTitleController, new RecordingTitleController(observed, enableSendInstructions ? 'rename instruction' : undefined));
 	const queueAgent = new MockAgent();
@@ -553,7 +556,7 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 	services.set(IAgentHostChatContributions, service);
 	const telemetryReporter = new AgentHostTelemetryReporter(new RecordingTelemetryService());
 	services.set(IAgentHostTelemetryReporter, telemetryReporter);
-	services.set(IAgentHostTurnTracker, disposables.add(new AgentHostTurnTracker(telemetryReporter)));
+	services.set(IAgentHostTurnTracker, disposables.add(instantiationService.createInstance(AgentHostTurnTracker)));
 	const localCommands = disposables.add(instantiationService.createInstance(AgentHostLocalCommands, new AgentHostLocalTurns(sessionDataService, logService)));
 	services.set(IAgentHostLocalCommands, localCommands);
 	const host: IAgentHostChatContributionHost = {
@@ -584,6 +587,7 @@ function createQueueDrainContributions(disposables: ReturnType<typeof ensureNoDi
 		[IAgentHostStateManager, stateManager],
 		[ISessionDataService, sessionDataService],
 		[IAgentHostTerminalManager, disposables.add(new TestAgentHostTerminalManager())],
+		[IAgentHostClientConnectionService, disposables.add(new AgentHostClientConnectionService())],
 	);
 	const mockAgent = new MockAgent();
 	let agent: MockAgent | undefined = mockAgent;
@@ -601,7 +605,7 @@ function createQueueDrainContributions(disposables: ReturnType<typeof ensureNoDi
 	const telemetryService = new RecordingTelemetryService();
 	const telemetryReporter = new AgentHostTelemetryReporter(telemetryService);
 	services.set(IAgentHostTelemetryReporter, telemetryReporter);
-	const turnTracker = disposables.add(new AgentHostTurnTracker(telemetryReporter));
+	const turnTracker = disposables.add(instantiationService.createInstance(AgentHostTurnTracker));
 	services.set(IAgentHostTurnTracker, turnTracker);
 	const localTurns = new AgentHostLocalTurns(sessionDataService, logService);
 	const localCommands = disposables.add(instantiationService.createInstance(AgentHostLocalCommands, localTurns));

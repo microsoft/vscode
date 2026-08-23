@@ -8,7 +8,7 @@ import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { TelemetryTrustedValue } from '../../telemetry/common/telemetryUtils.js';
 import { hash } from '../../../base/common/hash.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
-import { AgentSession } from '../common/agent.js';
+import { AgentSession, type AgentTurnProviderCallState, type AgentTurnProviderSessionState, type IAgentTurnDiagnosticSnapshot } from '../common/agent.js';
 import type { SessionMode } from '../common/agentHostSchema.js';
 import { getTelemetryChatSessionId } from '../common/agentTelemetryCorrelation.js';
 import { readAgentErrorTelemetryMeta } from '../common/meta/agentErrorMeta.js';
@@ -163,6 +163,8 @@ export type AgentHostTurnResult = 'success' | 'error' | 'cancelled';
 export type AgentHostModelTelemetryKind = 'trusted' | 'byok' | 'unknown';
 type AgentHostModelSelectionKind = 'default' | 'auto' | 'explicit';
 export type AgentHostTurnFailureStage = 'validation' | 'workingDirectory' | 'modelSelection' | 'sendMessage' | 'provider';
+export type AgentHostInitiatorClientConnectionState = 'connected' | 'disconnected' | 'unknown';
+export type AgentHostProviderDiagnosticState = 'available' | 'error' | 'missingChat' | 'missingTurn' | 'unavailable' | 'unsupported';
 
 interface IAgentHostTurnAttributedReport {
 	clientContext?: IAgentHostClientTelemetryContext;
@@ -174,6 +176,8 @@ export interface IAgentHostTurnCompletedEvent extends IAgentHostInitiatorTelemet
 	chatSessionId: string;
 	isSubagentSession: boolean;
 	turnId: string;
+	parentTurnId: string | undefined;
+	parentToolCallId: string | undefined;
 	timeToFirstProgress: number | undefined;
 	totalTime: number;
 	result: AgentHostTurnResult;
@@ -187,6 +191,10 @@ export interface IAgentHostTurnCompletedEvent extends IAgentHostInitiatorTelemet
 	isMultiRoot: boolean;
 	folderCount: number;
 	billedNanoAiu: number | undefined;
+	directPromptTokenCount: number | undefined;
+	directPromptCacheTokenCount: number | undefined;
+	directCompletionTokenCount: number | undefined;
+	directBilledNanoAiu: number | undefined;
 	modelCallCount: number;
 }
 
@@ -196,6 +204,8 @@ export type IAgentHostTurnCompletedClassification = IAgentHostInitiatorClassific
 	chatSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The chat identifier within the agent host session.' };
 	isSubagentSession: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the turn belongs to a subagent session.' };
 	turnId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The identifier of the turn within the agent host session.' };
+	parentTurnId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The immediate parent turn identifier for a subagent turn.' };
+	parentToolCallId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The identifier of the tool call that spawned the subagent owning this turn; stable across resumed turns of the same subagent.' };
 	timeToFirstProgress: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds from turn start to the first visible progress (text delta, response part, tool call start, or reasoning).' };
 	totalTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Total time in milliseconds from turn start to turn completion.' };
 	result: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the turn completed successfully, with an error, or was cancelled.' };
@@ -209,7 +219,11 @@ export type IAgentHostTurnCompletedClassification = IAgentHostInitiatorClassific
 	isMultiRoot: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the session spans more than one working directory.' };
 	folderCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of effective working directories for the session at turn completion.' };
 	billedNanoAiu: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The AI credit usage billed for the turn in nano-AIU, when reported by the provider.' };
-	modelCallCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of completed upstream model responses attributed directly to the turn.' };
+	directPromptTokenCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Input tokens used directly by this turn, excluding descendant sub-agent calls.' };
+	directPromptCacheTokenCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Input tokens read from cache directly by this turn, excluding descendant sub-agent calls.' };
+	directCompletionTokenCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Output tokens generated directly by this turn, excluding descendant sub-agent calls.' };
+	directBilledNanoAiu: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'AI credit usage billed directly to this turn in nano-AIU, excluding descendant sub-agent calls.' };
+	modelCallCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of completed upstream model responses attributed directly to this turn, excluding descendant sub-agent calls.' };
 	owner: 'roblourens';
 	comment: 'Tracks agent host turn completion, including performance, configuration context, completed model responses, and billed AI credit usage when reported by the provider.';
 };
@@ -260,6 +274,8 @@ export interface IAgentHostTurnCompletedReport extends IAgentHostTurnAttributedR
 	provider: string;
 	session: string;
 	turnId: string;
+	parentTurnId: string | undefined;
+	parentToolCallId: string | undefined;
 	timeToFirstProgress: number | undefined;
 	totalTime: number;
 	result: AgentHostTurnResult;
@@ -272,6 +288,10 @@ export interface IAgentHostTurnCompletedReport extends IAgentHostTurnAttributedR
 	isMultiRoot: boolean;
 	folderCount: number;
 	billedNanoAiu: number | undefined;
+	directPromptTokenCount: number | undefined;
+	directPromptCacheTokenCount: number | undefined;
+	directCompletionTokenCount: number | undefined;
+	directBilledNanoAiu: number | undefined;
 	modelCallCount: number;
 }
 
@@ -354,6 +374,11 @@ export interface IAgentHostTurnHungEvent extends IAgentHostInitiatorTelemetry {
 	hadAnyProgress: boolean;
 	lastActivityKind: AgentHostTurnActivityTelemetryKind;
 	currentStage: AgentHostTurnFailureStage;
+	providerDiagnosticState: AgentHostProviderDiagnosticState;
+	providerCallState?: AgentTurnProviderCallState;
+	providerTurnStarted?: boolean;
+	providerSessionState?: AgentTurnProviderSessionState;
+	initiatorClientConnectionState: AgentHostInitiatorClientConnectionState;
 	blockedOn: SessionInputRequestKind | undefined;
 	toolId: string | undefined;
 	toolSourceKind: string | undefined;
@@ -376,6 +401,11 @@ export type IAgentHostTurnHungClassification = IAgentHostInitiatorClassification
 	hadAnyProgress: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether any turn activity at all was observed before the watchdog fired.' };
 	lastActivityKind: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'A bounded category for the last observed turn activity, preserving the AHP action namespace and action name without slash-like syntax. Values are none, other, or categories such as chat.delta and chat.toolCallReady.' };
 	currentStage: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The bounded turn stage active when the hang watchdog fired.' };
+	providerDiagnosticState: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether bounded provider diagnostics were available, unsupported, unavailable, failed, or missing the expected chat or turn.' };
+	providerCallState?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the provider call had not started, was pending, resolved, or rejected when the hang watchdog fired.' };
+	providerTurnStarted?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the provider reported that its turn started before the hang watchdog fired.' };
+	providerSessionState?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The bounded provider session state when the hang watchdog fired.' };
+	initiatorClientConnectionState: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the client that initiated the turn was still connected when the hang watchdog fired, or unknown when the client could not be identified.' };
 	blockedOn: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The kind of outstanding user-blocking session input request, when there is one. Client tool execution is not counted, since it is delegated work rather than a prompt.' };
 	toolId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The identifier of the tool the turn appears to be stuck on. When hangReason is waitingOnUser this is the tool gated by the blocking request, which is exact; when it is runningTool this is the longest-running in-flight tool call, which is a best guess when several are running. Undefined when no tool explains the hang.' };
 	toolSourceKind: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the stuck tool is provided by the agent host, an MCP server, or a client.' };
@@ -397,6 +427,9 @@ export interface IAgentHostTurnHungReport extends IAgentHostTurnAttributedReport
 	hadAnyProgress: boolean;
 	lastActivityKind: string;
 	currentStage: AgentHostTurnFailureStage;
+	providerDiagnosticState: AgentHostProviderDiagnosticState;
+	providerDiagnosticSnapshot: IAgentTurnDiagnosticSnapshot | undefined;
+	initiatorClientConnectionState: AgentHostInitiatorClientConnectionState;
 	blockedOn: SessionInputRequestKind | undefined;
 	toolId: string | undefined;
 	toolSourceKind: string | undefined;
@@ -1141,6 +1174,8 @@ export class AgentHostTelemetryReporter {
 			chatSessionId,
 			isSubagentSession: isSubagent,
 			turnId: report.turnId,
+			parentTurnId: report.parentTurnId,
+			parentToolCallId: report.parentToolCallId,
 			timeToFirstProgress: report.timeToFirstProgress,
 			totalTime: report.totalTime,
 			result: report.result,
@@ -1154,6 +1189,10 @@ export class AgentHostTelemetryReporter {
 			isMultiRoot: report.isMultiRoot,
 			folderCount: report.folderCount,
 			billedNanoAiu: report.billedNanoAiu,
+			directPromptTokenCount: report.directPromptTokenCount,
+			directPromptCacheTokenCount: report.directPromptCacheTokenCount,
+			directCompletionTokenCount: report.directCompletionTokenCount,
+			directBilledNanoAiu: report.directBilledNanoAiu,
 			modelCallCount: report.modelCallCount,
 		});
 		if (report.failure) {
@@ -1196,6 +1235,13 @@ export class AgentHostTelemetryReporter {
 			hadAnyProgress: report.hadAnyProgress,
 			lastActivityKind: normalizeTurnActivityKind(report.lastActivityKind),
 			currentStage: report.currentStage,
+			providerDiagnosticState: report.providerDiagnosticState,
+			...(report.providerDiagnosticSnapshot?.state === 'available' ? {
+				providerCallState: report.providerDiagnosticSnapshot.providerCallState,
+				providerTurnStarted: report.providerDiagnosticSnapshot.providerTurnStarted,
+				providerSessionState: report.providerDiagnosticSnapshot.providerSessionState,
+			} : {}),
+			initiatorClientConnectionState: report.initiatorClientConnectionState,
 			blockedOn: report.blockedOn,
 			toolId: report.toolId,
 			toolSourceKind: report.toolSourceKind,
