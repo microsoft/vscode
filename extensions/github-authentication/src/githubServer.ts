@@ -281,32 +281,43 @@ export class GitHubServer implements IGitHubServer {
 	private async checkUserDetails(session: vscode.AuthenticationSession): Promise<void> {
 		let edu: string | undefined;
 
-		try {
-			const result = await fetching('https://education.github.com/api/user', {
-				logger: this._logger,
-				retryFallbacks: true,
-				expectJSON: true,
-				headers: {
-					Authorization: `token ${session.accessToken}`,
-					'faculty-check-preview': 'true',
-					'User-Agent': `${vscode.env.appName} (${vscode.env.appHost})`
-				}
-			});
+		// The account label is the GitHub login. Normal logins only allow alphanumerics and
+		// hyphens, but Enterprise Managed User (EMU) accounts are provisioned as
+		// `<idp-username>_<shortcode>`, so an underscore in the login means a managed account.
+		const isManaged = session.account.label.includes('_');
 
-			if (result.ok) {
-				const json: { student: boolean; faculty: boolean } = await result.json();
-				edu = json.student
-					? 'student'
-					: json.faculty
-						? 'faculty'
-						: 'none';
-			} else {
-				this._logger.info(`Unable to resolve optional EDU details. Status: ${result.status} ${result.statusText}`);
+		if (isManaged) {
+			// EMU accounts can't access the education.github.com endpoint, so skip the fetch entirely.
+			this._logger.info('Skipping optional EDU details check for a managed account.');
+			edu = 'none';
+		} else {
+			try {
+				const result = await fetching('https://education.github.com/api/user', {
+					logger: this._logger,
+					retryFallbacks: true,
+					expectJSON: true,
+					headers: {
+						Authorization: `token ${session.accessToken}`,
+						'faculty-check-preview': 'true',
+						'User-Agent': `${vscode.env.appName} (${vscode.env.appHost})`
+					}
+				});
+
+				if (result.ok) {
+					const json: { student: boolean; faculty: boolean } = await result.json();
+					edu = json.student
+						? 'student'
+						: json.faculty
+							? 'faculty'
+							: 'none';
+				} else {
+					this._logger.info(`Unable to resolve optional EDU details. Status: ${result.status} ${result.statusText}`);
+					edu = 'unknown';
+				}
+			} catch (e) {
+				this._logger.info(`Unable to resolve optional EDU details. Error: ${e}`);
 				edu = 'unknown';
 			}
-		} catch (e) {
-			this._logger.info(`Unable to resolve optional EDU details. Error: ${e}`);
-			edu = 'unknown';
 		}
 
 		/* __GDPR__
@@ -318,8 +329,7 @@ export class GitHubServer implements IGitHubServer {
 		*/
 		this._telemetryReporter.sendTelemetryEvent('session', {
 			isEdu: edu,
-			// Apparently, this is how you tell if a user is an EMU...
-			isManaged: session.account.label.includes('_') ? 'true' : 'false'
+			isManaged: isManaged ? 'true' : 'false'
 		});
 	}
 
