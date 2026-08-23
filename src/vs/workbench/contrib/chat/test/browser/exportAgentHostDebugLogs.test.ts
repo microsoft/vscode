@@ -14,7 +14,7 @@ import { buildChatUri, buildDefaultChatUri, getSessionChatResource } from '../..
 import { FileService } from '../../../../../platform/files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { collectRotatedLogFiles, createHostArtifactStream, toActiveAgentHostSession } from '../../browser/actions/exportAgentHostDebugLogsAction.js';
+import { collectRotatedLogFiles, createHostArtifactStream, getAgentHostDebugLogsExportName, toActiveAgentHostSession } from '../../browser/actions/exportAgentHostDebugLogsAction.js';
 
 function artifactOfSize(size: number): IAgentHostDebugLogsArtifact {
 	return {
@@ -74,11 +74,21 @@ suite('toActiveAgentHostSession', () => {
 		const remote = toActiveAgentHostSession(URI.parse('remote-test-copilotcli:/session-2'), 'Main chat');
 
 		assert.deepStrictEqual({
-			local: local && { resource: local.resource.toString(), chatId: local.chatId, backendChatResource: local.backendChatResource, isLocal: local.isLocal },
-			remote: remote && { resource: remote.resource.toString(), chatId: remote.chatId, backendChatResource: remote.backendChatResource, isLocal: remote.isLocal },
+			local: local && { resource: local.resource.toString(), chatTitle: local.chatTitle, chatId: local.chatId, backendChatResource: local.backendChatResource, isLocal: local.isLocal },
+			remote: remote && { resource: remote.resource.toString(), chatTitle: remote.chatTitle, chatId: remote.chatId, backendChatResource: remote.backendChatResource, isLocal: remote.isLocal },
 		}, {
-			local: { resource: 'agent-host-copilotcli:/session-1', chatId: 'side-chat', backendChatResource: undefined, isLocal: true },
-			remote: { resource: 'remote-test-copilotcli:/session-2', chatId: 'default', backendChatResource: undefined, isLocal: false },
+			local: { resource: 'agent-host-copilotcli:/session-1', chatTitle: 'Side chat', chatId: 'side-chat', backendChatResource: undefined, isLocal: true },
+			remote: { resource: 'remote-test-copilotcli:/session-2', chatTitle: 'Main chat', chatId: 'default', backendChatResource: undefined, isLocal: false },
+		});
+	});
+
+	test('uses the active chat title for the export name', () => {
+		assert.deepStrictEqual({
+			named: getAgentHostDebugLogsExportName('Investigate / side chat'),
+			unnamed: getAgentHostDebugLogsExportName(undefined),
+		}, {
+			named: 'ah-logs-Investigate-side-chat',
+			unnamed: 'ah-logs',
 		});
 	});
 

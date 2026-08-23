@@ -48,8 +48,8 @@ const MAX_INLINE_DEBUG_LOGS_BYTES = 30 * ByteSize.MB;
 export interface IActiveAgentHostSessionForExport {
 	/** The chat session resource. */
 	readonly resource: URI;
-	/** Optional display title used to derive the default zip filename. */
-	readonly title: string | undefined;
+	/** Optional active-chat title used to derive the default zip filename. */
+	readonly chatTitle: string | undefined;
 	/** True for local agent-host sessions (`agent-host-*` scheme). */
 	readonly isLocal: boolean;
 	/** Backend chat identifier selected within the session. */
@@ -327,14 +327,18 @@ export async function collectAgentHostDebugLogs(
 		}
 	}
 
-	const titleSlug = activeSession?.title
-		? `-${activeSession.title.replace(/[/\\:*?"<>|\s]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40)}`
-		: '';
 	return {
 		files,
-		exportName: `ah-logs${titleSlug}`,
+		exportName: getAgentHostDebugLogsExportName(activeSession?.chatTitle),
 		hostArtifact: { artifact: hostArtifact, readChunk: createChunkReader(connection) },
 	};
+}
+
+export function getAgentHostDebugLogsExportName(chatTitle: string | undefined): string {
+	const titleSlug = chatTitle
+		? `-${chatTitle.replace(/[/\\:*?"<>|\s]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40)}`
+		: '';
+	return `ah-logs${titleSlug}`;
 }
 
 /** Binds a connection's chunked artifact read to one artifact. */
@@ -426,12 +430,12 @@ export class ExportAgentHostDebugLogsAction extends Action2 {
  * session (i.e. local AH or remote AH; the EH CLI extension's own
  * `copilotcli:` sessions are excluded).
  */
-export function toActiveAgentHostSession(resource: URI, title: string | undefined): IActiveAgentHostSessionForExport | undefined {
+export function toActiveAgentHostSession(resource: URI, chatTitle: string | undefined): IActiveAgentHostSessionForExport | undefined {
 	if (resource.scheme === COPILOT_CLI_LOCAL_AH_SCHEME) {
-		return { resource: resource.with({ fragment: null }), title, isLocal: true, chatId: resource.fragment || DEFAULT_CHAT_ID, backendChatResource: undefined };
+		return { resource: resource.with({ fragment: null }), chatTitle, isLocal: true, chatId: resource.fragment || DEFAULT_CHAT_ID, backendChatResource: undefined };
 	}
 	if (parseRemoteAuthorityFromScheme(resource.scheme)) {
-		return { resource: resource.with({ fragment: null }), title, isLocal: false, chatId: resource.fragment || DEFAULT_CHAT_ID, backendChatResource: undefined };
+		return { resource: resource.with({ fragment: null }), chatTitle, isLocal: false, chatId: resource.fragment || DEFAULT_CHAT_ID, backendChatResource: undefined };
 	}
 	return undefined;
 }
