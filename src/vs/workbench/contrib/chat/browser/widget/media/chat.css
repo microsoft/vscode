@@ -674,7 +674,7 @@
 }
 
 .chat-list-at-bottom .chat-progress-reservable > .value:has(> .rendered-markdown:last-child) {
-	padding-bottom: var(--vscode-spacing-size360);
+	padding-bottom: calc(var(--vscode-spacing-size360) + var(--vscode-strokeThickness));
 }
 
 .interactive-item-container .value > :last-child,

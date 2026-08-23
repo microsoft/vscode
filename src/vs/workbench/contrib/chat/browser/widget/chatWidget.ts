@@ -22,7 +22,7 @@ import { ResourceSet } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { IsSessionsWindowContext } from '../../../../common/contextkeys.js';
 import { filter } from '../../../../../base/common/objects.js';
-import { autorun, derived, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, derived, IObservable, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { extUri, isEqual } from '../../../../../base/common/resources.js';
 import { isDefined } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -103,7 +103,8 @@ import { getChatSessionType } from '../../common/model/chatUri.js';
 import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
 import { CHAT_READ_ONLY_BANNER_HEIGHT, ChatReadOnlyBanner } from './chatReadOnlyBanner.js';
 import { IChatSubmitRequestHandlerService } from '../chatSubmitRequestHandlerService.js';
-import { ChatPetWidget, shouldReserveChatPetSpace } from './chatPetWidget.js';
+import { shouldReserveChatPetSpace } from './chatPetWidget.js';
+import { IChatPetWidgetService } from './chatPetWidgetService.js';
 import { IChatPetService } from '../chatPetService.js';
 import { ChatPetAchievementIds, hasChatPetImageAttachment } from '../chatPetAchievements.js';
 import { stopDictationForEditor } from '../speechToText/dictationSession.js';
@@ -566,6 +567,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@IChatGoalSummaryService private readonly chatGoalSummaryService: IChatGoalSummaryService,
 		@IChatSubmitRequestHandlerService private readonly chatSubmitRequestHandlerService: IChatSubmitRequestHandlerService,
 		@IChatPetService private readonly chatPetService: IChatPetService,
+		@IChatPetWidgetService private readonly chatPetWidgetService: IChatPetWidgetService,
 		@IAgentHostService private readonly _agentHostService: IAgentHostService,
 		@IAgentHostCustomizationService private readonly _agentHostCustomizationService: IAgentHostCustomizationService,
 		@IAgentHostNewSessionFolderService private readonly _agentHostNewSessionFolderService: IAgentHostNewSessionFolderService,
@@ -991,7 +993,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return this.input.attachmentModel;
 	}
 
-	render(parent: HTMLElement, petMovementBounds?: HTMLElement): void {
+	render(parent: HTMLElement, petMovementBounds?: HTMLElement, preferredPetHost?: IObservable<boolean>): void {
 		const viewId = isIChatViewViewContext(this.viewContext) ? this.viewContext.viewId : undefined;
 		this.editorOptions = this._register(this.instantiationService.createInstance(ChatEditorOptions, viewId, this.styles.listForeground, this.styles.inputEditorBackground, this.styles.resultEditorBackground));
 		const renderInputOnTop = this.viewOptions.renderInputOnTop ?? false;
@@ -1043,17 +1045,18 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			const inputContainer = this.inputPart.inputContainerElement;
 			const petHost = this.inputPart.element;
 			const inputHasContent = observableFromEvent(this, this.inputEditor.onDidChangeModelContent, () => this.inputEditor.getValue().length > 0);
-			const targetWindow = dom.getWindow(this.container);
-			const isLatestFocusedWidgetInWindow = observableValue(this, this.chatWidgetService.lastFocusedWidget === this);
-			this._register(this.chatWidgetService.onDidChangeFocusedWidget(focusedWidget => {
-				if (focusedWidget && dom.getWindow(focusedWidget.domNode) === targetWindow) {
-					isLatestFocusedWidgetInWindow.set(focusedWidget === this, undefined);
-				}
-			}));
-			const petSpaceReserved = derived(this, reader => shouldReserveChatPetSpace(this.chatPetService.enabled.read(reader), isLatestFocusedWidgetInWindow.read(reader)));
+			const registration = this._register(this.chatPetWidgetService.register(this, {
+				parent: petHost,
+				dragBounds: inputContainer ?? petHost,
+				movementBounds: petMovementBounds ?? parent,
+				model: this._viewModelObs.map(viewModel => viewModel?.model),
+				hasInput: inputHasContent,
+				inputChanged: this.inputEditor.onDidChangeModelContent,
+				getPlatformTop: petCenterX => this.inputPart.getChatPetPlatformTop(petCenterX),
+				onDidChangePlatform: this.inputPart.onDidChangeChatPetHorizontalPlatforms,
+			}, preferredPetHost));
+			const petSpaceReserved = derived(this, reader => shouldReserveChatPetSpace(this.chatPetService.enabled.read(reader), registration.active.read(reader)));
 			this._register(autorun(reader => this.container.classList.toggle('chat-pet-enabled', petSpaceReserved.read(reader))));
-			const petWidget = this._register(this.instantiationService.createInstance(ChatPetWidget, petHost, inputContainer ?? petHost, petMovementBounds ?? parent, this._viewModelObs.map(viewModel => viewModel?.model), inputHasContent, isLatestFocusedWidgetInWindow, this.inputEditor.onDidChangeModelContent));
-			petWidget.setPlatformTopProvider(() => this.inputPart.getChatPetPlatformTop());
 		}
 
 		this.renderWelcomeViewContentIfNeeded();

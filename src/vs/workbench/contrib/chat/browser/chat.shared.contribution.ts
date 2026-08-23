@@ -199,6 +199,7 @@ import { ChatOutputRendererService, IChatOutputRendererService } from './chatOut
 import { ChatCompatibilityNotifier, ChatExtensionPointHandler } from './chatParticipant.contribution.js';
 import { ChatPetAchievementsAccessibilityHelp, ChatPetContextContribution, ChatPetCustomizationAchievementContribution } from './chatPetAchievements.contribution.js';
 import { ChatPetService, IChatPetService } from './chatPetService.js';
+import { ChatPetWidgetService, IChatPetWidgetService } from './widget/chatPetWidgetService.js';
 import { ChatPromoNotificationContribution } from './chatPromoNotification.js';
 import { ChatQuotaNotificationContribution } from './chatQuotaNotification.js';
 import { ChatRepoInfoContribution } from './chatRepoInfo.js';
@@ -405,13 +406,15 @@ configurationRegistry.registerConfiguration({
 			enum: [AgentHostExternalSessionsMode.None, AgentHostExternalSessionsMode.Recent, AgentHostExternalSessionsMode.Last24Hours, AgentHostExternalSessionsMode.Last7Days, AgentHostExternalSessionsMode.Last30Days],
 			enumDescriptions: [
 				nls.localize('chat.agentSessions.showExternal.none', "Only shows sessions created by the Agent Host."),
-				nls.localize('chat.agentSessions.showExternal.recent', "Shows the 2 most recently updated external sessions from the last 7 days."),
+				nls.localize('chat.agentSessions.showExternal.recent', "Shows up to the 2 most recently updated external sessions from the last 7 days, hiding any that you have started 2 newer sessions after."),
 				nls.localize('chat.agentSessions.showExternal.last24Hours', "Shows external sessions updated in the last 24 hours."),
 				nls.localize('chat.agentSessions.showExternal.last7Days', "Shows external sessions updated in the last 7 days."),
 				nls.localize('chat.agentSessions.showExternal.last30Days', "Shows external sessions updated in the last 30 days."),
 			],
-			default: AgentHostExternalSessionsMode.None,
+			default: AgentHostExternalSessionsMode.Recent,
 			markdownDescription: nls.localize('chat.agentSessions.showExternal', "Controls which external agent sessions, created outside VS Code's Agent Host, are shown."),
+			tags: ['experimental'],
+			experiment: { mode: 'auto' },
 			agentHost: { key: AgentHostShowExternalSessionsConfigKey },
 		},
 		[ChatConfiguration.SaveBeforeSend]: {
@@ -3130,6 +3133,7 @@ registerSingleton(IChatSideChatService, ChatSideChatService, InstantiationType.D
 registerSingleton(IChatRequestOriginService, ChatRequestOriginService, InstantiationType.Delayed);
 registerSingleton(IChatModelFeedbackSurveyService, ChatModelFeedbackSurveyService, InstantiationType.Delayed);
 registerSingleton(IChatPetService, ChatPetService, InstantiationType.Delayed);
+registerSingleton(IChatPetWidgetService, ChatPetWidgetService, InstantiationType.Delayed);
 registerSingleton(IQuickChatService, QuickChatService, InstantiationType.Delayed);
 registerSingleton(IChatAccessibilityService, ChatAccessibilityService, InstantiationType.Delayed);
 registerSingleton(IChatWidgetHistoryService, ChatWidgetHistoryService, InstantiationType.Delayed);
