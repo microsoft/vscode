@@ -5,7 +5,7 @@
 
 import { join } from '../../../base/common/path.js';
 import { Schemas } from '../../../base/common/network.js';
-import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { Emitter } from '../../../base/common/event.js';
 import { ProxyChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { Client as MessagePortClient } from '../../../base/parts/ipc/electron-main/ipc.mp.js';
@@ -28,11 +28,8 @@ import {
 	IVirtualMachinesDaemonService,
 } from '../common/virtualMachines.js';
 
-/**
- * Main-process side of the virtual machines feature. All QEMU orchestration
- * happens in a dedicated utility process (the daemon) so that the Electron
- * main process never spawns or supervises hypervisor processes itself.
- */
+const DAEMON_SHUTDOWN_TIMEOUT_MS = 15_000;
+
 export class VirtualMachinesMainService extends Disposable implements IVirtualMachinesService {
 
 	declare readonly _serviceBrand: undefined;
@@ -42,7 +39,10 @@ export class VirtualMachinesMainService extends Disposable implements IVirtualMa
 
 	private utilityProcess: UtilityProcess | undefined;
 	private daemon: IVirtualMachinesDaemonService | undefined;
+	private daemonStore: DisposableStore | undefined;
 	private startingDaemon: Promise<IVirtualMachinesDaemonService> | undefined;
+	private daemonShutdown: Promise<void> | undefined;
+	private shuttingDown = false;
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -51,8 +51,14 @@ export class VirtualMachinesMainService extends Disposable implements IVirtualMa
 		@ILogService private readonly logService: ILogService,
 	) {
 		super();
-		this._register(toDisposable(() => this.disposeDaemon()));
-		this._register(this.lifecycleMainService.onWillShutdown(() => this.disposeDaemon()));
+		this._register(toDisposable(() => {
+			this.shuttingDown = true;
+			void this.shutdownDaemon();
+		}));
+		this._register(this.lifecycleMainService.onWillShutdown(event => {
+			this.shuttingDown = true;
+			event.join('virtualMachines', this.shutdownDaemon());
+		}));
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('virtualMachines')) {
 				this.daemon?.updateSettings(this.readSettings());
@@ -67,7 +73,6 @@ export class VirtualMachinesMainService extends Disposable implements IVirtualMa
 			qemuBinary: get<string>(VirtualMachinesConfig.QemuBinary) || undefined,
 			dataRoot: get<string>(VirtualMachinesConfig.DataRoot) || undefined,
 			networkMode: get<'user' | 'restricted' | 'none'>(VirtualMachinesConfig.NetworkMode) ?? 'user',
-			agentControl: get<boolean>(VirtualMachinesConfig.AgentControl) ?? false,
 			installIsoPaths: {
 				[WellKnownVirtualMachine.UbuntuDeveloper]: get<string>(VirtualMachinesConfig.DeveloperInstallIso) || undefined,
 				[WellKnownVirtualMachine.UbuntuSandbox]: get<string>(VirtualMachinesConfig.SandboxInstallIso) || undefined,
@@ -88,11 +93,17 @@ export class VirtualMachinesMainService extends Disposable implements IVirtualMa
 	}
 
 	private async getDaemon(): Promise<IVirtualMachinesDaemonService> {
+		if (this.shuttingDown) {
+			throw new Error('The virtual machines daemon is shutting down.');
+		}
 		if (this.daemon) {
 			return this.daemon;
 		}
 		if (!this.startingDaemon) {
 			this.startingDaemon = this.startDaemon().then(daemon => {
+				if (this.shuttingDown) {
+					throw new Error('The virtual machines daemon is shutting down.');
+				}
 				this.daemon = daemon;
 				return daemon;
 			}, err => {
@@ -106,55 +117,97 @@ export class VirtualMachinesMainService extends Disposable implements IVirtualMa
 	private async startDaemon(): Promise<IVirtualMachinesDaemonService> {
 		const dataRoot = join(this.environmentMainService.userDataPath, 'virtualMachines');
 		const utilityProcess = new UtilityProcess(this.logService, NullTelemetryService, this.lifecycleMainService);
+		const store = new DisposableStore();
 		this.utilityProcess = utilityProcess;
+		store.add(toDisposable(() => utilityProcess.dispose()));
 
-		const started = utilityProcess.start({
-			type: 'virtualMachines',
-			name: 'virtual-machines-daemon',
-			entryPoint: 'vs/platform/virtualMachines/node/virtualMachinesDaemonMain',
-			args: [
-				'--logsPath', this.environmentMainService.logsHome.with({ scheme: Schemas.file }).fsPath,
-				'--user-data-dir', this.environmentMainService.userDataPath,
-			],
-			env: {
-				// UtilityProcess replaces the whole environment when `env` is
-				// provided; without the inherited variables (PATH, HOME, ...) the
-				// daemon could never locate the QEMU binary.
-				...process.env,
-				GITCORTEX_VM_SETTINGS: JSON.stringify(this.readSettings()),
-				GITCORTEX_VM_DATA_ROOT: dataRoot,
+		try {
+			const started = utilityProcess.start({
+				type: 'virtualMachines',
+				name: 'virtual-machines-daemon',
+				entryPoint: 'vs/platform/virtualMachines/node/virtualMachinesDaemonMain',
+				args: [
+					'--logsPath', this.environmentMainService.logsHome.with({ scheme: Schemas.file }).fsPath,
+					'--user-data-dir', this.environmentMainService.userDataPath,
+				],
+				env: {
+					...process.env,
+					GITCORTEX_VM_SETTINGS: JSON.stringify(this.readSettings()),
+					GITCORTEX_VM_DATA_ROOT: dataRoot,
+				}
+			});
+			if (!started) {
+				throw new Error('The virtual machines daemon did not start.');
 			}
-		});
-		if (!started) {
-			throw new Error('The virtual machines daemon did not start.');
-		}
 
-		// If the daemon dies, forget it so the next call spawns a fresh one.
-		utilityProcess.onExit(() => {
+			const port = utilityProcess.connect();
+			const client = store.add(new MessagePortClient(port, 'virtualMachines'));
+			const daemon = ProxyChannel.toService<IVirtualMachinesDaemonService>(client.getChannel(VirtualMachinesServiceChannelName));
+			store.add(daemon.onDidChangeVirtualMachines(vms => this._onDidChangeVirtualMachines.fire(vms)));
+			store.add(utilityProcess.onExit(() => {
+				if (this.utilityProcess === utilityProcess) {
+					this.logService.warn('[virtualMachines] daemon exited unexpectedly');
+					this.clearDaemon(utilityProcess, store);
+				}
+			}));
+
+			this.daemonStore = store;
+			this.logService.trace('[virtualMachines] daemon started');
+			return daemon;
+		} catch (error) {
+			store.dispose();
 			if (this.utilityProcess === utilityProcess) {
-				this.logService.warn('[virtualMachines] daemon exited unexpectedly');
-				this.disposeDaemon();
+				this.utilityProcess = undefined;
 			}
-		});
-
-		const port = utilityProcess.connect();
-		const client = new MessagePortClient(port, 'virtualMachines');
-		const daemon = ProxyChannel.toService<IVirtualMachinesDaemonService>(client.getChannel(VirtualMachinesServiceChannelName));
-		daemon.onDidChangeVirtualMachines(vms => this._onDidChangeVirtualMachines.fire(vms));
-
-		this.logService.trace('[virtualMachines] daemon started');
-		return daemon;
+			throw error;
+		}
 	}
 
-	private disposeDaemon(): void {
-		this.daemon = undefined;
-		this.startingDaemon = undefined;
-		const utilityProcess = this.utilityProcess;
-		this.utilityProcess = undefined;
-		if (utilityProcess) {
-			// Killing the daemon disposes the manager, which stops all VMs.
-			utilityProcess.kill();
+	private clearDaemon(utilityProcess: UtilityProcess, store: DisposableStore): void {
+		if (this.daemonStore === store) {
+			this.daemonStore = undefined;
 		}
+		if (this.utilityProcess === utilityProcess) {
+			this.daemon = undefined;
+			this.startingDaemon = undefined;
+			this.utilityProcess = undefined;
+		}
+		store.dispose();
+	}
+
+	private shutdownDaemon(): Promise<void> {
+		if (this.daemonShutdown) {
+			return this.daemonShutdown;
+		}
+		this.daemonShutdown = (async () => {
+			const starting = this.startingDaemon;
+			if (starting) {
+				await starting.catch(() => undefined);
+			}
+
+			const daemon = this.daemon;
+			const utilityProcess = this.utilityProcess;
+			const store = this.daemonStore;
+			this.daemon = undefined;
+			this.startingDaemon = undefined;
+			this.utilityProcess = undefined;
+			this.daemonStore = undefined;
+
+			try {
+				if (daemon) {
+					await withTimeout(daemon.shutdown(), DAEMON_SHUTDOWN_TIMEOUT_MS);
+				}
+			} catch (error) {
+				this.logService.warn(`[virtualMachines] graceful daemon shutdown failed: ${error instanceof Error ? error.message : String(error)}`);
+			} finally {
+				store?.dispose();
+				if (utilityProcess) {
+					utilityProcess.kill();
+					utilityProcess.dispose();
+				}
+			}
+		})();
+		return this.daemonShutdown;
 	}
 
 	async getVirtualMachines(): Promise<readonly IVirtualMachineInfo[]> {
@@ -184,4 +237,17 @@ export class VirtualMachinesMainService extends Disposable implements IVirtualMa
 	async openDisplay(id: string): Promise<IVirtualMachineDisplay> {
 		return (await this.getDaemon()).openDisplay(id);
 	}
+}
+
+function withTimeout(promise: Promise<void>, timeoutMs: number): Promise<void> {
+	return new Promise<void>((resolve, reject) => {
+		const timer = setTimeout(() => reject(new Error(`Timed out after ${timeoutMs}ms`)), timeoutMs);
+		promise.then(value => {
+			clearTimeout(timer);
+			resolve(value);
+		}, error => {
+			clearTimeout(timer);
+			reject(error);
+		});
+	});
 }

@@ -129,6 +129,11 @@ const vscodeResourceIncludes = [
 	// Webview
 	'out-build/vs/workbench/contrib/webview/browser/pre/*.{js,html}',
 
+	// GitCortex virtual desktop: runtime modules loaded dynamically by noVNC.
+	// Keep development documentation out of the application resource set.
+	'out-build/vs/workbench/contrib/virtualMachines/browser/media/novnc/**/*.js',
+	'out-build/vs/workbench/contrib/virtualMachines/browser/media/novnc/LICENSE.txt',
+
 	// Extension Host Worker
 	'out-build/vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html',
 

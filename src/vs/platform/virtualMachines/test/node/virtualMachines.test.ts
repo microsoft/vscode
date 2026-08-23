@@ -19,9 +19,8 @@ import { IVirtualMachineHost, IVirtualMachineProcessHandle, VirtualMachineManage
 function defaultSettings(overrides?: Partial<IVirtualMachinesSettings>): IVirtualMachinesSettings {
 	return {
 		acceleration: 'kvm',
-		networkMode: 'user',
-		agentControl: false,
-		resources: { ...DEFAULT_VM_RESOURCES },
+			networkMode: 'user',
+			resources: { ...DEFAULT_VM_RESOURCES },
 		...overrides,
 	};
 }
@@ -75,7 +74,7 @@ suite('buildQemuArgs', () => {
 		acceleration: 'kvm' as const,
 		resources: { cpus: 2, memoryMB: 4096, diskGB: 32 },
 		diskPath: '/data/ubuntu-developer.qcow2',
-		vncDisplay: 3,
+		vncSocketPath: '/data/ubuntu-developer.vnc',
 		qmpSocketPath: '/data/ubuntu-developer.qmp',
 		networkMode: 'user' as const,
 	};
@@ -86,10 +85,11 @@ suite('buildQemuArgs', () => {
 		assert.ok(args.includes('host'));
 	});
 
-	test('vnc is loopback only', () => {
+	test('vnc uses a private Unix socket', () => {
 		const args = buildQemuArgs(base);
 		const index = args.indexOf('-vnc');
-		assert.strictEqual(args[index + 1], '127.0.0.1:3');
+		assert.strictEqual(args[index + 1], 'unix:/data/ubuntu-developer.vnc');
+		assert.ok(!args[index + 1].includes('127.0.0.1'));
 	});
 
 	test('never exposes a host display or monitor', () => {
@@ -144,15 +144,16 @@ class FakeHost implements IVirtualMachineHost {
 	freeMB = 65536;
 	cpus = 8;
 	disks = new Set<string>();
+	sockets = new Set<string>();
+	qmpHandles = new Map<string, FakeProcessHandle>();
 	spawned: { args: string[]; handle: FakeProcessHandle }[] = [];
 	powerDownResult = true;
-	private portStates = new Map<number, boolean>();
 
 	async findExecutable(name: string): Promise<string | undefined> {
 		return name === 'qemu-system-x86_64' ? this.qemu : undefined;
 	}
 	async pathExists(p: string): Promise<boolean> {
-		return p === this.qemu || p === '/usr/bin/qemu-img' || this.disks.has(p) || p === '/dev/kvm';
+		return p === this.qemu || p === '/usr/bin/qemu-img' || this.disks.has(p) || this.sockets.has(p) || p === '/dev/kvm';
 	}
 	async canReadWrite(p: string): Promise<boolean> {
 		return p === '/dev/kvm' ? this.kvm : true;
@@ -160,26 +161,29 @@ class FakeHost implements IVirtualMachineHost {
 	freeMemoryMB(): number { return this.freeMB; }
 	totalMemoryMB(): number { return 65536; }
 	cpuCount(): number { return this.cpus; }
-	async isPortFree(port: number): Promise<boolean> {
-		return this.portStates.get(port) !== false;
-	}
 	async mkdir(): Promise<void> { }
-	async removeFile(p: string): Promise<void> { this.disks.delete(p); }
+	async chmod(): Promise<void> { }
+	async removeFile(p: string): Promise<void> { this.disks.delete(p); this.sockets.delete(p); }
 	async createDisk(_bin: string, diskPath: string): Promise<void> { this.disks.add(diskPath); }
 	spawnQemu(_bin: string, args: string[]): IVirtualMachineProcessHandle {
 		const handle = new FakeProcessHandle();
 		this.spawned.push({ args, handle });
-		// QEMU claims the VNC port once it is up.
+		// QEMU creates its private VNC and QMP sockets once it is up.
 		const vncIndex = args.indexOf('-vnc');
-		const display = parseInt(args[vncIndex + 1].split(':')[1]);
-		this.portStates.set(5900 + display, false);
+		this.sockets.add(args[vncIndex + 1].slice('unix:'.length));
+		const qmpIndex = args.indexOf('-qmp');
+		const qmpSocketPath = args[qmpIndex + 1].split(',')[0].slice('unix:'.length);
+		this.sockets.add(qmpSocketPath);
+		this.qmpHandles.set(qmpSocketPath, handle);
 		return handle;
 	}
-	async powerDown(): Promise<boolean> {
-		if (this.powerDownResult && this.spawned.length) {
+	async powerDown(qmpSocketPath: string): Promise<boolean> {
+		if (this.powerDownResult) {
 			// A graceful ACPI power-down makes the (fake) guest exit.
-			const handle = this.spawned[this.spawned.length - 1].handle;
-			setTimeout(() => handle.kill('SIGTERM'), 0);
+			const handle = this.qmpHandles.get(qmpSocketPath);
+			if (handle) {
+				setTimeout(() => handle.kill('SIGTERM'), 0);
+			}
 		}
 		return this.powerDownResult;
 	}
@@ -326,15 +330,18 @@ suite('VirtualMachineManager', () => {
 		}
 	});
 
-	test('two machines can run simultaneously with distinct vnc displays', async () => {
+	test('two machines can start concurrently with distinct private endpoints', async () => {
 		const host = new FakeHost();
 		const manager = createManager(host);
 		try {
-			await manager.start(WellKnownVirtualMachine.UbuntuDeveloper);
-			await manager.start(WellKnownVirtualMachine.UbuntuSandbox);
+			await Promise.all([
+				manager.start(WellKnownVirtualMachine.UbuntuDeveloper),
+				manager.start(WellKnownVirtualMachine.UbuntuSandbox),
+			]);
 			assert.strictEqual(host.spawned.length, 2);
-			const displays = host.spawned.map(s => s.args[s.args.indexOf('-vnc') + 1]);
-			assert.notStrictEqual(displays[0], displays[1]);
+			const endpoints = host.spawned.map(s => s.args[s.args.indexOf('-vnc') + 1]);
+			assert.notStrictEqual(endpoints[0], endpoints[1]);
+			assert.ok(endpoints.every(endpoint => endpoint.startsWith('unix:')));
 			const vms = await manager.getVirtualMachines();
 			assert.ok(vms.every(v => v.state === VirtualMachineState.Running));
 		} finally {
@@ -342,7 +349,35 @@ suite('VirtualMachineManager', () => {
 		}
 	});
 
-	test('unexpected qemu exit transitions to error', async () => {
+		test('updated dataRoot is used when a machine starts', async () => {
+			const host = new FakeHost();
+			const manager = createManager(host, { dataRoot: '/custom/gitcortex-vms' });
+			try {
+				await manager.start(WellKnownVirtualMachine.UbuntuDeveloper);
+				const args = host.spawned[0].args;
+				assert.strictEqual(args[args.indexOf('-drive') + 1], 'file=/custom/gitcortex-vms/ubuntu-developer.qcow2,format=qcow2,if=virtio,discard=unmap');
+				assert.strictEqual(args[args.indexOf('-vnc') + 1], 'unix:/custom/gitcortex-vms/ubuntu-developer.vnc');
+			} finally {
+				manager.dispose();
+			}
+		});
+
+		test('shutdown stops all running machines', async () => {
+			const host = new FakeHost();
+			const manager = createManager(host);
+			try {
+				await Promise.all([
+					manager.start(WellKnownVirtualMachine.UbuntuDeveloper),
+					manager.start(WellKnownVirtualMachine.UbuntuSandbox),
+				]);
+				await manager.shutdown();
+				assert.ok((await manager.getVirtualMachines()).every(vm => vm.state === VirtualMachineState.Stopped));
+			} finally {
+				manager.dispose();
+			}
+		});
+
+		test('unexpected qemu exit transitions to error', async () => {
 		const host = new FakeHost();
 		const manager = createManager(host);
 		try {

@@ -16,6 +16,7 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IVirtualMachineInfo, IVirtualMachinesService, VirtualMachineState } from '../../../../platform/virtualMachines/common/virtualMachines.js';
+import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { ViewPane } from '../../../browser/parts/views/viewPane.js';
 import { IViewletViewOptions } from '../../../browser/parts/views/viewsViewlet.js';
 import { IViewDescriptorService } from '../../../common/views.js';
@@ -148,7 +149,7 @@ export class VirtualMachinesViewPane extends ViewPane {
 
 		card.buttons.clear();
 		const addButton = (label: string, enabled: boolean, action: () => void, secondary = false) => {
-			const button = card.buttons.add(new Button(card.buttonsContainer, { secondary, title: label }));
+			const button = card.buttons.add(new Button(card.buttonsContainer, { ...defaultButtonStyles, secondary, title: label, ariaLabel: label }));
 			button.label = label;
 			button.enabled = enabled;
 			card.buttons.add(button.onDidClick(() => action()));

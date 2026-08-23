@@ -13,8 +13,10 @@ architecture, and coding guidelines, see the [Copilot Instructions](.github/copi
   in `LICENSE.txt`; `licenseName=MIT`. Do not remove upstream attribution.
 
 ## Build (Linux x64 production, minified)
-- Node: `/home/openhands/node24/bin` (Node 24). Use it for `gulp`/`npm`.
-- Minified production artifact: `gulp vscode-linux-x64-min` (~5.5 min) → `../VSCode-linux-x64/`.
+- Use the Node.js version declared by `.nvmrc` (or an equivalent supported Node version in CI). A version manager such as `nvm`, `fnm`, or Volta is recommended; do not rely on machine-specific absolute paths.
+- Install root dependencies with `npm install`, then install build dependencies with `npm install` from `build/` when the build tooling is not already present.
+- Use the repository scripts (`npm run gulp <task>`, `npm run compile-build`, and `npm run test-node -- --build`) from the repository root.
+- Minified production artifacts are emitted by the platform-specific gulp tasks, for example `npm run gulp vscode-linux-x64-min`.
 - `version`/`commit`/`date` are **build-injected** into `product.json` (source has them absent);
   `quality` is intentionally absent (fork ships no Microsoft auto-update channel).
 - Icon: `resources/linux/code.png` (1024x1024) is the desktop icon, copied to

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ILocalizedString, localize, localize2 } from '../../../../nls.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
@@ -23,7 +24,6 @@ export const VIRTUAL_MACHINES_VIEWLET_ID = 'workbench.view.virtualMachines';
 
 registerSingleton(IVirtualDesktopOpener, VirtualDesktopOpener, InstantiationType.Delayed);
 
-// Register the activity bar container directly below Extensions (which is order: 4).
 export const VIRTUAL_MACHINES_VIEW_CONTAINER = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer(
 	{
 		id: VIRTUAL_MACHINES_VIEWLET_ID,
@@ -47,6 +47,7 @@ Registry.as<IViewsRegistry>(ViewsExtensions.ViewsRegistry).registerViews([{
 	canToggleVisibility: false,
 	canMoveView: false,
 	containerIcon: virtualMachinesViewIcon,
+	accessibilityHelpContent: new MarkdownString(localize('virtualMachines.accessibilityHelp', "Utilisez Tab pour parcourir les actions d’une machine virtuelle. Ouvrez le bureau distant avec Entrée ou Espace, puis utilisez Échap pour quitter l’interaction avec le bureau.")),
 }], VIRTUAL_MACHINES_VIEW_CONTAINER);
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
@@ -92,12 +93,6 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				description: localize('virtualMachines.networkMode', "Controls the network isolation of virtual machines."),
 				scope: ConfigurationScope.MACHINE,
 			},
-			[VirtualMachinesConfig.AgentControl]: {
-				type: 'boolean',
-				default: false,
-				description: localize('virtualMachines.agentControl', "Allow the GitCortex AI agent to control virtual machines. Requires explicit opt-in."),
-				scope: ConfigurationScope.MACHINE,
-			},
 			[VirtualMachinesConfig.DeveloperCpus]: {
 				type: 'number', default: 2, minimum: 1, maximum: 16,
 				description: localize('virtualMachines.developerCpus', "Number of virtual CPUs for the Ubuntu Developer machine."),
@@ -141,8 +136,6 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 		}
 	});
 
-//#region Commands
-
 function registerVmCommand(id: string, title: ILocalizedString, vmId: WellKnownVirtualMachine, run: (service: IVirtualMachinesService, vmId: string) => Promise<void>): void {
 	registerAction2(class extends Action2 {
 		constructor() {
@@ -160,5 +153,3 @@ registerVmCommand('virtualMachines.restartUbuntuDeveloper', localize2('virtualMa
 registerVmCommand('virtualMachines.startUbuntuSandbox', localize2('virtualMachines.startUbuntuSandbox', 'Démarrer Ubuntu Sandbox'), WellKnownVirtualMachine.UbuntuSandbox, (s, id) => s.start(id));
 registerVmCommand('virtualMachines.stopUbuntuSandbox', localize2('virtualMachines.stopUbuntuSandbox', 'Arrêter Ubuntu Sandbox'), WellKnownVirtualMachine.UbuntuSandbox, (s, id) => s.stop(id));
 registerVmCommand('virtualMachines.restartUbuntuSandbox', localize2('virtualMachines.restartUbuntuSandbox', 'Redémarrer Ubuntu Sandbox'), WellKnownVirtualMachine.UbuntuSandbox, (s, id) => s.restart(id));
-
-//#endregion

@@ -256,7 +256,11 @@ const commonResourcePatterns = [
 
 // Resources for desktop target
 const desktopResourcePatterns = [
-	...commonResourcePatterns,
+		...commonResourcePatterns,
+
+		// GitCortex virtual desktop: dynamically imported noVNC runtime.
+		'vs/workbench/contrib/virtualMachines/browser/media/novnc/**/*.js',
+		'vs/workbench/contrib/virtualMachines/browser/media/novnc/LICENSE.txt',
 
 	// HTML
 	'vs/code/electron-browser/workbench/workbench.html',

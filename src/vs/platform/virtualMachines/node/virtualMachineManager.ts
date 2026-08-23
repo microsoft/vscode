@@ -9,7 +9,6 @@ import * as os from 'os';
 import * as path from '../../../base/common/path.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
-import { isPortFree } from '../../../base/node/ports.js';
 import {
 	IVirtualMachineDisplay,
 	IVirtualMachineEnvironmentCheck,
@@ -20,14 +19,10 @@ import {
 	VirtualMachineState,
 	sanitizeResources,
 } from '../common/virtualMachines.js';
-import { buildQemuArgs, qemuImgCreateArgs, resolveAcceleration, VNC_BASE_PORT } from './qemuLauncher.js';
+import { buildQemuArgs, qemuImgCreateArgs, resolveAcceleration } from './qemuLauncher.js';
 import { qmpPowerDown } from './qemuQmpClient.js';
 import { VncWebSocketProxy } from './vncWebSocketProxy.js';
 
-/**
- * Host capabilities the manager relies on. The default implementation uses
- * Node.js APIs; tests can substitute their own implementation.
- */
 export interface IVirtualMachineHost {
 	findExecutable(name: string): Promise<string | undefined>;
 	pathExists(path: string): Promise<boolean>;
@@ -35,8 +30,8 @@ export interface IVirtualMachineHost {
 	freeMemoryMB(): number;
 	totalMemoryMB(): number;
 	cpuCount(): number;
-	isPortFree(port: number): Promise<boolean>;
-	mkdir(path: string): Promise<void>;
+	mkdir(path: string, mode?: number): Promise<void>;
+	chmod(path: string, mode: number): Promise<void>;
 	removeFile(path: string): Promise<void>;
 	createDisk(qemuImgBinary: string, diskPath: string, sizeGB: number): Promise<void>;
 	spawnQemu(qemuBinary: string, args: string[], onStderr: (data: string) => void): IVirtualMachineProcessHandle;
@@ -98,12 +93,12 @@ export class NodeVirtualMachineHost implements IVirtualMachineHost {
 		return os.cpus().length;
 	}
 
-	isPortFree(port: number): Promise<boolean> {
-		return isPortFree(port, 250);
+	mkdir(p: string, mode = 0o700): Promise<void> {
+		return fs.promises.mkdir(p, { recursive: true, mode }).then(() => undefined);
 	}
 
-	mkdir(p: string): Promise<void> {
-		return fs.promises.mkdir(p, { recursive: true }).then(() => undefined);
+	chmod(p: string, mode: number): Promise<void> {
+		return fs.promises.chmod(p, mode);
 	}
 
 	async removeFile(p: string): Promise<void> {
@@ -118,16 +113,28 @@ export class NodeVirtualMachineHost implements IVirtualMachineHost {
 
 	createDisk(qemuImgBinary: string, diskPath: string, sizeGB: number): Promise<void> {
 		return new Promise((resolve, reject) => {
-			const child = spawn(qemuImgBinary, qemuImgCreateArgs(diskPath, sizeGB));
+			let settled = false;
+			const child = spawn(qemuImgBinary, qemuImgCreateArgs(diskPath, sizeGB), { stdio: ['ignore', 'ignore', 'pipe'] });
 			let stderr = '';
-			child.stderr.on('data', d => stderr += d.toString());
-			child.on('error', reject);
-			child.on('exit', code => code === 0 ? resolve() : reject(new Error(`qemu-img exited with code ${code}: ${stderr.slice(-512)}`)));
+			const fail = (error: Error) => {
+				if (!settled) {
+					settled = true;
+					reject(error);
+				}
+			};
+			child.stderr?.on('data', d => stderr += d.toString());
+			child.on('error', error => fail(error));
+			child.on('exit', code => {
+				if (settled) {
+					return;
+				}
+				settled = true;
+				code === 0 ? resolve() : reject(new Error(`qemu-img exited with code ${code}: ${stderr.slice(-512)}`));
+			});
 		});
 	}
 
 	spawnQemu(qemuBinary: string, args: string[], onStderr: (data: string) => void): IVirtualMachineProcessHandle {
-		// QEMU runs as the current, unprivileged user. Never elevate here.
 		const child: ChildProcess = spawn(qemuBinary, args, { stdio: ['ignore', 'ignore', 'pipe'] });
 		child.stderr?.on('data', d => onStderr(d.toString()));
 		const onExitEmitter = new Emitter<number | null>();
@@ -159,12 +166,16 @@ interface IManagedVirtualMachine {
 	process?: IVirtualMachineProcessHandle;
 	processExitListener?: IDisposable;
 	proxy?: VncWebSocketProxy;
-	qmpSocketPath: string;
 	diskPath: string;
+	vncSocketPath: string;
+	qmpSocketPath: string;
 	stderrTail: string;
+	stopRequested: boolean;
 }
 
 const STDERR_TAIL_LIMIT = 2048;
+const VM_SOCKET_DIR_MODE = 0o700;
+const VM_SOCKET_MODE = 0o600;
 const VNC_START_TIMEOUT_MS = 30_000;
 
 export class VirtualMachineManager extends Disposable implements IVirtualMachinesDaemonService {
@@ -173,8 +184,9 @@ export class VirtualMachineManager extends Disposable implements IVirtualMachine
 
 	private readonly _onDidChangeVirtualMachines = this._register(new Emitter<readonly IVirtualMachineInfo[]>());
 	readonly onDidChangeVirtualMachines = this._onDidChangeVirtualMachines.event;
-
 	private readonly vms = new Map<string, IManagedVirtualMachine>();
+	private readonly startOperations = new Map<string, Promise<void>>();
+	private readonly stopOperations = new Map<string, Promise<void>>();
 
 	constructor(
 		private settings: IVirtualMachinesSettings,
@@ -184,6 +196,7 @@ export class VirtualMachineManager extends Disposable implements IVirtualMachine
 	) {
 		super();
 		for (const definition of VIRTUAL_MACHINE_DEFINITIONS) {
+			const root = this.dataRoot;
 			this.vms.set(definition.id, {
 				info: {
 					id: definition.id,
@@ -192,9 +205,11 @@ export class VirtualMachineManager extends Disposable implements IVirtualMachine
 					state: VirtualMachineState.Stopped,
 					resources: this.resourcesFor(definition.id),
 				},
-				qmpSocketPath: path.join(this.dataRoot, `${definition.id}.qmp`),
-				diskPath: path.join(this.dataRoot, `${definition.id}.qcow2`),
+				diskPath: this.diskPath(root, definition.id),
+				vncSocketPath: this.vncSocketPath(root, definition.id),
+				qmpSocketPath: this.qmpSocketPath(root, definition.id),
 				stderrTail: '',
+				stopRequested: false,
 			});
 		}
 		this._register(toDisposable(() => {
@@ -202,12 +217,25 @@ export class VirtualMachineManager extends Disposable implements IVirtualMachine
 				vm.processExitListener?.dispose();
 				vm.proxy?.dispose();
 				vm.process?.kill('SIGKILL');
+				void this.cleanupSockets(vm);
 			}
 		}));
 	}
 
 	private get dataRoot(): string {
 		return this.settings.dataRoot || this.defaultDataRoot;
+	}
+
+	private diskPath(root: string, id: string): string {
+		return path.join(root, `${id}.qcow2`);
+	}
+
+	private vncSocketPath(root: string, id: string): string {
+		return path.join(root, `${id}.vnc`);
+	}
+
+	private qmpSocketPath(root: string, id: string): string {
+		return path.join(root, `${id}.qmp`);
 	}
 
 	private resourcesFor(id: string) {
@@ -218,8 +246,18 @@ export class VirtualMachineManager extends Disposable implements IVirtualMachine
 		this.settings = settings;
 		for (const [id, vm] of this.vms) {
 			vm.info = { ...vm.info, resources: this.resourcesFor(id) };
+			if (!this.isRuntimeActive(vm)) {
+				this.refreshPaths(vm, this.dataRoot, id);
+			}
 		}
 		this._onDidChangeVirtualMachines.fire(this.getSnapshot());
+	}
+
+	async shutdown(): Promise<void> {
+		const operations = [...this.vms.keys()].map(id => this.stop(id).catch(error => {
+			this.log(`[virtualMachines] shutdown failed for ${id}: ${error instanceof Error ? error.message : String(error)}`);
+		}));
+		await Promise.all(operations);
 	}
 
 	async getVirtualMachines(): Promise<readonly IVirtualMachineInfo[]> {
@@ -233,7 +271,7 @@ export class VirtualMachineManager extends Disposable implements IVirtualMachine
 	async checkEnvironment(): Promise<IVirtualMachineEnvironmentCheck> {
 		const problems: string[] = [];
 		if (process.platform === 'win32') {
-			problems.push('Virtual machines are currently supported on Linux hosts only.');
+			problems.push('Virtual machines require Unix domain sockets and are currently supported on Linux hosts only.');
 		}
 		const qemuPath = await this.resolveQemuBinary();
 		if (!qemuPath) {
@@ -254,9 +292,7 @@ export class VirtualMachineManager extends Disposable implements IVirtualMachine
 	}
 
 	private resolveQemuImgBinary(qemuPath: string): string {
-		// qemu-img normally lives next to qemu-system-*.
-		const sibling = path.join(path.dirname(qemuPath), 'qemu-img');
-		return sibling;
+		return path.join(path.dirname(qemuPath), process.platform === 'win32' ? 'qemu-img.exe' : 'qemu-img');
 	}
 
 	private setState(id: string, state: VirtualMachineState, error?: string): void {
@@ -278,22 +314,47 @@ export class VirtualMachineManager extends Disposable implements IVirtualMachine
 
 	async start(id: string): Promise<void> {
 		const vm = this.getVm(id);
-		if (vm.info.state === VirtualMachineState.Running || vm.info.state === VirtualMachineState.Starting) {
+		if (vm.info.state === VirtualMachineState.Running) {
 			return;
 		}
+		if (vm.info.state === VirtualMachineState.Stopping) {
+			await this.stopOperations.get(id);
+			return this.start(id);
+		}
+		const existing = this.startOperations.get(id);
+		if (existing) {
+			return existing;
+		}
+		vm.stopRequested = false;
+		const operation = this.startInternal(id, vm);
+		this.startOperations.set(id, operation);
+		try {
+			await operation;
+		} finally {
+			if (this.startOperations.get(id) === operation) {
+				this.startOperations.delete(id);
+			}
+		}
+	}
+
+	private async startInternal(id: string, vm: IManagedVirtualMachine): Promise<void> {
+		if (this.isRuntimeActive(vm)) {
+			return;
+		}
+		this.refreshPaths(vm, this.dataRoot, id);
 		this.setState(id, VirtualMachineState.Starting);
 		try {
 			await this.doStart(id, vm);
+			if (vm.stopRequested) {
+				// startOperations still contains this promise, so calling stop()
+				// here would wait on itself. Stop the freshly started runtime
+				// directly instead.
+				await this.stopInternal(id, vm);
+			}
 		} catch (err) {
 			const message = err instanceof Error ? err.message : String(err);
 			this.log(`[virtualMachines] failed to start ${id}: ${message}`);
-			// Never leak a half-started QEMU process.
-			vm.processExitListener?.dispose();
-			vm.processExitListener = undefined;
-			vm.proxy?.dispose();
-			vm.proxy = undefined;
-			vm.process?.kill('SIGKILL');
-			vm.process = undefined;
+			await this.cleanupRuntime(vm, true);
 			this.setState(id, VirtualMachineState.Error, message);
 			throw err;
 		}
@@ -305,7 +366,6 @@ export class VirtualMachineManager extends Disposable implements IVirtualMachine
 			throw new Error(check.problems.join('\n'));
 		}
 		const qemuPath = check.qemuPath!;
-
 		const resources = this.resourcesFor(id);
 		if (this.host.cpuCount() < resources.cpus) {
 			throw new Error(`Not enough CPUs: the VM requests ${resources.cpus} vCPU but the host only has ${this.host.cpuCount()}.`);
@@ -314,7 +374,11 @@ export class VirtualMachineManager extends Disposable implements IVirtualMachine
 			throw new Error(`Not enough free memory: the VM requests ${resources.memoryMB} MB but only ${this.host.freeMemoryMB()} MB are free.`);
 		}
 
-		await this.host.mkdir(this.dataRoot);
+		await this.host.mkdir(this.dataRoot, VM_SOCKET_DIR_MODE);
+		await this.host.chmod(this.dataRoot, VM_SOCKET_DIR_MODE);
+		// A stopped VM may have left endpoints behind after a crash. They are
+		// private per-VM paths and are safe to remove before a new QEMU instance.
+		await this.cleanupSockets(vm);
 
 		if (!await this.host.pathExists(vm.diskPath)) {
 			try {
@@ -330,7 +394,6 @@ export class VirtualMachineManager extends Disposable implements IVirtualMachine
 			throw new Error(`The configured installer ISO does not exist: ${installIsoPath}`);
 		}
 
-		const vncDisplay = await this.allocateVncDisplay();
 		const args = buildQemuArgs({
 			vmId: id,
 			qemuBinary: qemuPath,
@@ -338,7 +401,7 @@ export class VirtualMachineManager extends Disposable implements IVirtualMachine
 			resources,
 			diskPath: vm.diskPath,
 			installIsoPath,
-			vncDisplay,
+			vncSocketPath: vm.vncSocketPath,
 			qmpSocketPath: vm.qmpSocketPath,
 			networkMode: this.settings.networkMode,
 		});
@@ -348,17 +411,14 @@ export class VirtualMachineManager extends Disposable implements IVirtualMachine
 			vm.stderrTail = (vm.stderrTail + data).slice(-STDERR_TAIL_LIMIT);
 		});
 		vm.process = qemuProcess;
-
 		vm.processExitListener?.dispose();
 		const processExitListener = qemuProcess.onExit(code => {
 			processExitListener.dispose();
 			if (vm.processExitListener === processExitListener) {
 				vm.processExitListener = undefined;
 			}
-			vm.proxy?.dispose();
-			vm.proxy = undefined;
-			vm.process = undefined;
-			if (vm.info.state === VirtualMachineState.Stopping) {
+			void this.cleanupRuntime(vm, false);
+			if (vm.info.state === VirtualMachineState.Stopping || vm.stopRequested) {
 				this.setState(id, VirtualMachineState.Stopped);
 			} else if (vm.info.state !== VirtualMachineState.Stopped) {
 				const tail = vm.stderrTail.trim();
@@ -367,42 +427,90 @@ export class VirtualMachineManager extends Disposable implements IVirtualMachine
 		});
 		vm.processExitListener = processExitListener;
 
-		const vncPort = VNC_BASE_PORT + vncDisplay;
 		const deadline = Date.now() + VNC_START_TIMEOUT_MS;
-		while (await this.host.isPortFree(vncPort)) {
+		while (!await this.host.pathExists(vm.vncSocketPath)) {
 			if (!vm.process) {
 				throw new Error(`QEMU failed to start.${vm.stderrTail.trim() ? `\n${vm.stderrTail.trim()}` : ''}`);
 			}
 			if (Date.now() > deadline) {
 				qemuProcess.kill('SIGKILL');
-				throw new Error('Timed out waiting for the QEMU VNC server.');
+				throw new Error('Timed out waiting for the QEMU VNC Unix socket.');
 			}
 			await new Promise(resolve => setTimeout(resolve, 150));
 		}
 
-		vm.proxy = await VncWebSocketProxy.create(vncPort, err => this.log(`[virtualMachines] VNC proxy error for ${id}: ${err.message}`));
+		try {
+			vm.proxy = await VncWebSocketProxy.create(vm.vncSocketPath, err => this.log(`[virtualMachines] VNC proxy error for ${id}: ${err.message}`));
+			await this.host.chmod(vm.vncSocketPath, VM_SOCKET_MODE);
+		} catch (error) {
+			await this.cleanupRuntime(vm, true);
+			throw error;
+		}
 		this.setState(id, VirtualMachineState.Running);
-		this.log(`[virtualMachines] ${id} is running (vnc :${vncDisplay}, proxy :${vm.proxy.port})`);
+		this.log(`[virtualMachines] ${id} is running through a private VNC socket (proxy :${vm.proxy.port})`);
 	}
 
-	private async allocateVncDisplay(): Promise<number> {
-		for (let display = 0; display < 16; display++) {
-			if (await this.host.isPortFree(VNC_BASE_PORT + display)) {
-				return display;
-			}
+	private refreshPaths(vm: IManagedVirtualMachine, root: string, id: string): void {
+		vm.diskPath = this.diskPath(root, id);
+		vm.vncSocketPath = this.vncSocketPath(root, id);
+		vm.qmpSocketPath = this.qmpSocketPath(root, id);
+	}
+
+	private isRuntimeActive(vm: IManagedVirtualMachine): boolean {
+		return vm.info.state === VirtualMachineState.Starting || vm.info.state === VirtualMachineState.Running || vm.info.state === VirtualMachineState.Stopping || !!vm.process;
+	}
+
+	private async cleanupSockets(vm: IManagedVirtualMachine): Promise<void> {
+		await Promise.all([this.host.removeFile(vm.vncSocketPath), this.host.removeFile(vm.qmpSocketPath)]);
+	}
+
+	private async cleanupRuntime(vm: IManagedVirtualMachine, killProcess: boolean): Promise<void> {
+		vm.processExitListener?.dispose();
+		vm.processExitListener = undefined;
+		vm.proxy?.dispose();
+		vm.proxy = undefined;
+		if (killProcess) {
+			vm.process?.kill('SIGKILL');
 		}
-		throw new Error('No free VNC display port available (5900-5915).');
+		vm.process = undefined;
+		await this.cleanupSockets(vm);
 	}
 
 	async stop(id: string): Promise<void> {
 		const vm = this.getVm(id);
+		const existing = this.stopOperations.get(id);
+		if (existing) {
+			return existing;
+		}
 		if (vm.info.state === VirtualMachineState.Stopped) {
 			return;
 		}
+		if (vm.info.state === VirtualMachineState.Starting) {
+			vm.stopRequested = true;
+			const starting = this.startOperations.get(id);
+			if (starting) {
+				await starting.catch(() => undefined);
+			}
+			const stateAfterStart = (vm.info as IVirtualMachineInfo).state;
+			if (stateAfterStart !== VirtualMachineState.Running) {
+				return;
+			}
+		}
+		const operation = this.stopInternal(id, vm);
+		this.stopOperations.set(id, operation);
+		try {
+			await operation;
+		} finally {
+			if (this.stopOperations.get(id) === operation) {
+				this.stopOperations.delete(id);
+			}
+		}
+	}
+
+	private async stopInternal(id: string, vm: IManagedVirtualMachine): Promise<void> {
 		this.setState(id, VirtualMachineState.Stopping);
 		const process = vm.process;
 		if (process) {
-			// Ask the guest to shut down cleanly first (ACPI power button).
 			const graceful = await this.host.powerDown(vm.qmpSocketPath, 10_000);
 			if (graceful) {
 				const exited = await this.waitForExit(vm, 15_000);
@@ -410,20 +518,18 @@ export class VirtualMachineManager extends Disposable implements IVirtualMachine
 					process.kill('SIGTERM');
 					if (!await this.waitForExit(vm, 5_000)) {
 						process.kill('SIGKILL');
+						await this.waitForExit(vm, 5_000);
 					}
 				}
 			} else {
 				process.kill('SIGTERM');
 				if (!await this.waitForExit(vm, 5_000)) {
 					process.kill('SIGKILL');
+					await this.waitForExit(vm, 5_000);
 				}
 			}
 		}
-		vm.processExitListener?.dispose();
-		vm.processExitListener = undefined;
-		vm.proxy?.dispose();
-		vm.proxy = undefined;
-		vm.process = undefined;
+		await this.cleanupRuntime(vm, false);
 		if (vm.info.state !== VirtualMachineState.Error) {
 			this.setState(id, VirtualMachineState.Stopped);
 		}
@@ -435,15 +541,18 @@ export class VirtualMachineManager extends Disposable implements IVirtualMachine
 			return Promise.resolve(true);
 		}
 		return new Promise<boolean>(resolve => {
-			const timer = setTimeout(() => {
-				listener.dispose();
-				resolve(false);
-			}, timeoutMs);
-			const listener = process.onExit(() => {
+			let settled = false;
+			const finish = (value: boolean) => {
+				if (settled) {
+					return;
+				}
+				settled = true;
 				clearTimeout(timer);
 				listener.dispose();
-				resolve(true);
-			});
+				resolve(value);
+			};
+			const timer = setTimeout(() => finish(false), timeoutMs);
+			const listener = process.onExit(() => finish(true));
 		});
 	}
 
@@ -458,6 +567,7 @@ export class VirtualMachineManager extends Disposable implements IVirtualMachine
 			throw new Error('Stop the virtual machine before deleting it.');
 		}
 		await this.host.removeFile(vm.diskPath);
+		await this.cleanupSockets(vm);
 		this.setState(id, VirtualMachineState.Stopped);
 	}
 

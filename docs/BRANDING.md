@@ -1,102 +1,59 @@
-# GitCortex Studio Branding
+# GitCortex Studio — branding vérifié
 
-This document records the **surgical** branding changes applied to transform
-the visible product identity from **Code - OSS** (upstream microsoft/vscode) to
-**GitCortex Studio**, while preserving all technical identifiers, API
-compatibility, and upstream legal attributions.
+Ce document décrit l’identité produit effectivement configurée dans `product.json` et consommée par les pipelines de build. Les identifiants techniques upstream nécessaires à la compatibilité restent inchangés sauf lorsqu’un identifiant d’installation doit être propre à GitCortex.
 
-> **Absolute rule**: No global `sed` rewrites. Only user-visible identity fields
-> are changed. Technical VS Code identifiers needed for the extension API,
-> internal services, protocols, tests, dependencies, and upstream references are
-> preserved.
+## Identité produit
 
-## 1. Product identity (GitCortex Studio)
+| Champ `product.json` | Valeur effective |
+| --- | --- |
+| `nameShort` | `GitCortex` |
+| `nameLong` | `GitCortex Studio` |
+| `applicationName` | `gitcortex` |
+| `dataFolderName` | `GitCortexStudio` |
+| `sharedDataFolderName` | `GitCortexStudio-shared` |
+| `win32MutexName` | `gitcortexstudio` |
+| `win32DirName` | `GitCortex Studio` |
+| `win32NameVersion` | `GitCortex Studio` |
+| `win32RegValueName` | `GitCortexStudio` |
+| `win32AppUserModelId` | `GitCortex.Studio` |
+| `darwinBundleIdentifier` | `studio.gitcortex` |
+| `linuxIconName` | `gitcortex` |
+| `urlProtocol` | `gitcortex` |
+| `serverApplicationName` | `gitcortex-server` |
+| `serverDataFolderName` | `.gitcortex-server` |
+| `tunnelApplicationName` | `gitcortex-tunnel` |
+| `win32ShellNameShort` | `G&itCortex` |
+| `win32TunnelServiceMutex` | `gitcortex-tunnelservice` |
+| `win32TunnelMutex` | `gitcortex-tunnel` |
 
-| Field | Value |
-|---|---|
-| Long name | GitCortex Studio |
-| Short name | GitCortex |
-| Application ID | `studio.gitcortex` |
-| URL protocol | `gitcortex://` (`urlProtocol: gitcortex`) |
-| Data directory | `GitCortexStudio` |
-| CLI command (`applicationName`) | `gitcortex` |
+## Identifiants d’installation Windows
 
-## 2. Visible branding changes applied (product.json)
+Les AppId utilisés par le build sont propres à GitCortex, stables et distincts des valeurs `microsoft/vscode`. `build/gulpfile.vscode.win32.ts` sélectionne les valeurs système ou utilisateur selon la cible, puis les injecte dans Inno Setup comme `AppId`. La valeur système correspondante est également fournie comme `IncompatibleTargetAppId` afin d’empêcher une confusion entre les cibles système et utilisateur.
 
-Only user-visible / product-identity fields were modified:
+| Architecture | Installateur système | Installateur utilisateur |
+| --- | --- | --- |
+| x64 | `{{C6C81077-3514-4B45-A310-3F77E2A4A7A4}` | `{{8476B1DB-0E8E-4690-874E-B5E37E4DBE09}` |
+| arm64 | `{{E9397900-D454-49A8-86F6-C04FACB6D9F5}` | `{{E6B0B875-5427-45BC-B7B0-D9856142B195}` |
 
-| `product.json` field | Before | After |
-|---|---|---|
-| `nameShort` | `Code - OSS` | `GitCortex` |
-| `nameLong` | `Code - OSS` | `GitCortex Studio` |
-| `applicationName` | `code-oss` | `gitcortex` |
-| `dataFolderName` | `.vscode-oss` | `GitCortexStudio` |
-| `sharedDataFolderName` | `.vscode-oss-shared` | `GitCortexStudio-shared` |
-| `win32MutexName` | `vscodeoss` | `gitcortexstudio` |
-| `serverApplicationName` | `code-server-oss` | `gitcortex-server` |
-| `serverDataFolderName` | `.vscode-server-oss` | `.gitcortex-server` |
-| `tunnelApplicationName` | `code-tunnel-oss` | `gitcortex-tunnel` |
-| `win32DirName` | `Microsoft Code OSS` | `GitCortex Studio` |
-| `win32NameVersion` | `Microsoft Code OSS` | `GitCortex Studio` |
-| `win32RegValueName` | `CodeOSS` | `GitCortexStudio` |
-| `win32AppUserModelId` | `Microsoft.CodeOSS` | `GitCortex.Studio` |
-| `win32ShellNameShort` | `C&ode - OSS` | `G&itCortex` |
-| `win32TunnelServiceMutex` | `vscodeoss-tunnelservice` | `gitcortex-tunnelservice` |
-| `win32TunnelMutex` | `vscodeoss-tunnel` | `gitcortex-tunnel` |
-| `darwinBundleIdentifier` | `com.visualstudio.code.oss` | `studio.gitcortex` |
-| `linuxIconName` | `code-oss` | `gitcortex` |
-| `urlProtocol` | `code-oss` | `gitcortex` |
+Ces quatre valeurs sont utilisées pour x64, arm64, les installateurs système et utilisateur, les mises à niveau et la désinstallation. Elles permettent à GitCortex de coexister avec VS Code et Code-OSS sans réutiliser leur identité Inno Setup.
 
-The web/dev fallback defaults in `src/vs/platform/product/common/product.ts`
-were updated consistently (`GitCortex` / `GitCortex Studio Dev` /
-`applicationName: gitcortex` / `dataFolderName: GitCortexStudio` /
-`urlProtocol: gitcortex`).
+## URLs et licences
 
-## 3. Intentionally preserved (technical / compatibility / legal)
+| Champ | Valeur effective |
+| --- | --- |
+| `licenseName` | `MIT` |
+| `licenseUrl` | `https://github.com/Frankenstein-dev197/vscode/blob/main/LICENSE.txt` |
+| `serverLicenseUrl` | `https://github.com/Frankenstein-dev197/vscode/blob/main/LICENSE.txt` |
+| `licenseFileName` | `LICENSE.txt` |
+| `reportIssueUrl` | `https://github.com/Frankenstein-dev197/vscode/issues/new` |
+| `repository` / `homepage` / `bugs` | Non définis dans `product.json` |
+| `download URLs` | Non définies dans `product.json` |
+| `update URLs` | Aucun canal Microsoft d’auto-mise à jour n’est configuré dans `product.json` |
 
-These identifiers are **kept as upstream** to avoid breaking the extension API,
-internal services, installers, tests, and legal obligations:
+Les extensions intégrées et les URLs de services conservées dans `product.json` sont des éléments fonctionnels ou de provenance, et ne doivent pas être réécrites en URLs GitCortex sans remplacement opérationnel correspondant. Les licences MIT, les notices Microsoft et les notices des composants tiers restent distribuées avec le produit.
 
-- `win32x64AppId` / `win32arm64AppId` / `win32x64UserAppId` /
-  `win32arm64UserAppId` — installer GUIDs. **Not fabricated.** A genuine
-  rebrand would mint new GUIDs; this is deferred to the packaging phase to avoid
-  inventing fake identifiers. Leaving them keeps the installer identity stable.
-- `darwinProfileUUID` / `darwinProfilePayloadUUID` — macOS configuration profile
-  payload identity (referenced by policy test fixtures).
-- `licenseName` / `licenseUrl` / `serverLicenseUrl` / `licenseFileName` — MIT
-  license attribution **must remain** pointing to upstream (see Licenses below).
-- `reportIssueUrl` — points to upstream microsoft/vscode (will be repointed to the
-  GitCortex issue tracker once that exists; deferred).
-- `builtInExtensions`, `defaultChatAgent`, `trustedExtensionAuthAccess`,
-  `onboardingKeymaps`, `onboardingThemes`, `sessionsWindowAllowedExtensions`,
-  `voiceWsUrl`, `agentsTelemetryAppName`, `webviewContentExternalBaseUrlTemplate`
-  — functional/technical, not user-facing branding.
+## Pipeline de consommation
 
-## 4. Licenses (unchanged, intentionally)
+Le pipeline Windows lit les quatre champs `win32*x*AppId` depuis `product.json`; ils ne sont donc pas de simples valeurs documentaires. Les pipelines Linux et macOS lisent respectivement `applicationName`, `nameShort`, `nameLong`, `linuxIconName`, `urlProtocol` et `darwinBundleIdentifier` pour matérialiser les artefacts de la plateforme.
 
-The MIT license and ThirdPartyNotices are **not** modified. Upstream copyright
-("Copyright (c) Microsoft Corporation") and third-party attributions remain.
-GitCortex Studio is a derivative of Code-OSS under the MIT license; this
-obligation is preserved in `LICENSE.txt` and `ThirdPartyNotices.txt`.
-
-## 5. Visual identity (assets) — planned
-
-```
-resources/
-├── logos/
-├── icons/
-└── themes/
-```
-
-Logo / app icon / platform icons / splash assets will be added in a later
-sub-phase. **No fake assets are created.** Any asset referenced by the build
-will be a real, valid file. Until then, the upstream visual assets remain in
-use to keep the build intact.
-
-## 6. Validation performed after branding
-
-- `product.json`: valid JSON (verified).
-- `gulp compile`: **0 errors** (verified after branding changes).
-- Build reads `nameShort`/`nameLong`/`applicationName`/`dataFolderName`/
-  `urlProtocol`/`darwinBundleIdentifier`/`linuxIconName` dynamically from
-  `product.json`, so the rebrand propagates through the real build pipeline.
+Toute modification de branding doit modifier d’abord `product.json`, puis mettre ce document à jour et vérifier le pipeline qui consomme le champ concerné.

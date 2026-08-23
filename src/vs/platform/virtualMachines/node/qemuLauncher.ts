@@ -5,8 +5,6 @@
 
 import { IVirtualMachineResources } from '../common/virtualMachines.js';
 
-export const VNC_BASE_PORT = 5900;
-
 export interface IQemuLaunchSpec {
 	readonly vmId: string;
 	readonly qemuBinary: string;
@@ -14,7 +12,8 @@ export interface IQemuLaunchSpec {
 	readonly resources: IVirtualMachineResources;
 	readonly diskPath: string;
 	readonly installIsoPath?: string;
-	readonly vncDisplay: number;
+	/** Private filesystem endpoint consumed only by the in-process WebSocket proxy. */
+	readonly vncSocketPath: string;
 	readonly qmpSocketPath: string;
 	readonly networkMode: 'user' | 'restricted' | 'none';
 }
@@ -23,10 +22,11 @@ export interface IQemuLaunchSpec {
  * Build the QEMU command line for a GitCortex virtual machine.
  *
  * The VM is deliberately locked down:
- * - loopback-only VNC display (the workbench proxies it over WebSocket);
- * - no host display, no monitor/serial/parallel exposure;
- * - user-mode networking, optionally fully restricted;
- * - QMP control socket on a private unix socket for clean power-down.
+ * - VNC is exposed through a private Unix socket, never an unauthenticated TCP
+ *   listener;
+ * - no host display, monitor, serial or parallel exposure;
+ * - networking is selected explicitly;
+ * - QMP control uses a private Unix socket for clean power-down.
  */
 export function buildQemuArgs(spec: IQemuLaunchSpec): string[] {
 	const args: string[] = [
@@ -37,11 +37,11 @@ export function buildQemuArgs(spec: IQemuLaunchSpec): string[] {
 		'-smp', String(spec.resources.cpus),
 		'-m', String(spec.resources.memoryMB),
 		'-drive', `file=${spec.diskPath},format=qcow2,if=virtio,discard=unmap`,
-		// Graphical output goes exclusively to the loopback VNC server.
 		'-display', 'none',
 		'-vga', 'virtio',
-		'-vnc', `127.0.0.1:${spec.vncDisplay}`,
-		// QMP control channel on a private unix socket (power down, status).
+		// QEMU's unauthenticated VNC server is safe here because the endpoint is
+		// a protected Unix socket and is never bound to a TCP port.
+		'-vnc', `unix:${spec.vncSocketPath}`,
 		'-qmp', `unix:${spec.qmpSocketPath},server=on,wait=off`,
 		'-monitor', 'none',
 		'-serial', 'none',
@@ -53,7 +53,6 @@ export function buildQemuArgs(spec: IQemuLaunchSpec): string[] {
 			args.push('-nic', 'user,model=virtio-net-pci');
 			break;
 		case 'restricted':
-			// Guest is isolated: no access to host services or other guests.
 			args.push('-nic', 'user,model=virtio-net-pci,restrict=on');
 			break;
 		case 'none':
