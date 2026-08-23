@@ -331,6 +331,11 @@ declare module 'vscode' {
 		 */
 		result?: string;
 
+		/**
+		 * The display name of the model used by the subagent.
+		 */
+		modelName?: string;
+
 		constructor(description?: string, agentName?: string, prompt?: string, result?: string);
 	}
 
@@ -442,6 +447,7 @@ declare module 'vscode' {
 		ChatResponseThinkingProgressPart: ChatResponseThinkingProgressPart;
 		ChatResponseExternalEditPart: ChatResponseExternalEditPart;
 		ChatResponseQuestionCarouselPart: ChatResponseQuestionCarouselPart;
+		ChatResponseAutoModeResolutionPart: ChatResponseAutoModeResolutionPart;
 	}
 
 	export type ExtendedChatResponsePart = ExtendedChatResponseParts[keyof ExtendedChatResponseParts];
@@ -564,6 +570,22 @@ declare module 'vscode' {
 		readonly description: string;
 		readonly author: string;
 		constructor(uriOrCommand: Uri | Command, title: string, description: string, author: string, linkTag: string);
+	}
+
+	/**
+	 * Represents an auto-mode model routing resolution. Displayed as a collapsible
+	 * widget in the chat stream showing which model was selected and why.
+	 */
+	export class ChatResponseAutoModeResolutionPart {
+		/** The model ID that was selected by the router */
+		resolvedModel: string;
+		/** The user-facing display name of the resolved model */
+		resolvedModelName: string;
+		/** The router's classification label */
+		predictedLabel: string;
+		/** Confidence score (0-1) from the router */
+		confidence: number;
+		constructor(resolvedModel: string, resolvedModelName: string, predictedLabel: string, confidence: number);
 	}
 
 	export interface ChatResponseStream {

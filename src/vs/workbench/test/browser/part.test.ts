@@ -7,7 +7,7 @@ import assert from 'assert';
 import { Part } from '../../browser/part.js';
 import { isEmptyObject } from '../../../base/common/types.js';
 import { TestThemeService } from '../../../platform/theme/test/common/testThemeService.js';
-import { append, $, hide } from '../../../base/browser/dom.js';
+import { append, $, Dimension, hide } from '../../../base/browser/dom.js';
 import { TestLayoutService } from './workbenchTestServices.js';
 import { StorageScope, StorageTarget } from '../../../platform/storage/common/storage.js';
 import { TestStorageService } from '../common/workbenchTestServices.js';
@@ -62,8 +62,8 @@ suite('Workbench parts', () => {
 
 	class MyPart2 extends SimplePart {
 
-		constructor() {
-			super('myPart2', { hasTitle: true }, new TestThemeService(), disposables.add(new TestStorageService()), new TestLayoutService());
+		constructor(layoutService = new TestLayoutService()) {
+			super('myPart2', { hasTitle: true }, new TestThemeService(), disposables.add(new TestStorageService()), layoutService);
 		}
 
 		protected override createTitleArea(parent: HTMLElement): HTMLElement {
@@ -83,6 +83,23 @@ suite('Workbench parts', () => {
 
 			return contentContainer;
 		}
+
+		testSetHeaderArea(headerContainer: HTMLElement): void {
+			this.setHeaderArea(headerContainer);
+		}
+
+		testSetFooterArea(footerContainer: HTMLElement): void {
+			this.setFooterArea(footerContainer);
+		}
+
+		testLayoutContents(width: number, height: number) {
+			return this.layoutContents(width, height);
+		}
+	}
+
+	class ModernUITestLayoutService extends TestLayoutService {
+		modernUI = false;
+		override isFloatingPanelsEnabled(): boolean { return this.modernUI; }
 	}
 
 	class MyPart3 extends SimplePart {
@@ -167,6 +184,33 @@ suite('Workbench parts', () => {
 
 		assert(mainWindow.document.getElementById('myPart.title'));
 		assert(mainWindow.document.getElementById('myPart.content'));
+	});
+
+	test('Part Layout uses compact chrome with Modern UI', () => {
+		const layoutService = new ModernUITestLayoutService();
+		const part = disposables.add(new MyPart2(layoutService));
+		part.create(fixture);
+		part.testSetHeaderArea(document.createElement('div'));
+		part.testSetFooterArea(document.createElement('div'));
+
+		const classicLayout = part.testLayoutContents(100, 200);
+		layoutService.modernUI = true;
+		const modernUILayout = part.testLayoutContents(100, 200);
+
+		assert.deepStrictEqual({ classicLayout, modernUILayout }, {
+			classicLayout: {
+				headerSize: new Dimension(100, 35),
+				titleSize: new Dimension(100, 35),
+				contentSize: new Dimension(100, 95),
+				footerSize: new Dimension(100, 35),
+			},
+			modernUILayout: {
+				headerSize: new Dimension(100, 32),
+				titleSize: new Dimension(100, 32),
+				contentSize: new Dimension(100, 104),
+				footerSize: new Dimension(100, 32),
+			},
+		});
 	});
 
 	test('Part Layout with Content only', function () {

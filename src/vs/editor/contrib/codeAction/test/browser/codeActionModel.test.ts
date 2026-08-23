@@ -18,6 +18,7 @@ import { TextModel } from '../../../../common/model/textModel.js';
 import { createTestCodeEditor } from '../../../../test/browser/testCodeEditor.js';
 import { createTextModel } from '../../../../test/common/testTextModel.js';
 import { CodeActionModel, CodeActionsState } from '../../browser/codeActionModel.js';
+import { CodeActionTriggerSource } from '../../common/types.js';
 
 const testProvider = {
 	provideCodeActions(): languages.CodeActionList {
@@ -159,5 +160,43 @@ suite('CodeActionModel', () => {
 
 			return donePromise;
 		});
+	});
+
+	test('disposes manually triggered code actions when the editor model is cleared', async () => {
+		let disposeCount = 0;
+		store.add(registry.register(languageId, {
+			provideCodeActions(_model, _range, context): languages.CodeActionList | undefined {
+				if (context.trigger !== languages.CodeActionTriggerType.Invoke) {
+					return undefined;
+				}
+				return {
+					actions: [
+						{ title: 'test', command: { id: 'test-command', title: 'test', arguments: [] } }
+					],
+					dispose() {
+						disposeCount++;
+					}
+				};
+			}
+		}));
+
+		const contextKeys = new MockContextKeyService();
+		const codeActionModel = store.add(new CodeActionModel(editor, registry, markerService, contextKeys, undefined));
+		const { promise, resolve } = promiseWithResolvers<CodeActionsState.Triggered>();
+		store.add(codeActionModel.onDidChangeState(state => {
+			if (state.type !== CodeActionsState.Type.Triggered || state.trigger.type !== languages.CodeActionTriggerType.Invoke) {
+				return;
+			}
+			resolve(state);
+		}));
+
+		codeActionModel.trigger({
+			type: languages.CodeActionTriggerType.Invoke,
+			triggerAction: CodeActionTriggerSource.Default,
+		});
+		const state = await promise;
+		await state.actions;
+		editor.setModel(null);
+		assert.strictEqual(disposeCount, 1);
 	});
 });

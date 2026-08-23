@@ -10,7 +10,7 @@ import { AGENT_HOST_LABEL_FORMATTER, toAgentHostUri } from '../../../../../platf
 import { TestEnvironmentService, TestLifecycleService, TestPathService, TestRemoteAgentService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { TestContextService, TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { LabelService } from '../../../../../workbench/services/label/common/labelService.js';
-import { getChangesEditorLabels } from '../../browser/changesEditorLabels.js';
+import { getChangesEditorFileStats, getChangesEditorLabels } from '../../browser/changesEditorLabels.js';
 
 suite('ChangesEditorLabels', () => {
 
@@ -74,4 +74,28 @@ suite('ChangesEditorLabels', () => {
 		});
 	});
 
+	test('file stats resolve from canonical, modified, and original resources', () => {
+		const canonicalResource = URI.file('/workspace/renamed.ts');
+		const originalResource = URI.file('/workspace/original.ts');
+		const modifiedResource = URI.file('/workspace/modified.ts');
+		const changes = [{
+			uri: canonicalResource,
+			originalUri: originalResource,
+			modifiedUri: modifiedResource,
+			insertions: 12,
+			deletions: 3,
+		}];
+
+		assert.deepStrictEqual({
+			canonical: getChangesEditorFileStats(canonicalResource, changes),
+			modified: getChangesEditorFileStats(modifiedResource, changes),
+			original: getChangesEditorFileStats(originalResource, changes),
+			unrelated: getChangesEditorFileStats(URI.file('/workspace/unrelated.ts'), changes),
+		}, {
+			canonical: { insertions: 12, deletions: 3 },
+			modified: { insertions: 12, deletions: 3 },
+			original: { insertions: 12, deletions: 3 },
+			unrelated: undefined,
+		});
+	});
 });

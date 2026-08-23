@@ -1,0 +1,33 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Voice icon glow on the new-session composer toolbar. chat.css only targets the
+chat widget's `.chat-input-container`; the composer uses `.new-chat-input-area`,
+so mirror the accent-tinted glow here. `voice-active` / `voice-listening` and the
+`--voice-accent` custom property are published by the voice glow controller. */
+@keyframes sessionsVoiceIconGlow {
+	0%,
+	100% {
+		box-shadow: 0 0 2px var(--sessions-voice-icon-glow-color);
+	}
+
+	50% {
+		box-shadow: 0 0 5px var(--sessions-voice-icon-glow-color);
+	}
+}
+
+/* Tinted with the same theme-derived accent as the ambient glow. The glow keeps
+the button's resting shape so the control never morphs between states — only its
+color and the pulse change. */
+.new-chat-input-area.voice-active .action-label.codicon-voice-mode-compact {
+	--sessions-voice-icon-glow-color: color-mix(in srgb, var(--voice-accent, var(--vscode-charts-blue, #58a6ff)) 40%, transparent);
+	color: var(--voice-accent, var(--vscode-charts-blue, #58a6ff)) !important;
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.monaco-workbench.monaco-enable-motion .new-chat-input-area.voice-active.voice-listening .action-label.codicon-voice-mode-compact,
+.monaco-workbench.monaco-enable-motion .new-chat-input-area.voice-active.voice-speaking .action-label.codicon-voice-mode-compact {
+	animation: sessionsVoiceIconGlow 1.4s ease-in-out infinite;
+}

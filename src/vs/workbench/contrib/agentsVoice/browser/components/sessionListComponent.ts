@@ -145,10 +145,6 @@ function createSessionRow(session: SessionRowData, props: SessionListProps): HTM
 	actions.setAttribute('data-role', 'actions');
 	actions.style.cssText = 'display:none;gap:4px;align-items:center;';
 
-	const openBtn = hoverIcon('codicon-link-external', localize('agentsVoice.openSessionAction', "Open session"));
-	openBtn.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); props.onOpenSession(session.resource); });
-	actions.append(openBtn);
-
 	if (!session.isIdle) {
 		const stopBtn = hoverIcon('codicon-debug-stop', localize('agentsVoice.stopSessionAction', "Stop session"));
 		stopBtn.addEventListener('mouseenter', () => { stopBtn.style.color = 'var(--vscode-editorError-foreground)'; });

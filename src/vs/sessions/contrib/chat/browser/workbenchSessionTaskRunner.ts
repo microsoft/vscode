@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Schemas } from '../../../../base/common/network.js';
+import { IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { TaskRunSource } from '../../../../workbench/contrib/tasks/common/tasks.js';
 import { ITaskService } from '../../../../workbench/contrib/tasks/common/taskService.js';
@@ -40,20 +41,26 @@ export class WorkbenchSessionTaskRunner implements ISessionTaskRunner {
 		return !!this._workspaceContextService.getWorkspaceFolder(cwd);
 	}
 
-	async runTask(task: ITaskEntry, session: ISession): Promise<void> {
+	async runTask(task: ITaskEntry, session: ISession): Promise<IDisposable | undefined> {
 		const cwd = this._getCwd(session);
 		if (!cwd) {
-			return;
+			return undefined;
 		}
 		const workspaceFolder = this._workspaceContextService.getWorkspaceFolder(cwd);
 		if (!workspaceFolder) {
-			return;
+			return undefined;
 		}
 		const resolved = await this._taskService.getTask(workspaceFolder, task.label);
 		if (!resolved) {
-			return;
+			return undefined;
 		}
 		await this._taskService.run(resolved, undefined, TaskRunSource.User);
+
+		// Hand back a stop handle so auto-dispatched setup/build tasks can be
+		// terminated when the session is marked done. See #321021.
+		return toDisposable(() => {
+			this._taskService.terminate(resolved);
+		});
 	}
 
 	private _getCwd(session: ISession) {

@@ -184,7 +184,7 @@ export class ChatEditingExplanationWidget extends Disposable implements IOverlay
 
 		// Dismiss button
 		this._dismissButton = $('div.chat-explanation-dismiss');
-		this._dismissButton.appendChild(renderIcon(Codicon.close));
+		this._dismissButton.appendChild(renderIcon(Codicon.closeSmall));
 		this._dismissButton.title = nls.localize('dismiss', "Dismiss");
 		this._headerNode.appendChild(this._dismissButton);
 

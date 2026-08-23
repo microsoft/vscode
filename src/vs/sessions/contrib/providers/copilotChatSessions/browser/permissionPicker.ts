@@ -14,11 +14,13 @@ import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem, IActionListOptions } from '../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { AgentSandboxEnabledSettingValue, AgentSandboxEnabledValue, isAgentSandboxEnabledValue } from '../../../../../platform/sandbox/common/settings.js';
 import { maybeConfirmElevatedPermissionLevel } from '../../../../../workbench/contrib/chat/common/chatPermissionWarnings.js';
 import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ChatConfiguration, ChatPermissionLevel, isChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
@@ -52,6 +54,9 @@ export interface IPermissionPickerDelegate {
 	 */
 	readonly isApplicable?: IObservable<boolean>;
 
+	/** Whether the picker is temporarily unavailable while its backing config resolves. */
+	readonly isResolving?: IObservable<boolean>;
+
 	/**
 	 * The ordered set of permission levels the picker should offer. When
 	 * omitted, the picker offers the default Copilot set
@@ -63,15 +68,26 @@ export interface IPermissionPickerDelegate {
 	/**
 	 * The setting id the elevated-level warning dialog links to as "make this
 	 * the default". Defaults to `chat.permissions.default`; agent-host sessions
-	 * pass `chat.agentSessions.defaultConfiguration`.
+	 * pass `chat.defaultConfiguration`.
 	 */
 	readonly defaultSettingKey?: string;
+	getPermissionLevelMeta(level: ChatPermissionLevel, meta: IPermissionLevelMeta): IPermissionLevelMeta;
 
 	/**
 	 * Called after the user selects a level (and any required confirmation
 	 * dialog has been accepted).
 	 */
 	setPermissionLevel(level: ChatPermissionLevel): void;
+
+	/**
+	 * Optional hover content for delegates that need provider-specific copy.
+	 */
+	getPermissionLevelHover?(level: ChatPermissionLevel, meta: IPermissionLevelMeta): string | undefined;
+	readonly isSandboxToggleApplicable?: () => boolean;
+	readonly sandboxTogglePresentation?: 'standalone';
+	readonly getSandboxToggleSettingId?: () => string | undefined;
+	readonly managedSandboxEnforced?: IObservable<boolean>;
+	readonly sandboxToggleConfigurationKeys?: readonly string[];
 }
 
 export interface IPermissionLevelMeta {
@@ -90,24 +106,31 @@ export const DEFAULT_PERMISSION_LEVELS: readonly ChatPermissionLevel[] = [
 
 export function getPermissionLevelMeta(level: ChatPermissionLevel): IPermissionLevelMeta {
 	switch (level) {
+		case ChatPermissionLevel.Assisted:
+			return {
+				label: localize('permissions.assisted', "Assisted permissions"),
+				detail: localize('permissions.assisted.subtext', "Evaluates risk before running tools"),
+				icon: Codicon.sparkle,
+				hover: localize('permissions.assisted.description', "An LLM judge evaluates each tool call. Tools it doesn't approve require your approval."),
+			};
 		case ChatPermissionLevel.AutoApprove:
 			return {
-				label: localize('permissions.autoApprove', "Bypass Approvals"),
-				detail: localize('permissions.autoApprove.subtext', "All tool calls are auto-approved"),
+				label: localize('permissions.autoApprove', "Allow all"),
+				detail: localize('permissions.autoApprove.subtext', "Runs tool calls without asking"),
 				icon: Codicon.warning,
 			};
 		case ChatPermissionLevel.Autopilot:
 			return {
 				label: localize('permissions.autopilot', "Autopilot (Preview)"),
-				detail: localize('permissions.autopilot.subtext', "Autonomously iterates from start to finish"),
+				detail: localize('permissions.autopilot.subtext', "Works autonomously within permissions"),
 				icon: Codicon.rocket,
 				hover: localize('permissions.autopilot.description', "Auto-approve all tool calls and continue until the task is done. Autopilot may increase costs."),
 			};
 		case ChatPermissionLevel.Default:
 		default:
 			return {
-				label: localize('permissions.default', "Default Approvals"),
-				detail: localize('permissions.default.subtext', "Copilot uses your configured settings"),
+				label: localize('permissions.default', "Default permissions"),
+				detail: localize('permissions.default.subtext', "Asks when approval settings don't apply"),
 				icon: Codicon.shield,
 			};
 	}
@@ -115,6 +138,7 @@ export function getPermissionLevelMeta(level: ChatPermissionLevel): IPermissionL
 
 interface IPermissionItem {
 	readonly level?: ChatPermissionLevel;
+	readonly kind?: 'sandbox' | 'learnMore';
 	readonly label: string;
 	readonly icon: ThemeIcon;
 	readonly checked: boolean;
@@ -134,6 +158,7 @@ export class PermissionPicker extends Disposable {
 		@IOpenerService protected readonly openerService: IOpenerService,
 		@IStorageService protected readonly storageService: IStorageService,
 		@ITelemetryService protected readonly telemetryService: ITelemetryService,
+		@IHoverService protected readonly hoverService: IHoverService,
 	) {
 		super();
 	}
@@ -159,6 +184,12 @@ export class PermissionPicker extends Disposable {
 		this._triggerElement = trigger;
 
 		this._updateTriggerLabel(trigger);
+		if (this._delegate.getPermissionLevelHover) {
+			this._renderDisposables.add(this.hoverService.setupDelayedHover(trigger, () => {
+				const meta = this._getPermissionLevelMeta(this._currentLevel);
+				return { content: this._getPermissionLevelHover(this._currentLevel, meta) ?? '' };
+			}));
+		}
 
 		this._renderDisposables.add(Gesture.addTarget(trigger));
 		for (const eventType of [dom.EventType.CLICK, TouchEventType.Tap]) {
@@ -202,11 +233,32 @@ export class PermissionPicker extends Disposable {
 			}));
 		}
 
+		const isResolving = this._delegate.isResolving;
+		if (isResolving) {
+			this._renderDisposables.add(autorun(reader => {
+				const resolving = isResolving.read(reader);
+				slot.classList.toggle('resolving', resolving);
+				trigger.setAttribute('aria-disabled', resolving ? 'true' : 'false');
+			}));
+		}
+		const managedSandboxEnforced = this._delegate.managedSandboxEnforced;
+		if (managedSandboxEnforced) {
+			this._renderDisposables.add(autorun(reader => {
+				managedSandboxEnforced.read(reader);
+				this._updateTriggerLabel(trigger);
+			}));
+		}
+		this._renderDisposables.add(this.configurationService.onDidChangeConfiguration(e => {
+			if (this._affectsSandboxToggle(e)) {
+				this._updateTriggerLabel(trigger);
+			}
+		}));
+
 		return slot;
 	}
 
 	showPicker(): void {
-		if (!this._triggerElement || this.actionWidgetService.isVisible) {
+		if (!this._triggerElement || this.actionWidgetService.isVisible || this._isResolving()) {
 			return;
 		}
 
@@ -214,10 +266,13 @@ export class PermissionPicker extends Disposable {
 
 		const levels = this._delegate.availableLevels ?? DEFAULT_PERMISSION_LEVELS;
 		const items: IActionListItem<IPermissionItem>[] = levels.map(level => {
-			const meta = getPermissionLevelMeta(level);
+			const meta = this._getPermissionLevelMeta(level);
 			// Default is never policy-restricted; elevated levels are disabled
 			// when enterprise policy turns off global auto-approval.
 			const disabled = level !== ChatPermissionLevel.Default && policyRestricted;
+			const hover = this._delegate.getPermissionLevelHover
+				? (disabled ? localize('permissions.policyDescription', "Disabled by enterprise policy") : this._getPermissionLevelHover(level, meta))
+				: meta.hover;
 			return {
 				kind: ActionListItemKind.Action,
 				group: { kind: ActionListItemKind.Header, title: '', icon: meta.icon },
@@ -229,10 +284,34 @@ export class PermissionPicker extends Disposable {
 				},
 				label: meta.label,
 				detail: meta.detail,
-				...(meta.hover ? { hover: { content: meta.hover } } : {}),
+				...(hover ? { hover: { content: hover } } : {}),
 				disabled,
 			} satisfies IActionListItem<IPermissionItem>;
 		});
+
+		const sandboxToggle = this._getSandboxStandaloneToggle();
+		if (sandboxToggle) {
+			const disabled = sandboxToggle.disabled === true;
+			items.push({
+				kind: ActionListItemKind.Separator,
+				label: '',
+				disabled: false,
+			});
+			items.push({
+				kind: ActionListItemKind.Action,
+				group: { kind: ActionListItemKind.Header, title: '', icon: Codicon.blank },
+				item: {
+					kind: 'sandbox',
+					label: sandboxToggle.label,
+					icon: Codicon.blank,
+					checked: false,
+				},
+				label: sandboxToggle.label,
+				standaloneToggle: sandboxToggle,
+				...(disabled ? { hover: { content: localize('permissions.policyDescription', "Disabled by enterprise policy") } } : {}),
+				disabled,
+			});
+		}
 
 		items.push({
 			kind: ActionListItemKind.Separator,
@@ -243,6 +322,7 @@ export class PermissionPicker extends Disposable {
 			kind: ActionListItemKind.Action,
 			group: { kind: ActionListItemKind.Header, title: '', icon: Codicon.blank },
 			item: {
+				kind: 'learnMore',
 				label: localize('permissions.learnMore', "Learn more about permissions"),
 				icon: Codicon.blank,
 				checked: false,
@@ -258,7 +338,7 @@ export class PermissionPicker extends Disposable {
 				this.actionWidgetService.hide();
 				if (item.level) {
 					await this._selectLevel(item.level);
-				} else {
+				} else if (item.kind === 'learnMore') {
 					await this.openerService.open(URI.parse('https://aka.ms/vscode/docs/permissions'));
 				}
 			},
@@ -281,8 +361,15 @@ export class PermissionPicker extends Disposable {
 		);
 	}
 
+	protected _isResolving(): boolean {
+		return this._delegate.isResolving?.get() ?? false;
+	}
+
 	protected async _selectLevel(level: ChatPermissionLevel): Promise<void> {
-		if (!await maybeConfirmElevatedPermissionLevel(level, this.dialogService, this.storageService, { defaultSettingKey: this._delegate.defaultSettingKey })) {
+		if (!await maybeConfirmElevatedPermissionLevel(level, this.dialogService, this.storageService, {
+			defaultSettingKey: this._delegate.defaultSettingKey,
+			levelLabel: this._getPermissionLevelMeta(level).label,
+		})) {
 			reportNewChatPickerClosed(this.telemetryService, {
 				id: 'NewChatPermissionPicker',
 				name: 'NewChatPermissionPicker',
@@ -316,16 +403,83 @@ export class PermissionPicker extends Disposable {
 		}
 
 		dom.clearNode(trigger);
-		const meta = getPermissionLevelMeta(this._currentLevel);
+		const meta = this._getPermissionLevelMeta(this._currentLevel);
+		const label = this._isSandboxToggleAvailable() && this._isSandboxingEnabled()
+			? localize('permissionPicker.sandboxedLabel', "{0} (sandboxed)", meta.label)
+			: meta.label;
 
 		dom.append(trigger, renderIcon(meta.icon));
 		const labelSpan = dom.append(trigger, dom.$('span.sessions-chat-dropdown-label'));
-		labelSpan.textContent = meta.label;
+		labelSpan.textContent = label;
 
-		trigger.ariaLabel = localize('permissionPicker.triggerAriaLabel', "Pick Permission Level, {0}", meta.label);
+		const hover = this._getPermissionLevelHover(this._currentLevel, meta);
+		trigger.ariaLabel = hover
+			? localize('permissionPicker.triggerAriaLabelWithDescription', "Pick Permission Level, {0}, {1}", label, hover)
+			: localize('permissionPicker.triggerAriaLabel', "Pick Permission Level, {0}", label);
 
-		trigger.classList.toggle('warning', this._currentLevel === ChatPermissionLevel.Autopilot);
+		trigger.classList.toggle('warning', this._currentLevel === ChatPermissionLevel.Autopilot || this._currentLevel === ChatPermissionLevel.Assisted);
 		trigger.classList.toggle('info', this._currentLevel === ChatPermissionLevel.AutoApprove);
+	}
+
+	private _getSandboxStandaloneToggle() {
+		if (!this._isSandboxToggleAvailable()) {
+			return undefined;
+		}
+		const managed = this._isSandboxManaged();
+		return {
+			label: localize('permissionPicker.sandboxToggle', "Sandboxing for terminal"),
+			title: managed
+				? localize('permissionPicker.managedSandboxToggleTitle', "Sandboxing is managed by your organization")
+				: localize('permissionPicker.sandboxToggleTitle', "Run terminal commands inside a sandbox that restricts file system and network access"),
+			checked: this._isSandboxingEnabled(),
+			disabled: managed,
+			onChange: (checked: boolean) => {
+				if (this._isSandboxManaged()) {
+					return;
+				}
+				const settingId = this._delegate.getSandboxToggleSettingId?.();
+				if (settingId) {
+					const target = checked ? AgentSandboxEnabledValue.On : AgentSandboxEnabledValue.Off;
+					void this.configurationService.updateValue(settingId, target);
+				}
+			},
+		};
+	}
+
+	private _isSandboxToggleAvailable(): boolean {
+		return this.configurationService.getValue<boolean>(ChatConfiguration.PermissionsSandboxToggleEnabled) === true
+			&& this._delegate.sandboxTogglePresentation === 'standalone'
+			&& this._delegate.isSandboxToggleApplicable?.() === true
+			&& this._delegate.getSandboxToggleSettingId?.() !== undefined;
+	}
+
+	private _isSandboxingEnabled(): boolean {
+		if (this._isSandboxManaged()) {
+			return true;
+		}
+		const settingId = this._delegate.getSandboxToggleSettingId?.();
+		return settingId !== undefined
+			&& isAgentSandboxEnabledValue(this.configurationService.getValue<AgentSandboxEnabledSettingValue>(settingId));
+	}
+
+	private _isSandboxManaged(): boolean {
+		return this._delegate.managedSandboxEnforced?.get() === true;
+	}
+
+	private _affectsSandboxToggle(event: IConfigurationChangeEvent): boolean {
+		const settingId = this._delegate.getSandboxToggleSettingId?.();
+		return event.affectsConfiguration(ChatConfiguration.PermissionsSandboxToggleEnabled)
+			|| (settingId !== undefined && event.affectsConfiguration(settingId))
+			|| this._delegate.sandboxToggleConfigurationKeys?.some(key => event.affectsConfiguration(key)) === true;
+	}
+
+	private _getPermissionLevelHover(level: ChatPermissionLevel, meta: IPermissionLevelMeta): string | undefined {
+		return this._delegate.getPermissionLevelHover?.(level, meta) ?? meta.hover;
+	}
+
+	protected _getPermissionLevelMeta(level: ChatPermissionLevel): IPermissionLevelMeta {
+		const meta = getPermissionLevelMeta(level);
+		return this._delegate.getPermissionLevelMeta(level, meta);
 	}
 }
 
@@ -339,6 +493,10 @@ export class PermissionPicker extends Disposable {
 export class CopilotPermissionPickerDelegate extends Disposable implements IPermissionPickerDelegate {
 
 	readonly currentPermissionLevel: IObservable<ChatPermissionLevel | undefined>;
+
+	getPermissionLevelMeta(_level: ChatPermissionLevel, meta: IPermissionLevelMeta): IPermissionLevelMeta {
+		return meta;
+	}
 
 	constructor(
 		private readonly _session: IObservable<IActiveSession | undefined>,

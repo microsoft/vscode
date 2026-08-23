@@ -162,6 +162,8 @@ export class ChatHookService implements IChatHookService {
 							[GenAiAttr.OPERATION_NAME]: GenAiOperationName.EXECUTE_HOOK,
 							[CopilotChatAttr.HOOK_TYPE]: hookType,
 							'copilot_chat.hook_command': hookCommand.command,
+							...(chatSessionId ? { [GenAiAttr.CONVERSATION_ID]: chatSessionId } : {}),
+							...(chatSessionId ? { [CopilotChatAttr.SESSION_ID]: chatSessionId } : {}),
 							...(chatSessionId ? { [CopilotChatAttr.CHAT_SESSION_ID]: chatSessionId } : {}),
 							...(hookToolNamesJson ? { [GitHubCopilotAttr.HOOK_TOOL_NAMES]: hookToolNamesJson } : {}),
 						},
@@ -500,6 +502,16 @@ export class ChatHookService implements IChatHookService {
 			sessionId,
 			token
 		);
+
+		// Running the hook can take a long time because it spawns external, user-configured
+		// commands. If the request was cancelled while the hook ran, the response stream is
+		// already closed and writing hook progress to it throws "Response stream has been
+		// closed". The caller only checks cancellation before invoking the hook, so re-check
+		// here after the await and skip result processing - a cancelled turn never consumes
+		// the result anyway.
+		if (token?.isCancellationRequested) {
+			return undefined;
+		}
 
 		if (results.length === 0) {
 			return undefined;

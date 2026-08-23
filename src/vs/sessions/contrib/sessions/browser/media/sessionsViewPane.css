@@ -12,6 +12,22 @@
 		overflow: hidden;
 	}
 
+	.agent-sessions-sidebar-splitview-container {
+		flex: 1;
+		min-height: 0;
+		overflow: hidden;
+	}
+
+	.agent-sessions-sidebar-splitview-container .monaco-split-view2.separator-border.vertical > .monaco-scrollable-element > .split-view-container > .split-view-view:not(:first-child)::before {
+		left: var(--vscode-spacing-size40, 4px);
+		width: calc(100% - (2 * var(--vscode-spacing-size40, 4px)));
+	}
+
+	.agent-sessions-sidebar-splitview-container .monaco-split-view2.vertical > .sash-container > .monaco-sash.horizontal {
+		left: var(--vscode-spacing-size40, 4px) !important;
+		width: calc(100% - (2 * var(--vscode-spacing-size40, 4px))) !important;
+	}
+
 	/* Section headers - more prominent than time-based groupings */
 	.agent-sessions-header {
 		font-size: var(--vscode-agents-fontSize-body2);
@@ -40,7 +56,6 @@
 		flex: 1;
 		overflow: hidden;
 		min-height: 0;
-		margin-bottom: 6px;
 	}
 
 	.agent-sessions-header {
@@ -98,9 +113,12 @@
 	.agent-sessions-header-actions {
 		display: flex;
 		align-items: center;
-		gap: 4px;
 		margin-left: auto;
 		flex-shrink: 0;
+	}
+
+	.agent-sessions-header-actions .actions-container {
+		gap: 4px;
 	}
 
 	/* Inline search input — replaces label + actions when active */
@@ -149,86 +167,18 @@
 		justify-content: center;
 	}
 
-	/* Compact "New" button in header */
-	.agent-sessions-compact-new-button.monaco-button {
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		gap: 6px;
-		padding: 2px 8px;
-		font-size: var(--vscode-agents-fontSize-label1, 12px);
-		line-height: 18px;
-		border-radius: var(--vscode-cornerRadius-small);
-		border: 1px solid var(--vscode-agentsNewSessionButton-border, var(--vscode-button-border, color-mix(in srgb, var(--vscode-foreground) 20%, transparent)));
-		background-color: var(--vscode-agentsNewSessionButton-background, transparent);
-		color: var(--vscode-agentsNewSessionButton-foreground, var(--vscode-foreground));
-		width: auto;
-		min-width: 0;
-		height: auto;
-		white-space: nowrap;
-	}
-
-	.agent-sessions-compact-new-button.monaco-button:not(.disabled) {
-		cursor: pointer;
-	}
-
-	.agent-sessions-compact-new-button.monaco-button.default-colors:hover {
-		background-color: var(--vscode-agentsNewSessionButton-hoverBackground, var(--vscode-toolbar-hoverBackground));
-	}
-
-	.agent-sessions-compact-new-button.monaco-button:focus {
-		outline-offset: -1px !important;
-	}
-
-	.agent-sessions-compact-new-button .new-session-button-label {
-		display: inline-flex;
-		align-items: center;
-		gap: 2px;
-		min-width: 0;
-		white-space: nowrap;
-	}
-
-	.agent-sessions-compact-new-button .new-session-keybinding-hint {
-		display: inline-block;
-		flex-shrink: 0;
-		font-family: var(--monaco-monospace-font);
-		font-size: var(--vscode-agents-fontSize-label3, 10px);
-		line-height: 1;
-		padding: 2px 4px;
-		border: var(--vscode-strokeThickness) solid transparent;
-		border-radius: var(--vscode-cornerRadius-xSmall);
-		background-color: var(--vscode-keybindingLabel-background);
-		color: var(--vscode-keybindingLabel-foreground);
-		box-shadow: none;
-	}
-
-	.agent-sessions-compact-new-button .new-session-keybinding-hint .monaco-keybinding {
-		line-height: 1;
-	}
-
-	.agent-sessions-compact-new-button .new-session-keybinding-hint .monaco-keybinding > .monaco-keybinding-key {
-		margin: 0 1px;
-		padding: 0;
-		min-width: auto;
-		border: 0;
-		background-color: transparent;
-		box-shadow: none;
-	}
-
-	.agent-sessions-compact-new-button .new-session-keybinding-hint .monaco-keybinding > .monaco-keybinding-key:first-child {
-		margin-left: 0;
-	}
-
-	.agent-sessions-compact-new-button .new-session-keybinding-hint .monaco-keybinding > .monaco-keybinding-key:last-child {
-		margin-right: 0;
-	}
+	/* Compact "New" button in header — styled in media/newSessionActionViewItem.css so the same widget can also render in the titlebar. */
 
 	.agent-sessions-control-container {
 		flex: 1;
 		overflow: hidden;
 	}
-}
 
+	.agent-sessions-customizations-section {
+		overflow: hidden;
+		min-height: 0;
+	}
+}
 .agent-sessions-workbench.shell-gradient-background .agent-sessions-viewpane {
 	background: transparent !important;
 }

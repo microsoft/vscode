@@ -1,0 +1,57 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Horizontally scrollable status pills above the chat input. */
+
+.session-chat-input-toolbar {
+	width: 100%;
+	min-width: 0;
+}
+
+.session-chat-input-toolbar-content {
+	display: flex;
+	align-items: center;
+	justify-content: flex-start;
+	gap: var(--vscode-spacing-size60);
+	width: 100%;
+	min-width: 0;
+	box-sizing: border-box;
+	padding: var(--vscode-spacing-size20) 0 var(--vscode-spacing-size60) 0;
+}
+
+.session-chat-input-toolbar-content > .chat-pills,
+.session-chat-input-toolbar-content > .session-activity-pill {
+	flex-shrink: 0;
+}
+
+.session-chat-input-toolbar.hidden {
+	display: none;
+}
+
+/* Every pill is hidden by the user but data exists: keep a slim strip so its
+	context menu stays reachable and the pills can be shown again. */
+.session-chat-input-toolbar.empty .session-chat-input-toolbar-content {
+	min-height: var(--vscode-spacing-size120);
+}
+
+.session-chat-input-toolbar > .scrollbar > .slider {
+	background: transparent;
+}
+
+.session-chat-input-toolbar > .scrollbar.horizontal > .slider::before {
+	content: '';
+	position: absolute;
+	inset: var(--vscode-strokeThickness);
+	border-radius: var(--vscode-cornerRadius-circle);
+	background: var(--vscode-scrollbarSlider-background);
+}
+
+.session-chat-input-toolbar > .scrollbar > .slider:hover::before {
+	background: var(--vscode-scrollbarSlider-hoverBackground);
+}
+
+.session-chat-input-toolbar > .scrollbar > .slider.active::before {
+	background: var(--vscode-scrollbarSlider-activeBackground);
+}

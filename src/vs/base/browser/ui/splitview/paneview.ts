@@ -37,6 +37,16 @@ export interface IPaneStyles {
 	readonly leftBorder: string | undefined;
 }
 
+export const DEFAULT_PANE_HEADER_SIZE = 22;
+let globalPaneHeaderSize = DEFAULT_PANE_HEADER_SIZE;
+
+/**
+ * Updates the header size used by all panes.
+ */
+export function setGlobalPaneHeaderSize(size: number): void {
+	globalPaneHeaderSize = size;
+}
+
 /**
  * A Pane is a structured SplitView view.
  *
@@ -47,12 +57,6 @@ export interface IPaneStyles {
  * before the `render()` call, thus forbidding their use.
  */
 export abstract class Pane extends Disposable implements IView {
-
-	/**
-	 * Fallback header size (in px) used when the `--pane-header-size` CSS variable
-	 * is not resolvable (e.g. before the element is attached to the document).
-	 */
-	private static readonly HEADER_SIZE = 22;
 
 	readonly element: HTMLElement;
 	private header: HTMLElement | undefined;
@@ -76,14 +80,6 @@ export abstract class Pane extends Disposable implements IView {
 		leftBorder: undefined
 	};
 	private animationTimer: number | undefined = undefined;
-
-	/**
-	 * Cached result of {@link Pane.resolveHeaderSize}. Resolving reads a computed
-	 * style, which is comparatively expensive and runs on the layout hot path
-	 * (`minimumSize` / `maximumSize` / `layout` can each read it), so the value is
-	 * memoized and only re-read once per {@link Pane.layout} pass.
-	 */
-	private _headerSize: number | undefined = undefined;
 
 	private readonly _onDidChange = this._register(new Emitter<number | undefined>());
 	readonly onDidChange: Event<number | undefined> = this._onDidChange.event;
@@ -130,23 +126,8 @@ export abstract class Pane extends Disposable implements IView {
 		this._onDidChange.fire(undefined);
 	}
 
-	/**
-	 * Resolves the header size from the `--pane-header-size` CSS variable so it can
-	 * be overridden via CSS (e.g. by the `paneHeaders` style-override) without a
-	 * hard-coded constant. Falls back to {@link Pane.HEADER_SIZE} when the variable
-	 * is absent or unparseable. The result is cached and refreshed once per
-	 * {@link Pane.layout} pass.
-	 */
-	private resolveHeaderSize(): number {
-		if (this._headerSize === undefined) {
-			const size = parseInt(getWindow(this.element).getComputedStyle(this.element).getPropertyValue('--pane-header-size'), 10);
-			this._headerSize = isNaN(size) ? Pane.HEADER_SIZE : size;
-		}
-		return this._headerSize;
-	}
-
 	private get headerSize(): number {
-		return this.headerVisible ? this.resolveHeaderSize() : 0;
+		return this.headerVisible ? globalPaneHeaderSize : 0;
 	}
 
 	get minimumSize(): number {
@@ -325,9 +306,6 @@ export abstract class Pane extends Disposable implements IView {
 	}
 
 	layout(size: number): void {
-		// Re-read the header size from CSS once per layout pass; subsequent
-		// `minimumSize` / `maximumSize` reads within the pass reuse the cache.
-		this._headerSize = undefined;
 		const headerSize = this.headerSize;
 
 		const width = this._orientation === Orientation.VERTICAL ? this.orthogonalSize : size;
@@ -364,7 +342,6 @@ export abstract class Pane extends Disposable implements IView {
 			this.header.removeAttribute('role');
 		}
 
-		this.header.style.lineHeight = `${this.headerSize}px`;
 		this.header.classList.toggle('hidden', !this.headerVisible);
 		this.header.classList.toggle('expanded', expanded);
 		this.header.classList.toggle('not-collapsible', !this.collapsible);

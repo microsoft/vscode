@@ -9,24 +9,58 @@ import { structuralEquals } from '../../../../base/common/equals.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { ISession } from '../../../services/sessions/common/session.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { GitHubPullRequestState } from '../common/types.js';
 import { GitHubService, IGitHubService } from './githubService.js';
+import { IPullRequestIconCache, PullRequestIconCache } from './pullRequestIconCache.js';
+
+import './pullRequestActions.js';
+import './createSessionFromPullRequestAction.js';
+import './issueActions.js';
+
+const TRACE_PREFIX = '[PR-ICON-TRACE]';
+
+/**
+ * Resolved PR identity for a session's poller, or the specific stage at which
+ * resolution bailed out. Only the `ok` state keeps a PR model warm/polling; the
+ * other kinds are logged so the trace pinpoints *why* a non-active session's PR
+ * icon never refreshes (its model was never kept warm).
+ */
+type PullRequestIdentityState =
+	| { readonly kind: 'ok'; readonly owner: string; readonly repo: string; readonly prNumber: number }
+	| { readonly kind: 'archived' }
+	| { readonly kind: 'no-workspace' }
+	| { readonly kind: 'no-git-repository' }
+	| { readonly kind: 'no-pull-request' };
+
+/** Owns the poller for one concrete session's reactive inputs. */
+class SessionPollingTracker extends Disposable {
+
+	constructor(
+		readonly session: ISession,
+		poller: IDisposable,
+	) {
+		super();
+		this._register(poller);
+	}
+}
 
 export class GitHubPullRequestPollingContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'sessions.contrib.githubPullRequestPolling';
 
 	/** Per-session pollers, keyed by `session.sessionId`. */
-	private readonly _sessionTrackers = this._register(new DisposableMap<string>());
+	private readonly _sessionTrackers = this._register(new DisposableMap<string, SessionPollingTracker>());
 
 	constructor(
 		@IGitHubService private readonly _gitHubService: IGitHubService,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@ISessionsService private readonly _sessionsService: ISessionsService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
 
@@ -101,16 +135,37 @@ export class GitHubPullRequestPollingContribution extends Disposable implements 
 
 		// Removed sessions
 		for (const session of e.removed) {
-			this._sessionTrackers.deleteAndDispose(session.sessionId);
+			const tracker = this._sessionTrackers.get(session.sessionId);
+			if (tracker && this._hasSamePollingSource(tracker.session, session)) {
+				this._logService.trace(`${TRACE_PREFIX} [PollingContribution] Session ${session.sessionId} removed; disposing its poller (PR model no longer kept warm)`);
+				this._sessionTrackers.deleteAndDispose(session.sessionId);
+			}
 		}
+
+		// Aggregate visibility: if non-active session icons aren't refreshing, the
+		// first thing to check is whether this poller even sees the sessions. A low
+		// tracked count here (e.g. 0/1 while the list shows many) means the sessions
+		// never reach the poller, so their PR models are never kept warm.
+		this._logService.trace(`${TRACE_PREFIX} [PollingContribution] onDidChangeSessions (added ${e.added.length}, changed ${e.changed.length}, removed ${e.removed.length}); now tracking ${this._sessionTrackers.size} session poller(s)`);
 	}
 
 	private _trackSession(session: ISession): void {
-		if (this._sessionTrackers.has(session.sessionId)) {
+		const existing = this._sessionTrackers.get(session.sessionId);
+		if (existing && this._hasSamePollingSource(existing.session, session)) {
 			return;
 		}
 
-		this._sessionTrackers.set(session.sessionId, this._createSessionPoller(session));
+		if (existing) {
+			this._logService.trace(`${TRACE_PREFIX} [PollingContribution] Session ${session.sessionId} polling source changed; replacing its poller`);
+		}
+		this._logService.trace(`${TRACE_PREFIX} [PollingContribution] Session ${session.sessionId} now tracked; poller will keep its PR model warm once a PR number resolves`);
+		this._sessionTrackers.set(session.sessionId, new SessionPollingTracker(session, this._createSessionPoller(session)));
+	}
+
+	private _hasSamePollingSource(first: ISession, second: ISession): boolean {
+		return isEqual(first.resource, second.resource)
+			&& first.workspace === second.workspace
+			&& first.isArchived === second.isArchived;
 	}
 
 	/**
@@ -127,29 +182,52 @@ export class GitHubPullRequestPollingContribution extends Disposable implements 
 		// stable while the PR's live data — and therefore its computed icon —
 		// updates, so the poller doesn't churn (or feed back into itself) every
 		// time `gitHubInfo` re-derives.
-		const pullRequestIdentityObs = derivedOpts<{ readonly owner: string; readonly repo: string; readonly prNumber: number } | undefined>(
+		//
+		// When there's no identity yet we carry the *reason* (archived / no
+		// workspace / no git repository / no pull request) so the outer autorun
+		// can log precisely which stage is missing. This is the key signal for
+		// diagnosing "non-active session icons don't refresh": the shared PR
+		// model is only kept warm (and polled) once this resolves to `ok`, so a
+		// session stuck at e.g. `no-workspace` or `no-pull-request` explains why
+		// its icon never refines. Structural equality still de-dupes these stable
+		// reason objects, so the poller doesn't churn.
+		const pullRequestIdentityObs = derivedOpts<PullRequestIdentityState>(
 			{ owner: this, equalsFn: structuralEquals },
 			reader => {
 				if (session.isArchived.read(reader)) {
-					return undefined;
+					return { kind: 'archived' };
 				}
 
-				const gitHubInfo = session.workspace.read(reader)?.folders[0]?.gitRepository?.gitHubInfo.read(reader);
+				const workspace = session.workspace.read(reader);
+				if (!workspace) {
+					return { kind: 'no-workspace' };
+				}
+
+				const gitRepository = workspace.folders[0]?.gitRepository;
+				if (!gitRepository) {
+					return { kind: 'no-git-repository' };
+				}
+
+				const gitHubInfo = gitRepository.gitHubInfo.read(reader);
 				if (!gitHubInfo?.pullRequest) {
-					return undefined;
+					return { kind: 'no-pull-request' };
 				}
 
-				return { owner: gitHubInfo.owner, repo: gitHubInfo.repo, prNumber: gitHubInfo.pullRequest.number };
+				return { kind: 'ok', owner: gitHubInfo.owner, repo: gitHubInfo.repo, prNumber: gitHubInfo.pullRequest.number };
 			});
 
 		return autorun(reader => {
 			const identity = pullRequestIdentityObs.read(reader);
-			if (!identity) {
-				// No PR number yet (or archived); this autorun re-runs once it resolves.
+			if (identity.kind !== 'ok') {
+				// Not kept warm. The `reason` disambiguates the four bail-out stages
+				// (previously logged as one generic message), so the log tells us
+				// exactly why a non-active session's PR model is never polled.
+				this._logService.trace(`${TRACE_PREFIX} [PollingContribution] Session ${session.sessionId} has no PR identity yet (reason: ${identity.kind}); NOT keeping a PR model warm. Will re-run reactively if this input changes.`);
 				return;
 			}
 
 			const { owner, repo, prNumber } = identity;
+			this._logService.trace(`${TRACE_PREFIX} [PollingContribution] Session ${session.sessionId} resolved PR identity ${owner}/${repo}#${prNumber}; acquiring model and refreshing`);
 
 			const modelRef = reader.store.add(this._gitHubService.createPullRequestModelReference(owner, repo, prNumber));
 			const model = modelRef.object;
@@ -167,9 +245,11 @@ export class GitHubPullRequestPollingContribution extends Disposable implements 
 			});
 			reader.store.add(autorun(pollReader => {
 				if (!shouldPollObs.read(pollReader)) {
+					this._logService.trace(`${TRACE_PREFIX} [PollingContribution] Session ${session.sessionId} PR ${owner}/${repo}#${prNumber} is merged and not active; not polling`);
 					return;
 				}
 
+				this._logService.trace(`${TRACE_PREFIX} [PollingContribution] Session ${session.sessionId} starting PR polling for ${owner}/${repo}#${prNumber}`);
 				pollReader.store.add(model.startPolling());
 			}));
 
@@ -181,6 +261,8 @@ export class GitHubPullRequestPollingContribution extends Disposable implements 
 				if (!prDetails || prDetails.isDraft || prDetails.state !== GitHubPullRequestState.Open) {
 					return;
 				}
+
+				this._logService.trace(`${TRACE_PREFIX} [PollingContribution] Session ${session.sessionId} starting CI + review-thread polling for ${owner}/${repo}#${prNumber}@${prDetails.headSha}`);
 
 				const ciModelRef = statusReader.store.add(this._gitHubService.createPullRequestCIModelReference(owner, repo, prNumber, prDetails.headSha));
 				ciModelRef.object.refresh();
@@ -206,3 +288,5 @@ export class GitHubPullRequestPollingContribution extends Disposable implements 
 registerWorkbenchContribution2(GitHubPullRequestPollingContribution.ID, GitHubPullRequestPollingContribution, WorkbenchPhase.AfterRestored);
 
 registerSingleton(IGitHubService, GitHubService, InstantiationType.Delayed);
+
+registerSingleton(IPullRequestIconCache, PullRequestIconCache, InstantiationType.Delayed);

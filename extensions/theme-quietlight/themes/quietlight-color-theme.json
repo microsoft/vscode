@@ -481,7 +481,9 @@
 	"colors": {
 		"focusBorder": "#9769dc",
 		// agent sessions
-		"agentsPanel.border": "#c9d0d9",
+		"agents.background": "#EDEDF5",
+		"agentsPanel.border": "#c9d0d966",
+		"agentsPanel.background": "#F5F5F5",
 		"agentsChatInput.border": "#c9d0d9",
 		"agentsChatInput.focusBorder": "#9769dc",
 		"agentsNewSessionButton.border": "#c9d0d9",
@@ -539,7 +541,9 @@
 		"progressBar.background": "#705697",
 		"walkThrough.embeddedEditorBackground": "#00000014",
 		"editorIndentGuide.background": "#aaaaaa60",
-		"editorIndentGuide.activeBackground": "#777777b0"
+		"editorIndentGuide.activeBackground": "#777777b0",
+		// modern ui
+		"surface.border": "#00000000",
 	},
 	"semanticHighlighting": true
 }

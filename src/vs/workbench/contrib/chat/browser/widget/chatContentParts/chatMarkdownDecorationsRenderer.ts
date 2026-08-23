@@ -8,9 +8,12 @@ import { Button } from '../../../../../../base/browser/ui/button/button.js';
 import { getDefaultHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { toErrorMessage } from '../../../../../../base/common/errorMessage.js';
 import { Lazy } from '../../../../../../base/common/lazy.js';
-import { DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { ILinkPresentationService } from '../../../../../../platform/dataChannel/common/dataChannel.js';
+import { AGENT_HOST_SESSION_LINK_SCHEME } from '../../../../../../platform/agentHost/common/openSessionLink.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
@@ -22,11 +25,13 @@ import { getFullyQualifiedId, IChatAgentCommand, IChatAgentData, IChatAgentNameS
 import { chatSlashCommandBackground, chatSlashCommandForeground } from '../../../common/widget/chatColors.js';
 import { chatAgentLeader, ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestDynamicVariablePart, ChatRequestSlashCommandPart, ChatRequestSlashPromptPart, ChatRequestTextPart, ChatRequestToolPart, chatSubcommandLeader, IParsedChatRequest, IParsedChatRequestPart } from '../../../common/requestParser/chatParserTypes.js';
 import { IChatMarkdownContent, IChatService } from '../../../common/chatService/chatService.js';
+import { ChatConfiguration } from '../../../common/constants.js';
 import { ILanguageModelToolsService } from '../../../common/tools/languageModelToolsService.js';
 import { IChatWidgetService } from '../../chat.js';
 import { ChatAgentHover, getChatAgentHoverOptions } from '../chatAgentHover.js';
 import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
 import { InlineAnchorWidget } from './chatInlineAnchorWidget.js';
+import { ChatRichLinkDecorator } from './chatRichLink.js';
 
 /** For rendering slash commands, variables */
 const decorationRefUrl = `http://_vscodedecoration_`;
@@ -75,7 +80,8 @@ export interface IDecorationWidgetArgs {
 	title?: string;
 }
 
-export class ChatMarkdownDecorationsRenderer {
+export class ChatMarkdownDecorationsRenderer extends Disposable {
+	private readonly richLinkDecorator: Lazy<ChatRichLinkDecorator>;
 
 	constructor(
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
@@ -89,7 +95,12 @@ export class ChatMarkdownDecorationsRenderer {
 		@ILabelService private readonly labelService: ILabelService,
 		@ILanguageModelToolsService private readonly toolsService: ILanguageModelToolsService,
 		@IChatMarkdownAnchorService private readonly chatMarkdownAnchorService: IChatMarkdownAnchorService,
-	) { }
+		@ILinkPresentationService linkPresentationService: ILinkPresentationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+	) {
+		super();
+		this.richLinkDecorator = new Lazy(() => this._register(new ChatRichLinkDecorator(linkPresentationService, hoverService)));
+	}
 
 	convertParsedRequestToMarkdown(sessionResource: URI, parsedRequest: IParsedChatRequest): string {
 		let result = '';
@@ -124,6 +135,7 @@ export class ChatMarkdownDecorationsRenderer {
 
 	walkTreeAndAnnotateReferenceLinks(content: IChatMarkdownContent, element: HTMLElement): IDisposable {
 		const store = new DisposableStore();
+		const richLinksEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.RichLinks);
 		// eslint-disable-next-line no-restricted-syntax
 		element.querySelectorAll('a').forEach(a => {
 			const href = a.getAttribute('data-href');
@@ -161,6 +173,8 @@ export class ChatMarkdownDecorationsRenderer {
 					this.renderFileWidget(content, href, a, store);
 				} else if (href.startsWith('command:')) {
 					this.injectKeybindingHint(a, href, this.keybindingService);
+				} else if (richLinksEnabled || href.toLowerCase().startsWith(`${AGENT_HOST_SESSION_LINK_SCHEME}:`)) {
+					this.richLinkDecorator.value.decorate(a, href, store);
 				}
 			}
 		});
@@ -190,7 +204,7 @@ export class ChatMarkdownDecorationsRenderer {
 					{
 						location: widget.location,
 						agentId: agent.id,
-						userSelectedModelId: widget.input.currentLanguageModel,
+						...widget.getSelectedModelRequestOptions(),
 						modeInfo: widget.input.currentModeInfo
 					});
 			}));
@@ -227,7 +241,7 @@ export class ChatMarkdownDecorationsRenderer {
 				location: widget.location,
 				agentId: agent.id,
 				slashCommand: args.command,
-				userSelectedModelId: widget.input.currentLanguageModel,
+				...widget.getSelectedModelRequestOptions(),
 				modeInfo: widget.input.currentModeInfo
 			});
 		}));
@@ -245,7 +259,7 @@ export class ChatMarkdownDecorationsRenderer {
 			return;
 		}
 
-		const inlineAnchor = store.add(this.instantiationService.createInstance(InlineAnchorWidget, a, data, undefined));
+		const inlineAnchor = store.add(this.instantiationService.createInstance(InlineAnchorWidget, a, data, undefined, undefined));
 		store.add(this.chatMarkdownAnchorService.register(inlineAnchor));
 	}
 

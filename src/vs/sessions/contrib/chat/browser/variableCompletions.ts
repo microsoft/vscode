@@ -143,6 +143,13 @@ export class VariableCompletionHandler extends Disposable {
 			_debugDisplayName: 'sessionsVariableFileAndFolder',
 			triggerCharacters: [VARIABLE_LEADER],
 			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, token: CancellationToken) => {
+				// For a `/troubleshoot` request, `#` references target sessions
+				// (handled by the `#session` provider); suppress file/folder
+				// completions so only sessions are offered.
+				if (/^\s*\/troubleshoot\b/.test(model.getValue())) {
+					return null;
+				}
+
 				const workspaceUri = this._getWorkspaceUri();
 				if (!workspaceUri) {
 					return null;

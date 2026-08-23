@@ -7,8 +7,10 @@ import assert from 'assert';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
+import { SYNCED_CUSTOMIZATION_SCHEME } from '../../common/agentHostFileSystemService.js';
 import { CompletionItemKind } from '../../common/state/protocol/commands.js';
-import { CustomizationLoadStatus, CustomizationType, MessageAttachmentKind, type PluginCustomization, type PromptCustomization, type SkillCustomization } from '../../common/state/sessionState.js';
+import { CustomizationLoadStatus, CustomizationType, MessageAttachmentKind, type DirectoryCustomization, type PluginCustomization, type PromptCustomization, type SkillCustomization } from '../../common/state/sessionState.js';
+import { CustomizationEnablementKind } from '../../common/state/protocol/state.js';
 import { AgentHostCompletions, CompletionTriggerCharacter } from '../../node/agentHostCompletions.js';
 import { AgentHostSkillCompletionProvider } from '../../node/agentHostSkillCompletionProvider.js';
 import { MockAgent } from './mockAgent.js';
@@ -42,9 +44,45 @@ suite('AgentHostSkillCompletionProvider', () => {
 			id: `file:///plugins/${name}`,
 			uri: `file:///plugins/${name}`,
 			name,
-			enabled,
+			...(enabled ? {} : {
+				// TODO: Step 2 selects the persisted enablement scope.
+				enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
+			}),
 			load: { kind: CustomizationLoadStatus.Loaded },
 			...(children ? { children: [...children] } : {}),
+		};
+	}
+
+	function syncedPlugin(name: string, children?: readonly (SkillCustomization | PromptCustomization)[]): PluginCustomization {
+		return {
+			...plugin(name, children),
+			id: `${SYNCED_CUSTOMIZATION_SCHEME}:/plugins/${name}`,
+			uri: `${SYNCED_CUSTOMIZATION_SCHEME}:/plugins/${name}`,
+		};
+	}
+
+	/** A skill with an explicit URI, so the same logical skill can be modelled at two different locations. */
+	function skillAt(name: string, uri: string, description?: string): SkillCustomization {
+		return {
+			type: CustomizationType.Skill,
+			id: uri,
+			uri,
+			name,
+			...(description !== undefined ? { description } : {}),
+		};
+	}
+
+	function directory(name: string, uri: string, children: readonly SkillCustomization[]): DirectoryCustomization {
+		return {
+			type: CustomizationType.Directory,
+			id: uri,
+			uri,
+			name,
+			enabled: true,
+			contents: CustomizationType.Skill,
+			writable: false,
+			load: { kind: CustomizationLoadStatus.Loaded },
+			children: [...children],
 		};
 	}
 
@@ -63,30 +101,137 @@ suite('AgentHostSkillCompletionProvider', () => {
 		assert.deepStrictEqual([...completions.triggerCharacters], [CompletionTriggerCharacter.Slash]);
 	});
 
-	test('returns session-effective skills with attachment metadata and trailing space', async () => {
+	test('complete skills from a plugin', async () => {
 		const agent = new MockAgent('mock');
 		agent.getSessionCustomizations = async () => [
-			plugin('skills', [skill('agent-host-docs', 'Use this skill when working on Agent Host code')]),
+			plugin('my-skill', [skill('agent-host-docs', 'Use this skill when working on Agent Host code')]),
 		];
 		const provider = createProvider(agent);
 
 		const result = await run(provider, '/');
 
 		assert.deepStrictEqual(result, [{
-			insertText: '/agent-host-docs ',
+			insertText: '/my-skill:agent-host-docs ',
 			rangeStart: 0,
 			rangeEnd: 1,
 			attachment: {
 				type: MessageAttachmentKind.Simple,
-				label: '/agent-host-docs',
+				label: '/my-skill:agent-host-docs',
 				_meta: {
 					uri: 'file:///skills/agent-host-docs/SKILL.md',
 					name: 'agent-host-docs',
-					displayName: 'agent-host-docs',
+					displayName: 'my-skill:agent-host-docs',
 					description: 'Use this skill when working on Agent Host code',
 				},
 			},
 		}]);
+	});
+
+	test('complete skills from a plugin with the same name as the skill', async () => {
+		const agent = new MockAgent('mock');
+		agent.getSessionCustomizations = async () => [
+			plugin('monitor-pr', [skill('monitor-pr', 'Use this skill when working with PRs')]),
+		];
+		const provider = createProvider(agent);
+
+		const result = await run(provider, '/');
+
+		assert.deepStrictEqual(result, [{
+			insertText: '/monitor-pr ',
+			rangeStart: 0,
+			rangeEnd: 1,
+			attachment: {
+				type: MessageAttachmentKind.Simple,
+				label: '/monitor-pr',
+				_meta: {
+					uri: 'file:///skills/monitor-pr/SKILL.md',
+					name: 'monitor-pr',
+					displayName: 'monitor-pr',
+					description: 'Use this skill when working with PRs',
+				},
+			},
+		}]);
+	});
+
+	test('complete skills from a synced plugin without plugin prefix', async () => {
+		const agent = new MockAgent('mock');
+		agent.getSessionCustomizations = async () => [
+			syncedPlugin('skills-bundle', [skill('monitor-pr', 'Use this skill when working with PRs')]),
+		];
+		const provider = createProvider(agent);
+
+		const result = await run(provider, '/');
+
+		assert.deepStrictEqual(result, [{
+			insertText: '/monitor-pr ',
+			rangeStart: 0,
+			rangeEnd: 1,
+			attachment: {
+				type: MessageAttachmentKind.Simple,
+				label: '/monitor-pr',
+				_meta: {
+					uri: 'file:///skills/monitor-pr/SKILL.md',
+					name: 'monitor-pr',
+					displayName: 'monitor-pr',
+					description: 'Use this skill when working with PRs',
+				},
+			},
+		}]);
+	});
+
+	test('de-duplicates the same skill discovered via the synced bundle and the on-disk scan', async () => {
+		const agent = new MockAgent('mock');
+		agent.getSessionCustomizations = async () => [
+			syncedPlugin('VS Code Synced Data', [skillAt('flaky-smoke-tests', 'vscode-synced-customization:/plugins/bundle/skills/flaky-smoke-tests/SKILL.md', 'Diagnose flaky tests')]),
+			directory('.github', 'file:///ws/.github/skills', [skillAt('flaky-smoke-tests', 'file:///ws/.github/skills/flaky-smoke-tests/SKILL.md', 'Diagnose flaky tests')]),
+		];
+		const provider = createProvider(agent);
+
+		const result = await run(provider, '/');
+
+		assert.deepStrictEqual(result.map(item => item.insertText), ['/flaky-smoke-tests ']);
+	});
+
+	test('keeps two different skills that share a short name but have different descriptions', async () => {
+		const agent = new MockAgent('mock');
+		agent.getSessionCustomizations = async () => [
+			directory('.copilot', 'file:///home/.copilot/skills', [skillAt('update-skills', 'file:///home/.copilot/skills/update-skills/SKILL.md', 'Personal update-skills')]),
+			directory('.github', 'file:///ws/.github/skills', [skillAt('update-skills', 'file:///ws/.github/skills/update-skills/SKILL.md', 'Workspace update-skills')]),
+		];
+		const provider = createProvider(agent);
+
+		const result = await run(provider, '/');
+
+		assert.deepStrictEqual(result.map(item => item.insertText), ['/update-skills ', '/update-skills ']);
+	});
+
+	// Known limitation of the core fix: two distinct same-named skills that both omit a description
+	// produce the same identity key and collapse to one. There is no reachability loss (a bare `/X`
+	// resolves to exactly one skill at the CLI regardless); Option B disambiguates via a qualified insert.
+	test('collapses two same-named description-less skills (core-fix limitation, see Option B)', async () => {
+		const agent = new MockAgent('mock');
+		agent.getSessionCustomizations = async () => [
+			directory('.copilot', 'file:///home/.copilot/skills', [skillAt('update-skills', 'file:///home/.copilot/skills/update-skills/SKILL.md')]),
+			directory('.github', 'file:///ws/.github/skills', [skillAt('update-skills', 'file:///ws/.github/skills/update-skills/SKILL.md')]),
+		];
+		const provider = createProvider(agent);
+
+		const result = await run(provider, '/');
+
+		assert.deepStrictEqual(result.map(item => item.insertText), ['/update-skills ']);
+	});
+
+	test('keeps same-named skills contributed by two different plugins', async () => {
+		const agent = new MockAgent('mock');
+		agent.getSessionCustomizations = async () => [
+			plugin('plugin-a', [skillAt('review', 'file:///plugins/plugin-a/skills/review/SKILL.md')]),
+			plugin('plugin-b', [skillAt('review', 'file:///plugins/plugin-b/skills/review/SKILL.md')]),
+		];
+		const provider = createProvider(agent);
+
+		const result = await run(provider, '/');
+
+		assert.deepStrictEqual(result.map(item => item.insertText).sort(), ['/plugin-a:review ', '/plugin-b:review ']);
 	});
 
 	test('flattens skill children in session-effective order and ignores non-skill children', async () => {
@@ -99,7 +244,7 @@ suite('AgentHostSkillCompletionProvider', () => {
 
 		const result = await run(provider, '/');
 
-		assert.deepStrictEqual(result.map(item => item.insertText), ['/session-skill ', '/global-skill ']);
+		assert.deepStrictEqual(result.map(item => item.insertText), ['/first:session-skill ', '/second:global-skill ']);
 	});
 
 	test('ignores disabled customization containers', async () => {
@@ -112,7 +257,7 @@ suite('AgentHostSkillCompletionProvider', () => {
 
 		const result = await run(provider, '/');
 
-		assert.deepStrictEqual(result.map(item => item.insertText), ['/visible-skill ']);
+		assert.deepStrictEqual(result.map(item => item.insertText), ['/enabled:visible-skill ']);
 	});
 
 	test('returns an empty list when the agent has no session customizations hook', async () => {
@@ -129,23 +274,33 @@ suite('AgentHostSkillCompletionProvider', () => {
 		agent.getSessionCustomizations = async () => [plugin('skills', [skill('alpha'), skill('beta')])];
 		const provider = createProvider(agent);
 
-		const result = await run(provider, '/b extra', 2);
+		const result = await run(provider, '/skills:b extra', '/skills:b'.length);
 
 		assert.deepStrictEqual(result.map(item => ({ insertText: item.insertText, rangeStart: item.rangeStart, rangeEnd: item.rangeEnd })), [
-			{ insertText: '/beta ', rangeStart: 0, rangeEnd: 2 },
+			{ insertText: '/skills:beta ', rangeStart: 0, rangeEnd: 9 },
 		]);
+	});
+
+	test('fuzzy matches skills by the typed slash token', async () => {
+		const agent = new MockAgent('mock');
+		agent.getSessionCustomizations = async () => [plugin('skills', [skill('fix-ci'), skill('other')])];
+		const provider = createProvider(agent);
+
+		const result = await run(provider, '/ci');
+
+		assert.deepStrictEqual(result.map(item => item.insertText), ['/skills:fix-ci ']);
 	});
 
 	test('filters skills by an in-message slash prefix and replaces only that token', async () => {
 		const agent = new MockAgent('mock');
 		agent.getSessionCustomizations = async () => [plugin('skills', [skill('alpha'), skill('beta')])];
 		const provider = createProvider(agent);
-		const text = 'use /b extra';
+		const text = 'use /skills:b extra';
 
-		const result = await run(provider, text, text.indexOf('/b') + '/b'.length);
+		const result = await run(provider, text, text.indexOf('/skills:b') + '/skills:b'.length);
 
 		assert.deepStrictEqual(result.map(item => ({ insertText: item.insertText, rangeStart: item.rangeStart, rangeEnd: item.rangeEnd })), [
-			{ insertText: '/beta ', rangeStart: 4, rangeEnd: 6 },
+			{ insertText: '/skills:beta ', rangeStart: 4, rangeEnd: 13 },
 		]);
 	});
 
@@ -158,8 +313,8 @@ suite('AgentHostSkillCompletionProvider', () => {
 		const result = await run(provider, text);
 
 		assert.deepStrictEqual(result.map(item => ({ insertText: item.insertText, rangeStart: item.rangeStart, rangeEnd: item.rangeEnd })), [
-			{ insertText: '/alpha ', rangeStart: 4, rangeEnd: 5 },
-			{ insertText: '/beta ', rangeStart: 4, rangeEnd: 5 },
+			{ insertText: '/skills:alpha ', rangeStart: 4, rangeEnd: 5 },
+			{ insertText: '/skills:beta ', rangeStart: 4, rangeEnd: 5 },
 		]);
 	});
 
@@ -177,7 +332,7 @@ suite('AgentHostSkillCompletionProvider', () => {
 		const agent = new MockAgent('mock');
 		agent.getSessionCustomizations = async () => [plugin('skills', [skill('cached-skill')])];
 		const provider = createProvider(agent);
-		const text = 'use /cached-skill trailing';
+		const text = 'use /skills:cached-skill trailing';
 
 		const result = await run(provider, text, text.indexOf('trailing'));
 
@@ -188,8 +343,9 @@ suite('AgentHostSkillCompletionProvider', () => {
 		const agent = new MockAgent('mock');
 		agent.getSessionCustomizations = async () => [plugin('skills', [skill('cached-skill')])];
 		const provider = createProvider(agent);
+		const text = '/skills:cached-skill trailing';
 
-		const result = await run(provider, '/cached-skill trailing', 14);
+		const result = await run(provider, text, text.indexOf('trailing'));
 
 		assert.deepStrictEqual(result, []);
 	});

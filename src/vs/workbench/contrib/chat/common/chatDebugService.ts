@@ -6,8 +6,12 @@
 import { Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
+import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+
+export const CHAT_DEBUG_HAS_ACTIVE_SESSION = new RawContextKey<boolean>('chatDebug.hasActiveSession', false);
+export const CHAT_DEBUG_ACTIVE_SESSION_IS_AGENT_HOST = new RawContextKey<boolean>('chatDebug.activeSessionIsAgentHost', false);
 
 /**
  * The severity level of a chat debug log event.
@@ -264,9 +268,11 @@ export interface IChatDebugService extends IDisposable {
 
 	/**
 	 * Register a callback that fetches available session resources from a provider.
-	 * Called lazily when `getAvailableSessionResources()` is first invoked.
+	 * Called lazily when `getAvailableSessionResources()` is first invoked. Multiple
+	 * fetchers may be registered (e.g. the extension host and local agent-host
+	 * discovery); each is invoked at most once. Dispose to unregister.
 	 */
-	registerAvailableSessionsFetcher(fetcher: (token: CancellationToken) => Promise<{ uri: URI; title?: string }[]>): void;
+	registerAvailableSessionsFetcher(fetcher: (token: CancellationToken) => Promise<{ uri: URI; title?: string }[]>): IDisposable;
 
 	/**
 	 * Get the stored title for a historical session discovered from disk.

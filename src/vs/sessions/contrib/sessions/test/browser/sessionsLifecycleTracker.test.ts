@@ -6,11 +6,12 @@
 import assert from 'assert';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { hash } from '../../../../../base/common/hash.js';
-import { constObservable, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { IChat, ISession, ISessionChangesSummary, ISessionFileChange, ISessionFolder, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { IChat, IGitHubInfo, IGitHubPullRequestRef, ISession, ISessionChangesSummary, ISessionFileChange, ISessionFolder, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { computePullRequestIcon, GitHubPullRequestState } from '../../../github/common/types.js';
 import { MAX_TRACKED_SESSIONS, SESSIONS_KEY, SessionsLifecycleTracker } from '../../browser/sessionsLifecycleTracker.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 
@@ -20,6 +21,7 @@ interface ICreateSessionOptions {
 	workspace?: ISessionWorkspace;
 	changes?: readonly ISessionFileChange[];
 	changesSummary?: ISessionChangesSummary;
+	isExternal?: IObservable<boolean>;
 }
 
 function createSession(id: string, opts: ICreateSessionOptions = {}): ISession {
@@ -48,7 +50,8 @@ function createSession(id: string, opts: ICreateSessionOptions = {}): ISession {
 		lastTurnEnd: observableValue(`lastTurnEnd-${id}`, undefined),
 		chats: observableValue<readonly IChat[]>(`chats-${id}`, []),
 		mainChat: constObservable<IChat>(undefined!),
-		capabilities: { supportsMultipleChats: false },
+		capabilities: constObservable({ supportsMultipleChats: false }),
+		isExternal: opts.isExternal,
 	};
 }
 
@@ -63,20 +66,30 @@ function createWorkspace(uri: URI, folders: ISessionFolder[]): ISessionWorkspace
 	};
 }
 
-function createFolder(uri: URI, opts: { readonly workTreeUri?: URI; readonly withGitRepository?: boolean } = {}): ISessionFolder {
+function createFolder(uri: URI, opts: { readonly workTreeUri?: URI; readonly withGitRepository?: boolean; readonly gitHubInfo?: IGitHubInfo } = {}): ISessionFolder {
 	return {
 		root: uri,
 		workingDirectory: uri,
 		name: 'folder',
 		description: undefined,
-		gitRepository: (opts.withGitRepository || opts.workTreeUri)
+		gitRepository: (opts.withGitRepository || opts.workTreeUri || opts.gitHubInfo)
 			? {
 				uri,
 				workTreeUri: opts.workTreeUri,
 				baseBranchName: undefined,
-				gitHubInfo: constObservable(undefined),
+				gitHubInfo: constObservable(opts.gitHubInfo),
 			}
 			: undefined,
+	};
+}
+
+function createPullRequestRef(number: number, state: GitHubPullRequestState | 'draft'): IGitHubPullRequestRef {
+	return {
+		owner: 'microsoft',
+		repo: 'vscode',
+		number,
+		uri: URI.parse(`https://github.com/microsoft/vscode/pull/${number}`),
+		icon: computePullRequestIcon(state),
 	};
 }
 
@@ -101,7 +114,7 @@ suite('SessionsLifecycleTracker', () => {
 	});
 
 	test('finalize emits summary and removes tracking entry', () => {
-		const session = createSession('s1');
+		const session = createSession('s1', { providerId: 'agenthost-example.internal:1234' });
 		tracker.recordNewChatRequestSent(session);
 		tracker.bumpCounter(session, 'feedbackAdded');
 		tracker.bumpCounter(session, 'feedbackAdded');
@@ -110,8 +123,8 @@ suite('SessionsLifecycleTracker', () => {
 		const summary = tracker.finalize(session.sessionId, 'archived', session);
 
 		assert.ok(summary);
-		assert.strictEqual(summary!.agentSessionId, 's1');
-		assert.strictEqual(summary!.providerId, 'test-provider');
+		assert.strictEqual(summary!.agentSessionId, '640d87e741e6aa4c669a82a4cd304787960513ab');
+		assert.strictEqual(summary!.providerId, 'remote-agent-host');
 		assert.strictEqual(summary!.providerType, 'test-type');
 		assert.strictEqual(summary!.doneReason, 'archived');
 		assert.strictEqual(summary!.requestsSent, 1);
@@ -325,6 +338,108 @@ suite('SessionsLifecycleTracker', () => {
 		});
 	});
 
+	test('summary reports the multi-root workspace topology captured at first observation', () => {
+		const workspaceUri = URI.parse('file:///repo');
+		const gitFolder = URI.parse('file:///repo/app');
+		const nonGitFolder = URI.parse('file:///repo/notes');
+		const workspace = createWorkspace(workspaceUri, [
+			createFolder(gitFolder, { withGitRepository: true }),
+			createFolder(nonGitFolder),
+		]);
+		const session = createSession('s1', { workspace });
+
+		tracker.recordNewChatRequestSent(session);
+		const summary = tracker.finalize(session.sessionId, 'archived', session);
+
+		assert.ok(summary);
+		assert.deepStrictEqual({
+			isMultiRoot: summary!.isMultiRoot,
+			folderCount: summary!.folderCount,
+			gitFolderCount: summary!.gitFolderCount,
+			nonGitFolderCount: summary!.nonGitFolderCount,
+		}, {
+			isMultiRoot: true,
+			folderCount: 2,
+			gitFolderCount: 1,
+			nonGitFolderCount: 1,
+		});
+	});
+
+	test('summary reports whether the session is external, refreshed on later interactions', () => {
+		const isExternal = observableValue('isExternal', false);
+		const session = createSession('s1', { isExternal });
+
+		tracker.recordNewChatRequestSent(session);
+		isExternal.set(true, undefined);
+		tracker.bumpCounter(session, 'commit');
+		const summary = tracker.finalize(session.sessionId, 'archived', session);
+
+		const plain = createSession('s2');
+		tracker.recordNewChatRequestSent(plain);
+		const plainSummary = tracker.finalize(plain.sessionId, 'archived', plain);
+
+		assert.deepStrictEqual({
+			external: summary?.isExternal,
+			plain: plainSummary?.isExternal,
+		}, {
+			external: true,
+			plain: false,
+		});
+	});
+
+	test('summary reports the pull request count and the status of the most recent pull request', () => {
+		const workspaceUri = URI.parse('file:///repo');
+		const gitHubInfo: IGitHubInfo = {
+			owner: 'microsoft',
+			repo: 'vscode',
+			pullRequests: [createPullRequestRef(2, GitHubPullRequestState.Merged), createPullRequestRef(1, GitHubPullRequestState.Closed)],
+			pullRequest: { number: 2, uri: URI.parse('https://github.com/microsoft/vscode/pull/2'), icon: computePullRequestIcon(GitHubPullRequestState.Merged) },
+		};
+		const workspace = createWorkspace(workspaceUri, [createFolder(workspaceUri, { gitHubInfo })]);
+		const session = createSession('s1', { workspace });
+
+		tracker.recordNewChatRequestSent(session);
+		const summary = tracker.finalize(session.sessionId, 'archived', session);
+
+		const plain = createSession('s2');
+		tracker.recordNewChatRequestSent(plain);
+		const plainSummary = tracker.finalize(plain.sessionId, 'archived', plain);
+
+		assert.deepStrictEqual({
+			pullRequestCount: summary?.pullRequestCount,
+			pullRequestStatus: summary?.pullRequestStatus,
+			plainPullRequestCount: plainSummary?.pullRequestCount,
+			plainPullRequestStatus: plainSummary?.pullRequestStatus,
+		}, {
+			pullRequestCount: 2,
+			pullRequestStatus: 'merged',
+			plainPullRequestCount: 0,
+			plainPullRequestStatus: undefined,
+		});
+	});
+
+	test('summary reports a draft pull request status without a resolved main pull request icon', () => {
+		const workspaceUri = URI.parse('file:///repo');
+		const gitHubInfo: IGitHubInfo = {
+			owner: 'microsoft',
+			repo: 'vscode',
+			pullRequests: [createPullRequestRef(7, 'draft')],
+		};
+		const workspace = createWorkspace(workspaceUri, [createFolder(workspaceUri, { gitHubInfo })]);
+		const session = createSession('s1', { workspace });
+
+		tracker.recordNewChatRequestSent(session);
+		const summary = tracker.finalize(session.sessionId, 'archived', session);
+
+		assert.deepStrictEqual({
+			pullRequestCount: summary?.pullRequestCount,
+			pullRequestStatus: summary?.pullRequestStatus,
+		}, {
+			pullRequestCount: 1,
+			pullRequestStatus: 'draft',
+		});
+	});
+
 	test('recordFirstRequestTaskInfo is a no-op when the session is not tracked', () => {
 		const session = createSession('s1');
 
@@ -387,10 +502,10 @@ suite('SessionsLifecycleTracker', () => {
 	test('incrementAndGetUserRequestCounters returns post-increment values per provider, workspace and total', () => {
 		const workspaceA = createWorkspace(URI.parse('file:///ws/a'), [createFolder(URI.parse('file:///ws/a'))]);
 		const workspaceB = createWorkspace(URI.parse('file:///ws/b'), [createFolder(URI.parse('file:///ws/b'))]);
-		const a1 = createSession('a1', { providerId: 'p1', workspace: workspaceA });
-		const a2 = createSession('a2', { providerId: 'p1', workspace: workspaceA });
-		const b = createSession('b', { providerId: 'p2', workspace: workspaceB });
-		const noWorkspace = createSession('n', { providerId: 'p1' });
+		const a1 = createSession('a1', { providerId: 'agenthost-first.example:1234', workspace: workspaceA });
+		const a2 = createSession('a2', { providerId: 'agenthost-second.example:5678', workspace: workspaceA });
+		const b = createSession('b', { providerId: 'default-copilot', workspace: workspaceB });
+		const noWorkspace = createSession('n', { providerId: 'agenthost-third.example:9012' });
 
 		assert.deepStrictEqual(tracker.incrementAndGetUserRequestCounters(a1), { userSessionsTotal: 1, userSessionsInWorkspace: 1, userSessionsForProvider: 1 });
 		assert.deepStrictEqual(tracker.incrementAndGetUserRequestCounters(a2), { userSessionsTotal: 2, userSessionsInWorkspace: 2, userSessionsForProvider: 2 });
@@ -398,12 +513,33 @@ suite('SessionsLifecycleTracker', () => {
 		assert.deepStrictEqual(tracker.incrementAndGetUserRequestCounters(noWorkspace), { userSessionsTotal: 4, userSessionsInWorkspace: 0, userSessionsForProvider: 3 });
 	});
 
+	test('provider counters migrate raw provider IDs into bounded categories', () => {
+		storage.store('agentSessions.telemetry.providerSessions', JSON.stringify({
+			'agenthost-first.example:1234': 2,
+			'agenthost-second.example:5678': 3,
+			'default-copilot': 4,
+		}), StorageScope.APPLICATION, StorageTarget.MACHINE);
+
+		const remoteSession = createSession('remote', { providerId: 'agenthost-third.example:9012' });
+		const copilotSession = createSession('copilot', { providerId: 'default-copilot' });
+
+		assert.deepStrictEqual([
+			tracker.incrementAndGetUserRequestCounters(remoteSession),
+			tracker.getUserRequestCounters(copilotSession),
+			JSON.parse(storage.get('agentSessions.telemetry.providerSessions', StorageScope.APPLICATION) ?? ''),
+		], [
+			{ userSessionsTotal: 1, userSessionsInWorkspace: 0, userSessionsForProvider: 6 },
+			{ userSessionsTotal: 1, userSessionsInWorkspace: 0, userSessionsForProvider: 4 },
+			{ 'remote-agent-host': 6, 'default-copilot': 4 },
+		]);
+	});
+
 	test('summary includes the request counters as observed at finalize time', () => {
 		const workspaceA = createWorkspace(URI.parse('file:///ws/a'), [createFolder(URI.parse('file:///ws/a'))]);
 		const workspaceB = createWorkspace(URI.parse('file:///ws/b'), [createFolder(URI.parse('file:///ws/b'))]);
-		const sessionToFinalize = createSession('a1', { providerId: 'p1', workspace: workspaceA });
-		const otherSameWorkspace = createSession('a2', { providerId: 'p1', workspace: workspaceA });
-		const otherDifferentEverything = createSession('b', { providerId: 'p2', workspace: workspaceB });
+		const sessionToFinalize = createSession('a1', { providerId: 'agenthost-first.example:1234', workspace: workspaceA });
+		const otherSameWorkspace = createSession('a2', { providerId: 'agenthost-second.example:5678', workspace: workspaceA });
+		const otherDifferentEverything = createSession('b', { providerId: 'default-copilot', workspace: workspaceB });
 
 		tracker.recordNewChatRequestSent(sessionToFinalize);
 		tracker.incrementAndGetUserRequestCounters(sessionToFinalize);

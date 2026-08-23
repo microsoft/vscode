@@ -6,8 +6,6 @@
 import type { Tool, ToolResultObject } from '@github/copilot-sdk';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { URI } from '../../../../base/common/uri.js';
-import { removeAnsiEscapeCodes } from '../../../../base/common/strings.js';
-import * as platform from '../../../../base/common/platform.js';
 import { Disposable, DisposableStore, type IReference, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { IEnvironmentService } from '../../../environment/common/environment.js';
@@ -17,27 +15,24 @@ import { IProductService } from '../../../product/common/productService.js';
 import { ISandboxHelperService } from '../../../sandbox/common/sandboxHelperService.js';
 import type { ITerminalSandboxResolvedNetworkDomains } from '../../../sandbox/common/terminalSandboxService.js';
 import { TerminalSandboxEngine } from '../../../sandbox/common/terminalSandboxEngine.js';
-import { TerminalClaimKind, type TerminalSessionClaim } from '../../common/state/protocol/state.js';
+import { TerminalClaimKind, TerminalLifecycleStatus, type TerminalSessionClaim } from '../../common/state/protocol/state.js';
+import { parseRequiredSessionUriFromChatUri } from '../../common/state/sessionState.js';
 import { isZsh } from '../agentHostShellUtils.js';
 import { IAgentHostTerminalManager } from '../agentHostTerminalManager.js';
 import { createAgentHostSandboxEngine } from './agentHostSandboxEngine.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
+import { DEFAULT_SHELL_COMMAND_TIMEOUT_MS, executeShellCommand, isMultilineCommand, prefixForHistorySuppression, prepareOutputForModel, shellTypeForExecutable, type IShellCommandResult, type ShellType } from '../shared/shellCommandExecution.js';
+
+// Re-exported for consumers (and tests) that historically imported these
+// shell helpers from this module. Their canonical home is the shared,
+// agent-agnostic shellCommandExecution module.
+export { isMultilineCommand, prefixForHistorySuppression, shellTypeForExecutable };
+export type { ShellType };
 
 /**
- * Maximum scrollback content (in bytes) returned to the model in tool results.
+ * Message returned to the model when a command switches to the terminal's
+ * alternate buffer (typically an interactive full-screen UI).
  */
-const MAX_OUTPUT_BYTES = 80_000;
-
-/**
- * Default command timeout in milliseconds (120 seconds).
- */
-const DEFAULT_TIMEOUT_MS = 120_000;
-
-/**
- * The sentinel prefix used to detect command completion in terminal output.
- * The full sentinel format is: `<<<COPILOT_SENTINEL_<uuid>_EXIT_<code>>>`.
- */
-const SENTINEL_PREFIX = '<<<COPILOT_SENTINEL_';
 const ALT_BUFFER_MESSAGE = 'The command opened the alternate buffer and is still running in the terminal. It likely launched an interactive terminal UI. Use write_bash/write_powershell to interact with it, or shutdown the shell to stop it.';
 
 /**
@@ -48,48 +43,6 @@ interface IManagedShell {
 	readonly terminalUri: string;
 	readonly shellType: ShellType;
 	readonly executable: string;
-}
-
-export type ShellType = 'bash' | 'powershell';
-
-/**
- * Routes a resolved shell executable to one of the Copilot SDK's two
- * built-in shell tools (`bash` / `powershell`). Falls back to the platform
- * default for unknown shells.
- */
-export function shellTypeForExecutable(shellPath: string): ShellType {
-	// Strip path on either separator and the .exe suffix.
-	const lastSep = Math.max(shellPath.lastIndexOf('/'), shellPath.lastIndexOf('\\'));
-	const base = shellPath.slice(lastSep + 1).toLowerCase().replace(/\.exe$/, '');
-	switch (base) {
-		// PowerShell
-		case 'pwsh':
-		case 'powershell':
-		case 'pwsh-preview':
-			return 'powershell';
-		// POSIX shells
-		case 'bash':
-		case 'sh':
-		case 'zsh':
-		case 'fish':
-		case 'csh':
-		case 'ksh':
-		case 'nu':
-		case 'xonsh':
-		// Git for Windows bash entry points
-		case 'git-cmd':
-		// WSL launchers — bash inside, but invoked via these stubs
-		case 'wsl':
-		case 'ubuntu':
-		case 'ubuntu1804':
-		case 'kali':
-		case 'debian':
-		case 'opensuse-42':
-		case 'sles-12':
-			return 'bash';
-		default:
-			return platform.isWindows ? 'powershell' : 'bash';
-	}
 }
 
 // ---------------------------------------------------------------------------
@@ -105,7 +58,6 @@ export function shellTypeForExecutable(shellPath: string): ShellType {
  * the session ends.
  */
 export class ShellManager extends Disposable {
-
 	private readonly _shells = new Map<string, IManagedShell>();
 	private readonly _toolCallShells = new Map<string, string>();
 	private _resolvedExecutable: Promise<string> | undefined;
@@ -194,6 +146,7 @@ export class ShellManager extends Disposable {
 	 */
 	async getOrCreateShell(
 		shellType: ShellType,
+		chat: URI,
 		turnId: string,
 		toolCallId: string,
 		cwd?: string,
@@ -202,8 +155,8 @@ export class ShellManager extends Disposable {
 			if (shell.shellType !== shellType || !this._terminalManager.hasTerminal(shell.terminalUri)) {
 				continue;
 			}
-			const exitCode = this._terminalManager.getExitCode(shell.terminalUri);
-			if (exitCode !== undefined) {
+			const lifecycle = this._terminalManager.getTerminalState(shell.terminalUri)?.lifecycle;
+			if (lifecycle?.status === TerminalLifecycleStatus.Exited) {
 				this._shells.delete(shell.id);
 				continue;
 			}
@@ -222,7 +175,10 @@ export class ShellManager extends Disposable {
 
 		const claim: TerminalSessionClaim = {
 			kind: TerminalClaimKind.Session,
-			session: this._sessionUri.toString(),
+			// The chat URI is authoritative: this manager's own scope URI is the
+			// chat for a peer chat, so the owning session comes from the chat.
+			session: parseRequiredSessionUriFromChatUri(chat),
+			chat: chat.toString(),
 			turnId,
 			toolCallId,
 		};
@@ -323,69 +279,6 @@ export class ShellManager extends Disposable {
 }
 
 // ---------------------------------------------------------------------------
-// Sentinel helpers
-// ---------------------------------------------------------------------------
-
-function makeSentinelId(): string {
-	return generateUuid().replace(/-/g, '');
-}
-
-function buildSentinelCommand(sentinelId: string, shellType: ShellType): string {
-	if (shellType === 'powershell') {
-		return `Write-Output "${SENTINEL_PREFIX}${sentinelId}_EXIT_$LASTEXITCODE>>>"`;
-	}
-	return `echo "${SENTINEL_PREFIX}${sentinelId}_EXIT_$?>>>"`;
-}
-
-/**
- * For POSIX shells (bash/zsh) that honor `HISTCONTROL=ignorespace` /
- * `HIST_IGNORE_SPACE`, prepending a single space prevents the command from
- * being recorded in shell history. The shell integration scripts opt these
- * settings in via the `VSCODE_PREVENT_SHELL_HISTORY` env var (set when the
- * terminal is created with `preventShellHistory: true`). PowerShell
- * suppresses history through PSReadLine instead, so no prefix is needed.
- */
-export function prefixForHistorySuppression(shellType: ShellType): string {
-	return shellType === 'powershell' ? '' : ' ';
-}
-
-export function isMultilineCommand(command: string): boolean {
-	const normalized = command.replace(/\r\n|\r/g, '\n');
-	return /(?<!\\)\n/.test(normalized);
-}
-
-function shouldUseBracketedPasteMode(command: string): boolean {
-	return platform.isMacintosh || isMultilineCommand(command);
-}
-
-function parseSentinel(content: string, sentinelId: string): { found: boolean; exitCode: number; outputBeforeSentinel: string } {
-	const marker = `${SENTINEL_PREFIX}${sentinelId}_EXIT_`;
-	const idx = content.indexOf(marker);
-	if (idx === -1) {
-		return { found: false, exitCode: -1, outputBeforeSentinel: content };
-	}
-
-	const outputBeforeSentinel = content.substring(0, idx);
-	const afterMarker = content.substring(idx + marker.length);
-	const endIdx = afterMarker.indexOf('>>>');
-	const exitCodeStr = endIdx >= 0 ? afterMarker.substring(0, endIdx) : afterMarker.trim();
-	const exitCode = parseInt(exitCodeStr, 10);
-	return {
-		found: true,
-		exitCode: isNaN(exitCode) ? -1 : exitCode,
-		outputBeforeSentinel,
-	};
-}
-
-function prepareOutputForModel(rawOutput: string): string {
-	let text = removeAnsiEscapeCodes(rawOutput).trim();
-	if (text.length > MAX_OUTPUT_BYTES) {
-		text = text.substring(text.length - MAX_OUTPUT_BYTES);
-	}
-	return text;
-}
-
-// ---------------------------------------------------------------------------
 // Tool implementations
 // ---------------------------------------------------------------------------
 
@@ -406,25 +299,33 @@ function makeExecutionResult(toolResult: ToolResultObject, options?: { keepShell
 	return { toolResult, keepShellBusy: options?.keepShellBusy };
 }
 
-function makeBackgroundExecutionResult(text: string): IShellExecutionResult {
-	return makeExecutionResult(makeSuccessResult(text), { keepShellBusy: true });
-}
-
-function makeAltBufferExecutionResult(): IShellExecutionResult {
-	return makeExecutionResult(makeFailureResult(ALT_BUFFER_MESSAGE, 'alternateBuffer'), { keepShellBusy: true });
-}
-
-function registerAltBufferHandler(
-	shell: IManagedShell,
-	terminalManager: IAgentHostTerminalManager,
-	logService: ILogService,
-	disposables: DisposableStore,
-	finish: (result: IShellExecutionResult) => void,
-): void {
-	void terminalManager.createAltBufferPromise(shell.terminalUri, disposables).then(() => {
-		logService.info('[ShellTool] Command entered alternate buffer');
-		finish(makeAltBufferExecutionResult());
-	});
+/**
+ * Maps the neutral {@link IShellCommandResult} produced by the shared shell
+ * executor to the Copilot SDK {@link ToolResultObject} shape expected by the
+ * shell tools.
+ */
+function shellCommandResultToExecutionResult(result: IShellCommandResult, timeoutMs: number): IShellExecutionResult {
+	switch (result.status) {
+		case 'completed': {
+			const exitCode = result.exitCode ?? 0;
+			const text = `Exit code: ${exitCode}\n${result.output}`;
+			return makeExecutionResult(exitCode === 0 ? makeSuccessResult(text) : makeFailureResult(text));
+		}
+		case 'shellExited':
+			return makeExecutionResult(makeFailureResult(`Shell exited with code ${result.exitCode}\n${result.output}`));
+		case 'timeout':
+			return makeExecutionResult(makeFailureResult(
+				`Command timed out after ${Math.round(timeoutMs / 1000)}s. Partial output:\n${result.output}`,
+				'timeout',
+			));
+		case 'background':
+			return makeExecutionResult(
+				makeSuccessResult('The user chose to continue this command in the background. The terminal is still running.'),
+				{ keepShellBusy: true },
+			);
+		case 'altBuffer':
+			return makeExecutionResult(makeFailureResult(ALT_BUFFER_MESSAGE, 'alternateBuffer'), { keepShellBusy: true });
+	}
 }
 
 async function executeCommandInShell(
@@ -434,9 +335,10 @@ async function executeCommandInShell(
 	terminalManager: IAgentHostTerminalManager,
 	logService: ILogService,
 ): Promise<IShellExecutionResult> {
-	const result = terminalManager.supportsCommandDetection(shell.terminalUri)
-		? await executeCommandWithShellIntegration(shell, command, timeoutMs, terminalManager, logService)
-		: await executeCommandWithSentinel(shell, command, timeoutMs, terminalManager, logService);
+	const result = shellCommandResultToExecutionResult(
+		await executeShellCommand(shell, command, timeoutMs, terminalManager, logService),
+		timeoutMs,
+	);
 	return {
 		...result,
 		toolResult: {
@@ -444,182 +346,6 @@ async function executeCommandInShell(
 			textResultForLlm: `Shell ID: ${shell.id}\n${result.toolResult.textResultForLlm}`,
 		},
 	};
-}
-
-/**
- * Execute a command using shell integration (OSC 633) for completion detection.
- * No sentinel echo is injected — the shell's own command-finished signal
- * provides the exit code and cleanly delineated output.
- */
-async function executeCommandWithShellIntegration(
-	shell: IManagedShell,
-	command: string,
-	timeoutMs: number,
-	terminalManager: IAgentHostTerminalManager,
-	logService: ILogService,
-): Promise<IShellExecutionResult> {
-	const disposables = new DisposableStore();
-
-	const result = new Promise<IShellExecutionResult>(resolve => {
-		let resolved = false;
-		const finish = (result: IShellExecutionResult) => {
-			if (resolved) {
-				return;
-			}
-			resolved = true;
-			disposables.dispose();
-			resolve(result);
-		};
-
-		disposables.add(terminalManager.onCommandFinished(shell.terminalUri, event => {
-			const output = prepareOutputForModel(event.output);
-			const exitCode = event.exitCode ?? 0;
-			logService.info(`[ShellTool] Command completed (shell integration) with exit code ${exitCode}`);
-			if (exitCode === 0) {
-				finish(makeExecutionResult(makeSuccessResult(`Exit code: ${exitCode}\n${output}`)));
-			} else {
-				finish(makeExecutionResult(makeFailureResult(`Exit code: ${exitCode}\n${output}`)));
-			}
-		}));
-
-		registerAltBufferHandler(shell, terminalManager, logService, disposables, finish);
-
-		disposables.add(terminalManager.onExit(shell.terminalUri, (exitCode: number) => {
-			logService.info(`[ShellTool] Shell exited unexpectedly with code ${exitCode}`);
-			const fullContent = terminalManager.getContent(shell.terminalUri) ?? '';
-			const output = prepareOutputForModel(fullContent);
-			finish(makeExecutionResult(makeFailureResult(`Shell exited with code ${exitCode}\n${output}`)));
-		}));
-
-		disposables.add(terminalManager.onClaimChanged(shell.terminalUri, (claim) => {
-			if (claim.kind === TerminalClaimKind.Session && !claim.toolCallId) {
-				logService.info(`[ShellTool] Continuing in background (claim narrowed)`);
-				finish(makeBackgroundExecutionResult('The user chose to continue this command in the background. The terminal is still running.'));
-			}
-		}));
-
-		const timer = setTimeout(() => {
-			logService.warn(`[ShellTool] Command timed out after ${timeoutMs}ms`);
-			const fullContent = terminalManager.getContent(shell.terminalUri) ?? '';
-			const output = prepareOutputForModel(fullContent);
-			finish(makeExecutionResult(makeFailureResult(
-				`Command timed out after ${Math.round(timeoutMs / 1000)}s. Partial output:\n${output}`,
-				'timeout',
-			)));
-		}, timeoutMs);
-		disposables.add(toDisposable(() => clearTimeout(timer)));
-
-	});
-
-	try {
-		await terminalManager.sendText(shell.terminalUri, `${prefixForHistorySuppression(shell.shellType)}${command}`, {
-			shouldExecute: true,
-			bracketedPasteMode: shouldUseBracketedPasteMode(command),
-		});
-	} catch (err) {
-		disposables.dispose();
-		throw err;
-	}
-
-	return result;
-}
-
-/**
- * Fallback: execute a command using a sentinel echo to detect completion.
- * Used when shell integration is not available.
- */
-async function executeCommandWithSentinel(
-	shell: IManagedShell,
-	command: string,
-	timeoutMs: number,
-	terminalManager: IAgentHostTerminalManager,
-	logService: ILogService,
-): Promise<IShellExecutionResult> {
-	const sentinelId = makeSentinelId();
-	const sentinelCmd = buildSentinelCommand(sentinelId, shell.shellType);
-	const disposables = new DisposableStore();
-
-	const contentBefore = terminalManager.getContent(shell.terminalUri) ?? '';
-	const offsetBefore = contentBefore.length;
-
-	const result = new Promise<IShellExecutionResult>(resolve => {
-		let resolved = false;
-		const finish = (result: IShellExecutionResult) => {
-			if (resolved) {
-				return;
-			}
-			resolved = true;
-			disposables.dispose();
-			resolve(result);
-		};
-
-		const checkForSentinel = () => {
-			const fullContent = terminalManager.getContent(shell.terminalUri) ?? '';
-			// Clamp offset: the terminal manager trims content when it exceeds
-			// 100k chars (slices to last 80k). If trimming happened after we
-			// captured offsetBefore, scan from the start of the current buffer.
-			const clampedOffset = Math.min(offsetBefore, fullContent.length);
-			const newContent = fullContent.substring(clampedOffset);
-			const parsed = parseSentinel(newContent, sentinelId);
-			if (parsed.found) {
-				const output = prepareOutputForModel(parsed.outputBeforeSentinel);
-				logService.info(`[ShellTool] Command completed with exit code ${parsed.exitCode}`);
-				if (parsed.exitCode === 0) {
-					finish(makeExecutionResult(makeSuccessResult(`Exit code: ${parsed.exitCode}\n${output}`)));
-				} else {
-					finish(makeExecutionResult(makeFailureResult(`Exit code: ${parsed.exitCode}\n${output}`)));
-				}
-			}
-		};
-
-		disposables.add(terminalManager.onData(shell.terminalUri, () => {
-			checkForSentinel();
-		}));
-
-		registerAltBufferHandler(shell, terminalManager, logService, disposables, finish);
-
-		disposables.add(terminalManager.onExit(shell.terminalUri, (exitCode: number) => {
-			logService.info(`[ShellTool] Shell exited unexpectedly with code ${exitCode}`);
-			const fullContent = terminalManager.getContent(shell.terminalUri) ?? '';
-			const newContent = fullContent.substring(offsetBefore);
-			const output = prepareOutputForModel(newContent);
-			finish(makeExecutionResult(makeFailureResult(`Shell exited with code ${exitCode}\n${output}`)));
-		}));
-
-		disposables.add(terminalManager.onClaimChanged(shell.terminalUri, (claim) => {
-			if (claim.kind === TerminalClaimKind.Session && !claim.toolCallId) {
-				logService.info(`[ShellTool] Continuing in background (claim narrowed)`);
-				finish(makeBackgroundExecutionResult('The user chose to continue this command in the background. The terminal is still running.'));
-			}
-		}));
-
-		const timer = setTimeout(() => {
-			logService.warn(`[ShellTool] Command timed out after ${timeoutMs}ms`);
-			const fullContent = terminalManager.getContent(shell.terminalUri) ?? '';
-			const newContent = fullContent.substring(offsetBefore);
-			const output = prepareOutputForModel(newContent);
-			finish(makeExecutionResult(makeFailureResult(
-				`Command timed out after ${Math.round(timeoutMs / 1000)}s. Partial output:\n${output}`,
-				'timeout',
-			)));
-		}, timeoutMs);
-		disposables.add(toDisposable(() => clearTimeout(timer)));
-
-		checkForSentinel();
-	});
-
-	try {
-		await terminalManager.sendText(shell.terminalUri, `${prefixForHistorySuppression(shell.shellType)}${command}`, {
-			shouldExecute: true,
-			bracketedPasteMode: shouldUseBracketedPasteMode(command),
-		});
-		await terminalManager.sendText(shell.terminalUri, sentinelCmd, { shouldExecute: true });
-	} catch (err) {
-		disposables.dispose();
-		throw err;
-	}
-
-	return result;
 }
 
 // ---------------------------------------------------------------------------
@@ -663,6 +389,7 @@ interface IShutdownShellArgs {
  */
 export async function createShellTools(
 	shellManager: ShellManager,
+	chat: URI,
 	terminalManager: IAgentHostTerminalManager,
 	logService: ILogService,
 	confirmUnsandboxedExecution?: UnsandboxedCommandConfirmationHandler,
@@ -699,9 +426,10 @@ export async function createShellTools(
 		},
 		overridesBuiltInTool: true,
 		handler: async (args, invocation) => {
-			const timeoutMs = args.timeout ?? DEFAULT_TIMEOUT_MS;
+			const timeoutMs = args.timeout ?? DEFAULT_SHELL_COMMAND_TIMEOUT_MS;
 			const ref = await shellManager.getOrCreateShell(
 				shellType,
+				chat,
 				invocation.toolCallId,
 				invocation.toolCallId,
 			);
@@ -883,8 +611,10 @@ export async function createShellTools(
 				return makeSuccessResult('No active shells.');
 			}
 			const descriptions = shells.map(s => {
-				const exitCode = terminalManager.getExitCode(s.terminalUri);
-				const status = exitCode !== undefined ? `exited (${exitCode})` : 'running';
+				const lifecycle = terminalManager.getTerminalState(s.terminalUri)?.lifecycle;
+				const status = lifecycle?.status === TerminalLifecycleStatus.Exited
+					? lifecycle.exitCode === undefined ? 'exited' : `exited (${lifecycle.exitCode})`
+					: 'running';
 				return `- ${s.id}: ${s.shellType} [${status}]`;
 			});
 			return makeSuccessResult(descriptions.join('\n'));

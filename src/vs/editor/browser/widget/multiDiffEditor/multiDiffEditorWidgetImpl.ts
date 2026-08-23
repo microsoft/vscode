@@ -17,7 +17,9 @@ import { ContextKeyValue, IContextKeyService } from '../../../../platform/contex
 import { ITextEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 import { OffsetRange } from '../../../common/core/ranges/offsetRange.js';
+import { IDiffEditorOptions } from '../../../common/config/editorOptions.js';
 import { IRange } from '../../../common/core/range.js';
 import { ISelection, Selection } from '../../../common/core/selection.js';
 import { IDiffEditor } from '../../../common/editorCommon.js';
@@ -26,6 +28,7 @@ import { ICodeEditor } from '../../editorBrowser.js';
 import { ObservableElementSizeObserver } from '../diffEditor/utils.js';
 import { DiffEditorItemTemplate, TemplateData } from './diffEditorItemTemplate.js';
 import { IDocumentDiffItem } from './model.js';
+import { formatDiffItemKey, formatUri, ILoggedDiffItem, MultiDiffEditorLogger } from './multiDiffEditorLogging.js';
 import { DocumentDiffItemViewModel, MultiDiffEditorViewModel } from './multiDiffEditorViewModel.js';
 import { RevealOptions } from './multiDiffEditorWidget.js';
 import { ObjectPool } from './objectPool.js';
@@ -45,6 +48,8 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 
 	private readonly _objectPool;
 
+	private readonly _optionsOverride: IObservable<IDiffEditorOptions>;
+
 	public readonly scrollTop;
 	public readonly scrollLeft;
 
@@ -60,15 +65,30 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 	private readonly _contextKeyService;
 	private readonly _instantiationService;
 
+	private readonly _logger: MultiDiffEditorLogger;
+
+	/**
+	 * When `true`, the automatic "select the first change" initialization that
+	 * runs once the view model finishes loading does not move keyboard focus
+	 * into the editor. Driven by {@link setPreserveFocusOnLoad} so a
+	 * `preserveFocus` open (e.g. restored in the background or on a session
+	 * switch) does not steal focus, while a normal user-initiated open does.
+	 */
+	private _preserveFocusOnLoad = false;
+
 	constructor(
 		private readonly _element: HTMLElement,
 		private readonly _dimension: IObservable<Dimension | undefined>,
 		private readonly _viewModel: IObservable<MultiDiffEditorViewModel | undefined>,
 		private readonly _workbenchUIElementFactory: IWorkbenchUIElementFactory,
+		private readonly _diffLayoutOptions: IObservable<IDiffEditorOptions | undefined>,
+		private readonly _diffEditorOptions: IDiffEditorOptions | undefined,
 		@IContextKeyService private readonly _parentContextKeyService: IContextKeyService,
 		@IInstantiationService private readonly _parentInstantiationService: IInstantiationService,
+		@ILogService logService: ILogService,
 	) {
 		super();
+		this._logger = this._register(new MultiDiffEditorLogger(logService));
 		this._scrollableElements = h('div.scrollContent', [
 			h('div@content', {
 				style: {
@@ -93,12 +113,16 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 			h('div.placeholder@placeholder', {}, [h('div')]),
 		]);
 		this._sizeObserver = this._register(new ObservableElementSizeObserver(this._element, undefined));
+		this._optionsOverride = derived(this, reader => {
+			return { ...this._diffEditorOptions, ...this._diffLayoutOptions.read(reader) };
+		});
 		this._objectPool = this._register(new ObjectPool<TemplateData, DiffEditorItemTemplate>((data) => {
 			const template = this._instantiationService.createInstance(
 				DiffEditorItemTemplate,
 				this._scrollableElements.content,
 				this._scrollableElements.overflowWidgetsDomNode,
-				this._workbenchUIElementFactory
+				this._workbenchUIElementFactory,
+				this._optionsOverride,
 			);
 			template.setData(data);
 			return template;
@@ -113,18 +137,30 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 				}
 				const viewModels = vm.items.read(reader);
 				const map = new Map<DocumentDiffItemViewModel, VirtualizedViewItem>();
+				let restoredDocStates = 0;
 				const items = viewModels.map(d => {
 					const item = reader.store.add(new VirtualizedViewItem(d, this._objectPool, this.scrollLeft, delta => {
-						this._scrollableElement.setScrollPosition({ scrollTop: this._scrollableElement.getScrollPosition().scrollTop + delta });
-					}));
+						const before = this._scrollableElement.getScrollPosition().scrollTop;
+						this._scrollableElement.setScrollPosition({ scrollTop: before + delta });
+						this._logger.log('scroll adjusted by embedded editor', {
+							file: d.modifiedUri ?? d.originalUri,
+							delta,
+							scrollTop: `${before} -> ${this._scrollableElement.getScrollPosition().scrollTop}`,
+						});
+					}, this._logger));
 					const data = this._lastDocStates?.[item.getKey()];
 					if (data) {
+						restoredDocStates++;
 						transaction(tx => {
 							item.setViewState(data, tx);
 						});
 					}
 					map.set(d, item);
 					return item;
+				});
+				this._logger.log('view items updated', {
+					items: items.length,
+					restoredDocStates,
 				});
 				return { items, getItem: d => map.get(d)! };
 			}
@@ -167,11 +203,27 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 			}
 		}));
 
+		const ctxRenderSideBySide = this._parentContextKeyService.createKey<boolean>(EditorContextKeys.multiDiffEditorRenderSideBySide.key, true);
+		this._register(autorun((reader) => {
+			const renderSideBySide = this._diffLayoutOptions.read(reader)?.renderSideBySide;
+			if (renderSideBySide !== undefined) {
+				ctxRenderSideBySide.set(renderSideBySide);
+			}
+		}));
+
 		this._register(autorun((reader) => {
 			/** @description Update widget dimension */
 			const dimension = this._dimension.read(reader);
 			this._sizeObserver.observe(dimension);
 		}));
+
+		this._logger.logStateChanges({
+			viewModel: this._viewModel,
+			items: this._viewItems,
+			spaceBetweenPx: this._spaceBetweenPx,
+			getScrollTop: () => this._scrollableElement.getScrollPosition().scrollTop,
+			isPreserveFocusOnLoad: () => this._preserveFocusOnLoad,
+		});
 
 		const placeholderMessage = derived(reader => {
 			const items = this._viewItems.read(reader);
@@ -214,6 +266,11 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 				scrollHeight: totalHeight,
 				scrollWidth,
 			});
+
+			// A restored scroll offset applied before the model updated these
+			// dimensions would be clamped against a stale (often 0) scrollHeight, so
+			// apply it here once the dimensions are known.
+			this._applyPendingScrollState();
 		}));
 
 		_element.replaceChildren(this._elements.root);
@@ -242,8 +299,22 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 					return;
 				}
 
-				// Navigate to the first change using the existing navigation logic
-				this.goToNextChange();
+				// Restore the persisted active item instead of selecting the first
+				// change, so the restored scroll/collapsed state is preserved.
+				if (this._restorePendingActiveDiffItem(viewModel, items)) {
+					return;
+				}
+
+				this._logger.log('no active diff item after loading, selecting first change', { items: items.length });
+
+				// Navigate to the first change using the existing navigation
+				// logic. Whether this also moves keyboard focus into the editor
+				// is driven by the last `setViewModel` call: an editor opened
+				// with `preserveFocus` (e.g. restored in the background or on a
+				// session switch) must not steal focus from wherever the user is
+				// (such as the chat input), while a normal user-initiated open
+				// focuses the first change so the editor is ready to use.
+				this._navigateToChange('next', !this._preserveFocusOnLoad);
 			}
 		}));
 
@@ -256,7 +327,59 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 	}
 
 	public setScrollState(scrollState: { top?: number; left?: number }): void {
-		this._scrollableElement.setScrollPosition({ scrollLeft: scrollState.left, scrollTop: scrollState.top });
+		this._pendingScrollState = scrollState;
+		this._applyPendingScrollState();
+	}
+
+	/**
+	 * Applies a restored scroll offset once the scrollable dimensions can
+	 * accommodate it; retries on subsequent dimension updates until it sticks (so
+	 * a fresh/reloaded widget whose content height is not yet known does not clamp
+	 * the offset to 0). Consumed once it lands.
+	 */
+	private _applyPendingScrollState(): void {
+		const pending = this._pendingScrollState;
+		if (!pending) {
+			return;
+		}
+		this._scrollableElement.setScrollPosition({ scrollLeft: pending.left, scrollTop: pending.top });
+		const applied = this._scrollableElement.getScrollPosition();
+		const topLanded = pending.top === undefined || applied.scrollTop >= pending.top;
+		const leftLanded = pending.left === undefined || applied.scrollLeft >= pending.left;
+		if (topLanded && leftLanded) {
+			this._pendingScrollState = undefined;
+		}
+		this._logger.log('applied pending scroll state', {
+			requested: pending,
+			applied: { top: applied.scrollTop, left: applied.scrollLeft },
+			landed: topLanded && leftLanded,
+		});
+	}
+
+	/**
+	 * Clears any pending restoration state (documents, active item, scroll). Called
+	 * when a new model is installed without a view state, so it cannot inherit the
+	 * previous model's state for overlapping diff keys.
+	 */
+	public clearPendingRestorationState(): void {
+		this._logger.log('cleared pending restoration state', {
+			hadDocStates: !!this._lastDocStates,
+			hadActiveDiffItemKey: !!this._lastActiveDiffItemKey,
+			hadScrollState: !!this._pendingScrollState,
+		});
+		this._lastDocStates = undefined;
+		this._lastActiveDiffItemKey = undefined;
+		this._pendingScrollState = undefined;
+	}
+
+	/**
+	 * Controls whether the automatic first-change selection that runs once the
+	 * view model finishes loading preserves focus instead of moving it into the
+	 * editor. Set to `true` for `preserveFocus` opens so focus is not stolen
+	 * from elsewhere.
+	 */
+	public setPreserveFocusOnLoad(preserveFocus: boolean): void {
+		this._preserveFocusOnLoad = preserveFocus;
 	}
 
 	public getRootElement(): HTMLElement {
@@ -286,6 +409,12 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		for (let i = 0; i < index; i++) {
 			scrollTop += viewItems[i].contentHeight.get() + this._spaceBetweenPx;
 		}
+		this._logger.log('reveal', {
+			file: viewItem.getLabel(),
+			index,
+			scrollTop: `${this._scrollableElement.getScrollPosition().scrollTop} -> ${scrollTop}`,
+			range: options?.range,
+		});
 		this._scrollableElement.setScrollPosition({ scrollTop });
 
 		const diffEditor = viewItem.template.get()?.editor;
@@ -297,25 +426,58 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 	}
 
 	public getViewState(): IMultiDiffEditorViewState {
-		return {
+		const viewState: IMultiDiffEditorViewState = {
 			scrollState: {
 				top: this.scrollTop.get(),
 				left: this.scrollLeft.get(),
 			},
 			docStates: Object.fromEntries(this._viewItems.get().map(i => [i.getKey(), i.getViewState()])),
+			activeDiffItemKey: this._viewModel.get()?.activeDiffItem.get()?.getKey(),
 		};
+		if (this._logger.isEnabled) {
+			const docStates = Object.values(viewState.docStates ?? {});
+			this._logger.log('get view state', {
+				scrollTop: viewState.scrollState.top,
+				scrollLeft: viewState.scrollState.left,
+				docStates: docStates.length,
+				collapsed: docStates.filter(s => s.collapsed).length,
+				activeDiffItem: formatDiffItemKey(viewState.activeDiffItemKey),
+			});
+		}
+		return viewState;
 	}
 
 	/** This accounts for documents that are not loaded yet. */
 	private _lastDocStates: IMultiDiffEditorViewState['docStates'];
 
-	public setViewState(viewState: IMultiDiffEditorViewState): void {
+	/**
+	 * The active diff item to restore once the documents are loaded. Restoring it
+	 * suppresses the automatic first-change navigation (which would expand the
+	 * first file and reset scroll), so the restored state wins. Consumed once.
+	 */
+	private _lastActiveDiffItemKey: string | undefined;
+
+	/** A restored scroll offset waiting for the scrollable dimensions to be known. */
+	private _pendingScrollState: { top?: number; left?: number } | undefined;
+
+	public setViewState(viewState: IMultiDiffEditorViewState, tx?: ITransaction): void {
+		if (this._logger.isEnabled) {
+			const docStates = Object.values(viewState.docStates ?? {});
+			this._logger.log('set view state', {
+				scrollTop: viewState.scrollState.top,
+				scrollLeft: viewState.scrollState.left,
+				docStates: docStates.length,
+				collapsed: docStates.filter(s => s.collapsed).length,
+				activeDiffItem: formatDiffItemKey(viewState.activeDiffItemKey),
+				viewItems: this._viewItems.get().length,
+			});
+		}
 		this.setScrollState(viewState.scrollState);
 
 		this._lastDocStates = viewState.docStates;
+		this._lastActiveDiffItemKey = viewState.activeDiffItemKey;
 
-		transaction(tx => {
-			/** setViewState */
+		const applyDocStates = (tx: ITransaction) => {
 			if (viewState.docStates) {
 				for (const i of this._viewItems.get()) {
 					const state = viewState.docStates[i.getKey()];
@@ -324,7 +486,51 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 					}
 				}
 			}
-		});
+		};
+		if (tx) {
+			applyDocStates(tx);
+		} else {
+			transaction(applyDocStates);
+		}
+
+		// If the documents are already loaded, restore the active item now (this
+		// overrides the first-change selection the init autorun may have made);
+		// otherwise the init autorun restores it once loading completes.
+		const viewModel = this._viewModel.get();
+		if (viewModel) {
+			this._restorePendingActiveDiffItem(viewModel, viewModel.items.get());
+		}
+	}
+
+	/**
+	 * Restores the persisted active diff item (if any) onto the view model, so the
+	 * automatic first-change navigation is skipped. On an explicit (non-preserve-focus)
+	 * open it also moves focus into the restored item's editor, mirroring the
+	 * first-change navigation it replaces. Returns whether it was applied.
+	 */
+	private _restorePendingActiveDiffItem(viewModel: MultiDiffEditorViewModel, items: readonly DocumentDiffItemViewModel[]): boolean {
+		const key = this._lastActiveDiffItemKey;
+		if (key === undefined || items.length === 0) {
+			return false;
+		}
+		this._lastActiveDiffItemKey = undefined;
+		const target = items.find(i => i.getKey() === key);
+		if (!target) {
+			if (this._logger.isEnabled) {
+				this._logger.log('persisted active diff item not found', {
+					key: formatDiffItemKey(key),
+					availableKeys: items.map(i => formatDiffItemKey(i.getKey())),
+				});
+			}
+			return false;
+		}
+		this._logger.log('restored active diff item', { file: target.modifiedUri ?? target.originalUri, preserveFocus: this._preserveFocusOnLoad });
+		viewModel.activeDiffItem.setCache(target, undefined);
+
+		if (!this._preserveFocusOnLoad) {
+			this._viewItemsInfo.get().getItem(target).template.get()?.editor.focus();
+		}
+		return true;
 	}
 
 	public findDocumentDiffItem(resource: URI): IDocumentDiffItem | undefined {
@@ -360,7 +566,7 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		this._navigateToChange('previous');
 	}
 
-	private _navigateToChange(direction: 'next' | 'previous'): void {
+	private _navigateToChange(direction: 'next' | 'previous', focusEditor: boolean = true): void {
 		const viewItems = this._viewItems.get();
 		if (viewItems.length === 0) {
 			return;
@@ -369,15 +575,18 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		const activeViewModel = this._viewModel.get()?.activeDiffItem.get();
 		const currentIndex = activeViewModel ? viewItems.findIndex(v => v.viewModel === activeViewModel) : -1;
 
+		this._logger.log('navigate to change', { direction, focusEditor, currentIndex, items: viewItems.length });
+
 		// Start with first file if no active item
 		if (currentIndex === -1) {
-			this._goToFile(0, 'first');
+			this._goToFile(0, 'first', focusEditor);
 			return;
 		}
 
 		// Try current file first - expand if collapsed
 		const currentItem = viewItems[currentIndex];
 		if (currentItem.viewModel.collapsed.get()) {
+			this._logger.log('expanding collapsed item to navigate within it', { file: currentItem.getLabel() });
 			currentItem.viewModel.collapsed.set(false, undefined);
 		}
 
@@ -395,12 +604,14 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 
 		// Move to next/previous file
 		const nextIndex = (currentIndex + (direction === 'next' ? 1 : -1) + viewItems.length) % viewItems.length;
-		this._goToFile(nextIndex, direction === 'next' ? 'first' : 'last');
+		this._goToFile(nextIndex, direction === 'next' ? 'first' : 'last', focusEditor);
 	}
 
-	private _goToFile(index: number, position: 'first' | 'last'): void {
+	private _goToFile(index: number, position: 'first' | 'last', focusEditor: boolean = true): void {
 		const item = this._viewItems.get()[index];
-		if (item.viewModel.collapsed.get()) {
+		const wasCollapsed = item.viewModel.collapsed.get();
+		this._logger.log('go to file', { file: item.getLabel(), index, position, focusEditor, wasCollapsed });
+		if (wasCollapsed) {
 			item.viewModel.collapsed.set(false, undefined);
 		}
 
@@ -417,7 +628,9 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 				modifiedEditor.revealLineInCenter(lastChange.modified.startLineNumber);
 			}
 		}
-		editor?.focus();
+		if (focusEditor) {
+			editor?.focus();
+		}
 	}
 
 	private render(reader: IReader | undefined) {
@@ -469,6 +682,8 @@ function highlightRange(targetEditor: ICodeEditor, range: IRange) {
 export interface IMultiDiffEditorViewState {
 	scrollState: { top: number; left: number };
 	docStates?: Record<string, IMultiDiffDocState>;
+	/** Key ({@link DocumentDiffItemViewModel.getKey}) of the active diff item, if any. */
+	activeDiffItemKey?: string;
 }
 
 interface IMultiDiffDocState {
@@ -489,7 +704,7 @@ export interface IMultiDiffEditorOptionsViewState {
 
 export type IMultiDiffResourceId = { original: URI | undefined; modified: URI | undefined };
 
-class VirtualizedViewItem extends Disposable {
+class VirtualizedViewItem extends Disposable implements ILoggedDiffItem {
 	private readonly _templateRef = this._register(disposableObservableValue<IReference<DiffEditorItemTemplate> | undefined>(this, undefined));
 
 	public readonly contentHeight = derived(this, reader =>
@@ -501,6 +716,8 @@ class VirtualizedViewItem extends Disposable {
 	public readonly template = derived(this, reader => this._templateRef.read(reader)?.object);
 	private _isHidden = observableValue(this, false);
 
+	public get collapsed(): IObservable<boolean> { return this.viewModel.collapsed; }
+
 	private readonly _isFocused = derived(this, reader => this.template.read(reader)?.isFocused.read(reader) ?? false);
 
 	constructor(
@@ -508,6 +725,7 @@ class VirtualizedViewItem extends Disposable {
 		private readonly _objectPool: ObjectPool<TemplateData, DiffEditorItemTemplate>,
 		private readonly _scrollLeft: IObservable<number>,
 		private readonly _deltaScrollVertical: (delta: number) => void,
+		private readonly _logger: MultiDiffEditorLogger,
 	) {
 		super();
 
@@ -544,6 +762,11 @@ class VirtualizedViewItem extends Disposable {
 		return this.viewModel.getKey();
 	}
 
+	/** Short, log friendly name of this item. */
+	public getLabel(): string {
+		return formatUri(this.viewModel.modifiedUri ?? this.viewModel.originalUri);
+	}
+
 	public getViewState(): IMultiDiffDocState {
 		transaction(tx => {
 			this._updateTemplateData(tx);
@@ -555,6 +778,7 @@ class VirtualizedViewItem extends Disposable {
 	}
 
 	public setViewState(viewState: IMultiDiffDocState, tx: ITransaction): void {
+		this._logger.log('item view state restored', { file: this.getLabel(), collapsed: viewState.collapsed, selections: viewState.selections?.length ?? 0 });
 		this.viewModel.collapsed.set(viewState.collapsed, tx);
 
 		this._updateTemplateData(tx);
@@ -584,6 +808,7 @@ class VirtualizedViewItem extends Disposable {
 	private _clear(): void {
 		const ref = this._templateRef.get();
 		if (!ref) { return; }
+		this._logger.log('releasing editor template', { file: this.getLabel(), contentHeight: ref.object.contentHeight.get() });
 		transaction(tx => {
 			this._updateTemplateData(tx);
 			ref.object.hide();
@@ -604,6 +829,12 @@ class VirtualizedViewItem extends Disposable {
 			this._templateRef.set(ref, undefined);
 
 			const selections = this.viewModel.lastTemplateData.get().selections;
+			this._logger.log('acquired editor template', {
+				file: this.getLabel(),
+				collapsed: this.viewModel.collapsed.get(),
+				expectedContentHeight: this.viewModel.lastTemplateData.get().contentHeight,
+				selections: selections?.length ?? 0,
+			});
 			if (selections) {
 				ref.object.editor.setSelections(selections);
 			}
