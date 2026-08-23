@@ -418,6 +418,7 @@ class ElementPicker {
 	private _externalHighlightTarget: Element | undefined;
 	private _focusedTarget: Element | undefined;
 	private _cursorStylesheet: HTMLStyleElement | undefined;
+	private readonly _coarsePointerQuery = window.matchMedia('(pointer: coarse)');
 	private _restingCursor = ElementPicker._CURSOR_DEFAULT;
 	private _showTouchCursor = false;
 	private _dismissedCommentOnPointerDown = false;
@@ -653,11 +654,11 @@ class ElementPicker {
 		// so the cursor always appears as a normal pointer even when over e.g. links.
 		// Updated to crosshair in _onPointerDown, reset in _onPointerUp.
 		const cursorStyle = document.createElement('style');
-		this._showTouchCursor = window.matchMedia('(pointer: coarse)').matches;
-		this._restingCursor = this._showTouchCursor ? ElementPicker._CURSOR_NONE : ElementPicker._CURSOR_DEFAULT;
+		this._updateTouchCursor();
 		cursorStyle.textContent = this._restingCursor;
 		document.head.appendChild(cursorStyle);
 		this._cursorStylesheet = cursorStyle;
+		this._coarsePointerQuery.addEventListener('change', this._updateTouchCursor);
 
 		// Register high-frequency listeners only while selection is active.
 		window.addEventListener('pointermove', this._onPointerMove, true);
@@ -683,14 +684,7 @@ class ElementPicker {
 		const wasCommentMode = this._commentMode;
 		this._commentMode = options.mode === commentElementSelectionMode;
 		this._continuous = options.continuous ?? false;
-		this._showTouchCursor = window.matchMedia('(pointer: coarse)').matches;
-		this._restingCursor = this._showTouchCursor ? ElementPicker._CURSOR_NONE : ElementPicker._CURSOR_DEFAULT;
-		if (this._cursorStylesheet && !this._dragStart) {
-			this._cursorStylesheet.textContent = this._restingCursor;
-		}
-		if (!this._showTouchCursor) {
-			this._touchCursor.style.display = 'none';
-		}
+		this._updateTouchCursor();
 		if (wasCommentMode && !this._commentMode && this._commentTarget) {
 			this._closeCommentComposer();
 		}
@@ -699,6 +693,17 @@ class ElementPicker {
 			this._updateHighlight(this._focusedTarget);
 		}
 	}
+
+	private readonly _updateTouchCursor = (): void => {
+		this._showTouchCursor = this._coarsePointerQuery.matches;
+		this._restingCursor = this._showTouchCursor ? ElementPicker._CURSOR_NONE : ElementPicker._CURSOR_DEFAULT;
+		if (this._cursorStylesheet && !this._dragStart) {
+			this._cursorStylesheet.textContent = this._restingCursor;
+		}
+		if (!this._showTouchCursor) {
+			this._touchCursor.style.display = 'none';
+		}
+	};
 
 	stop(): void {
 		if (!this._selectionActive) {
@@ -714,6 +719,7 @@ class ElementPicker {
 		this._restingCursor = ElementPicker._CURSOR_DEFAULT;
 		this._showTouchCursor = false;
 		this._touchCursor.style.display = 'none';
+		this._coarsePointerQuery.removeEventListener('change', this._updateTouchCursor);
 
 		// Remove high-frequency listeners.
 		window.removeEventListener('pointermove', this._onPointerMove, true);
