@@ -60,14 +60,15 @@ the driver detected and repaired that state before sending.
 |---|---:|---:|---:|
 | Safe default | 1.78 s | 0.99 s | 44% faster |
 | Prepared Editor build (`--skip-prelaunch`) | 1.78 s | 0.69 s | 61% faster |
+| Prepared Agents build (`--skip-prelaunch`) | 1.78 s | 0.74 s | 58% faster |
 
 The launcher now allocates all four debug ports with one Node process, probes
 CDP every 100 ms instead of every second, and reports profile/pre-launch/CDP
 phase timings in its JSON output.
 
-Three repeated Agents trials without pre-launch preparation all failed model
-readiness, so that attempted optimization was rejected for Agents and the
-launcher now ignores `--skip-prelaunch` on that surface.
+An initial Agents comparison incorrectly attributed workspace-picker/session
+races to skipped pre-launch preparation. After hardening that flow, five repeated
+Agents trials with `--skip-prelaunch` passed with a 0.74 s median launch.
 
 ## Commit history
 
@@ -78,3 +79,4 @@ This table is updated after every measured optimization.
 | `57fba0f1fde` | Isolated baseline and dashboard | 45-62 s end to end; 21-43 PW calls |
 | `0cf9811efae` | Batched checked driver, adaptive waits, recorder | 15.38-15.91 s; 1 automation process |
 | `0b87e78adc5` | Faster launch, state-specific waits, per-trial fixtures | 14.87-15.37 s median; 3/3 on both surfaces |
+| Pending | Correct Agents pre-launch attribution and picker race | 5/5 prepared Agents trials; 0.74 s median launch |

@@ -65,5 +65,4 @@ and removes the throwaway launch directory:
 
 The fixture path is created if needed and rejected if it contains `.git`.
 Pass `--skip-prelaunch` only after one successful prepared launch of the same
-build when measuring repeated-run Editor steady state. Agents launches ignore
-the flag to preserve model readiness.
+build when measuring repeated-run steady state.

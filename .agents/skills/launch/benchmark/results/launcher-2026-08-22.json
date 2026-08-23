@@ -24,13 +24,17 @@
 				"cdpReadyMs": 443,
 				"totalMs": 672
 			}
+		},
+		"preparedAgentsBuild": {
+			"runs": 5,
+			"passed": 5,
+			"medianWallMs": 744
 		}
 	},
 	"changes": [
 		"Allocate four debug ports in one Node process",
 		"Poll CDP readiness every 100ms instead of every second",
 		"Expose per-phase timings in launcher JSON",
-		"Allow explicit pre-launch skipping for an already-prepared unchanged Editor build",
-		"Reject pre-launch skipping for Agents after three model-readiness failures"
+		"Allow explicit pre-launch skipping for an already-prepared unchanged build"
 	]
 }

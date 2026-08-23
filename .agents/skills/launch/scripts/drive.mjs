@@ -255,19 +255,46 @@ async function ensureWorkspace(page, workspace, timeoutMs) {
 	await folderPathInput.fill(workspace);
 	await quickInput.getByRole('button', { name: 'OK' }).click();
 
-	const completion = await pollWithModalGate(page, timeoutMs, 'Workspace selection', async () => {
+	let pickerConfirmations = 1;
+	const selectionStart = performance.now();
+	await page.waitForTimeout(100);
+	while (performance.now() - selectionStart < timeoutMs) {
+		const modals = await visibleModals(page);
+		if (modals.some(modal => modal.role === 'dialog' || modal.className.includes('monaco-dialog-box'))) {
+			handledModals.push(...await handleKnownModals(page, timeoutMs));
+			continue;
+		}
+
+		const visibleQuickInput = page.locator('.quick-input-widget:visible').last();
+		if (await visibleQuickInput.count() > 0) {
+			const visibleFolderPathInput = visibleQuickInput.getByRole('textbox', { name: 'Folder path' });
+			const currentPath = (await visibleFolderPathInput.inputValue()).replace(/[\\/]+$/, '');
+			const expectedPath = workspace.replace(/[\\/]+$/, '');
+			if (currentPath !== expectedPath) {
+				throw new Error(`Workspace picker moved to an unexpected path: expected ${JSON.stringify(expectedPath)}, got ${JSON.stringify(currentPath)}`);
+			}
+			await visibleQuickInput.getByRole('button', { name: 'OK' }).click();
+			pickerConfirmations++;
+			await page.waitForTimeout(100);
+			continue;
+		}
+
 		const pickerVisible = await page.getByRole('button', { name: /Start by picking a workspace/i }).filter({ visible: true }).count() > 0;
-		const quickInputVisible = await page.locator('.quick-input-widget:visible').count() > 0;
-		return !pickerVisible && !quickInputVisible;
-	});
-	return {
-		action: 'workspace',
-		ok: true,
-		durationMs: elapsedMs(start),
-		selected: true,
-		workspace,
-		handledModals: [...handledModals, ...completion.handledModals],
-	};
+		if (!pickerVisible) {
+			return {
+				action: 'workspace',
+				ok: true,
+				durationMs: elapsedMs(start),
+				selected: true,
+				workspace,
+				pickerConfirmations,
+				handledModals,
+			};
+		}
+		await page.waitForTimeout(50);
+	}
+
+	throw new Error(`Workspace selection did not complete within ${timeoutMs}ms`);
 }
 
 async function focusChatInput(page, timeoutMs) {
