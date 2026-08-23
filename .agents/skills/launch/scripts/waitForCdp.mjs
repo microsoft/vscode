@@ -34,21 +34,20 @@ function isProcessRunning() {
 function probe(requestTimeoutMs) {
 	return new Promise(resolve => {
 		let settled = false;
+		let timer;
 		const finish = ready => {
 			if (!settled) {
 				settled = true;
+				clearTimeout(timer);
+				request.destroy();
 				resolve(ready);
 			}
 		};
 		const request = http.get({ host: '127.0.0.1', port, path: '/json/version' }, response => {
 			response.resume();
 			finish(response.statusCode >= 200 && response.statusCode < 400);
-			request.destroy();
 		});
-		request.setTimeout(requestTimeoutMs, () => {
-			request.destroy();
-			finish(false);
-		});
+		timer = setTimeout(() => finish(false), requestTimeoutMs);
 		request.on('error', () => finish(false));
 	});
 }
@@ -59,7 +58,7 @@ while (performance.now() - start < timeoutMs) {
 	}
 
 	const remainingMs = timeoutMs - (performance.now() - start);
-	if (await probe(Math.min(200, remainingMs))) {
+	if (await probe(Math.min(200, remainingMs)) && performance.now() - start < timeoutMs) {
 		process.stdout.write(String(Math.round(performance.now() - start)));
 		process.exit(0);
 	}
