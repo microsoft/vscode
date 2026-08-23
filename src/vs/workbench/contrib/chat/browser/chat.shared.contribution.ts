@@ -414,7 +414,7 @@ configurationRegistry.registerConfiguration({
 			default: AgentHostExternalSessionsMode.Recent,
 			markdownDescription: nls.localize('chat.agentSessions.showExternal', "Controls which external agent sessions, created outside VS Code's Agent Host, are shown."),
 			tags: ['experimental'],
-			experiment: { mode: 'startup' },
+			experiment: { mode: 'auto' },
 			agentHost: { key: AgentHostShowExternalSessionsConfigKey },
 		},
 		[ChatConfiguration.SaveBeforeSend]: {
