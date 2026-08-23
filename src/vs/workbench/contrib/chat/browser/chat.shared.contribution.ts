@@ -411,8 +411,10 @@ configurationRegistry.registerConfiguration({
 				nls.localize('chat.agentSessions.showExternal.last7Days', "Shows external sessions updated in the last 7 days."),
 				nls.localize('chat.agentSessions.showExternal.last30Days', "Shows external sessions updated in the last 30 days."),
 			],
-			default: AgentHostExternalSessionsMode.None,
+			default: AgentHostExternalSessionsMode.Recent,
 			markdownDescription: nls.localize('chat.agentSessions.showExternal', "Controls which external agent sessions, created outside VS Code's Agent Host, are shown."),
+			tags: ['experimental'],
+			experiment: { mode: 'startup' },
 			agentHost: { key: AgentHostShowExternalSessionsConfigKey },
 		},
 		[ChatConfiguration.SaveBeforeSend]: {
