@@ -309,6 +309,9 @@ export class SessionChatInputToolbar extends Disposable {
 			// input part is only kept alive by a non-hidden persistent child.
 			const anyHidden = kindsWithData.read(reader).size > 0;
 			this.element.classList.toggle('hidden', !anyVisible && !anyHidden);
+			// With no pill left to right-click, the row itself has to carry the
+			// visibility menu or the hidden pills could never be restored.
+			this.element.classList.toggle('empty', !anyVisible);
 			this._scrollable.scanDomNode();
 		}));
 	}
