@@ -33,6 +33,7 @@ import { IConfigurationService } from '../../platform/configuration/common/confi
 import { IWorkbenchEnvironmentService } from '../services/environment/common/environmentService.js';
 import { MarkdownString } from '../../base/common/htmlContent.js';
 import { IContextMenuService } from '../../platform/contextview/browser/contextView.js';
+import { IWindowViewportService } from '../../platform/layout/browser/windowViewportService.js';
 
 export abstract class BaseWindow extends Disposable {
 
@@ -243,6 +244,7 @@ export class BrowserWindow extends BaseWindow {
 		@IProductService private readonly productService: IProductService,
 		@IBrowserWorkbenchEnvironmentService private readonly browserEnvironmentService: IBrowserWorkbenchEnvironmentService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
+		@IWindowViewportService private readonly windowViewportService: IWindowViewportService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IHostService hostService: IHostService,
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -259,8 +261,13 @@ export class BrowserWindow extends BaseWindow {
 		this._register(this.lifecycleService.onWillShutdown(() => this.onWillShutdown()));
 
 		// Layout
-		const viewport = isIOS && mainWindow.visualViewport ? mainWindow.visualViewport /** Visual viewport */ : mainWindow /** Layout viewport */;
-		this._register(addDisposableListener(viewport, EventType.RESIZE, () => {
+		const viewport = this.windowViewportService.getViewport(mainWindow);
+		this._register(viewport.onDidChange(event => {
+			const shouldLayout = isIOS ? event.visualDimensionChanged : event.layoutDimensionChanged;
+			if (!shouldLayout) {
+				return;
+			}
+
 			this.layoutService.layout();
 
 			// Sometimes the keyboard appearing scrolls the whole workbench out of view, as a workaround scroll back into view #121206

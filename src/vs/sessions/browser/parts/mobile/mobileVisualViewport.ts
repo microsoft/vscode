@@ -5,11 +5,12 @@
 
 import * as DOM from '../../../../base/browser/dom.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { derived, IObservable, observableValue } from '../../../../base/common/observable.js';
+import { autorun, derived, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
+import { IWindowViewportService } from '../../../../platform/layout/browser/windowViewportService.js';
 import { KeyboardVisibleContext } from '../../../common/contextkeys.js';
 
 /**
@@ -131,6 +132,7 @@ export class MobileVisualViewport extends Disposable implements IMobileVisualVie
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ILayoutService layoutService: ILayoutService,
+		@IWindowViewportService windowViewportService: IWindowViewportService,
 	) {
 		super();
 
@@ -138,30 +140,23 @@ export class MobileVisualViewport extends Disposable implements IMobileVisualVie
 		this._keyboardVisibleCtx = KeyboardVisibleContext.bindTo(contextKeyService);
 
 		const targetWindow = DOM.getWindow(this.mainContainer);
-		const visualViewport = targetWindow.visualViewport;
 
-		if (!visualViewport) {
+		if (!targetWindow.visualViewport) {
 			// No visualViewport API available — keep observables/context
 			// keys at their default zero/false state.
 			return;
 		}
 
-		const update = () => {
-			const height = Math.max(0, targetWindow.innerHeight - visualViewport.height);
+		const viewport = windowViewportService.getViewport(targetWindow);
+		this._register(autorun(reader => {
+			const state = viewport.state.read(reader);
+			const height = Math.max(0, state.layoutHeight - state.visualHeight);
 			if (this._keyboardHeight.get() !== height) {
 				this._keyboardHeight.set(height, undefined);
 			}
 			this.mainContainer.style.setProperty(KEYBOARD_HEIGHT_CSS_VAR, `${height}px`);
 			this._keyboardVisibleCtx.set(height > KEYBOARD_VISIBLE_THRESHOLD_PX);
-		};
-
-		this._register(DOM.addDisposableListener(visualViewport, 'resize', update));
-		this._register(DOM.addDisposableListener(visualViewport, 'scroll', update));
-
-		// Seed the initial value so consumers see the current state on
-		// startup (e.g., the workbench was opened while the keyboard
-		// was already visible).
-		update();
+		}));
 	}
 
 	override dispose(): void {

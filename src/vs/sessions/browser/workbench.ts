@@ -17,6 +17,7 @@ import { onUnexpectedError, setUnexpectedErrorHandler } from '../../base/common/
 import { isWindows, isLinux, isWeb, isNative, isMacintosh, isIOS } from '../../base/common/platform.js';
 import { Parts, Position, PanelAlignment, IWorkbenchLayoutService, SINGLE_WINDOW_PARTS, MULTI_WINDOW_PARTS, IPartVisibilityChangeEvent, positionToString } from '../../workbench/services/layout/browser/layoutService.js';
 import { ILayoutOffsetInfo } from '../../platform/layout/browser/layoutService.js';
+import { IWindowViewport, IWindowViewportService } from '../../platform/layout/browser/windowViewportService.js';
 import { Part } from '../../workbench/browser/part.js';
 import { Direction, ISerializableView, ISerializedGrid, ISerializedLeafNode, ISerializedNode, IViewSize, Orientation, SerializableGrid } from '../../base/browser/ui/grid/grid.js';
 import { IEditorGroupsService } from '../../workbench/services/editor/common/editorGroupsService.js';
@@ -424,6 +425,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 	private readonly maximized = new Set<number>();
 	protected readonly layoutPolicy = this._register(new SessionsLayoutPolicy());
 	private readonly mobileNavStack = this._register(new MobileNavigationStack());
+	private windowViewport!: IWindowViewport;
 	private mobileTopBarElement: HTMLElement | undefined;
 	private readonly mobileTopBarDisposables = this._register(new DisposableStore());
 
@@ -1201,6 +1203,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		this.customViewGridPartService = accessor.get(ICustomViewGridPartService);
 		this.instantiationService = accessor.get(IInstantiationService);
 		this.storageService = accessor.get(IStorageService);
+		this.windowViewport = accessor.get(IWindowViewportService).getViewport(getWindow(this.parent));
 		accessor.get(ITitleService);
 
 		// Resolve the single-pane layout mode once (reload to toggle).
@@ -1481,17 +1484,12 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		}));
 
 		// Window resize — needed for device emulation and mobile viewport changes
-		const onWindowResize = () => this.layout();
-		this._register(addDisposableListener(mainWindow, 'resize', onWindowResize));
-
-		const visualViewport = getWindow(this.parent).visualViewport;
-		if (visualViewport && !isIOS) {
-			this._register(addDisposableListener(visualViewport, 'resize', () => {
-				if (this.layoutPolicy.viewportClass.get() === 'phone') {
-					this.layout();
-				}
-			}));
-		}
+		// Shell windows own layout resizes; Sessions adds visual-only phone relayouts.
+		this._register(this.windowViewport.onDidChange(event => {
+			if (!isIOS && event.visualDimensionChanged && !event.layoutDimensionChanged && this.layoutPolicy.viewportClass.get() === 'phone') {
+				this.layout();
+			}
+		}));
 	}
 
 	private updateFullscreenClass(): void {
@@ -1790,8 +1788,9 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		const previousClass = this._previousViewportClass;
 		this.layoutPolicy.update(layoutViewportDimension.width, layoutViewportDimension.height);
 		const currentClass = this.layoutPolicy.viewportClass.get();
+		const viewport = this.windowViewport.state.get();
 		this._mainContainerDimension = currentClass === 'phone'
-			? getMobileViewportDimension(layoutViewportDimension, getWindow(this.parent).visualViewport)
+			? getMobileViewportDimension(layoutViewportDimension, viewport.hasVisualViewport ? { height: viewport.visualHeight } : undefined)
 			: layoutViewportDimension;
 		this.mainContainer.classList.toggle(LayoutClasses.PHONE_LAYOUT, currentClass === 'phone');
 

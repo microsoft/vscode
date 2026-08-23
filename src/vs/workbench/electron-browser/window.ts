@@ -80,6 +80,7 @@ import { DynamicWorkbenchSecurityConfiguration } from '../common/configuration.j
 import { nativeHoverDelegate } from '../../platform/hover/browser/hover.js';
 import { WINDOW_ACTIVE_BORDER, WINDOW_INACTIVE_BORDER } from '../common/theme.js';
 import { IContextMenuService } from '../../platform/contextview/browser/contextView.js';
+import { IWindowViewportService } from '../../platform/layout/browser/windowViewportService.js';
 
 export class NativeWindow extends BaseWindow {
 
@@ -113,6 +114,7 @@ export class NativeWindow extends BaseWindow {
 		@INativeHostService private readonly nativeHostService: INativeHostService,
 		@ITunnelService private readonly tunnelService: ITunnelService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
+		@IWindowViewportService private readonly windowViewportService: IWindowViewportService,
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
 		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
 		@IProductService private readonly productService: IProductService,
@@ -142,7 +144,12 @@ export class NativeWindow extends BaseWindow {
 	protected registerListeners(): void {
 
 		// Layout
-		this._register(addDisposableListener(mainWindow, EventType.RESIZE, () => this.layoutService.layout()));
+		const viewport = this.windowViewportService.getViewport(mainWindow);
+		this._register(viewport.onDidChange(event => {
+			if (event.layoutDimensionChanged) {
+				this.layoutService.layout();
+			}
+		}));
 
 		// React to editor input changes
 		this._register(this.editorService.onDidActiveEditorChange(() => this.updateTouchbarMenu()));

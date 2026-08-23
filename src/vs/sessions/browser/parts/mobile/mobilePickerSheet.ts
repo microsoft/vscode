@@ -488,7 +488,7 @@ export function showMobilePickerSheet(
  *
  * Reuses the same shell as {@link showMobilePickerSheet} — translucent
  * backdrop, slide-up animation, drag handle, title row with Done button,
- * optional caption, optional icon header actions, iOS visual-viewport
+ * optional caption, optional icon header actions, virtual-keyboard
  * keyboard avoidance, and `Escape` / backdrop dismissal — but leaves the
  * scrollable body to the caller. Use this for overlays that don't fit
  * the picker's row-list shape: tool-confirmation carousels, plan
@@ -608,7 +608,7 @@ interface IMobileSheetShell {
  * Build the shared shell for {@link showMobilePickerSheet} and
  * {@link showMobileContentSheet}: overlay, backdrop, sheet (drag handle,
  * title row with Done button and optional header actions, optional
- * caption), backdrop / Escape dismissal, and iOS visual-viewport
+ * caption), backdrop / Escape dismissal, and shared virtual-keyboard
  * keyboard avoidance. Callers append their own content children to
  * `sheet`.
  */
@@ -701,41 +701,6 @@ function buildMobileSheetShell(
 		}
 	}, true);
 	disposables.add(keyHandler);
-
-	// -- iOS keyboard avoidance -----------------------------------
-	// On iOS Safari, when the virtual keyboard opens the layout
-	// viewport (`vh` units) does NOT shrink — only the visual
-	// viewport changes. The sheet uses `position: fixed` which
-	// positions against the layout viewport, so without correction
-	// the keyboard covers the bottom portion of the sheet (including
-	// any input the user is actively typing into).
-	//
-	// `window.visualViewport` exposes the real visible area. We
-	// listen for `resize` and `scroll` events on it and translate
-	// the sheet upward by the keyboard height so the focused input
-	// remains visible.
-	const win = DOM.getWindow(workbenchContainer);
-	const vv = win.visualViewport;
-	if (vv) {
-		const adjustForKeyboard = () => {
-			// The keyboard height is the difference between the
-			// layout viewport height and the visual viewport height.
-			const keyboardHeight = win.innerHeight - vv.height;
-			overlay.style.bottom = `${Math.max(0, keyboardHeight)}px`;
-			overlay.style.height = `${vv.height}px`;
-		};
-		vv.addEventListener('resize', adjustForKeyboard);
-		vv.addEventListener('scroll', adjustForKeyboard);
-		disposables.add(toDisposable(() => {
-			vv.removeEventListener('resize', adjustForKeyboard);
-			vv.removeEventListener('scroll', adjustForKeyboard);
-			overlay.style.bottom = '';
-			overlay.style.height = '';
-		}));
-		// Run once immediately in case the keyboard is already
-		// visible (e.g., sheet opened while another input had focus).
-		adjustForKeyboard();
-	}
 
 	const close = (onAnimationEnd?: () => void) => {
 		if (closed) {

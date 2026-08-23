@@ -17,6 +17,7 @@ import * as platform from '../common/platform.js';
 import { URI } from '../common/uri.js';
 import { hash } from '../common/hash.js';
 import { CodeWindow, ensureCodeWindow, mainWindow } from './window.js';
+import { getWindowViewportState } from './windowViewport.js';
 import { isPointWithinTriangle } from '../common/numbers.js';
 import { IObservable, derived, derivedOpts, IReader, observableValue, isObservable } from '../common/observable.js';
 
@@ -617,7 +618,8 @@ export function getClientArea(element: HTMLElement, defaultValue?: Dimension, fa
 
 	// If visual view port exits and it's on mobile, it should be used instead of window innerWidth / innerHeight, or document.body.clientWidth / document.body.clientHeight
 	if (platform.isIOS && elWindow?.visualViewport) {
-		return new Dimension(elWindow.visualViewport.width, elWindow.visualViewport.height);
+		const viewport = getWindowViewportState(elWindow);
+		return new Dimension(viewport.visualWidth, viewport.visualHeight);
 	}
 
 	// Try innerWidth / innerHeight

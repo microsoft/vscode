@@ -27,6 +27,11 @@ environment. Mobile context keys are declarative inputs for menus, view
 registration, and presentation selection; they are not the source of truth for
 model or provider behavior.
 
+Raw layout- and visual-viewport observation is owned by the shared platform
+window viewport service. Sessions derives phone sizing, virtual-keyboard state,
+CSS variables, and context keys from that normalized state rather than
+registering browser viewport listeners independently.
+
 Part factories select their mobile or desktop implementation once during
 construction, based on the initial viewport. They do not replace part instances
 when the viewport later crosses the phone breakpoint.
