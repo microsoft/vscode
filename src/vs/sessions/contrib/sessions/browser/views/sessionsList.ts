@@ -1003,11 +1003,11 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		const toolbar = disposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, toolbarContainer, SessionSectionToolbarMenuId, {
 			menuOptions: { shouldForwardArgs: true },
 			actionViewItemProvider: (action, options) => {
-				actionViewItemDisposables.clear();
-
 				if (action.id !== NEW_SESSION_FOR_WORKSPACE_ACTION_ID || !(action instanceof MenuItemAction)) {
 					return undefined;
 				}
+
+				actionViewItemDisposables.clear();
 
 				const dropdownActions = getFlatContextMenuActions(this.menuService.getMenuActions(
 					Menus.SessionSectionNewSession,
