@@ -151,6 +151,92 @@ $pid = $info.pid
 
 ## Drive the UI with @playwright/cli
 
+### Fast checked scenarios (recommended for repeated workflows)
+
+For a repeatable sequence, use `scripts/drive.mjs` instead of making one model
+turn and one `@playwright/cli` process per action. It connects directly to CDP
+through the repository's `playwright-core`, runs the entire scenario in one
+process, and returns one JSON result with per-step timings.
+
+```bash
+DRIVER="$LAUNCH_DIR/scripts/drive.mjs"
+SCENARIO="$LAUNCH_DIR/benchmark/scenarios/two-turn-fork.json"
+BENCH_WORKSPACE="${TMPDIR:-/tmp}/vscode-launch-benchmark-workspace"
+mkdir -p "$BENCH_WORKSPACE"
+
+# Agents window: let the checked driver select the workspace.
+INFO=$("$LAUNCH" --agents | tail -n1)
+CDP=$(jq -r .cdpPort <<<"$INFO")
+"$DRIVER" scenario \
+  --cdp "$CDP" \
+  --workspace "$BENCH_WORKSPACE" \
+  --file "$SCENARIO"
+
+# Editor window: open the fixture directly.
+INFO=$("$LAUNCH" -- "$BENCH_WORKSPACE" | tail -n1)
+CDP=$(jq -r .cdpPort <<<"$INFO")
+"$DRIVER" scenario \
+  --cdp "$CDP" \
+  --workspace "$BENCH_WORKSPACE" \
+  --file "$SCENARIO"
+```
+
+The checked driver enforces these invariants:
+
+1. No action runs while a modal is visible.
+2. Known Workspace Trust dialogs are handled and awaited until hidden.
+3. Unknown dialogs fail with their text and controls instead of letting the
+   script interact with the page behind them.
+4. Chat text is read back exactly before Send is clicked.
+5. Send must be enabled before submission.
+6. Response loading and completion are observed with a short adaptive poll.
+7. Fork completion requires a visible transcript/session state change.
+
+Use a dedicated non-git fixture for synthetic chat messages. **Never benchmark
+random chat or fork scenarios in the repository checkout**: doing so pollutes
+that workspace's chat history, and a fork can materialize another full worktree.
+
+Useful individual commands:
+
+```bash
+"$DRIVER" inspect --cdp "$CDP"
+"$DRIVER" prepare --cdp "$CDP" --workspace "$BENCH_WORKSPACE"
+"$DRIVER" chat --cdp "$CDP" --message "Reply with exactly READY." --expect READY
+"$DRIVER" fork --cdp "$CDP"
+```
+
+#### Record a demonstrated action
+
+When selectors or expected state changes are unclear, start the privacy-aware
+recorder and demonstrate the action in the launched window:
+
+```bash
+"$DRIVER" record \
+  --cdp "$CDP" \
+  --duration-ms 30000 \
+  --output /tmp/launch-action-recording.json
+```
+
+The recording contains click/focus/key metadata and a compact DOM mutation
+summary that can guide a checked scenario. Typed values are redacted, printable
+keys are not stored, and mutation targets omit text content by default. Review
+the recording before sharing it because accessible labels can still reflect the
+UI that was demonstrated.
+
+#### Run the benchmark
+
+The benchmark covers both windows, creates its own non-git fixture, checks that
+the repository worktree list did not change, and cleans each launched profile:
+
+```bash
+"$LAUNCH_DIR/benchmark/run.mjs" --surface all --repeat 3 \
+  --output "$LAUNCH_DIR/benchmark/results/latest.json"
+```
+
+See [`benchmark/dashboard.md`](benchmark/dashboard.md) for current results.
+
+### Ad-hoc Playwright CLI interaction
+
 Use the dynamic `cdpPort` from the launch JSON. The normal loop is: attach, confirm the target, snapshot, interact, then re-snapshot after meaningful UI changes.
 
 > **Always pick a unique `PW_SESSION` name and pass it as `-s=$PW_SESSION`** on every `npx @playwright/cli ...` call. The CLI is backed by a persistent daemon (`cliDaemon.js`) keyed by session name; if two shells both omit `-s=`, they share the implicit `"default"` session and the most-recently-attached CDP "wins" for every subsequent command from either shell. The launch skill is built around isolation (per-instance UDD, ports, shared-data-dir), and this pattern keeps that isolation intact at the Playwright-driving layer too. **A note on the alternative `PLAYWRIGHT_CLI_SESSION` env var:** it's documented in the package README and works correctly for `open`-style workflows, but it interacts poorly with `attach --cdp=...` (the daemon ends up with both `--cdp=...` and `--endpoint=<env-value>`, and the latter wins, causing a `connect ENOENT` failure). Confirmed against `@playwright/cli@0.1.13`. Explicit `-s=NAME` works in all modes.

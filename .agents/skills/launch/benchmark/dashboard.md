@@ -7,9 +7,9 @@ Last updated: 2026-08-22
 | Stage | State | Result |
 |---|---|---|
 | Isolated baseline | Complete | Both Agents and Editor windows measured against a non-git fixture |
-| Batched checked driver | In progress | Replace one-process-per-action orchestration |
-| Adaptive waits | In progress | Observe actual response/fork state instead of fixed sleeps |
-| Action recording hints | Planned | Capture user actions and compact DOM-change evidence |
+| Batched checked driver | Complete | One direct-CDP process runs the full checked scenario |
+| Adaptive waits | Complete | Response/fork state polled every 50 ms up to a real deadline |
+| Action recording hints | Complete | Redacted input events plus compact DOM mutation evidence |
 | Launcher startup | Baseline complete | 1.78-2.02 s to CDP ready on this machine |
 
 ## Baseline
@@ -39,10 +39,24 @@ model-driven trials used 21-43 Playwright invocations.
 | Modal handling | Inconsistent | No action may run behind a visible modal |
 | Workspace isolation | Manual | Enforced non-git fixture |
 
+## Checked-driver result
+
+Preliminary one-run validation after batching:
+
+| Surface | Result | Launch | Scenario | Total | Automation processes | Fork |
+|---|---:|---:|---:|---:|---:|---:|
+| Agents | Passed | 1.60 s | 14.31 s | 15.91 s | 1 | 0.23 s |
+| Editor | Passed | 1.71 s | 13.68 s | 15.38 s | 1 | 0.22 s |
+
+Both trials selected only `/tmp/vscode-launch-benchmark-workspace`, handled
+Workspace Trust before continuing, ended with zero visible modals, and left the
+repository worktree list unchanged.
+
 ## Commit history
 
 This table is updated after every measured optimization.
 
 | Commit | Change | Metric |
 |---|---|---|
-| Pending | Isolated baseline and dashboard | 45-62 s end to end; 21-43 PW calls |
+| `57fba0f1fde` | Isolated baseline and dashboard | 45-62 s end to end; 21-43 PW calls |
+| Pending | Batched checked driver, adaptive waits, recorder | 15.38-15.91 s; 1 automation process |

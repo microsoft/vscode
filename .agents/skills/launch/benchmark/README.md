@@ -43,3 +43,19 @@ Each trial records:
 
 Raw observations live in `results/`. The current summary and optimization history
 are in [`dashboard.md`](dashboard.md).
+
+## Run
+
+The runner launches each surface sequentially, uses one checked direct-CDP
+process per scenario, verifies that the repository worktree list is unchanged,
+and removes the throwaway launch directory:
+
+```bash
+./.agents/skills/launch/benchmark/run.mjs \
+  --surface all \
+  --repeat 3 \
+  --workspace /tmp/vscode-launch-benchmark-workspace \
+  --output .agents/skills/launch/benchmark/results/latest.json
+```
+
+The fixture path is created if needed and rejected if it contains `.git`.
