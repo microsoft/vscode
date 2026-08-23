@@ -97,6 +97,11 @@ const SESSION_GC_GRACE_MS = 30_000;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const EXTERNAL_SESSION_MAX_AGE_MS = 30 * DAY_MS;
 const RECENT_EXTERNAL_SESSION_LIMIT = 2;
+/**
+ * How many locally created sessions must postdate an external session's last
+ * update before {@link AgentHostExternalSessionsMode.Recent} stops surfacing it.
+ */
+const RECENT_EXTERNAL_SUPERSEDING_LOCAL_LIMIT = 2;
 /** A catalog pass slower than this is logged at info, since it delays every session-list refresh. */
 const SLOW_LIST_SESSIONS_THRESHOLD_MS = 1_000;
 
@@ -683,6 +688,9 @@ export class AgentService extends Disposable implements IAgentService {
 			if (nextMode !== externalSessionsMode) {
 				const previousMode = externalSessionsMode;
 				externalSessionsMode = nextMode;
+				// The only point past startup where `Recent` re-measures the
+				// superseding local sessions.
+				this._invalidateRecentSupersedingCutoff();
 				this._logService.info(`[AgentService] ${AgentHostShowExternalSessionsConfigKey} changed '${previousMode}' -> '${nextMode}'; queueing session list reconciliation`);
 				this._queueSessionListReconciliation(previousMode);
 			}
@@ -2090,7 +2098,7 @@ export class AgentService extends Disposable implements IAgentService {
 		const combined = additions.length > 0 ? [...withStatus, ...additions] : withStatus;
 		const now = Date.now();
 		const recentSessionKeys = mode === AgentHostExternalSessionsMode.Recent
-			? this._getRecentSessionKeys(combined, now)
+			? this._getRecentSessionKeys(combined, now, this._resolveRecentSupersedingCutoff(allRegistered, epoch))
 			: undefined;
 		const visible: IAgentSessionMetadata[] = [];
 		// Adoptable-legacy rows are withheld by migrate-legacy, not by the external mode.
@@ -2153,11 +2161,12 @@ export class AgentService extends Disposable implements IAgentService {
 		return modifiedTime < now - EXTERNAL_SESSION_MAX_AGE_MS;
 	}
 
-	private _getRecentSessionKeys(sessions: readonly IAgentSessionMetadata[], now: number): ReadonlySet<string> {
+	private _getRecentSessionKeys(sessions: readonly IAgentSessionMetadata[], now: number, supersededBefore: number | undefined): ReadonlySet<string> {
 		const recentExternalSessions = sessions
 			.filter(session => readSessionExternal(session._meta)
 				&& !readSessionEhcliAdoptable(session._meta)
-				&& session.modifiedTime >= now - 7 * DAY_MS)
+				&& session.modifiedTime >= now - 7 * DAY_MS
+				&& (supersededBefore === undefined || session.modifiedTime >= supersededBefore))
 			.sort((a, b) => {
 				const timeDifference = b.modifiedTime - a.modifiedTime;
 				if (timeDifference !== 0) {
@@ -2169,6 +2178,49 @@ export class AgentService extends Disposable implements IAgentService {
 			})
 			.slice(0, RECENT_EXTERNAL_SESSION_LIMIT);
 		return new Set(recentExternalSessions.map(session => session.session.toString()));
+	}
+
+	/**
+	 * Start time of the {@link RECENT_EXTERNAL_SUPERSEDING_LOCAL_LIMIT}-th most
+	 * recently created local session, or `undefined` while fewer exist. `Recent`
+	 * drops external sessions last updated before it.
+	 */
+	private _recentSupersedingCutoff: number | undefined;
+	private _hasRecentSupersedingCutoff = false;
+
+	/**
+	 * Snapshots the cutoff from the registry, which — unlike the hydrated
+	 * metadata — never drops a local session because its provider is
+	 * unavailable or its metadata read failed. Sending a first message
+	 * materializes a local session, so a per-listing cutoff would rotate an
+	 * external row out of the list mid-use. Committed only while `epoch` still
+	 * holds, so a discarded pass cannot freeze an undercounted value.
+	 */
+	private _resolveRecentSupersedingCutoff(registered: readonly IRegisteredSession[], epoch: number): number | undefined {
+		if (this._hasRecentSupersedingCutoff) {
+			return this._recentSupersedingCutoff;
+		}
+		// Idle provisional sessions are the composer's eagerly-created
+		// placeholder, not sessions the user started.
+		const localStartTimes = registered
+			.filter(entry => !entry.external
+				&& Number.isFinite(entry.startTime)
+				&& !this._stateManager.isIdleProvisionalSession(entry.session.toString()))
+			.map(entry => entry.startTime)
+			.sort((a, b) => b - a);
+		const cutoff = localStartTimes.length >= RECENT_EXTERNAL_SUPERSEDING_LOCAL_LIMIT
+			? localStartTimes[RECENT_EXTERNAL_SUPERSEDING_LOCAL_LIMIT - 1]
+			: undefined;
+		if (epoch === this._registryEpoch) {
+			this._recentSupersedingCutoff = cutoff;
+			this._hasRecentSupersedingCutoff = true;
+		}
+		return cutoff;
+	}
+
+	private _invalidateRecentSupersedingCutoff(): void {
+		this._hasRecentSupersedingCutoff = false;
+		this._recentSupersedingCutoff = undefined;
 	}
 
 	private _shouldIncludeSession(
@@ -2328,7 +2380,7 @@ export class AgentService extends Disposable implements IAgentService {
 			previouslyExposed.add(session);
 		}
 		const listed = previousMode !== undefined
-			? this._resolveModeChangeVisibility(await this.listSessions(AgentHostExternalSessionsMode.Last30Days), previousMode, previouslyExposed)
+			? await this._resolveModeChangeVisibility(await this.listSessions(AgentHostExternalSessionsMode.Last30Days), previousMode, previouslyExposed)
 			: await this.listSessions();
 		const visible = new Set<string>();
 		let published = 0;
@@ -2382,14 +2434,20 @@ export class AgentService extends Disposable implements IAgentService {
 	 * mode and the mode is just a parameter to {@link _shouldIncludeSession}.
 	 * Adds what `previousMode` had exposed into `previouslyExposed`.
 	 */
-	private _resolveModeChangeVisibility(
+	private async _resolveModeChangeVisibility(
 		superset: readonly IAgentSessionMetadata[],
 		previousMode: AgentHostExternalSessionsMode,
 		previouslyExposed: Set<string>,
-	): IAgentSessionMetadata[] {
+	): Promise<IAgentSessionMetadata[]> {
 		const now = Date.now();
-		const recentKeysFor = (mode: AgentHostExternalSessionsMode) => mode === AgentHostExternalSessionsMode.Recent
-			? this._getRecentSessionKeys(superset, now)
+		const mode = this._getExternalSessionsMode();
+		// The pass above ran as `Last30Days`, so it never snapshotted the cutoff.
+		const epoch = this._registryEpoch;
+		const supersededBefore = previousMode === AgentHostExternalSessionsMode.Recent || mode === AgentHostExternalSessionsMode.Recent
+			? this._resolveRecentSupersedingCutoff(await this._listRegisteredSessions(), epoch)
+			: undefined;
+		const recentKeysFor = (candidate: AgentHostExternalSessionsMode) => candidate === AgentHostExternalSessionsMode.Recent
+			? this._getRecentSessionKeys(superset, now, supersededBefore)
 			: undefined;
 
 		const previousRecentKeys = recentKeysFor(previousMode);
@@ -2399,7 +2457,6 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 		}
 
-		const mode = this._getExternalSessionsMode();
 		const recentKeys = recentKeysFor(mode);
 		const visible = superset.filter(session => this._shouldIncludeSession(session, mode, now, recentKeys));
 		// The pass ran as `Last30Days`, so report the mode actually in effect instead.
