@@ -259,22 +259,57 @@ disown $PID 2>/dev/null || true
 # immediately. If code.sh dies or we time out, dump the log so the failure is
 # visible.
 echo "[launch.sh] waiting for CDP on port $CDP_PORT (timeout 90s)..." >&2
-READY=0
-for ((i = 0; i < 900; i++)); do
-	if ! kill -0 "$PID" 2>/dev/null; then
-		echo "[launch.sh] code.sh (PID $PID) exited before CDP came up. Log tail:" >&2
-		tail -n 80 "$LOG_FILE" >&2
-		exit 1
-	fi
-	if curl -sf -o /dev/null --max-time 0.2 "http://127.0.0.1:$CDP_PORT/json/version" 2>/dev/null; then
-		READY=1
-		echo "[launch.sh] CDP ready after $((i * 100))ms" >&2
-		break
-	fi
-	sleep 0.1
-done
-if [[ "$READY" != "1" ]]; then
-	echo "[launch.sh] timed out waiting for CDP on port $CDP_PORT. Log tail:" >&2
+if READY_MS=$(node - "$PID" "$CDP_PORT" <<'NODE'
+const http = require('http');
+const pid = Number(process.argv[2]);
+const port = Number(process.argv[3]);
+const start = performance.now();
+
+const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+const probe = () => new Promise(resolve => {
+	const request = http.get({ host: '127.0.0.1', port, path: '/json/version' }, response => {
+		response.resume();
+		resolve(response.statusCode >= 200 && response.statusCode < 400);
+		request.destroy();
+	});
+	request.setTimeout(200, () => {
+		request.destroy();
+		resolve(false);
+	});
+	request.on('error', () => resolve(false));
+});
+
+(async () => {
+	while (performance.now() - start < 90_000) {
+		try {
+			process.kill(pid, 0);
+		} catch (error) {
+			if (error.code === 'ESRCH') {
+				process.exit(2);
+			}
+			throw error;
+		}
+		if (await probe()) {
+			process.stdout.write(String(Math.round(performance.now() - start)));
+			return;
+		}
+		await sleep(100);
+	}
+	process.exit(1);
+})().catch(error => {
+	console.error(error);
+	process.exit(3);
+});
+NODE
+); then
+	echo "[launch.sh] CDP ready after ${READY_MS}ms" >&2
+else
+	READY_STATUS=$?
+	case "$READY_STATUS" in
+		1) echo "[launch.sh] timed out waiting for CDP on port $CDP_PORT. Log tail:" >&2 ;;
+		2) echo "[launch.sh] code.sh (PID $PID) exited before CDP came up. Log tail:" >&2 ;;
+		*) echo "[launch.sh] failed while waiting for CDP on port $CDP_PORT. Log tail:" >&2 ;;
+	esac
 	tail -n 80 "$LOG_FILE" >&2
 	exit 1
 fi

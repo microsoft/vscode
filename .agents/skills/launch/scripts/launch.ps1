@@ -598,7 +598,8 @@ try {
 	$process = Start-Code $codeBat $launchArgs.ToArray() $logFile
 	Write-LaunchError "[launch.ps1] waiting for CDP on port $cdpPort (timeout 90s)..."
 	$ready = $false
-	for ($attempt = 0; $attempt -lt 900; $attempt++) {
+	$readyStopwatch = [Diagnostics.Stopwatch]::StartNew()
+	while ($readyStopwatch.ElapsedMilliseconds -lt 90000) {
 		if ($process.HasExited) {
 			Write-LaunchError "[launch.ps1] code.bat (PID $($process.Id)) exited before CDP came up. Log tail:"
 			Write-LogTail $logFile
@@ -611,7 +612,7 @@ try {
 			$response = $request.GetResponse()
 			$response.Close()
 			$ready = $true
-			Write-LaunchError "[launch.ps1] CDP ready after $($attempt * 100)ms"
+			Write-LaunchError "[launch.ps1] CDP ready after $($readyStopwatch.ElapsedMilliseconds)ms"
 			break
 		} catch {
 			Start-Sleep -Milliseconds 100
