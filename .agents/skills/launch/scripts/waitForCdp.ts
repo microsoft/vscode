@@ -34,7 +34,6 @@ function isProcessRunning(): boolean {
 function probe(requestTimeoutMs: number): Promise<boolean> {
 	return new Promise<boolean>(resolve => {
 		let settled = false;
-		let timer: NodeJS.Timeout;
 		const finish = (ready: boolean) => {
 			if (!settled) {
 				settled = true;
@@ -47,7 +46,7 @@ function probe(requestTimeoutMs: number): Promise<boolean> {
 			response.resume();
 			finish(response.statusCode !== undefined && response.statusCode >= 200 && response.statusCode < 400);
 		});
-		timer = setTimeout(() => finish(false), requestTimeoutMs);
+		const timer = setTimeout(() => finish(false), requestTimeoutMs);
 		request.on('error', () => finish(false));
 	});
 }
