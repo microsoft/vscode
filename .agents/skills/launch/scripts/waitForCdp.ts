@@ -13,7 +13,7 @@ const port = Number(portArg);
 const timeoutMs = Number(timeoutArg);
 
 if (!Number.isInteger(pid) || pid <= 0 || !Number.isInteger(port) || port <= 0 || port > 65535 || !Number.isFinite(timeoutMs) || timeoutMs <= 0) {
-	console.error('Usage: waitForCdp.mjs <pid> <port> [timeout-ms]');
+	console.error('Usage: waitForCdp.ts <pid> <port> [timeout-ms]');
 	process.exit(3);
 }
 
