@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepStrictEqual, ok, strictEqual } from 'assert';
+import * as sinon from 'sinon';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
@@ -299,18 +300,13 @@ suite('Workbench - TerminalInstance', () => {
 		test('should only load the line data event addon once when listeners are re-added', async () => {
 			const instance = await createTerminalInstance();
 			const lineDataEventAddon = instance['_lineDataEventAddon']!;
-			const originalActivate = lineDataEventAddon.activate.bind(lineDataEventAddon);
-			let activationCount = 0;
-			lineDataEventAddon.activate = xterm => {
-				activationCount++;
-				return originalActivate(xterm);
-			};
+			const activateSpy = sinon.spy(lineDataEventAddon, 'activate');
 
 			const firstListener = instance.onLineData(() => { });
 			firstListener.dispose();
 			store.add(instance.onLineData(() => { }));
 
-			strictEqual(activationCount, 1);
+			strictEqual(activateSpy.callCount, 1);
 		});
 
 		test('should preserve agent shell type detected from sequence until the parent shell returns', async () => {
