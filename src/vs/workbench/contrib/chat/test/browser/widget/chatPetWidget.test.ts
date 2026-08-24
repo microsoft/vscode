@@ -105,6 +105,7 @@ suite('ChatPetWidget', () => {
 		const service = disposables.add(new ChatPetService(disposables.add(new TestStorageService()), new TestTelemetryService(), new NullLogService()));
 		disposables.add(new ChatPetWidget(
 			createPetHost(parent, dragBounds, movementBounds),
+			undefined,
 			service,
 			new TestAccessibilityService(),
 			new class extends mock<IContextMenuService>() { }(),
@@ -138,10 +139,6 @@ suite('ChatPetWidget', () => {
 			disconnect(): void { observedTargets.clear(); }
 			takeRecords(): ResizeObserverEntry[] { return []; }
 		}
-		const originalResizeObserver = mainWindow.ResizeObserver;
-		Object.defineProperty(mainWindow, 'ResizeObserver', { configurable: true, value: TestResizeObserver });
-		disposables.add(toDisposable(() => Object.defineProperty(mainWindow, 'ResizeObserver', { configurable: true, value: originalResizeObserver })));
-
 		const parent = mainWindow.document.createElement('div');
 		const dragBounds = mainWindow.document.createElement('div');
 		const movementBounds = mainWindow.document.createElement('div');
@@ -154,6 +151,7 @@ suite('ChatPetWidget', () => {
 		const service = disposables.add(new ChatPetService(disposables.add(new TestStorageService()), new TestTelemetryService(), new NullLogService()));
 		disposables.add(new ChatPetWidget(
 			createPetHost(parent, dragBounds, movementBounds),
+			TestResizeObserver as unknown as typeof ResizeObserver,
 			service,
 			new TestAccessibilityService(),
 			new class extends mock<IContextMenuService>() { }(),
@@ -190,6 +188,7 @@ suite('ChatPetWidget', () => {
 		const service = disposables.add(new ChatPetService(disposables.add(new TestStorageService()), new TestTelemetryService(), new NullLogService()));
 		const widget = disposables.add(new ChatPetWidget(
 			createPetHost(firstParent, firstBounds, movementBounds),
+			undefined,
 			service,
 			new TestAccessibilityService(),
 			new class extends mock<IContextMenuService>() { }(),
@@ -416,6 +415,7 @@ suite('ChatPetWidget', () => {
 		const service = disposables.add(new ChatPetService(disposables.add(new TestStorageService()), new TestTelemetryService(), new NullLogService()));
 		disposables.add(new ChatPetWidget(
 			createPetHost(parent, dragBounds, movementBounds),
+			undefined,
 			service,
 			new TestAccessibilityService(),
 			new class extends mock<IContextMenuService>() { }(),
@@ -613,6 +613,7 @@ suite('ChatPetWidget', () => {
 		const service = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService()));
 		const widget = disposables.add(new ChatPetWidget(
 			createPetHost(parent, dragBounds, movementBounds),
+			undefined,
 			service,
 			new TestAccessibilityService(),
 			new class extends mock<IContextMenuService>() { }(),

@@ -862,6 +862,7 @@ async function renderDisabledPetResizeObserverProbe(context: ComponentFixtureCon
 			getPlatformTop: () => undefined,
 			onDidChangePlatform: Event.None,
 		},
+		undefined,
 	));
 
 	const status = dom.append(context.container, dom.$('.disabled-pet-resize-observer-status'));
