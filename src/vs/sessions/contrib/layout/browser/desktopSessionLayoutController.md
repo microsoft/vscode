@@ -1,5 +1,9 @@
 # Desktop Session Layout Controller — Spec
 
+> **Specification change gate:** A bug fix that restores an existing `D*` rule
+> belongs in a regression test. Update this file only when the intended desktop
+> controller behavior changes.
+
 Specifies [`desktopSessionLayoutController.ts`](./desktopSessionLayoutController.ts)
 (`LayoutController`), the full layout controller used on desktop and on the **web desktop** layout. It
 extends [`BaseLayoutController`](./baseSessionLayoutController.md) (rules `B*`) and adds the per-session

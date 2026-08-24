@@ -405,7 +405,7 @@ class ProxyRoundTripSdkService implements IClaudeAgentSdkService {
 		return true;
 	}
 
-	async ensureAvailableForDiscovery(): Promise<void> { }
+	async ensureAvailable(): Promise<void> { }
 
 	async getSessionInfo(_sessionId: string): Promise<SDKSessionInfo | undefined> {
 		return undefined;
@@ -669,7 +669,7 @@ async function createSession(agent: ClaudeAgent, config: IAgentCreateSessionConf
 		workingDirectories: config.workingDirectories,
 		config: config.config,
 		activeClient: config.activeClient,
-		deferBacking: !config.fork && !config.importConversation,
+		deferBacking: !config.importConversation,
 		importConversation: config.importConversation,
 	});
 	if (!created?.backingSession) {

@@ -17,7 +17,7 @@ import { IDomainService } from '../../../endpoint/common/domainService';
 import { IChatModelInformation, ModelSupportedEndpoint } from '../../../endpoint/common/endpointProvider';
 import { IEnvService } from '../../../env/common/envService';
 import { IFetcherService } from '../../../networking/common/fetcherService';
-import { ICreateEndpointBodyOptions } from '../../../networking/common/networking';
+import { ICreateEndpointBodyOptions, IEndpointBody } from '../../../networking/common/networking';
 import { CAPIChatMessage } from '../../../networking/common/openai';
 import { IChatWebSocketManager } from '../../../networking/node/chatWebSocketManager';
 import { NullExperimentationService } from '../../../telemetry/common/nullExperimentationService';
@@ -237,6 +237,145 @@ describe('CopilotChatEndpoint - Reasoning Properties', () => {
 			expect(messages).toHaveLength(1);
 			expect(messages[0].reasoning_opaque).toBeUndefined();
 			expect(messages[0].reasoning_text).toBeUndefined();
+		});
+	});
+});
+
+describe('CopilotChatEndpoint - Chat Completions token parameter (#328418)', () => {
+	let mockServices: ReturnType<typeof createMockServices>;
+
+	beforeEach(() => {
+		mockServices = createMockServices();
+	});
+
+	const createEndpoint = (modelId: string, family: string, displayName: string, customModel = true, thinking = true, supportedEndpoints = [ModelSupportedEndpoint.ChatCompletions]) => {
+		const baseMetadata = createNonAnthropicModelMetadata(family);
+		const modelMetadata: IChatModelInformation = {
+			...baseMetadata,
+			id: modelId,
+			name: displayName,
+			supported_endpoints: supportedEndpoints,
+			custom_model: customModel ? {
+				key_name: modelId,
+				owner_name: 'organization'
+			} : undefined,
+			capabilities: {
+				...baseMetadata.capabilities,
+				supports: {
+					...baseMetadata.capabilities.supports,
+					thinking
+				},
+				limits: {
+					max_prompt_tokens: 256000,
+					max_output_tokens: 256000,
+					max_context_window_tokens: 256000
+				}
+			}
+		};
+
+		return new CopilotChatEndpoint(
+			modelMetadata,
+			mockServices.domainService,
+			mockServices.capiClientService,
+			mockServices.fetcherService,
+			mockServices.envService,
+			mockServices.telemetryService,
+			mockServices.authService,
+			mockServices.chatMLFetcher,
+			mockServices.tokenizerProvider,
+			mockServices.instantiationService,
+			mockServices.configurationService,
+			mockServices.expService,
+			mockServices.chatWebSocketService,
+			mockServices.logService
+		);
+	};
+
+	it.each([
+		{ modelId: 'mbe_agent_gpt5_4_oai', family: 'gpt-5.4', displayName: 'custom GPT-5 model', customModel: true },
+		{ modelId: 'custom-claude', family: 'claude-sonnet-4', displayName: 'custom non-GPT model', customModel: true }
+	])('preserves max_tokens by default for $displayName', ({ modelId, family, displayName, customModel }) => {
+		const endpoint = createEndpoint(modelId, family, displayName, customModel);
+		const body = endpoint.createRequestBody({
+			...createTestOptions([{
+				role: Raw.ChatRole.User,
+				content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Hi' }]
+			}]),
+			postOptions: { max_tokens: 256000 }
+		});
+
+		endpoint.interceptBody(body);
+
+		expect({
+			max_tokens: body.max_tokens,
+			max_completion_tokens: body.max_completion_tokens
+		}).toEqual({
+			max_tokens: 256000,
+			max_completion_tokens: undefined
+		});
+	});
+
+	it('preserves max_tokens for built-in Chat Completions models', () => {
+		const endpoint = createEndpoint('gpt-5.4', 'gpt-5.4', 'Built-in GPT-5 Model', false);
+		const body: IEndpointBody = {
+			max_tokens: 4096
+		};
+
+		endpoint.interceptBody(body);
+
+		expect(body).toEqual({
+			max_tokens: 4096
+		});
+	});
+
+	it('sends max_completion_tokens when enabled', () => {
+		mockServices.configurationService.setConfig(ConfigKey.Advanced.ChatCompletionsTokenParameter, 'max_completion_tokens');
+		const endpoint = createEndpoint('custom-model', 'custom-family', 'Custom Model');
+		const body = endpoint.createRequestBody({
+			...createTestOptions([{
+				role: Raw.ChatRole.User,
+				content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Hi' }]
+			}]),
+			postOptions: { max_tokens: 4096 }
+		});
+
+		endpoint.interceptBody(body);
+
+		expect({
+			max_tokens: body.max_tokens,
+			max_completion_tokens: body.max_completion_tokens
+		}).toEqual({
+			max_tokens: undefined,
+			max_completion_tokens: 4096
+		});
+	});
+
+	it('replaces an explicitly provided max_completion_tokens with max_tokens by default', () => {
+		const endpoint = createEndpoint('custom-model', 'custom-family', 'Custom Model');
+		const body: IEndpointBody = {
+			max_completion_tokens: 4096
+		};
+
+		endpoint.interceptBody(body);
+
+		expect(body).toEqual({
+			max_tokens: 4096
+		});
+	});
+
+	it.each([
+		{ apiType: 'responses', supportedEndpoints: [ModelSupportedEndpoint.Responses] },
+		{ apiType: 'messages', supportedEndpoints: [ModelSupportedEndpoint.Messages] }
+	])('does not change max_tokens for the $apiType API', ({ supportedEndpoints }) => {
+		const endpoint = createEndpoint('custom-model', 'custom-family', 'Custom Model', true, true, supportedEndpoints);
+		const body: IEndpointBody = {
+			max_tokens: 4096
+		};
+
+		endpoint.interceptBody(body);
+
+		expect(body).toEqual({
+			max_tokens: 4096
 		});
 	});
 });

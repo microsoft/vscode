@@ -25,6 +25,7 @@ import { createSchema, platformRootSchema, platformSessionSchema, schemaProperty
 import { createPricingMetaFromBilling, normalizeCAPIBilling } from '../../common/agentModelPricing.js';
 import { CHATGPT_SUBSCRIPTION_MODEL_SOURCE_ID, createAgentModelSourceMeta } from '../../common/agentModelSource.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema } from '../../common/agentHostCustomizationConfig.js';
+import { AgentSdkSetupChannel } from '../agentSdkSetupChannel.js';
 import { CODEX_ACCOUNT_META_KEY, CODEX_ACCOUNT_SIGN_IN_REQUEST_KEY, CODEX_ACCOUNT_SIGN_OUT_REQUEST_KEY, type ICodexAccountInfo } from '../../common/codexAccount.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel, resolveDefaultReasoningEffort } from '../../common/reasoningEffort.js';
 import { AgentSession, AgentSignal, CODEX_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChatConfigCompletionsParams, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentCreateChatForkSource, IAgentCreateChatResult, IAgentCreateChatOptions, IAgentDescriptor, IAgentDiscoveredChat, IAgentMaterializeChatEvent, IAgentModelInfo, IAgentResolveChatConfigParams, IAgentSpawnChatEvent, IMcpNotification, resolveAgentChatContext, resolveAgentHostInstructions, type AgentProvider, type AuthenticateParams } from '../../common/agent.js';
@@ -138,7 +139,6 @@ import type { ConfigReadResponse } from './protocol/generated/v2/ConfigReadRespo
 import type { ConfigWriteResponse } from './protocol/generated/v2/ConfigWriteResponse.js';
 import { formatGuardianDenialNotification, summarizeGuardianReviewAction, toGuardianAssessmentEventJson } from './codexGuardianReview.js';
 import { CODEX_COMPACT_SLASH_COMMAND } from '../codexCompactCommand.js';
-import { detectExistingCodexChatGPTSetup } from './codexLocalAuth.js';
 
 const CLIENT_INFO = {
 	name: 'vscode_agent_host',
@@ -174,6 +174,16 @@ const CODEX_THINKING_LEVEL_KEY = 'thinkingLevel';
  * and `oaiLanguageModelServer.ts`.
  */
 const USER_AGENT_PREFIX = 'vscode_codex';
+
+/** Where a user finishes setting Codex up outside the app; the workbench labels the link. */
+const CODEX_SETUP_DOCS_URL = 'https://learn.chatgpt.com/codex/auth';
+
+/**
+ * The account the in-app sign-in signs into. A proper noun rather than a
+ * translatable string, so publishing it keeps user-facing text out of the host —
+ * the workbench interpolates it into its own localized sentence.
+ */
+const CODEX_SIGN_IN_PROVIDER_NAME = 'ChatGPT';
 
 const CODEX_REASONING_EFFORTS: readonly ReasoningEffort[] = ['minimal', 'low', 'medium', 'high'];
 
@@ -1146,12 +1156,35 @@ export class CodexAgent extends Disposable implements IAgent {
 				this._configurationService.updateRootConfig({ [CODEX_ACCOUNT_SIGN_OUT_REQUEST_KEY]: undefined });
 				void this._signOutOfChatGPT();
 			}
-			this._startModelRefreshForExistingChatGPTSetup();
+			this._startModelRefreshWhenSdkIsLocal();
 			this._queueProviderConfigurationWrite();
 		}));
 		void this._refreshProviderConfiguration();
-		this._startModelRefreshForExistingChatGPTSetup();
+		this._startModelRefreshWhenSdkIsLocal();
+		this._sdkSetupChannel = this._register(new AgentSdkSetupChannel({
+			id: this.id,
+			sdkPackage: CodexSdkPackage,
+			setupInfo: {
+				setupDocsUrl: CODEX_SETUP_DOCS_URL,
+				// ChatGPT sign-in is a control request the app server answers, so the
+				// banner can start it in-window. An API key still has to be established
+				// outside — hence the docs link alongside it.
+				signInProviderName: CODEX_SIGN_IN_PROVIDER_NAME,
+			},
+			isSdkLocal: () => this._isSdkResolvableWithoutDownload(),
+			downloadSdk: async () => { await this._resolveSdkRoot(); },
+			restartChatDiscovery: () => this._restartChatDiscovery(),
+			refreshModels: () => this.refreshModels(),
+		}, this._configurationService, this._agentSdkDownloader, this._logService));
 	}
+
+	/**
+	 * Publishes whether the SDK is on disk — and nothing about the account, which
+	 * the workbench derives from the model list already flowing over AHP (`ready`
+	 * + zero models → no account). Distinct from {@link _publishAccountInfo}'s
+	 * `vscode.codexAccount` channel, which drives the ChatGPT account menu.
+	 */
+	private readonly _sdkSetupChannel: AgentSdkSetupChannel;
 
 	private _setOpenAIAccountState(state: ICodexAccountState, _publish = true): void {
 		this._openAIAccountState = state;
@@ -1234,13 +1267,14 @@ export class CodexAgent extends Disposable implements IAgent {
 	// #region Auth
 
 	getProtectedResources(): ProtectedResourceMetadata[] {
-		// Keep the Copilot resource advertised even when optional so an existing
-		// token is still forwarded and Copilot-backed models remain additive.
-		// Without a usable ChatGPT setup, however, Copilot is the only available
-		// transport and must stay required so the workbench shows its auth gate.
+		// Always listed, always optional — matching Claude. Listing it is what lets
+		// the host forward a token to an already-signed-in user (matching ignores
+		// `required`); the unconditional `required: false` is what stops
+		// `resolveSignedOutWindowGate` walling off the whole Agents window before
+		// the user reaches a surface that could explain itself.
 		const copilotResource = this._gitHubEndpointService.getCopilotResource();
 		return [
-			this._hasExistingChatGPTSetup() ? { ...copilotResource, required: false } : copilotResource,
+			{ ...copilotResource, required: false },
 			this._gitHubEndpointService.getRepoResource(),
 		];
 	}
@@ -1702,42 +1736,35 @@ export class CodexAgent extends Disposable implements IAgent {
 	}
 
 	private async _refreshModels(): Promise<void> {
-		await Promise.all([this._refreshCopilotModels(), this._refreshCodexModels()]);
+		const [, sdkReady] = await Promise.all([this._refreshCopilotModels(), this._refreshCodexModels()]);
 		this._models.set([...this._copilotModels, ...this._codexModels], undefined);
-	}
-
-	private _hasExistingChatGPTSetup(): boolean {
-		const allowSignedOutWhenUsable = this._configurationService.getRootValue(agentHostCustomizationConfigSchema, AgentHostConfigKey.AllowSignedOutWhenUsable) === true;
-		if (!allowSignedOutWhenUsable) {
-			return false;
-		}
-		if (this._openAIAccountState.status === 'signedIn') {
-			return this._openAIAccountState.authType === 'chatgpt';
-		}
-		if (this._openAIAccountState.status === 'unavailable') {
-			return this._openAIAccountState.requiresOpenaiAuth === false;
-		}
-		if (this._openAIAccountState.status === 'signedOut' || this._openAIAccountState.status === 'error') {
-			return false;
-		}
-		return detectExistingCodexChatGPTSetup(
-			this._environmentService.userHome.fsPath,
-			process.env,
-			process.env[AgentHostCodexAgentCodexHomeEnvVar],
-		);
+		// Last, never first: also the freshest answer to "is the SDK here" (a
+		// download that landed elsewhere surfaces here), but announcing `ready`
+		// before the catalog lands is how the window renders "no account found".
+		this._sdkSetupChannel.publishWith(sdkReady);
 	}
 
 	/**
-	 * Match Claude native mode: once persisted credentials make the provider
-	 * usable without GitHub, eagerly materialize the SDK and publish only the
-	 * authoritative app-server model catalog. Until that finishes the provider
-	 * remains present but unusable; no cached or synthetic model is advertised.
+	 * Ask the app server for the authoritative catalog at startup, but only when
+	 * asking is free — i.e. the SDK is already on disk.
+	 *
+	 * Replaces a `~/.codex/auth.json` sniff that was wrong in both directions: it
+	 * missed API-key setups established through the environment, and claimed a
+	 * setup from a stale token file. Only the app server can answer whether this
+	 * user can run Codex without GitHub. Behind the flag, so a Copilot-only user
+	 * still spawns nothing at startup.
 	 */
-	private _startModelRefreshForExistingChatGPTSetup(): void {
-		if (!this._hasExistingChatGPTSetup() || this._codexModels.length > 0) {
+	private _startModelRefreshWhenSdkIsLocal(): void {
+		const allowSignedOutWhenUsable = this._configurationService.getRootValue(agentHostCustomizationConfigSchema, AgentHostConfigKey.AllowSignedOutWhenUsable) === true;
+		if (!allowSignedOutWhenUsable || this._codexModels.length > 0) {
 			return;
 		}
-		queueMicrotask(() => { void this.refreshModels(); });
+		queueMicrotask(async () => {
+			if (this._store.isDisposed || !(await this._isSdkResolvableWithoutDownload())) {
+				return;
+			}
+			await this.refreshModels();
+		});
 	}
 
 	private async _refreshCopilotModels(): Promise<void> {
@@ -1792,17 +1819,25 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 	}
 
-	private async _refreshCodexModels(): Promise<void> {
+	private async _refreshCodexModels(): Promise<boolean> {
+		// Outside the `try` so a throw still reports what we had established about
+		// the SDK, rather than a `false` the caller would publish as "not downloaded".
+		let sdkReady = false;
 		try {
-			if (this._connection.kind === 'idle' && !(await this._isSdkResolvableWithoutDownload()) && !this._hasExistingChatGPTSetup()) {
+			// A refresh must never be what pulls the SDK down — the download is an
+			// explicit gesture now — so with no local SDK this reports the honest
+			// empty catalog and the banner offers it. A live connection already
+			// proves the SDK is on disk, so it short-circuits the stat.
+			sdkReady = this._connection.kind !== 'idle' || await this._isSdkResolvableWithoutDownload();
+			if (!sdkReady) {
 				this._codexModels = [];
-				return;
+				return sdkReady;
 			}
 			const connection = await this._ensureConnection();
 			const account = await this._refreshAccount(connection.client, false);
 			if (account.status === 'signedOut' || account.status === 'error') {
 				this._codexModels = [];
-				return;
+				return sdkReady;
 			}
 			const configResponse = await connection.client.request<'config/read', ConfigReadResponse>('config/read', { includeLayers: false });
 			const modelProvider = configResponse.config.model_provider ?? CODEX_OPENAI_MODEL_PROVIDER;
@@ -1831,6 +1866,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			// Keep the last known-good catalog; a transient periodic failure must
 			// not make every model disappear.
 		}
+		return sdkReady;
 	}
 
 	// #endregion
@@ -2199,7 +2235,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * {@link _handleDynamicToolCallRpc} by name.
 	 */
 	private _buildDynamicTools(session: ICodexSession): DynamicToolSpec[] | undefined {
-		const serverTools = this._serverToolHost?.definitions ?? [];
+		const serverTools = this._serverToolHost?.getDefinitionsForSession(session.configurationResource.toString()) ?? [];
 		const clientTools = session.clientToolSet.merged();
 		// Server tools first; a server tool name shadows a colliding client tool
 		// (the agent host owns those names) and matches the routing order below.
@@ -5607,10 +5643,11 @@ export class CodexAgent extends Disposable implements IAgent {
 	}
 
 	async listChatsToMigrate(): Promise<IAgentChatMetadata[] | undefined> {
-		try {
-			await this._resolveSdkRoot();
-		} catch (err) {
-			this._logService.warn(`[Codex] SDK unavailable while listing chats to migrate: ${err instanceof Error ? err.message : String(err)}`);
+		// `undefined` is "can't enumerate yet", which is the honest answer while the
+		// SDK is absent: the catalog lives inside it, but fetching one is the user's
+		// call. {@link _restartChatDiscovery} revisits this once they make it.
+		if (!(await this._isSdkResolvableWithoutDownload())) {
+			this._logService.info('[Codex] SDK not downloaded yet; deferring the migratable chat list');
 			return undefined;
 		}
 		const chats = await this._listCodexChats();
@@ -5627,7 +5664,13 @@ export class CodexAgent extends Disposable implements IAgent {
 	private _startCodexChatDiscovery(): Promise<void> {
 		if (!this._codexChatDiscovery) {
 			this._codexChatDiscovery = retry(async () => {
-				await this._resolveSdkRoot();
+				// Waits for the SDK rather than pulling it down — see
+				// {@link listChatsToMigrate}. Returning leaves the retry loop happy,
+				// since no amount of retrying will make the user press Download.
+				if (!(await this._isSdkResolvableWithoutDownload())) {
+					this._logService.info('[Codex] SDK not downloaded yet; deferring chat discovery');
+					return;
+				}
 				if (!(await this._emitCodexChats())) {
 					throw new Error('Codex chat catalog is not available');
 				}
@@ -5635,6 +5678,14 @@ export class CodexAgent extends Disposable implements IAgent {
 				.catch(err => this._logService.warn(`[Codex] Chat discovery failed: ${err instanceof Error ? err.message : String(err)}`));
 		}
 		return this._codexChatDiscovery;
+	}
+
+	/** Runs discovery again for whoever is still subscribed, after it deferred for want of an SDK. */
+	private _restartChatDiscovery(): void {
+		if (this._codexChatDiscovery) {
+			this._codexChatDiscovery = undefined;
+			void this._startCodexChatDiscovery();
+		}
 	}
 
 	private async _emitCodexChats(): Promise<boolean> {

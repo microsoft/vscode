@@ -1105,6 +1105,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			{
 				listForeground: SIDE_BAR_FOREGROUND,
 				listBackground: locationBasedColors.background,
+				listShadow: locationBasedColors.listOverrideStyles.treeStickyScrollShadow,
 				overlayBackground: locationBasedColors.overlayBackground,
 				inputEditorBackground: locationBasedColors.background,
 				resultEditorBackground: editorBackground,
@@ -1123,7 +1124,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			parent,
 			{
 				focusChat: () => this._widget.focusInput()
-			}
+			},
+			undefined
 		));
 
 		this._register(this.titleControl.onDidChangeHeight(() => {

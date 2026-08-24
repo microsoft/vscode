@@ -1,5 +1,9 @@
 # Single-Pane Detail Panel — Scenarios
 
+> **Specification change gate:** A bug fix that restores an existing scenario
+> belongs in a regression test, not this document. Update it only when the
+> intended state or transition matrix changes.
+
 This document enumerates the user-facing scenarios, states, and transitions for the **single-pane
 detail panel** layout of the Agents window (the third pane redesigned as one pane with a single tab
 bar spanning the editor content and a docked detail panel).
@@ -11,12 +15,16 @@ bar spanning the editor content and a docked detail panel).
   imperative code) and the `SinglePaneLayoutEnabledContext` context key (read only by declarative
   `when` clauses). Features must gate on those — never read the setting or the context key directly
   in imperative code.
-- When the setting is **ON** (default), a non-phone Agents window uses the single-pane layout described
-  here. Phone-class viewports always use the classic layout, regardless of the setting. When the setting
-  is **OFF**, every Agents window also renders the classic layout (auxiliary bar as its own grid column
-  with its composite tab strip; the standard multi-diff Changes editor). Nothing else in this document
-  applies to that classic layout.
-- Companion specs: [LAYOUT.md](LAYOUT.md) §5, [LAYOUT_CONTROLLER.md](LAYOUT_CONTROLLER.md), and
+- When the setting is **ON** (default), non-phone Agents windows use the
+  single-pane layout described here. Phone viewports always use the classic
+  layout. When the setting is **OFF**, all Agents windows use the classic layout
+  and nothing else in this document applies.
+- The main Editor supports exactly one editor group. Editor split/grid commands,
+  keybindings, menus, open-to-side requests, and split drop targets are disabled;
+  programmatic group creation and multi-group layout requests are rejected. This
+  restriction does not apply to the separate chat grid.
+- Companion specs: [Editor presentation](LAYOUT.md#editor-presentation),
+  [LAYOUT_CONTROLLER.md](LAYOUT_CONTROLLER.md), and
   [contrib/layout/browser/desktopSessionLayoutController.md](contrib/layout/browser/desktopSessionLayoutController.md).
 
 ---
@@ -215,47 +223,16 @@ publish their docked-details capability so **Toggle Details** remains available.
 
 ---
 
-## 8. Manual validation checklist
+## 8. Test ownership
 
-1. **New session view:** Changes and File tabs shown + File active + Files detail open + **no editor
-   content**; tab bar visible; the "What are you building?" composer keeps focus.
-2. **Open a file** from the Files view in the new-session view → the editor content appears and stays.
-3. **Detail toggle** in the new-session view → the editor content appears (detail hides).
-4. **Submit** a new session → the Changes tab becomes active with the Changes detail; the editor
-   content is **still closed**.
-5. **Hide Editor** → editor content closes, detail **keeps its width**, chat expands, tab bar
-   stays; Hide Editor is then replaced by Show Editor in the same slot.
-6. **Detail toggle** from *Editor + Detail* → detail hides, editor stays (*Editor only*); toggle again
-   → detail returns.
-7. **Toggle Side Panel** → the whole side pane closes (chat-only); toggle again → it restores. Repeat while maximized and verify that reopening restores maximization.
-8. **Browser tab** → detail hides; switch back to Files/Changes → detail restores.
-9. **File tab** active → the Explorer detail is shown (revealed on activation).
-10. **Close the last editor tab** → the whole side pane closes (chat-only); opening any tab restores it.
-11. **`+` button** hidden while the editor area is closed; reappears when the editor is open.
-12. **Sash drag** to widen the third pane in a **created** session while the editor is closed → editor
-    content re-reveals and Hide Editor reappears (replacing Show Editor); hiding the editor never leaves a
-    corrupted/overlapping layout. In the **new-session** view the same drag widens the detail panel and
-    the editor stays closed.
-13. **Toggle Sessions List** while the side pane is visible → when the editor content is visible the
-    editor/detail pane widens by the sessions-list width; when the editor is closed (new-session /
-    detail-only) the **detail panel** widens instead and the editor stays closed. Toggle it back → the
-    pane returns to its previous width and the chat regains the space.
-14. **Setting OFF** → the Agents window is the original layout, unchanged.
+Concrete transitions and regressions belong in the layout-controller and
+single-pane strategy tests. This document defines the state model and expected
+compositions; it is not a manual test script.
 
 ---
 
-## 9. Where it lives (implementation map)
+## 9. Implementation
 
-| Concern | File |
-|---------|------|
-| Docked layout, hide/show editor, detail width, sash-reveal sync, grid | `browser/workbench.ts` |
-| Docked panel overlay + resize sash | `browser/dockedAuxiliaryBarController.ts` |
-| Editor tab bar kept visible when content hidden; sash-reveal trigger | `browser/parts/editorPart.ts` |
-| New Session entry-time editor hide + detail mapping; Existing Session visibility profile + detail mapping | `contrib/layout/browser/singlePane/singlePaneNewSessionStrategy.ts`, `contrib/layout/browser/singlePane/singlePaneExistingSessionStrategy.ts` |
-| Quick Chat side-pane preservation | `contrib/layout/browser/singlePane/singlePaneQuickChatStrategy.ts` |
-| Managed Changes + File tabs (suppressed opens) + detail-only editor-area collapse | `contrib/layout/browser/singlePane/singlePaneDockedTabsCoordinator.ts` |
-| Detail-panel sync mechanics (sequencer, `openViewContainer`) | `contrib/layout/browser/singlePane/singlePaneDetailPanelCoordinator.ts` |
-| Existing Session visibility-profile storage (legacy combined storage shape accepted) | `contrib/layout/browser/singlePane/singlePaneVisibilityProfileStore.ts` |
-| Startup controller selection | `contrib/layout/browser/sessions.layout.contribution.ts` |
-| Hide/Show Editor, Maximize, add-tab actions | `contrib/editor/browser/editor.contribution.ts`, `contrib/editor/browser/addTabActions.ts` |
-| Toggle Details command + editor-title item | `contrib/layout/browser/singlePane/singlePaneExistingSessionStrategy.ts` |
+The workbench composition lives under `browser/`. Single-pane strategies and
+their tests live under `contrib/layout/browser/singlePane/` and
+`contrib/layout/test/browser/`.

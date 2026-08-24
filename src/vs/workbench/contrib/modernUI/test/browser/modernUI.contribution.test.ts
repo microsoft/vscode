@@ -29,6 +29,8 @@ import { generateColorThemeCSS } from '../../../../services/themes/browser/color
 import '../../../../browser/parts/activitybar/media/activityaction.css';
 import '../../../../browser/parts/media/paneCompositePart.css';
 import { ModernUIContribution } from '../../browser/modernUI.contribution.js';
+import '../../../../browser/parts/notifications/media/notificationsCenter.css';
+import '../../../../browser/parts/notifications/media/notificationsToasts.css';
 
 class ModernUITestPane extends Pane {
 
@@ -67,6 +69,20 @@ function appendElement(parent: HTMLElement, className: string): HTMLElement {
 	element.className = className;
 	parent.appendChild(element);
 	return element;
+}
+
+function createEditorTabLabel(parent: HTMLElement, extraClasses?: string): { label: HTMLElement; name: HTMLElement; description: HTMLElement } {
+	const label = appendElement(parent, `tab-label monaco-icon-label codicon codicon-settings${extraClasses ? ` ${extraClasses}` : ''}`);
+	const labelContainer = appendElement(label, 'monaco-icon-label-container');
+	const nameContainer = appendElement(labelContainer, 'monaco-icon-name-container');
+	const name = document.createElement('a');
+	name.className = 'label-name';
+	nameContainer.appendChild(name);
+	const descriptionContainer = appendElement(labelContainer, 'monaco-icon-description-container');
+	const description = document.createElement('span');
+	description.className = 'label-description';
+	descriptionContainer.appendChild(description);
+	return { label, name, description };
 }
 
 function createCompositeAction(root: HTMLElement, titleHeight: number, checked: boolean, icon = false): { actionItem: HTMLElement; actionLabel: HTMLElement; indicator: HTMLElement } {
@@ -121,9 +137,11 @@ suite('ModernUIContribution', () => {
 		const startupState = {
 			mainEnabled: layoutService.mainContainer.classList.contains('modern-ui'),
 			mainTabsEnabled: layoutService.mainContainer.classList.contains('modern-ui-tabs'),
+			mainNotificationsDialogsEnabled: layoutService.mainContainer.classList.contains('modern-ui-notifications-dialogs'),
 			mainUppercaseViewHeaders: layoutService.mainContainer.classList.contains('modern-ui-uppercase-view-headers'),
 			auxiliaryEnabled: auxiliaryContainer.classList.contains('modern-ui'),
 			auxiliaryTabsEnabled: auxiliaryContainer.classList.contains('modern-ui-tabs'),
+			auxiliaryNotificationsDialogsEnabled: auxiliaryContainer.classList.contains('modern-ui-notifications-dialogs'),
 			auxiliaryUppercaseViewHeaders: auxiliaryContainer.classList.contains('modern-ui-uppercase-view-headers'),
 			paneHeaderSize: pane.minimumSize,
 			paneHeaderLineHeight: getWindow(pane.draggableElement!).getComputedStyle(pane.draggableElement!).lineHeight,
@@ -143,9 +161,11 @@ suite('ModernUIContribution', () => {
 			startupState,
 			mainEnabledAfterToggle: layoutService.mainContainer.classList.contains('modern-ui'),
 			mainTabsEnabledAfterToggle: layoutService.mainContainer.classList.contains('modern-ui-tabs'),
+			mainNotificationsDialogsEnabledAfterToggle: layoutService.mainContainer.classList.contains('modern-ui-notifications-dialogs'),
 			mainUppercaseViewHeadersAfterToggle: layoutService.mainContainer.classList.contains('modern-ui-uppercase-view-headers'),
 			auxiliaryEnabledAfterToggle: auxiliaryContainer.classList.contains('modern-ui'),
 			auxiliaryTabsEnabledAfterToggle: auxiliaryContainer.classList.contains('modern-ui-tabs'),
+			auxiliaryNotificationsDialogsEnabledAfterToggle: auxiliaryContainer.classList.contains('modern-ui-notifications-dialogs'),
 			auxiliaryUppercaseViewHeadersAfterToggle: auxiliaryContainer.classList.contains('modern-ui-uppercase-view-headers'),
 			paneHeaderSizeAfterToggle: pane.minimumSize,
 			paneHeaderLineHeightAfterToggle: getWindow(pane.draggableElement!).getComputedStyle(pane.draggableElement!).lineHeight,
@@ -155,9 +175,11 @@ suite('ModernUIContribution', () => {
 			startupState: {
 				mainEnabled: true,
 				mainTabsEnabled: true,
+				mainNotificationsDialogsEnabled: true,
 				mainUppercaseViewHeaders: true,
 				auxiliaryEnabled: true,
 				auxiliaryTabsEnabled: true,
+				auxiliaryNotificationsDialogsEnabled: true,
 				auxiliaryUppercaseViewHeaders: true,
 				paneHeaderSize: 28,
 				paneHeaderLineHeight: '28px',
@@ -166,14 +188,88 @@ suite('ModernUIContribution', () => {
 			},
 			mainEnabledAfterToggle: false,
 			mainTabsEnabledAfterToggle: false,
+			mainNotificationsDialogsEnabledAfterToggle: false,
 			mainUppercaseViewHeadersAfterToggle: false,
 			auxiliaryEnabledAfterToggle: false,
 			auxiliaryTabsEnabledAfterToggle: false,
+			auxiliaryNotificationsDialogsEnabledAfterToggle: false,
 			auxiliaryUppercaseViewHeadersAfterToggle: false,
 			paneHeaderSizeAfterToggle: 22,
 			paneHeaderLineHeightAfterToggle: '22px',
 			paneHeaderInlineLineHeightAfterToggle: '',
 			layoutCountAfterToggle: 1,
+		});
+	});
+
+	test('supports isolated notification and dialog presentation', () => {
+		const root = document.createElement('div');
+		root.className = 'monaco-workbench modern-ui modern-ui-notifications-dialogs nostatusbar';
+		root.style.setProperty('--vscode-spacing-size20', '2px');
+		root.style.setProperty('--vscode-spacing-size40', '4px');
+		root.style.setProperty('--vscode-spacing-size60', '6px');
+		root.style.setProperty('--vscode-spacing-size80', '8px');
+		root.style.setProperty('--vscode-cornerRadius-large', '8px');
+		root.style.setProperty('--modern-ui-notifications-inline-inset', '12px');
+		root.style.setProperty('--modern-ui-notifications-block-end-inset', '20px');
+		root.style.setProperty('--modern-ui-notifications-block-start-inset', '24px');
+		document.body.appendChild(root);
+		store.add(toDisposable(() => root.remove()));
+
+		const notificationList = appendElement(root, 'notifications-list-container');
+		const notification = appendElement(notificationList, 'notification-list-item');
+		const notificationsCenter = appendElement(root, 'notifications-center');
+		const centerList = appendElement(notificationsCenter, 'notifications-list-container');
+		const centerRow = appendElement(centerList, 'monaco-list-row');
+		const topNotificationsCenter = appendElement(root, 'notifications-center top-right');
+		const notificationsToasts = appendElement(root, 'notifications-toasts');
+		const topNotificationsToasts = appendElement(root, 'notifications-toasts top-right');
+		const toastContainer = appendElement(notificationsToasts, 'notification-toast-container');
+		const toast = appendElement(toastContainer, 'notification-toast');
+		const toastList = appendElement(toast, 'notifications-list-container');
+		const toastRow = appendElement(toastList, 'monaco-list-row');
+		const dialog = appendElement(root, 'monaco-dialog-box');
+
+		const targetWindow = getWindow(root);
+		const notificationStyle = targetWindow.getComputedStyle(notification);
+		const notificationsCenterStyle = targetWindow.getComputedStyle(notificationsCenter);
+		const centerRowStyle = targetWindow.getComputedStyle(centerRow);
+		const topNotificationsCenterStyle = targetWindow.getComputedStyle(topNotificationsCenter);
+		const notificationsToastsStyle = targetWindow.getComputedStyle(notificationsToasts);
+		const topNotificationsToastsStyle = targetWindow.getComputedStyle(topNotificationsToasts);
+		const toastStyle = targetWindow.getComputedStyle(toast);
+		const toastRowStyle = targetWindow.getComputedStyle(toastRow);
+		const dialogStyle = targetWindow.getComputedStyle(dialog);
+
+		assert.deepStrictEqual({
+			notificationPadding: notificationStyle.padding,
+			notificationsCenterRight: notificationsCenterStyle.right,
+			notificationsCenterBottom: notificationsCenterStyle.bottom,
+			notificationsCenterRadius: notificationsCenterStyle.borderRadius,
+			centerRowRadius: centerRowStyle.borderRadius,
+			topNotificationsCenterTop: topNotificationsCenterStyle.top,
+			notificationsToastsRight: notificationsToastsStyle.right,
+			notificationsToastsBottom: notificationsToastsStyle.bottom,
+			notificationsToastsRadius: notificationsToastsStyle.borderRadius,
+			topNotificationsToastsTop: topNotificationsToastsStyle.top,
+			toastRadius: toastStyle.borderRadius,
+			toastRowRadius: toastRowStyle.borderRadius,
+			dialogPadding: dialogStyle.padding,
+			dialogMinWidth: dialogStyle.minWidth,
+		}, {
+			notificationPadding: '6px 2px',
+			notificationsCenterRight: '12px',
+			notificationsCenterBottom: '20px',
+			notificationsCenterRadius: '8px',
+			centerRowRadius: '0px 0px 8px 8px',
+			topNotificationsCenterTop: '24px',
+			notificationsToastsRight: '8px',
+			notificationsToastsBottom: '16px',
+			notificationsToastsRadius: '8px',
+			topNotificationsToastsTop: '20px',
+			toastRadius: '8px',
+			toastRowRadius: '8px',
+			dialogPadding: '4px',
+			dialogMinWidth: '440px',
 		});
 	});
 
@@ -818,6 +914,61 @@ suite('ModernUIContribution', () => {
 			selectedActionBackground: 'rgb(85, 68, 51)',
 			settingsTabBackground: 'rgb(18, 52, 86)',
 			settingsTabForeground: 'rgb(171, 205, 239)',
+		});
+	});
+
+	test('applies editor tab foregrounds to the icon, name, and description', () => {
+		const root = document.createElement('div');
+		root.className = 'monaco-workbench modern-ui-tabs';
+		root.style.setProperty('--modern-ui-editor-tab-active-foreground', '#010203');
+		root.style.setProperty('--modern-ui-editor-tab-inactive-foreground', '#040506');
+		root.style.setProperty('--modern-ui-editor-tab-unfocused-active-foreground', '#070809');
+		root.style.setProperty('--modern-ui-editor-tab-unfocused-inactive-foreground', '#0a0b0c');
+		root.style.setProperty('--vscode-tab-selectedForeground', '#0d0e0f');
+		document.body.appendChild(root);
+		store.add(toDisposable(() => root.remove()));
+
+		const content = appendElement(appendElement(root, 'part editor'), 'content');
+		const createGroup = (active: boolean): HTMLElement => {
+			const group = appendElement(content, `editor-group-container${active ? ' active' : ''}`);
+			return appendElement(appendElement(group, 'title'), 'tabs-container');
+		};
+		const createTab = (tabs: HTMLElement, classes: string, labelClasses?: string) => createEditorTabLabel(appendElement(tabs, `tab${classes ? ` ${classes}` : ''}`), labelClasses);
+
+		const activeTabs = createGroup(true);
+		const activeLabel = createTab(activeTabs, 'active');
+		const inactiveLabel = createTab(activeTabs, '');
+		const selectedLabel = createTab(activeTabs, 'selected');
+		const decoratedLabel = createTab(activeTabs, '', 'monaco-decoration-itemColor');
+		decoratedLabel.label.style.color = '#101112';
+
+		const unfocusedTabs = createGroup(false);
+		const unfocusedActiveLabel = createTab(unfocusedTabs, 'active');
+		const unfocusedInactiveLabel = createTab(unfocusedTabs, '');
+
+		const getLabelColors = (label: { label: HTMLElement; name: HTMLElement; description: HTMLElement }) => {
+			const targetWindow = getWindow(label.label);
+			return [
+				targetWindow.getComputedStyle(label.label, '::before').color,
+				targetWindow.getComputedStyle(label.name).color,
+				targetWindow.getComputedStyle(label.description).color,
+			];
+		};
+
+		assert.deepStrictEqual({
+			active: getLabelColors(activeLabel),
+			inactive: getLabelColors(inactiveLabel),
+			selected: getLabelColors(selectedLabel),
+			decorated: getLabelColors(decoratedLabel),
+			unfocusedActive: getLabelColors(unfocusedActiveLabel),
+			unfocusedInactive: getLabelColors(unfocusedInactiveLabel),
+		}, {
+			active: ['rgb(1, 2, 3)', 'rgb(1, 2, 3)', 'rgb(1, 2, 3)'],
+			inactive: ['rgb(4, 5, 6)', 'rgb(4, 5, 6)', 'rgb(4, 5, 6)'],
+			selected: ['rgb(13, 14, 15)', 'rgb(13, 14, 15)', 'rgb(13, 14, 15)'],
+			decorated: ['rgb(16, 17, 18)', 'rgb(16, 17, 18)', 'rgb(16, 17, 18)'],
+			unfocusedActive: ['rgb(7, 8, 9)', 'rgb(7, 8, 9)', 'rgb(7, 8, 9)'],
+			unfocusedInactive: ['rgb(10, 11, 12)', 'rgb(10, 11, 12)', 'rgb(10, 11, 12)'],
 		});
 	});
 

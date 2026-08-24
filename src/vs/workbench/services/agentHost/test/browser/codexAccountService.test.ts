@@ -8,6 +8,7 @@ import { Action, SubmenuAction } from '../../../../../base/common/actions.js';
 import { Event } from '../../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { AgentHostCodexAgentEnabledSettingId, CodexPreferAgentHostEditorSettingId } from '../../../../../platform/agentHost/common/agentService.js';
+import { CODEX_AGENT_PROVIDER_ID } from '../../../../../platform/agentHost/common/agent.js';
 import { ChatAIDisabledSettingId } from '../../../../../platform/chat/common/chatSettings.js';
 import { OpenOptions } from '../../../../../platform/opener/common/opener.js';
 import { ICodexAccountService, createCodexAccountMenuActions, hasSignedInCodexChatGPTAccount, openCodexAuthUrl, shouldShowCodexAccount } from '../../browser/codexAccountService.js';
@@ -18,6 +19,7 @@ suite('CodexAccountService', () => {
 	function service(status: ICodexAccountService['account']['status'], email?: string): ICodexAccountService & { signInCalls: number; signOutCalls: number } {
 		return {
 			_serviceBrand: undefined,
+			agent: CODEX_AGENT_PROVIDER_ID,
 			account: { status, email },
 			onDidChangeAccount: Event.None,
 			signInCalls: 0,

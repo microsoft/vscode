@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise } from '../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { autorun, constObservable, observableValue } from '../../../../../base/common/observable.js';
@@ -224,6 +224,7 @@ function createSessionsManagementService(
 	provider: ISessionsProvider | readonly ISessionsProvider[] = new TestSessionsProvider(session),
 	workspaceTrustManagementService = new TestWorkspaceTrustManagementService(),
 	workspaceTrustRequestService?: IWorkspaceTrustRequestService,
+	configurationService: IConfigurationService = new TestConfigurationService(),
 ): { service: ISessionsManagementService; view: SessionsService; chatWidgetService: TestChatWidgetService; chatService: TestChatService; contextKeyService: MockContextKeyService } {
 	const instantiationService = disposables.add(new TestInstantiationService());
 	const chatWidgetService = new TestChatWidgetService();
@@ -233,6 +234,7 @@ function createSessionsManagementService(
 
 	instantiationService.stub(IStorageService, disposables.add(new InMemoryStorageService()));
 	instantiationService.stub(ILogService, new NullLogService());
+	instantiationService.stub(IConfigurationService, configurationService);
 	instantiationService.stub(IContextKeyService, contextKeyService);
 	instantiationService.stub(ISessionsProvidersService, new TestSessionsProvidersService(providers));
 	instantiationService.stub(IUriIdentityService, { extUri: extUriBiasedIgnorePathCase });
@@ -958,6 +960,120 @@ suite('SessionsManagementService', () => {
 		assert.strictEqual(view.activeSession.get()?.sessionId, 's1');
 	});
 
+	test('sendNewChatRequest tracks a foreground first request until it settles', async () => {
+		const session = stubSession({
+			sessionId: 's1',
+			providerId: 'test',
+			status: constObservable(SessionStatus.Untitled),
+		});
+		const createChatBarrier = new DeferredPromise<void>();
+		const provider = new class extends TestSessionsProvider {
+			override async createNewChat(): Promise<IChat> {
+				await createChatBarrier.p;
+				return session.mainChat.get();
+			}
+		}(session);
+		const { service } = createSessionsManagementService(session, disposables, provider);
+
+		const send = service.sendNewChatRequest(session, { query: 'hi' });
+		await timeout(0);
+		const duringCreate = service.getInFlightNewSessionRequests().map(session => session.sessionId);
+		createChatBarrier.complete();
+		await send;
+
+		assert.deepStrictEqual({
+			duringCreate,
+			afterSend: service.getInFlightNewSessionRequests(),
+		}, {
+			duringCreate: ['s1'],
+			afterSend: [],
+		});
+	});
+
+	test('sendNewChatRequest keeps tracking until concurrent first requests settle', async () => {
+		const session = stubSession({
+			sessionId: 's1',
+			providerId: 'test',
+			status: constObservable(SessionStatus.Untitled),
+		});
+		const createBarriers = [new DeferredPromise<void>(), new DeferredPromise<void>()];
+		const bothCreatesStarted = new DeferredPromise<void>();
+		let createCount = 0;
+		const provider = new class extends TestSessionsProvider {
+			override async createNewChat(): Promise<IChat> {
+				const index = createCount++;
+				if (createCount === createBarriers.length) {
+					bothCreatesStarted.complete();
+				}
+				await createBarriers[index].p;
+				return session.mainChat.get();
+			}
+		}(session);
+		const { service } = createSessionsManagementService(session, disposables, provider);
+
+		const first = service.sendNewChatRequest(session, { query: 'first' });
+		const second = service.sendNewChatRequest(session, { query: 'second' });
+		await bothCreatesStarted.p;
+		const whileBothPending = service.getInFlightNewSessionRequests().map(session => session.sessionId);
+		createBarriers[0].complete();
+		await first;
+		const afterFirstSettles = service.getInFlightNewSessionRequests().map(session => session.sessionId);
+		createBarriers[1].complete();
+		await second;
+
+		assert.deepStrictEqual({
+			whileBothPending,
+			afterFirstSettles,
+			afterBothSettle: service.getInFlightNewSessionRequests(),
+		}, {
+			whileBothPending: ['s1'],
+			afterFirstSettles: ['s1'],
+			afterBothSettle: [],
+		});
+	});
+
+	test('sendNewChatRequest does not track a request in an existing session', async () => {
+		const session = stubSession({
+			sessionId: 's1',
+			providerId: 'test',
+			status: constObservable(SessionStatus.Completed),
+		});
+		const createChatBarrier = new DeferredPromise<void>();
+		const provider = new class extends TestSessionsProvider {
+			override async createNewChat(): Promise<IChat> {
+				await createChatBarrier.p;
+				return session.mainChat.get();
+			}
+		}(session);
+		const { service } = createSessionsManagementService(session, disposables, provider);
+
+		const send = service.sendNewChatRequest(session, { query: 'hi' });
+		await timeout(0);
+		const duringCreate = service.getInFlightNewSessionRequests();
+		createChatBarrier.complete();
+		await send;
+
+		assert.deepStrictEqual(duringCreate, []);
+	});
+
+	test('sendNewChatRequest clears first-request tracking when chat creation fails', async () => {
+		const session = stubSession({
+			sessionId: 's1',
+			providerId: 'test',
+			status: constObservable(SessionStatus.Untitled),
+		});
+		const provider = new class extends TestSessionsProvider {
+			override async createNewChat(): Promise<IChat> {
+				throw new Error('create failed');
+			}
+		}(session);
+		const { service } = createSessionsManagementService(session, disposables, provider);
+
+		await assert.rejects(service.sendNewChatRequest(session, { query: 'hi' }), /create failed/);
+
+		assert.deepStrictEqual(service.getInFlightNewSessionRequests(), []);
+	});
+
 	test('sendNewChatRequest with background resolves before provider send commits', async () => {
 		const chat: IChat = { ...stubChat, resource: URI.parse('test:///chat') };
 		const session = stubSession({
@@ -965,16 +1081,22 @@ suite('SessionsManagementService', () => {
 			providerId: 'test',
 			chats: constObservable([chat]),
 			mainChat: constObservable(chat),
+			status: constObservable(SessionStatus.Untitled),
 		});
 		let completeSendRequest: (() => void) | undefined;
 		let sendRequestStarted = false;
+		const sendRequestFinished = new DeferredPromise<void>();
 		const provider = new class extends TestSessionsProvider {
 			override async sendRequest(_sessionId: string, _chatResource: URI, _options: ISendRequestOptions): Promise<ISession> {
-				sendRequestStarted = true;
-				await new Promise<void>(resolve => {
-					completeSendRequest = resolve;
-				});
-				return session;
+				try {
+					sendRequestStarted = true;
+					await new Promise<void>(resolve => {
+						completeSendRequest = resolve;
+					});
+					return session;
+				} finally {
+					sendRequestFinished.complete();
+				}
 			}
 		}(session);
 		const { service } = createSessionsManagementService(session, disposables, provider);
@@ -984,9 +1106,21 @@ suite('SessionsManagementService', () => {
 		const sendPromise = service.sendNewChatRequest(session, { query: 'hi', background: true });
 		await sendPromise;
 
-		assert.strictEqual(sendRequestStarted, true);
+		const whileSending = service.getInFlightNewSessionRequests().map(session => session.sessionId);
 
 		completeSendRequest?.();
+		await sendRequestFinished.p;
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			sendRequestStarted,
+			whileSending,
+			afterSend: service.getInFlightNewSessionRequests(),
+		}, {
+			sendRequestStarted: true,
+			whileSending: ['s1'],
+			afterSend: [],
+		});
 	});
 
 	test('sendRequest with background is fire-and-forget and does not fire onWillSendRequest', async () => {
@@ -1189,15 +1323,20 @@ suite('SessionsManagementService', () => {
 		});
 		await Promise.all([requestPreparationStarted.p, configurationCompleted.p]);
 		const eventsWhilePreparingRequest = [...events];
+		const inFlightWhilePreparing = service.getInFlightNewSessionRequests().map(session => session.sessionId);
 		requestOptionsBarrier.complete();
 		await sendPromise;
 
 		assert.deepStrictEqual({
 			eventsWhilePreparingRequest,
+			inFlightWhilePreparing,
+			inFlightAfterSend: service.getInFlightNewSessionRequests(),
 			events,
 			createMetadata,
 		}, {
 			eventsWhilePreparingRequest: ['create', 'start:Fetching pull request...', 'show:s1', 'prepare', 'configure'],
+			inFlightWhilePreparing: ['s1'],
+			inFlightAfterSend: [],
 			events: ['create', 'start:Fetching pull request...', 'show:s1', 'prepare', 'configure', 'clear', 'send:prepared'],
 			createMetadata: { github: { pullRequestUrl: 'https://github.com/owner/repo/pull/42' } },
 		});
@@ -1626,6 +1765,7 @@ suite('SessionsManagementService', () => {
 			override async setIsolationMode(_sessionId: string, _mode: string): Promise<void> { calls.push(`setIsolationMode:${_mode}`); }
 			override async setBranch(_sessionId: string, _branch: string): Promise<void> { calls.push(`setBranch:${_branch}`); }
 			override async setWorktreeBranchTrack(_sessionId: string, _enabled: boolean): Promise<void> { calls.push(`setWorktreeBranchTrack:${_enabled}`); }
+			override async setWorktreeCreateNewBranch(_sessionId: string, _enabled: boolean): Promise<void> { calls.push(`setWorktreeCreateNewBranch:${_enabled}`); }
 			override async sendRequest(_sessionId: string, _chatResource: URI, options: ISendRequestOptions): Promise<ISession> {
 				sentOptions = options;
 				return session;
@@ -1639,6 +1779,7 @@ suite('SessionsManagementService', () => {
 			permissionLevel: 'allowedTools',
 			isolationMode: 'worktree',
 			worktreeBranchTrack: false,
+			worktreeCreateNewBranch: true,
 			branch: 'main',
 		};
 		const result = await service.createAndSendNewChatRequest(URI.parse('test:///folder'), { query: 'hi', title: 'Pull Request', hideFromTranscript: true }, createOptions);
@@ -1655,6 +1796,7 @@ suite('SessionsManagementService', () => {
 				'setPermissionLevel:allowedTools',
 				'setIsolationMode:worktree',
 				'setWorktreeBranchTrack:false',
+				'setWorktreeCreateNewBranch:true',
 				'setBranch:main',
 			],
 			sentOptions: { query: 'hi', title: 'Pull Request', hideFromTranscript: true },
@@ -1679,6 +1821,7 @@ suite('SessionsManagementService', () => {
 		await service.createAndSendNewChatRequest(URI.parse('test:///folder'), { query: 'hi' }, {
 			isolationMode: 'worktree',
 			worktreeBranchTrack: true,
+			worktreeCreateNewBranch: false,
 			branch: 'feature',
 			onSessionCreated: created => {
 				calls.push(`created:${created.sessionId}:${service.getSession(created.resource)?.sessionId}`);
@@ -1692,7 +1835,7 @@ suite('SessionsManagementService', () => {
 		}, {
 			calls: [
 				'created:s1:s1',
-				'setWorktreeConfiguration:{"isolationMode":"worktree","worktreeBranchTrack":true,"branch":"feature"}',
+				'setWorktreeConfiguration:{"isolationMode":"worktree","worktreeBranchTrack":true,"worktreeCreateNewBranch":false,"branch":"feature"}',
 			],
 			activeSession: 's1',
 		});
@@ -3276,6 +3419,71 @@ suite('SessionsManagementService', () => {
 				resource: URI.from({ scheme: COPILOT_CLI_LOCAL_AH_SCHEME, path: `/${RAW_ID}` }),
 			});
 		}
+
+		suite('resolveSessionResource', () => {
+
+			const legacyResource = URI.from({ scheme: COPILOT_CLI_EH_SCHEME, path: `/${RAW_ID}` });
+			const twinResource = URI.from({ scheme: COPILOT_CLI_LOCAL_AH_SCHEME, path: `/${RAW_ID}` });
+
+			function serviceWithResolver(resolve: (resource: URI) => Promise<URI | undefined>): ISessionsManagementService {
+				const session = legacyCliSession();
+				const provider = new class extends TestSessionsProvider {
+					constructor() { super(session); }
+					override readonly id = LOCAL_AGENT_HOST_PROVIDER_ID;
+					override getSessions(): ISession[] { return [session]; }
+					override resolveSessionResource(resource: URI): Promise<URI | undefined> { return resolve(resource); }
+				};
+				return createSessionsManagementService(session, disposables, provider).service;
+			}
+
+			test('redirects a legacy resource to the twin a provider claims', async () => {
+				const service = serviceWithResolver(async () => twinResource);
+
+				assert.strictEqual((await service.resolveSessionResource(legacyResource)).toString(), twinResource.toString());
+			});
+
+			test('keeps the original resource when no provider claims it', async () => {
+				const service = serviceWithResolver(async () => undefined);
+
+				assert.strictEqual((await service.resolveSessionResource(legacyResource)).toString(), legacyResource.toString());
+			});
+
+			test('keeps the original resource when a provider throws', async () => {
+				const service = serviceWithResolver(async () => { throw new Error('host unavailable'); });
+
+				// Failure must degrade to today's behaviour, never block the open.
+				assert.strictEqual((await service.resolveSessionResource(legacyResource)).toString(), legacyResource.toString());
+			});
+
+			test('does not consult providers for a resource they decline', async () => {
+				const seen: string[] = [];
+				const service = serviceWithResolver(async resource => { seen.push(resource.toString()); return undefined; });
+				const native = URI.from({ scheme: COPILOT_CLI_LOCAL_AH_SCHEME, path: '/native' });
+
+				const resolved = await service.resolveSessionResource(native);
+				assert.deepStrictEqual({ resolved: resolved.toString(), seen }, { resolved: native.toString(), seen: [native.toString()] });
+			});
+
+			test('a provider that declines does not stop a later provider from claiming', async () => {
+				const session = legacyCliSession();
+				const declining = new class extends TestSessionsProvider {
+					constructor() { super(session); }
+					override readonly id = 'declining';
+					override getSessions(): ISession[] { return [session]; }
+					override resolveSessionResource(): Promise<URI | undefined> { return Promise.resolve(undefined); }
+				};
+				const claiming = new class extends TestSessionsProvider {
+					constructor() { super(session); }
+					override readonly id = LOCAL_AGENT_HOST_PROVIDER_ID;
+					override readonly order = 1;
+					override getSessions(): ISession[] { return [session]; }
+					override resolveSessionResource(): Promise<URI | undefined> { return Promise.resolve(twinResource); }
+				};
+				const service = createSessionsManagementService(session, disposables, [declining, claiming]).service;
+
+				assert.strictEqual((await service.resolveSessionResource(legacyResource)).toString(), twinResource.toString());
+			});
+		});
 
 		function serviceWithSessions(sessions: readonly ISession[]): ISessionsManagementService {
 			const provider = new class extends TestSessionsProvider {

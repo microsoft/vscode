@@ -45,7 +45,7 @@ export const artifactServerToolDefinitions: ToolDefinition[] = [
 	{
 		name: ArtifactServerToolName.AddArtifact,
 		title: 'Add Artifact',
-		description: 'Record something the user will want to open — a pull request, issue, notable commit, website, file or other resource — so it is surfaced next to the chat input.',
+		description: 'Record something the user will want to open — a pull request, issue, commit found while investigating or answering a question, website, file or other resource — so it is surfaced next to the chat input. Do not record commits you create unless the user explicitly asks you to add them as artifacts.',
 		inputSchema: addArtifactInputSchema,
 		annotations: { readOnlyHint: false },
 	},
@@ -172,4 +172,4 @@ export function createArtifactServerToolGroup(accessor?: IArtifactServerToolAcce
  * The instruction appended to every agent's host instructions while the
  * artifact tools are enabled.
  */
-export const ARTIFACT_TOOLS_INSTRUCTION = `When you produce something the user will want to open — a pull request, an issue, a notable commit, a website, a plan file or another resource — record it once with \`${ArtifactServerToolName.AddArtifact}\` (types: ${SESSION_ARTIFACT_TYPES.join(', ')}; use \`${SessionArtifactType.Resource}\` when nothing else fits). Do not record routine files you merely edited, and do not record every commit you make — record a commit only when the user asked you to commit, or when you found a commit worth showing them, for example while investigating.`;
+export const ARTIFACT_TOOLS_INSTRUCTION = `When you produce something the user will want to open — a pull request, an issue, a website, a plan file or another resource — or find a notable commit worth showing the user while investigating or answering a question, record it once with \`${ArtifactServerToolName.AddArtifact}\` (types: ${SESSION_ARTIFACT_TYPES.join(', ')}; use \`${SessionArtifactType.Resource}\` when nothing else fits). Do not record routine files you merely edited. Do not record commits you create unless the user explicitly asks you to add them as artifacts.`;

@@ -7,7 +7,7 @@ import * as nls from '../../../nls.js';
 import { IPolicyData } from '../../../base/common/defaultAccount.js';
 import { PolicyCategory } from '../../../base/common/policy.js';
 import { AgentHostConfigurationSyncScope, ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationPropertySchema, IConfigurationRegistry } from '../../configuration/common/configurationRegistry.js';
-import { COPILOT_OTEL_CAPTURE_CONTENT_KEY, COPILOT_OTEL_ENABLED_KEY, COPILOT_OTEL_ENDPOINT_KEY, COPILOT_OTEL_HEADERS_KEY, COPILOT_OTEL_LOCK_CAPTURE_CONTENT_KEY, COPILOT_OTEL_PROTOCOL_KEY, COPILOT_OTEL_RESOURCE_ATTRIBUTES_KEY, COPILOT_OTEL_SERVICE_NAME_KEY, managedSettingValue } from '../../policy/common/copilotManagedSettings.js';
+import { COPILOT_OTEL_CAPTURE_CONTENT_KEY, COPILOT_OTEL_ENABLED_KEY, COPILOT_OTEL_ENDPOINT_KEY, COPILOT_OTEL_HEADERS_KEY, COPILOT_OTEL_LOCK_CAPTURE_CONTENT_KEY, COPILOT_OTEL_PROTOCOL_KEY, COPILOT_OTEL_RESOURCE_ATTRIBUTES_KEY, COPILOT_OTEL_SERVICE_NAME_KEY, managedSettingValue, thirdPartyAgentEnabledValue } from '../../policy/common/copilotManagedSettings.js';
 import product from '../../product/common/product.js';
 import { Registry } from '../../registry/common/platform.js';
 import {
@@ -254,7 +254,7 @@ configurationRegistry.registerConfiguration({
 				name: 'Claude3PIntegration',
 				category: PolicyCategory.InteractiveSession,
 				minimumVersion: '1.113',
-				value: (policyData) => policyData.chat_preview_features_enabled === false ? false : undefined,
+				value: thirdPartyAgentEnabledValue,
 				localization: {
 					description: {
 						key: 'chat.agentHost.claudeAgent.enabled.policy',
@@ -288,7 +288,7 @@ configurationRegistry.registerConfiguration({
 				name: 'Codex3PIntegration',
 				category: PolicyCategory.InteractiveSession,
 				minimumVersion: '1.126',
-				value: (policyData) => policyData.chat_preview_features_enabled === false ? false : undefined,
+				value: thirdPartyAgentEnabledValue,
 				localization: {
 					description: {
 						key: 'chat.agentHost.codexAgent.enabled.policy',

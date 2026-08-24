@@ -72,9 +72,26 @@ that preserve these boundaries:
 - Shared workbench changes represent shared capability, not Sessions-specific
   policy.
 
-Update a specification when its architecture or durable behavior changes. Do not
-add implementation chronology, rejected approaches, or bug narratives to a
-specification.
+### Specification edit gate
+
+Bug fixes do not update specifications when they restore an existing contract.
+Before editing an authoritative specification, identify all three:
+
+1. the existing ownership, interface, lifecycle, state-machine, persistence, or
+   cross-component contract that intentionally changes;
+2. the implementation surfaces affected by that contract change;
+3. why a regression test and a brief code comment cannot fully represent it.
+
+If any answer is missing, leave the specification unchanged. Put concrete
+behavior in a focused test, keep a non-obvious implementation constraint beside
+the owning code, and preserve investigation history in the issue or pull
+request.
+
+Update a specification only when component ownership, an interface or lifecycle
+contract, a state machine, persistence, or a cross-component invariant changes.
+Do not update specifications for styling, copy, action placement, telemetry
+fields, settings defaults, implementation algorithms, or individual bug fixes.
+Those details belong in code and focused tests.
 
 ## 5. Validate proportionally
 

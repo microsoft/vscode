@@ -9,7 +9,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IChat, ISession, ISessionType, ISessionWorkspace, ISideChatSelection } from './session.js';
-import { IDeleteChatOptions, ISendRequestOptions as ISessionsProviderSendRequestOptions } from './sessionsProvider.js';
+import { IDeleteChatOptions, ISendRequestOptions as ISessionsProviderSendRequestOptions, type SessionResourceResolveReason } from './sessionsProvider.js';
 
 /** Raised when unattended session creation targets a workspace that requires trust. */
 export class WorkspaceNotTrustedError extends Error {
@@ -110,6 +110,10 @@ export interface ICreateNewSessionOptions {
 	 * programmatic session creation and is not surfaced in the new-session UI.
 	 */
 	readonly worktreeBranchTrack?: boolean;
+	/**
+	 * Whether to create a generated worktree branch from {@link branch}.
+	 */
+	readonly worktreeCreateNewBranch?: boolean;
 	/**
 	 * Invoked after the provider creates the provisional session, before its
 	 * configuration and first request are applied.
@@ -229,9 +233,23 @@ export interface ISessionsManagementService {
 	getSessions(): ISession[];
 
 	/**
+	 * Get new sessions whose first request is still being prepared or sent.
+	 */
+	getInFlightNewSessionRequests(): readonly ISession[];
+
+	/**
 	 * Get a session by its resource URI.
 	 */
 	getSession(resource: URI): ISession | undefined;
+
+	/**
+	 * Resolves a session resource to the one that should actually be opened.
+	 * Open paths address sessions by URI, so a superseded resource (a legacy
+	 * Copilot CLI session with an agent-host twin) is redirected here rather
+	 * than only being hidden from the list. Returns `resource` unchanged when
+	 * no provider claims it.
+	 */
+	resolveSessionResource(resource: URI, reason?: SessionResourceResolveReason): Promise<URI>;
 
 	/**
 	 * Get the session and chat that own the given chat resource URI.
