@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
-import { mkdir, rm } from 'fs/promises';
+import { rm } from 'fs/promises';
 import type Anthropic from '@anthropic-ai/sdk';
 import type { CCAModel } from '@vscode/copilot-api';
 import type { Database } from '@vscode/sqlite3';
@@ -64,7 +64,7 @@ import { SessionServerToolName } from '../../common/serverToolNames.js';
 import { buildMcpChannel } from '../../node/shared/mcpCustomizationController.js';
 import { readEphemeralSessionMeta, withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
 import { readChatSurfaceMeta, withChatSurfaceMeta } from '../../common/meta/agentChatSurfaceMeta.js';
-import { createTestAgentService, createTestAgentServiceWithOptions, getTestAgentServiceComposition, getTestAgentStateManager } from './agentServiceTestUtils.js';
+import { createTestAgentService, getTestAgentServiceComposition, getTestAgentStateManager } from './agentServiceTestUtils.js';
 
 /**
  * Replace individual operations on an agent's chat surface, delegating every
@@ -6739,54 +6739,6 @@ suite('AgentService (node dispatcher)', () => {
 				providerShutdownCount: 1,
 				flushCount: 1,
 			});
-		});
-	});
-
-	suite('collectDebugLogs', () => {
-
-		test('maps a Tool-origin subagent to its spawning provider chat', async () => {
-			class DebugLogsAgent extends MockAgent {
-				readonly calls: { session: string | undefined; chat: string | undefined }[] = [];
-
-				async collectDebugLogs(session: URI | undefined, _outputDirectory: URI, chat?: URI): Promise<boolean> {
-					this.calls.push({ session: session?.toString(), chat: chat?.toString() });
-					return true;
-				}
-			}
-
-			const testRoot = mkdtempSync(join(tmpdir(), 'agent-host-debug-routing-'));
-			const logsHome = join(testRoot, 'logs');
-			const tmpDir = join(testRoot, 'tmp');
-			await Promise.all([mkdir(logsHome), mkdir(tmpDir)]);
-			const store = new DisposableStore();
-			try {
-				const svc = store.add(createTestAgentServiceWithOptions(
-					new NullLogService(),
-					fileService,
-					createSessionDataService(),
-					{ _serviceBrand: undefined } as IProductService,
-					createNoopGitService(),
-					{ debugLogsEnvironment: { logsHome: URI.file(logsHome), tmpDir: URI.file(tmpDir) } },
-				));
-				const agent = store.add(new DebugLogsAgent('copilot'));
-				svc.registerProvider(agent);
-				const session = await svc.createSession({ provider: agent.id });
-				const parentChat = URI.parse(buildDefaultChatUri(session));
-				const subagentChat = URI.parse(buildSubagentChatUri(session, 'tool-1'));
-				getTestAgentStateManager(svc).addChat(session.toString(), subagentChat.toString(), {
-					origin: { kind: ChatOriginKind.Tool, chat: parentChat.toString(), toolCallId: 'tool-1' },
-				});
-
-				await svc.collectDebugLogs(session, 'directory', subagentChat);
-
-				assert.deepStrictEqual(agent.calls, [{
-					session: session.toString(),
-					chat: parentChat.toString(),
-				}]);
-			} finally {
-				store.dispose();
-				await rm(testRoot, { recursive: true, force: true });
-			}
 		});
 	});
 

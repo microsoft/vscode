@@ -6441,9 +6441,7 @@ export class AgentService extends Disposable implements IAgentService {
 				? `No Agent Host provider is available for session ${session.toString()}`
 				: 'No Agent Host providers are available for debug-log collection');
 		}
-		const chatContext = session && chat ? createAgentChatContext(this._stateManager, session, chat) : undefined;
-		const providerChat = chatContext?.origin?.kind === ChatOriginKind.Tool ? URI.parse(chatContext.origin.chat) : chat;
-		return this._debugLogsCollector.collect(providers, session, kind, providerChat);
+		return this._debugLogsCollector.collect(providers, session, kind, chat);
 	}
 
 	async readDebugLogsChunk(resource: URI, position: number): Promise<IAgentHostDebugLogsChunk> {
