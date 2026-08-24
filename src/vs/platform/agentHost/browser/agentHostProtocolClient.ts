@@ -356,7 +356,8 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			// These keys are host-level and last-writer-wins across windows.
 			const mirrored: string[] = [];
 			for (const entry of getAgentHostConfigurationSyncEntries(getAgentHostConfigurationSyncTarget(this._resourceIdentity))) {
-				if (!e.affectsConfiguration(entry.settingId)) {
+				// Passing overrides compares effective values, excluding raw changes from inapplicable configuration scopes.
+				if (!e.affectsConfiguration(entry.settingId, {})) {
 					continue;
 				}
 				const value = resolveAgentHostConfigurationSyncValue(this._configurationService, entry);

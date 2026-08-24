@@ -380,12 +380,12 @@ suite('AgentHostProtocolClient', () => {
 		}
 	}
 
-	function fireConfigurationChange(configurationService: TestConfigurationService, settingId: string): void {
+	function fireConfigurationChange(configurationService: TestConfigurationService, settingId: string, source = ConfigurationTarget.USER, effectiveValueChanged = true): void {
 		configurationService.onDidChangeConfigurationEmitter.fire({
-			source: ConfigurationTarget.USER,
+			source,
 			affectedKeys: new Set([settingId]),
 			change: { keys: [settingId], overrides: [] },
-			affectsConfiguration: configuration => configuration === settingId,
+			affectsConfiguration: (configuration, overrides) => configuration === settingId && (!overrides || effectiveValueChanged),
 		});
 	}
 
@@ -1145,6 +1145,17 @@ suite('AgentHostProtocolClient', () => {
 		assert.deepStrictEqual(getRootConfig(findLastRootConfigNotification(transport.sentMessages, SYNC_CONFIG_KEY_A)), {
 			[SYNC_CONFIG_KEY_A]: false,
 		});
+	});
+
+	test('ignores raw configuration changes when the effective globally mirrored value is unchanged', async () => {
+		const configurationService = new TestConfigurationService({ [SYNC_SETTING_A]: true });
+		const { client, transport } = createClient(disposables.add(new TestProtocolTransport()), createPermissionService(), undefined, new NullLogService(), configurationService);
+		await connectClient(client, transport);
+		transport.sentMessages.length = 0;
+
+		fireConfigurationChange(configurationService, SYNC_SETTING_A, ConfigurationTarget.WORKSPACE_FOLDER, false);
+
+		assert.deepStrictEqual(transport.sentMessages, []);
 	});
 
 	test('applies local and ambient configuration scopes to the target Agent Host', async () => {
