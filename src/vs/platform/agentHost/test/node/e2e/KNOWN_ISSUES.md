@@ -486,6 +486,23 @@ A capture that genuinely cannot be refreshed goes in `STALE_RECORDED_REQUEST_EXC
   Remove the entry from `STALE_RECORDED_REQUEST_EXCEPTIONS` and re-record once the fork defect is fixed.
 ## Suspected product bugs
 
+### Copilot session debug export omits provider log entries
+
+A user can export debug logs for a completed Copilot session to diagnose provider behavior. The export reports that provider logs were included, but its manifest contains only Agent Host process logs, so the provider-specific evidence needed for troubleshooting is absent.
+
+- Test: `materialized Copilot debug collection includes provider log entries`.
+- Scope: Copilot sessions on all platforms.
+- Expected: a session-scoped debug export reports `providerLogsIncluded: true` and lists at least one provider log in addition to the Agent Host process log.
+- Observed: the export reports `providerLogsIncluded: true`, but every manifest entry is an Agent Host process log.
+- Gate: the scenario requires `AGENT_HOST_RUN_KNOWN_ISSUES=1` in fixture-recording mode.
+- Reproduce:
+
+  ```bash
+  AGENT_HOST_RUN_KNOWN_ISSUES=1 AGENT_HOST_UPDATE_SNAPSHOTS=1 ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts \
+    --grep "materialized Copilot debug collection includes provider log entries"
+  ```
+
 ### Resource reads ignore the requested base64 encoding
 
 A client can request arbitrary file bytes from the Agent Host in base64 so binary data remains lossless. The host always reports UTF-8 instead, and bytes that are not valid UTF-8 cannot be reconstructed by the client.
