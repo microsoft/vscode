@@ -542,7 +542,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 				return;
 			}
 
-			const widget = this._register(this._instantiationService.createInstance(ChatResourceGroupWidget, imageParts));
+			const widget = this._register(this._instantiationService.createInstance(ChatResourceGroupWidget, imageParts, undefined));
 
 			if (this._thinkingCollapsibleWrapper) {
 				// Reparent the single widget between inner (expanded) and outer (collapsed)
