@@ -364,21 +364,15 @@ async function guessEncodingByBuffer(buffer: VSBuffer, candidateGuessEncodings?:
 	if (originalCandidateEncodings) {
 		const normalizedDetected = normalizeEncoding(detectedEncoding);
 
-		// When jschardet detects a subset encoding, check if a candidate
-		// is its superset. If so, return the candidate to preserve the
-		// user's intent (e.g., gb18030 instead of gb2312).
+		// Match candidates in their configured order, preferring an exact match over a later superset.
 		for (const candidate of originalCandidateEncodings) {
 			const normalizedCandidate = normalizeEncoding(candidate);
-			if (ENCODING_SUBSET_TO_SUPERSET[normalizedDetected] === normalizedCandidate) {
-				return candidate;
+			if (normalizedCandidate === normalizedDetected) {
+				return detectedEncoding;
 			}
-		}
-
-		// If the detected encoding is explicitly listed as a candidate,
-		// respect the user's choice and return it as-is.
-		const isExplicitCandidate = originalCandidateEncodings.some(c => normalizeEncoding(c) === normalizedDetected);
-		if (isExplicitCandidate) {
-			return detectedEncoding;
+			if (ENCODING_SUBSET_TO_SUPERSET[normalizedDetected] === normalizedCandidate) {
+				return normalizedCandidate;
+			}
 		}
 	}
 
