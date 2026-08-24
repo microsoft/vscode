@@ -4539,6 +4539,55 @@ suite('AgentHostChatContribution', () => {
 			});
 		});
 
+		test('does not inherit trust for the shared .worktrees container itself', async () => {
+			const { sessionHandler, agentHostService, chatAgentService, trustController } = createContribution(disposables);
+			trustController.result = false;
+			const repoRoot = URI.file('/repo');
+			// A malformed session whose working directory is exactly `<repo>.worktrees`
+			// (the shared container). Trusting it would cascade to every worktree
+			// underneath via workspace trust's descendant resolution, so the strict
+			// guard must exclude it — the container is prompted for, not granted.
+			const container = URI.file('/repo.worktrees');
+			trustController.trustedUris.add(repoRoot.toString());
+
+			const backendSession = AgentSession.uri('copilot', 'wt-container');
+			agentHostService.sessionStates.set(backendSession.toString(), {
+				...createSessionState({
+					resource: backendSession.toString(),
+					provider: 'copilot',
+					title: 'Worktree',
+					status: SessionStatus.Idle,
+					createdAt: new Date().toISOString(),
+					modifiedAt: new Date().toISOString(),
+					workingDirectories: [container.toString()],
+					project: { uri: repoRoot.toString(), displayName: 'repo' },
+				}),
+				lifecycle: SessionLifecycle.Ready,
+				activeClients: [],
+				config: { schema: { type: 'object', properties: {} }, values: { isolation: 'worktree' } },
+			});
+			agentHostService.addSession({ session: backendSession, startTime: 1000, modifiedTime: 2000, summary: 'Worktree', workingDirectories: [container] });
+
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/wt-container' });
+			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => chatSession.dispose()));
+			const registered = chatAgentService.registeredAgents.get('agent-host-copilot')!;
+			const result = await registered.impl.invoke(
+				makeRequest({ message: 'Hello', sessionResource }),
+				() => { }, [], CancellationToken.None,
+			);
+
+			assert.deepStrictEqual({
+				result,
+				grantedWorktree: trustController.setUrisTrustCalls,
+				resourcesTrustUris: trustController.resourcesTrustUris.map(uri => uri.toString()),
+			}, {
+				result: {},
+				grantedWorktree: [],
+				resourcesTrustUris: [container.toString()],
+			});
+		});
+
 		test('does not prompt or grant during the worktree-pending window', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService, trustController } = createContribution(disposables);
 			const repoRoot = URI.file('/repo');

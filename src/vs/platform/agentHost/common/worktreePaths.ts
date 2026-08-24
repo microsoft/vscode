@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { basename } from '../../../base/common/path.js';
+import { isEqual, isEqualOrParent, normalizePath } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 
 /**
@@ -17,4 +18,22 @@ import { URI } from '../../../base/common/uri.js';
  */
 export function getWorktreesRoot(repositoryRoot: URI): URI {
 	return URI.joinPath(repositoryRoot, '..', `${basename(repositoryRoot.fsPath)}.worktrees`);
+}
+
+/**
+ * Whether `candidate` is an individual VS Code-created worktree of
+ * `repositoryRoot` — a **strict descendant** of {@link getWorktreesRoot}, never
+ * the shared `<repo>.worktrees` container itself.
+ *
+ * The browser workspace-trust gates use this to decide whether a working
+ * directory may inherit trust from its (trusted) base repository. The container
+ * must be excluded: trusting `<repo>.worktrees` would, via workspace trust's
+ * equal-or-descendant resolution, silently trust every current and future
+ * worktree under it. Paths are normalized first so an equivalent spelling of the
+ * container (e.g. a trailing `.`) cannot slip past the strict-descendant check.
+ */
+export function isWorktreeUnderRepository(candidate: URI, repositoryRoot: URI): boolean {
+	const worktreesRoot = normalizePath(getWorktreesRoot(repositoryRoot));
+	const normalizedCandidate = normalizePath(candidate);
+	return isEqualOrParent(normalizedCandidate, worktreesRoot) && !isEqual(normalizedCandidate, worktreesRoot);
 }

@@ -15,7 +15,7 @@ import { ResourceMap, ResourceSet } from '../../../../../../base/common/map.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { equals } from '../../../../../../base/common/objects.js';
 import { autorun, autorunPerKeyedItem, constObservable, derived, derivedOpts, IObservable, ISettableObservable, observableValue, transaction, waitForState } from '../../../../../../base/common/observable.js';
-import { extUriBiasedIgnorePathCase, isEqual, isEqualOrParent } from '../../../../../../base/common/resources.js';
+import { extUriBiasedIgnorePathCase, isEqual } from '../../../../../../base/common/resources.js';
 import { StopWatch } from '../../../../../../base/common/stopwatch.js';
 import { Mutable } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -37,7 +37,7 @@ import { readToolCallMeta } from '../../../../../../platform/agentHost/common/me
 import { readCompletionAttachmentMeta } from '../../../../../../platform/agentHost/common/meta/agentCompletionAttachmentMeta.js';
 import { IRemoteAgentHostService } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
-import { getWorktreesRoot } from '../../../../../../platform/agentHost/common/worktreePaths.js';
+import { isWorktreeUnderRepository } from '../../../../../../platform/agentHost/common/worktreePaths.js';
 import { CLIENT_SEMANTIC_SEARCH_TOOL_ID, SEMANTIC_SEARCH_TOOL_NAME } from '../../../../../../platform/agentHost/common/semanticSearchConstants.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../../../../../platform/agentHost/common/toolSearchConstants.js';
 import type { ChatInputRequestWithPlanReview, IAgentHostPlanReview } from '../../../../../../platform/agentHost/common/agentHostPlanReview.js';
@@ -5631,11 +5631,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 * chokepoint every turn passes through — follow-up turns bypass the sessions
 	 * open gate ({@link ISessionsService.canOpenSession}). Protocol `SessionState`
 	 * does not carry the sessions layer's `gitRepository.workTreeUri`, so
-	 * eligibility uses the isolation config plus a structural guard: only working
-	 * directories under the repository's `.worktrees` sibling
-	 * ({@link getWorktreesRoot}) can inherit trust — a trusted base URI is never
-	 * enough on its own. Mirrors the sessions-layer `ensureSessionWorktreesTrusted`;
-	 * kept separate because `workbench` must not import `sessions`.
+	 * eligibility uses the isolation config plus a structural guard: only a strict
+	 * descendant of the repository's `.worktrees` sibling
+	 * ({@link isWorktreeUnderRepository}) can inherit trust — a trusted base URI is
+	 * never enough on its own, and the shared `<repo>.worktrees` container is
+	 * excluded so a grant can never cascade to every worktree. Mirrors the
+	 * sessions-layer `ensureSessionWorktreesTrusted`; kept separate because
+	 * `workbench` must not import `sessions`.
 	 */
 	private async _inheritWorktreeTrust(state: SessionState): Promise<void> {
 		if (state.config?.values[SessionConfigKey.Isolation] !== 'worktree') {
@@ -5646,10 +5648,12 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			return;
 		}
 		const repositoryRoot = typeof repositoryRootRaw === 'string' ? URI.parse(repositoryRootRaw) : repositoryRootRaw;
-		const worktreesRoot = getWorktreesRoot(repositoryRoot);
+		// Keep only individual worktrees under `<repo>.worktrees` (never the shared
+		// container itself), so a trusted base repo grants trust for exactly this
+		// session's worktree and not for every sibling worktree.
 		const worktreeFolders = (state.workingDirectories ?? [])
 			.map(directory => typeof directory === 'string' ? URI.parse(directory) : directory)
-			.filter(folder => isEqualOrParent(folder, worktreesRoot));
+			.filter(folder => isWorktreeUnderRepository(folder, repositoryRoot));
 		if (worktreeFolders.length === 0) {
 			return;
 		}

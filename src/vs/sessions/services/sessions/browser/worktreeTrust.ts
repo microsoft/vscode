@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isEqualOrParent } from '../../../../base/common/resources.js';
-import { getWorktreesRoot } from '../../../../platform/agentHost/common/worktreePaths.js';
+import { isWorktreeUnderRepository } from '../../../../platform/agentHost/common/worktreePaths.js';
 import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { ISessionWorkspace } from '../common/session.js';
 
@@ -16,11 +15,13 @@ import { ISessionWorkspace } from '../common/session.js';
  *
  * A folder is treated as an eligible worktree only when ALL of the following hold:
  * - it is a worktree (`gitRepository.workTreeUri` is set);
- * - it sits under `getWorktreesRoot(<base repo>)` — a structural provenance guard.
- *   `workTreeUri` alone does not prove VS Code created the worktree (its contract
- *   permits an arbitrary checkout path), so without this guard a session could
- *   silently inherit trust for an arbitrary working directory whenever its
- *   reported base repository happens to be trusted;
+ * - it is a strict descendant of `getWorktreesRoot(<base repo>)` — a structural
+ *   provenance guard ({@link isWorktreeUnderRepository}). `workTreeUri` alone does
+ *   not prove VS Code created the worktree (its contract permits an arbitrary
+ *   checkout path), so without this guard a session could silently inherit trust
+ *   for an arbitrary working directory whenever its reported base repository
+ *   happens to be trusted. The shared `<repo>.worktrees` container is excluded so
+ *   trusting it can never cascade to every worktree under it;
  * - its base repository (`gitRepository.uri`) is trusted while the worktree is not.
  *
  * Gating on the base repository's trust ensures trust never flows from an
@@ -38,9 +39,9 @@ export async function ensureSessionWorktreesTrusted(
 		const gitRepository = folder.gitRepository;
 		// `workTreeUri` is only set for a worktree (working directory !== repository
 		// root), but on its own it does not prove VS Code created that worktree.
-		// Require the working directory to sit under the repository's `.worktrees`
-		// sibling before inheriting trust from the (trusted) base repository.
-		if (!gitRepository?.workTreeUri || !isEqualOrParent(folder.workingDirectory, getWorktreesRoot(gitRepository.uri))) {
+		// Require the working directory to be a strict descendant of the repository's
+		// `.worktrees` sibling before inheriting trust from the (trusted) base repo.
+		if (!gitRepository?.workTreeUri || !isWorktreeUnderRepository(folder.workingDirectory, gitRepository.uri)) {
 			return;
 		}
 
