@@ -233,16 +233,6 @@ function applyGeneratedSourceFixes(content: string, dest: string): string {
 			'import type { AutomationRemovedAction, AutomationSetAction, AutomationUpdateRequestedAction } from \'./actions.js\';',
 		);
 	}
-	if (dest === 'common/reducer-helpers.ts') {
-		replaceRequired(
-			/import \{ IS_CLIENT_DISPATCHABLE,[^\n]+from '\.\.\/action-origin\.generated\.js';/,
-			'import type { StateAction } from \'../actions.js\';\nimport { IS_CLIENT_DISPATCHABLE, type ClientRootAction, type ClientSessionAction, type ClientChatAction, type ClientTerminalAction, type ClientChangesetAction, type ClientAnnotationsAction, type ClientAutomationAction, type ClientAutomationRunAction } from \'../action-origin.generated.js\';',
-		);
-		replaceRequired(
-			/export function isClientDispatchable\([^\n]+\{/,
-			'export function isClientDispatchable(action: StateAction): action is ClientRootAction | ClientSessionAction | ClientChatAction | ClientTerminalAction | ClientChangesetAction | ClientAnnotationsAction | ClientAutomationAction | ClientAutomationRunAction {',
-		);
-	}
 	return content;
 }
 
