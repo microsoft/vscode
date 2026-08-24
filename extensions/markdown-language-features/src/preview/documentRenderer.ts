@@ -281,21 +281,22 @@ export class MdDocumentRenderer {
  * Checks whether a line is a structural Markdown delimiter (e.g. table delimiter row, code fence, or rule)
  * where injecting HTML marker `<span>` tags would corrupt Markdown block grammar parsing.
  */
-function isStructuralDelimiterLine(line: string): boolean {
+export function isStructuralDelimiterLine(line: string): boolean {
 	const trimmed = line.trim();
 	if (!trimmed) {
 		return false;
 	}
-	// Table delimiter row, e.g. | --- | :---: | ---: | or |---|---| or ---|---
-	if (/^\|?(?:\s*:?-+:?\s*\|)+\s*:?-+:?\s*\|?$/.test(trimmed)) {
+	// Table delimiter row:
+	// Can be enclosed in outer pipes `| --- |` (1 or more columns) or open `--- | ---` (2 or more columns).
+	if (/^\|(?:\s*:?-+:?\s*\|)+$/.test(trimmed) || /^(?:\s*:?-+:?\s*\|)+\s*:?-+:?\s*$/.test(trimmed)) {
 		return true;
 	}
 	// Code block fence, e.g. ``` or ~~~
 	if (/^(?:`{3,}|~{3,})/.test(trimmed)) {
 		return true;
 	}
-	// Thematic breaks / horizontal rules or setext header underlines or frontmatter delimiters, e.g. ---, ===, ***, ___
-	if (/^(?:-{3,}|={3,}|\*{3,}|_{3,})$/.test(trimmed)) {
+	// Thematic breaks / horizontal rules or setext header underlines, e.g. ---, ===, ***, ___, * * *, - - -, _ _ _
+	if (/^(?:(?:\*\s*){3,}|(?:-\s*){3,}|(?:_\s*){3,}|(?:=\s*){3,})$/.test(trimmed)) {
 		return true;
 	}
 	return false;
@@ -304,7 +305,7 @@ function isStructuralDelimiterLine(line: string): boolean {
 /**
  * Injects empty marker `<span>` elements into the markdown source text at inner change positions.
  */
-function injectInnerChangeMarkers(text: string, innerChanges: readonly MarkdownPreviewInnerChange[]): string {
+export function injectInnerChangeMarkers(text: string, innerChanges: readonly MarkdownPreviewInnerChange[]): string {
 	const lines = text.split('\n');
 
 	// Group inner changes by line

@@ -8,7 +8,7 @@ import 'mocha';
 import * as vscode from 'vscode';
 import { InMemoryDocument } from '../client/inMemoryDocument';
 import { createNewMarkdownEngine } from './engine';
-
+import { injectInnerChangeMarkers, isStructuralDelimiterLine } from '../preview/documentRenderer';
 
 const testFileName = vscode.Uri.file('test.md');
 
@@ -120,13 +120,49 @@ suite('markdown.engine', () => {
 	});
 
 	suite('diff-markers', () => {
-		test('Renders GFM tables correctly', async () => {
+		test('identifies structural delimiter lines correctly', () => {
+			// Multi-column table delimiters
+			assert.strictEqual(isStructuralDelimiterLine('| --- | --- |'), true);
+			assert.strictEqual(isStructuralDelimiterLine('|:---|:---:|---:|'), true);
+			assert.strictEqual(isStructuralDelimiterLine('---|---'), true);
+			// Single-column table delimiters
+			assert.strictEqual(isStructuralDelimiterLine('| --- |'), true);
+			assert.strictEqual(isStructuralDelimiterLine('|:---|'), true);
+			// Code block fences
+			assert.strictEqual(isStructuralDelimiterLine('```typescript'), true);
+			assert.strictEqual(isStructuralDelimiterLine('~~~'), true);
+			// Thematic breaks with and without spaces
+			assert.strictEqual(isStructuralDelimiterLine('---'), true);
+			assert.strictEqual(isStructuralDelimiterLine('* * *'), true);
+			assert.strictEqual(isStructuralDelimiterLine('- - -'), true);
+			assert.strictEqual(isStructuralDelimiterLine('___'), true);
+			assert.strictEqual(isStructuralDelimiterLine('==='), true);
+			// Regular text is not a delimiter
+			assert.strictEqual(isStructuralDelimiterLine('hello world'), false);
+			assert.strictEqual(isStructuralDelimiterLine('| regular | text row |'), false);
+		});
+
+		test('skips delimiter rows when injecting inner-change diff markers and preserves table parsing', async () => {
 			const engine = createNewMarkdownEngine();
 			const tableMd = '| Col A | Col B |\n| --- | --- |\n| Cell 1 | Cell 2 |';
-			const html = (await engine.render(tableMd)).html;
+			// Inner changes on line 0 (header), line 1 (delimiter), and line 2 (cell)
+			const marked = injectInnerChangeMarkers(tableMd, [
+				{ line: 0, startColumn: 2, endColumn: 7 }, // "Col A"
+				{ line: 1, startColumn: 2, endColumn: 5 }, // "---"
+				{ line: 2, startColumn: 2, endColumn: 8 }, // "Cell 1"
+			]);
+
+			// Line 1 (delimiter) must NOT contain span tags
+			const lines = marked.split('\n');
+			assert.strictEqual(lines[1], '| --- | --- |');
+			assert.ok(lines[0].includes('<span data-diff-start="0"></span>'));
+			assert.ok(lines[2].includes('<span data-diff-start="2"></span>'));
+
+			// The table must still render as HTML table
+			const html = (await engine.render(marked)).html;
 			assert.ok(html.includes('<table>'), `Expected table HTML tag. Got: ${html}`);
-			assert.ok(html.includes('<th>Col A</th>'), `Expected th Col A. Got: ${html}`);
-			assert.ok(html.includes('<td>Cell 1</td>'), `Expected td Cell 1. Got: ${html}`);
+			assert.ok(html.includes('<th>'), `Expected th tag. Got: ${html}`);
+			assert.ok(html.includes('<td>'), `Expected td tag. Got: ${html}`);
 		});
 	});
 });
