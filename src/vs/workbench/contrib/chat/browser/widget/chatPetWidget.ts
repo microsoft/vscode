@@ -1277,6 +1277,8 @@ export class ChatPetWidget extends Disposable {
 		const onTransitionComplete = (event: TransitionEvent) => {
 			if (event.propertyName === 'top' && this._button.element.classList.contains('falling')) {
 				this._finishFall();
+			} else if (event.target === this._button.element && event.propertyName === 'transform') {
+				this._button.element.classList.remove('returning-from-run');
 			}
 		};
 		this._register(dom.addDisposableListener(this._button.element, 'transitionend', onTransitionComplete));
@@ -1417,6 +1419,11 @@ export class ChatPetWidget extends Disposable {
 			}
 			const onTheRun = this.chatPetService.onTheRun.read(reader);
 			const isDead = this._isDead.read(reader);
+			if (onTheRun || this._motionReduced) {
+				this._button.element.classList.remove('returning-from-run');
+			} else if (this._enabled && this._button.element.classList.contains('on-the-run')) {
+				this._button.element.classList.add('returning-from-run');
+			}
 			this._button.element.classList.toggle('on-the-run', onTheRun);
 			const currentHost = this._host.read(reader);
 			const chatModel = currentHost.model.read(reader);
@@ -2433,7 +2440,7 @@ export class ChatPetWidget extends Disposable {
 		this._throwAnimation.clear();
 		this._throwGeometryDirty = false;
 		this._button.element.style.transform = '';
-		this._button.element.classList.remove('entering', 'exiting', 'falling', 'throwing', 'dragging', 'resisting', 'soft-resisting');
+		this._button.element.classList.remove('entering', 'exiting', 'falling', 'throwing', 'dragging', 'resisting', 'soft-resisting', 'returning-from-run');
 		this._button.element.style.transitionDuration = '';
 		this._button.element.classList.add('hidden');
 		this._respawnEffectScheduler.cancel();
