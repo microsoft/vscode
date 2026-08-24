@@ -8,7 +8,7 @@ import { execSync } from 'child_process';
 import { mkdirSync, mkdtempSync, unlinkSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from '../../../../../../base/common/path.js';
-import { basename } from '../../../../../../base/common/resources.js';
+import { basename, extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { AgentHostCopilotMultiRootEnabledConfigKey } from '../../../../common/agentHostSchema.js';
@@ -361,14 +361,16 @@ export function defineHostFeaturesTests(context: IAgentHostE2ETestContext): void
 			writeFileSync(join(first, `first-${String(index).padStart(2, '0')}.txt`), 'first');
 			writeFileSync(join(second, `second-${String(index).padStart(2, '0')}.txt`), 'second');
 		}
-		const sessionUri = await createSessionWithWorkingDirectories('file-completion-fair', [URI.file(first), URI.file(second)]);
+		const firstRoot = URI.file(first);
+		const secondRoot = URI.file(second);
+		const sessionUri = await createSessionWithWorkingDirectories('file-completion-fair', [firstRoot, secondRoot]);
 
 		const result = await getCompletions(sessionUri, '@');
 		const counts = completionResourceUris(result).reduce((value, resourceValue) => {
 			const resource = URI.parse(resourceValue);
-			if (resource.fsPath.startsWith(first)) {
+			if (extUriBiasedIgnorePathCase.isEqualOrParent(resource, firstRoot)) {
 				value.first++;
-			} else if (resource.fsPath.startsWith(second)) {
+			} else if (extUriBiasedIgnorePathCase.isEqualOrParent(resource, secondRoot)) {
 				value.second++;
 			}
 			return value;
