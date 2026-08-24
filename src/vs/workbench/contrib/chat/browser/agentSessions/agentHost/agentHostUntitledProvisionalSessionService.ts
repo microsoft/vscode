@@ -50,7 +50,7 @@
 
 import { SequencerByKey } from '../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { Disposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../../../base/common/map.js';
 import { equals } from '../../../../../../base/common/objects.js';
 import { autorun } from '../../../../../../base/common/observable.js';
@@ -350,20 +350,20 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		}));
 		// The advertised `multipleWorkingDirectories` capability can flip at
 		// runtime: the hidden `multiRootEnabled` setting is mirrored to the host,
-		// which re-advertises it, so `rootState` changes without a reload.
-		// Recompute each not-yet-started draft's desired root set so the change
-		// takes effect immediately. Gated to untitled drafts because a started
-		// (rebound) session's working directories are immutable — recreating its
-		// backend would tear down the live conversation. This matches the
-		// setting's contract that newly created sessions pick up the change.
-		this._register(this._agentHostService.rootState.onDidChange(() => {
-			for (const [sessionResource, entry] of this._entries) {
-				if (entry.disposed || !isUntitledChatSession(sessionResource)) {
-					continue;
-				}
-				this._reconcileWorkspaceRootSet(sessionResource, entry);
-			}
-		}));
+		// which re-advertises it, so `rootState` changes without a reload. Re-scope
+		// open not-yet-started drafts when it does. The host starts lazily and
+		// restarts behind a fresh root state (until it starts, the desktop
+		// `rootState` is a noop whose event never fires), so re-bind on each start
+		// rather than holding one subscription for the window's lifetime,
+		// reconciling once per (re)bind to pick up an already-advertised capability.
+		const rootStateListeners = this._register(new DisposableStore());
+		const bindRootState = () => {
+			rootStateListeners.clear();
+			rootStateListeners.add(this._agentHostService.rootState.onDidChange(() => this._reconcileUntitledDraftsForRootSet()));
+			this._reconcileUntitledDraftsForRootSet();
+		};
+		bindRootState();
+		this._register(this._agentHostService.onAgentHostStart(bindRootState));
 		this._register(this._agentHostService.onAgentHostStart(() => this._retryPendingBackendDisposals()));
 	}
 
@@ -400,6 +400,21 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 
 		const scope = this._activeClientService.acquireScope(`agent-host-${entry.provider}`, roots);
 		entry.activeClientBinding.value = new ActiveClientBinding(roots, scope, this._agentHostService.clientId, () => this._publishActiveClient(entry));
+	}
+
+	/**
+	 * Re-run {@link _reconcileWorkspaceRootSet} for every open not-yet-started
+	 * (untitled) draft. Started/rebound sessions are skipped: their working
+	 * directories are the agent's fixed process root once the session has
+	 * started, so recreating the backend would tear down the live conversation.
+	 */
+	private _reconcileUntitledDraftsForRootSet(): void {
+		for (const [sessionResource, entry] of this._entries) {
+			if (entry.disposed || !isUntitledChatSession(sessionResource)) {
+				continue;
+			}
+			this._reconcileWorkspaceRootSet(sessionResource, entry);
+		}
 	}
 
 	/**

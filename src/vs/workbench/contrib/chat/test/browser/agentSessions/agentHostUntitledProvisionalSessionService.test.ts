@@ -600,6 +600,59 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		});
 	});
 
+	test('recreates an untitled draft with the workspace root set when the agent host starts after the draft', async () => {
+		const primary = URI.file('/workspace/one');
+		const secondary = URI.file('/workspace/two');
+		workspaceFolders = [primary, secondary];
+		workspaceConfiguration = URI.file('/workspace/demo.code-workspace');
+		workbenchState = WorkbenchState.WORKSPACE;
+		// The host has not started yet, so multi-root is not advertised.
+		agentHost.rootStateAgents = [agentInfo('copilot', false)];
+		const ui = untitledChatUri('multi-root-after-host-start');
+
+		await provisional.getOrCreate(ui, 'copilot', primary);
+		// The host starts and re-advertises `multipleWorkingDirectories`. The
+		// listener re-binds on `onAgentHostStart` and reconciles, so the draft
+		// picks up the capability even though `rootState.onDidChange` never fired
+		// (the pre-start root state is a noop whose event never fires).
+		agentHost.rootStateAgents = [agentInfo('copilot', true)];
+		agentHost.fireAgentHostStart();
+		await provisional.waitForPending(ui);
+
+		assert.deepStrictEqual(
+			agentHost.createCalls.map(call => call.workingDirectories?.map(directory => directory.toString())),
+			[
+				[primary.toString()],
+				[primary.toString(), secondary.toString()],
+			],
+		);
+	});
+
+	test('recreates an untitled draft with a single root when multi-root is disabled at runtime', async () => {
+		const primary = URI.file('/workspace/one');
+		const secondary = URI.file('/workspace/two');
+		workspaceFolders = [primary, secondary];
+		workspaceConfiguration = URI.file('/workspace/demo.code-workspace');
+		workbenchState = WorkbenchState.WORKSPACE;
+		agentHost.rootStateAgents = [agentInfo('copilot', true)];
+		const ui = untitledChatUri('multi-root-disabled-at-runtime');
+
+		await provisional.getOrCreate(ui, 'copilot', primary);
+		// Disabling the setting drops the advertised capability; the draft must
+		// collapse back to just its primary.
+		agentHost.rootStateAgents = [agentInfo('copilot', false)];
+		agentHost.fireRootStateChange();
+		await provisional.waitForPending(ui);
+
+		assert.deepStrictEqual(
+			agentHost.createCalls.map(call => call.workingDirectories?.map(directory => directory.toString())),
+			[
+				[primary.toString(), secondary.toString()],
+				[primary.toString()],
+			],
+		);
+	});
+
 	test('tryRebind reselects when the primary is removed during final creation', async () => {
 		const primary = URI.file('/workspace/one');
 		const secondary = URI.file('/workspace/two');
