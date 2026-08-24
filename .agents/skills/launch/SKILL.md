@@ -221,12 +221,15 @@ resolve any blocking dialog or unavailable chat state before retrying.
   PASTE="$LAUNCH_DIR/scripts/monaco-paste.sh"
   export PW_SESSION                            # helper reads this env var
 
-  # Send a prompt:
+  # Send a prompt in the regular workbench:
   npx @playwright/cli -s=$PW_SESSION press F1
   npx @playwright/cli -s=$PW_SESSION type workbench.action.chat.open
   npx @playwright/cli -s=$PW_SESSION press Enter
   "$PASTE" 'Please run `pwd && ls` using your terminal tool.'
   npx @playwright/cli -s=$PW_SESSION press Enter
+
+  # In the Agents window, replace the three regular-workbench focus commands
+  # above with the platform chord documented in "Focusing the chat input".
 
   # Long / arbitrary text via stdin (avoids any shell-quoting headaches):
   printf 'multi-line prompt\nwith backticks `x`\nand emoji 🎉' | "$PASTE"
@@ -259,7 +262,15 @@ resolve any blocking dialog or unavailable chat state before retrying.
 - **Clipboard paste via `pbcopy`** (fast on macOS, **but `NSPasteboard` is system-wide so any concurrent shell that touches the pasteboard will collide**). Only use when nothing else on the machine is using the clipboard for the duration of the paste.
   ```bash
   printf '%s' "Your prompt here" | pbcopy
-  npx @playwright/cli -s=$PW_SESSION press Control+Meta+i
+
+  # Regular workbench:
+  npx @playwright/cli -s=$PW_SESSION press F1
+  npx @playwright/cli -s=$PW_SESSION type workbench.action.chat.open
+  npx @playwright/cli -s=$PW_SESSION press Enter
+
+  # Agents window instead:
+  # npx @playwright/cli -s=$PW_SESSION press Control+Meta+i
+
   npx @playwright/cli -s=$PW_SESSION press Meta+v
   npx @playwright/cli -s=$PW_SESSION press Enter
   ```
