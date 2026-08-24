@@ -338,6 +338,75 @@ suite('TunnelAgentHostContribution', () => {
 		assert.strictEqual(tunnelService.connectCalls[1].options?.userInitiated, true, 'explicit/user-initiated connect must pass userInitiated: true');
 	});
 
+	test('disconnect suppresses auto-connect without hiding the tunnel, and explicit reconnect clears suppression', async () => {
+		const tunnelService = store.add(new StubTunnelService());
+		const remoteService = store.add(new StubRemoteAgentHostService());
+		const providersService = store.add(new StubSessionsProvidersService());
+		const configurationService = new TestConfigurationService({
+			[RemoteAgentHostsEnabledSettingId]: true,
+			[RemoteAgentHostAutoConnectSettingId]: true,
+		});
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(ITunnelAgentHostService, tunnelService);
+		instantiationService.stub(IRemoteAgentHostService, remoteService as unknown as IRemoteAgentHostService);
+		instantiationService.stub(ISessionsProvidersService, providersService as unknown as ISessionsProvidersService);
+		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(INotificationService, { notify: () => ({ close() { } }) } as unknown as INotificationService);
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IAuthenticationService, { onDidChangeSessions: Event.None } as unknown as IAuthenticationService);
+		instantiationService.stub(ITelemetryService, { publicLog2: () => { } } as unknown as ITelemetryService);
+		instantiationService.stub(IHostService, new StubHostService());
+		instantiationService.stub(ITunnelHostService, store.add(new StubTunnelHostService()));
+		instantiationService.stub(IAgentHostFilterService, new StubFilterService() as unknown as IAgentHostFilterService);
+
+		const tunnel: ITunnelInfo = { tunnelId: 'tunnel-suppressed', clusterId: 'use', name: 'Suppressed Tunnel', tags: [], protocolVersion: 6, hostConnectionCount: 1 };
+		const address = `${TUNNEL_ADDRESS_PREFIX}${tunnel.tunnelId}`;
+		const initialContribution = instantiationService.createInstance(TestTunnelContribution);
+		tunnelService.setCached([{ tunnelId: tunnel.tunnelId, clusterId: tunnel.clusterId, name: tunnel.name }]);
+		const initialTestable = initialContribution as unknown as {
+			_disconnectTunnel(address: string): Promise<void>;
+		};
+		await initialTestable._disconnectTunnel(address);
+		initialContribution.dispose();
+
+		// Restore the persisted tunnel cache after reload while retaining suppression.
+		tunnelService.setCached([]);
+		const contribution = store.add(instantiationService.createInstance(TestTunnelContribution));
+		const testable = contribution as unknown as {
+			_connectTunnel(address: string, options: { readonly userInitiated: boolean }): Promise<void>;
+			_silentStatusCheck(): Promise<void>;
+		};
+		tunnelService.setCached([{ tunnelId: tunnel.tunnelId, clusterId: tunnel.clusterId, name: tunnel.name }]);
+		tunnelService.setListed([tunnel]);
+		await testable._silentStatusCheck();
+		const afterReload = {
+			suppressed: tunnelService.isAutoConnectSuppressed(tunnel.tunnelId),
+			providerVisible: providersService.getProviders().some(provider => provider.id === `agenthost-${address}`),
+			providerStatus: contribution.stubProviders.get(address)?.connectionStatus.get(),
+			connectCalls: tunnelService.connectCalls.length,
+		};
+
+		await testable._connectTunnel(address, { userInitiated: true });
+
+		assert.deepStrictEqual(
+			{
+				afterReload,
+				suppressedAfterReconnect: tunnelService.isAutoConnectSuppressed(tunnel.tunnelId),
+				connectCalls: tunnelService.connectCalls.map(call => call.options?.userInitiated),
+			},
+			{
+				afterReload: {
+					suppressed: true,
+					providerVisible: true,
+					providerStatus: RemoteAgentHostConnectionStatus.disconnected,
+					connectCalls: 0,
+				},
+				suppressedAfterReconnect: false,
+				connectCalls: [true],
+			},
+		);
+	});
+
 	test('auto-connect prompts once for an initial location, then reconnects silently', async () => {
 		const tunnelService = store.add(new StubTunnelService());
 		tunnelService.autoConnectMode = 'prompt';

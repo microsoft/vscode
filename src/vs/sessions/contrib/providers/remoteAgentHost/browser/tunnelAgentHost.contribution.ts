@@ -208,7 +208,7 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 	}
 
 	private _getProviderTunnels() {
-		return this._tunnelService.getCachedTunnels().filter(tunnel => !this._tunnelService.isAutoConnectSuppressed(tunnel.tunnelId));
+		return this._tunnelService.getCachedTunnels();
 	}
 
 	private _isHostedTunnel(tunnel: Pick<ITunnelInfo, 'tunnelId' | 'name'>): boolean {
