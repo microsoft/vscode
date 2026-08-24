@@ -289,8 +289,9 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		const maxLineCount = Math.min(this._rawMaxLineCount, Math.floor(xterm.rows * Constants.StickyScrollPercentageCap));
 		const { lineStart: stickyScrollLineStart, lineCount: stickyScrollLineCount, isTruncated } = getStickyScrollLayout(startMarker.line, promptRowCount, commandRowCount, maxLineCount, rowOffset);
 
-		// Hide sticky scroll if it's currently on a line that contains it
-		if (buffer.viewportY <= stickyScrollLineStart) {
+		// Hide sticky scroll if there is nothing to show or if it's currently on a line that
+		// contains it
+		if (stickyScrollLineCount <= 0 || buffer.viewportY <= stickyScrollLineStart) {
 			this._setVisible(false);
 			return;
 		}
@@ -567,7 +568,8 @@ function lineStartsWith(line: IBufferLine | undefined, text: string): boolean {
  * @param promptRowCount The number of rows the prompt spans, including the command start row.
  * @param commandRowCount The number of rows the command line spans, including the command start row.
  * @param maxLineCount The maximum number of rows the overlay is allowed to show.
- * @param rowOffset The number of rows to clip from the top of the overlay.
+ * @param rowOffset The number of rows to clip from the top of the overlay. A `lineCount` of 0 means
+ * the row offset clipped all rows and there is nothing to show.
  */
 export function getStickyScrollLayout(
 	commandStartLine: number,
@@ -580,7 +582,7 @@ export function getStickyScrollLayout(
 	const promptAndCommandRowCount = promptRowCount + commandRowCount - 1;
 	const includePrompt = promptAndCommandRowCount <= maxLineCount;
 	const contentRowCount = includePrompt ? promptAndCommandRowCount : commandRowCount;
-	const lineCount = Math.min(contentRowCount, maxLineCount) - rowOffset;
+	const lineCount = Math.max(Math.min(contentRowCount, maxLineCount) - rowOffset, 0);
 	return {
 		lineStart: includePrompt ? commandStartLine - (promptRowCount - 1) : commandStartLine,
 		lineCount,

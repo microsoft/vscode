@@ -36,6 +36,10 @@ suite('TerminalStickyScrollOverlay', () => {
 		test('should clip rows from the top of the overlay for the row offset', () => {
 			deepStrictEqual(getStickyScrollLayout(10, 3, 1, 5, 1), { lineStart: 8, lineCount: 2, isTruncated: true });
 		});
+
+		test('should show nothing when the row offset clips all rows', () => {
+			deepStrictEqual(getStickyScrollLayout(10, 6, 1, 5, 1), { lineStart: 10, lineCount: 0, isTruncated: true });
+		});
 	});
 
 	suite('command detection', () => {
@@ -70,9 +74,10 @@ suite('TerminalStickyScrollOverlay', () => {
 
 			const command = capability.currentCommand!;
 			const commandStartLine = command.commandStartMarker!.line;
+			const promptRowCount = command.getPromptRowCount();
 			deepStrictEqual(
-				getStickyScrollLayout(commandStartLine, command.getPromptRowCount(), command.getCommandRowCount(), 5, 0),
-				{ lineStart: commandStartLine, lineCount: 1, isTruncated: false }
+				{ promptRowCount, ...getStickyScrollLayout(commandStartLine, promptRowCount, command.getCommandRowCount(), 5, 0) },
+				{ promptRowCount: 6, lineStart: commandStartLine, lineCount: 1, isTruncated: false }
 			);
 		});
 	});
