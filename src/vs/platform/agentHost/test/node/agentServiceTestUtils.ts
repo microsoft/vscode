@@ -213,9 +213,14 @@ export function createTestAgentService(
 			? [clientConnectionService, instantiationService, foundationDisposables]
 			: [effectiveFileMonitorService, clientConnectionService, instantiationService, foundationDisposables],
 	));
-	services.set(IAgentService, composition.agentService);
-	composition.setContributions(instantiationService.invokeFunction(accessor => activateAgentHostContributions(accessor, instantiationService)));
-	compositions.set(composition.agentService, composition);
-	worktreeIsolations.set(composition.agentService, worktreeIsolation);
-	return composition.agentService;
+	try {
+		services.set(IAgentService, composition.agentService);
+		composition.setContributions(instantiationService.invokeFunction(accessor => activateAgentHostContributions(accessor, instantiationService)));
+		compositions.set(composition.agentService, composition);
+		worktreeIsolations.set(composition.agentService, worktreeIsolation);
+		return composition.agentService;
+	} catch (error) {
+		composition.agentService.dispose();
+		throw error;
+	}
 }
