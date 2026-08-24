@@ -1089,6 +1089,7 @@ export class ChatPetWidget extends Disposable {
 	private _respawnPosition: readonly [number, number] | undefined;
 	private _platformTopProvider: (() => number | undefined) | undefined;
 	private readonly _resizeObserver: dom.DisposableResizeObserver;
+	private readonly _resizeObservations = this._register(new MutableDisposable<DisposableStore>());
 	private _variant: ChatPetVariant;
 	private _selectedAccessory: ChatPetAccessoryId | undefined;
 	private _scale = 1;
@@ -1212,9 +1213,6 @@ export class ChatPetWidget extends Disposable {
 				}
 			}
 		}, dom.getWindow(this._button.element)));
-		this._register(this._resizeObserver.observe(this.dragBounds));
-		this._register(this._resizeObserver.observe(this.movementBounds));
-		this._register(this._resizeObserver.observe(this.parent));
 		if (this._getHorizontalBounds() !== undefined) {
 			this._updateVerticalPosition();
 			this._restoreHorizontalPosition();
@@ -1393,6 +1391,15 @@ export class ChatPetWidget extends Disposable {
 				const wasInitialized = this._enablementInitialized;
 				this._enablementInitialized = true;
 				this._enabled = enabled;
+				if (enabled) {
+					const observations = new DisposableStore();
+					observations.add(this._resizeObserver.observe(this.dragBounds));
+					observations.add(this._resizeObserver.observe(this.movementBounds));
+					observations.add(this._resizeObserver.observe(this.parent));
+					this._resizeObservations.value = observations;
+				} else {
+					this._resizeObservations.clear();
+				}
 				if (enabled) {
 					if (isDead) {
 						this._showRespawnSequence();
