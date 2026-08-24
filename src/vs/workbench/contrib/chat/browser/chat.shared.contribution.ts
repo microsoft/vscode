@@ -20,7 +20,7 @@ import { AgentHostAutoReplyEnabledConfigKey, AgentHostEditAutoApprovePatternsCon
 import '../../../../platform/agentHost/common/agentHostStarter.config.contribution.js';
 import { AgentMergeSettingId } from '../../../../platform/agentHost/common/agentMerge.js';
 import { AgentHostAhpJsonlLoggingSettingId, AgentHostAllowSignedOutWhenUsableSettingId, AgentHostSdkSandboxEnabledSettingId, AgentHostSdkSandboxWindowsEnabledSettingId, CodexPreferAgentHostEditorSettingId } from '../../../../platform/agentHost/common/agentService.js';
-import { AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostCustomTerminalToolEnabledSettingId, AgentHostMultiTurnContextRoutingEnabledSettingId, AgentHostOpus48PromptEnabledSettingId, AgentHostReasoningEffortOverrideSettingId, AgentHostReasoningSummaryEnabledSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, copilotSdkLogLevelSettingValues } from '../../../../platform/agentHost/common/copilotCliConfig.js';
+import { AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostCustomTerminalToolEnabledSettingId, AgentHostMultiTurnContextRoutingEnabledSettingId, AgentHostOpus48PromptEnabledSettingId, AgentHostReasoningEffortOverrideSettingId, AgentHostReasoningSummaryEnabledSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, CopilotSubagentModelGuidanceEnabledSettingId, copilotSdkLogLevelSettingValues } from '../../../../platform/agentHost/common/copilotCliConfig.js';
 import { CopilotSemanticSearchEnabledSettingId } from '../../../../platform/agentHost/common/semanticSearchConstants.js';
 import { DEFAULT_EDIT_AUTO_APPROVE_PATTERNS, mergeChatEditAutoApprovePatterns } from '../../../../platform/chat/common/chatSettings.js';
 import { reasoningEffortLevels } from '../../../../platform/agentHost/common/reasoningEffort.js';
@@ -1620,6 +1620,13 @@ configurationRegistry.registerConfiguration({
 		[AgentHostMultiTurnContextRoutingEnabledSettingId]: {
 			type: 'boolean',
 			markdownDescription: nls.localize('chat.agentHost.copilot.multiTurnContextRouting', "When enabled, Auto model selection in Copilot SDK agent sessions routes on the conversation so far, sending prior user messages to the router instead of scoring the latest message alone."),
+			default: false,
+			experiment: { mode: 'startup' },
+			tags: ['experimental', 'advanced'],
+		},
+		[CopilotSubagentModelGuidanceEnabledSettingId]: {
+			type: 'boolean',
+			markdownDescription: nls.localize('chat.copilot.subagentModelGuidance.enabled', "When enabled, Copilot SDK agent sessions instruct the model to keep subagents on their default model, setting the task tool's `model` parameter only when you explicitly name the model a subagent should run on. Applied when a session launches or resumes."),
 			default: false,
 			experiment: { mode: 'startup' },
 			tags: ['experimental', 'advanced'],
