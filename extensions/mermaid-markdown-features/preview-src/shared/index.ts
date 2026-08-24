@@ -60,6 +60,14 @@ export function markVsCodeContextAsError(el: HTMLElement): void {
 	el.dataset.vscodeContext = JSON.stringify({ ...context, mermaidError: true });
 }
 
+/**
+ * Strips VS Code Markdown diff marker tags (`<span data-diff-start...>`, `<span data-diff-end...>`)
+ * that may be injected into diagram source text during visual diff reviews.
+ */
+export function stripDiffMarkers(text: string): string {
+	return text.replace(/<span\b[^>]*\bdata-diff-(?:start|end)[^>]*>(?:<\/span>)?/gi, '');
+}
+
 function renderMermaidElement(
 	mermaidContainer: HTMLElement,
 	usedIds: Set<string>,
@@ -70,7 +78,12 @@ function renderMermaidElement(
 	contentHash: string;
 	p: Promise<void>;
 } | undefined {
-	const source = (mermaidContainer.textContent ?? '').trim();
+	const rawSource = (mermaidContainer.textContent ?? '').trim();
+	if (!rawSource) {
+		return;
+	}
+
+	const source = stripDiffMarkers(rawSource).trim();
 	if (!source) {
 		return;
 	}
