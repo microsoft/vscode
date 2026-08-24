@@ -1398,7 +1398,7 @@ export class AICustomizationListWidget extends Disposable {
 
 		for (const item of matchedItems) {
 			let key = item.groupKey ?? item.source ?? AICustomizationSources.local;
-			if (isMultiRoot && (key === PromptsStorage.local || item.source === AICustomizationSources.local)) {
+			if (isMultiRoot && key === PromptsStorage.local) {
 				const folder = this.workspaceContextService.getWorkspaceFolder(item.uri);
 				if (folder) {
 					key = `workspace:${folder.uri.toString()}`;
