@@ -57,7 +57,7 @@ Let **E** = editor content visible, **D** = detail panel visible. The pane suppo
 | **Editor only** | ✅ | ❌ | Detail toggled off; editor content fills the pane; tab bar across the top. |
 | **Side pane closed** | ❌ | ❌ | The whole third pane is closed (chat-only). Reached via **Toggle Side Panel** or when the last editor tab closes; never via the detail toggle. **Closing the whole side pane does NOT close editors** — only a *Detail-only* collapse (editor hidden while the detail stays open) closes them; when both parts hide the editors are left intact so they return when the side pane is reopened. |
 
-Only **Existing Sessions** share a persisted Editor/Details visibility profile. A New Session does not apply or capture that profile; on entry it hides Editor once only when the restored editor set contains no input other than Empty Files. Submit seeds the Existing profile. The active editor selects the detail content: every diff editor selects Changes and every file editor selects Files.
+Only **Existing Sessions** share a persisted Editor/Details visibility profile. A New Session does not apply or capture that profile; on entry it hides Editor once only when the restored editor set contains no input other than the managed Changes and Empty Files inputs. Submit seeds the Existing profile. The active editor selects the detail content: every diff editor selects Changes and every file editor selects Files.
 
 **Size distribution when opening the side pane.** Opening the side pane from *closed* (e.g. clicking
 **Changes** while the chat is full-width) reveals the editor with `Sizing.Distribute`. The grid uses
@@ -137,7 +137,7 @@ layout keeps it; single-pane's own **Show Editor** action is its counterpart to 
 ## 4. Tabs
 
 - **Changes** — a custom `SessionChangesEditor` (Branch Changes dropdown + diff stats + embedded
-  multi-diff). Pinned first, present for every session with a workspace.
+  multi-diff). Pinned first, present for every session with a workspace, including New Session drafts.
 - **File** — the empty File tab (`EmptyFileEditorInput`) as a landing tab, plus real file editors the
   user opens. Opened **pinned, inactive, preserve-focus** so it never steals focus from the chat.
 - **Browser** — the integrated browser (`BrowserEditorInput`).
