@@ -9,35 +9,51 @@ import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { OperatingSystem } from '../../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import '../../../../../editor/contrib/format/browser/formatActions.js';
+import { getOpenChatActionIdForMode, registerChatActions } from '../../../../../workbench/contrib/chat/browser/actions/chatActions.js';
+import { ChatMode } from '../../../../../workbench/contrib/chat/common/chatModes.js';
 import { FOCUS_ACTIVE_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import '../../browser/sessionsActions.js';
+
+registerChatActions();
 
 suite('Sessions - Focus Active Session keybinding', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	function getRule(os: OperatingSystem, keybinding: number) {
-		const hash = decodeKeybinding(keybinding, os)!.getHashCode();
-		return KeybindingsRegistry.getDefaultKeybindingsForOS(os)
-			.find(item => item.command === FOCUS_ACTIVE_SESSION_COMMAND_ID && item.keybinding?.getHashCode() === hash);
+	function getAgentAlias(os: OperatingSystem) {
+		const rules = KeybindingsRegistry.getDefaultKeybindingsForOS(os);
+		const openAgentRule = rules.find(item => item.command === getOpenChatActionIdForMode(ChatMode.Agent) && item.weight2 === 0);
+		return rules.find(item => item.command === FOCUS_ACTIVE_SESSION_COMMAND_ID && item.keybinding?.getHashCode() === openAgentRule?.keybinding?.getHashCode());
 	}
 
 	test('aliases the platform Open Chat (Agent) keybinding', () => {
-		const windowsRule = getRule(OperatingSystem.Windows, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyI);
-		const macRule = getRule(OperatingSystem.Macintosh, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyI);
-		const linuxRule = getRule(OperatingSystem.Linux, KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.KeyI);
-		const linuxFormatDocumentRule = getRule(OperatingSystem.Linux, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyI);
+		const windowsRule = getAgentAlias(OperatingSystem.Windows);
+		const macRule = getAgentAlias(OperatingSystem.Macintosh);
+		const linuxRule = getAgentAlias(OperatingSystem.Linux);
 
 		assert.deepStrictEqual({
 			windows: { weight: windowsRule?.weight1, secondary: windowsRule?.weight2 },
 			mac: { weight: macRule?.weight1, secondary: macRule?.weight2 },
 			linux: { weight: linuxRule?.weight1, secondary: linuxRule?.weight2 },
-			linuxFormatDocumentChordBound: !!linuxFormatDocumentRule,
 		}, {
 			windows: { weight: KeybindingWeight.SessionsContrib, secondary: -1 },
 			mac: { weight: KeybindingWeight.SessionsContrib, secondary: -1 },
 			linux: { weight: KeybindingWeight.SessionsContrib, secondary: -1 },
-			linuxFormatDocumentChordBound: false,
+		});
+	});
+
+	test('preserves the Linux Format Document keybinding', () => {
+		const hash = decodeKeybinding(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyI, OperatingSystem.Linux)!.getHashCode();
+		const rules = KeybindingsRegistry.getDefaultKeybindingsForOS(OperatingSystem.Linux)
+			.filter(item => item.keybinding?.getHashCode() === hash);
+
+		assert.deepStrictEqual({
+			formatDocument: rules.some(item => item.command === 'editor.action.formatDocument'),
+			focusActiveSession: rules.some(item => item.command === FOCUS_ACTIVE_SESSION_COMMAND_ID),
+		}, {
+			formatDocument: true,
+			focusActiveSession: false,
 		});
 	});
 });
