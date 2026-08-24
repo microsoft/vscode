@@ -17,13 +17,18 @@ import { IProductService } from '../../product/common/productService.js';
 import { Registry } from '../../registry/common/platform.js';
 import { ClassifiedEvent, IGDPRProperty, OmitMetadata, StrictPropertyCheck } from './gdprTypings.js';
 import { ITelemetryData, ITelemetryService, TelemetryConfiguration, TelemetryLevel, TELEMETRY_CRASH_REPORTER_SETTING_ID, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SECTION_ID, TELEMETRY_SETTING_ID, ICommonProperties } from './telemetry.js';
-import { cleanData, getTelemetryLevel, ITelemetryAppender } from './telemetryUtils.js';
+import { cleanData, getTelemetryLevel, ITelemetryAppender, TelemetryTrustedValue } from './telemetryUtils.js';
 
 export interface ITelemetryServiceConfig {
 	appenders: ITelemetryAppender[];
 	sendErrorTelemetry?: boolean;
 	commonProperties?: ICommonProperties;
 	piiPaths?: string[];
+	/**
+	 * A fixed telemetry level for processes that receive the resolved level from their launcher.
+	 * When provided, the service does not read or observe telemetry settings.
+	 */
+	telemetryLevel?: TelemetryLevel;
 	/**
 	 * If true, telemetry events will be buffered until setExperimentProperty is called
 	 * (up to 10 seconds) to ensure experiment context is attached to all events.
@@ -60,7 +65,7 @@ export class TelemetryService implements ITelemetryService {
 
 	private _appenders: ITelemetryAppender[];
 	private _commonProperties: ICommonProperties;
-	private _experimentProperties: { [name: string]: string } = {};
+	private _experimentProperties: { [name: string]: string | TelemetryTrustedValue<string> } = {};
 	private _piiPaths: string[];
 	private _telemetryLevel: TelemetryLevel;
 	private _sendErrorTelemetry: boolean;
@@ -74,9 +79,15 @@ export class TelemetryService implements ITelemetryService {
 	private readonly _disposables = new DisposableStore();
 	private _cleanupPatterns: RegExp[] = [];
 
+	static createWithLevel(config: ITelemetryServiceConfig & { telemetryLevel: TelemetryLevel }, productService: IProductService): TelemetryService {
+		return new TelemetryService(config, undefined, productService);
+	}
+
+	constructor(config: ITelemetryServiceConfig & { telemetryLevel: TelemetryLevel }, configurationService: undefined, productService: IProductService);
+	constructor(config: ITelemetryServiceConfig, configurationService: IConfigurationService, productService: IProductService);
 	constructor(
 		config: ITelemetryServiceConfig,
-		@IConfigurationService private _configurationService: IConfigurationService,
+		@IConfigurationService configurationService: IConfigurationService | undefined,
 		@IProductService private _productService: IProductService
 	) {
 		this._appenders = config.appenders;
@@ -105,17 +116,24 @@ export class TelemetryService implements ITelemetryService {
 			}
 		}
 
-		this._updateTelemetryLevel();
-		this._disposables.add(this._configurationService.onDidChangeConfiguration(e => {
-			// Check on the telemetry settings and update the state if changed
-			const affectsTelemetryConfig =
-				e.affectsConfiguration(TELEMETRY_SETTING_ID)
-				|| e.affectsConfiguration(TELEMETRY_OLD_SETTING_ID)
-				|| e.affectsConfiguration(TELEMETRY_CRASH_REPORTER_SETTING_ID);
-			if (affectsTelemetryConfig) {
-				this._updateTelemetryLevel();
+		if (config.telemetryLevel !== undefined) {
+			this._updateTelemetryLevel(config.telemetryLevel);
+		} else {
+			if (!configurationService) {
+				throw new Error('TelemetryService requires a configuration service or a fixed telemetry level.');
 			}
-		}));
+			this._updateTelemetryLevel(getTelemetryLevel(configurationService));
+			this._disposables.add(configurationService.onDidChangeConfiguration(e => {
+				// Check on the telemetry settings and update the state if changed
+				const affectsTelemetryConfig =
+					e.affectsConfiguration(TELEMETRY_SETTING_ID)
+					|| e.affectsConfiguration(TELEMETRY_OLD_SETTING_ID)
+					|| e.affectsConfiguration(TELEMETRY_CRASH_REPORTER_SETTING_ID);
+				if (affectsTelemetryConfig) {
+					this._updateTelemetryLevel(getTelemetryLevel(configurationService));
+				}
+			}));
+		}
 
 		// Buffer events until experiment properties are set (or timeout expires).
 		// This ensures early events include experiment context when available.
@@ -127,12 +145,16 @@ export class TelemetryService implements ITelemetryService {
 	}
 
 	setExperimentProperty(name: string, value: string): void {
-		this._experimentProperties[name] = value;
+		this._experimentProperties[name] = new TelemetryTrustedValue(value);
 
 		// On first call, flush all pending events that were buffered waiting for experiment properties
 		if (!this._isExperimentPropertySet) {
 			this._flushPendingEvents();
 		}
+	}
+
+	setCommonProperty(name: string, value: string | boolean): void {
+		this._commonProperties[name] = value;
 	}
 
 	private _flushPendingEvents(): void {
@@ -154,8 +176,7 @@ export class TelemetryService implements ITelemetryService {
 		this._pendingEvents = [];
 	}
 
-	private _updateTelemetryLevel(): void {
-		let level = getTelemetryLevel(this._configurationService);
+	private _updateTelemetryLevel(level: TelemetryLevel): void {
 		const collectableTelemetry = this._productService.enabledTelemetryLevels;
 		// Also ensure that error telemetry is respecting the product configuration for collectable telemetry
 		if (collectableTelemetry) {
@@ -213,6 +234,11 @@ export class TelemetryService implements ITelemetryService {
 
 		// add common properties
 		data = mixin(data, this._commonProperties);
+
+		// tag error-level events so the backend can identify them generically
+		if (eventLevel === TelemetryLevel.ERROR) {
+			data = { ...data, 'isError': true };
+		}
 
 		// Log to the appenders of sufficient level
 		this._appenders.forEach(a => a.log(eventName, data ?? {}));

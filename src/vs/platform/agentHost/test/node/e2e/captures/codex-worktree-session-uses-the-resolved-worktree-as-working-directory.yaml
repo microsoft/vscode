@@ -1,0 +1,66 @@
+version: 1
+dialect: responses
+exchanges:
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: What is your current working directory? Reply with just the absolute path and nothing else.
+    response:
+      content: ${workdir}.worktrees/what-is-your-current-working-directory-reply-wit
+      stopReason: end_turn
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: What is your current working directory? Reply with just the absolute path and nothing else.
+        - role: assistant
+          content: ${workdir}.worktrees/what-is-your-current-working-directory-reply-wit
+        - role: user
+          content: 'Run exactly this shell command, with no modifications, in the session current working directory: `node -e "console.log(process.cwd())"`. Do not specify a working-directory override.'
+    response:
+      content:
+        - type: text
+          text: Running that exact command in the current session directory now, with no working-directory override.
+        - type: tool_use
+          id: toolcall_0
+          name: exec_command
+          input:
+            cmd: node -e "console.log(process.cwd())"
+            login: true
+      stopReason: tool_use
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: What is your current working directory? Reply with just the absolute path and nothing else.
+        - role: assistant
+          content: ${workdir}.worktrees/what-is-your-current-working-directory-reply-wit
+        - role: user
+          content: 'Run exactly this shell command, with no modifications, in the session current working directory: `node -e "console.log(process.cwd())"`. Do not specify a working-directory override.'
+        - role: assistant
+          content: Running that exact command in the current session directory now, with no working-directory override.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: exec_command
+              input:
+                cmd: node -e "console.log(process.cwd())"
+                login: true
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                Chunk ID: 8027b1
+                Wall time: 0.0000 seconds
+                Process exited with code 0
+                Original token count: 34
+                Output:
+                ${workdir}.worktrees/what-is-your-current-working-directory-reply-wit
+    response:
+      content: ${workdir}.worktrees/what-is-your-current-working-directory-reply-wit
+      stopReason: end_turn

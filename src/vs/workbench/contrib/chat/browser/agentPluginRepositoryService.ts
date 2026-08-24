@@ -5,6 +5,8 @@
 
 import { Action } from '../../../../base/common/actions.js';
 import { SequencerByKey } from '../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
 import { Lazy } from '../../../../base/common/lazy.js';
 import { revive } from '../../../../base/common/marshalling.js';
 import { dirname, isEqual, isEqualOrParent, joinPath } from '../../../../base/common/resources.js';
@@ -18,17 +20,23 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
 import type { Dto } from '../../../services/extensions/common/proxyIdentifier.js';
 import { IAgentPluginRepositoryService, IEnsureRepositoryOptions, IPullRepositoryOptions } from '../common/plugins/agentPluginRepositoryService.js';
 import { IMarketplacePlugin, IMarketplaceReference, IPluginSourceDescriptor, MarketplaceReferenceKind, MarketplaceType, PluginSourceKind } from '../common/plugins/pluginMarketplaceService.js';
 import { IPluginSource } from '../common/plugins/pluginSource.js';
+import { IPluginGitService } from '../common/plugins/pluginGitService.js';
 import { GitHubPluginSource, GitUrlPluginSource, NpmPluginSource, PipPluginSource, RelativePathPluginSource } from './pluginSources.js';
 
 const MARKETPLACE_INDEX_STORAGE_KEY = 'chat.plugins.marketplaces.index.v1';
 
+/** Full commit SHA — a ref pinned to one has nothing to pull. */
+const SHA_REF_PATTERN = /^[0-9a-f]{40}$/i;
+
 interface IMarketplaceIndexEntry {
 	repositoryUri: URI;
 	marketplaceType?: MarketplaceType;
+	lastRefreshedAt?: number;
 }
 
 type IStoredMarketplaceIndex = Dto<Record<string, IMarketplaceIndexEntry>>;
@@ -36,10 +44,12 @@ type IStoredMarketplaceIndex = Dto<Record<string, IMarketplaceIndexEntry>>;
 export class AgentPluginRepositoryService implements IAgentPluginRepositoryService {
 	declare readonly _serviceBrand: undefined;
 
+	readonly agentPluginsHome: URI;
 	private readonly _cacheRoot: URI;
 	private readonly _marketplaceIndex = new Lazy<Map<string, IMarketplaceIndexEntry>>(() => this._loadMarketplaceIndex());
 	private readonly _pluginSources: ReadonlyMap<PluginSourceKind, IPluginSource>;
 	private readonly _cloneSequencer = new SequencerByKey<string>();
+	private readonly _migrationDone: Promise<void>;
 
 	constructor(
 		@ICommandService private readonly _commandService: ICommandService,
@@ -48,10 +58,28 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
 		@INotificationService private readonly _notificationService: INotificationService,
+		@IPluginGitService private readonly _pluginGit: IPluginGitService,
 		@IProgressService private readonly _progressService: IProgressService,
 		@IStorageService private readonly _storageService: IStorageService,
+		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
 	) {
-		this._cacheRoot = joinPath(environmentService.cacheHome, 'agentPlugins');
+		// On native, use the well-known ~/{dataFolderName}/agent-plugins/ path
+		// so that external tools can discover it. On web, fall back to the
+		// internal cache location.
+		this.agentPluginsHome = userDataProfileService.currentProfile.agentPluginsHome;
+		const legacyCacheRoot = joinPath(environmentService.cacheHome, 'agentPlugins');
+		const oldCacheRoot = environmentService.cacheHome.scheme === 'file'
+			? legacyCacheRoot
+			: this.agentPluginsHome;
+		this._cacheRoot = this.agentPluginsHome;
+
+		// Migrate plugin files from the old internal cache directory to the
+		// new well-known location. This is a one-time operation.
+		if (!isEqual(oldCacheRoot, this.agentPluginsHome)) {
+			this._migrationDone = this._migrateDirectory(oldCacheRoot);
+		} else {
+			this._migrationDone = Promise.resolve();
+		}
 
 		// Build per-kind source repository map via instantiation service so
 		// each repository can inject its own dependencies.
@@ -86,16 +114,28 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 	}
 
 	getPluginInstallUri(plugin: IMarketplacePlugin): URI {
+		if (plugin.sourceDescriptor.kind !== PluginSourceKind.RelativePath) {
+			return this.getPluginSourceInstallUri(plugin.sourceDescriptor);
+		}
 		const repoDir = this.getRepositoryUri(plugin.marketplaceReference, plugin.marketplaceType);
-		return this._getPluginDir(repoDir, plugin.source);
+		const normalizedSource = plugin.source.trim().replace(/^\.?\/+|\/+$/g, '');
+		const pluginDir = normalizedSource ? joinPath(repoDir, normalizedSource) : repoDir;
+		if (!isEqualOrParent(pluginDir, repoDir)) {
+			throw new Error(`Invalid plugin source path '${plugin.source}'`);
+		}
+		return pluginDir;
 	}
 
 	async ensureRepository(marketplace: IMarketplaceReference, options?: IEnsureRepositoryOptions): Promise<URI> {
+		await this._migrationDone;
 		const repoDir = this.getRepositoryUri(marketplace, options?.marketplaceType);
 		return this._cloneSequencer.queue(repoDir.fsPath, async () => {
 			const repoExists = await this._fileService.exists(repoDir);
 			if (repoExists) {
-				this._updateMarketplaceIndex(marketplace, repoDir, options?.marketplaceType);
+				const refreshedAt = this._isRefreshDue(marketplace, options)
+					? await this._refreshRepository(repoDir, marketplace, options?.token)
+					: undefined;
+				this._updateMarketplaceIndex(marketplace, repoDir, options?.marketplaceType, refreshedAt);
 				return repoDir;
 			}
 
@@ -105,10 +145,50 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 
 			const progressTitle = options?.progressTitle ?? localize('preparingMarketplace', "Preparing plugin marketplace '{0}'...", marketplace.displayLabel);
 			const failureLabel = options?.failureLabel ?? marketplace.displayLabel;
-			await this._cloneRepository(repoDir, marketplace.cloneUrl, progressTitle, failureLabel);
-			this._updateMarketplaceIndex(marketplace, repoDir, options?.marketplaceType);
+			await this._cloneRepository(repoDir, marketplace.cloneUrl, progressTitle, failureLabel, marketplace.ref, options?.token);
+			this._updateMarketplaceIndex(marketplace, repoDir, options?.marketplaceType, Date.now());
 			return repoDir;
 		});
+	}
+
+	/**
+	 * Whether an existing clone is stale enough to warrant a silent pull.
+	 * Local (user-owned) directories and SHA-pinned refs are never refreshed.
+	 */
+	private _isRefreshDue(marketplace: IMarketplaceReference, options: IEnsureRepositoryOptions | undefined): boolean {
+		const refreshIfOlderThanMs = options?.refreshIfOlderThanMs;
+		if (refreshIfOlderThanMs === undefined || options?.token?.isCancellationRequested) {
+			return false;
+		}
+
+		if (marketplace.kind === MarketplaceReferenceKind.LocalFileUri || SHA_REF_PATTERN.test(marketplace.ref ?? '')) {
+			return false;
+		}
+
+		const lastRefreshedAt = this._marketplaceIndex.value.get(marketplace.canonicalId)?.lastRefreshedAt;
+		return lastRefreshedAt === undefined || Date.now() - lastRefreshedAt >= refreshIfOlderThanMs;
+	}
+
+	/**
+	 * Silently pulls an existing clone, never throwing — a marketplace that
+	 * cannot be refreshed still serves its cached contents.
+	 *
+	 * Returns the timestamp to record as the last refresh attempt, or
+	 * `undefined` when the pull was cancelled so that cancellation does not
+	 * suppress the next attempt. Genuine failures are recorded, otherwise an
+	 * unreachable remote would be retried on every single fetch.
+	 */
+	private async _refreshRepository(repoDir: URI, marketplace: IMarketplaceReference, token: CancellationToken | undefined): Promise<number | undefined> {
+		try {
+			await this._pluginGit.pull(repoDir, token);
+		} catch (err) {
+			if (isCancellationError(err)) {
+				return undefined;
+			}
+			this._logService.debug(`[AgentPluginRepositoryService] Failed to refresh ${marketplace.displayLabel}:`, err);
+		}
+
+		return token?.isCancellationRequested ? undefined : Date.now();
 	}
 
 	async pullRepository(marketplace: IMarketplaceReference, options?: IPullRepositoryOptions): Promise<boolean> {
@@ -122,36 +202,93 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 		const updateLabel = options?.pluginName ?? marketplace.displayLabel;
 
 		try {
-			const doPull = async () => {
-				return !!(await this._commandService.executeCommand<boolean>('_git.pull', repoDir.fsPath));
-			};
+			const changed = options?.silent
+				? await this._pluginGit.pull(repoDir)
+				: await this._pullWithProgress(repoDir, updateLabel);
 
-			if (options?.silent) {
-				return await doPull();
-			}
-
-			return await this._progressService.withProgress(
-				{
-					location: ProgressLocation.Notification,
-					title: localize('updatingPlugin', "Updating plugin '{0}'...", updateLabel),
-					cancellable: false,
-				},
-				doPull,
-			);
+			// An explicit pull leaves the clone exactly as fresh as a stale
+			// refresh would, so record it — otherwise flows that pull and then
+			// re-read the marketplace (e.g. `updateAllPlugins`) would pull the
+			// same repository twice in a row.
+			this._updateMarketplaceIndex(marketplace, repoDir, options?.marketplaceType, Date.now());
+			return changed;
 		} catch (err) {
 			this._logService.error(`[AgentPluginRepositoryService] Failed to update ${marketplace.displayLabel}:`, err);
 			if (!options?.silent) {
+				const primaryActions = [new Action('showGitOutput', localize('showGitOutput', "Show Git Output"), undefined, true, () => this._commandService.executeCommand('git.showOutput'))];
+				const failureLabel = options?.failureLabel ?? updateLabel;
+
+				if (marketplace.kind !== MarketplaceReferenceKind.LocalFileUri) {
+					primaryActions.push(new Action('purgeAndRecloneMarketplace', localize('purgeAndRecloneMarketplace', "Purge Marketplace Cache and Reclone"), undefined, true, () => this._purgeAndRecloneMarketplace(marketplace, options?.marketplaceType, failureLabel)));
+				}
+
 				this._notificationService.notify({
 					severity: Severity.Error,
-					message: localize('pullFailed', "Failed to update plugin '{0}': {1}", options?.failureLabel ?? updateLabel, err?.message ?? String(err)),
+					message: localize('pullFailed', "Failed to update plugin '{0}': {1}", failureLabel, err?.message ?? String(err)),
 					actions: {
-						primary: [new Action('showGitOutput', localize('showGitOutput', "Show Git Output"), undefined, true, () => {
-							this._commandService.executeCommand('git.showOutput');
-						})],
+						primary: primaryActions,
 					},
 				});
 			}
 			throw err;
+		}
+	}
+
+	/** Pulls a clone behind a cancellable progress notification. */
+	private async _pullWithProgress(repoDir: URI, updateLabel: string): Promise<boolean> {
+		const cts = new CancellationTokenSource();
+		try {
+			return await this._progressService.withProgress(
+				{
+					location: ProgressLocation.Notification,
+					title: localize('updatingPlugin', "Updating plugin '{0}'...", updateLabel),
+					cancellable: true,
+				},
+				() => this._pluginGit.pull(repoDir, cts.token),
+				() => cts.dispose(true),
+			);
+		} finally {
+			cts.dispose();
+		}
+	}
+
+	private async _purgeAndRecloneMarketplace(marketplace: IMarketplaceReference, marketplaceType: MarketplaceType | undefined, label: string): Promise<void> {
+		if (marketplace.kind === MarketplaceReferenceKind.LocalFileUri) {
+			return;
+		}
+
+		const repoDir = this.getRepositoryUri(marketplace, marketplaceType);
+		try {
+			await this._progressService.withProgress(
+				{
+					location: ProgressLocation.Notification,
+					title: localize('purgingMarketplace', "Purging plugin marketplace '{0}'...", marketplace.displayLabel),
+					cancellable: false,
+				},
+				async () => {
+					const exists = await this._fileService.exists(repoDir);
+					if (exists) {
+						await this._fileService.del(repoDir, { recursive: true, useTrash: false });
+					}
+					await this.ensureRepository(marketplace, {
+						marketplaceType,
+						progressTitle: localize('recloningMarketplace', "Recloning plugin marketplace '{0}'...", marketplace.displayLabel),
+						failureLabel: label,
+					});
+				}
+			);
+
+			this._notificationService.info(localize('purgeMarketplaceSuccess', "Recloned plugin marketplace '{0}'. Try updating plugins again.", marketplace.displayLabel));
+		} catch (err) {
+			this._notificationService.notify({
+				severity: Severity.Error,
+				message: localize('purgeMarketplaceFailed', "Failed to purge plugin marketplace '{0}': {1}", marketplace.displayLabel, err?.message ?? String(err)),
+				actions: {
+					primary: [new Action('showGitOutput', localize('showGitOutput', "Show Git Output"), undefined, true, () => {
+						return this._commandService.executeCommand('git.showOutput');
+					})],
+				},
+			});
 		}
 	}
 
@@ -175,23 +312,25 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 			result.set(canonicalId, {
 				repositoryUri: entry.repositoryUri,
 				marketplaceType: entry.marketplaceType,
+				lastRefreshedAt: entry.lastRefreshedAt,
 			});
 		}
 
 		return result;
 	}
 
-	private _updateMarketplaceIndex(marketplace: IMarketplaceReference, repositoryUri: URI, marketplaceType?: MarketplaceType): void {
+	private _updateMarketplaceIndex(marketplace: IMarketplaceReference, repositoryUri: URI, marketplaceType?: MarketplaceType, lastRefreshedAt?: number): void {
 		if (marketplace.kind === MarketplaceReferenceKind.LocalFileUri) {
 			return;
 		}
 
 		const previous = this._marketplaceIndex.value.get(marketplace.canonicalId);
-		if (previous && previous.repositoryUri.toString() === repositoryUri.toString() && previous.marketplaceType === marketplaceType) {
+		const updatedLastRefreshedAt = lastRefreshedAt ?? previous?.lastRefreshedAt;
+		if (previous && previous.repositoryUri.toString() === repositoryUri.toString() && previous.marketplaceType === marketplaceType && previous.lastRefreshedAt === updatedLastRefreshedAt) {
 			return;
 		}
 
-		this._marketplaceIndex.value.set(marketplace.canonicalId, { repositoryUri, marketplaceType });
+		this._marketplaceIndex.value.set(marketplace.canonicalId, { repositoryUri, marketplaceType, lastRefreshedAt: updatedLastRefreshedAt });
 		this._saveMarketplaceIndex();
 	}
 
@@ -201,6 +340,7 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 			serialized[canonicalId] = JSON.parse(JSON.stringify({
 				repositoryUri: entry.repositoryUri,
 				marketplaceType: entry.marketplaceType,
+				lastRefreshedAt: entry.lastRefreshedAt,
 			}));
 		}
 
@@ -212,41 +352,42 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 		this._storageService.store(MARKETPLACE_INDEX_STORAGE_KEY, JSON.stringify(serialized), StorageScope.APPLICATION, StorageTarget.MACHINE);
 	}
 
-	private async _cloneRepository(repoDir: URI, cloneUrl: string, progressTitle: string, failureLabel: string, ref?: string): Promise<void> {
+	private async _cloneRepository(repoDir: URI, cloneUrl: string, progressTitle: string, failureLabel: string, ref?: string, token?: CancellationToken): Promise<void> {
+		const cts = new CancellationTokenSource();
+		// Cancelling the caller (e.g. the marketplace refresh progress) must
+		// also abort a first-time clone, not just an incremental refresh.
+		const tokenListener = token?.onCancellationRequested(() => cts.cancel());
 		try {
 			await this._progressService.withProgress(
 				{
 					location: ProgressLocation.Notification,
 					title: progressTitle,
-					cancellable: false,
+					cancellable: true,
 				},
 				async () => {
 					await this._fileService.createFolder(dirname(repoDir));
-					await this._commandService.executeCommand('_git.cloneRepository', cloneUrl, repoDir.fsPath, ref);
-				}
+					await this._pluginGit.cloneRepository(cloneUrl, repoDir, ref, cts.token);
+				},
+				() => cts.dispose(true),
 			);
 		} catch (err) {
 			this._logService.error(`[AgentPluginRepositoryService] Failed to clone ${cloneUrl}:`, err);
-			this._notificationService.notify({
-				severity: Severity.Error,
-				message: localize('cloneFailed', "Failed to install plugin '{0}': {1}", failureLabel, err?.message ?? String(err)),
-				actions: {
-					primary: [new Action('showGitOutput', localize('showGitOutput', "Show Git Output"), undefined, true, () => {
-						this._commandService.executeCommand('git.showOutput');
-					})],
-				},
-			});
+			if (!isCancellationError(err)) {
+				this._notificationService.notify({
+					severity: Severity.Error,
+					message: localize('cloneFailed', "Failed to install plugin '{0}': {1}", failureLabel, err?.message ?? String(err)),
+					actions: {
+						primary: [new Action('showGitOutput', localize('showGitOutput', "Show Git Output"), undefined, true, () => {
+							this._commandService.executeCommand('git.showOutput');
+						})],
+					},
+				});
+			}
 			throw err;
+		} finally {
+			tokenListener?.dispose();
+			cts.dispose();
 		}
-	}
-
-	private _getPluginDir(repoDir: URI, source: string): URI {
-		const normalizedSource = source.trim().replace(/^\.?\/+|\/+$/g, '');
-		const pluginDir = normalizedSource ? joinPath(repoDir, normalizedSource) : repoDir;
-		if (!isEqualOrParent(pluginDir, repoDir)) {
-			throw new Error(`Invalid plugin source path '${source}'`);
-		}
-		return pluginDir;
 	}
 
 	getPluginSourceInstallUri(sourceDescriptor: IPluginSourceDescriptor): URI {
@@ -254,6 +395,7 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 	}
 
 	async ensurePluginSource(plugin: IMarketplacePlugin, options?: IEnsureRepositoryOptions): Promise<URI> {
+		await this._migrationDone;
 		const repo = this.getPluginSource(plugin.sourceDescriptor.kind);
 		if (plugin.sourceDescriptor.kind === PluginSourceKind.RelativePath) {
 			return this.ensureRepository(plugin.marketplaceReference, options);
@@ -277,8 +419,8 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 		}
 
 		try {
-			await this._commandService.executeCommand('_git.fetchRepository', repoDir.fsPath);
-			const behindCount = await this._commandService.executeCommand<number>('_git.revListCount', repoDir.fsPath, 'HEAD', '@{u}') ?? 0;
+			await this._pluginGit.fetchRepository(repoDir);
+			const behindCount = await this._pluginGit.revListCount(repoDir, 'HEAD', '@{u}');
 			return behindCount > 0;
 		} catch (err) {
 			this._logService.debug(`[AgentPluginRepositoryService] Silent fetch failed for ${marketplace.displayLabel}:`, err);
@@ -348,6 +490,36 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 				break;
 			}
 			current = dirname(current);
+		}
+	}
+
+	/**
+	 * One-time migration of plugin files from the old internal cache
+	 * directory (`{cacheHome}/agentPlugins/`) to the new well-known
+	 * location (`~/{dataFolderName}/agent-plugins/`).
+	 */
+	private async _migrateDirectory(oldCacheRoot: URI): Promise<void> {
+		try {
+			const oldExists = await this._fileService.exists(oldCacheRoot);
+			if (!oldExists) {
+				return;
+			}
+
+			const newExists = await this._fileService.exists(this.agentPluginsHome);
+			if (newExists) {
+				this._logService.info('[AgentPluginRepositoryService] Both old and new agent-plugins directories exist; skipping directory migration');
+				return;
+			}
+
+			this._logService.info(`[AgentPluginRepositoryService] Migrating agent plugins from ${oldCacheRoot.toString()} to ${this.agentPluginsHome.toString()}`);
+			await this._fileService.move(oldCacheRoot, this.agentPluginsHome, false);
+
+			// Clear the marketplace index — it caches repository URIs that
+			// pointed to the old location and would cause path mismatches.
+			this._storageService.remove(MARKETPLACE_INDEX_STORAGE_KEY, StorageScope.APPLICATION);
+			this._marketplaceIndex.value.clear();
+		} catch (error) {
+			this._logService.error('[AgentPluginRepositoryService] Directory migration failed', error);
 		}
 	}
 

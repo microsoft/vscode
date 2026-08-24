@@ -5,19 +5,17 @@
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
-import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
-import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
-import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { IWorkspaceContextService, WorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceEditingService } from '../../../../workbench/services/workspaces/common/workspaceEditing.js';
 import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { URI } from '../../../../base/common/uri.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { IWorkspaceFolderCreationData } from '../../../../platform/workspaces/common/workspaces.js';
-import { getGitHubRemoteFileDisplayName } from '../../fileTreeView/browser/githubFileSystemProvider.js';
 import { Queue } from '../../../../base/common/async.js';
-import { AGENT_HOST_SCHEME } from '../../../../platform/agentHost/common/agentHostUri.js';
-import { ISessionData } from '../../sessions/common/sessionData.js';
+import { ISession } from '../../../services/sessions/common/session.js';
+import { IWorkspaceFolderLabelService } from '../../../../workbench/services/workspaces/common/workspaceFolderLabelService.js';
 
 export class WorkspaceFolderManagementContribution extends Disposable implements IWorkbenchContribution {
 
@@ -25,23 +23,39 @@ export class WorkspaceFolderManagementContribution extends Disposable implements
 	private queue = this._register(new Queue<void>());
 
 	constructor(
-		@ISessionsManagementService private readonly sessionManagementService: ISessionsManagementService,
+		@ISessionsService private readonly sessionsService: ISessionsService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IWorkspaceEditingService private readonly workspaceEditingService: IWorkspaceEditingService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
+		@IWorkspaceFolderLabelService private readonly workspaceFolderLabelService: IWorkspaceFolderLabelService,
 	) {
 		super();
 		this._register(autorun(reader => {
-			const activeSession = this.sessionManagementService.activeSession.read(reader);
+			const activeSession = this.sessionsService.activeSession.read(reader);
+			activeSession?.workspace.read(reader);
 			this.queue.queue(() => this.updateWorkspaceFoldersForSession(activeSession));
 		}));
 	}
 
-	private async updateWorkspaceFoldersForSession(session: ISessionData | undefined): Promise<void> {
-		await this.manageTrustWorkspaceForSession(session);
+	private async updateWorkspaceFoldersForSession(session: ISession | undefined): Promise<void> {
+		// Auto-trust an isolated worktree VS Code created off a trusted repo, so a
+		// worktree session mounts without tripping the untrusted-folder backstop.
+		await this.ensureWorktreeTrusted(session);
 		const activeSessionFolderData = this.getActiveSessionFolderData(session);
 		const currentRepo = this.workspaceContextService.getWorkspace().folders[0]?.uri;
+
+		// Never mount an untrusted folder: mounting it would flip the whole Agents
+		// Window into Restricted Mode. Sessions opened from the list are already
+		// gated on trust (see `ISessionsService.canOpenSession`); this backstop
+		// keeps paths that bypass that gate (e.g. startup restore) safe too by
+		// leaving the folder unmounted rather than mounting it untrusted.
+		if (activeSessionFolderData && !await this.isFolderMountable(session, activeSessionFolderData.uri)) {
+			if (currentRepo) {
+				await this.workspaceEditingService.removeFolders([currentRepo], true);
+			}
+			return;
+		}
 
 		if (!activeSessionFolderData) {
 			if (currentRepo) {
@@ -62,65 +76,71 @@ export class WorkspaceFolderManagementContribution extends Disposable implements
 		await this.workspaceEditingService.updateFolders(0, 1, [activeSessionFolderData], true);
 	}
 
-	private getActiveSessionFolderData(session: ISessionData | undefined): IWorkspaceFolderCreationData | undefined {
+	private getActiveSessionFolderData(session: ISession | undefined): IWorkspaceFolderCreationData | undefined {
 		if (!session) {
 			return undefined;
 		}
 
 		const workspace = session.workspace.get();
-		const repo = workspace?.repositories[0];
-		const repository = repo?.uri;
-		const worktree = repo?.workingDirectory;
-		const branchName = repo?.detail;
+		const folder = workspace?.folders[0];
 
-		if (worktree) {
-			return {
-				uri: worktree,
-				name: repository ? `${this.uriIdentityService.extUri.basename(repository)} (${branchName ?? this.uriIdentityService.extUri.basename(worktree)})` : this.uriIdentityService.extUri.basename(worktree)
-			};
+		if (!folder) {
+			return undefined;
 		}
 
-		if (repository) {
-			// Remote agent host sessions use a read-only FS provider that
-			// should not be added as a workspace folder.
-			if (repository.scheme === AGENT_HOST_SCHEME) {
-				return undefined;
-			}
-
-			if (session.sessionType === AgentSessionProviders.Background) {
-				return { uri: repository };
-			}
-			if (session.sessionType === AgentSessionProviders.Cloud) {
-				return {
-					uri: repository,
-					name: getGitHubRemoteFileDisplayName(repository),
-				};
-			}
-		}
-
-		return undefined;
+		return {
+			uri: folder.workingDirectory,
+			name: this.workspaceFolderLabelService.getWorkspaceFolderLabel(
+				new WorkspaceFolder({ uri: folder.workingDirectory, name: workspace.label, index: 0 }),
+				true
+			) ?? workspace.label
+		};
 	}
 
-	private async manageTrustWorkspaceForSession(session: ISessionData | undefined): Promise<void> {
-		if (session?.sessionType !== AgentSessionProviders.Background) {
+	/**
+	 * Auto-trusts the isolated git worktree of the active session, but only when
+	 * VS Code created that worktree off a base repository the user already trusts.
+	 * This is the sole place trust is granted on the session-open path: a plain
+	 * (non-worktree) folder is never trusted here — it must pass the open-trust
+	 * gate ({@link ISessionsService.canOpenSession}) or an explicit trust prompt.
+	 *
+	 * Gating on the base repo's trust ensures trust never flows from an untrusted
+	 * repository into its worktree.
+	 */
+	private async ensureWorktreeTrusted(session: ISession | undefined): Promise<void> {
+		const workspace = session?.workspace.get();
+		if (!workspace?.requiresWorkspaceTrust) {
 			return;
 		}
 
-		const workspace = session.workspace.get();
-		const repo = workspace?.repositories[0];
-		const repository = repo?.uri;
-		const worktree = repo?.workingDirectory;
-
-		if (!repository || !worktree) {
+		const folder = workspace.folders[0];
+		const gitRepository = folder?.gitRepository;
+		// `workTreeUri` is only set for a genuine worktree (working directory !==
+		// repository root); a plain folder session leaves it undefined.
+		if (!folder || !gitRepository?.workTreeUri) {
 			return;
 		}
 
-		if (!this.isUriTrusted(worktree)) {
-			await this.workspaceTrustManagementService.setUrisTrust([worktree], true);
+		const [worktreeTrust, baseRepoTrust] = await Promise.all([
+			this.workspaceTrustManagementService.getUriTrustInfo(folder.workingDirectory),
+			this.workspaceTrustManagementService.getUriTrustInfo(gitRepository.uri),
+		]);
+		if (!worktreeTrust.trusted && baseRepoTrust.trusted) {
+			await this.workspaceTrustManagementService.setUrisTrust([folder.workingDirectory], true);
 		}
 	}
 
-	private isUriTrusted(uri: URI): boolean {
-		return this.workspaceTrustManagementService.getTrustedUris().some(trustedUri => this.uriIdentityService.extUri.isEqual(trustedUri, uri));
+	/**
+	 * Whether `uri` may be mounted as the workspace folder. A session that
+	 * requires workspace trust may only mount a trusted folder; anything else is
+	 * left unmounted so the window never enters Restricted Mode behind the user's
+	 * back. Sessions that don't require trust (e.g. virtual/cloud) always mount.
+	 */
+	private async isFolderMountable(session: ISession | undefined, uri: URI): Promise<boolean> {
+		const workspace = session?.workspace.get();
+		if (!workspace?.requiresWorkspaceTrust) {
+			return true;
+		}
+		return (await this.workspaceTrustManagementService.getUriTrustInfo(uri)).trusted;
 	}
 }

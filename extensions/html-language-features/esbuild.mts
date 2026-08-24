@@ -24,6 +24,7 @@ await Promise.all([
 	// Build server
 	run({
 		platform: 'node',
+		format: 'esm',
 		entryPoints: {
 			'htmlServerMain': path.join(extensionRoot, 'server', 'src', 'node', 'htmlServerNodeMain.ts'),
 		},
@@ -31,7 +32,12 @@ await Promise.all([
 		outdir: path.join(extensionRoot, 'server', 'dist', 'node'),
 		additionalOptions: {
 			tsconfig: path.join(extensionRoot, 'server', 'tsconfig.json'),
-			external: ['vscode', 'typescript'],
+			external: ['vscode', 'typescript', 'fs'],
+			banner: {
+				// `@vscode/l10n` is bundled as CommonJS and still calls `require('fs')` internally.
+				// Provide Node's `require` in the generated ESM output so those imports keep working.
+				js: `import { createRequire } from 'module'; const require = createRequire(import.meta.url);`,
+			},
 		},
 	}, process.argv),
 ]);

@@ -33,12 +33,13 @@ import { AnythingQuickAccessProviderRunOptions } from '../../../../../platform/q
 import { IQuickInputService, IQuickPickItem, IQuickPickItemWithResource, QuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import { resolveCommandsContext } from '../../../../browser/parts/editor/editorCommandsContext.js';
 import { ResourceContextKey } from '../../../../common/contextkeys.js';
-import { EditorResourceAccessor, isEditorCommandsContext, SideBySideEditor } from '../../../../common/editor.js';
+import { EditorResourceAccessor, isEditorCommandsContext, isEditorInput, SideBySideEditor } from '../../../../common/editor.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { BrowserEditorInput } from '../../../browserView/common/browserEditorInput.js';
 import { ExplorerFolderContext } from '../../../files/common/files.js';
 import { CTX_INLINE_CHAT_V2_ENABLED } from '../../../inlineChat/common/inlineChat.js';
-import { AnythingQuickAccessProvider } from '../../../search/browser/anythingQuickAccess.js';
+import { AnythingQuickAccessProvider, type IAnythingQuickPickItem } from '../../../search/browser/anythingQuickAccess.js';
 import { isSearchTreeFileMatch, isSearchTreeMatch } from '../../../search/browser/searchTreeModel/searchTreeCommon.js';
 import { ISymbolQuickPickItem, SymbolsQuickAccessProvider } from '../../../search/browser/symbolsQuickAccess.js';
 import { SearchContext } from '../../../search/common/constants.js';
@@ -47,21 +48,25 @@ import { IChatRequestVariableEntry, OmittedState } from '../../common/attachment
 import { ChatAgentLocation, isSupportedChatFileScheme } from '../../common/constants.js';
 import { IChatWidget, IChatWidgetService, IQuickChatService } from '../chat.js';
 import { IChatContextPickerItem, IChatContextPickService, IChatContextValueItem, isChatContextPickerPickItem } from '../attachments/chatContextPickService.js';
+import { IChatExecuteActionContext } from './chatExecuteActions.js';
+import { IChatAttachmentResolveService } from '../attachments/chatAttachmentResolveService.js';
 import { isQuickChat } from '../widget/chatWidget.js';
 import { resizeImage } from '../chatImageUtils.js';
 import { registerPromptActions } from '../promptSyntax/promptFileActions.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 import { registerCreatePluginAction } from './createPluginAction.js';
 
-export function registerChatContextActions() {
-	registerAction2(AttachContextAction);
-	registerAction2(AttachFileToChatAction);
-	registerAction2(AttachFolderToChatAction);
-	registerAction2(AttachSelectionToChatAction);
-	registerAction2(AttachSearchResultAction);
-	registerAction2(AttachPinnedEditorsToChatAction);
-	registerPromptActions();
-	registerCreatePluginAction();
+export function registerChatContextActions(): DisposableStore {
+	const store = new DisposableStore();
+	store.add(registerAction2(AttachContextAction));
+	store.add(registerAction2(AttachFileToChatAction));
+	store.add(registerAction2(AttachFolderToChatAction));
+	store.add(registerAction2(AttachSelectionToChatAction));
+	store.add(registerAction2(AttachSearchResultAction));
+	store.add(registerAction2(AttachPinnedEditorsToChatAction));
+	store.add(registerCreatePluginAction());
+	registerPromptActions(); // TODO@jrieken: should also return a DisposableStore
+	return store;
 }
 
 async function withChatView(accessor: ServicesAccessor): Promise<IChatWidget | undefined> {
@@ -90,7 +95,7 @@ abstract class AttachResourceAction extends Action2 {
 	protected _getResources(accessor: ServicesAccessor, ...args: unknown[]): URI[] {
 		const editorService = accessor.get(IEditorService);
 
-		const contexts = isEditorCommandsContext(args[1]) ? this._getEditorResources(accessor, args) : Array.isArray(args[1]) ? args[1] : [args[0]];
+		const contexts = isEditorCommandsContext(args[1]) ? this._getEditorResources(accessor, ...args) : Array.isArray(args[1]) ? args[1] : [args[0]];
 		const files = [];
 		for (const context of contexts) {
 			let uri;
@@ -437,7 +442,7 @@ interface IContextPickItemItem extends IQuickPickItem {
 }
 
 /** These are the types we get from "platform QP" */
-type IQuickPickServicePickItem = IGotoSymbolQuickPickItem | ISymbolQuickPickItem | IQuickPickItemWithResource;
+type IQuickPickServicePickItem = IGotoSymbolQuickPickItem | ISymbolQuickPickItem | IAnythingQuickPickItem;
 
 function isIContextPickItemItem(obj: unknown): obj is IContextPickItemItem {
 	return (
@@ -461,6 +466,11 @@ function isIQuickPickItemWithResource(obj: unknown): obj is IQuickPickItemWithRe
 		&& URI.isUri((obj as IQuickPickItemWithResource).resource));
 }
 
+function isAnythingQuickPickItemWithBrowserEditor(obj: unknown): obj is IAnythingQuickPickItem & { readonly editor: NonNullable<IAnythingQuickPickItem['editor']> } {
+	const editor = (obj as IAnythingQuickPickItem | undefined)?.editor;
+	return editor instanceof BrowserEditorInput || (!!editor && !isEditorInput(editor) && editor.options?.override === BrowserEditorInput.EDITOR_ID);
+}
+
 
 export class AttachContextAction extends Action2 {
 
@@ -468,7 +478,7 @@ export class AttachContextAction extends Action2 {
 		super({
 			id: 'workbench.action.chat.attachContext',
 			title: localize2('workbench.action.chat.attachContext.label.2', "Add Context..."),
-			icon: Codicon.add,
+			icon: Codicon.addCompact,
 			category: CHAT_CATEGORY,
 			keybinding: {
 				when: ContextKeyExpr.and(ChatContextKeys.inChatInput, ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat)),
@@ -524,7 +534,7 @@ export class AttachContextAction extends Action2 {
 		const keybindingService = accessor.get(IKeybindingService);
 		const contextPickService = accessor.get(IChatContextPickService);
 
-		const context = args[0] as { widget?: IChatWidget; placeholder?: string } | undefined;
+		const context = args[0] as (IChatExecuteActionContext & { placeholder?: string }) | undefined;
 		const widget = context?.widget ?? widgetService.lastFocusedWidget;
 		if (!widget) {
 			return;
@@ -550,8 +560,8 @@ export class AttachContextAction extends Action2 {
 		instantiationService.invokeFunction(this._show.bind(this), widget, quickPickItems, context?.placeholder);
 	}
 
-	private _show(accessor: ServicesAccessor, widget: IChatWidget, additionPicks: IContextPickItemItem[] | undefined, placeholder?: string) {
-		const quickInputService = accessor.get(IQuickInputService);
+	private _show(accessor: ServicesAccessor, widget: IChatWidget, additionPicks: IContextPickItemItem[] | undefined, placeholder?: string, quickInputServiceOverride?: IQuickInputService) {
+		const quickInputService = quickInputServiceOverride ?? accessor.get(IQuickInputService);
 		const quickChatService = accessor.get(IQuickChatService);
 		const instantiationService = accessor.get(IInstantiationService);
 		const commandService = accessor.get(ICommandService);
@@ -578,7 +588,7 @@ export class AttachContextAction extends Action2 {
 
 					if (!isDone) {
 						// restart picker when sub-picker didn't return anything
-						instantiationService.invokeFunction(this._show.bind(this), widget, additionPicks, placeholder);
+						instantiationService.invokeFunction(this._show.bind(this), widget, additionPicks, placeholder, quickInputServiceOverride);
 						return;
 					}
 
@@ -605,10 +615,16 @@ export class AttachContextAction extends Action2 {
 	private async _handleQPPick(accessor: ServicesAccessor, widget: IChatWidget, isInBackground: boolean, pick: IQuickPickServicePickItem) {
 		const fileService = accessor.get(IFileService);
 		const textModelService = accessor.get(ITextModelService);
+		const chatAttachmentResolveService = accessor.get(IChatAttachmentResolveService);
 
 		const toAttach: IChatRequestVariableEntry[] = [];
 
-		if (isIQuickPickItemWithResource(pick) && pick.resource) {
+		if (isAnythingQuickPickItemWithBrowserEditor(pick)) {
+			const entry = await chatAttachmentResolveService.resolveEditorAttachContext(pick.editor);
+			if (entry) {
+				toAttach.push(entry);
+			}
+		} else if (isIQuickPickItemWithResource(pick) && pick.resource) {
 			if (/\.(png|jpg|jpeg|bmp|gif|tiff)$/i.test(pick.resource.path)) {
 				// checks if the file is an image
 				if (URI.isUri(pick.resource)) {
@@ -623,6 +639,11 @@ export class AttachContextAction extends Action2 {
 						kind: 'image',
 						references: [{ reference: pick.resource, kind: 'reference' }]
 					});
+				}
+			} else if (pick.resource.scheme === Schemas.vscodeBrowser) {
+				const entry = await chatAttachmentResolveService.resolveEditorAttachContext({ resource: pick.resource });
+				if (entry) {
+					toAttach.push(entry);
 				}
 			} else {
 				let omittedState = OmittedState.NotOmitted;

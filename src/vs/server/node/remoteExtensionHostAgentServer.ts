@@ -8,7 +8,6 @@ import type * as http from 'http';
 import * as net from 'net';
 import { createRequire } from 'node:module';
 import { performance } from 'perf_hooks';
-import * as url from 'url';
 import { VSBuffer } from '../../base/common/buffer.js';
 import { CharCode } from '../../base/common/charCode.js';
 import { isSigPipeError, onUnexpectedError, setUnexpectedErrorHandler } from '../../base/common/errors.js';
@@ -30,7 +29,7 @@ import { IConfigurationService } from '../../platform/configuration/common/confi
 import { IInstantiationService } from '../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../platform/log/common/log.js';
 import { IProductService } from '../../platform/product/common/productService.js';
-import { ConnectionType, ConnectionTypeRequest, ErrorMessage, HandshakeMessage, IRemoteExtensionHostStartParams, ITunnelConnectionStartParams, SignRequest } from '../../platform/remote/common/remoteAgentConnection.js';
+import { ConnectionType, ConnectionTypeRequest, ErrorMessage, HandshakeMessage, IRemoteExtensionHostStartParams, ITunnelConnectionStartParams, OKMessage, SignRequest } from '../../platform/remote/common/remoteAgentConnection.js';
 import { RemoteAgentConnectionContext } from '../../platform/remote/common/remoteAgentEnvironment.js';
 import { ITelemetryService } from '../../platform/telemetry/common/telemetry.js';
 import { ExtensionHostConnection } from './extensionHostConnection.js';
@@ -41,6 +40,16 @@ import { IServerLifetimeService } from './serverLifetimeService.js';
 import { setupServerServices, SocketServer } from './serverServices.js';
 import { CacheControl, serveError, serveFile, WebClientServer } from './webClientServer.js';
 const require = createRequire(import.meta.url);
+
+function parseRequestUrl(requestUrl: string): URL | undefined {
+	try {
+		return requestUrl.startsWith('/')
+			? new URL(`http://localhost${requestUrl}`)
+			: new URL(requestUrl);
+	} catch {
+		return undefined;
+	}
+}
 
 declare namespace vsda {
 	// the signer is a native module that for historical reasons uses a lower case class name
@@ -112,7 +121,10 @@ class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
 			return serveError(req, res, 400, `Bad request.`);
 		}
 
-		const parsedUrl = url.parse(req.url, true);
+		const parsedUrl = parseRequestUrl(req.url);
+		if (!parsedUrl) {
+			return serveError(req, res, 400, `Bad request.`);
+		}
 		let pathname = parsedUrl.pathname;
 
 		if (!pathname) {
@@ -141,7 +153,7 @@ class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
 			return void res.end('OK');
 		}
 
-		if (!httpRequestHasValidConnectionToken(this._connectionToken, req, parsedUrl)) {
+		if (!httpRequestHasValidConnectionToken(this._connectionToken, req, parsedUrl.searchParams)) {
 			// invalid connection token
 			return serveError(req, res, 403, `Forbidden.`);
 		}
@@ -149,10 +161,11 @@ class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
 		if (pathname === '/vscode-remote-resource') {
 			// Handle HTTP requests for resources rendered in the rich client (images, fonts, etc.)
 			// These resources could be files shipped with extensions or even workspace files.
-			const desiredPath = parsedUrl.query['path'];
-			if (typeof desiredPath !== 'string') {
+			const desiredPaths = parsedUrl.searchParams.getAll('path');
+			if (desiredPaths.length !== 1) {
 				return serveError(req, res, 400, `Bad request.`);
 			}
+			const desiredPath = desiredPaths[0];
 
 			let filePath: string;
 			try {
@@ -195,14 +208,21 @@ class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
 		let skipWebSocketFrames = false;
 
 		if (req.url) {
-			const query = url.parse(req.url, true).query;
-			if (typeof query.reconnectionToken === 'string') {
-				reconnectionToken = query.reconnectionToken;
+			const parsedUrl = parseRequestUrl(req.url);
+			if (!parsedUrl) {
+				this._logService.warn('WebSocket connection rejected: invalid request URL');
+				socket.end('HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n');
+				return;
 			}
-			if (query.reconnection === 'true') {
+			const query = parsedUrl.searchParams;
+			const reconnectionTokens = query.getAll('reconnectionToken');
+			if (reconnectionTokens.length === 1) {
+				reconnectionToken = reconnectionTokens[0];
+			}
+			if (query.getAll('reconnection').length === 1 && query.get('reconnection') === 'true') {
 				isReconnection = true;
 			}
-			if (query.skipWebSocketFrames === 'true') {
+			if (query.getAll('skipWebSocketFrames').length === 1 && query.get('skipWebSocketFrames') === 'true') {
 				skipWebSocketFrames = true;
 			}
 		}
@@ -481,7 +501,9 @@ class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
 					delete this._extHostConnections[reconnectionToken];
 					this._extHostLifetimeTokens.deleteAndDispose(reconnectionToken);
 				});
-				con.start(startParams);
+				con.start(startParams).catch(error => {
+					this._logService.error(`${logPrefix} Failed to start extension host connection:`, error);
+				});
 			}
 
 		} else if (msg.desiredConnectionType === ConnectionType.Tunnel) {
@@ -500,12 +522,29 @@ class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
 	}
 
 	private async _createTunnel(protocol: PersistentProtocol, tunnelStartParams: ITunnelConnectionStartParams): Promise<void> {
-		const remoteSocket = (<NodeSocket>protocol.getSocket()).socket;
+		let localSocket: net.Socket;
+		try {
+			localSocket = await this._connectTunnelSocket(tunnelStartParams.host, tunnelStartParams.port);
+		} catch (err) {
+			this._logService.error(`[remote-connection] Failed to connect tunnel to ${tunnelStartParams.host}:${tunnelStartParams.port}:`, err);
+			const reason = (err instanceof Error ? err.message : String(err));
+			const errorMessage: ErrorMessage = { type: 'error', reason };
+			protocol.sendControl(VSBuffer.fromString(JSON.stringify(errorMessage)));
+			const socket = protocol.getSocket();
+			protocol.dispose();
+			await socket.drain();
+			socket.dispose();
+			return;
+		}
+
+		const okMessage: OKMessage = { type: 'ok' };
+		protocol.sendControl(VSBuffer.fromString(JSON.stringify(okMessage)));
+
+		const remoteNodeSocket = <NodeSocket>protocol.getSocket();
+		const remoteSocket = remoteNodeSocket.socket;
 		const dataChunk = protocol.readEntireBuffer();
 		protocol.dispose();
-
-		remoteSocket.pause();
-		const localSocket = await this._connectTunnelSocket(tunnelStartParams.host, tunnelStartParams.port);
+		remoteNodeSocket.dispose(false); // `false` prevents the underlying socket from being closed
 
 		if (dataChunk.byteLength > 0) {
 			localSocket.write(dataChunk.buffer);

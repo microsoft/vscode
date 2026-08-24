@@ -30,6 +30,7 @@ import { ServiceCollection } from '../../../../platform/instantiation/common/ser
 import { defaultCountBadgeStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { SearchContext } from '../common/constants.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import type { IManagedHover } from '../../../../base/browser/ui/hover/hover.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { ISearchTreeMatch, isSearchTreeMatch, RenderableMatch, ITextSearchHeading, ISearchTreeFolderMatch, ISearchTreeFileMatch, isSearchTreeFileMatch, isSearchTreeFolderMatch, isTextSearchHeading, ISearchModel, isSearchTreeFolderMatchWorkspaceRoot, isSearchTreeFolderMatchNoRoot, isPlainTextSearchHeading } from './searchTreeModel/searchTreeCommon.js';
@@ -69,6 +70,8 @@ interface IMatchTemplate {
 	replace: HTMLElement;
 	after: HTMLElement;
 	actions: MenuWorkbenchToolBar;
+	parentHover: IManagedHover;
+	lineNumberHover: IManagedHover;
 	disposables: DisposableStore;
 	contextKeyService: IContextKeyService;
 }
@@ -429,6 +432,9 @@ export class MatchRenderer extends Disposable implements ICompressibleTreeRender
 			},
 		}));
 
+		const parentHover = disposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), parent, ''));
+		const lineNumberHover = disposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), lineNumber, ''));
+
 		return {
 			parent,
 			before,
@@ -437,6 +443,8 @@ export class MatchRenderer extends Disposable implements ICompressibleTreeRender
 			after,
 			lineNumber,
 			actions,
+			parentHover,
+			lineNumberHover,
 			disposables,
 			contextKeyService: contextKeyServiceMain
 		};
@@ -456,7 +464,7 @@ export class MatchRenderer extends Disposable implements ICompressibleTreeRender
 		templateData.after.textContent = preview.after;
 
 		const title = (preview.fullBefore + (replace ? match.replaceString : preview.inside) + preview.after).trim().substr(0, 999);
-		templateData.disposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), templateData.parent, title));
+		templateData.parentHover.update(title);
 
 		SearchContext.IsEditableItemKey.bindTo(templateData.contextKeyService).set(!match.isReadonly);
 
@@ -468,7 +476,7 @@ export class MatchRenderer extends Disposable implements ICompressibleTreeRender
 		templateData.lineNumber.classList.toggle('show', (numLines > 0) || showLineNumbers);
 
 		templateData.lineNumber.textContent = lineNumberStr + extraLinesStr;
-		templateData.disposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), templateData.lineNumber, this.getMatchTitle(match, showLineNumbers)));
+		templateData.lineNumberHover.update(this.getMatchTitle(match, showLineNumbers));
 
 		templateData.actions.context = { viewer: this.searchView.getControl(), element: match } satisfies ISearchActionContext;
 

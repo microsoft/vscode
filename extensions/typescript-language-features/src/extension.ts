@@ -8,7 +8,7 @@ import * as fs from 'fs';
 import * as vscode from 'vscode';
 import { Api, getExtensionApi } from './api';
 import { CommandManager } from './commands/commandManager';
-import { DisableTsgoCommand, tsNativeExtensionId } from './commands/useTsgo';
+import { DisableTsgoCommand, tsNativeExtensionIds } from './commands/useTsgo';
 import { registerBaseCommands } from './commands/index';
 import { ElectronServiceConfigurationProvider } from './configuration/configuration.electron';
 import { ExperimentationTelemetryReporter, IExperimentationTelemetryReporter } from './experimentTelemetryReporter';
@@ -21,6 +21,7 @@ import { PluginManager } from './tsServer/plugins';
 import { ElectronServiceProcessFactory } from './tsServer/serverProcess.electron';
 import { DiskTypeScriptVersionProvider } from './tsServer/versionProvider.electron';
 import { ActiveJsTsEditorTracker } from './ui/activeJsTsEditorTracker';
+import { suggestNativePreview } from './ui/suggestNativePreview';
 import { onCaseInsensitiveFileSystem } from './utils/fs.electron';
 import { Lazy } from './utils/lazy';
 import { getPackageInfo } from './utils/packageInfo';
@@ -48,9 +49,8 @@ export function activate(
 		experimentTelemetryReporter = new ExperimentationTelemetryReporter(vscTelemetryReporter);
 		context.subscriptions.push(experimentTelemetryReporter);
 
-		// Currently we have no experiments, but creating the service adds the appropriate
-		// shared properties to the ExperimentationTelemetryReporter we just created.
-		new ExperimentationService(experimentTelemetryReporter, id, version, context.globalState);
+		const experimentationService = new ExperimentationService(experimentTelemetryReporter, id, version, context.globalState);
+		suggestNativePreview(context, experimentationService);
 	}
 
 	// Register features that work in both TSGO and non-TSGO modes
@@ -61,7 +61,7 @@ export function activate(
 	// Conditionally register features based on whether TSGO is enabled
 	context.subscriptions.push(conditionalRegistration([
 		requireGlobalUnifiedConfig('experimental.useTsgo', { fallbackSection: 'typescript' }),
-		requireHasVsCodeExtension(tsNativeExtensionId),
+		requireHasVsCodeExtension(tsNativeExtensionIds),
 	], () => {
 		// TSGO. Only register a small set of features that don't use TS Server
 		const disposables = new DisposableStore();

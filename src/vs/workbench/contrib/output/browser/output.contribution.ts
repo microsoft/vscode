@@ -16,7 +16,7 @@ import { SyncDescriptor } from '../../../../platform/instantiation/common/descri
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from '../../../common/contributions.js';
 import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { ViewContainer, IViewContainersRegistry, ViewContainerLocation, Extensions as ViewContainerExtensions, IViewsRegistry } from '../../../common/views.js';
+import { ViewContainer, IViewContainersRegistry, ViewContainerLocation, Extensions as ViewContainerExtensions, IViewsRegistry, WindowEnablement } from '../../../common/views.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { ViewPaneContainer } from '../../../browser/parts/views/viewPaneContainer.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from '../../../../platform/configuration/common/configurationRegistry.js';
@@ -78,6 +78,7 @@ const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewC
 	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [OUTPUT_VIEW_ID, { mergeViewWithContainerWhenSingleView: true }]),
 	storageId: OUTPUT_VIEW_ID,
 	hideIfEmpty: true,
+	windowEnablement: WindowEnablement.Both
 }, ViewContainerLocation.Panel, { doNotRegisterOpenCommand: true });
 
 Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews([{
@@ -97,7 +98,8 @@ Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews
 			}
 		},
 		order: 1,
-	}
+	},
+	windowEnablement: WindowEnablement.Both
 }], VIEW_CONTAINER);
 
 class OutputContribution extends Disposable implements IWorkbenchContribution {

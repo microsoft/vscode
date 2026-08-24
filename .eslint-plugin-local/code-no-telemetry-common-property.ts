@@ -46,6 +46,10 @@ const commonTelemetryProperties = new Set([
 	'common.cli',
 	'common.useragent',
 	'common.istouchdevice',
+	'common.copilottrackingid',
+	'common.copilotsdkversion',
+	'common.copilotruntimeversion',
+	'common.isagentswindow',
 ]);
 
 export default new class NoTelemetryCommonProperty implements eslint.Rule.RuleModule {

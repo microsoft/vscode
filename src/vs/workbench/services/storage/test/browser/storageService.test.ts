@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { strictEqual } from 'assert';
+import { deepStrictEqual, rejects, strictEqual } from 'assert';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { joinPath } from '../../../../../base/common/resources.js';
@@ -43,10 +43,12 @@ async function createStorageService(): Promise<[DisposableStore, BrowserStorageS
 		keybindingsResource: joinPath(inMemoryExtraProfileRoot, 'keybindingsResource'),
 		tasksResource: joinPath(inMemoryExtraProfileRoot, 'tasksResource'),
 		mcpResource: joinPath(inMemoryExtraProfileRoot, 'mcp.json'),
+		languageModelsResource: joinPath(inMemoryExtraProfileRoot, 'chatLanguageModels.json'),
 		snippetsHome: joinPath(inMemoryExtraProfileRoot, 'snippetsHome'),
 		promptsHome: joinPath(inMemoryExtraProfileRoot, 'promptsHome'),
 		extensionsResource: joinPath(inMemoryExtraProfileRoot, 'extensionsResource'),
-		cacheHome: joinPath(inMemoryExtraProfileRoot, 'cache')
+		cacheHome: joinPath(inMemoryExtraProfileRoot, 'cache'),
+		agentPluginsHome: joinPath(inMemoryExtraProfileRoot, 'agentPluginsHome'),
 	};
 
 	const storageService = disposables.add(new BrowserStorageService({ id: 'workspace-storage-test' }, disposables.add(new UserDataProfileService(inMemoryExtraProfile)), logService));
@@ -110,6 +112,23 @@ flakySuite('StorageService (browser specific)', () => {
 					strictEqual(storageService.keys(scope, target).length, 0);
 				}
 			}
+		});
+	});
+
+	test('application database access shares storage state and fallback', async () => {
+		storageService.store('key', 'first', StorageScope.APPLICATION, StorageTarget.MACHINE);
+		await storageService.flush();
+		const before = await storageService.getApplicationStorageValue('key');
+		const result = await storageService.compareAndSwapApplicationStorage('key', 'first', 'second');
+
+		deepStrictEqual({
+			before,
+			result,
+			serviceValue: storageService.get('key', StorageScope.APPLICATION),
+		}, {
+			before: 'first',
+			result: { swapped: true, currentValue: 'second' },
+			serviceValue: 'second',
 		});
 	});
 
@@ -214,6 +233,72 @@ flakySuite('IndexDBStorageDatabase (browser)', () => {
 
 		strictEqual(storage.size, 0);
 		strictEqual(storage.items.size, 0);
+	});
+
+	test('compareAndSwap', async () => {
+		const database = disposables.add(await IndexedDBStorageDatabase.create({ id }, logService));
+		await database.updateItems({ insert: new Map([['key', 'first'], ['unrelated', 'sentinel']]) });
+
+		const rejected = await database.compareAndSwap('key', 'stale', 'second');
+		const accepted = await database.compareAndSwap('key', 'first', 'second');
+		const items = await database.getItems();
+		const value = await database.getValue('key');
+
+		deepStrictEqual({
+			rejected,
+			accepted,
+			value,
+			unrelated: items.get('unrelated'),
+		}, {
+			rejected: { swapped: false, currentValue: 'first' },
+			accepted: { swapped: true, currentValue: 'second' },
+			value: 'second',
+			unrelated: 'sentinel',
+		});
+	});
+
+	test('compareAndSwap rejects after close without modifying stored values', async () => {
+		const database = disposables.add(await IndexedDBStorageDatabase.create({ id }, logService));
+		await database.updateItems({ insert: new Map([['key', 'first'], ['unrelated', 'sentinel']]) });
+		await database.close();
+
+		await rejects(database.compareAndSwap('key', 'first', 'second'));
+
+		const reopened = disposables.add(await IndexedDBStorageDatabase.create({ id }, logService));
+		const items = await reopened.getItems();
+		deepStrictEqual({
+			value: items.get('key'),
+			unrelated: items.get('unrelated'),
+		}, {
+			value: 'first',
+			unrelated: 'sentinel',
+		});
+	});
+
+	test('compareAndSwap is atomic across database connections', async () => {
+		const databaseA = disposables.add(await IndexedDBStorageDatabase.create({ id }, logService));
+		const databaseB = disposables.add(await IndexedDBStorageDatabase.create({ id }, logService));
+		await databaseA.updateItems({ insert: new Map([['key', 'first']]) });
+
+		const results = await Promise.all([
+			databaseA.compareAndSwap('key', 'first', 'second'),
+			databaseB.compareAndSwap('key', 'first', 'third'),
+		]);
+		const finalValue = (await databaseA.getItems()).get('key');
+		const winner = results.find(result => result.swapped);
+		const loser = results.find(result => !result.swapped);
+
+		deepStrictEqual({
+			swappedCount: results.filter(result => result.swapped).length,
+			finalValue,
+			winnerValue: winner?.currentValue,
+			loserValue: loser?.currentValue,
+		}, {
+			swappedCount: 1,
+			finalValue: winner?.currentValue,
+			winnerValue: winner?.currentValue,
+			loserValue: winner?.currentValue,
+		});
 	});
 
 	test('Clear', async () => {

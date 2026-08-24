@@ -7,7 +7,6 @@ import { isWeb, isWindows } from '../../../base/common/platform.js';
 import { PolicyCategory } from '../../../base/common/policy.js';
 import { localize } from '../../../nls.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../configuration/common/configurationRegistry.js';
-import product from '../../product/common/product.js';
 import { Registry } from '../../registry/common/platform.js';
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -22,7 +21,7 @@ configurationRegistry.registerConfiguration({
 			enum: ['none', 'manual', 'start', 'default'],
 			default: 'default',
 			scope: ConfigurationScope.APPLICATION,
-			description: localize('updateMode', "Configure whether you receive automatic updates. Requires a restart after change. The updates are fetched from a Microsoft online service."),
+			description: localize('updateMode', "Configure whether you receive automatic updates. The updates are fetched from a Microsoft online service."),
 			tags: ['usesOnlineServices'],
 			enumDescriptions: [
 				localize('none', "Disable updates."),
@@ -35,7 +34,7 @@ configurationRegistry.registerConfiguration({
 				category: PolicyCategory.Update,
 				minimumVersion: '1.67',
 				localization: {
-					description: { key: 'updateMode', value: localize('updateMode', "Configure whether you receive automatic updates. Requires a restart after change. The updates are fetched from a Microsoft online service."), },
+					description: { key: 'updateMode', value: localize('updateMode', "Configure whether you receive automatic updates. The updates are fetched from a Microsoft online service."), },
 					enumDescriptions: [
 						{
 							key: 'none',
@@ -61,7 +60,7 @@ configurationRegistry.registerConfiguration({
 			type: 'string',
 			default: 'default',
 			scope: ConfigurationScope.APPLICATION,
-			description: localize('updateMode', "Configure whether you receive automatic updates. Requires a restart after change. The updates are fetched from a Microsoft online service."),
+			description: localize('updateMode', "Configure whether you receive automatic updates. The updates are fetched from a Microsoft online service."),
 			deprecationMessage: localize('deprecated', "This setting is deprecated, please use '{0}' instead.", 'update.mode')
 		},
 		'update.enableWindowsBackgroundUpdates': {
@@ -77,34 +76,23 @@ configurationRegistry.registerConfiguration({
 			default: true,
 			scope: ConfigurationScope.APPLICATION,
 			description: localize('showReleaseNotes', "Show Release Notes after an update. The Release Notes are fetched from a Microsoft online service."),
+			tags: ['usesOnlineServices'],
+			agentsWindow: { default: false, readOnly: true },
+		},
+		'update.showPostInstallInfo': {
+			type: 'boolean',
+			default: false,
+			experiment: { mode: 'auto' },
+			scope: ConfigurationScope.APPLICATION,
+			description: localize('showPostInstallInfo', "Show a post-install update tooltip in the title bar instead of opening the release notes editor."),
 			tags: ['usesOnlineServices']
 		},
-		'update.statusBar': {
-			type: 'string',
-			enum: ['hidden', 'actionable', 'detailed'],
-			default: 'detailed',
-			scope: ConfigurationScope.APPLICATION,
-			description: localize('statusBar', "Controls the visibility of the update status bar entry."),
-			enumDescriptions: [
-				localize('hidden', "The status bar entry is never shown."),
-				localize('actionable', "The status bar entry is shown when an action is required (e.g., download, install, or restart)."),
-				localize('detailed', "The status bar entry is shown for all update states including progress.")
-			]
-		},
 		'update.titleBar': {
-			type: 'string',
-			enum: ['none', 'actionable', 'detailed', 'always'],
-			default: product.quality !== 'stable' ? 'actionable' : 'none',
+			type: 'boolean',
+			default: true,
 			scope: ConfigurationScope.APPLICATION,
-			tags: ['experimental'],
-			experiment: { mode: 'startup' },
-			description: localize('titleBar', "Controls the experimental update title bar entry."),
-			enumDescriptions: [
-				localize('titleBarNone', "The title bar entry is never shown."),
-				localize('titleBarActionable', "The title bar entry is shown when an action is required (e.g., download, install, or restart)."),
-				localize('titleBarDetailed', "The title bar entry is shown for progress and actionable update states, but not for idle or disabled states."),
-				localize('titleBarAlways', "The title bar entry is shown for all update states.")
-			]
+			description: localize('updateTitleBar', "Show the update indicator in the title bar."),
+			included: !isWeb
 		}
 	}
 });

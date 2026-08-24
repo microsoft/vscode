@@ -8,7 +8,7 @@ import { combinedDisposable, Disposable, DisposableMap, DisposableStore, Mutable
 import { autorun, derived, derivedOpts, IObservable, observableFromEvent, observableSignalFromEvent, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IChatEditingService, IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../../common/editing/chatEditingService.js';
+import { IChatEditReviewSession, IChatEditingService, IModifiedFileEntry, ModifiedFileEntryState } from '../../common/editing/chatEditingService.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { ActionViewItem, IActionViewItemOptions } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IAction, IActionRunner } from '../../../../../base/common/actions.js';
@@ -28,6 +28,8 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
+import { getCodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 
 export class ChatEditingAcceptRejectActionViewItem extends ActionViewItem {
 
@@ -106,7 +108,7 @@ class ChatEditorOverlayWidget extends Disposable {
 
 	private readonly _showStore = this._store.add(new DisposableStore());
 
-	private readonly _session = observableValue<IChatEditingSession | undefined>(this, undefined);
+	private readonly _session = observableValue<IChatEditReviewSession | undefined>(this, undefined);
 	private readonly _entry = observableValue<IModifiedFileEntry | undefined>(this, undefined);
 	private readonly _isBusy: IObservable<boolean | undefined>;
 
@@ -154,7 +156,7 @@ class ChatEditorOverlayWidget extends Disposable {
 		return this._domNode;
 	}
 
-	show(session: IChatEditingSession, entry: IModifiedFileEntry | undefined, indicies: { entryIndex: IObservable<number>; changeIndex: IObservable<number> }) {
+	show(session: IChatEditReviewSession, entry: IModifiedFileEntry | undefined, indicies: { entryIndex: IObservable<number>; changeIndex: IObservable<number> }) {
 
 		this._showStore.clear();
 
@@ -318,6 +320,11 @@ class ChatEditingOverlayController {
 			activeEditorSignal.read(r); // signal
 
 			const editor = group.activeEditorPane;
+
+			if (!getCodeEditor(editor?.getControl())) {
+				return undefined;
+			}
+
 			const uri = EditorResourceAccessor.getOriginalUri(editor?.input, { supportSideBySide: SideBySideEditor.PRIMARY });
 
 			return uri;
@@ -394,6 +401,7 @@ export class ChatEditingEditorOverlay implements IWorkbenchContribution {
 	constructor(
 		@IEditorGroupsService editorGroupsService: IEditorGroupsService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 	) {
 
 		const editorGroups = observableFromEvent(
@@ -405,6 +413,10 @@ export class ChatEditingEditorOverlay implements IWorkbenchContribution {
 		const overlayWidgets = this._store.add(new DisposableMap<IEditorGroup>());
 
 		this._store.add(autorun(r => {
+
+			if (environmentService.isSessionsWindow) {
+				return;
+			}
 
 			const toDelete = new Set(overlayWidgets.keys());
 			const groups = editorGroups.read(r);

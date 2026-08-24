@@ -6,7 +6,6 @@
 import { Disposable, IDisposable, ReferenceCollection } from '../../../../../../base/common/lifecycle.js';
 import { ChatTreeItem, IChatCodeBlockInfo } from '../../chat.js';
 import { IChatRendererContent, IChatRequestViewModel, IChatResponseViewModel } from '../../../common/model/chatViewModel.js';
-import { CodeBlockModelCollection } from '../../../common/widget/codeBlockModelCollection.js';
 import { DiffEditorPool, EditorPool } from './chatContentCodePools.js';
 import { IObservable } from '../../../../../../base/common/observable.js';
 import { Event } from '../../../../../../base/common/event.js';
@@ -24,7 +23,7 @@ export interface IChatContentPart extends IDisposable {
 	codeblocksPartId?: string;
 
 	/**
-	 * Codeblocks that were rendered by this part into CodeBlockModelCollection.
+	 * Codeblocks that were rendered by this part.
 	 */
 	codeblocks?: IChatCodeBlockInfo[];
 
@@ -44,6 +43,20 @@ export interface IChatContentPart extends IDisposable {
 	addDisposable?(disposable: IDisposable): void;
 }
 
+/** Diff resource emitted by an edit-rendering content part. */
+export interface IChatContentPartDiffResource {
+	readonly resource: URI;
+	readonly originalURI: URI | undefined;
+	readonly modifiedURI: URI | undefined;
+}
+
+/** Aggregated diff data emitted by an edit-rendering content part. */
+export interface IChatContentPartDiffData {
+	readonly added: number;
+	readonly removed: number;
+	readonly resources: readonly IChatContentPartDiffResource[];
+}
+
 export interface IChatContentPartRenderContext {
 	readonly element: IChatRequestViewModel | IChatResponseViewModel;
 	readonly elementIndex: number;
@@ -54,7 +67,6 @@ export interface IChatContentPartRenderContext {
 	readonly codeBlockStartIndex: number;
 	readonly treeStartIndex: number;
 	readonly diffEditorPool: DiffEditorPool;
-	readonly codeBlockModelCollection: CodeBlockModelCollection;
 	readonly currentWidth: IObservable<number>;
 	readonly onDidChangeVisibility: Event<boolean>;
 	readonly inlineTextModels: InlineTextModelCollection;
