@@ -9252,7 +9252,9 @@ suite('AgentService (node dispatcher)', () => {
 			const db = new TestSessionDatabase();
 			const catalogDatabase = new TransientRegistryWriteDatabase();
 			const session = AgentSession.uri('copilot', 'projection-v2');
-			await createAgentSession(copilotAgent, { session });
+			const agent = disposables.add(new MockAgent('copilot'));
+			agent.sessionMetadataOverrides = { modifiedTime: 2 };
+			await createAgentSession(agent, { session });
 			await catalogDatabase.registerSessionV2(session.toString(), { provider: 'copilot', startTime: 1, source: 'restore' }, { checkTombstone: false });
 			const oldSnapshot: ISessionCatalogSyncPendingSnapshot = {
 				sessionGeneration: 'test-generation',
@@ -9273,10 +9275,10 @@ suite('AgentService (node dispatcher)', () => {
 			})._catalogReconciliationService;
 			reconciliation.schedule = () => { };
 
-			localService.registerProvider(copilotAgent);
+			localService.registerProvider(agent);
 			await (localService as unknown as {
 				_awaitInitialProviderMigrationForProvider(provider: IAgent): Promise<void>;
-			})._awaitInitialProviderMigrationForProvider(copilotAgent);
+			})._awaitInitialProviderMigrationForProvider(agent);
 			const imported = await catalogDatabase.getSessionV2(session.toString());
 			const writesAfterImport = catalogDatabase.sessionV2UpsertAttempts;
 			await reconciliation.runPass();

@@ -35,7 +35,7 @@ import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } f
 import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError, ResourceChangeType, ResourceType, ResourceWriteMode, type CreateResourceWatchParams, type CreateResourceWatchResult, type DirectoryEntry, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMkdirParams, type ResourceMkdirResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceResolveParams, type ResourceResolveResult, type ResourceWatchState, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { ChangesSummary, ChatInteractivity, ChatOriginKind, MessageAttachmentKind, type Annotation, type AnnotationEntry, type AnnotationOrigin, type AnnotationsState, type ChatOrigin, type Customization, type Message, type MessageAttachment, type MessageResourceAttachment, type TextRange } from '../common/state/protocol/state.js';
 import type { ChatPendingMessageSetAction, ChatTurnStartedAction, SessionConfigChangedAction } from '../common/state/protocol/actions.js';
-import { ISessionGitHubState, ISessionGitState, MessageKind, ResponsePartKind, SESSION_META_GITHUB_KEY, SESSION_META_GIT_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, AH_META_ORCHESTRATION_DB_KEY, readSessionSpawnDepth, parseSessionOrchestration, readSessionOrchestration, withSessionSpawnDepth, withSessionOrchestration, SessionLifecycle, SessionStatus, ToolCallStatus, ToolResultContentType, AH_META_WORKSPACELESS_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, AH_META_IS_READ_DB_KEY, buildChatUri, buildDefaultChatUri, buildResourceWatchChannelUri, buildSubagentChatUri, buildSubagentSessionUriPrefix, isAhpChatChannel, isDefaultChatUri, isSubagentChatUri, isSubagentSession, needsSessionGitStateRefresh, parseChatUri, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, parseResourceWatchChannelUri, parseSessionMultiRootMetadata, parseSubagentSessionUri, readSessionEhcliAdopted, readSessionExternal, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, withSessionExternal, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionStatusFlag, withSessionWorkspaceless, withSessionEhcliAdopted, withSessionFolderPickerDecision, readSessionFolderPickerDecision, parseSessionFolderPickerDecision, SESSION_META_FOLDER_PICKER_KEY, readSessionEhcliAdoptable, type ISessionSourceControlState, type SessionConfigState, type SessionSummary, type ToolResultSubagentContent, type Turn, type UsageInfo, chatStorageUri, hasReportedUsage } from '../common/state/sessionState.js';
+import { ISessionGitHubState, ISessionGitState, MessageKind, ResponsePartKind, SESSION_META_GITHUB_KEY, SESSION_META_GIT_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, AH_META_ORCHESTRATION_DB_KEY, readSessionSpawnDepth, parseSessionOrchestration, withSessionSpawnDepth, withSessionOrchestration, SessionLifecycle, SessionStatus, ToolCallStatus, ToolResultContentType, AH_META_WORKSPACELESS_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, AH_META_IS_READ_DB_KEY, buildChatUri, buildDefaultChatUri, buildResourceWatchChannelUri, buildSubagentChatUri, buildSubagentSessionUriPrefix, isAhpChatChannel, isDefaultChatUri, isSubagentChatUri, isSubagentSession, needsSessionGitStateRefresh, parseChatUri, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, parseResourceWatchChannelUri, parseSessionMultiRootMetadata, parseSubagentSessionUri, readSessionExternal, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, withSessionExternal, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionStatusFlag, withSessionWorkspaceless, withSessionEhcliAdopted, withSessionFolderPickerDecision, readSessionFolderPickerDecision, parseSessionFolderPickerDecision, SESSION_META_FOLDER_PICKER_KEY, readSessionEhcliAdoptable, type ISessionSourceControlState, type SessionConfigState, type SessionSummary, type ToolResultSubagentContent, type Turn, type UsageInfo, chatStorageUri, hasReportedUsage } from '../common/state/sessionState.js';
 import { readToolCallMeta } from '../common/meta/agentToolCallMeta.js';
 import { isHostSnapshotAttachment, toHostSnapshotAttachmentMeta } from '../common/meta/agentSnapshotAttachmentMeta.js';
 import { readEphemeralSessionMeta, withEphemeralSessionMeta } from '../common/meta/agentEphemeralSessionMeta.js';
@@ -57,11 +57,11 @@ import { AgentSideEffects, type IAgentSideEffectsOptions } from './agentSideEffe
 import { AgentHostLocalTurns } from './agentHostLocalTurns.js';
 import { AgentServerToolHost } from './shared/agentServerToolHost.js';
 import { type IChatContextSnapshot, type IRenameTitleResult, type ISessionCreationDefaults, type ISessionServerToolAccessor, validateRenameTitle } from './shared/sessionServerTools.js';
-import { AGENT_HOST_TITLE_SOURCE_AGENT, AGENT_HOST_TITLE_SOURCE_AUTO, type AgentHostTitleSource, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_ARTIFACTS_KEY, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from './shared/persistSessionMetadata.js';
+import { AGENT_HOST_TITLE_SOURCE_AGENT, AGENT_HOST_TITLE_SOURCE_AUTO, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_ARTIFACTS_KEY, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from './shared/persistSessionMetadata.js';
 import { type IArtifactServerToolAccessor } from './shared/artifactServerTools.js';
-import { parseSessionArtifacts, readSessionArtifacts, stringifySessionArtifacts, withSessionArtifacts } from '../common/sessionArtifacts.js';
+import { parseSessionArtifacts, stringifySessionArtifacts, withSessionArtifacts } from '../common/sessionArtifacts.js';
 import { AgentHostCatalogSyncService, IAgentHostCatalogSyncRequest } from './agentHostCatalogSyncService.js';
-import { AGENT_HOST_CATALOG_PROJECTION_VERSION, projectAgentHostCatalog, type AgentHostCatalogJsonValue, type IAgentHostCatalogSource } from './agentHostCatalogProjection.js';
+import { AGENT_HOST_CATALOG_PROJECTION_VERSION } from './agentHostCatalogProjection.js';
 import { AgentHostCatalogReconciliationService, AgentHostCatalogReconciliationSourceResult } from './agentHostCatalogReconciliationService.js';
 import { IAgentHostStorageService } from './agentHostStorageService.js';
 import { AgentHostCatalogShadowValidator, type AgentHostCatalogReadMode, type IAgentHostCatalogShadowValidationReporter } from './agentHostCatalogShadowValidator.js';
@@ -93,6 +93,8 @@ import { SessionCoordinationService } from './sessionCoordination.js';
 import { IAgentHostChangesetService, CHANGESET_DB_METADATA_KEYS, META_CHANGES_SUMMARY } from '../common/agentHostChangesetService.js';
 import { GIT_DB_METADATA_KEYS, IAgentHostGitStateService, META_GIT_STATE, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../common/agentHostGitStateService.js';
 import { IAgentHostChangesetOperationService } from '../common/agentHostChangesetOperationService.js';
+import { AgentHostCatalogSourceResolver, CHAT_BACKING_METADATA_KEY, fromCatalogChatOrigin, toCatalogJsonValue } from './agentHostCatalogSourceResolver.js';
+import { AgentHostPeerChatStore, IPersistedPeerChat, PEER_CHATS_METADATA_KEY } from './agentHostPeerChatStore.js';
 
 /**
  * Grace period before an empty, unsubscribed session is garbage-collected
@@ -203,11 +205,6 @@ const SESSION_RELEASE_GRACE_MS = (() => {
 	return Number.isFinite(parsed) && parsed >= 0 ? parsed : 30_000;
 })();
 
-/**
- * Downgrade-compatible session metadata for peer provider backing. A missing
- * value triggers one-time migration; `[]` is the explicit empty sentinel.
- */
-const PEER_CHATS_METADATA_KEY = 'peerChats';
 const ANNOTATIONS_METADATA_KEY = 'annotations';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -296,44 +293,11 @@ function readPersistedAnnotationsState(value: unknown, session: string): Annotat
 /** Opaque provider data for the session's default chat. */
 const DEFAULT_CHAT_PROVIDER_DATA_METADATA_KEY = 'defaultChatProviderData';
 
-/**
- * Session-database metadata key written on a chat's backing SDK session.
- * Marks that session as an internal chat backing so legacy enumeration never
- * surfaces it as a top-level session; the value is the owning chat URI.
- */
-const CHAT_BACKING_METADATA_KEY = 'peerChatBacking';
-
-/**
- * A downgrade-compatible peer backing entry. Central catalog rows own
- * membership and list metadata; `providerData` remains opaque session data.
- */
-interface IPersistedPeerChat {
-	readonly uri: string;
-	readonly providerData?: string;
-	readonly origin?: ChatOrigin;
-}
-
 interface ICatalogChat {
 	readonly uri: string;
 	readonly kind: 'default' | 'peer';
 	readonly title?: string;
 	readonly origin?: ChatOrigin;
-}
-
-interface ICatalogSourceState {
-	readonly modifiedTime: number;
-	readonly title?: string;
-	readonly status: SessionStatus;
-	readonly project?: { readonly uri: string; readonly displayName: string };
-	readonly workingDirectories: readonly string[];
-	readonly changes?: ChangesSummary;
-	readonly meta?: SessionSummary['_meta'];
-	readonly chats: readonly {
-		readonly uri: string;
-		readonly kind: 'default' | 'peer';
-		readonly title?: string;
-		readonly origin?: AgentHostCatalogJsonValue;
-	}[];
 }
 
 /**
@@ -487,6 +451,8 @@ export class AgentService extends Disposable implements IAgentService {
 	private readonly _orchestratorDatabase: IAgentHostDatabase;
 	private readonly _catalogReadMode: AgentHostCatalogReadMode;
 	private readonly _catalogSyncService: AgentHostCatalogSyncService;
+	private readonly _catalogSourceResolver: AgentHostCatalogSourceResolver;
+	private readonly _peerChatStore: AgentHostPeerChatStore;
 	private readonly _catalogReconciliationService: AgentHostCatalogReconciliationService;
 	private readonly _catalogShadowValidator: AgentHostCatalogShadowValidator;
 	private readonly _catalogListReader: AgentHostCatalogListReader;
@@ -532,14 +498,6 @@ export class AgentService extends Disposable implements IAgentService {
 	private readonly _downloadProgressInterest = new Map<AgentProvider, Set<string>>();
 	/** Subscriptions to provider progress events; cleared when providers change. */
 	private readonly _providerSubscriptions = this._register(new DisposableStore());
-	/**
-	 * Per-session tail of in-flight legacy peer-backing writes, keyed by session
-	 * URI string. Read-modify-write updates to the {@link
-	 * PEER_CHATS_METADATA_KEY} blob are chained per session so a `createChat`,
-	 * `disposeChat`, and `onDidChangeChatData` racing for the same
-	 * session can't clobber each other's edits.
-	 */
-	private readonly _peerChatCatalogWrites = new Map<string, Promise<void>>();
 	private readonly _disposingPeerChats = new Set<string>();
 	private readonly _defaultChatBackingWrites = new Map<string, Promise<void>>();
 	private readonly _authService: AgentHostAuthenticationService;
@@ -690,6 +648,12 @@ export class AgentService extends Disposable implements IAgentService {
 		this._serverToolHost = collaborators.serverToolHost;
 		this._catalogReadMode = core.catalogReadMode ?? 'legacy';
 		this._catalogSyncService = new AgentHostCatalogSyncService(this._sessionDataService, this._orchestratorDatabase, this._logService);
+		this._catalogSourceResolver = new AgentHostCatalogSourceResolver({
+			openDatabase: session => this._sessionDataService.openDatabase(session),
+			isUnpersistedChatBacking: session => this._unpersistedChatBackings.has(session.toString()),
+			worktreeProjectFromRepositoryRoot,
+		});
+		this._peerChatStore = new AgentHostPeerChatStore(this._sessionDataService, this._logService);
 		this._sessionsV2MigrationService = new AgentHostSessionsV2MigrationService(
 			this._orchestratorDatabase,
 			this._sessionDataService,
@@ -1367,7 +1331,7 @@ export class AgentService extends Disposable implements IAgentService {
 		if (central) {
 			return central.some(candidate => candidate.kind === 'peer' && candidate.uri === chat.toString());
 		}
-		const persisted = await this._readPersistedPeerChatCatalog(session);
+		const persisted = await this._peerChatStore.tryRead(session);
 		return persisted?.some(candidate => candidate.uri === chat.toString()) === true;
 	}
 
@@ -1614,7 +1578,7 @@ export class AgentService extends Disposable implements IAgentService {
 		if (!summary || !state) {
 			throw new Error(`Cannot persist list-visible state for unknown session ${sessionKey}`);
 		}
-		const result = await this._catalogSyncService.synchronizeWithFactory(session, () => this._buildCatalogSyncRequest(session, {
+		const result = await this._catalogSyncService.synchronizeWithFactory(session, () => this._catalogSourceResolver.buildCatalogSyncRequest(session, {
 			modifiedTime: Date.parse(summary.modifiedAt),
 			title: summary.title,
 			status: summary.status,
@@ -1624,7 +1588,7 @@ export class AgentService extends Disposable implements IAgentService {
 			meta: summary._meta,
 			chats: (chatsOverride ?? this._catalogChatsFromState(state)).map(chat => ({
 				...chat,
-				origin: this._toCatalogJsonValue(chat.origin),
+				origin: toCatalogJsonValue(chat.origin),
 			})),
 		}, metadataOverrides, false));
 		if (result.status === 'pending') {
@@ -1647,7 +1611,7 @@ export class AgentService extends Disposable implements IAgentService {
 		const peers = await this._readOrMigrateLegacyPeerChatCatalog(agent, registered.session);
 		return {
 			status: 'available',
-			request: await this._buildCatalogSyncRequest(registered.session, {
+			request: await this._catalogSourceResolver.buildCatalogSyncRequest(registered.session, {
 				modifiedTime: metadata.modifiedTime,
 				title: metadata.summary,
 				status: metadata.status ?? SessionStatus.Idle,
@@ -1664,7 +1628,7 @@ export class AgentService extends Disposable implements IAgentService {
 					...peers.map(peer => ({
 						uri: peer.uri,
 						kind: 'peer' as const,
-						origin: this._toCatalogJsonValue(peer.origin),
+						origin: toCatalogJsonValue(peer.origin),
 					})),
 				],
 			}, {}, true),
@@ -1680,298 +1644,6 @@ export class AgentService extends Disposable implements IAgentService {
 				title: chat.title,
 				origin: chat.origin,
 			}));
-	}
-
-	private async _buildCatalogSyncRequest(session: URI, state: ICatalogSourceState, metadataOverrides: Readonly<Record<string, string>>, preferPersistedMetadata: boolean): Promise<{ readonly source: IAgentHostCatalogSource; readonly legacyMetadata: Readonly<Record<string, string>> }> {
-		const metadataKeys: Record<string, true> = {
-			[SESSION_CUSTOM_TITLE_KEY]: true,
-			[SESSION_CUSTOM_TITLE_SOURCE_KEY]: true,
-			[AH_META_IS_READ_DB_KEY]: true,
-			[AH_META_IS_ARCHIVED_DB_KEY]: true,
-			[AH_META_IS_DONE_DB_KEY]: true,
-			[AH_META_ORCHESTRATION_DB_KEY]: true,
-			[AH_META_WORKSPACELESS_DB_KEY]: true,
-			[AH_META_EHCLI_ADOPTED_DB_KEY]: true,
-			[SESSION_META_MULTI_ROOT_KEY]: true,
-			[SESSION_META_FOLDER_PICKER_KEY]: true,
-			[SESSION_ARTIFACTS_KEY]: true,
-			[META_CHANGES_SUMMARY]: true,
-			[CHAT_BACKING_METADATA_KEY]: true,
-			[WORKTREE_META_REPOSITORY_ROOT]: true,
-			...GIT_DB_METADATA_KEYS,
-		};
-		for (const chat of state.chats) {
-			metadataKeys[customChatTitleMetadataKey(chat.uri)] = true;
-			metadataKeys[customChatTitleSourceMetadataKey(chat.uri)] = true;
-		}
-
-		const ref = this._sessionDataService.openDatabase(session);
-		let persisted: { readonly [key: string]: string | undefined };
-		try {
-			persisted = await ref.object.getMetadataObject(metadataKeys);
-		} finally {
-			ref.dispose();
-		}
-		const metadata = { ...persisted, ...metadataOverrides };
-		const title = (preferPersistedMetadata ? metadata[SESSION_CUSTOM_TITLE_KEY] : metadataOverrides[SESSION_CUSTOM_TITLE_KEY]) ?? state.title ?? '';
-		const titleSource = this._catalogTitleSource(metadata[SESSION_CUSTOM_TITLE_SOURCE_KEY]);
-		const persistedMultiRoot = metadata[SESSION_META_MULTI_ROOT_KEY] !== undefined
-			? parseSessionMultiRootMetadata(metadata[SESSION_META_MULTI_ROOT_KEY])
-			: undefined;
-		const multiRoot = preferPersistedMetadata
-			? (metadata[SESSION_META_MULTI_ROOT_KEY] !== undefined ? persistedMultiRoot : readSessionMultiRootMetadata(state.meta))
-			: readSessionMultiRootMetadata(state.meta) ?? persistedMultiRoot;
-		const persistedFolderPicker = metadata[SESSION_META_FOLDER_PICKER_KEY] !== undefined
-			? parseSessionFolderPickerDecision(metadata[SESSION_META_FOLDER_PICKER_KEY])
-			: undefined;
-		const folderPicker = preferPersistedMetadata
-			? (metadata[SESSION_META_FOLDER_PICKER_KEY] !== undefined ? persistedFolderPicker : readSessionFolderPickerDecision(state.meta))
-			: readSessionFolderPickerDecision(state.meta) ?? persistedFolderPicker;
-		const persistedArtifacts = parseSessionArtifacts(metadata[SESSION_ARTIFACTS_KEY]);
-		const stateArtifacts = readSessionArtifacts(state.meta);
-		const artifacts = preferPersistedMetadata
-			? (metadata[SESSION_ARTIFACTS_KEY] !== undefined ? persistedArtifacts : stateArtifacts)
-			: (metadataOverrides[SESSION_ARTIFACTS_KEY] !== undefined || stateArtifacts.length === 0 ? persistedArtifacts : stateArtifacts);
-		const persistedOrchestration = metadata[AH_META_ORCHESTRATION_DB_KEY] !== undefined
-			? parseSessionOrchestration(metadata[AH_META_ORCHESTRATION_DB_KEY])
-			: undefined;
-		const orchestration = preferPersistedMetadata
-			? (metadata[AH_META_ORCHESTRATION_DB_KEY] !== undefined ? persistedOrchestration : readSessionOrchestration(state.meta))
-			: (metadataOverrides[AH_META_ORCHESTRATION_DB_KEY] !== undefined ? persistedOrchestration : readSessionOrchestration(state.meta) ?? persistedOrchestration);
-		const persistedGitHub = metadata[META_GITHUB_STATE] !== undefined
-			? this._readPersistedGitHubState(metadata[META_GITHUB_STATE])
-			: undefined;
-		const github = preferPersistedMetadata
-			? (metadata[META_GITHUB_STATE] !== undefined ? persistedGitHub : readSessionGitHubState(state.meta))
-			: readSessionGitHubState(state.meta) ?? persistedGitHub;
-		const persistedSourceControl = metadata[META_SOURCE_CONTROL_STATE] !== undefined
-			? this._readPersistedSourceControlState(metadata[META_SOURCE_CONTROL_STATE])
-			: undefined;
-		const sourceControl = preferPersistedMetadata
-			? (metadata[META_SOURCE_CONTROL_STATE] !== undefined ? persistedSourceControl : readSessionSourceControlState(state.meta))
-			: readSessionSourceControlState(state.meta) ?? persistedSourceControl;
-		const persistedGit = metadata[META_GIT_STATE] !== undefined
-			? this._readPersistedGitState(metadata[META_GIT_STATE])
-			: undefined;
-		const git = readSessionGitState(state.meta) ?? persistedGit;
-		const persistedWorkspaceless = metadata[AH_META_WORKSPACELESS_DB_KEY] === 'true';
-		const workspaceless = preferPersistedMetadata && metadata[AH_META_WORKSPACELESS_DB_KEY] !== undefined
-			? persistedWorkspaceless
-			: readSessionWorkspaceless(state.meta) || persistedWorkspaceless;
-		const stateIsRead = (state.status & SessionStatus.IsRead) !== 0;
-		const isRead = preferPersistedMetadata && metadata[AH_META_IS_READ_DB_KEY] !== undefined
-			? metadata[AH_META_IS_READ_DB_KEY] === 'true'
-			: stateIsRead;
-		const persistedArchived = metadata[AH_META_IS_ARCHIVED_DB_KEY] ?? metadata[AH_META_IS_DONE_DB_KEY];
-		const isArchived = preferPersistedMetadata && persistedArchived !== undefined
-			? persistedArchived === 'true'
-			: (state.status & SessionStatus.IsArchived) !== 0;
-		const persistedChanges = metadata[META_CHANGES_SUMMARY] !== undefined
-			? this._readPersistedChanges(metadata[META_CHANGES_SUMMARY])
-			: undefined;
-		const changes = preferPersistedMetadata && metadata[META_CHANGES_SUMMARY] !== undefined ? persistedChanges : state.changes;
-		const worktreeProject = worktreeProjectFromRepositoryRoot(metadata[WORKTREE_META_REPOSITORY_ROOT]);
-		const isChatBacking = !!metadata[CHAT_BACKING_METADATA_KEY] || this._unpersistedChatBackings.has(session.toString());
-		const source: IAgentHostCatalogSource = {
-			modifiedTime: state.modifiedTime,
-			title: title || undefined,
-			titleSource,
-			isRead,
-			isArchived,
-			project: worktreeProject
-				? { uri: worktreeProject.uri.toString(), displayName: worktreeProject.displayName }
-				: state.project,
-			workspaceless,
-			isChatBacking,
-			ehcliAdoptable: readSessionEhcliAdoptable(state.meta),
-			ehcliAdopted: readSessionEhcliAdopted(state.meta) || metadata[AH_META_EHCLI_ADOPTED_DB_KEY] === 'true',
-			multiRoot,
-			folderPicker,
-			changes,
-			github,
-			git,
-			sourceControl,
-			artifacts,
-			orchestration,
-			workingDirectories: state.workingDirectories,
-			chats: state.chats.map((chat, order) => ({
-				uri: chat.uri,
-				order,
-				kind: chat.kind,
-				title: (preferPersistedMetadata ? metadata[customChatTitleMetadataKey(chat.uri)] : metadataOverrides[customChatTitleMetadataKey(chat.uri)]) || chat.title || undefined,
-				titleSource: this._catalogTitleSource(metadata[customChatTitleSourceMetadataKey(chat.uri)]),
-				origin: chat.origin,
-			})),
-		};
-		const legacyMetadata: Record<string, string> = {
-			...metadataOverrides,
-			[AH_META_IS_READ_DB_KEY]: source.isRead ? 'true' : '',
-			[AH_META_IS_ARCHIVED_DB_KEY]: source.isArchived ? 'true' : '',
-			[SESSION_META_MULTI_ROOT_KEY]: multiRoot ? JSON.stringify(multiRoot) : '',
-			[SESSION_META_FOLDER_PICKER_KEY]: folderPicker ? JSON.stringify(folderPicker) : '',
-			[SESSION_ARTIFACTS_KEY]: stringifySessionArtifacts(artifacts),
-			[AH_META_ORCHESTRATION_DB_KEY]: orchestration ? JSON.stringify(orchestration) : '',
-		};
-		if (source.workspaceless || metadata[AH_META_WORKSPACELESS_DB_KEY] !== undefined) {
-			legacyMetadata[AH_META_WORKSPACELESS_DB_KEY] = source.workspaceless ? 'true' : 'false';
-		}
-		if (metadata[CHAT_BACKING_METADATA_KEY] !== undefined) {
-			legacyMetadata[CHAT_BACKING_METADATA_KEY] = metadata[CHAT_BACKING_METADATA_KEY];
-		}
-		if (metadata[WORKTREE_META_REPOSITORY_ROOT] !== undefined) {
-			legacyMetadata[WORKTREE_META_REPOSITORY_ROOT] = metadata[WORKTREE_META_REPOSITORY_ROOT];
-		}
-		if (metadataOverrides[SESSION_CUSTOM_TITLE_KEY] !== undefined || persisted[SESSION_CUSTOM_TITLE_KEY] !== undefined) {
-			legacyMetadata[SESSION_CUSTOM_TITLE_KEY] = title;
-			legacyMetadata[SESSION_CUSTOM_TITLE_SOURCE_KEY] = titleSource;
-		} else if (metadataOverrides[SESSION_CUSTOM_TITLE_SOURCE_KEY] !== undefined || persisted[SESSION_CUSTOM_TITLE_SOURCE_KEY] !== undefined) {
-			legacyMetadata[SESSION_CUSTOM_TITLE_SOURCE_KEY] = titleSource;
-		}
-		if (github) {
-			legacyMetadata[META_GITHUB_STATE] = JSON.stringify(github);
-		}
-		if (sourceControl) {
-			legacyMetadata[META_SOURCE_CONTROL_STATE] = JSON.stringify(sourceControl);
-		}
-		if (git) {
-			legacyMetadata[META_GIT_STATE] = JSON.stringify(git);
-		} else if (metadata[META_GIT_STATE] !== undefined) {
-			legacyMetadata[META_GIT_STATE] = '';
-		}
-		if (metadata[META_CHANGES_SUMMARY] !== undefined) {
-			legacyMetadata[META_CHANGES_SUMMARY] = changes ? JSON.stringify(changes) : '';
-		}
-		return { source, legacyMetadata };
-	}
-
-	private _catalogTitleSource(value: string | undefined): AgentHostTitleSource {
-		return value === 'user' || value === 'agent' || value === 'auto' ? value : AGENT_HOST_TITLE_SOURCE_AUTO;
-	}
-
-	private _readPersistedGitHubState(value: string | undefined): ISessionGitHubState | undefined {
-		if (!value) {
-			return undefined;
-		}
-		try {
-			return readSessionGitHubState({ [SESSION_META_GITHUB_KEY]: JSON.parse(value) });
-		} catch {
-			return undefined;
-		}
-	}
-
-	private _readPersistedSourceControlState(value: string | undefined): ISessionSourceControlState | undefined {
-		if (!value) {
-			return undefined;
-		}
-		try {
-			return readSessionSourceControlState({ [SESSION_META_SOURCE_CONTROL_KEY]: JSON.parse(value) });
-		} catch {
-			return undefined;
-		}
-	}
-
-	private _readPersistedGitState(value: string | undefined): ISessionGitState | undefined {
-		if (!value) {
-			return undefined;
-		}
-		try {
-			const projected = projectAgentHostCatalog({
-				modifiedTime: 0,
-				isRead: false,
-				isArchived: false,
-				workspaceless: false,
-				git: JSON.parse(value),
-				workingDirectories: [],
-				chats: [],
-			}, {
-				session: 'agent-host-catalog-git-validation',
-				sessionGeneration: 'agent-host-catalog-git-validation',
-				sourceRevision: 0,
-			});
-			return projected.ok ? projected.value.source.git : undefined;
-		} catch {
-			return undefined;
-		}
-	}
-
-	private _readPersistedChanges(value: string | undefined): ChangesSummary | undefined {
-		if (!value) {
-			return undefined;
-		}
-		try {
-			return JSON.parse(value) as ChangesSummary;
-		} catch {
-			return undefined;
-		}
-	}
-
-	private _toCatalogJsonValue(value: unknown): AgentHostCatalogJsonValue | undefined {
-		if (value === undefined) {
-			return undefined;
-		}
-
-		if (value === null || typeof value === 'string' || typeof value === 'boolean') {
-			return value;
-		}
-		if (typeof value === 'number') {
-			return Number.isFinite(value) ? value : undefined;
-		}
-		if (Array.isArray(value)) {
-			const result: AgentHostCatalogJsonValue[] = [];
-			for (const entry of value) {
-				const converted = this._toCatalogJsonValue(entry);
-				if (converted !== undefined) {
-					result.push(converted);
-				}
-			}
-			return result;
-		}
-		if (typeof value === 'object') {
-			const result: { [key: string]: AgentHostCatalogJsonValue } = {};
-			for (const [key, entry] of Object.entries(value)) {
-				const converted = this._toCatalogJsonValue(entry);
-				if (converted !== undefined) {
-					result[key] = converted;
-				}
-			}
-			return result;
-		}
-		return undefined;
-	}
-
-	private _fromCatalogChatOrigin(value: AgentHostCatalogJsonValue | undefined): ChatOrigin | undefined {
-		if (!isRecord(value) || typeof value.kind !== 'string') {
-			return undefined;
-		}
-		if (value.kind === ChatOriginKind.User) {
-			return { kind: ChatOriginKind.User };
-		}
-		if (typeof value.chat !== 'string') {
-			return undefined;
-		}
-		if (value.kind === ChatOriginKind.Fork && typeof value.turnId === 'string') {
-			return { kind: ChatOriginKind.Fork, chat: value.chat, turnId: value.turnId };
-		}
-		if (value.kind === ChatOriginKind.SideChat && typeof value.turnId === 'string') {
-			const selection = isRecord(value.selection)
-				&& typeof value.selection.text === 'string'
-				&& (value.selection.responsePartId === undefined || typeof value.selection.responsePartId === 'string')
-				? {
-					text: value.selection.text,
-					...(typeof value.selection.responsePartId === 'string' ? { responsePartId: value.selection.responsePartId } : {}),
-				}
-				: undefined;
-			return {
-				kind: ChatOriginKind.SideChat,
-				chat: value.chat,
-				turnId: value.turnId,
-				...(selection ? { selection } : {}),
-			};
-		}
-		if (value.kind === ChatOriginKind.Tool && typeof value.toolCallId === 'string') {
-			return { kind: ChatOriginKind.Tool, chat: value.chat, toolCallId: value.toolCallId };
-		}
-		return undefined;
 	}
 
 	private _agentMergeRestore: Promise<void> = Promise.resolve();
@@ -2434,7 +2106,7 @@ export class AgentService extends Disposable implements IAgentService {
 
 	private async _buildImportedCatalogSyncRequest(provider: IAgent, metadata: IAgentSessionMetadata, external: boolean, seedExternalRead: boolean): Promise<IAgentHostCatalogSyncRequest> {
 		const peers = await this._readOrMigrateLegacyPeerChatCatalog(provider, metadata.session);
-		return this._buildCatalogSyncRequest(metadata.session, {
+		return this._catalogSourceResolver.buildCatalogSyncRequest(metadata.session, {
 			modifiedTime: metadata.modifiedTime,
 			title: metadata.summary,
 			status: external && seedExternalRead ? (metadata.status ?? SessionStatus.Idle) | SessionStatus.IsRead : metadata.status ?? SessionStatus.Idle,
@@ -2451,7 +2123,7 @@ export class AgentService extends Disposable implements IAgentService {
 				...peers.map(peer => ({
 					uri: peer.uri,
 					kind: 'peer' as const,
-					origin: this._toCatalogJsonValue(peer.origin),
+					origin: toCatalogJsonValue(peer.origin),
 				})),
 			],
 		}, external && seedExternalRead ? { [AH_META_IS_READ_DB_KEY]: 'true' } : {}, true);
@@ -3525,7 +3197,7 @@ export class AgentService extends Disposable implements IAgentService {
 		];
 		this._catalogSyncSuppressedSessions.add(sessionKey);
 		try {
-			await this._persistPeerChat(session, chat, providerData, peerChatOrigin);
+			await this._peerChatStore.upsert(session, chat, providerData, peerChatOrigin);
 			await this._persistOrderedListVisibleSessionState(session, title === undefined ? {} : {
 				[customChatTitleMetadataKey(chat.toString())]: title,
 				[customChatTitleSourceMetadataKey(chat.toString())]: AGENT_HOST_TITLE_SOURCE_AUTO,
@@ -3535,7 +3207,7 @@ export class AgentService extends Disposable implements IAgentService {
 			this._flushDeferredCatalogMetadataOverrides(session);
 			let catalogRollbackError: Error | undefined;
 			try {
-				await this._removePersistedPeerChat(session, chat);
+				await this._peerChatStore.remove(session, chat);
 			} catch (rollbackError) {
 				catalogRollbackError = rollbackError instanceof Error ? rollbackError : new Error(String(rollbackError));
 			}
@@ -3653,7 +3325,7 @@ export class AgentService extends Disposable implements IAgentService {
 			if (provider) {
 				await this._disposeChat(provider, chat);
 			}
-			await this._removePersistedPeerChat(session, chat);
+			await this._peerChatStore.remove(session, chat);
 			await this._clearChatDraft(session, chat);
 			const state = this._stateManager.getSessionState(sessionKey);
 			if (state) {
@@ -6050,7 +5722,7 @@ export class AgentService extends Disposable implements IAgentService {
 	private async _restorePeerChats(agent: IAgent, session: URI, centralChatCatalog?: readonly ICatalogChat[] | false): Promise<void> {
 		const central = centralChatCatalog === false ? undefined : centralChatCatalog ?? await this._readCentralChatCatalog(session);
 		if (central) {
-			const persisted = await this._readPersistedPeerChatCatalog(session, true);
+			const persisted = await this._peerChatStore.tryRead(session, true);
 			if (persisted === undefined) {
 				await this._migrateLegacyPeerChats(agent, session);
 			} else {
@@ -6059,7 +5731,7 @@ export class AgentService extends Disposable implements IAgentService {
 			await this._persistOrderedListVisibleSessionState(session, {});
 			return;
 		}
-		const persisted = await this._readPersistedPeerChatCatalog(session);
+		const persisted = await this._peerChatStore.tryRead(session);
 		if (persisted !== undefined) {
 			await this._restorePeerChatsFromCatalog(session, persisted);
 			await this._persistOrderedListVisibleSessionState(session, {});
@@ -6087,7 +5759,7 @@ export class AgentService extends Disposable implements IAgentService {
 			uri: chat.uri,
 			kind: chat.kind,
 			title: chat.title,
-			origin: this._fromCatalogChatOrigin(chat.origin),
+			origin: fromCatalogChatOrigin(chat.origin),
 		}));
 	}
 
@@ -6103,7 +5775,7 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	private async _readOrMigrateLegacyPeerChatCatalog(agent: IAgent, session: URI): Promise<IPersistedPeerChat[]> {
-		const persisted = await this._readPersistedPeerChatCatalog(session);
+		const persisted = await this._peerChatStore.tryRead(session);
 		if (persisted !== undefined) {
 			return persisted;
 		}
@@ -6112,7 +5784,7 @@ export class AgentService extends Disposable implements IAgentService {
 			uri: chat.uri.toString(),
 			...(chat.providerData !== undefined ? { providerData: chat.providerData } : {}),
 		}));
-		await this._enqueuePeerChatCatalogWrite(session, () => [...entries]);
+		await this._peerChatStore.replace(session, entries);
 		return entries;
 	}
 
@@ -6172,7 +5844,7 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		try {
 			const [persisted, draft] = await Promise.all([
-				providerData === undefined ? this._readPersistedPeerChatBacking(session, chat) : undefined,
+				providerData === undefined ? this._peerChatStore.find(session, chat) : undefined,
 				this._getChatDraft(session, chat),
 			]);
 			const effectiveProviderData = providerData ?? persisted?.providerData;
@@ -6186,11 +5858,6 @@ export class AgentService extends Disposable implements IAgentService {
 			this._logService.warn(`[AgentService] Failed to materialize peer chat ${chatKey}: ${toErrorMessage(err)}`);
 			throw err;
 		}
-	}
-
-	private async _readPersistedPeerChatBacking(session: URI, chat: URI): Promise<IPersistedPeerChat | undefined> {
-		const entries = await this._readPersistedPeerChatCatalog(session);
-		return entries?.find(entry => entry.uri === chat.toString());
 	}
 
 	/**
@@ -6213,7 +5880,7 @@ export class AgentService extends Disposable implements IAgentService {
 			return;
 		}
 		this._stateManager.updateChatProviderData(e.chat.toString(), e.providerData);
-		void this._persistPeerChat(URI.parse(sessionStr), e.chat, e.providerData)
+		void this._peerChatStore.upsert(URI.parse(sessionStr), e.chat, e.providerData)
 			.catch(err => this._logService.error(err, `[AgentService] Failed to persist peer-chat backing for ${e.chat.toString()}`));
 	}
 
@@ -6369,80 +6036,6 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	/**
-	 * Reads downgrade-compatible peer backing metadata. Missing returns
-	 * `undefined`, `[]` is the explicit empty sentinel, and malformed data is
-	 * treated as absent so migration can rebuild it.
-	 */
-	private async _readPersistedPeerChatCatalog(session: URI, batched = false): Promise<IPersistedPeerChat[] | undefined> {
-		const ref = await this._sessionDataService.tryOpenDatabase?.(session);
-		if (!ref) {
-			return undefined;
-		}
-		try {
-			const raw = batched
-				? (await ref.object.getMetadataObject({ [PEER_CHATS_METADATA_KEY]: true }))[PEER_CHATS_METADATA_KEY]
-				: await ref.object.getMetadata(PEER_CHATS_METADATA_KEY);
-			if (raw === undefined) {
-				return undefined;
-			}
-			return this._parsePersistedPeerChatCatalog(session, raw);
-		} catch (err) {
-			this._logService.warn(`[AgentService] Ignoring malformed peer-chat catalog for ${session.toString()}: ${toErrorMessage(err)}`);
-			return undefined;
-		} finally {
-			ref.dispose();
-		}
-	}
-
-	private _parsePersistedPeerChatCatalog(session: URI, raw: string): IPersistedPeerChat[] {
-		const parsed: unknown = JSON.parse(raw);
-		if (!Array.isArray(parsed)) {
-			throw new Error('expected an array');
-		}
-		const sessionKey = session.toString();
-		const seen = new Set<string>();
-		const result: IPersistedPeerChat[] = [];
-		for (let index = 0; index < parsed.length; index++) {
-			const value = parsed[index];
-			if (!isRecord(value) || typeof value.uri !== 'string') {
-				this._logService.warn(`[AgentService] Skipping peer-chat catalog entry ${index} with no chat URI`);
-				continue;
-			}
-			if (seen.has(value.uri)) {
-				this._logService.warn(`[AgentService] Skipping duplicate peer-chat catalog entry ${index}`);
-				continue;
-			}
-			let owner: string;
-			try {
-				owner = parseRequiredSessionUriFromChatUri(value.uri);
-			} catch (error) {
-				this._logService.warn(`[AgentService] Skipping peer-chat catalog entry ${index} with invalid chat URI: ${toErrorMessage(error)}`);
-				continue;
-			}
-			if (owner !== sessionKey || isDefaultChatUri(value.uri)) {
-				this._logService.warn(`[AgentService] Skipping peer-chat catalog entry ${index} that is not owned by ${sessionKey}`);
-				continue;
-			}
-			if (value.providerData !== undefined && typeof value.providerData !== 'string') {
-				this._logService.warn(`[AgentService] Skipping peer-chat catalog entry ${index} with invalid provider data`);
-				continue;
-			}
-			const originValue = this._toCatalogJsonValue(value.origin);
-			const origin = this._fromCatalogChatOrigin(originValue);
-			if (value.origin !== undefined && !origin) {
-				this._logService.warn(`[AgentService] Dropping invalid origin from peer-chat catalog entry ${index}`);
-			}
-			seen.add(value.uri);
-			result.push({
-				uri: value.uri,
-				...(typeof value.providerData === 'string' ? { providerData: value.providerData } : {}),
-				...(origin ? { origin } : {}),
-			});
-		}
-		return result;
-	}
-
-	/**
 	 * Marks a chat's backing SDK session so legacy discovery cannot register
 	 * it as a standalone top-level session. Best-effort and never throws:
 	 * callers (chat creation / restore) must not fail just because this
@@ -6477,81 +6070,6 @@ export class AgentService extends Disposable implements IAgentService {
 				this._logService.warn(`[AgentService] retry failed to mark backing session ${backingSessionStr} for chat ${chat.toString()}; suppressing it in-process instead`, retryErr);
 				this._unpersistedChatBackings.add(backingSessionStr);
 			}
-		}
-	}
-
-	/**
-	 * Inserts or updates a peer's downgrade-compatible backing metadata,
-	 * recording its opaque `providerData` verbatim (or clearing it when
-	 * `undefined`). When `origin` is supplied it is stored as the chat's
-	 * provenance; when omitted (e.g. a provider-driven `providerData` refresh via
-	 * {@link _onChatDataChanged}) any previously persisted origin is preserved so
-	 * a data refresh never drops a side chat's source boundary. Serialized per
-	 * session via {@link _enqueuePeerChatCatalogWrite}.
-	 */
-	private _persistPeerChat(session: URI, chat: URI, providerData: string | undefined, origin?: ChatOrigin): Promise<void> {
-		const chatUri = chat.toString();
-		return this._enqueuePeerChatCatalogWrite(session, entries => {
-			const existing = entries.find(entry => entry.uri === chatUri);
-			const effectiveOrigin = origin ?? existing?.origin;
-			const next = entries.filter(entry => entry.uri !== chatUri);
-			next.push({
-				uri: chatUri,
-				...(providerData !== undefined ? { providerData } : {}),
-				...(effectiveOrigin !== undefined ? { origin: effectiveOrigin } : {}),
-			});
-			return next;
-		});
-	}
-
-	/**
-	 * Removes a peer chat from downgrade-compatible backing metadata.
-	 */
-	private _removePersistedPeerChat(session: URI, chat: URI): Promise<void> {
-		const chatUri = chat.toString();
-		return this._enqueuePeerChatCatalogWrite(session, entries => entries.filter(entry => entry.uri !== chatUri));
-	}
-
-	/**
-	 * Chains a read-modify-write of a session's persisted peer-chat catalog
-	 * behind any in-flight write for the same session, so concurrent
-	 * create/dispose/data-change updates can't clobber each other.
-	 */
-	private _enqueuePeerChatCatalogWrite(session: URI, mutate: (entries: IPersistedPeerChat[]) => IPersistedPeerChat[]): Promise<void> {
-		const key = session.toString();
-		const previous = this._peerChatCatalogWrites.get(key) ?? Promise.resolve();
-		const next = previous
-			.catch(() => { /* a failed prior write must not block later ones */ })
-			.then(() => this._applyPeerChatCatalogWrite(session, mutate));
-		const clear = () => {
-			if (this._peerChatCatalogWrites.get(key) === tracked) {
-				this._peerChatCatalogWrites.delete(key);
-			}
-		};
-		const tracked = next.then(clear, error => {
-			clear();
-			throw error;
-		});
-		this._peerChatCatalogWrites.set(key, tracked);
-		return tracked;
-	}
-
-	private async _applyPeerChatCatalogWrite(session: URI, mutate: (entries: IPersistedPeerChat[]) => IPersistedPeerChat[]): Promise<void> {
-		const ref = this._sessionDataService.openDatabase(session);
-		try {
-			let current: IPersistedPeerChat[] = [];
-			try {
-				const raw = await ref.object.getMetadata(PEER_CHATS_METADATA_KEY);
-				if (raw !== undefined) {
-					current = this._parsePersistedPeerChatCatalog(session, raw);
-				}
-			} catch (err) {
-				this._logService.warn(`[AgentService] Replacing malformed peer-chat catalog for ${session.toString()}: ${toErrorMessage(err)}`);
-			}
-			const updated = this._parsePersistedPeerChatCatalog(session, JSON.stringify(mutate(current)));
-			await ref.object.setMetadata(PEER_CHATS_METADATA_KEY, JSON.stringify(updated));
-		} finally {
-			ref.dispose();
 		}
 	}
 
