@@ -20,6 +20,7 @@ import { IAgentHostOTelService } from '../common/otel/agentHostOTelService.js';
 import { IAgentHostChangesetOperationService } from '../common/agentHostChangesetOperationService.js';
 import { IAgentHostChangesetService } from '../common/agentHostChangesetService.js';
 import { IAgentHostChangesetSubscriptionService } from '../common/agentHostChangesetSubscriptionService.js';
+import { IAgentHostChatContributions } from '../common/agentHostChatContributionsService.js';
 import { IAgentHostCheckpointService } from '../common/agentHostCheckpointService.js';
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
 import { IAgentHostReviewService } from '../common/agentHostReviewService.js';
@@ -39,6 +40,7 @@ import { AgentHostOTelService } from './otel/agentHostOTelService.js';
 import { AgentHostChangesetOperationService } from './agentHostChangesetOperationService.js';
 import { AgentHostChangesetService } from './agentHostChangesetService.js';
 import { AgentHostChangesetSubscriptionService } from './agentHostChangesetSubscriptionService.js';
+import { AgentHostChatContributions } from './agentHostChatContributionsService.js';
 import { AgentHostCheckpointService } from './agentHostCheckpointService.js';
 import { AgentHostCompletions, IAgentHostCompletions } from './agentHostCompletions.js';
 import { AgentHostCustomizationEnablementService, IAgentHostCustomizationEnablementService } from './agentHostCustomizationEnablementService.js';
@@ -49,6 +51,8 @@ import { AgentHostReviewService } from './agentHostReviewService.js';
 import { AgentHostSessionTitleSignal, IAgentHostSessionTitleSignal } from './agentHostSessionTitleSignal.js';
 import { AgentHostStorageService, IAgentHostStorageService } from './agentHostStorageService.js';
 import { AgentHostTerminalManager, IAgentHostTerminalManager } from './agentHostTerminalManager.js';
+import { AgentHostTelemetryReporter, IAgentHostTelemetryReporter } from './agentHostTelemetryReporter.js';
+import { AgentHostTurnTracker, IAgentHostTurnTracker } from './agentHostTurnTracker.js';
 import { AgentEditAttributionService } from './shared/agentEditAttributionService.js';
 import { AgentHostOctoKitService, IAgentHostOctoKitService } from './shared/agentHostOctoKitService.js';
 import { EditArcReporterService, IEditArcReporterService } from './shared/editArcReporter.js';
@@ -126,6 +130,9 @@ export function registerAgentHostCoreServices(services: AgentHostServiceCollecti
 	registerService(services, ids, IAgentHostChangesetService, new SyncDescriptor(AgentHostChangesetService));
 	registerService(services, ids, IAgentHostCompletions, new SyncDescriptor(AgentHostCompletions));
 	registerService(services, ids, IAgentHostTerminalManager, new SyncDescriptor(AgentHostTerminalManager));
+	registerService(services, ids, IAgentHostChatContributions, new SyncDescriptor(AgentHostChatContributions));
+	registerService(services, ids, IAgentHostTelemetryReporter, new SyncDescriptor(AgentHostTelemetryReporter));
+	registerService(services, ids, IAgentHostTurnTracker, new SyncDescriptor(AgentHostTurnTracker));
 	return ids;
 }
 
