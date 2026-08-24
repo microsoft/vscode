@@ -543,6 +543,35 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 	protected readonly identityProvider?: IIdentityProvider<T>;
 	private readonly autoExpandSingleChildren: boolean;
 
+	private readonly nodeAccessHistory: T[] = [];
+	private readonly MAX_RETAINED_NODES = 50000;
+	private gcInterval: any;
+
+	private markNodeAccessed(element: T): void {
+		const index = this.nodeAccessHistory.indexOf(element);
+		if (index > -1) {
+			this.nodeAccessHistory.splice(index, 1);
+		}
+		this.nodeAccessHistory.push(element);
+	}
+
+	private performGarbageCollection(): void {
+		if (this.nodeAccessHistory.length <= this.MAX_RETAINED_NODES) {
+			return;
+		}
+		const nodesToRemove = this.nodeAccessHistory.length - this.MAX_RETAINED_NODES;
+		const elementsToEvict = this.nodeAccessHistory.splice(0, nodesToRemove);
+		for (const element of elementsToEvict) {
+			try {
+				if (this.hasNode(element) && this.isExpanded(element)) {
+					this.collapse(element, true);
+				}
+			} catch (e) {
+				// Node might have already been removed
+			}
+		}
+	}
+
 	private readonly _onDidRender = new Emitter<void>();
 	protected readonly _onDidChangeNodeSlowState = new Emitter<IAsyncDataTreeNode<TInput, T>>();
 
@@ -655,6 +684,8 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 			this.onDidChangeFindMode = this.tree.onDidChangeFindMode;
 			this.onDidChangeFindMatchType = this.tree.onDidChangeFindMatchType;
 		}
+
+		this.gcInterval = setInterval(() => this.performGarbageCollection(), 10000);
 	}
 
 	protected createTree(
@@ -1203,6 +1234,10 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 			return;
 		}
 
+		if (!node.collapsed) {
+			this.markNodeAccessed(node.element.element as T);
+		}
+
 		if (!node.collapsed && node.element.stale) {
 			if (deep) {
 				this.collapse(node.element.element as T);
@@ -1401,6 +1436,8 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 	}
 
 	dispose(): void {
+		clearInterval(this.gcInterval);
+		this.nodeAccessHistory.length = 0;
 		this._onDidRender.dispose();
 		this._onDidChangeNodeSlowState.dispose();
 		this.disposables.dispose();
