@@ -4631,21 +4631,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 	// ---- helpers ------------------------------------------------------------
 
 	/**
-	 * The effective Kerberos proxy SPN, normalizing an empty string to `undefined`.
-	 *
-	 * An unset `http.proxyKerberosServicePrincipal` reaches the host two equivalent
-	 * ways: absent (`undefined`) before the workbench mirrors its config, and `''`
-	 * afterwards — the workbench transform in `request.ts` coerces an unset value to
-	 * `''` so that clearing a previously-set SPN still propagates under the host's
-	 * merge reducer. Both mean "no SPN configured": the Kerberos lookup already treats
-	 * them identically via a hostname-derived default (`lookupKerberosAuthorization`).
-	 * Collapsing `''` to `undefined` keeps the applied baseline and the effective value
-	 * comparable, so an absent-vs-empty transition is not mistaken for a real change
-	 * that restarts the Copilot client.
+	 * Returns the effective Kerberos proxy SPN, treating an empty setting as absent.
 	 */
 	private _readKerberosSpn(env: Record<string, string | undefined>): string | undefined {
 		const spn = env['COPILOT_PROXY_KERBEROS_SPN'] || this._configurationService.getRootValue(agentHostProxyConfigSchema, AgentHostProxyConfigKey.ProxyKerberosServicePrincipal);
-		// An empty string is the workbench's encoding of an unset SPN; treat it as absent.
 		return spn || undefined;
 	}
 
