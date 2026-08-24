@@ -1604,6 +1604,33 @@ suite('AgentHostChangesetService - multi-root turn changeset', () => {
 		assert.ok(log.errors.some(e => e.includes('repoBad') && e.includes('falling back to tracked edits')), `expected a fallback error naming the repo, got ${JSON.stringify(log.errors)}`);
 	});
 
+	test('missing checkpoint refs use tracked edits without logging an error', async () => {
+		const log = new RecordingLogService();
+		const db = new TestSessionDatabase();
+		db.addEdit({ turnId: 'turn-1', toolCallId: 'tc1', filePath: '/repoA/tracked.ts', kind: FileEditKind.Edit, addedLines: undefined, removedLines: undefined, beforeContent: encodeString('1'), afterContent: encodeString('1\n2') });
+		const git = createNoopGitService();
+		git.getRepositoryRoot = async wd => URI.parse(wd.toString());
+		const { svc, stateManager } = build({
+			workingDirectories: ['file:///repoA', 'file:///repoB'],
+			git,
+			checkpoint: makeCheckpoint(() => undefined),
+			db,
+			log,
+		});
+
+		const turnUri = await svc.computeTurnChangeset(sessionStr, 'turn-1');
+
+		assert.deepStrictEqual({
+			status: stateManager.getChangesetState(turnUri)?.status,
+			files: stateManager.getChangesetState(turnUri)?.files.map(file => file.id),
+			errors: log.errors,
+		}, {
+			status: ChangesetStatus.Ready,
+			files: [URI.file('/repoA/tracked.ts').toString()],
+			errors: [],
+		});
+	});
+
 	test('a folder whose repository-root lookup throws is treated as non-git (DB fallback) without dropping the whole turn', async () => {
 		const log = new RecordingLogService();
 		const db = new TestSessionDatabase();

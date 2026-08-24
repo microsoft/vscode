@@ -80,15 +80,15 @@ suite('Sessions - Actions', () => {
 		});
 	});
 
-	test('distinguishes pinning the session view from pinning the session in the list', () => {
+	test('uses a concise pin title in the session toolbar', () => {
 		const pin = MenuRegistry.getMenuItems(Menus.SessionBarToolbar)
 			.filter(isIMenuItem)
 			.find(item => item.command.id === 'sessions.chatCompositeBar.togglePin');
 
-		assert.strictEqual(pin && (typeof pin.command.title === 'string' ? pin.command.title : pin.command.title.value), 'Pin Session View');
+		assert.strictEqual(pin && (typeof pin.command.title === 'string' ? pin.command.title : pin.command.title.value), 'Pin');
 	});
 
-	test('groups session view actions with consistent titles', () => {
+	test('groups session toolbar actions with concise titles', () => {
 		const actions = MenuRegistry.getMenuItems(Menus.SessionBarToolbar)
 			.filter(isIMenuItem)
 			.filter(item => ['sessions.chatCompositeBar.togglePin', 'sessions.chatCompositeBar.toggleMaximize', 'sessions.chatCompositeBar.close'].includes(item.command.id))
@@ -99,9 +99,9 @@ suite('Sessions - Actions', () => {
 			}));
 
 		assert.deepStrictEqual(actions, [
-			{ title: 'Pin Session View', group: 'secondary/3_pin' },
-			{ title: 'Maximize Session View', group: 'secondary/3_pin' },
-			{ title: 'Close Session View', group: 'secondary/3_pin' },
+			{ title: 'Pin', group: 'secondary/3_pin' },
+			{ title: 'Maximize', group: 'secondary/3_pin' },
+			{ title: 'Close', group: 'secondary/3_pin' },
 		]);
 	});
 });

@@ -71,6 +71,20 @@ function appendElement(parent: HTMLElement, className: string): HTMLElement {
 	return element;
 }
 
+function createEditorTabLabel(parent: HTMLElement, extraClasses?: string): { label: HTMLElement; name: HTMLElement; description: HTMLElement } {
+	const label = appendElement(parent, `tab-label monaco-icon-label codicon codicon-settings${extraClasses ? ` ${extraClasses}` : ''}`);
+	const labelContainer = appendElement(label, 'monaco-icon-label-container');
+	const nameContainer = appendElement(labelContainer, 'monaco-icon-name-container');
+	const name = document.createElement('a');
+	name.className = 'label-name';
+	nameContainer.appendChild(name);
+	const descriptionContainer = appendElement(labelContainer, 'monaco-icon-description-container');
+	const description = document.createElement('span');
+	description.className = 'label-description';
+	descriptionContainer.appendChild(description);
+	return { label, name, description };
+}
+
 function createCompositeAction(root: HTMLElement, titleHeight: number, checked: boolean, icon = false): { actionItem: HTMLElement; actionLabel: HTMLElement; indicator: HTMLElement } {
 	root.style.setProperty('--vscode-spacing-size20', '2px');
 	root.style.setProperty('--vscode-spacing-size40', '4px');
@@ -903,6 +917,61 @@ suite('ModernUIContribution', () => {
 		});
 	});
 
+	test('applies editor tab foregrounds to the icon, name, and description', () => {
+		const root = document.createElement('div');
+		root.className = 'monaco-workbench modern-ui-tabs';
+		root.style.setProperty('--modern-ui-editor-tab-active-foreground', '#010203');
+		root.style.setProperty('--modern-ui-editor-tab-inactive-foreground', '#040506');
+		root.style.setProperty('--modern-ui-editor-tab-unfocused-active-foreground', '#070809');
+		root.style.setProperty('--modern-ui-editor-tab-unfocused-inactive-foreground', '#0a0b0c');
+		root.style.setProperty('--vscode-tab-selectedForeground', '#0d0e0f');
+		document.body.appendChild(root);
+		store.add(toDisposable(() => root.remove()));
+
+		const content = appendElement(appendElement(root, 'part editor'), 'content');
+		const createGroup = (active: boolean): HTMLElement => {
+			const group = appendElement(content, `editor-group-container${active ? ' active' : ''}`);
+			return appendElement(appendElement(group, 'title'), 'tabs-container');
+		};
+		const createTab = (tabs: HTMLElement, classes: string, labelClasses?: string) => createEditorTabLabel(appendElement(tabs, `tab${classes ? ` ${classes}` : ''}`), labelClasses);
+
+		const activeTabs = createGroup(true);
+		const activeLabel = createTab(activeTabs, 'active');
+		const inactiveLabel = createTab(activeTabs, '');
+		const selectedLabel = createTab(activeTabs, 'selected');
+		const decoratedLabel = createTab(activeTabs, '', 'monaco-decoration-itemColor');
+		decoratedLabel.label.style.color = '#101112';
+
+		const unfocusedTabs = createGroup(false);
+		const unfocusedActiveLabel = createTab(unfocusedTabs, 'active');
+		const unfocusedInactiveLabel = createTab(unfocusedTabs, '');
+
+		const getLabelColors = (label: { label: HTMLElement; name: HTMLElement; description: HTMLElement }) => {
+			const targetWindow = getWindow(label.label);
+			return [
+				targetWindow.getComputedStyle(label.label, '::before').color,
+				targetWindow.getComputedStyle(label.name).color,
+				targetWindow.getComputedStyle(label.description).color,
+			];
+		};
+
+		assert.deepStrictEqual({
+			active: getLabelColors(activeLabel),
+			inactive: getLabelColors(inactiveLabel),
+			selected: getLabelColors(selectedLabel),
+			decorated: getLabelColors(decoratedLabel),
+			unfocusedActive: getLabelColors(unfocusedActiveLabel),
+			unfocusedInactive: getLabelColors(unfocusedInactiveLabel),
+		}, {
+			active: ['rgb(1, 2, 3)', 'rgb(1, 2, 3)', 'rgb(1, 2, 3)'],
+			inactive: ['rgb(4, 5, 6)', 'rgb(4, 5, 6)', 'rgb(4, 5, 6)'],
+			selected: ['rgb(13, 14, 15)', 'rgb(13, 14, 15)', 'rgb(13, 14, 15)'],
+			decorated: ['rgb(16, 17, 18)', 'rgb(16, 17, 18)', 'rgb(16, 17, 18)'],
+			unfocusedActive: ['rgb(7, 8, 9)', 'rgb(7, 8, 9)', 'rgb(7, 8, 9)'],
+			unfocusedInactive: ['rgb(10, 11, 12)', 'rgb(10, 11, 12)', 'rgb(10, 11, 12)'],
+		});
+	});
+
 	test('keeps clean editor tabs compact while reserving persistent indicators', () => {
 		const root = document.createElement('div');
 		root.className = 'monaco-workbench modern-ui-tabs';
@@ -1022,6 +1091,69 @@ suite('ModernUIContribution', () => {
 			reserved: 'none',
 			dirty: 'none',
 			sticky: 'none',
+		});
+	});
+
+	test('applies the correct action background for each editor tab state', () => {
+		const root = document.createElement('div');
+		root.className = 'monaco-workbench modern-ui-tabs';
+		root.style.setProperty('--modern-ui-editor-tab-action-active-background', '#010203');
+		root.style.setProperty('--modern-ui-editor-tab-action-unfocused-active-background', '#040506');
+		root.style.setProperty('--modern-ui-editor-tab-action-hover-background', '#070809');
+		root.style.setProperty('--modern-ui-editor-tab-action-unfocused-hover-background', '#0A0B0C');
+		root.style.setProperty('--modern-ui-editor-tab-action-active-hover-background', '#0D0E0F');
+		root.style.setProperty('--modern-ui-editor-tab-action-unfocused-active-hover-background', '#101112');
+		root.style.setProperty('--vscode-modernEditorTab-selectedActionBackground', '#131415');
+		document.body.appendChild(root);
+		store.add(toDisposable(() => root.remove()));
+
+		const content = appendElement(appendElement(root, 'part editor'), 'content');
+		const activeGroup = appendElement(content, 'editor-group-container active');
+		const unfocusedGroup = appendElement(content, 'editor-group-container');
+		const getActionBackgroundColors = (group: HTMLElement, tabClassName: string) => {
+			const title = appendElement(group, 'title');
+			const tab = appendElement(appendElement(title, 'tabs-container'), tabClassName);
+			const actions = appendElement(tab, 'tab-actions');
+			const action = appendElement(actions, 'action-label');
+			action.tabIndex = 0;
+			action.focus();
+			return [
+				getWindow(actions).getComputedStyle(actions).backgroundColor,
+				getWindow(actions).getComputedStyle(actions, '::before').backgroundImage
+			];
+		};
+
+		assert.deepStrictEqual({
+			active: getActionBackgroundColors(activeGroup, 'tab active'),
+			activeLeft: getActionBackgroundColors(activeGroup, 'tab active tab-actions-left'),
+			unfocusedActive: getActionBackgroundColors(unfocusedGroup, 'tab active'),
+			unfocusedActiveLeft: getActionBackgroundColors(unfocusedGroup, 'tab active tab-actions-left'),
+			hover: getActionBackgroundColors(activeGroup, 'tab'),
+			hoverLeft: getActionBackgroundColors(activeGroup, 'tab tab-actions-left'),
+			unfocusedHover: getActionBackgroundColors(unfocusedGroup, 'tab'),
+			unfocusedHoverLeft: getActionBackgroundColors(unfocusedGroup, 'tab tab-actions-left'),
+			// Active hover states cannot be tested because they require the :hover state.
+			// activeHover: getActionBackgroundColors(activeGroup, 'tab active'),
+			// activeHoverLeft: getActionBackgroundColors(activeGroup, 'tab active tab-actions-left'),
+			// unfocusedActiveHover: getActionBackgroundColors(unfocusedGroup, 'tab active'),
+			// unfocusedActiveHoverLeft: getActionBackgroundColors(unfocusedGroup, 'tab active tab-actions-left'),
+			selected: getActionBackgroundColors(activeGroup, 'tab selected'),
+			selectedLeft: getActionBackgroundColors(activeGroup, 'tab selected tab-actions-left'),
+		}, {
+			active: ['rgb(1, 2, 3)', 'linear-gradient(to right, rgba(0, 0, 0, 0), rgb(1, 2, 3))'],
+			activeLeft: ['rgb(1, 2, 3)', 'linear-gradient(to left, rgba(0, 0, 0, 0), rgb(1, 2, 3))'],
+			unfocusedActive: ['rgb(4, 5, 6)', 'linear-gradient(to right, rgba(0, 0, 0, 0), rgb(4, 5, 6))'],
+			unfocusedActiveLeft: ['rgb(4, 5, 6)', 'linear-gradient(to left, rgba(0, 0, 0, 0), rgb(4, 5, 6))'],
+			hover: ['rgb(7, 8, 9)', 'linear-gradient(to right, rgba(0, 0, 0, 0), rgb(7, 8, 9))'],
+			hoverLeft: ['rgb(7, 8, 9)', 'linear-gradient(to left, rgba(0, 0, 0, 0), rgb(7, 8, 9))'],
+			unfocusedHover: ['rgb(10, 11, 12)', 'linear-gradient(to right, rgba(0, 0, 0, 0), rgb(10, 11, 12))'],
+			unfocusedHoverLeft: ['rgb(10, 11, 12)', 'linear-gradient(to left, rgba(0, 0, 0, 0), rgb(10, 11, 12))'],
+			// activeHover: ['rgb(13, 14, 15)', 'linear-gradient(to right, rgba(0, 0, 0, 0), rgb(13, 14, 15))'],
+			// activeHoverLeft: ['rgb(13, 14, 15)', 'linear-gradient(to left, rgba(0, 0, 0, 0), rgb(13, 14, 15))'],
+			// unfocusedActiveHover: ['rgb(16, 17, 18)', 'linear-gradient(to right, rgba(0, 0, 0, 0), rgb(16, 17, 18))'],
+			// unfocusedActiveHoverLeft: ['rgb(16, 17, 18)', 'linear-gradient(to left, rgba(0, 0, 0, 0), rgb(16, 17, 18))'],
+			selected: ['rgb(19, 20, 21)', 'linear-gradient(to right, rgba(0, 0, 0, 0), rgb(19, 20, 21))'],
+			selectedLeft: ['rgb(19, 20, 21)', 'linear-gradient(to left, rgba(0, 0, 0, 0), rgb(19, 20, 21))'],
 		});
 	});
 

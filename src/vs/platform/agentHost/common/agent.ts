@@ -208,6 +208,17 @@ export interface IAgentMaterializeChatEvent {
 }
 
 export type AgentProvider = string;
+export type AgentTurnProviderCallState = 'notStarted' | 'pending' | 'resolved' | 'rejected';
+export type AgentTurnProviderSessionState = 'active' | 'disconnecting' | 'disconnected' | 'shutdown';
+
+export type IAgentTurnDiagnosticSnapshot = {
+	readonly state: 'available';
+	readonly providerCallState: AgentTurnProviderCallState;
+	readonly providerTurnStarted: boolean;
+	readonly providerSessionState: AgentTurnProviderSessionState;
+} | {
+	readonly state: 'missingChat' | 'missingTurn';
+};
 
 /** Well-known agent provider id for the Claude agent-host backend. */
 export const CLAUDE_AGENT_PROVIDER_ID = 'claude' as const;
@@ -1095,6 +1106,9 @@ export interface IAgent {
 	/** Optional history mutation for providers with a native truncation operation. */
 	truncateChat?(chat: URI, turnId: string | undefined, context?: URI | IAgentChatContext): Promise<void>;
 
+	/** Return bounded diagnostics for an in-flight turn when supported. */
+	getTurnDiagnosticSnapshot?(chat: URI, turnId: string): IAgentTurnDiagnosticSnapshot | undefined;
+
 	// ---- Active clients and interaction ------------------------------------
 
 	/** Get or create one client's contribution handle for an exact chat. */
@@ -1202,7 +1216,7 @@ export interface IAgent {
 	getSessionStateFile?(session: URI): Promise<URI | undefined>;
 
 	/** Add provider-owned diagnostics to an Agent Host debug-log staging directory. */
-	collectDebugLogs?(session: URI | undefined, outputDirectory: URI): Promise<boolean>;
+	collectDebugLogs?(session: URI | undefined, outputDirectory: URI, chat?: URI): Promise<boolean>;
 
 	// ---- MCP and server tools -----------------------------------------------
 
