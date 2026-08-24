@@ -2063,7 +2063,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 					color: var(--vscode-problemsInfoIcon-foreground) !important;
 				}
 
-				.codicon.codicon-warning {
+				.codicon.codicon-warning-compact {
 					color: var(--vscode-problemsWarningIcon-foreground) !important;
 				}
 			}
@@ -2628,7 +2628,11 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	font-size: var(--vscode-fontSize-body2);
 }
 
-.interactive-session .interactive-input-part .interactive-input-followups .interactive-session-followups .monaco-button .codicon-sparkle {
+.interactive-session .interactive-input-part .interactive-input-followups .interactive-session-followups .monaco-button .codicon {
+	font-size: var(--vscode-codiconFontSize-compact);
+}
+
+.interactive-session .interactive-input-part .interactive-input-followups .interactive-session-followups .monaco-button .codicon-sparkle-compact {
 	float: left;
 }
 
@@ -3454,7 +3458,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 /* Hide the leading icon on collapsible parts by default; show-checkmarks restores it */
-.interactive-session .chat-used-context-label .monaco-icon-button > .codicon:first-child:not(.chat-collapsible-hover-chevron):not(.codicon-error):not(.codicon-warning) {
+.interactive-session .chat-used-context-label .monaco-icon-button > .codicon:first-child:not(.chat-collapsible-hover-chevron):not(.codicon-error-compact):not(.codicon-warning-compact) {
 	display: none;
 }
 
@@ -3513,7 +3517,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		}
 	}
 
-	> .codicon.codicon-check {
+	> .codicon.codicon-check-compact {
 		display: none;
 	}
 
@@ -3523,7 +3527,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		/* Matching the margin on all .monaco-text-button .codicon */
 		margin: 0 .2em;
 
-		&.codicon-error {
+		&.codicon-error-compact {
 			color: var(--vscode-editorError-foreground) !important;
 		}
 	}
@@ -3581,8 +3585,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	color: var(--vscode-descriptionForeground);
 }
 
-.show-checkmarks .progress-container > .codicon.codicon-check,
-.progress-container.show-checkmarks > .codicon.codicon-check {
+.show-checkmarks .progress-container > .codicon.codicon-check-compact,
+.progress-container.show-checkmarks > .codicon.codicon-check-compact {
 	display: inline-flex;
 	margin-left: 4px;
 }
@@ -3837,8 +3841,9 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	outline: none;
 	border: none;
 
-	.codicon.codicon-file-media,
-	.codicon.codicon-warning {
+	.codicon.codicon-file-media-compact,
+	.codicon.codicon-warning,
+	.codicon.codicon-warning-compact {
 		font-size: var(--vscode-codiconFontSize-compact);
 		margin-right: 2px;
 	}
@@ -4456,7 +4461,12 @@ have to be updated for changes to the rules above, or to support more deeply nes
 			margin-right: var(--vscode-spacing-size60);
 		}
 
-		.monaco-toolbar .action-label.codicon.codicon-repo-forked {
+		.monaco-toolbar .action-label.codicon,
+		.monaco-toolbar .action-label .codicon {
+			font-size: var(--vscode-codiconFontSize-compact);
+		}
+
+		.monaco-toolbar .action-label.chat-fork-action-label {
 			padding: 0 var(--vscode-spacing-size60);
 		}
 
@@ -4464,13 +4474,13 @@ have to be updated for changes to the rules above, or to support more deeply nes
 			margin-right: 0;
 		}
 
-		.monaco-toolbar .actions-container > .action-item:not(:first-child):has(.action-label.codicon.codicon-repo-forked) {
+		.monaco-toolbar .actions-container > .action-item.chat-fork-action-item:not(:first-child) {
 			display: flex;
 			align-items: center;
 			gap: 4px;
 		}
 
-		.monaco-toolbar .actions-container > .action-item:not(:first-child):has(.action-label.codicon.codicon-repo-forked)::before {
+		.monaco-toolbar .actions-container > .action-item.chat-fork-action-item:not(:first-child)::before {
 			content: '\00B7';
 			font-size: var(--vscode-fontSize-label1);
 			line-height: 18px;
@@ -4767,7 +4777,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 /* Chevron icon in dropdown container */
-.chat-welcome-view-suggested-prompt .codicon-chevron-down.dropdown-chevron {
+.chat-welcome-view-suggested-prompt .codicon-chevron-down-compact.dropdown-chevron {
 	font-size: var(--vscode-codiconFontSize-compact);
 	opacity: 0.7;
 	flex-shrink: 0;
@@ -4896,7 +4906,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 	When both modes are available, their outlines identify them as a paired
 	control. A lone action is left borderless to match the send button. */
-.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item > .action-label.codicon-mic,
+.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item > .action-label.codicon-mic-compact,
 .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item > .action-label.codicon-mic-filled,
 .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item > .action-label.codicon-mic-download-compact,
 .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item > .action-label.codicon-voice-mode-compact,
@@ -4910,7 +4920,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	font-size: var(--vscode-codiconFontSize-compact);
 }
 
-.chat-execute-toolbar.chat-voice-input-actions-multiple .monaco-action-bar .action-item > .action-label.codicon-mic,
+.chat-execute-toolbar.chat-voice-input-actions-multiple .monaco-action-bar .action-item > .action-label.codicon-mic-compact,
 .chat-execute-toolbar.chat-voice-input-actions-multiple .monaco-action-bar .action-item > .action-label.codicon-mic-filled,
 .chat-execute-toolbar.chat-voice-input-actions-multiple .monaco-action-bar .action-item > .action-label.codicon-mic-download-compact,
 .chat-execute-toolbar.chat-voice-input-actions-multiple .monaco-action-bar .action-item > .action-label.codicon-voice-mode-compact,
