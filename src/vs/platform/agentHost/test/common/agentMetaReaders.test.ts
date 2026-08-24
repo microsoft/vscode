@@ -155,6 +155,7 @@ suite('Agent host _meta readers', () => {
 				bashOmitsPowerShellIdioms: !bash.includes('Stop-Process'),
 				shellUnknownTargetsOs: shellUnknown.includes('targeting Linux'),
 				shellUnknownOmitsShellGuidance: !shellUnknown.includes('active shell') && !shellUnknown.includes('Python or Perl') && !shellUnknown.includes('Stop-Process'),
+				allRequireFencedCommands: [pwsh, bash, shellUnknown].every(instruction => instruction.includes('each command in its own fenced Markdown code block using triple backticks')),
 				allTagged: pwsh.startsWith('<terminal_chat>') && bash.endsWith('</terminal_chat>') && shellUnknown.endsWith('</terminal_chat>'),
 			}, {
 				pwshTargetsShellAndOs: true,
@@ -165,6 +166,7 @@ suite('Agent host _meta readers', () => {
 				bashOmitsPowerShellIdioms: true,
 				shellUnknownTargetsOs: true,
 				shellUnknownOmitsShellGuidance: true,
+				allRequireFencedCommands: true,
 				allTagged: true,
 			});
 		});

@@ -44,7 +44,7 @@ import { IAgentHostChangesetService, StaticChangesetKind } from '../../common/ag
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
 import { AgentSideEffects, IAgentSideEffectsOptions } from '../../node/agentSideEffects.js';
-import { AgentHostLocalTurns } from '../../node/agentHostLocalTurns.js';
+import { AgentHostLocalTurns, IAgentHostLocalTurns } from '../../node/agentHostLocalTurns.js';
 import { AgentHostChatContributions } from '../../node/agentHostChatContributionsService.js';
 import { AgentHostProviderLocator, IAgentHostProviderLocator } from '../../node/agentHostProviderLocator.js';
 import { AgentHostSessionTitleController, IAgentHostSessionTitleController } from '../../node/agentHostSessionTitleController.js';
@@ -168,7 +168,10 @@ let customizationEnablementService = createNoopCustomizationEnablementService();
 function createTestSideEffects(
 	disposables: DisposableStore,
 	stateManager: AgentHostStateManager,
-	options: Omit<IAgentSideEffectsOptions, 'localTurns'> & { localTurns?: AgentHostLocalTurns; gitStateService?: IAgentHostGitStateService },
+	options: Omit<IAgentSideEffectsOptions, 'localTurns'> & {
+		localTurns?: AgentHostLocalTurns;
+		gitStateService?: IAgentHostGitStateService;
+	},
 	_gitService?: IAgentHostGitService,
 	telemetryService: ITelemetryService = NullTelemetryService,
 	changesets: IAgentHostChangesetService = new FakeChangesetService(),
@@ -197,14 +200,15 @@ function createTestSideEffects(
 	services.set(IAgentHostSessionTitleController, titleController);
 	services.set(IAgentHostProviderLocator, new AgentHostProviderLocator(session => options.getAgent(typeof session === 'string' ? session : session.toString())));
 	const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
-	const chatContributions = disposables.add(new AgentHostChatContributions(logService, instantiationService));
+	const chatContributions: IAgentHostChatContributions = disposables.add(new AgentHostChatContributions(logService, instantiationService));
 	services.set(IAgentHostChatContributions, chatContributions);
 	const telemetryReporter = new AgentHostTelemetryReporter(telemetryService);
 	services.set(IAgentHostTelemetryReporter, telemetryReporter);
 	const turnTracker = disposables.add(instantiationService.createInstance(AgentHostTurnTracker));
 	services.set(IAgentHostTurnTracker, turnTracker);
 	const localTurns = options.localTurns ?? new AgentHostLocalTurns(options.sessionDataService, logService);
-	const localCommands = disposables.add(instantiationService.createInstance(AgentHostLocalCommands, localTurns));
+	services.set(IAgentHostLocalTurns, localTurns);
+	const localCommands = disposables.add(instantiationService.createInstance(AgentHostLocalCommands));
 	services.set(IAgentHostLocalCommands, localCommands);
 	disposables.add(registerBuiltInChatContributions(chatContributions));
 	const resolvedOptions: IAgentSideEffectsOptions = {
@@ -772,6 +776,7 @@ suite('AgentSideEffects', () => {
 				'- You\'re targeting Windows.',
 				'- The active shell is pwsh.',
 				'- Prefer single-line commands. Omit explanations unless the command is complex; then be concise.',
+				'- Always put each command in its own fenced Markdown code block using triple backticks, never in plain text or inline code. Use the shell type as the code block language when known.',
 				'- Use `{placeholder_text}` for required replacement text that the user did not provide.',
 				'- Prefer idiomatic PowerShell: use `Stop-Process` or `Get-NetTCPConnection` instead of `kill` or `lsof`.',
 				'- Prefer cross-platform PowerShell and use Unix utilities only when PowerShell has no equivalent.',
@@ -865,6 +870,7 @@ suite('AgentSideEffects', () => {
 					initiatorTransportKind: 'websocket',
 					agentSessionId: 'session-1',
 					source: 'direct',
+					messageOriginKind: 'user',
 					isSubagentSession: false,
 					turnCount: 0,
 					activeClientId: 'test-client',
@@ -3115,6 +3121,7 @@ suite('AgentSideEffects', () => {
 					initiatorTransportKind: 'unknown',
 					agentSessionId: 'session-1',
 					source: 'queued',
+					messageOriginKind: 'user',
 					isSubagentSession: false,
 					turnCount: 0,
 					attachmentCount: 0,

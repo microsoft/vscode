@@ -5,9 +5,21 @@
 
 import type { IReference } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import type { ILocalTurnRecord, ISessionDatabase, ISessionDataService } from '../common/sessionDataService.js';
 import type { Turn } from '../common/state/sessionState.js';
+
+export const IAgentHostLocalTurns = createDecorator<IAgentHostLocalTurns>('agentHostLocalTurns');
+
+export interface IAgentHostLocalTurns {
+	readonly _serviceBrand: undefined;
+
+	/** Whether `turnId` is a known host-injected local turn in `chat`. */
+	isLocal(chat: string, turnId: string): boolean;
+	/** Records `turn` as a host-injected local turn anchored to `anchorTurnId`. */
+	record(session: string, chat: string, turn: Turn, anchorTurnId: string | undefined): void;
+}
 
 /**
  * Tracks host-injected ("local") turns — completed protocol turns the agent SDK
@@ -25,7 +37,8 @@ import type { Turn } from '../common/state/sessionState.js';
  * the owning session's database (one per session, shared across its chats),
  * discriminated by {@link ILocalTurnRecord.chatUri}.
  */
-export class AgentHostLocalTurns {
+export class AgentHostLocalTurns implements IAgentHostLocalTurns {
+	declare readonly _serviceBrand: undefined;
 
 	/** chat URI → (localTurnId → { anchorTurnId, seq }). */
 	private readonly _byChat = new Map<string, Map<string, { readonly anchorTurnId: string | undefined; readonly seq: number }>>();
