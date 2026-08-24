@@ -717,14 +717,22 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 	}
 
 	private getCachedServerManagedSettings(authenticationProvider: IDefaultAccountAuthenticationProvider): ManagedSettingsData | undefined {
-		const scope = this._policyData?.managedSettingsScope;
+		return this.getScopedServerManagedSettings(this._policyData ?? undefined, authenticationProvider, this._policyData?.accountId);
+	}
+
+	private getScopedServerManagedSettings(accountPolicyData: IAccountPolicyData | undefined, authenticationProvider: IDefaultAccountAuthenticationProvider, accountId: string | undefined): ManagedSettingsData | undefined {
+		if (!accountPolicyData || accountPolicyData.accountId !== accountId) {
+			return undefined;
+		}
+		const scope = accountPolicyData.managedSettingsScope;
 		const managedSettingsUrl = this.getManagedSettingsUrl();
-		if (scope && (!managedSettingsUrl
+		if (scope && (scope.accountId !== accountId
+			|| !managedSettingsUrl
 			|| scope.authenticationProviderId !== authenticationProvider.id
 			|| scope.endpointOrigin !== this.createManagedSettingsFreshnessScope(scope.accountId, authenticationProvider.id, managedSettingsUrl).endpointOrigin)) {
 			return undefined;
 		}
-		return this._policyData?.policyData.managedSettings;
+		return accountPolicyData.policyData.managedSettings;
 	}
 
 	private setCopilotTokenInfo(copilotTokenInfo: ICopilotTokenInfo | null): void {
@@ -753,11 +761,15 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 		if (!this._defaultAccount) {
 			return;
 		}
-		const delay = this._managedSettingsFreshness.state === ManagedSettingsFreshnessState.Blocked
+		this.accountDataPollScheduler.schedule(this.getAccountDataPollDelay());
+	}
+
+	private getAccountDataPollDelay(): number {
+		const retryDelay = this._managedSettingsFreshness.state === ManagedSettingsFreshnessState.Blocked
 			&& this._managedSettingsFreshness.failure === ManagedSettingsFreshnessFailure.RateLimited
 			? Math.max(0, this._managedSettingsFreshness.retryAfter - Date.now())
-			: ACCOUNT_DATA_POLL_INTERVAL_MS;
-		this.accountDataPollScheduler.schedule(delay);
+			: undefined;
+		return retryDelay !== undefined && retryDelay > 0 ? retryDelay : ACCOUNT_DATA_POLL_INTERVAL_MS;
 	}
 
 	private extractFromToken(token: string): Map<string, string> {
@@ -807,7 +819,7 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 			const sources = managedSettingsSources ?? await this.initializeManagedSettingsSources();
 			const requirement = resolveForceRemoteSettingsRefresh(
 				sources.nativeMdm,
-				accountPolicyData?.policyData.managedSettings,
+				this.getScopedServerManagedSettings(accountPolicyData, authenticationProvider, accountId),
 				sources.file
 			);
 			const managedSettingsUrl = this.getManagedSettingsUrl();
@@ -1105,7 +1117,7 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 		const sources = managedSettingsSources ?? await this.initializeManagedSettingsSources();
 		const requirement = refreshRequirement ?? resolveForceRemoteSettingsRefresh(
 			sources.nativeMdm,
-			accountPolicyData?.policyData.managedSettings,
+			this.getScopedServerManagedSettings(accountPolicyData, authenticationProvider, accountId),
 			sources.file
 		);
 		const cachedManagedSettings = accountPolicyData?.managedSettingsFetchedAt !== undefined && !this.isDataStale(accountPolicyData.managedSettingsFetchedAt)

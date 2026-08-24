@@ -163,6 +163,16 @@ suite('AccountPolicyGateContribution', () => {
 		});
 		captureState();
 		const signInNotification = notificationPromptSpy.lastCall;
+		gateService.setGateInfo({
+			state: AccountPolicyGateState.Restricted,
+			reason: AccountPolicyGateUnsatisfiedReason.ManagedSettingsRefresh,
+			managedSettingsFreshness: {
+				state: ManagedSettingsFreshnessState.Blocked,
+				source: 'server',
+				failure: ManagedSettingsFreshnessFailure.UpdateRequired,
+			},
+		});
+		const updateRequiredNotification = notificationPromptSpy.lastCall;
 		gateService.setGateInfo({ state: AccountPolicyGateState.Inactive });
 		captureState();
 
@@ -186,6 +196,10 @@ suite('AccountPolicyGateContribution', () => {
 			signInNotification: {
 				message: signInNotification.args[1],
 				actions: signInNotification.args[2].map(action => action.label),
+			},
+			updateRequiredNotification: {
+				message: updateRequiredNotification.args[1],
+				actions: updateRequiredNotification.args[2].map(action => action.label),
 			},
 		}, {
 			states: [
@@ -216,6 +230,10 @@ suite('AccountPolicyGateContribution', () => {
 			signInNotification: {
 				message: 'AI features are unavailable because Code must refresh your organization\'s managed settings. Sign in to continue.',
 				actions: ['Sign In'],
+			},
+			updateRequiredNotification: {
+				message: 'AI features are unavailable until Code is updated to support your organization\'s managed settings.',
+				actions: [],
 			},
 		});
 	});

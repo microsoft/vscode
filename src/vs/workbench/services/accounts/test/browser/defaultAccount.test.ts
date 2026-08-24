@@ -381,6 +381,29 @@ suite('DefaultAccountProvider managed settings', () => {
 		});
 	});
 
+	test('stale server scope cannot override a file-delivered refresh requirement', async () => {
+		const requestService = new TestRequestService(async () => jsonResponse({}, 503));
+		const provider = await createProvider(requestService, {}, { [COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: true });
+		const cachedPolicy = {
+			...createCachedPolicy(false),
+			managedSettingsScope: {
+				accountId,
+				authenticationProviderId: 'github-enterprise',
+				endpointOrigin: 'https://api.enterprise.example.com',
+			},
+		};
+
+		await provider['getManagedSettings'](sessions, cachedPolicy);
+
+		assert.deepStrictEqual(describeFreshness(provider.managedSettingsFreshness), {
+			state: ManagedSettingsFreshnessState.Blocked,
+			source: 'file',
+			failure: ManagedSettingsFreshnessFailure.HttpError,
+			httpStatus: 503,
+			hasLastAttempt: true,
+		});
+	});
+
 	test('rate-limited forced refresh records retry timing', async () => {
 		const requestService = new TestRequestService(async () => jsonResponse({}, 429, { 'retry-after': '60' }));
 		const provider = await createProvider(requestService, { [COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: true });
@@ -401,6 +424,18 @@ suite('DefaultAccountProvider managed settings', () => {
 			hasRetryAfter: true,
 			hasFutureRetry: true,
 		});
+	});
+
+	test('expired rate-limit deadline falls back to the normal poll interval', async () => {
+		const provider = await createProvider(new TestRequestService(async () => jsonResponse({})));
+		provider['_managedSettingsFreshness'] = {
+			state: ManagedSettingsFreshnessState.Blocked,
+			source: 'server',
+			failure: ManagedSettingsFreshnessFailure.RateLimited,
+			retryAfter: Date.now() - 1,
+		};
+
+		assert.strictEqual(provider['getAccountDataPollDelay'](), 60 * 60 * 1000);
 	});
 
 	test('malformed forced refresh response fails closed', async () => {

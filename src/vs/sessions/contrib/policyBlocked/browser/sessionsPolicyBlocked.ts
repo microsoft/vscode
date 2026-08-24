@@ -180,7 +180,11 @@ export class SessionsPolicyBlockedOverlay extends Disposable {
 			? localize('managedSettingsRefresh.noToken', "Sign in so {0} can refresh your organization's managed settings before starting an agent.", this.productService.nameShort)
 			: freshness?.failure === ManagedSettingsFreshnessFailure.RateLimited
 				? localize('managedSettingsRefresh.rateLimited', "{0} is waiting to retry your organization's managed settings service. Agents will remain unavailable until the refresh succeeds.", this.productService.nameShort)
-				: localize('managedSettingsRefresh.failed', "{0} could not refresh your organization's managed settings. Agents will remain unavailable until the refresh succeeds.", this.productService.nameShort);
+				: freshness?.failure === ManagedSettingsFreshnessFailure.NoUrl
+					? localize('managedSettingsRefresh.noUrl', "{0} cannot locate your organization's managed settings service. Contact your administrator.", this.productService.nameShort)
+					: freshness?.failure === ManagedSettingsFreshnessFailure.UpdateRequired
+						? localize('managedSettingsRefresh.updateRequired', "Update {0} to a version that supports your organization's managed settings before starting an agent.", this.productService.nameShort)
+						: localize('managedSettingsRefresh.failed', "{0} could not refresh your organization's managed settings. Agents will remain unavailable until the refresh succeeds.", this.productService.nameShort);
 		append(card, $('p', undefined, message));
 
 		if (freshness?.failure === ManagedSettingsFreshnessFailure.NoToken) {

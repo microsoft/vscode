@@ -252,7 +252,9 @@ export class AccountPolicyGateContribution extends Disposable implements IWorkbe
 				label: localize('managedSettingsRefresh.notification.signIn', "Sign In"),
 				run: () => this.commandService.executeCommand(DEFAULT_ACCOUNT_SIGN_IN_COMMAND),
 			}]
-			: freshness.failure === ManagedSettingsFreshnessFailure.RateLimited || freshness.failure === ManagedSettingsFreshnessFailure.NoUrl
+			: freshness.failure === ManagedSettingsFreshnessFailure.RateLimited
+				|| freshness.failure === ManagedSettingsFreshnessFailure.NoUrl
+				|| freshness.failure === ManagedSettingsFreshnessFailure.UpdateRequired
 				? []
 				: [{
 					label: localize('managedSettingsRefresh.notification.retry', "Retry"),
