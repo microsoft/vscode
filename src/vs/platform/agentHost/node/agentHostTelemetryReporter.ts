@@ -498,7 +498,29 @@ export interface IAgentHostToolInvokedReport extends IAgentHostTurnAttributedRep
 	resultSizeInCharacters: number;
 	model: string | undefined;
 	modelTelemetryKind: AgentHostModelTelemetryKind | undefined;
+	errorCode: string | undefined;
+	errorMessage: string | undefined;
 }
+
+export type IAgentHostToolInvokedEvent = LanguageModelToolInvokedEvent & IAgentHostInitiatorTelemetry & {
+	provider: string;
+	agentSessionId: string;
+	chatSessionId: string;
+	isSubagentSession: boolean;
+	errorCode: string | undefined;
+	msg: string | undefined;
+};
+
+export type IAgentHostToolInvokedClassification = Omit<LanguageModelToolInvokedClassification, 'provider' | 'chatSessionId' | 'owner' | 'comment'> & IAgentHostInitiatorClassification & {
+	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The Agent Host provider that invoked the tool.' };
+	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The Agent Host session identifier.' };
+	chatSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The chat identifier within the Agent Host session.' };
+	isSubagentSession: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the tool call belongs to a subagent session.' };
+	errorCode: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The tool failure code, when available.' };
+	msg: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The tool failure message, when available. VS Code telemetry scrubs file paths and likely secrets before transmission.' };
+	owner: 'roblourens';
+	comment: 'Tracks Agent Host tool invocations with Agent Host correlation and optional failure diagnostics.';
+};
 
 export interface IAgentHostAskQuestionsToolInvokedEvent extends IAgentHostInitiatorTelemetry {
 	requestId: string;
@@ -1294,6 +1316,25 @@ export class AgentHostTelemetryReporter {
 			turnId: report.turnId,
 			model: toTelemetryModel(report.model, report.modelTelemetryKind),
 		});
+		const event: IAgentHostToolInvokedEvent = {
+			...toInitiatorTelemetry(report.clientContext),
+			result: report.result,
+			agentSessionId: AgentSession.id(session),
+			chatSessionId: getTelemetryChatSessionId(report.session),
+			isSubagentSession: isSubagentChatUri(report.session) || isSubagentSession(session),
+			toolId: report.toolId,
+			toolExtensionId: undefined,
+			toolSourceKind: report.toolSourceKind,
+			toolCallId: report.toolCallId,
+			invocationTimeMs: report.invocationTimeMs,
+			provider: report.provider,
+			resultSizeInCharacters: report.resultSizeInCharacters,
+			turnId: report.turnId,
+			model: toTelemetryModel(report.model, report.modelTelemetryKind),
+			errorCode: report.errorCode,
+			msg: report.errorMessage,
+		};
+		this._telemetryService.publicLog2<IAgentHostToolInvokedEvent, IAgentHostToolInvokedClassification>('agentHost.toolInvoked', event);
 	}
 
 	askQuestionsToolInvoked(report: IAgentHostAskQuestionsToolInvokedReport): void {

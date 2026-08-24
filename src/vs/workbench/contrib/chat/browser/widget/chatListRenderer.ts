@@ -3275,7 +3275,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		const subAgentInvocationId = subagentPart.subAgentInvocationId;
-		const agentName = subagentPart.getAgentLabel();
+		const subagentTitle = subagentPart.getSubagentTitle();
 
 		const revealSubagent = (targetSubAgentId: string) => {
 			const currentTemplateData = this.getTemplateDataForRequestId(context.element.id);
@@ -3288,7 +3288,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			}
 		};
 		const revealSubagentLabel = this.environmentService.isSessionsWindow
-			? localize('openSubagentChat', "Open {0} Chat", agentName)
+			? localize('openSubagentChat', "Open {0} Chat", subagentTitle)
 			: undefined;
 
 		const navigateToCarousel = (targetSubAgentId: string) => {
@@ -3304,7 +3304,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		);
 
 		const addToolToCarousel = (tool: IChatToolInvocation) => {
-			widget.inputPart.addToolToConfirmationCarousel(tool, factory, subAgentInvocationId, agentName, revealSubagent, revealSubagentLabel);
+			widget.inputPart.addToolToConfirmationCarousel(tool, factory, subAgentInvocationId, subagentTitle, revealSubagent, revealSubagentLabel);
 			const listener = this.createUpdateWorkingProgressOnConfirmationEnd(tool, templateData);
 			if (listener) {
 				templateData.elementDisposables.add(listener);

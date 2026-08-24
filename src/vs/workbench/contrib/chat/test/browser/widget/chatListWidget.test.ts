@@ -276,6 +276,38 @@ suite('ChatListWidget', () => {
 		]);
 	});
 
+	// The bottom padding counts towards the scroll height, so `scrollToEnd` has to
+	// scroll through it or the list never reports being at the bottom - which both
+	// streaming auto-scroll and the scroll-down button depend on.
+	test('scrolls through the bottom padding to reach the end', async () => {
+		const { disposables, model, widget } = createWidget({ paddingBottom: 30 });
+		for (let i = 0; i < 10; i++) {
+			const text = `question ${i}`;
+			const request = model.addRequest({
+				text,
+				parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)]
+			}, { variables: [] }, 0);
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString(`response ${i}`) });
+		}
+
+		widget.refresh();
+		widget.layout(300, 500);
+		await waitForStableLayout(widget);
+		widget.scrollToEnd();
+		await waitForStableLayout(widget);
+
+		assert.deepStrictEqual({
+			// Guards the test from passing vacuously on a list that cannot scroll.
+			overflows: widget.scrollHeight > widget.renderHeight,
+			atBottom: widget.isScrolledToBottom,
+		}, {
+			overflows: true,
+			atBottom: true,
+		});
+
+		disposables.dispose();
+	});
+
 	test('keeps responses visible when a filter excludes their requests', async () => {
 		const { disposables, model, viewModel, widget } = createWidget({
 			filter: { filter: item => isResponseVM(item) },
