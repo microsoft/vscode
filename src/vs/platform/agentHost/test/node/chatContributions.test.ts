@@ -44,7 +44,7 @@ import { SideChatContribution } from '../../node/chatContributions/sideChat/side
 import { injectSideChatContext } from '../../node/chatContributions/sideChat/sideChatContext.js';
 import { ARTIFACT_TOOLS_INSTRUCTION } from '../../node/shared/artifactServerTools.js';
 import { AGENT_HOST_TITLE_SOURCE_USER, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
-import { IAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
+import { IAgentHostWorktreeIsolation, NullAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
 import { createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { MockAgent } from './mockAgent.js';
 import { TestAgentHostTerminalManager } from './testAgentHostTerminalManager.js';
@@ -113,14 +113,13 @@ class RecordingGitStateService implements IAgentHostGitStateService {
 	}
 }
 
-class RecordingWorktreeIsolation implements IAgentHostWorktreeIsolation {
-	declare readonly _serviceBrand: undefined;
-	readonly onDidChangeWorkingDirectoryPending = Event.None;
+class RecordingWorktreeIsolation extends NullAgentHostWorktreeIsolation {
 
-	constructor(private readonly _observed: string[] | undefined) { }
+	constructor(private readonly _observed: string[] | undefined) {
+		super();
+	}
 
-	isWorkingDirectoryPending(_sessionId: string): boolean { return false; }
-	async applyRestoreAnnouncement(_sessionUri: URI, turns: readonly Turn[]): Promise<readonly Turn[]> {
+	override async applyRestoreAnnouncement(_sessionUri: URI, turns: readonly Turn[]): Promise<readonly Turn[]> {
 		this._observed?.push('worktreeAnnouncement');
 		return turns;
 	}

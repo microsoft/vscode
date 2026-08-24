@@ -61,7 +61,7 @@ import { AgentHostCustomizationEnablementService, IAgentHostCustomizationEnablem
 import { AgentHostStorageService } from '../../node/agentHostStorageService.js';
 import { applyMcpServerEnablement } from '../../node/shared/mcpCustomizationController.js';
 import { customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
-import { IAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
+import { IAgentHostWorktreeIsolation, NullAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
 import { createNoopGitService, createNullSessionDataService, createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { MockAgent } from './mockAgent.js';
 import { TestAgentHostTerminalManager } from './testAgentHostTerminalManager.js';
@@ -130,15 +130,7 @@ class RecordingGitStateService extends NoopGitStateService {
 	}
 }
 
-class NoopWorktreeIsolation implements IAgentHostWorktreeIsolation {
-	declare readonly _serviceBrand: undefined;
-	readonly onDidChangeWorkingDirectoryPending = Event.None;
-
-	isWorkingDirectoryPending(_sessionId: string): boolean { return false; }
-	async applyRestoreAnnouncement(_sessionUri: URI, turns: readonly Turn[]): Promise<readonly Turn[]> {
-		return turns;
-	}
-}
+class NoopWorktreeIsolation extends NullAgentHostWorktreeIsolation { }
 
 function createNoopCustomizationEnablementService(): IAgentHostCustomizationEnablementService {
 	return {
@@ -433,6 +425,7 @@ suite('AgentSideEffects', () => {
 				sessionDataService,
 				stateManager,
 				new NullLogService(),
+				new NoopWorktreeIsolation(),
 			));
 			customizationEnablementService = enablementService;
 			createTestSideEffects(disposables, stateManager, {
