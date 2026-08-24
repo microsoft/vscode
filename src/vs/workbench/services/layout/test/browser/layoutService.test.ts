@@ -339,12 +339,17 @@ suite('LayoutService - getFloatingPaneCompositeVerticalMargins', () => {
 			// Full-height bar with the status bar hidden: it does reach the window bottom.
 			sideBarBottomPanelCentered: margins(Parts.SIDEBAR_PART, s => { s.visibleParts.add(Parts.PANEL_PART); s.visibleParts.delete(Parts.STATUSBAR_PART); }),
 
+			// Maximized top panel: the editor it normally faces is hidden, so the panel now owns
+			// the cluster's bottom edge and takes the perimeter gutter there.
+			topPanelMaximized: margins(Parts.PANEL_PART, s => { s.panelPosition = Position.TOP; s.visibleParts.add(Parts.PANEL_PART); s.visibleParts.delete(Parts.EDITOR_PART); s.visibleParts.delete(Parts.STATUSBAR_PART); }),
+
 			// Experiment off: the parts are not cards at all.
 			disabled: margins(Parts.SIDEBAR_PART, s => { s.floatingPanelsEnabled = false; s.visibleParts.clear(); }),
 		};
 
 		assert.deepStrictEqual(actual, {
 			topPanelStatusBarHidden: { top: inner, bottom: inner },
+			topPanelMaximized: { top: inner, bottom: outer },
 			leftPanelAtBothEdges: { top: outer, bottom: outer },
 			sideBarTopPanelCentered: { top: outer, bottom: margin },
 			sideBarTopPanelJustified: { top: margin, bottom: margin },

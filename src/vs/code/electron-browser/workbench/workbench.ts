@@ -176,6 +176,30 @@
 				bottom: Math.max(...compactPartBounds.map(bounds => bounds.top + bounds.height)),
 			} : undefined;
 
+			// Without saved `partBounds` (they are cleared whenever the resolved bar widths differ
+			// from the ones stored for the workspace) the cluster edges cannot be measured, so
+			// derive ownership from the fallback order instead: the outermost visible card on each
+			// side owns that edge, and every card spans the content region vertically.
+			const fallbackClusterOrder: readonly ('activityBar' | 'sideBar' | 'editor' | 'auxiliaryBar')[] = layoutInfo.sideBarSide === 'left'
+				? ['activityBar', 'sideBar', 'editor', 'auxiliaryBar']
+				: ['auxiliaryBar', 'editor', 'sideBar', 'activityBar'];
+			const fallbackClusterVisible = {
+				activityBar: layoutInfo.activityBarWidth > 0,
+				sideBar: layoutInfo.sideBarWidth > 0,
+				editor: true,
+				auxiliaryBar: layoutInfo.auxiliaryBarWidth > 0,
+			};
+			const fallbackLeftOwner = fallbackClusterOrder.find(part => fallbackClusterVisible[part]);
+			const fallbackRightOwner = [...fallbackClusterOrder].reverse().find(part => fallbackClusterVisible[part]);
+			const fallbackOuterEdgesFor = (part: 'activityBar' | 'sideBar' | 'editor' | 'auxiliaryBar') => ({
+				left: fallbackLeftOwner === part,
+				right: fallbackRightOwner === part,
+				top: true,
+				bottom: true,
+			});
+
+			const railBorderColor = colorInfo.modernActivityBarBorder ?? colorInfo.surfaceBorder ?? colorInfo.agentsPanelBorder ?? colorInfo.editorGroupBorder ?? 'transparent';
+
 			const applyFloatingCardStyles = (
 				element: HTMLElement,
 				backgroundColor: string | undefined,
@@ -274,14 +298,19 @@
 					}
 				}
 				if (layoutInfo.modernUICompact === true) {
-					applyFloatingCardStyles(activityDiv, modernActivityBarBackground, activityBarBounds, {
-						left: layoutInfo.sideBarSide === 'left',
-						right: layoutInfo.sideBarSide === 'right',
-						top: true,
-						bottom: true,
-					});
+					applyFloatingCardStyles(activityDiv, modernActivityBarBackground, activityBarBounds, fallbackOuterEdgesFor('activityBar'), railBorderColor);
+				} else if (modernUI) {
+					// The rail is a card here too: rounded on the window side, and square where it
+					// meets the primary side bar so the two read as one connected surface.
+					const radius = `${floatingBorderRadius}px`;
+					activityDiv.style.boxSizing = 'border-box';
+					activityDiv.style.backgroundColor = modernActivityBarBackground ?? 'transparent';
+					activityDiv.style.border = `${floatingBorderWidth}px solid ${railBorderColor}`;
+					activityDiv.style.borderRadius = layoutInfo.sideBarWidth === 0 ? radius
+						: layoutInfo.sideBarSide === 'left' ? `${radius} 0 0 ${radius}` : `0 ${radius} ${radius} 0`;
+					activityDiv.style.overflow = 'hidden';
 				} else {
-					activityDiv.style.backgroundColor = modernUI ? 'transparent' : `${colorInfo.activityBarBackground}`;
+					activityDiv.style.backgroundColor = `${colorInfo.activityBarBackground}`;
 				}
 				splash.appendChild(activityDiv);
 
@@ -326,7 +355,7 @@
 					});
 				}
 				if (modernUI) {
-					applyFloatingCardStyles(sideDiv, colorInfo.sideBarBackground, layoutInfo.partBounds?.sideBar);
+					applyFloatingCardStyles(sideDiv, colorInfo.sideBarBackground, layoutInfo.partBounds?.sideBar, fallbackOuterEdgesFor('sideBar'));
 				} else {
 					sideDiv.style.backgroundColor = `${colorInfo.sideBarBackground}`;
 				}
@@ -370,7 +399,7 @@
 					});
 				}
 				if (modernUI) {
-					applyFloatingCardStyles(auxSideDiv, colorInfo.sideBarBackground, layoutInfo.partBounds?.auxiliaryBar);
+					applyFloatingCardStyles(auxSideDiv, colorInfo.sideBarBackground, layoutInfo.partBounds?.auxiliaryBar, fallbackOuterEdgesFor('auxiliaryBar'));
 				} else {
 					auxSideDiv.style.backgroundColor = `${colorInfo.sideBarBackground}`;
 				}
@@ -407,7 +436,7 @@
 						right: editorRight
 					});
 				}
-				applyFloatingCardStyles(editorDiv, colorInfo.editorBackground, layoutInfo.partBounds?.editor, undefined, colorInfo.editorBorder ?? colorInfo.surfaceBorder ?? colorInfo.editorGroupBorder ?? 'transparent');
+				applyFloatingCardStyles(editorDiv, colorInfo.editorBackground, layoutInfo.partBounds?.editor, fallbackOuterEdgesFor('editor'), colorInfo.editorBorder ?? colorInfo.surfaceBorder ?? colorInfo.editorGroupBorder ?? 'transparent');
 				splash.appendChild(editorDiv);
 			}
 

@@ -231,6 +231,7 @@ export interface IPartsSplash {
 		activityBarBorder: string | undefined;
 		modernActivityBarBackground: string | undefined;
 		modernActivityBarInactiveBackground: string | undefined;
+		modernActivityBarBorder: string | undefined;
 		sideBarBackground: string | undefined;
 		sideBarBorder: string | undefined;
 		panelBackground: string | undefined;

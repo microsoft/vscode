@@ -84,6 +84,7 @@ export class PartsSplash {
 				activityBarBorder: theme.getColor(themes.ACTIVITY_BAR_BORDER)?.toString(),
 				modernActivityBarBackground: theme.getColor(themes.MODERN_ACTIVITY_BAR_BACKGROUND)?.toString(),
 				modernActivityBarInactiveBackground: theme.getColor(themes.MODERN_ACTIVITY_BAR_INACTIVE_BACKGROUND)?.toString(),
+				modernActivityBarBorder: theme.getColor(themes.MODERN_ACTIVITY_BAR_BORDER)?.toString(),
 				sideBarBackground: theme.getColor(themes.SIDE_BAR_BACKGROUND)?.toString(),
 				sideBarBorder: theme.getColor(themes.SIDE_BAR_BORDER)?.toString(),
 				panelBackground: theme.getColor(themes.PANEL_BACKGROUND)?.toString(),
