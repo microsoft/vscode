@@ -1,3 +1,8 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
 async page => {
 	const selectors = [
 		'.session-view.is-active .new-chat-input-area :is(.native-edit-context, textarea.inputarea)',
@@ -11,7 +16,8 @@ async page => {
 			const candidates = page.locator(selector);
 			for (let index = 0; index < await candidates.count(); index++) {
 				const candidate = candidates.nth(index);
-				if (await candidate.isVisible() && !await candidate.evaluate(element => Boolean(element.closest('.inline-chat-widget')))) {
+				const isExcluded = await candidate.evaluate(element => Boolean(element.closest('.inline-chat-widget, .automation-form-prompt-host')));
+				if (await candidate.isVisible() && !isExcluded) {
 					return { input: candidate, selector };
 				}
 			}
@@ -43,8 +49,8 @@ async page => {
 
 	let match = await findVisibleChatInput();
 	if (match) {
-		const focusChanged = await focusIfNeeded(match.input);
-		return { focused: true, focusChanged, shortcutInvoked: false, commandPaletteFallbackInvoked: false, selector: match.selector };
+		const focusInvoked = await focusIfNeeded(match.input);
+		return { focused: true, focusChanged: focusInvoked, focusInvoked, shortcutInvoked: false, commandPaletteFallbackInvoked: false, selector: match.selector };
 	}
 
 	const platform = await page.evaluate(() => navigator.userAgentData?.platform ?? navigator.platform);
@@ -73,6 +79,6 @@ async page => {
 		throw new Error(`No visible chat input found after invoking ${shortcut} and the command palette fallback`);
 	}
 
-	const focusChanged = await focusIfNeeded(match.input);
-	return { focused: true, focusChanged, shortcutInvoked: true, commandPaletteFallbackInvoked, selector: match.selector };
+	const focusInvoked = await focusIfNeeded(match.input);
+	return { focused: true, focusChanged: true, focusInvoked, shortcutInvoked: true, commandPaletteFallbackInvoked, selector: match.selector };
 }

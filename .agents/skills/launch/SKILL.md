@@ -208,10 +208,12 @@ npx @playwright/cli "-s=$pwSession" run-code "--filename=$focusChat"
 ```
 
 The script returns
-`{ focused, focusChanged, shortcutInvoked, commandPaletteFallbackInvoked, selector }`.
-`focusChanged` is `false` when the chat input was already focused. If the script
-fails, take a fresh snapshot and resolve any blocking dialog or unavailable chat
-state before retrying.
+`{ focused, focusChanged, focusInvoked, shortcutInvoked, commandPaletteFallbackInvoked, selector }`.
+`focusChanged` reports whether this script invocation moved focus into Chat,
+while `focusInvoked` reports whether the script had to call `focus()` directly.
+Both are `false` when the chat input was already focused. If the script fails,
+take a fresh snapshot and resolve any blocking dialog or unavailable chat state
+before retrying.
 
 ### Typing into Monaco (chat input, editors)
 
@@ -276,6 +278,7 @@ Because the launch skill is built around isolation, the natural workload is **ma
 LAUNCH_DIR=<dir-of-this-SKILL.md>
 FOCUS_CHAT="$LAUNCH_DIR/playwrightScripts/focus-chat-input.ts"
 PASTE="$LAUNCH_DIR/scripts/monaco-paste.sh"
+export PW_SESSION
 
 # In agent A's shell:
 PW_SESSION="agent-A-$$"
