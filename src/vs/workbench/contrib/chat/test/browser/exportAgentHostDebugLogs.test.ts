@@ -70,24 +70,28 @@ suite('toActiveAgentHostSession', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('separates the selected chat from its owning session', () => {
-		const local = toActiveAgentHostSession(URI.parse('agent-host-copilotcli:/session-1#side-chat'), 'Side chat');
-		const remote = toActiveAgentHostSession(URI.parse('remote-test-copilotcli:/session-2'), 'Main chat');
+		const local = toActiveAgentHostSession(URI.parse('agent-host-copilotcli:/session-1#side-chat'), 'Side chat', 'Session one');
+		const remote = toActiveAgentHostSession(URI.parse('remote-test-copilotcli:/session-2'), 'Main chat', 'Session two');
 
 		assert.deepStrictEqual({
-			local: local && { resource: local.resource.toString(), chatTitle: local.chatTitle, chatId: local.chatId, backendChatResource: local.backendChatResource, isLocal: local.isLocal },
-			remote: remote && { resource: remote.resource.toString(), chatTitle: remote.chatTitle, chatId: remote.chatId, backendChatResource: remote.backendChatResource, isLocal: remote.isLocal },
+			local: local && { resource: local.resource.toString(), sessionTitle: local.sessionTitle, chatTitle: local.chatTitle, chatId: local.chatId, backendChatResource: local.backendChatResource, isLocal: local.isLocal },
+			remote: remote && { resource: remote.resource.toString(), sessionTitle: remote.sessionTitle, chatTitle: remote.chatTitle, chatId: remote.chatId, backendChatResource: remote.backendChatResource, isLocal: remote.isLocal },
 		}, {
-			local: { resource: 'agent-host-copilotcli:/session-1', chatTitle: 'Side chat', chatId: 'side-chat', backendChatResource: undefined, isLocal: true },
-			remote: { resource: 'remote-test-copilotcli:/session-2', chatTitle: 'Main chat', chatId: 'default', backendChatResource: undefined, isLocal: false },
+			local: { resource: 'agent-host-copilotcli:/session-1', sessionTitle: 'Session one', chatTitle: 'Side chat', chatId: 'side-chat', backendChatResource: undefined, isLocal: true },
+			remote: { resource: 'remote-test-copilotcli:/session-2', sessionTitle: 'Session two', chatTitle: 'Main chat', chatId: 'default', backendChatResource: undefined, isLocal: false },
 		});
 	});
 
-	test('uses the active chat title for the export name', () => {
+	test('namespaces non-primary chat exports under the session title', () => {
 		assert.deepStrictEqual({
-			named: getAgentHostDebugLogsExportName('Investigate / side chat'),
-			unnamed: getAgentHostDebugLogsExportName(undefined),
+			primary: getAgentHostDebugLogsExportName('Investigate session', 'Main chat', true),
+			sideChat: getAgentHostDebugLogsExportName('Investigate session', 'Review / side chat', false),
+			truncated: getAgentHostDebugLogsExportName('A'.repeat(50), 'B'.repeat(50), false),
+			unnamed: getAgentHostDebugLogsExportName(undefined, undefined, false),
 		}, {
-			named: 'ah-logs-Investigate-side-chat',
+			primary: 'ah-logs-Investigate-session',
+			sideChat: 'ah-logs-Investigate-session--Review-side-chat',
+			truncated: `ah-logs-${'A'.repeat(40)}--${'B'.repeat(40)}`,
 			unnamed: 'ah-logs',
 		});
 	});

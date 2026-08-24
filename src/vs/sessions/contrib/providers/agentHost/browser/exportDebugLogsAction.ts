@@ -45,6 +45,7 @@ export class ExportAgentHostDebugLogsAction extends Action2 {
 		const activeSessionContext: IActiveAgentHostSessionForExport | undefined = activeSession && activeProvider
 			? {
 				resource: activeSession.resource,
+				sessionTitle: activeSession.title.get(),
 				chatTitle: activeChat?.title.get(),
 				isLocal: activeSession.resource.scheme.startsWith('agent-host-'),
 				chatId: activeChat?.resource.fragment || DEFAULT_CHAT_ID,
