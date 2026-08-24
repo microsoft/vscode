@@ -27,7 +27,7 @@ import { ActionType, type ChatTurnStartedAction, type SessionActiveClientSetActi
 import { ProtocolError, type AhpServerNotification, type JsonRpcNotification, type JsonRpcRequest, type JsonRpcResponse, type ProtocolMessage } from '../../common/state/sessionProtocol.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { mainWindow } from '../../../../base/browser/window.js';
-import { buildDefaultChatUri, CustomizationType, MessageAttachmentKind, MessageKind, PendingMessageKind, readSessionExternal, readSessionWorkspaceless, ROOT_STATE_URI, SessionStatus, StateComponents, customizationId, withSessionExternal, withSessionWorkspaceless } from '../../common/state/sessionState.js';
+import { buildChatUri, CustomizationType, MessageAttachmentKind, MessageKind, PendingMessageKind, readSessionExternal, readSessionWorkspaceless, ROOT_STATE_URI, SessionStatus, StateComponents, customizationId, withSessionExternal, withSessionWorkspaceless } from '../../common/state/sessionState.js';
 import { NonReconnectableTransportError, type IClientTransport, type IProtocolTransport } from '../../common/state/sessionTransport.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { ITelemetryService, TelemetryConfiguration, TelemetryLevel, TELEMETRY_SETTING_ID } from '../../../telemetry/common/telemetry.js';
@@ -380,9 +380,9 @@ suite('AgentHostProtocolClient', () => {
 		}
 	}
 
-	function fireConfigurationChange(configurationService: TestConfigurationService, settingId: string): void {
+	function fireConfigurationChange(configurationService: TestConfigurationService, settingId: string, source = ConfigurationTarget.USER): void {
 		configurationService.onDidChangeConfigurationEmitter.fire({
-			source: ConfigurationTarget.USER,
+			source,
 			affectedKeys: new Set([settingId]),
 			change: { keys: [settingId], overrides: [] },
 			affectsConfiguration: configuration => configuration === settingId,
@@ -616,16 +616,14 @@ suite('AgentHostProtocolClient', () => {
 		await Promise.all([completionTriggerCharacters, connectError]);
 	});
 
-	test('maps protocol-supported create session fork and progress token', async () => {
+	test('maps create session metadata and progress token', async () => {
 		const { client, transport } = createClient();
 		await connectClient(client, transport);
 		const session = URI.parse('ahp-session:/new');
-		const source = URI.parse('ahp-session:/source');
 		const creation = client.createSession({
 			provider: 'copilot',
 			session,
 			_meta: { multiRoot: { workspaceFile: 'file:///demo.code-workspace' } },
-			fork: { session: source, chat: URI.parse(buildDefaultChatUri(source)), turnIndex: 2, turnId: 'turn-2' },
 			progressToken: 'progress-token',
 		});
 
@@ -636,7 +634,6 @@ suite('AgentHostProtocolClient', () => {
 			_meta: { multiRoot: { workspaceFile: 'file:///demo.code-workspace' } },
 			provider: 'copilot',
 			workingDirectories: undefined,
-			fork: { session: source.toString(), turnId: 'turn-2' },
 			config: undefined,
 			activeClient: undefined,
 			progressToken: 'progress-token',
@@ -1150,6 +1147,19 @@ suite('AgentHostProtocolClient', () => {
 		});
 	});
 
+	test('ignores configuration changes from layers excluded by global mirroring', async () => {
+		const configurationService = new TestConfigurationService({ [SYNC_SETTING_A]: true });
+		const { client, transport } = createClient(disposables.add(new TestProtocolTransport()), createPermissionService(), undefined, new NullLogService(), configurationService);
+		await connectClient(client, transport);
+		transport.sentMessages.length = 0;
+
+		fireConfigurationChange(configurationService, SYNC_SETTING_A, ConfigurationTarget.WORKSPACE);
+		fireConfigurationChange(configurationService, SYNC_SETTING_A, ConfigurationTarget.WORKSPACE_FOLDER);
+		fireConfigurationChange(configurationService, SYNC_SETTING_A, ConfigurationTarget.MEMORY);
+
+		assert.deepStrictEqual(transport.sentMessages, []);
+	});
+
 	test('applies local and ambient configuration scopes to the target Agent Host', async () => {
 		const local = createClientForIdentity(LOCAL_AGENT_HOST_RESOURCE_IDENTITY);
 		const remoteExtensionHost = createClientForIdentity('vscode-remote://ssh-remote+host');
@@ -1372,13 +1382,14 @@ suite('AgentHostProtocolClient', () => {
 	test('collectDebugLogs maps the returned host resource', async () => {
 		const { client, transport } = createClient();
 		const session = URI.parse('copilotcli:/session-1');
-		const resultPromise = client.collectDebugLogs(session, 'archive');
+		const chat = URI.parse(buildChatUri(session, 'peer-1'));
+		const resultPromise = client.collectDebugLogs(session, 'archive', chat);
 
 		assert.deepStrictEqual(transport.sentMessages[0], {
 			jsonrpc: '2.0',
 			id: 1,
 			method: 'vscode/collectAgentHostDebugLogs',
-			params: { session: session.toString(), kind: 'archive' },
+			params: { session: session.toString(), chat: chat.toString(), kind: 'archive' },
 		});
 
 		transport.fireMessage({
@@ -1475,10 +1486,10 @@ suite('AgentHostProtocolClient', () => {
 		assert.strictEqual((await resultPromise).uncompressedSize, entrySize * 2);
 	});
 
-	test('collectDebugLogs accepts a directory containing 30 MiB of rotated logs', async () => {
+	test('collectDebugLogs accepts a directory larger than the previous 256 MiB limit', async () => {
 		const { client, transport } = createClient();
 		const resultPromise = client.collectDebugLogs(URI.parse('copilotcli:/session-1'), 'directory');
-		const entrySize = 5 * 1024 * 1024;
+		const entrySize = 50 * 1024 * 1024;
 		const entries = Array.from({ length: 6 }, (_, index) => ({
 			path: index === 0 ? 'agenthost.log' : `agenthost.${index}.log`,
 			size: entrySize,
@@ -1491,7 +1502,7 @@ suite('AgentHostProtocolClient', () => {
 			},
 		});
 
-		assert.strictEqual((await resultPromise).uncompressedSize, 30 * 1024 * 1024);
+		assert.strictEqual((await resultPromise).uncompressedSize, 300 * 1024 * 1024);
 	});
 
 	test('collectDebugLogs rejects an unsafe or inconsistent artifact manifest', async () => {
@@ -2401,7 +2412,7 @@ suite('AgentHostProtocolClient', () => {
 				type: ActionType.AnnotationsSet,
 				annotation: {
 					id: 'feedback-1',
-					turnId: 'turn-after-restart',
+					origin: { session: sessionUri.toString(), turnId: 'turn-after-restart' },
 					resource: 'file:///reviewed.ts',
 					resolved: false,
 					entries: [{ id: 'feedback-1:0', text: 'Please revisit this.' }],

@@ -38,7 +38,7 @@ import { IAddedViewDescriptorRef, ICustomViewDescriptor, IView, IViewContainerMo
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { FocusedViewContext } from '../../../common/contextkeys.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
-import { isHorizontal, IWorkbenchLayoutService, LayoutSettings, FLOATING_PANEL_MARGIN, Position } from '../../../services/layout/browser/layoutService.js';
+import { getFloatingPanelMargin, isHorizontal, IWorkbenchLayoutService, LayoutSettings, Position } from '../../../services/layout/browser/layoutService.js';
 import { IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { ViewContainerMenuActions } from './viewMenuActions.js';
@@ -637,7 +637,7 @@ export class ViewPaneContainer<MementoType extends object = object> extends Comp
 			const bottomGap = !this.layoutService.isFloatingPanelsEnabled() ? 0
 				: (this.viewDescriptorService.getViewContainerLocation(this.viewContainer) === ViewContainerLocation.Panel
 					&& this.layoutService.getPanelPosition() === Position.TOP) ? 1
-					: FLOATING_PANEL_MARGIN + 1;
+					: getFloatingPanelMargin(this.layoutService) + 1;
 			this.paneview.layout(Math.max(0, dimension.height - bottomGap), dimension.width);
 		}
 

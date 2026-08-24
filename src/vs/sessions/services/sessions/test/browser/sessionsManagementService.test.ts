@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise } from '../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { autorun, constObservable, observableValue } from '../../../../../base/common/observable.js';
@@ -22,7 +22,7 @@ import { ILogService, NullLogService } from '../../../../../platform/log/common/
 import { IProgress, IProgressService, IProgressStep } from '../../../../../platform/progress/common/progress.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
-import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../../platform/workspace/common/workspaceTrust.js';
+import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, ResourceTrustRequestOptions } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { ChatViewPaneTarget, IChatWidget, IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatRequestVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { IChatModelReference, IChatRequestSubmittedEvent, IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
@@ -720,6 +720,109 @@ suite('SessionsManagementService', () => {
 		});
 	});
 
+	test('canOpenSession grants a worktree trust from a trusted base repo before prompting', async () => {
+		const repoRoot = URI.file('/repo');
+		const worktree = URI.file('/repo.worktrees/feature');
+		const session = stubSession({
+			sessionId: 'wt-open',
+			providerId: 'test',
+			workspace: constObservable({
+				uri: repoRoot,
+				label: 'repo',
+				icon: Codicon.vm,
+				folders: [{
+					root: repoRoot,
+					workingDirectory: worktree,
+					name: 'feature',
+					description: undefined,
+					gitRepository: { uri: repoRoot, workTreeUri: worktree, baseBranchName: undefined, gitHubInfo: constObservable(undefined) },
+				}],
+				requiresWorkspaceTrust: true,
+				isVirtualWorkspace: false,
+			} satisfies ISessionWorkspace),
+		});
+
+		// The user trusts the base repo but not the worktree itself.
+		const trusted = new Set<string>([repoRoot.toString()]);
+		const setUrisTrustCalls: string[][] = [];
+		const trustManagement = new class extends TestWorkspaceTrustManagementService {
+			override async getUriTrustInfo(uri: URI) { return { uri, trusted: trusted.has(uri.toString()) }; }
+			override async setUrisTrust(uris: URI[], isTrusted: boolean) {
+				setUrisTrustCalls.push(uris.map(uri => uri.toString()));
+				if (isTrusted) { for (const uri of uris) { trusted.add(uri.toString()); } }
+			}
+		};
+		const resourcesTrustUris: string[] = [];
+		const trustRequest = new class extends mock<IWorkspaceTrustRequestService>() {
+			override async requestResourcesTrust(options: ResourceTrustRequestOptions) { resourcesTrustUris.push(options.uri.toString()); return true; }
+		};
+
+		const { view } = createSessionsManagementService(session, disposables, new TestSessionsProvider(session), trustManagement, trustRequest);
+
+		const canOpen = await view.canOpenSession(session);
+
+		// Worktree trust is inherited (granted) from the trusted base repo before the
+		// folder-trust check, so the open gate never prompts.
+		assert.deepStrictEqual({
+			canOpen,
+			granted: setUrisTrustCalls,
+			prompts: resourcesTrustUris,
+		}, {
+			canOpen: true,
+			granted: [[worktree.toString()]],
+			prompts: [],
+		});
+	});
+
+	test('canOpenSession still prompts for a worktree when the base repo is untrusted', async () => {
+		const repoRoot = URI.file('/repo-untrusted');
+		const worktree = URI.file('/repo-untrusted.worktrees/feature');
+		const session = stubSession({
+			sessionId: 'wt-open-untrusted',
+			providerId: 'test',
+			workspace: constObservable({
+				uri: repoRoot,
+				label: 'repo',
+				icon: Codicon.vm,
+				folders: [{
+					root: repoRoot,
+					workingDirectory: worktree,
+					name: 'feature',
+					description: undefined,
+					gitRepository: { uri: repoRoot, workTreeUri: worktree, baseBranchName: undefined, gitHubInfo: constObservable(undefined) },
+				}],
+				requiresWorkspaceTrust: true,
+				isVirtualWorkspace: false,
+			} satisfies ISessionWorkspace),
+		});
+
+		// Nothing is trusted: no inheritance, so the worktree must be prompted for
+		// and the declined open is refused.
+		const setUrisTrustCalls: string[][] = [];
+		const trustManagement = new class extends TestWorkspaceTrustManagementService {
+			override async getUriTrustInfo(uri: URI) { return { uri, trusted: false }; }
+			override async setUrisTrust(uris: URI[]) { setUrisTrustCalls.push(uris.map(uri => uri.toString())); }
+		};
+		const resourcesTrustUris: string[] = [];
+		const trustRequest = new class extends mock<IWorkspaceTrustRequestService>() {
+			override async requestResourcesTrust(options: ResourceTrustRequestOptions) { resourcesTrustUris.push(options.uri.toString()); return false; }
+		};
+
+		const { view } = createSessionsManagementService(session, disposables, new TestSessionsProvider(session), trustManagement, trustRequest);
+
+		const canOpen = await view.canOpenSession(session);
+
+		assert.deepStrictEqual({
+			canOpen,
+			granted: setUrisTrustCalls,
+			prompts: resourcesTrustUris,
+		}, {
+			canOpen: false,
+			granted: [],
+			prompts: [worktree.toString()],
+		});
+	});
+
 	test('cancelled openNewSession does not replace a newer draft after workspace trust resolves', async () => {
 		const staleFolder = URI.file('/stale');
 		const latestFolder = URI.file('/latest');
@@ -960,6 +1063,120 @@ suite('SessionsManagementService', () => {
 		assert.strictEqual(view.activeSession.get()?.sessionId, 's1');
 	});
 
+	test('sendNewChatRequest tracks a foreground first request until it settles', async () => {
+		const session = stubSession({
+			sessionId: 's1',
+			providerId: 'test',
+			status: constObservable(SessionStatus.Untitled),
+		});
+		const createChatBarrier = new DeferredPromise<void>();
+		const provider = new class extends TestSessionsProvider {
+			override async createNewChat(): Promise<IChat> {
+				await createChatBarrier.p;
+				return session.mainChat.get();
+			}
+		}(session);
+		const { service } = createSessionsManagementService(session, disposables, provider);
+
+		const send = service.sendNewChatRequest(session, { query: 'hi' });
+		await timeout(0);
+		const duringCreate = service.getInFlightNewSessionRequests().map(session => session.sessionId);
+		createChatBarrier.complete();
+		await send;
+
+		assert.deepStrictEqual({
+			duringCreate,
+			afterSend: service.getInFlightNewSessionRequests(),
+		}, {
+			duringCreate: ['s1'],
+			afterSend: [],
+		});
+	});
+
+	test('sendNewChatRequest keeps tracking until concurrent first requests settle', async () => {
+		const session = stubSession({
+			sessionId: 's1',
+			providerId: 'test',
+			status: constObservable(SessionStatus.Untitled),
+		});
+		const createBarriers = [new DeferredPromise<void>(), new DeferredPromise<void>()];
+		const bothCreatesStarted = new DeferredPromise<void>();
+		let createCount = 0;
+		const provider = new class extends TestSessionsProvider {
+			override async createNewChat(): Promise<IChat> {
+				const index = createCount++;
+				if (createCount === createBarriers.length) {
+					bothCreatesStarted.complete();
+				}
+				await createBarriers[index].p;
+				return session.mainChat.get();
+			}
+		}(session);
+		const { service } = createSessionsManagementService(session, disposables, provider);
+
+		const first = service.sendNewChatRequest(session, { query: 'first' });
+		const second = service.sendNewChatRequest(session, { query: 'second' });
+		await bothCreatesStarted.p;
+		const whileBothPending = service.getInFlightNewSessionRequests().map(session => session.sessionId);
+		createBarriers[0].complete();
+		await first;
+		const afterFirstSettles = service.getInFlightNewSessionRequests().map(session => session.sessionId);
+		createBarriers[1].complete();
+		await second;
+
+		assert.deepStrictEqual({
+			whileBothPending,
+			afterFirstSettles,
+			afterBothSettle: service.getInFlightNewSessionRequests(),
+		}, {
+			whileBothPending: ['s1'],
+			afterFirstSettles: ['s1'],
+			afterBothSettle: [],
+		});
+	});
+
+	test('sendNewChatRequest does not track a request in an existing session', async () => {
+		const session = stubSession({
+			sessionId: 's1',
+			providerId: 'test',
+			status: constObservable(SessionStatus.Completed),
+		});
+		const createChatBarrier = new DeferredPromise<void>();
+		const provider = new class extends TestSessionsProvider {
+			override async createNewChat(): Promise<IChat> {
+				await createChatBarrier.p;
+				return session.mainChat.get();
+			}
+		}(session);
+		const { service } = createSessionsManagementService(session, disposables, provider);
+
+		const send = service.sendNewChatRequest(session, { query: 'hi' });
+		await timeout(0);
+		const duringCreate = service.getInFlightNewSessionRequests();
+		createChatBarrier.complete();
+		await send;
+
+		assert.deepStrictEqual(duringCreate, []);
+	});
+
+	test('sendNewChatRequest clears first-request tracking when chat creation fails', async () => {
+		const session = stubSession({
+			sessionId: 's1',
+			providerId: 'test',
+			status: constObservable(SessionStatus.Untitled),
+		});
+		const provider = new class extends TestSessionsProvider {
+			override async createNewChat(): Promise<IChat> {
+				throw new Error('create failed');
+			}
+		}(session);
+		const { service } = createSessionsManagementService(session, disposables, provider);
+
+		await assert.rejects(service.sendNewChatRequest(session, { query: 'hi' }), /create failed/);
+
+		assert.deepStrictEqual(service.getInFlightNewSessionRequests(), []);
+	});
+
 	test('sendNewChatRequest with background resolves before provider send commits', async () => {
 		const chat: IChat = { ...stubChat, resource: URI.parse('test:///chat') };
 		const session = stubSession({
@@ -967,16 +1184,22 @@ suite('SessionsManagementService', () => {
 			providerId: 'test',
 			chats: constObservable([chat]),
 			mainChat: constObservable(chat),
+			status: constObservable(SessionStatus.Untitled),
 		});
 		let completeSendRequest: (() => void) | undefined;
 		let sendRequestStarted = false;
+		const sendRequestFinished = new DeferredPromise<void>();
 		const provider = new class extends TestSessionsProvider {
 			override async sendRequest(_sessionId: string, _chatResource: URI, _options: ISendRequestOptions): Promise<ISession> {
-				sendRequestStarted = true;
-				await new Promise<void>(resolve => {
-					completeSendRequest = resolve;
-				});
-				return session;
+				try {
+					sendRequestStarted = true;
+					await new Promise<void>(resolve => {
+						completeSendRequest = resolve;
+					});
+					return session;
+				} finally {
+					sendRequestFinished.complete();
+				}
 			}
 		}(session);
 		const { service } = createSessionsManagementService(session, disposables, provider);
@@ -986,9 +1209,21 @@ suite('SessionsManagementService', () => {
 		const sendPromise = service.sendNewChatRequest(session, { query: 'hi', background: true });
 		await sendPromise;
 
-		assert.strictEqual(sendRequestStarted, true);
+		const whileSending = service.getInFlightNewSessionRequests().map(session => session.sessionId);
 
 		completeSendRequest?.();
+		await sendRequestFinished.p;
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			sendRequestStarted,
+			whileSending,
+			afterSend: service.getInFlightNewSessionRequests(),
+		}, {
+			sendRequestStarted: true,
+			whileSending: ['s1'],
+			afterSend: [],
+		});
 	});
 
 	test('sendRequest with background is fire-and-forget and does not fire onWillSendRequest', async () => {
@@ -1191,15 +1426,20 @@ suite('SessionsManagementService', () => {
 		});
 		await Promise.all([requestPreparationStarted.p, configurationCompleted.p]);
 		const eventsWhilePreparingRequest = [...events];
+		const inFlightWhilePreparing = service.getInFlightNewSessionRequests().map(session => session.sessionId);
 		requestOptionsBarrier.complete();
 		await sendPromise;
 
 		assert.deepStrictEqual({
 			eventsWhilePreparingRequest,
+			inFlightWhilePreparing,
+			inFlightAfterSend: service.getInFlightNewSessionRequests(),
 			events,
 			createMetadata,
 		}, {
 			eventsWhilePreparingRequest: ['create', 'start:Fetching pull request...', 'show:s1', 'prepare', 'configure'],
+			inFlightWhilePreparing: ['s1'],
+			inFlightAfterSend: [],
 			events: ['create', 'start:Fetching pull request...', 'show:s1', 'prepare', 'configure', 'clear', 'send:prepared'],
 			createMetadata: { github: { pullRequestUrl: 'https://github.com/owner/repo/pull/42' } },
 		});

@@ -70,6 +70,8 @@ The Editor is a workbench-grid part and may be hidden independently of the Sessi
 
 The Editor and Auxiliary Bar compose one side pane next to the active session. Editor tabs choose either editor content or a details view while the layout coordinators preserve one coherent visibility model.
 
+The main Editor supports exactly one editor group. Its shared multiple-group capability is disabled, which removes editor split/grid commands, keybindings, menus, and split drop targets; the part also rejects group creation and multi-group layout requests from open-to-side and programmatic paths. The independent chat grid remains supported.
+
 The durable state and transition catalog lives in [SINGLE_PANE_SCENARIOS.md](SINGLE_PANE_SCENARIOS.md). Implementation behavior is covered by the layout-controller and single-pane strategy tests.
 
 Editors must be opened through `IEditorService`. Sessions-specific presentation must not bypass editor service behavior by opening directly on an editor group.

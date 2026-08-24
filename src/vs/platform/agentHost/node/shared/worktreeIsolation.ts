@@ -22,6 +22,7 @@ import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, toAgentSy
 import { ISchemaProperty, schemaProperty } from '../../common/agentHostSchema.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
+import { getWorktreesRoot } from '../../common/worktreePaths.js';
 import { AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, ResponsePart, ResponsePartKind, Turn } from '../../common/state/sessionState.js';
 import { AGENT_BRANCH_PREFIX, AgentBranchNameGenerator, IAgentBranchNameGenerator } from './agentBranchNameGenerator.js';
 import { ICopilotApiService } from './copilotApiService.js';
@@ -32,6 +33,7 @@ export interface IAgentHostWorktreeIsolation {
 	readonly _serviceBrand: undefined;
 	readonly onDidChangeWorkingDirectoryPending: Event<string>;
 	isWorkingDirectoryPending(sessionId: string): boolean;
+	applyRestoreAnnouncement(sessionUri: URI, turns: readonly Turn[]): Promise<readonly Turn[]>;
 }
 
 /**
@@ -79,10 +81,10 @@ interface IWorktreeMetadata {
 /**
  * The `<repo>.worktrees` sibling directory where per-session isolated
  * worktrees are created, e.g. `/src/vscode` → `/src/vscode.worktrees`.
+ * Defined in {@link ../../common/worktreePaths.js} so browser-layer trust gates
+ * can share the same implementation; re-exported here for existing importers.
  */
-export function getWorktreesRoot(repositoryRoot: URI): URI {
-	return URI.joinPath(repositoryRoot, '..', `${basename(repositoryRoot.fsPath)}.worktrees`);
-}
+export { getWorktreesRoot };
 
 /**
  * Derives the on-disk worktree directory name from a branch name: strips the

@@ -6,6 +6,7 @@ This document enumerates the user-facing scenarios, states, and transitions for 
 
 - The whole feature is gated behind the experimental setting **`sessions.layout.singlePaneDetailPanel`** (const `DOCK_DETAIL_PANEL_SETTING`), read **once at startup** — a window reload applies a change. The setting is read only by `createSessionsWorkbench` (which selects the workbench/parts); the resulting choice is published as `IAgentWorkbenchLayoutService.isSinglePaneLayoutEnabled` (read by imperative code) and the `SinglePaneLayoutEnabledContext` context key (read only by declarative `when` clauses). Features must gate on those — never read the setting or the context key directly in imperative code.
 - When the setting is **ON** (default), non-phone Agents windows use the single-pane layout described here. Phone viewports always use the classic layout. When the setting is **OFF**, all Agents windows use the classic layout and nothing else in this document applies.
+- The main Editor supports exactly one editor group. Editor split/grid commands, keybindings, menus, open-to-side requests, and split drop targets are disabled; programmatic group creation and multi-group layout requests are rejected. This restriction does not apply to the separate chat grid.
 - Companion specs: [Editor presentation](LAYOUT.md#editor-presentation), [LAYOUT_CONTROLLER.md](LAYOUT_CONTROLLER.md), and [contrib/layout/browser/desktopSessionLayoutController.md](contrib/layout/browser/desktopSessionLayoutController.md).
 
 ---
@@ -35,7 +36,7 @@ Let **E** = editor content visible, **D** = detail panel visible. The pane suppo
 | **Editor only** | ✅ | ❌ | Detail toggled off; editor content fills the pane; tab bar across the top. |
 | **Side pane closed** | ❌ | ❌ | The whole third pane is closed (chat-only). Reached via **Toggle Side Panel** or when the last editor tab closes; never via the detail toggle. **Closing the whole side pane does NOT close editors** — only a *Detail-only* collapse (editor hidden while the detail stays open) closes them; when both parts hide the editors are left intact so they return when the side pane is reopened. |
 
-Only **Existing Sessions** share a persisted Editor/Details visibility profile. A New Session does not apply or capture that profile; on entry it hides Editor once only when the restored editor set contains no input other than Empty Files. Submit seeds the Existing profile. The active editor selects the detail content: every diff editor selects Changes and every file editor selects Files.
+Only **Existing Sessions** share a persisted Editor/Details visibility profile. A New Session does not apply or capture that profile; on entry it hides Editor once only when the restored editor set contains no input other than the managed Changes and Empty Files inputs. Submit seeds the Existing profile. The active editor selects the detail content: every diff editor selects Changes and every file editor selects Files.
 
 **Size distribution when opening the side pane.** Opening the side pane from *closed* (e.g. clicking **Changes** while the chat is full-width) reveals the editor with `Sizing.Distribute`. The grid uses the revealed view's location to distribute its containing split. The Sessions part and side pane therefore receive equal space without either part computing a width. After that, side-pane sizes are **workbench-level, not per session**: the editor grid node width is owned by the workbench grid and persisted globally (`workbench.sessions.partSizes`), so once the user resizes the side pane it keeps that width — including across **session switches** (switching sessions does not change the side-pane width) and across reloads.
 
@@ -92,7 +93,7 @@ Actions **not** present in single-pane mode: **Close Editor Area** (the standard
 
 ## 4. Tabs
 
-- **Changes** — a custom `SessionChangesEditor` (Branch Changes dropdown + diff stats + embedded multi-diff). Pinned first, present for every session with a workspace.
+- **Changes** — a custom `SessionChangesEditor` (Branch Changes dropdown + diff stats + embedded multi-diff). Pinned first, present for every session with a workspace, including New Session drafts.
 - **File** — the empty File tab (`EmptyFileEditorInput`) as a landing tab, plus real file editors the user opens. Opened **pinned, inactive, preserve-focus** so it never steals focus from the chat.
 - **Browser** — the integrated browser (`BrowserEditorInput`).
 

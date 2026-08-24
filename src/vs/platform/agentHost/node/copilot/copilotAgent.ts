@@ -43,7 +43,7 @@ import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabl
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { decodeProviderData, encodeProviderData, type IPersistedChat } from '../agentChatBackings.js';
 import { prepareSideChatPrompt, sliceSideChatTurns } from '../agentPeerChats.js';
-import { AgentChatOperationContext, AgentSession, AgentSignal, AuthenticateParams, IActiveClient, IAgent, IAgentChatAdoptionResult, type IAgentAdoptedWorktree, IAgentChatConfigCompletionsParams, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentLegacyChat, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentDescriptor, IAgentDiscoveredChat, IAgentHostManagedSettingsSnapshot, IAgentHostNetworkEndpoint, IAgentKnownSessionsFilter, IAgentMaterializeChatEvent, IAgentModelInfo, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveAgentHostInstructions, resolveSubagentChatParent } from '../../common/agent.js';
+import { AgentChatOperationContext, AgentSession, AgentSignal, AuthenticateParams, IActiveClient, IAgent, IAgentChatAdoptionResult, type IAgentAdoptedWorktree, IAgentChatConfigCompletionsParams, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentLegacyChat, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentDescriptor, IAgentDiscoveredChat, IAgentHostManagedSettingsSnapshot, IAgentHostNetworkEndpoint, IAgentKnownSessionsFilter, IAgentMaterializeChatEvent, IAgentModelInfo, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveAgentHostInstructions, resolveSubagentChatParent, type IAgentTurnDiagnosticSnapshot } from '../../common/agent.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel, resolveDefaultReasoningEffort } from '../../common/reasoningEffort.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
@@ -588,6 +588,14 @@ const COPILOT_DISCOVERY_BATCH_SIZE = 250;
  */
 const CHAT_DISCOVERY_RETRY_DELAYS_MS = [250, 1_000, 5_000];
 
+/**
+ * How many times `_ensureClient` re-acquires the SDK client after a cold-start
+ * abort caused by a startup-config change. One extra attempt covers the common
+ * one-time startup settle observed in the field; the bound prevents livelock if
+ * the config keeps changing on every start.
+ */
+const MAX_STARTUP_CONFIG_RETRIES = 1;
+
 /** `origin` value written by the VS Code extension-host Copilot CLI feature. */
 const EXTENSION_HOST_CLI_MARKER_ORIGIN = 'vscode';
 
@@ -772,6 +780,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	private _client: CopilotClient | undefined;
 	private _clientStarting: Promise<CopilotClient> | undefined;
+	/**
+	 * Coalesces the whole acquire-and-self-heal sequence in `_ensureClient` so
+	 * that all concurrent callers share a single, global retry budget for
+	 * startup-config-changed aborts (rather than each caller getting its own).
+	 */
+	private _ensureClientHealing: Promise<CopilotClient> | undefined;
 	private _clientStopping: Promise<void> | undefined;
 	private _clientStartupAttemptCount = 0;
 	private _resolvedProxy: string | undefined;
@@ -1895,7 +1909,57 @@ export class CopilotAgent extends Disposable implements IAgent {
 		throw terminalError;
 	}
 
-	private async _ensureClient(): Promise<CopilotClient> {
+	/**
+	 * Acquires the SDK client, transparently self-healing a single cold-start
+	 * abort caused by a startup-config change (`CopilotClientStartupConfigChangedError`).
+	 * That abort is transient: the superseded client was built with now-stale
+	 * config and the next start uses the current config, so re-acquiring once
+	 * returns a healthy client and no caller ever sees the abort.
+	 *
+	 * The re-acquire is bounded by {@link MAX_STARTUP_CONFIG_RETRIES}. All
+	 * concurrent callers share one acquire-and-retry sequence via
+	 * `_ensureClientHealing`, so the retry budget is global rather than per
+	 * caller (a late caller cannot reset the budget and drive unbounded starts).
+	 * The per-attempt coalescing in `_ensureClientOnce` (via `_clientStarting`) is
+	 * unchanged.
+	 */
+	private _ensureClient(): Promise<CopilotClient> {
+		if (this._ensureClientHealing) {
+			return this._ensureClientHealing;
+		}
+		const healing = (async () => {
+			try {
+				for (let retries = 0; ; retries++) {
+					try {
+						return await this._ensureClientOnce();
+					} catch (error) {
+						if (retries < MAX_STARTUP_CONFIG_RETRIES
+							&& !this._shutdownPromise
+							&& error instanceof CopilotClientStartupConfigChangedError) {
+							this._logService.info('[Copilot] Startup config changed while the client was starting; re-acquiring the client with the current config');
+							continue;
+						}
+						throw error;
+					}
+				}
+			} finally {
+				// Clear the shared handle from inside the sequence so it is gone
+				// before this promise settles for any awaiting caller. Clearing it
+				// from a trailing `.finally()` on a separate chain would run one
+				// microtask too late: a caller resuming on success could re-enter
+				// `_ensureClient` (e.g. after `_stopClient()`) and be handed this
+				// fulfilled handle for an already-stopped client. Only one healing
+				// sequence is ever in flight — `_ensureClient` starts one only when
+				// the field is empty, and this is the only site that clears it — so
+				// this always owns the field here.
+				this._ensureClientHealing = undefined;
+			}
+		})();
+		this._ensureClientHealing = healing;
+		return healing;
+	}
+
+	private async _ensureClientOnce(): Promise<CopilotClient> {
 		if (this._shutdownPromise) {
 			throw new CancellationError();
 		}
@@ -2291,8 +2355,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return result;
 	}
 
-	async collectDebugLogs(session: URI | undefined, outputDirectory: URI): Promise<boolean> {
-		const sessionTarget = session ? this._findSessionChat(session) : undefined;
+	async collectDebugLogs(session: URI | undefined, outputDirectory: URI, chat?: URI): Promise<boolean> {
+		const sessionTarget = chat ? this._findChatByUri(chat) : session ? this._findSessionChat(session) : undefined;
 		if (sessionTarget) {
 			await sessionTarget.collectDebugLogs(outputDirectory, true);
 			return true;
@@ -2858,6 +2922,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 		},
 		getMessages: (chat: URI, context: URI | IAgentChatContext): Promise<readonly Turn[]> => this._getChatMessages(chat, context),
 	};
+
+	getTurnDiagnosticSnapshot(chat: URI, turnId: string): IAgentTurnDiagnosticSnapshot {
+		const session = this._findChatByUri(chat);
+		if (!session) {
+			return { state: 'missingChat' };
+		}
+		return session.getTurnDiagnosticSnapshot(turnId) ?? { state: 'missingTurn' };
+	}
 
 	/** Creates one exact chat backing: fresh, deferred, imported, forked, or side-chat. */
 	private async _createChat(chat: URI, context: IAgentChatContext, options: IAgentCreateChatOptions = {}): Promise<IAgentCreateChatResult> {
@@ -4558,6 +4630,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	// ---- helpers ------------------------------------------------------------
 
+	/**
+	 * Returns the effective Kerberos proxy SPN, treating an empty setting as absent.
+	 */
+	private _readKerberosSpn(env: Record<string, string | undefined>): string | undefined {
+		const spn = env['COPILOT_PROXY_KERBEROS_SPN'] || this._configurationService.getRootValue(agentHostProxyConfigSchema, AgentHostProxyConfigKey.ProxyKerberosServicePrincipal);
+		return spn || undefined;
+	}
+
 	private _applyProxyEnv(env: Record<string, string | undefined>): void {
 		const proxy = this._isSystemProxyEnabled() ? this._resolvedProxy : undefined;
 		this._appliedProxy = proxy;
@@ -4567,7 +4647,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 			this._logService.info('[Copilot] Resolved CAPI proxy and forwarded HTTP_PROXY/HTTPS_PROXY to Copilot SDK');
 		}
-		const kerberosSpn = env['COPILOT_PROXY_KERBEROS_SPN'] || this._configurationService.getRootValue(agentHostProxyConfigSchema, AgentHostProxyConfigKey.ProxyKerberosServicePrincipal);
+		const kerberosSpn = this._readKerberosSpn(env);
 		this._appliedProxyKerberosSpn = kerberosSpn;
 		if (kerberosSpn && !env['COPILOT_PROXY_KERBEROS_SPN']) {
 			env['COPILOT_PROXY_KERBEROS_SPN'] = kerberosSpn;
@@ -4611,7 +4691,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 			this._resolvedProxy = proxy;
 			const effectiveProxy = this._isSystemProxyEnabled() ? proxy : undefined;
-			const effectiveKerberosSpn = process.env['COPILOT_PROXY_KERBEROS_SPN'] || this._configurationService.getRootValue(agentHostProxyConfigSchema, AgentHostProxyConfigKey.ProxyKerberosServicePrincipal);
+			const effectiveKerberosSpn = this._readKerberosSpn(process.env);
 			if (effectiveProxy === this._appliedProxy && effectiveKerberosSpn === this._appliedProxyKerberosSpn) {
 				return;
 			}
@@ -4628,7 +4708,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 					return;
 				}
 			}
-			await this._requestClientRestart(`CAPI proxy configuration changed (${this._appliedProxy ?? '(none)'} -> ${effectiveProxy ?? '(none)'})`);
+			const changes: string[] = [];
+			if (effectiveProxy !== this._appliedProxy) {
+				changes.push(`proxy ${this._appliedProxy ?? '(none)'} -> ${effectiveProxy ?? '(none)'}`);
+			}
+			if (effectiveKerberosSpn !== this._appliedProxyKerberosSpn) {
+				changes.push('Kerberos SPN changed');
+			}
+			await this._requestClientRestart(`CAPI proxy configuration changed (${changes.join(', ')})`);
 		}).catch(error => this._logService.error('[Copilot] Failed to refresh CAPI proxy', error));
 		this._proxyRefresh = refresh;
 		void refresh.finally(() => {

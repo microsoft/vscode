@@ -17,7 +17,7 @@ import { IContextKeyService, RawContextKey } from '../../../../../platform/conte
 import { ITunnelProxyInfo } from '../../../../../platform/tunnel/common/tunnelProxy.js';
 import { BrowserEditorInput, BrowserEditorSerializer, IBrowserEditorInputData } from '../../common/browserEditorInput.js';
 import { IBrowserViewContextualFilter, IBrowserViewFilterContext, IBrowserViewModel, IBrowserViewOpenHandler, IBrowserViewWorkbenchCreateOptions, IBrowserViewWorkbenchService } from '../../common/browserView.js';
-import { IUntypedEditorInput } from '../../../../common/editor.js';
+import { IUntypedEditorInput, Verbosity } from '../../../../common/editor.js';
 import { applyAvailableEditorIds } from '../../../../common/contextkeys.js';
 import { IEditorResolverService, RegisteredEditorPriority } from '../../../../services/editor/common/editorResolverService.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
@@ -169,6 +169,41 @@ suite('BrowserEditorInput', () => {
 		}, {
 			name: 'index.html',
 			icon: undefined
+		});
+	});
+
+	test('formats browser URL descriptions by verbosity', () => {
+		const httpInput = createInput({
+			id: 'http-browser',
+			url: 'https://example.com/path?query=value#fragment'
+		});
+		const fileInput = createInput({
+			id: 'file-browser',
+			url: 'file:///workspace/path%20name.html?query=value#fragment'
+		});
+
+		assert.deepStrictEqual({
+			http: {
+				short: httpInput.getDescription(Verbosity.SHORT),
+				medium: httpInput.getDescription(Verbosity.MEDIUM),
+				long: httpInput.getDescription(Verbosity.LONG)
+			},
+			file: {
+				short: fileInput.getDescription(Verbosity.SHORT),
+				medium: fileInput.getDescription(Verbosity.MEDIUM),
+				long: fileInput.getDescription(Verbosity.LONG)
+			}
+		}, {
+			http: {
+				short: 'example.com',
+				medium: 'https://example.com/path',
+				long: 'https://example.com/path'
+			},
+			file: {
+				short: '/workspace/path%20name.html',
+				medium: 'file:///workspace/path%20name.html',
+				long: 'file:///workspace/path%20name.html'
+			}
 		});
 	});
 

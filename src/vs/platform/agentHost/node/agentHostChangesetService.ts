@@ -379,7 +379,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 
 	refreshChangesetCatalog(session: ProtocolURI): void {
 		const state = this._stateManager.getSessionState(session);
-		if (!state || state?.lifecycle === SessionLifecycle.CreationFailed) {
+		if (!state || state?.lifecycle === SessionLifecycle.Failed) {
 			return;
 		}
 
@@ -845,13 +845,14 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	 * diff, or an error), that repository falls back to its tracked edits so
 	 * one repo's git failure never drops the folder — mirroring the
 	 * single-folder path's edit-tracker fallback. `usedFallback` reports whether
-	 * that fallback was taken. Every git failure is logged as an error.
+	 * that fallback was taken. Missing checkpoints are expected for older turns;
+	 * actual git failures are logged as errors.
 	 */
 	private async _computeRepoTurnDiffs(session: ProtocolURI, trackedSession: ProtocolURI, sessionUri: URI, db: ISessionDatabase, turnId: string, repoRoot: URI): Promise<{ readonly diffs: readonly ISessionFileDiff[]; readonly usedFallback: boolean }> {
 		try {
 			const pair = await this._checkpointService.getTurnCheckpointPair(sessionUri, turnId, repoRoot);
 			if (!pair) {
-				this._logService.error(`[AgentHostChangesetService] No checkpoint pair for multi-folder turn ${session}/${turnId} in repository ${repoRoot.toString()}; falling back to tracked edits for that repository.`);
+				this._logService.trace(`[AgentHostChangesetService] No checkpoint pair for multi-folder turn ${session}/${turnId} in repository ${repoRoot.toString()}; falling back to tracked edits for that repository.`);
 				return { diffs: await this._computeRepoTurnDiffsFromTrackedEdits(session, trackedSession, db, turnId, repoRoot), usedFallback: true };
 			}
 			if (pair.parent === pair.current) {

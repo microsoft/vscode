@@ -59,7 +59,7 @@ suite('Sessions - External Session Banner', () => {
 			{
 				type: 'warning',
 				message: 'This session may no longer appear in Code - OSS',
-				detail: 'Only the 2 most recently updated external sessions from the last 7 days will be shown. Are you sure you want to save this change?',
+				detail: 'Only up to the 2 most recently updated external sessions from the last 7 days will be shown. Are you sure you want to save this change?',
 				primaryButton: '&&Save Anyway',
 			}
 		);

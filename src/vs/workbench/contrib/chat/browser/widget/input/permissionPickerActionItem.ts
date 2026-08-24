@@ -29,6 +29,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { maybeConfirmElevatedPermissionLevel } from '../../../common/chatPermissionWarnings.js';
 import { AgentSandboxEnabledSettingValue, AgentSandboxEnabledValue, AgentSandboxSettingId, isAgentSandboxEnabledValue } from '../../../../../../platform/sandbox/common/settings.js';
+import { getCompactCodicon } from '../../chatIcons.js';
 
 export interface IExtensionPermissionState {
 	/** Stable identifier for the contributing chat session type, used to namespace action ids. */
@@ -385,7 +386,7 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 		}
 
 		const labelElements = [];
-		labelElements.push(...renderLabelWithIcons(`$(${icon.id})`));
+		labelElements.push(...renderLabelWithIcons(`$(${getCompactCodicon(icon).id})`));
 		labelElements.push(dom.$('span.chat-input-picker-label', undefined, label));
 
 		dom.reset(element, ...labelElements);
