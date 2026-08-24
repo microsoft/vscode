@@ -330,6 +330,11 @@ async function guessEncodingByBuffer(buffer: VSBuffer, candidateGuessEncodings?:
 	// https://github.com/aadsm/jschardet/blob/v2.1.1/src/index.js#L36-L40
 	const binaryString = encodeLatin1(limitedBuffer.buffer);
 
+	// Keep the original candidate encodings for superset/explicit comparison
+	// after jschardet detection (the jschardet names may differ, e.g., gb18030
+	// is not a known jschardet encoding but maps to GB2312).
+	const originalCandidateEncodings = candidateGuessEncodings;
+
 	// ensure to convert candidate encodings to jschardet encoding names if provided
 	if (candidateGuessEncodings) {
 		candidateGuessEncodings = coalesce(candidateGuessEncodings.map(e => toJschardetEncoding(e)));
@@ -356,13 +361,13 @@ async function guessEncodingByBuffer(buffer: VSBuffer, candidateGuessEncodings?:
 
 	const detectedEncoding = toIconvLiteEncoding(guessed.encoding);
 
-	if (candidateGuessEncodings) {
+	if (originalCandidateEncodings) {
 		const normalizedDetected = normalizeEncoding(detectedEncoding);
 
 		// When jschardet detects a subset encoding, check if a candidate
 		// is its superset. If so, return the candidate to preserve the
 		// user's intent (e.g., gb18030 instead of gb2312).
-		for (const candidate of candidateGuessEncodings) {
+		for (const candidate of originalCandidateEncodings) {
 			const normalizedCandidate = normalizeEncoding(candidate);
 			if (ENCODING_SUBSET_TO_SUPERSET[normalizedDetected] === normalizedCandidate) {
 				return candidate;
@@ -371,7 +376,7 @@ async function guessEncodingByBuffer(buffer: VSBuffer, candidateGuessEncodings?:
 
 		// If the detected encoding is explicitly listed as a candidate,
 		// respect the user's choice and return it as-is.
-		const isExplicitCandidate = candidateGuessEncodings.some(c => normalizeEncoding(c) === normalizedDetected);
+		const isExplicitCandidate = originalCandidateEncodings.some(c => normalizeEncoding(c) === normalizedDetected);
 		if (isExplicitCandidate) {
 			return detectedEncoding;
 		}
@@ -750,7 +755,8 @@ export const SUPPORTED_ENCODINGS: EncodingsMap = {
 	gb18030: {
 		labelLong: 'Simplified Chinese (GB18030)',
 		labelShort: 'GB18030',
-		order: 37
+		order: 37,
+		guessableName: 'GB2312'
 	},
 	cp950: {
 		labelLong: 'Traditional Chinese (Big5)',
