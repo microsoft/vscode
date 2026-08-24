@@ -6858,6 +6858,12 @@
         ]
       },
       {
+        "path": "./assets/prompts/skills/java-modernization-routing/SKILL.md",
+        "sessionTypes": [
+          "local"
+        ]
+      },
+      {
         "path": "./assets/prompts/skills/get-search-view-results/SKILL.md",
         "sessionTypes": [
           "local"
