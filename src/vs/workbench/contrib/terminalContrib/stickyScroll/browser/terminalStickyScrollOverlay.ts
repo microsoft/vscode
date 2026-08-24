@@ -279,7 +279,6 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		const buffer = xterm.buffer.active;
 		const promptRowCount = command.getPromptRowCount();
 		const commandRowCount = command.getCommandRowCount();
-		const stickyScrollLineStart = startMarker.line - (promptRowCount - 1);
 
 		// Calculate the row offset, this is the number of rows that will be clipped from the top
 		// of the sticky overlay because we do not want to show any content above the bounds of the
@@ -288,8 +287,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		const isPartialCommand = !isFullTerminalCommand(command);
 		const rowOffset = !isPartialCommand && command.endMarker ? Math.max(buffer.viewportY - command.endMarker.line + 1, 0) : 0;
 		const maxLineCount = Math.min(this._rawMaxLineCount, Math.floor(xterm.rows * Constants.StickyScrollPercentageCap));
-		const stickyScrollLineCount = Math.min(promptRowCount + commandRowCount - 1, maxLineCount) - rowOffset;
-		const isTruncated = stickyScrollLineCount < promptRowCount + commandRowCount - 1;
+		const { lineStart: stickyScrollLineStart, lineCount: stickyScrollLineCount, isTruncated } = getStickyScrollLayout(startMarker.line, promptRowCount, commandRowCount, maxLineCount, rowOffset);
 
 		// Hide sticky scroll if it's currently on a line that contains it
 		if (buffer.viewportY <= stickyScrollLineStart) {
@@ -553,4 +551,39 @@ function lineStartsWith(line: IBufferLine | undefined, text: string): boolean {
 		}
 	}
 	return true;
+}
+
+/**
+ * Determines what part of a command's prompt and command line to show in the sticky scroll overlay.
+ *
+ * The command line is prioritized over the prompt, only including the prompt when the prompt and
+ * the command line both fit within `maxLineCount`. This matters because the rows above the command
+ * line are not necessarily prompt rows, for example output printed in between the previous command
+ * finishing and the prompt being drawn (job control notifications, background processes, etc.) is
+ * considered part of the prompt. Including those rows regardless would push the command line out of
+ * the overlay, showing only output and hiding the command the output belongs to.
+ *
+ * @param commandStartLine The buffer line the command line starts on.
+ * @param promptRowCount The number of rows the prompt spans, including the command start row.
+ * @param commandRowCount The number of rows the command line spans, including the command start row.
+ * @param maxLineCount The maximum number of rows the overlay is allowed to show.
+ * @param rowOffset The number of rows to clip from the top of the overlay.
+ */
+export function getStickyScrollLayout(
+	commandStartLine: number,
+	promptRowCount: number,
+	commandRowCount: number,
+	maxLineCount: number,
+	rowOffset: number
+): { lineStart: number; lineCount: number; isTruncated: boolean } {
+	// The prompt and the command line share the command start row
+	const promptAndCommandRowCount = promptRowCount + commandRowCount - 1;
+	const includePrompt = promptAndCommandRowCount <= maxLineCount;
+	const contentRowCount = includePrompt ? promptAndCommandRowCount : commandRowCount;
+	const lineCount = Math.min(contentRowCount, maxLineCount) - rowOffset;
+	return {
+		lineStart: includePrompt ? commandStartLine - (promptRowCount - 1) : commandStartLine,
+		lineCount,
+		isTruncated: lineCount < contentRowCount
+	};
 }
