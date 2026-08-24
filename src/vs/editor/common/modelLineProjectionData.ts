@@ -346,7 +346,7 @@ export interface ILineBreaksComputer {
 }
 
 /**
- * The fixed-widthinjected text range after all preceding injections have been applied.
+ * The fixed-width injected text range after all preceding injections have been applied.
  */
 export interface FixedWidthInjectedTextRange {
 	readonly startOffset: number;
