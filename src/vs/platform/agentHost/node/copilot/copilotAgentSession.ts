@@ -866,9 +866,12 @@ export class CopilotAgentSession extends Disposable {
 					shellLogs: includeSessionLogs,
 				},
 			});
-			const eventLogPending = includeSessionLogs && result.skippedEntries?.some(entry => entry.bundlePath === 'events.jsonl');
+			const eventLogPending = includeSessionLogs && result.skippedEntries?.some(entry => entry.bundlePath === 'events.jsonl' && entry.reason === 'not found');
 			if (!eventLogPending || attempt === DEBUG_LOG_COLLECTION_RETRY_ATTEMPTS - 1) {
 				break;
+			}
+			if (result.kind === 'directory' && result.path !== outputDirectory.fsPath) {
+				await rm(result.path, { recursive: true, force: true });
 			}
 			await timeout(DEBUG_LOG_COLLECTION_RETRY_DELAY_MS);
 		}

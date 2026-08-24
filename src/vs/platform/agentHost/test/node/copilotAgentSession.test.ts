@@ -7,6 +7,8 @@ import type Anthropic from '@anthropic-ai/sdk';
 import type { CopilotSession, CurrentToolMetadata, PermissionAllowAllMode, PermissionRequest, SessionEvent, SessionEventHandler, SessionEventPayload, SessionEventType, Tool, ToolResultObject, TypedSessionEventHandler } from '@github/copilot-sdk';
 import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
+import { existsSync, mkdirSync, mkdtempSync, rmSync } from 'fs';
+import { tmpdir } from 'os';
 import { PluginFormat } from '../../../agentPlugins/common/pluginParsers.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
@@ -1075,16 +1077,46 @@ suite('CopilotAgentSession', () => {
 
 	test('retries SDK debug collection while the event log is pending', async () => {
 		const { session, mockSession } = await createAgentSession(disposables);
+		const testRoot = mkdtempSync(join(tmpdir(), 'copilot-debug-logs-'));
+		const outputDirectory = URI.file(join(testRoot, 'output'));
+		const retryDirectory = join(testRoot, 'retry');
+		mkdirSync(retryDirectory);
+		try {
+			mockSession.collectLogsResults.push({
+				kind: 'directory',
+				path: retryDirectory,
+				entries: [],
+				skippedEntries: [{ bundlePath: 'events.jsonl', path: join(testRoot, 'events.jsonl'), reason: 'not found' }],
+			}, {
+				kind: 'directory',
+				path: outputDirectory.fsPath,
+				entries: [{ bundlePath: 'events.jsonl', source: 'events', sizeBytes: 42 }],
+			});
+
+			const included = await session.collectDebugLogs(outputDirectory, true);
+
+			assert.deepStrictEqual({
+				included,
+				callCount: mockSession.collectLogsCalls.length,
+				retryDirectoryExists: existsSync(retryDirectory),
+			}, {
+				included: true,
+				callCount: 2,
+				retryDirectoryExists: false,
+			});
+		} finally {
+			rmSync(testRoot, { recursive: true, force: true });
+		}
+	});
+
+	test('does not retry a permanently skipped SDK event log', async () => {
+		const { session, mockSession } = await createAgentSession(disposables);
 		const outputDirectory = URI.file('/tmp/agent-host-debug');
 		mockSession.collectLogsResults.push({
 			kind: 'directory',
 			path: outputDirectory.fsPath,
 			entries: [],
-			skippedEntries: [{ bundlePath: 'events.jsonl', path: '/tmp/events.jsonl', reason: 'not found' }],
-		}, {
-			kind: 'directory',
-			path: outputDirectory.fsPath,
-			entries: [{ bundlePath: 'events.jsonl', source: 'events', sizeBytes: 42 }],
+			skippedEntries: [{ bundlePath: 'events.jsonl', path: '/tmp/events.jsonl', reason: 'permission denied' }],
 		});
 
 		const included = await session.collectDebugLogs(outputDirectory, true);
@@ -1093,8 +1125,8 @@ suite('CopilotAgentSession', () => {
 			included,
 			callCount: mockSession.collectLogsCalls.length,
 		}, {
-			included: true,
-			callCount: 2,
+			included: false,
+			callCount: 1,
 		});
 	});
 
