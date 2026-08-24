@@ -354,12 +354,51 @@ async function guessEncodingByBuffer(buffer: VSBuffer, candidateGuessEncodings?:
 		return null; // see comment above why we ignore some encodings
 	}
 
-	return toIconvLiteEncoding(guessed.encoding);
+	const detectedEncoding = toIconvLiteEncoding(guessed.encoding);
+
+	if (candidateGuessEncodings) {
+		const normalizedDetected = normalizeEncoding(detectedEncoding);
+
+		// When jschardet detects a subset encoding, check if a candidate
+		// is its superset. If so, return the candidate to preserve the
+		// user's intent (e.g., gb18030 instead of gb2312).
+		for (const candidate of candidateGuessEncodings) {
+			const normalizedCandidate = normalizeEncoding(candidate);
+			if (ENCODING_SUBSET_TO_SUPERSET[normalizedDetected] === normalizedCandidate) {
+				return candidate;
+			}
+		}
+
+		// If the detected encoding is explicitly listed as a candidate,
+		// respect the user's choice and return it as-is.
+		const isExplicitCandidate = candidateGuessEncodings.some(c => normalizeEncoding(c) === normalizedDetected);
+		if (isExplicitCandidate) {
+			return detectedEncoding;
+		}
+	}
+
+	// Automatically upgrade subset encodings to their superset equivalents
+	// for safer decoding (e.g., GB2312 → GB18030).
+	const normalizedDetected = normalizeEncoding(detectedEncoding);
+	const upgraded = ENCODING_SUBSET_TO_SUPERSET[normalizedDetected];
+	if (upgraded) {
+		return upgraded;
+	}
+
+	return detectedEncoding;
 }
 
 const JSCHARDET_TO_ICONV_ENCODINGS: { [name: string]: string } = {
 	'ibm866': 'cp866',
 	'big5': 'cp950'
+};
+
+// Maps subset encodings to their superset equivalents.
+// When jschardet detects a subset encoding, upgrading to the superset
+// ensures all characters can be decoded (e.g., GB18030 is a superset of GB2312
+// and supports the full Unicode range).
+const ENCODING_SUBSET_TO_SUPERSET: { [name: string]: string } = {
+	'gb2312': 'gb18030'
 };
 
 function normalizeEncoding(encodingName: string): string {
