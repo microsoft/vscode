@@ -37,7 +37,7 @@ export const CLAUDE_SDK_DEFAULT_AGENT_NAME = 'general-purpose';
  */
 const CLAUDE_INTERNAL_SCHEME = 'claude-internal';
 
-function findDirectoryUri(childUri: URI, type: CustomizationType.Agent | CustomizationType.Skill | CustomizationType.Rule | CustomizationType.Hook, bucketBase: URI): URI {
+function findDirectoryUri(childUri: URI, type: CustomizationType.Agent | CustomizationType.Skill | CustomizationType.Rule, bucketBase: URI): URI {
 	const path = childUri.path;
 	if (path.includes('/.agents/skills/')) {
 		return URI.joinPath(bucketBase, '.agents', 'skills');
@@ -60,7 +60,7 @@ function findDirectoryUri(childUri: URI, type: CustomizationType.Agent | Customi
 	if (path.includes('/.claude/commands/')) {
 		return URI.joinPath(bucketBase, '.claude', 'commands');
 	}
-	const sub = type === CustomizationType.Agent ? 'agents' : type === CustomizationType.Skill ? 'skills' : type === CustomizationType.Rule ? 'rules' : 'hooks';
+	const sub = type === CustomizationType.Agent ? 'agents' : type === CustomizationType.Skill ? 'skills' : 'rules';
 	return URI.joinPath(bucketBase, '.claude', sub);
 }
 
@@ -170,8 +170,9 @@ export function mapDiscoveredCustomizations(
 
 	for (const d of discovered) {
 		const bucket = findCustomizationBucket(d.uri, workspaceBuckets, userBucket);
-		const dirUri = findDirectoryUri(d.uri, d.customization.type as any, bucket.base);
-		getOrCreateDir(dirUri, d.customization.type as any).children.push(d.customization);
+		const type = d.customization.type;
+		const dirUri = findDirectoryUri(d.uri, type, bucket.base);
+		getOrCreateDir(dirUri, type).children.push(d.customization);
 	}
 
 	for (const hook of hooks) {
@@ -566,6 +567,9 @@ export class ClaudeCustomizationWatcher extends Disposable {
 		const userAgents = URI.joinPath(userHome, '.agents');
 		watch(userAgents, true);
 		triggers.push(URI.joinPath(userAgents, 'skills'), URI.joinPath(userAgents, 'agents'));
+		const userGithub = URI.joinPath(userHome, '.github');
+		watch(userGithub, true);
+		triggers.push(URI.joinPath(userGithub, 'skills'), URI.joinPath(userGithub, 'agents'));
 
 		// Memory files (CLAUDE.md / CLAUDE.local.md) — reuse the scanner's
 		// canonical list so the watcher never drifts from what it actually
