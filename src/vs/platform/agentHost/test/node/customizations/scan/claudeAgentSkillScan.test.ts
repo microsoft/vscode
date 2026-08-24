@@ -107,7 +107,9 @@ suite('claudeAgentSkillScan', () => {
 	test('discovers skills and agents defined in .agents and .github directories', async () => {
 		const agentsSkill = await seed('/workspace/.agents/skills/unslop/SKILL.md', '---\nname: unslop\ndescription: Unslop Skill\n---\nbody');
 		const githubSkill = await seed('/workspace/.github/skills/gh-skill/SKILL.md', '---\nname: gh-skill\ndescription: GitHub Skill\n---\nbody');
-		const agentsAgent = await seed('/workspace/.agents/agents/reviewer.md', '---\nname: reviewer\ndescription: Reviewer Agent\n---\nbody');
+		const agentsAgent = await seed('/workspace/.agents/agents/reviewer.agent.md', '---\nname: reviewer\ndescription: Reviewer Agent\n---\nbody');
+		// Non-agent markdown files in .github/agents or .agents/agents are ignored
+		await seed('/workspace/.github/agents/README.md', '# Documentation');
 
 		const discovered = await scanClaudeDiskCustomizations(workspace, userHome, fileService);
 		const actual = discovered
@@ -119,5 +121,18 @@ suite('claudeAgentSkillScan', () => {
 			{ type: CustomizationType.Skill, uri: agentsSkill.toString(), name: 'unslop', description: 'Unslop Skill' },
 			{ type: CustomizationType.Skill, uri: githubSkill.toString(), name: 'gh-skill', description: 'GitHub Skill' },
 		].sort((a, b) => a.uri.localeCompare(b.uri)));
+	});
+
+	test('deterministic skill precedence: .claude/skills shadows same-named .agents/skills and .github/skills', async () => {
+		const claudeSkill = await seed('/workspace/.claude/skills/dup/SKILL.md', '---\nname: dup\ndescription: Claude Skill\n---\nbody');
+		await seed('/workspace/.agents/skills/dup/SKILL.md', '---\nname: dup\ndescription: Agents Skill\n---\nbody');
+		await seed('/workspace/.github/skills/dup/SKILL.md', '---\nname: dup\ndescription: GitHub Skill\n---\nbody');
+
+		const discovered = await scanClaudeDiskCustomizations(workspace, userHome, fileService);
+		const dup = discovered.filter(d => d.name === 'dup');
+
+		assert.strictEqual(dup.length, 1);
+		assert.strictEqual(dup[0].uri.toString(), claudeSkill.toString());
+		assert.strictEqual(dup[0].description, 'Claude Skill');
 	});
 });

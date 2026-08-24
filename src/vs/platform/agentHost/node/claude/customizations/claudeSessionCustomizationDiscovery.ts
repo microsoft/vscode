@@ -543,6 +543,9 @@ export class ClaudeCustomizationWatcher extends Disposable {
 		const userAgents = URI.joinPath(userHome, '.agents');
 		watch(userAgents, true);
 		triggers.push(URI.joinPath(userAgents, 'skills'), URI.joinPath(userAgents, 'agents'));
+		const userGithub = URI.joinPath(userHome, '.github');
+		watch(userGithub, true);
+		triggers.push(URI.joinPath(userGithub, 'skills'), URI.joinPath(userGithub, 'agents'));
 
 		// Memory files (CLAUDE.md / CLAUDE.local.md) — reuse the scanner's
 		// canonical list so the watcher never drifts from what it actually
