@@ -113,8 +113,8 @@
 	},
 	"folding": {
 		"markers": {
-			"start": "^\\s*%?\\s*(region|\\\\begingroup)\\b",
-			"end": "^\\s*%?\\s*(endregion|\\\\endgroup)\\b"
+			"start": "^\\s*(%\\s*region|%?\\s*\\\\begingroup)\\b",
+			"end": "^\\s*(%\\s*endregion|%?\\s*\\\\endgroup)\\b"
 		}
 	},
 	"autoCloseBefore": ";:.,={}])>\\` \n\t$",
