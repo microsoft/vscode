@@ -58,12 +58,46 @@ export function shouldInclude(uri: URI, options: GlobIncludeOptions | undefined)
 	return true;
 }
 
+/**
+ * Combines two globs into a single glob that matches whatever either of them matches.
+ * Brace groups are flattened because `{a.ts,{b.js,c.js}}` does not match `b.js` in VS Code search.
+ */
 export function combineGlob(glob1: string | vscode.RelativePattern, glob2: string | vscode.RelativePattern): string {
-	let stringGlob1 = typeof glob1 === 'string' ? glob1 : glob1.baseUri.toString() + glob1.pattern;
-	let stringGlob2 = typeof glob2 === 'string' ? glob2 : glob2.baseUri.toString() + glob2.pattern;
-	// Remove any bracket expansion from the globs
-	stringGlob1 = stringGlob1.replace(/\{.*\}/g, '');
-	stringGlob2 = stringGlob2.replace(/\{.*\}/g, '');
-	// Combine them into one bracket expanded glob pattern
-	return `{${stringGlob1},${stringGlob2}}`;
+	const alternatives = [...toGlobAlternatives(glob1), ...toGlobAlternatives(glob2)];
+	return `{${alternatives.join(',')}}`;
+}
+
+/**
+ * Splits a glob into the top level alternatives it is built from, so they can be flattened.
+ * A pattern that is not a single brace group, or cannot be split safely, is returned unchanged.
+ */
+function toGlobAlternatives(glob: string | vscode.RelativePattern): string[] {
+	const pattern = typeof glob === 'string' ? glob : glob.baseUri.toString() + glob.pattern;
+	if (!pattern.startsWith('{') || !pattern.endsWith('}')) {
+		return [pattern];
+	}
+
+	const alternatives: string[] = [];
+	let current = '';
+	let depth = 0;
+	for (const character of pattern.slice(1, -1)) {
+		if (character === ',' && depth === 0) {
+			alternatives.push(current);
+			current = '';
+			continue;
+		}
+		if (character === '{') {
+			depth++;
+		} else if (character === '}') {
+			depth--;
+			if (depth < 0) {
+				// The outer braces were not a single wrapping group after all.
+				return [pattern];
+			}
+		}
+		current += character;
+	}
+	alternatives.push(current);
+
+	return depth === 0 && alternatives.every(alternative => alternative.length > 0) ? alternatives : [pattern];
 }

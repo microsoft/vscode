@@ -62,11 +62,8 @@ export class NullIgnoreService implements IIgnoreService {
 }
 
 export async function filterIngoredResources(ignoreService: IIgnoreService, resources: URI[]): Promise<URI[]> {
-	const result: URI[] = [];
-	for (const resource of resources) {
-		if (!await ignoreService.isCopilotIgnored(resource)) {
-			result.push(resource);
-		}
-	}
-	return result;
+	// Checked concurrently because this now runs over every search result, not just the rare
+	// case where content based rules are configured.
+	const ignored = await Promise.all(resources.map(resource => ignoreService.isCopilotIgnored(resource)));
+	return resources.filter((_, index) => !ignored[index]);
 }
