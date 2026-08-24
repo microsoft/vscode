@@ -183,6 +183,7 @@ suite('Sessions - Workbench', () => {
 		panelHeight?: number;
 		panelHeightOnEditorShow?: number;
 		dockedWidth?: number;
+		customViewEditorWidth?: number;
 		hasAppliedInitialEditorSplit?: boolean;
 		/** Use the real `setEditorMaximized` instead of the no-op stub. */
 		editorMaximize?: boolean;
@@ -259,6 +260,9 @@ suite('Sessions - Workbench', () => {
 							height: sessionsSize.height,
 						});
 						sideBarNodeVisible = visible;
+					} else if (view === customViewGridPartView && visible && options.customViewEditorWidth !== undefined) {
+						const editorSize = viewSizes.get(editorPartView)!;
+						viewSizes.set(editorPartView, { width: options.customViewEditorWidth, height: editorSize.height });
 					}
 					gridVisibility.set(view, visible);
 					visibilityChanges.push(visible);
@@ -2763,6 +2767,29 @@ suite('Sessions - Workbench', () => {
 			auxiliaryBar: true,
 			panel: false,
 			focusedSessions: 1,
+		});
+	});
+
+	test('hiding the custom view restores the user-sized side pane', () => {
+		const host = createHost({
+			single: true,
+			editorWidth: 694,
+			customViewEditorWidth: 300,
+			partVisibility: { editor: true, auxiliaryBar: false, sessions: true }
+		});
+
+		applyCustomViewGridVisibility.call(host, {});
+		const widthWhileShown = host.workbenchGrid.getViewSize(host.editorPartView).width;
+		applyCustomViewGridVisibility.call(host, undefined);
+
+		assert.deepStrictEqual({
+			widthWhileShown,
+			restoredWidth: host.workbenchGrid.getViewSize(host.editorPartView).width,
+			resizes: host.resizes,
+		}, {
+			widthWhileShown: 300,
+			restoredWidth: 694,
+			resizes: [{ width: 694, height: 800 }],
 		});
 	});
 

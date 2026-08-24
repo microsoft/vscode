@@ -431,6 +431,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 	private _customViewVisibleKey!: IContextKey<boolean>;
 	/** Guards the grid updates that show/hide the custom view from feeding back into the desired part visibility. */
 	private _applyingCustomViewGridVisibility = false;
+	private _customViewCoveredPartSizes: { editor?: IViewSize; auxiliaryBar?: IViewSize } | undefined;
 	private _editorLastNonMaximizedVisibility: IPartVisibilityState | undefined;
 	private _editorLastNonMaximizedSize: IViewSize | undefined;
 	private _restoreAttachedEditorMaximizedOnShow = false;
@@ -2498,6 +2499,13 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 			this.setEditorMaximized(false);
 		}
 
+		if (visible && this.workbenchGrid) {
+			this._customViewCoveredPartSizes = {
+				editor: this._editorNodeShouldBeVisible() ? this.workbenchGrid.getViewSize(this.editorPartView) : undefined,
+				auxiliaryBar: this._effectiveVisible(Parts.AUXILIARYBAR_PART) ? this._auxiliaryBarViewSize() : undefined,
+			};
+		}
+
 		this.customViewGridPartService.setView(descriptor);
 		this.partVisibility.customViewGrid = visible;
 		this._customViewVisibleKey.set(visible);
@@ -2518,6 +2526,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 				} else {
 					this._applyExclusivePartVisibility();
 					this.workbenchGrid.setViewVisible(this.customViewGridPartView, false);
+					this._restoreCustomViewCoveredPartSizes();
 				}
 			});
 		} finally {
@@ -2548,6 +2557,18 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 			this.focusPart(Parts.CUSTOM_VIEW_GRID_PART);
 		} else {
 			this.sessionsPartService.focusSession(this.sessionsService.activeSession.get());
+		}
+	}
+
+	private _restoreCustomViewCoveredPartSizes(): void {
+		const sizes = this._customViewCoveredPartSizes;
+		this._customViewCoveredPartSizes = undefined;
+
+		if (sizes?.auxiliaryBar && this._effectiveVisible(Parts.AUXILIARYBAR_PART)) {
+			this._setAuxiliaryBarViewSize(sizes.auxiliaryBar);
+		}
+		if (sizes?.editor && this._editorNodeShouldBeVisible()) {
+			this.workbenchGrid.resizeView(this.editorPartView, sizes.editor);
 		}
 	}
 
