@@ -63,18 +63,25 @@ if [[ ! -d "$SOURCE_UDD" ]]; then
 	exit 2
 fi
 
-pick_port() {
-	node -e '
-		const net = require("net");
-		const s = net.createServer();
-		s.listen(0, "127.0.0.1", () => { const p = s.address().port; s.close(() => console.log(p)); });
-	'
-}
+PORTS=$(node <<'NODE'
+const net = require('net');
 
-CDP_PORT=$(pick_port)
-EXTHOST_PORT=$(pick_port)
-MAIN_PORT=$(pick_port)
-AGENTHOST_PORT=$(pick_port)
+const fail = error => {
+	console.error('[launch.sh] failed to allocate debug ports:', error);
+	process.exit(1);
+};
+const servers = Array.from({ length: 4 }, () => net.createServer().on('error', fail));
+(async () => {
+	await Promise.all(servers.map(server => new Promise(resolve => server.listen(0, '127.0.0.1', resolve))));
+	const ports = servers.map(server => server.address().port);
+	await Promise.all(servers.map(server => new Promise((resolve, reject) => {
+		server.close(error => error ? reject(error) : resolve());
+	})));
+	console.log(ports.join(' '));
+})().catch(fail);
+NODE
+)
+read -r CDP_PORT EXTHOST_PORT MAIN_PORT AGENTHOST_PORT <<< "$PORTS"
 
 STAMP=$(date +%Y%m%d-%H%M%S)-$$
 # mktemp fills in the X's only when they trail the template; elsewhere they stay literal.
