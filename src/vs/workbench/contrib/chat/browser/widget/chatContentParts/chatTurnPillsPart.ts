@@ -8,7 +8,7 @@ import { $ } from '../../../../../../base/browser/dom.js';
 import { IAction, toAction } from '../../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { combinedDisposable, Disposable, IDisposable } from '../../../../../../base/common/lifecycle.js';
-import { autorun, constObservable, derived, derivedOpts, IObservable } from '../../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, derivedObservableWithCache, derivedOpts, IObservable } from '../../../../../../base/common/observable.js';
 import { basename, getComparisonKey, isEqual } from '../../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../../../nls.js';
@@ -60,7 +60,16 @@ export class ChatTurnPillsContentPart extends Disposable implements IChatContent
 
 		this.domNode = $('.chat-turn-pills-part');
 
-		this._diffs = this._chatResponseFileChangesService.getChangesForRequest(_content.sessionResource, _content.requestId) ?? constObservable([]);
+		const providedDiffs = this._chatResponseFileChangesService.getChangesForRequest(_content.sessionResource, _content.requestId) ?? constObservable([]);
+		// A completed turn's changes must never disappear once rendered: the
+		// diffs are recomputed on the agent host and the observable behind them
+		// is rebuilt whenever the session reconnects, both of which surface as a
+		// transient empty list. Keep the last non-empty result so the summary
+		// stays put instead of flickering (or vanishing) after the turn ended.
+		this._diffs = derivedObservableWithCache<readonly IEditSessionEntryDiff[]>(this, (reader, lastValue) => {
+			const diffs = providedDiffs.read(reader);
+			return diffs.length > 0 ? diffs : (lastValue ?? diffs);
+		});
 
 		const stats = derivedOpts<IDiffStats>({ owner: this, equalsFn: diffStatsEqual }, reader => {
 			const diffs = this._diffs.read(reader);
