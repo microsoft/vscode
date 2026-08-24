@@ -7,3 +7,4 @@
 // across sessions when "Don't show again" is checked.
 export const AUTOPILOT_DONT_SHOW_AGAIN_KEY = 'chat.permissions.autopilot.dontShowWarningAgain';
 export const AUTO_APPROVE_DONT_SHOW_AGAIN_KEY = 'chat.permissions.autoApprove.dontShowWarningAgain';
+export const ASSISTED_APPROVAL_DONT_SHOW_AGAIN_KEY = 'chat.permissions.assisted.dontShowWarningAgain';

@@ -60,10 +60,18 @@ export class LocalAgentsSessionsController extends Disposable implements IChatSe
 	async refresh(token: CancellationToken): Promise<void> {
 		const newItems = await this.provideChatSessionItems(token);
 
+		const newResources = new ResourceSet(newItems.map(i => i.resource));
 		const addedOrUpdated: LocalChatSessionItem[] = [];
+		const removed: URI[] = [];
+
 		for (const item of newItems) {
 			if (!this._items.has(item.resource)) {
 				addedOrUpdated.push(item);
+			}
+		}
+		for (const resource of this._items.keys()) {
+			if (!newResources.has(resource)) {
+				removed.push(resource);
 			}
 		}
 
@@ -72,8 +80,11 @@ export class LocalAgentsSessionsController extends Disposable implements IChatSe
 			this._items.set(item.resource, item);
 		}
 
-		if (addedOrUpdated.length > 0) {
-			this._onDidChangeChatSessionItems.fire({ addedOrUpdated });
+		if (addedOrUpdated.length > 0 || removed.length > 0) {
+			this._onDidChangeChatSessionItems.fire({
+				...(addedOrUpdated.length > 0 ? { addedOrUpdated } : undefined),
+				...(removed.length > 0 ? { removed } : undefined),
+			});
 		}
 	}
 
@@ -121,17 +132,23 @@ export class LocalAgentsSessionsController extends Disposable implements IChatSe
 	}
 
 	private async tryUpdateLiveSessionItem(model: IChatModel): Promise<void> {
-		const existing = this._items.get(model.sessionResource);
-		if (!existing) {
+		const updated = this.toChatSessionItem(await chatModelToChatDetail(model));
+		if (!updated) {
+			// The session no longer qualifies as a list item (e.g. it has no requests
+			// yet, or its requests were removed). Drop any stale item we were showing.
+			if (this._items.has(model.sessionResource)) {
+				this._items.delete(model.sessionResource);
+				this._onDidChangeChatSessionItems.fire({ removed: [model.sessionResource] });
+			}
 			return;
 		}
 
-		const updated = new LocalChatSessionItem(await chatModelToChatDetail(model), model);
-		if (existing.isEqual(updated)) {
+		const existing = this._items.get(updated.resource);
+		if (existing?.isEqual(updated)) {
 			return;
 		}
 
-		this._items.set(existing.resource, updated);
+		this._items.set(updated.resource, updated);
 		this._onDidChangeChatSessionItems.fire({ addedOrUpdated: [updated] });
 	}
 

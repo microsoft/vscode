@@ -156,10 +156,12 @@ suite('ChatToolCalls thinking handling', () => {
 		accessor = testingServiceCollection.createTestingAccessor();
 	});
 
-	function makeEndpoint(model: string, apiType: string | undefined): MockEndpoint {
+	function makeEndpoint(model: string, apiType: string | undefined, supportsAdaptiveThinking = false): MockEndpoint {
 		const endpoint = accessor.get(IInstantiationService).createInstance(MockEndpoint, undefined);
 		(endpoint as { model: string }).model = model;
+		(endpoint as { family: string }).family = model;
 		(endpoint as { apiType?: string }).apiType = apiType;
+		(endpoint as { supportsAdaptiveThinking?: boolean }).supportsAdaptiveThinking = supportsAdaptiveThinking;
 		return endpoint;
 	}
 
@@ -201,24 +203,35 @@ suite('ChatToolCalls thinking handling', () => {
 		expect(hasThinkingPart(result)).toBe(true);
 	});
 
-	test('historical: includes thinking on messages API when modelId matches', async () => {
-		// Anthropic Messages API hashes thinking content as part of the prefix
-		// bytes; dropping it on subsequent turns invalidates every cache prefix
-		// from that assistant message forward.
-		const endpoint = makeEndpoint('claude-3.7-sonnet', 'messages');
-		const result = await render(endpoint, [makeThinkingRound('claude-3.7-sonnet')], true);
-		expect(hasThinkingPart(result)).toBe(true);
+	test('historical: includes thinking on messages API for adaptive-thinking models', async () => {
+		// Adaptive-thinking models (Opus 4.6+/Sonnet 4.6+) keep previous-turn
+		// thinking blocks by default and accept them re-sent — replaying keeps
+		// the assistant message bytes stable so the prompt-cache prefix
+		// survives the turn boundary.
+		const opus = makeEndpoint('claude-opus-4.8', 'messages', true);
+		const sonnet = makeEndpoint('claude-sonnet-4.6', 'messages', true);
+		expect(hasThinkingPart(await render(opus, [makeThinkingRound('claude-opus-4.8')], true))).toBe(true);
+		expect(hasThinkingPart(await render(sonnet, [makeThinkingRound('claude-sonnet-4.6')], true))).toBe(true);
+	});
+
+	test('historical: drops thinking on messages API for budget-mode models even when modelId matches', async () => {
+		// Budget-mode models (Haiku 4.5, Sonnet ≤4.5) strictly validate any
+		// provided previous-turn thinking blocks ("cannot be modified") and
+		// 400 on our reconstructed blocks — #318076.
+		const endpoint = makeEndpoint('claude-haiku-4-5', 'messages', false);
+		const result = await render(endpoint, [makeThinkingRound('claude-haiku-4-5')], true);
+		expect(hasThinkingPart(result)).toBe(false);
 	});
 
 	test('historical: drops thinking on messages API when modelId mismatches', async () => {
-		const endpoint = makeEndpoint('claude-3.7-sonnet', 'messages');
-		const result = await render(endpoint, [makeThinkingRound('gpt-5')], true);
+		const endpoint = makeEndpoint('claude-opus-4.8', 'messages', true);
+		const result = await render(endpoint, [makeThinkingRound('claude-haiku-4-5')], true);
 		expect(hasThinkingPart(result)).toBe(false);
 	});
 
 	test('historical: drops thinking on responses API when modelId mismatches', async () => {
 		const endpoint = makeEndpoint('gpt-5', 'responses');
-		const result = await render(endpoint, [makeThinkingRound('claude-3.7-sonnet')], true);
+		const result = await render(endpoint, [makeThinkingRound('claude-haiku-4-5')], true);
 		expect(hasThinkingPart(result)).toBe(false);
 	});
 

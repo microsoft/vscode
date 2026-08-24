@@ -68,7 +68,7 @@ export class CursorWorkspaceMcpDiscoveryAdapter extends FilesystemMcpDiscovery i
 			collection,
 			DiscoverySource.CursorWorkspace,
 			async contents => {
-				const defs = await claudeConfigToServerDefinition(collection.id, contents, folder.uri);
+				const defs = await claudeConfigToServerDefinition(collection.id, contents, { defaultCwd: folder.uri });
 				defs?.forEach(d => d.roots = [folder.uri]);
 				return defs;
 			}

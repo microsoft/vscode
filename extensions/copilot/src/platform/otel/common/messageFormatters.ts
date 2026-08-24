@@ -131,13 +131,72 @@ export function toOutputMessages(choices: ReadonlyArray<{
 }
 
 /**
- * Convert system message to OTel system instruction format.
+ * Convert system message text to OTel system instruction format.
+ * Accepts a single string or an array (one block per entry). Returns
+ * `undefined` when no non-empty text is available.
  */
-export function toSystemInstructions(systemMessage: string | undefined): OTelSystemInstruction | undefined {
-	if (!systemMessage) {
+export function toSystemInstructions(systemMessage: string | ReadonlyArray<string> | undefined): OTelSystemInstruction | undefined {
+	if (systemMessage === undefined) {
 		return undefined;
 	}
-	return [{ type: 'text', content: systemMessage }];
+	const inputs = Array.isArray(systemMessage) ? systemMessage : [systemMessage as string];
+	const blocks = inputs
+		.filter(s => typeof s === 'string' && s.length > 0)
+		.map(content => ({ type: 'text' as const, content }));
+	return blocks.length > 0 ? blocks : undefined;
+}
+
+/**
+ * Extract plain text from a message-content value (string or array of
+ * content blocks). Returns an empty string when no text can be extracted.
+ */
+export function extractTextFromContent(content: unknown): string {
+	if (typeof content === 'string') {
+		return content;
+	}
+	if (Array.isArray(content)) {
+		return content
+			.map(block => {
+				if (typeof block === 'string') { return block; }
+				if (block && typeof block === 'object') {
+					const b = block as { text?: unknown; content?: unknown };
+					if (typeof b.text === 'string') { return b.text; }
+					if (typeof b.content === 'string') { return b.content; }
+				}
+				return '';
+			})
+			.filter(s => s.length > 0)
+			.join('\n');
+	}
+	return '';
+}
+
+/**
+ * Collect system-instruction text from a provider request body. Uses
+ * messages-level `system` entries when present, otherwise falls back to
+ * top-level `system` or `instructions`.
+ */
+export function collectSystemTextsFromRequestBody(requestBody: {
+	readonly messages?: ReadonlyArray<{ role?: unknown; content?: unknown }>;
+	readonly input?: ReadonlyArray<{ role?: unknown; content?: unknown }>;
+	readonly system?: unknown;
+	readonly instructions?: unknown;
+}): string[] {
+	const systemTexts: string[] = [];
+	const capiMessages = requestBody.messages ?? requestBody.input;
+	if (capiMessages) {
+		for (const m of capiMessages) {
+			if (m.role === 'system') {
+				const t = extractTextFromContent(m.content);
+				if (t) { systemTexts.push(t); }
+			}
+		}
+	}
+	if (systemTexts.length === 0) {
+		const topLevelSystem = extractTextFromContent(requestBody.system ?? requestBody.instructions);
+		if (topLevelSystem) { systemTexts.push(topLevelSystem); }
+	}
+	return systemTexts;
 }
 
 /**
@@ -399,4 +458,74 @@ export function toToolDefinitions(tools: ReadonlyArray<{
 		});
 	}
 	return out.length > 0 ? out : undefined;
+}
+
+// Tool-definition JSON is multi-MB and reused across many telemetry/OTel sites
+// per LLM round, often byte-identical across consecutive agent-loop rounds.
+// Intern by array reference (WeakMap) plus a single-slot last-string cache so
+// content-equal serializations from distinct refs collapse to one instance.
+
+const toolDefsJsonByRef = new WeakMap<object, string>();
+const toolsRawJsonByRef = new WeakMap<object, string>();
+let lastToolDefsJson: string | undefined;
+let lastToolsRawJson: string | undefined;
+
+function internToolDefsString(s: string): string {
+	if (lastToolDefsJson !== undefined && lastToolDefsJson === s) {
+		return lastToolDefsJson;
+	}
+	lastToolDefsJson = s;
+	return s;
+}
+
+function internToolsRawString(s: string): string {
+	if (lastToolsRawJson !== undefined && lastToolsRawJson === s) {
+		return lastToolsRawJson;
+	}
+	lastToolsRawJson = s;
+	return s;
+}
+
+/**
+ * Return the OTel-normalized JSON string for a tools array, memoized so all
+ * telemetry/span sites within (and across consecutive identical rounds of) an
+ * LLM call share a single string instance. Returns `undefined` if no
+ * normalized tools would be emitted.
+ */
+export function stringifyToolDefinitionsForOTel(tools: Parameters<typeof toToolDefinitions>[0]): string | undefined {
+	if (!tools || tools.length === 0) {
+		return undefined;
+	}
+	const cached = toolDefsJsonByRef.get(tools);
+	if (cached !== undefined) {
+		return cached;
+	}
+	const defs = toToolDefinitions(tools);
+	if (!defs) {
+		return undefined;
+	}
+	const s = internToolDefsString(JSON.stringify(defs));
+	toolDefsJsonByRef.set(tools, s);
+	return s;
+}
+
+/**
+ * Return `JSON.stringify(tools)` memoized by array reference, with a
+ * single-slot content intern so consecutive rounds producing identical content
+ * share one string instance. Used for telemetry sinks that consume the raw
+ * tools shape rather than the OTel-normalized one. Mirrors `JSON.stringify`
+ * exactly: returns `'[]'` for an empty array and `undefined` only when
+ * `tools` itself is `undefined`.
+ */
+export function stringifyToolsRawForTelemetry(tools: ReadonlyArray<unknown> | undefined): string | undefined {
+	if (!tools) {
+		return undefined;
+	}
+	const cached = toolsRawJsonByRef.get(tools);
+	if (cached !== undefined) {
+		return cached;
+	}
+	const s = internToolsRawString(JSON.stringify(tools));
+	toolsRawJsonByRef.set(tools, s);
+	return s;
 }

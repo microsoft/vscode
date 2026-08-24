@@ -8,7 +8,22 @@ import * as undici from 'undici';
 import { Lazy } from '../../../util/vs/base/common/lazy';
 import { IEnvService } from '../../env/common/envService';
 import { HeadersImpl, IHeaders, ReportFetchEvent, WebSocketConnection, WebSocketConnectOptions } from '../common/fetcherService';
-import { BaseFetchFetcher } from './baseFetchFetcher';
+import { BaseFetchFetcher, FetchImpl } from './baseFetchFetcher';
+import { taggedCacheInterceptor } from './taggedCacheInterceptor';
+
+type CacheInterceptorOptions = NonNullable<Parameters<typeof undici.interceptors.cache>[0]>;
+type CacheStore = NonNullable<CacheInterceptorOptions['store']>;
+
+type FetchPatchFactory = (options?: {
+	interceptors?: readonly undici.Dispatcher.DispatcherComposeInterceptor[];
+}) => typeof globalThis.fetch;
+
+export type NodeFetchCacheMode = 'off' | 'memory' | 'persistent';
+
+export interface NodeFetchCacheOptions {
+	readonly mode: NodeFetchCacheMode;
+	readonly storeLocation?: string;
+}
 
 export class NodeFetchFetcher extends BaseFetchFetcher {
 
@@ -18,8 +33,14 @@ export class NodeFetchFetcher extends BaseFetchFetcher {
 		envService: IEnvService,
 		reportEvent: ReportFetchEvent = () => { },
 		userAgentLibraryUpdate?: (original: string) => string,
+		cacheOptions: NodeFetchCacheOptions = { mode: 'memory' },
 	) {
-		super(getFetch(), envService, NodeFetchFetcher.ID, reportEvent, userAgentLibraryUpdate);
+		// Caching requires the host-provided fetch-patch factory so cached requests
+		// still go through the proxy/CA-injection patch. On older hosts that lack
+		// the factory, caching is silently disabled.
+		const factory = (globalThis as any).__vscodeCreateFetchPatch as FetchPatchFactory | undefined;
+		const interceptor = cacheOptions.mode !== 'off' && factory ? createCacheInterceptor(cacheOptions) : undefined;
+		super(getFetch(interceptor, factory), envService, NodeFetchFetcher.ID, reportEvent, userAgentLibraryUpdate);
 	}
 
 	getUserAgentLibrary(): string {
@@ -35,10 +56,44 @@ export class NodeFetchFetcher extends BaseFetchFetcher {
 	}
 }
 
-function getFetch(): typeof globalThis.fetch {
-	const fetch = (globalThis as any).__vscodePatchedFetch || globalThis.fetch;
-	return function (input: string | URL | globalThis.Request, init?: RequestInit) {
-		return fetch(input, { dispatcher: agent.value, ...init });
+function createCacheInterceptor(options: NodeFetchCacheOptions): undici.Dispatcher.DispatcherComposeInterceptor | undefined {
+	const store = createCacheStore(options);
+	if (!store) {
+		return undefined;
+	}
+	return taggedCacheInterceptor({ store, type: 'private' });
+}
+
+function createCacheStore(options: NodeFetchCacheOptions): CacheStore | undefined {
+	if (options.mode === 'persistent') {
+		const SqliteCacheStore = (undici as unknown as { cacheStores?: { SqliteCacheStore?: new (init?: object) => CacheStore } }).cacheStores?.SqliteCacheStore;
+		if (SqliteCacheStore && options.storeLocation) {
+			try {
+				return new SqliteCacheStore({
+					location: options.storeLocation,
+					maxCount: 5000,
+					maxEntrySize: 5 * 1024 * 1024,
+				});
+			} catch {
+			}
+		}
+	}
+	const MemoryCacheStore = (undici as unknown as { cacheStores?: { MemoryCacheStore?: new (init?: object) => CacheStore } }).cacheStores?.MemoryCacheStore;
+	if (!MemoryCacheStore) {
+		return undefined;
+	}
+	return new MemoryCacheStore({ maxCount: 1000, maxEntrySize: 5 * 1024 * 1024 });
+}
+
+function getFetch(cacheInterceptor: undici.Dispatcher.DispatcherComposeInterceptor | undefined, createFetchPatch: FetchPatchFactory | undefined): FetchImpl {
+	const defaultFetch = (globalThis as any).__vscodePatchedFetch || globalThis.fetch;
+	const cachedFetch = cacheInterceptor && createFetchPatch ? createFetchPatch({ interceptors: [cacheInterceptor] }) : undefined;
+	return function (input, init, useCache) {
+		if (useCache && cachedFetch) {
+			return cachedFetch(input, init);
+		}
+		const dispatcher = (init as { dispatcher?: undici.Dispatcher } | undefined)?.dispatcher ?? agent.value;
+		return defaultFetch(input, { ...init, dispatcher });
 	};
 }
 

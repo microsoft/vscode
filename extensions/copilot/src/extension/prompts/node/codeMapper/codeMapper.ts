@@ -635,7 +635,7 @@ export class CodeMapper {
 			messageText: useGPT4oProxy ? JSON.stringify(builtPrompt.messages) : builtPrompt.prompt,
 			completionTextJson: result.allResponseText.join(''),
 		};
-		this.telemetryService.sendEnhancedGHTelemetryEvent('fastApply/successfulEdit', multiplexProperties(payload));
+		void multiplexProperties(payload).then(properties => this.telemetryService.sendEnhancedGHTelemetryEvent('fastApply/successfulEdit', properties)).catch(() => { /* best-effort telemetry */ });
 		this.telemetryService.sendInternalMSFTTelemetryEvent('fastApply/successfulEdit', payload);
 	}
 

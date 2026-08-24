@@ -309,6 +309,7 @@
 				"VSCODE_EXTHOST_WILL_SEND_SOCKET": null,
 				"VSCODE_SKIP_PRELAUNCH": "1",
 				"VSCODE_DEV_DEBUG_OBSERVABLES": "1",
+				// "VSCODE_DEV_DISABLE_DISPOSABLE_TRACKING": "1",
 			},
 			"cleanUp": "wholeBrowser",
 			"killBehavior": "polite",

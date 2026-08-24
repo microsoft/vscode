@@ -281,8 +281,8 @@ export class AskQuestionsTool extends Disposable implements IToolImpl {
 		}
 
 		for (const question of questions) {
-			if (question.options && question.options.length === 1) {
-				throw new Error(localize('askQuestionsTool.invalidOptions', 'Question "{0}" must have at least two options, or none for free text input.', question.header));
+			if (question.options && question.options.length === 1 && !question.allowFreeformInput) {
+				throw new Error(localize('askQuestionsTool.invalidOptions', 'Question "{0}" must have at least two options, or set allowFreeformInput when providing a single option, or omit options for free text input.', question.header));
 			}
 		}
 

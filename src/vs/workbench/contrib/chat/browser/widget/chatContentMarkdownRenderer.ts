@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $ } from '../../../../../base/browser/dom.js';
+import { $, reset } from '../../../../../base/browser/dom.js';
 import { IRenderedMarkdown, MarkdownRenderOptions } from '../../../../../base/browser/markdownRenderer.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { type MarkedExtension } from '../../../../../base/common/marked/marked.js';
 import { IMarkdownRenderer, IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -16,8 +17,42 @@ import { IOpenerService } from '../../../../../platform/opener/common/opener.js'
 import product from '../../../../../platform/product/common/product.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { AGENT_HOST_SCHEME } from '../../../../../platform/agentHost/common/agentHostUri.js';
+import { AGENT_HOST_SESSION_LINK_SCHEME } from '../../../../../platform/agentHost/common/openSessionLink.js';
 
 const _remoteImageDisallowed = () => false;
+
+const nonPlainTextMarkdownSyntax = /[\\`*_[\]<>|&$]/;
+const gfmAutolink = /\b(?:https?:\/\/|www\.)/i;
+const gfmStrikethrough = /~~/;
+const blockMarkdownSyntax = /(^|\n)\s{0,3}(?:#{1,6}\s|>\s?|[-+]\s|\d+[.)]\s|---+\s*$)/;
+
+const literalSingleTildeExtension: MarkedExtension = {
+	extensions: [{
+		name: 'literalSingleTilde',
+		level: 'inline',
+		tokenizer: source => {
+			if (source[0] === '~' && source[1] !== '~') {
+				return { type: 'text', raw: '~', text: '~' };
+			}
+			return undefined;
+		},
+	}]
+};
+
+function renderPlainTextMarkdown(markdown: IMarkdownString, outElement?: HTMLElement): IRenderedMarkdown | undefined {
+	const value = markdown.value;
+	if (!value || value.includes('\n') || nonPlainTextMarkdownSyntax.test(value) || gfmAutolink.test(value) || gfmStrikethrough.test(value) || blockMarkdownSyntax.test(value)) {
+		return undefined;
+	}
+
+	const element = outElement ?? $('div');
+	element.classList.add('rendered-markdown');
+	reset(element, $('p', undefined, value.length > 100_000 ? `${value.substr(0, 100_000)}…` : value));
+	return {
+		element,
+		dispose: () => { }
+	};
+}
 
 export const allowedChatMarkdownHtmlTags = Object.freeze([
 	'b',
@@ -64,13 +99,16 @@ export const allowedChatMarkdownHtmlTags = Object.freeze([
 export function getChatMarkdownRenderOptions(options?: MarkdownRenderOptions): MarkdownRenderOptions {
 	return {
 		...options,
+		markedExtensions: options?.markedExtensions?.includes(literalSingleTildeExtension)
+			? options.markedExtensions
+			: [...(options?.markedExtensions ?? []), literalSingleTildeExtension],
 		sanitizerConfig: {
 			replaceWithPlaintext: true,
 			allowedTags: {
 				override: allowedChatMarkdownHtmlTags,
 			},
 			...options?.sanitizerConfig,
-			allowedLinkSchemes: { augment: [product.urlProtocol, 'copilot-skill', Schemas.vscodeBrowser, AGENT_HOST_SCHEME] },
+			allowedLinkSchemes: { augment: [product.urlProtocol, 'copilot-skill', Schemas.vscodeBrowser, AGENT_HOST_SCHEME, AGENT_HOST_SESSION_LINK_SCHEME] },
 			remoteImageIsAllowed: _remoteImageDisallowed,
 		}
 	};
@@ -89,6 +127,11 @@ export class ChatContentMarkdownRenderer implements IMarkdownRenderer {
 	) { }
 
 	render(markdown: IMarkdownString, options?: MarkdownRenderOptions, outElement?: HTMLElement): IRenderedMarkdown {
+		const plainTextResult = renderPlainTextMarkdown(markdown, outElement);
+		if (plainTextResult) {
+			return plainTextResult;
+		}
+
 		options = getChatMarkdownRenderOptions(options);
 
 		const mdWithBody: IMarkdownString = (markdown && markdown.supportHtml) ?

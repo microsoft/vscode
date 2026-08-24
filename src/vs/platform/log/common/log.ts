@@ -177,7 +177,7 @@ export function registerDevConsoleLogForwarder(logService: ILogService): IDispos
 	});
 }
 
-function format(args: any, verbose: boolean = false): string {
+export function format(args: any, verbose: boolean = false): string {
 	let result = '';
 
 	for (let i = 0; i < args.length; i++) {

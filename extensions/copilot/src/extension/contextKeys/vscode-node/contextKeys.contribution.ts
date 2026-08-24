@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import { commands, extensions, window } from 'vscode';
 import { IAuthenticationService, MinimalModeError } from '../../../platform/authentication/common/authentication';
+import { TokenErrorReason } from '../../../platform/authentication/common/copilotToken';
 import { ContactSupportError, EnterpriseManagedError, GitHubLoginFailedError, InvalidTokenError, NotSignedUpError, RateLimitedError, SubscriptionExpiredError } from '../../../platform/authentication/vscode-node/copilotTokenManager';
 import { SESSION_LOGIN_MESSAGE } from '../../../platform/authentication/vscode-node/session';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
@@ -69,6 +70,7 @@ export class ContextKeysContribution extends Disposable {
 		void this._updatePermissiveSessionContext().catch(console.error);
 		void this._updateClientByokEnabledContext().catch(console.error);
 		this._register(_authenticationService.onDidAuthenticationChange(async () => await this._onAuthenticationChange()));
+		this._register(_authenticationService.onDidCopilotTokenChange(() => this._onCopilotTokenChange()));
 		this._register(commands.registerCommand('github.copilot.refreshToken', async () => await this._inspectContext()));
 		this._register(commands.registerCommand('github.copilot.debug.showChatLogView', async () => {
 			this._showLogView = true;
@@ -141,11 +143,12 @@ export class ContextKeysContribution extends Disposable {
 			const reason = e.message || e;
 			const data = TelemetryData.createAndMarkAsIssued({ reason });
 			this._telemetryService.sendGHTelemetryErrorEvent('activationFailed', data.properties, data.measurements);
-			const message =
-				reason === 'GitHubLoginFailed'
-					? SESSION_LOGIN_MESSAGE
-					: `GitHub Copilot could not connect to server. Extension activation failed: "${reason}"`;
-			this._logService.error(message);
+			if (reason === ('GitHubLoginFailed' satisfies TokenErrorReason)) {
+				// Expected in BYOK / air-gapped flows where the user is not signed in to GitHub.
+				this._logService.debug(SESSION_LOGIN_MESSAGE);
+			} else {
+				this._logService.error(`GitHub Copilot could not connect to server. Extension activation failed: "${reason}"`);
+			}
 		}
 
 		if (error instanceof NotSignedUpError) {
@@ -252,12 +255,19 @@ export class ContextKeysContribution extends Disposable {
 
 	private async _onAuthenticationChange() {
 		this._inspectContext();
+		this._updatePermissiveSessionContext();
+	}
+
+	/**
+	 * Called when the Copilot token refreshes (~every 20 minutes).
+	 * Only updates context keys derived from the token value itself.
+	 */
+	private _onCopilotTokenChange() {
 		this._updateQuotaExceededContext();
 		this._updatePreviewFeaturesDisabledContext();
 		this._updateBlackbirdExternalIndexingDisabledContext();
 		this._updateClientByokEnabledContext();
 		this._updateShowLogViewContext();
-		this._updatePermissiveSessionContext();
 	}
 
 	private async _updatePermissiveSessionContext() {

@@ -7,7 +7,6 @@ import * as DOM from '../../../../../base/browser/dom.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../nls.js';
 import { AgentPluginItemKind, IAgentPluginItem } from '../agentPluginEditor/agentPluginItems.js';
-import { extensionIcon, pluginIcon } from './aiCustomizationIcons.js';
 
 const $ = DOM.$;
 
@@ -21,7 +20,8 @@ const $ = DOM.$;
 export class EmbeddedAgentPluginDetail extends Disposable {
 
 	private readonly root: HTMLElement;
-	private readonly iconEl: HTMLElement;
+	private readonly headerEl: HTMLElement;
+	private readonly leadingSlotEl: HTMLElement;
 	private readonly nameEl: HTMLElement;
 	private readonly sourceEl: HTMLElement;
 	private readonly descriptionEl: HTMLElement;
@@ -36,9 +36,11 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 
 		this.root = DOM.append(parent, $('.ai-customization-embedded-detail.embedded-plugin-detail'));
 
-		const header = DOM.append(this.root, $('.embedded-detail-header'));
-		this.iconEl = DOM.append(header, $('.embedded-detail-icon'));
-		const headerText = DOM.append(header, $('.embedded-detail-header-text'));
+		this.headerEl = DOM.append(this.root, $('.embedded-detail-header'));
+		// Slot at the start of the header for callers to append leading chrome
+		// (e.g. a back button) without reaching into private DOM structure.
+		this.leadingSlotEl = DOM.append(this.headerEl, $('.embedded-detail-leading-slot'));
+		const headerText = DOM.append(this.headerEl, $('.embedded-detail-header-text'));
 		this.nameEl = DOM.append(headerText, $('h2.embedded-detail-name'));
 		this.nameEl.setAttribute('role', 'heading');
 		this.sourceEl = DOM.append(headerText, $('.embedded-detail-scope'));
@@ -53,6 +55,18 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 
 	get element(): HTMLElement {
 		return this.root;
+	}
+
+	get headerElement(): HTMLElement {
+		return this.headerEl;
+	}
+
+	/**
+	 * Header slot reserved for leading chrome (e.g. a back button).
+	 * Prefer this over reaching into the header element directly.
+	 */
+	get leadingSlot(): HTMLElement {
+		return this.leadingSlotEl;
 	}
 
 	setInput(item: IAgentPluginItem): void {
@@ -74,15 +88,12 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 			this.nameEl.textContent = '';
 			this.sourceEl.textContent = '';
 			this.descriptionEl.textContent = '';
-			this.iconEl.className = 'embedded-detail-icon';
 			return;
 		}
 
 		this.nameEl.textContent = item.name;
 
 		const isMarketplace = item.kind === AgentPluginItemKind.Marketplace;
-		const iconId = isMarketplace ? extensionIcon.id : pluginIcon.id;
-		this.iconEl.className = `embedded-detail-icon codicon codicon-${iconId}`;
 
 		const sourceLabel = item.marketplace
 			? (isMarketplace
@@ -91,8 +102,7 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 			: (isMarketplace
 				? localize('pluginSourceMarketplaceUnknown', "Marketplace plugin")
 				: localize('pluginSourceLocal', "Installed plugin"));
-		const iconSpan = $(`span.codicon.codicon-${iconId}`);
-		this.sourceEl.replaceChildren(iconSpan, document.createTextNode(' ' + sourceLabel));
+		this.sourceEl.textContent = sourceLabel;
 
 		const description = (item.description || '').trim();
 		this.descriptionEl.textContent = description;

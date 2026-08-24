@@ -14,6 +14,7 @@ import { IInstantiationService, ServicesAccessor } from '../../../../../platform
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { migrateLegacyTerminalToolSpecificData } from '../../common/chat.js';
+import { getExplicitFileOrImageAttachmentSummary } from '../../common/attachments/chatVariableEntries.js';
 import { IChatToolInvocation } from '../../common/chatService/chatService.js';
 import { IChatResponseViewModel, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
 import { isToolResultInputOutputDetails, isToolResultOutputDetails, toolContentToA11yString } from '../../common/tools/languageModelToolsService.js';
@@ -27,8 +28,15 @@ export const getToolConfirmationAlert = (accessor: ServicesAccessor, toolInvocat
 
 	const acceptKb = keybindingService.lookupKeybinding(AcceptToolConfirmationActionId, contextKeyService)?.getAriaLabel();
 	const cancelKb = keybindingService.lookupKeybinding(CancelChatActionId, contextKeyService)?.getAriaLabel();
+	const authenticationServers = toolInvocation
+		.map(invocation => invocation.state.get())
+		.filter(state => state.type === IChatToolInvocation.StateKind.WaitingForAuthentication)
+		.map(state => state.server.name);
 	const text = toolInvocation.map(v => {
 		const state = v.state.get();
+		if (state.type === IChatToolInvocation.StateKind.WaitingForAuthentication) {
+			return;
+		}
 		if (state.type === IChatToolInvocation.StateKind.WaitingForPostApproval) {
 			const detail = isToolResultInputOutputDetails(state.resultDetails)
 				? state.resultDetails.input
@@ -66,15 +74,21 @@ export const getToolConfirmationAlert = (accessor: ServicesAccessor, toolInvocat
 		};
 	}).filter(isDefined);
 
-	let message = acceptKb && cancelKb
-		? localize('toolInvocationsHintKb', "Chat confirmation required: {0}. Press {1} to accept or {2} to cancel.", text.map(t => t.title).join(', '), acceptKb, cancelKb)
-		: localize('toolInvocationsHint', "Chat confirmation required: {0}", text.map(t => t.title).join(', '));
-
-	if (text.some(t => t.detail)) {
-		message += ' ' + localize('toolInvocationsHintDetails', "Details: {0}", text.map(t => t.detail ? t.detail : '').join(' '));
+	const messages: string[] = [];
+	if (text.length > 0) {
+		messages.push(acceptKb && cancelKb
+			? localize('toolInvocationsHintKb', "Chat confirmation required: {0}. Press {1} to accept or {2} to cancel.", text.map(t => t.title).join(', '), acceptKb, cancelKb)
+			: localize('toolInvocationsHint', "Chat confirmation required: {0}", text.map(t => t.title).join(', ')));
 	}
 
-	return message;
+	if (text.some(t => t.detail)) {
+		messages.push(localize('toolInvocationsHintDetails', "Details: {0}", text.map(t => t.detail ? t.detail : '').join(' ')));
+	}
+	if (authenticationServers.length > 0) {
+		messages.push(localize('toolAuthenticationHint', "MCP authentication required for {0}. Use the Authenticate button in the tool call.", authenticationServers.join(', ')));
+	}
+
+	return messages.join(' ');
 };
 
 export class ChatAccessibilityProvider implements IListAccessibilityProvider<ChatTreeItem> {
@@ -98,7 +112,7 @@ export class ChatAccessibilityProvider implements IListAccessibilityProvider<Cha
 
 	getAriaLabel(element: ChatTreeItem): string {
 		if (isRequestVM(element)) {
-			return element.messageText;
+			return element.messageText.trim() || getExplicitFileOrImageAttachmentSummary(element.variables) || '';
 		}
 
 		if (isResponseVM(element)) {
@@ -117,7 +131,9 @@ export class ChatAccessibilityProvider implements IListAccessibilityProvider<Cha
 		if (toolInvocation.length) {
 			const waitingForConfirmation = toolInvocation.filter(v => {
 				const state = v.state.get().type;
-				return state === IChatToolInvocation.StateKind.WaitingForConfirmation || state === IChatToolInvocation.StateKind.WaitingForPostApproval;
+				return state === IChatToolInvocation.StateKind.WaitingForConfirmation
+					|| state === IChatToolInvocation.StateKind.WaitingForPostApproval
+					|| state === IChatToolInvocation.StateKind.WaitingForAuthentication;
 			});
 			if (waitingForConfirmation.length) {
 				toolInvocationHint = this._instantiationService.invokeFunction(getToolConfirmationAlert, toolInvocation);

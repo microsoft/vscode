@@ -27,14 +27,15 @@ _Avoid_: "Anthropic proxy", "language model server".
 GitHub Copilot's chat completions API, accessed through `ICopilotApiService`.
 The terminal hop after the proxy.
 
-**Materialization** / `ClaudeMaterializer`:
-Promoting a provisional session record (created by `ClaudeAgent.createSession`,
-no SDK contact yet) into a live `ClaudeAgentSession` with a bound `WarmQuery`.
-Owned by `ClaudeMaterializer`: assembles the SDK `Options` bag, awaits
-`IClaudeAgentSdkService.startup`, opens the per-session DB ref, and constructs
-the session wrapper. `ClaudeAgent` retains sequencing, the `_sessions` map,
-permission-mode resolution, the post-materialize metadata write, and the
-second abort gate.
+**Materialization** / `ClaudeAgentSession.materialize`:
+Bringing a provisional session (created by `ClaudeAgent.createSession`, no
+SDK contact yet) up to a live `ClaudeAgentSession` with a bound `WarmQuery`.
+Owned by `ClaudeAgentSession.materialize(ctx)`: builds the SDK `Options`
+bag via the pure helpers in `claudeSdkOptions.ts`, awaits
+`IClaudeAgentSdkService.startup`, opens the per-session DB ref, constructs
+the pipeline, persists the metadata overlay (skipped on `isResume`), and
+attaches the rematerializer. `ClaudeAgent` retains sequencing, the
+`_sessions` map, and the `onDidMaterializeSession` fan-out.
 _Avoid_: "session creation" (overloaded with `IAgent.createSession`).
 
 **Claude session overlay** / `ClaudeSessionMetadataStore`:
@@ -360,7 +361,7 @@ test/node/
 Phase 2 is "done" when all of the following pass:
 
 **Hygiene (must run frequently during development, not as a final step):**
-- [ ] `compile-check-ts-native` clean
+- [ ] `typecheck-client` clean
 - [ ] `eslint` clean
 - [ ] `valid-layers-check` clean
 - [ ] Hygiene check (gulp `hygiene`) clean — copyright headers, tabs,
@@ -777,9 +778,79 @@ SDK; the host does not need to gate.
 | `onClientToolCallComplete(...)` | Host → SDK | Resolves the in-process MCP tool's pending promise | Same mechanism as `respondToUserInputRequest` |
 | `setCustomizationEnabled(uri, enabled)` | Host → SDK | `Query.reloadPlugins()` (runtime) | **Defer-and-coalesce** when busy: set `_pendingPluginReload`, drain at next yield. Idle path applies immediately. The SDK's `reloadPlugins` returns the refreshed `commands / agents / plugins / mcpServers` — useful as a verification probe but not required for correctness |
 | `getCustomizations()` | SDK → Host (projection) | `Query.supportedCommands()` / `supportedAgents()` / `mcpServerStatus()` | Compose the live snapshot from runtime SDK queries plus the host plugin manager's enabled set |
-| `getSessionCustomizations(session)` | SDK → Host (projection) | Same SDK queries, scoped per-session | Per-session because each Query has its own loaded plugin set |
+| `getSessionCustomizations(session)` | Disk scan (+ SDK filter) → Host (projection) | Disk scan of `~/.claude/**` + `<cwd>/.claude/**`; live `Query.supportedCommands()` / `supportedAgents()` / `mcpServerStatus()` + `system/init.plugins` used only as a **filter** when materialized | **Phase 16 + 17.** See "Phase 16 — disk-scan customization resolution" and "Phase 17 — hooks + native plugins" below. Pre-materialize: client-pushed ∪ full disk scan (agents/skills/commands/MCP/rules/hooks/native plugins) + curated built-ins. Materialized: client-pushed ∪ (disk scan ∩ SDK-known) + SDK-only / built-in read-only entries; hooks/rules bypass the filter |
 
-**Skills as plugins.** The SDK has no `Options.skills` field. A
+**Phase 16 — disk-scan customization resolution.** As shipped,
+`getSessionCustomizations` does **not** project SDK query payloads into
+editable items (those carry only name + description, no file path). Instead
+it **scans the file system** for the real customization files and ships each
+item's real editable `file:` `uri`:
+
+- **Scanners** (`customizations/scan/`): `claudeAgentSkillScan.ts` (agents +
+  skills; `.claude/commands/*.md` are folded into skills per the spec),
+  `claudeMcpScan.ts` (`settings.json` `mcpServers` block + flat `.mcp.json`),
+  `claudeRuleScan.ts` (CLAUDE.md + `.claude/rules/**`). Reuse the shared
+  `pluginParsers.ts` frontmatter/MCP parsers.
+- **Builder** (`customizations/claudeSessionCustomizationDiscovery.ts`):
+  `buildDiscoveredCustomizations(...)` maps scanned entries to
+  `DirectoryCustomization` containers (one per (scope, kind) — Workspace vs
+  User) with real-file children + top-level `McpServerCustomization`. When a
+  live pipeline exists it intersects the disk set with the SDK-known set by
+  `(name, type)` and adds SDK-known-but-not-on-disk items as **non-editable**
+  `claude-internal:` entries.
+- **Built-in tier** (`customizations/claudeBuiltinCommands.ts`): a curated set
+  of built-in slash commands (`CLAUDE_BUILTIN_COMMANDS`, 13) and agents
+  (`CLAUDE_BUILTIN_AGENTS`, 5) is surfaced read-only on the `agent-builtin:`
+  scheme pre-materialize, then superseded by the live SDK set
+  post-materialize. Built-ins are display-only (`contrib/chat` untouched).
+- **Projection is inlined** in `ClaudeAgentSession.getSessionCustomizations`
+  (no separate projector function): client-pushed entries (with the per-id
+  enablement overlay) first, then the discovered + built-in tier appended.
+- **Watcher** (`ClaudeCustomizationWatcher`): correlated watch on both
+  `.claude` roots (recursive) + `<cwd>` narrowed to `.mcp.json`, debounced;
+  fires `onDidCustomizationsChange` so the list updates live.
+- The synthetic-stub `ClaudeSdkCustomizationBundler` (Phase 11) is **deleted**.
+
+**Phase 17 — hooks + native plugins (surface only).** Phase 17 extends the
+Phase 16 disk scan with two more user/workspace-configured tiers. Both are
+**surface-only**: the SDK already loads them via `settingSources`, so
+`Options.plugins` / `claudeSdkOptions.ts` are **untouched** (plumbing native
+plugins in would double-load — `claudeSkills.ts` skips `.claude` dirs).
+
+- **Hooks** (`scan/claudeHookScan.ts`): reads the `hooks` block from the
+  user/project/local `settings.json` (+ `settings.local.json`) via the shared
+  `parseHooksJson`; surfaces one `HookCustomization` per declaring file under a
+  per-scope `DirectoryCustomization` (`contents: Hook`). There is **no SDK hook
+  enumeration API**, so hooks are disk-only and **bypass** the post-materialize
+  filter (like rules). `disableAllHooks` drops a scope; `managed` is excluded.
+- **Native plugins** (`scan/claudeNativePluginScan.ts`): resolves
+  `enabledPlugins` (precedence `user < project < local`, enabled = value
+  `!== false`) to on-disk roots — marketplace cache
+  (`~/.claude/plugins/cache/<marketplace>/<plugin>/<version>/`, newest version by
+  mtime with a numeric-`localeCompare` tie-break) or in-place `@skills-dir` —
+  parses each with the shared multi-format `detectPluginFormat` +
+  `parsePlugin`, and surfaces each as a **top-level** `PluginCustomization`
+  (not a per-scope directory) whose children are the bundled
+  agents/skills/instructions/hooks/MCP. `splitPluginId` guards against path
+  traversal in untrusted-workspace ids.
+- **Post-materialize plugin filter matches on `system/init.plugins[].source`
+  (the `<plugin>@<marketplace>` id), not `path`.** The SDK `init.plugins`
+  `path` is unreliable for a workspace-`local`-scoped plugin (the runtime
+  reports a bogus parent-of-workspace path), so path-matching dropped loaded
+  plugins. The runtime payload carries an undocumented `source` field (= the
+  id); `claudeSdkPipeline.ts` captures it type-safely (the `.d.ts` omits it) and
+  the filter prefers `source === id`, falling back to normalized `path`. Capture
+  runs on **every** `system/init` (ungated by `_isResumed`).
+- **PB-10 — surfaced plugins suppress their own components from the standalone
+  SDK fallbacks.** Once a plugin is shown as a container, the SDK *also* reports
+  its agents/commands/MCP in `supportedAgents`/`supportedCommands`/
+  `mcpServerStatus`, so the Phase-16 SDK-only fallbacks re-surfaced them as
+  duplicate standalone rows. The builder suppresses any fallback whose name
+  matches a surfaced plugin's parsed component name in **both** bare
+  (`inbox-setup`) and namespaced (`<plugin>:inbox-setup`) forms (SDK naming is
+  inconsistent — agents namespaced, skills usually bare). The standalone skill
+  scan also skips any `.claude/skills/<name>/` dir that is itself a plugin root
+  (PB-8), so a `@skills-dir` plugin's skills surface only under its container.
 directory containing a `skills/` subfolder *is* a valid plugin from
 the SDK's point of view (`SdkPluginConfig { type: 'local', path }`).
 The host can pass a "skills-only plugin" directory via
@@ -850,6 +921,12 @@ For each SessionMessage in order:
       'tool_use'  → push ToolCallResponsePart (open; awaits tool_result);
                     record tool_use_id → Turn.id in the attribution map
       empty       → skip
+      NOTE: with no Turn open, the assistant envelope STARTS one, keyed on
+        its own uuid. Two cases: a subagent transcript (no spawning prompt
+        exists, userMessage.text = '') and a parent transcript the SDK
+        truncated mid-turn (userMessage.text = a placeholder). Dropping
+        instead would empty the whole chat when the slice holds no user
+        message at all — see "Truncated transcripts" below.
   ('system', subtype === 'compact_boundary'):
       → push SystemNotificationResponsePart (compact metadata)
   ('system', other allowlisted subtypes):
@@ -857,6 +934,15 @@ For each SessionMessage in order:
   ('system', other):
       → drop
 ```
+
+**Truncated transcripts.** For transcripts over ~5 MB the SDK's
+`getSessionMessages` returns only the bytes AFTER the last compact
+boundary, so the slice can begin mid-turn or contain no `user` envelope
+at all. The host opts out via `CLAUDE_CODE_DISABLE_PRECOMPACT_SKIP=1`
+(set in [claudeAgentSdkService.ts](./claudeAgentSdkService.ts)), and the
+mapper additionally recovers promptless leading turns so a slice that
+still arrives truncated degrades to a placeholder prompt rather than an
+empty chat.
 
 **Turn-level fields on replay.**
 - `state` is `'completed'` for any Turn that's followed by a later
@@ -1091,10 +1177,10 @@ is an internal concern of the agent. The IAgent surface exposes only:
 |---|---|---|
 | `createSession(config)` (no `fork`) → `IAgentCreateSessionResult { provisional: true }` | none (no SDK call) | Records a **provisional** session: id, requested `workingDirectory` (= the repo path the client passed in), title, model, etc. No `Query`. No on-disk session file. The agent reserves the eventual session id locally. The session shows up in `listSessions` but cannot receive messages until materialized. |
 | `createSession({ fork: { session, turnIndex, turnId, turnIdMapping? } })` → `IAgentCreateSessionResult { provisional: false }` | `forkSession(parentSessionId, { upToMessageId: lastUuidOfTurn(turnId), title? })` → `{ sessionId }` | **Materializes immediately on disk** because `forkSession` writes the new session file synchronously. SDK rewrites every message UUID and rebuilds the `parentUuid` chain. Result is **not provisional**. No `Query` is started yet — that still happens lazily on first `sendMessage` — but because the session already exists on disk, the materialization path will use `resume: forkedSessionId` in `Options` (see *Fresh vs resumed* below). The agent fires `onDidMaterializeSession` here, immediately after `forkSession` returns. |
-| (internal) first `sendMessage` on a provisional session | `query({ options })` with `Options.sessionId = sessionId` (fresh) or `Options.resume = sessionId` (resumed) | Triggers internal materialization. Resolves effective `workingDirectory` (Copilot may create a worktree); constructs `Options`; starts `Query`; fires `onDidMaterializeSession`; then proceeds to send the actual user message. Subsequent `sendMessage` calls reuse the live `Query`. |
-| `onArchivedChanged(uri, isArchived)` (optional) | none (SDK untouched) | Soft, reversible. `true`: remove worktree dir from disk if branch is preserved and tree is clean (Copilot's `_cleanupWorktreeOnArchive`). `false`: `git worktree add --existing` against the preserved branch (`_recreateWorktreeOnUnarchive`). SDK session, per-session DB, branch all untouched. Claude does not implement this yet. |
-| `disposeSession(sessionId)` | `Query.interrupt()` + `Query.return()` (or asyncDispose) | Full teardown of one session: kill SDK `Query`, drop in-memory wrapper, delete state-manager entry, and (Copilot) remove the worktree if it was created in this process. Triggered by explicit protocol `disposeSession` or the empty-session GC. |
-| `shutdown()` | per-session `Query.interrupt()` + asyncDispose, serialized through a sequencer; then SDK client stop | Graceful, async, **memoized** drain of all sessions. Walks `_sessions` ∪ `_createdWorktrees`, runs `_destroyAndDisposeSession` per id through `_sessionSequencer` so it interleaves with concurrent `sendMessage` / `disposeSession`. Claude additionally aborts provisional `AbortController`s first so any racing `await sdk.startup()` unwinds cleanly. |
+| (internal) first `sendMessage` on a provisional session | `query({ options })` with `Options.sessionId = sessionId` (fresh) or `Options.resume = sessionId` (resumed) | Triggers internal materialization. The host resolves the effective `workingDirectory`, creating a worktree when configured; the provider constructs `Options`, starts `Query`, fires `onDidMaterializeSession`, and sends the user message. Subsequent `sendMessage` calls reuse the live `Query`. |
+| `onArchivedChanged(uri, isArchived)` (optional) | none (SDK untouched) | The host owns worktree archive/unarchive cleanup for every provider. The provider hook handles provider-specific state only. |
+| `disposeSession(sessionId)` | `Query.interrupt()` + `Query.return()` (or asyncDispose) | Full teardown of one session. After provider teardown, the host loads persisted worktree metadata, deletes session data and checkpoint refs, then removes the worktree. |
+| `shutdown()` | per-session `Query.interrupt()` + asyncDispose, serialized through a sequencer; then SDK client stop | Graceful, async, **memoized** provider drain. Session-owned worktrees remain on disk across host restarts. |
 | `dispose()` | synchronous teardown of provider | Hard provider teardown. Copilot: kicks off `shutdown()` and chains `super.dispose()` in `.finally` (cooperatively reuses the memoized drain). Claude: aborts provisional controllers, then `super.dispose()` synchronously disposes `_sessions` (each wrapper interrupts/asyncDisposes its `Query`), then releases `_proxyHandle` — wrapper-before-proxy ordering is load-bearing. |
 
 #### Birth axis: provisional → materialized
@@ -1123,10 +1209,9 @@ plus an event**, not a method pair.
   agent receives `sendMessage` for a still-undermaterialized session
   (whether the on-disk file exists from fork or doesn't exist yet),
   it:
-  1. Resolves the effective `workingDirectory`. Copilot's
-     `_resolveSessionWorkingDirectory` consults `_createdWorktrees`
-     and may run `git worktree add` on a fresh branch. Claude
-     currently uses the requested path as-is.
+  1. Asks the host to resolve the effective `workingDirectory`.
+     `WorktreeIsolation` may run `git worktree add` on a fresh branch
+     before either provider locks in its SDK working directory.
   2. Constructs SDK `Options` with that `cwd` and all other
      startup-only fields.
   3. Calls `query({ options })` → SDK forks the CLI subprocess,
@@ -1256,8 +1341,8 @@ background.
 
 | Surface | Scope | Sync? | Reuses `shutdown`? | Notes |
 |---|---|---|---|---|
-| `disposeSession(id)` | one session | async | n/a | Routes through `_sessionSequencer` so it serializes against in-flight `sendMessage`. Worktree removal consults the **in-memory** `_createdWorktrees` map — sessions created in a previous process lifetime are not removed by this path; archive cleanup picks them up via the persisted DB metadata. |
-| `shutdown()` | all sessions | async, memoized | self | Walks `_sessions ∪ _createdWorktrees`. Memoization (`_shutdownPromise`) means concurrent calls fold into one drain. Claude aborts provisionals first to unwind racing `sdk.startup()` awaits. |
+| `disposeSession(id)` | one session | async | n/a | Routes through the provider sequencer so it serializes against in-flight `sendMessage`. The host loads persisted worktree metadata before deleting the session database, so deletion also cleans up sessions created in an earlier process. |
+| `shutdown()` | all sessions | async, memoized | self | Drains provider sessions while preserving session-owned worktrees. Memoization (`_shutdownPromise`) means concurrent calls fold into one drain. Claude aborts provisionals first to unwind racing `sdk.startup()` awaits. |
 | `dispose()` | provider | sync surface; may chain async | Copilot: yes; Claude: no | Copilot: `shutdown().finally(super.dispose)` — cooperative. Claude: synchronous wrapper-then-proxy teardown, no graceful drain. The provider choice is intentional: Claude's wrapper is the stronger ownership and must dispose before the IPC handle. |
 
 `AgentService.shutdown` fans out `provider.shutdown()` in parallel;
@@ -1305,9 +1390,9 @@ internally decides whether `dispose` chains `shutdown` or not.
 
 | | CopilotAgent | ClaudeAgent |
 |---|---|---|
-| Worktree on materialize | Yes (`_resolveSessionWorkingDirectory` + `_createdWorktrees`) | No (uses requested `workingDirectory` as-is) |
-| `onArchivedChanged` | Implemented (clean + recreate) | Not implemented |
-| `disposeSession` worktree path | Consults in-memory `_createdWorktrees` | No worktree state to clean |
+| Worktree on materialize | Host-owned `WorktreeIsolation` | Host-owned `WorktreeIsolation` |
+| `onArchivedChanged` | Host performs worktree cleanup/recreation | Host performs worktree cleanup/recreation |
+| `disposeSession` worktree path | Host loads persisted metadata and removes the worktree | Host loads persisted metadata and removes the worktree |
 | `shutdown` provisional handling | Drops provisional records + `_activeClients` snapshot | Aborts provisional `AbortController`s first to unwind racing `sdk.startup()` |
 | `dispose` strategy | Chain `shutdown().finally(super.dispose)` | Synchronous wrapper-then-proxy teardown (no graceful drain) |
 | Sequencer | `_sessionSequencer` (per-session) | `_disposeSequencer` (drain only) |
@@ -1334,7 +1419,7 @@ sees the deltas it can act on.
 
 | IAgent surface | SDK primitive(s) | What it does |
 |---|---|---|
-| `setPendingMessages?(session, steeringMessage, queuedMessages)` (optional) | Yield an `SDKUserMessage` with `priority: 'now'` into the prompt iterable that was passed to `query()` ([sdk.d.ts:3067-3086](../../../../../../extensions/copilot/node_modules/@anthropic-ai/claude-agent-sdk/sdk.d.ts#L3067-L3086)) | Notifies the agent that the session's pending-message state changed. The agent reacts by yielding the steering content as an `SDKUserMessage` whose `priority` is `'now'`, which the SDK treats as "preempt the current turn and run me first." |
+| `setPendingMessages?(chat, steeringMessage, queuedMessages)` (optional) | Yield an `SDKUserMessage` with `priority: 'now'` into the prompt iterable that was passed to `query()` ([sdk.d.ts:3067-3086](../../../../../../extensions/copilot/node_modules/@anthropic-ai/claude-agent-sdk/sdk.d.ts#L3067-L3086)) | Notifies the agent that the chat's pending-message state changed. The agent reacts by yielding the steering content as an `SDKUserMessage` whose `priority` is `'now'`, which the SDK treats as "preempt the current turn and run me first." |
 | (outbound signal) `AgentSignal { kind: 'steering_consumed', session, id }` | n/a (host-emitted on SDK ack) | Agent fires this signal when the SDK confirms the steering message was delivered to the model. Host then dispatches `SessionPendingMessageRemoved` so the client clears the pending pill. |
 
 ##### Pending-message taxonomy (locked at the protocol layer)
@@ -1354,7 +1439,7 @@ agent boundary:
 
 ```ts
 setPendingMessages?(
-    session: URI,
+    chat: URI,
     steeringMessage: PendingMessage | undefined,
     queuedMessages: readonly PendingMessage[]
 ): void;
@@ -1889,7 +1974,7 @@ platform-shared properties).
 | | Shape |
 |---|---|
 | Returns | `IAgentDescriptor { provider, displayName, description }` ([agentService.ts:160-165](../../common/agentService.ts#L160-L165)) |
-| CopilotAgent | Hardcoded literal `{ provider: 'copilotcli', displayName: 'Copilot CLI', description: '…' }` ([copilotAgent.ts:256-262](../copilot/copilotAgent.ts#L256-L262)) |
+| CopilotAgent | Hardcoded literal `{ provider: 'copilotcli', displayName: 'Copilot', description: '…' }` ([copilotAgent.ts:256-262](../copilot/copilotAgent.ts#L256-L262)) |
 | Claude provider | Hardcoded literal `{ provider: 'claude', displayName: 'Claude', description: '…' }` |
 
 `AgentProvider` is `type AgentProvider = string` ([agentService.ts:158](../../common/agentService.ts#L158))
@@ -2010,7 +2095,7 @@ available on each `CCAModel` and should flow through verbatim.
 |---|---|
 | Returns | `IAgentSessionMetadata[]` ([agentService.ts:100-124](../../common/agentService.ts#L100-L124)) |
 | Required fields | `session: URI`, `startTime: number`, `modifiedTime: number` |
-| Optional fields | `project`, `summary`, `status`, `activity`, `model`, `workingDirectory`, `customizationDirectory`, `isRead`, `isArchived`, `diffs`, `_meta` |
+| Optional fields | `project`, `summary`, `status`, `activity`, `model`, `workingDirectory`, `isRead`, `isArchived`, `diffs`, `_meta` |
 | Claude SDK source | **Top-level** `listSessions(options?): Promise<SDKSessionInfo[]>` ([sdk.d.ts:729](../../../../../../extensions/copilot/node_modules/@anthropic-ai/claude-agent-sdk/sdk.d.ts#L729)) — *not* a `Query` method |
 | `SDKSessionInfo` shape | `{ sessionId, summary, lastModified, customTitle?, firstPrompt?, gitBranch?, cwd?, tag?, createdAt }` ([sdk.d.ts:2782-2825](../../../../../../extensions/copilot/node_modules/@anthropic-ai/claude-agent-sdk/sdk.d.ts#L2782-L2825)) |
 
@@ -2066,7 +2151,6 @@ the two SDKs disagree on which fields they carry:
 | `workingDirectory` | sidecar | SDK (`cwd`) — sidecar redundant |
 | `model` | sidecar | sidecar (SDK doesn't carry it) |
 | `project` | resolved from `cwd` | resolved from `cwd` |
-| `customizationDirectory` | sidecar | sidecar |
 | `_meta.git` | not populated by `listSessions` | not populated by `listSessions` |
 | `isArchived` | host-side archive store, not from SDK | host-side archive store, not from SDK |
 | `status` | not populated by `listSessions` | not populated by `listSessions` |

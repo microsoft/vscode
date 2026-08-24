@@ -4,6 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../nls.js';
+import { appendEscapedMarkdownInlineCode, escapeMarkdownLinkLabel } from '../../../../base/common/htmlContent.js';
+import { basename } from '../../../../base/common/resources.js';
+import { truncate } from '../../../../base/common/strings.js';
+import { URI } from '../../../../base/common/uri.js';
+import { getStreamingCreateMessage, getStreamingEditMessage, getStreamingReplaceMessage, streamingToolTextLineCount } from '../../common/streamingToolCallDisplay.js';
+import { toToolCallMeta, type IToolCallMeta, type ToolKind } from '../../common/meta/agentToolCallMeta.js';
+import type { StringOrMarkdown } from '../../common/state/protocol/state.js';
+import { getServerToolDisplay } from '../shared/serverToolGroups.js';
 
 /**
  * Phase 7 S4 — pure tool-name → display/permission helpers for Claude.
@@ -32,7 +40,17 @@ export type ClaudePermissionKind =
 	| 'mcp'
 	| 'read'
 	| 'url'
+	| 'skill'
 	| 'custom-tool';
+
+/**
+ * Phase 8.5 — rendering hint for the workbench. Drives terminal /
+ * search / subagent renderers (the workbench picks a renderer off
+ * `_meta.toolKind`; unknown values fall through to the generic tool
+ * renderer). Mirror of
+ * [`copilotToolDisplay.getToolKind`](../copilot/copilotToolDisplay.ts).
+ */
+export type ClaudeToolKind = ToolKind;
 
 /**
  * Which field on the SDK's `tool_input` carries the path/url surfaced
@@ -66,20 +84,29 @@ interface ClaudeToolRow {
 	 * {@link INTERACTIVE_CLAUDE_TOOLS}.
 	 */
 	readonly interactive?: true;
+	/**
+	 * Phase 8.5 — rendering hint for the workbench. Omit for tools that
+	 * use the generic renderer without specialized streaming behavior.
+	 */
+	readonly toolKind?: ClaudeToolKind;
 }
 
 const TOOL_ROWS: { readonly [toolName: string]: ClaudeToolRow } = {
-	// shell tools
-	Bash: { permissionKind: 'shell' },
-	BashOutput: { permissionKind: 'shell' },
-	KillBash: { permissionKind: 'shell' },
+	// shell tools — no `language` is carried: the workbench picks
+	// `'shellscript'` from the tool name (it only special-cases
+	// `'powershell'`), and the SDK's `Bash` tool is the generic shell
+	// entry point (bash on POSIX, Git Bash on Windows), so claiming a
+	// specific dialect here would be misleading and unused.
+	Bash: { permissionKind: 'shell', toolKind: 'terminal' },
+	BashOutput: { permissionKind: 'shell', toolKind: 'terminal' },
+	KillBash: { permissionKind: 'shell', toolKind: 'terminal' },
 
 	// read tools
-	Read: { permissionKind: 'read', pathField: 'file_path' },
-	Glob: { permissionKind: 'read', pathField: 'path' },
-	Grep: { permissionKind: 'read', pathField: 'path' },
+	Read: { permissionKind: 'read', pathField: 'file_path', toolKind: 'read' },
+	Glob: { permissionKind: 'read', pathField: 'path', toolKind: 'search' },
+	Grep: { permissionKind: 'read', pathField: 'path', toolKind: 'search' },
 	LS: { permissionKind: 'read', pathField: 'path' },
-	NotebookRead: { permissionKind: 'read', pathField: 'notebook_path' },
+	NotebookRead: { permissionKind: 'read', pathField: 'notebook_path', toolKind: 'read' },
 
 	// write tools
 	Write: { permissionKind: 'write', pathField: 'file_path', isFileEdit: true },
@@ -92,9 +119,19 @@ const TOOL_ROWS: { readonly [toolName: string]: ClaudeToolRow } = {
 	WebFetch: { permissionKind: 'url', pathField: 'url' },
 
 	// host-routed / custom
-	Task: { permissionKind: 'custom-tool' },
+	Task: { permissionKind: 'custom-tool', toolKind: 'subagent' },
+	Agent: { permissionKind: 'custom-tool', toolKind: 'subagent' },
 	ExitPlanMode: { permissionKind: 'custom-tool', interactive: true },
 	AskUserQuestion: { permissionKind: 'custom-tool', interactive: true },
+
+	// skill + task-list family — host-routed custom tools that render in the
+	// generic tool renderer (no `toolKind`) but carry rich invocation /
+	// past-tense messages so their collapsed row is self-explanatory.
+	Skill: { permissionKind: 'skill' },
+	TaskCreate: { permissionKind: 'custom-tool' },
+	TaskUpdate: { permissionKind: 'custom-tool' },
+	TaskList: { permissionKind: 'custom-tool' },
+	TaskGet: { permissionKind: 'custom-tool' },
 };
 
 const MCP_TOOL_PREFIX = 'mcp__';
@@ -121,6 +158,10 @@ export function getClaudePermissionKind(toolName: string): ClaudePermissionKind 
  * the server/tool pair.
  */
 export function getClaudeToolDisplayName(toolName: string): string {
+	const serverDisplay = getServerToolDisplay(toolName, undefined)?.displayName;
+	if (serverDisplay !== undefined) {
+		return serverDisplay;
+	}
 	switch (toolName) {
 		case 'Bash': return localize('claude.tool.bash', "Run shell command");
 		case 'BashOutput': return localize('claude.tool.bashOutput', "Read shell output");
@@ -136,9 +177,15 @@ export function getClaudeToolDisplayName(toolName: string): string {
 		case 'NotebookEdit': return localize('claude.tool.notebookEdit', "Edit notebook");
 		case 'TodoWrite': return localize('claude.tool.todoWrite', "Update todo list");
 		case 'WebFetch': return localize('claude.tool.webFetch', "Fetch URL");
-		case 'Task': return localize('claude.tool.task', "Run subagent task");
+		case 'Task':
+		case 'Agent': return localize('claude.tool.task', "Run subagent task");
 		case 'ExitPlanMode': return localize('claude.tool.exitPlanMode', "Ready to code?");
 		case 'AskUserQuestion': return localize('claude.tool.askUserQuestion', "Ask user a question");
+		case 'Skill': return localize('claude.tool.skill', "Run skill");
+		case 'TaskCreate': return localize('claude.tool.taskCreate', "Create task");
+		case 'TaskUpdate': return localize('claude.tool.taskUpdate', "Update task");
+		case 'TaskList': return localize('claude.tool.taskList', "List tasks");
+		case 'TaskGet': return localize('claude.tool.taskGet', "Read task");
 	}
 	if (toolName.startsWith(MCP_TOOL_PREFIX)) {
 		return localize('claude.tool.mcp', "Run MCP tool {0}", toolName.slice(MCP_TOOL_PREFIX.length));
@@ -214,6 +261,8 @@ export function getClaudeConfirmationTitle(toolName: string): string {
 			return localize('claude.permission.read.title', "Read file?");
 		case 'url':
 			return localize('claude.permission.url.title', "Fetch URL?");
+		case 'skill':
+			return localize('claude.permission.skill.title', "Run skill?");
 		case 'mcp': {
 			const serverName = toolName.startsWith(MCP_TOOL_PREFIX)
 				? toolName.slice(MCP_TOOL_PREFIX.length).split('__')[0]
@@ -227,3 +276,315 @@ export function getClaudeConfirmationTitle(toolName: string): string {
 			return localize('claude.permission.default.title', "Allow tool call?");
 	}
 }
+
+// #region Phase 8.5 — rich tool-call rendering helpers
+
+/**
+ * Phase 8.5 — workbench rendering hint. One-liner over `TOOL_ROWS`.
+ * Returns `'terminal'` for shell tools (drives the terminal renderer),
+ * `'search'` for `Grep` / `Glob` (drives the search renderer),
+ * `'subagent'` for `Task` / `Agent` (drives the subagent renderer), and
+ * `'read'` for file reads (defers incomplete resource arguments).
+ */
+export function getClaudeToolKind(toolName: string): ClaudeToolKind | undefined {
+	return TOOL_ROWS[toolName]?.toolKind;
+}
+
+/**
+ * Phase 8.5 — build the `_meta` bag stamped at the tool-open seam.
+ * Returns `undefined` for tools that have no `toolKind` hint so the
+ * resulting envelope stays minimal. Mirrors Copilot's
+ * [`mapSessionEvents.ts:197`](../copilot/mapSessionEvents.ts#L197)
+ * single-write pattern.
+ */
+export function buildClaudeToolMeta(toolName: string): Record<string, unknown> | undefined {
+	const meta = buildClaudeToolCallMeta(toolName);
+	return meta ? toToolCallMeta(meta) : undefined;
+}
+
+/**
+ * Typed variant of {@link buildClaudeToolMeta} that returns the
+ * {@link IToolCallMeta} directly, for callers that consume the typed view
+ * rather than the serialized `_meta` bag. Returns `undefined` for tools that
+ * have no `toolKind` hint.
+ */
+export function buildClaudeToolCallMeta(toolName: string): IToolCallMeta | undefined {
+	const row = TOOL_ROWS[toolName];
+	if (!row?.toolKind) {
+		return undefined;
+	}
+	return { toolKind: row.toolKind };
+}
+
+function md(value: string): StringOrMarkdown {
+	return { markdown: value };
+}
+
+function formatPathAsMarkdownLink(path: string): string {
+	const uri = URI.file(path);
+	return `[${escapeMarkdownLinkLabel(basename(uri))}](${uri})`;
+}
+
+/**
+ * Defensive string-field access. Returns the field value when it is
+ * a non-empty string, otherwise `undefined`.
+ */
+function readStringField(input: unknown, field: string): string | undefined {
+	if (input === null || typeof input !== 'object') {
+		return undefined;
+	}
+	const value = (input as Record<string, unknown>)[field];
+	return typeof value === 'string' && value.length > 0 ? value : undefined;
+}
+
+/**
+ * Phase 8.5 — first-line command extractor for shell tools. Mirrors
+ * Copilot's `command.split('\n')[0]` pattern.
+ */
+function firstShellLine(input: unknown): string | undefined {
+	const command = readStringField(input, 'command');
+	return command ? command.split('\n')[0] : undefined;
+}
+
+/**
+ * Narrows a `TaskUpdate` call's `status` to the values that change the rendered
+ * verb; any other or absent value yields `undefined` (generic "Updating" verb).
+ */
+function readTaskUpdateStatus(input: unknown): 'in_progress' | 'completed' | 'deleted' | undefined {
+	const status = readStringField(input, 'status');
+	return status === 'in_progress' || status === 'completed' || status === 'deleted' ? status : undefined;
+}
+
+/**
+ * Phase 8.5 — rich invocation message for a `pending_confirmation`
+ * card or a streaming `ChatToolCallStart` action. Reads the
+ * SDK's `tool_use.input` defensively and falls back to the static
+ * `displayName` on any shape mismatch. Mirror of
+ * [`copilotToolDisplay.getInvocationMessage`](../copilot/copilotToolDisplay.ts#L473).
+ */
+export function getClaudeInvocationMessage(
+	toolName: string,
+	displayName: string,
+	input: unknown,
+): StringOrMarkdown {
+	const serverDisplay = getServerToolDisplay(toolName, input)?.invocationMessage;
+	if (serverDisplay !== undefined) {
+		return serverDisplay;
+	}
+	switch (toolName) {
+		case 'Bash': {
+			const firstLine = firstShellLine(input);
+			if (firstLine) {
+				return md(localize('claude.toolInvoke.bashCmd', "Running {0}", appendEscapedMarkdownInlineCode(truncate(firstLine, 80))));
+			}
+			return localize('claude.toolInvoke.bash', "Running shell command");
+		}
+		case 'BashOutput':
+			return localize('claude.toolInvoke.bashOutput', "Reading shell output");
+		case 'KillBash':
+			return localize('claude.toolInvoke.killBash', "Kill shell command");
+		case 'Read':
+		case 'NotebookRead': {
+			const path = getClaudeToolPath(toolName, input);
+			if (path) {
+				return md(localize('claude.toolInvoke.readFile', "Read {0}", formatPathAsMarkdownLink(path)));
+			}
+			return localize('claude.toolInvoke.read', "Read file");
+		}
+		case 'LS': {
+			const path = getClaudeToolPath(toolName, input);
+			if (path) {
+				return md(localize('claude.toolInvoke.lsPath', "List {0}", formatPathAsMarkdownLink(path)));
+			}
+			return localize('claude.toolInvoke.ls', "List directory");
+		}
+		case 'Write':
+		case 'Edit':
+		case 'MultiEdit':
+		case 'NotebookEdit': {
+			const path = getClaudeToolPath(toolName, input);
+			if (path) {
+				return md(localize('claude.toolInvoke.editFile', "Edit {0}", formatPathAsMarkdownLink(path)));
+			}
+			return localize('claude.toolInvoke.edit', "Edit file");
+		}
+		case 'TodoWrite':
+			return localize('claude.toolInvoke.todoWrite', "Update todo list");
+		case 'Grep': {
+			const pattern = readStringField(input, 'pattern');
+			if (pattern) {
+				return md(localize('claude.toolInvoke.grepPattern', "Search for {0}", appendEscapedMarkdownInlineCode(truncate(pattern, 80))));
+			}
+			return localize('claude.toolInvoke.grep', "Search files");
+		}
+		case 'Glob': {
+			const pattern = readStringField(input, 'pattern');
+			if (pattern) {
+				return md(localize('claude.toolInvoke.globPattern', "Find files matching {0}", appendEscapedMarkdownInlineCode(truncate(pattern, 80))));
+			}
+			return localize('claude.toolInvoke.glob', "Find files");
+		}
+		case 'WebFetch': {
+			const url = readStringField(input, 'url');
+			if (url) {
+				return md(localize('claude.toolInvoke.webFetch', "Fetching {0}", `[${escapeMarkdownLinkLabel(truncate(url, 80))}](${url})`));
+			}
+			return localize('claude.toolInvoke.webFetchGeneric', "Fetching URL");
+		}
+		case 'Task':
+		case 'Agent': {
+			const description = readStringField(input, 'description');
+			if (description) {
+				return description;
+			}
+			return displayName;
+		}
+		case 'Skill': {
+			const skill = readStringField(input, 'skill');
+			if (skill) {
+				return md(localize('claude.toolInvoke.skillNamed', "Running skill {0}", appendEscapedMarkdownInlineCode(truncate(skill, 80))));
+			}
+			return localize('claude.toolInvoke.skill', "Running skill");
+		}
+		case 'TaskCreate': {
+			const subject = readStringField(input, 'subject');
+			if (subject) {
+				return localize('claude.toolInvoke.taskCreateNamed', "Create task: {0}", truncate(subject, 80));
+			}
+			return localize('claude.toolInvoke.taskCreate', "Create task");
+		}
+		case 'TaskUpdate':
+			switch (readTaskUpdateStatus(input)) {
+				case 'in_progress': return localize('claude.toolInvoke.taskStart', "Start task");
+				case 'completed': return localize('claude.toolInvoke.taskComplete', "Complete task");
+				case 'deleted': return localize('claude.toolInvoke.taskDelete', "Delete task");
+				default: return localize('claude.toolInvoke.taskUpdate', "Update task");
+			}
+		case 'TaskList':
+			return localize('claude.toolInvoke.taskList', "Read task list");
+		case 'TaskGet':
+			return localize('claude.toolInvoke.taskGet', "Read task");
+		default:
+			return displayName;
+	}
+}
+
+export function getClaudeStreamingInvocationMessage(toolName: string, input: Record<string, unknown> | undefined): StringOrMarkdown | undefined {
+	switch (toolName) {
+		case 'Write':
+			return getStreamingCreateMessage(input?.['file_path'], streamingToolTextLineCount(input?.['content']));
+		case 'Edit':
+			return getStreamingReplaceMessage(
+				input?.['file_path'],
+				streamingToolTextLineCount(input?.['old_string']),
+				streamingToolTextLineCount(input?.['new_string']),
+			);
+		case 'MultiEdit': {
+			const edits = Array.isArray(input?.['edits']) ? input['edits'] : [];
+			let oldLineCount: number | undefined;
+			let newLineCount: number | undefined;
+			for (const edit of edits) {
+				if (!edit || typeof edit !== 'object' || Array.isArray(edit)) {
+					continue;
+				}
+				const oldLines = streamingToolTextLineCount((edit as Record<string, unknown>)['old_string']);
+				const newLines = streamingToolTextLineCount((edit as Record<string, unknown>)['new_string']);
+				if (oldLines !== undefined) {
+					oldLineCount = (oldLineCount ?? 0) + oldLines;
+				}
+				if (newLines !== undefined) {
+					newLineCount = (newLineCount ?? 0) + newLines;
+				}
+			}
+			return getStreamingReplaceMessage(input?.['file_path'], oldLineCount, newLineCount);
+		}
+		case 'NotebookEdit':
+			return getStreamingEditMessage(input?.['notebook_path'], streamingToolTextLineCount(input?.['new_source']));
+		default:
+			return undefined;
+	}
+}
+
+/**
+ * Phase 8.5 — success-aware rich past-tense message. Mirror of
+ * [`copilotToolDisplay.getPastTenseMessage`](../copilot/copilotToolDisplay.ts#L572).
+ * Failure path returns a generic "failed" message; success path
+ * mirrors the {@link getClaudeInvocationMessage} structure with
+ * past-tense verbs.
+ */
+export function getClaudePastTenseMessage(
+	toolName: string,
+	displayName: string,
+	input: unknown,
+	success: boolean,
+	resultText?: string,
+): StringOrMarkdown {
+	if (!success) {
+		return localize('claude.toolComplete.failed', "\"{0}\" failed", displayName);
+	}
+	const serverDisplay = getServerToolDisplay(toolName, input, { text: resultText, success })?.pastTenseMessage;
+	if (serverDisplay !== undefined) {
+		return serverDisplay;
+	}
+	switch (toolName) {
+		case 'Bash': {
+			const firstLine = firstShellLine(input);
+			if (firstLine) {
+				return md(localize('claude.toolComplete.bashCmd', "Ran {0}", appendEscapedMarkdownInlineCode(truncate(firstLine, 80))));
+			}
+			return localize('claude.toolComplete.bash', "Ran shell command");
+		}
+		case 'BashOutput':
+			return localize('claude.toolComplete.bashOutput', "Read shell output");
+		case 'WebFetch': {
+			const url = readStringField(input, 'url');
+			if (url) {
+				return md(localize('claude.toolComplete.webFetch', "Fetched {0}", `[${escapeMarkdownLinkLabel(truncate(url, 80))}](${url})`));
+			}
+			return localize('claude.toolComplete.webFetchGeneric', "Fetched URL");
+		}
+		case 'Task':
+		case 'Agent':
+			return localize('claude.toolComplete.task', "Ran subagent");
+		case 'Skill': {
+			const skill = readStringField(input, 'skill');
+			if (skill) {
+				return md(localize('claude.toolComplete.skillNamed', "Ran skill {0}", appendEscapedMarkdownInlineCode(truncate(skill, 80))));
+			}
+			return localize('claude.toolComplete.skill', "Ran skill");
+		}
+		default:
+			return getClaudeInvocationMessage(toolName, displayName, input);
+	}
+}
+
+/**
+ * Phase 8.5 — canonical "input as code" string rendered under the
+ * tool-call row. Shell tools surface the raw `command`; search tools
+ * surface the `pattern`; everything else falls back to pretty-printed
+ * JSON. Returns `undefined` only when the input is itself absent.
+ */
+export function getClaudeToolInputString(toolName: string, input: unknown): string | undefined {
+	if (input === undefined) {
+		return undefined;
+	}
+	if (toolName === 'Bash' || toolName === 'BashOutput' || toolName === 'KillBash') {
+		const command = readStringField(input, 'command');
+		if (command) {
+			return command;
+		}
+	}
+	if (toolName === 'Grep' || toolName === 'Glob') {
+		const pattern = readStringField(input, 'pattern');
+		if (pattern) {
+			return pattern;
+		}
+	}
+	try {
+		return JSON.stringify(input, null, 2);
+	} catch {
+		return undefined;
+	}
+}
+
+// #endregion

@@ -9,7 +9,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
 import { LocalMcpServerScope } from '../../../../services/mcp/common/mcpWorkbenchManagementService.js';
 import { IMcpWorkbenchService, IWorkbenchMcpServer } from '../../../mcp/common/mcpTypes.js';
-import { mcpServerIcon, userIcon, workspaceIcon } from './aiCustomizationIcons.js';
+import { userIcon, workspaceIcon } from './aiCustomizationIcons.js';
 
 const $ = DOM.$;
 
@@ -23,7 +23,8 @@ const $ = DOM.$;
 export class EmbeddedMcpServerDetail extends Disposable {
 
 	private readonly root: HTMLElement;
-	private readonly iconEl: HTMLElement;
+	private readonly headerEl: HTMLElement;
+	private readonly leadingSlotEl: HTMLElement;
 	private readonly nameEl: HTMLElement;
 	private readonly scopeEl: HTMLElement;
 	private readonly descriptionEl: HTMLElement;
@@ -39,9 +40,11 @@ export class EmbeddedMcpServerDetail extends Disposable {
 
 		this.root = DOM.append(parent, $('.ai-customization-embedded-detail.embedded-mcp-detail'));
 
-		const header = DOM.append(this.root, $('.embedded-detail-header'));
-		this.iconEl = DOM.append(header, $('.embedded-detail-icon'));
-		const headerText = DOM.append(header, $('.embedded-detail-header-text'));
+		this.headerEl = DOM.append(this.root, $('.embedded-detail-header'));
+		// Slot at the start of the header for callers to append leading chrome
+		// (e.g. a back button) without reaching into private DOM structure.
+		this.leadingSlotEl = DOM.append(this.headerEl, $('.embedded-detail-leading-slot'));
+		const headerText = DOM.append(this.headerEl, $('.embedded-detail-header-text'));
 		this.nameEl = DOM.append(headerText, $('h2.embedded-detail-name'));
 		this.nameEl.setAttribute('role', 'heading');
 		this.scopeEl = DOM.append(headerText, $('.embedded-detail-scope'));
@@ -66,6 +69,18 @@ export class EmbeddedMcpServerDetail extends Disposable {
 		return this.root;
 	}
 
+	get headerElement(): HTMLElement {
+		return this.headerEl;
+	}
+
+	/**
+	 * Header slot reserved for leading chrome (e.g. a back button).
+	 * Prefer this over reaching into the header element directly.
+	 */
+	get leadingSlot(): HTMLElement {
+		return this.leadingSlotEl;
+	}
+
 	setInput(server: IWorkbenchMcpServer): void {
 		this.current = server;
 		this.renderItem();
@@ -85,22 +100,16 @@ export class EmbeddedMcpServerDetail extends Disposable {
 			this.nameEl.textContent = '';
 			this.scopeEl.textContent = '';
 			this.descriptionEl.textContent = '';
-			this.iconEl.className = 'embedded-detail-icon';
 			return;
 		}
 
 		this.nameEl.textContent = server.label || server.name;
 
-		// Icon: server.codicon (when set) is the full codicon class (e.g. "codicon-foo");
-		// fall back to the standard MCP server themed icon otherwise.
-		this.iconEl.className = `embedded-detail-icon ${server.codicon ? `codicon ${server.codicon}` : ThemeIcon.asClassName(mcpServerIcon)}`;
-
 		// Scope label
 		const scope = server.local?.scope;
 		const scopeInfo = describeMcpScope(scope);
 		if (scopeInfo) {
-			const scopeIcon = DOM.$(`span.codicon.codicon-${scopeInfo.icon.id}`);
-			this.scopeEl.replaceChildren(scopeIcon, document.createTextNode(' ' + scopeInfo.label));
+			this.scopeEl.textContent = scopeInfo.label;
 			this.scopeEl.style.display = '';
 		} else {
 			this.scopeEl.replaceChildren();

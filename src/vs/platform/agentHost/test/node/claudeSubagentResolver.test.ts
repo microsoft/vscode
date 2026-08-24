@@ -4,23 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import type { GetSessionMessagesOptions, GetSubagentMessagesOptions, ListSubagentsOptions, Options, SDKSessionInfo, SessionMessage, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
+import type { GetSessionMessagesOptions, GetSubagentMessagesOptions, ListSubagentsOptions, Options, Query, SDKSessionInfo, SDKUserMessage, SessionMessage, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, type Turn } from '../../common/state/protocol/state.js';
+import { MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, type Turn } from '../../common/state/protocol/state.js';
 import { buildSubagentSessionUri } from '../../common/state/sessionState.js';
 import { IClaudeAgentSdkService } from '../../node/claude/claudeAgentSdkService.js';
 import { scanTranscriptForAgentIds, SUBAGENT_ID_SUFFIX_REGEX, SubagentRegistry } from '../../node/claude/claudeSubagentRegistry.js';
 import {
 	extractSpawningPromptFromTranscript,
+	extractCompletedResultTextFromTranscript,
 	fetchParentTurns,
 	getSubagentTranscript,
 	type ISubagentLookupContext,
 	type ISubagentLookupStrategy,
 	NativeStrategy,
 	PromptMatchStrategy,
+	ResultMatchStrategy,
 	resolveAgentIdViaChain,
 	TextSuffixStrategy,
 } from '../../node/claude/claudeSubagentResolver.js';
@@ -42,8 +44,11 @@ class FakeSdkService implements IClaudeAgentSdkService {
 	getSubagentMessagesCalls: { sessionId: string; agentId: string }[] = [];
 
 	async listSessions(): Promise<readonly SDKSessionInfo[]> { return []; }
+	async canLoadWithoutDownload(): Promise<boolean> { return true; }
+	async ensureAvailable(): Promise<void> { }
 	async getSessionInfo(_id: string): Promise<SDKSessionInfo | undefined> { return undefined; }
 	async startup(_p: { options: Options; initializeTimeoutMs?: number }): Promise<WarmQuery> { throw new Error('not used'); }
+	async query(_params: { prompt: string | AsyncIterable<SDKUserMessage>; options?: Options }): Promise<Query> { throw new Error('not used'); }
 	async getSessionMessages(sessionId: string, options?: GetSessionMessagesOptions): Promise<readonly SessionMessage[]> {
 		this.getSessionMessagesCalls.push({ sessionId, options });
 		if (this.getSessionMessagesRejection) { throw this.getSessionMessagesRejection; }
@@ -59,12 +64,16 @@ class FakeSdkService implements IClaudeAgentSdkService {
 		if (this.getSubagentMessagesRejection) { throw this.getSubagentMessagesRejection; }
 		return this.subagentMessages.get(`${sessionId}::${agentId}`) ?? [];
 	}
+	async forkSession(): Promise<never> { throw new Error('not implemented in test fake'); }
+	async deleteSession(): Promise<void> { throw new Error('not implemented in test fake'); }
+	async createSdkMcpServer(): Promise<never> { throw new Error('not implemented in test fake'); }
+	async tool(): Promise<never> { throw new Error('not implemented in test fake'); }
 }
 
 function makeAgentToolCallTurn(toolCallId: string, opts: { prompt?: string; suffixText?: string; toolName?: string; status?: ToolCallStatus.Completed }): Turn {
 	return {
 		id: 'turn-' + toolCallId,
-		userMessage: { text: '' },
+		message: { text: '', origin: { kind: MessageKind.User } },
 		responseParts: [{
 			kind: ResponsePartKind.ToolCall,
 			toolCall: {
@@ -81,8 +90,8 @@ function makeAgentToolCallTurn(toolCallId: string, opts: { prompt?: string; suff
 			},
 		}],
 		state: 0 as unknown as Turn['state'],
-		startedAt: 1,
-		endedAt: 2,
+		startedAt: '1970-01-01T00:00:00.001Z',
+		duration: 2,
 		usage: undefined,
 	} as Turn;
 }
@@ -175,6 +184,61 @@ suite('claudeSubagentResolver — PromptMatchStrategy', () => {
 			malformed: undefined,
 			unknownToolCall: undefined,
 		});
+
+		suite('claudeSubagentResolver — ResultMatchStrategy', () => {
+			ensureNoDisposablesAreLeakedInTestSuite();
+
+			test('finds a child whose final assistant result matches the completed parent tool result', async () => {
+				const sdk = new FakeSdkService();
+				sdk.subagentIds.set('parent-sid', ['agentother', 'agenttarget']);
+				sdk.subagentMessages.set('parent-sid::agentother', [{
+					type: 'assistant',
+					message: { content: [{ type: 'text', text: 'different result' }] },
+				} as unknown as SessionMessage]);
+				sdk.subagentMessages.set('parent-sid::agenttarget', [{
+					type: 'assistant',
+					message: { content: [{ type: 'thinking', thinking: 'working' }] },
+				}, {
+					type: 'assistant',
+					message: { content: [{ type: 'text', text: 'matched result' }] },
+				}] as unknown as SessionMessage[]);
+				const transcript = [makeAgentToolCallTurn('toolu_target', { suffixText: 'matched result' })];
+				const strategy = new ResultMatchStrategy(sdk, new NullLogService());
+
+				assert.deepStrictEqual({
+					extracted: extractCompletedResultTextFromTranscript(transcript, 'toolu_target'),
+					matched: await strategy.lookup('toolu_target', {
+						parentUri: URI.parse('claude:/parent-sid'),
+						parentSessionId: 'parent-sid',
+						parentTranscript: transcript,
+						token: CancellationToken.None,
+					}),
+				}, {
+					extracted: 'matched result',
+					matched: 'agenttarget',
+				});
+			});
+
+			test('does not choose between children with the same final assistant result', async () => {
+				const sdk = new FakeSdkService();
+				sdk.subagentIds.set('parent-sid', ['agentone', 'agenttwo']);
+				for (const agentId of ['agentone', 'agenttwo']) {
+					sdk.subagentMessages.set(`parent-sid::${agentId}`, [{
+						type: 'assistant',
+						message: { content: [{ type: 'text', text: 'Done.' }] },
+					} as unknown as SessionMessage]);
+				}
+				const transcript = [makeAgentToolCallTurn('toolu_target', { suffixText: 'Done.' })];
+				const strategy = new ResultMatchStrategy(sdk, new NullLogService());
+
+				assert.strictEqual(await strategy.lookup('toolu_target', {
+					parentUri: URI.parse('claude:/parent-sid'),
+					parentSessionId: 'parent-sid',
+					parentTranscript: transcript,
+					token: CancellationToken.None,
+				}), undefined);
+			});
+		});
 	});
 });
 
@@ -226,8 +290,8 @@ suite('claudeSubagentResolver — getSubagentTranscript', () => {
 
 		const subagentUriA = URI.parse(buildSubagentSessionUri(parentUri, 'toolu_a'));
 		const subagentUriB = URI.parse(buildSubagentSessionUri(parentUri, 'toolu_b'));
-		await getSubagentTranscript(subagentUriA, registry, sdk, log, CancellationToken.None);
-		await getSubagentTranscript(subagentUriB, registry, sdk, log, CancellationToken.None);
+		await getSubagentTranscript(subagentUriA, parentUri, 'parent-sid', 'toolu_a', registry, sdk, log, CancellationToken.None);
+		await getSubagentTranscript(subagentUriB, parentUri, 'parent-sid', 'toolu_b', registry, sdk, log, CancellationToken.None);
 
 		assert.deepStrictEqual({
 			fetchedAgentIds: sdk.getSubagentMessagesCalls.map(c => c.agentId),
@@ -249,7 +313,7 @@ suite('claudeSubagentResolver — getSubagentTranscript', () => {
 		// No prime, no spawn record — strategies all return undefined for an unknown id.
 		const noResolve = await getSubagentTranscript(
 			URI.parse(buildSubagentSessionUri(parentUri, 'toolu_unknown')),
-			registry, sdk, log, CancellationToken.None,
+			parentUri, 'parent-sid', 'toolu_unknown', registry, sdk, log, CancellationToken.None,
 		);
 
 		// Cached spawn but SDK rejects — returns [].
@@ -257,7 +321,7 @@ suite('claudeSubagentResolver — getSubagentTranscript', () => {
 		sdk.getSubagentMessagesRejection = new Error('boom');
 		const onError = await getSubagentTranscript(
 			URI.parse(buildSubagentSessionUri(parentUri, 'toolu_known')),
-			registry, sdk, log, CancellationToken.None,
+			parentUri, 'parent-sid', 'toolu_known', registry, sdk, log, CancellationToken.None,
 		);
 
 		assert.deepStrictEqual({
@@ -442,4 +506,3 @@ suite('claudeSubagentResolver — fetchParentTurns', () => {
 		});
 	});
 });
-

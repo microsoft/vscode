@@ -10,13 +10,14 @@ import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { SSHRelayTransport } from '../../electron-browser/sshRelayTransport.js';
-import type { ISSHRelayMessage, ISSHRemoteAgentHostMainService, ISSHConnectProgress, ISSHConnectResult, ISSHAgentHostConfig, ISSHResolvedConfig } from '../../common/sshRemoteAgentHost.js';
+import type { ISSHRemoteAgentHostMainService, ISSHConnectProgress, ISSHConnectResult, ISSHAgentHostConfig, ISSHResolvedConfig } from '../../common/sshRemoteAgentHost.js';
+import type { IRelayMessage } from '../../common/relayTransport.js';
 
 /**
  * Minimal mock of ISSHRemoteAgentHostMainService for testing the relay transport.
  */
 class MockSSHMainService {
-	private readonly _onDidRelayMessage = new Emitter<ISSHRelayMessage>();
+	private readonly _onDidRelayMessage = new Emitter<IRelayMessage>();
 	readonly onDidRelayMessage = this._onDidRelayMessage.event;
 
 	private readonly _onDidRelayClose = new Emitter<string>();
@@ -47,7 +48,7 @@ class MockSSHMainService {
 	}
 
 	// Test helpers
-	fireRelayMessage(msg: ISSHRelayMessage): void {
+	fireRelayMessage(msg: IRelayMessage): void {
 		this._onDidRelayMessage.fire(msg);
 	}
 

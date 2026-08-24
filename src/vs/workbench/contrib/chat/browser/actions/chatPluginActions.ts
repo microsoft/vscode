@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -12,13 +12,14 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { IAgentPluginRepositoryService } from '../../common/plugins/agentPluginRepositoryService.js';
 import { IPluginInstallService } from '../../common/plugins/pluginInstallService.js';
-import { type IMarketplaceReference, MarketplaceReferenceKind, parseMarketplaceReference, parseMarketplaceReferences } from '../../common/plugins/pluginMarketplaceService.js';
+import { type IMarketplaceReference, MarketplaceReferenceKind, parseMarketplaceReference, parseMarketplaceReferences, readConfiguredMarketplaces } from '../../common/plugins/pluginMarketplaceService.js';
 import { InstalledAgentPluginsViewId } from '../chat.js';
 import { CHAT_CATEGORY, CHAT_CONFIG_MENU_ID } from './chatActions.js';
 
@@ -42,6 +43,11 @@ export class ManagePluginsAction extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		accessor.get(IExtensionsWorkbenchService).openSearch('@agentPlugins ');
 	}
+}
+
+interface IInstallFromSourceActionOptions {
+	/** When `true`, do not reveal the installed plugin in the Extensions viewlet after install. */
+	readonly skipReveal?: boolean;
 }
 
 class InstallFromSourceAction extends Action2 {
@@ -68,15 +74,15 @@ class InstallFromSourceAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
+	async run(accessor: ServicesAccessor, options?: IInstallFromSourceActionOptions): Promise<boolean> {
 		const quickInputService = accessor.get(IQuickInputService);
 		const pluginInstallService = accessor.get(IPluginInstallService);
 		const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
 
 		const store = new DisposableStore();
 		const inputBox = store.add(quickInputService.createInputBox());
-		inputBox.placeholder = localize('pluginSourcePlaceholder', "owner/repo or git clone URL");
-		inputBox.prompt = localize('pluginSourcePrompt', "Enter a GitHub repository or git URL to install a plugin from");
+		inputBox.placeholder = localize('pluginSourcePlaceholder', "owner/repo, git URL, or local folder path");
+		inputBox.prompt = localize('pluginSourcePrompt', "Enter a GitHub repository, git URL, or local folder path to install a plugin from");
 		inputBox.ignoreFocusOut = true;
 		inputBox.show();
 
@@ -84,61 +90,77 @@ class InstallFromSourceAction extends Action2 {
 			inputBox.validationMessage = undefined;
 		}));
 
-		let installing = false;
-		store.add(inputBox.onDidHide(() => {
-			if (!installing) {
-				store.dispose();
-			}
-		}));
+		return new Promise<boolean>(resolve => {
+			let installing = false;
+			let installed = false;
+			store.add(toDisposable(() => resolve(installed)));
 
-		store.add(inputBox.onDidAccept(async () => {
-			const source = inputBox.value.trim();
-			if (!source) {
-				return;
-			}
-
-			// Quick format validation keeps the input box open for correction.
-			const validationError = pluginInstallService.validatePluginSource(source);
-			if (validationError) {
-				inputBox.validationMessage = validationError;
-				return;
-			}
-
-			// Show busy state and prevent concurrent installs.
-			inputBox.busy = true;
-			inputBox.enabled = false;
-			installing = true;
-			try {
-				// Hide the input box so it doesn't conflict with trust/progress dialogs.
-				inputBox.hide();
-
-				const result = await pluginInstallService.installPluginFromValidatedSource(source);
-				if (!result.success) {
-					if (result.message) {
-						// Re-open with the error so the user can correct their input.
-						inputBox.validationMessage = result.message;
-					}
-					inputBox.show();
-				} else {
-					const ref = parseMarketplaceReference(source);
-					if (ref) {
-						extensionsWorkbenchService.openSearch(`@agentPlugins ${ref.displayLabel}`);
-					}
+			store.add(inputBox.onDidHide(() => {
+				if (!installing) {
 					store.dispose();
 				}
-			} finally {
-				installing = false;
-				if (!store.isDisposed) {
-					inputBox.busy = false;
-					inputBox.enabled = true;
+			}));
+
+			store.add(inputBox.onDidAccept(async () => {
+				const source = inputBox.value.trim();
+				if (!source) {
+					return;
 				}
-			}
-		}));
+
+				// Quick format validation keeps the input box open for correction.
+				const validationError = pluginInstallService.validatePluginSource(source);
+				if (validationError) {
+					inputBox.validationMessage = validationError;
+					return;
+				}
+
+				// Show busy state and prevent concurrent installs.
+				inputBox.busy = true;
+				inputBox.enabled = false;
+				installing = true;
+				try {
+					// Hide the input box so it doesn't conflict with trust/progress dialogs.
+					inputBox.hide();
+
+					const result = await pluginInstallService.installPluginFromSource(source);
+					if (!result.success) {
+						if (result.message) {
+							// Re-open with the error so the user can correct their input.
+							inputBox.validationMessage = result.message;
+						}
+						inputBox.show();
+					} else {
+						installed = true;
+						if (!options?.skipReveal) {
+							const ref = parseMarketplaceReference(source);
+							if (ref) {
+								extensionsWorkbenchService.openSearch(`@agentPlugins ${ref.displayLabel}`);
+							}
+						}
+						store.dispose();
+					}
+				} catch (e) {
+					// An unexpected failure (e.g. cancelled trust prompt) would otherwise
+					// leave the hidden input box and awaited promise stuck. Re-show it with
+					// the error so the user can retry or cancel.
+					const detail = e instanceof Error ? e.message : String(e);
+					inputBox.validationMessage = localize('installFromSourceFailed', "Failed to install plugin: {0}", detail);
+					inputBox.show();
+				} finally {
+					installing = false;
+					if (!store.isDisposed) {
+						inputBox.busy = false;
+						inputBox.enabled = true;
+					}
+				}
+			}));
+		});
 	}
 }
 
 interface IMarketplaceQuickPickItem extends IQuickPickItem {
 	readonly reference: IMarketplaceReference;
+	readonly managedByPolicy: boolean;
 }
 
 class ManagePluginMarketplacesAction extends Action2 {
@@ -172,9 +194,11 @@ class ManagePluginMarketplacesAction extends Action2 {
 		const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
 		const commandService = accessor.get(ICommandService);
 		const fileService = accessor.get(IFileService);
+		const notificationService = accessor.get(INotificationService);
 
-		const configuredRefs = configurationService.getValue<unknown[]>(ChatConfiguration.PluginMarketplaces) ?? [];
-		const refs = parseMarketplaceReferences(configuredRefs);
+		const { userValues, extraValues, effectiveValues } = readConfiguredMarketplaces(configurationService);
+		const refs = parseMarketplaceReferences(effectiveValues);
+		const policyCanonicalIds = new Set(parseMarketplaceReferences(extraValues).map(r => r.canonicalId));
 
 		if (refs.length === 0) {
 			quickInputService.pick([], { placeHolder: localize('noMarketplaces', "No plugin marketplaces configured") });
@@ -186,8 +210,11 @@ class ManagePluginMarketplacesAction extends Action2 {
 			label: ref.displayLabel,
 			description: ref.kind === MarketplaceReferenceKind.LocalFileUri
 				? localize('localMarketplace', "Local")
-				: ref.cloneUrl,
+				: policyCanonicalIds.has(ref.canonicalId)
+					? localize('managedMarketplace', "{0} (managed by enterprise policy)", ref.cloneUrl)
+					: ref.cloneUrl,
 			reference: ref,
+			managedByPolicy: policyCanonicalIds.has(ref.canonicalId),
 		}));
 
 		const selected = await quickInputService.pick(items, {
@@ -230,8 +257,15 @@ class ManagePluginMarketplacesAction extends Action2 {
 				await commandService.executeCommand('revealFileInOS', repoUri);
 				break;
 			case 'removeMarketplace': {
-				const currentValues = configurationService.getValue<unknown[]>(ChatConfiguration.PluginMarketplaces) ?? [];
-				const updated = currentValues.filter(v => typeof v === 'string' && v.trim() !== ref.rawValue);
+				if (selected.managedByPolicy) {
+					notificationService.notify({
+						severity: Severity.Warning,
+						message: localize('removeManagedMarketplace', "Enterprise policy manages '{0}', so it can't be removed here.", ref.displayLabel),
+					});
+					return;
+				}
+
+				const updated = userValues.filter(v => typeof v === 'string' && v.trim() !== ref.rawValue);
 				await configurationService.updateValue(ChatConfiguration.PluginMarketplaces, updated);
 				break;
 			}
