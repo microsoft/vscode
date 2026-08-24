@@ -46,7 +46,6 @@ These are the intended extension points for new work:
 - one primary runtime graph, with explicitly scoped child graphs allowed;
 - foundation, core-service, host-service, composition, contribution, and
   entry-activation placement categories;
-- registration-time static-argument validation for descriptors;
 - lazy descriptor construction on first resolution;
 - ordered chat contributions for cross-cutting turn, action, hydration, and
   outgoing-message behavior;
@@ -68,7 +67,7 @@ wart has an explicit exit condition; update this document when one is removed.
 
 ```ts
 async function createAgentHostRuntime(options) {
-	const services = new AgentHostServiceCollection();
+	const services = new ServiceCollection();
 	const infrastructure = new DisposableStore();
 	const foundation = createAgentServiceFoundation({ ...options, services, owned: infrastructure });
 	const telemetry = await createAgentHostTelemetryService(foundation);
@@ -118,12 +117,9 @@ existing file first needs it.
   decorated service parameter. A trailing non-service parameter is valid only
   when it has an optional/default value and the descriptor intentionally accepts
   that value; DI cannot supply a trailing static argument.
-- Descriptors with service dependencies must pass exactly as many leading static
-  arguments as the first service dependency index. Registration rejects a
-  mismatch before bootstrap. Constructors without service dependencies must
-  receive every non-defaulted argument reported by `Function.length`.
-- This validation covers descriptors only. Direct `createInstance()` calls
-  remain the caller's responsibility.
+- Follow the standard `SyncDescriptor` convention: static arguments precede
+  decorated service dependencies. `InstantiationService` owns the repository-wide
+  mismatch behavior; Agent Host does not impose a stricter local variant.
 - Do not use `supportsDelayedInstantiation`. In Node it schedules construction
   on a later macrotask, which makes startup failures and disposal timing
   nondeterministic. An eager descriptor is already lazy until first resolved.
@@ -257,12 +253,12 @@ unrelated services.
 - Global `registerSingleton` for node Agent Host services.
 - Process behavior in service constructors when it belongs in activation.
 - A second test-only list of production service registrations.
-- Descriptor registration without an exact static-argument audit.
 
 ## Adding a service checklist
 
 - [ ] Classify it as foundation, core descriptor, host descriptor, composition, contribution, or entry activation.
-- [ ] Keep constructor service parameters trailing and static-argument arity exact.
+- [ ] Keep constructor service parameters trailing and follow standard
+  `SyncDescriptor` static-argument conventions.
 - [ ] Register its service ID in the appropriate graph.
 - [ ] If its constructor registers required behavior, add a documented
   resolution site and a behavior test.

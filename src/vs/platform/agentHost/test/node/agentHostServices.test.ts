@@ -13,6 +13,7 @@ import { IFileService } from '../../../files/common/files.js';
 import { SyncDescriptor } from '../../../instantiation/common/descriptors.js';
 import { createDecorator, IInstantiationService, ServiceIdentifier, _util } from '../../../instantiation/common/instantiation.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
+import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { IRequestService } from '../../../request/common/request.js';
@@ -27,36 +28,14 @@ import { IAgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpo
 import { IAgentHostProxyResolver } from '../../node/agentHostProxyResolver.js';
 import { IAgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { NullByokLmBridgeRegistry, IByokLmBridgeRegistry } from '../../node/byokLmBridgeRegistry.js';
-import { AgentHostServiceCollection, registerAgentHostCoreServices, registerAgentHostHostServices } from '../../node/agentHostServices.js';
+import { registerAgentHostCoreServices, registerAgentHostHostServices } from '../../node/agentHostServices.js';
 import { IAgentHostWorktreeIsolation, NullAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
 
 const ITestService = createDecorator<ITestService>('agentHostTestService');
-const IReplacementService = createDecorator<ITestService>('agentHostReplacementService');
 
 interface ITestService {
 	readonly _serviceBrand: undefined;
 	readonly value: number;
-}
-
-class StaticArgumentTestService implements ITestService {
-	declare readonly _serviceBrand: undefined;
-
-	constructor(readonly value: number) { }
-}
-
-class DefaultStaticArgumentTestService implements ITestService {
-	declare readonly _serviceBrand: undefined;
-
-	constructor(readonly value = 1) { }
-}
-
-class ServiceDependentTestService implements ITestService {
-	declare readonly _serviceBrand: undefined;
-
-	constructor(
-		readonly value: number,
-		@ITestService _dependency: ITestService,
-	) { }
 }
 
 class CountingTestService implements ITestService {
@@ -82,10 +61,10 @@ class DisposableTestService extends Disposable implements ITestService {
 	}
 }
 
-class RecordingServiceCollection extends AgentHostServiceCollection {
+class RecordingServiceCollection extends ServiceCollection {
 	private readonly _descriptorIds = new Set<ServiceIdentifier<unknown>>();
 
-	constructor(...entries: ConstructorParameters<typeof AgentHostServiceCollection>) {
+	constructor(...entries: ConstructorParameters<typeof ServiceCollection>) {
 		super();
 		for (const [id, service] of entries) {
 			this.set(id, service);
@@ -104,7 +83,7 @@ class RecordingServiceCollection extends AgentHostServiceCollection {
 	}
 }
 
-function registerCoreServices(services: AgentHostServiceCollection): void {
+function registerCoreServices(services: ServiceCollection): void {
 	registerAgentHostCoreServices(services, {
 		storageResource: URI.file('/storage.json'),
 		fetchFn: globalThis.fetch,
@@ -120,7 +99,7 @@ function registerCoreServices(services: AgentHostServiceCollection): void {
 	});
 }
 
-function registerHostServices(services: AgentHostServiceCollection): void {
+function registerHostServices(services: ServiceCollection): void {
 	registerAgentHostHostServices(services, {
 		userDataPath: URI.file('/user-data'),
 		fetchFn: globalThis.fetch,
@@ -164,34 +143,12 @@ function assertCompleteAcyclicGraph(services: RecordingServiceCollection, extern
 	assert.ok(descriptorIds.size > 0);
 }
 
-suite('AgentHostServiceCollection', () => {
+suite('Agent Host service registrations', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
-
-	test('routes constructor entries through descriptor validation', () => {
-		assert.throws(
-			() => new AgentHostServiceCollection([ITestService, new SyncDescriptor(StaticArgumentTestService)]),
-			/StaticArgumentTestService must pass at least 1 required static arguments \(got 0\)/,
-		);
-	});
-
-	test('validates descriptor static arguments when registered', () => {
-		const services = new AgentHostServiceCollection();
-
-		assert.throws(
-			() => services.set(ITestService, new SyncDescriptor(ServiceDependentTestService)),
-			/ServiceDependentTestService must pass exactly 1 leading static arguments \(got 0\)/,
-		);
-		assert.throws(
-			() => services.set(ITestService, new SyncDescriptor(StaticArgumentTestService)),
-			/StaticArgumentTestService must pass at least 1 required static arguments \(got 0\)/,
-		);
-		services.set(ITestService, new SyncDescriptor(StaticArgumentTestService, [1]));
-		services.set(IReplacementService, new SyncDescriptor(DefaultStaticArgumentTestService));
-	});
 
 	test('resolves descriptors lazily and caches the instance', () => {
 		let createCount = 0;
-		const services = new AgentHostServiceCollection(
+		const services = new ServiceCollection(
 			[ITestService, new SyncDescriptor(CountingTestService, [() => createCount++])],
 		);
 		const instantiationService = disposables.add(new InstantiationService(services, true));
@@ -260,7 +217,7 @@ suite('AgentHostServiceCollection', () => {
 	});
 
 	test('preserves typed overrides', () => {
-		const services = new AgentHostServiceCollection();
+		const services = new ServiceCollection();
 		const override = new NullAgentEditAttributionService();
 		services.set(IAgentEditAttributionService, override);
 
@@ -270,13 +227,13 @@ suite('AgentHostServiceCollection', () => {
 	});
 
 	test('selects the core worktree isolation implementation', () => {
-		const coreServices = new AgentHostServiceCollection();
+		const coreServices = new ServiceCollection();
 		registerCoreServices(coreServices);
-		const nullServices = new AgentHostServiceCollection(
+		const nullServices = new ServiceCollection(
 			[IAgentHostWorktreeIsolation, new NullAgentHostWorktreeIsolation()],
 		);
 		registerCoreServices(nullServices);
-		const hostServices = new AgentHostServiceCollection();
+		const hostServices = new ServiceCollection();
 		registerHostServices(hostServices);
 		const nullInstantiationService = disposables.add(new InstantiationService(nullServices, true));
 		const nullWorktreeIsolation = nullInstantiationService.invokeFunction(accessor => accessor.get(IAgentHostWorktreeIsolation));
@@ -293,7 +250,7 @@ suite('AgentHostServiceCollection', () => {
 	});
 
 	test('descriptor-created services have one disposal owner', () => {
-		const services = new AgentHostServiceCollection();
+		const services = new ServiceCollection();
 		let disposeCount = 0;
 		services.set(ITestService, new SyncDescriptor(DisposableTestService, [() => disposeCount++]));
 		const instantiationService = disposables.add(new InstantiationService(services, true));

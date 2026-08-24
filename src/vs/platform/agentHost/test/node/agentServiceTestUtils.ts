@@ -8,6 +8,7 @@ import { Disposable, DisposableStore, MutableDisposable } from '../../../../base
 import { URI } from '../../../../base/common/uri.js';
 import { IFileService } from '../../../files/common/files.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
+import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
@@ -26,7 +27,7 @@ import { AgentService } from '../../node/agentService.js';
 import { createAgentServiceComposition, type IAgentServiceComposition } from '../../node/agentServiceComposition.js';
 import { activateAgentHostContributions } from '../../node/agentHostContributions.js';
 import { createAgentServiceFoundation } from '../../node/agentServiceFoundation.js';
-import { AgentHostServiceCollection, registerAgentHostCoreServices } from '../../node/agentHostServices.js';
+import { registerAgentHostCoreServices } from '../../node/agentHostServices.js';
 import { ICopilotApiService } from '../../node/shared/copilotApiService.js';
 import { AgentHostClientConnectionService, IAgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
@@ -141,7 +142,7 @@ export function createTestAgentService(
 	const proxyResolver = createTestAgentHostProxyResolver(fetchFn);
 	const foundationDisposables = new DisposableStore();
 	const worktreeIsolation = foundationDisposables.add(new MutableTestAgentHostWorktreeIsolation());
-	const services = new AgentHostServiceCollection(
+	const services = new ServiceCollection(
 		[ILogService, logService],
 		[IFileService, fileService],
 		[ISessionDataService, sessionDataService],

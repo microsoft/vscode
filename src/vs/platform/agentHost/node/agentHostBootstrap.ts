@@ -27,7 +27,8 @@ import { AgentService, IAgentServiceOptions } from './agentService.js';
 import { createAgentServiceComposition } from './agentServiceComposition.js';
 import { activateAgentHostContributions } from './agentHostContributions.js';
 import { createAgentServiceFoundation } from './agentServiceFoundation.js';
-import { AgentHostServiceCollection, registerAgentHostCoreServices, registerAgentHostHostServices } from './agentHostServices.js';
+import { registerAgentHostCoreServices, registerAgentHostHostServices } from './agentHostServices.js';
+import { ServiceCollection } from '../../instantiation/common/serviceCollection.js';
 import { IAgentSdkDownloader, type IAgentSdkDownloadProgress } from './agentSdkDownloader.js';
 import { IByokLmBridgeRegistry, NullByokLmBridgeRegistry } from './byokLmBridgeRegistry.js';
 import { registerPendingEditContentProvider } from './copilot/pendingEditContentStore.js';
@@ -109,7 +110,7 @@ export async function createAgentHostRuntime(options: ICreateAgentHostRuntimeOpt
 		infrastructure.add(fileService.registerProvider(Schemas.file, infrastructure.add(new DiskFileSystemProvider(logService))));
 		infrastructure.add(registerPendingEditContentProvider(fileService));
 		const sessionDataService = new SessionDataService(URI.file(environmentService.userDataPath), fileService, logService);
-		const services = new AgentHostServiceCollection(
+		const services = new ServiceCollection(
 			[INativeEnvironmentService, environmentService],
 			[ILogService, logService],
 			[IFileService, fileService],

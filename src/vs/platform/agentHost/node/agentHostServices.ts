@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { SyncDescriptor } from '../../instantiation/common/descriptors.js';
-import { ServiceIdentifier, _util } from '../../instantiation/common/instantiation.js';
+import { ServiceIdentifier } from '../../instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../instantiation/common/serviceCollection.js';
 import { GitHubService, IGitHubService } from '../../github/common/githubService.js';
 import type { GitHubServiceOptions } from '../../github/common/githubTypes.js';
@@ -60,39 +60,8 @@ import { EditSurvivalReporterFactory, IEditSurvivalReporterFactory } from './sha
 import { IAgentHostWorktreeIsolation, WorktreeIsolation } from './shared/worktreeIsolation.js';
 import { AgentBranchNameGenerator, IAgentBranchNameGenerator } from './shared/agentBranchNameGenerator.js';
 
-/**
- * Process-local collection that rejects descriptor static-argument shapes which
- * `InstantiationService` would otherwise silently pad or truncate.
- */
-export class AgentHostServiceCollection extends ServiceCollection {
-	override set<T>(id: ServiceIdentifier<T>, instanceOrDescriptor: T | SyncDescriptor<T>): T | SyncDescriptor<T> {
-		if (instanceOrDescriptor instanceof SyncDescriptor) {
-			assertExactStaticArguments(instanceOrDescriptor);
-		}
-		return super.set(id, instanceOrDescriptor);
-	}
-}
-
-function assertExactStaticArguments(descriptor: SyncDescriptor<unknown>): void {
-	const dependencies = _util.getServiceDependencies(descriptor.ctor).sort((a, b) => a.index - b.index);
-	if (dependencies.length > 0) {
-		const expected = dependencies[0].index;
-		const actual = descriptor.staticArguments.length;
-		if (actual !== expected) {
-			throw new Error(`Agent Host descriptor ${descriptor.ctor.name} must pass exactly ${expected} leading static arguments (got ${actual})`);
-		}
-		return;
-	}
-
-	const required = descriptor.ctor.length;
-	const actual = descriptor.staticArguments.length;
-	if (actual < required) {
-		throw new Error(`Agent Host descriptor ${descriptor.ctor.name} must pass at least ${required} required static arguments (got ${actual})`);
-	}
-}
-
 function registerService<T>(
-	services: AgentHostServiceCollection,
+	services: ServiceCollection,
 	id: ServiceIdentifier<T>,
 	value: T | SyncDescriptor<T>,
 ): void {
@@ -109,7 +78,7 @@ export interface IAgentHostCoreServiceInputs {
 	readonly copilotApiService?: ICopilotApiService;
 }
 
-export function registerAgentHostCoreServices(services: AgentHostServiceCollection, inputs: IAgentHostCoreServiceInputs): void {
+export function registerAgentHostCoreServices(services: ServiceCollection, inputs: IAgentHostCoreServiceInputs): void {
 	registerService(services, IAgentHostFileMonitorService, new SyncDescriptor(AgentHostFileMonitorService));
 	registerService(services, INetworkDiagnosticsService, new SyncDescriptor(NetworkDiagnosticsService));
 	registerService(services, IDiffComputeService, new SyncDescriptor(NodeWorkerDiffComputeService));
@@ -145,7 +114,7 @@ export interface IAgentHostHostServiceInputs {
 	readonly byok: { readonly kind: 'renderer'; readonly bridgeRegistry: IByokLmBridgeRegistry } | { readonly kind: 'unavailable' };
 }
 
-export function registerAgentHostHostServices(services: AgentHostServiceCollection, inputs: IAgentHostHostServiceInputs): void {
+export function registerAgentHostHostServices(services: ServiceCollection, inputs: IAgentHostHostServiceInputs): void {
 	registerService(services, IWindowsMxcTerminalSandboxRuntime, new SyncDescriptor(WindowsMxcTerminalSandboxRuntime));
 	registerService(services, ISandboxHelperService, new SyncDescriptor(SandboxHelperService));
 	registerService(services, IAgentHostGitService, new SyncDescriptor(AgentHostGitService));
