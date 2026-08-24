@@ -16,8 +16,9 @@ data the SDK accepts directly.
   shared identity text, the `fullSystemPrompt` / `sectionOverrides` builders, and
   `describeSystemMessageConfig` (the one-line log summary).
 - `toolInstructions.ts` — the model-agnostic `tool_instructions` layer: gated
-  or unconditional one-line nudges (`TOOL_INSTRUCTION_LINES`) composed into the
-  SDK's `tool_instructions` section.
+  or unconditional nudges (`TOOL_INSTRUCTION_LINES`) composed into the SDK's
+  `tool_instructions` section, including the setting-gated default-model
+  guidance for subagents (`chat.copilot.subagentModelGuidance.enabled`).
 - `anthropicPrompt.ts` — example per-model contributor (Claude Opus 4.8).
 - `allPrompts.ts` — side-effect import hub; importing it registers every
   contributor into the shared `agentHostPromptRegistry`.
@@ -53,16 +54,18 @@ There are two ways to customize, and a model can use both at once.
 ## Lever 1 — universal, all models (`toolInstructions.ts`)
 
 Guidance that should apply to **every** model. A line can be unconditional for
-host-wide behavior such as reading offloaded tool output, or gated on a client
-tool as the browser line is.
+host-wide behavior such as reading offloaded tool output, gated on a client
+tool as the browser line is, or gated on a host setting as the subagent
+model-guidance line is.
 
-1. Write a `ToolInstructionLine` — a function `(hasTool) => string | undefined`
+1. Write a `ToolInstructionLine` — a function `(context) => string | undefined`
    that returns one sentence (no surrounding newlines), or `undefined` when its
-   gate does not apply.
+   gate does not apply. The `IToolInstructionContext` exposes `hasTool(name)`
+   and `getSetting(key)` (a `CopilotCliConfigKey`).
 2. Add it to `TOOL_INSTRUCTION_LINES`.
 
 ```ts
-const exampleToolInstructions: ToolInstructionLine = hasTool =>
+const exampleToolInstructions: ToolInstructionLine = ({ hasTool }) =>
 	hasTool('someClientToolReferenceName')
 		? 'One sentence of guidance, shown only when that tool is present.'
 		: undefined;
