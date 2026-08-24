@@ -344,6 +344,28 @@ suite('mcpListWidget', () => {
 
 			assert.deepStrictEqual(actions.filter(action => !(action instanceof Separator)).map(action => action.label), localActions.map(action => action.label));
 		});
+
+		test('omits agent-host enablement actions when locally disabled', () => {
+			const { service } = createAgentHostCustomizations();
+			const server = createAgentHostServer();
+			const agentHostActions = trackActions(disposables, getAgentHostMcpServerEnablementActions(service, createAgentPluginService(), sessionResource, server, ['workspace', 'session']));
+			const localActions = trackActions(disposables, [
+				new Action(EnableMcpServerGloballyAction.ID, 'Enable'),
+				new Action('unrelated', 'Unrelated'),
+			]);
+			const actions = getServerItemContextMenuActions(
+				[localActions],
+				server,
+				undefined,
+				agentHostActions,
+				true,
+			);
+
+			assert.deepStrictEqual(actions.filter(action => !(action instanceof Separator)).map(action => action.label), [
+				'Enable',
+				'Unrelated',
+			]);
+		});
 	});
 
 	suite('getLocalMcpServerEnablementActions', () => {
