@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { mainWindow } from '../../../../../base/browser/window.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ExtUri } from '../../../../../base/common/resources.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
@@ -23,6 +24,7 @@ import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IAutomationRun } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { getSessionChatDragData, isSessionChatDrag, SessionsDataTransfers } from '../../../../browser/dnd.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
 import { ISessionsListModelService } from '../../../../services/sessions/browser/sessionsListModelService.js';
 import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
@@ -823,7 +825,7 @@ suite('Sessions - SessionsList', () => {
 			return [...container.querySelectorAll<HTMLElement>('.session-chat-title')].map(element => element.textContent ?? '');
 		}
 
-		test('shows user-facing chats and excludes subagents, side chats, and hidden chats', () => {
+		test('shows non-main user-facing chats and excludes the main chat, subagents, side chats, and hidden chats', () => {
 			const main = createChat('Main chat');
 			const peer = createChat('Peer chat', ChatOriginKind.User);
 			const fork = createChat('Forked chat', ChatOriginKind.Fork);
@@ -841,7 +843,6 @@ suite('Sessions - SessionsList', () => {
 			const container = renderSessionChats(session);
 
 			assert.deepStrictEqual(chatRowTitles(container), [
-				'Main chat',
 				'Peer chat',
 				'Forked chat',
 			]);
@@ -868,11 +869,11 @@ suite('Sessions - SessionsList', () => {
 				after: chatRowTitles(container),
 			}, {
 				before: [],
-				after: ['Main chat', 'Peer chat'],
+				after: ['Peer chat'],
 			});
 		});
 
-		test('shows the first chat when its title matches the session title', () => {
+		test('hides the main chat even when its title matches the session title', () => {
 			const main = createChat('Session');
 			const peer = createChat('Peer chat', ChatOriginKind.User);
 			const base = createTestSession('Session').session;
@@ -887,10 +888,10 @@ suite('Sessions - SessionsList', () => {
 
 			assert.deepStrictEqual({
 				chats: chatRowTitles(container),
-				hasChevron: container.querySelector('.session-chat-chevron')?.classList.contains('collapsible'),
+				hasTwistie: container.querySelector('.session-chat-twistie')?.classList.contains('collapsible'),
 			}, {
-				chats: ['Session', 'Peer chat'],
-				hasChevron: true,
+				chats: ['Peer chat'],
+				hasTwistie: true,
 			});
 		});
 
@@ -916,7 +917,6 @@ suite('Sessions - SessionsList', () => {
 					},
 				])
 			), {
-				'Main chat': { hasProgress: false, hasDot: true, hasDiscussion: false },
 				'Active chat': { hasProgress: true, hasDot: false, hasDiscussion: false },
 			});
 		});
@@ -949,7 +949,67 @@ suite('Sessions - SessionsList', () => {
 			}]);
 		});
 
-		test('shows an icon-slot chevron only for sessions with nested chats', () => {
+		test('opens a nested chat to the side with the session row modifier gesture', () => {
+			const main = createChat('Main chat');
+			const peer = createChat('Peer chat', ChatOriginKind.User);
+			const base = createTestSession('Session').session;
+			const session: ISession = {
+				...base,
+				chats: constObservable([main, peer]),
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			};
+			const opened: { chat: IChat; preserveFocus: boolean; sideBySide: boolean }[] = [];
+			const container = renderSessionChats(session, (_session, chat, preserveFocus, sideBySide) => {
+				opened.push({ chat, preserveFocus, sideBySide });
+			});
+			const peerRow = [...container.querySelectorAll<HTMLElement>('.session-chat-item')]
+				.find(element => element.textContent === 'Peer chat');
+			assert.ok(peerRow);
+
+			peerRow.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0, altKey: true }));
+
+			assert.deepStrictEqual(opened, [{
+				chat: peer,
+				preserveFocus: false,
+				sideBySide: true,
+			}]);
+		});
+
+		test('drags a nested chat with the chat-group payload instead of a session payload', () => {
+			const main = createChat('Main chat');
+			const peer = createChat('Peer chat', ChatOriginKind.User);
+			const base = createTestSession('Session').session;
+			const session: ISession = {
+				...base,
+				chats: constObservable([main, peer]),
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			};
+			const container = renderSessionChats(session);
+			const peerRow = [...container.querySelectorAll<HTMLElement>('.session-chat-item')]
+				.find(element => element.textContent === 'Peer chat')
+				?.closest<HTMLElement>('.monaco-list-row');
+			assert.ok(peerRow);
+			const dataTransfer = new DataTransfer();
+			const dragStart = new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer });
+
+			peerRow.dispatchEvent(dragStart);
+
+			assert.deepStrictEqual({
+				isChatDrag: isSessionChatDrag(dragStart),
+				isSameSessionDrag: isSessionChatDrag(dragStart, session.sessionId),
+				sessionPayload: dataTransfer.getData(SessionsDataTransfers.SESSION),
+				chatPayload: getSessionChatDragData(dragStart),
+			}, {
+				isChatDrag: true,
+				isSameSessionDrag: true,
+				sessionPayload: '',
+				chatPayload: { sessionId: session.sessionId, resource: peer.resource.toString() },
+			});
+		});
+
+		test('uses the native twistie only for sessions with nested chats', () => {
 			const main = createChat('Main chat');
 			const peer = createChat('Peer chat', ChatOriginKind.User);
 			const multiChatBase = createTestSession('Multi-chat session').session;
@@ -977,27 +1037,48 @@ suite('Sessions - SessionsList', () => {
 			const rows = Object.fromEntries([...container.querySelectorAll<HTMLElement>('.session-item')].map(item => {
 				const row = item.closest<HTMLElement>('.monaco-list-row');
 				const twistie = row?.querySelector<HTMLElement>('.monaco-tl-twistie');
-				const chevron = item.querySelector<HTMLElement>('.session-chat-chevron');
+				row?.classList.add('focused');
+				const twistieStyle = twistie?.classList.contains('session-chat-twistie')
+					? mainWindow.getComputedStyle(twistie)
+					: undefined;
 				return [item.querySelector('.session-title')?.textContent, {
 					expanded: row?.getAttribute('aria-expanded'),
+					hasSessionChatTwistie: twistie?.classList.contains('session-chat-twistie'),
 					hasHiddenTwistie: twistie?.classList.contains('force-no-twistie'),
-					hasChevron: chevron?.classList.contains('collapsible'),
-					hasExpandedIcon: chevron?.classList.contains('codicon-chevron-down'),
+					hasNativeGlyph: twistie?.classList.contains('codicon-tree-item-expanded'),
+					isCollapsible: twistie?.classList.contains('collapsible'),
+					isCollapsed: twistie?.classList.contains('collapsed'),
+					fontSize: twistieStyle?.fontSize,
+					opacity: twistieStyle?.opacity,
+					paddingLeft: twistie?.style.paddingLeft,
+					pointerEvents: twistieStyle?.pointerEvents,
 				}];
 			}));
 
 			assert.deepStrictEqual(rows, {
 				'Multi-chat session': {
 					expanded: 'true',
-					hasHiddenTwistie: true,
-					hasChevron: true,
-					hasExpandedIcon: true,
+					hasSessionChatTwistie: true,
+					hasHiddenTwistie: false,
+					hasNativeGlyph: true,
+					isCollapsible: true,
+					isCollapsed: false,
+					fontSize: '16px',
+					opacity: '1',
+					paddingLeft: '0px',
+					pointerEvents: 'auto',
 				},
 				'Single-chat session': {
 					expanded: null,
+					hasSessionChatTwistie: false,
 					hasHiddenTwistie: true,
-					hasChevron: false,
-					hasExpandedIcon: false,
+					hasNativeGlyph: false,
+					isCollapsible: false,
+					isCollapsed: false,
+					fontSize: undefined,
+					opacity: undefined,
+					paddingLeft: '0px',
+					pointerEvents: undefined,
 				},
 			});
 
@@ -1008,17 +1089,17 @@ suite('Sessions - SessionsList', () => {
 			multiChatItem.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0, detail: 2 }));
 			assert.strictEqual(multiChatItem.closest('.monaco-list-row')?.getAttribute('aria-expanded'), 'true');
 
-			const chevron = multiChatItem.querySelector<HTMLElement>('.session-chat-chevron');
-			assert.ok(chevron);
-			chevron.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
+			const twistie = multiChatItem.closest('.monaco-list-row')?.querySelector<HTMLElement>('.monaco-tl-twistie');
+			assert.ok(twistie);
+			twistie.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
 
 			assert.deepStrictEqual({
-				expanded: chevron.closest('.monaco-list-row')?.getAttribute('aria-expanded'),
-				hasCollapsedIcon: chevron.classList.contains('codicon-chevron-right'),
+				expanded: twistie.closest('.monaco-list-row')?.getAttribute('aria-expanded'),
+				isCollapsed: twistie.classList.contains('collapsed'),
 				visibleChats: chatRowTitles(container),
 			}, {
 				expanded: 'false',
-				hasCollapsedIcon: true,
+				isCollapsed: true,
 				visibleChats: [],
 			});
 		});

@@ -10,7 +10,7 @@ import { localize } from '../../nls.js';
 import { ChatOriginKind, IChat, SessionStatus } from '../services/sessions/common/session.js';
 
 export const SESSION_CONVERSATION_CHATS_GROUP = '1_chats';
-export const SESSION_CONVERSATION_SIDE_CHATS_GROUP = '2_sideChats';
+export const SESSION_CONVERSATION_SIDE_CHATS_GROUP = '2_sidechats';
 export const SESSION_CONVERSATION_SUBAGENTS_GROUP = '3_subagents';
 
 export function getSessionConversationActionId(sessionId: string, chatResource: URI): string {

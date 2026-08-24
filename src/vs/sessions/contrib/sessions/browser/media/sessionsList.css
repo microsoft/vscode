@@ -30,6 +30,31 @@
 		display: none !important;
 	}
 
+	.monaco-list-row .session-chat-twistie {
+		position: absolute;
+		top: var(--vscode-spacing-size80);
+		left: var(--vscode-spacing-size120);
+		width: var(--vscode-spacing-size160);
+		height: var(--vscode-spacing-size160);
+		padding-right: 0;
+		font-size: 16px;
+		opacity: 0;
+		pointer-events: none;
+		transform: none;
+		z-index: 1;
+	}
+
+	.monaco-list-row:hover .session-chat-twistie.collapsible,
+	.monaco-list-row.focused .session-chat-twistie.collapsible {
+		opacity: 1;
+		pointer-events: auto;
+	}
+
+	.monaco-list-row:hover[aria-expanded] .session-item .session-icon,
+	.monaco-list-row.focused[aria-expanded] .session-item .session-icon {
+		visibility: hidden;
+	}
+
 	.monaco-list-row.selected .session-details-row {
 		color: unset;
 	}
@@ -125,17 +150,6 @@
 
 	&.archived {
 		color: var(--vscode-descriptionForeground);
-	}
-
-	.session-chat-chevron {
-		flex-shrink: 0;
-		display: none;
-		width: var(--vscode-spacing-size160);
-		height: var(--vscode-spacing-size160);
-		align-items: center;
-		justify-content: center;
-		color: var(--vscode-descriptionForeground);
-		font-size: var(--vscode-codiconFontSize-compact);
 	}
 
 	&.sticky {
@@ -417,16 +431,6 @@
 			}
 		}
 	}
-}
-
-.monaco-list-row:hover .session-item .session-chat-chevron.collapsible,
-.monaco-list-row.focused .session-item .session-chat-chevron.collapsible {
-	display: flex;
-}
-
-.monaco-list-row:hover .session-item .session-chat-chevron.collapsible + .session-icon,
-.monaco-list-row.focused .session-item .session-chat-chevron.collapsible + .session-icon {
-	display: none;
 }
 
 .session-chat-item {
@@ -840,14 +844,17 @@
 		}
 	}
 
-	.session-item .session-chat-chevron.collapsible {
-		display: flex;
+	.monaco-list-row .session-chat-twistie.collapsible {
+		opacity: 1;
+		pointer-events: auto;
+		top: var(--vscode-spacing-size100);
+		left: var(--vscode-spacing-size100);
 		width: var(--vscode-spacing-size200);
 		height: var(--vscode-spacing-size200);
 	}
 
-	.session-item .session-chat-chevron.collapsible + .session-icon {
-		display: none;
+	.monaco-list-row[aria-expanded] .session-item .session-icon {
+		visibility: hidden;
 	}
 
 	.session-chat-item {
