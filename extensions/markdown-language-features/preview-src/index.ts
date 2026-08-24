@@ -44,6 +44,7 @@ interface State {
 	resource?: string;
 	line?: number;
 	fragment?: string;
+ TocVisible?: boolean;
 }
 
 const originalState: State = vscode.getState() ?? {};
@@ -108,7 +109,10 @@ onceDocumentLoaded(() => {
 	addCodeBlockCopyButtons();
 	addCodeBlockLanguageLabels();
 	buildTableOfContents();
-	applyLineChanges(lineChanges);
+		if (state.tocVisible === false) {
+			toggleTableOfContents();
+		}
+		applyLineChanges(lineChanges);
 	if (typeof scrollProgress === 'number' && !settings.settings.fragment) {
 		doAfterImagesLoaded(() => {
 			scrollDisabledCount = 1;
