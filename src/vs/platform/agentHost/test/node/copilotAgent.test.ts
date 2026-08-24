@@ -3126,6 +3126,15 @@ suite('CopilotAgent', () => {
 			}
 		}
 
+		/** A client whose start can flip a startup-config value via `onAfterStart`. */
+		class ConfigChangeOnStartClient extends TestCopilotClient {
+			onAfterStart: (() => void) | undefined;
+			override async start(): Promise<void> {
+				await super.start();
+				this.onAfterStart?.();
+			}
+		}
+
 		class MutableLogService extends NullLogService {
 			private _level = LogLevel.Info;
 
@@ -3138,7 +3147,7 @@ suite('CopilotAgent', () => {
 			}
 		}
 
-		test('preserves configuration-changed outcome when stopping the started client fails', async () => {
+		test('self-heals a configuration-changed cold-start abort when stopping the started client fails', async () => {
 			const client = new StopCountingClient([]);
 			const startGate = new DeferredPromise<void>();
 			client.startGate = startGate.p;
@@ -3151,17 +3160,27 @@ suite('CopilotAgent', () => {
 				configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: false });
 				startGate.complete();
 
-				assert.strictEqual(await startup, undefined);
+				const catalog = await startup;
 				const startupEvents = telemetryService.events.map(event => {
 					const data = event.data as Record<string, unknown>;
-					return { eventName: event.eventName, ...data, durationMs: typeof data.durationMs };
+					return {
+						eventName: event.eventName,
+						outcome: data.outcome,
+						durationMs: typeof data.durationMs,
+						attemptNumber: data.attemptNumber,
+						startupFailureCause: data.startupFailureCause,
+						startupFailureResource: data.startupFailureResource,
+						startupExitCode: data.startupExitCode,
+					};
 				});
 				assert.deepStrictEqual({
+					catalog,
 					startCallCount: client.startCallCount,
 					stopCount: client.stopCount,
 					startupEvents,
 				}, {
-					startCallCount: 1,
+					catalog: [],
+					startCallCount: 2,
 					stopCount: 1,
 					startupEvents: [{
 						eventName: 'agentHost.copilotClientStartup',
@@ -3171,12 +3190,171 @@ suite('CopilotAgent', () => {
 						startupFailureCause: 'configurationChanged',
 						startupFailureResource: 'other',
 						startupExitCode: undefined,
+					}, {
+						eventName: 'agentHost.copilotClientStartup',
+						outcome: 'success',
+						durationMs: 'number',
+						attemptNumber: 2,
+						startupFailureCause: undefined,
+						startupFailureResource: undefined,
+						startupExitCode: undefined,
 					}],
 				});
 			} finally {
 				client.stopError = undefined;
 				startGate.complete();
 				await startup;
+				await disposeAgent(agent);
+			}
+		});
+
+		test('self-heals a clean configuration-changed cold-start abort and returns the catalog', async () => {
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const ownedSession = AgentSession.uri('copilotcli', 'owned-selfheal');
+			const ownedDb = sessionDataService.openDatabase(ownedSession);
+			await ownedDb.object.setMetadata('copilot.workingDirectory', URI.file('/workspace').toString());
+			ownedDb.dispose();
+			const client = new ConfigChangeOnStartClient([sdkSession('owned-selfheal')]);
+			const telemetryService = new RecordingTelemetryService();
+			const { agent, configurationService } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client, telemetryService });
+			// Change a startup-config value only while the first client starts, so
+			// that start aborts as config-changed and the second start (with the
+			// now-current config) succeeds.
+			client.onAfterStart = () => {
+				if (client.startCallCount === 1) {
+					configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: false });
+				}
+			};
+			try {
+				const catalog = await agent.listChatsToMigrate();
+				const startupOutcomes = telemetryService.events
+					.filter(event => event.eventName === 'agentHost.copilotClientStartup')
+					.map(event => (event.data as Record<string, unknown>).outcome);
+				assert.deepStrictEqual({
+					sessions: catalog?.map(session => sessionIdOfChat(session.chat)),
+					startCallCount: client.startCallCount,
+					stopCallCount: client.stopCallCount,
+					startupOutcomes,
+				}, {
+					sessions: ['owned-selfheal'],
+					startCallCount: 2,
+					stopCallCount: 1,
+					startupOutcomes: ['failure', 'success'],
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('self-heals a clean configuration-changed cold-start abort on the restore describe path', async () => {
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const session = AgentSession.uri('copilotcli', 'restore-target');
+			const db = sessionDataService.openDatabase(session);
+			await db.object.setMetadata('copilot.workingDirectory', URI.file('/workspace').toString());
+			db.dispose();
+			const client = new ConfigChangeOnStartClient([sdkSession('restore-target')]);
+			const { agent, configurationService } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client });
+			client.onAfterStart = () => {
+				if (client.startCallCount === 1) {
+					configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: false });
+				}
+			};
+			try {
+				const chat = defaultChatUri(session);
+				const metadata = await agent.getChatMetadata(chat, exactChatContext(session, chat, session));
+				assert.deepStrictEqual({
+					metadata: metadata && withoutUndefinedProperties(metadata),
+					startCallCount: client.startCallCount,
+					stopCallCount: client.stopCallCount,
+					getSessionMetadataCalls: client.getSessionMetadataCalls,
+				}, {
+					metadata: {
+						chat,
+						startTime: 1000,
+						modifiedTime: 2000,
+						summary: 'SDK restore-target',
+						workingDirectories: [URI.file('/workspace')],
+					},
+					startCallCount: 2,
+					stopCallCount: 1,
+					getSessionMetadataCalls: ['restore-target'],
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('gives up after the bounded number of re-acquires when the startup config keeps changing', async () => {
+			const client = new ConfigChangeOnStartClient([]);
+			const { agent, configurationService } = createTestAgentContext(disposables, { copilotClient: client });
+			// Flip the value on every start so each attempt aborts as config-changed.
+			client.onAfterStart = () => {
+				configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: client.startCallCount % 2 === 0 });
+			};
+			try {
+				const result = await agent.listChatsToMigrate();
+				assert.deepStrictEqual({
+					result,
+					startCallCount: client.startCallCount,
+				}, {
+					result: undefined,
+					startCallCount: 2,
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('shares one global re-acquire budget across concurrent client acquisitions', async () => {
+			const client = new ConfigChangeOnStartClient([]);
+			const { agent, configurationService } = createTestAgentContext(disposables, { copilotClient: client });
+			client.onAfterStart = () => {
+				configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: client.startCallCount % 2 === 0 });
+			};
+			const ensureClient = () => (agent as unknown as { _ensureClient(): Promise<unknown> })._ensureClient();
+			try {
+				const first = ensureClient();
+				const second = ensureClient();
+				const outcomes = await Promise.allSettled([first, second]);
+				// A per-caller budget would let the second caller drive extra starts;
+				// the shared budget keeps the total at MAX_STARTUP_CONFIG_RETRIES + 1.
+				assert.deepStrictEqual({
+					firstRejected: outcomes[0].status === 'rejected',
+					secondRejected: outcomes[1].status === 'rejected',
+					startCallCount: client.startCallCount,
+				}, {
+					firstRejected: true,
+					secondRejected: true,
+					startCallCount: 2,
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('coalesces concurrent client acquisitions across a single re-acquire', async () => {
+			const client = new ConfigChangeOnStartClient([]);
+			const { agent, configurationService } = createTestAgentContext(disposables, { copilotClient: client });
+			client.onAfterStart = () => {
+				if (client.startCallCount === 1) {
+					configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: false });
+				}
+			};
+			const ensureClient = () => (agent as unknown as { _ensureClient(): Promise<unknown> })._ensureClient();
+			try {
+				const first = ensureClient();
+				const second = ensureClient();
+				const [firstClient, secondClient] = await Promise.all([first, second]);
+				assert.deepStrictEqual({
+					sameHealthyClient: firstClient === client && secondClient === client,
+					startCallCount: client.startCallCount,
+					stopCallCount: client.stopCallCount,
+				}, {
+					sameHealthyClient: true,
+					startCallCount: 2,
+					stopCallCount: 1,
+				});
+			} finally {
 				await disposeAgent(agent);
 			}
 		});

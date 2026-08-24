@@ -588,6 +588,14 @@ const COPILOT_DISCOVERY_BATCH_SIZE = 250;
  */
 const CHAT_DISCOVERY_RETRY_DELAYS_MS = [250, 1_000, 5_000];
 
+/**
+ * How many times `_ensureClient` re-acquires the SDK client after a cold-start
+ * abort caused by a startup-config change. One extra attempt covers the common
+ * one-time startup settle observed in the field; the bound prevents livelock if
+ * the config keeps changing on every start.
+ */
+const MAX_STARTUP_CONFIG_RETRIES = 1;
+
 /** `origin` value written by the VS Code extension-host Copilot CLI feature. */
 const EXTENSION_HOST_CLI_MARKER_ORIGIN = 'vscode';
 
@@ -772,6 +780,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	private _client: CopilotClient | undefined;
 	private _clientStarting: Promise<CopilotClient> | undefined;
+	/**
+	 * Coalesces the whole acquire-and-self-heal sequence in `_ensureClient` so
+	 * that all concurrent callers share a single, global retry budget for
+	 * startup-config-changed aborts (rather than each caller getting its own).
+	 */
+	private _ensureClientHealing: Promise<CopilotClient> | undefined;
 	private _clientStopping: Promise<void> | undefined;
 	private _clientStartupAttemptCount = 0;
 	private _resolvedProxy: string | undefined;
@@ -1895,7 +1909,49 @@ export class CopilotAgent extends Disposable implements IAgent {
 		throw terminalError;
 	}
 
-	private async _ensureClient(): Promise<CopilotClient> {
+	/**
+	 * Acquires the SDK client, transparently self-healing a single cold-start
+	 * abort caused by a startup-config change (`CopilotClientStartupConfigChangedError`).
+	 * That abort is transient: the superseded client was built with now-stale
+	 * config and the next start uses the current config, so re-acquiring once
+	 * returns a healthy client and no caller ever sees the abort.
+	 *
+	 * The re-acquire is bounded by {@link MAX_STARTUP_CONFIG_RETRIES}. All
+	 * concurrent callers share one acquire-and-retry sequence via
+	 * `_ensureClientHealing`, so the retry budget is global rather than per
+	 * caller (a late caller cannot reset the budget and drive unbounded starts).
+	 * The per-attempt coalescing in `_ensureClientOnce` (via `_clientStarting`) is
+	 * unchanged.
+	 */
+	private _ensureClient(): Promise<CopilotClient> {
+		if (this._ensureClientHealing) {
+			return this._ensureClientHealing;
+		}
+		const healing = (async () => {
+			for (let retries = 0; ; retries++) {
+				try {
+					return await this._ensureClientOnce();
+				} catch (error) {
+					if (retries < MAX_STARTUP_CONFIG_RETRIES
+						&& !this._shutdownPromise
+						&& error instanceof CopilotClientStartupConfigChangedError) {
+						this._logService.info('[Copilot] Startup config changed while the client was starting; re-acquiring the client with the current config');
+						continue;
+					}
+					throw error;
+				}
+			}
+		})();
+		this._ensureClientHealing = healing;
+		void healing.catch(() => { /* surfaced to the awaiting caller */ }).finally(() => {
+			if (this._ensureClientHealing === healing) {
+				this._ensureClientHealing = undefined;
+			}
+		});
+		return healing;
+	}
+
+	private async _ensureClientOnce(): Promise<CopilotClient> {
 		if (this._shutdownPromise) {
 			throw new CancellationError();
 		}
