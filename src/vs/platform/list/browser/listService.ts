@@ -849,9 +849,12 @@ function createKeyboardNavigationEventFilter(keybindingService: IKeybindingServi
 	};
 }
 
-export interface IWorkbenchObjectTreeOptions<T, TFilterData> extends IObjectTreeOptions<T, TFilterData>, IResourceNavigatorOptions {
-	readonly accessibilityProvider: IListAccessibilityProvider<T>;
+export interface IWorkbenchObjectTreeOptionsUpdate<T> extends IAbstractTreeOptionsUpdate<T> {
 	readonly overrideStyles?: IStyleOverride<IListStyles>;
+}
+
+export interface IWorkbenchObjectTreeOptions<T, TFilterData> extends IObjectTreeOptions<T, TFilterData>, IWorkbenchObjectTreeOptionsUpdate<T>, IResourceNavigatorOptions {
+	readonly accessibilityProvider: IListAccessibilityProvider<T>;
 	readonly selectionNavigation?: boolean;
 	readonly scrollToActiveElement?: boolean;
 }
@@ -882,8 +885,13 @@ export class WorkbenchObjectTree<T extends NonNullable<any>, TFilterData = void>
 		this.disposables.add(this.internals);
 	}
 
-	override updateOptions(options: IAbstractTreeOptionsUpdate<T | null>): void {
+	override updateOptions(options: IWorkbenchObjectTreeOptionsUpdate<T | null> = {}): void {
 		super.updateOptions(options);
+
+		if (options.overrideStyles) {
+			this.internals.updateStyleOverrides(options.overrideStyles);
+		}
+
 		this.internals.updateOptions(options);
 	}
 }
@@ -1162,8 +1170,8 @@ function workbenchTreeDataPreamble<T, TFilterData, TOptions extends IAbstractTre
 			expandOnlyOnTwistieClick: options.expandOnlyOnTwistieClick ?? (configurationService.getValue<'singleClick' | 'doubleClick'>(treeExpandMode) === 'doubleClick'),
 			contextViewProvider: contextViewService as IContextViewProvider,
 			findWidgetStyles: defaultFindWidgetStyles,
-			enableStickyScroll: Boolean(configurationService.getValue(treeStickyScroll)),
-			stickyScrollMaxItemCount: Number(configurationService.getValue(treeStickyScrollMaxElements)),
+			enableStickyScroll: options.enableStickyScroll ?? Boolean(configurationService.getValue(treeStickyScroll)),
+			stickyScrollMaxItemCount: options.stickyScrollMaxItemCount ?? Number(configurationService.getValue(treeStickyScrollMaxElements)),
 		} as TOptions
 	};
 }
@@ -1313,11 +1321,11 @@ class WorkbenchTreeInternals<TInput, T, TFilterData> {
 				if (e.affectsConfiguration(treeExpandMode) && options.expandOnlyOnTwistieClick === undefined) {
 					newOptions = { ...newOptions, expandOnlyOnTwistieClick: configurationService.getValue<'singleClick' | 'doubleClick'>(treeExpandMode) === 'doubleClick' };
 				}
-				if (e.affectsConfiguration(treeStickyScroll)) {
+				if (e.affectsConfiguration(treeStickyScroll) && options.enableStickyScroll === undefined) {
 					const enableStickyScroll = configurationService.getValue<boolean>(treeStickyScroll);
 					newOptions = { ...newOptions, enableStickyScroll };
 				}
-				if (e.affectsConfiguration(treeStickyScrollMaxElements)) {
+				if (e.affectsConfiguration(treeStickyScrollMaxElements) && options.stickyScrollMaxItemCount === undefined) {
 					const stickyScrollMaxItemCount = Math.max(1, configurationService.getValue<number>(treeStickyScrollMaxElements));
 					newOptions = { ...newOptions, stickyScrollMaxItemCount };
 				}

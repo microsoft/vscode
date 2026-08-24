@@ -9,7 +9,7 @@ import { AuthenticationSession, AuthenticationSessionAccount, IAuthenticationPro
 import { IAuthenticationUsageService } from '../../browser/authenticationUsageService.js';
 import { IAuthenticationMcpUsageService } from '../../browser/authenticationMcpUsageService.js';
 import { IAuthenticationAccessService } from '../../browser/authenticationAccessService.js';
-import { IAuthenticationMcpAccessService } from '../../browser/authenticationMcpAccessService.js';
+import { IAuthenticationMcpAccessService, urlsEqual } from '../../browser/authenticationMcpAccessService.js';
 import { IAuthenticationMcpService } from '../../browser/authenticationMcpService.js';
 
 /**
@@ -207,9 +207,25 @@ export class TestMcpAccessService extends BaseTestService implements IAuthentica
 
 	isAccessAllowed(providerId: string, accountName: string, mcpServerId: string): boolean | undefined {
 		this.trackCall('isAccessAllowed', providerId, accountName, mcpServerId);
+		return this._isAccessAllowed(providerId, accountName, mcpServerId, undefined);
+	}
+
+	isAccessAllowedForUrl(providerId: string, accountName: string, mcpServerId: string, mcpServerUrl: string): boolean | undefined {
+		this.trackCall('isAccessAllowedForUrl', providerId, accountName, mcpServerId, mcpServerUrl);
+		return this._isAccessAllowed(providerId, accountName, mcpServerId, mcpServerUrl);
+	}
+
+	private _isAccessAllowed(providerId: string, accountName: string, mcpServerId: string, mcpServerUrl: string | undefined): boolean | undefined {
 		const servers = this.data.get(this.getKey(providerId, accountName)) || [];
 		const server = servers.find((s: any) => s.id === mcpServerId);
-		return server?.allowed;
+		if (!server) {
+			return undefined;
+		}
+		if (mcpServerUrl !== undefined && !urlsEqual(server.url, mcpServerUrl)) {
+			return undefined;
+		}
+		// Matches production: presence in the list with an undefined `allowed` indicates allowance.
+		return server.allowed !== undefined ? server.allowed : true;
 	}
 
 	readAllowedMcpServers(providerId: string, accountName: string): any[] {
@@ -342,6 +358,7 @@ export class TestAuthenticationService extends BaseTestService implements IAuthe
 	unregisterAuthenticationProvider(): void { }
 	registerAuthenticationProviderHostDelegate(): IDisposable { return { dispose: () => { } }; }
 	createDynamicAuthenticationProvider(): Promise<any> { return Promise.resolve(undefined); }
+	createOrGetXaaProvider(): Promise<string | undefined> { return Promise.resolve(undefined); }
 	async requestNewSession(): Promise<AuthenticationSession> { return createSession(); }
 	async getSession(): Promise<AuthenticationSession | undefined> { return createSession(); }
 	getOrActivateProviderIdForServer(): Promise<string | undefined> { return Promise.resolve(undefined); }

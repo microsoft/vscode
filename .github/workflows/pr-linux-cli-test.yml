@@ -11,12 +11,14 @@ on:
 jobs:
   linux-cli-test:
     name: ${{ inputs.job_name }}
-    runs-on: ubuntu-22.04
+    runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64, "JobId=linux-cli-test-${{ inputs.job_name }}-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
     env:
       RUSTUP_TOOLCHAIN: ${{ inputs.rustup_toolchain }}
     steps:
       - name: Checkout microsoft/vscode
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          lfs: true
 
       - name: Install Rust
         run: |

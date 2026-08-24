@@ -1,10 +1,14 @@
 # Copilot Agent Runtime — Customization Surface Spec
 
+> **Specification change gate:** This is a scoped external-runtime snapshot, not
+> a change log. Update it only after deliberately re-auditing the referenced
+> runtime contract; do not patch it for VS Code implementation bugs.
+
 > **Purpose:** Definitive reference for every customization mechanism that affects agent behavior when a user sends a message. Intended for building a UI that collects all customizations into a single view.
 >
 > **Source:** `github/copilot-agent-runtime` codebase as of 2026-02-25.
 
-> Some information has been removed by the human compiling this spec, scoping to what is deemed most relevant for the sessions window implementation. For the full details, see the source code (for maintainers likely checked out side-by-side).
+> Some information has been removed by the human compiling this spec, scoping to what is deemed most relevant for the agent sessions window implementation. For the full details, see the source code (for maintainers likely checked out side-by-side).
 
 ---
 

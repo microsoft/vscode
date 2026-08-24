@@ -19,7 +19,7 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 export const IDiffProviderFactoryService = createDecorator<IDiffProviderFactoryService>('diffProviderFactoryService');
 
 export interface IDocumentDiffFactoryOptions {
-	readonly diffAlgorithm?: 'legacy' | 'advanced';
+	readonly diffAlgorithm?: 'legacy' | 'advanced' | 'advanced-external' | 'advanced-wasm';
 }
 
 export interface IDiffProviderFactoryService {
@@ -181,5 +181,5 @@ export class WorkerBasedDocumentDiffProvider implements IDocumentDiffProvider, I
 }
 
 interface IWorkerBasedDocumentDiffProviderOptions {
-	readonly diffAlgorithm?: 'legacy' | 'advanced' | IDocumentDiffProvider;
+	readonly diffAlgorithm?: 'legacy' | 'advanced' | 'advanced-external' | 'advanced-wasm' | IDocumentDiffProvider;
 }

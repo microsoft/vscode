@@ -5,7 +5,6 @@
 
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { localize } from '../../../../../../nls.js';
-import { ChatContextKeys } from '../../actions/chatContextKeys.js';
 import { ChatDebugHookResult, IChatDebugEvent, IChatDebugResolvedEventContent, IChatDebugService } from '../../chatDebugService.js';
 import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress } from '../languageModelToolsService.js';
 
@@ -15,7 +14,6 @@ export const ResolveDebugEventDetailsToolData: IToolData = {
 	id: ResolveDebugEventDetailsToolId,
 	toolReferenceName: 'resolveDebugEventDetails',
 	displayName: localize('resolveDebugEventDetails.displayName', "Resolve Debug Event Details"),
-	when: ChatContextKeys.chatSessionHasDebugTools,
 	canBeReferencedInPrompt: false,
 	modelDescription: 'Resolves the full details for a specific chat debug event by its event ID. Use this tool to get detailed information about a debug event such as tool call input/output, model turn details, user message sections, or file lists. The event ID can be found in the debug event log summary provided in the conversation context.',
 	source: ToolDataSource.Internal,
@@ -131,6 +129,20 @@ function formatResolvedContent(content: IChatDebugResolvedEventContent): string 
 			}
 			if (content.errorMessage) {
 				lines.push(localize('formatResolvedContent.error', "Error: {0}", content.errorMessage));
+			}
+			return lines.join('\n');
+		}
+		case 'customizationSummary': {
+			const lines: string[] = [];
+			lines.push(localize('formatResolvedContent.customizationCounts', "Customization: {0} instructions, {1} skills, {2} agents, {3} hooks, {4} skipped", content.counts.instructions, content.counts.skills, content.counts.agents, content.counts.hooks, content.counts.skipped));
+			lines.push(localize('formatResolvedContent.customizationDuration', "Duration: {0}ms", content.durationInMillis.toFixed(1)));
+			if (content.resolutionLogs.length > 0) {
+				lines.push('');
+				lines.push(localize('formatResolvedContent.resolutionLogs', "Resolution logs:"));
+				for (const entry of content.resolutionLogs) {
+					const detail = entry.reason ? `${entry.name} — ${entry.reason}` : entry.name;
+					lines.push(`  [${entry.category}] ${detail}`);
+				}
 			}
 			return lines.join('\n');
 		}

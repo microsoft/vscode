@@ -5,16 +5,18 @@
 
 import assert from 'assert';
 import { IAction } from '../../../../../../base/common/actions.js';
+import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IModelsControlManifest, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelChatProvider, ILanguageModelChatSelector, ILanguageModelsGroup, ILanguageModelsService, IUserFriendlyLanguageModel, ILanguageModelProviderDescriptor } from '../../../common/languageModels.js';
-import { ChatModelGroup, ChatModelsViewModel, ILanguageModelEntry, ILanguageModelProviderEntry, isLanguageModelProviderEntry, isLanguageModelGroupEntry, ILanguageModelGroupEntry } from '../../../browser/chatManagement/chatModelsViewModel.js';
+import { ChatModelsViewModel, getManageModelsProviderLabel, ILanguageModelEntry, ILanguageModelProviderEntry, isLanguageModelProviderEntry, isLanguageModelGroupEntry } from '../../../browser/chatManagement/chatModelsViewModel.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { IStringDictionary } from '../../../../../../base/common/collections.js';
 import { ILanguageModelsProviderGroup } from '../../../common/languageModelsConfiguration.js';
 import { ChatAgentLocation } from '../../../common/constants.js';
+import { languageModelSourcePresentationRegistry } from '../../../common/languageModelSourcePresentation.js';
 
 class MockLanguageModelsService implements ILanguageModelsService {
 	_serviceBrand: undefined;
@@ -23,6 +25,8 @@ class MockLanguageModelsService implements ILanguageModelsService {
 	private models = new Map<string, ILanguageModelChatMetadata>();
 	private modelsByVendor = new Map<string, string[]>();
 	private modelGroups = new Map<string, ILanguageModelsGroup[]>();
+	private hiddenModelIds = new Set<string>();
+	readonly setModelsHiddenCalls: { readonly modelIdentifiers: readonly string[]; readonly hidden: boolean }[] = [];
 
 	private readonly _onDidChangeLanguageModels = new Emitter<string>();
 	readonly onDidChangeLanguageModels = this._onDidChangeLanguageModels.event;
@@ -38,7 +42,7 @@ class MockLanguageModelsService implements ILanguageModelsService {
 		this.modelGroups.set(vendor.vendor, []);
 	}
 
-	addModel(vendorId: string, identifier: string, metadata: ILanguageModelChatMetadata): void {
+	addModel(vendorId: string, identifier: string, metadata: ILanguageModelChatMetadata, groupName?: string): void {
 		this.models.set(identifier, metadata);
 		const models = this.modelsByVendor.get(vendorId) || [];
 		models.push(identifier);
@@ -46,16 +50,18 @@ class MockLanguageModelsService implements ILanguageModelsService {
 
 		// Add to model groups - create a single default group per vendor
 		const groups = this.modelGroups.get(vendorId) || [];
-		if (groups.length === 0) {
-			groups.push({
+		let group = groupName ? groups.find(candidate => candidate.group?.name === groupName) : groups[0];
+		if (!group) {
+			group = {
 				group: {
 					vendor: vendorId,
-					name: this.vendors.find(v => v.vendor === vendorId)?.displayName || 'Default'
+					name: groupName ?? (this.vendors.find(v => v.vendor === vendorId)?.displayName || 'Default')
 				},
 				modelIdentifiers: []
-			});
+			};
+			groups.push(group);
 		}
-		groups[0].modelIdentifiers.push(identifier);
+		group.modelIdentifiers.push(identifier);
 		this.modelGroups.set(vendorId, groups);
 	}
 
@@ -65,13 +71,6 @@ class MockLanguageModelsService implements ILanguageModelsService {
 
 	deltaLanguageModelChatProviderDescriptors(added: IUserFriendlyLanguageModel[], removed: IUserFriendlyLanguageModel[]): void {
 		throw new Error('Method not implemented.');
-	}
-
-	updateModelPickerPreference(modelIdentifier: string, showInModelPicker: boolean): void {
-		const metadata = this.models.get(modelIdentifier);
-		if (metadata) {
-			this.models.set(modelIdentifier, { ...metadata, isUserSelectable: showInModelPicker });
-		}
 	}
 
 	getVendors(): ILanguageModelProviderDescriptor[] {
@@ -138,6 +137,18 @@ class MockLanguageModelsService implements ILanguageModelsService {
 	async configureLanguageModelsProviderGroup(vendorId: string, name?: string): Promise<void> {
 	}
 
+	async renameLanguageModelsProviderGroup(vendorId: string, providerGroupName: string): Promise<void> {
+	}
+
+	async updateLanguageModelsProviderGroupApiKey(vendorId: string, providerGroupName: string): Promise<void> {
+	}
+
+	async addLanguageModelsProviderGroupModel(vendorId: string, providerGroupName: string): Promise<void> {
+	}
+
+	async openLanguageModelsProviderGroupSettings(vendorId: string, providerGroupName: string): Promise<void> {
+	}
+
 	async configureModel(_modelId: string): Promise<void> {
 	}
 
@@ -148,6 +159,10 @@ class MockLanguageModelsService implements ILanguageModelsService {
 		return this.modelGroups.get(vendor) || [];
 	}
 
+	hasResolvedVendor(vendor: string): boolean {
+		return this.modelGroups.has(vendor);
+	}
+
 	async removeLanguageModelsProviderGroup(vendorId: string, providerGroupName: string): Promise<void> {
 	}
 
@@ -156,6 +171,29 @@ class MockLanguageModelsService implements ILanguageModelsService {
 	getRecentlyUsedModelIds(): string[] { return []; }
 	addToRecentlyUsedList(): void { }
 	clearRecentlyUsedList(): void { }
+	getPinnedModelIds(): string[] { return []; }
+	pinModel(_modelIdentifier: string): void { }
+	unpinModel(_modelIdentifier: string): void { }
+	isModelPinned(_modelIdentifier: string): boolean { return false; }
+	onDidChangePinnedModels = Event.None;
+	isModelHidden(modelIdentifier: string): boolean { return this.hiddenModelIds.has(modelIdentifier); }
+	isGroupHidden(_vendor: string, _groupName: string): boolean { return false; }
+	setModelHidden(modelIdentifier: string, hidden: boolean): void {
+		this.setModelsHidden([modelIdentifier], hidden);
+	}
+	setModelsHidden(modelIdentifiers: readonly string[], hidden: boolean): void {
+		this.setModelsHiddenCalls.push({ modelIdentifiers: [...modelIdentifiers], hidden });
+		for (const modelIdentifier of modelIdentifiers) {
+			if (hidden) {
+				this.hiddenModelIds.add(modelIdentifier);
+			} else {
+				this.hiddenModelIds.delete(modelIdentifier);
+			}
+		}
+	}
+	setGroupHidden(_vendor: string, _groupName: string, _hidden: boolean): void { }
+	getHiddenModelIds(): string[] { return [...this.hiddenModelIds]; }
+	onDidChangeModelVisibility = Event.None;
 	getModelsControlManifest(): IModelsControlManifest { return { free: {}, paid: {} }; }
 	restrictedChatParticipants = observableValue('restrictedChatParticipants', Object.create(null));
 }
@@ -166,6 +204,13 @@ suite('ChatModelsViewModel', () => {
 	let viewModel: ChatModelsViewModel;
 
 	setup(async () => {
+		store.add(languageModelSourcePresentationRegistry.register({
+			ownerVendor: 'codex',
+			sourceId: 'chatgptSubscription',
+			label: 'ChatGPT',
+			icon: Codicon.openai,
+			description: 'Models provided by your ChatGPT subscription',
+		}));
 		languageModelsService = new MockLanguageModelsService();
 
 		// Setup test data
@@ -194,7 +239,6 @@ suite('ChatModelsViewModel', () => {
 			vendor: 'copilot',
 			maxInputTokens: 8192,
 			maxOutputTokens: 4096,
-			modelPickerCategory: { label: 'Copilot', order: 1 },
 			isUserSelectable: true,
 			capabilities: {
 				toolCalling: true,
@@ -215,7 +259,6 @@ suite('ChatModelsViewModel', () => {
 			vendor: 'copilot',
 			maxInputTokens: 8192,
 			maxOutputTokens: 4096,
-			modelPickerCategory: { label: 'Copilot', order: 1 },
 			isUserSelectable: true,
 			capabilities: {
 				toolCalling: true,
@@ -236,7 +279,6 @@ suite('ChatModelsViewModel', () => {
 			vendor: 'openai',
 			maxInputTokens: 4096,
 			maxOutputTokens: 2048,
-			modelPickerCategory: { label: 'OpenAI', order: 2 },
 			isUserSelectable: true,
 			capabilities: {
 				toolCalling: true,
@@ -257,7 +299,6 @@ suite('ChatModelsViewModel', () => {
 			vendor: 'openai',
 			maxInputTokens: 8192,
 			maxOutputTokens: 4096,
-			modelPickerCategory: { label: 'OpenAI', order: 2 },
 			isUserSelectable: false,
 			capabilities: {
 				toolCalling: false,
@@ -285,6 +326,142 @@ suite('ChatModelsViewModel', () => {
 
 		const models = results.filter(r => !isLanguageModelProviderEntry(r) && !isLanguageModelGroupEntry(r)) as ILanguageModelEntry[];
 		assert.strictEqual(models.length, 4);
+	});
+
+	test('distinguishes the ChatGPT subscription from a custom group with the same name', async () => {
+		const service = new MockLanguageModelsService();
+		service.addVendor({ vendor: 'codex', displayName: 'Codex', managementCommand: undefined, when: undefined, configuration: undefined });
+		service.addVendor({ vendor: 'chatgpt', displayName: 'ChatGPT', managementCommand: undefined, when: undefined, configuration: undefined });
+		service.addVendor({ vendor: 'custom', displayName: 'Custom', managementCommand: undefined, when: undefined, configuration: undefined });
+		service.addModel('codex', 'codex:gpt-5.6', {
+			extension: new ExtensionIdentifier('vscode.codex'),
+			id: 'gpt-5.6',
+			name: 'GPT-5.6',
+			family: 'gpt-5.6',
+			version: '1.0',
+			vendor: 'codex',
+			maxInputTokens: 8192,
+			maxOutputTokens: 4096,
+			isDefaultForLocation: {},
+			modelGroup: { id: 'chatgpt', sourceId: 'chatgptSubscription' },
+		});
+		service.addModel('custom', 'custom:gpt-5.6', {
+			extension: new ExtensionIdentifier('example.custom'),
+			id: 'gpt-5.6',
+			name: 'GPT-5.6',
+			family: 'gpt-5.6',
+			version: '1.0',
+			vendor: 'custom',
+			maxInputTokens: 8192,
+			maxOutputTokens: 4096,
+			isDefaultForLocation: {},
+		}, 'ChatGPT');
+
+		const model = store.add(new ChatModelsViewModel(service));
+		await model.refresh();
+		const entries = model.filter('');
+		const groups = entries.filter(isLanguageModelProviderEntry).map(entry => ({
+			id: entry.id,
+			label: entry.label,
+			sourcePresentation: entry.sourcePresentation?.sourceId,
+		}));
+		const models = entries.filter(entry => !isLanguageModelProviderEntry(entry) && !isLanguageModelGroupEntry(entry)) as ILanguageModelEntry[];
+
+		assert.deepStrictEqual({
+			groups,
+			providerLabels: models.map(entry => getManageModelsProviderLabel(entry.model)),
+		}, {
+			groups: [
+				{ id: 'chatgpt-ChatGPT-chatgptSubscription', label: 'ChatGPT', sourcePresentation: 'chatgptSubscription' },
+				{ id: 'custom-ChatGPT-configured', label: 'ChatGPT', sourcePresentation: undefined },
+			],
+			providerLabels: ['ChatGPT', 'ChatGPT'],
+		});
+	});
+
+	test('shows the first-party ChatGPT subscription header even when it is the only group', async () => {
+		const service = new MockLanguageModelsService();
+		service.addVendor({ vendor: 'codex', displayName: 'Codex', managementCommand: undefined, when: undefined, configuration: undefined });
+		service.addVendor({ vendor: 'chatgpt', displayName: 'ChatGPT', managementCommand: undefined, when: undefined, configuration: undefined });
+		service.addModel('codex', 'codex:gpt-5.6', {
+			extension: new ExtensionIdentifier('vscode.codex'),
+			id: 'gpt-5.6',
+			name: 'GPT-5.6',
+			family: 'gpt-5.6',
+			version: '1.0',
+			vendor: 'codex',
+			maxInputTokens: 8192,
+			maxOutputTokens: 4096,
+			isDefaultForLocation: {},
+			modelGroup: { id: 'chatgpt', sourceId: 'chatgptSubscription' },
+		});
+
+		const model = store.add(new ChatModelsViewModel(service));
+		await model.refresh();
+
+		assert.deepStrictEqual(model.filter('').map(entry => ({
+			type: entry.type,
+			label: isLanguageModelProviderEntry(entry) ? entry.label : undefined,
+			sourcePresentation: isLanguageModelProviderEntry(entry) ? entry.sourcePresentation?.sourceId : undefined,
+		})), [
+			{ type: 'vendor', label: 'ChatGPT', sourcePresentation: 'chatgptSubscription' },
+			{ type: 'model', label: undefined, sourcePresentation: undefined },
+		]);
+	});
+
+	test('trusted source presentations are scoped to their owner vendor', async () => {
+		const service = new MockLanguageModelsService();
+		service.addVendor({ vendor: 'other', displayName: 'Other', managementCommand: undefined, when: undefined, configuration: undefined });
+		service.addModel('other', 'other:gpt-5.6', {
+			extension: new ExtensionIdentifier('example.other'),
+			id: 'gpt-5.6',
+			name: 'GPT-5.6',
+			family: 'gpt-5.6',
+			version: '1.0',
+			vendor: 'other',
+			maxInputTokens: 8192,
+			maxOutputTokens: 4096,
+			isDefaultForLocation: {},
+			modelGroup: { id: 'chatgpt', sourceId: 'chatgptSubscription' },
+		});
+
+		const model = store.add(new ChatModelsViewModel(service));
+		await model.refresh();
+		const entry = model.filter('').find(candidate => !isLanguageModelProviderEntry(candidate) && !isLanguageModelGroupEntry(candidate)) as ILanguageModelEntry;
+		assert.strictEqual(entry.model.provider.group.name, 'Chatgpt');
+		assert.strictEqual(entry.model.provider.sourcePresentation, undefined);
+	});
+
+	test('group visibility toggles only the exact models rendered in that source group', async () => {
+		const service = new MockLanguageModelsService();
+		service.addVendor({ vendor: 'codex', displayName: 'Codex', managementCommand: undefined, when: undefined, configuration: undefined });
+		service.addVendor({ vendor: 'custom', displayName: 'Custom', managementCommand: undefined, when: undefined, configuration: undefined });
+		const metadata = {
+			extension: new ExtensionIdentifier('vscode.codex'),
+			id: 'gpt-5.6',
+			name: 'GPT-5.6',
+			family: 'gpt-5.6',
+			version: '1.0',
+			maxInputTokens: 8192,
+			maxOutputTokens: 4096,
+			isDefaultForLocation: {},
+		};
+		service.addModel('codex', 'codex:gpt-5.6', { ...metadata, vendor: 'codex', modelGroup: { id: 'chatgpt', sourceId: 'chatgptSubscription' } });
+		service.addModel('custom', 'custom:gpt-5.6', { ...metadata, extension: new ExtensionIdentifier('example.custom'), vendor: 'custom' }, 'ChatGPT');
+
+		const model = store.add(new ChatModelsViewModel(service));
+		await model.refresh();
+		const subscriptionGroup = model.filter('').find(entry => isLanguageModelProviderEntry(entry) && entry.sourcePresentation !== undefined);
+		assert.ok(subscriptionGroup && isLanguageModelProviderEntry(subscriptionGroup));
+
+		model.toggleGroupHidden(subscriptionGroup);
+		assert.deepStrictEqual({
+			hiddenModelIds: service.getHiddenModelIds(),
+			setModelsHiddenCalls: service.setModelsHiddenCalls,
+		}, {
+			hiddenModelIds: ['codex:gpt-5.6'],
+			setModelsHiddenCalls: [{ modelIdentifiers: ['codex:gpt-5.6'], hidden: true }],
+		});
 	});
 
 	test('should filter by provider name (vendor ID and display name)', () => {
@@ -368,22 +545,6 @@ suite('ChatModelsViewModel', () => {
 		assert.strictEqual(models[0].model.metadata.id, 'gpt-4o');
 	});
 
-	test('should filter by visibility - visible:true', () => {
-		const results = viewModel.filter('@visible:true');
-
-		const models = results.filter(r => !isLanguageModelProviderEntry(r) && !isLanguageModelGroupEntry(r)) as ILanguageModelEntry[];
-		assert.strictEqual(models.length, 3);
-		assert.ok(models.every(m => m.model.visible === true));
-	});
-
-	test('should filter by visibility - visible:false', () => {
-		const results = viewModel.filter('@visible:false');
-
-		const models = results.filter(r => !isLanguageModelProviderEntry(r) && !isLanguageModelGroupEntry(r)) as ILanguageModelEntry[];
-		assert.strictEqual(models.length, 1);
-		assert.strictEqual(models[0].model.visible, false);
-	});
-
 	test('should combine provider and capability filters', () => {
 		const results = viewModel.filter('@provider:copilot @capability:vision');
 
@@ -393,14 +554,6 @@ suite('ChatModelsViewModel', () => {
 			m.model.provider.vendor.vendor === 'copilot' &&
 			m.model.metadata.capabilities?.vision === true
 		));
-	});
-
-	test('should combine provider, capability, and visibility filters', () => {
-		const results = viewModel.filter('@provider:openai @capability:vision @visible:false');
-
-		const models = results.filter(r => !isLanguageModelProviderEntry(r) && !isLanguageModelGroupEntry(r)) as ILanguageModelEntry[];
-		assert.strictEqual(models.length, 1);
-		assert.strictEqual(models[0].model.metadata.id, 'gpt-4-vision');
 	});
 
 	test('should filter by text matching model name', () => {
@@ -574,7 +727,6 @@ suite('ChatModelsViewModel', () => {
 			vendor: 'copilot',
 			maxInputTokens: 8192,
 			maxOutputTokens: 4096,
-			modelPickerCategory: { label: 'Copilot', order: 1 },
 			isUserSelectable: true,
 			capabilities: {
 				toolCalling: true,
@@ -596,7 +748,6 @@ suite('ChatModelsViewModel', () => {
 				vendor: 'copilot',
 				maxInputTokens: 8192,
 				maxOutputTokens: 4096,
-				modelPickerCategory: { label: 'Copilot', order: 1 },
 				isUserSelectable: true,
 				capabilities: {
 					toolCalling: true,
@@ -680,7 +831,6 @@ suite('ChatModelsViewModel', () => {
 			vendor: 'anthropic',
 			maxInputTokens: 100000,
 			maxOutputTokens: 4096,
-			modelPickerCategory: { label: 'Anthropic', order: 3 },
 			isUserSelectable: true,
 			capabilities: {
 				toolCalling: true,
@@ -709,7 +859,6 @@ suite('ChatModelsViewModel', () => {
 			vendor: 'azure',
 			maxInputTokens: 8192,
 			maxOutputTokens: 4096,
-			modelPickerCategory: { label: 'Azure', order: 4 },
 			isUserSelectable: true,
 			capabilities: {
 				toolCalling: true,
@@ -761,105 +910,6 @@ suite('ChatModelsViewModel', () => {
 		const results = singleVendorViewModel.filter('GPT');
 		const vendors = results.filter(isLanguageModelProviderEntry);
 		assert.strictEqual(vendors.length, 0);
-	});
-
-	test('should group by visibility', () => {
-		viewModel.groupBy = ChatModelGroup.Visibility;
-		const actuals = viewModel.viewModelEntries;
-
-		assert.strictEqual(actuals.length, 6);
-		assert.strictEqual(actuals[0].type, 'group');
-		assert.strictEqual(actuals[0].id, 'visible');
-		assert.strictEqual(actuals[1].type, 'model');
-		assert.strictEqual(actuals[1].model.identifier, 'copilot-gpt-4');
-		assert.strictEqual(actuals[2].type, 'model');
-		assert.strictEqual(actuals[2].model.identifier, 'copilot-gpt-4o');
-		assert.strictEqual(actuals[3].type, 'model');
-		assert.strictEqual(actuals[3].model.identifier, 'openai-gpt-3.5');
-		assert.strictEqual(actuals[4].type, 'group');
-		assert.strictEqual(actuals[4].id, 'hidden');
-		assert.strictEqual(actuals[5].type, 'model');
-		assert.strictEqual(actuals[5].model.identifier, 'openai-gpt-4-vision');
-	});
-
-	test('should fire onDidChangeGrouping when grouping changes', () => {
-		let fired = false;
-		store.add(viewModel.onDidChangeGrouping(() => {
-			fired = true;
-		}));
-
-		viewModel.groupBy = ChatModelGroup.Visibility;
-		assert.strictEqual(fired, true);
-	});
-
-	test('should reset collapsed state when grouping changes', () => {
-		const vendorEntry = viewModel.viewModelEntries.find(r => isLanguageModelProviderEntry(r) && r.vendorEntry.vendor.vendor === 'copilot') as ILanguageModelProviderEntry;
-		viewModel.toggleCollapsed(vendorEntry);
-
-		viewModel.groupBy = ChatModelGroup.Visibility;
-
-		const results = viewModel.filter('');
-		const groups = results.filter(isLanguageModelGroupEntry) as ILanguageModelGroupEntry[];
-		assert.ok(groups.every(v => !v.collapsed));
-	});
-
-	test('should sort models within visibility groups', async () => {
-		languageModelsService.addVendor({
-			vendor: 'anthropic',
-			displayName: 'Anthropic',
-			managementCommand: undefined,
-			when: undefined,
-			configuration: undefined
-		});
-
-		languageModelsService.addModel('anthropic', 'anthropic-claude', {
-			extension: new ExtensionIdentifier('anthropic.api'),
-			id: 'claude-3',
-			name: 'Claude 3',
-			family: 'claude',
-			version: '1.0',
-			vendor: 'anthropic',
-			maxInputTokens: 100000,
-			maxOutputTokens: 4096,
-			modelPickerCategory: { label: 'Anthropic', order: 3 },
-			isUserSelectable: true,
-			capabilities: {
-				toolCalling: true,
-				vision: false,
-				agentMode: false
-			},
-			isDefaultForLocation: {
-				[ChatAgentLocation.Chat]: true
-			}
-		});
-
-		await viewModel.refresh();
-
-		viewModel.groupBy = ChatModelGroup.Visibility;
-		const actuals = viewModel.viewModelEntries;
-
-		assert.strictEqual(actuals.length, 7);
-
-		assert.strictEqual(actuals[0].type, 'group');
-		assert.strictEqual(actuals[0].id, 'visible');
-
-		assert.strictEqual(actuals[1].type, 'model');
-		assert.strictEqual(actuals[1].model.metadata.id, 'gpt-4');
-
-		assert.strictEqual(actuals[2].type, 'model');
-		assert.strictEqual(actuals[2].model.metadata.id, 'gpt-4o');
-
-		assert.strictEqual(actuals[3].type, 'model');
-		assert.strictEqual(actuals[3].model.metadata.id, 'claude-3');
-
-		assert.strictEqual(actuals[4].type, 'model');
-		assert.strictEqual(actuals[4].model.metadata.id, 'gpt-3.5-turbo');
-
-		assert.strictEqual(actuals[5].type, 'group');
-		assert.strictEqual(actuals[5].id, 'hidden');
-
-		assert.strictEqual(actuals[6].type, 'model');
-		assert.strictEqual(actuals[6].model.metadata.id, 'gpt-4-vision');
 	});
 
 	test('should get configured vendors', () => {
@@ -943,176 +993,55 @@ suite('ChatModelsViewModel', () => {
 		assert.strictEqual(models.length, 0);
 	});
 
-	test('setModelsVisibility should update visibility for multiple models', () => {
-		// Get initial results
-		const initialResults = viewModel.filter('');
-		const modelEntries = initialResults.filter(r => !isLanguageModelProviderEntry(r) && !isLanguageModelGroupEntry(r)) as ILanguageModelEntry[];
-		assert.ok(modelEntries.length >= 2, 'Should have at least 2 models for testing');
+	test('should filter out agent-host BYOK model copies but keep native agent-host models', async () => {
+		// An agent host (e.g. Copilot CLI) surfaces the user's own BYOK models as copies
+		// under its own vendor. Those copies carry `byokModelIdentifier` — the id of the
+		// original BYOK model — so they must not appear in Manage Models: they already show
+		// under their real provider group, and listing them again duplicates the whole BYOK
+		// catalogue under the agent host.
+		const service = new MockLanguageModelsService();
+		service.addVendor({ vendor: 'agent-host-copilotcli', displayName: 'Copilot', managementCommand: undefined, when: undefined, configuration: undefined });
 
-		// Get first two models
-		const modelsToHide = modelEntries.slice(0, 2);
-		const initialVisibility = modelsToHide.map(m => m.model.visible);
+		// Native agent-host model — no `byokModelIdentifier`; kept.
+		service.addModel('agent-host-copilotcli', 'agent-host-copilotcli:claude-haiku-4.5', {
+			extension: new ExtensionIdentifier('vscode.chat'),
+			id: 'claude-haiku-4.5',
+			name: 'Claude Haiku 4.5',
+			family: 'claude-haiku-4.5',
+			version: '1.0',
+			vendor: 'agent-host-copilotcli',
+			maxInputTokens: 128000,
+			maxOutputTokens: 4096,
+			isUserSelectable: true,
+			targetChatSessionType: 'agent-host-copilotcli',
+			modelGroup: { id: 'copilotcli' },
+			capabilities: { toolCalling: true, vision: false, agentMode: true },
+			isDefaultForLocation: {},
+		});
 
-		// Hide the models
-		viewModel.setModelsVisibility(modelsToHide, false);
+		// Agent-host BYOK copy — carries the original model identifier; filtered out.
+		service.addModel('agent-host-copilotcli', 'agent-host-copilotcli:openrouter/aion-labs/aion-3.0', {
+			extension: new ExtensionIdentifier('vscode.chat'),
+			id: 'openrouter/aion-labs/aion-3.0',
+			name: 'AionLabs: Aion-3.0',
+			family: 'openrouter/aion-labs/aion-3.0',
+			version: '1.0',
+			vendor: 'agent-host-copilotcli',
+			maxInputTokens: 128000,
+			maxOutputTokens: 4096,
+			isUserSelectable: true,
+			targetChatSessionType: 'agent-host-copilotcli',
+			modelGroup: { id: 'openrouter' },
+			byokModelIdentifier: 'openrouter/OpenRouter 2/aion-labs/aion-3.0',
+			capabilities: { toolCalling: true, vision: false, agentMode: true },
+			isDefaultForLocation: {},
+		});
 
-		// Verify visibility was updated
-		assert.strictEqual(modelsToHide[0].model.visible, false);
-		assert.strictEqual(modelsToHide[1].model.visible, false);
+		const agentHostViewModel = store.add(new ChatModelsViewModel(service));
+		await agentHostViewModel.refresh();
 
-		// Verify language models service was called by checking metadata
-		const metadata1 = languageModelsService.lookupLanguageModel(modelsToHide[0].model.identifier);
-		const metadata2 = languageModelsService.lookupLanguageModel(modelsToHide[1].model.identifier);
-		assert.strictEqual(metadata1?.isUserSelectable, false);
-		assert.strictEqual(metadata2?.isUserSelectable, false);
-
-		// Verify UI was updated by filtering
-		const updatedResults = viewModel.filter('');
-		const updatedModelEntries = updatedResults.filter(r => !isLanguageModelProviderEntry(r) && !isLanguageModelGroupEntry(r)) as ILanguageModelEntry[];
-		assert.ok(updatedModelEntries.length > 0);
-
-		// Restore original visibility - group by visibility state for efficient restoration
-		const modelsToMakeVisible = modelsToHide.filter((_, i) => initialVisibility[i]);
-		const modelsToMakeHidden = modelsToHide.filter((_, i) => !initialVisibility[i]);
-		if (modelsToMakeVisible.length > 0) {
-			viewModel.setModelsVisibility(modelsToMakeVisible, true);
-		}
-		if (modelsToMakeHidden.length > 0) {
-			viewModel.setModelsVisibility(modelsToMakeHidden, false);
-		}
-	});
-
-	test('setModelsVisibility should make hidden models visible', () => {
-		// Get initial results
-		const initialResults = viewModel.filter('');
-		const modelEntries = initialResults.filter(r => !isLanguageModelProviderEntry(r) && !isLanguageModelGroupEntry(r)) as ILanguageModelEntry[];
-		assert.ok(modelEntries.length >= 1, 'Should have at least 1 model for testing');
-
-		// Get a model and hide it first
-		const modelToTest = [modelEntries[0]];
-		viewModel.setModelsVisibility(modelToTest, false);
-		assert.strictEqual(modelToTest[0].model.visible, false);
-
-		// Now make it visible
-		viewModel.setModelsVisibility(modelToTest, true);
-
-		// Verify visibility was updated
-		assert.strictEqual(modelToTest[0].model.visible, true);
-
-		// Verify language models service was called
-		const metadata = languageModelsService.lookupLanguageModel(modelToTest[0].model.identifier);
-		assert.strictEqual(metadata?.isUserSelectable, true);
-	});
-
-	test('setGroupVisibility should update visibility for all models in a provider group', () => {
-		// Get initial results to find a provider group
-		const initialResults = viewModel.filter('');
-		const providerGroups = initialResults.filter(isLanguageModelProviderEntry);
-		assert.ok(providerGroups.length > 0, 'Should have at least 1 provider group');
-
-		const providerGroup = providerGroups[0];
-		const modelsInGroup = viewModel.getModelsForGroup(providerGroup);
-		assert.ok(modelsInGroup.length > 0, 'Provider group should have models');
-
-		// Store initial visibility
-		const initialVisibility = modelsInGroup.map(m => m.visible);
-
-		// Hide all models in the group
-		viewModel.setGroupVisibility(providerGroup, false);
-
-		// Verify all models in group are now hidden
-		const updatedModels = viewModel.getModelsForGroup(providerGroup);
-		for (const model of updatedModels) {
-			assert.strictEqual(model.visible, false, `Model ${model.identifier} should be hidden`);
-
-			// Verify language models service was called
-			const metadata = languageModelsService.lookupLanguageModel(model.identifier);
-			assert.strictEqual(metadata?.isUserSelectable, false);
-		}
-
-		// Restore original visibility using setGroupVisibility for models that were visible
-		const modelsToRestore = modelsInGroup.filter((_, i) => initialVisibility[i]);
-		if (modelsToRestore.length > 0) {
-			const modelEntries = initialResults.filter(r => !isLanguageModelProviderEntry(r) && !isLanguageModelGroupEntry(r)) as ILanguageModelEntry[];
-			const entriesToRestore = modelEntries.filter(e => modelsToRestore.some(m => m.identifier === e.model.identifier));
-			viewModel.setModelsVisibility(entriesToRestore, true);
-		}
-	});
-
-	test('setGroupVisibility should update visibility for all models in a visibility group', () => {
-		// Store initial visibility state
-		const allResults = viewModel.filter('');
-		const allModelEntries = allResults.filter(r => !isLanguageModelProviderEntry(r) && !isLanguageModelGroupEntry(r)) as ILanguageModelEntry[];
-		const initialModelStates = allModelEntries.map(m => ({ entry: m, visible: m.model.visible }));
-
-		// First ensure we have some visible and some hidden models
-		if (allModelEntries.length >= 2) {
-			// Hide one model to create a mixed state
-			viewModel.setModelsVisibility([allModelEntries[0]], false);
-			viewModel.setModelsVisibility([allModelEntries[1]], true);
-		}
-
-		// Filter to trigger visibility group creation - the visibility filter activates grouping by visibility
-		viewModel.filter('@visible:true');
-		// Now get the results with visibility groups
-		const resultsWithGroups = viewModel.filter('');
-
-		// Find the visibility group entries
-		const visibilityGroups = resultsWithGroups.filter(isLanguageModelGroupEntry);
-
-		if (visibilityGroups.length > 0) {
-			const visibleGroup = visibilityGroups.find(g => g.id === 'visible');
-			if (visibleGroup) {
-				const visibleModels = viewModel.getModelsForGroup(visibleGroup);
-				const initialCount = visibleModels.length;
-
-				if (initialCount > 0) {
-					// Hide all visible models
-					viewModel.setGroupVisibility(visibleGroup, false);
-
-					// Verify all previously visible models are now hidden
-					const updatedVisibleModels = viewModel.getModelsForGroup(visibleGroup);
-					assert.strictEqual(updatedVisibleModels.length, 0, 'Should have no visible models after hiding the visible group');
-
-					// Verify the hidden group now contains those models
-					const hiddenGroup = visibilityGroups.find(g => g.id === 'hidden');
-					if (hiddenGroup) {
-						const hiddenModels = viewModel.getModelsForGroup(hiddenGroup);
-						assert.ok(hiddenModels.length >= initialCount, 'Hidden group should contain the previously visible models');
-					}
-				}
-			}
-		}
-
-		// Restore original visibility state
-		const modelsToMakeVisible = initialModelStates.filter(s => s.visible).map(s => s.entry);
-		const modelsToMakeHidden = initialModelStates.filter(s => !s.visible).map(s => s.entry);
-		if (modelsToMakeVisible.length > 0) {
-			viewModel.setModelsVisibility(modelsToMakeVisible, true);
-		}
-		if (modelsToMakeHidden.length > 0) {
-			viewModel.setModelsVisibility(modelsToMakeHidden, false);
-		}
-	});
-
-	test('setGroupVisibility should trigger UI update through doFilter', () => {
-		// Get a provider group
-		const initialResults = viewModel.filter('');
-		const providerGroups = initialResults.filter(isLanguageModelProviderEntry);
-
-		if (providerGroups.length > 0) {
-			const providerGroup = providerGroups[0];
-
-			// Change visibility
-			viewModel.setGroupVisibility(providerGroup, false);
-
-			// Filter again to ensure UI was updated
-			const updatedResults = viewModel.filter('');
-			const updatedProviderGroups = updatedResults.filter(isLanguageModelProviderEntry);
-
-			// Verify we can still get results (doFilter was called)
-			assert.ok(updatedProviderGroups.length > 0, 'Should still have provider groups after visibility change');
-		}
+		const models = agentHostViewModel.filter('').filter(r => !isLanguageModelProviderEntry(r) && !isLanguageModelGroupEntry(r)) as ILanguageModelEntry[];
+		assert.deepStrictEqual(models.map(m => m.model.metadata.id), ['claude-haiku-4.5']);
 	});
 
 });

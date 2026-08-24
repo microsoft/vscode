@@ -361,22 +361,26 @@ class ProgressManager {
 
 	private enabled = false;
 	private disposable: IDisposable = EmptyDisposable;
+	private readonly disposables: IDisposable[] = [];
 
 	constructor(private repository: Repository) {
 		const onDidChange = filterEvent(workspace.onDidChangeConfiguration, e => e.affectsConfiguration('git', Uri.file(this.repository.root)));
-		onDidChange(_ => this.updateEnablement());
+		onDidChange(_ => this.updateEnablement(), null, this.disposables);
 		this.updateEnablement();
 
-		this.repository.onDidChangeOperations(() => {
-			// Disable input box when the commit operation is running
-			this.repository.sourceControl.inputBox.enabled = !this.repository.operations.isRunning(OperationKind.Commit);
-		});
+		if (!workspace.isAgentSessionsWorkspace) {
+			this.repository.onDidChangeOperations(() => {
+				// Disable input box when the commit operation is running
+				this.repository.sourceControl.inputBox.enabled = !this.repository.operations.isRunning(OperationKind.Commit);
+			}, null, this.disposables);
+		}
 	}
 
 	private updateEnablement(): void {
 		const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
+		const showProgress = config.get<boolean>('showProgress') === true && !workspace.isAgentSessionsWorkspace;
 
-		if (config.get<boolean>('showProgress')) {
+		if (showProgress) {
 			this.enable();
 		} else {
 			this.disable();
@@ -414,6 +418,7 @@ class ProgressManager {
 
 	dispose(): void {
 		this.disable();
+		dispose(this.disposables);
 	}
 }
 
@@ -878,6 +883,11 @@ export class Repository implements Disposable {
 		return this.repository.kind;
 	}
 
+	private _isUsingVirtualFileSystem: boolean | undefined = undefined;
+	get isUsingVirtualFileSystem(): boolean {
+		return this._isUsingVirtualFileSystem === true;
+	}
+
 	private _artifactProvider: GitArtifactProvider;
 	get artifactProvider(): GitArtifactProvider { return this._artifactProvider; }
 
@@ -1068,7 +1078,7 @@ export class Repository implements Disposable {
 		// Default branch protection provider
 		const onBranchProtectionProviderChanged = filterEvent(this.branchProtectionProviderRegistry.onDidChangeBranchProtectionProviders, e => pathEquals(e.fsPath, root.fsPath));
 		this.disposables.push(onBranchProtectionProviderChanged(root => this.updateBranchProtectionMatchers(root)));
-		this.disposables.push(this.branchProtectionProviderRegistry.registerBranchProtectionProvider(root, new GitBranchProtectionProvider(root)));
+		this.disposables.push(this.branchProtectionProviderRegistry.registerBranchProtectionProvider(root, new GitBranchProtectionProvider(root, this.logger)));
 
 		const statusBar = new StatusBarCommands(this, remoteSourcePublisherRegistry);
 		this.disposables.push(statusBar);
@@ -1369,16 +1379,47 @@ export class Repository implements Disposable {
 		await this.run(
 			Operation.Restore(!this.optimisticUpdateEnabled()),
 			async () => {
-				const resourcePaths = resources.map(r => r.fsPath);
-				await this.repository.restore(resourcePaths, options);
+				const toClean: string[] = [];
+				const toRestore: string[] = [];
 
-				if (options?.staged) {
-					// Index was modified;
-					this.closeDiffEditors([], resourcePaths);
-				} else {
-					// Working tree was modified;
-					this.closeDiffEditors(resourcePaths, []);
+				const resourceStates = [
+					...this.indexGroup.resourceStates,
+					...this.workingTreeGroup.resourceStates,
+					...this.untrackedGroup.resourceStates
+				];
+
+				for (const resource of resources) {
+					const scmResource = find(resourceStates, r => r.resourceUri.toString() === resource.toString());
+
+					if (!scmResource) {
+						toRestore.push(resource.fsPath);
+						continue;
+					}
+
+					switch (scmResource.type) {
+						case Status.UNTRACKED:
+						case Status.IGNORED:
+							toClean.push(resource.fsPath);
+							break;
+
+						default:
+							toRestore.push(resource.fsPath);
+							break;
+					}
 				}
+
+				if (toClean.length > 0) {
+					await this._clean(toClean);
+				}
+
+				if (toRestore.length > 0) {
+					await this.repository.restore(toRestore, options);
+				}
+
+				this.closeDiffEditors([], [...toClean, ...toRestore]);
+
+				// Clear AI contribution tracking for discarded resources
+				commands.executeCommand('_aiEdits.clearAiContributions', resources);
 			});
 	}
 
@@ -1461,6 +1502,11 @@ export class Repository implements Disposable {
 			return message;
 		}
 
+		const chatConfig = workspace.getConfiguration('chat');
+		if (chatConfig.get<boolean>('disableAIFeatures', false)) {
+			return message;
+		}
+
 		const config = workspace.getConfiguration('git', Uri.file(this.root));
 		const addAICoAuthor = config.get<'off' | 'chatAndAgent' | 'all'>('addAICoAuthor', 'off');
 
@@ -1511,9 +1557,6 @@ export class Repository implements Disposable {
 	}
 
 	async clean(resources: Uri[]): Promise<void> {
-		const config = workspace.getConfiguration('git');
-		const discardUntrackedChangesToTrash = config.get<boolean>('discardUntrackedChangesToTrash', true) && !isRemote && !isLinuxSnap;
-
 		await this.run(
 			Operation.Clean(!this.optimisticUpdateEnabled()),
 			async () => {
@@ -1552,33 +1595,7 @@ export class Repository implements Disposable {
 				});
 
 				if (toClean.length > 0) {
-					if (discardUntrackedChangesToTrash) {
-						try {
-							// Attempt to move the first resource to the recycle bin/trash to check
-							// if it is supported. If it fails, we show a confirmation dialog and
-							// fall back to deletion.
-							await workspace.fs.delete(Uri.file(toClean[0]), { useTrash: true });
-
-							const limiter = new Limiter<void>(5);
-							await Promise.all(toClean.slice(1).map(fsPath => limiter.queue(
-								async () => await workspace.fs.delete(Uri.file(fsPath), { useTrash: true }))));
-						} catch {
-							const message = isWindows
-								? l10n.t('Failed to delete using the Recycle Bin. Do you want to permanently delete instead?')
-								: l10n.t('Failed to delete using the Trash. Do you want to permanently delete instead?');
-							const primaryAction = toClean.length === 1
-								? l10n.t('Delete File')
-								: l10n.t('Delete All {0} Files', resources.length);
-
-							const result = await window.showWarningMessage(message, { modal: true }, primaryAction);
-							if (result === primaryAction) {
-								// Delete permanently
-								await this.repository.clean(toClean);
-							}
-						}
-					} else {
-						await this.repository.clean(toClean);
-					}
+					await this._clean(toClean);
 				}
 
 				if (toCheckout.length > 0) {
@@ -1613,6 +1630,43 @@ export class Repository implements Disposable {
 
 				return { workingTreeGroup, untrackedGroup };
 			});
+	}
+
+	async _clean(resources: string[]): Promise<void> {
+		const config = workspace.getConfiguration('git');
+		const discardUntrackedChangesToTrash = config.get<boolean>('discardUntrackedChangesToTrash', true) && !isRemote && !isLinuxSnap;
+
+		if (resources.length === 0) {
+			return;
+		}
+
+		if (discardUntrackedChangesToTrash) {
+			try {
+				// Attempt to move the first resource to the recycle bin/trash to check
+				// if it is supported. If it fails, we show a confirmation dialog and
+				// fall back to deletion.
+				await workspace.fs.delete(Uri.file(resources[0]), { useTrash: true });
+
+				const limiter = new Limiter<void>(5);
+				await Promise.all(resources.slice(1).map(fsPath => limiter.queue(
+					async () => await workspace.fs.delete(Uri.file(fsPath), { useTrash: true }))));
+			} catch {
+				const message = isWindows
+					? l10n.t('Failed to delete using the Recycle Bin. Do you want to permanently delete instead?')
+					: l10n.t('Failed to delete using the Trash. Do you want to permanently delete instead?');
+				const primaryAction = resources.length === 1
+					? l10n.t('Delete File')
+					: l10n.t('Delete All {0} Files', resources.length);
+
+				const result = await window.showWarningMessage(message, { modal: true }, primaryAction);
+				if (result === primaryAction) {
+					// Delete permanently
+					await this.repository.clean(resources);
+				}
+			}
+		} else {
+			await this.repository.clean(resources);
+		}
 	}
 
 	closeDiffEditors(indexResources: string[] | undefined, workingTreeResources: string[] | undefined, ignoreSetting = false): void {
@@ -1884,14 +1938,14 @@ export class Repository implements Disposable {
 		await this.run(Operation.DeleteTag, () => this.repository.deleteTag(name));
 	}
 
-	async createWorktree(options?: { path?: string; commitish?: string; branch?: string }): Promise<string> {
+	async createWorktree(options?: { path?: string; commitish?: string; branch?: string; noTrack?: boolean }): Promise<string> {
 		const defaultWorktreeRoot = this.globalState.get<string>(`${Repository.WORKTREE_ROOT_STORAGE_KEY}:${this.root}`);
 		const config = workspace.getConfiguration('git', Uri.file(this.root));
 		const branchPrefix = config.get<string>('branchPrefix', '');
 
 		return await this.run(Operation.Worktree(false), async () => {
 			let worktreeName: string | undefined;
-			let { path: worktreePath, commitish, branch } = options || {};
+			let { path: worktreePath, commitish, branch, noTrack } = options || {};
 
 			// Create worktree path based on the branch name
 			if (worktreePath === undefined && branch !== undefined) {
@@ -1915,7 +1969,7 @@ export class Repository implements Disposable {
 			}
 
 			// Create the worktree
-			await this.repository.addWorktree({ path: worktreePath!, commitish: commitish ?? 'HEAD', branch });
+			await this.repository.addWorktree({ path: worktreePath!, commitish: commitish ?? 'HEAD', branch, noTrack });
 
 			// Update worktree root in global state
 			const newWorktreeRoot = path.dirname(worktreePath!);
@@ -2071,7 +2125,7 @@ export class Repository implements Disposable {
 		}
 	}
 
-	async deleteWorktree(path: string, options?: { force?: boolean }): Promise<void> {
+	async deleteWorktree(path: string, options?: { force?: boolean; label?: string }): Promise<void> {
 		await this.run(Operation.Worktree(false), async () => {
 			const worktree = this.repositoryResolver.getRepository(path);
 
@@ -2081,12 +2135,14 @@ export class Repository implements Disposable {
 			};
 
 			try {
-				await deleteWorktree();
+				await deleteWorktree(options);
 			} catch (err) {
 				if (err.gitErrorCode === GitErrorCodes.WorktreeContainsChanges) {
 					const forceDelete = l10n.t('Force Delete');
-					const message = l10n.t('The worktree contains modified or untracked files. Do you want to force delete?');
-					const choice = await window.showWarningMessage(message, { modal: true }, forceDelete);
+					const message = options?.label
+						? l10n.t('The worktree for session "{0}" contains modified or untracked files. Do you want to force delete?', options.label)
+						: l10n.t('The worktree contains modified or untracked files. Do you want to force delete?');
+					const choice = await window.showWarningMessage(message, { modal: true, detail: l10n.t('Worktree: {0}', path) }, forceDelete);
 					if (choice === forceDelete) {
 						await deleteWorktree({ ...options, force: true });
 					}
@@ -2836,7 +2892,8 @@ export class Repository implements Disposable {
 					this.getRebaseCommit(),
 					this.isMergeInProgress(),
 					this.isCherryPickInProgress(),
-					this.getInputTemplate()]);
+					this.getInputTemplate(),
+					this.initIsUsingVirtualFileSystem()]);
 
 			// Reset the list of unpublished commits if HEAD has
 			// changed (ex: checkout, fetch, pull, push, publish, etc.).
@@ -3417,6 +3474,20 @@ export class Repository implements Disposable {
 		}
 
 		return undefined;
+	}
+
+	private async initIsUsingVirtualFileSystem(): Promise<void> {
+		if (this._isUsingVirtualFileSystem !== undefined) {
+			return;
+		}
+
+		try {
+			const result = await this.getConfig('core.virtualfilesystem');
+			this._isUsingVirtualFileSystem = result.length > 0;
+		} catch (error) {
+			this._isUsingVirtualFileSystem = false;
+			return;
+		}
 	}
 
 	dispose(): void {

@@ -12,11 +12,33 @@ import { IChatModel } from '../../common/model/chatModel.js';
 import { IChatService, IChatToolInvocation, ToolConfirmKind } from '../../common/chatService/chatService.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 
+/**
+ * The kind of attention a pending approval needs. Lets consumers tailor UI
+ * (e.g. a summary message) to what the user is actually being asked to do.
+ */
+export const enum AgentSessionApprovalKind {
+	/** A terminal command is waiting to be run. */
+	Terminal = 'terminal',
+	/** The agent is asking the user a question / needs a free-form response. */
+	Question = 'question',
+	/** Some other tool invocation is waiting for confirmation. */
+	Other = 'other',
+}
+
 export interface IAgentSessionApprovalInfo {
+	readonly approvalId: string;
+	readonly kind: AgentSessionApprovalKind;
 	readonly label: string;
 	readonly languageId: string | undefined;
 	readonly since: Date;
 	confirm(): void;
+}
+
+/**
+ * A stable identity for a specific pending approval.
+ */
+export function agentSessionApprovalId(info: IAgentSessionApprovalInfo): string {
+	return info.approvalId;
 }
 
 /**
@@ -71,7 +93,7 @@ export class AgentSessionApprovalModel extends Disposable {
 			if (current === value) {
 				return;
 			}
-			if (current !== undefined && value !== undefined && current.label === value.label && current.languageId === value.languageId) {
+			if (current !== undefined && value !== undefined && current.approvalId === value.approvalId && current.kind === value.kind && current.label === value.label && current.languageId === value.languageId) {
 				return;
 			}
 			settable.set(value, undefined);
@@ -91,26 +113,32 @@ export class AgentSessionApprovalModel extends Disposable {
 			}
 
 			for (const part of lastResponse.response.value) {
-				if (part.kind !== 'toolInvocation') {
-					continue;
+				if (part.kind !== 'toolInvocation' || part.toolSpecificData?.kind === 'modifiedFilesConfirmation') {
+					continue; // unsupported
 				}
 				const state = part.state.read(reader);
 				if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation || state.type === IChatToolInvocation.StateKind.WaitingForPostApproval) {
 					let label: string;
 					let languageId: string | undefined;
+					let kind: AgentSessionApprovalKind;
 					if (part.toolSpecificData?.kind === 'terminal') {
 						const terminalData = migrateLegacyTerminalToolSpecificData(part.toolSpecificData);
 						label = terminalData.presentationOverrides?.commandLine ?? terminalData.commandLine.forDisplay ?? terminalData.commandLine.userEdited ?? terminalData.commandLine.toolEdited ?? terminalData.commandLine.original;
 						languageId = this._languageService.getLanguageIdByLanguageName(terminalData.presentationOverrides?.language ?? terminalData.language) ?? undefined;
+						kind = AgentSessionApprovalKind.Terminal;
 					} else if (needsInput.detail) {
 						label = needsInput.detail;
+						kind = AgentSessionApprovalKind.Question;
 					} else {
 						const msg = part.invocationMessage;
 						label = typeof msg === 'string' ? msg : renderAsPlaintext(msg);
+						kind = AgentSessionApprovalKind.Other;
 					}
 
 					const confirmState = state;
 					setIfChanged({
+						approvalId: part.toolCallId,
+						kind,
 						label,
 						languageId,
 						since: new Date(),

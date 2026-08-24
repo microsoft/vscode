@@ -19,7 +19,7 @@ import { Checkbox, createToggleActionViewItemProvider, IToggleStyles } from '../
 import { RenderIndentGuides } from '../../../base/browser/ui/tree/abstractTree.js';
 import { IObjectTreeElement, ITreeNode, ITreeRenderer, TreeVisibility } from '../../../base/browser/ui/tree/tree.js';
 import { equals } from '../../../base/common/arrays.js';
-import { ThrottledDelayer } from '../../../base/common/async.js';
+import { disposableTimeout, ThrottledDelayer } from '../../../base/common/async.js';
 import { compareAnything } from '../../../base/common/comparers.js';
 import { memoize } from '../../../base/common/decorators.js';
 import { isCancellationError } from '../../../base/common/errors.js';
@@ -41,6 +41,7 @@ import { WorkbenchObjectTree } from '../../list/browser/listService.js';
 import { defaultCheckboxStyles } from '../../theme/browser/defaultStyles.js';
 import { isDark } from '../../theme/common/theme.js';
 import { IThemeService } from '../../theme/common/themeService.js';
+import { asCssVariable } from '../../theme/common/colorUtils.js';
 import { IQuickPickItem, IQuickPickItemButtonEvent, IQuickPickSeparator, IQuickPickSeparatorButtonEvent, QuickPickFocus, QuickPickItem } from '../common/quickInput.js';
 import { IQuickInputStyles } from './quickInput.js';
 import { quickInputButtonsToActionArrays } from './quickInputUtils.js';
@@ -486,6 +487,7 @@ class QuickPickItemElementRenderer extends BaseQuickInputListRenderer<QuickPickI
 			data.icon.style.backgroundImage = '';
 			data.icon.className = mainItem.iconClass ? `quick-input-list-icon ${mainItem.iconClass}` : '';
 		}
+		data.icon.style.color = mainItem.iconColor ? asCssVariable(mainItem.iconColor.id) : '';
 
 		// Label
 		let descriptionTitle: IManagedHoverTooltipMarkdownString | undefined;
@@ -1157,7 +1159,7 @@ export class QuickInputList extends Disposable {
 		// Accessibility hack, unfortunately on next tick
 		// https://github.com/microsoft/vscode/issues/211976
 		if (this.accessibilityService.isScreenReaderOptimized()) {
-			setTimeout(() => {
+			disposableTimeout(() => {
 				// eslint-disable-next-line no-restricted-syntax
 				const focusedElement = this._tree.getHTMLElement().querySelector(`.monaco-list-row.focused`);
 				const parent = focusedElement?.parentNode;
@@ -1166,7 +1168,7 @@ export class QuickInputList extends Disposable {
 					focusedElement.remove();
 					parent.insertBefore(focusedElement, nextSibling);
 				}
-			}, 0);
+			}, 0, this._elementDisposable);
 		}
 	}
 

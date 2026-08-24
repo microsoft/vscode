@@ -1,0 +1,16 @@
+[
+    {
+        "question": "/explain write an explanation of #file:foo.ts and #file:bar.ts as paragraphs of text",
+        "description": "resolves multiple #file variables and is not distracted by default selection context",
+        "stateFile": "./explain.15.state.json",
+        "keywords": {
+            "allOf": [
+                "boo",
+                "far"
+            ],
+            "not": [
+                "hi"
+            ]
+        }
+    }
+]

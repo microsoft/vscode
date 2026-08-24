@@ -1,0 +1,190 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.agent-global-configuration-settings {
+	height: 100%;
+	overflow: auto;
+}
+
+.agent-global-configuration-settings-content {
+	box-sizing: border-box;
+	max-width: 720px;
+	margin: 0 auto;
+	padding: var(--vscode-spacing-size320) var(--vscode-spacing-size280) var(--vscode-spacing-size400);
+}
+
+.agent-global-configuration-settings-content h1 {
+	font-size: 24px;
+	font-weight: var(--vscode-fontWeight-semiBold);
+	line-height: 32px;
+	margin: 0 0 var(--vscode-spacing-size40);
+}
+
+.agent-global-configuration-settings-intro,
+.agent-global-configuration-settings-section-description,
+.agent-global-configuration-settings-description {
+	color: var(--vscode-descriptionForeground);
+}
+
+.agent-global-configuration-settings-intro {
+	font-size: var(--vscode-fontSize-body1);
+	line-height: 20px;
+	margin: 0 0 var(--vscode-spacing-size240);
+}
+
+.agent-global-configuration-settings-section {
+	margin-top: var(--vscode-spacing-size240);
+}
+
+.agent-global-configuration-settings-section h2 {
+	font-size: 15px;
+	font-weight: var(--vscode-fontWeight-semiBold);
+	line-height: 22px;
+	margin: 0 0 var(--vscode-spacing-size20);
+}
+
+.agent-global-configuration-settings-section-description {
+	font-size: var(--vscode-fontSize-label1);
+	line-height: 18px;
+	margin: 0 0 var(--vscode-spacing-size100);
+}
+
+.agent-global-configuration-settings-section-description:empty {
+	display: none;
+}
+
+.agent-global-configuration-settings-card {
+	border: 1px solid var(--vscode-widget-border, var(--vscode-contrastBorder, transparent));
+	border-radius: var(--vscode-cornerRadius-small);
+	overflow: hidden;
+}
+
+.agent-global-configuration-settings-row {
+	display: flex;
+	align-items: center;
+	box-sizing: border-box;
+	min-height: 54px;
+	padding: var(--vscode-spacing-size100) var(--vscode-spacing-size120);
+	gap: var(--vscode-spacing-size160);
+}
+
+.agent-global-configuration-settings-row + .agent-global-configuration-settings-row,
+.agent-global-configuration-settings-row + .agent-global-configuration-settings-text-row,
+.agent-global-configuration-settings-text-row + .agent-global-configuration-settings-row,
+.agent-global-configuration-settings-text-row + .agent-global-configuration-settings-text-row {
+	border-top: 1px solid var(--vscode-widget-border, var(--vscode-contrastBorder, transparent));
+}
+
+.agent-global-configuration-settings-labels {
+	min-width: 0;
+	flex: 1;
+}
+
+.agent-global-configuration-settings-label {
+	font-size: var(--vscode-fontSize-body1);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	line-height: 19px;
+}
+
+.agent-global-configuration-settings-description {
+	font-size: var(--vscode-fontSize-label1);
+	line-height: 17px;
+}
+
+.agent-global-configuration-settings-action,
+.agent-global-configuration-settings-select,
+.agent-global-configuration-settings-checkbox,
+.agent-global-configuration-settings-input {
+	margin-left: auto;
+	flex: none;
+}
+
+.agent-global-configuration-settings-select,
+.agent-global-configuration-settings-input {
+	box-sizing: border-box;
+	width: 168px;
+}
+
+.agent-global-configuration-settings-select .monaco-select-box {
+	width: 100%;
+	min-height: 26px;
+	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size240) var(--vscode-spacing-size20) var(--vscode-spacing-size80);
+}
+
+.agent-global-configuration-settings-input,
+.agent-global-configuration-settings-text {
+	border: 1px solid var(--vscode-input-border, transparent);
+	border-radius: var(--vscode-cornerRadius-xSmall);
+	outline: none;
+	background: var(--vscode-input-background);
+	color: var(--vscode-input-foreground);
+	font-family: inherit;
+	font-size: var(--vscode-fontSize-label1);
+}
+
+.agent-global-configuration-settings-input {
+	height: 26px;
+	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size80);
+}
+
+.agent-global-configuration-settings-text-row {
+	display: block;
+	padding: var(--vscode-spacing-size120);
+}
+
+.agent-global-configuration-settings-text {
+	box-sizing: border-box;
+	display: block;
+	width: 100%;
+	min-height: 76px;
+	margin-top: var(--vscode-spacing-size80);
+	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size80);
+	resize: vertical;
+	line-height: 18px;
+}
+
+.agent-global-configuration-settings-input:focus,
+.agent-global-configuration-settings-text:focus {
+	border-color: var(--vscode-focusBorder);
+}
+
+.agent-global-configuration-settings-actions {
+	display: flex;
+	justify-content: flex-end;
+	margin-top: var(--vscode-spacing-size80);
+}
+
+.agent-global-configuration-settings-actions .monaco-button {
+	flex: none;
+	width: auto;
+}
+
+.agent-global-configuration-settings-status {
+	display: flex;
+	align-items: flex-start;
+	gap: var(--vscode-spacing-size80);
+	padding: var(--vscode-spacing-size120);
+	color: var(--vscode-descriptionForeground);
+	line-height: 18px;
+}
+
+.agent-global-configuration-settings-status.error .codicon {
+	color: var(--vscode-errorForeground);
+}
+
+.agent-global-configuration-settings.narrow .agent-global-configuration-settings-content {
+	padding: var(--vscode-spacing-size240) var(--vscode-spacing-size160) var(--vscode-spacing-size400);
+}
+
+.agent-global-configuration-settings.narrow .agent-global-configuration-settings-row {
+	align-items: flex-start;
+	flex-wrap: wrap;
+}
+
+.agent-global-configuration-settings.narrow .agent-global-configuration-settings-select,
+.agent-global-configuration-settings.narrow .agent-global-configuration-settings-input {
+	width: 100%;
+	margin-left: 0;
+}

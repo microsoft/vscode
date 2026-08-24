@@ -13,10 +13,11 @@ import { IProductService } from '../../product/common/productService.js';
 export class NativeEnvironmentService extends AbstractNativeEnvironmentService {
 
 	constructor(args: NativeParsedArgs, productService: IProductService) {
+		const homeDir = homedir();
 		super(args, {
-			homeDir: homedir(),
+			homeDir,
 			tmpDir: tmpdir(),
-			userDataDir: getUserDataPath(args, productService.nameShort)
+			userDataDir: getUserDataPath(args, productService.nameShort),
 		}, productService);
 	}
 }

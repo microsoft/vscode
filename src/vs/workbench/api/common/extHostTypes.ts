@@ -5,7 +5,7 @@
 
 import type * as vscode from 'vscode';
 import { asArray } from '../../../base/common/arrays.js';
-import { VSBuffer } from '../../../base/common/buffer.js';
+import { encodeBase64, VSBuffer } from '../../../base/common/buffer.js';
 import { illegalArgument, SerializedError } from '../../../base/common/errors.js';
 import { IRelativePattern } from '../../../base/common/glob.js';
 import { MarshalledId } from '../../../base/common/marshallingIds.js';
@@ -2756,6 +2756,14 @@ export enum StandardTokenType {
 	RegEx = 3
 }
 
+export enum SyntaxHighlightingTokenFontStyle {
+	None = 0,
+	Italic = 1,
+	Bold = 2,
+	Underline = 4,
+	Strikethrough = 8,
+}
+
 
 export class LinkedEditingRanges {
 	constructor(public readonly ranges: Range[], public readonly wordPattern?: RegExp) {
@@ -3185,6 +3193,7 @@ export class ChatSubagentToolInvocationData {
 	agentName?: string;
 	prompt?: string;
 	result?: string;
+	modelName?: string;
 	constructor(description?: string, agentName?: string, prompt?: string, result?: string) {
 		this.description = description;
 		this.agentName = agentName;
@@ -3262,7 +3271,42 @@ export class ChatResponseHookPart {
 	}
 }
 
+export type ChatResponseVoiceProgressStage = 'investigating' | 'planning' | 'editing' | 'validating' | 'recovering';
+
+export class ChatResponseVoiceProgressPart {
+	readonly id: ChatResponseVoiceProgressStage;
+	readonly value: string;
+	constructor(id: ChatResponseVoiceProgressStage, value: string) {
+		this.id = id;
+		this.value = value;
+	}
+}
+
+export class ChatResponseAutoModeResolutionPart {
+	resolvedModel: string;
+	resolvedModelName: string;
+	predictedLabel: string;
+	confidence: number;
+	constructor(resolvedModel: string, resolvedModelName: string, predictedLabel: string, confidence: number) {
+		this.resolvedModel = resolvedModel;
+		this.resolvedModelName = resolvedModelName;
+		this.predictedLabel = predictedLabel;
+		this.confidence = confidence;
+	}
+}
+
 export class ChatResponseWarningPart {
+	value: vscode.MarkdownString;
+	constructor(value: string | vscode.MarkdownString) {
+		if (typeof value !== 'string' && value.isTrusted === true) {
+			throw new Error('The boolean form of MarkdownString.isTrusted is NOT supported for chat participants.');
+		}
+
+		this.value = typeof value === 'string' ? new MarkdownString(value) : value;
+	}
+}
+
+export class ChatResponseInfoPart {
 	value: vscode.MarkdownString;
 	constructor(value: string | vscode.MarkdownString) {
 		if (typeof value !== 'string' && value.isTrusted === true) {
@@ -3574,6 +3618,7 @@ export class ChatSessionCustomizationType {
 	static readonly Instructions = new ChatSessionCustomizationType('instructions');
 	static readonly Prompt = new ChatSessionCustomizationType('prompt');
 	static readonly Hook = new ChatSessionCustomizationType('hook');
+	static readonly Plugins = new ChatSessionCustomizationType('plugins');
 
 	constructor(public readonly id: string) { }
 }
@@ -3622,10 +3667,13 @@ export class ChatDebugModelTurnEvent {
 	created: Date;
 	parentEventId?: string;
 	model?: string;
+	requestName?: string;
 	inputTokens?: number;
 	outputTokens?: number;
+	cachedTokens?: number;
 	totalTokens?: number;
 	cost?: number;
+	copilotUsageNanoAiu?: number;
 	durationInMillis?: number;
 
 	constructor(created: Date) {
@@ -3759,12 +3807,14 @@ export class ChatDebugEventModelTurnContent {
 	status?: string;
 	durationInMillis?: number;
 	timeToFirstTokenInMillis?: number;
+	requestId?: string;
 	maxInputTokens?: number;
 	maxOutputTokens?: number;
 	inputTokens?: number;
 	outputTokens?: number;
 	cachedTokens?: number;
 	totalTokens?: number;
+	requestOptions?: string;
 	errorMessage?: string;
 	sections?: ChatDebugMessageSection[];
 
@@ -3790,10 +3840,6 @@ export class ChatDebugEventHookContent {
 }
 
 export class ChatSessionChangedFile {
-	constructor(public readonly modifiedUri: vscode.Uri, public readonly insertions: number, public readonly deletions: number, public readonly originalUri?: vscode.Uri) { }
-}
-
-export class ChatSessionChangedFile2 {
 	constructor(public readonly uri: vscode.Uri, public readonly originalUri: vscode.Uri | undefined, public readonly modifiedUri: vscode.Uri | undefined, public readonly insertions: number, public readonly deletions: number) { }
 }
 
@@ -3828,10 +3874,14 @@ export class ChatReferenceBinaryData implements vscode.ChatReferenceBinaryData {
 	mimeType: string;
 	data: () => Thenable<Uint8Array>;
 	reference?: vscode.Uri;
-	constructor(mimeType: string, data: () => Thenable<Uint8Array>, reference?: vscode.Uri) {
+	isPasted?: boolean;
+	isURL?: boolean;
+	constructor(mimeType: string, data: () => Thenable<Uint8Array>, reference?: vscode.Uri, isPasted?: boolean, isURL?: boolean) {
 		this.mimeType = mimeType;
 		this.data = data;
 		this.reference = reference;
+		this.isPasted = isPasted;
+		this.isURL = isURL;
 	}
 }
 
@@ -3863,6 +3913,12 @@ export enum ChatErrorLevel {
 	Info = 0,
 	Warning = 1,
 	Error = 2
+}
+
+export enum ChatInputNotificationSeverity {
+	Info = 0,
+	Warning = 1,
+	Error = 2,
 }
 
 export class LanguageModelChatMessage implements vscode.LanguageModelChatMessage {
@@ -4026,7 +4082,7 @@ export class LanguageModelDataPart implements vscode.LanguageModelDataPart2 {
 		return {
 			$mid: MarshalledId.LanguageModelDataPart,
 			mimeType: this.mimeType,
-			data: this.data,
+			data: encodeBase64(VSBuffer.wrap(this.data)),
 			audience: this.audience
 		};
 	}

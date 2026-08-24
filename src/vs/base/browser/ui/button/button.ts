@@ -73,6 +73,9 @@ export interface IButton extends IDisposable {
 	set enabled(value: boolean);
 	set checked(value: boolean);
 
+	setTitle(title: string): void;
+	setAriaLabel(ariaLabel: string): void;
+
 	focus(): void;
 	hasFocus(): boolean;
 }
@@ -379,6 +382,10 @@ export class Button extends Disposable implements IButton {
 		}
 	}
 
+	setAriaLabel(ariaLabel: string): void {
+		this._element.setAttribute('aria-label', ariaLabel);
+	}
+
 	focus(): void {
 		this._element.focus();
 	}
@@ -495,6 +502,14 @@ export class ButtonWithDropdown extends Disposable implements IButton {
 		return this.primaryButton.checked;
 	}
 
+	setTitle(title: string): void {
+		this.primaryButton.setTitle(title);
+	}
+
+	setAriaLabel(ariaLabel: string): void {
+		this.primaryButton.setAriaLabel(ariaLabel);
+	}
+
 	focus(): void {
 		this.primaryButton.focus();
 	}
@@ -552,6 +567,14 @@ export class ButtonWithDescription implements IButtonWithDescription {
 
 	get checked(): boolean {
 		return this._button.checked;
+	}
+
+	setTitle(title: string): void {
+		this._button.setTitle(title);
+	}
+
+	setAriaLabel(ariaLabel: string): void {
+		this._button.setAriaLabel(ariaLabel);
 	}
 
 	focus(): void {

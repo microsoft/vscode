@@ -140,8 +140,8 @@ export class HoverService extends Disposable implements IHoverService {
 		}
 
 		if (!this._currentDelayedHover || this._currentDelayedHoverWasShown) {
-			// Current hover is locked, reject
-			if (this._currentHover?.isLocked) {
+			// Current hover is locked, reject — unless this is a nesting scenario
+			if (this._currentHover?.isLocked && this._getContainingHoverIndex(options.target) < 0) {
 				return undefined;
 			}
 
@@ -339,13 +339,13 @@ export class HoverService extends Disposable implements IHoverService {
 			options.container = this._layoutService.getContainer(getWindow(targetElement));
 		}
 
-		if (options.persistence?.sticky) {
-			hoverDisposables.add(addDisposableListener(getWindow(options.container).document, EventType.MOUSE_DOWN, e => {
-				if (!isAncestor(e.target as HTMLElement, hover.domNode)) {
-					this._hideHoverAndDescendants(hover);
-				}
-			}));
-		} else {
+		hoverDisposables.add(addDisposableListener(getWindow(options.container).document, EventType.MOUSE_DOWN, e => {
+			if (!isAncestor(e.target as HTMLElement, hover.domNode)) {
+				this._hideHoverAndDescendants(hover);
+			}
+		}));
+
+		if (!options.persistence?.sticky) {
 			if ('targetElements' in options.target) {
 				for (const element of options.target.targetElements) {
 					hoverDisposables.add(addDisposableListener(element, EventType.CLICK, () => this._hideHoverAndDescendants(hover)));
@@ -422,6 +422,18 @@ export class HoverService extends Disposable implements IHoverService {
 		// Set up layout handling
 		store.add(hover.onRequestLayout(() => contextView.layout()));
 
+		// Re-layout when the window resizes so the hover tracks its anchor.
+		// Only for focused/sticky hovers that persist long enough for a resize
+		// to matter; transient hovers dismiss on mouse movement anyway.
+		if (focus || options.persistence?.sticky) {
+			const targetWindow = getWindow(container);
+			store.add(addDisposableListener(targetWindow, EventType.RESIZE, () => contextView.layout()));
+		}
+
+		if (options.onDidHide) {
+			const onDidHide = options.onDidHide;
+			store.add(toDisposable(() => onDidHide()));
+		}
 		options.onDidShow?.();
 	}
 
@@ -431,6 +443,11 @@ export class HoverService extends Disposable implements IHoverService {
 	private _hideHoverAndDescendants(hover: HoverWidget): void {
 		const stackIndex = this._hoverStack.findIndex(entry => entry.hover === hover);
 		if (stackIndex < 0) {
+			// The hover is not on the stack, so it may still be waiting for its delay to
+			// elapse. Cancel it, otherwise it would show up after this dismiss request.
+			if (hover === this._currentDelayedHover) {
+				this._cancelPendingDelayedHover();
+			}
 			return;
 		}
 
@@ -439,6 +456,20 @@ export class HoverService extends Disposable implements IHoverService {
 			this._hoverStack[i].hover.dispose();
 		}
 		this._hoverStack.length = stackIndex;
+	}
+
+	/**
+	 * Cancels a delayed hover that was created but whose delay has not elapsed yet, so it
+	 * never gets shown.
+	 */
+	private _cancelPendingDelayedHover(): void {
+		if (!this._currentDelayedHover || this._currentDelayedHoverWasShown) {
+			return;
+		}
+
+		this._currentDelayedHover.dispose();
+		this._currentDelayedHover = undefined;
+		this._currentDelayedHoverGroupId = undefined;
 	}
 
 	/**
@@ -452,12 +483,17 @@ export class HoverService extends Disposable implements IHoverService {
 	}
 
 	hideHover(force?: boolean): void {
-		if (this._hoverStack.length === 0) {
+		// If not forcing and the topmost hover is locked, don't hide
+		if (!force && this._currentHover?.isLocked) {
 			return;
 		}
 
-		// If not forcing and the topmost hover is locked, don't hide
-		if (!force && this._currentHover?.isLocked) {
+		// A delayed hover that has not been shown yet is not part of the stack, so it has to
+		// be cancelled explicitly. Otherwise it pops up once its delay elapses, on top of
+		// whatever took over in the meantime such as a context menu.
+		this._cancelPendingDelayedHover();
+
+		if (this._hoverStack.length === 0) {
 			return;
 		}
 
@@ -640,6 +676,16 @@ export class HoverService extends Disposable implements IHoverService {
 
 		const onFocus = (e: FocusEvent) => {
 			if (isMouseDown || hoverPreparation) {
+				return;
+			}
+			// Clean up stale reference if the hover was dismissed externally
+			if (hoverWidget?.isDisposed) {
+				hoverWidget = undefined;
+			}
+			// If focus is returning from a dismissed hover (e.g. Esc) or
+			// from window reactivation (e.g. Alt-tab), don't re-show.
+			const fromHover = isHTMLElement(e.relatedTarget) && e.relatedTarget.closest('.monaco-hover');
+			if (fromHover || !e.relatedTarget) {
 				return;
 			}
 			if (!eventIsRelatedToTarget(e, targetElement)) {

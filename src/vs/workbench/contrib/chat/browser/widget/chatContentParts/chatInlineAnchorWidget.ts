@@ -26,7 +26,7 @@ import { ICommandService } from '../../../../../../platform/commands/common/comm
 import { IContextKey, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { IResourceStat } from '../../../../../../platform/dnd/browser/dnd.js';
-import { ITextResourceEditorInput } from '../../../../../../platform/editor/common/editor.js';
+import { ITextEditorOptions, ITextResourceEditorInput } from '../../../../../../platform/editor/common/editor.js';
 import { FileKind, IFileService } from '../../../../../../platform/files/common/files.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -38,7 +38,6 @@ import { FolderThemeIcon, IThemeService } from '../../../../../../platform/theme
 import { fillEditorsDragData } from '../../../../../browser/dnd.js';
 import { StaticResourceContextKey } from '../../../../../common/contextkeys.js';
 import { IEditorService, SIDE_GROUP } from '../../../../../services/editor/common/editorService.js';
-import { globMatchesResource } from '../../../../../services/editor/common/editorResolverService.js';
 import { INotebookDocumentService } from '../../../../../services/notebook/common/notebookDocumentService.js';
 import { ExplorerFolderContext } from '../../../../files/common/files.js';
 import { IWorkspaceSymbol } from '../../../../search/common/search.js';
@@ -50,22 +49,11 @@ import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { getMediaMime } from '../../../../../../base/common/mime.js';
-
-/**
- * Returns the editor ID to use when opening a resource from chat pills (inline anchors), based on the
- * `chat.editorAssociations` setting. Returns undefined if no association matches.
- */
-export function getEditorOverrideForChatResource(resource: URI, configurationService: IConfigurationService): string | undefined {
-	const associations = configurationService.getValue<Record<string, string>>(ChatConfiguration.EditorAssociations) ?? {};
-	// Sort patterns by length (longer patterns are more specific)
-	const sortedPatterns = Object.keys(associations).sort((a, b) => b.length - a.length);
-	for (const pattern of sortedPatterns) {
-		if (globMatchesResource(pattern, resource)) {
-			return associations[pattern];
-		}
-	}
-	return undefined;
-}
+import { Schemas } from '../../../../../../base/common/network.js';
+import { Codicon } from '../../../../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../../../../base/common/themables.js';
+import { BrowserEditorInput } from '../../../../browserView/common/browserEditorInput.js';
+import { getEditorOverrideForChatResource } from '../chatEditorAssociations.js';
 
 type ContentRefData =
 	| { readonly kind: 'symbol'; readonly symbol: IWorkspaceSymbol }
@@ -80,7 +68,17 @@ type InlineAnchorWidgetMetadata = {
 	linkText?: string;
 };
 
-export function renderFileWidgets(element: HTMLElement, instantiationService: IInstantiationService, chatMarkdownAnchorService: IChatMarkdownAnchorService, disposables: DisposableStore) {
+export interface IRenderFileWidgetsOptions {
+	readonly openResource?: (resource: URI, editorOptions: ITextEditorOptions) => Promise<boolean>;
+
+	/**
+	 * Wraps opening the resource so that callers can observe which editors a click on the
+	 * anchor opened, for example to close them again later.
+	 */
+	readonly trackOpen?: (open: () => Promise<void>) => Promise<void>;
+}
+
+export function renderFileWidgets(element: HTMLElement, instantiationService: IInstantiationService, chatMarkdownAnchorService: IChatMarkdownAnchorService, disposables: DisposableStore, options?: IRenderFileWidgetsOptions) {
 	// eslint-disable-next-line no-restricted-syntax
 	const links = element.querySelectorAll('a');
 	links.forEach(a => {
@@ -121,7 +119,7 @@ export function renderFileWidgets(element: HTMLElement, instantiationService: II
 		}
 
 		if (shouldRenderWidget && uri?.scheme) {
-			const widget = instantiationService.createInstance(InlineAnchorWidget, a, { kind: 'inlineReference', inlineReference: uri }, metadata);
+			const widget = instantiationService.createInstance(InlineAnchorWidget, a, { kind: 'inlineReference', inlineReference: uri }, metadata, options);
 			disposables.add(chatMarkdownAnchorService.register(widget));
 			disposables.add(widget);
 		}
@@ -138,6 +136,7 @@ export class InlineAnchorWidget extends Disposable {
 		private readonly element: HTMLAnchorElement | HTMLElement,
 		public readonly inlineReference: IChatContentInlineReference,
 		private readonly metadata: InlineAnchorWidgetMetadata | undefined,
+		private readonly options: IRenderFileWidgetsOptions | undefined,
 		@IChatImageCarouselService private readonly chatImageCarouselService: IChatImageCarouselService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IContextKeyService originalContextKeyService: IContextKeyService,
@@ -153,10 +152,9 @@ export class InlineAnchorWidget extends Disposable {
 		@IThemeService themeService: IThemeService,
 		@INotebookDocumentService private readonly notebookDocumentService: INotebookDocumentService,
 		@IOpenerService private readonly openerService: IOpenerService,
+		@IEditorService private readonly editorService: IEditorService,
 	) {
 		super();
-
-		// TODO: Make sure we handle updates from an inlineReference being `resolved` late
 
 		this.data = 'uri' in inlineReference.inlineReference
 			? inlineReference.inlineReference
@@ -183,6 +181,7 @@ export class InlineAnchorWidget extends Disposable {
 			location = this.data;
 
 			const filePathLabel = this.metadata?.linkText ?? labelService.getUriBasenameLabel(location.uri);
+			let defaultIcon: ThemeIcon | undefined;
 
 			if (location.range && this.data.kind !== 'symbol') {
 				const suffix = location.range.startLineNumber === location.range.endLineNumber
@@ -192,12 +191,16 @@ export class InlineAnchorWidget extends Disposable {
 				iconText = [filePathLabel, dom.$('span.label-suffix', undefined, suffix)];
 			} else if (location.uri.scheme === 'vscode-notebook-cell' && this.data.kind !== 'symbol') {
 				iconText = [`${filePathLabel} • cell${this.getCellIndex(location.uri)}`];
+			} else if (location.uri.scheme === Schemas.vscodeBrowser) {
+				defaultIcon = Codicon.globe;
+				const editorName = this.editorService.findEditors(location.uri)[0]?.editor?.getName() ?? BrowserEditorInput.DEFAULT_LABEL;
+				iconText = [editorName];
 			} else {
 				iconText = [filePathLabel];
 			}
 
 			let fileKind = location.uri.path.endsWith('/') ? FileKind.FOLDER : FileKind.FILE;
-			const recomputeIconClasses = () => getIconClasses(modelService, languageService, location.uri, fileKind, fileKind === FileKind.FOLDER && !themeService.getFileIconTheme().hasFolderIcons ? FolderThemeIcon : undefined);
+			const recomputeIconClasses = () => getIconClasses(modelService, languageService, location.uri, fileKind, fileKind === FileKind.FOLDER && !themeService.getFileIconTheme().hasFolderIcons ? FolderThemeIcon : defaultIcon);
 
 			iconClasses = recomputeIconClasses();
 
@@ -299,24 +302,35 @@ export class InlineAnchorWidget extends Disposable {
 		this._register(dom.addDisposableListener(element, 'click', async (e) => {
 			dom.EventHelper.stop(e, true);
 
-			// If the reference is an image file and the carousel is enabled, open the carousel
-			const mimeType = getMediaMime(location.uri.path);
-			if (mimeType?.startsWith('image/') && this.configurationService.getValue<boolean>(ChatConfiguration.ImageCarouselEnabled)) {
-				await this.chatImageCarouselService.openCarouselAtResource(location.uri);
-				return;
-			}
-
 			const editorOverride = getEditorOverrideForChatResource(location.uri, this.configurationService);
-			const editorOptions: { override: string | undefined; selection?: IRange } = {
+			const editorOptions: ITextEditorOptions = {
 				override: editorOverride,
+				selection: location.range,
 			};
-			if (location.range) {
-				editorOptions.selection = location.range;
+
+			const open = async () => {
+				if (this.options?.openResource && await this.options.openResource(location.uri, editorOptions)) {
+					return;
+				}
+
+				// If the reference is an image file and the carousel is enabled, open the carousel
+				const mimeType = getMediaMime(location.uri.path);
+				if (mimeType?.startsWith('image/') && this.configurationService.getValue<boolean>(ChatConfiguration.ImageCarouselEnabled)) {
+					await this.chatImageCarouselService.openCarouselAtResource(location.uri);
+					return;
+				}
+
+				await this.openerService.open(location.uri, {
+					fromUserGesture: true,
+					editorOptions
+				});
+			};
+
+			if (this.options?.trackOpen) {
+				await this.options.trackOpen(open);
+			} else {
+				await open();
 			}
-			await this.openerService.open(location.uri, {
-				fromUserGesture: true,
-				editorOptions
-			});
 		}));
 	}
 

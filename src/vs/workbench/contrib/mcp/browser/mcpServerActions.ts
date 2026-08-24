@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getDomNodePagePosition } from '../../../../base/browser/dom.js';
 import { ActionViewItem, IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { alert } from '../../../../base/browser/ui/aria/aria.js';
 import { Action, IAction, IActionChangeEvent, Separator } from '../../../../base/common/actions.js';
@@ -38,6 +37,7 @@ import { ActionWithDropdownActionViewItem, IActionWithDropdownActionViewItemOpti
 import { IContextMenuProvider } from '../../../../base/browser/contextmenu.js';
 import Severity from '../../../../base/common/severity.js';
 import { ContributionEnablementState, isContributionDisabled, isContributionEnabled } from '../../chat/common/enablement.js';
+import { getWorkbenchMenuMotionContextMenuOptions } from '../../../browser/actions/menuMotion.js';
 
 export interface IMcpServerActionChangeEvent extends IActionChangeEvent {
 	readonly hidden?: boolean;
@@ -224,10 +224,8 @@ export class DropDownExtensionActionViewItem extends ActionViewItem {
 	public showMenu(menuActionGroups: IAction[][]): void {
 		if (this.element) {
 			const actions = this.getActions(menuActionGroups);
-			const elementPosition = getDomNodePagePosition(this.element);
-			const anchor = { x: elementPosition.left, y: elementPosition.top + elementPosition.height + 10 };
 			this.contextMenuService.showContextMenu({
-				getAnchor: () => anchor,
+				...getWorkbenchMenuMotionContextMenuOptions(this.element),
 				getActions: () => actions,
 				actionRunner: this.actionRunner,
 				onHide: () => disposeIfDisposable(actions)

@@ -10,9 +10,7 @@ import { toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../../../base/common/observable.js';
 import { ILanguageService } from '../../../../../../../editor/common/languages/language.js';
 import { IModelService } from '../../../../../../../editor/common/services/model.js';
-import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
-import { ChatConfiguration } from '../../../../common/constants.js';
 import { IChatSimpleToolInvocationData, IChatToolInvocation, IChatToolInvocationSerialized } from '../../../../common/chatService/chatService.js';
 import { IChatCodeBlockInfo } from '../../../chat.js';
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
@@ -42,7 +40,6 @@ export class ChatSimpleToolProgressPart extends BaseChatToolInvocationSubPart {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IModelService modelService: IModelService,
 		@ILanguageService languageService: ILanguageService,
-		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super(toolInvocation);
 
@@ -80,11 +77,8 @@ export class ChatSimpleToolProgressPart extends BaseChatToolInvocationSubPart {
 			inputPart,
 			outputParts ? { parts: outputParts } : undefined,
 			isError,
-			// Expand by default when there's an error (if setting enabled),
-			// otherwise use the stored expanded state (defaulting to false)
-			(isError && configurationService.getValue<boolean>(ChatConfiguration.AutoExpandToolFailures)) ||
-			(ChatSimpleToolProgressPart._expandedByDefault.get(toolInvocation) ?? false),
-			shouldShimmerForTool(toolInvocation),
+			ChatSimpleToolProgressPart._expandedByDefault.get(toolInvocation) ?? false,
+			shouldShimmerForTool(toolInvocation, message),
 		));
 		this._register(toDisposable(() => ChatSimpleToolProgressPart._expandedByDefault.set(toolInvocation, collapsibleListPart.expanded)));
 
