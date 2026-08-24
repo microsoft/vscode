@@ -470,6 +470,7 @@ suite('DefaultAccountProvider managed settings', () => {
 
 	test('forced refresh without authentication fails closed but leaves sign-in available', async () => {
 		const provider = await createProvider(new TestRequestService(async () => jsonResponse({})), { [COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: true });
+		await provider.refresh();
 
 		assert.deepStrictEqual(describeFreshness(provider.managedSettingsFreshness), {
 			state: ManagedSettingsFreshnessState.Blocked,
