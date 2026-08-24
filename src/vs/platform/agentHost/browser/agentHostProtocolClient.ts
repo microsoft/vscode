@@ -759,8 +759,8 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 					if (error instanceof ProtocolError && error.code === AHP_CLIENT_CONNECTION_CLOSED) {
 						throw error;
 					}
-					this._logService.warn(`[AgentHostProtocolClient] Failed to restore subscription ${subscription.resource.toString()} after host restart: ${error instanceof Error ? error.message : String(error)}`);
-					this._subscriptionManager.markSubscriptionsMissing([subscription.resource]);
+					this._logService.warn(`[AgentHostProtocolClient] Failed to restore subscription ${subscription.channel} after host restart: ${error instanceof Error ? error.message : String(error)}`);
+					this._subscriptionManager.markSubscriptionsMissing([subscription.channel]);
 				}
 			}));
 		};
@@ -939,7 +939,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	}
 
 	getSubscriptionByChannel<T>(kind: StateComponents, channel: string, owner: string): IReference<IAgentSubscription<T>> {
-		return this._subscriptionManager.getSubscription<T>(kind, channel, owner);
+		return this._subscriptionManager.getSubscriptionByChannel<T>(kind, channel, owner);
 	}
 
 	getSubscriptionUnmanaged<T>(_kind: StateComponents, resource: URI): IAgentSubscription<T> | undefined {

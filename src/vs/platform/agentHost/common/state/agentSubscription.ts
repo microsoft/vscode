@@ -927,7 +927,7 @@ export class AgentSubscriptionManager extends Disposable {
 	 * Returns an existing subscription without affecting its refcount.
 	 * Returns `undefined` if no subscription is active for the given resource.
 	 */
-	getSubscriptionUnmanaged<T>(resource: URI | string): IAgentSubscription<T> | undefined {
+	getSubscriptionUnmanaged<T>(resource: URI): IAgentSubscription<T> | undefined {
 		const entry = this._subscriptions.get(this._subscriptionResource(resource).key);
 		return entry?.sub as IAgentSubscription<T> | undefined;
 	}
@@ -970,8 +970,16 @@ export class AgentSubscriptionManager extends Disposable {
 	 * subscription. Use a stable, human-readable identifier such as the
 	 * acquiring class name.
 	 */
-	getSubscription<T>(kind: StateComponents, resource: URI | string, owner: string): IReference<IAgentSubscription<T>> {
-		const resolved = this._subscriptionResource(resource);
+	getSubscription<T>(kind: StateComponents, resource: URI, owner: string): IReference<IAgentSubscription<T>> {
+		return this._getSubscription(kind, this._subscriptionResource(resource), owner);
+	}
+
+	/** Get or create a subscription using an exact protocol channel string. */
+	getSubscriptionByChannel<T>(kind: StateComponents, channel: string, owner: string): IReference<IAgentSubscription<T>> {
+		return this._getSubscription(kind, this._subscriptionChannel(channel), owner);
+	}
+
+	private _getSubscription<T>(kind: StateComponents, resolved: Pick<ManagedSubscriptionEntry, 'resource' | 'channel' | 'key'>, owner: string): IReference<IAgentSubscription<T>> {
 		const existing = this._subscriptions.get(resolved.key);
 		if (existing) {
 			if (existing.sub.value instanceof Error) {
@@ -1081,22 +1089,22 @@ export class AgentSubscriptionManager extends Disposable {
 	 */
 	dispatchOptimistic(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | ClientAutomationAction | ClientAutomationRunAction | IRootConfigChangedAction): number {
 		if (isSessionAction(action)) {
-			const entry = this._subscriptions.get(this._subscriptionResource(channel).key);
+			const entry = this._subscriptions.get(this._subscriptionChannel(channel).key);
 			if (entry?.sub instanceof SessionStateSubscription) {
 				return entry.sub.applyOptimistic(action);
 			}
 		} else if (isChatAction(action)) {
-			const entry = this._subscriptions.get(this._subscriptionResource(channel).key);
+			const entry = this._subscriptions.get(this._subscriptionChannel(channel).key);
 			if (entry?.sub instanceof ChatStateSubscription) {
 				return entry.sub.applyOptimistic(action);
 			}
 		} else if (isChangesetAction(action)) {
-			const entry = this._subscriptions.get(this._subscriptionResource(channel).key);
+			const entry = this._subscriptions.get(this._subscriptionChannel(channel).key);
 			if (entry?.sub instanceof ChangesetStateSubscription) {
 				return entry.sub.applyOptimistic(action);
 			}
 		} else if (isAnnotationsAction(action)) {
-			const entry = this._subscriptions.get(this._subscriptionResource(channel).key);
+			const entry = this._subscriptions.get(this._subscriptionChannel(channel).key);
 			if (entry?.sub instanceof AnnotationsStateSubscription) {
 				return entry.sub.applyOptimistic(action);
 			}
@@ -1165,7 +1173,7 @@ export class AgentSubscriptionManager extends Disposable {
 	 * already processed (and replayed back to us) so they're not resent.
 	 */
 	dropPendingAction(resource: string, clientSeq: number): void {
-		const entry = this._subscriptions.get(this._subscriptionResource(resource).key);
+		const entry = this._subscriptions.get(this._subscriptionChannel(resource).key);
 		if (entry?.sub instanceof SessionStateSubscription || entry?.sub instanceof ChatStateSubscription || entry?.sub instanceof AnnotationsStateSubscription) {
 			entry.sub.dropPendingByClientSeq(clientSeq);
 		}
@@ -1183,7 +1191,7 @@ export class AgentSubscriptionManager extends Disposable {
 			this._rootState.handleSnapshot(state as RootState, fromSeq);
 			return;
 		}
-		const entry = this._subscriptions.get(this._subscriptionResource(resource).key);
+		const entry = this._subscriptions.get(this._subscriptionChannel(resource).key);
 		if (!entry) {
 			return;
 		}
@@ -1202,9 +1210,9 @@ export class AgentSubscriptionManager extends Disposable {
 	 * themselves stay alive so consumers continue to hold valid references,
 	 * but their value transitions to an `Error` until they're recreated.
 	 */
-	markSubscriptionsMissing(missing: readonly (URI | string)[]): void {
-		for (const resource of missing) {
-			const entry = this._subscriptions.get(this._subscriptionResource(resource).key);
+	markSubscriptionsMissing(missing: readonly string[]): void {
+		for (const channel of missing) {
+			const entry = this._subscriptions.get(this._subscriptionChannel(channel).key);
 			if (entry) {
 				if (entry.sub instanceof SessionStateSubscription || entry.sub instanceof ChatStateSubscription || entry.sub instanceof AnnotationsStateSubscription) {
 					entry.sub.clearPending();
@@ -1260,13 +1268,20 @@ export class AgentSubscriptionManager extends Disposable {
 		super.dispose();
 	}
 
-	private _subscriptionResource(resource: URI | string): Pick<ManagedSubscriptionEntry, 'resource' | 'channel' | 'key'> {
-		const channel = typeof resource === 'string' ? resource : resource.toString();
-		const uri = typeof resource === 'string' ? URI.parse(resource) : resource;
+	private _subscriptionResource(resource: URI): Pick<ManagedSubscriptionEntry, 'resource' | 'channel' | 'key'> {
+		return {
+			resource,
+			channel: resource.toString(),
+			key: `resource:${getComparisonKey(resource)}`,
+		};
+	}
+
+	private _subscriptionChannel(channel: string): Pick<ManagedSubscriptionEntry, 'resource' | 'channel' | 'key'> {
+		const resource = URI.parse(channel);
 		const key = isAhpAutomationCatalogChannel(channel)
 			? `channel:${channel}`
-			: `resource:${getComparisonKey(uri)}`;
-		return { resource: uri, channel, key };
+			: `resource:${getComparisonKey(resource)}`;
+		return { resource, channel, key };
 	}
 }
 
