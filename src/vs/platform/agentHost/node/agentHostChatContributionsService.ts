@@ -42,6 +42,11 @@ class AgentHostChatContributionContext implements IAgentHostChatContributionCont
 		return memento;
 	}
 
+	deleteMemento<T, TExtra extends readonly MementoKeySegment[]>(key: IChatMementoKey<T, TExtra> | ISessionMementoKey<T, TExtra>, resource: ProtocolURI, ...extra: TExtra): void {
+		const mementos = key.scope === 'chat' ? this._chatMementos : this._sessionMementos;
+		mementos.delete(resource, key.debugName, ...extra);
+	}
+
 	disposeChatState(chat: ProtocolURI): void {
 		this._chatMementos.deleteAll(chat);
 		const session = this._owningSession(chat);
@@ -93,11 +98,16 @@ export class AgentHostChatContributions extends Disposable implements IAgentHost
 	}
 
 	registerContribution(contributionCtor: IConstructorSignature<IAgentHostChatContribution, [context: IAgentHostChatContributionContext]> & { readonly id: string }): IDisposable {
+		// Check the stable id before constructing: the instance below is always
+		// new, so testing the registration map for it could never detect a repeat
+		// registration and the contribution's constructor would run twice.
+		for (const registration of this._registeredContributions.values()) {
+			if (registration.id === contributionCtor.id) {
+				throw new Error(`Chat contribution already registered: ${contributionCtor.id}`);
+			}
+		}
 		const context = new AgentHostChatContributionContext(contributionCtor.id);
 		const contribution = this._instantiationService.createInstance(contributionCtor, context);
-		if (this._contributionRegistrations.has(contribution)) {
-			throw new Error('Chat contribution already registered');
-		}
 		this._registeredContributions.set(contribution, { id: contributionCtor.id, contribution, context, index: this._nextContributionIndex++ });
 		this._contributionRegistrations.set(contribution, toDisposable(() => {
 			this._registeredContributions.delete(contribution);

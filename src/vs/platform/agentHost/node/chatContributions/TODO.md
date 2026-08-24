@@ -38,6 +38,11 @@ Each contribution has its own subfolder so its implementation, helpers, and test
 - `worktreeAnnouncement` (order 200) — restores the isolated-worktree notice for default chats through `IAgentHostWorktreeIsolation`.
 - Hydration reuses the spaced 100-series independently from turn-end and outgoing-turn hooks, because ordering is per hook.
 
+## Known coverage gaps
+
+- `onTurnEnd` fires from the agent signal path and from local command completion, but not for a client dispatched cancellation or for failures that report `ChatError` directly (missing provider, read-only or archived chat, a send that throws). This matches the call sites the previous `_markSessionUnread` had, so it is not a regression, but a contribution cannot yet rely on seeing every terminal outcome. Unifying admission behind `onIncomingRequest` is the point at which these paths can report through one route.
+- Mementos with extra key segments must be deleted with `deleteMemento` when their segment value goes out of use. Setting the value to `undefined` keeps the entry until the owning chat or session is disposed.
+
 ## Future hooks
 
 - `onAction` observes the post-reduction client dispatch path, not `onDidEmitEnvelope`: client actions already emit envelopes, so observing both would double-drain; pending-message server envelopes historically did not enter `handleAction` and remain outside this hook to preserve that behavior.

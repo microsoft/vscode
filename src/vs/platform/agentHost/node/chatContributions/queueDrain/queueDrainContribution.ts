@@ -70,7 +70,7 @@ export class QueueDrainContribution extends Disposable implements IAgentHostChat
 			}
 			case ActionType.ChatPendingMessageRemoved: {
 				if (action.kind === PendingMessageKind.Queued) {
-					this._context.memento(QueuedSender, observed.channel, action.id).set(undefined, undefined);
+					this._context.deleteMemento(QueuedSender, observed.channel, action.id);
 				}
 				this._syncPendingMessages(observed.channel);
 				break;
@@ -108,15 +108,16 @@ export class QueueDrainContribution extends Disposable implements IAgentHostChat
 			return;
 		}
 		const message = state.queuedMessages[0];
-		const senderMemento = this._context.memento(QueuedSender, channel, message.id);
-		const sender = senderMemento.get() ?? {
+		const sender = this._context.memento(QueuedSender, channel, message.id).get() ?? {
 			clientId: undefined,
 			clientContext: {
 				...createUnknownAgentHostClientTelemetryContext(AgentHostClientType.Unknown),
 				hostLaunchKind: host.hostLaunchKind,
 			},
 		};
-		senderMemento.set(undefined, undefined);
+		// Drop the entry rather than blanking it: the memento is keyed by message
+		// id, so a long-lived chat would otherwise retain one per message queued.
+		this._context.deleteMemento(QueuedSender, channel, message.id);
 		this._admitQueuedTurn(host, channel, message.message, message.id, sender);
 	}
 

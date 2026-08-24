@@ -125,6 +125,14 @@ export function createSessionMementoKey<T, TExtra extends MementoKeySegments = [
 export interface IAgentHostChatContributionContext {
 	readonly contributionId: string;
 	memento<T, TExtra extends MementoKeySegments>(key: IChatMementoKey<T, TExtra> | ISessionMementoKey<T, TExtra>, resource: ProtocolURI, ...extra: TExtra): ISettableObservable<T>;
+	/**
+	 * Drops the memento for `key` on `resource`, so a later `memento` call starts
+	 * from the key's initial value. Setting a memento to `undefined` only changes
+	 * its value; the entry survives until its chat or session is disposed. Keys
+	 * with extra segments must delete entries they no longer need, otherwise a
+	 * long-lived chat accumulates one entry per segment value it has ever seen.
+	 */
+	deleteMemento<T, TExtra extends MementoKeySegments>(key: IChatMementoKey<T, TExtra> | ISessionMementoKey<T, TExtra>, resource: ProtocolURI, ...extra: TExtra): void;
 }
 
 /** A self-contained behavior contributed to the agent host chat lifecycle. */
@@ -134,7 +142,15 @@ export interface IAgentHostChatContribution extends IDisposable {
 	 * must declare an explicit order; registration order only breaks ties.
 	 */
 	readonly order?: number;
-	/** Fires on every terminal outcome. Must not throw; the dispatcher isolates failures. */
+	/**
+	 * Fires when a turn ends through the agent signal path, or when a host handled
+	 * local command completes. It does NOT fire for a client dispatched
+	 * cancellation, nor for the failures that report `ChatError` directly, such as
+	 * a missing provider, a read-only or archived chat, or a send that throws.
+	 * Unifying those paths is tracked in `chatContributions/TODO.md`.
+	 *
+	 * Must not throw; the dispatcher isolates failures.
+	 */
 	onTurnEnd?(turn: ITurnEnd): void;
 	/** Observes actions submitted through the client dispatch path after state reduction. */
 	onAction?(action: IObservedAction): void;

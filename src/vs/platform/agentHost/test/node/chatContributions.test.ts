@@ -687,6 +687,29 @@ suite('AgentHostChatContributions', () => {
 		contributions.dispose();
 	});
 
+	test('deleteMemento drops a keyed entry so it is recreated from its factory', () => {
+		const keyed = createChatMementoKey<number, [messageId: string]>('deletable', () => 0);
+		disposables.add(createContributions(disposables, FirstMementoContribution));
+		const context = FirstMementoContribution.context!;
+		const kept = context.memento(keyed, 'agent-host-chat://first', 'keep');
+		const dropped = context.memento(keyed, 'agent-host-chat://first', 'drop');
+		kept.set(1, undefined);
+		dropped.set(2, undefined);
+
+		context.deleteMemento(keyed, 'agent-host-chat://first', 'drop');
+
+		assert.deepStrictEqual([
+			context.memento(keyed, 'agent-host-chat://first', 'keep').get(),
+			context.memento(keyed, 'agent-host-chat://first', 'drop').get(),
+		], [1, 0]);
+	});
+
+	test('rejects a second registration of the same contribution id', () => {
+		const contributions = disposables.add(createContributions(disposables, FirstMementoContribution));
+
+		assert.throws(() => contributions.registerContribution(FirstMementoContribution), /already registered/);
+	});
+
 	test('distinguishes memento extra key segments and evicts chat state', () => {
 		const keyed = createChatMementoKey<number, [messageId: string, retry: number]>('keyed', () => 0);
 		const contributions = disposables.add(createContributions(disposables, FirstMementoContribution));
