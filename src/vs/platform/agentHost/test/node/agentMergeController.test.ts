@@ -16,9 +16,10 @@ import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType } from '../../common/state/protocol/common/actions.js';
 import { SessionStatus, buildDefaultChatUri, MessageKind, withSessionGitState, type SessionSummary } from '../../common/state/sessionState.js';
 import { IGitHubService } from '../../../github/common/githubService.js';
+import { PullRequestSnapshot } from '../../../github/common/githubPullRequestService.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
-import { AgentMergeController, parsePullRequestUrl } from '../../node/agentMergeController.js';
+import { AgentMergeController, firstCredentialFailure, isSamlEnforcementError, parsePullRequestUrl } from '../../node/agentMergeController.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 
 let sessionCounter = 0;
@@ -409,6 +410,33 @@ suite('AgentMergeController', () => {
 			parsed: { owner: 'octo', repo: 'repo', number: 42, apiHost: 'api.tenant.ghe.com' },
 			notAPullRequest: undefined,
 			notAUrl: undefined,
+		});
+	});
+
+	test('detects a refused gate fragment so a credential can be requested from the snapshot', () => {
+		const saml = 'GitHub GraphQL request failed: Resource protected by organization SAML enforcement. You must grant your OAuth token access to this organization.';
+		const ready = { status: 'ready', complete: true, value: {} };
+		const snapshot = (overrides: object) => ({ core: ready, topLevelComments: ready, submittedReviews: ready, reviewThreads: ready, checks: ready, mergeability: ready, ...overrides }) as unknown as PullRequestSnapshot;
+
+		assert.deepStrictEqual({
+			// Only the first refresh of a subscription throws; every later failure is
+			// recorded here, which is the state the SAML scenario actually reaches.
+			refused: firstCredentialFailure(snapshot({ checks: { status: 'error', complete: false, error: { kind: 'authorization', statusCode: 200, message: saml } } })),
+			signedOut: firstCredentialFailure(snapshot({ core: { status: 'error', complete: false, error: { kind: 'authentication', message: 'Bad credentials' } } }))?.id,
+			// A failure the user cannot fix by authorizing must not prompt.
+			serverError: firstCredentialFailure(snapshot({ checks: { status: 'error', complete: false, error: { kind: 'server', message: 'boom' } } })),
+			stillLoading: firstCredentialFailure(snapshot({ mergeability: { status: 'loading', complete: false } })),
+			healthy: firstCredentialFailure(snapshot({})),
+			saml: isSamlEnforcementError(saml),
+			notSaml: isSamlEnforcementError('Bad credentials'),
+		}, {
+			refused: { id: 'checks:authorization', kind: 'authorization', message: saml },
+			signedOut: 'core:authentication',
+			serverError: undefined,
+			stillLoading: undefined,
+			healthy: undefined,
+			saml: true,
+			notSaml: false,
 		});
 	});
 });

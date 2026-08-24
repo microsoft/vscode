@@ -26,34 +26,46 @@ import { withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessio
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import type { RootConfigChangedAction } from '../../common/state/protocol/actions.js';
-import { ChangesSummary, ChatOriginKind, CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, SessionInputRequestKind } from '../../common/state/protocol/state.js';
+import { ChangesSummary, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ChatOriginKind, CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, SessionInputRequestKind } from '../../common/state/protocol/state.js';
 import { ActionType, ActionEnvelope, AuthRequiredReason, type ChatAction, type INotification, type SessionAction } from '../../common/state/sessionActions.js';
-import { buildSubagentChatUri, buildChatUri, buildDefaultChatUri, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputRequestPurpose, ChatInteractivity, CustomizationLoadStatus, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ROOT_STATE_URI, SessionInputResponseKind, SessionLifecycle, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, customizationId, type ChatInputRequest, type ClientPluginCustomization, type Customization, type PluginCustomization, type Turn } from '../../common/state/sessionState.js';
+import { buildSubagentChatUri, buildChatUri, buildDefaultChatUri, ChatInteractivity, CustomizationLoadStatus, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, customizationId, type ChatInputRequest, type ClientPluginCustomization, type Customization, type ISessionGitHubState, type PluginCustomization, type Turn } from '../../common/state/sessionState.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
-import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMarkdownPlanRichLinksEnabledConfigKey, AgentHostTelemetryLevelConfigKey, platformSessionSchema, telemetryLevelToAgentHostConfigValue } from '../../common/agentHostSchema.js';
+import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMarkdownPlanRichLinksEnabledConfigKey, AgentHostTelemetryLevelConfigKey, platformRootSchema, platformSessionSchema, telemetryLevelToAgentHostConfigValue } from '../../common/agentHostSchema.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.js';
+import { AgentHostClientConnectionService, IAgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind } from '../../common/agentHostTelemetry.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
+import { IAgentHostChatContributions } from '../../common/agentHostChatContributionsService.js';
 import { IAgentHostChangesetService, StaticChangesetKind } from '../../common/agentHostChangesetService.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
+import { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
 import { AgentSideEffects, IAgentSideEffectsOptions } from '../../node/agentSideEffects.js';
 import { AgentHostLocalTurns } from '../../node/agentHostLocalTurns.js';
-import type { IAgentHostAskQuestionsToolInvokedEvent } from '../../node/agentHostTelemetryReporter.js';
+import { AgentHostChatContributions } from '../../node/agentHostChatContributionsService.js';
+import { AgentHostProviderLocator, IAgentHostProviderLocator } from '../../node/agentHostProviderLocator.js';
+import { AgentHostSessionTitleController, IAgentHostSessionTitleController } from '../../node/agentHostSessionTitleController.js';
+import { registerBuiltInChatContributions } from '../../node/chatContributions/builtInChatContributions.js';
+import { AgentHostTelemetryReporter, IAgentHostTelemetryReporter, type IAgentHostAskQuestionsToolInvokedEvent } from '../../node/agentHostTelemetryReporter.js';
+import { AgentHostTurnTracker, IAgentHostTurnTracker } from '../../node/agentHostTurnTracker.js';
+import { AgentHostLocalCommands, IAgentHostLocalCommands } from '../../node/localCommands/localChatCommand.js';
 import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
-import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { withChatSurfaceMeta } from '../../common/meta/agentChatSurfaceMeta.js';
+import { ChatInputRequestPurpose, withChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
 import { AgentHostCustomizationEnablementService, IAgentHostCustomizationEnablementService } from '../../node/agentHostCustomizationEnablementService.js';
 import { AgentHostStorageService } from '../../node/agentHostStorageService.js';
 import { applyMcpServerEnablement } from '../../node/shared/mcpCustomizationController.js';
+import { customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
+import { IAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
 import { createNoopGitService, createNullSessionDataService, createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { MockAgent } from './mockAgent.js';
 import { TestAgentHostTerminalManager } from './testAgentHostTerminalManager.js';
-import { createTestAgentService } from './agentServiceTestUtils.js';
+import { createTestAgentService, getTestAgentStateManager } from './agentServiceTestUtils.js';
 
 // ---- Tests ------------------------------------------------------------------
 
@@ -97,6 +109,37 @@ class FakeChangesetService implements IAgentHostChangesetService {
 	}
 }
 
+class NoopGitStateService implements IAgentHostGitStateService {
+	declare readonly _serviceBrand: undefined;
+	readonly onDidRefreshSessionGitState = Event.None;
+	readonly onDidChangeSessionGitHubState = Event.None;
+
+	async refreshSessionGitState(_sessionKey: string, _workingDirectory?: URI): Promise<void> { }
+	async resolveSessionBaseBranchName(_sessionKey: string): Promise<string | undefined> { return undefined; }
+	async setSessionGitHubState(_sessionKey: string, _state: ISessionGitHubState): Promise<void> { }
+	async recordSessionMerge(_sessionKey: string, _commit: string): Promise<void> { }
+	async attachSessionGitHubPullRequest(_sessionKey: string, _workingDirectory?: URI): Promise<void> { }
+	async attachSessionGitHubReferences(_sessionKey: string, _text: string): Promise<void> { }
+}
+
+class RecordingGitStateService extends NoopGitStateService {
+	readonly attachedGitHubReferences: { session: string; text: string }[] = [];
+
+	override async attachSessionGitHubReferences(session: string, text: string): Promise<void> {
+		this.attachedGitHubReferences.push({ session, text });
+	}
+}
+
+class NoopWorktreeIsolation implements IAgentHostWorktreeIsolation {
+	declare readonly _serviceBrand: undefined;
+	readonly onDidChangeWorkingDirectoryPending = Event.None;
+
+	isWorkingDirectoryPending(_sessionId: string): boolean { return false; }
+	async applyRestoreAnnouncement(_sessionUri: URI, turns: readonly Turn[]): Promise<readonly Turn[]> {
+		return turns;
+	}
+}
+
 function createNoopCustomizationEnablementService(): IAgentHostCustomizationEnablementService {
 	return {
 		_serviceBrand: undefined,
@@ -125,7 +168,7 @@ let customizationEnablementService = createNoopCustomizationEnablementService();
 function createTestSideEffects(
 	disposables: DisposableStore,
 	stateManager: AgentHostStateManager,
-	options: Omit<IAgentSideEffectsOptions, 'localTurns'> & { localTurns?: AgentHostLocalTurns },
+	options: Omit<IAgentSideEffectsOptions, 'localTurns'> & { localTurns?: AgentHostLocalTurns; gitStateService?: IAgentHostGitStateService },
 	_gitService?: IAgentHostGitService,
 	telemetryService: ITelemetryService = NullTelemetryService,
 	changesets: IAgentHostChangesetService = new FakeChangesetService(),
@@ -134,18 +177,39 @@ function createTestSideEffects(
 ): AgentSideEffects {
 	const logService = new NullLogService();
 	const configService = disposables.add(new AgentConfigurationService(stateManager, logService));
-	const instantiationService = disposables.add(new InstantiationService(new ServiceCollection(
+	const services = new ServiceCollection(
 		[ILogService, logService],
 		[IAgentConfigurationService, configService],
 		[IAgentHostChangesetService, changesets],
 		[IAgentHostCheckpointService, checkpointService],
+		[IAgentHostGitStateService, options.gitStateService ?? new NoopGitStateService()],
+		[IAgentHostStateManager, stateManager],
 		[ITelemetryService, telemetryService],
 		[IAgentHostTerminalManager, terminalManager],
 		[ISessionDataService, options.sessionDataService],
-	), /*strict*/ true));
+		[IAgentHostWorktreeIsolation, new NoopWorktreeIsolation()],
+		[IAgentHostClientConnectionService, disposables.add(new AgentHostClientConnectionService())],
+	);
+	const titleController = disposables.add(new AgentHostSessionTitleController(stateManager, {
+		sessionDataService: options.sessionDataService,
+		isActiveAgentTitleGenerationEnabled: () => configService.getRootValue(platformRootSchema, AgentHostActiveAgentTitleGenerationConfigKey) === true,
+	}, logService));
+	services.set(IAgentHostSessionTitleController, titleController);
+	services.set(IAgentHostProviderLocator, new AgentHostProviderLocator(session => options.getAgent(typeof session === 'string' ? session : session.toString())));
+	const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
+	const chatContributions = disposables.add(new AgentHostChatContributions(logService, instantiationService));
+	services.set(IAgentHostChatContributions, chatContributions);
+	const telemetryReporter = new AgentHostTelemetryReporter(telemetryService);
+	services.set(IAgentHostTelemetryReporter, telemetryReporter);
+	const turnTracker = disposables.add(instantiationService.createInstance(AgentHostTurnTracker));
+	services.set(IAgentHostTurnTracker, turnTracker);
+	const localTurns = options.localTurns ?? new AgentHostLocalTurns(options.sessionDataService, logService);
+	const localCommands = disposables.add(instantiationService.createInstance(AgentHostLocalCommands, localTurns));
+	services.set(IAgentHostLocalCommands, localCommands);
+	disposables.add(registerBuiltInChatContributions(chatContributions));
 	const resolvedOptions: IAgentSideEffectsOptions = {
 		...options,
-		localTurns: options.localTurns ?? new AgentHostLocalTurns(options.sessionDataService, logService),
+		localTurns,
 	};
 	return disposables.add(instantiationService.createInstance(AgentSideEffects, stateManager, customizationEnablementService, resolvedOptions));
 }
@@ -277,7 +341,6 @@ suite('AgentSideEffects', () => {
 			agents: agentList,
 			sessionDataService: createNullSessionDataService(),
 			hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess,
-			onTurnComplete: () => { },
 		}, undefined, disposables.add(new AgentHostTelemetryService(telemetryService)));
 
 		// Mimic the orchestrator's spawn channel: in production AgentService adds
@@ -372,7 +435,6 @@ suite('AgentSideEffects', () => {
 				getAgent: () => agent,
 				agents: agentList,
 				sessionDataService: createNullSessionDataService(),
-				onTurnComplete: () => { },
 			});
 			if (initialize) {
 				await Promise.all(sessions.map(session => enablementService.initializeSession(session.toString())));
@@ -941,7 +1003,6 @@ suite('AgentSideEffects', () => {
 				// ProtocolError(AHP_SESSION_NOT_FOUND) for a cross-session
 				// reference this host cannot restore.
 				resolveChatAttachmentTurns: async () => { throw new Error('AHP_SESSION_NOT_FOUND'); },
-				onTurnComplete: () => { },
 			});
 			resolvingSideEffects.handleAction(defaultChatUri, {
 				type: ActionType.ChatTurnStarted,
@@ -988,7 +1049,6 @@ suite('AgentSideEffects', () => {
 				agents: agentList,
 				sessionDataService: createNullSessionDataService(),
 				resolveChatAttachmentTurns: async () => [sourceTurn],
-				onTurnComplete: () => { },
 			});
 			resolvingSideEffects.handleAction(defaultChatUri, {
 				type: ActionType.ChatTurnStarted,
@@ -1040,7 +1100,6 @@ suite('AgentSideEffects', () => {
 				agents: agentList,
 				sessionDataService: createNullSessionDataService(),
 				resolveChatAttachmentTurns: async () => [olderTurn, latestTurn],
-				onTurnComplete: () => { },
 			});
 			resolvingSideEffects.handleAction(defaultChatUri, {
 				type: ActionType.ChatTurnStarted,
@@ -1156,7 +1215,6 @@ suite('AgentSideEffects', () => {
 				getAgent: () => undefined,
 				agents: emptyAgents,
 				sessionDataService: {} as ISessionDataService,
-				onTurnComplete: () => { },
 			});
 
 			const envelopes: ActionEnvelope[] = [];
@@ -1212,6 +1270,36 @@ suite('AgentSideEffects', () => {
 			const errorAction = envelopes.find(e => e.action.type === ActionType.ChatError);
 			assert.ok(errorAction, 'should dispatch a chat error for a read-only chat');
 			assert.deepStrictEqual(agent.sendMessageCalls, []);
+		});
+
+		test('does not attach GitHub references for read-only or archived messages', () => {
+			setupSession();
+			const gitStateService = new RecordingGitStateService();
+			const referenceSideEffects = createTestSideEffects(disposables, stateManager, {
+				getAgent: () => agent,
+				agents: agentList,
+				sessionDataService: createNullSessionDataService(),
+				hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess,
+				gitStateService,
+			});
+			const readOnlyChat = buildChatUri(sessionUri, 'peer-ro');
+			stateManager.addChat(sessionUri.toString(), readOnlyChat, { interactivity: ChatInteractivity.ReadOnly });
+
+			referenceSideEffects.handleAction(readOnlyChat, {
+				type: ActionType.ChatTurnStarted,
+				startedAt: '2025-01-01T00:00:00.000Z',
+				turnId: 'read-only-turn',
+				message: { text: 'Fix microsoft/vscode#42', origin: { kind: MessageKind.User } },
+			});
+			stateManager.dispatchServerAction(sessionUri.toString(), { type: ActionType.SessionIsArchivedChanged, isArchived: true });
+			referenceSideEffects.handleAction(defaultChatUri, {
+				type: ActionType.ChatTurnStarted,
+				startedAt: '2025-01-01T00:00:00.000Z',
+				turnId: 'archived-turn',
+				message: { text: 'Fix microsoft/vscode#43', origin: { kind: MessageKind.User } },
+			});
+
+			assert.deepStrictEqual(gitStateService.attachedGitHubReferences, []);
 		});
 	});
 
@@ -1270,7 +1358,7 @@ suite('AgentSideEffects', () => {
 			}, {
 				chatError: true,
 				creationFailed: true,
-				lifecycle: SessionLifecycle.CreationFailed,
+				lifecycle: SessionLifecycle.Failed,
 				sessionAddedWithError: true,
 			});
 		});
@@ -1283,7 +1371,6 @@ suite('AgentSideEffects', () => {
 				agents: agentList,
 				sessionDataService: {} as ISessionDataService,
 				resolveWorkingDirectoryBeforeSend: async () => { throw resolutionError; },
-				onTurnComplete: () => { },
 			});
 			const turnStarted = {
 				type: ActionType.ChatTurnStarted,
@@ -1307,7 +1394,7 @@ suite('AgentSideEffects', () => {
 			}, {
 				chatError: true,
 				creationFailed: true,
-				lifecycle: SessionLifecycle.CreationFailed,
+				lifecycle: SessionLifecycle.Failed,
 				sendMessageCalls: [],
 			});
 		});
@@ -1331,7 +1418,6 @@ suite('AgentSideEffects', () => {
 				agents: agentList,
 				sessionDataService: createNullSessionDataService(),
 				resolveWorkingDirectoryBeforeSend: async () => [workingDirectory],
-				onTurnComplete: () => { },
 			}, undefined, NullTelemetryService, undefined, undefined, checkpoints);
 			const turnStarted = {
 				type: ActionType.ChatTurnStarted,
@@ -1368,7 +1454,6 @@ suite('AgentSideEffects', () => {
 				agents: agentList,
 				sessionDataService: createNullSessionDataService(),
 				resolveWorkingDirectoryBeforeSend: async () => [URI.file('/wd')],
-				onTurnComplete: () => { },
 			}, undefined, NullTelemetryService, undefined, undefined, checkpoints);
 			const turnStarted = {
 				type: ActionType.ChatTurnStarted,
@@ -1402,7 +1487,6 @@ suite('AgentSideEffects', () => {
 				getAgent: () => agent,
 				agents: agentList,
 				sessionDataService: createNullSessionDataService(),
-				onTurnComplete: () => { },
 			}, undefined, NullTelemetryService, undefined, undefined, checkpoints);
 
 			stateManager.dispatchClientAction(defaultChatUri, {
@@ -1424,7 +1508,6 @@ suite('AgentSideEffects', () => {
 				getAgent: () => agent,
 				agents: agentList,
 				sessionDataService: createNullSessionDataService(),
-				onTurnComplete: () => { },
 			}, undefined, NullTelemetryService, undefined, undefined, checkpoints);
 
 			stateManager.dispatchClientAction(defaultChatUri, {
@@ -1449,7 +1532,6 @@ suite('AgentSideEffects', () => {
 				agents: agentList,
 				sessionDataService: createNullSessionDataService(),
 				resolveWorkingDirectoryBeforeSend: async () => [URI.file('/wd')],
-				onTurnComplete: () => { },
 			}, undefined, NullTelemetryService, undefined, undefined, checkpoints);
 			const cancelled = {
 				type: ActionType.ChatTurnCancelled,
@@ -1550,7 +1632,6 @@ suite('AgentSideEffects', () => {
 				getAgent: () => agent,
 				agents: agentList,
 				sessionDataService: createSessionDataService(),
-				onTurnComplete: () => { },
 			});
 		}
 
@@ -1593,6 +1674,30 @@ suite('AgentSideEffects', () => {
 			assert.deepStrictEqual(agent.sendMessageCalls, []);
 			const state = stateManager.getSessionState(sessionUri.toString());
 			assert.strictEqual(state?.title, 'Test');
+		});
+
+		test('/rename updates both the session and default chat title once multi-chat', async () => {
+			setupSession();
+			const renameSideEffects = createRenameSideEffects();
+			stateManager.addChat(sessionUri.toString(), buildChatUri(sessionUri.toString(), 'peer'), { title: 'Peer' });
+			const action: ChatAction = {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-rename',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: '/rename Renamed Default', origin: { kind: MessageKind.User } },
+			};
+			stateManager.dispatchClientAction(defaultChatUri, action, { clientId: 'test', clientSeq: 1 });
+			renameSideEffects.handleAction(defaultChatUri, action);
+			await timeout(10);
+
+			const state = stateManager.getSessionState(sessionUri.toString());
+			assert.deepStrictEqual({
+				sessionTitle: state?.title,
+				defaultChatTitle: state?.chats.find(chat => chat.resource === defaultChatUri)?.title,
+			}, {
+				sessionTitle: 'Renamed Default',
+				defaultChatTitle: 'Renamed Default',
+			});
 			assert.strictEqual(stateManager.getActiveTurnId(sessionUri.toString()), undefined);
 		});
 
@@ -1681,7 +1786,6 @@ suite('AgentSideEffects', () => {
 				getAgent: () => agent,
 				agents: agentList,
 				sessionDataService: createNullSessionDataService(),
-				onTurnComplete: () => { },
 			}, undefined, undefined, undefined, terminalManager);
 		}
 
@@ -1750,7 +1854,6 @@ suite('AgentSideEffects', () => {
 				agents: agentList,
 				sessionDataService: createSessionDataService(db),
 				localTurns,
-				onTurnComplete: () => { },
 			}, undefined, undefined, undefined, terminalManager);
 
 			const action: ChatAction = {
@@ -1795,7 +1898,6 @@ suite('AgentSideEffects', () => {
 				getAgent: () => agent,
 				agents: agentList,
 				sessionDataService: createSessionDataService(db),
-				onTurnComplete: () => { },
 			}, undefined, undefined, undefined, terminalManager);
 			const action: ChatAction = {
 				type: ActionType.ChatTurnStarted,
@@ -1858,7 +1960,6 @@ suite('AgentSideEffects', () => {
 				agents: agentList,
 				sessionDataService,
 				localTurns,
-				onTurnComplete: () => { },
 			}, undefined, undefined, undefined, terminalManager);
 		}
 
@@ -1931,7 +2032,6 @@ suite('AgentSideEffects', () => {
 				agents: agentList,
 				sessionDataService,
 				localTurns: new AgentHostLocalTurns(sessionDataService, new NullLogService()),
-				onTurnComplete: () => { },
 			});
 		}
 
@@ -2114,7 +2214,6 @@ suite('AgentSideEffects', () => {
 				getAgent: () => agent,
 				agents: agentList,
 				sessionDataService: createSessionDataService(db),
-				onTurnComplete: () => { },
 			}, undefined, disposables.add(new AgentHostTelemetryService(telemetryService)));
 			return { sideEffects: persisting, db };
 		}
@@ -2861,6 +2960,17 @@ suite('AgentSideEffects', () => {
 
 	suite('pending message sync', () => {
 
+		test('rejects pending messages on a non-chat channel', () => {
+			setupSession();
+
+			assert.throws(() => sideEffects.handleAction(sessionUri.toString(), {
+				type: ActionType.ChatPendingMessageSet,
+				kind: PendingMessageKind.Queued,
+				id: 'malformed',
+				message: { text: 'malformed', origin: { kind: MessageKind.User } },
+			}), /chat\/pendingMessageSet must be handled on an AHP chat channel/);
+		});
+
 		test('syncs steering message to agent on ChatPendingMessageSet', () => {
 			setupSession();
 
@@ -2931,6 +3041,33 @@ suite('AgentSideEffects', () => {
 				senderClientId: 'client-editor',
 				clientType: 'editor_window',
 			});
+		});
+
+		test('attaches GitHub references when sending a queued message', async () => {
+			setupSession();
+			const gitStateService = new RecordingGitStateService();
+			const referenceSideEffects = createTestSideEffects(disposables, stateManager, {
+				getAgent: () => agent,
+				agents: agentList,
+				sessionDataService: createNullSessionDataService(),
+				hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess,
+				gitStateService,
+			});
+			const action = {
+				type: ActionType.ChatPendingMessageSet as const,
+				kind: PendingMessageKind.Queued,
+				id: 'q-github-reference',
+				message: { text: 'Fix microsoft/vscode#42', origin: { kind: MessageKind.User } },
+			};
+			stateManager.dispatchClientAction(defaultChatUri, action, { clientId: 'test', clientSeq: 1 });
+			referenceSideEffects.handleAction(defaultChatUri, action);
+
+			await waitForSendMessageCalls(1);
+
+			assert.deepStrictEqual(gitStateService.attachedGitHubReferences, [{
+				session: sessionUri.toString(),
+				text: 'Fix microsoft/vscode#42',
+			}]);
 		});
 
 		test('parses queued protocol attachment URI strings before passing them to the agent', async () => {
@@ -3188,7 +3325,6 @@ suite('AgentSideEffects', () => {
 				getAgent: () => agent,
 				agents: agentList,
 				sessionDataService: createSessionDataService(),
-				onTurnComplete: () => { },
 			});
 			disposables.add(renameSideEffects.registerProgressListener(agent));
 
@@ -3242,7 +3378,6 @@ suite('AgentSideEffects', () => {
 				getAgent: () => agent,
 				agents: agentList,
 				sessionDataService: createSessionDataService(db),
-				onTurnComplete: () => { },
 			}, undefined, undefined, undefined, terminalManager);
 			disposables.add(queuedSideEffects.registerProgressListener(agent));
 
@@ -4972,7 +5107,6 @@ suite('AgentSideEffects', () => {
 				getAgent: () => localAgent,
 				agents: observableValue<readonly IAgent[]>('agents', [localAgent]),
 				sessionDataService,
-				onTurnComplete: () => { },
 			});
 
 			localStateManager.createSession({
@@ -4991,6 +5125,147 @@ suite('AgentSideEffects', () => {
 			});
 
 			assert.strictEqual(await waitForMetadata('customTitle'), 'Custom Title');
+		});
+
+		test('default chat title change updates and persists the session title', async () => {
+			const sessionDataService = createSessionDataService(sessionDb);
+			const localStateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+			const localAgent = new MockAgent();
+			disposables.add(toDisposable(() => localAgent.dispose()));
+			const localSideEffects = createTestSideEffects(disposables, localStateManager, {
+				getAgent: () => localAgent,
+				agents: observableValue<readonly IAgent[]>('agents', [localAgent]),
+				sessionDataService,
+			});
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			localStateManager.createSession({
+				resource: sessionUri.toString(),
+				provider: 'mock',
+				title: 'Initial',
+				status: SessionStatus.Idle,
+				createdAt: new Date().toISOString(),
+				modifiedAt: new Date().toISOString(),
+			});
+			localStateManager.addChat(sessionUri.toString(), buildChatUri(sessionUri.toString(), 'peer'), { title: 'Peer' });
+
+			localSideEffects.handleAction(defaultChat, {
+				type: ActionType.SessionTitleChanged,
+				title: 'Renamed Default',
+			});
+
+			assert.deepStrictEqual({
+				sessionTitle: localStateManager.getSessionState(sessionUri.toString())?.title,
+				defaultChatTitle: localStateManager.getChatState(defaultChat)?.title,
+				persistedSessionTitle: await waitForMetadata(SESSION_CUSTOM_TITLE_KEY),
+				persistedSessionSource: await waitForMetadata(SESSION_CUSTOM_TITLE_SOURCE_KEY),
+				persistedChatTitle: await waitForMetadata(customChatTitleMetadataKey(defaultChat)),
+				persistedChatSource: await waitForMetadata(customChatTitleSourceMetadataKey(defaultChat)),
+			}, {
+				sessionTitle: 'Renamed Default',
+				defaultChatTitle: 'Renamed Default',
+				persistedSessionTitle: 'Renamed Default',
+				persistedSessionSource: 'user',
+				persistedChatTitle: 'Renamed Default',
+				persistedChatSource: 'user',
+			});
+		});
+
+		test('first peer persists the inherited default chat title and provenance', async () => {
+			await sessionDb.setMetadata(SESSION_CUSTOM_TITLE_KEY, 'Initial');
+			await sessionDb.setMetadata(SESSION_CUSTOM_TITLE_SOURCE_KEY, 'auto');
+			const sessionDataService = createSessionDataService(sessionDb);
+			const localStateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+			const localAgent = new MockAgent();
+			disposables.add(toDisposable(() => localAgent.dispose()));
+			createTestSideEffects(disposables, localStateManager, {
+				getAgent: () => localAgent,
+				agents: observableValue<readonly IAgent[]>('agents', [localAgent]),
+				sessionDataService,
+			});
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			localStateManager.createSession({
+				resource: sessionUri.toString(),
+				provider: 'mock',
+				title: 'Initial',
+				status: SessionStatus.Idle,
+				createdAt: new Date().toISOString(),
+				modifiedAt: new Date().toISOString(),
+			});
+
+			localStateManager.addChat(sessionUri.toString(), buildChatUri(sessionUri.toString(), 'peer'), { title: 'Peer' });
+
+			assert.deepStrictEqual({
+				title: await waitForMetadata(customChatTitleMetadataKey(defaultChat)),
+				source: await waitForMetadata(customChatTitleSourceMetadataKey(defaultChat)),
+			}, {
+				title: 'Initial',
+				source: 'auto',
+			});
+		});
+
+		test('default chat title snapshot does not overwrite an existing persisted title', async () => {
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			await sessionDb.setMetadata(customChatTitleMetadataKey(defaultChat), 'Existing');
+			const localStateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+			const localAgent = new MockAgent();
+			disposables.add(toDisposable(() => localAgent.dispose()));
+			createTestSideEffects(disposables, localStateManager, {
+				getAgent: () => localAgent,
+				agents: observableValue<readonly IAgent[]>('agents', [localAgent]),
+				sessionDataService: createSessionDataService(sessionDb),
+			});
+			localStateManager.createSession({
+				resource: sessionUri.toString(),
+				provider: 'mock',
+				title: 'Initial',
+				status: SessionStatus.Idle,
+				createdAt: new Date().toISOString(),
+				modifiedAt: new Date().toISOString(),
+			});
+
+			localStateManager.addChat(sessionUri.toString(), buildChatUri(sessionUri.toString(), 'peer'), { title: 'Peer' });
+			await timeout(10);
+
+			assert.strictEqual(await sessionDb.getMetadata(customChatTitleMetadataKey(defaultChat)), 'Existing');
+		});
+
+		test('a same-turn default chat rename wins after the inherited title snapshot', async () => {
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			await sessionDb.setMetadata(SESSION_CUSTOM_TITLE_SOURCE_KEY, 'auto');
+			const localStateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+			const localAgent = new MockAgent();
+			disposables.add(toDisposable(() => localAgent.dispose()));
+			const localSideEffects = createTestSideEffects(disposables, localStateManager, {
+				getAgent: () => localAgent,
+				agents: observableValue<readonly IAgent[]>('agents', [localAgent]),
+				sessionDataService: createSessionDataService(sessionDb),
+			});
+			localStateManager.createSession({
+				resource: sessionUri.toString(),
+				provider: 'mock',
+				title: 'Initial',
+				status: SessionStatus.Idle,
+				createdAt: new Date().toISOString(),
+				modifiedAt: new Date().toISOString(),
+			});
+
+			localStateManager.addChat(sessionUri.toString(), buildChatUri(sessionUri.toString(), 'peer'), { title: 'Peer' });
+			localSideEffects.handleAction(defaultChat, {
+				type: ActionType.SessionTitleChanged,
+				title: 'Newer',
+			});
+
+			assert.deepStrictEqual({
+				chatTitle: await waitForMetadata(customChatTitleMetadataKey(defaultChat)),
+				chatSource: await waitForMetadata(customChatTitleSourceMetadataKey(defaultChat)),
+				sessionTitle: await waitForMetadata(SESSION_CUSTOM_TITLE_KEY),
+				sessionSource: await waitForMetadata(SESSION_CUSTOM_TITLE_SOURCE_KEY),
+			}, {
+				chatTitle: 'Newer',
+				chatSource: 'user',
+				sessionTitle: 'Newer',
+				sessionSource: 'user',
+			});
 		});
 
 		test('handleListSessions returns persisted custom title', async () => {
@@ -5034,7 +5309,7 @@ suite('AgentSideEffects', () => {
 
 			await localService.restoreSession(sessionResource);
 
-			const state = localService.stateManager.getSessionState(sessionResource.toString());
+			const state = getTestAgentStateManager(localService).getSessionState(sessionResource.toString());
 			assert.ok(state);
 			assert.strictEqual(state!.title, 'Restored Title');
 		});
@@ -5069,7 +5344,7 @@ suite('AgentSideEffects', () => {
 
 			await localService.restoreSession(sessionResource);
 
-			const state = localService.stateManager.getSessionState(sessionResource.toString());
+			const state = getTestAgentStateManager(localService).getSessionState(sessionResource.toString());
 			assert.deepStrictEqual(state?.turns.map(t => t.id), ['real-1', 'local-1']);
 		});
 
@@ -5082,7 +5357,6 @@ suite('AgentSideEffects', () => {
 				getAgent: () => localAgent,
 				agents: observableValue<readonly IAgent[]>('agents', [localAgent]),
 				sessionDataService,
-				onTurnComplete: () => { },
 			});
 
 			const session = localStateManager.createSession({
@@ -5119,7 +5393,6 @@ suite('AgentSideEffects', () => {
 				getAgent: () => localAgent,
 				agents: observableValue<readonly IAgent[]>('agents', [localAgent]),
 				sessionDataService,
-				onTurnComplete: () => { },
 			});
 
 			const session = localStateManager.createSession({
@@ -5967,7 +6240,7 @@ suite('AgentSideEffects', () => {
 			stateManager.dispatchServerAction(defaultChatUri, {
 				type: ActionType.ChatInputCompleted,
 				requestId: 'req-1',
-				response: SessionInputResponseKind.Accept,
+				response: ChatInputResponseKind.Accept,
 			});
 
 			assert.deepStrictEqual(sessionInputNeeded(), []);
@@ -5979,11 +6252,10 @@ suite('AgentSideEffects', () => {
 
 			stateManager.dispatchServerAction(defaultChatUri, {
 				type: ActionType.ChatInputRequested,
-				request: {
+				request: withChatInputRequestPurpose({
 					id: 'req-1',
-					purpose: ChatInputRequestPurpose.AskUser,
 					questions: [{ kind: ChatInputQuestionKind.Text, id: 'question-1', message: 'Which value?' }],
-				},
+				}, ChatInputRequestPurpose.AskUser),
 			});
 			stateManager.dispatchClientAction(defaultChatUri, {
 				type: ActionType.ChatInputAnswerChanged,
@@ -5997,7 +6269,7 @@ suite('AgentSideEffects', () => {
 			stateManager.dispatchClientAction(defaultChatUri, {
 				type: ActionType.ChatInputCompleted,
 				requestId: 'req-1',
-				response: SessionInputResponseKind.Accept,
+				response: ChatInputResponseKind.Accept,
 			}, { clientId: 'test', clientSeq: 3 });
 
 			const event = telemetryService.events.find(event => event.eventName === 'askQuestionsToolInvoked');
@@ -6030,11 +6302,10 @@ suite('AgentSideEffects', () => {
 			setupSession();
 			startTurn('turn-1');
 
-			const request: ChatInputRequest = {
+			const request: ChatInputRequest = withChatInputRequestPurpose({
 				id: 'req-1',
-				purpose: ChatInputRequestPurpose.AskUser,
 				questions: [{ kind: ChatInputQuestionKind.Text, id: 'question-1', message: 'Which value?' }],
-			};
+			}, ChatInputRequestPurpose.AskUser);
 			stateManager.dispatchServerAction(defaultChatUri, {
 				type: ActionType.ChatInputRequested,
 				request,
@@ -6051,7 +6322,7 @@ suite('AgentSideEffects', () => {
 			stateManager.dispatchServerAction(defaultChatUri, {
 				type: ActionType.ChatInputCompleted,
 				requestId: request.id,
-				response: SessionInputResponseKind.Accept,
+				response: ChatInputResponseKind.Accept,
 			});
 
 			const events = telemetryService.events.filter(event => event.eventName === 'askQuestionsToolInvoked');
@@ -6625,7 +6896,6 @@ suite('AgentSideEffects', () => {
 				agents: agentList,
 				sessionDataService: attachmentsSessionDataService,
 				hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess,
-				onTurnComplete: () => { },
 			});
 
 			setupSession();
@@ -6702,7 +6972,6 @@ suite('AgentSideEffects', () => {
 				getAgent: () => agent,
 				agents: agentList,
 				sessionDataService: createNullSessionDataService(),
-				onTurnComplete: () => { },
 			}, undefined, NullTelemetryService, changesets);
 			disposables.add(localSideEffects.registerProgressListener(agent));
 
@@ -6742,7 +7011,6 @@ suite('AgentSideEffects', () => {
 				getAgent: () => agent,
 				agents: agentList,
 				sessionDataService: createNullSessionDataService(),
-				onTurnComplete: () => { },
 			}, undefined, NullTelemetryService, changesets);
 			disposables.add(localSideEffects.registerProgressListener(agent));
 
@@ -6792,7 +7060,6 @@ suite('AgentSideEffects', () => {
 				getAgent: () => agent,
 				agents: agentList,
 				sessionDataService: createNullSessionDataService(),
-				onTurnComplete: () => { },
 			}, undefined, NullTelemetryService, changesets);
 			disposables.add(localSideEffects.registerProgressListener(agent));
 
@@ -6827,7 +7094,6 @@ suite('AgentSideEffects', () => {
 				getAgent: () => agent,
 				agents: agentList,
 				sessionDataService: createNullSessionDataService(),
-				onTurnComplete: () => { },
 			}, undefined, NullTelemetryService, new FakeChangesetService(), undefined, checkpoints);
 			disposables.add(localSideEffects.registerProgressListener(agent));
 
@@ -6854,7 +7120,6 @@ suite('AgentSideEffects', () => {
 				getAgent: () => agent,
 				agents: agentList,
 				sessionDataService: createNullSessionDataService(),
-				onTurnComplete: () => { },
 			}, undefined, NullTelemetryService, new FakeChangesetService(), undefined, checkpoints);
 			disposables.add(localSideEffects.registerProgressListener(agent));
 
@@ -6883,7 +7148,6 @@ suite('AgentSideEffects', () => {
 				getAgent: () => agent,
 				agents: agentList,
 				sessionDataService: createNullSessionDataService(),
-				onTurnComplete: () => { },
 			}, undefined, NullTelemetryService, new FakeChangesetService(), undefined, checkpoints);
 			disposables.add(localSideEffects.registerProgressListener(agent));
 
@@ -6912,7 +7176,6 @@ suite('AgentSideEffects', () => {
 				getAgent: () => agent,
 				agents: agentList,
 				sessionDataService: createNullSessionDataService(),
-				onTurnComplete: () => { },
 			}, undefined, NullTelemetryService, new FakeChangesetService(), undefined, checkpoints);
 
 			localSideEffects.handleAction(defaultChatUri, {
@@ -6930,7 +7193,6 @@ suite('AgentSideEffects', () => {
 				getAgent: () => agent,
 				agents: agentList,
 				sessionDataService: createNullSessionDataService(),
-				onTurnComplete: () => { },
 			}, undefined, NullTelemetryService, changesets);
 
 			localSideEffects.handleAction(defaultChatUri, {

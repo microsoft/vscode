@@ -12,7 +12,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { FileChangeType, FileSystemProviderErrorCode, FileType, IFileChange, toFileSystemProviderErrorCode } from '../../../files/common/files.js';
 import { AgentHostFileSystemProvider, agentHostRemotePath, agentHostUri, type IRemoteFilesystemConnection } from '../../common/agentHostFileSystemProvider.js';
 import { remoteAgentHostSessionTypeId } from '../../common/agentHostSessionType.js';
-import { AGENT_HOST_LABEL_FORMATTER, AGENT_HOST_SCHEME, agentHostAuthority, fromAgentHostUri, toAgentHostUri } from '../../common/agentHostUri.js';
+import { AGENT_HOST_LABEL_FORMATTER, AGENT_HOST_SCHEME, agentHostAuthority, createAgentHostResourceUriMapper, fromAgentHostUri, identityAgentHostResourceUriMapper, toAgentHostUri } from '../../common/agentHostUri.js';
 import { ContentEncoding, ResourceType, type CreateResourceWatchParams, type ResourceCopyParams, type ResourceListResult, type ResourceMkdirParams, type ResourceReadResult, type ResourceRequestParams, type ResourceRequestResult, type ResourceResolveParams, type ResourceResolveResult } from '../../common/state/protocol/commands.js';
 import { AhpErrorCodes } from '../../common/state/protocol/errors.js';
 import { ProtocolError } from '../../common/state/sessionProtocol.js';
@@ -170,6 +170,24 @@ suite('toAgentHostUri / fromAgentHostUri', () => {
 		const original = URI.file('/workspace/test.ts');
 		const result = toAgentHostUri(original, 'local');
 		assert.strictEqual(result.toString(), original.toString());
+	});
+
+	test('resource URI mappers translate remote resources and preserve local resources', () => {
+		const original = URI.file('/remote/file.txt');
+		const remote = createAgentHostResourceUriMapper('remote-host');
+		const mapped = remote.fromAgentHost(original);
+
+		assert.deepStrictEqual({
+			mapped: mapped.toString(),
+			unmapped: remote.toAgentHost(mapped).toString(),
+			localFrom: identityAgentHostResourceUriMapper.fromAgentHost(original).toString(),
+			localTo: identityAgentHostResourceUriMapper.toAgentHost(original).toString(),
+		}, {
+			mapped: toAgentHostUri(original, 'remote-host').toString(),
+			unmapped: original.toString(),
+			localFrom: original.toString(),
+			localTo: original.toString(),
+		});
 	});
 
 	test('agentHostUri for root path produces valid encoded URI', () => {

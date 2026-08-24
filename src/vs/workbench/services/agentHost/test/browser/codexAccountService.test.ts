@@ -11,7 +11,8 @@ import { AgentHostCodexAgentEnabledSettingId, CodexPreferAgentHostEditorSettingI
 import { CODEX_AGENT_PROVIDER_ID } from '../../../../../platform/agentHost/common/agent.js';
 import { ChatAIDisabledSettingId } from '../../../../../platform/chat/common/chatSettings.js';
 import { OpenOptions } from '../../../../../platform/opener/common/opener.js';
-import { ICodexAccountService, createCodexAccountMenuActions, hasSignedInCodexChatGPTAccount, openCodexAuthUrl, shouldShowCodexAccount } from '../../browser/codexAccountService.js';
+import { ContentEncoding } from '../../../../../platform/agentHost/common/state/sessionProtocol.js';
+import { ICodexAccountService, createCodexAccountMenuActions, hasSignedInCodexChatGPTAccount, openCodexAuthUrl, readCodexProfileImageDataUri, shouldShowCodexAccount } from '../../browser/codexAccountService.js';
 
 suite('CodexAccountService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -130,6 +131,24 @@ suite('CodexAccountService', () => {
 			resource: 'https://auth.openai.com/authorize?token=secret',
 			options: { openExternal: true, skipValidation: true },
 		});
+	});
+
+	test('reads profile-image bytes through the Agent Host resource connection', async () => {
+		const reference = {
+			uri: 'vscode-codex-profile-image:/profile.jpg',
+			contentType: 'image/jpeg',
+			sizeHint: 3,
+			nonce: 'a'.repeat(64),
+		};
+		const dataUri = await readCodexProfileImageDataUri({
+			resourceRead: async () => ({ data: 'AQID', encoding: ContentEncoding.Base64, contentType: 'image/jpg' }),
+		}, reference);
+		assert.strictEqual(dataUri, 'data:image/jpeg;base64,AQID');
+
+		const invalidDataUri = await readCodexProfileImageDataUri({
+			resourceRead: async () => ({ data: 'AQID', encoding: ContentEncoding.Base64, contentType: 'image/png' }),
+		}, reference);
+		assert.strictEqual(invalidDataUri, undefined);
 	});
 
 });

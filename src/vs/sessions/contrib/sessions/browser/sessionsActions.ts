@@ -1379,12 +1379,12 @@ registerAction2(class TogglePinSessionAction extends Action2 {
 	constructor() {
 		super({
 			id: 'sessions.chatCompositeBar.togglePin',
-			title: localize2('chatCompositeBar.pin', "Pin Session View"),
+			title: localize2('chatCompositeBar.pin', "Pin"),
 			icon: Codicon.pin,
 			toggled: {
 				condition: SessionIsStickyContext,
 				icon: Codicon.pinned,
-				title: localize('chatCompositeBar.unpin', "Unpin Session View"),
+				title: localize('chatCompositeBar.unpin', "Unpin"),
 			},
 			menu: {
 				id: Menus.SessionBarToolbar,
@@ -1406,10 +1406,10 @@ registerAction2(class TogglePinSessionAction extends Action2 {
 MenuRegistry.appendMenuItem(Menus.SessionHeaderContext, {
 	command: {
 		id: 'sessions.chatCompositeBar.togglePin',
-		title: localize('chatCompositeBar.pinView', "Pin View"),
+		title: localize('chatCompositeBar.pinView', "Pin"),
 		toggled: {
 			condition: SessionIsStickyContext,
-			title: localize('chatCompositeBar.unpinView', "Unpin View"),
+			title: localize('chatCompositeBar.unpinView', "Unpin"),
 		},
 	},
 	group: '1_view',
@@ -1443,7 +1443,7 @@ registerAction2(class CloseSessionAction extends Action2 {
 	constructor() {
 		super({
 			id: 'sessions.chatCompositeBar.close',
-			title: localize2('chatCompositeBar.close', "Close Session View"),
+			title: localize2('chatCompositeBar.close', "Close"),
 			icon: Codicon.close,
 			menu: [{
 				id: Menus.SessionBarToolbar,
@@ -1472,12 +1472,12 @@ registerAction2(class ToggleMaximizeSessionViewAction extends Action2 {
 	constructor() {
 		super({
 			id: 'sessions.chatCompositeBar.toggleMaximize',
-			title: localize2('chatCompositeBar.maximize', "Maximize Session View"),
+			title: localize2('chatCompositeBar.maximize', "Maximize"),
 			icon: Codicon.screenFull,
 			toggled: {
 				condition: SessionIsMaximizedContext,
 				icon: Codicon.screenNormal,
-				title: localize('chatCompositeBar.unmaximize', "Restore Session View"),
+				title: localize('chatCompositeBar.unmaximize', "Restore"),
 			},
 			menu: {
 				id: Menus.SessionBarToolbar,

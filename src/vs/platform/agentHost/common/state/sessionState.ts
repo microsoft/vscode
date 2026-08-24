@@ -57,17 +57,12 @@ export {
 	PendingMessageKind,
 	PolicyState,
 	ResponsePartKind,
-	ChatInputAnswerState as SessionInputAnswerState,
-	ChatInputAnswerValueKind as SessionInputAnswerValueKind,
-	ChatInputQuestionKind as SessionInputQuestionKind,
-	ChatInputRequestPurpose,
-	ChatInputResponseKind as SessionInputResponseKind,
 	ChatInteractivity,
 	ChatOriginKind,
 	SessionLifecycle,
 	SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus,
 	ToolResultContentType,
-	TurnState, type ActiveTurn, type AgentCustomization, type AgentCapabilities, type AgentInfo, type AgentSelection, type Annotation, type AnnotationEntry, type AnnotationsState, type AnnotationsSummary, type Changeset, type ChangesetFile,
+	TurnState, type ActiveTurn, type AgentCustomization, type AgentCapabilities, type AgentInfo, type AgentSelection, type Annotation, type AnnotationEntry, type AnnotationOrigin, type AnnotationsState, type AnnotationsSummary, type Changeset, type ChangesetFile,
 	type ChangesetOperation, type ChangesetState, type ChatState, type ChatSummary, type ChatOrigin, type ChildCustomization, type ClientPluginCustomization, type ConfigPropertySchema,
 	type ConfigSchema,
 	type ContentRef, type Customization, type CustomizationDegradedState,
@@ -75,8 +70,7 @@ export {
 	type MessageResourceAttachment, type MessageEmbeddedResourceAttachment, type MessageAnnotationsAttachment, type MessageChatAttachment, type ModelSelection, type PendingMessage, type PluginCustomization, type ProjectInfo, type PromptCustomization, type ReasoningResponsePart,
 	type ResponsePart,
 	type RootState, type RuleCustomization, type SessionActiveClient,
-	type SessionConfigState, type ChatInputAnswer as SessionInputAnswer,
-	type ChatInputOption as SessionInputOption, type ChatInputQuestion as SessionInputQuestion, type ChatInputRequest as SessionInputRequest, type SessionModelInfo,
+	type SessionConfigState, type SessionModelInfo,
 	type SessionState,
 	type SessionSummary, type SkillCustomization, type Snapshot, type StringOrMarkdown, type TerminalState, type TextRange,
 	type ToolAnnotations,
@@ -158,6 +152,12 @@ export interface UsageInfoMeta {
 	 * what a completed turn consumed in aggregate.
 	 */
 	turnTokenTotals?: readonly ITurnTokenTotal[];
+	/** Per-model token totals for this turn only, excluding descendant sub-agents (sum a tree without double-counting). */
+	directTurnTokenTotals?: readonly ITurnTokenTotal[];
+	/** Copilot usage for this turn only. The root's {@link copilotUsage} stays inclusive of descendants. */
+	directCopilotUsage?: {
+		readonly totalNanoAiu?: number;
+	};
 	[key: string]: unknown;
 }
 
@@ -284,6 +284,17 @@ export function readUsageInfoMeta(usage: UsageInfo | undefined): UsageInfoMeta {
 	const turnTokenTotals = readTurnTokenTotals(meta['turnTokenTotals']);
 	if (turnTokenTotals) {
 		result.turnTokenTotals = turnTokenTotals;
+	}
+	const directTurnTokenTotals = readTurnTokenTotals(meta['directTurnTokenTotals']);
+	if (directTurnTokenTotals) {
+		result.directTurnTokenTotals = directTurnTokenTotals;
+	}
+	const directCopilotUsage = meta['directCopilotUsage'];
+	if (directCopilotUsage && typeof directCopilotUsage === 'object' && !Array.isArray(directCopilotUsage)) {
+		const totalNanoAiu = (directCopilotUsage as Record<string, unknown>)['totalNanoAiu'];
+		if (typeof totalNanoAiu === 'number') {
+			result.directCopilotUsage = { totalNanoAiu };
+		}
 	}
 	return result;
 }
@@ -437,7 +448,7 @@ export {
 // Canonical chat-input type names (the protocol renamed the former
 // `SessionInput*` types to `ChatInput*` when input requests moved onto the
 // chat channel). Re-exported here so consumers can import them from the glue
-// layer alongside the legacy `SessionInput*` aliases above.
+// layer.
 export {
 	ChatInputAnswerState,
 	ChatInputAnswerValueKind,
@@ -1040,6 +1051,12 @@ export function parseRequiredSessionUriFromChatUri(uri: ProtocolURI | ResourceUR
 /** Returns `true` when `uri` is the default chat of its session. */
 export function isDefaultChatUri(uri: ProtocolURI | ResourceURI): boolean {
 	return parseChatUri(uri)?.chatId === DEFAULT_CHAT_ID;
+}
+
+export function getSessionChatResource(state: Pick<SessionState, 'defaultChat'> & { readonly chats: readonly Pick<ChatSummary, 'resource'>[] }, chatId: string): ProtocolURI | undefined {
+	return chatId === DEFAULT_CHAT_ID
+		? state.defaultChat ?? state.chats.find(chat => isDefaultChatUri(chat.resource))?.resource
+		: state.chats.find(chat => parseChatUri(chat.resource)?.chatId === chatId)?.resource;
 }
 
 /**
@@ -1902,6 +1919,44 @@ export function readSessionEhcliAdoptable(meta: SessionSummaryMeta | undefined):
 /** Returns a new {@link SessionSummaryMeta} with the adoptable-legacy marker set. */
 export function withSessionEhcliAdoptable(meta: SessionSummaryMeta | undefined): SessionSummaryMeta {
 	return { ...meta, [SESSION_META_EHCLI_ADOPTABLE_KEY]: true };
+}
+
+/**
+ * Session-DB key recording that a session was adopted from a legacy Copilot CLI
+ * (extension-host) chat. Unlike {@link SESSION_META_EHCLI_ADOPTABLE_KEY} this
+ * survives adoption, so consumers can keep treating the session as legacy for
+ * the rest of its life — a migrated session must not change how it is listed.
+ */
+export const AH_META_EHCLI_ADOPTED_DB_KEY = 'agentHost.ehcliAdopted';
+
+/** `_meta` key mirroring {@link AH_META_EHCLI_ADOPTED_DB_KEY} on a summary. */
+export const SESSION_META_EHCLI_ADOPTED_KEY = 'ehcliAdopted';
+
+/** Whether the session was adopted from a legacy Copilot CLI chat. */
+export function readSessionEhcliAdopted(meta: SessionSummaryMeta | undefined): boolean {
+	return meta?.[SESSION_META_EHCLI_ADOPTED_KEY] === true;
+}
+
+/** Returns a copy of `meta` with the adopted-legacy provenance marker updated. */
+export function withSessionEhcliAdopted(meta: SessionSummaryMeta | undefined, adopted: boolean): SessionSummaryMeta | undefined {
+	const next: { [key: string]: unknown } = { ...meta };
+	if (adopted) {
+		next[SESSION_META_EHCLI_ADOPTED_KEY] = true;
+	} else {
+		delete next[SESSION_META_EHCLI_ADOPTED_KEY];
+	}
+	return Object.keys(next).length > 0 ? next : undefined;
+}
+
+/**
+ * Whether a session should be matched against a workspace folder by its project
+ * (repository) root in addition to its working directories. True only for
+ * legacy Copilot CLI sessions, which run out of a worktree outside the
+ * repository; agent-host-native worktree sessions are deliberately not surfaced
+ * in a window opened on their source repository.
+ */
+export function readSessionMatchesByProjectRoot(meta: SessionSummaryMeta | undefined): boolean {
+	return readSessionEhcliAdoptable(meta) || readSessionEhcliAdopted(meta);
 }
 
 // ---- RootState _meta accessors ---------------------------------------------

@@ -111,6 +111,10 @@ export interface ICreateNewSessionOptions {
 	 */
 	readonly worktreeBranchTrack?: boolean;
 	/**
+	 * Whether to create a generated worktree branch from {@link branch}.
+	 */
+	readonly worktreeCreateNewBranch?: boolean;
+	/**
 	 * Invoked after the provider creates the provisional session, before its
 	 * configuration and first request are applied.
 	 */
@@ -227,6 +231,11 @@ export interface ISessionsManagementService {
 	 * Get all sessions from all registered providers.
 	 */
 	getSessions(): ISession[];
+
+	/**
+	 * Get new sessions whose first request is still being prepared or sent.
+	 */
+	getInFlightNewSessionRequests(): readonly ISession[];
 
 	/**
 	 * Get a session by its resource URI.
