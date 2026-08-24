@@ -1178,12 +1178,16 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	/**
-	 * Starts the first turn on a freshly-created session by dispatching a
+	 * Starts a turn requested by the session orchestration server tools
+	 * (`create_session`, `create_chat`, `send_message`) by dispatching a
 	 * `ChatTurnStarted` and routing it through the same side-effects path a
 	 * client-initiated turn takes (which sends the message to the provider).
 	 */
 	private async _startSessionPrompt(session: URI, chat: URI, prompt: string): Promise<void> {
-		const message: Message = { text: prompt, origin: { kind: MessageKind.User } };
+		// The prompt was authored by the calling agent, not by the user, so the
+		// message origin marks it as agent-produced. Telemetry uses this to
+		// attribute sessions/chats/messages to their true source.
+		const message: Message = { text: prompt, origin: { kind: MessageKind.Agent } };
 		const action = { type: ActionType.ChatTurnStarted, turnId: generateUuid(), startedAt: new Date().toISOString(), message } as const;
 		this._stateManager.dispatchServerAction(chat.toString(), action);
 		this._sideEffects.handleAction(chat.toString(), action);

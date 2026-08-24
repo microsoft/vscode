@@ -10583,6 +10583,44 @@ suite('AgentService (node dispatcher)', () => {
 			assert.strictEqual(agent.createSessionConfigs.at(-1)?.model, undefined);
 		});
 
+		test('session orchestration tools seed agent-originated turns', async () => {
+			class ServerToolAgent extends MockAgent {
+				serverToolHost: IAgentServerToolHost | undefined;
+
+				setServerToolHost(host: IAgentServerToolHost): void {
+					this.serverToolHost = host;
+				}
+			}
+
+			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new ServerToolAgent('copilot'));
+			localService.registerProvider(agent);
+			const sourceSession = await localService.createSession({ provider: 'copilot' });
+			const sourceChat = buildDefaultChatUri(sourceSession);
+			const targetSession = await localService.createSession({ provider: 'copilot' });
+			const targetChat = buildDefaultChatUri(targetSession);
+			localService.dispatchAction(sourceChat, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'source-turn',
+				startedAt: new Date().toISOString(),
+				message: { text: 'delegate this', origin: { kind: MessageKind.User } },
+			}, 'test-client', 1);
+
+			await agent.serverToolHost!.executeTool(sourceChat, SessionServerToolName.SendMessage, {
+				session: targetSession.toString(),
+				message: 'please take over',
+			});
+
+			const originOf = (chat: string) => getStateManager(localService).getSessionState(chat)?.activeTurn?.message.origin.kind;
+			assert.deepStrictEqual({
+				source: originOf(sourceChat),
+				target: originOf(targetChat),
+			}, {
+				source: MessageKind.User,
+				target: MessageKind.Agent,
+			});
+		});
+
 		test('createChat resolves a restored peer fork source before creating the fork', async () => {
 			let materializeCalls = 0;
 			let providerForkTurnId: string | undefined;
