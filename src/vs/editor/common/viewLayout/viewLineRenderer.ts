@@ -11,8 +11,7 @@ import { StringBuilder } from '../core/stringBuilder.js';
 import { LineDecoration, LineDecorationsNormalizer } from './lineDecorations.js';
 import { LinePart, LinePartMetadata } from './linePart.js';
 import { OffsetRange } from '../core/ranges/offsetRange.js';
-import { InlineDecorationType } from '../viewModel/inlineDecorations.js';
-import { InjectedTextLinePart } from '../viewModel/injectedTextLinePart.js';
+import { FixedWidthInlineDecoration, InlineDecorationType } from '../viewModel/inlineDecorations.js';
 import { TextDirection } from '../model.js';
 
 export const enum RenderWhitespace {
@@ -33,7 +32,7 @@ export interface IRenderLineInputOptions {
 	fauxIndentLength: number;
 	lineTokens: IViewLineTokens;
 	lineDecorations: LineDecoration[];
-	injectedTextLineParts: readonly InjectedTextLinePart[];
+	injectedTextLineParts: readonly FixedWidthInlineDecoration[];
 	tabSize: number;
 	startVisibleColumn: number;
 	spaceWidth: number;
@@ -60,7 +59,7 @@ export class RenderLineInput {
 	public readonly fauxIndentLength: number;
 	public readonly lineTokens: IViewLineTokens;
 	public readonly lineDecorations: LineDecoration[];
-	public readonly injectedTextLineParts: readonly InjectedTextLinePart[];
+	public readonly injectedTextLineParts: readonly FixedWidthInlineDecoration[];
 	public readonly tabSize: number;
 	public readonly startVisibleColumn: number;
 	public readonly spaceWidth: number;
@@ -97,7 +96,7 @@ export class RenderLineInput {
 		fauxIndentLength: number,
 		lineTokens: IViewLineTokens,
 		lineDecorations: LineDecoration[],
-		injectedTextLineParts: readonly InjectedTextLinePart[],
+		injectedTextLineParts: readonly FixedWidthInlineDecoration[],
 		tabSize: number,
 		startVisibleColumn: number,
 		spaceWidth: number,
@@ -196,7 +195,7 @@ export class RenderLineInput {
 			&& this.renderControlCharacters === other.renderControlCharacters
 			&& this.fontLigatures === other.fontLigatures
 			&& LineDecoration.equalsArr(this.lineDecorations, other.lineDecorations)
-			&& InjectedTextLinePart.equalsArr(this.injectedTextLineParts, other.injectedTextLineParts)
+			&& FixedWidthInlineDecoration.equalsArr(this.injectedTextLineParts, other.injectedTextLineParts)
 			&& this.lineTokens.equals(other.lineTokens)
 			&& this.sameSelection(other.selectionsOnLine)
 			&& this.textDirection === other.textDirection
@@ -484,19 +483,6 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
 		len = lineContent.length;
 	}
 
-	let containsForeignElements = input.injectedTextLineParts.length > 0 ? ForeignElementType.Before : ForeignElementType.None;
-	for (let i = 0, len = input.lineDecorations.length; i < len; i++) {
-		const lineDecoration = input.lineDecorations[i];
-		if (lineDecoration.type === InlineDecorationType.RegularAffectingLetterSpacing) {
-			// Pretend there are foreign elements... although not 100% accurate.
-			containsForeignElements |= ForeignElementType.Before;
-		} else if (lineDecoration.type === InlineDecorationType.Before) {
-			containsForeignElements |= ForeignElementType.Before;
-		} else if (lineDecoration.type === InlineDecorationType.After) {
-			containsForeignElements |= ForeignElementType.After;
-		}
-	}
-
 	let tokens = transformAndRemoveOverflowing(lineContent, input.containsRTL, input.lineTokens, input.fauxIndentLength, len);
 	if (input.renderControlCharacters && !input.isBasicASCII) {
 		// Calling `extractControlCharacters` before adding (possibly empty) line parts
@@ -510,7 +496,19 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
 	) {
 		tokens = _applyRenderWhitespace(input, lineContent, len, tokens);
 	}
+	let containsForeignElements = ForeignElementType.None;
 	if (input.lineDecorations.length > 0) {
+		for (let i = 0, len = input.lineDecorations.length; i < len; i++) {
+			const lineDecoration = input.lineDecorations[i];
+			if (lineDecoration.type === InlineDecorationType.RegularAffectingLetterSpacing) {
+				// Pretend there are foreign elements... although not 100% accurate.
+				containsForeignElements |= ForeignElementType.Before;
+			} else if (lineDecoration.type === InlineDecorationType.Before) {
+				containsForeignElements |= ForeignElementType.Before;
+			} else if (lineDecoration.type === InlineDecorationType.After) {
+				containsForeignElements |= ForeignElementType.After;
+			}
+		}
 		tokens = _applyInlineDecorations(lineContent, len, tokens, input.lineDecorations);
 	}
 	tokens = createAtomicInjectedTextParts(tokens, input.injectedTextLineParts);
@@ -984,7 +982,7 @@ function _applyInlineDecorations(lineContent: string, len: number, tokens: LineP
 }
 
 // Fixed-width injected text replaces all line parts in its projected range with one atomic part.
-function createAtomicInjectedTextParts(parts: LinePart[], injectedTextLineParts: readonly InjectedTextLinePart[]): LinePart[] {
+function createAtomicInjectedTextParts(parts: LinePart[], injectedTextLineParts: readonly FixedWidthInlineDecoration[]): LinePart[] {
 	if (injectedTextLineParts.length === 0) {
 		return parts;
 	}

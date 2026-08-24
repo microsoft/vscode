@@ -23,7 +23,7 @@ import { ComponentFixtureContext, createEditorServices, createTextModel, defineC
 const colorDetectorContribution = EditorExtensionsRegistry.getSomeEditorContributions([ColorDetector.ID])[0];
 const inlayHintsContribution = EditorExtensionsRegistry.getSomeEditorContributions([InlayHintsController.ID])[0];
 
-async function renderColorDecorators(context: ComponentFixtureContext): Promise<void> {
+async function renderColorDecorators(context: ComponentFixtureContext, selectFirstColor = false): Promise<void> {
 	const { editor } = createEditor(
 		context,
 		'.red { color: #ff0000; }\n.green { color: #00ff00; }\n.blue { color: #0000ff; }',
@@ -46,6 +46,10 @@ async function renderColorDecorators(context: ComponentFixtureContext): Promise<
 	);
 	editor.getContribution(ColorDetector.ID);
 	await timeout(0);
+	if (selectFirstColor) {
+		editor.setSelection(new Range(1, 14, 1, editor.getModel()!.getLineMaxColumn(1)));
+		editor.focus();
+	}
 }
 
 async function renderInlineProgress(context: ComponentFixtureContext): Promise<void> {
@@ -175,6 +179,11 @@ export default defineThemedFixtureGroup({ path: 'editor/' }, {
 		labels: { kind: 'screenshot', blocksCi: true },
 		expectedVisualDescriptions: ['Three CSS declarations appear on separate lines. Each hexadecimal color is preceded by a square swatch whose fill matches the value. Every swatch is the same size, has a visible contrasting border, and is vertically aligned with its line of text.'],
 		render: renderColorDecorators,
+	}),
+	SelectedColorDecorator: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['The first CSS color and the text after it are selected. The selection is continuous on both sides of the square red swatch and ends at the closing brace without detached or misplaced selection blocks.'],
+		render: context => renderColorDecorators(context, true),
 	}),
 	InlineProgress: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },

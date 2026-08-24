@@ -21,8 +21,7 @@ import { BracketGuideOptions, IActiveIndentGuideInfo, IndentGuide } from './text
 import { IViewLineTokens } from './tokens/lineTokens.js';
 import { ViewEventHandler } from './viewEventHandler.js';
 import { VerticalRevealType } from './viewEvents.js';
-import { InlineDecoration } from './viewModel/inlineDecorations.js';
-import { InjectedTextLinePart } from './viewModel/injectedTextLinePart.js';
+import { FixedWidthInlineDecoration, InlineDecoration } from './viewModel/inlineDecorations.js';
 import { EditorOption, FindComputedEditorOptionValueById } from './config/editorOptions.js';
 
 export interface IViewModel extends ICursorSimpleModel, ISimpleModel {
@@ -283,7 +282,7 @@ export class ViewLineData {
 	/**
 	 * Fixed-width injected text projected onto this view line.
 	 */
-	public readonly injectedTextLineParts: readonly InjectedTextLinePart[] | null;
+	public readonly fixedWidthInlineDecorations: readonly FixedWidthInlineDecoration[] | null;
 
 	constructor(
 		content: string,
@@ -293,7 +292,7 @@ export class ViewLineData {
 		startVisibleColumn: number,
 		tokens: IViewLineTokens,
 		inlineDecorations: readonly InlineDecoration[] | null,
-		injectedTextLineParts: readonly InjectedTextLinePart[] | null
+		fixedWidthInlineDecorations: readonly FixedWidthInlineDecoration[] | null
 	) {
 		this.content = content;
 		this.continuesWithWrappedLine = continuesWithWrappedLine;
@@ -302,7 +301,7 @@ export class ViewLineData {
 		this.startVisibleColumn = startVisibleColumn;
 		this.tokens = tokens;
 		this.inlineDecorations = inlineDecorations;
-		this.injectedTextLineParts = injectedTextLineParts;
+		this.fixedWidthInlineDecorations = fixedWidthInlineDecorations;
 	}
 }
 
@@ -340,9 +339,9 @@ export class ViewLineRenderingData {
 	 */
 	public readonly inlineDecorations: InlineDecoration[];
 	/**
-	 * Fixed-width injected text projected onto this view line.
+	 * Fixed-width inline decorations at this view line.
 	 */
-	public readonly injectedTextLineParts: readonly InjectedTextLinePart[];
+	public readonly fixedWidthInlineDecorations: FixedWidthInlineDecoration[];
 	/**
 	 * The tab size for this view model.
 	 */
@@ -369,7 +368,7 @@ export class ViewLineRenderingData {
 		mightContainNonBasicASCII: boolean,
 		tokens: IViewLineTokens,
 		inlineDecorations: InlineDecoration[],
-		injectedTextLineParts: readonly InjectedTextLinePart[],
+		fixedWidthInlineDecorations: FixedWidthInlineDecoration[],
 		tabSize: number,
 		startVisibleColumn: number,
 		textDirection: TextDirection,
@@ -385,7 +384,7 @@ export class ViewLineRenderingData {
 
 		this.tokens = tokens;
 		this.inlineDecorations = inlineDecorations;
-		this.injectedTextLineParts = injectedTextLineParts;
+		this.fixedWidthInlineDecorations = fixedWidthInlineDecorations;
 		this.tabSize = tabSize;
 		this.startVisibleColumn = startVisibleColumn;
 		this.textDirection = textDirection;

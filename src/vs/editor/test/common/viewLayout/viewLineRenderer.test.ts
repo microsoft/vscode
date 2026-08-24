@@ -13,8 +13,7 @@ import { MetadataConsts } from '../../../common/encodedTokenAttributes.js';
 import { IViewLineTokens } from '../../../common/tokens/lineTokens.js';
 import { LineDecoration } from '../../../common/viewLayout/lineDecorations.js';
 import { CharacterMapping, DomPosition, IRenderLineInputOptions, RenderLineInput, RenderLineOutput2, renderViewLine2 as renderViewLine } from '../../../common/viewLayout/viewLineRenderer.js';
-import { InlineDecorationType } from '../../../common/viewModel/inlineDecorations.js';
-import { InjectedTextLinePart } from '../../../common/viewModel/injectedTextLinePart.js';
+import { FixedWidthInlineDecoration, InlineDecorationType } from '../../../common/viewModel/inlineDecorations.js';
 import { TestLineToken, TestLineTokens } from '../core/testLineToken.js';
 
 const HTML_EXTENSION = { extension: 'html' };
@@ -198,7 +197,7 @@ suite('renderViewLine', () => {
 		const actual = renderViewLine(createRenderLineInput({
 			lineContent: '\xa0',
 			lineTokens: createViewLineTokens([createPart(1, 0)]),
-			injectedTextLineParts: [new InjectedTextLinePart(1, 2, 'injected', 1)]
+			injectedTextLineParts: [new FixedWidthInlineDecoration(1, 2, 'injected', 1)]
 		}));
 
 		assert.strictEqual(actual.html, '<span><span style="display:inline-block;box-sizing:border-box;width:1em;" class="mtk0 injected">\xa0</span></span>');
@@ -208,7 +207,7 @@ suite('renderViewLine', () => {
 		const actual = renderViewLine(createRenderLineInput({
 			lineContent: '\xa0',
 			lineTokens: createViewLineTokens([createPart(1, 0)]),
-			injectedTextLineParts: [new InjectedTextLinePart(1, 2, '', 1)]
+			injectedTextLineParts: [new FixedWidthInlineDecoration(1, 2, '', 1)]
 		}));
 
 		assert.strictEqual(actual.html, '<span><span style="display:inline-block;box-sizing:border-box;width:1em;" class="mtk0">\xa0</span></span>');
@@ -218,7 +217,7 @@ suite('renderViewLine', () => {
 		const actual = renderViewLine(createRenderLineInput({
 			lineContent: ' ',
 			lineTokens: createViewLineTokens([createPart(1, 0)]),
-			injectedTextLineParts: [new InjectedTextLinePart(1, 2, 'injected', 1)],
+			injectedTextLineParts: [new FixedWidthInlineDecoration(1, 2, 'injected', 1)],
 			renderWhitespace: 'all'
 		}));
 
@@ -229,7 +228,7 @@ suite('renderViewLine', () => {
 		const actual = renderViewLine(createRenderLineInput({
 			lineContent: 'xabcy',
 			lineTokens: createViewLineTokens([createPart(1, 0), createPart(4, 0), createPart(5, 0)]),
-			injectedTextLineParts: [new InjectedTextLinePart(2, 5, 'injected', 3)]
+			injectedTextLineParts: [new FixedWidthInlineDecoration(2, 5, 'injected', 3)]
 		}));
 
 		assert.strictEqual(actual.html, '<span><span class="mtk0">x</span><span style="display:inline-block;box-sizing:border-box;width:3em;" class="mtk0 injected">abc</span><span class="mtk0">y</span></span>');
@@ -239,7 +238,7 @@ suite('renderViewLine', () => {
 		const actual = renderViewLine(createRenderLineInput({
 			lineContent: 'xabcy',
 			lineTokens: createViewLineTokens([createPart(5, 0)]),
-			injectedTextLineParts: [new InjectedTextLinePart(2, 5, 'injected', 3)]
+			injectedTextLineParts: [new FixedWidthInlineDecoration(2, 5, 'injected', 3)]
 		}));
 
 		assert.strictEqual(actual.html, '<span><span class="mtk0">x</span><span style="display:inline-block;box-sizing:border-box;width:3em;" class="mtk0 injected">abc</span><span class="mtk0">y</span></span>');
@@ -249,7 +248,7 @@ suite('renderViewLine', () => {
 		const actual = renderViewLine(createRenderLineInput({
 			lineContent: 'a b',
 			lineTokens: createViewLineTokens([createPart(1, 1), createPart(3, 2)]),
-			injectedTextLineParts: [new InjectedTextLinePart(1, 4, 'injected', 3)],
+			injectedTextLineParts: [new FixedWidthInlineDecoration(1, 4, 'injected', 3)],
 			renderWhitespace: 'all'
 		}));
 
@@ -261,8 +260,8 @@ suite('renderViewLine', () => {
 			lineContent: 'ab',
 			lineTokens: createViewLineTokens([createPart(1, 0), createPart(2, 0)]),
 			injectedTextLineParts: [
-				new InjectedTextLinePart(1, 2, 'injected', 1),
-				new InjectedTextLinePart(2, 3, 'injected', 1)
+				new FixedWidthInlineDecoration(1, 2, 'injected', 1),
+				new FixedWidthInlineDecoration(2, 3, 'injected', 1)
 			]
 		}));
 
@@ -274,7 +273,7 @@ suite('renderViewLine', () => {
 			lineContent: 'abc',
 			lineTokens: createViewLineTokens([createPart(3, 0)]),
 			lineDecorations: [new LineDecoration(1, 4, 'secondary', InlineDecorationType.Regular)],
-			injectedTextLineParts: [new InjectedTextLinePart(1, 4, 'injected', 3)]
+			injectedTextLineParts: [new FixedWidthInlineDecoration(1, 4, 'injected', 3)]
 		}));
 
 		assert.strictEqual(actual.html, '<span><span style="display:inline-block;box-sizing:border-box;width:3em;" class="mtk0 secondary injected">abc</span></span>');
@@ -286,7 +285,7 @@ suite('renderViewLine', () => {
 			isBasicASCII: false,
 			containsRTL: true,
 			lineTokens: createViewLineTokens([createPart(3, 0)]),
-			injectedTextLineParts: [new InjectedTextLinePart(1, 4, 'injected', 3)]
+			injectedTextLineParts: [new FixedWidthInlineDecoration(1, 4, 'injected', 3)]
 		}));
 
 		assert.strictEqual(actual.html, '<span><span style="unicode-bidi:isolate;display:inline-block;box-sizing:border-box;width:3em;" class="mtk0 injected">\xa0אב</span></span>');
@@ -296,7 +295,7 @@ suite('renderViewLine', () => {
 		const actual = renderViewLine(createRenderLineInput({
 			lineContent: 'abcde',
 			lineTokens: createViewLineTokens([createPart(1, 0), createPart(5, 0)]),
-			injectedTextLineParts: [new InjectedTextLinePart(2, 6, 'injected', 3)],
+			injectedTextLineParts: [new FixedWidthInlineDecoration(2, 6, 'injected', 3)],
 			stopRenderingLineAfter: 3
 		}));
 

@@ -346,7 +346,7 @@ export interface ILineBreaksComputer {
 }
 
 /**
- * The fixed-width geometry of injected text after all preceding injections have been applied.
+ * The fixed-widthinjected text range after all preceding injections have been applied.
  */
 export interface FixedWidthInjectedTextRange {
 	readonly startOffset: number;
@@ -361,16 +361,14 @@ export function getFixedWidthInjectedTextRanges(injectedTexts: readonly LineInje
 	const result: FixedWidthInjectedTextRange[] = [];
 	let injectedTextLength = 0;
 	for (const injectedText of injectedTexts ?? []) {
+		const length = injectedText.options.content.length;
 		const startOffset = injectedText.column - 1 + injectedTextLength;
-		const endOffset = startOffset + injectedText.options.content.length;
-		if (injectedText.options.widthInEm !== undefined) {
-			result.push({
-				startOffset,
-				endOffset,
-				widthInEm: injectedText.options.widthInEm
-			});
+		const endOffset = startOffset + length;
+		const widthInEm = injectedText.options.widthInEm;
+		if (widthInEm !== undefined) {
+			result.push({ startOffset, endOffset, widthInEm });
 		}
-		injectedTextLength += injectedText.options.content.length;
+		injectedTextLength += length;
 	}
 	return result;
 }

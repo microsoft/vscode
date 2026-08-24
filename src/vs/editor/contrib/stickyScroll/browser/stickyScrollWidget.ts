@@ -465,7 +465,7 @@ class RenderedStickyLine {
 		const renderLineInput: RenderLineInput = new RenderLineInput(true, true, lineRenderingData.content,
 			lineRenderingData.continuesWithWrappedLine,
 			lineRenderingData.isBasicASCII, lineRenderingData.containsRTL, 0,
-			lineRenderingData.tokens, actualInlineDecorations, lineRenderingData.injectedTextLineParts,
+			lineRenderingData.tokens, actualInlineDecorations, lineRenderingData.fixedWidthInlineDecorations,
 			lineRenderingData.tabSize, lineRenderingData.startVisibleColumn,
 			1, 1, 1, 500, 'none', true, true, null,
 			textDirection, verticalScrollbarSize

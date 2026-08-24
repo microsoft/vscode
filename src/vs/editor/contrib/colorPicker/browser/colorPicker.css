@@ -14,10 +14,10 @@
 .colorpicker-color-decoration,
 .hc-light .colorpicker-color-decoration {
 	box-sizing: border-box;
-	padding: 0 0.2em;
+	padding: 0 var(--vscode-colorPicker-colorDecoratorMargin);
 	background-clip: content-box;
-	height: 0.8em;
-	line-height: 0.8em;
+	height: var(--vscode-colorPicker-colorDecoratorSize);
+	line-height: var(--vscode-colorPicker-colorDecoratorSize);
 	display: inline-block;
 	position: relative;
 	cursor: pointer;
@@ -26,7 +26,7 @@
 .colorpicker-color-decoration::after {
 	content: '';
 	position: absolute;
-	inset: 0 0.2em;
+	inset: 0 var(--vscode-colorPicker-colorDecoratorMargin);
 	box-sizing: border-box;
 	border: solid 0.1em #000;
 	pointer-events: none;
@@ -215,6 +215,6 @@
 	cursor: pointer;
 }
 
-.colorpicker-body .insert-button:hover{
+.colorpicker-body .insert-button:hover {
 	background: var(--vscode-button-hoverBackground);
 }

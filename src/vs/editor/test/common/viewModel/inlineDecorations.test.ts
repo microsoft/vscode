@@ -7,8 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { Range } from '../../../common/core/range.js';
 import { IModelDecoration, IModelDecorationOptions, InjectedTextOptions } from '../../../common/model.js';
-import { InlineDecoration, InlineDecorationType, InlineModelDecorationsComputer, IInlineModelDecorationsComputerContext, InjectedTextInlineDecorationsComputer, IInjectedTextInlineDecorationsComputerContext } from '../../../common/viewModel/inlineDecorations.js';
-import { InjectedTextLinePart } from '../../../common/viewModel/injectedTextLinePart.js';
+import { InlineDecoration, InlineDecorationType, InlineModelDecorationsComputer, IInlineModelDecorationsComputerContext, InjectedTextInlineDecorationsComputer, IInjectedTextInlineDecorationsComputerContext, FixedWidthInlineDecoration } from '../../../common/viewModel/inlineDecorations.js';
 import { createTextModel } from '../testTextModel.js';
 import { IdentityCoordinatesConverter } from '../../../common/coordinatesConverter.js';
 
@@ -329,10 +328,10 @@ suite('InjectedTextInlineDecorationsComputer', () => {
 			getBaseViewLineNumber: () => 1,
 		};
 		const computer = new InjectedTextInlineDecorationsComputer(context);
-		const result = computer.getDecorations(1);
+		const result = computer.getRenderingData(1);
 		assert.deepStrictEqual(result, {
 			inlineDecorations: [[]],
-			injectedTextLineParts: [[new InjectedTextLinePart(6, 7, '', 3)]]
+			injectedTextLineParts: [[new FixedWidthInlineDecoration(6, 7, '', 3)]]
 		});
 	});
 

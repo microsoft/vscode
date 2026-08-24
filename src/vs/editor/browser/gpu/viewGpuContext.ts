@@ -164,7 +164,6 @@ export class ViewGpuContext extends Disposable {
 		// Check if the line has simple attributes that aren't supported
 		if (
 			data.containsRTL ||
-			data.injectedTextLineParts.length > 0 ||
 			data.maxColumn > this.maxGpuCols
 		) {
 			return false;
@@ -209,9 +208,6 @@ export class ViewGpuContext extends Disposable {
 		const reasons: string[] = [];
 		if (data.containsRTL) {
 			reasons.push('containsRTL');
-		}
-		if (data.injectedTextLineParts.length > 0) {
-			reasons.push('contains fixed-width injected text');
 		}
 		if (data.maxColumn > this.maxGpuCols) {
 			reasons.push('maxColumn > maxGpuCols');

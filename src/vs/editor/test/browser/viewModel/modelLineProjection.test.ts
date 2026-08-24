@@ -17,12 +17,12 @@ import { TextModel } from '../../../common/model/textModel.js';
 import { ModelLineProjectionData } from '../../../common/modelLineProjectionData.js';
 import { IViewLineTokens } from '../../../common/tokens/lineTokens.js';
 import { ViewLineData } from '../../../common/viewModel.js';
-import { InjectedTextLinePart } from '../../../common/viewModel/injectedTextLinePart.js';
 import { IModelLineProjection, ISimpleModel, createModelLineProjection } from '../../../common/viewModel/modelLineProjection.js';
 import { MonospaceLineBreaksComputerFactory } from '../../../common/viewModel/monospaceLineBreaksComputer.js';
 import { ViewModelLinesFromProjectedModel } from '../../../common/viewModel/viewModelLines.js';
 import { TestConfiguration } from '../config/testConfiguration.js';
 import { createTextModel } from '../../common/testTextModel.js';
+import { FixedWidthInlineDecoration } from '../../../common/viewModel/inlineDecorations.js';
 
 suite('Editor ViewModel - SplitLinesCollection', () => {
 
@@ -954,8 +954,8 @@ suite('SplitLinesCollection', () => {
 			}]);
 
 			withSplitLinesCollection(model, 'wordWrapColumn', 30, false, splitLinesCollection => {
-				assert.deepStrictEqual(splitLinesCollection.getViewLineData(1).injectedTextLineParts, [
-					new InjectedTextLinePart(9, 10, 'fixed-width', 3)
+				assert.deepStrictEqual(splitLinesCollection.getViewLineData(1).fixedWidthInlineDecorations, [
+					new FixedWidthInlineDecoration(9, 10, 'fixed-width', 3)
 				]);
 			});
 		});
