@@ -791,7 +791,7 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 		},
 		onDidChangeWorkspaceFolders: Event.None
 	});
-	const trustController: { result: boolean | undefined; workspaceTrustCalls: number; resourcesTrustCalls: number; resourcesTrustUris: URI[]; trustedUris: Set<string> } = { result: true, workspaceTrustCalls: 0, resourcesTrustCalls: 0, resourcesTrustUris: [], trustedUris: new Set<string>() };
+	const trustController: { result: boolean | undefined; workspaceTrustCalls: number; resourcesTrustCalls: number; resourcesTrustUris: URI[]; trustedUris: Set<string>; setUrisTrustCalls: string[][] } = { result: true, workspaceTrustCalls: 0, resourcesTrustCalls: 0, resourcesTrustUris: [], trustedUris: new Set<string>(), setUrisTrustCalls: [] };
 	instantiationService.stub(IWorkspaceTrustRequestService, new class extends mock<IWorkspaceTrustRequestService>() {
 		override async requestWorkspaceTrust(): Promise<boolean | undefined> {
 			trustController.workspaceTrustCalls++;
@@ -806,6 +806,14 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 	instantiationService.stub(IWorkspaceTrustManagementService, new class extends mock<IWorkspaceTrustManagementService>() {
 		override async getUriTrustInfo(uri: URI) {
 			return { uri, trusted: trustController.trustedUris.has(uri.toString()) };
+		}
+		override async setUrisTrust(uris: URI[], trusted: boolean) {
+			trustController.setUrisTrustCalls.push(uris.map(uri => uri.toString()));
+			if (trusted) {
+				for (const uri of uris) {
+					trustController.trustedUris.add(uri.toString());
+				}
+			}
 		}
 	});
 	instantiationService.stub(IChatEditingService, {
@@ -4350,6 +4358,278 @@ suite('AgentHostChatContribution', () => {
 				workspaceTrustCalls: 0,
 			});
 		});
+
+		test('does not prompt for trust for an existing workspace-less quick chat', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService, trustController } = createContribution(disposables);
+			// Decline any prompt: a correct skip proceeds without ever prompting; a
+			// regression that gated the scratch dir would prompt and abort.
+			trustController.result = false;
+
+			// An existing workspace-less quick chat: its persisted working directory
+			// is the internal scratch dir and it carries the workspace-less marker.
+			const scratchDir = URI.file('/home/user/.copilot/chats/quick-1');
+			const backendSession = AgentSession.uri('copilot', 'quick-1');
+			agentHostService.sessionStates.set(backendSession.toString(), {
+				...createSessionState({
+					resource: backendSession.toString(),
+					provider: 'copilot',
+					title: 'Quick Chat',
+					status: SessionStatus.Idle,
+					createdAt: new Date().toISOString(),
+					modifiedAt: new Date().toISOString(),
+					workingDirectories: [scratchDir.toString()],
+					_meta: { workspaceless: true },
+				}),
+				lifecycle: SessionLifecycle.Ready,
+				activeClients: [],
+			});
+			agentHostService.addSession({ session: backendSession, startTime: 1000, modifiedTime: 2000, summary: 'Quick Chat', workingDirectories: [scratchDir] });
+
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/quick-1' });
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, { message: 'Hi', sessionResource });
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+			await turnPromise;
+
+			// The scratch dir is an internal implementation detail, not a user
+			// workspace: no trust prompt of any kind, and the turn still runs.
+			assert.deepStrictEqual({
+				resourcesTrustCalls: trustController.resourcesTrustCalls,
+				workspaceTrustCalls: trustController.workspaceTrustCalls,
+				turnStarted: turnId !== undefined,
+			}, {
+				resourcesTrustCalls: 0,
+				workspaceTrustCalls: 0,
+				turnStarted: true,
+			});
+		}));
+
+		test('inherits worktree trust from the trusted base repo without prompting', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService, trustController } = createContribution(disposables);
+			const repoRoot = URI.file('/repo');
+			const worktree = URI.file('/repo.worktrees/feature');
+			// The user trusts the base repo but not the worktree itself.
+			trustController.trustedUris.add(repoRoot.toString());
+
+			const backendSession = AgentSession.uri('copilot', 'wt-trusted');
+			agentHostService.sessionStates.set(backendSession.toString(), {
+				...createSessionState({
+					resource: backendSession.toString(),
+					provider: 'copilot',
+					title: 'Worktree',
+					status: SessionStatus.Idle,
+					createdAt: new Date().toISOString(),
+					modifiedAt: new Date().toISOString(),
+					workingDirectories: [worktree.toString()],
+					project: { uri: repoRoot.toString(), displayName: 'repo' },
+				}),
+				lifecycle: SessionLifecycle.Ready,
+				activeClients: [],
+				config: { schema: { type: 'object', properties: {} }, values: { isolation: 'worktree' } },
+			});
+			agentHostService.addSession({ session: backendSession, startTime: 1000, modifiedTime: 2000, summary: 'Worktree', workingDirectories: [worktree] });
+
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/wt-trusted' });
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, { message: 'Hi', sessionResource });
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+			await turnPromise;
+
+			// Worktree trust is inherited (granted) from the trusted base repo, so a
+			// follow-up turn's gate never prompts.
+			assert.deepStrictEqual({
+				prompts: trustController.resourcesTrustCalls + trustController.workspaceTrustCalls,
+				grantedWorktree: trustController.setUrisTrustCalls,
+				turnStarted: turnId !== undefined,
+			}, {
+				prompts: 0,
+				grantedWorktree: [[worktree.toString()]],
+				turnStarted: true,
+			});
+		}));
+
+		test('prompts for a worktree when the base repo is untrusted', async () => {
+			const { sessionHandler, agentHostService, chatAgentService, trustController } = createContribution(disposables);
+			trustController.result = false;
+			const repoRoot = URI.file('/repo-untrusted');
+			const worktree = URI.file('/repo-untrusted.worktrees/feature');
+
+			const backendSession = AgentSession.uri('copilot', 'wt-untrusted');
+			agentHostService.sessionStates.set(backendSession.toString(), {
+				...createSessionState({
+					resource: backendSession.toString(),
+					provider: 'copilot',
+					title: 'Worktree',
+					status: SessionStatus.Idle,
+					createdAt: new Date().toISOString(),
+					modifiedAt: new Date().toISOString(),
+					workingDirectories: [worktree.toString()],
+					project: { uri: repoRoot.toString(), displayName: 'repo' },
+				}),
+				lifecycle: SessionLifecycle.Ready,
+				activeClients: [],
+				config: { schema: { type: 'object', properties: {} }, values: { isolation: 'worktree' } },
+			});
+			agentHostService.addSession({ session: backendSession, startTime: 1000, modifiedTime: 2000, summary: 'Worktree', workingDirectories: [worktree] });
+
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/wt-untrusted' });
+			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => chatSession.dispose()));
+			const registered = chatAgentService.registeredAgents.get('agent-host-copilot')!;
+			const result = await registered.impl.invoke(
+				makeRequest({ message: 'Hello', sessionResource }),
+				() => { }, [], CancellationToken.None,
+			);
+
+			// No inheritance from an untrusted base repo: the worktree is prompted for
+			// (resource trust) and the declined send aborts without granting.
+			assert.deepStrictEqual({
+				result,
+				grantedWorktree: trustController.setUrisTrustCalls,
+				resourcesTrustUris: trustController.resourcesTrustUris.map(uri => uri.toString()),
+			}, {
+				result: {},
+				grantedWorktree: [],
+				resourcesTrustUris: [worktree.toString()],
+			});
+		});
+
+		test('does not inherit trust for a working directory outside the repo .worktrees sibling', async () => {
+			const { sessionHandler, agentHostService, chatAgentService, trustController } = createContribution(disposables);
+			trustController.result = false;
+			const repoRoot = URI.file('/repo');
+			const outside = URI.file('/elsewhere/checkout');
+			// The base repo is trusted, but the working directory is not a VS Code
+			// worktree (not under `<repo>.worktrees`), so trust must not be inherited.
+			trustController.trustedUris.add(repoRoot.toString());
+
+			const backendSession = AgentSession.uri('copilot', 'wt-outside');
+			agentHostService.sessionStates.set(backendSession.toString(), {
+				...createSessionState({
+					resource: backendSession.toString(),
+					provider: 'copilot',
+					title: 'Worktree',
+					status: SessionStatus.Idle,
+					createdAt: new Date().toISOString(),
+					modifiedAt: new Date().toISOString(),
+					workingDirectories: [outside.toString()],
+					project: { uri: repoRoot.toString(), displayName: 'repo' },
+				}),
+				lifecycle: SessionLifecycle.Ready,
+				activeClients: [],
+				config: { schema: { type: 'object', properties: {} }, values: { isolation: 'worktree' } },
+			});
+			agentHostService.addSession({ session: backendSession, startTime: 1000, modifiedTime: 2000, summary: 'Worktree', workingDirectories: [outside] });
+
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/wt-outside' });
+			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => chatSession.dispose()));
+			const registered = chatAgentService.registeredAgents.get('agent-host-copilot')!;
+			const result = await registered.impl.invoke(
+				makeRequest({ message: 'Hello', sessionResource }),
+				() => { }, [], CancellationToken.None,
+			);
+
+			assert.deepStrictEqual({
+				result,
+				grantedWorktree: trustController.setUrisTrustCalls,
+				resourcesTrustUris: trustController.resourcesTrustUris.map(uri => uri.toString()),
+			}, {
+				result: {},
+				grantedWorktree: [],
+				resourcesTrustUris: [outside.toString()],
+			});
+		});
+
+		test('does not inherit trust for the shared .worktrees container itself', async () => {
+			const { sessionHandler, agentHostService, chatAgentService, trustController } = createContribution(disposables);
+			trustController.result = false;
+			const repoRoot = URI.file('/repo');
+			// A malformed session whose working directory is exactly `<repo>.worktrees`
+			// (the shared container). Trusting it would cascade to every worktree
+			// underneath via workspace trust's descendant resolution, so the strict
+			// guard must exclude it — the container is prompted for, not granted.
+			const container = URI.file('/repo.worktrees');
+			trustController.trustedUris.add(repoRoot.toString());
+
+			const backendSession = AgentSession.uri('copilot', 'wt-container');
+			agentHostService.sessionStates.set(backendSession.toString(), {
+				...createSessionState({
+					resource: backendSession.toString(),
+					provider: 'copilot',
+					title: 'Worktree',
+					status: SessionStatus.Idle,
+					createdAt: new Date().toISOString(),
+					modifiedAt: new Date().toISOString(),
+					workingDirectories: [container.toString()],
+					project: { uri: repoRoot.toString(), displayName: 'repo' },
+				}),
+				lifecycle: SessionLifecycle.Ready,
+				activeClients: [],
+				config: { schema: { type: 'object', properties: {} }, values: { isolation: 'worktree' } },
+			});
+			agentHostService.addSession({ session: backendSession, startTime: 1000, modifiedTime: 2000, summary: 'Worktree', workingDirectories: [container] });
+
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/wt-container' });
+			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => chatSession.dispose()));
+			const registered = chatAgentService.registeredAgents.get('agent-host-copilot')!;
+			const result = await registered.impl.invoke(
+				makeRequest({ message: 'Hello', sessionResource }),
+				() => { }, [], CancellationToken.None,
+			);
+
+			assert.deepStrictEqual({
+				result,
+				grantedWorktree: trustController.setUrisTrustCalls,
+				resourcesTrustUris: trustController.resourcesTrustUris.map(uri => uri.toString()),
+			}, {
+				result: {},
+				grantedWorktree: [],
+				resourcesTrustUris: [container.toString()],
+			});
+		});
+
+		test('does not prompt or grant during the worktree-pending window', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService, trustController } = createContribution(disposables);
+			const repoRoot = URI.file('/repo');
+			// Worktree isolation is configured but the worktree has not materialized
+			// yet: the working directory is still the trusted base repo.
+			trustController.trustedUris.add(repoRoot.toString());
+
+			const backendSession = AgentSession.uri('copilot', 'wt-pending');
+			agentHostService.sessionStates.set(backendSession.toString(), {
+				...createSessionState({
+					resource: backendSession.toString(),
+					provider: 'copilot',
+					title: 'Worktree',
+					status: SessionStatus.Idle,
+					createdAt: new Date().toISOString(),
+					modifiedAt: new Date().toISOString(),
+					workingDirectories: [repoRoot.toString()],
+					project: { uri: repoRoot.toString(), displayName: 'repo' },
+				}),
+				lifecycle: SessionLifecycle.Ready,
+				activeClients: [],
+				config: { schema: { type: 'object', properties: {} }, values: { isolation: 'worktree' } },
+			});
+			agentHostService.addSession({ session: backendSession, startTime: 1000, modifiedTime: 2000, summary: 'Worktree', workingDirectories: [repoRoot] });
+
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/wt-pending' });
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, { message: 'Hi', sessionResource });
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+			await turnPromise;
+
+			// The base repo is trusted so no prompt, and nothing is granted because
+			// there is no worktree under `<repo>.worktrees` yet.
+			assert.deepStrictEqual({
+				prompts: trustController.resourcesTrustCalls + trustController.workspaceTrustCalls,
+				grantedWorktree: trustController.setUrisTrustCalls,
+				turnStarted: turnId !== undefined,
+			}, {
+				prompts: 0,
+				grantedWorktree: [],
+				turnStarted: true,
+			});
+		}));
 	});
 
 	// ---- "Preparing session…" migration status --------------------------
