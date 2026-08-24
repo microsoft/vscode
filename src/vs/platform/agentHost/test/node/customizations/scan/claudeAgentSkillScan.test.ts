@@ -103,4 +103,21 @@ suite('claudeAgentSkillScan', () => {
 			[{ name: 'helper', uri: agent.toString() }],
 		);
 	});
+
+	test('discovers skills and agents defined in .agents and .github directories', async () => {
+		const agentsSkill = await seed('/workspace/.agents/skills/unslop/SKILL.md', '---\nname: unslop\ndescription: Unslop Skill\n---\nbody');
+		const githubSkill = await seed('/workspace/.github/skills/gh-skill/SKILL.md', '---\nname: gh-skill\ndescription: GitHub Skill\n---\nbody');
+		const agentsAgent = await seed('/workspace/.agents/agents/reviewer.md', '---\nname: reviewer\ndescription: Reviewer Agent\n---\nbody');
+
+		const discovered = await scanClaudeDiskCustomizations(workspace, userHome, fileService);
+		const actual = discovered
+			.map(d => ({ type: d.customization.type, uri: d.uri.toString(), name: d.name, description: d.description }))
+			.sort((a, b) => a.uri.localeCompare(b.uri));
+
+		assert.deepStrictEqual(actual, [
+			{ type: CustomizationType.Agent, uri: agentsAgent.toString(), name: 'reviewer', description: 'Reviewer Agent' },
+			{ type: CustomizationType.Skill, uri: agentsSkill.toString(), name: 'unslop', description: 'Unslop Skill' },
+			{ type: CustomizationType.Skill, uri: githubSkill.toString(), name: 'gh-skill', description: 'GitHub Skill' },
+		].sort((a, b) => a.uri.localeCompare(b.uri)));
+	});
 });

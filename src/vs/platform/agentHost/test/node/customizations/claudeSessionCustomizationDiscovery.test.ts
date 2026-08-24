@@ -183,6 +183,28 @@ suite('claudeSessionCustomizationDiscovery', () => {
 				[{ uri: plugin.root.toString(), name: 'tg@m', children: ['helper', 'send'] }],
 			);
 		});
+
+		test('maps .agents and .github skills and agents to their respective directory container URIs', () => {
+			const agentsSkillUri = URI.from({ scheme: Schemas.inMemory, path: '/workspace/.agents/skills/unslop/SKILL.md' });
+			const githubSkillUri = URI.from({ scheme: Schemas.inMemory, path: '/workspace/.github/skills/gh-skill/SKILL.md' });
+			const claudeSkillUri = URI.from({ scheme: Schemas.inMemory, path: '/workspace/.claude/skills/c-skill/SKILL.md' });
+
+			const result = mapDiscoveredCustomizations([
+				toParsedSkill({ uri: agentsSkillUri, name: 'unslop' }),
+				toParsedSkill({ uri: githubSkillUri, name: 'gh-skill' }),
+				toParsedSkill({ uri: claudeSkillUri, name: 'c-skill' }),
+			], [], [], [], workspace, userHome);
+
+			const dirs = result.filter(c => c.type === CustomizationType.Directory) as DirectoryCustomization[];
+			assert.deepStrictEqual(
+				dirs.map(d => ({ uri: d.uri, contents: d.contents, children: d.children?.map(c => c.name) })),
+				[
+					{ uri: URI.joinPath(workspace, '.agents', 'skills').toString(), contents: CustomizationType.Skill, children: ['unslop'] },
+					{ uri: URI.joinPath(workspace, '.github', 'skills').toString(), contents: CustomizationType.Skill, children: ['gh-skill'] },
+					{ uri: URI.joinPath(workspace, '.claude', 'skills').toString(), contents: CustomizationType.Skill, children: ['c-skill'] },
+				],
+			);
+		});
 	});
 
 	suite('buildDiscoveredCustomizations', () => {
