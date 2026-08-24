@@ -18,7 +18,7 @@ import { createAgentHostRuntime } from '../../node/agentHostBootstrap.js';
 import { NullByokLmBridgeRegistry } from '../../node/byokLmBridgeRegistry.js';
 import { AgentHostLaunchKind } from '../../common/agentHostTelemetry.js';
 import { IAgentSdkDownloader } from '../../node/agentSdkDownloader.js';
-import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
+import { StrictServiceCollection } from '../../../instantiation/common/strictServiceCollection.js';
 import { createAgentServiceFoundation } from '../../node/agentServiceFoundation.js';
 import { AgentHostProxyConfigKey } from '../../common/agentHostSchema.js';
 import { IAgentHostCheckpointService } from '../../common/agentHostCheckpointService.js';
@@ -66,7 +66,7 @@ suite('agentHostBootstrap', () => {
 		const productService = { _serviceBrand: undefined, ...product };
 
 		const foundation = createAgentServiceFoundation({
-			services: new ServiceCollection(),
+			services: new StrictServiceCollection(),
 			owned: testDisposables,
 			logService: new NullLogService(),
 			productService,
@@ -86,7 +86,7 @@ suite('agentHostBootstrap', () => {
 		const productService = { _serviceBrand: undefined, ...product };
 
 		const foundation = createAgentServiceFoundation({
-			services: new ServiceCollection(),
+			services: new StrictServiceCollection(),
 			owned: testDisposables,
 			logService: new NullLogService(),
 			productService,
