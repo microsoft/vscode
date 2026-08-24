@@ -573,11 +573,11 @@ function getMcpStatusKind(entry: IMcpServerItemEntry | IMcpSessionServerItemEntr
 	if (entry.type === 'session-server-item') {
 		return getActiveSessionServerPresentation(entry.server).status;
 	}
-	if (entry.activeSessionServer !== undefined) {
-		return getActiveSessionServerPresentation(entry.activeSessionServer).status;
-	}
 	if (entry.localServer && isContributionDisabled(entry.localServer.enablement.get())) {
 		return 'disabled';
+	}
+	if (entry.activeSessionServer !== undefined) {
+		return getActiveSessionServerPresentation(entry.activeSessionServer).status;
 	}
 	if (entry.type === 'server-item' && !isSessionsWindow) {
 		return entry.localServer?.connectionState.get().state;
@@ -826,12 +826,13 @@ export function getBuiltinMcpServerEnablementActions(mcpService: IMcpService, se
 	}
 	const localActions = getLocalMcpServerEnablementActions(mcpService, serverId, isEmptyWorkbench, { includeWorkspace: false, activeSessionServer });
 	const isLocallyDisabled = isContributionDisabled(mcpService.enablementModel.readEnabled(serverId));
-	if (isLocallyDisabled) {
-		return localActions;
-	}
+	const hostActions = getAgentHostMcpServerEnablementActions(agentHostCustomizations, agentPluginService, sessionResource, activeSessionServer, ['workspace', 'session']);
+	const visibleHostActions = isLocallyDisabled
+		? hostActions.filter(action => !action.id.startsWith('mcpServer.agentHost.disable.'))
+		: hostActions;
 	return [
 		...localActions,
-		...getAgentHostMcpServerEnablementActions(agentHostCustomizations, agentPluginService, sessionResource, activeSessionServer, ['workspace', 'session']),
+		...visibleHostActions,
 	];
 }
 
@@ -890,6 +891,9 @@ function isLocalMcpServerWorkspaceEnablementAction(action: IAction): boolean {
 export function getServerItemContextMenuActions(menuActionGroups: readonly (readonly IAction[])[], activeSessionServer: AgentHostMcpServer | undefined, activeSessionLifecycleAction: IAction | undefined, agentHostEnablementActions: readonly IAction[], isLocallyDisabled: boolean = false): IAction[] {
 	const actions: IAction[] = [];
 	const hasActiveSession = activeSessionServer !== undefined;
+	const visibleAgentHostEnablementActions = isLocallyDisabled
+		? agentHostEnablementActions.filter(action => !action.id.startsWith('mcpServer.agentHost.disable.'))
+		: agentHostEnablementActions;
 	let agentHostEnablementAdded = false;
 	if (activeSessionLifecycleAction) {
 		actions.push(activeSessionLifecycleAction, new Separator());
@@ -900,17 +904,15 @@ export function getServerItemContextMenuActions(menuActionGroups: readonly (read
 			: menuActions;
 		actions.push(...visibleMenuActions);
 		if (hasActiveSession && menuActions.some(isLocalMcpServerEnablementAction)) {
-			if (!isLocallyDisabled) {
-				actions.push(...agentHostEnablementActions);
-			}
+			actions.push(...visibleAgentHostEnablementActions);
 			agentHostEnablementAdded = true;
 		}
 		if (visibleMenuActions.length > 0) {
 			actions.push(new Separator());
 		}
 	}
-	if (hasActiveSession && !agentHostEnablementAdded && !isLocallyDisabled) {
-		actions.push(...agentHostEnablementActions);
+	if (hasActiveSession && !agentHostEnablementAdded) {
+		actions.push(...visibleAgentHostEnablementActions);
 	}
 	if (actions[actions.length - 1] instanceof Separator) {
 		actions.pop();
