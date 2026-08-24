@@ -22,12 +22,13 @@ import { IInstantiationService } from '../../instantiation/common/instantiation.
 import { ILogService } from '../../log/common/log.js';
 import { INotificationService } from '../../notification/common/notification.js';
 import { AgentHostIpcChannelTransport } from '../browser/agentHostIpcChannelTransport.js';
-import { AgentHostClientState, RemoteAgentHostProtocolClient } from '../browser/remoteAgentHostProtocolClient.js';
+import { AgentHostClientState, AgentHostProtocolClient } from '../browser/agentHostProtocolClient.js';
 import { AhpJsonlLogger } from '../common/ahpJsonlLogger.js';
 import { AGENT_HOST_CLIENT_BYOK_LM_CHANNEL, AgentHostClientByokLmChannel, NullAgentHostClientByokLmChannel } from '../common/agentHostClientByokLmChannel.js';
 import { getAgentHostClientType } from '../common/agentHostClientInfo.js';
 import { AGENT_HOST_CLIENT_PROXY_CHANNEL, AgentHostClientProxyChannel } from '../common/agentHostClientProxyChannel.js';
 import { LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../common/agentHostResourceService.js';
+import { identityAgentHostResourceUriMapper } from '../common/agentHostUri.js';
 import { AgentHostStartupTelemetry } from '../common/agentHostStartupTelemetry.js';
 import { AgentHostClientConnectionKind } from '../common/agentHostTelemetry.js';
 import {
@@ -143,11 +144,12 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 	declare readonly _serviceBrand: undefined;
 
 	readonly clientId = generateUuid();
+	get resourceUris() { return this._protocolClient?.resourceUris ?? identityAgentHostResourceUriMapper; }
 
 	private readonly _clientStore = this._register(new MutableDisposable<DisposableStore>());
 	private readonly _managementConnection = this._register(new LocalAgentHostManagementConnection());
 	private readonly _ahpLogger: AhpJsonlLogger | undefined;
-	private _protocolClient: RemoteAgentHostProtocolClient | undefined;
+	private _protocolClient: AgentHostProtocolClient | undefined;
 	private _connectStarted = false;
 	private _didAcquireInitialMessagePort = false;
 	private _didConnectInitially = false;
@@ -211,7 +213,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 				(callback, timeoutMs) => disposableTimeout(callback, timeoutMs),
 			));
 			this._protocolClient = this._register(this._instantiationService.createInstance(
-				RemoteAgentHostProtocolClient,
+				AgentHostProtocolClient,
 				LOCAL_AGENT_HOST_RESOURCE_IDENTITY,
 				() => this._createTransport(),
 				undefined,
@@ -322,7 +324,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		}
 	}
 
-	private _requireClient(): RemoteAgentHostProtocolClient {
+	private _requireClient(): AgentHostProtocolClient {
 		if (!this._protocolClient) {
 			throw new Error('Local agent host is not connected.');
 		}

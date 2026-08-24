@@ -19,22 +19,16 @@
 	}
 }
 
+/* Card chrome comes from widget/media/chatCard.css. */
 .chat-tool-confirmation-carousel {
 	color: var(--vscode-foreground);
-	display: flex;
-	flex-direction: column;
 	max-height: min(300px, 45vh);
-	border: 1px solid var(--vscode-input-border, transparent);
-	border-radius: var(--vscode-cornerRadius-large);
-	background-color: var(--vscode-panel-background);
-	overflow: hidden;
 
 	&:focus {
 		outline: none !important;
 	}
 
-	&:focus-visible,
-	&:focus-within {
+	&:focus-visible {
 		border-color: var(--vscode-focusBorder);
 	}
 
@@ -69,7 +63,7 @@
 	}
 
 	.chat-tool-carousel-collapsed-title {
-		flex: 1 1 auto;
+		flex: 0 1 auto;
 		min-width: 0;
 		font-weight: var(--vscode-agents-fontWeight-semiBold);
 		font-size: var(--vscode-chat-font-size-body-s);
@@ -79,6 +73,8 @@
 	}
 
 	.chat-tool-carousel-agent-label {
+		flex: 0 1 auto;
+		min-width: 0;
 		background: none;
 		border: none;
 		cursor: pointer;
@@ -99,30 +95,7 @@
 	}
 
 	.chat-tool-carousel-overlay-actions {
-		display: flex;
-		align-items: center;
-		gap: 4px;
-		flex-shrink: 0;
 		margin-left: auto;
-	}
-
-	.monaco-button.chat-tool-carousel-dismiss-button {
-		min-width: 22px;
-		width: 22px;
-		height: 22px;
-		padding: 0;
-		border: none !important;
-		box-shadow: none !important;
-		background: transparent !important;
-		color: var(--vscode-icon-foreground) !important;
-		cursor: pointer;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-	}
-
-	.monaco-button.chat-tool-carousel-dismiss-button:hover {
-		background: var(--vscode-toolbar-hoverBackground) !important;
 	}
 
 	button:focus,
@@ -134,44 +107,6 @@
 	.chat-tool-carousel-nav-arrows {
 		display: flex;
 		align-items: center;
-	}
-
-	.monaco-button.chat-tool-carousel-nav-arrow {
-		min-width: 22px;
-		width: 22px;
-		height: 22px;
-		padding: 0;
-		border: none !important;
-		box-shadow: none !important;
-		background: transparent !important;
-		color: var(--vscode-foreground) !important;
-	}
-
-	.monaco-button.chat-tool-carousel-nav-arrow:hover:not(.disabled) {
-		background: var(--vscode-toolbar-hoverBackground) !important;
-	}
-
-	.monaco-button.chat-tool-carousel-nav-arrow.disabled {
-		opacity: 0.4;
-	}
-
-	.monaco-button.chat-tool-carousel-header-button {
-		min-width: 22px;
-		width: 22px;
-		height: 22px;
-		padding: 0;
-		border: none !important;
-		box-shadow: none !important;
-		background: transparent !important;
-		color: var(--vscode-icon-foreground) !important;
-		cursor: pointer;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-	}
-
-	.monaco-button.chat-tool-carousel-header-button:hover:not(.disabled) {
-		background: var(--vscode-toolbar-hoverBackground) !important;
 	}
 
 	&.chat-tool-carousel-content-expanded {
@@ -311,8 +246,6 @@
 
 .agent-sessions-workbench .chat-tool-confirmation-carousel,
 .editor-instance .chat-tool-confirmation-carousel {
-	background-color: var(--vscode-editor-background);
-
 	.interactive-result-editor {
 		background-color: var(--vscode-interactive-result-editor-background-color, var(--vscode-editor-background));
 	}

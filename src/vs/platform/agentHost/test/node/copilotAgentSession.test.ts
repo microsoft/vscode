@@ -31,13 +31,15 @@ import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind } from '../../common/agentHostTelemetry.js';
 import type { ChatInputRequestWithPlanReview } from '../../common/agentHostPlanReview.js';
 import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedbackAttachments.js';
+import { ChatInputRequestPurpose, readChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
 import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { ISessionDataService, type ISessionDatabase } from '../../common/sessionDataService.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { ActionType, type ChatDeltaAction, type ChatErrorAction, type ChatInputRequestedAction, type ChatResponsePartAction, type ChatToolCallCompleteAction, type ChatToolCallDeltaAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatTurnCompleteAction, type ChatUsageAction, type SessionAction, type StateAction } from '../../common/state/sessionActions.js';
-import { MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputRequestPurpose, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, createSessionState, getInlineToolInput, mergeSessionWithDefaultChat, readSessionPromptCacheState, readUsageInfoMeta, SessionStatus, withSessionPromptCacheState, type ToolDefinition, type ToolResultContent, type ToolResultFileEditContent, type ToolResultTerminalContent, type UsageInfoMeta } from '../../common/state/sessionState.js';
+import { MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, createSessionState, getInlineToolInput, mergeSessionWithDefaultChat, readSessionPromptCacheState, readUsageInfoMeta, SessionStatus, withSessionPromptCacheState, type ToolResultContent, type ToolResultFileEditContent, type ToolResultTerminalContent, type UsageInfoMeta } from '../../common/state/sessionState.js';
 import { TerminalClaimKind } from '../../common/state/protocol/state.js';
+import { toHostSnapshotAttachmentMeta } from '../../common/meta/agentSnapshotAttachmentMeta.js';
 import { STREAMING_TOOL_DISPLAY_INTERVAL_MS } from '../../common/streamingToolCallDisplay.js';
 import { CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, type Customization, type McpServerCustomization } from '../../common/state/protocol/channels-session/state.js';
 import { CopilotAgentSession } from '../../node/copilot/copilotAgentSession.js';
@@ -57,12 +59,14 @@ import { IAgentConfigurationService } from '../../node/agentConfigurationService
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AgentHostAutoReplyEnabledConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey } from '../../common/agentHostSchema.js';
 import { CopilotCliConfigKey } from '../../common/copilotCliConfig.js';
+import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../common/toolSearchConstants.js';
 import { AgentHostSandboxConfigKey, AgentHostSandboxKey } from '../../common/sandboxConfigSchema.js';
 import { AgentSandboxEnabledValue } from '../../../sandbox/common/settings.js';
 import { createNoopGitService, createSessionDataService, createZeroDiffComputeService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { OtelData } from '../../common/otlp/otlpLogEmitter.js';
-import { IAgentServerToolHost } from '../../common/agentServerTools.js';
+import { type IAgentServerToolDefinition, IAgentServerToolHost } from '../../common/agentServerTools.js';
+import { SessionServerToolName } from '../../common/serverToolNames.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest, type IRestrictedTelemetryContext } from '../../node/shared/copilotApiService.js';
 import { IAgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
@@ -79,6 +83,7 @@ import { createTestGitHubEndpointService } from './testGitHubEndpointService.js'
 class MockCopilotSession {
 	readonly sessionId = 'test-session-1';
 	readonly sendRequests: unknown[] = [];
+	sendGate: Promise<void> | undefined;
 	readonly modeSetCalls: Array<{ mode: 'interactive' | 'plan' | 'autopilot' }> = [];
 	readonly permissionModeSetCalls: PermissionAllowAllMode[] = [];
 	permissionModeSetSuccess = true;
@@ -149,6 +154,7 @@ class MockCopilotSession {
 	disconnectCalls = 0;
 	disconnectGate: Promise<void> | undefined;
 	disconnectHook: (() => void) | undefined;
+	disconnectError: Error | undefined;
 	/**
 	 * Per-call gates, consumed in call order, for holding individual reads in flight.
 	 * Lets a test make an earlier-issued read resolve after a later one.
@@ -238,6 +244,7 @@ class MockCopilotSession {
 	async send(request: unknown) {
 		this.operationLog.push('send');
 		this.sendRequests.push(request);
+		await this.sendGate;
 		return `message-${this.sendRequests.length}`;
 	}
 	async abort() {
@@ -250,6 +257,9 @@ class MockCopilotSession {
 		this.disconnectCalls++;
 		this.disconnectHook?.();
 		await this.disconnectGate;
+		if (this.disconnectError) {
+			throw this.disconnectError;
+		}
 	}
 
 	readonly rpc = {
@@ -670,6 +680,8 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	chatChannelUri?: URI;
 	/** Optional server-tool host wired into the session. */
 	serverToolHost?: IAgentServerToolHost;
+	/** Whether the launch plan represents an ephemeral session. */
+	isEphemeral?: boolean;
 	/** Platform used to compute the SDK sandbox policy. Defaults to `'linux'` so sandbox tests are deterministic. */
 	platform?: NodeJS.Platform;
 	githubToken?: string;
@@ -742,6 +754,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		snapshot: options?.clientSnapshot ?? { tools: [], plugins: [], mcpServers: {} },
 		shellManager: undefined,
 		githubToken: options?.githubToken,
+		isEphemeral: options?.isEphemeral,
 	};
 	const model = options?.modelId ? { id: options.modelId } : undefined;
 	const launchPlan: CopilotSessionLaunchPlan = options?.resume
@@ -978,6 +991,17 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 
 // ---- Tests ------------------------------------------------------------------
 
+/**
+ * The exact read-only reminder the Copilot session builds for host-created
+ * snapshot attachments (mirrors `_snapshotReadonlyReminder`). Used to assert the
+ * main-turn `additionalContext` and the steering `<reminder>` note.
+ */
+function expectedSnapshotReadonlyNote(paths: string[]): string {
+	return 'The following attached files are read-only snapshots of content the user shared '
+		+ '(pasted text, an unsaved editor, or a diff view) and must not be edited:\n'
+		+ paths.map(path => `- ${path}`).join('\n');
+}
+
 suite('CopilotAgentSession', () => {
 
 	const disposables = new DisposableStore();
@@ -1063,6 +1087,47 @@ suite('CopilotAgentSession', () => {
 
 			assert.deepStrictEqual(events, ['session.compaction_start']);
 		});
+
+		test('reports a completed disconnect separately from a pending disconnect', async () => {
+			const disconnectGate = new DeferredPromise<void>();
+			const mockSession = new MockCopilotSession();
+			mockSession.disconnectGate = disconnectGate.p;
+			const wrapper = disposables.add(new CopilotSessionWrapper(mockSession as unknown as CopilotSession));
+
+			const disconnect = wrapper.disconnect();
+			const pendingState = wrapper.lifecycleState;
+			disconnectGate.complete();
+			await disconnect;
+
+			assert.deepStrictEqual({
+				pendingState,
+				completedState: wrapper.lifecycleState,
+			}, {
+				pendingState: 'disconnecting',
+				completedState: 'disconnected',
+			});
+		});
+
+		test('returns to active and permits retry after disconnect rejects', async () => {
+			const mockSession = new MockCopilotSession();
+			mockSession.disconnectError = new Error('disconnect failed');
+			const wrapper = disposables.add(new CopilotSessionWrapper(mockSession as unknown as CopilotSession));
+
+			await assert.rejects(wrapper.disconnect(), /disconnect failed/);
+			const rejectedState = wrapper.lifecycleState;
+			mockSession.disconnectError = undefined;
+			await wrapper.disconnect();
+
+			assert.deepStrictEqual({
+				rejectedState,
+				completedState: wrapper.lifecycleState,
+				disconnectCalls: mockSession.disconnectCalls,
+			}, {
+				rejectedState: 'active',
+				completedState: 'disconnected',
+				disconnectCalls: 2,
+			});
+		});
 	});
 
 	test('destroySession completes when shutdown arrives before the response', async () => {
@@ -1074,6 +1139,7 @@ suite('CopilotAgentSession', () => {
 				mockSession.disconnectHook = () => { void disconnectStarted.complete(); };
 			},
 		});
+
 		const destroy = session.destroySession();
 
 		await disconnectStarted.p;
@@ -1089,6 +1155,60 @@ suite('CopilotAgentSession', () => {
 		} finally {
 			disconnectGate.complete();
 		}
+	});
+
+	test('reports bounded provider lifecycle state for the active turn', async () => {
+		const sendGate = new DeferredPromise<void>();
+		const { session, mockSession } = await createAgentSession(disposables, {
+			configureMockSession: mockSession => {
+				mockSession.sendGate = sendGate.p;
+			},
+		});
+		session.resetTurnState('turn-1');
+
+		assert.deepStrictEqual(session.getTurnDiagnosticSnapshot('turn-1'), {
+			state: 'available',
+			providerCallState: 'notStarted',
+			providerTurnStarted: false,
+			providerSessionState: 'active',
+		});
+
+		const send = session.send('hello', undefined, 'turn-1');
+		while (mockSession.sendRequests.length === 0) {
+			await timeout(0);
+		}
+		assert.deepStrictEqual(session.getTurnDiagnosticSnapshot('turn-1'), {
+			state: 'available',
+			providerCallState: 'pending',
+			providerTurnStarted: false,
+			providerSessionState: 'active',
+		});
+
+		mockSession.fire('assistant.turn_start', { turnId: 'sdk-turn-1' });
+		assert.deepStrictEqual(session.getTurnDiagnosticSnapshot('turn-1'), {
+			state: 'available',
+			providerCallState: 'pending',
+			providerTurnStarted: true,
+			providerSessionState: 'active',
+		});
+
+		sendGate.complete();
+		await send;
+		mockSession.fire('session.shutdown', {
+			codeChanges: { filesModified: [], linesAdded: 0, linesRemoved: 0 },
+			modelMetrics: {},
+			sessionStartTime: 0,
+			shutdownType: 'routine',
+			totalApiDurationMs: 0,
+		});
+
+		assert.deepStrictEqual(session.getTurnDiagnosticSnapshot('turn-1'), {
+			state: 'available',
+			providerCallState: 'resolved',
+			providerTurnStarted: true,
+			providerSessionState: 'shutdown',
+		});
+		assert.strictEqual(session.getTurnDiagnosticSnapshot('other-turn'), undefined);
 	});
 
 	test('logs SDK events without wrapped handlers', async () => {
@@ -1472,6 +1592,120 @@ suite('CopilotAgentSession', () => {
 		}]);
 	});
 
+	test('sends a host-created text snapshot as a read-only file reference with a read-only additionalContext note (#331154)', async () => {
+		const snapshotUri = URI.file('/data/attachments/id/Pasted text #1.txt');
+		const { session, mockSession } = await createAgentSession(disposables);
+
+		await session.send('trim this', [{
+			type: MessageAttachmentKind.Resource,
+			label: 'Pasted text #1',
+			displayKind: 'document',
+			uri: snapshotUri.toString(),
+			_meta: toHostSnapshotAttachmentMeta('text/plain'),
+		}]);
+
+		// The snapshot is sent as an ordinary file (path preserved, plain display name) so the model can
+		// read it on demand; the read-only signal rides the user-prompt-submitted additionalContext
+		// (the runtime renders it as a <system_reminder>), and the message text is left unchanged.
+		assert.deepStrictEqual({
+			sendRequests: mockSession.sendRequests,
+			additionalContext: session.handleUserPromptSubmitted(),
+		}, {
+			sendRequests: [{
+				prompt: 'trim this',
+				attachments: [{ type: 'file', path: snapshotUri.fsPath, displayName: 'Pasted text #1' }],
+			}],
+			additionalContext: { additionalContext: expectedSnapshotReadonlyNote([snapshotUri.fsPath]) },
+		});
+	});
+
+	test('sends a snapshotted selection through the selection path so the model keeps the selected text, with a read-only note (#331154)', async () => {
+		const snapshotUri = URI.file('/data/attachments/id/snap.txt');
+		const { session, mockSession } = await createAgentSession(disposables, {
+			fileContents: {
+				[snapshotUri.toString()]: 'line0\nhello world\nline2',
+			},
+		});
+
+		await session.send('what is here?', [{
+			type: MessageAttachmentKind.Resource,
+			label: 'snap.txt',
+			displayKind: 'selection',
+			uri: snapshotUri.toString(),
+			selection: { range: { start: { line: 1, character: 0 }, end: { line: 1, character: 5 } } },
+			_meta: toHostSnapshotAttachmentMeta(undefined),
+		}]);
+
+		// A snapshotted selection stays on the selection path so the model still receives the selected
+		// text and range; the read-only signal rides the additionalContext note, not the attachment shape.
+		assert.deepStrictEqual({
+			sendRequests: mockSession.sendRequests,
+			additionalContext: session.handleUserPromptSubmitted(),
+		}, {
+			sendRequests: [{
+				prompt: 'what is here?',
+				attachments: [{
+					type: 'selection',
+					filePath: snapshotUri.fsPath,
+					displayName: 'snap.txt',
+					text: 'hello',
+					selection: { start: { line: 1, character: 0 }, end: { line: 1, character: 5 } },
+				}],
+			}],
+			additionalContext: { additionalContext: expectedSnapshotReadonlyNote([snapshotUri.fsPath]) },
+		});
+	});
+
+	test('keeps a non-text binary snapshot as a read-only file reference (#331154)', async () => {
+		const snapshotUri = URI.file('/data/attachments/id/document.pdf');
+		const { session, mockSession } = await createAgentSession(disposables);
+
+		await session.send('summarize', [{
+			type: MessageAttachmentKind.Resource,
+			label: 'document.pdf',
+			displayKind: 'document',
+			uri: snapshotUri.toString(),
+			_meta: toHostSnapshotAttachmentMeta('application/pdf'),
+		}]);
+
+		assert.deepStrictEqual({
+			sendRequests: mockSession.sendRequests,
+			additionalContext: session.handleUserPromptSubmitted(),
+		}, {
+			sendRequests: [{
+				prompt: 'summarize',
+				attachments: [{ type: 'file', path: snapshotUri.fsPath, displayName: 'document.pdf' }],
+			}],
+			additionalContext: { additionalContext: expectedSnapshotReadonlyNote([snapshotUri.fsPath]) },
+		});
+	});
+
+	test('sends a snapshotted image as a read-only file reference (#331154)', async () => {
+		const snapshotUri = URI.file('/data/attachments/id/Pasted Image.png');
+		const { session, mockSession } = await createAgentSession(disposables);
+
+		await session.send('what is in this image?', [{
+			type: MessageAttachmentKind.Resource,
+			label: 'Pasted Image',
+			displayKind: 'image',
+			uri: snapshotUri.toString(),
+			_meta: toHostSnapshotAttachmentMeta('image/png'),
+		}]);
+
+		// The runtime materializes the image from its on-disk path, so it is sent as a file reference
+		// rather than an inline blob; the read-only signal rides the additionalContext note.
+		assert.deepStrictEqual({
+			sendRequests: mockSession.sendRequests,
+			additionalContext: session.handleUserPromptSubmitted(),
+		}, {
+			sendRequests: [{
+				prompt: 'what is in this image?',
+				attachments: [{ type: 'file', path: snapshotUri.fsPath, displayName: 'Pasted Image' }],
+			}],
+			additionalContext: { additionalContext: expectedSnapshotReadonlyNote([snapshotUri.fsPath]) },
+		});
+	});
+
 	test('sends paste simple attachments as text blobs', async () => {
 		const { session, mockSession } = await createAgentSession(disposables);
 
@@ -1792,6 +2026,8 @@ suite('CopilotAgentSession', () => {
 				_meta: {
 					copilotUsage: { totalNanoAiu: 250_000_000, sessionTotalNanoAiu: 250_000_000 },
 					turnTokenTotals: [{ model: 'claude-sonnet-4.6', inputTokens: 9000, cachedTokens: 0, outputTokens: 400 }],
+					directTurnTokenTotals: [{ model: 'claude-sonnet-4.6', inputTokens: 9000, cachedTokens: 0, outputTokens: 400 }],
+					directCopilotUsage: { totalNanoAiu: 250_000_000 },
 				},
 			},
 		});
@@ -1826,6 +2062,8 @@ suite('CopilotAgentSession', () => {
 				copilotUsage: { totalNanoAiu: 750_000_000, sessionTotalNanoAiu: 750_000_000 },
 				// The compaction call reported no tokens of its own, so only the model call shows.
 				turnTokenTotals: [{ model: 'claude-sonnet-4.6', inputTokens: 10, cachedTokens: 0, outputTokens: 20 }],
+				directTurnTokenTotals: [{ model: 'claude-sonnet-4.6', inputTokens: 10, cachedTokens: 0, outputTokens: 20 }],
+				directCopilotUsage: { totalNanoAiu: 750_000_000 },
 			},
 		});
 	});
@@ -1877,6 +2115,8 @@ suite('CopilotAgentSession', () => {
 				// The turn bills only its own call; the compaction is visible in the session total.
 				copilotUsage: { totalNanoAiu: 500_000_000, sessionTotalNanoAiu: 133_968_375_000 },
 				turnTokenTotals: [{ model: 'claude-opus-4.6', inputTokens: 10, cachedTokens: 0, outputTokens: 20 }],
+				directTurnTokenTotals: [{ model: 'claude-opus-4.6', inputTokens: 10, cachedTokens: 0, outputTokens: 20 }],
+				directCopilotUsage: { totalNanoAiu: 500_000_000 },
 			},
 		});
 	});
@@ -1904,6 +2144,8 @@ suite('CopilotAgentSession', () => {
 		assert.deepStrictEqual(usageActions.at(-1)?.usage._meta, {
 			copilotUsage: { totalNanoAiu: 1_000_000_000, sessionTotalNanoAiu: 3_000_000_000 },
 			turnTokenTotals: [{ model: 'claude-opus-4.6', inputTokens: 1, cachedTokens: 0, outputTokens: 1 }],
+			directTurnTokenTotals: [{ model: 'claude-opus-4.6', inputTokens: 1, cachedTokens: 0, outputTokens: 1 }],
+			directCopilotUsage: { totalNanoAiu: 1_000_000_000 },
 		});
 	});
 
@@ -2303,12 +2545,19 @@ suite('CopilotAgentSession', () => {
 				sendRequests: mockSession.sendRequests,
 				turnCompleteBeforeIdle: getActions(signals).filter(a => a.type === ActionType.ChatTurnComplete).length,
 				hasActiveTurn: session.hasActiveTurn,
+				diagnostics: session.getTurnDiagnosticSnapshot('turn-fleet'),
 			}, {
 				fleetStartCalls: [{ prompt: 'the full analysis' }],
 				commandInvokeCalls: [],
 				sendRequests: [],
 				turnCompleteBeforeIdle: 0,
 				hasActiveTurn: true,
+				diagnostics: {
+					state: 'available',
+					providerCallState: 'resolved',
+					providerTurnStarted: false,
+					providerSessionState: 'active',
+				},
 			});
 
 			mockSession.fire('assistant.message_delta', { deltaContent: 'Deploying fleet' } as SessionEventPayload<'assistant.message_delta'>['data']);
@@ -2709,6 +2958,8 @@ suite('CopilotAgentSession', () => {
 				cost: 2,
 				copilotUsage: { totalNanoAiu: 1_250_000_000, sessionTotalNanoAiu: 1_250_000_000 },
 				turnTokenTotals: [{ model: 'claude-sonnet-4.6', inputTokens: 40, cachedTokens: 5, outputTokens: 60 }],
+				directTurnTokenTotals: [{ model: 'claude-sonnet-4.6', inputTokens: 40, cachedTokens: 5, outputTokens: 60 }],
+				directCopilotUsage: { totalNanoAiu: 1_250_000_000 },
 			},
 		});
 	});
@@ -2933,6 +3184,7 @@ suite('CopilotAgentSession', () => {
 						cost: 2,
 						autoModeResolved,
 						turnTokenTotals: [{ model: 'claude-opus-4.8', inputTokens: 10, cachedTokens: 0, outputTokens: 20 }],
+						directTurnTokenTotals: [{ model: 'claude-opus-4.8', inputTokens: 10, cachedTokens: 0, outputTokens: 20 }],
 					},
 				},
 			],
@@ -2972,21 +3224,40 @@ suite('CopilotAgentSession', () => {
 
 		const usageSignals = signals.flatMap(signal =>
 			signal.kind === 'action' && signal.action.type === ActionType.ChatUsage
-				? [{ parentToolCallId: signal.parentToolCallId, turnTokenTotals: (signal.action.usage._meta as UsageInfoMeta | undefined)?.turnTokenTotals }]
+				? [{
+					parentToolCallId: signal.parentToolCallId,
+					turnTokenTotals: (signal.action.usage._meta as UsageInfoMeta | undefined)?.turnTokenTotals,
+					directTurnTokenTotals: (signal.action.usage._meta as UsageInfoMeta | undefined)?.directTurnTokenTotals,
+				}]
 				: []);
 
 		assert.deepStrictEqual(usageSignals, [
-			{ parentToolCallId: undefined, turnTokenTotals: [{ model: 'claude-opus-4.8', inputTokens: 10, cachedTokens: 4, outputTokens: 20 }] },
-			{ parentToolCallId: undefined, turnTokenTotals: [{ model: 'claude-opus-4.8', inputTokens: 110, cachedTokens: 4, outputTokens: 220 }] },
+			{
+				parentToolCallId: undefined,
+				turnTokenTotals: [{ model: 'claude-opus-4.8', inputTokens: 10, cachedTokens: 4, outputTokens: 20 }],
+				directTurnTokenTotals: [{ model: 'claude-opus-4.8', inputTokens: 10, cachedTokens: 4, outputTokens: 20 }],
+			},
+			{
+				parentToolCallId: undefined,
+				turnTokenTotals: [{ model: 'claude-opus-4.8', inputTokens: 110, cachedTokens: 4, outputTokens: 220 }],
+				directTurnTokenTotals: [{ model: 'claude-opus-4.8', inputTokens: 110, cachedTokens: 4, outputTokens: 220 }],
+			},
 			{
 				parentToolCallId: undefined,
 				turnTokenTotals: [
 					{ model: 'claude-opus-4.8', inputTokens: 110, cachedTokens: 4, outputTokens: 220 },
 					{ model: 'gpt-5.5', inputTokens: 5, cachedTokens: 0, outputTokens: 7 },
 				],
+				directTurnTokenTotals: [
+					{ model: 'claude-opus-4.8', inputTokens: 110, cachedTokens: 4, outputTokens: 220 },
+				],
 			},
 			// The subagent's own report describes just its component of the turn.
-			{ parentToolCallId: 'tc-subagent', turnTokenTotals: undefined },
+			{
+				parentToolCallId: 'tc-subagent',
+				turnTokenTotals: undefined,
+				directTurnTokenTotals: [{ model: 'gpt-5.5', inputTokens: 5, cachedTokens: 0, outputTokens: 7 }],
+			},
 		]);
 	});
 
@@ -3009,6 +3280,9 @@ suite('CopilotAgentSession', () => {
 
 		const usageActions = getActions(signals).filter(a => a.type === ActionType.ChatUsage) as ChatUsageAction[];
 		assert.deepStrictEqual((usageActions.at(-1)?.usage._meta as UsageInfoMeta | undefined)?.turnTokenTotals, [
+			{ model: 'claude-opus-4.8', inputTokens: 3, cachedTokens: 0, outputTokens: 4 },
+		]);
+		assert.deepStrictEqual((usageActions.at(-1)?.usage._meta as UsageInfoMeta | undefined)?.directTurnTokenTotals, [
 			{ model: 'claude-opus-4.8', inputTokens: 3, cachedTokens: 0, outputTokens: 4 },
 		]);
 	});
@@ -3063,6 +3337,7 @@ suite('CopilotAgentSession', () => {
 				inputTokens: signal.action.usage.inputTokens,
 				outputTokens: signal.action.usage.outputTokens,
 				totalNanoAiu: (signal.action.usage._meta as UsageInfoMeta | undefined)?.copilotUsage?.totalNanoAiu,
+				directNanoAiu: (signal.action.usage._meta as UsageInfoMeta | undefined)?.directCopilotUsage?.totalNanoAiu,
 			}];
 		});
 
@@ -3070,15 +3345,313 @@ suite('CopilotAgentSession', () => {
 		// its credits cover every call the turn caused (its own plus every subagent's).
 		// They land on the synchronous emit, so a turn ending mid-refresh cannot lose them.
 		assert.deepStrictEqual(usageSignals, [
-			{ parentToolCallId: undefined, model: 'claude-opus-4.8', inputTokens: 10, outputTokens: 20, totalNanoAiu: 500_000_000 },
-			{ parentToolCallId: undefined, model: 'claude-opus-4.8', inputTokens: 10, outputTokens: 20, totalNanoAiu: 500_000_000 },
-			{ parentToolCallId: undefined, model: 'claude-opus-4.8', inputTokens: 10, outputTokens: 20, totalNanoAiu: 700_000_000 },
-			{ parentToolCallId: 'tc-subagent', model: 'gpt-5.5', inputTokens: 5, outputTokens: 7, totalNanoAiu: 200_000_000 },
-			{ parentToolCallId: undefined, model: 'claude-opus-4.8', inputTokens: 10, outputTokens: 20, totalNanoAiu: 700_000_000 },
-			{ parentToolCallId: undefined, model: 'claude-opus-4.8', inputTokens: 10, outputTokens: 20, totalNanoAiu: 1_000_000_000 },
-			{ parentToolCallId: 'tc-subagent', model: 'gpt-5.5', inputTokens: 6, outputTokens: 8, totalNanoAiu: 500_000_000 },
-			{ parentToolCallId: undefined, model: 'claude-opus-4.8', inputTokens: 10, outputTokens: 20, totalNanoAiu: 1_000_000_000 },
+			{ parentToolCallId: undefined, model: 'claude-opus-4.8', inputTokens: 10, outputTokens: 20, totalNanoAiu: 500_000_000, directNanoAiu: 500_000_000 },
+			{ parentToolCallId: undefined, model: 'claude-opus-4.8', inputTokens: 10, outputTokens: 20, totalNanoAiu: 500_000_000, directNanoAiu: 500_000_000 },
+			{ parentToolCallId: undefined, model: 'claude-opus-4.8', inputTokens: 10, outputTokens: 20, totalNanoAiu: 700_000_000, directNanoAiu: 500_000_000 },
+			{ parentToolCallId: 'tc-subagent', model: 'gpt-5.5', inputTokens: 5, outputTokens: 7, totalNanoAiu: 200_000_000, directNanoAiu: 200_000_000 },
+			{ parentToolCallId: undefined, model: 'claude-opus-4.8', inputTokens: 10, outputTokens: 20, totalNanoAiu: 700_000_000, directNanoAiu: 500_000_000 },
+			{ parentToolCallId: undefined, model: 'claude-opus-4.8', inputTokens: 10, outputTokens: 20, totalNanoAiu: 1_000_000_000, directNanoAiu: 500_000_000 },
+			{ parentToolCallId: 'tc-subagent', model: 'gpt-5.5', inputTokens: 6, outputTokens: 8, totalNanoAiu: 500_000_000, directNanoAiu: 500_000_000 },
+			{ parentToolCallId: undefined, model: 'claude-opus-4.8', inputTokens: 10, outputTokens: 20, totalNanoAiu: 1_000_000_000, directNanoAiu: 500_000_000 },
 		]);
+	});
+
+	test('starts direct subagent usage over when a retained child resumes', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+
+		session.resetTurnState('turn-1');
+		mockSession.fire('subagent.started', {
+			toolCallId: 'tc-subagent',
+			agentName: 'explore',
+			agentDisplayName: 'Explore',
+			agentDescription: 'Explore tests',
+		} as SessionEventPayload<'subagent.started'>['data'], { agentId: 'agent-1' });
+		mockSession.fire('assistant.usage', {
+			model: 'gpt-5.5',
+			inputTokens: 5,
+			outputTokens: 7,
+			copilotUsage: { totalNanoAiu: 200_000_000, tokenDetails: [] },
+		} as unknown as SessionEventPayload<'assistant.usage'>['data'], { agentId: 'agent-1' });
+		mockSession.fire('subagent.completed', {
+			toolCallId: 'tc-subagent',
+			agentName: 'explore',
+			agentDisplayName: 'Explore',
+			durationMs: 1,
+			totalTokens: 12,
+			totalToolCalls: 0,
+		} as SessionEventPayload<'subagent.completed'>['data'], { agentId: 'agent-1' });
+
+		mockSession.fire('assistant.usage', {
+			model: 'gpt-5.5',
+			inputTokens: 6,
+			outputTokens: 8,
+			copilotUsage: { totalNanoAiu: 300_000_000, tokenDetails: [] },
+		} as unknown as SessionEventPayload<'assistant.usage'>['data'], { agentId: 'agent-1' });
+
+		const childUsage = signals.filter((signal): signal is IAgentActionSignal =>
+			signal.kind === 'action'
+			&& signal.parentToolCallId === 'tc-subagent'
+			&& signal.action.type === ActionType.ChatUsage
+		);
+		const resumed = childUsage.at(-1)?.action;
+		assert.ok(resumed?.type === ActionType.ChatUsage);
+		const meta = resumed.usage._meta as UsageInfoMeta | undefined;
+		assert.deepStrictEqual(meta?.directTurnTokenTotals, [
+			{ model: 'gpt-5.5', inputTokens: 6, cachedTokens: 0, outputTokens: 8 },
+		]);
+		assert.deepStrictEqual(meta?.directCopilotUsage, { totalNanoAiu: 300_000_000 });
+	});
+
+	test('keeps direct subagent usage after the root turn completes', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+
+		session.resetTurnState('turn-root');
+		mockSession.fire('subagent.started', {
+			toolCallId: 'tc-background',
+			agentName: 'explore',
+			agentDisplayName: 'Explore',
+			agentDescription: 'Background tests',
+		} as SessionEventPayload<'subagent.started'>['data'], { agentId: 'agent-background' });
+		mockSession.fire('assistant.usage', {
+			model: 'gpt-5.5',
+			inputTokens: 5,
+			outputTokens: 7,
+			copilotUsage: { totalNanoAiu: 200_000_000, tokenDetails: [] },
+		} as unknown as SessionEventPayload<'assistant.usage'>['data'], { agentId: 'agent-background' });
+		mockSession.fire('session.idle', { aborted: false } as SessionEventPayload<'session.idle'>['data']);
+
+		mockSession.fire('assistant.usage', {
+			model: 'gpt-5.5',
+			inputTokens: 6,
+			outputTokens: 8,
+			copilotUsage: { totalNanoAiu: 300_000_000, tokenDetails: [] },
+		} as unknown as SessionEventPayload<'assistant.usage'>['data'], { agentId: 'agent-background' });
+
+		const childUsage = signals.filter((signal): signal is IAgentActionSignal =>
+			signal.kind === 'action'
+			&& signal.parentToolCallId === 'tc-background'
+			&& signal.action.type === ActionType.ChatUsage
+		);
+		const latest = childUsage.at(-1)?.action;
+		assert.ok(latest?.type === ActionType.ChatUsage);
+		const meta = latest.usage._meta as UsageInfoMeta | undefined;
+		assert.deepStrictEqual(meta?.directTurnTokenTotals, [
+			{ model: 'gpt-5.5', inputTokens: 11, cachedTokens: 0, outputTokens: 15 },
+		]);
+		assert.deepStrictEqual(meta?.directCopilotUsage, { totalNanoAiu: 500_000_000 });
+	});
+
+	test('does not fold an old background child into a newly active root', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+
+		session.resetTurnState('turn-old-root');
+		mockSession.fire('subagent.started', {
+			toolCallId: 'tc-old-background',
+			agentName: 'explore',
+			agentDisplayName: 'Explore',
+			agentDescription: 'Background tests',
+		} as SessionEventPayload<'subagent.started'>['data'], { agentId: 'agent-old-background' });
+		mockSession.fire('session.idle', { aborted: false } as SessionEventPayload<'session.idle'>['data']);
+
+		session.resetTurnState('turn-new-root');
+		mockSession.fire('assistant.usage', {
+			model: 'claude-opus-4.8',
+			inputTokens: 10,
+			outputTokens: 2,
+		} as unknown as SessionEventPayload<'assistant.usage'>['data']);
+		mockSession.fire('assistant.usage', {
+			model: 'gpt-5.5',
+			inputTokens: 100,
+			outputTokens: 20,
+		} as unknown as SessionEventPayload<'assistant.usage'>['data'], { agentId: 'agent-old-background' });
+
+		const newRootUsage = signals.filter((signal): signal is IAgentActionSignal =>
+			signal.kind === 'action'
+			&& signal.parentToolCallId === undefined
+			&& signal.action.type === ActionType.ChatUsage
+			&& signal.action.turnId === 'turn-new-root'
+		).at(-1);
+		assert.ok(newRootUsage?.action.type === ActionType.ChatUsage);
+		const meta = newRootUsage.action.usage._meta as UsageInfoMeta | undefined;
+		assert.deepStrictEqual(meta?.turnTokenTotals, [
+			{ model: 'claude-opus-4.8', inputTokens: 10, cachedTokens: 0, outputTokens: 2 },
+		]);
+		assert.deepStrictEqual(meta?.directTurnTokenTotals, [
+			{ model: 'claude-opus-4.8', inputTokens: 10, cachedTokens: 0, outputTokens: 2 },
+		]);
+	});
+
+	test('keeps unmapped subagent usage in root inclusive totals without direct attribution', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+
+		session.resetTurnState('turn-root');
+		mockSession.fire('assistant.usage', {
+			model: 'gpt-5.5',
+			inputTokens: 100,
+			outputTokens: 20,
+			copilotUsage: { totalNanoAiu: 400_000_000, tokenDetails: [] },
+		} as unknown as SessionEventPayload<'assistant.usage'>['data'], { agentId: 'unknown-agent' });
+
+		const usageSignals = signals.filter((signal): signal is IAgentActionSignal =>
+			signal.kind === 'action' && signal.action.type === ActionType.ChatUsage
+		);
+		assert.strictEqual(usageSignals.some(signal => signal.parentToolCallId !== undefined), false);
+		const rootUsage = usageSignals.at(-1)?.action;
+		assert.ok(rootUsage?.type === ActionType.ChatUsage);
+		const meta = rootUsage.usage._meta as UsageInfoMeta | undefined;
+		assert.deepStrictEqual(meta?.turnTokenTotals, [
+			{ model: 'gpt-5.5', inputTokens: 100, cachedTokens: 0, outputTokens: 20 },
+		]);
+		assert.deepStrictEqual(meta?.copilotUsage, { totalNanoAiu: 400_000_000 });
+		assert.strictEqual(meta?.directTurnTokenTotals, undefined);
+		assert.strictEqual(meta?.directCopilotUsage, undefined);
+	});
+
+	test('routes legacy parentToolCallId usage to the child direct bucket', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+
+		session.resetTurnState('turn-root');
+		mockSession.fire('assistant.usage', {
+			model: 'gpt-5.5',
+			inputTokens: 9,
+			outputTokens: 3,
+			parentToolCallId: 'tc-legacy',
+			copilotUsage: { totalNanoAiu: 400_000_000, tokenDetails: [] },
+		} as unknown as SessionEventPayload<'assistant.usage'>['data']);
+
+		const childUsage = signals.find((signal): signal is IAgentActionSignal =>
+			signal.kind === 'action'
+			&& signal.parentToolCallId === 'tc-legacy'
+			&& signal.action.type === ActionType.ChatUsage
+		);
+		assert.ok(childUsage?.action.type === ActionType.ChatUsage);
+		const meta = childUsage.action.usage._meta as UsageInfoMeta | undefined;
+		assert.deepStrictEqual(meta?.directTurnTokenTotals, [
+			{ model: 'gpt-5.5', inputTokens: 9, cachedTokens: 0, outputTokens: 3 },
+		]);
+		assert.deepStrictEqual(meta?.directCopilotUsage, { totalNanoAiu: 400_000_000 });
+		const rootUsage = signals.find((signal): signal is IAgentActionSignal =>
+			signal.kind === 'action'
+			&& signal.parentToolCallId === undefined
+			&& signal.action.type === ActionType.ChatUsage
+		);
+		assert.ok(rootUsage?.action.type === ActionType.ChatUsage);
+		const rootMeta = rootUsage.action.usage._meta as UsageInfoMeta | undefined;
+		assert.deepStrictEqual(rootMeta?.turnTokenTotals, [
+			{ model: 'gpt-5.5', inputTokens: 9, cachedTokens: 0, outputTokens: 3 },
+		]);
+		assert.deepStrictEqual(rootMeta?.copilotUsage, { totalNanoAiu: 400_000_000 });
+	});
+
+	test('does not fold an old background child legacy usage into a newly active root', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+
+		session.resetTurnState('turn-old-root');
+		mockSession.fire('subagent.started', {
+			toolCallId: 'tc-legacy-bg',
+			agentName: 'explore',
+			agentDisplayName: 'Explore',
+			agentDescription: 'Background legacy tests',
+		} as SessionEventPayload<'subagent.started'>['data'], { agentId: 'agent-legacy-bg' });
+		mockSession.fire('session.idle', { aborted: false } as SessionEventPayload<'session.idle'>['data']);
+
+		session.resetTurnState('turn-new-root');
+		mockSession.fire('assistant.usage', {
+			model: 'claude-opus-4.8',
+			inputTokens: 10,
+			outputTokens: 2,
+		} as unknown as SessionEventPayload<'assistant.usage'>['data']);
+
+		mockSession.fire('assistant.usage', {
+			model: 'gpt-5.5',
+			inputTokens: 100,
+			outputTokens: 20,
+			parentToolCallId: 'tc-legacy-bg',
+			copilotUsage: { totalNanoAiu: 400_000_000, tokenDetails: [] },
+		} as unknown as SessionEventPayload<'assistant.usage'>['data']);
+
+		const newRootUsages = signals.filter((signal): signal is IAgentActionSignal =>
+			signal.kind === 'action'
+			&& signal.parentToolCallId === undefined
+			&& signal.action.type === ActionType.ChatUsage
+			&& signal.action.turnId === 'turn-new-root'
+		);
+		for (const signal of newRootUsages) {
+			assert.ok(signal.action.type === ActionType.ChatUsage);
+			const meta = signal.action.usage._meta as UsageInfoMeta | undefined;
+			assert.deepStrictEqual(meta?.turnTokenTotals, [
+				{ model: 'claude-opus-4.8', inputTokens: 10, cachedTokens: 0, outputTokens: 2 },
+			]);
+		}
+
+		const childUsage = signals.filter((signal): signal is IAgentActionSignal =>
+			signal.kind === 'action'
+			&& signal.parentToolCallId === 'tc-legacy-bg'
+			&& signal.action.type === ActionType.ChatUsage
+		).at(-1);
+		assert.ok(childUsage?.action.type === ActionType.ChatUsage);
+		const childMeta = childUsage.action.usage._meta as UsageInfoMeta | undefined;
+		assert.deepStrictEqual(childMeta?.directTurnTokenTotals, [
+			{ model: 'gpt-5.5', inputTokens: 100, cachedTokens: 0, outputTokens: 20 },
+		]);
+		assert.deepStrictEqual(childMeta?.directCopilotUsage, { totalNanoAiu: 400_000_000 });
+	});
+
+	test('attributes subagent compaction to the child direct bucket', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+
+		session.resetTurnState('turn-root');
+		mockSession.fire('subagent.started', {
+			toolCallId: 'tc-compaction',
+			agentName: 'explore',
+			agentDisplayName: 'Explore',
+			agentDescription: 'Compaction tests',
+		} as SessionEventPayload<'subagent.started'>['data'], { agentId: 'agent-compaction' });
+		mockSession.fire('assistant.usage', {
+			model: 'gpt-5.5',
+			inputTokens: 5,
+			outputTokens: 7,
+			cacheReadTokens: 2,
+			cost: 3,
+			copilotUsage: { totalNanoAiu: 100_000_000, tokenDetails: [] },
+		} as unknown as SessionEventPayload<'assistant.usage'>['data'], { agentId: 'agent-compaction' });
+		mockSession.fire('session.compaction_complete', {
+			success: true,
+			tokensRemoved: 1_000,
+			compactionTokensUsed: {
+				model: 'gpt-5.5',
+				inputTokens: 40_000,
+				outputTokens: 500,
+				cacheReadTokens: 10_000,
+				copilotUsage: { totalNanoAiu: 5_000_000_000 },
+			},
+		} as unknown as SessionEventPayload<'session.compaction_complete'>['data'], { agentId: 'agent-compaction' });
+
+		const childUsage = signals.filter((signal): signal is IAgentActionSignal =>
+			signal.kind === 'action'
+			&& signal.parentToolCallId === 'tc-compaction'
+			&& signal.action.type === ActionType.ChatUsage
+		).at(-1);
+		assert.ok(childUsage?.action.type === ActionType.ChatUsage);
+		assert.deepStrictEqual({
+			model: childUsage.action.usage.model,
+			inputTokens: childUsage.action.usage.inputTokens,
+			outputTokens: childUsage.action.usage.outputTokens,
+			cacheReadTokens: childUsage.action.usage.cacheReadTokens,
+			cost: (childUsage.action.usage._meta as UsageInfoMeta | undefined)?.cost,
+		}, {
+			model: 'gpt-5.5',
+			inputTokens: 5,
+			outputTokens: 7,
+			cacheReadTokens: 2,
+			cost: 3,
+		});
+		const meta = childUsage.action.usage._meta as UsageInfoMeta | undefined;
+		assert.deepStrictEqual(meta?.directTurnTokenTotals, [
+			{ model: 'gpt-5.5', inputTokens: 40_005, cachedTokens: 10_002, outputTokens: 507 },
+		]);
+		assert.deepStrictEqual(meta?.directCopilotUsage, { totalNanoAiu: 5_100_000_000 });
+		assert.strictEqual(meta?.copilotUsage?.totalNanoAiu, 5_100_000_000);
 	});
 
 	test('forwards account quota snapshots on usage metadata', async () => {
@@ -4520,6 +5093,39 @@ suite('CopilotAgentSession', () => {
 			}]);
 		});
 
+		test('sends a host-created text snapshot in a steering message as a read-only file reference with a <reminder> note (#331154)', async () => {
+			const snapshotUri = URI.file('/session/attachments/pasted.txt');
+			const { session, mockSession } = await createAgentSession(disposables);
+
+			await session.sendSteering({
+				id: 'steer-text',
+				message: {
+					text: 'use this',
+					origin: { kind: MessageKind.User },
+					attachments: [{
+						type: MessageAttachmentKind.Resource,
+						uri: snapshotUri.toString(),
+						label: 'Pasted text #1',
+						displayKind: 'document',
+						_meta: toHostSnapshotAttachmentMeta('text/plain'),
+					}],
+				},
+			});
+
+			// Steering can't use the additionalContext hook, so the read-only note is folded into the
+			// steering prompt as a <reminder> block (stripped from the bubble, forwarded to the model);
+			// the attachment keeps its plain display name.
+			assert.deepStrictEqual(mockSession.sendRequests, [{
+				prompt: `use this\n\n<reminder>\n${expectedSnapshotReadonlyNote([snapshotUri.fsPath])}\n</reminder>`,
+				attachments: [{
+					type: 'file',
+					path: snapshotUri.fsPath,
+					displayName: 'Pasted text #1',
+				}],
+				mode: 'immediate',
+			}]);
+		});
+
 		test('promotes steering to its own turn when the SDK echoes the user message', async () => {
 			const { session, mockSession, signals } = await createAgentSession(disposables);
 			session.resetTurnState('turn-original');
@@ -5544,7 +6150,7 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual(terminalManager.outputTerminalsCreated, [{
 				uri: terminalUri,
 				title: 'Run Shell Command',
-				claim: { kind: TerminalClaimKind.Session, session: AgentSession.uri('copilot', 'test-session-1').toString(), toolCallId: 'tc-stream' },
+				claim: { kind: TerminalClaimKind.Session, session: AgentSession.uri('copilot', 'test-session-1').toString(), chat: buildDefaultChatUri(AgentSession.uri('copilot', 'test-session-1')), toolCallId: 'tc-stream' },
 			}]);
 			assert.deepStrictEqual(terminalManager.outputTerminalData, [
 				{ uri: terminalUri, data: 'tick 1\n' },
@@ -6345,8 +6951,13 @@ suite('CopilotAgentSession', () => {
 
 		test('tool-call aggregate emits once with cancelled result across abort and idle', async () => {
 			const telemetryService = new CapturingTelemetryService();
+			const sessionUri = AgentSession.uri('copilotcli', 'test-session-1');
+			const peerChatUri = URI.parse(buildChatUri(sessionUri, 'peer-1'));
 			const { session, mockSession, signals } = await createAgentSession(disposables, {
 				telemetryService,
+				sessionUri,
+				chatChannelUri: peerChatUri,
+				resource: peerChatUri,
 				clientSnapshot: { tools: [{ name: 'grep' }, { name: 'edit' }], plugins: [], mcpServers: {} },
 			});
 			session.resetTurnState('turn-tool-details');
@@ -6397,7 +7008,7 @@ suite('CopilotAgentSession', () => {
 			}, {
 				telemetry: [{
 					eventName: 'toolCallDetails',
-					provider: 'copilot',
+					provider: 'copilotcli',
 					requestId: 'turn-tool-details',
 					responseType: 'cancelled',
 					toolCounts: JSON.stringify({ grep: 1, edit: 1 }),
@@ -6453,7 +7064,14 @@ suite('CopilotAgentSession', () => {
 
 		test('tool approval waits for permission outcome and falls back only at completion', async () => {
 			const telemetryService = new CapturingTelemetryService();
-			const { session, mockSession } = await createAgentSession(disposables, { telemetryService });
+			const sessionUri = AgentSession.uri('copilotcli', 'test-session-1');
+			const peerChatUri = URI.parse(buildChatUri(sessionUri, 'peer-1'));
+			const { session, mockSession } = await createAgentSession(disposables, {
+				telemetryService,
+				sessionUri,
+				chatChannelUri: peerChatUri,
+				resource: peerChatUri,
+			});
 			session.resetTurnState('turn-approval');
 
 			mockSession.fire('tool.execution_start', {
@@ -6494,16 +7112,17 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual(telemetryService.events.filter(event => event.eventName === 'chat.toolApproval').map(event => {
 				const data = event.data as Record<string, unknown>;
 				return {
+					provider: data.provider,
 					toolId: data.toolId,
 					confirmKind: data.confirmKind,
 					confirmationNotNeededReason: data.confirmationNotNeededReason,
 				};
 			}), [{
-				toolId: 'bash', confirmKind: 'userAction', confirmationNotNeededReason: undefined,
+				provider: 'copilotcli', toolId: 'bash', confirmKind: 'userAction', confirmationNotNeededReason: undefined,
 			}, {
-				toolId: 'edit', confirmKind: 'denied', confirmationNotNeededReason: undefined,
+				provider: 'copilotcli', toolId: 'edit', confirmKind: 'denied', confirmationNotNeededReason: undefined,
 			}, {
-				toolId: 'grep', confirmKind: 'confirmationNotNeeded', confirmationNotNeededReason: undefined,
+				provider: 'copilotcli', toolId: 'grep', confirmKind: 'confirmationNotNeeded', confirmationNotNeededReason: undefined,
 			}]);
 		});
 
@@ -7281,6 +7900,63 @@ suite('CopilotAgentSession', () => {
 		});
 	});
 
+	suite('getForkBoundaryEventId', () => {
+		test('resolves when the matching user message event arrives', async () => {
+			const { session, mockSession } = await createAgentSession(disposables);
+			session.resetTurnState('turn-waiting');
+
+			const eventIdPromise = session.getForkBoundaryEventId('previous-turn');
+			mockSession.fire('user.message', { content: 'hello agent' } as SessionEventPayload<'user.message'>['data'], { id: 'sdk-event-waiting' });
+			await timeout(0);
+
+			assert.deepStrictEqual(await eventIdPromise, 'sdk-event-waiting');
+		});
+
+		test('resolves from a user message event recorded before waiting', async () => {
+			const { session, mockSession } = await createAgentSession(disposables);
+			session.resetTurnState('turn-recorded');
+			mockSession.fire('user.message', { content: 'hello agent' } as SessionEventPayload<'user.message'>['data'], { id: 'sdk-event-recorded' });
+			await timeout(0);
+
+			assert.deepStrictEqual(await session.getForkBoundaryEventId('previous-turn'), 'sdk-event-recorded');
+		});
+
+		test('rejects when the turn ends before its user message event arrives', async () => {
+			const { session } = await createAgentSession(disposables);
+			session.resetTurnState('turn-ended');
+
+			const eventIdPromise = session.getForkBoundaryEventId('previous-turn');
+			session.discardActiveTurn();
+
+			await assert.rejects(eventIdPromise, /its next turn \(turn-ended\) never produced an SDK event id: Turn turn-ended was disposed before its SDK event id was recorded/);
+		});
+
+		test('retains the active turn event promise when session.idle clears it during the database read', async () => {
+			const databaseRead = new DeferredPromise<string | undefined>();
+			const sessionDatabase = new TestSessionDatabase();
+			sessionDatabase.getNextTurnEventId = () => databaseRead.p;
+			const { session, mockSession } = await createAgentSession(disposables, { sessionDatabase });
+			session.resetTurnState('turn-ended-during-read');
+
+			const eventIdPromise = session.getForkBoundaryEventId('previous-turn');
+			mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+			await timeout(0);
+			databaseRead.complete(undefined);
+
+			await assert.rejects(eventIdPromise, /its next turn \(turn-ended-during-read\) never produced an SDK event id/);
+		});
+
+		test('rejects pending waiters when the session is disposed', async () => {
+			const { session } = await createAgentSession(disposables);
+			session.resetTurnState('turn-disposed');
+
+			const eventIdPromise = session.getForkBoundaryEventId('previous-turn');
+			session.dispose();
+
+			await assert.rejects(eventIdPromise, /its next turn \(turn-disposed\) never produced an SDK event id: Turn turn-disposed was disposed before its SDK event id was recorded/);
+		});
+	});
+
 	// ---- user input handling ----
 
 	suite('user input handling', () => {
@@ -7299,7 +7975,7 @@ suite('CopilotAgentSession', () => {
 			assert.strictEqual(signals.length, 1);
 			const request = getInputRequest(signals[0]);
 			const requestId = request.id;
-			assert.strictEqual(request.purpose, ChatInputRequestPurpose.AskUser);
+			assert.strictEqual(readChatInputRequestPurpose(request), ChatInputRequestPurpose.AskUser);
 			assert.ok(request.questions);
 			assert.strictEqual(request.questions[0].message, 'What is your name?');
 			const questionId = request.questions[0].id;
@@ -7443,7 +8119,7 @@ suite('CopilotAgentSession', () => {
 				ActionType.ChatInputCompleted,
 			]);
 			const requested = getActions(signals)[0];
-			assert.strictEqual(requested.type === ActionType.ChatInputRequested ? requested.request.purpose : undefined, undefined);
+			assert.strictEqual(requested.type === ActionType.ChatInputRequested ? readChatInputRequestPurpose(requested.request) : undefined, undefined);
 			const completed = getActions(signals)[1];
 			assert.deepStrictEqual(completed.type === ActionType.ChatInputCompleted ? Object.values(completed.answers ?? {}) : [], [{
 				state: ChatInputAnswerState.Submitted,
@@ -7494,7 +8170,7 @@ suite('CopilotAgentSession', () => {
 				ActionType.ChatInputCompleted,
 			]);
 			const requested = getActions(signals)[0];
-			assert.strictEqual(requested.type === ActionType.ChatInputRequested ? requested.request.purpose : undefined, undefined);
+			assert.strictEqual(requested.type === ActionType.ChatInputRequested ? readChatInputRequestPurpose(requested.request) : undefined, undefined);
 			const completed = getActions(signals)[1];
 			assert.deepStrictEqual(completed.type === ActionType.ChatInputCompleted ? Object.values(completed.answers ?? {}) : [], [{
 				state: ChatInputAnswerState.Submitted,
@@ -7533,7 +8209,7 @@ suite('CopilotAgentSession', () => {
 
 			assert.strictEqual(signals.length, 1);
 			const request = getInputRequest(signals[0]);
-			assert.strictEqual(request.purpose, ChatInputRequestPurpose.Elicitation);
+			assert.strictEqual(readChatInputRequestPurpose(request), ChatInputRequestPurpose.Elicitation);
 			assert.strictEqual(request.message, 'Configure deployment');
 			assert.ok(request.questions);
 			assert.deepStrictEqual(request.questions.map(q => ({ id: q.id, kind: q.kind, required: q.required })), [
@@ -7820,6 +8496,75 @@ suite('CopilotAgentSession', () => {
 			toolSet.set(clientId, snapshot.tools);
 			return toolSet;
 		};
+
+		test('semantic search overrides the built-in tool and is never deferred', async () => {
+			const semanticSearchSnapshot: IActiveClientSnapshot = {
+				tools: [{
+					name: SEMANTIC_SEARCH_TOOL_NAME,
+					description: 'Semantically searches the workspace',
+					inputSchema: { type: 'object', properties: { query: { type: 'string' } } },
+				}],
+				plugins: [],
+				mcpServers: {},
+			};
+			const { runtime } = await createAgentSession(disposables, { clientSnapshot: semanticSearchSnapshot });
+			const [tool] = runtime.createClientSdkTools(true);
+
+			assert.deepStrictEqual({
+				name: tool.name,
+				defer: tool.defer,
+				overridesBuiltInTool: tool.overridesBuiltInTool,
+				skipPermission: tool.skipPermission,
+			}, {
+				name: SEMANTIC_SEARCH_TOOL_NAME,
+				defer: 'never',
+				overridesBuiltInTool: true,
+				skipPermission: true,
+			});
+		});
+
+		test('semantic search becomes ready without an SDK permission callback', async () => {
+			const semanticSearchSnapshot: IActiveClientSnapshot = {
+				tools: [{
+					name: SEMANTIC_SEARCH_TOOL_NAME,
+					description: 'Semantically searches the workspace',
+					inputSchema: { type: 'object', properties: { query: { type: 'string' } } },
+				}],
+				plugins: [],
+				mcpServers: {},
+			};
+			const activeClientToolSet = new ActiveClientToolSet();
+			activeClientToolSet.set('test-client', semanticSearchSnapshot.tools);
+			const { session, runtime, mockSession, signals } = await createAgentSession(disposables, {
+				clientSnapshot: semanticSearchSnapshot,
+				activeClientToolSet,
+			});
+
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-semantic-search',
+				toolName: SEMANTIC_SEARCH_TOOL_NAME,
+				arguments: { query: 'tool routing' },
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+
+			const readySignal = signals.find(s => isAction(s, ActionType.ChatToolCallReady));
+			assert.ok(readySignal && isAction(readySignal, ActionType.ChatToolCallReady));
+			const readyAction = readySignal.action as ChatToolCallReadyAction;
+			assert.deepStrictEqual({
+				contributor: readyAction.contributor,
+				confirmed: readyAction.confirmed,
+			}, {
+				contributor: { kind: ToolCallContributorKind.Client, clientId: 'test-client' },
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+			});
+
+			const handlerPromise = invokeClientToolHandler(runtime.createClientSdkTools()[0], 'tc-semantic-search', { query: 'tool routing' });
+			session.handleClientToolCallComplete('tc-semantic-search', {
+				success: true,
+				pastTenseMessage: 'Searched codebase',
+				content: [{ type: ToolResultContentType.Text, text: 'result text' }],
+			});
+			assert.strictEqual((await handlerPromise).textResultForLlm, 'result text');
+		});
 
 		test('client tool started with no connected client fails immediately', async () => {
 			// No activeClientState is provided, so the session seeds one with
@@ -8749,14 +9494,13 @@ suite('CopilotAgentSession', () => {
 
 	suite('server tools', () => {
 
-		const fakeToolDefinitions: readonly ToolDefinition[] = [
+		const fakeToolDefinitions: readonly IAgentServerToolDefinition[] = [
 			{ name: 'serverToolA', description: 'A', inputSchema: { type: 'object', properties: {} } },
 			{ name: 'serverToolB', description: 'B', inputSchema: { type: 'object', properties: {} } },
 		];
 
 		class FakeServerToolHost implements IAgentServerToolHost {
-			readonly definitions: readonly ToolDefinition[] = fakeToolDefinitions;
-			readonly toolNames: readonly string[] = fakeToolDefinitions.map(def => def.name);
+			readonly toolNames: readonly string[];
 			readonly advertised: string[] = [];
 			readonly executions: Array<{ sessionUri: string; toolName: string; rawArgs: unknown }> = [];
 			readonly confirmationToolNames = new Set<string>();
@@ -8764,9 +9508,15 @@ suite('CopilotAgentSession', () => {
 			result = 'ok';
 			error: Error | undefined;
 
+			constructor(readonly definitions: readonly IAgentServerToolDefinition[] = fakeToolDefinitions) {
+				this.toolNames = definitions.map(def => def.name);
+			}
+
 			advertise(sessionUri: string): void {
 				this.advertised.push(sessionUri);
 			}
+
+			getDefinitionsForSession(): readonly IAgentServerToolDefinition[] { return this.definitions; }
 
 			canRequireConfirmation(toolName: string): boolean { return this.confirmationToolNames.has(toolName); }
 
@@ -8794,6 +9544,17 @@ suite('CopilotAgentSession', () => {
 			// eager (`defer: 'never'`) so tool search never hides them behind
 			// `tool_search_tool`.
 			assert.deepStrictEqual(tools.map(t => t.defer), tools.map(() => 'never'));
+		});
+
+		test('exposes only ephemeral-enabled server tools in an ephemeral session', async () => {
+			const serverToolHost = new FakeServerToolHost([
+				...fakeToolDefinitions,
+				{ name: 'ephemeralServerTool', description: 'Available in ephemeral sessions', inputSchema: { type: 'object', properties: {} }, enabledForEphemeralSessions: true },
+				{ name: SessionServerToolName.RenameChat, description: 'Rename the chat', inputSchema: { type: 'object', properties: {} } },
+			]);
+			const { runtime } = await createAgentSession(disposables, { serverToolHost, isEphemeral: true });
+
+			assert.deepStrictEqual(runtime.createServerSdkTools().map(tool => tool.name), ['ephemeralServerTool']);
 		});
 
 		test('server tool handler routes to the host and returns a success result', async () => {
@@ -8933,7 +9694,7 @@ suite('CopilotAgentSession', () => {
 
 			const signal = await waitForSignal(s => isAction(s, ActionType.ChatInputRequested));
 			const request = getInputRequest(signal);
-			assert.strictEqual(request.purpose, ChatInputRequestPurpose.PlanReview);
+			assert.strictEqual(readChatInputRequestPurpose(request), ChatInputRequestPurpose.PlanReview);
 
 			const planReview = (request as ChatInputRequestWithPlanReview).planReview;
 			assert.deepStrictEqual(planReview, {
@@ -9499,7 +10260,7 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual(mockSession.mcpEnableCalls, [{ serverName }]);
 		});
 
-		test('re-enabling a plugin server with an explicit cwd defers to a session refresh', async () => {
+		test('re-enabling an explicitly projected plugin server defers to a session refresh', async () => {
 			const serverName = 'vscode_probe';
 			const pluginUri = 'https://bundle';
 			const pluginDir = URI.file('/bundle');
@@ -9528,6 +10289,7 @@ suite('CopilotAgentSession', () => {
 							name: serverName,
 							configuration: { type: McpServerType.LOCAL, command: 'node', args: ['server.js'] },
 							defaultCwd: URI.file('/workspace'),
+							sdkRegistration: 'sessionConfig',
 							uri: URI.joinPath(pluginDir, '.mcp.json'),
 							customization: child,
 						}],

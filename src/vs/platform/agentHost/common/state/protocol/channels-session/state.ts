@@ -9,6 +9,8 @@
 import type { Changeset } from '../channels-changeset/state.js';
 import type { AnnotationsSummary } from '../channels-annotations/state.js';
 import type { ChatSummary, ChatInputRequest, ToolCallConfirmationState, ToolCallState, ToolCallAuthRequiredState } from '../channels-chat/state.js';
+import type { AutomationRunState } from '../channels-automation-run/state.js';
+import type { AutomationState } from '../channels-automation/state.js';
 import type { ConfigPropertySchema, ErrorInfo, Icon, ProtectedResourceMetadata, TextRange, URI } from '../common/state.js';
 
 // ─── Session State ───────────────────────────────────────────────────────────
@@ -21,7 +23,7 @@ import type { ConfigPropertySchema, ErrorInfo, Icon, ProtectedResourceMetadata, 
 export const enum SessionLifecycle {
 	Creating = 'creating',
 	Ready = 'ready',
-	CreationFailed = 'creationFailed',
+	Failed = 'failed',
 }
 
 /**
@@ -49,6 +51,40 @@ export const enum SessionStatus {
 }
 
 /**
+ * Discriminant describing the durable provenance of a session.
+ *
+ * @category Session State
+ */
+export const enum SessionOriginKind {
+	/** The session was created as part of an automation run. */
+	Automation = 'automation',
+}
+
+/**
+ * Provenance recorded on a session created for an automation run.
+ *
+ * The links let clients navigate from an ordinary session to the task-level
+ * run and its durable definition. The session channel remains authoritative
+ * for this session's transcript, tools, confirmations, and changes.
+ *
+ * @category Session State
+ */
+export interface AutomationSessionOrigin {
+	kind: SessionOriginKind.Automation;
+	/** Owning {@link AutomationState.resource}. */
+	automation: URI;
+	/** Owning {@link AutomationRunState.resource}. */
+	run: URI;
+}
+
+/**
+ * Durable provenance for sessions created by a higher-level AHP workflow.
+ *
+ * @category Session State
+ */
+export type SessionOrigin = AutomationSessionOrigin;
+
+/**
  * Metadata shared between the full {@link SessionState} (delivered when a
  * client subscribes to a session's URI) and the lightweight
  * {@link SessionSummary} (carried in the root-channel session catalog).
@@ -70,18 +106,21 @@ export interface SessionMetadata {
 	status: SessionStatus;
 	/** Human-readable description of what the session is currently doing */
 	activity?: string;
+	/** Durable {@link AutomationSessionOrigin}, when an automation run created this session. */
+	origin?: SessionOrigin;
 	/** Server-owned project for this session */
 	project?: ProjectInfo;
 	/**
 	 * The working directories the session's agent has tool access to, as
-	 * maintained by the `session/workingDirectorySet` /
-	 * `session/workingDirectoryRemoved` actions. Directories are equal peers
-	 * except when the agent advertises
-	 * {@link MultipleWorkingDirectoriesCapability.immutablePrimary} (the first
-	 * entry is then a fixed process root). Individual chats MAY restrict to a
-	 * subset via {@link ChatSummary.workingDirectories | their own
-	 * `workingDirectories`}; a chat that sets none operates against this full
-	 * set.
+	 * maintained by working-directory actions. Directories are equal peers except
+	 * when the agent advertises
+	 * {@link MultipleWorkingDirectoriesCapability.immutablePrimary} without
+	 * {@link MultipleWorkingDirectoriesCapability.primaryReplacement} (the first
+	 * entry is then a fixed process root), or advertises `primaryReplacement`
+	 * (the first entry is a protected, replaceable primary slot). Individual chats
+	 * MAY restrict to a subset via
+	 * {@link ChatSummary.workingDirectories | their own `workingDirectories`}; a
+	 * chat that sets none operates against this full set.
 	 */
 	workingDirectories?: URI[];
 	/**
@@ -314,6 +353,11 @@ export interface SessionToolConfirmationRequest extends SessionInputRequestBase 
  * `chat/toolCallComplete` (and optionally streaming with
  * `chat/toolCallContentChanged`) to {@link SessionInputRequestBase.chat |
  * `chat`}, keyed by `turnId` and `toolCall.toolCallId`.
+ *
+ * Unlike the other variants this does **not** raise
+ * {@link SessionStatus.InputNeeded}: the call has already cleared its
+ * confirmation gate and is merely executing elsewhere, so the session stays
+ * {@link SessionStatus.InProgress} while it runs.
  *
  * @category Session Input Types
  */

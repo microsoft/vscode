@@ -6,7 +6,6 @@
 import type { ContextTier, CopilotClient, ElicitationContext, ElicitationResult, ExitPlanModeRequest, ExitPlanModeResult, ModelCapabilitiesOverride, NamedProviderConfig, PermissionRequest, PermissionRequestResult, ProviderModelConfig, ReasoningSummary, ResumeSessionConfig, SessionConfig, SessionHooks, Tool, Verbosity } from '@github/copilot-sdk';
 import { coalesce } from '../../../../base/common/arrays.js';
 import { Schemas } from '../../../../base/common/network.js';
-import { isEqual } from '../../../../base/common/resources.js';
 import { isObject, isStringArray } from '../../../../base/common/types.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -19,6 +18,7 @@ import { CopilotCliConfigKey, copilotCliConfigSchema, normalizeModelFamilyAlias,
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { reasoningEffortLevels, type ReasoningEffortLevel } from '../../common/reasoningEffort.js';
 import { AgentHostSandboxConfigKey, sandboxConfigSchema } from '../../common/sandboxConfigSchema.js';
+import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
 import type { ModelSelection, ToolDefinition } from '../../common/state/protocol/state.js';
 import { RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../common/toolSearchConstants.js';
 import type { ActiveClientToolSet } from '../activeClientState.js';
@@ -27,12 +27,12 @@ import { IAgentHostManagedSettingsService } from '../agentHostManagedSettingsSer
 import { IAgentHostTerminalManager } from '../agentHostTerminalManager.js';
 import { IByokLmBridgeRegistry } from '../byokLmBridgeRegistry.js';
 import { IByokLmProxyService, type IByokLmProxyHandle } from './byokLmProxyService.js';
-import type { IMcpServerDefinition } from '../../../agentPlugins/common/pluginParsers.js';
-import type { ICopilotPluginInfo } from './copilotAgent.js';
+import type { ICopilotMcpServerInfo, ICopilotPluginInfo } from './copilotAgent.js';
 import { toSdkHooks, toSdkInstructionDirectories, toSdkMcpServers, toSdkMcpServersFromConfigMap, toSdkSessionCustomAgents, toSdkSkillDirectories } from './copilotPluginConverters.js';
 import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
 import { ShellManager, createShellTools, type IUnsandboxedCommandConfirmationRequest } from './copilotShellTools.js';
 import { isGpt56Model } from './modelIdentifiers.js';
+import { EPHEMERAL_DISABLED_COPILOT_TOOLS } from './copilotToolDisplay.js';
 import './prompts/allPrompts.js';
 import { agentHostPromptRegistry, type IAgentHostPromptContext } from './prompts/promptRegistry.js';
 import { describeSystemMessageConfig } from './prompts/systemMessage.js';
@@ -65,18 +65,20 @@ export const ContextTierConfigKey = 'contextTier';
 const ReasoningEfforts = reasoningEffortLevels;
 type AgentHostReasoningEffort = ReasoningEffortLevel;
 
-function disabledMcpServersSessionOption(plugins: readonly ICopilotPluginInfo[], disabledRootMcpServers: readonly string[] | undefined): Partial<SessionConfig> {
+function disabledMcpServersSessionOption(plugins: readonly ICopilotPluginInfo[], disabledRootMcpServers: readonly string[] | undefined, additionalDisabledMcpServers: readonly string[] | undefined): Partial<SessionConfig> {
 	const disabledMcpServers = [...new Set([
 		...plugins.flatMap(plugin => plugin.disabledMcpServers ?? []),
 		...(disabledRootMcpServers ?? []),
+		...(additionalDisabledMcpServers ?? []),
 	])];
 	return disabledMcpServers.length > 0 ? { disabledMcpServers } : {};
 }
 
-export function isMcpServerExplicitlyProjected(plugin: ICopilotPluginInfo, server: IMcpServerDefinition): boolean {
-	return !plugin.pluginDir
-		|| plugin.pluginDir.scheme !== Schemas.file
-		|| server.defaultCwd !== undefined && !isEqual(server.defaultCwd, plugin.pluginDir);
+/**
+ * Returns whether Agent Host must include the server in `SessionConfig.mcpServers` instead of leaving it to SDK plugin discovery.
+ */
+export function isMcpServerExplicitlyProjected(server: ICopilotMcpServerInfo): boolean {
+	return server.sdkRegistration === 'sessionConfig';
 }
 
 /**
@@ -179,6 +181,8 @@ export function toSdkToolFilterPatterns(patterns: readonly string[] | undefined)
 }
 
 export interface ICopilotSessionRuntime {
+	/** Chat channel that owns this session's turns, used to attribute terminal claims. */
+	readonly chatUri: URI;
 	handlePermissionRequest(request: PermissionRequest): Promise<PermissionRequestResult>;
 	handleExitPlanModeRequest(request: ExitPlanModeRequest, invocation: { sessionId: string }): Promise<ExitPlanModeResult>;
 	handleUserInputRequest(request: UserInputRequest, invocation: UserInputInvocation): Promise<UserInputResponse>;
@@ -207,6 +211,8 @@ type CopilotSessionClient = Pick<CopilotClient, 'createSession' | 'resumeSession
 interface ICopilotSessionLaunchBase {
 	readonly client: CopilotSessionClient;
 	readonly sessionId: string;
+	/** Whether this launch is for a transient session that skips durable-only provider work. */
+	readonly isEphemeral?: boolean;
 	readonly workingDirectory: URI | undefined;
 	/**
 	 * The additional working directories beyond the primary process root
@@ -739,18 +745,21 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			if (!plan.shellManager) {
 				throw new Error(`ShellManager is required to launch Copilot session '${plan.sessionId}'`);
 			}
-			shellTools = await createShellTools(plan.shellManager, this._terminalManager, this._logService, request => runtime.requestUnsandboxedCommandConfirmation(request));
+			shellTools = await createShellTools(plan.shellManager, runtime.chatUri, this._terminalManager, this._logService, request => runtime.requestUnsandboxedCommandConfirmation(request));
 		}
 		// Rely on the SDK to discover most agents/skills/etc. from `pluginDirectories`
 		// instead of feeding them explicitly, to avoid duplicates. Custom agents are the
 		// exception: the SDK validates the session-start `agent:` against `customAgents`
 		// by name, so the selected agent is force-included (see `toSdkSessionCustomAgents`).
 		const pluginsWithoutDirs = plugins.filter(p => !p.pluginDir || p.pluginDir.scheme !== Schemas.file);
-		const explicitMcpServers = plugins.flatMap(plugin => plugin.mcpServers.filter(server =>
+		const explicitMcpServers = plan.isEphemeral ? [] : plugins.flatMap(plugin => plugin.mcpServers.filter(server =>
 			!plugin.disabledMcpServers?.includes(server.name)
-			&& isMcpServerExplicitlyProjected(plugin, server)
+			&& isMcpServerExplicitlyProjected(server)
 		));
-		const customAgents = await toSdkSessionCustomAgents(plugins, plan.resolvedAgentName, this._fileService);
+		// An ephemeral session skips the explicit enumeration (and its file I/O). The SDK can
+		// still discover agents from `pluginDirectories`; suppressing that too would also drop
+		// skills and instructions, so it is left alone.
+		const customAgents = plan.isEphemeral ? [] : await toSdkSessionCustomAgents(plugins, plan.resolvedAgentName, this._fileService);
 		const skillDirectories = toSdkSkillDirectories(pluginsWithoutDirs.flatMap(p => p.skills));
 		const instructionDirectories = toSdkInstructionDirectories(plugins.flatMap(p => p.instructions));
 		const model = plan.kind === 'create' ? plan.model : plan.fallback.model;
@@ -773,12 +782,17 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		const availableTools = getToolFilterOverride(availableToolsOverride, 'availableTools', modelId, this._logService, plan.sessionId);
 		const excludedTools = getToolFilterOverride(excludedToolsOverride, 'excludedTools', modelId, this._logService, plan.sessionId);
 		const sdkAvailableTools = toSdkToolFilterPatterns(availableTools);
-		const sdkExcludedTools = toSdkToolFilterPatterns(excludedTools);
+		const configuredSdkExcludedTools = plan.isEphemeral
+			? [...(toSdkToolFilterPatterns(excludedTools) ?? []), ...EPHEMERAL_DISABLED_COPILOT_TOOLS]
+			: toSdkToolFilterPatterns(excludedTools);
+		const clientToolNames = filterClientToolNames(clientToolNamesFromSnapshot(plan.snapshot), availableTools, excludedTools);
+		const sdkExcludedTools = clientToolNames.has(SEMANTIC_SEARCH_TOOL_NAME)
+			? configuredSdkExcludedTools
+			: [...new Set([...(configuredSdkExcludedTools ?? []), `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`])];
 		const modelCapabilitiesOverride = resolveModelCapabilityOverrideField(capabilityOverrides, model?.id, 'modelCapabilities', (value): value is Record<string, unknown> => isObject(value), () => {
 			this._logService.warn(`[Copilot:${plan.sessionId}] Ignoring invalid 'modelCapabilities' capability override for '${modelId}'; expected an object`);
 		});
 		const modelCapabilities = getModelCapabilitiesOverride(modelCapabilitiesOverride, modelId, this._logService, plan.sessionId);
-		const clientToolNames = filterClientToolNames(clientToolNamesFromSnapshot(plan.snapshot), availableTools, excludedTools);
 		// Host-side routing only — the prompt contributor and the tool-search gate
 		// below. The wire model stays the selected one, so the session still runs
 		// on the real model with the aliased family's prompt and tool profile.
@@ -803,14 +817,29 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		// summary at info for prompt observability; the full config at trace.
 		const systemMessage = agentHostPromptRegistry.resolveSystemMessageConfig(effectiveModel, promptContext);
 		this._logService.info(`[Copilot:${plan.sessionId}] Resolved system message: ${describeSystemMessageConfig(systemMessage)}`);
+		const additionalDisabledMcpServers = plan.isEphemeral ? [
+			...plugins.flatMap(plugin => plugin.mcpServers.map(server => server.name)),
+			...Object.keys(plan.snapshot.mcpServers),
+		] : undefined;
+		const disabledMcpServers = disabledMcpServersSessionOption(plugins, plan.disabledRootMcpServers, additionalDisabledMcpServers);
+		const mcpServers = plan.isEphemeral ? {} : { ...toSdkMcpServersFromConfigMap(plan.snapshot.mcpServers), ...toSdkMcpServers(explicitMcpServers) };
 		if (this._logService.getLevel() <= LogLevel.Trace) {
 			// Guarded: a `replace`-mode prompt's content can be multiple KB, so only
 			// serialize it when trace output is actually emitted.
 			this._logService.trace(`[Copilot:${plan.sessionId}] System message config: ${JSON.stringify(systemMessage, (_key, value) => typeof value === 'function' ? '[transform fn]' : value)}`);
+			const sortedUnique = (names: readonly string[]) => [...new Set(names)].sort();
+			this._logService.trace(`[Copilot:${plan.sessionId}] MCP launch projection: ${JSON.stringify({
+				ephemeral: plan.isEphemeral === true,
+				pluginDiscovery: sortedUnique(plugins.flatMap(plugin => plugin.mcpServers.filter(server => server.sdkRegistration === 'pluginDiscovery').map(server => server.name))),
+				sessionConfig: sortedUnique(plugins.flatMap(plugin => plugin.mcpServers.filter(server => server.sdkRegistration === 'sessionConfig').map(server => server.name))),
+				rootConfig: Object.keys(plan.snapshot.mcpServers).sort(),
+				disabled: [...(disabledMcpServers.disabledMcpServers ?? [])].sort(),
+				finalSessionConfig: Object.keys(mcpServers).sort(),
+			})}`);
 		}
 		return {
 			...byok,
-			...disabledMcpServersSessionOption(plugins, plan.disabledRootMcpServers),
+			...disabledMcpServers,
 			clientName: AGENT_HOST_COPILOT_CLIENT_NAME,
 			// Resume only: `_createSession` re-resolves the full effort for a create,
 			// while a resumed session keeps the effort the runtime journaled unless
@@ -831,7 +860,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 				onPostToolUse: input => runtime.handlePostToolUse(input),
 				onUserPromptSubmitted: () => runtime.handleUserPromptSubmitted(),
 			}),
-			mcpServers: { ...toSdkMcpServersFromConfigMap(plan.snapshot.mcpServers), ...toSdkMcpServers(explicitMcpServers) },
+			mcpServers,
 			onExitPlanModeRequest: (request, invocation) => runtime.handleExitPlanModeRequest(request, invocation),
 			workingDirectory: plan.workingDirectory?.fsPath,
 			customAgents,

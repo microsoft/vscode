@@ -499,18 +499,12 @@
 	.session-section-icon {
 		flex-shrink: 0;
 		margin-right: 6px;
-		font-size: var(--vscode-codiconFontSize, 16px);
-	}
-
-	.session-section-status-indicator {
-		flex-shrink: 0;
-		margin-left: 4px;
-		position: relative;
 		width: 16px;
 		height: 16px;
 		display: flex;
 		align-items: center;
 		justify-content: center;
+		font-size: var(--vscode-codiconFontSize, 16px);
 	}
 
 	.session-section-count {

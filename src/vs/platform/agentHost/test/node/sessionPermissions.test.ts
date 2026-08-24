@@ -134,6 +134,35 @@ suite('SessionPermissionManager', () => {
 		assert.deepStrictEqual(results, [ToolCallConfirmationReason.NotNeeded, undefined]);
 	});
 
+	test('isForbiddenSnapshotWrite flags writes to a session attachment snapshot but not reads or working-dir writes (#331154)', () => {
+		const snapshot = URI.joinPath(sessionDataService.getSessionDataDir(URI.parse(sessionUri)), SESSION_ATTACHMENTS_DIRNAME, 'id', 'Pasted text #1.txt').fsPath;
+		assert.deepStrictEqual({
+			snapshotWrite: permissions.isForbiddenSnapshotWrite(writeEvent(snapshot), sessionUri),
+			workingDirWrite: permissions.isForbiddenSnapshotWrite(writeEvent(join(workDir, 'app.ts')), sessionUri),
+			snapshotRead: permissions.isForbiddenSnapshotWrite(readEvent(snapshot), sessionUri),
+		}, {
+			snapshotWrite: true,
+			workingDirWrite: false,
+			snapshotRead: false,
+		});
+	});
+
+	test('isForbiddenSnapshotWrite is independent of auto-approve config (used by the interactive deny path) (#331154)', async () => {
+		configService.updateRootConfig({ [AgentHostGlobalAutoApproveEnabledConfigKey]: true });
+		const snapshot = URI.joinPath(sessionDataService.getSessionDataDir(URI.parse(sessionUri)), SESSION_ATTACHMENTS_DIRNAME, 'id', 'Pasted text #1.txt').fsPath;
+		// getAutoApproval approves the write once global auto-approve is on (the auto-approve checks
+		// return before the write-path logic). isForbiddenSnapshotWrite ignores that, so _handleToolReady
+		// can hard-deny before consulting getAutoApproval. NOTE: this only matters when a provider raises
+		// an interactive pending_confirmation; providers that auto-approve upstream never reach it.
+		assert.deepStrictEqual({
+			autoApproval: await permissions.getAutoApproval(writeEvent(snapshot), sessionUri),
+			forbidden: permissions.isForbiddenSnapshotWrite(writeEvent(snapshot), sessionUri),
+		}, {
+			autoApproval: ToolCallConfirmationReason.Setting,
+			forbidden: true,
+		});
+	});
+
 	test('requires confirmation for writes outside the working directory', async () => {
 		const result = await permissions.getAutoApproval(writeEvent(join(outsideDir, 'app.ts')), sessionUri);
 		assert.strictEqual(result, undefined);

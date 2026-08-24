@@ -135,6 +135,12 @@ export interface IChatTerminalToolProgressPart {
 export interface IChatTerminalOutputSource {
 	readonly onDidChange: Event<void>;
 	readonly output: string;
+	/**
+	 * Whether the underlying command has finished. A command can exit without
+	 * reporting an {@link exitCode}, so completion must be read from here
+	 * rather than inferred from the code being present.
+	 */
+	readonly hasExited: boolean;
 	readonly exitCode: number | undefined;
 }
 
