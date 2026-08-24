@@ -25,40 +25,6 @@ export class InlineDecoration {
 }
 
 /**
- * A fixed-width inline decoration.
- */
-export class FixedWidthInlineDecoration {
-	constructor(
-		public readonly startColumn: number,
-		public readonly endColumn: number,
-		public readonly inlineClassName: string,
-		public readonly widthInEm: number
-	) { }
-
-	public static equalsArr(a: readonly FixedWidthInlineDecoration[], b: readonly FixedWidthInlineDecoration[]): boolean {
-		if (a.length !== b.length) {
-			return false;
-		}
-		for (let i = 0; i < a.length; i++) {
-			if (
-				a[i].startColumn !== b[i].startColumn
-				|| a[i].endColumn !== b[i].endColumn
-				|| a[i].inlineClassName !== b[i].inlineClassName
-				|| a[i].widthInEm !== b[i].widthInEm
-			) {
-				return false;
-			}
-		}
-		return true;
-	}
-}
-
-export interface IInjectedTextRenderingData {
-	readonly inlineDecorations: InlineDecoration[][];
-	readonly fixedWidthInlineDecorations: FixedWidthInlineDecoration[][];
-}
-
-/**
  * A collection of decorations in a range of lines.
  */
 export interface IViewDecorationsCollection {
@@ -245,16 +211,11 @@ export class InjectedTextInlineDecorationsComputer implements IInlineDecorations
 	constructor(private readonly context: IInjectedTextInlineDecorationsComputerContext) { }
 
 	public getInlineDecorations(modelLineNumber: number): InlineDecoration[][] {
-		return this.getRenderingData(modelLineNumber).inlineDecorations;
-	}
-
-	public getRenderingData(modelLineNumber: number): IInjectedTextRenderingData {
 		const injectionOffsets = this.context.getInjectionOffsets(modelLineNumber);
 		if (!injectionOffsets) {
-			return { inlineDecorations: [], fixedWidthInlineDecorations: [] };
+			return [];
 		}
 		const lineInlineDecorations = [];
-		const lineFixedWidthInlineDecorations: FixedWidthInlineDecoration[][] = [];
 		let totalInjectedTextLengthBefore = 0;
 		let currentInjectedOffset = 0;
 
@@ -264,8 +225,6 @@ export class InjectedTextInlineDecorationsComputer implements IInlineDecorations
 		for (let outputLineIndex = 0; outputLineIndex < breakOffsets.length; outputLineIndex++) {
 			const inlineDecorations = new Array<InlineDecoration>();
 			lineInlineDecorations[outputLineIndex] = inlineDecorations;
-			const fixedWidthInlineDecorations = new Array<FixedWidthInlineDecoration>();
-			lineFixedWidthInlineDecorations[outputLineIndex] = fixedWidthInlineDecorations;
 
 			const lineStartOffsetInInputWithInjections = outputLineIndex > 0 ? breakOffsets[outputLineIndex - 1] : 0;
 			const lineEndOffsetInInputWithInjections = breakOffsets[outputLineIndex];
@@ -283,20 +242,16 @@ export class InjectedTextInlineDecorationsComputer implements IInlineDecorations
 				if (lineStartOffsetInInputWithInjections < injectedTextEndOffsetInInputWithInjections) {
 					// Injected text ends after or in this line (but also starts in or before this line).
 					const options = injectionOptions![currentInjectedOffset];
-					if (options.inlineClassName || options.widthInEm !== undefined) {
+					if (options.inlineClassName) {
 						const wrappedTextIndentLength = this.context.getWrappedTextIndentLength(modelLineNumber);
 						const offset = (outputLineIndex > 0 ? wrappedTextIndentLength : 0);
 						const start = offset + Math.max(injectedTextStartOffsetInInputWithInjections - lineStartOffsetInInputWithInjections, 0);
 						const end = offset + Math.min(injectedTextEndOffsetInInputWithInjections - lineStartOffsetInInputWithInjections, lineEndOffsetInInputWithInjections - lineStartOffsetInInputWithInjections);
 						if (start !== end) {
 							const viewLineNumber = this.context.getBaseViewLineNumber(modelLineNumber) + outputLineIndex;
-							if (options.widthInEm !== undefined) {
-								fixedWidthInlineDecorations.push(new FixedWidthInlineDecoration(start + 1, end + 1, options.inlineClassName ?? '', options.widthInEm));
-							} else {
-								const range = new Range(viewLineNumber, start + 1, viewLineNumber, end + 1);
-								const type: InlineDecorationType = options.inlineClassNameAffectsLetterSpacing ? InlineDecorationType.RegularAffectingLetterSpacing : InlineDecorationType.Regular;
-								inlineDecorations.push(new InlineDecoration(range, options.inlineClassName ?? '', type));
-							}
+							const range = new Range(viewLineNumber, start + 1, viewLineNumber, end + 1);
+							const type: InlineDecorationType = options.inlineClassNameAffectsLetterSpacing ? InlineDecorationType.RegularAffectingLetterSpacing : InlineDecorationType.Regular;
+							inlineDecorations.push(new InlineDecoration(range, options.inlineClassName, type));
 						}
 					}
 				}
@@ -309,6 +264,6 @@ export class InjectedTextInlineDecorationsComputer implements IInlineDecorations
 				}
 			}
 		}
-		return { inlineDecorations: lineInlineDecorations, fixedWidthInlineDecorations: lineFixedWidthInlineDecorations };
+		return lineInlineDecorations;
 	}
 }

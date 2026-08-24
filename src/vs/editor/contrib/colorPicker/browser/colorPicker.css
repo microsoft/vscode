@@ -13,27 +13,18 @@
 
 .colorpicker-color-decoration,
 .hc-light .colorpicker-color-decoration {
+	border: solid 0.1em #000;
 	box-sizing: border-box;
-	padding: 0 var(--vscode-colorPicker-colorDecoratorMargin);
-	background-clip: content-box;
-	height: var(--vscode-colorPicker-colorDecoratorSize);
-	line-height: var(--vscode-colorPicker-colorDecoratorSize);
+	margin: 0.1em 0.2em 0 0.2em;
+	width: 0.8em;
+	height: 0.8em;
+	line-height: 0.8em;
 	display: inline-block;
-	position: relative;
 	cursor: pointer;
 }
 
-.colorpicker-color-decoration::after {
-	content: '';
-	position: absolute;
-	inset: 0 var(--vscode-colorPicker-colorDecoratorMargin);
-	box-sizing: border-box;
-	border: solid 0.1em #000;
-	pointer-events: none;
-}
-
-.hc-black .colorpicker-color-decoration::after,
-.vs-dark .colorpicker-color-decoration::after {
+.hc-black .colorpicker-color-decoration,
+.vs-dark .colorpicker-color-decoration {
 	border: solid 0.1em #eee;
 }
 
@@ -215,6 +206,6 @@
 	cursor: pointer;
 }
 
-.colorpicker-body .insert-button:hover {
+.colorpicker-body .insert-button:hover{
 	background: var(--vscode-button-hoverBackground);
 }

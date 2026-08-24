@@ -1235,7 +1235,6 @@ export class ViewModelLinesFromModelAsIs implements IViewModelLines {
 			lineContent.length + 1,
 			0,
 			lineTokens.inflate(),
-			null,
 			null
 		);
 	}

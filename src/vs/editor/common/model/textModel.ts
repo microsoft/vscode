@@ -2468,8 +2468,8 @@ export class ModelDecorationInjectedTextOptions implements model.InjectedTextOpt
 	readonly cursorStops: model.InjectedTextCursorStops | null;
 
 	private constructor(options: model.InjectedTextOptions) {
-		if (options.widthInEm !== undefined && options.tokens) {
-			throw new BugIndicatingError('Injected text cannot define both tokens and widthInEm');
+		if (options.widthInEm !== undefined && (!Number.isFinite(options.widthInEm) || options.widthInEm < 0)) {
+			throw new BugIndicatingError('Injected text widthInEm must be a finite non-negative number');
 		}
 		this.content = options.content || '';
 		this.tokens = options.tokens ?? null;

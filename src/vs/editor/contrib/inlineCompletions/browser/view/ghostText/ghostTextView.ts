@@ -671,7 +671,6 @@ function renderLines(domNode: HTMLElement, tabSize: number, lines: readonly Line
 			0,
 			lineTokens,
 			lineData.decorations.slice(),
-			[],
 			tabSize,
 			0,
 			fontInfo.spaceWidth,

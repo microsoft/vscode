@@ -22,7 +22,6 @@ import { MonospaceLineBreaksComputerFactory } from '../../../common/viewModel/mo
 import { ViewModelLinesFromProjectedModel } from '../../../common/viewModel/viewModelLines.js';
 import { TestConfiguration } from '../config/testConfiguration.js';
 import { createTextModel } from '../../common/testTextModel.js';
-import { FixedWidthInlineDecoration } from '../../../common/viewModel/inlineDecorations.js';
 
 suite('Editor ViewModel - SplitLinesCollection', () => {
 
@@ -937,27 +936,6 @@ suite('SplitLinesCollection', () => {
 					{ inlineDecorations: undefined },
 				]
 			);
-		});
-
-		test('getViewLineData - projects fixed-width injected text as an atomic part', () => {
-			model.deltaDecorations([], [{
-				range: new Range(1, 9, 1, 9),
-				options: {
-					description: 'fixed-width',
-					after: {
-						content: 'x',
-						inlineClassName: 'fixed-width',
-						widthInEm: 3
-					},
-					showIfCollapsed: true,
-				}
-			}]);
-
-			withSplitLinesCollection(model, 'wordWrapColumn', 30, false, splitLinesCollection => {
-				assert.deepStrictEqual(splitLinesCollection.getViewLineData(1).fixedWidthInlineDecorations, [
-					new FixedWidthInlineDecoration(9, 10, 'fixed-width', 3)
-				]);
-			});
 		});
 	});
 

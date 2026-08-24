@@ -7,7 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { Range } from '../../../common/core/range.js';
 import { IModelDecoration, IModelDecorationOptions, InjectedTextOptions } from '../../../common/model.js';
-import { InlineDecoration, InlineDecorationType, InlineModelDecorationsComputer, IInlineModelDecorationsComputerContext, InjectedTextInlineDecorationsComputer, IInjectedTextInlineDecorationsComputerContext, FixedWidthInlineDecoration } from '../../../common/viewModel/inlineDecorations.js';
+import { InlineDecoration, InlineDecorationType, InlineModelDecorationsComputer, IInlineModelDecorationsComputerContext, InjectedTextInlineDecorationsComputer, IInjectedTextInlineDecorationsComputerContext } from '../../../common/viewModel/inlineDecorations.js';
 import { createTextModel } from '../testTextModel.js';
 import { IdentityCoordinatesConverter } from '../../../common/coordinatesConverter.js';
 
@@ -316,9 +316,9 @@ suite('InjectedTextInlineDecorationsComputer', () => {
 		]);
 	});
 
-	test('fixed width injection creates a projected line part', () => {
+	test('fixed width injection uses its regular inline decoration', () => {
 		const injectionOptions: InjectedTextOptions[] = [
-			{ content: '\xa0', widthInEm: 3 }
+			{ content: '\xa0', inlineClassName: 'fixed-width', widthInEm: 3 }
 		];
 		const context: IInjectedTextInlineDecorationsComputerContext = {
 			getInjectionOptions: () => injectionOptions,
@@ -328,11 +328,10 @@ suite('InjectedTextInlineDecorationsComputer', () => {
 			getBaseViewLineNumber: () => 1,
 		};
 		const computer = new InjectedTextInlineDecorationsComputer(context);
-		const result = computer.getRenderingData(1);
-		assert.deepStrictEqual(result, {
-			inlineDecorations: [[]],
-			injectedTextLineParts: [[new FixedWidthInlineDecoration(6, 7, '', 3)]]
-		});
+		const result = computer.getInlineDecorations(1);
+		assert.deepStrictEqual(result, [
+			[new InlineDecoration(new Range(1, 6, 1, 7), 'fixed-width', InlineDecorationType.Regular)]
+		]);
 	});
 
 	test('injection with inlineClassNameAffectsLetterSpacing', () => {

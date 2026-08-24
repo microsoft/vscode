@@ -8,7 +8,6 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { PositionAffinity } from '../../../common/model.js';
 import { ModelDecorationInjectedTextOptions } from '../../../common/model/textModel.js';
 import { ModelLineProjectionData } from '../../../common/modelLineProjectionData.js';
-import { TokenArray, TokenInfo } from '../../../common/tokens/lineTokens.js';
 
 suite('Editor ViewModel - LineBreakData', () => {
 
@@ -19,17 +18,6 @@ suite('Editor ViewModel - LineBreakData', () => {
 
 		assert.strictEqual(data.translateToInputOffset(0, 50), 50);
 		assert.strictEqual(data.translateToInputOffset(1, 60), 150);
-	});
-
-	test('fixed width cannot be combined with tokens', () => {
-		assert.throws(
-			() => ModelDecorationInjectedTextOptions.from({
-				content: 'text',
-				tokens: TokenArray.create([new TokenInfo(4, 0)]),
-				widthInEm: 1
-			}),
-			/Injected text cannot define both tokens and widthInEm/
-		);
 	});
 
 	test('fixed width must be finite and non-negative', () => {
