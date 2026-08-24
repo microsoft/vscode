@@ -179,7 +179,25 @@ npx @playwright/cli -s=$PW_SESSION snapshot
 
 If a target looks stale after relaunching, run `npx @playwright/cli -s=$PW_SESSION close`, attach again with `$CDP`, and re-check `tab-list`.
 
-### Focusing the chat input (works on Code OSS, including the Agents window)
+### Focusing the chat input
+
+In the regular workbench, invoke **Chat: Open Chat**
+(`workbench.action.chat.open`) through the Command Palette. Search by command ID
+so the automation does not depend on the display language:
+
+```bash
+npx @playwright/cli -s=$PW_SESSION press F1
+npx @playwright/cli -s=$PW_SESSION type workbench.action.chat.open
+npx @playwright/cli -s=$PW_SESSION press Enter
+```
+
+The command is idempotent: it reveals Chat and focuses the input even when Chat
+is already open. Do not substitute its keybinding here—when the chat input
+already has focus, another context-specific keybinding can win and close Chat.
+
+In the Agents window, use the platform chord instead. The Agents window
+overrides it with `sessions.focusActiveSession`, which works for new-session
+views where `workbench.action.chat.open` does not:
 
 ```bash
 # macOS
@@ -187,6 +205,10 @@ npx @playwright/cli -s=$PW_SESSION press Control+Meta+i
 # Linux / Windows
 npx @playwright/cli -s=$PW_SESSION press Control+Alt+i
 ```
+
+Either path should leave `document.activeElement` on VS Code's
+`native-edit-context` editing surface. If it does not, take a fresh snapshot and
+resolve any blocking dialog or unavailable chat state before retrying.
 
 ### Typing into Monaco (chat input, editors)
 
@@ -200,7 +222,9 @@ npx @playwright/cli -s=$PW_SESSION press Control+Alt+i
   export PW_SESSION                            # helper reads this env var
 
   # Send a prompt:
-  npx @playwright/cli -s=$PW_SESSION press Control+Meta+i  # focus chat input
+  npx @playwright/cli -s=$PW_SESSION press F1
+  npx @playwright/cli -s=$PW_SESSION type workbench.action.chat.open
+  npx @playwright/cli -s=$PW_SESSION press Enter
   "$PASTE" 'Please run `pwd && ls` using your terminal tool.'
   npx @playwright/cli -s=$PW_SESSION press Enter
 
@@ -240,8 +264,6 @@ npx @playwright/cli -s=$PW_SESSION press Control+Alt+i
   npx @playwright/cli -s=$PW_SESSION press Enter
   ```
 
-The focus shortcut should leave `document.activeElement` on VS Code's `native-edit-context` editing surface. That is a useful sanity check when key presses appear to do nothing.
-
 ### Parallel multi-instance pattern
 
 Because the launch skill is built around isolation, the natural workload is **many agents on one machine, each driving their own Code OSS**. The pattern boils down to giving each agent a unique `PW_SESSION` and passing it everywhere:
@@ -279,7 +301,8 @@ document.querySelectorAll('.view-line')
 document.activeElement?.className === 'native-edit-context'
 ```
 
-The `Control+Meta+i` / `Control+Alt+i` focus shortcut still works; only the DOM shape after focus differs.
+The Agents window overrides the **Chat: Open Chat** chord to focus the active
+session, accounting for these DOM differences.
 
 ### Verifying and clearing chat text
 
@@ -306,7 +329,9 @@ npx @playwright/cli -s=$PW_SESSION press Control+a
 npx @playwright/cli -s=$PW_SESSION press Backspace
 ```
 
-If the keyboard shortcut cannot focus chat because the surface is not available yet, take a snapshot and navigate the UI into a state where chat exists before retrying. Avoid treating completed CLI commands as proof that text was entered.
+If the chosen focus path cannot reach Chat because the surface is not available
+yet, take a snapshot and navigate the UI into a state where chat exists before
+retrying. Avoid treating completed CLI commands as proof that text was entered.
 
 ### Screenshots (paper trail)
 
@@ -392,5 +417,5 @@ Code OSS is a full Electron app and easily eats 1-4 GB. Always clean up.
 - **Built-in extension fails to load (`Cannot find module .../extensions/.../out/extension.js`)** - extensions weren't compiled. Run `npm run compile` (one-shot, also rebuilds all built-in extensions) or `npm run watch` (incremental). A common cause: you ran `npm run transpile-client` to satisfy unit tests, which populated `out/` but not `extensions/*/out/`, so preLaunch's "is `out/` missing?" check skipped the compile.
 - **`launch.sh` exits non-zero with a log tail** - either pre-launch failed, `code.sh` died before CDP came up, or CDP never opened within 90s. The tail printed to stderr is from `runDir/code.log` - read it to diagnose.
 - **Snapshot shows the wrong page or no expected controls** - use `tab-list`, switch with `tab-select <index>` if needed, then re-snapshot before interacting.
-- **CLI typing commands complete but the input stays empty** - focus chat with the platform shortcut, use `press` or clipboard paste rather than `fill` / `type`, then verify the input state before sending.
+- **CLI typing commands complete but the input stays empty** - invoke **Chat: Open Chat** through the Command Palette in the regular workbench, or use the platform chord in the Agents window. Then use `press` or clipboard paste rather than `fill` / `type`, and verify the input state before sending.
 - **Auth missing in the launched window** - confirm the source profile is actually authed (`ls "$SOURCE_UDD"` should contain `User/`, and `ls "$SOURCE_UDD/User/globalStorage"` should show persisted extension state). **On Windows, check the shared-data-dir first**: the GitHub session blob lives in `%USERPROFILE%\.vscode-oss-shared\sharedStorage\state.vscdb`, not in the profile. The launcher logs `copying shared data: <src> -> <dst>` on stderr when it finds it, and warns `no shared-data-dir at <path>` when it doesn't. A missing or empty source shared-data-dir means signing in again against the source profile is what you need - see [Windows authentication](#windows-authentication).
