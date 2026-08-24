@@ -310,7 +310,11 @@ class NotebookIndentationStatus extends Disposable {
 
 		const width = typeof indentSize === 'number' ? indentSize : tabSize;
 
-		const message = insertSpaces ? `Spaces: ${width}` : `Tab Size: ${width}`;
+		const message = insertSpaces === 'mixed'
+			? nls.localize('mixedIndentationSize', "Mixed: {0} (Tab Size: {1})", width, tabSize)
+			: insertSpaces
+				? nls.localize('spacesSize', "Spaces: {0}", width)
+				: nls.localize({ key: 'tabSize', comment: ['Tab corresponds to the tab key'] }, "Tab Size: {0}", width);
 		const newText = message;
 		if (!newText) {
 			this._accessor.clear();

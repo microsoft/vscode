@@ -78,7 +78,7 @@ export class MainThreadTextEditorProperties {
 
 		const modelOptions = model.getOptions();
 		return {
-			insertSpaces: modelOptions.insertSpaces,
+			insertSpaces: modelOptions.insertSpaces !== false,
 			tabSize: modelOptions.tabSize,
 			indentSize: modelOptions.indentSize,
 			originalIndentSize: modelOptions.originalIndentSize,

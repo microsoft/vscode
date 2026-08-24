@@ -106,7 +106,7 @@ export interface IGlobalEditorOptions {
 	 * This setting is overridden based on the file contents when `detectIndentation` is on.
 	 * Defaults to true.
 	 */
-	insertSpaces?: boolean;
+	insertSpaces?: boolean | 'mixed';
 	/**
 	 * Controls whether `tabSize` and `insertSpaces` will be automatically detected when a file is opened based on the file contents.
 	 * Defaults to true.

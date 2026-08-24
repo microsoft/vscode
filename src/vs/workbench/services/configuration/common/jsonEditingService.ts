@@ -88,12 +88,13 @@ export class JSONEditingService implements IJSONEditingService {
 
 	private getEdits(model: ITextModel, configurationValue: IJSONValue): Edit[] {
 		const { tabSize, insertSpaces } = model.getOptions();
+		const formattingInsertSpaces = insertSpaces !== false;
 		const eol = model.getEOL();
 		const { path, value } = configurationValue;
 
 		// With empty path the entire file is being replaced, so we just use JSON.stringify
 		if (!path.length) {
-			const content = JSON.stringify(value, null, insertSpaces ? ' '.repeat(tabSize) : '\t');
+			const content = JSON.stringify(value, null, formattingInsertSpaces ? ' '.repeat(tabSize) : '\t');
 			return [{
 				content,
 				length: content.length,
@@ -101,7 +102,7 @@ export class JSONEditingService implements IJSONEditingService {
 			}];
 		}
 
-		return setProperty(model.getValue(), path, value, { tabSize, insertSpaces, eol });
+		return setProperty(model.getValue(), path, value, { tabSize, insertSpaces: formattingInsertSpaces, eol });
 	}
 
 	private async resolveModelReference(resource: URI): Promise<IReference<IResolvedTextEditorModel>> {

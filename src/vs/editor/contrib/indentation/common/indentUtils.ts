@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { InsertSpaces } from '../../../common/core/misc/indentation.js';
+
 export function getSpaceCnt(str: string, tabSize: number) {
 	let spacesCnt = 0;
 
@@ -17,11 +19,11 @@ export function getSpaceCnt(str: string, tabSize: number) {
 	return spacesCnt;
 }
 
-export function generateIndent(spacesCnt: number, tabSize: number, insertSpaces: boolean) {
+export function generateIndent(spacesCnt: number, tabSize: number, insertSpaces: InsertSpaces) {
 	spacesCnt = spacesCnt < 0 ? 0 : spacesCnt;
 
 	let result = '';
-	if (!insertSpaces) {
+	if (insertSpaces !== true) {
 		const tabsCnt = Math.floor(spacesCnt / tabSize);
 		spacesCnt = spacesCnt % tabSize;
 		for (let i = 0; i < tabsCnt; i++) {

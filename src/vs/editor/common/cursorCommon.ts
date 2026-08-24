@@ -16,7 +16,7 @@ import { ILanguageConfigurationService } from './languages/languageConfiguration
 import { createScopedLineTokens } from './languages/supports.js';
 import { IElectricAction } from './languages/supports/electricCharacter.js';
 import { CursorColumns } from './core/cursorColumns.js';
-import { normalizeIndentation } from './core/misc/indentation.js';
+import { InsertSpaces, normalizeIndentation } from './core/misc/indentation.js';
 import { InputMode } from './inputMode.js';
 
 export interface IColumnSelectData {
@@ -54,7 +54,7 @@ export class CursorConfiguration {
 	public readonly readOnly: boolean;
 	public readonly tabSize: number;
 	public readonly indentSize: number;
-	public readonly insertSpaces: boolean;
+	public readonly insertSpaces: InsertSpaces;
 	public readonly stickyTabStops: boolean;
 	public readonly pageSize: number;
 	public readonly lineHeight: number;
@@ -197,7 +197,7 @@ export class CursorConfiguration {
 	}
 
 	public normalizeIndentation(str: string): string {
-		return normalizeIndentation(str, this.indentSize, this.insertSpaces);
+		return normalizeIndentation(str, this.indentSize, this.insertSpaces, this.tabSize);
 	}
 
 	private _getShouldAutoClose(languageId: string, autoCloseConfig: EditorAutoClosingStrategy, forQuotes: boolean): (ch: string) => boolean {

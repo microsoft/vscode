@@ -1652,11 +1652,12 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			reference = await this._textModelResolverService.createModelReference(resource);
 			const model = reference.object.textEditorModel;
 			const { tabSize, insertSpaces } = model.getOptions();
+			const formattingInsertSpaces = insertSpaces !== false;
 			const eol = model.getEOL();
-			let stringified = toFormattedString(task, { eol, tabSize, insertSpaces });
-			const regex = new RegExp(eol + (insertSpaces ? ' '.repeat(tabSize) : '\\t'), 'g');
-			stringified = stringified.replace(regex, eol + (insertSpaces ? ' '.repeat(tabSize * 3) : '\t\t\t'));
-			const twoTabs = insertSpaces ? ' '.repeat(tabSize * 2) : '\t\t';
+			let stringified = toFormattedString(task, { eol, tabSize, insertSpaces: formattingInsertSpaces });
+			const regex = new RegExp(eol + (formattingInsertSpaces ? ' '.repeat(tabSize) : '\\t'), 'g');
+			stringified = stringified.replace(regex, eol + (formattingInsertSpaces ? ' '.repeat(tabSize * 3) : '\t\t\t'));
+			const twoTabs = formattingInsertSpaces ? ' '.repeat(tabSize * 2) : '\t\t';
 			stringValue = twoTabs + stringified.slice(0, stringified.length - 1) + twoTabs + stringified.slice(stringified.length - 1);
 		} finally {
 			reference?.dispose();

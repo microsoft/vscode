@@ -258,7 +258,7 @@ export class ConfigurationEditing {
 	private getFormattingOptions(model: ITextModel): FormattingOptions {
 		const { insertSpaces, tabSize } = model.getOptions();
 		const eol = model.getEOL();
-		return { insertSpaces, tabSize, eol };
+		return { insertSpaces: insertSpaces !== false, tabSize, eol };
 	}
 
 	private async onError(error: ConfigurationEditingError, operation: IConfigurationEditOperation, scopes: IConfigurationUpdateOverrides | undefined): Promise<void> {

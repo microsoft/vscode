@@ -6,20 +6,24 @@
 import * as strings from '../../../../base/common/strings.js';
 import { CursorColumns } from '../cursorColumns.js';
 
-function _normalizeIndentationFromWhitespace(str: string, indentSize: number, insertSpaces: boolean): string {
+export type InsertSpaces = boolean | 'mixed';
+
+function _normalizeIndentationFromWhitespace(str: string, indentSize: number, tabSize: number, insertSpaces: InsertSpaces): string {
 	let spacesCnt = 0;
+	const renderTabSize = insertSpaces === 'mixed' ? tabSize : indentSize;
 	for (let i = 0; i < str.length; i++) {
 		if (str.charAt(i) === '\t') {
-			spacesCnt = CursorColumns.nextIndentTabStop(spacesCnt, indentSize);
+			spacesCnt = CursorColumns.nextRenderTabStop(spacesCnt, renderTabSize);
 		} else {
 			spacesCnt++;
 		}
 	}
 
 	let result = '';
-	if (!insertSpaces) {
-		const tabsCnt = Math.floor(spacesCnt / indentSize);
-		spacesCnt = spacesCnt % indentSize;
+	if (insertSpaces !== true) {
+		const indentationTabSize = insertSpaces === 'mixed' ? tabSize : indentSize;
+		const tabsCnt = Math.floor(spacesCnt / indentationTabSize);
+		spacesCnt = spacesCnt % indentationTabSize;
 		for (let i = 0; i < tabsCnt; i++) {
 			result += '\t';
 		}
@@ -32,10 +36,10 @@ function _normalizeIndentationFromWhitespace(str: string, indentSize: number, in
 	return result;
 }
 
-export function normalizeIndentation(str: string, indentSize: number, insertSpaces: boolean): string {
+export function normalizeIndentation(str: string, indentSize: number, insertSpaces: InsertSpaces, tabSize: number = indentSize): string {
 	let firstNonWhitespaceIndex = strings.firstNonWhitespaceIndex(str);
 	if (firstNonWhitespaceIndex === -1) {
 		firstNonWhitespaceIndex = str.length;
 	}
-	return _normalizeIndentationFromWhitespace(str.substring(0, firstNonWhitespaceIndex), indentSize, insertSpaces) + str.substring(firstNonWhitespaceIndex);
+	return _normalizeIndentationFromWhitespace(str.substring(0, firstNonWhitespaceIndex), indentSize, tabSize, insertSpaces) + str.substring(firstNonWhitespaceIndex);
 }

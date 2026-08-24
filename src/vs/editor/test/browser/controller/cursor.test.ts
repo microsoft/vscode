@@ -3265,6 +3265,36 @@ suite('Editor Controller', () => {
 		});
 	});
 
+	test('issue #5394: Tab uses mixed indentation', () => {
+		const model = createTextModel('work();', undefined, {
+			tabSize: 8,
+			indentSize: 3,
+			insertSpaces: 'mixed'
+		});
+
+		withTestCodeEditor(model, {}, (editor, viewModel) => {
+			CoreNavigationCommands.MoveTo.runCoreEditorCommand(viewModel, { position: new Position(1, 1) });
+			for (let i = 0; i < 4; i++) {
+				editor.runCommand(CoreEditingCommands.Tab, null);
+			}
+			assert.strictEqual(model.getLineContent(1), '\t    work();');
+		});
+	});
+
+	test('issue #5394: Tab inside mixed indentation preserves surrounding whitespace', () => {
+		const model = createTextModel('      work();', undefined, {
+			tabSize: 8,
+			indentSize: 3,
+			insertSpaces: 'mixed'
+		});
+
+		withTestCodeEditor(model, {}, (editor, viewModel) => {
+			CoreNavigationCommands.MoveTo.runCoreEditorCommand(viewModel, { position: new Position(1, 4) });
+			editor.runCommand(CoreEditingCommands.Tab, null);
+			assert.strictEqual(model.getLineContent(1), '         work();');
+		});
+	});
+
 	test('Enter auto-indents with insertSpaces setting 1', () => {
 		const languageId = setupOnEnterLanguage(IndentAction.Indent);
 		usingCursor({
@@ -4027,6 +4057,32 @@ suite('Editor Controller', () => {
 			viewModel.type('\n', 'keyboard');
 			assert.strictEqual(model.getLineContent(3), '    if (true) {');
 			assertCursor(viewModel, new Selection(4, 3, 4, 3));
+		});
+	});
+
+	test('issue #5394: Enter uses mixed indentation', () => {
+		usingCursor({
+			text: [
+				'\t if (true) {'
+			],
+			languageId: indentRulesLanguageId,
+			modelOpts: {
+				tabSize: 8,
+				indentSize: 3,
+				insertSpaces: 'mixed',
+				detectIndentation: false
+			}
+		}, (editor, model, viewModel) => {
+			moveTo(editor, viewModel, 1, model.getLineMaxColumn(1), false);
+			viewModel.type('\n', 'keyboard');
+
+			assert.deepStrictEqual({
+				line: model.getLineContent(2),
+				cursor: viewModel.getCursorStates()[0].modelState.selection
+			}, {
+				line: '\t    ',
+				cursor: new Selection(2, 6, 2, 6)
+			});
 		});
 	});
 

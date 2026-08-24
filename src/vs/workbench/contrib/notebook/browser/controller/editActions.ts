@@ -30,7 +30,7 @@ import { InlineChatController } from '../../../inlineChat/browser/inlineChatCont
 import { CTX_INLINE_CHAT_FOCUSED } from '../../../inlineChat/common/inlineChat.js';
 import { changeCellToKind, runDeleteAction } from './cellOperations.js';
 import { CELL_TITLE_CELL_GROUP_ID, CELL_TITLE_OUTPUT_GROUP_ID, CellToolbarOrder, INotebookActionContext, INotebookCellActionContext, INotebookCommandContext, NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT, NotebookAction, NotebookCellAction, NotebookMultiCellAction, executeNotebookCondition, findTargetCellEditor } from './coreActions.js';
-import { NotebookChangeTabDisplaySize, NotebookIndentUsingSpaces, NotebookIndentUsingTabs, NotebookIndentationToSpacesAction, NotebookIndentationToTabsAction } from './notebookIndentationActions.js';
+import { NotebookChangeTabDisplaySize, NotebookIndentUsingMixed, NotebookIndentUsingSpaces, NotebookIndentUsingTabs, NotebookIndentationToSpacesAction, NotebookIndentationToTabsAction } from './notebookIndentationActions.js';
 import { CHANGE_CELL_LANGUAGE, CellEditState, DETECT_CELL_LANGUAGE, QUIT_EDIT_CELL_COMMAND_ID, getNotebookEditorFromEditorPane } from '../notebookBrowser.js';
 import * as icons from '../notebookIcons.js';
 import { CellEditType, CellKind, ICellEditOperation, NotebookCellExecutionState, NotebookSetting } from '../../common/notebookCommon.js';
@@ -644,6 +644,7 @@ registerAction2(class SelectNotebookIndentation extends NotebookAction {
 		const picks: QuickPickInput<IQuickPickItem & { run(): void }>[] = [
 			new NotebookIndentUsingTabs(), // indent using tabs
 			new NotebookIndentUsingSpaces(), // indent using spaces
+			new NotebookIndentUsingMixed(), // indent using tabs and spaces
 			new NotebookChangeTabDisplaySize(), // change tab size
 			new NotebookIndentationToTabsAction(), // convert indentation to tabs
 			new NotebookIndentationToSpacesAction() // convert indentation to spaces

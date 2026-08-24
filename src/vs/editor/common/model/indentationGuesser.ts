@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CharCode } from '../../../base/common/charCode.js';
+import { InsertSpaces } from '../core/misc/indentation.js';
 import { ITextBuffer } from '../model.js';
 
 class SpacesDiffResult {
@@ -97,17 +98,22 @@ export interface IGuessedIndentation {
 	 */
 	tabSize: number;
 	/**
-	 * Is indentation based on spaces?
+	 * How indentation whitespace should be inserted.
 	 */
-	insertSpaces: boolean;
+	insertSpaces: InsertSpaces;
+	/**
+	 * The number of columns used for one indentation level.
+	 */
+	indentSize: number;
 }
 
-export function guessIndentation(source: ITextBuffer, defaultTabSize: number, defaultInsertSpaces: boolean): IGuessedIndentation {
+export function guessIndentation(source: ITextBuffer, defaultTabSize: number, defaultInsertSpaces: InsertSpaces, defaultIndentSize: number = defaultTabSize): IGuessedIndentation {
 	// Look at most at the first 10k lines
 	const linesCount = Math.min(source.getLineCount(), 10000);
 
 	let linesIndentedWithTabsCount = 0;				// number of lines that contain at least one tab in indentation
 	let linesIndentedWithSpacesCount = 0;			// number of lines that contain only spaces in indentation
+	let linesIndentedWithMixedWhitespaceCount = 0;	// number of lines that contain both tabs and spaces in indentation
 
 	let previousLineText = '';						// content of latest line that contained non-whitespace chars
 	let previousLineIndentation = 0;				// index at which latest line contained the first non-whitespace char
@@ -152,6 +158,9 @@ export function guessIndentation(source: ITextBuffer, defaultTabSize: number, de
 
 		if (currentLineTabsCount > 0) {
 			linesIndentedWithTabsCount++;
+			if (currentLineSpacesCount > 0) {
+				linesIndentedWithMixedWhitespaceCount++;
+			}
 		} else if (currentLineSpacesCount > 1) {
 			linesIndentedWithSpacesCount++;
 		}
@@ -183,29 +192,35 @@ export function guessIndentation(source: ITextBuffer, defaultTabSize: number, de
 		previousLineIndentation = currentLineIndentation;
 	}
 
-	let insertSpaces = defaultInsertSpaces;
-	if (linesIndentedWithTabsCount !== linesIndentedWithSpacesCount) {
+	let insertSpaces: InsertSpaces = defaultInsertSpaces;
+	if (linesIndentedWithMixedWhitespaceCount > 0 && (linesIndentedWithSpacesCount > 0 || defaultInsertSpaces === 'mixed')) {
+		insertSpaces = 'mixed';
+	} else if (linesIndentedWithTabsCount !== linesIndentedWithSpacesCount) {
 		insertSpaces = (linesIndentedWithTabsCount < linesIndentedWithSpacesCount);
 	}
 
 	let tabSize = defaultTabSize;
+	let indentSize = insertSpaces === 'mixed' ? defaultIndentSize : defaultTabSize;
 
-	// Guess tabSize only if inserting spaces...
-	if (insertSpaces) {
-		let tabSizeScore = 0;
+	if (insertSpaces !== false) {
+		let indentSizeScore = 0;
 		ALLOWED_TAB_SIZE_GUESSES.forEach((possibleTabSize) => {
 			const possibleTabSizeScore = spacesDiffCount[possibleTabSize];
-			if (possibleTabSizeScore > tabSizeScore) {
-				tabSizeScore = possibleTabSizeScore;
-				tabSize = possibleTabSize;
+			if (possibleTabSizeScore > indentSizeScore) {
+				indentSizeScore = possibleTabSizeScore;
+				indentSize = possibleTabSize;
 			}
 		});
 
 		// Let a tabSize of 2 win over 4 only if it has at least 2/3 of the occurrences of 4
 		// This helps detect 2-space indentation in cases like YAML files where there might be
 		// some 4-space diffs from deeper nesting, while still preferring 4 when it's clearly predominant
-		if (tabSize === 4 && spacesDiffCount[4] > 0 && spacesDiffCount[2] > 0 && spacesDiffCount[2] >= spacesDiffCount[4] * 2 / 3) {
-			tabSize = 2;
+		if (indentSize === 4 && spacesDiffCount[4] > 0 && spacesDiffCount[2] > 0 && spacesDiffCount[2] >= spacesDiffCount[4] * 2 / 3) {
+			indentSize = 2;
+		}
+
+		if (insertSpaces === true) {
+			tabSize = indentSize;
 		}
 	}
 
@@ -216,6 +231,7 @@ export function guessIndentation(source: ITextBuffer, defaultTabSize: number, de
 
 	return {
 		insertSpaces: insertSpaces,
-		tabSize: tabSize
+		tabSize: tabSize,
+		indentSize: indentSize
 	};
 }

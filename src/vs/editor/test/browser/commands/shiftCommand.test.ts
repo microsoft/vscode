@@ -996,4 +996,20 @@ suite('Editor Commands - ShiftCommand', () => {
 		}
 	});
 
+	test('issue #5394: shift and unshift mixed indentation', () => {
+		assert.deepStrictEqual([
+			ShiftCommand.shiftIndent('', 1, 8, 3, 'mixed'),
+			ShiftCommand.shiftIndent('   ', 4, 8, 3, 'mixed'),
+			ShiftCommand.shiftIndent('      ', 7, 8, 3, 'mixed'),
+			ShiftCommand.shiftIndent('\t ', 3, 8, 3, 'mixed'),
+			ShiftCommand.unshiftIndent('\t    ', 6, 8, 3, 'mixed')
+		], [
+			'   ',
+			'      ',
+			'\t ',
+			'\t    ',
+			'\t '
+		]);
+	});
+
 });

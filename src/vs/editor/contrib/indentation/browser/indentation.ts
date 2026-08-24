@@ -12,6 +12,7 @@ import { EditorAction, EditorContributionInstantiation, IActionOptions, register
 import { ShiftCommand } from '../../../common/commands/shiftCommand.js';
 import { EditorAutoIndentStrategy, EditorOption } from '../../../common/config/editorOptions.js';
 import { ISingleEditOperation } from '../../../common/core/editOperation.js';
+import { InsertSpaces } from '../../../common/core/misc/indentation.js';
 import { Position } from '../../../common/core/position.js';
 import { IRange, Range } from '../../../common/core/range.js';
 import { Selection } from '../../../common/core/selection.js';
@@ -102,7 +103,7 @@ export class IndentationToTabsAction extends EditorAction {
 
 export class ChangeIndentationSizeAction extends EditorAction {
 
-	constructor(private readonly insertSpaces: boolean, private readonly displaySizeOnly: boolean, opts: IActionOptions) {
+	constructor(private readonly insertSpaces: InsertSpaces, private readonly displaySizeOnly: boolean, opts: IActionOptions) {
 		super(opts);
 	}
 
@@ -133,16 +134,24 @@ export class ChangeIndentationSizeAction extends EditorAction {
 		}));
 
 		// auto focus the tabSize set for the current editor
-		const autoFocusIndex = Math.min(model.getOptions().tabSize - 1, 7);
+		const autoFocusIndex = Math.min((this.insertSpaces === 'mixed' ? modelOpts.indentSize : modelOpts.tabSize) - 1, 7);
 
 		setTimeout(() => {
-			quickInputService.pick(picks, { placeHolder: nls.localize({ key: 'selectTabWidth', comment: ['Tab corresponds to the tab key'] }, "Select Tab Size for Current File"), activeItem: picks[autoFocusIndex] }).then(pick => {
+			const placeHolder = this.insertSpaces === 'mixed'
+				? nls.localize('selectIndentWidth', "Select Indentation Size for Current File")
+				: nls.localize({ key: 'selectTabWidth', comment: ['Tab corresponds to the tab key'] }, "Select Tab Size for Current File");
+			quickInputService.pick(picks, { placeHolder, activeItem: picks[autoFocusIndex] }).then(pick => {
 				if (pick) {
 					if (model && !model.isDisposed()) {
 						const pickedVal = parseInt(pick.label, 10);
 						if (this.displaySizeOnly) {
 							model.updateOptions({
 								tabSize: pickedVal
+							});
+						} else if (this.insertSpaces === 'mixed') {
+							model.updateOptions({
+								indentSize: pickedVal,
+								insertSpaces: this.insertSpaces
 							});
 						} else {
 							model.updateOptions({
@@ -190,6 +199,22 @@ export class IndentUsingSpaces extends ChangeIndentationSizeAction {
 	}
 }
 
+export class IndentUsingMixed extends ChangeIndentationSizeAction {
+
+	public static readonly ID = 'editor.action.indentUsingMixed';
+
+	constructor() {
+		super('mixed', false, {
+			id: IndentUsingMixed.ID,
+			label: nls.localize2('indentUsingMixed', "Indent Using Tabs and Spaces"),
+			precondition: undefined,
+			metadata: {
+				description: nls.localize2('indentUsingMixedDescription', "Use as many tabs as possible followed by spaces for indentation."),
+			}
+		});
+	}
+}
+
 export class ChangeTabDisplaySize extends ChangeIndentationSizeAction {
 
 	public static readonly ID = 'editor.action.changeTabDisplaySize';
@@ -230,7 +255,7 @@ export class DetectIndentation extends EditorAction {
 		}
 
 		const creationOpts = modelService.getCreationOptions(model.getLanguageId(), model.uri, model.isForSimpleWidget);
-		model.detectIndentation(creationOpts.insertSpaces, creationOpts.tabSize);
+		model.detectIndentation(creationOpts.insertSpaces, creationOpts.tabSize, creationOpts.indentSize === 'tabSize' ? creationOpts.tabSize : creationOpts.indentSize);
 	}
 }
 
@@ -647,6 +672,7 @@ registerEditorAction(IndentationToSpacesAction);
 registerEditorAction(IndentationToTabsAction);
 registerEditorAction(IndentUsingTabs);
 registerEditorAction(IndentUsingSpaces);
+registerEditorAction(IndentUsingMixed);
 registerEditorAction(ChangeTabDisplaySize);
 registerEditorAction(DetectIndentation);
 registerEditorAction(ReindentLinesAction);

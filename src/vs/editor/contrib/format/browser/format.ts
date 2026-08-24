@@ -429,7 +429,7 @@ export async function getDocumentFormattingEditsWithSelectedProvider(
 	const provider = getRealAndSyntheticDocumentFormattersOrdered(languageFeaturesService.documentFormattingEditProvider, languageFeaturesService.documentRangeFormattingEditProvider, model);
 	const selected = await FormattingConflicts.select(provider, model, mode, FormattingKind.File);
 	if (selected) {
-		const rawEdits = await Promise.resolve(selected.provideDocumentFormattingEdits(model, model.getOptions(), token)).catch(onUnexpectedExternalError);
+		const rawEdits = await Promise.resolve(selected.provideDocumentFormattingEdits(model, model.getFormattingOptions(), token)).catch(onUnexpectedExternalError);
 		return await workerService.computeMoreMinimalEdits(model.uri, rawEdits);
 	}
 	return undefined;
@@ -521,10 +521,9 @@ function ensureFormattingOptions(options: unknown, reference: IReference<IResolv
 		const modelOptions = reference.object.textEditorModel.getOptions();
 		validatedOptions = {
 			tabSize: modelOptions.tabSize,
-			insertSpaces: modelOptions.insertSpaces
+			insertSpaces: modelOptions.insertSpaces !== false
 		};
 	}
 
 	return validatedOptions;
 }
-

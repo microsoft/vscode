@@ -204,10 +204,11 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 
 	public static resolveOptions(textBuffer: model.ITextBuffer, options: model.ITextModelCreationOptions): model.TextModelResolvedOptions {
 		if (options.detectIndentation) {
-			const guessedIndentation = guessIndentation(textBuffer, options.tabSize, options.insertSpaces);
+			const defaultIndentSize = options.indentSize === 'tabSize' ? options.tabSize : options.indentSize;
+			const guessedIndentation = guessIndentation(textBuffer, options.tabSize, options.insertSpaces, defaultIndentSize);
 			return new model.TextModelResolvedOptions({
 				tabSize: guessedIndentation.tabSize,
-				indentSize: 'tabSize', // TODO@Alex: guess indentSize independent of tabSize
+				indentSize: guessedIndentation.indentSize,
 				insertSpaces: guessedIndentation.insertSpaces,
 				trimAutoWhitespace: options.trimAutoWhitespace,
 				defaultEOL: options.defaultEOL,
@@ -682,7 +683,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	public getFormattingOptions(): FormattingOptions {
 		return {
 			tabSize: this._options.indentSize,
-			insertSpaces: this._options.insertSpaces
+			insertSpaces: this._options.insertSpaces !== false
 		};
 	}
 
@@ -715,19 +716,19 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		this._onDidChangeOptions.fire(e);
 	}
 
-	public detectIndentation(defaultInsertSpaces: boolean, defaultTabSize: number): void {
+	public detectIndentation(defaultInsertSpaces: model.TextModelResolvedOptions['insertSpaces'], defaultTabSize: number, defaultIndentSize: number = defaultTabSize): void {
 		this._assertNotDisposed();
-		const guessedIndentation = guessIndentation(this._buffer, defaultTabSize, defaultInsertSpaces);
+		const guessedIndentation = guessIndentation(this._buffer, defaultTabSize, defaultInsertSpaces, defaultIndentSize);
 		this.updateOptions({
 			insertSpaces: guessedIndentation.insertSpaces,
 			tabSize: guessedIndentation.tabSize,
-			indentSize: guessedIndentation.tabSize, // TODO@Alex: guess indentSize independent of tabSize
+			indentSize: guessedIndentation.indentSize,
 		});
 	}
 
 	public normalizeIndentation(str: string): string {
 		this._assertNotDisposed();
-		return normalizeIndentation(str, this._options.indentSize, this._options.insertSpaces);
+		return normalizeIndentation(str, this._options.indentSize, this._options.insertSpaces, this._options.tabSize);
 	}
 
 	//#endregion

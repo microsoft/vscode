@@ -1291,11 +1291,11 @@ declare namespace monaco.editor {
 		 */
 		tabSize?: number;
 		/**
-		 * Insert spaces when pressing `Tab`.
+		 * Controls how indentation is inserted when pressing `Tab`.
 		 * This setting is overridden based on the file contents when `detectIndentation` is on.
 		 * Defaults to true.
 		 */
-		insertSpaces?: boolean;
+		insertSpaces?: boolean | 'mixed';
 		/**
 		 * Controls whether `tabSize` and `insertSpaces` will be automatically detected when a file is opened based on the file contents.
 		 * Defaults to true.
@@ -1974,7 +1974,7 @@ declare namespace monaco.editor {
 		_textModelResolvedOptionsBrand: void;
 		readonly tabSize: number;
 		readonly indentSize: number;
-		readonly insertSpaces: boolean;
+		readonly insertSpaces: boolean | 'mixed';
 		readonly defaultEOL: DefaultEndOfLine;
 		readonly trimAutoWhitespace: boolean;
 		readonly bracketPairColorizationOptions: BracketPairColorizationOptions;
@@ -1989,7 +1989,7 @@ declare namespace monaco.editor {
 	export interface ITextModelUpdateOptions {
 		tabSize?: number;
 		indentSize?: number | 'tabSize';
-		insertSpaces?: boolean;
+		insertSpaces?: boolean | 'mixed';
 		trimAutoWhitespace?: boolean;
 		bracketColorizationOptions?: BracketPairColorizationOptions;
 	}
@@ -2339,7 +2339,7 @@ declare namespace monaco.editor {
 		/**
 		 * Detect the indentation options for this model from its content.
 		 */
-		detectIndentation(defaultInsertSpaces: boolean, defaultTabSize: number): void;
+		detectIndentation(defaultInsertSpaces: boolean | 'mixed', defaultTabSize: number, defaultIndentSize?: number): void;
 		/**
 		 * Close the current undo-redo element.
 		 * This offers a way to create an undo/redo stop point.

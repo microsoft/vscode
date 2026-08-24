@@ -13,6 +13,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { FontMeasurements } from '../../../../editor/browser/config/fontMeasurements.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { IEditorOptions } from '../../../../editor/common/config/editorOptions.js';
+import { InsertSpaces } from '../../../../editor/common/core/misc/indentation.js';
 import { createBareFontInfoFromRawSettings } from '../../../../editor/common/config/fontInfoFromSettings.js';
 import { ConfigurationTarget, IConfigurationChangeEvent, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { NotebookTextModel } from '../common/model/notebookTextModel.js';
@@ -53,7 +54,7 @@ export interface NotebookDisplayOptions { // TODO @Yoyokrazy rename to a more ge
 	editorOptionsCustomizations: Partial<{
 		'editor.indentSize': 'tabSize' | number;
 		'editor.tabSize': number;
-		'editor.insertSpaces': boolean;
+		'editor.insertSpaces': InsertSpaces;
 	}> | undefined;
 	markupFontFamily: string;
 	disableRulers: boolean | undefined;
@@ -173,7 +174,7 @@ export class NotebookOptions extends Disposable {
 		let editorOptionsCustomizations = this.configurationService.getValue<Partial<{
 			'editor.indentSize': 'tabSize' | number;
 			'editor.tabSize': number;
-			'editor.insertSpaces': boolean;
+			'editor.insertSpaces': InsertSpaces;
 		}>>(NotebookSetting.cellEditorOptionsCustomizations) ?? {};
 		editorOptionsCustomizations = isObject(editorOptionsCustomizations) ? editorOptionsCustomizations : {};
 		const interactiveWindowCollapseCodeCells: InteractiveWindowCollapseCodeCells = this.configurationService.getValue(NotebookSetting.interactiveWindowCollapseCodeCells);

@@ -5,6 +5,7 @@
 
 import { DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
+import { InsertSpaces } from '../../common/core/misc/indentation.js';
 import { BracketPairColorizationOptions, DefaultEndOfLine, ITextBufferFactory, ITextModelCreationOptions } from '../../common/model.js';
 import { TextModel } from '../../common/model/textModel.js';
 import { ILanguageConfigurationService } from '../../common/languages/languageConfigurationRegistry.js';
@@ -52,7 +53,7 @@ export function withEditorModel(text: string[], callback: (model: TextModel) => 
 export interface IRelaxedTextModelCreationOptions {
 	tabSize?: number;
 	indentSize?: number | 'tabSize';
-	insertSpaces?: boolean;
+	insertSpaces?: InsertSpaces;
 	detectIndentation?: boolean;
 	trimAutoWhitespace?: boolean;
 	defaultEOL?: DefaultEndOfLine;

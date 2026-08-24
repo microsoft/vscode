@@ -6,6 +6,7 @@
 import * as strings from '../../../../base/common/strings.js';
 import { ShiftCommand } from '../../../common/commands/shiftCommand.js';
 import { EditorAutoIndentStrategy } from '../../../common/config/editorOptions.js';
+import { InsertSpaces } from '../../../common/core/misc/indentation.js';
 import { Range } from '../../../common/core/range.js';
 import { Selection } from '../../../common/core/selection.js';
 import { ICommand, ICursorStateComputerData, IEditOperationBuilder } from '../../../common/editorCommon.js';
@@ -253,7 +254,7 @@ export class MoveLinesCommand implements ICommand {
 		this._selectionId = builder.trackSelection(s);
 	}
 
-	private buildIndentConverter(tabSize: number, indentSize: number, insertSpaces: boolean): IIndentConverter {
+	private buildIndentConverter(tabSize: number, indentSize: number, insertSpaces: InsertSpaces): IIndentConverter {
 		return {
 			shiftIndent: (indentation) => {
 				return ShiftCommand.shiftIndent(indentation, indentation.length + 1, tabSize, indentSize, insertSpaces);
@@ -386,7 +387,7 @@ export class MoveLinesCommand implements ICommand {
 		return true;
 	}
 
-	private getIndentEditsOfMovingBlock(model: ITextModel, builder: IEditOperationBuilder, s: Selection, tabSize: number, insertSpaces: boolean, offset: number) {
+	private getIndentEditsOfMovingBlock(model: ITextModel, builder: IEditOperationBuilder, s: Selection, tabSize: number, insertSpaces: InsertSpaces, offset: number) {
 		for (let i = s.startLineNumber; i <= s.endLineNumber; i++) {
 			const lineContent = model.getLineContent(i);
 			const originalIndent = strings.getLeadingWhitespace(lineContent);

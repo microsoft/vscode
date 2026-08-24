@@ -41,7 +41,7 @@ class UserDataSyncUtilService implements IUserDataSyncUtilService {
 			const { insertSpaces, tabSize } = modelReference.object.textEditorModel.getOptions();
 			const eol = modelReference.object.textEditorModel.getEOL();
 			modelReference.dispose();
-			return { eol, insertSpaces, tabSize };
+			return { eol, insertSpaces: insertSpaces !== false, tabSize };
 		} catch (e) {
 		}
 		return {

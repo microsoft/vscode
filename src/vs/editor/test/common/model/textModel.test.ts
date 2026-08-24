@@ -8,6 +8,7 @@ import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { UTF8_BOM_CHARACTER } from '../../../../base/common/strings.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { Position } from '../../../common/core/position.js';
+import { InsertSpaces } from '../../../common/core/misc/indentation.js';
 import { Range } from '../../../common/core/range.js';
 import { PLAINTEXT_LANGUAGE_ID } from '../../../common/languages/modesRegistry.js';
 import { EndOfLinePreference } from '../../../common/model.js';
@@ -15,7 +16,7 @@ import { TextModel, createTextBuffer } from '../../../common/model/textModel.js'
 import { createModelServices, createTextModel } from '../testTextModel.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 
-function testGuessIndentation(defaultInsertSpaces: boolean, defaultTabSize: number, expectedInsertSpaces: boolean, expectedTabSize: number, text: string[], msg?: string): void {
+function testGuessIndentation(defaultInsertSpaces: InsertSpaces, defaultTabSize: number, expectedInsertSpaces: InsertSpaces, expectedTabSize: number, text: string[], msg?: string): void {
 	const m = createTextModel(
 		text.join('\n'),
 		undefined,
@@ -32,7 +33,7 @@ function testGuessIndentation(defaultInsertSpaces: boolean, defaultTabSize: numb
 	assert.strictEqual(r.tabSize, expectedTabSize, msg);
 }
 
-function assertGuess(expectedInsertSpaces: boolean | undefined, expectedTabSize: number | undefined | [number], text: string[], msg?: string): void {
+function assertGuess(expectedInsertSpaces: InsertSpaces | undefined, expectedTabSize: number | undefined | [number], text: string[], msg?: string): void {
 	if (typeof expectedInsertSpaces === 'undefined') {
 		// cannot guess insertSpaces
 		if (typeof expectedTabSize === 'undefined') {
@@ -591,6 +592,47 @@ suite('Editor Model - TextModel', () => {
 		], 'mixed whitespace 2');
 	});
 
+	test('issue #5394: detect mixed tabs and spaces indentation', () => {
+		const model = createTextModel([
+			'if (first) {',
+			'   if (second) {',
+			'      if (third) {',
+			'\t if (fourth) {',
+			'\t    work();'
+		].join('\n'), undefined, {
+			tabSize: 8,
+			indentSize: 3,
+			insertSpaces: true,
+			detectIndentation: true
+		});
+
+		const { tabSize, indentSize, insertSpaces } = model.getOptions();
+		assert.deepStrictEqual({ tabSize, indentSize, insertSpaces }, {
+			tabSize: 8,
+			indentSize: 3,
+			insertSpaces: 'mixed'
+		});
+		model.dispose();
+
+		const partialModel = createTextModel('\t if (third) {\n\t    work();', undefined, {
+			tabSize: 8,
+			indentSize: 3,
+			insertSpaces: 'mixed',
+			detectIndentation: true
+		});
+		const partialOptions = partialModel.getOptions();
+		assert.deepStrictEqual({
+			tabSize: partialOptions.tabSize,
+			indentSize: partialOptions.indentSize,
+			insertSpaces: partialOptions.insertSpaces
+		}, {
+			tabSize: 8,
+			indentSize: 3,
+			insertSpaces: 'mixed'
+		});
+		partialModel.dispose();
+	});
+
 	test('issue #44991: Wrong indentation size auto-detection', () => {
 		assertGuess(true, 4, [
 			'a = 10             # 0 space indent',
@@ -1047,6 +1089,29 @@ suite('Editor Model - TextModel', () => {
 		assert.strictEqual(model.normalizeIndentation(' \t a'), '     a');
 		assert.strictEqual(model.normalizeIndentation(' \ta'), '    a');
 
+		model.dispose();
+	});
+
+	test('issue #5394: normalize mixed tabs and spaces indentation', () => {
+		const model = createTextModel('', undefined, {
+			tabSize: 8,
+			indentSize: 3,
+			insertSpaces: 'mixed'
+		});
+
+		assert.deepStrictEqual([
+			model.normalizeIndentation('   '),
+			model.normalizeIndentation('      '),
+			model.normalizeIndentation('         '),
+			model.normalizeIndentation('            '),
+			model.normalizeIndentation('                  ')
+		], [
+			'   ',
+			'      ',
+			'\t ',
+			'\t    ',
+			'\t\t  '
+		]);
 		model.dispose();
 	});
 

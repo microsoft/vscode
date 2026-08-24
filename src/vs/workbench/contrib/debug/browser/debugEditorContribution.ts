@@ -707,10 +707,11 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		if (!configurationsArrayPosition) {
 			// "configurations" array doesn't exist. Add it here.
 			const { tabSize, insertSpaces } = model.getOptions();
+			const formattingInsertSpaces = insertSpaces !== false;
 			const eol = model.getEOL();
 			const edit = (basename(model.uri.fsPath) === 'launch.json') ?
-				setProperty(model.getValue(), ['configurations'], [], { tabSize, insertSpaces, eol })[0] :
-				setProperty(model.getValue(), ['launch'], { 'configurations': [] }, { tabSize, insertSpaces, eol })[0];
+				setProperty(model.getValue(), ['configurations'], [], { tabSize, insertSpaces: formattingInsertSpaces, eol })[0] :
+				setProperty(model.getValue(), ['launch'], { 'configurations': [] }, { tabSize, insertSpaces: formattingInsertSpaces, eol })[0];
 			const startPosition = model.getPositionAt(edit.offset);
 			const lineNumber = startPosition.lineNumber;
 			const range = new Range(lineNumber, startPosition.column, lineNumber, model.getLineMaxColumn(lineNumber));

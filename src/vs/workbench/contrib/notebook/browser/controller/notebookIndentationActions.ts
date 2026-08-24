@@ -8,6 +8,7 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { IBulkEditService, ResourceTextEdit } from '../../../../../editor/browser/services/bulkEditService.js';
 import { Range } from '../../../../../editor/common/core/range.js';
+import { InsertSpaces } from '../../../../../editor/common/core/misc/indentation.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
@@ -48,6 +49,22 @@ export class NotebookIndentUsingSpaces extends Action2 {
 
 	override run(accessor: ServicesAccessor, ...args: unknown[]): void {
 		changeNotebookIndentation(accessor, true, false);
+	}
+}
+
+export class NotebookIndentUsingMixed extends Action2 {
+	public static readonly ID = 'notebook.action.indentUsingMixed';
+
+	constructor() {
+		super({
+			id: NotebookIndentUsingMixed.ID,
+			title: nls.localize('indentUsingMixed', "Indent Using Tabs and Spaces"),
+			precondition: undefined,
+		});
+	}
+
+	override run(accessor: ServicesAccessor, ...args: unknown[]): void {
+		changeNotebookIndentation(accessor, 'mixed', false);
 	}
 }
 
@@ -99,7 +116,7 @@ export class NotebookIndentationToTabsAction extends Action2 {
 	}
 }
 
-function changeNotebookIndentation(accessor: ServicesAccessor, insertSpaces: boolean, displaySizeOnly: boolean) {
+function changeNotebookIndentation(accessor: ServicesAccessor, insertSpaces: InsertSpaces, displaySizeOnly: boolean) {
 	const editorService = accessor.get(IEditorService);
 	const configurationService = accessor.get(IConfigurationService);
 	const notebookEditorService = accessor.get(INotebookEditorService);
@@ -125,6 +142,8 @@ function changeNotebookIndentation(accessor: ServicesAccessor, insertSpaces: boo
 
 	// store the initial values of the configuration
 	const initialConfig = configurationService.getValue(NotebookSetting.cellEditorOptionsCustomizations) as Record<string, unknown>;
+	const initialIndentSize = initialConfig['editor.indentSize'];
+	const initialTabSize = initialConfig['editor.tabSize'];
 	const initialInsertSpaces = initialConfig['editor.insertSpaces'];
 	// remove the initial values from the configuration
 	delete initialConfig['editor.indentSize'];
@@ -132,15 +151,25 @@ function changeNotebookIndentation(accessor: ServicesAccessor, insertSpaces: boo
 	delete initialConfig['editor.insertSpaces'];
 
 	setTimeout(() => {
-		quickInputService.pick(picks, { placeHolder: nls.localize({ key: 'selectTabWidth', comment: ['Tab corresponds to the tab key'] }, "Select Tab Size for Current File") }).then(pick => {
+		const placeHolder = insertSpaces === 'mixed'
+			? nls.localize('selectIndentWidth', "Select Indentation Size for Current File")
+			: nls.localize({ key: 'selectTabWidth', comment: ['Tab corresponds to the tab key'] }, "Select Tab Size for Current File");
+		quickInputService.pick(picks, { placeHolder }).then(pick => {
 			if (pick) {
 				const pickedVal = parseInt(pick.label, 10);
 				if (displaySizeOnly) {
 					configurationService.updateValue(NotebookSetting.cellEditorOptionsCustomizations, {
 						...initialConfig,
 						'editor.tabSize': pickedVal,
-						'editor.indentSize': pickedVal,
+						'editor.indentSize': initialIndentSize,
 						'editor.insertSpaces': initialInsertSpaces
+					});
+				} else if (insertSpaces === 'mixed') {
+					configurationService.updateValue(NotebookSetting.cellEditorOptionsCustomizations, {
+						...initialConfig,
+						'editor.tabSize': initialTabSize,
+						'editor.indentSize': pickedVal,
+						'editor.insertSpaces': insertSpaces
 					});
 				} else {
 					configurationService.updateValue(NotebookSetting.cellEditorOptionsCustomizations, {
@@ -254,6 +283,7 @@ function getIndentationEditOperations(model: ITextModel, tabSize: number, tabsTo
 
 registerAction2(NotebookIndentUsingSpaces);
 registerAction2(NotebookIndentUsingTabs);
+registerAction2(NotebookIndentUsingMixed);
 registerAction2(NotebookChangeTabDisplaySize);
 registerAction2(NotebookIndentationToSpacesAction);
 registerAction2(NotebookIndentationToTabsAction);

@@ -10,6 +10,7 @@ import { equals } from '../../base/common/objects.js';
 import { ThemeColor } from '../../base/common/themables.js';
 import { URI } from '../../base/common/uri.js';
 import { ISingleEditOperation } from './core/editOperation.js';
+import { InsertSpaces } from './core/misc/indentation.js';
 import { IPosition, Position } from './core/position.js';
 import { IRange, Range } from './core/range.js';
 import { Selection } from './core/selection.js';
@@ -569,7 +570,7 @@ export class TextModelResolvedOptions {
 	readonly tabSize: number;
 	readonly indentSize: number;
 	private readonly _indentSizeIsTabSize: boolean;
-	readonly insertSpaces: boolean;
+	readonly insertSpaces: InsertSpaces;
 	readonly defaultEOL: DefaultEndOfLine;
 	readonly trimAutoWhitespace: boolean;
 	readonly bracketPairColorizationOptions: BracketPairColorizationOptions;
@@ -584,7 +585,7 @@ export class TextModelResolvedOptions {
 	constructor(src: {
 		tabSize: number;
 		indentSize: number | 'tabSize';
-		insertSpaces: boolean;
+		insertSpaces: InsertSpaces;
 		defaultEOL: DefaultEndOfLine;
 		trimAutoWhitespace: boolean;
 		bracketPairColorizationOptions: BracketPairColorizationOptions;
@@ -597,7 +598,7 @@ export class TextModelResolvedOptions {
 			this.indentSize = Math.max(1, src.indentSize | 0);
 			this._indentSizeIsTabSize = false;
 		}
-		this.insertSpaces = Boolean(src.insertSpaces);
+		this.insertSpaces = src.insertSpaces === 'mixed' ? 'mixed' : Boolean(src.insertSpaces);
 		this.defaultEOL = src.defaultEOL | 0;
 		this.trimAutoWhitespace = Boolean(src.trimAutoWhitespace);
 		this.bracketPairColorizationOptions = src.bracketPairColorizationOptions;
@@ -637,7 +638,7 @@ export class TextModelResolvedOptions {
 export interface ITextModelCreationOptions {
 	tabSize: number;
 	indentSize: number | 'tabSize';
-	insertSpaces: boolean;
+	insertSpaces: InsertSpaces;
 	detectIndentation: boolean;
 	trimAutoWhitespace: boolean;
 	defaultEOL: DefaultEndOfLine;
@@ -654,7 +655,7 @@ export interface BracketPairColorizationOptions {
 export interface ITextModelUpdateOptions {
 	tabSize?: number;
 	indentSize?: number | 'tabSize';
-	insertSpaces?: boolean;
+	insertSpaces?: InsertSpaces;
 	trimAutoWhitespace?: boolean;
 	bracketColorizationOptions?: BracketPairColorizationOptions;
 }
@@ -1228,7 +1229,7 @@ export interface ITextModel {
 	/**
 	 * Detect the indentation options for this model from its content.
 	 */
-	detectIndentation(defaultInsertSpaces: boolean, defaultTabSize: number): void;
+	detectIndentation(defaultInsertSpaces: InsertSpaces, defaultTabSize: number, defaultIndentSize?: number): void;
 
 	/**
 	 * Close the current undo-redo element.

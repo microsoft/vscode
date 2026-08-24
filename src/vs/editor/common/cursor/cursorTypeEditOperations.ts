@@ -542,18 +542,22 @@ export class EnterOperation {
 		}
 		const r = getEnterAction(config.autoIndent, model, range, config.languageConfigurationService);
 		if (r) {
+			const hasLogicalIndent = r.indentAction === IndentAction.Indent || (r.indentAction === IndentAction.IndentOutdent && r.appendText === '\t');
+			const appendText = config.insertSpaces === 'mixed' && hasLogicalIndent
+				? ' '.repeat(config.indentSize) + r.appendText.substring(1)
+				: r.appendText;
 			if (r.indentAction === IndentAction.None) {
 				// Nothing special
-				return typeCommand(range, '\n' + config.normalizeIndentation(r.indentation + r.appendText), keepPosition);
+				return typeCommand(range, '\n' + config.normalizeIndentation(r.indentation + appendText), keepPosition);
 
 			} else if (r.indentAction === IndentAction.Indent) {
 				// Indent once
-				return typeCommand(range, '\n' + config.normalizeIndentation(r.indentation + r.appendText), keepPosition);
+				return typeCommand(range, '\n' + config.normalizeIndentation(r.indentation + appendText), keepPosition);
 
 			} else if (r.indentAction === IndentAction.IndentOutdent) {
 				// Ultra special
 				const normalIndent = config.normalizeIndentation(r.indentation);
-				const increasedIndent = config.normalizeIndentation(r.indentation + r.appendText);
+				const increasedIndent = config.normalizeIndentation(r.indentation + appendText);
 				const typeText = '\n' + increasedIndent + '\n' + normalIndent;
 				if (keepPosition) {
 					return new ReplaceCommandWithoutChangingPosition(range, typeText, true);
@@ -562,7 +566,7 @@ export class EnterOperation {
 				}
 			} else if (r.indentAction === IndentAction.Outdent) {
 				const actualIndentation = unshiftIndent(config, r.indentation);
-				return typeCommand(range, '\n' + config.normalizeIndentation(actualIndentation + r.appendText), keepPosition);
+				return typeCommand(range, '\n' + config.normalizeIndentation(actualIndentation + appendText), keepPosition);
 			}
 		}
 
@@ -597,7 +601,7 @@ export class EnterOperation {
 				} else {
 					let offset = 0;
 					if (oldEndColumn <= firstNonWhitespace + 1) {
-						if (!config.insertSpaces) {
+						if (config.insertSpaces === false) {
 							oldEndViewColumn = Math.ceil(oldEndViewColumn / config.indentSize);
 						}
 						offset = Math.min(oldEndViewColumn + 1 - config.normalizeIndentation(ir.afterEnter).length - 1, 0);
@@ -782,7 +786,7 @@ export class TabOperation {
 				const lineText = model.getLineContent(selection.startLineNumber);
 				if (/^\s*$/.test(lineText) && model.tokenization.isCheapToTokenize(selection.startLineNumber)) {
 					let goodIndent = this._goodIndentForLine(config, model, selection.startLineNumber);
-					goodIndent = goodIndent || '\t';
+					goodIndent = goodIndent || (config.insertSpaces === 'mixed' ? ' '.repeat(config.indentSize) : '\t');
 					const possibleTypeText = config.normalizeIndentation(goodIndent);
 					if (!lineText.startsWith(possibleTypeText)) {
 						commands[i] = new ReplaceCommand(new Range(selection.startLineNumber, 1, selection.startLineNumber, lineText.length + 1), possibleTypeText, true);
@@ -853,16 +857,37 @@ export class TabOperation {
 		return indentation;
 	}
 
-	private static _replaceJumpToNextIndent(config: CursorConfiguration, model: ICursorSimpleModel, selection: Selection, insertsAutoWhitespace: boolean): ReplaceCommand {
+	private static _replaceJumpToNextIndent(config: CursorConfiguration, model: ICursorSimpleModel, selection: Selection, insertsAutoWhitespace: boolean): ICommand {
 		let typeText = '';
 		const position = selection.getStartPosition();
-		if (config.insertSpaces) {
+		if (config.insertSpaces === true) {
 			const visibleColumnFromColumn = config.visibleColumnFromColumn(model, position);
 			const indentSize = config.indentSize;
 			const spacesCnt = indentSize - (visibleColumnFromColumn % indentSize);
 			for (let i = 0; i < spacesCnt; i++) {
 				typeText += ' ';
 			}
+		} else if (config.insertSpaces === 'mixed') {
+			const firstNonWhitespaceColumn = model.getLineFirstNonWhitespaceColumn(selection.endLineNumber);
+			const indentationBoundaryColumn = firstNonWhitespaceColumn || model.getLineMaxColumn(selection.endLineNumber);
+			if (selection.endColumn < indentationBoundaryColumn) {
+				const visibleColumnFromColumn = config.visibleColumnFromColumn(model, position);
+				const spacesCount = config.indentSize - (visibleColumnFromColumn % config.indentSize);
+				typeText = ' '.repeat(spacesCount);
+				return new ReplaceCommand(selection, typeText, insertsAutoWhitespace);
+			}
+			if (selection.endColumn > indentationBoundaryColumn) {
+				typeText = '\t';
+				return new ReplaceCommand(selection, typeText, insertsAutoWhitespace);
+			}
+			return new ShiftCommand(selection, {
+				isUnshift: false,
+				tabSize: config.tabSize,
+				indentSize: config.indentSize,
+				insertSpaces: config.insertSpaces,
+				useTabStops: config.useTabStops,
+				autoIndent: config.autoIndent
+			}, config.languageConfigurationService);
 		} else {
 			typeText = '\t';
 		}

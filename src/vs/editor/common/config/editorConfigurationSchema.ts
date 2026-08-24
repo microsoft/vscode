@@ -44,14 +44,22 @@ const editorConfiguration: IConfigurationNode = {
 			markdownDescription: nls.localize('indentSize', "The number of spaces used for indentation or `\"tabSize\"` to use the value from `#editor.tabSize#`. This setting is overridden based on the file contents when `#editor.detectIndentation#` is on.")
 		},
 		'editor.insertSpaces': {
-			type: 'boolean',
+			anyOf: [
+				{
+					type: 'boolean'
+				},
+				{
+					type: 'string',
+					enum: ['mixed']
+				}
+			],
 			default: EDITOR_MODEL_DEFAULTS.insertSpaces,
-			markdownDescription: nls.localize('insertSpaces', "Insert spaces when pressing `Tab`. This setting is overridden based on the file contents when {0} is on.", '`#editor.detectIndentation#`')
+			markdownDescription: nls.localize('insertSpaces', "Controls how indentation is inserted when pressing `Tab`. Use `true` to insert spaces, `false` to insert tabs, or `\"mixed\"` to insert as many tabs as possible followed by spaces. This setting is overridden based on the file contents when {0} is on.", '`#editor.detectIndentation#`')
 		},
 		'editor.detectIndentation': {
 			type: 'boolean',
 			default: EDITOR_MODEL_DEFAULTS.detectIndentation,
-			markdownDescription: nls.localize('detectIndentation', "Controls whether {0} and {1} will be automatically detected when a file is opened based on the file contents.", '`#editor.tabSize#`', '`#editor.insertSpaces#`')
+			markdownDescription: nls.localize('detectIndentation', "Controls whether {0}, {1}, and {2} will be automatically detected when a file is opened based on the file contents.", '`#editor.tabSize#`', '`#editor.indentSize#`', '`#editor.insertSpaces#`')
 		},
 		'editor.trimAutoWhitespace': {
 			type: 'boolean',

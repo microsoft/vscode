@@ -6,6 +6,7 @@
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { IEditorOptions } from '../../../../../../editor/common/config/editorOptions.js';
+import { InsertSpaces } from '../../../../../../editor/common/core/misc/indentation.js';
 import { localize, localize2 } from '../../../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -28,7 +29,7 @@ export class CellEditorOptions extends CellContentPart implements ITextModelUpda
 	private _lineNumbers: 'on' | 'off' | 'inherit' = 'inherit';
 	private _tabSize?: number;
 	private _indentSize?: number | 'tabSize';
-	private _insertSpaces?: boolean;
+	private _insertSpaces?: InsertSpaces;
 
 	set tabSize(value: number | undefined) {
 		if (this._tabSize !== value) {
@@ -52,7 +53,7 @@ export class CellEditorOptions extends CellContentPart implements ITextModelUpda
 		return this._indentSize;
 	}
 
-	set insertSpaces(value: boolean | undefined) {
+	set insertSpaces(value: InsertSpaces | undefined) {
 		if (this._insertSpaces !== value) {
 			this._insertSpaces = value;
 			this._onDidChange.fire();

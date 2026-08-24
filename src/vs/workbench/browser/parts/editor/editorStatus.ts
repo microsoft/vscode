@@ -19,7 +19,7 @@ import { Disposable, MutableDisposable, DisposableStore } from '../../../../base
 import { IEditorAction } from '../../../../editor/common/editorCommon.js';
 import { EndOfLineSequence } from '../../../../editor/common/model.js';
 import { TrimTrailingWhitespaceAction } from '../../../../editor/contrib/linesOperations/browser/linesOperations.js';
-import { IndentUsingSpaces, IndentUsingTabs, ChangeTabDisplaySize, DetectIndentation, IndentationToSpacesAction, IndentationToTabsAction } from '../../../../editor/contrib/indentation/browser/indentation.js';
+import { IndentUsingMixed, IndentUsingSpaces, IndentUsingTabs, ChangeTabDisplaySize, DetectIndentation, IndentationToSpacesAction, IndentationToTabsAction } from '../../../../editor/contrib/indentation/browser/indentation.js';
 import { BaseBinaryResourceEditor } from './binaryEditor.js';
 import { BinaryResourceDiffEditor } from './binaryDiffEditor.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
@@ -415,6 +415,7 @@ class EditorStatus extends Disposable {
 		const picks: QuickPickInput<IQuickPickItem & { run(): void }>[] = [
 			assertReturnsDefined(activeTextEditorControl.getAction(IndentUsingSpaces.ID)),
 			assertReturnsDefined(activeTextEditorControl.getAction(IndentUsingTabs.ID)),
+			assertReturnsDefined(activeTextEditorControl.getAction(IndentUsingMixed.ID)),
 			assertReturnsDefined(activeTextEditorControl.getAction(ChangeTabDisplaySize.ID)),
 			assertReturnsDefined(activeTextEditorControl.getAction(DetectIndentation.ID)),
 			assertReturnsDefined(activeTextEditorControl.getAction(IndentationToSpacesAction.ID)),
@@ -798,13 +799,15 @@ class EditorStatus extends Disposable {
 			const model = editorWidget.getModel();
 			if (model) {
 				const modelOpts = model.getOptions();
-				update.indentation = (
-					modelOpts.insertSpaces
-						? modelOpts.tabSize === modelOpts.indentSize
-							? localize('spacesSize', "Spaces: {0}", modelOpts.indentSize)
-							: localize('spacesAndTabsSize', "Spaces: {0} (Tab Size: {1})", modelOpts.indentSize, modelOpts.tabSize)
-						: localize({ key: 'tabSize', comment: ['Tab corresponds to the tab key'] }, "Tab Size: {0}", modelOpts.tabSize)
-				);
+				update.indentation = modelOpts.insertSpaces === 'mixed'
+					? localize('mixedIndentationSize', "Mixed: {0} (Tab Size: {1})", modelOpts.indentSize, modelOpts.tabSize)
+					: (
+						modelOpts.insertSpaces
+							? modelOpts.tabSize === modelOpts.indentSize
+								? localize('spacesSize', "Spaces: {0}", modelOpts.indentSize)
+								: localize('spacesAndTabsSize', "Spaces: {0} (Tab Size: {1})", modelOpts.indentSize, modelOpts.tabSize)
+							: localize({ key: 'tabSize', comment: ['Tab corresponds to the tab key'] }, "Tab Size: {0}", modelOpts.tabSize)
+					);
 			}
 		}
 

@@ -15,6 +15,7 @@ import { IInstantiationService } from '../../../platform/instantiation/common/in
 import { IUndoRedoService, ResourceEditStackSnapshot } from '../../../platform/undoRedo/common/undoRedo.js';
 import { clampedInt } from '../config/editorOptions.js';
 import { EditOperation, ISingleEditOperation } from '../core/editOperation.js';
+import { InsertSpaces } from '../core/misc/indentation.js';
 import { EDITOR_MODEL_DEFAULTS } from '../core/misc/textModelDefaults.js';
 import { Range } from '../core/range.js';
 import { ILanguageSelection } from '../languages/language.js';
@@ -132,9 +133,9 @@ export class ModelService extends Disposable implements IModelService {
 			indentSize = clampedInt(config.editor.indentSize, 'tabSize', 1, 100);
 		}
 
-		let insertSpaces = EDITOR_MODEL_DEFAULTS.insertSpaces;
+		let insertSpaces: InsertSpaces = EDITOR_MODEL_DEFAULTS.insertSpaces;
 		if (config.editor && typeof config.editor.insertSpaces !== 'undefined') {
-			insertSpaces = (config.editor.insertSpaces === 'false' ? false : Boolean(config.editor.insertSpaces));
+			insertSpaces = config.editor.insertSpaces === 'mixed' ? 'mixed' : (config.editor.insertSpaces === 'false' ? false : Boolean(config.editor.insertSpaces));
 		}
 
 		let newDefaultEOL = DEFAULT_EOL;
@@ -252,7 +253,7 @@ export class ModelService extends Disposable implements IModelService {
 		}
 
 		if (newOptions.detectIndentation) {
-			model.detectIndentation(newOptions.insertSpaces, newOptions.tabSize);
+			model.detectIndentation(newOptions.insertSpaces, newOptions.tabSize, newOptions.indentSize === 'tabSize' ? newOptions.tabSize : newOptions.indentSize);
 			model.updateOptions({
 				trimAutoWhitespace: newOptions.trimAutoWhitespace,
 				bracketColorizationOptions: newOptions.bracketPairColorizationOptions
