@@ -8,7 +8,7 @@ import * as DOM from '../../../../../../base/browser/dom.js';
 import { Button, unthemedButtonStyles } from '../../../../../../base/browser/ui/button/button.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { Action, IAction, Separator } from '../../../../../../base/common/actions.js';
-import { Emitter } from '../../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, isDisposable } from '../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -815,6 +815,8 @@ suite('mcpListWidget', () => {
 			assert.ok(capturedHoverDelegate);
 			const hover = capturedHoverDelegate!();
 			assert.ok(hover.content.includes("Disabled in workspace 'project-a'"));
+
+			renderer.disposeTemplate(templateData);
 		});
 	});
 });
