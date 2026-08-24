@@ -52,6 +52,7 @@ import { IVoiceModeOnboardingService } from '../../../../contrib/agentsVoice/bro
 import { IChatAccessibilityService, IChatWidget, IChatWidgetService } from '../../../../contrib/chat/browser/chat.js';
 import { IChatResponseFileChangesService } from '../../../../contrib/chat/browser/chatResponseFileChangesService.js';
 import { IChatPetService } from '../../../../contrib/chat/browser/chatPetService.js';
+import { ChatPetWidgetService, IChatPetWidgetService } from '../../../../contrib/chat/browser/widget/chatPetWidgetService.js';
 import { IChatOutputRendererService } from '../../../../contrib/chat/browser/chatOutputItemRenderer.js';
 import { IAiEditTelemetryService } from '../../../../contrib/editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
 import { EditSuggestionId } from '../../../../../editor/common/textModelEditSource.js';
@@ -231,6 +232,7 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 		override getWidgetsByLocations() { return []; }
 		override register() { return { dispose() { } }; }
 	}());
+	reg.define(IChatPetWidgetService, ChatPetWidgetService);
 	reg.defineInstance(IChatAccessibilityService, new class extends mock<IChatAccessibilityService>() {
 		override acceptRequest() { }
 		override disposeRequest() { }

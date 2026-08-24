@@ -42,6 +42,7 @@ import { ITerminalChatService } from '../../../../terminal/browser/terminal.js';
 import { AgentHostAutoReplyAnswer } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
 import { ChatCollapsibleContentPart } from './chatCollapsibleContentPart.js';
 import { getChatMarkdownRenderOptions } from '../chatContentMarkdownRenderer.js';
+import { getCompactCodicon } from '../../chatIcons.js';
 import { CHAT_CARD_HEADER_CLASS, CHAT_CARD_LARGE_CLASS, CHAT_CARD_TITLE_CLASS, createChatCardIconButton } from '../chatCard.js';
 import { ChatCardListbox } from '../chatCardListbox.js';
 import './media/chatQuestionCarousel.css';
@@ -75,7 +76,7 @@ class ChatQuestionAnswerCollapsiblePart extends ChatCollapsibleContentPart {
 			const labelElement = this._collapseButton.labelElement;
 			labelElement.textContent = '';
 			const icon = dom.$('span.chat-question-summary-answer-icon');
-			icon.classList.add(...ThemeIcon.asClassNameArray(this.answerIcon));
+			icon.classList.add(...ThemeIcon.asClassNameArray(getCompactCodicon(this.answerIcon)));
 			icon.setAttribute('aria-hidden', 'true');
 			const value = dom.$('span.chat-question-summary-answer-value');
 			value.textContent = this.value;
@@ -1723,7 +1724,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 				answerTitle,
 				answerPrefix,
 				answerValue,
-				options?.answerIcon ?? (this.carousel.autoReply ? Codicon.copilotCompact : Codicon.comment),
+				options?.answerIcon ?? (this.carousel.autoReply ? Codicon.copilotCompact : Codicon.commentCompact),
 				collapsibleContext,
 				question.options?.length ? () => this.renderConversationOptions(question, answer) : undefined,
 				() => this._onDidChangeHeight.fire(),
