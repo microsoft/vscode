@@ -24,6 +24,7 @@ suite('Codex account metadata', () => {
 			status: 'signedIn',
 			email: 'person@example.com',
 			planType: undefined,
+			profileImageDataUri: undefined,
 			requiresOpenaiAuth: undefined,
 			rateLimit: { usedPercent: 42.4, windowDurationMins: 10080, resetsAt: 1234 },
 			authUrl: undefined,
@@ -40,6 +41,21 @@ suite('Codex account metadata', () => {
 		});
 		assert.strictEqual(account.status, 'signedIn');
 		assert.strictEqual(account.rateLimit, undefined);
+	});
+
+	test('reads only safe profile-image metadata', () => {
+		const profileImageDataUri = 'data:image/png;base64,aW1hZ2U=';
+		const account = readCodexAccountInfo({
+			agents: [],
+			_meta: { [CODEX_ACCOUNT_META_KEY]: { status: 'signedIn', profileImageDataUri } },
+		});
+		assert.strictEqual(account.profileImageDataUri, profileImageDataUri);
+
+		const unsafeAccount = readCodexAccountInfo({
+			agents: [],
+			_meta: { [CODEX_ACCOUNT_META_KEY]: { status: 'signedIn', profileImageDataUri: 'data:image/svg+xml;base64,aW1hZ2U=' } },
+		});
+		assert.strictEqual(unsafeAccount.profileImageDataUri, undefined);
 	});
 
 	test('reads the downloading account state', () => {

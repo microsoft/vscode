@@ -19,6 +19,7 @@ export interface ICodexAccountInfo {
 	readonly status: 'unknown' | 'downloading' | 'signedIn' | 'signedOut' | 'unavailable' | 'error';
 	readonly email?: string;
 	readonly planType?: string;
+	readonly profileImageDataUri?: string;
 	readonly requiresOpenaiAuth?: boolean;
 	readonly rateLimit?: ICodexAccountRateLimitInfo;
 	readonly authUrl?: string;
@@ -49,6 +50,7 @@ export function readCodexAccountInfo(state: RootState | undefined): ICodexAccoun
 		status: account.status,
 		email: typeof account.email === 'string' ? account.email : undefined,
 		planType: typeof account.planType === 'string' ? account.planType : undefined,
+		profileImageDataUri: isProfileImageDataUri(account.profileImageDataUri) ? account.profileImageDataUri : undefined,
 		requiresOpenaiAuth: typeof account.requiresOpenaiAuth === 'boolean' ? account.requiresOpenaiAuth : undefined,
 		rateLimit: validRateLimit ? {
 			usedPercent: rateLimit.usedPercent,
@@ -58,4 +60,10 @@ export function readCodexAccountInfo(state: RootState | undefined): ICodexAccoun
 		authUrl: typeof account.authUrl === 'string' ? account.authUrl : undefined,
 		authUrlNonce: typeof account.authUrlNonce === 'string' ? account.authUrlNonce : undefined,
 	};
+}
+
+function isProfileImageDataUri(value: unknown): value is string {
+	return typeof value === 'string'
+		&& value.length <= Math.ceil(1024 * 1024 * 4 / 3) + 64
+		&& /^(?:data:image\/(?:avif|gif|jpeg|png|webp);base64,)/.test(value);
 }
