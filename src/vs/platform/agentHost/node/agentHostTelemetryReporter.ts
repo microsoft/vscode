@@ -492,7 +492,7 @@ export type IAgentHostToolInvokedClassification = Omit<LanguageModelToolInvokedC
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The Agent Host session identifier.' };
 	chatSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The chat identifier within the Agent Host session.' };
 	isSubagentSession: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the tool call belongs to a subagent session.' };
-	errorCode: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The tool failure code, when available.' };
+	errorCode: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The tool failure code, when available.' };
 	msg: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The tool failure message, when available. VS Code telemetry scrubs file paths and likely secrets before transmission.' };
 	owner: 'roblourens';
 	comment: 'Tracks Agent Host tool invocations with Agent Host correlation and optional failure diagnostics.';
