@@ -11,7 +11,7 @@ import { Color } from '../../../../base/common/color.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Emitter, EmitterOptions, Event, EventDeliveryQueue, createEventDeliveryQueue } from '../../../../base/common/event.js';
 import { hash } from '../../../../base/common/hash.js';
-import { Disposable, DisposableStore, IDisposable, dispose } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, dispose, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import './editor.css';
 import { applyFontInfo } from '../../config/domFontInfo.js';
@@ -65,6 +65,8 @@ import { TextModelEditSource, EditSources } from '../../../common/textModelEditS
 import { TextEdit } from '../../../common/core/edits/textEdit.js';
 import { isObject } from '../../../../base/common/types.js';
 import { IUserInteractionService } from '../../../../platform/userInteraction/browser/userInteractionService.js';
+
+const MOUSE_CURSOR_HIDDEN_CSS_CLASS_NAME = 'monaco-editor-hide-mouse-cursor';
 
 export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeEditor {
 
@@ -312,7 +314,12 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			if (e.hasChanged(EditorOption.fontSize)) {
 				this._domElement.style.setProperty('--editor-font-size', options.get(EditorOption.fontSize) + 'px');
 			}
+			if (e.hasChanged(EditorOption.hideMouseCursorOnTyping) && !options.get(EditorOption.hideMouseCursorOnTyping)) {
+				this._showMouseCursor();
+			}
 		}));
+		this._register(dom.addDisposableListener(this._domElement, 'pointermove', () => this._showMouseCursor()));
+		this._register(toDisposable(() => this._showMouseCursor()));
 
 		this._contextKeyService = this._register(contextKeyService.createScoped(this._domElement));
 		if (codeEditorWidgetOptions.contextKeyValues) {
@@ -409,6 +416,16 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 	public writeScreenReaderContent(reason: string): void {
 		this._modelData?.view.writeScreenReaderContent(reason);
+	}
+
+	private _hideMouseCursor(): void {
+		if (this._configuration.options.get(EditorOption.hideMouseCursorOnTyping)) {
+			this._domElement.classList?.add(MOUSE_CURSOR_HIDDEN_CSS_CLASS_NAME);
+		}
+	}
+
+	private _showMouseCursor(): void {
+		this._domElement.classList?.remove(MOUSE_CURSOR_HIDDEN_CSS_CLASS_NAME);
 	}
 
 	protected _createConfiguration(isSimpleWidget: boolean, contextMenuId: MenuId, options: Readonly<IEditorConstructionOptions>, accessibilityService: IAccessibilityService): EditorConfiguration {
@@ -1977,7 +1994,10 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		}
 
 		const viewUserInputEvents = new ViewUserInputEvents(viewModel.coordinatesConverter);
-		viewUserInputEvents.onKeyDown = (e) => this._onKeyDown.fire(e);
+		viewUserInputEvents.onKeyDown = e => {
+			this._hideMouseCursor();
+			this._onKeyDown.fire(e);
+		};
 		viewUserInputEvents.onKeyUp = (e) => this._onKeyUp.fire(e);
 		viewUserInputEvents.onContextMenu = (e) => this._onContextMenu.fire(e);
 		viewUserInputEvents.onMouseMove = (e) => this._onMouseMove.fire(e);

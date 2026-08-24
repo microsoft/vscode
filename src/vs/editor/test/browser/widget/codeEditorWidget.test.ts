@@ -4,17 +4,57 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { CodeEditorWidget } from '../../../browser/widget/codeEditor/codeEditorWidget.js';
 import { Range } from '../../../common/core/range.js';
 import { Selection } from '../../../common/core/selection.js';
 import { ILanguageService } from '../../../common/languages/language.js';
 import { ILanguageConfigurationService } from '../../../common/languages/languageConfigurationRegistry.js';
-import { withTestCodeEditor } from '../testCodeEditor.js';
+import { instantiateTextModel } from '../../common/testTextModel.js';
+import { createCodeEditorServices, withTestCodeEditor } from '../testCodeEditor.js';
 
 suite('CodeEditorWidget', () => {
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('hide mouse cursor while typing', () => {
+		const instantiationService = createCodeEditorServices(disposables);
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+		disposables.add(toDisposable(() => container.remove()));
+
+		const editor = disposables.add(instantiationService.createInstance(
+			CodeEditorWidget,
+			container,
+			{ hideMouseCursorOnTyping: true },
+			{ contributions: [] }
+		));
+		const model = disposables.add(instantiateTextModel(instantiationService, ''));
+		editor.setModel(model);
+
+		const inputElement = container.querySelector<HTMLElement>('.native-edit-context, textarea.inputarea');
+		assert.ok(inputElement);
+		inputElement.dispatchEvent(new KeyboardEvent('keydown', { key: 'a', code: 'KeyA', bubbles: true }));
+		const classNameAfterTyping = container.className;
+
+		container.dispatchEvent(new MouseEvent('pointermove', { bubbles: true }));
+		const classNameAfterPointerMove = container.className;
+
+		inputElement.dispatchEvent(new KeyboardEvent('keydown', { key: 'a', code: 'KeyA', bubbles: true }));
+		editor.updateOptions({ hideMouseCursorOnTyping: false });
+		const classNameAfterDisabling = container.className;
+
+		assert.deepStrictEqual({
+			classNameAfterTyping,
+			classNameAfterPointerMove,
+			classNameAfterDisabling
+		}, {
+			classNameAfterTyping: 'monaco-editor-hide-mouse-cursor',
+			classNameAfterPointerMove: '',
+			classNameAfterDisabling: ''
+		});
+	});
 
 	test('onDidChangeModelDecorations', () => {
 		withTestCodeEditor('', {}, (editor, viewModel) => {

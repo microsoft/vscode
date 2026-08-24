@@ -26,6 +26,12 @@
 	background-color: var(--vscode-editor-background);
 	overflow-wrap: initial;
 }
+
+.monaco-editor-hide-mouse-cursor,
+.monaco-editor-hide-mouse-cursor * {
+	cursor: none !important;
+}
+
 .monaco-editor-background {
 	background-color: var(--vscode-editor-background);
 }

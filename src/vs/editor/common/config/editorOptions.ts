@@ -252,6 +252,11 @@ export interface IEditorOptions {
 	 */
 	mouseStyle?: 'text' | 'default' | 'copy';
 	/**
+	 * Controls whether the mouse cursor is hidden while typing.
+	 * Defaults to false.
+	 */
+	hideMouseCursorOnTyping?: boolean;
+	/**
 	 * Enable smooth caret animation.
 	 * Defaults to 'off'.
 	 */
@@ -5975,7 +5980,8 @@ export const enum EditorOption {
 	effectiveEditContext,
 	scrollOnMiddleClick,
 	effectiveAllowVariableFonts,
-	doubleClickSelectsBlock
+	doubleClickSelectsBlock,
+	hideMouseCursorOnTyping
 }
 
 export const EditorOptions = {
@@ -6429,6 +6435,10 @@ export const EditorOptions = {
 		EditorOption.mouseStyle, 'mouseStyle',
 		'text' as 'text' | 'default' | 'copy',
 		['text', 'default', 'copy'] as const,
+	)),
+	hideMouseCursorOnTyping: register(new EditorBooleanOption(
+		EditorOption.hideMouseCursorOnTyping, 'hideMouseCursorOnTyping', false,
+		{ description: nls.localize('hideMouseCursorOnTyping', "Controls whether the mouse cursor is hidden while typing. The mouse cursor is revealed when it is moved.") }
 	)),
 	mouseWheelScrollSensitivity: register(new EditorFloatOption(
 		EditorOption.mouseWheelScrollSensitivity, 'mouseWheelScrollSensitivity',
