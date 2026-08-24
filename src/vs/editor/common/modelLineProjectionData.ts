@@ -344,31 +344,3 @@ export interface ILineBreaksComputer {
 	addRequest(lineNumber: number, previousLineBreakData: ModelLineProjectionData | null): void;
 	finalize(): (ModelLineProjectionData | null)[];
 }
-
-/**
- * The fixed-width injected text range after all preceding injections have been applied.
- */
-export interface FixedWidthInjectedTextRange {
-	readonly startOffset: number;
-	readonly endOffset: number;
-	readonly widthInEm: number;
-}
-
-/**
- * Projects fixed-width injected text into offsets in the line with all injections applied.
- */
-export function getFixedWidthInjectedTextRanges(injectedTexts: readonly LineInjectedText[] | null): FixedWidthInjectedTextRange[] {
-	const result: FixedWidthInjectedTextRange[] = [];
-	let injectedTextLength = 0;
-	for (const injectedText of injectedTexts ?? []) {
-		const length = injectedText.options.content.length;
-		const startOffset = injectedText.column - 1 + injectedTextLength;
-		const endOffset = startOffset + length;
-		const widthInEm = injectedText.options.widthInEm;
-		if (widthInEm !== undefined) {
-			result.push({ startOffset, endOffset, widthInEm });
-		}
-		injectedTextLength += length;
-	}
-	return result;
-}

@@ -235,6 +235,16 @@ export class ModelRawFlush {
 }
 
 /**
+ * Represents a fixed-width injected text range within a line.
+ * @internal
+ */
+export interface FixedWidthInjectedTextRange {
+	readonly startOffset: number;
+	readonly endOffset: number;
+	readonly widthInEm: number;
+}
+
+/**
  * Represents text injected on a line
  * @internal
  */
@@ -285,6 +295,22 @@ export class LineInjectedText {
 			}
 			return a.lineNumber - b.lineNumber;
 		});
+		return result;
+	}
+
+	public static getFixedWidthInjectedTextRanges(injectedTexts: readonly LineInjectedText[] | null): FixedWidthInjectedTextRange[] {
+		const result: FixedWidthInjectedTextRange[] = [];
+		let injectedTextLength = 0;
+		for (const injectedText of injectedTexts ?? []) {
+			const length = injectedText.options.content.length;
+			const startOffset = injectedText.column - 1 + injectedTextLength;
+			const endOffset = startOffset + length;
+			const widthInEm = injectedText.options.widthInEm;
+			if (widthInEm !== undefined) {
+				result.push({ startOffset, endOffset, widthInEm });
+			}
+			injectedTextLength += length;
+		}
 		return result;
 	}
 

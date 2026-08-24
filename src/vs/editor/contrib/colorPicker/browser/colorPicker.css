@@ -16,7 +16,7 @@
 	border: solid 0.1em #000;
 	box-sizing: border-box;
 	margin: 0.1em var(--vscode-colorPicker-colorDecoratorMargin) 0;
-	width: calc(var(--vscode-colorPicker-colorDecoratorWidth) - var(--vscode-colorPicker-colorDecoratorMargin) - var(--vscode-colorPicker-colorDecoratorMargin));
+	width: var(--vscode-colorPicker-colorDecoratorWidth);
 	height: 0.8em;
 	line-height: 0.8em;
 	display: inline-block;

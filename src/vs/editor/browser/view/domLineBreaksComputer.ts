@@ -11,8 +11,8 @@ import { applyFontInfo } from '../config/domFontInfo.js';
 import { WrappingIndent } from '../../common/config/editorOptions.js';
 import { StringBuilder } from '../../common/core/stringBuilder.js';
 import { InjectedTextOptions } from '../../common/model.js';
-import { FixedWidthInjectedTextRange, getFixedWidthInjectedTextRanges, ILineBreaksComputer, ILineBreaksComputerContext, ILineBreaksComputerFactory, ModelLineProjectionData } from '../../common/modelLineProjectionData.js';
-import { LineInjectedText } from '../../common/textModelEvents.js';
+import { ILineBreaksComputer, ILineBreaksComputerContext, ILineBreaksComputerFactory, ModelLineProjectionData } from '../../common/modelLineProjectionData.js';
+import { FixedWidthInjectedTextRange, LineInjectedText } from '../../common/textModelEvents.js';
 import { FontInfo } from '../../common/config/fontInfo.js';
 
 const ttPolicy = createTrustedTypesPolicy('domLineBreaksComputer', { createHTML: value => value });
@@ -84,7 +84,7 @@ function createLineBreaks(targetWindow: Window, context: ILineBreaksComputerCont
 		const lineNumber = lineNumbers[i];
 		const injectedTexts = context.getLineInjectedText(lineNumber);
 		const lineContent = LineInjectedText.applyInjectedText(context.getLineContent(lineNumber), injectedTexts);
-		const fixedWidthRanges = getFixedWidthInjectedTextRanges(injectedTexts);
+		const fixedWidthRanges = LineInjectedText.getFixedWidthInjectedTextRanges(injectedTexts);
 
 		let firstNonWhitespaceIndex = 0;
 		let wrappedTextIndentLength = 0;

@@ -49,7 +49,7 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 
 	private readonly _decoratorLimitReporter = this._register(new DecoratorLimitReporter());
 
-	private static readonly colorDecoratorWidthInEm = 1.2;
+	private static readonly colorDecoratorInnerWidthInEm = 0.8;
 	private static readonly colorDecoratorMarginInEm = 0.2;
 
 	constructor(
@@ -62,7 +62,7 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 		this._colorDecoratorIds = this._editor.createDecorationsCollection();
 		this._ruleFactory = this._register(new DynamicCssRules(this._editor));
 		const editorDomNode = this._editor.getContainerDomNode();
-		editorDomNode.style.setProperty('--vscode-colorPicker-colorDecoratorWidth', `${ColorDetector.colorDecoratorWidthInEm}em`);
+		editorDomNode.style.setProperty('--vscode-colorPicker-colorDecoratorWidth', `${ColorDetector.colorDecoratorInnerWidthInEm}em`);
 		editorDomNode.style.setProperty('--vscode-colorPicker-colorDecoratorMargin', `${ColorDetector.colorDecoratorMarginInEm}em`);
 		this._register(toDisposable(() => {
 			editorDomNode.style.removeProperty('--vscode-colorPicker-colorDecoratorWidth');
@@ -214,6 +214,7 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 		this._colorDecorationClassRefs.clear();
 
 		const decorations: IModelDeltaDecoration[] = [];
+		const widthInEm = ColorDetector.colorDecoratorInnerWidthInEm + 2 * ColorDetector.colorDecoratorMarginInEm;
 
 		const limit = this._editor.getOption(EditorOption.colorDecoratorsLimit);
 
@@ -241,8 +242,8 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 						content: noBreakWhitespace,
 						inlineClassName: `${ref.className} colorpicker-color-decoration`,
 						inlineClassNameAffectsLetterSpacing: true,
-						widthInEm: ColorDetector.colorDecoratorWidthInEm,
-						attachedData: ColorDecorationInjectedTextMarker
+						attachedData: ColorDecorationInjectedTextMarker,
+						widthInEm,
 					}
 				}
 			});

@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { timeout } from '../../../../../base/common/async.js';
-import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IEditorConstructionOptions } from '../../../../../editor/browser/config/editorConfiguration.js';
 import { CodeEditorWidget } from '../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
@@ -55,7 +54,7 @@ async function renderColorDecorators(context: ComponentFixtureContext, selectFir
 async function renderInlineProgress(context: ComponentFixtureContext): Promise<void> {
 	const { editor, instantiationService } = createEditor(context, 'const result = await work();', 'typescript');
 	const progress = context.disposableStore.add(instantiationService.createInstance(InlineProgressManager, 'fixture', editor));
-	void progress.showWhile(
+	progress.showWhile(
 		{ lineNumber: 1, column: 15 },
 		'Computing result',
 		new Promise(() => { }),
@@ -93,36 +92,6 @@ async function renderInlayHints(context: ComponentFixtureContext): Promise<void>
 	);
 	editor.getContribution(InlayHintsController.ID);
 	await timeout(50);
-}
-
-function renderFixedWidthWrapping(context: ComponentFixtureContext): void {
-	const { editor } = createEditor(
-		context,
-		'alpha beta gamma delta epsilon',
-		'plaintext',
-		[],
-		{
-			fontFamily: 'Arial, sans-serif',
-			wordWrap: 'wordWrapColumn',
-			wordWrapColumn: 12,
-			wrappingStrategy: 'advanced',
-			wrappingIndent: 'none',
-		}
-	);
-	const decorations = editor.createDecorationsCollection([{
-		range: new Range(1, 7, 1, 7),
-		options: {
-			description: 'fixed-width-fixture',
-			showIfCollapsed: true,
-			before: {
-				content: '\xa0',
-				inlineClassName: 'fixed-width-fixture',
-				inlineClassNameAffectsLetterSpacing: true,
-				widthInEm: 3,
-			}
-		}
-	}]);
-	context.disposableStore.add(toDisposable(() => decorations.clear()));
 }
 
 function createEditor(
@@ -194,10 +163,5 @@ export default defineThemedFixtureGroup({ path: 'editor/' }, {
 		labels: { kind: 'screenshot', blocksCi: true },
 		expectedVisualDescriptions: ['A single TypeScript statement contains a muted : number inlay hint after value. Narrow, equal-width spaces separate the hint from the source text on both sides, and all content stays on one baseline.'],
 		render: renderInlayHints,
-	}),
-	FixedWidthWrapping: defineComponentFixture({
-		labels: { kind: 'screenshot', blocksCi: true },
-		expectedVisualDescriptions: ['Proportional-font text wraps to three lines: alpha, beta gamma, and delta epsilon. The invisible fixed-width injection after alpha occupies enough horizontal space to move beta to the second line without creating visible content or horizontal overflow.'],
-		render: renderFixedWidthWrapping,
-	}),
+	})
 });

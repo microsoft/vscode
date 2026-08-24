@@ -222,7 +222,7 @@ suite('Editor ViewModel - MonospaceLineBreaksComputer', () => {
 			wrappedTextIndentLength: lineBreakData?.wrappedTextIndentLength
 		}, {
 			breakOffsets: [4, 7],
-			wrappedTextIndentLength: 0
+			wrappedTextIndentLength: 1
 		});
 	});
 

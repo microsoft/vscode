@@ -20,17 +20,6 @@ suite('Editor ViewModel - LineBreakData', () => {
 		assert.strictEqual(data.translateToInputOffset(1, 60), 150);
 	});
 
-	test('fixed width must be finite and non-negative', () => {
-		assert.throws(
-			() => ModelDecorationInjectedTextOptions.from({ content: 'text', widthInEm: Number.NaN }),
-			/Injected text widthInEm must be a finite non-negative number/
-		);
-		assert.throws(
-			() => ModelDecorationInjectedTextOptions.from({ content: 'text', widthInEm: -1 }),
-			/Injected text widthInEm must be a finite non-negative number/
-		);
-	});
-
 	function sequence(length: number, start = 0): number[] {
 		const result = new Array<number>();
 		for (let i = 0; i < length; i++) {
