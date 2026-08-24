@@ -17,7 +17,7 @@ import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { AHPFileSystemProvider } from '../common/agentHostFileSystemProvider.js';
 import { getAgentHostClientType } from '../common/agentHostClientInfo.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, readClientConnectionKind, readClientDevDeviceId, readClientMachineId, readClientTelemetryLevel, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
-import { AgentSession, type IAgentCreateChatOptions, type IMcpNotification } from '../common/agent.js';
+import { AgentSession, type IAgentCreateChatRequestOptions, type IMcpNotification } from '../common/agent.js';
 import { isManagedSettingsPermissions } from '../common/agentHostManagedSettings.js';
 import { type IAgentService } from '../common/agentService.js';
 import { collectAgentHostDebugLogsParamsValidator, CollectAgentHostDebugLogsExtensionMethod, GetAgentHostSessionStateFileExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod } from '../common/agentHostExtensionProtocol.js';
@@ -1413,7 +1413,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				return null;
 			}
 			const source = params.source;
-			let options: IAgentCreateChatOptions | undefined;
+			let options: IAgentCreateChatRequestOptions | undefined;
 			if (source) {
 				switch (source.kind) {
 					case ChatSourceKind.Fork:

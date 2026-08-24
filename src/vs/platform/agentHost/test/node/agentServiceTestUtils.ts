@@ -32,7 +32,7 @@ import { AgentHostClientConnectionService, IAgentHostClientConnectionService } f
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostProviderLocator, IAgentHostProviderLocator } from '../../node/agentHostProviderLocator.js';
 import { AgentHostSessionTitleController, IAgentHostSessionTitleController } from '../../node/agentHostSessionTitleController.js';
-import { AgentHostLocalTurns } from '../../node/agentHostLocalTurns.js';
+import { AgentHostLocalTurns, IAgentHostLocalTurns } from '../../node/agentHostLocalTurns.js';
 import { AgentHostLocalCommands, IAgentHostLocalCommands } from '../../node/localCommands/localChatCommand.js';
 import { IAgentHostOctoKitService } from '../../node/shared/agentHostOctoKitService.js';
 import { IAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
@@ -142,7 +142,8 @@ export function createTestAgentService(
 		isActiveAgentTitleGenerationEnabled: () => foundation.configurationService.getRootValue(platformRootSchema, AgentHostActiveAgentTitleGenerationConfigKey) === true,
 	})));
 	const localTurns = new AgentHostLocalTurns(sessionDataService, logService);
-	services.set(IAgentHostLocalCommands, foundationDisposables.add(instantiationService.createInstance(AgentHostLocalCommands, localTurns)));
+	services.set(IAgentHostLocalTurns, localTurns);
+	services.set(IAgentHostLocalCommands, foundationDisposables.add(instantiationService.createInstance(AgentHostLocalCommands)));
 	const composition = instantiationService.invokeFunction(accessor => createAgentServiceComposition(
 		options,
 		accessor,

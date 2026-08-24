@@ -3,11 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.interactive-session .interactive-response .chat-used-context-list.chat-thinking-items {
-	color: var(--vscode-descriptionForeground);
-	padding-top: 0;
-}
-
 .interactive-session .interactive-response .value .chat-thinking-box {
 	outline: none;
 	position: relative;

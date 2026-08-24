@@ -20,7 +20,7 @@ import { hasKey } from '../../../base/common/types.js';
 import { localize } from '../../../nls.js';
 import { FileChangeType, FileOperationResult, IFileChange, IFileService, toFileOperationResult, type FileChangesEvent } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentProvider, AgentSession, AgentSignal, IAgent, type IAgentAdoptedWorktree, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateChatSideChatSelection, IAgentCreateChatSideChatSource, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDiscoveredChat, IAgentHostNetworkEndpoint, IAgentMaterializeChatEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentChatAdoptionResult, type AgentChatAdoptionReason, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSpawnChatEvent, AuthenticateParams, AuthenticateResult, IMcpNotification, SubagentChatSignal, subagentChatTitle } from '../common/agent.js';
+import { AgentProvider, AgentSession, AgentSignal, IAgent, type IAgentAdoptedWorktree, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentCreateChatOptions, IAgentCreateChatRequestOptions, IAgentCreateChatResult, IAgentCreateChatSideChatSelection, IAgentCreateChatSideChatSource, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDiscoveredChat, IAgentHostNetworkEndpoint, IAgentMaterializeChatEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentChatAdoptionResult, type AgentChatAdoptionReason, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSpawnChatEvent, AuthenticateParams, AuthenticateResult, IMcpNotification, SubagentChatSignal, subagentChatTitle } from '../common/agent.js';
 import { AgentHostSessionReleaseGraceMsEnvVar, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentService } from '../common/agentService.js';
 import { ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../common/sessionDataService.js';
 import { IAgentEditAttributionService, ICancelEditAttributionFlushParams, ICommitEditAttributionFlushParams, IEditAttributionFlushResult, IPrepareEditAttributionFlushParams, IPreparedEditAttributionFlush, parseEditAttributionResource } from '../common/fileEditAttribution.js';
@@ -28,7 +28,7 @@ import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import type { IAgentCustomizationSettingsRegistration } from '../common/agentCustomizationSettings.js';
 import { buildAnnotationsUri, parseAnnotationsUri } from '../common/annotationsUri.js';
 import { parseChangesetUri } from '../common/changesetUri.js';
-import { ActionType, ActionEnvelope, AuthRequiredReason, INotification, isAnnotationsAction, isSessionAction, type ChatAction, type IRootConfigChangedAction, type SessionAction, type SessionWorkingDirectoryAction, type TerminalAction, type ClientAnnotationsAction, type ClientChangesetAction } from '../common/state/sessionActions.js';
+import { ActionType, ActionEnvelope, AuthRequiredReason, INotification, isAnnotationsAction, isPassiveSessionMetadataAction, isSessionAction, type ChatAction, type IIsArchivedChangedAction, type IIsReadChangedAction, type IRootConfigChangedAction, type SessionAction, type SessionWorkingDirectoryAction, type TerminalAction, type ClientAnnotationsAction, type ClientChangesetAction } from '../common/state/sessionActions.js';
 import { resolveSessionWorkingDirectoryAction } from '../common/state/sessionWorkingDirectories.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult, SessionConfigPropertySchema } from '../common/state/protocol/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
@@ -40,7 +40,6 @@ import { readToolCallMeta } from '../common/meta/agentToolCallMeta.js';
 import { isHostSnapshotAttachment, toHostSnapshotAttachmentMeta } from '../common/meta/agentSnapshotAttachmentMeta.js';
 import { readEphemeralSessionMeta, withEphemeralSessionMeta } from '../common/meta/agentEphemeralSessionMeta.js';
 import { readChatSurfaceMeta, withChatSurfaceMeta } from '../common/meta/agentChatSurfaceMeta.js';
-import { buildBoundedSideChatSourceContext, getSideChatPartialResponse } from './agentPeerChats.js';
 import { AgentConfigurationService, getEffectiveWorkingDirectories } from './agentConfigurationService.js';
 import { IAgentHostTerminalManager } from './agentHostTerminalManager.js';
 import { ISessionDbUriFields, parseSessionDbUri } from '../common/sessionDbUri.js';
@@ -312,6 +311,7 @@ interface IPersistedPeerChat {
 	readonly uri: string;
 	readonly providerData?: string;
 	readonly origin?: ChatOrigin;
+	readonly inheritedTurnId?: string;
 }
 
 /**
@@ -1178,12 +1178,14 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	/**
-	 * Starts the first turn on a freshly-created session by dispatching a
+	 * Starts a turn requested by the session orchestration server tools
+	 * (`create_session`, `create_chat`, `send_message`) by dispatching a
 	 * `ChatTurnStarted` and routing it through the same side-effects path a
 	 * client-initiated turn takes (which sends the message to the provider).
 	 */
 	private async _startSessionPrompt(session: URI, chat: URI, prompt: string): Promise<void> {
-		const message: Message = { text: prompt, origin: { kind: MessageKind.User } };
+		// The calling agent authored this prompt, not the user.
+		const message: Message = { text: prompt, origin: { kind: MessageKind.Agent } };
 		const action = { type: ActionType.ChatTurnStarted, turnId: generateUuid(), startedAt: new Date().toISOString(), message } as const;
 		this._stateManager.dispatchServerAction(chat.toString(), action);
 		this._sideEffects.handleAction(chat.toString(), action);
@@ -2745,7 +2747,7 @@ export class AgentService extends Disposable implements IAgentService {
 		return session;
 	}
 
-	async createChat(session: URI, chat: URI, options?: IAgentCreateChatOptions): Promise<void> {
+	async createChat(session: URI, chat: URI, options?: IAgentCreateChatRequestOptions): Promise<void> {
 		const sessionKey = session.toString();
 		const provider = this._findProviderForSession(session);
 		if (!provider) {
@@ -2761,36 +2763,37 @@ export class AgentService extends Disposable implements IAgentService {
 		let forkedTurns: Turn[] | undefined;
 		let forkedTitle: string | undefined;
 		let forkedSourceTitle: string | undefined;
-		let createOptions = options;
+		const { sideChat, ...providerOptions } = options ?? {};
+		let createOptions: IAgentCreateChatOptions | undefined = providerOptions;
 		// Persist exhaustive provenance for peer chats. Fresh user-created chats
 		// leave this undefined and default to `ChatOriginKind.User`.
 		let peerChatOrigin: ChatOrigin | undefined;
-		if (options?.sideChat) {
-			const resolvedSideChat = await this._resolveSideChatOrigin(session, options.sideChat);
+		if (sideChat) {
+			const resolvedSideChat = await this._resolveSideChatOrigin(session, sideChat);
 			peerChatOrigin = resolvedSideChat.origin;
 			createOptions = {
-				...options,
-				sideChat: {
-					...options.sideChat,
+				...providerOptions,
+				fork: {
 					source: URI.parse(resolvedSideChat.sourceChat),
-					...(resolvedSideChat.providerAnchorTurnId ? { providerAnchorTurnId: resolvedSideChat.providerAnchorTurnId } : {}),
-					...(resolvedSideChat.sourceContext ? { sourceContext: resolvedSideChat.sourceContext } : {}),
-					...(resolvedSideChat.partialResponse ? { partialResponse: resolvedSideChat.partialResponse } : {}),
+					turnId: resolvedSideChat.anchorTurnId ?? sideChat.turnId,
+					independentQueue: true,
 				},
 			};
 		}
-		if (options?.fork) {
-			const { sourceChatKey, sourceSessionKey, sourceState } = await this._resolveSessionSourceChat(options.fork.source);
+		if (createOptions?.fork && !sideChat) {
+			const { sourceChatKey, sourceSessionKey, sourceState } = await this._resolveSessionSourceChat(createOptions.fork.source);
 			if (this._stateManager.getChatOrigin(sourceChatKey)?.kind === ChatOriginKind.Tool) {
 				throw new Error(`[AgentService] createChat: cannot fork provider-spawned chat ${sourceChatKey}`);
 			}
 			const sourceTurns = sourceState?.turns ?? [];
-			const forkIndex = sourceTurns.findIndex(t => t.id === options.fork!.turnId);
+			// Hoisted: narrowing on `createOptions` does not survive into the callback.
+			const forkTurnId = createOptions.fork.turnId;
+			const forkIndex = sourceTurns.findIndex(t => t.id === forkTurnId);
 			if (forkIndex < 0) {
 				// The fork point is unknown, so a fork is indistinguishable from a
 				// fresh chat. Drop the fork to avoid the provider inheriting the
 				// whole backend chat while the UI is seeded with no turns.
-				createOptions = { ...options, fork: undefined };
+				createOptions = { ...createOptions, fork: undefined };
 			} else {
 				const slice = sourceTurns.slice(0, forkIndex + 1);
 				const turnIdMapping = new Map<string, string>();
@@ -2802,7 +2805,7 @@ export class AgentService extends Disposable implements IAgentService {
 				// Record the fork boundary in host terms: the concrete source chat URI
 				// and the requested host-visible turn id, not the provider-specific
 				// one below.
-				peerChatOrigin = { kind: ChatOriginKind.Fork, chat: sourceChatKey, turnId: options.fork.turnId };
+				peerChatOrigin = { kind: ChatOriginKind.Fork, chat: sourceChatKey, turnId: createOptions.fork.turnId };
 
 				// Carry forked host-injected local turns (`/rename`, `!command`)
 				// into the new chat so they survive reload and anchor future
@@ -2818,11 +2821,11 @@ export class AgentService extends Disposable implements IAgentService {
 				// the client forked at a host-injected local turn, redirect the
 				// agent to the preceding concrete turn (the local turns are still
 				// seeded into the new chat's protocol state above).
-				const concreteForkTurnId = this._localTurns.resolveConcreteTurnId(sourceChatKey, options.fork.turnId);
+				const concreteForkTurnId = this._localTurns.resolveConcreteTurnId(sourceChatKey, createOptions.fork.turnId);
 				createOptions = {
-					...options,
+					...createOptions,
 					fork: {
-						...options.fork,
+						...createOptions.fork,
 						source: URI.parse(sourceChatKey),
 						turnIdMapping,
 						...(concreteForkTurnId !== undefined ? { turnId: concreteForkTurnId } : {}),
@@ -2836,7 +2839,7 @@ export class AgentService extends Disposable implements IAgentService {
 		const createResult = await this._createChat(provider, chat, session, createOptions);
 		const providerData = createResult?.providerData;
 		try {
-			await this._persistPeerChat(session, chat, providerData, peerChatOrigin);
+			await this._persistPeerChat(session, chat, providerData, peerChatOrigin, createResult?.inheritedTurnId);
 		} catch (error) {
 			try {
 				await provider.chats.disposeChat(chat, this._chatContext(session, chat));
@@ -2851,6 +2854,7 @@ export class AgentService extends Disposable implements IAgentService {
 			...(forkedTurns !== undefined ? { turns: forkedTurns } : {}),
 			...(providerData !== undefined ? { providerData } : {}),
 			...(peerChatOrigin !== undefined ? { origin: peerChatOrigin } : {}),
+			...(createResult?.inheritedTurnId !== undefined ? { inheritedTurnId: createResult.inheritedTurnId } : {}),
 		});
 
 		// If the agent exposes this chat as its own SDK session, mark that
@@ -2876,7 +2880,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 * origin. Throws when the source chat is not part of `session` or when the
 	 * referenced completed or active turn is absent.
 	 */
-	private async _resolveSideChatOrigin(session: URI, sideChat: IAgentCreateChatSideChatSource): Promise<{ origin: ChatOrigin; sourceChat: string; selection?: IAgentCreateChatSideChatSelection; providerAnchorTurnId?: string; sourceContext?: string; partialResponse?: string }> {
+	private async _resolveSideChatOrigin(session: URI, sideChat: IAgentCreateChatSideChatSource): Promise<{ origin: ChatOrigin; sourceChat: string; selection?: IAgentCreateChatSideChatSelection; anchorTurnId?: string }> {
 		const sessionKey = session.toString();
 		const sourceKey = sideChat.source.toString();
 		const { sourceChatKey, sourceSessionKey, sourceState } = await this._resolveSessionSourceChat(sideChat.source);
@@ -2893,11 +2897,7 @@ export class AgentService extends Disposable implements IAgentService {
 			throw new Error(`[AgentService] createChat: side chat source turn ${sideChat.turnId} not found in ${sourceKey}`);
 		}
 		const isLocalSourceTurn = !activeTurn && this._localTurns.isLocal(sourceChatKey, sideChat.turnId);
-		const providerAnchorTurnId = isLocalSourceTurn ? this._localTurns.resolveConcreteTurnId(sourceChatKey, sideChat.turnId) : undefined;
-		const partialResponse = getSideChatPartialResponse(activeTurn);
-		const sourceContext = (activeTurn || isLocalSourceTurn)
-			? buildBoundedSideChatSourceContext(sourceState?.turns ?? [], sideChat.turnId, activeTurn)
-			: undefined;
+		const anchorTurnId = isLocalSourceTurn ? this._localTurns.resolveConcreteTurnId(sourceChatKey, sideChat.turnId) : undefined;
 		const selection = sideChat.selection?.text.trim()
 			? sideChat.selection
 			: sideChat.selection
@@ -2912,9 +2912,7 @@ export class AgentService extends Disposable implements IAgentService {
 			},
 			sourceChat: sourceChatKey,
 			...(selection ? { selection } : {}),
-			...(providerAnchorTurnId ? { providerAnchorTurnId } : {}),
-			...(sourceContext ? { sourceContext } : {}),
-			...(partialResponse ? { partialResponse } : {}),
+			...(anchorTurnId ? { anchorTurnId } : {}),
 		};
 	}
 
@@ -3197,11 +3195,10 @@ export class AgentService extends Disposable implements IAgentService {
 	 */
 	private async _createChat(provider: IAgent, chat: URI, session: URI, options: IAgentCreateChatOptions | undefined): Promise<IAgentCreateChatResult | void> {
 		const placement = this._buildChatPlacement(session);
-		const convOptions: IAgentCreateChatOptions | undefined = (options?.title !== undefined || options?.model !== undefined || options?.sideChat !== undefined || placement)
+		const convOptions: IAgentCreateChatOptions | undefined = (options?.title !== undefined || options?.model !== undefined || placement)
 			? {
 				...(options?.title !== undefined ? { title: options.title } : {}),
 				...(options?.model !== undefined ? { model: options.model } : {}),
-				...(options?.sideChat !== undefined ? { sideChat: options.sideChat } : {}),
 				...(placement?.workingDirectories ? { workingDirectories: placement.workingDirectories } : {}),
 				...(placement?.project ? { project: placement.project } : {}),
 				...(placement?.config ? { config: placement.config } : {}),
@@ -4232,9 +4229,30 @@ export class AgentService extends Disposable implements IAgentService {
 	 */
 	private readonly _clientDispatchQueues = new Map<string, Promise<void>>();
 
-	/** A read/archive toggle carries no intent to open, so it must not trigger legacy adoption on an un-loaded session. */
-	private _isPassiveMetadataAction(action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction): boolean {
-		return action.type === ActionType.SessionIsReadChanged || action.type === ActionType.SessionIsArchivedChanged;
+	/**
+	 * Applies a read/archive toggle to a session that is not currently
+	 * materialized, by writing the flag to the session database and publishing
+	 * the catalogue delta on the root channel.
+	 *
+	 * Restoring instead cannot work: restore reopens the working directory, and
+	 * for a missing one only an *already* archived session resumes read-only —
+	 * so archiving, the very thing that would archive it, could never land.
+	 *
+	 * Returns `false` for a session the host does not know, which the caller must
+	 * drop: creating `agentSessionData/<id>` is how Agent Host claims ownership,
+	 * never a side effect of a metadata toggle. Callers must rule out live state
+	 * first, so an absent surfaced summary can only mean "unknown".
+	 */
+	private async _applyPassiveSessionMetadata(session: string, action: IIsArchivedChangedAction | IIsReadChangedAction): Promise<boolean> {
+		if (!this._stateManager.getSurfacedSessionSummary(session)) {
+			return false;
+		}
+		const [key, flag, set] = action.type === ActionType.SessionIsArchivedChanged
+			? [AH_META_IS_ARCHIVED_DB_KEY, SessionStatus.IsArchived, action.isArchived] as const
+			: [AH_META_IS_READ_DB_KEY, SessionStatus.IsRead, action.isRead] as const;
+		await persistSessionMetadataValues(this._sessionDataService, session, { [key]: set ? 'true' : '' });
+		this._stateManager.setSurfacedSessionStatusFlag(session, flag, set);
+		return true;
 	}
 
 	dispatchAction(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number, clientContextOrType: IAgentHostClientTelemetryContext | AgentHostClientType = AgentHostClientType.Unknown): void {
@@ -4262,14 +4280,28 @@ export class AgentService extends Disposable implements IAgentService {
 			return;
 		}
 		const next = (pending ?? Promise.resolve()).then(async () => {
-			if (requiresSessionRestore) {
-				const sessionUri = URI.parse(sessionChannel);
-				const subagent = parseSubagentSessionUri(sessionUri);
+			const sessionUri = URI.parse(sessionChannel);
+			const subagent = parseSubagentSessionUri(sessionUri);
+			// Evaluated here rather than from the entry-time `requiresSessionRestore`:
+			// this callback is queued behind earlier dispatches, so the session may
+			// since have been restored or evicted. Joining an in-flight restore also
+			// stops this write racing the metadata read that builds the restored summary.
+			if (isPassiveSessionMetadataAction(action) && !subagent) {
+				await this._restoreSessionInFlight.get(sessionChannel)?.catch(() => undefined);
+				if (!this._stateManager.getSessionState(sessionChannel)) {
+					if (readSessionEhcliAdoptable(this._stateManager.getSurfacedSessionSummary(sessionChannel)?._meta)) {
+						// Dropped so listing / scrolling can't adopt an un-opened legacy session; only an explicit open (subscribe) adopts.
+						return;
+					}
+					// Falls through so the envelope and its side effects (worktree
+					// cleanup, `onArchivedChanged`, Agent Merge sync) still run.
+					if (!await this._applyPassiveSessionMetadata(sessionChannel, action)) {
+						return;
+					}
+				}
+			} else if (requiresSessionRestore) {
 				if (subagent) {
 					await this._restoreSubagentSession(sessionChannel, subagent.parentSession);
-				} else if (this._isPassiveMetadataAction(action) && readSessionEhcliAdoptable(this._stateManager.getSurfacedSessionSummary(sessionChannel)?._meta)) {
-					// Dropped so listing / scrolling can't adopt an un-opened legacy session; only an explicit open (subscribe) adopts.
-					return;
 				} else {
 					await this.restoreSession(sessionUri);
 				}
@@ -5331,13 +5363,13 @@ export class AgentService extends Disposable implements IAgentService {
 				this._readPersistedChatTitle(session, chatUri),
 				this._getChatDraft(session, chatUri),
 			]);
-			return { chatUri, title, draft, providerData: entry.providerData, origin: entry.origin };
+			return { chatUri, title, draft, providerData: entry.providerData, origin: entry.origin, inheritedTurnId: entry.inheritedTurnId };
 		}));
 		for (const item of restored) {
 			if (!item) {
 				continue;
 			}
-			const { chatUri, title, draft, providerData, origin } = item;
+			const { chatUri, title, draft, providerData, origin, inheritedTurnId } = item;
 			if (this._stateManager.getChatState(chatUri.toString())) {
 				continue;
 			}
@@ -5346,6 +5378,7 @@ export class AgentService extends Disposable implements IAgentService {
 				draft,
 				providerData,
 				origin,
+				inheritedTurnId,
 				resolver: currentProviderData => this._materializeRestoredPeerChat(session, chatUri, currentProviderData),
 			});
 		}
@@ -5585,6 +5618,7 @@ export class AgentService extends Disposable implements IAgentService {
 					uri: entry.uri,
 					...(typeof entry.providerData === 'string' ? { providerData: entry.providerData } : {}),
 					...(entry.origin !== undefined ? { origin: entry.origin } : {}),
+					...(typeof entry.inheritedTurnId === 'string' ? { inheritedTurnId: entry.inheritedTurnId } : {}),
 				}));
 		} catch (err) {
 			this._logService.warn(`[AgentService] Failed to read peer-chat catalog for ${session.toString()}: ${toErrorMessage(err)}`);
@@ -5639,16 +5673,18 @@ export class AgentService extends Disposable implements IAgentService {
 	 * a data refresh never drops a side chat's source boundary. Serialized per
 	 * session via {@link _enqueuePeerChatCatalogWrite}.
 	 */
-	private _persistPeerChat(session: URI, chat: URI, providerData: string | undefined, origin?: ChatOrigin): Promise<void> {
+	private _persistPeerChat(session: URI, chat: URI, providerData: string | undefined, origin?: ChatOrigin, inheritedTurnId?: string): Promise<void> {
 		const chatUri = chat.toString();
 		return this._enqueuePeerChatCatalogWrite(session, entries => {
 			const existing = entries.find(entry => entry.uri === chatUri);
 			const effectiveOrigin = origin ?? existing?.origin;
+			const effectiveInheritedTurnId = inheritedTurnId ?? existing?.inheritedTurnId;
 			const next = entries.filter(entry => entry.uri !== chatUri);
 			next.push({
 				uri: chatUri,
 				...(providerData !== undefined ? { providerData } : {}),
 				...(effectiveOrigin !== undefined ? { origin: effectiveOrigin } : {}),
+				...(effectiveInheritedTurnId !== undefined ? { inheritedTurnId: effectiveInheritedTurnId } : {}),
 			});
 			return next;
 		});
@@ -5702,6 +5738,7 @@ export class AgentService extends Disposable implements IAgentService {
 								uri: entry.uri,
 								...(typeof entry.providerData === 'string' ? { providerData: entry.providerData } : {}),
 								...(entry.origin !== undefined ? { origin: entry.origin } : {}),
+								...(typeof entry.inheritedTurnId === 'string' ? { inheritedTurnId: entry.inheritedTurnId } : {}),
 							}));
 					}
 				}
