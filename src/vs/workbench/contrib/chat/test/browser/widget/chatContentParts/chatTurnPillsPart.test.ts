@@ -55,8 +55,7 @@ suite('ChatTurnPillsContentPart', () => {
 		], undefined);
 		states.push(readState());
 
-		// The per-turn changeset is recomputed when the turn completes, which
-		// briefly reports no files. The summary must not flicker away.
+		// The changeset recompute at turn end briefly reports no files.
 		diffs.set([], undefined);
 		states.push(readState());
 

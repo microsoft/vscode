@@ -61,11 +61,8 @@ export class ChatTurnPillsContentPart extends Disposable implements IChatContent
 		this.domNode = $('.chat-turn-pills-part');
 
 		const providedDiffs = this._chatResponseFileChangesService.getChangesForRequest(_content.sessionResource, _content.requestId) ?? constObservable([]);
-		// A completed turn's changes must never disappear once rendered: the
-		// diffs are recomputed on the agent host and the observable behind them
-		// is rebuilt whenever the session reconnects, both of which surface as a
-		// transient empty list. Keep the last non-empty result so the summary
-		// stays put instead of flickering (or vanishing) after the turn ended.
+		// The provider observable is rebuilt on reconnect and starts out empty, so
+		// keep the last non-empty result rather than dropping a rendered summary.
 		this._diffs = derivedObservableWithCache<readonly IEditSessionEntryDiff[]>(this, (reader, lastValue) => {
 			const diffs = providedDiffs.read(reader);
 			return diffs.length > 0 ? diffs : (lastValue ?? diffs);

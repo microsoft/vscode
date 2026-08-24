@@ -247,16 +247,13 @@ suite('AgentHostResponseFileChangesProvider', () => {
 		const record = () => counts.push({ files: latest().length, added: latest().reduce((total, diff) => total + diff.added, 0) });
 		record();
 
-		// A recompute that lost its cached state restarts from an empty
-		// `Computing` changeset, and a failed one reports an error.
+		// Recompute, failure, reconnect, and an authoritative empty recompute.
 		conn.setState(turnChangesetUri('t1'), { status: ChangesetStatus.Computing, files: [] } satisfies ChangesetState);
 		record();
 		conn.setState(turnChangesetUri('t1'), new Error('compute failed'));
 		record();
-		// Losing the session state (reconnect) drops the turn changeset URI.
 		conn.setState(backendSession.toString(), undefined);
 		record();
-		// A recompute that now reports no files at all must not blank the turn.
 		conn.setState(backendSession.toString(), sessionStateWithTurnSupport());
 		conn.setState(turnChangesetUri('t1'), { status: ChangesetStatus.Ready, files: [] } satisfies ChangesetState);
 		record();

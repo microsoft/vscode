@@ -158,15 +158,9 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 			return diffs;
 		};
 
-		// The result is monotonic: once a turn has reported changes it never
-		// falls back to an empty list. The per-turn changeset is recomputed
-		// whenever it is (re)subscribed and again when the turn completes, and a
-		// recompute whose cached state was evicted restarts from
-		// `{ status: Computing, files: [] }`. Reading that verbatim blanks the
-		// turn's changes summary for the length of every recompute (seen as a
-		// flicker at turn end) and hides it for good when a recompute fails or
-		// yields nothing. Only a `Ready` changeset that has not yet shown
-		// anything is trusted to mean "this turn changed nothing".
+		// Recomputes restart from `{ status: Computing, files: [] }`, so an empty
+		// changeset only means "this turn changed nothing" while `Ready` and
+		// before anything has been shown.
 		return derivedObservableWithCache<readonly IEditSessionEntryDiff[]>(this, (reader, lastValue) => {
 			const retained = lastValue ?? [];
 			if (!turnChangesetUriObs.read(reader)) {
