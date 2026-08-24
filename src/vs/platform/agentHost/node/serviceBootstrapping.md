@@ -46,7 +46,6 @@ These are the intended extension points for new work:
 - one primary runtime graph, with explicitly scoped child graphs allowed;
 - foundation, core-service, host-service, composition, contribution, and
   entry-activation placement categories;
-- generic `StrictServiceCollection` validation of descriptor static arguments;
 - lazy descriptor construction on first resolution;
 - ordered chat contributions for cross-cutting turn, action, hydration, and
   outgoing-message behavior;
@@ -66,31 +65,9 @@ wart has an explicit exit condition; update this document when one is removed.
 
 ## Construction phases
 
-```ts
-async function createAgentHostRuntime(options) {
-	const services = new StrictServiceCollection();
-	const infrastructure = new DisposableStore();
-	const foundation = createAgentServiceFoundation({ ...options, services, owned: infrastructure });
-	const telemetry = await createAgentHostTelemetryService(foundation);
-	services.set(ITelemetryService, telemetry);
-
-	registerAgentHostCoreServices(services, coreInputs);
-	registerAgentHostHostServices(services, hostInputs);
-	const instantiationService = new InstantiationService(services, true);
-
-	const composition = createAgentServiceComposition(instantiationService, foundation);
-	const contributions = activateAgentHostContributions(instantiationService, composition);
-	composition.setContributions(contributions);
-
-	return new AgentHostRuntime({
-		instantiationService,
-		agentService: composition.agentService,
-		agents: composition.agents,
-		onDidStartTurn: composition.onDidStartTurn,
-		sdkDownloadProgress,
-	}, infrastructure);
-}
-```
+Bootstrap creates the pre-DI foundation, awaits telemetry, registers lazy
+descriptors, creates the strict instantiation service, composes `AgentService`,
+and finally activates contributions.
 
 Tests use the same synchronous foundation, core registrations, and composition,
 but supply telemetry and typed overrides directly, skip production host
@@ -118,11 +95,8 @@ existing file first needs it.
   decorated service parameter. A trailing non-service parameter is valid only
   when it has an optional/default value and the descriptor intentionally accepts
   that value; DI cannot supply a trailing static argument.
-- Static arguments must end exactly where decorated service dependencies begin.
-  Agent Host opts into the generic `StrictServiceCollection`, which rejects a
-  mismatched descriptor at registration while leaving resolution lazy. Normal
-  `ServiceCollection` users retain `InstantiationService`'s warning-and-repair
-  behavior.
+- Follow the standard `SyncDescriptor` convention: static arguments precede
+  decorated service dependencies.
 - Do not use `supportsDelayedInstantiation`. In Node it schedules construction
   on a later macrotask, which makes startup failures and disposal timing
   nondeterministic. An eager descriptor is already lazy until first resolved.
