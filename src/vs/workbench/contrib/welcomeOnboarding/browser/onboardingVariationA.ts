@@ -79,6 +79,21 @@ type EnterpriseSignInUiState = 'options' | 'instance' | 'progress';
 
 assertDefined(product.defaultChatAgent, 'Onboarding requires a default chat agent product configuration.');
 const defaultChat = product.defaultChatAgent;
+const legacyEnterpriseUriSetting = 'github-enterprise.uri';
+
+function getConfiguredEnterpriseUri(configurationService: IConfigurationService): string | undefined {
+	const configuredUri = configurationService.getValue<string>(defaultChat.providerUriSetting);
+	if (typeof configuredUri === 'string' && configuredUri.trim().length > 0) {
+		return configuredUri;
+	}
+
+	const legacyUri = configurationService.getValue<string>(legacyEnterpriseUriSetting);
+	if (typeof legacyUri === 'string' && legacyUri.trim().length > 0) {
+		return legacyUri;
+	}
+
+	return undefined;
+}
 
 /**
  * Variation A — Classic Wizard Modal
@@ -562,7 +577,7 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 			label: localize('onboarding.signIn.ghe.aria', "Continue with GitHub Enterprise")
 		}));
 		this.stepDisposables.add(addDisposableListener(gheBtn, EventType.CLICK, () => {
-			this._logAction('signIn', undefined, 'github-enterprise');
+			this._logAction('signIn', undefined, defaultChat.provider.enterprise.id);
 			void this._handleEnterpriseSignIn();
 		}));
 	}
@@ -739,7 +754,7 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 	}
 
 	private async _handleEnterpriseSignIn(): Promise<void> {
-		const existingUri = this.configurationService.getValue<string>(defaultChat.providerUriSetting);
+		const existingUri = getConfiguredEnterpriseUri(this.configurationService);
 		if (typeof existingUri !== 'string' || !GHE_FULL_URI_REGEX.test(existingUri)) {
 			this.enterpriseInstanceValue = existingUri ?? '';
 			this.enterpriseSignInWatch = StopWatch.create();
