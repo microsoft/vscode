@@ -18,6 +18,54 @@
 	min-height: 0;
 }
 
+.monaco-workbench.agent-sessions-workbench .part.sessionspart .chat-view.has-chat-background-image .interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-list-rows {
+	background-color: transparent;
+}
+
+.monaco-workbench.agent-sessions-workbench .part.sessionspart .chat-view.has-chat-background-image .interactive-item-container.interactive-response {
+	background: color-mix(in srgb, var(--session-view-background) 86%, transparent);
+	-webkit-backdrop-filter: blur(var(--vscode-spacing-size160)) saturate(1.08);
+	backdrop-filter: blur(var(--vscode-spacing-size160)) saturate(1.08);
+	border: var(--vscode-strokeThickness) solid color-mix(in srgb, var(--vscode-editorWidget-border, var(--vscode-widget-border)) 70%, transparent);
+	border-radius: var(--vscode-cornerRadius-medium);
+	box-shadow: 0 var(--vscode-spacing-size80) var(--vscode-spacing-size240) color-mix(in srgb, var(--vscode-widget-shadow) 18%, transparent);
+	overflow: hidden;
+}
+
+.monaco-workbench.agent-sessions-workbench .part.sessionspart .chat-view.has-chat-background-image .sessions-chat-widget:not(.new-chat-in-session) .new-chat-widget-content {
+	box-sizing: border-box;
+	padding: var(--vscode-spacing-size120);
+	background: color-mix(in srgb, var(--session-view-background) 86%, transparent);
+	-webkit-backdrop-filter: blur(var(--vscode-spacing-size160)) saturate(1.08);
+	backdrop-filter: blur(var(--vscode-spacing-size160)) saturate(1.08);
+	border: var(--vscode-strokeThickness) solid color-mix(in srgb, var(--vscode-editorWidget-border, var(--vscode-widget-border)) 70%, transparent);
+	border-radius: var(--vscode-cornerRadius-large);
+	box-shadow: 0 var(--vscode-spacing-size80) var(--vscode-spacing-size240) color-mix(in srgb, var(--vscode-widget-shadow) 18%, transparent);
+}
+
+.monaco-workbench.agent-sessions-workbench .part.sessionspart .chat-view.has-chat-background-image .interactive-session .chat-secondary-toolbar .action-label,
+.monaco-workbench.agent-sessions-workbench .part.sessionspart .chat-view.has-chat-background-image .interactive-session .chat-context-usage-widget {
+	background-color: var(--vscode-button-secondaryBackground);
+	border: var(--vscode-strokeThickness) solid var(--vscode-button-secondaryBorder);
+	border-radius: var(--vscode-cornerRadius-small);
+	color: var(--vscode-button-secondaryForeground);
+}
+
+.monaco-workbench.agent-sessions-workbench .part.sessionspart .chat-view.has-chat-background-image .interactive-session .chat-secondary-toolbar .action-label:hover,
+.monaco-workbench.agent-sessions-workbench .part.sessionspart .chat-view.has-chat-background-image .interactive-session .chat-context-usage-widget:hover {
+	background-color: var(--vscode-button-secondaryHoverBackground);
+}
+
+.agent-sessions-workbench .part.sessionspart .chat-view.has-chat-background-image .interactive-session .interactive-item-container.interactive-request .value .rendered-markdown {
+	background-color: var(--session-view-background);
+	background-image: linear-gradient(var(--vscode-chat-requestBubbleBackground), var(--vscode-chat-requestBubbleBackground));
+}
+
+.agent-sessions-workbench .part.sessionspart .chat-view.has-chat-background-image .interactive-session .interactive-item-container.interactive-request .value .rendered-markdown.clickable:hover {
+	background-color: var(--session-view-background);
+	background-image: linear-gradient(var(--vscode-chat-requestBubbleHoverBackground), var(--vscode-chat-requestBubbleHoverBackground));
+}
+
 .agent-sessions-workbench .interactive-session {
 	max-width: none;
 }
