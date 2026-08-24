@@ -8,6 +8,7 @@ import { createChatMementoKey, type IAgentHostChatContribution, type IAgentHostC
 import { ChatOriginKind } from '../../../common/state/protocol/state.js';
 import { TurnState, type Turn } from '../../../common/state/sessionState.js';
 import { IAgentHostStateManager, AgentHostStateManager } from '../../agentHostStateManager.js';
+import { IAgentHostLocalTurns } from '../../agentHostLocalTurns.js';
 import { buildBoundedSideChatSourceContext, getSideChatPartialResponse, injectSideChatContext, resolveSideChatBoundary, sliceSideChatTurns } from './sideChatContext.js';
 
 const sideChatSeededMemento = createChatMementoKey<boolean>('seeded', () => false);
@@ -24,6 +25,7 @@ export class SideChatContribution extends Disposable implements IAgentHostChatCo
 	constructor(
 		protected readonly _context: IAgentHostChatContributionContext,
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
+		@IAgentHostLocalTurns private readonly _localTurns: IAgentHostLocalTurns,
 	) {
 		super();
 	}
@@ -36,7 +38,11 @@ export class SideChatContribution extends Disposable implements IAgentHostChatCo
 
 		const sourceState = this._stateManager.getChatState(origin.chat);
 		const activeTurn = sourceState?.activeTurn?.id === origin.turnId ? sourceState.activeTurn : undefined;
-		const sourceContext = buildBoundedSideChatSourceContext(sourceState?.turns ?? [], origin.turnId, activeTurn);
+		// A completed SDK-backed turn is already carried by the provider's fork.
+		// Only active and host-injected local turns are missing from that history.
+		const sourceContext = activeTurn || this._localTurns.isLocal(origin.chat, origin.turnId)
+			? buildBoundedSideChatSourceContext(sourceState?.turns ?? [], origin.turnId, activeTurn)
+			: undefined;
 		const partialResponse = getSideChatPartialResponse(activeTurn);
 		return {
 			text: injectSideChatContext(turn.message.text, partialResponse, sourceContext, origin.selection?.text),

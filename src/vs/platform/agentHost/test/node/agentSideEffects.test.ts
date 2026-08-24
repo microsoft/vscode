@@ -44,7 +44,7 @@ import { IAgentHostChangesetService, StaticChangesetKind } from '../../common/ag
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
 import { AgentSideEffects, IAgentSideEffectsOptions } from '../../node/agentSideEffects.js';
-import { AgentHostLocalTurns } from '../../node/agentHostLocalTurns.js';
+import { AgentHostLocalTurns, IAgentHostLocalTurns } from '../../node/agentHostLocalTurns.js';
 import { AgentHostChatContributions } from '../../node/agentHostChatContributionsService.js';
 import { AgentHostProviderLocator, IAgentHostProviderLocator } from '../../node/agentHostProviderLocator.js';
 import { AgentHostSessionTitleController, IAgentHostSessionTitleController } from '../../node/agentHostSessionTitleController.js';
@@ -207,7 +207,8 @@ function createTestSideEffects(
 	const turnTracker = disposables.add(instantiationService.createInstance(AgentHostTurnTracker));
 	services.set(IAgentHostTurnTracker, turnTracker);
 	const localTurns = options.localTurns ?? new AgentHostLocalTurns(options.sessionDataService, logService);
-	const localCommands = disposables.add(instantiationService.createInstance(AgentHostLocalCommands, localTurns));
+	services.set(IAgentHostLocalTurns, localTurns);
+	const localCommands = disposables.add(instantiationService.createInstance(AgentHostLocalCommands));
 	services.set(IAgentHostLocalCommands, localCommands);
 	disposables.add(registerBuiltInChatContributions(chatContributions));
 	const resolvedOptions: IAgentSideEffectsOptions = {

@@ -32,7 +32,7 @@ import { IAgentHostProviderLocator } from '../../node/agentHostProviderLocator.j
 import { IAgentHostSessionTitleController } from '../../node/agentHostSessionTitleController.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
-import { AgentHostLocalTurns } from '../../node/agentHostLocalTurns.js';
+import { AgentHostLocalTurns, IAgentHostLocalTurns } from '../../node/agentHostLocalTurns.js';
 import { AgentHostTelemetryReporter, IAgentHostTelemetryReporter } from '../../node/agentHostTelemetryReporter.js';
 import { AgentHostTurnTracker, IAgentHostTurnTracker } from '../../node/agentHostTurnTracker.js';
 import { GitHubReferencesContribution } from '../../node/chatContributions/githubReferences/githubReferencesContribution.js';
@@ -529,7 +529,7 @@ function createGitHubReferencesContributions(disposables: ReturnType<typeof ensu
 	return { service, gitStateService };
 }
 
-function createSideChatContributions(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, inheritedTurnId?: string) {
+function createSideChatContributions(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, inheritedTurnId?: string, selectionText?: string) {
 	const logService = new NullLogService();
 	const stateManager = disposables.add(new AgentHostStateManager(logService));
 	const session = 'agent-host-session://side-chat';
@@ -545,16 +545,23 @@ function createSideChatContributions(disposables: ReturnType<typeof ensureNoDisp
 	});
 	stateManager.addChat(session, sideChat, {
 		title: 'Side Chat',
-		origin: { kind: ChatOriginKind.SideChat, chat: sourceChat, turnId: 'source-turn' },
+		origin: {
+			kind: ChatOriginKind.SideChat,
+			chat: sourceChat,
+			turnId: 'source-turn',
+			...(selectionText !== undefined ? { selection: { text: selectionText } } : {}),
+		},
 		...(inheritedTurnId !== undefined ? { inheritedTurnId } : {}),
 	});
+	const localTurns = new AgentHostLocalTurns(createSessionDataService(new TestSessionDatabase()), logService);
 	const instantiationService = disposables.add(new InstantiationService(new ServiceCollection(
 		[ILogService, logService],
 		[IAgentHostStateManager, stateManager],
+		[IAgentHostLocalTurns, localTurns],
 	), /*strict*/ true));
 	const service: IAgentHostChatContributions = disposables.add(new AgentHostChatContributions(logService, instantiationService));
 	disposables.add(service.registerContribution(SideChatContribution));
-	return { service, stateManager, session, sourceChat, sideChat };
+	return { service, stateManager, session, sourceChat, sideChat, localTurns };
 }
 
 function createSessionTitleContributions(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>) {
@@ -640,13 +647,14 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 		_serviceBrand: undefined,
 		getAgent: () => queueAgent,
 	});
+	services.set(IAgentHostLocalTurns, new AgentHostLocalTurns(sessionDataService, logService));
 	const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
 	const service = disposables.add(new AgentHostChatContributions(logService, instantiationService));
 	services.set(IAgentHostChatContributions, service);
 	const telemetryReporter = new AgentHostTelemetryReporter(new RecordingTelemetryService());
 	services.set(IAgentHostTelemetryReporter, telemetryReporter);
 	services.set(IAgentHostTurnTracker, disposables.add(instantiationService.createInstance(AgentHostTurnTracker)));
-	const localCommands = disposables.add(instantiationService.createInstance(AgentHostLocalCommands, new AgentHostLocalTurns(sessionDataService, logService)));
+	const localCommands = disposables.add(instantiationService.createInstance(AgentHostLocalCommands));
 	services.set(IAgentHostLocalCommands, localCommands);
 	const host: IAgentHostChatContributionHost = {
 		hostLaunchKind: AgentHostLaunchKind.Unknown,
@@ -686,6 +694,7 @@ function createQueueDrainContributions(disposables: ReturnType<typeof ensureNoDi
 		_serviceBrand: undefined,
 		getAgent: () => agent,
 	});
+	services.set(IAgentHostLocalTurns, new AgentHostLocalTurns(sessionDataService, logService));
 	const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
 	const service = disposables.add(new AgentHostChatContributions(logService, instantiationService));
 	services.set(IAgentHostChatContributions, service);
@@ -696,8 +705,7 @@ function createQueueDrainContributions(disposables: ReturnType<typeof ensureNoDi
 	services.set(IAgentHostTelemetryReporter, telemetryReporter);
 	const turnTracker = disposables.add(instantiationService.createInstance(AgentHostTurnTracker));
 	services.set(IAgentHostTurnTracker, turnTracker);
-	const localTurns = new AgentHostLocalTurns(sessionDataService, logService);
-	const localCommands = disposables.add(instantiationService.createInstance(AgentHostLocalCommands, localTurns));
+	const localCommands = disposables.add(instantiationService.createInstance(AgentHostLocalCommands));
 	services.set(IAgentHostLocalCommands, localCommands);
 	const admitted: { channel: string; message: Message; clientId: string | undefined; hostLaunchKind: AgentHostLaunchKind }[] = [];
 	disposables.add(service.registerHost({
@@ -1248,8 +1256,8 @@ suite('AgentHostChatContributions', () => {
 		assert.deepStrictEqual(calls, ['first replacement then second']);
 	});
 
-	test('injects context into a first side-chat message only', async () => {
-		const sideChat = createSideChatContributions(disposables);
+	test('omits source transcript for a completed side-chat source turn', async () => {
+		const sideChat = createSideChatContributions(disposables, undefined, 'MOONVALE99');
 		sideChat.stateManager.dispatchServerAction(sideChat.sourceChat, {
 			type: ActionType.ChatTurnStarted,
 			turnId: 'source-turn',
@@ -1298,9 +1306,28 @@ suite('AgentHostChatContributions', () => {
 			firstMessage: first.message.text,
 			laterMessage: later.message.text,
 		}, {
-			firstMessage: injectSideChatContext('side question', undefined, 'User request:\nsource question'),
+			firstMessage: injectSideChatContext('side question', undefined, undefined, 'MOONVALE99'),
 			laterMessage: 'follow up',
 		});
+	});
+
+	test('includes source transcript for an active side-chat source turn', async () => {
+		const sideChat = createSideChatContributions(disposables);
+		sideChat.stateManager.dispatchServerAction(sideChat.sourceChat, {
+			type: ActionType.ChatTurnStarted,
+			turnId: 'source-turn',
+			startedAt: '2025-01-01T00:00:00.000Z',
+			message: { text: 'source question', origin: { kind: MessageKind.User } },
+		});
+
+		const first = await sideChat.service.outgoingTurn({
+			session: sideChat.session,
+			chat: sideChat.sideChat,
+			message: { text: 'side question', origin: { kind: MessageKind.User } },
+			turnId: 'side-turn',
+		});
+
+		assert.strictEqual(first.message.text, injectSideChatContext('side question', undefined, 'User request:\nsource question'));
 	});
 
 	test('injects context after failed or cancelled first side-chat attempts', async () => {
@@ -1355,26 +1382,21 @@ suite('AgentHostChatContributions', () => {
 		}
 	});
 
-	test('injects context after a host-only local command', async () => {
+	test('includes source transcript for a host-injected local source turn', async () => {
 		const sideChat = createSideChatContributions(disposables);
 		const localMessage = { text: '/rename Side Chat', origin: { kind: MessageKind.User } };
-		sideChat.stateManager.dispatchServerAction(sideChat.sideChat, {
+		sideChat.stateManager.dispatchServerAction(sideChat.sourceChat, {
 			type: ActionType.ChatTurnStarted,
-			turnId: 'local-turn',
+			turnId: 'source-turn',
 			startedAt: '2025-01-01T00:00:00.000Z',
 			message: localMessage,
 		});
-		sideChat.stateManager.dispatchServerAction(sideChat.sideChat, {
+		sideChat.stateManager.dispatchServerAction(sideChat.sourceChat, {
 			type: ActionType.ChatTurnComplete,
-			turnId: 'local-turn',
+			turnId: 'source-turn',
 			duration: 1,
 		});
-		sideChat.service.turnEnd({
-			session: sideChat.session,
-			channel: sideChat.sideChat,
-			turnId: 'local-turn',
-			reason: { kind: 'localCommand' },
-		});
+		sideChat.localTurns.noteInMemory(sideChat.session, sideChat.sourceChat, 'source-turn', undefined, 1);
 
 		const firstProviderMessage = await sideChat.service.outgoingTurn({
 			session: sideChat.session,
@@ -1383,7 +1405,7 @@ suite('AgentHostChatContributions', () => {
 			turnId: 'provider-turn',
 		});
 
-		assert.strictEqual(firstProviderMessage.message.text, injectSideChatContext('side question'));
+		assert.strictEqual(firstProviderMessage.message.text, injectSideChatContext('side question', undefined, 'User request:\n/rename Side Chat'));
 	});
 
 	test('strips inherited turns and context while hydrating a side chat', async () => {
