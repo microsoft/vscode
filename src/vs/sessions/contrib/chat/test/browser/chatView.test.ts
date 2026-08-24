@@ -133,6 +133,7 @@ suite('Sessions - Chat View', () => {
 		const workbench = dom.$('.monaco-workbench.agent-sessions-workbench');
 		workbench.style.setProperty('--session-view-background', '#ffffff');
 		workbench.style.setProperty('--vscode-cornerRadius-medium', '6px');
+		workbench.style.setProperty('--vscode-spacing-size160', '16px');
 		const part = dom.append(workbench, dom.$('.part.sessionspart'));
 		const chatView = dom.append(part, dom.$('.chat-view.has-chat-background-image'));
 		const session = dom.append(chatView, dom.$('.interactive-session'));
@@ -150,25 +151,30 @@ suite('Sessions - Chat View', () => {
 			responseBackgroundColor: responseStyle.backgroundColor,
 			responseBorderRadius: responseStyle.borderRadius,
 			responseOverflow: responseStyle.overflow,
+			responsePaddingBottom: responseStyle.paddingBottom,
 			valueBackgroundColor: dom.getWindow(value).getComputedStyle(value).backgroundColor,
 			footerBackgroundColor: dom.getWindow(footer).getComputedStyle(footer).backgroundColor,
 			plainResponseBackgroundColor: dom.getWindow(plainResponse).getComputedStyle(plainResponse).backgroundColor,
 			plainResponseBorderStyle: dom.getWindow(plainResponse).getComputedStyle(plainResponse).borderStyle,
+			plainResponsePaddingBottom: dom.getWindow(plainResponse).getComputedStyle(plainResponse).paddingBottom,
 		}, {
 			responseBackgroundColor: 'color(srgb 1 1 1 / 0.86)',
 			responseBorderRadius: '6px',
 			responseOverflow: 'hidden',
+			responsePaddingBottom: '16px',
 			valueBackgroundColor: 'rgba(0, 0, 0, 0)',
 			footerBackgroundColor: 'rgba(0, 0, 0, 0)',
 			plainResponseBackgroundColor: 'rgba(0, 0, 0, 0)',
 			plainResponseBorderStyle: 'none',
+			plainResponsePaddingBottom: '0px',
 		});
 	});
 
 	test('keeps background-image composer controls on complete opaque surfaces', () => {
 		const workbench = dom.$('.monaco-workbench.agent-sessions-workbench');
 		workbench.style.setProperty('--session-view-background', '#ffffff');
-		workbench.style.setProperty('--vscode-button-secondaryBackground', '#eaeaea');
+		workbench.style.setProperty('--vscode-chat-list-background', '#ffffff');
+		workbench.style.setProperty('--vscode-button-secondaryBackground', 'rgba(0, 0, 0, 0.08)');
 		workbench.style.setProperty('--vscode-button-secondaryBorder', '#808080');
 		workbench.style.setProperty('--vscode-button-secondaryForeground', '#202020');
 		workbench.style.setProperty('--vscode-cornerRadius-large', '8px');
@@ -208,6 +214,7 @@ suite('Sessions - Chat View', () => {
 			secondaryActionBorderColor: secondaryActionStyle.borderColor,
 			secondaryActionBorderStyle: secondaryActionStyle.borderStyle,
 			contextUsageBackgroundColor: contextUsageStyle.backgroundColor,
+			contextUsageBackgroundImage: contextUsageStyle.backgroundImage,
 			contextUsageBorderRadius: contextUsageStyle.borderRadius,
 			plainNewChatBackgroundColor: dom.getWindow(plainNewChatContent).getComputedStyle(plainNewChatContent).backgroundColor,
 			plainNewChatPadding: dom.getWindow(plainNewChatContent).getComputedStyle(plainNewChatContent).padding,
@@ -220,11 +227,12 @@ suite('Sessions - Chat View', () => {
 			newChatBorderRadius: '8px',
 			newChatPadding: '12px',
 			inSessionBackgroundColor: 'rgba(0, 0, 0, 0)',
-			secondaryActionBackgroundColor: 'rgb(234, 234, 234)',
-			secondaryActionBackgroundImage: 'none',
+			secondaryActionBackgroundColor: 'rgb(255, 255, 255)',
+			secondaryActionBackgroundImage: 'linear-gradient(rgba(0, 0, 0, 0.08), rgba(0, 0, 0, 0.08))',
 			secondaryActionBorderColor: 'rgb(128, 128, 128)',
 			secondaryActionBorderStyle: 'solid',
-			contextUsageBackgroundColor: 'rgb(234, 234, 234)',
+			contextUsageBackgroundColor: 'rgb(255, 255, 255)',
+			contextUsageBackgroundImage: 'linear-gradient(rgba(0, 0, 0, 0.08), rgba(0, 0, 0, 0.08))',
 			contextUsageBorderRadius: '4px',
 			plainNewChatBackgroundColor: 'rgba(0, 0, 0, 0)',
 			plainNewChatPadding: '0px',
@@ -232,6 +240,34 @@ suite('Sessions - Chat View', () => {
 			plainSecondaryActionBorderStyle: 'none',
 			plainContextUsageBackgroundColor: 'rgba(0, 0, 0, 0)',
 			plainContextUsageBorderStyle: 'none',
+		});
+	});
+
+	test('keeps selected chat rows transparent in dark themes', () => {
+		const workbench = dom.$('.monaco-workbench.vs-dark.agent-sessions-workbench');
+		const part = dom.append(workbench, dom.$('.part.sessionspart'));
+		const chatView = dom.append(part, dom.$('.chat-view'));
+		const interactiveList = dom.append(chatView, dom.$('.interactive-list'));
+		const list = dom.append(interactiveList, dom.$('.monaco-list'));
+		const scrollable = dom.append(list, dom.$('.monaco-scrollable-element'));
+		const rows = dom.append(scrollable, dom.$('.monaco-list-rows'));
+		const focusedRequest = dom.append(rows, dom.$('.monaco-list-row.request.focused'));
+		const selectedResponse = dom.append(rows, dom.$('.monaco-list-row.response.selected'));
+		const selectedPendingDivider = dom.append(rows, dom.$('.monaco-list-row.pending-divider.selected'));
+		selectedPendingDivider.style.backgroundColor = 'rgb(255, 0, 0)';
+		dom.getWindow(workbench).document.body.appendChild(workbench);
+		disposables.add(toDisposable(() => workbench.remove()));
+
+		assert.deepStrictEqual({
+			rows: dom.getWindow(rows).getComputedStyle(rows).backgroundColor,
+			focusedRequest: dom.getWindow(focusedRequest).getComputedStyle(focusedRequest).backgroundColor,
+			selectedResponse: dom.getWindow(selectedResponse).getComputedStyle(selectedResponse).backgroundColor,
+			selectedPendingDivider: dom.getWindow(selectedPendingDivider).getComputedStyle(selectedPendingDivider).backgroundColor,
+		}, {
+			rows: 'rgba(0, 0, 0, 0)',
+			focusedRequest: 'rgba(0, 0, 0, 0)',
+			selectedResponse: 'rgba(0, 0, 0, 0)',
+			selectedPendingDivider: 'rgb(255, 0, 0)',
 		});
 	});
 
