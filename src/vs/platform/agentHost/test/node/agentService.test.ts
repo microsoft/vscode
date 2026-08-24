@@ -9041,7 +9041,7 @@ suite('AgentService (node dispatcher)', () => {
 				provider: 'copilot',
 				workingDirectories: [URI.file('/repo')],
 				_meta: {
-					...withChatSurfaceMeta(withEphemeralSessionMeta(undefined, true), { surface: 'editorInline', languageId: 'typescript' }),
+					...withChatSurfaceMeta(withEphemeralSessionMeta(undefined, true), { surface: 'editorInline', languageId: 'typescript', targetUri: 'file:///repo/inline.ts' }),
 					// Session `_meta` is a whitelist, so an unrecognized slot must not survive.
 					'vscode.chat.unknownFutureSlot': { hello: 'world' },
 				},
@@ -9054,7 +9054,7 @@ suite('AgentService (node dispatcher)', () => {
 				unknownSlot: state?._meta?.['vscode.chat.unknownFutureSlot'],
 			}, {
 				ephemeral: true,
-				surface: { surface: 'editorInline', languageId: 'typescript' },
+				surface: { surface: 'editorInline', languageId: 'typescript', targetUri: 'file:///repo/inline.ts' },
 				unknownSlot: undefined,
 			});
 		});

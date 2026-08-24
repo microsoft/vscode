@@ -279,6 +279,8 @@ interface IProvisionalSession {
 	readonly sessionUri: URI;
 	readonly chat: URI;
 	readonly isEphemeral: boolean;
+	/** Whether the owning chat surface is scoped to editing a single file. */
+	readonly hasScopedEditSurface: boolean;
 	/**
 	 * Folder the user picked at create time. Used as both the
 	 * pre-worktree working directory and the customization directory
@@ -3082,6 +3084,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				sessionUri: session,
 				chat,
 				isEphemeral: options.isEphemeral === true,
+				hasScopedEditSurface: options.hasScopedEditSurface === true,
 				workingDirectory,
 				workingDirectories: options.workingDirectories,
 				model: options.model,
@@ -3477,6 +3480,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				client,
 				sessionId: sdkSessionId,
 				isEphemeral: provisional.isEphemeral,
+				hasScopedEditSurface: provisional.hasScopedEditSurface,
 				workingDirectory,
 				additionalDirectories: this._additionalCustomizationDirectories(resolvedWorkingDirectories),
 				resolvedAgentName: resolvedAgent?.name,
