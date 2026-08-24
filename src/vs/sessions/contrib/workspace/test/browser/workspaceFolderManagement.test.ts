@@ -280,6 +280,26 @@ suite('WorkspaceFolderManagementContribution', () => {
 		});
 	});
 
+	test('does not auto-trust a workTree folder outside the repository .worktrees sibling', async () => {
+		const { activeSession, workspaceEditing, workspaceTrust } = createContribution();
+		// `workTreeUri` is set but the working directory is not under `<repo>.worktrees`,
+		// so VS Code did not create it; a trusted base repo must not grant it trust
+		// (structural provenance guard).
+		const folder = worktreeFolder('/repo', '/elsewhere/checkout');
+		workspaceTrust.trust(folder.root);
+
+		activeSession.set(makeActiveSession('a', makeWorkspace(folder, true)), undefined);
+		await settle();
+
+		assert.deepStrictEqual({
+			granted: workspaceTrust.setUrisTrustCalls,
+			added: workspaceEditing.addFoldersCalls.length,
+		}, {
+			granted: [],
+			added: 0,
+		});
+	});
+
 	test('does not mount a session that has no workspace folder', async () => {
 		const { activeSession, workspaceEditing } = createContribution();
 
