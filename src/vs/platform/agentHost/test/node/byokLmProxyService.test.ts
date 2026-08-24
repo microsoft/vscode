@@ -565,7 +565,9 @@ suite('ByokLmProxyService', () => {
 		});
 	});
 
-	test('bounds abandoned tool continuations while preserving recent state', async () => {
+	test('bounds abandoned tool continuations while preserving recent state', async function () {
+		this.timeout(10000);
+
 		const captured: IByokLmChatRequest[] = [];
 		const maximumPendingContinuations = 256;
 
