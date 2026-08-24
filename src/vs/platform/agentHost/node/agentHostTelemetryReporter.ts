@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { LanguageModelToolInvokedClassification, LanguageModelToolInvokedEvent } from '../../telemetry/common/languageModelToolTelemetry.js';
-import type { ITelemetryService } from '../../telemetry/common/telemetry.js';
+import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { TelemetryTrustedValue } from '../../telemetry/common/telemetryUtils.js';
 import { hash } from '../../../base/common/hash.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { AgentSession, type AgentTurnProviderCallState, type AgentTurnProviderSessionState, type IAgentTurnDiagnosticSnapshot } from '../common/agent.js';
 import type { SessionMode } from '../common/agentHostSchema.js';
 import { getTelemetryChatSessionId } from '../common/agentTelemetryCorrelation.js';
@@ -818,9 +819,13 @@ export function toInitiatorTelemetry(clientContext: IAgentHostClientTelemetryCon
 	};
 }
 
+export const IAgentHostTelemetryReporter = createDecorator<AgentHostTelemetryReporter>('agentHostTelemetryReporter');
+
 export class AgentHostTelemetryReporter {
 
-	constructor(private readonly _telemetryService: ITelemetryService) { }
+	declare readonly _serviceBrand: undefined;
+
+	constructor(@ITelemetryService private readonly _telemetryService: ITelemetryService) { }
 
 	/** The restricted GH/MSFT telemetry surface, present when the agent-host telemetry service is wired. */
 	private get _restricted(): IAgentHostRestrictedTelemetry | undefined {

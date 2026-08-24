@@ -9,7 +9,7 @@ import { localize, localize2 } from '../../../../nls.js';
 import { ActionsOrientation } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { Part } from '../../part.js';
 import { mainWindow } from '../../../../base/browser/window.js';
-import { ActivityBarPosition, IWorkbenchLayoutService, LayoutSettings, Parts, Position, FLOATING_PANEL_INNER_MARGIN, FLOATING_PANEL_MARGIN, isFloatingTopEdgeExposed } from '../../../services/layout/browser/layoutService.js';
+import { ActivityBarPosition, IWorkbenchLayoutService, LayoutSettings, Parts, Position, FLOATING_PANEL_INNER_MARGIN, FLOATING_PANEL_MARGIN, getFloatingPanelMargin, getFloatingPanelOuterMargin, isFloatingTopEdgeExposed } from '../../../services/layout/browser/layoutService.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { ToggleSidebarPositionAction, ToggleSidebarVisibilityAction } from '../../actions/layoutActions.js';
@@ -62,6 +62,11 @@ export class ActivitybarPart extends Part {
 	 */
 	static readonly FLOATING_ACTION_GAP = 8;
 
+	/**
+	 * The compact Modern UI density tightens that gap to match its denser rhythm.
+	 */
+	static readonly FLOATING_COMPACT_ACTION_GAP = 4;
+
 	static readonly ICON_SIZE = 24;
 	static readonly COMPACT_ICON_SIZE = 16;
 
@@ -70,6 +75,20 @@ export class ActivitybarPart extends Part {
 	 * experiment. Must match the margins applied in `floatingPanels.css`.
 	 */
 	static readonly FLOATING_MARGIN = FLOATING_PANEL_MARGIN;
+
+	/**
+	 * The rail's own horizontal padding, doubled: the space inside the card beside the icon
+	 * column. Independent of the cluster perimeter so the icons keep their inset whatever the
+	 * gutter is. Must match `--modern-ui-activitybar-lane` in `floatingPanels.css`.
+	 */
+	static readonly FLOATING_LANE = 8;
+	static readonly FLOATING_COMPACT_LANE = 4;
+
+	/**
+	 * The card border the activity bar draws on each edge under the floating panels
+	 * experiment. Must match the border width applied in `floatingPanels.css`.
+	 */
+	static readonly FLOATING_BORDER = 1;
 
 	static readonly pinnedViewContainersKey = 'workbench.activity.pinnedViewlets2';
 	static readonly placeholderViewContainersKey = 'workbench.activity.placeholderViewlets';
@@ -87,7 +106,10 @@ export class ActivitybarPart extends Part {
 	/** The intrinsic activity bar width (excludes any floating gutter). */
 	private get baseWidth(): number {
 		if (this.layoutService.isFloatingPanelsEnabled()) {
-			return this._isCompact ? ActivitybarPart.FLOATING_COMPACT_ACTIVITYBAR_WIDTH : ActivitybarPart.FLOATING_ACTIVITYBAR_WIDTH;
+			if (this._isCompact) {
+				return ActivitybarPart.FLOATING_COMPACT_ACTIVITYBAR_WIDTH;
+			}
+			return ActivitybarPart.FLOATING_ACTIVITYBAR_WIDTH;
 		}
 		return this._isCompact ? ActivitybarPart.COMPACT_ACTIVITYBAR_WIDTH : ActivitybarPart.ACTIVITYBAR_WIDTH;
 	}
@@ -97,15 +119,23 @@ export class ActivitybarPart extends Part {
 		if (this._isCompact) {
 			return ActivitybarPart.COMPACT_ACTION_HEIGHT;
 		}
-		return this.layoutService.isFloatingPanelsEnabled() ? ActivitybarPart.FLOATING_ACTION_HEIGHT : ActivitybarPart.ACTION_HEIGHT;
+		if (this.layoutService.isFloatingPanelsEnabled()) {
+			return ActivitybarPart.FLOATING_ACTION_HEIGHT;
+		}
+		return ActivitybarPart.ACTION_HEIGHT;
 	}
 
 	/**
 	 * Vertical gap rendered between two adjacent items. Only the floating panels
-	 * experiment separates items, and only at the default size.
+	 * experiment separates items, and only at the default activity bar size; the compact
+	 * Modern UI density tightens it to match its denser rhythm.
 	 */
 	private get actionGap(): number {
-		return this.layoutService.isFloatingPanelsEnabled() && !this._isCompact ? ActivitybarPart.FLOATING_ACTION_GAP : 0;
+		if (!this.layoutService.isFloatingPanelsEnabled() || this._isCompact) {
+			return 0;
+		}
+
+		return this.layoutService.isModernUICompact() ? ActivitybarPart.FLOATING_COMPACT_ACTION_GAP : ActivitybarPart.FLOATING_ACTION_GAP;
 	}
 
 	/**
@@ -123,8 +153,24 @@ export class ActivitybarPart extends Part {
 			return 0;
 		}
 
-		return ActivitybarPart.FLOATING_MARGIN * 2
-			+ (this.layoutService.getSideBarPosition() === Position.RIGHT ? FLOATING_PANEL_MARGIN : 0);
+		// The cluster perimeter on the window side, plus the rail's own lane beside the icon
+		// column, where the primary side bar meets it flush.
+		const lane = this.layoutService.isModernUICompact() ? ActivitybarPart.FLOATING_COMPACT_LANE : ActivitybarPart.FLOATING_LANE;
+		return getFloatingPanelOuterMargin(this.layoutService) + lane
+			+ (this.needsFloatingLeadingGap ? getFloatingPanelMargin(this.layoutService) : 0);
+	}
+
+	/**
+	 * Whether the rail has to supply the gap to the card before it. Under this system's
+	 * leading-margin convention each card owns the gap on its leading edge, so a rail that
+	 * follows the editor — on the right, with no side bar to connect to — reserves one more
+	 * margin than it does when it leads. Compact density keeps its cards joined, so it never
+	 * needs the gap. Mirrors `.nosidebar .part.activitybar.right` in `floatingPanels.css`.
+	 */
+	private get needsFloatingLeadingGap(): boolean {
+		return !this.layoutService.isModernUICompact()
+			&& this.layoutService.getSideBarPosition() === Position.RIGHT
+			&& !this.layoutService.isVisible(Parts.SIDEBAR_PART);
 	}
 
 	private readonly compositeBar = this._register(new MutableDisposable<PaneCompositeBar>());
@@ -157,7 +203,7 @@ export class ActivitybarPart extends Part {
 
 			// Floating panels changes the reserved left/bottom gutter (and therefore
 			// the fixed part width): signal the grid that the size constraint changed.
-			if (e.affectsConfiguration(LayoutSettings.MODERN_UI)) {
+			if (e.affectsConfiguration(LayoutSettings.MODERN_UI) || e.affectsConfiguration(LayoutSettings.MODERN_UI_DENSITY)) {
 				this.updateCompactStyle();
 				this.recreateCompositeBar();
 				this._onDidChange.fire(undefined);
@@ -169,6 +215,14 @@ export class ActivitybarPart extends Part {
 
 		this._register(this.hostService.onDidChangeFocus(focused => this.setInactive(!focused)));
 		this._register(this.hostService.onDidChangeActiveWindow(windowId => this.setInactive(windowId !== mainWindow.vscodeWindowId)));
+
+		// Showing or hiding the primary side bar decides whether the rail connects to it or
+		// stands alone, which can change the gutter it reserves (see `needsFloatingLeadingGap`).
+		this._register(this.layoutService.onDidChangePartVisibility(e => {
+			if (e.partId === Parts.SIDEBAR_PART && this.layoutService.isFloatingPanelsEnabled()) {
+				this._onDidChange.fire(undefined);
+			}
+		}));
 	}
 
 	private setInactive(inactive: boolean): void {
@@ -282,9 +336,14 @@ export class ActivitybarPart extends Part {
 		const background = this.getColor(backgroundColor) || '';
 		container.style.backgroundColor = background;
 
-		const borderColor = this.getColor(ACTIVITY_BAR_BORDER) || this.getColor(contrastBorder) || '';
+		// In Modern UI the rail is a floating card whose border is owned by the stylesheet via
+		// the `modernActivityBar.border` token. Leaving it out of the inline style lets CSS
+		// vary it per edge (the seam it shares with the side bar) without needing `!important`.
+		const borderColor = this.layoutService.isFloatingPanelsEnabled()
+			? ''
+			: this.getColor(ACTIVITY_BAR_BORDER) || this.getColor(contrastBorder) || '';
 		container.classList.toggle('bordered', !!borderColor);
-		container.style.borderColor = borderColor ? borderColor : '';
+		container.style.borderColor = borderColor;
 	}
 
 	show(focus?: boolean): void {
@@ -337,17 +396,24 @@ export class ActivitybarPart extends Part {
 	}
 
 	/**
-	 * Vertical gutters (in pixels) mirroring the margins in `floatingPanels.css`.
-	 * The top is flush with title/banner chrome and doubles only at an exposed window edge.
+	 * Vertical gutters (in pixels) mirroring the margins in `floatingPanels.css`, plus the
+	 * card's 1px border on each edge (drawn inside the box, as `.monaco-workbench .part` is
+	 * `box-sizing: border-box`). The top is flush with title/banner chrome and doubles only at
+	 * an exposed window edge.
 	 */
 	private getFloatingGutters(): { top: number; bottom: number } {
 		if (!this.layoutService.isFloatingPanelsEnabled()) {
 			return { top: 0, bottom: 0 };
 		}
 
+		const margin = getFloatingPanelMargin(this.layoutService);
+		const outerMargin = getFloatingPanelOuterMargin(this.layoutService);
+		const border = ActivitybarPart.FLOATING_BORDER;
 		return {
-			top: isFloatingTopEdgeExposed(this.layoutService, mainWindow) ? FLOATING_PANEL_MARGIN * 2 : FLOATING_PANEL_INNER_MARGIN,
-			bottom: this.layoutService.isVisible(Parts.STATUSBAR_PART, mainWindow) ? FLOATING_PANEL_MARGIN : FLOATING_PANEL_MARGIN * 2
+			top: border + (isFloatingTopEdgeExposed(this.layoutService, mainWindow) ? outerMargin : FLOATING_PANEL_INNER_MARGIN),
+			bottom: border + (this.layoutService.isModernUICompact()
+				? outerMargin
+				: this.layoutService.isVisible(Parts.STATUSBAR_PART, mainWindow) ? margin : outerMargin)
 		};
 	}
 

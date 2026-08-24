@@ -8638,8 +8638,9 @@ suite('CopilotAgent', () => {
 				resetTurnState(turnId: string, senderClientId: string | undefined): void { rec.resets.push({ turnId, senderClientId }); },
 				async setModel(id: string, reasoningEffort?: string, contextTier?: string): Promise<void> { rec.modelCalls.push({ id, effort: reasoningEffort, tier: contextTier }); },
 				async setAgent(name: string | undefined): Promise<void> { rec.agentCalls.push(name); },
-				async collectDebugLogs(outputDirectory: URI, includeSessionLogs: boolean): Promise<void> {
+				async collectDebugLogs(outputDirectory: URI, includeSessionLogs: boolean): Promise<boolean> {
 					rec.debugLogCalls.push({ outputDirectory: outputDirectory.toString(), includeSessionLogs });
+					return true;
 				},
 				async hasRunningDetachedShells(): Promise<boolean> { return false; },
 				handleClientToolCallComplete(): void { },

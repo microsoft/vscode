@@ -14,6 +14,7 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IAgentHostGitHubEndpointService } from '../../../node/agentHostGitHubEndpointService.js';
+import { IAgentHostProxyResolver } from '../../../node/agentHostProxyResolver.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../../node/agentConfigurationService.js';
 import { IAgentHostCustomizationEnablementService } from '../../../node/agentHostCustomizationEnablementService.js';
 import { AgentHostStateManager } from '../../../node/agentHostStateManager.js';
@@ -31,6 +32,7 @@ import { AgentHostCodexMultiRootEnabledConfigKey } from '../../../common/agentHo
 import { IAgentHostOTelService } from '../../../common/otel/agentHostOTelService.js';
 import { AgentHostConfigKey } from '../../../common/agentHostCustomizationConfig.js';
 import { createNoopCustomizationEnablementService } from '../testCustomizationEnablementService.js';
+import { createTestAgentHostProxyResolver } from '../agentServiceTestUtils.js';
 
 interface ITestAgentContext {
 	readonly agent: CodexAgent;
@@ -57,6 +59,7 @@ function createAgentContext(disposables: Pick<DisposableStore, 'add'>, models: (
 	instantiationService.stub(IAgentConfigurationService, configurationService);
 	instantiationService.stub(IAgentHostCustomizationEnablementService, createNoopCustomizationEnablementService());
 	instantiationService.stub(IAgentHostGitHubEndpointService, createTestGitHubEndpointService());
+	instantiationService.stub(IAgentHostProxyResolver, createTestAgentHostProxyResolver());
 	instantiationService.stub(IAgentSdkDownloader, sdkDownloader);
 	instantiationService.stub(IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE);
 	instantiationService.stub(IAgentHostOTelService, { _serviceBrand: undefined, getNativeSdkTelemetryConfig: async () => undefined });

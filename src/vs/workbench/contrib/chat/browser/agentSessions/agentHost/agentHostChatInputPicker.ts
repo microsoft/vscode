@@ -49,6 +49,7 @@ import { IAgentHostSessionWorkingDirectoryResolver } from './agentHostSessionWor
 import { IAgentHostNewSessionFolderService } from './agentHostNewSessionFolderService.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { toAgentHostBackendSessionUri } from './agentHostSessionUri.js';
+import { getCompactCodicon } from '../../chatIcons.js';
 
 const FILTER_THRESHOLD = 10;
 
@@ -548,7 +549,7 @@ export class AgentHostChatInputPicker extends Disposable {
 
 		const icon = getConfigIcon(this._property, value);
 		if (icon) {
-			dom.append(trigger, renderIcon(icon));
+			dom.append(trigger, renderIcon(getCompactCodicon(icon)));
 		}
 		// Mirror the sessions-side picker: elevated approval levels get themed colors.
 		if (this._property === SessionConfigKey.AutoApprove) {

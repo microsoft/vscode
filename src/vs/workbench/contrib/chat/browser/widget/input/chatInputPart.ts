@@ -3531,7 +3531,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		// model — matching the same icon set the CSS keys off — rather than
 		// querying the DOM.
 		const voiceInputActionIconClasses = new Set([
-			Codicon.mic, Codicon.micFilled, Codicon.micDownloadCompact,
+			Codicon.micCompact, Codicon.micFilled, Codicon.micDownloadCompact,
 			Codicon.voiceModeCompact, Codicon.loadingCompact, Codicon.debugDisconnectCompact,
 		].map(icon => ThemeIcon.asClassName(icon)));
 		const updateVoiceInputActionBorder = () => {

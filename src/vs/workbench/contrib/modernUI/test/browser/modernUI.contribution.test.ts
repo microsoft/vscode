@@ -17,15 +17,16 @@ import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { editorBackground, Extensions as ColorRegistryExtensions, IColorRegistry, listHoverBackground, listHoverForeground, listInactiveSelectionBackground, listInactiveSelectionForeground, oneOf, opaque } from '../../../../../platform/theme/common/colorRegistry.js';
 import { foreground } from '../../../../../platform/theme/common/colors/baseColors.js';
 import { Extensions as ThemeServiceExtensions, IThemingRegistry } from '../../../../../platform/theme/common/themeService.js';
-import { EDITOR_BORDER, MODERN_ACTIVITY_BAR_ACTIVE_BACKGROUND, MODERN_ACTIVITY_BAR_ACTIVE_FOREGROUND, MODERN_ACTIVITY_BAR_BACKGROUND, MODERN_ACTIVITY_BAR_HOVER_BACKGROUND, MODERN_ACTIVITY_BAR_HOVER_FOREGROUND, MODERN_ACTIVITY_BAR_INACTIVE_BACKGROUND, MODERN_EDITOR_TAB_ACTIVE_ACTION_BACKGROUND, MODERN_EDITOR_TAB_ACTIVE_BACKGROUND, MODERN_EDITOR_TAB_ACTIVE_FOREGROUND, MODERN_EDITOR_TAB_ACTIVE_HOVER_ACTION_BACKGROUND, MODERN_EDITOR_TAB_ACTIVE_HOVER_BACKGROUND, MODERN_EDITOR_TAB_HOVER_ACTION_BACKGROUND, MODERN_EDITOR_TAB_HOVER_BACKGROUND, MODERN_EDITOR_TAB_HOVER_FOREGROUND, MODERN_EDITOR_TAB_INACTIVE_BACKGROUND, MODERN_EDITOR_TAB_SELECTED_ACTION_BACKGROUND, MODERN_TAB_ACTIVE_BACKGROUND, MODERN_TAB_ACTIVE_FOREGROUND, MODERN_TAB_HOVER_BACKGROUND, MODERN_TAB_HOVER_FOREGROUND, SURFACE_BORDER, TAB_ACTIVE_BACKGROUND, TAB_ACTIVE_BORDER, TAB_ACTIVE_BORDER_TOP, TAB_ACTIVE_FOREGROUND, TAB_BORDER, TAB_HOVER_BACKGROUND, TAB_HOVER_BORDER, TAB_HOVER_FOREGROUND, TAB_INACTIVE_BACKGROUND, TAB_INACTIVE_FOREGROUND, TAB_LAST_PINNED_BORDER, TAB_SELECTED_BACKGROUND, TAB_UNFOCUSED_HOVER_BACKGROUND } from '../../../../common/theme.js';
+import { EDITOR_BORDER, MODERN_ACTIVITY_BAR_ACTIVE_BACKGROUND, MODERN_ACTIVITY_BAR_ACTIVE_FOREGROUND, MODERN_ACTIVITY_BAR_BACKGROUND, MODERN_ACTIVITY_BAR_BORDER, MODERN_ACTIVITY_BAR_HOVER_BACKGROUND, MODERN_ACTIVITY_BAR_HOVER_FOREGROUND, MODERN_ACTIVITY_BAR_INACTIVE_BACKGROUND, MODERN_EDITOR_TAB_ACTIVE_ACTION_BACKGROUND, MODERN_EDITOR_TAB_ACTIVE_BACKGROUND, MODERN_EDITOR_TAB_ACTIVE_FOREGROUND, MODERN_EDITOR_TAB_ACTIVE_HOVER_ACTION_BACKGROUND, MODERN_EDITOR_TAB_ACTIVE_HOVER_BACKGROUND, MODERN_EDITOR_TAB_HOVER_ACTION_BACKGROUND, MODERN_EDITOR_TAB_HOVER_BACKGROUND, MODERN_EDITOR_TAB_HOVER_FOREGROUND, MODERN_EDITOR_TAB_INACTIVE_BACKGROUND, MODERN_EDITOR_TAB_SELECTED_ACTION_BACKGROUND, MODERN_TAB_ACTIVE_BACKGROUND, MODERN_TAB_ACTIVE_FOREGROUND, MODERN_TAB_HOVER_BACKGROUND, MODERN_TAB_HOVER_FOREGROUND, SURFACE_BORDER, TAB_ACTIVE_BACKGROUND, TAB_ACTIVE_BORDER, TAB_ACTIVE_BORDER_TOP, TAB_ACTIVE_FOREGROUND, TAB_BORDER, TAB_HOVER_BACKGROUND, TAB_HOVER_BORDER, TAB_HOVER_FOREGROUND, TAB_INACTIVE_BACKGROUND, TAB_INACTIVE_FOREGROUND, TAB_LAST_PINNED_BORDER, TAB_SELECTED_BACKGROUND, TAB_UNFOCUSED_HOVER_BACKGROUND } from '../../../../common/theme.js';
 import { TestEnvironmentService, TestLayoutService } from '../../../../test/browser/workbenchTestServices.js';
-import { LayoutSettings } from '../../../../services/layout/browser/layoutService.js';
+import { LayoutSettings, ModernUIDensity } from '../../../../services/layout/browser/layoutService.js';
 import { PRESERVE_MERGED_WORKSPACE_NAME_CASE_CLASS, PRESERVE_WORKSPACE_NAME_CASE_CLASS, shouldPreserveWorkspaceNameCase } from '../../../files/browser/views/explorerView.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { joinPath } from '../../../../../base/common/resources.js';
 import { WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
 import { ColorThemeData } from '../../../../services/themes/common/colorThemeData.js';
 import { generateColorThemeCSS } from '../../../../services/themes/browser/colorThemeCss.js';
+import '../../../../browser/media/floatingPanels.css';
 import '../../../../browser/parts/activitybar/media/activityaction.css';
 import '../../../../browser/parts/media/paneCompositePart.css';
 import { ModernUIContribution } from '../../browser/modernUI.contribution.js';
@@ -112,9 +113,10 @@ suite('ModernUIContribution', () => {
 	const colorRegistry = Registry.as<IColorRegistry>(ColorRegistryExtensions.ColorContribution);
 	const themingRegistry = Registry.as<IThemingRegistry>(ThemeServiceExtensions.ThemingContribution);
 
-	test('applies startup values without relayout and relayouts once when toggled', async () => {
+	test('applies startup density and relayouts when density or enablement changes', async () => {
 		const configurationService = new TestConfigurationService({
 			[LayoutSettings.MODERN_UI]: true,
+			[LayoutSettings.MODERN_UI_DENSITY]: ModernUIDensity.Compact,
 			[LayoutSettings.MODERN_UI_UPPERCASE_VIEW_HEADERS]: true,
 		});
 
@@ -136,16 +138,33 @@ suite('ModernUIContribution', () => {
 
 		const startupState = {
 			mainEnabled: layoutService.mainContainer.classList.contains('modern-ui'),
+			mainCompact: layoutService.mainContainer.classList.contains('modern-ui-compact'),
 			mainTabsEnabled: layoutService.mainContainer.classList.contains('modern-ui-tabs'),
 			mainNotificationsDialogsEnabled: layoutService.mainContainer.classList.contains('modern-ui-notifications-dialogs'),
 			mainUppercaseViewHeaders: layoutService.mainContainer.classList.contains('modern-ui-uppercase-view-headers'),
 			auxiliaryEnabled: auxiliaryContainer.classList.contains('modern-ui'),
+			auxiliaryCompact: auxiliaryContainer.classList.contains('modern-ui-compact'),
 			auxiliaryTabsEnabled: auxiliaryContainer.classList.contains('modern-ui-tabs'),
 			auxiliaryNotificationsDialogsEnabled: auxiliaryContainer.classList.contains('modern-ui-notifications-dialogs'),
 			auxiliaryUppercaseViewHeaders: auxiliaryContainer.classList.contains('modern-ui-uppercase-view-headers'),
 			paneHeaderSize: pane.minimumSize,
 			paneHeaderLineHeight: getWindow(pane.draggableElement!).getComputedStyle(pane.draggableElement!).lineHeight,
 			paneHeaderInlineLineHeight: pane.draggableElement!.style.lineHeight,
+			layoutCount: layoutService.layoutCount,
+		};
+
+		await configurationService.setUserConfiguration(LayoutSettings.MODERN_UI_DENSITY, ModernUIDensity.Default);
+		configurationService.onDidChangeConfigurationEmitter.fire({
+			affectsConfiguration: key => key === LayoutSettings.MODERN_UI_DENSITY,
+			source: ConfigurationTarget.USER,
+			affectedKeys: new Set([LayoutSettings.MODERN_UI_DENSITY]),
+			change: { keys: [LayoutSettings.MODERN_UI_DENSITY], overrides: [] }
+		});
+		const defaultDensityState = {
+			mainCompact: layoutService.mainContainer.classList.contains('modern-ui-compact'),
+			auxiliaryCompact: auxiliaryContainer.classList.contains('modern-ui-compact'),
+			paneHeaderSize: pane.minimumSize,
+			paneHeaderLineHeight: getWindow(pane.draggableElement!).getComputedStyle(pane.draggableElement!).lineHeight,
 			layoutCount: layoutService.layoutCount,
 		};
 
@@ -159,11 +178,14 @@ suite('ModernUIContribution', () => {
 
 		assert.deepStrictEqual({
 			startupState,
+			defaultDensityState,
 			mainEnabledAfterToggle: layoutService.mainContainer.classList.contains('modern-ui'),
+			mainCompactAfterToggle: layoutService.mainContainer.classList.contains('modern-ui-compact'),
 			mainTabsEnabledAfterToggle: layoutService.mainContainer.classList.contains('modern-ui-tabs'),
 			mainNotificationsDialogsEnabledAfterToggle: layoutService.mainContainer.classList.contains('modern-ui-notifications-dialogs'),
 			mainUppercaseViewHeadersAfterToggle: layoutService.mainContainer.classList.contains('modern-ui-uppercase-view-headers'),
 			auxiliaryEnabledAfterToggle: auxiliaryContainer.classList.contains('modern-ui'),
+			auxiliaryCompactAfterToggle: auxiliaryContainer.classList.contains('modern-ui-compact'),
 			auxiliaryTabsEnabledAfterToggle: auxiliaryContainer.classList.contains('modern-ui-tabs'),
 			auxiliaryNotificationsDialogsEnabledAfterToggle: auxiliaryContainer.classList.contains('modern-ui-notifications-dialogs'),
 			auxiliaryUppercaseViewHeadersAfterToggle: auxiliaryContainer.classList.contains('modern-ui-uppercase-view-headers'),
@@ -174,10 +196,12 @@ suite('ModernUIContribution', () => {
 		}, {
 			startupState: {
 				mainEnabled: true,
+				mainCompact: true,
 				mainTabsEnabled: true,
 				mainNotificationsDialogsEnabled: true,
 				mainUppercaseViewHeaders: true,
 				auxiliaryEnabled: true,
+				auxiliaryCompact: true,
 				auxiliaryTabsEnabled: true,
 				auxiliaryNotificationsDialogsEnabled: true,
 				auxiliaryUppercaseViewHeaders: true,
@@ -186,18 +210,27 @@ suite('ModernUIContribution', () => {
 				paneHeaderInlineLineHeight: '',
 				layoutCount: 0,
 			},
+			defaultDensityState: {
+				mainCompact: false,
+				auxiliaryCompact: false,
+				paneHeaderSize: 28,
+				paneHeaderLineHeight: '28px',
+				layoutCount: 1,
+			},
 			mainEnabledAfterToggle: false,
+			mainCompactAfterToggle: false,
 			mainTabsEnabledAfterToggle: false,
 			mainNotificationsDialogsEnabledAfterToggle: false,
 			mainUppercaseViewHeadersAfterToggle: false,
 			auxiliaryEnabledAfterToggle: false,
+			auxiliaryCompactAfterToggle: false,
 			auxiliaryTabsEnabledAfterToggle: false,
 			auxiliaryNotificationsDialogsEnabledAfterToggle: false,
 			auxiliaryUppercaseViewHeadersAfterToggle: false,
 			paneHeaderSizeAfterToggle: 22,
 			paneHeaderLineHeightAfterToggle: '22px',
 			paneHeaderInlineLineHeightAfterToggle: '',
-			layoutCountAfterToggle: 1,
+			layoutCountAfterToggle: 2,
 		});
 	});
 
@@ -707,6 +740,140 @@ suite('ModernUIContribution', () => {
 		});
 	});
 
+	test('centers activity bar items within floating navigation rails', () => {
+		const root = document.createElement('div');
+		root.className = 'monaco-workbench modern-ui modern-ui-compact floating-panels';
+		root.style.display = 'inline-flex';
+		root.style.setProperty('--activity-bar-action-height', '36px');
+		root.style.setProperty('--activity-bar-width', '36px');
+		root.style.setProperty('--vscode-spacing-size40', '4px');
+		root.style.setProperty('--vscode-spacing-sizeNone', '0px');
+		document.body.appendChild(root);
+		store.add(toDisposable(() => root.remove()));
+
+		const leftActivityBar = appendElement(root, 'part activitybar left');
+		const leftContent = appendElement(leftActivityBar, 'content');
+		const leftActionBar = appendElement(appendElement(leftContent, 'composite-bar'), 'monaco-action-bar');
+		const leftAction = appendElement(leftActionBar, 'action-item checked');
+		appendElement(leftAction, 'action-label codicon');
+		const leftIndicator = appendElement(leftAction, 'active-item-indicator');
+		const leftSideBar = appendElement(root, 'part sidebar');
+		leftSideBar.style.width = '60px';
+
+		const rightSideBar = appendElement(root, 'part sidebar');
+		rightSideBar.style.width = '60px';
+		const rightActivityBar = appendElement(root, 'part activitybar right');
+		const rightContent = appendElement(rightActivityBar, 'content');
+		const rightActionBar = appendElement(appendElement(rightContent, 'composite-bar'), 'monaco-action-bar');
+		const rightAction = appendElement(rightActionBar, 'action-item checked');
+		appendElement(rightAction, 'action-label codicon');
+		const rightIndicator = appendElement(rightAction, 'active-item-indicator');
+
+		const leftActivityBounds = leftActivityBar.getBoundingClientRect();
+		const leftActionBounds = leftAction.getBoundingClientRect();
+		const leftSideBarBounds = leftSideBar.getBoundingClientRect();
+		const leftIndicatorBounds = leftIndicator.getBoundingClientRect();
+		const rightSideBarBounds = rightSideBar.getBoundingClientRect();
+		const rightActionBounds = rightAction.getBoundingClientRect();
+		const rightIndicatorBounds = rightIndicator.getBoundingClientRect();
+		const rightActivityBounds = rightActivityBar.getBoundingClientRect();
+		const rootBounds = root.getBoundingClientRect();
+
+		assert.deepStrictEqual({
+			left: {
+				actionWidth: leftActionBounds.width,
+				actionCenterOffset: leftActionBounds.left + leftActionBounds.width / 2 - (leftActivityBounds.left + leftActivityBounds.width / 2),
+				windowMargin: leftActivityBounds.left - rootBounds.left,
+				panelGap: leftSideBarBounds.left - leftActivityBounds.right,
+				indicatorPanelPadding: leftSideBarBounds.left - leftIndicatorBounds.right,
+			},
+			right: {
+				actionWidth: rightActionBounds.width,
+				actionCenterOffset: rightActionBounds.left + rightActionBounds.width / 2 - (rightActivityBounds.left + rightActivityBounds.width / 2),
+				windowMargin: rootBounds.right - rightActivityBounds.right,
+				panelGap: rightActivityBounds.left - rightSideBarBounds.right,
+				indicatorPanelPadding: rightIndicatorBounds.left - rightSideBarBounds.right,
+			},
+		}, {
+			left: {
+				actionWidth: 36,
+				actionCenterOffset: 0,
+				windowMargin: 4,
+				panelGap: 0,
+				indicatorPanelPadding: 4,
+			},
+			right: {
+				actionWidth: 36,
+				actionCenterOffset: 0,
+				windowMargin: 4,
+				panelGap: 0,
+				indicatorPanelPadding: 4,
+			},
+		});
+	});
+
+	test('centers default density activity bar items and meets the side bar flush', () => {
+		const root = document.createElement('div');
+		root.className = 'monaco-workbench modern-ui floating-panels';
+		root.style.display = 'inline-flex';
+		root.style.setProperty('--activity-bar-action-height', '36px');
+		root.style.setProperty('--activity-bar-width', '36px');
+		root.style.setProperty('--vscode-spacing-sizeNone', '0px');
+		root.style.setProperty('--vscode-spacing-size20', '2px');
+		root.style.setProperty('--vscode-spacing-size40', '4px');
+		root.style.setProperty('--vscode-spacing-size60', '6px');
+		root.style.setProperty('--vscode-spacing-size80', '8px');
+		document.body.appendChild(root);
+		store.add(toDisposable(() => root.remove()));
+
+		const appendActivityAction = (position: 'left' | 'right') => {
+			const activityBar = appendElement(root, `part activitybar ${position}`);
+			const content = appendElement(activityBar, 'content');
+			const actionBar = appendElement(appendElement(content, 'composite-bar'), 'monaco-action-bar');
+			const action = appendElement(actionBar, 'action-item checked');
+			appendElement(action, 'action-label codicon');
+			return { activityBar, action };
+		};
+
+		const left = appendActivityAction('left');
+		const leftSideBar = appendElement(root, 'part sidebar left');
+		leftSideBar.style.width = '60px';
+		const rightSideBar = appendElement(root, 'part sidebar right');
+		rightSideBar.style.width = '60px';
+		const right = appendActivityAction('right');
+
+		const rootBounds = root.getBoundingClientRect();
+		const leftActivityBounds = left.activityBar.getBoundingClientRect();
+		const leftActionBounds = left.action.getBoundingClientRect();
+		const leftSideBarBounds = leftSideBar.getBoundingClientRect();
+		const rightSideBarBounds = rightSideBar.getBoundingClientRect();
+		const rightActivityBounds = right.activityBar.getBoundingClientRect();
+		const rightActionBounds = right.action.getBoundingClientRect();
+
+		assert.deepStrictEqual({
+			left: {
+				actionWidth: leftActionBounds.width,
+				actionCenterOffset: leftActionBounds.left + leftActionBounds.width / 2 - (leftActivityBounds.left + leftActivityBounds.width / 2),
+				windowMargin: leftActivityBounds.left - rootBounds.left,
+				seamGap: leftSideBarBounds.left - leftActivityBounds.right,
+			},
+			right: {
+				actionWidth: rightActionBounds.width,
+				actionCenterOffset: rightActionBounds.left + rightActionBounds.width / 2 - (rightActivityBounds.left + rightActivityBounds.width / 2),
+				windowMargin: rootBounds.right - rightActivityBounds.right,
+				seamGap: rightActivityBounds.left - rightSideBarBounds.right,
+			},
+			railWidths: [leftActivityBounds.width, rightActivityBounds.width],
+		}, {
+			// The rail carries the cluster's 4px perimeter gutter on the window side, meets the
+			// side bar flush on the other, and centers the icon column in its own 8px lane —
+			// which is independent of the gutter, so the card stays 44px wide.
+			left: { actionWidth: 36, actionCenterOffset: 0, windowMargin: 4, seamGap: 0 },
+			right: { actionWidth: 36, actionCenterOffset: 0, windowMargin: 4, seamGap: 0 },
+			railWidths: [44, 44],
+		});
+	});
+
 	test('uses the editor surface border color', () => {
 		const root = document.createElement('div');
 		root.className = 'monaco-workbench modern-ui floating-panels';
@@ -725,6 +892,32 @@ suite('ModernUIContribution', () => {
 		}, {
 			registeredDefault: SURFACE_BORDER,
 			borderColor: 'rgb(18, 52, 86)',
+		});
+	});
+
+	test('uses the modern activity bar border color', () => {
+		const root = document.createElement('div');
+		root.className = 'monaco-workbench modern-ui floating-panels';
+		root.style.setProperty('--vscode-modernActivityBar-border', '#123456');
+		root.style.setProperty('--vscode-surface-border', '#654321');
+		document.body.appendChild(root);
+		store.add(toDisposable(() => root.remove()));
+
+		const grid = appendElement(root, 'monaco-grid-view');
+		const activityBar = appendElement(grid, 'part activitybar left');
+		const sideBar = appendElement(grid, 'part sidebar left');
+		const contribution = colorRegistry.getColors().find(color => color.id === MODERN_ACTIVITY_BAR_BORDER);
+
+		assert.deepStrictEqual({
+			registeredDefault: contribution?.defaults,
+			activityBarBorder: getWindow(activityBar).getComputedStyle(activityBar).borderColor,
+			// The other cards keep the shared surface border, minus the edge they give up
+			// to the rail as the shared seam.
+			sideBarBorder: getWindow(sideBar).getComputedStyle(sideBar).borderColor,
+		}, {
+			registeredDefault: SURFACE_BORDER,
+			activityBarBorder: 'rgb(18, 52, 86)',
+			sideBarBorder: 'rgb(101, 67, 33) rgb(101, 67, 33) rgb(101, 67, 33) rgba(0, 0, 0, 0)',
 		});
 	});
 
@@ -766,31 +959,187 @@ suite('ModernUIContribution', () => {
 		});
 	});
 
-	test('hides collapsed primary side bar grips without hiding constrained auxiliary sash grips', () => {
+	test('keeps collapsed primary side bar grips only while the activity bar can anchor them', () => {
+		const grips = (rootClassName: string) => {
+			const root = document.createElement('div');
+			root.className = rootClassName;
+			document.body.appendChild(root);
+			store.add(toDisposable(() => root.remove()));
+
+			const leftPrimarySideBarSash = appendElement(root, 'monaco-sash vertical minimum primary-sidebar-sash');
+			const rightPrimarySideBarSash = appendElement(root, 'monaco-sash vertical maximum primary-sidebar-sash');
+			const minimumAuxiliaryBarSash = appendElement(root, 'monaco-sash vertical minimum');
+			const maximumAuxiliaryBarSash = appendElement(root, 'monaco-sash vertical maximum');
+			const panelSash = appendElement(root, 'monaco-sash horizontal maximum');
+			const targetWindow = getWindow(root);
+
+			return {
+				leftPrimarySideBarGrip: targetWindow.getComputedStyle(leftPrimarySideBarSash, '::after').content,
+				rightPrimarySideBarGrip: targetWindow.getComputedStyle(rightPrimarySideBarSash, '::after').content,
+				minimumAuxiliaryBarGrip: targetWindow.getComputedStyle(minimumAuxiliaryBarSash, '::after').content,
+				maximumAuxiliaryBarGrip: targetWindow.getComputedStyle(maximumAuxiliaryBarSash, '::after').content,
+				panelGrip: targetWindow.getComputedStyle(panelSash, '::after').content,
+			};
+		};
+
+		assert.deepStrictEqual({
+			// The rail stands alone as its own card, so the reveal sash sits in a real gap.
+			activityBarVisible: grips('monaco-workbench modern-ui nosidebar nopanel'),
+			// Nothing left on that edge to gap against.
+			activityBarHidden: grips('monaco-workbench modern-ui nosidebar noactivitybar nopanel'),
+		}, {
+			activityBarVisible: {
+				leftPrimarySideBarGrip: '\"\"',
+				rightPrimarySideBarGrip: '\"\"',
+				minimumAuxiliaryBarGrip: '\"\"',
+				maximumAuxiliaryBarGrip: '\"\"',
+				panelGrip: 'none',
+			},
+			activityBarHidden: {
+				leftPrimarySideBarGrip: 'none',
+				rightPrimarySideBarGrip: 'none',
+				minimumAuxiliaryBarGrip: '\"\"',
+				maximumAuxiliaryBarGrip: '\"\"',
+				panelGrip: 'none',
+			},
+		});
+	});
+
+	test('compact density hides sash grips', () => {
 		const root = document.createElement('div');
-		root.className = 'monaco-workbench modern-ui nosidebar nopanel';
+		root.className = 'monaco-workbench modern-ui modern-ui-compact';
 		document.body.appendChild(root);
 		store.add(toDisposable(() => root.remove()));
 
-		const leftPrimarySideBarSash = appendElement(root, 'monaco-sash vertical minimum primary-sidebar-sash');
-		const rightPrimarySideBarSash = appendElement(root, 'monaco-sash vertical maximum primary-sidebar-sash');
-		const minimumAuxiliaryBarSash = appendElement(root, 'monaco-sash vertical minimum');
-		const maximumAuxiliaryBarSash = appendElement(root, 'monaco-sash vertical maximum');
-		const panelSash = appendElement(root, 'monaco-sash horizontal maximum');
+		const verticalSash = appendElement(root, 'monaco-sash vertical');
+		const horizontalSash = appendElement(root, 'monaco-sash horizontal');
 		const targetWindow = getWindow(root);
 
 		assert.deepStrictEqual({
-			leftPrimarySideBarGrip: targetWindow.getComputedStyle(leftPrimarySideBarSash, '::after').content,
-			rightPrimarySideBarGrip: targetWindow.getComputedStyle(rightPrimarySideBarSash, '::after').content,
-			minimumAuxiliaryBarGrip: targetWindow.getComputedStyle(minimumAuxiliaryBarSash, '::after').content,
-			maximumAuxiliaryBarGrip: targetWindow.getComputedStyle(maximumAuxiliaryBarSash, '::after').content,
-			panelGrip: targetWindow.getComputedStyle(panelSash, '::after').content,
+			verticalGrip: targetWindow.getComputedStyle(verticalSash, '::after').content,
+			horizontalGrip: targetWindow.getComputedStyle(horizontalSash, '::after').content,
 		}, {
-			leftPrimarySideBarGrip: 'none',
-			rightPrimarySideBarGrip: 'none',
-			minimumAuxiliaryBarGrip: '\"\"',
-			maximumAuxiliaryBarGrip: '\"\"',
-			panelGrip: 'none',
+			verticalGrip: 'none',
+			horizontalGrip: 'none',
+		});
+	});
+
+	test('compact vertical sash highlights meet the attached panel top', () => {
+		const root = document.createElement('div');
+		root.className = 'monaco-workbench modern-ui modern-ui-compact floating-panels';
+		root.style.setProperty('--vscode-spacing-size40', '4px');
+		root.style.setProperty('--vscode-spacing-sizeNone', '0px');
+		document.body.appendChild(root);
+		store.add(toDisposable(() => root.remove()));
+
+		const verticalSash = appendElement(root, 'monaco-sash vertical');
+		const targetWindow = getWindow(root);
+		const attachedStyle = targetWindow.getComputedStyle(verticalSash, '::before');
+		const attachedInsets = [attachedStyle.top, attachedStyle.bottom];
+
+		root.classList.add('top-window-edge');
+		const exposedStyle = targetWindow.getComputedStyle(verticalSash, '::before');
+
+		assert.deepStrictEqual({
+			attachedInsets,
+			exposedTopInset: exposedStyle.top,
+		}, {
+			attachedInsets: ['0px', '4px'],
+			exposedTopInset: '4px',
+		});
+	});
+
+	test('compact density rounds only the panel cluster exterior', () => {
+		const root = document.createElement('div');
+		root.className = 'monaco-workbench modern-ui modern-ui-compact floating-panels';
+		root.style.setProperty('--vscode-cornerRadius-large', '8px');
+		root.style.setProperty('--vscode-spacing-size40', '4px');
+		root.style.setProperty('--vscode-spacing-sizeNone', '0px');
+		root.style.setProperty('--vscode-strokeThickness', '1px');
+		root.style.setProperty('--vscode-surface-border', '#123456');
+		root.style.setProperty('--vscode-editor-border', '#654321');
+		document.body.appendChild(root);
+		store.add(toDisposable(() => root.remove()));
+
+		const grid = appendElement(root, 'monaco-grid-view');
+		const activityBar = appendElement(grid, 'part activitybar left');
+		const sideBar = appendElement(grid, 'part sidebar floating-part-outer-left floating-part-outer-top floating-part-outer-bottom');
+		const panel = appendElement(grid, 'part panel');
+		const auxiliaryBar = appendElement(grid, 'part auxiliarybar floating-part-outer-right floating-part-outer-top floating-part-outer-bottom');
+		const editor = appendElement(grid, 'part editor floating-editor-outer-left floating-editor-outer-top');
+		const editorContent = appendElement(editor, 'content');
+		const webviewOverlayContent = appendElement(root, 'webview-overlay-content webview-overlay-outer-left webview-overlay-outer-top');
+		const targetWindow = getWindow(root);
+		const activityBarStyle = targetWindow.getComputedStyle(activityBar);
+		const sideBarStyle = targetWindow.getComputedStyle(sideBar);
+		const panelStyle = targetWindow.getComputedStyle(panel);
+		const auxiliaryBarStyle = targetWindow.getComputedStyle(auxiliaryBar);
+		const editorStyle = targetWindow.getComputedStyle(editor);
+		const editorContentStyle = targetWindow.getComputedStyle(editorContent);
+		const webviewOverlayContentStyle = targetWindow.getComputedStyle(webviewOverlayContent);
+
+		assert.deepStrictEqual({
+			activityBar: {
+				corners: [activityBarStyle.borderTopLeftRadius, activityBarStyle.borderTopRightRadius, activityBarStyle.borderBottomRightRadius, activityBarStyle.borderBottomLeftRadius],
+				cornerBorderCount: activityBarStyle.backgroundImage.split('radial-gradient').length - 1,
+			},
+			sideBar: {
+				margin: [sideBarStyle.marginTop, sideBarStyle.marginRight, sideBarStyle.marginBottom, sideBarStyle.marginLeft],
+				corners: [sideBarStyle.borderTopLeftRadius, sideBarStyle.borderTopRightRadius, sideBarStyle.borderBottomRightRadius, sideBarStyle.borderBottomLeftRadius],
+				borderColor: sideBarStyle.borderColor,
+				allBorderBackgroundsUseBorderBox: sideBarStyle.backgroundOrigin.split(', ').every(origin => origin === 'border-box'),
+				cornerBorderCount: sideBarStyle.backgroundImage.split('radial-gradient').length - 1,
+			},
+			panel: {
+				corners: [panelStyle.borderTopLeftRadius, panelStyle.borderTopRightRadius, panelStyle.borderBottomRightRadius, panelStyle.borderBottomLeftRadius],
+				borderColor: panelStyle.borderColor,
+				allBorderBackgroundsUseBorderBox: panelStyle.backgroundOrigin.split(', ').every(origin => origin === 'border-box'),
+				cornerBorderCount: panelStyle.backgroundImage.split('radial-gradient').length - 1,
+			},
+			auxiliaryBar: {
+				corners: [auxiliaryBarStyle.borderTopLeftRadius, auxiliaryBarStyle.borderTopRightRadius, auxiliaryBarStyle.borderBottomRightRadius, auxiliaryBarStyle.borderBottomLeftRadius],
+				cornerBorderCount: auxiliaryBarStyle.backgroundImage.split('radial-gradient').length - 1,
+			},
+			editor: {
+				margin: [editorStyle.marginTop, editorStyle.marginRight, editorStyle.marginBottom, editorStyle.marginLeft],
+				corners: [editorStyle.borderTopLeftRadius, editorStyle.borderTopRightRadius, editorStyle.borderBottomRightRadius, editorStyle.borderBottomLeftRadius],
+				borderColor: editorStyle.borderColor,
+				allBorderBackgroundsUseBorderBox: editorStyle.backgroundOrigin.split(', ').every(origin => origin === 'border-box'),
+				cornerBorderCount: editorStyle.backgroundImage.split('radial-gradient').length - 1,
+			},
+			editorContentRadius: editorContentStyle.borderRadius,
+			webviewOverlayCorners: [webviewOverlayContentStyle.borderTopLeftRadius, webviewOverlayContentStyle.borderTopRightRadius, webviewOverlayContentStyle.borderBottomRightRadius, webviewOverlayContentStyle.borderBottomLeftRadius],
+		}, {
+			activityBar: {
+				corners: ['8px', '0px', '0px', '8px'],
+				cornerBorderCount: 2,
+			},
+			sideBar: {
+				margin: ['0px', '0px', '4px', '4px'],
+				corners: ['8px', '0px', '0px', '8px'],
+				borderColor: 'rgba(0, 0, 0, 0)',
+				allBorderBackgroundsUseBorderBox: true,
+				cornerBorderCount: 2,
+			},
+			panel: {
+				corners: ['0px', '0px', '0px', '0px'],
+				borderColor: 'rgba(0, 0, 0, 0)',
+				allBorderBackgroundsUseBorderBox: true,
+				cornerBorderCount: 0,
+			},
+			auxiliaryBar: {
+				corners: ['0px', '8px', '8px', '0px'],
+				cornerBorderCount: 2,
+			},
+			editor: {
+				margin: ['0px', '0px', '0px', '4px'],
+				corners: ['8px', '0px', '0px', '0px'],
+				borderColor: 'rgba(0, 0, 0, 0)',
+				allBorderBackgroundsUseBorderBox: true,
+				cornerBorderCount: 1,
+			},
+			editorContentRadius: '0px',
+			webviewOverlayCorners: ['8px', '0px', '0px', '0px'],
 		});
 	});
 

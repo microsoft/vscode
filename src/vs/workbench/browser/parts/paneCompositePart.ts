@@ -12,7 +12,7 @@ import { IPaneComposite } from '../../common/panecomposite.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../common/views.js';
 import { DisposableStore, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { IView } from '../../../base/browser/ui/grid/grid.js';
-import { IWorkbenchLayoutService, Parts, SINGLE_WINDOW_PARTS, getFloatingOuterGutterEdges, getFloatingPaneCompositeHorizontalMargins, getFloatingPaneCompositeVerticalMargins } from '../../services/layout/browser/layoutService.js';
+import { IWorkbenchLayoutService, Parts, SINGLE_WINDOW_PARTS, getFloatingOuterGutterEdges, getFloatingPaneCompositeHorizontalMargins, getFloatingPaneCompositeVerticalMargins, getFloatingPaneCompositeVerticalOuterEdges } from '../../services/layout/browser/layoutService.js';
 import { CompositePart, ICompositePartOptions, ICompositeTitleLabel } from './compositePart.js';
 import { IPaneCompositeBarOptions, PaneCompositeBar } from './paneCompositeBar.js';
 import { Dimension, EventHelper, trackFocus, $, addDisposableListener, EventType, prepend, getWindow, scheduleAtNextAnimationFrame } from '../../../base/browser/dom.js';
@@ -616,15 +616,18 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 
 		this.contentDimension = new Dimension(width, height);
 
-		// Reflect which window edges this part is the outermost floating card on so the
-		// matching doubled outer gutter can be applied in CSS (kept in sync with
+		// Reflect which cluster edges this part is the outermost floating card on so the
+		// matching outer gutter and corner radius can be applied in CSS (kept in sync with
 		// `getFloatingInset`).
 		const outerGutter = this.getFloatingOuterGutterEdges();
+		const verticalOuterEdges = getFloatingPaneCompositeVerticalOuterEdges(this.layoutService, this.partId, getWindow(this.element));
 		this.element.classList.toggle('floating-part-outer-left', outerGutter.left);
 		this.element.classList.toggle('floating-part-outer-right', outerGutter.right);
+		this.element.classList.toggle('floating-part-outer-top', verticalOuterEdges.top);
+		this.element.classList.toggle('floating-part-outer-bottom', verticalOuterEdges.bottom);
 
 		// Mirror the panel's outer-edge state onto the workbench container so the
-		// horizontal grid sash highlight can match the panel card's doubled outer
+		// horizontal grid sash highlight can match the panel card's outer
 		// gutter by selecting a direct class, rather than a `:has()` query on the
 		// workbench root (which would force selector invalidation across the whole
 		// workbench on every DOM change). Updated here in lockstep with the part-level
@@ -646,8 +649,8 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 	}
 
 	/**
-	 * The window edges on which this part is the outermost floating card and therefore
-	 * adopts a doubled outer gutter, so its contents do not hug the window edge. Applies
+	 * The horizontal cluster edges on which this part is the outermost floating card and
+	 * therefore adopts the density-specific outer gutter. Applies
 	 * to the primary side bar, the secondary side bar and the panel; a horizontal panel
 	 * can own both edges at once.
 	 */
@@ -663,8 +666,8 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 	 * Amount (in pixels) to subtract from each axis when the floating panels
 	 * experiment is enabled: a margin on each side plus a 1px border on each side
 	 * (the border is drawn inside the box, as `.monaco-workbench .part` is
-	 * `box-sizing: border-box` in `part.css`). On each window edge this part is the outermost
-	 * floating card on (see {@link getFloatingOuterGutterEdges}) it gets a doubled outer
+	 * `box-sizing: border-box` in `part.css`). On each cluster edge this part is the outermost
+	 * floating card on (see {@link getFloatingOuterGutterEdges}) it gets the outer
 	 * margin, so its width inset is larger on that side.
 	 */
 	private getFloatingInset(): { width: number; height: number } {
