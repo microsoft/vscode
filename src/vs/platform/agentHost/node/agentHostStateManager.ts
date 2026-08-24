@@ -129,12 +129,9 @@ class SessionSummaryNotifier extends Disposable {
 
 	/**
 	 * Applies `changes` to the announced summary of a session with no live state,
-	 * then emits the delta.
-	 *
-	 * {@link flush} cannot serve these: it re-derives the summary via
-	 * `_getSummary`, which only knows live state. For a merely-surfaced session
-	 * the announced summary IS the source of truth, so changes are pushed in
-	 * rather than diffed.
+	 * then emits the delta. Unlike {@link flush}, which re-derives from live
+	 * state, the announced summary is the source of truth here, so changes are
+	 * pushed in rather than diffed.
 	 *
 	 * Returns `false` when `session` was never announced.
 	 */

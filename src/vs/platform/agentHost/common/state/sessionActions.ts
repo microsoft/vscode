@@ -99,8 +99,7 @@ export const NotificationType = {
 export type NotificationType = typeof NotificationType[keyof typeof NotificationType];
 
 // ---- Local aliases for short names ------------------------------------------
-// Consumers use these shorter names. All but `ActionType` are type-only; that
-// one is a value because the guards below compare against its members.
+// Consumers use these shorter names; they're type-only aliases.
 
 import {
 	ActionType,
@@ -233,11 +232,9 @@ export function isAnnotationsAction(action: StateAction): action is AnnotationsA
 }
 
 /**
- * Whether `action` only toggles durable, host-owned session metadata
- * (archived / read) rather than mutating the conversation.
- *
- * These carry no intent to open a session, so the host applies them without
- * materializing it.
+ * Whether `action` only toggles durable session metadata (archived / read)
+ * rather than mutating the conversation. These carry no intent to open a
+ * session, so the host applies them without materializing it.
  */
 export function isPassiveSessionMetadataAction(action: StateAction): action is SessionIsArchivedChangedAction | SessionIsReadChangedAction {
 	return action.type === ActionType.SessionIsArchivedChanged

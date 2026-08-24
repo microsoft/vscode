@@ -5424,8 +5424,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}));
 
 		store.add(connection.onDidAction(e => {
-			// A rejected action never reached host state; AHP requires its
-			// optimistic effect to be reverted, not kept.
+			// A rejected action never reached host state, so it must not be applied
+			// here. This does not roll back the dispatcher's own optimistic write:
+			// the echo carries the value it already set.
 			if (e.rejectionReason) {
 				return;
 			}
