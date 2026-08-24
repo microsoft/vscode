@@ -2256,7 +2256,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			}));
 		}
 		const stickyScrollSourcePart = parts.find(part => part.domNode === templateData.stickyScrollSource);
-		if (stickyScrollSourcePart && templateData.stickyScrollSource?.classList.contains('clickable')) {
+		if (stickyScrollSourcePart?.addDisposable && templateData.stickyScrollSource?.classList.contains('clickable')) {
 			stickyScrollSourcePart.addDisposable(this.registerSynchronizedRequestBubbleHover(element.id, templateData, templateData.stickyScrollSource));
 		}
 
