@@ -183,6 +183,8 @@ suite('Sessions - Workbench', () => {
 		panelHeight?: number;
 		panelHeightOnEditorShow?: number;
 		dockedWidth?: number;
+		customViewEditorSize?: IViewSize;
+		customViewAuxiliaryBarSize?: IViewSize;
 		hasAppliedInitialEditorSplit?: boolean;
 		/** Use the real `setEditorMaximized` instead of the no-op stub. */
 		editorMaximize?: boolean;
@@ -259,6 +261,13 @@ suite('Sessions - Workbench', () => {
 							height: sessionsSize.height,
 						});
 						sideBarNodeVisible = visible;
+					} else if (view === customViewGridPartView && visible) {
+						if (options.customViewEditorSize) {
+							viewSizes.set(editorPartView, options.customViewEditorSize);
+						}
+						if (options.customViewAuxiliaryBarSize) {
+							viewSizes.set(auxiliaryBarPartView, options.customViewAuxiliaryBarSize);
+						}
 					}
 					gridVisibility.set(view, visible);
 					visibilityChanges.push(visible);
@@ -2763,6 +2772,40 @@ suite('Sessions - Workbench', () => {
 			auxiliaryBar: true,
 			panel: false,
 			focusedSessions: 1,
+		});
+	});
+
+	test('hiding the custom view restores the user-sized side pane', () => {
+		const host = createHost({
+			editorWidth: 694,
+			customViewEditorSize: { width: 300, height: 600 },
+			customViewAuxiliaryBarSize: { width: 150, height: 600 },
+			partVisibility: { editor: true, auxiliaryBar: true, sessions: true }
+		});
+
+		applyCustomViewGridVisibility.call(host, {});
+		const sizesWhileShown = {
+			editor: host.workbenchGrid.getViewSize(host.editorPartView),
+			auxiliaryBar: host.workbenchGrid.getViewSize(host.auxiliaryBarPartView),
+		};
+		applyCustomViewGridVisibility.call(host, undefined);
+
+		assert.deepStrictEqual({
+			sizesWhileShown,
+			restoredEditorSize: host.workbenchGrid.getViewSize(host.editorPartView),
+			restoredAuxiliaryBarSize: host.workbenchGrid.getViewSize(host.auxiliaryBarPartView),
+			resizes: host.resizes,
+		}, {
+			sizesWhileShown: {
+				editor: { width: 300, height: 600 },
+				auxiliaryBar: { width: 150, height: 600 },
+			},
+			restoredEditorSize: { width: 694, height: 600 },
+			restoredAuxiliaryBarSize: { width: 300, height: 600 },
+			resizes: [
+				{ width: 300, height: 600 },
+				{ width: 694, height: 600 },
+			],
 		});
 	});
 
