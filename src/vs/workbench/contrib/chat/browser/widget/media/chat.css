@@ -4083,6 +4083,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		display: none;
 	}
 
+	.monaco-tree-sticky-row .interactive-item-container.interactive-request .value > .chat-markdown-part.rendered-markdown > p:first-child {
+		margin-block-end: 0;
+	}
+
 	.monaco-tree-sticky-row .interactive-item-container.interactive-request .value > .chat-markdown-part.rendered-markdown.chat-request-has-more > p:first-child::after {
 		content: '\2026';
 	}
@@ -4108,7 +4112,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		margin-left: auto;
 	}
 
-	.interactive-item-container.interactive-request .value .rendered-markdown.clickable:hover {
+	.interactive-item-container.interactive-request .value .rendered-markdown.clickable:hover,
+	.interactive-item-container.interactive-request.request-bubble-hovered .value .rendered-markdown.clickable {
 		cursor: pointer;
 		background-color: var(--vscode-chat-requestBubbleHoverBackground);
 	}
