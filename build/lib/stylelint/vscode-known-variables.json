@@ -547,6 +547,7 @@
 		"--vscode-minimapSlider-hoverBackground",
 		"--vscode-modernActivityBar-activeBackground",
 		"--vscode-modernActivityBar-activeForeground",
+		"--vscode-modernActivityBar-border",
 		"--vscode-modernActivityBar-hoverBackground",
 		"--vscode-modernActivityBar-hoverForeground",
 		"--vscode-modernEditorTab-activeActionBackground",

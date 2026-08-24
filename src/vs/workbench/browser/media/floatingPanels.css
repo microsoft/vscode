@@ -211,7 +211,7 @@
 	height: calc(100% - var(--modern-ui-floating-card-margin));
 	padding-left: var(--vscode-spacing-sizeNone);
 	padding-right: var(--vscode-spacing-sizeNone);
-	border: 1px solid var(--modern-ui-floating-card-border-color, var(--vscode-surface-border, var(--vscode-widget-border, transparent))) !important;
+	border: 1px solid var(--modern-ui-floating-card-border-color, var(--vscode-modernActivityBar-border, var(--vscode-surface-border, var(--vscode-widget-border, transparent)))) !important;
 	overflow: hidden;
 }
 
@@ -425,7 +425,7 @@
 }
 
 .monaco-workbench.floating-panels.modern-ui-compact .part.activitybar {
-	--modern-ui-floating-card-stroke-color: var(--vscode-surface-border, var(--vscode-widget-border, transparent));
+	--modern-ui-floating-card-stroke-color: var(--vscode-modernActivityBar-border, var(--vscode-surface-border, var(--vscode-widget-border, transparent)));
 	--modern-ui-floating-card-left-border-color: transparent;
 	--modern-ui-floating-card-top-border-color: var(--modern-ui-floating-card-stroke-color);
 }
