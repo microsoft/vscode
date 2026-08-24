@@ -26,9 +26,9 @@ import { withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessio
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import type { RootConfigChangedAction } from '../../common/state/protocol/actions.js';
-import { ChangesSummary, ChatOriginKind, CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, SessionInputRequestKind } from '../../common/state/protocol/state.js';
+import { ChangesSummary, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ChatOriginKind, CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, SessionInputRequestKind } from '../../common/state/protocol/state.js';
 import { ActionType, ActionEnvelope, AuthRequiredReason, type ChatAction, type INotification, type SessionAction } from '../../common/state/sessionActions.js';
-import { buildSubagentChatUri, buildChatUri, buildDefaultChatUri, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInteractivity, CustomizationLoadStatus, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ROOT_STATE_URI, SessionInputResponseKind, SessionLifecycle, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, customizationId, type ChatInputRequest, type ClientPluginCustomization, type Customization, type ISessionGitHubState, type PluginCustomization, type Turn } from '../../common/state/sessionState.js';
+import { buildSubagentChatUri, buildChatUri, buildDefaultChatUri, ChatInteractivity, CustomizationLoadStatus, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, customizationId, type ChatInputRequest, type ClientPluginCustomization, type Customization, type ISessionGitHubState, type PluginCustomization, type Turn } from '../../common/state/sessionState.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
@@ -6240,7 +6240,7 @@ suite('AgentSideEffects', () => {
 			stateManager.dispatchServerAction(defaultChatUri, {
 				type: ActionType.ChatInputCompleted,
 				requestId: 'req-1',
-				response: SessionInputResponseKind.Accept,
+				response: ChatInputResponseKind.Accept,
 			});
 
 			assert.deepStrictEqual(sessionInputNeeded(), []);
@@ -6269,7 +6269,7 @@ suite('AgentSideEffects', () => {
 			stateManager.dispatchClientAction(defaultChatUri, {
 				type: ActionType.ChatInputCompleted,
 				requestId: 'req-1',
-				response: SessionInputResponseKind.Accept,
+				response: ChatInputResponseKind.Accept,
 			}, { clientId: 'test', clientSeq: 3 });
 
 			const event = telemetryService.events.find(event => event.eventName === 'askQuestionsToolInvoked');
@@ -6322,7 +6322,7 @@ suite('AgentSideEffects', () => {
 			stateManager.dispatchServerAction(defaultChatUri, {
 				type: ActionType.ChatInputCompleted,
 				requestId: request.id,
-				response: SessionInputResponseKind.Accept,
+				response: ChatInputResponseKind.Accept,
 			});
 
 			const events = telemetryService.events.filter(event => event.eventName === 'askQuestionsToolInvoked');
