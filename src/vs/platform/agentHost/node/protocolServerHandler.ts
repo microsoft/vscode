@@ -22,11 +22,9 @@ import { isManagedSettingsPermissions } from '../common/agentHostManagedSettings
 import { type IAgentService } from '../common/agentService.js';
 import { CollectAgentHostDebugLogsExtensionMethod, GetAgentHostSessionStateFileExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod } from '../common/agentHostExtensionProtocol.js';
 import { isActionEnvelopeRelevantToSubscriptionUris } from '../common/state/agentSubscription.js';
-import { IS_CLIENT_DISPATCHABLE } from '../common/state/protocol/action-origin.generated.js';
 import { ChatSourceKind } from '../common/state/protocol/channels-chat/commands.js';
 import type { CommandMap } from '../common/state/protocol/messages.js';
-import { ActionEnvelope, ActionType, INotification, isChatAction } from '../common/state/sessionActions.js';
-import { isClientDispatchable } from '../common/state/sessionReducers.js';
+import { ActionEnvelope, ActionType, INotification, isAnnotationsAction, isAutomationAction, isAutomationRunAction, isChangesetAction, isChatAction, isSessionAction, isTerminalAction, type ChatAction, type ClientAnnotationsAction, type ClientAutomationAction, type ClientAutomationRunAction, type ClientChangesetAction, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../common/state/protocol/version/registry.js';
 import { negotiateProtocolVersion } from '../common/state/protocol/version/negotiation.js';
 import { VSCODE_UPGRADE_METHOD, type UnsupportedProtocolVersionErrorDataEx } from '../common/state/protocolUpgrade.js';
@@ -503,36 +501,19 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 					case 'dispatchAction':
 						if (client) {
 							this._logService.trace(`[ProtocolServer] dispatchAction: ${JSON.stringify(msg.params.action.type)}`);
-							const action = msg.params.action;
+							const action = msg.params.action as SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | ClientAutomationAction | ClientAutomationRunAction | IRootConfigChangedAction;
 							const channel = msg.params.channel;
-							const origin = { clientId: client.clientId, clientSeq: msg.params.clientSeq };
-							const rejectServerOwnedAction = () => this._stateManager.rejectClientAction(
-								channel,
-								action,
-								origin,
-								`Action is server-owned and cannot be dispatched by a client: ${action.type}`,
-							);
 							// Unsupported actions are echoed as rejections so optimistic clients roll back.
 							if (UNSUPPORTED_CLIENT_ACTION_TYPES.has(action.type)) {
 								this._logService.warn(`[ProtocolServer] rejecting unsupported client action: ${action.type}`);
 								this._stateManager.rejectClientAction(
 									channel,
 									action,
-									origin,
+									{ clientId: client.clientId, clientSeq: msg.params.clientSeq },
 									`Unsupported action: ${action.type}`,
 								);
-							} else if (isChatAction(action)) {
-								if (IS_CLIENT_DISPATCHABLE[action.type] === true) {
-									this._agentService.dispatchAction(channel, action, client.clientId, msg.params.clientSeq, client.telemetryContext);
-								} else {
-									rejectServerOwnedAction();
-								}
-							} else if (Object.hasOwn(IS_CLIENT_DISPATCHABLE, action.type)
-								&& action.type !== ActionType.ResourceWatchChanged
-								&& isClientDispatchable(action)) {
+							} else if (isSessionAction(action) || isChatAction(action) || isTerminalAction(action) || isChangesetAction(action) || isAnnotationsAction(action) || isAutomationAction(action) || isAutomationRunAction(action) || action.type === ActionType.RootConfigChanged) {
 								this._agentService.dispatchAction(channel, action, client.clientId, msg.params.clientSeq, client.telemetryContext);
-							} else {
-								rejectServerOwnedAction();
 							}
 						}
 						break;

@@ -245,3 +245,11 @@ export function isChangesetAction(action: StateAction): action is ChangesetActio
 export function isAnnotationsAction(action: StateAction): action is AnnotationsAction {
 	return action.type.startsWith('annotations/');
 }
+
+export function isAutomationAction(action: StateAction): action is AutomationAction {
+	return action.type.startsWith('automation/');
+}
+
+export function isAutomationRunAction(action: StateAction): action is AutomationRunAction {
+	return action.type.startsWith('automationRun/');
+}
