@@ -222,7 +222,7 @@ export type ChatProviderInvokedClassification = ChatSessionModeClassification & 
 	settingPreferCopilotHarness: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The effective value of the chat.editor.preferCopilotHarness setting when the request started.' };
 	settingLocalAgentEnabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The effective value of the chat.editor.localAgent.enabled setting when the request started.' };
 	owner: 'roblourens';
-	comment: 'Provides insight into the performance of Chat agents.';
+	comment: 'Provides insight into the performance of chat agents.';
 };
 
 export class ChatServiceTelemetry {
