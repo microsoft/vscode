@@ -118,4 +118,15 @@ suite('markdown.engine', () => {
 			assert.ok(!html.includes('<table class="frontmatter">'), `Expected no frontmatter table. Got: ${html}`);
 		});
 	});
+
+	suite('diff-markers', () => {
+		test('Renders GFM tables correctly', async () => {
+			const engine = createNewMarkdownEngine();
+			const tableMd = '| Col A | Col B |\n| --- | --- |\n| Cell 1 | Cell 2 |';
+			const html = (await engine.render(tableMd)).html;
+			assert.ok(html.includes('<table>'), `Expected table HTML tag. Got: ${html}`);
+			assert.ok(html.includes('<th>Col A</th>'), `Expected th Col A. Got: ${html}`);
+			assert.ok(html.includes('<td>Cell 1</td>'), `Expected td Cell 1. Got: ${html}`);
+		});
+	});
 });
