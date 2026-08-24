@@ -479,9 +479,10 @@
 	min-width: 0;
 }
 
+/* No text-transform: these labels are localized strings that are already cased correctly, and
+per-word capitalization does not survive translation. */
 .ai-customization-group-header .group-label {
 	font-weight: var(--vscode-agents-fontWeight-semiBold);
-	text-transform: capitalize;
 	color: var(--vscode-sideBarSectionHeader-foreground, var(--vscode-foreground));
 	overflow: hidden;
 	text-overflow: ellipsis;

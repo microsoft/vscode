@@ -511,39 +511,51 @@ export interface IDrivenTurnResult {
 }
 
 export async function driveTurnToCompletion(c: TestProtocolClient, session: string, turnId: string, text: string, clientSeq: number): Promise<IDrivenTurnResult> {
-	return driveTurn(c, session, turnId, clientSeq, () => dispatchTurn(c, session, turnId, text, clientSeq));
+	return driveTurn(c, buildDefaultChatUri(session), turnId, clientSeq, () => dispatchTurn(c, session, turnId, text, clientSeq));
+}
+
+export async function driveChatTurnToCompletion(c: TestProtocolClient, chat: string, turnId: string, text: string, clientSeq: number): Promise<IDrivenTurnResult> {
+	return driveTurn(c, chat, turnId, clientSeq, () => c.dispatch({
+		channel: chat,
+		clientSeq,
+		action: {
+			type: ActionType.ChatTurnStarted,
+			turnId,
+			startedAt: new Date().toISOString(),
+			message: { text, origin: { kind: MessageKind.User } },
+		},
+	}));
 }
 
 export async function driveTurnWithAttachmentsToCompletion(c: TestProtocolClient, session: string, turnId: string, text: string, attachments: readonly MessageAttachment[], clientSeq: number): Promise<IDrivenTurnResult> {
-	return driveTurn(c, session, turnId, clientSeq, () => dispatchTurnWithAttachments(c, session, turnId, text, attachments, clientSeq));
+	return driveTurn(c, buildDefaultChatUri(session), turnId, clientSeq, () => dispatchTurnWithAttachments(c, session, turnId, text, attachments, clientSeq));
 }
 
 export async function driveTurnWithModelToCompletion(c: TestProtocolClient, session: string, turnId: string, text: string, model: string, clientSeq: number): Promise<IDrivenTurnResult> {
-	return driveTurn(c, session, turnId, clientSeq, () => c.dispatch({
+	return driveTurn(c, buildDefaultChatUri(session), turnId, clientSeq, () => c.dispatch({
 		channel: buildDefaultChatUri(session),
 		clientSeq,
 		action: {
 			type: ActionType.ChatTurnStarted,
 			turnId,
-			startedAt: '2025-01-01T00:00:00.000Z',
+			startedAt: new Date().toISOString(),
 			message: { text, origin: { kind: MessageKind.User }, model: { id: model } },
 		},
 	}));
 }
 
 export async function driveTurnWithCancelledInputToCompletion(c: TestProtocolClient, session: string, turnId: string, text: string, clientSeq: number): Promise<IDrivenTurnResult> {
-	return driveTurn(c, session, turnId, clientSeq, () => dispatchTurn(c, session, turnId, text, clientSeq), ChatInputResponseKind.Cancel);
+	return driveTurn(c, buildDefaultChatUri(session), turnId, clientSeq, () => dispatchTurn(c, session, turnId, text, clientSeq), ChatInputResponseKind.Cancel);
 }
 
 export async function driveTurnWithAnswersToCompletion(c: TestProtocolClient, session: string, turnId: string, text: string, clientSeq: number, getAnswers: (request: ChatInputRequest) => Record<string, ChatInputAnswer>): Promise<IDrivenTurnResult> {
-	return driveTurn(c, session, turnId, clientSeq, () => dispatchTurn(c, session, turnId, text, clientSeq), ChatInputResponseKind.Accept, getAnswers);
+	return driveTurn(c, buildDefaultChatUri(session), turnId, clientSeq, () => dispatchTurn(c, session, turnId, text, clientSeq), ChatInputResponseKind.Accept, getAnswers);
 }
 
-async function driveTurn(c: TestProtocolClient, session: string, turnId: string, clientSeq: number, dispatch: () => void, inputResponse = ChatInputResponseKind.Accept, answerProvider = getAcceptedAnswers): Promise<IDrivenTurnResult> {
+async function driveTurn(c: TestProtocolClient, chat: string, turnId: string, clientSeq: number, dispatch: () => void, inputResponse = ChatInputResponseKind.Accept, answerProvider = getAcceptedAnswers): Promise<IDrivenTurnResult> {
 	c.clearReceived();
 	dispatch();
 
-	const chat = buildDefaultChatUri(session);
 	const seenNotifications = new Set<object>();
 	let nextClientSeq = clientSeq + 1;
 	let sawInputRequest = false;
@@ -578,7 +590,7 @@ async function driveTurn(c: TestProtocolClient, session: string, turnId: string,
 			if (!action.confirmed) {
 				sawPendingConfirmation = true;
 				c.dispatch({
-					channel: buildDefaultChatUri(session),
+					channel: chat,
 					clientSeq: nextClientSeq++,
 					action: {
 						type: ActionType.ChatToolCallConfirmed,
@@ -596,7 +608,7 @@ async function driveTurn(c: TestProtocolClient, session: string, turnId: string,
 			sawInputRequest = true;
 			const action = getActionEnvelope(notification).action as ChatInputRequestedAction;
 			c.dispatch({
-				channel: buildDefaultChatUri(session),
+				channel: chat,
 				clientSeq: nextClientSeq++,
 				action: {
 					type: ActionType.ChatInputCompleted,

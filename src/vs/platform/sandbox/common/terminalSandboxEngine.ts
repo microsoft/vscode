@@ -87,9 +87,11 @@ export interface ITerminalSandboxEngineHost {
 	getSandboxTempDir(): Promise<URI | undefined>;
 	/** Path added to `allowRead` and `allowWrite` for the engine's workspace/session storage area. */
 	getWorkspaceStorageReadRoot(): Promise<URI | undefined>;
+	/** Additional paths that hosts require sandboxed commands to read. */
+	getReadRoots?(): readonly URI[];
 	/** Roots that must be writable inside the sandbox (workspace folders / session cwds). */
 	getWriteRoots(): readonly URI[];
-	/** Fires when {@link getWriteRoots} or {@link getWorkspaceStorageReadRoot} change. */
+	/** Fires when host read roots, write roots, or workspace storage roots change. */
 	readonly onDidChangeRoots: Event<void>;
 	/** Resolves the installed sandbox-dependency status (bubblewrap, socat). */
 	checkSandboxDependencies(): Promise<ISandboxDependencyStatus | undefined>;
@@ -945,7 +947,8 @@ export class TerminalSandboxEngine extends Disposable {
 	}
 
 	private async _updateAllowReadPathsWithAllowWrite(configuredAllowRead: string[] | undefined, allowWrite: string[], commandRuntimeAllowRead: string[] = []): Promise<string[]> {
-		return [...new Set([...(configuredAllowRead ?? []), ...getTerminalSandboxReadAllowListForCommands(this._os, this._commandAllowListKeywords, this._commandAllowListCommandDetails), ...commandRuntimeAllowRead, ...this._getSandboxRuntimeReadPaths(), ...await this._getWorkspaceStorageReadPaths(), ...allowWrite])];
+		const hostReadPaths = this._host.getReadRoots?.().map(root => this._getUriPath(root)) ?? [];
+		return [...new Set([...(configuredAllowRead ?? []), ...getTerminalSandboxReadAllowListForCommands(this._os, this._commandAllowListKeywords, this._commandAllowListCommandDetails), ...commandRuntimeAllowRead, ...this._getSandboxRuntimeReadPaths(), ...await this._getWorkspaceStorageReadPaths(), ...hostReadPaths, ...allowWrite])];
 	}
 
 	private async _resolveFileSystemPaths(paths: string[] | undefined): Promise<string[]> {

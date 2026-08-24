@@ -14,7 +14,7 @@ import { IInstantiationService, ServicesAccessor } from '../../../../platform/in
 import { DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { ToggleSidebarPositionAction, ToggleSidebarVisibilityAction } from '../../actions/layoutActions.js';
 import { IThemeService, IColorTheme, registerThemingParticipant } from '../../../../platform/theme/common/themeService.js';
-import { ACTIVITY_BAR_BACKGROUND, ACTIVITY_BAR_BORDER, ACTIVITY_BAR_FOREGROUND, ACTIVITY_BAR_ACTIVE_BORDER, ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND, ACTIVITY_BAR_INACTIVE_FOREGROUND, ACTIVITY_BAR_ACTIVE_BACKGROUND, ACTIVITY_BAR_DRAG_AND_DROP_BORDER, ACTIVITY_BAR_ACTIVE_FOCUS_BORDER } from '../../../common/theme.js';
+import { ACTIVITY_BAR_BACKGROUND, ACTIVITY_BAR_BORDER, ACTIVITY_BAR_FOREGROUND, ACTIVITY_BAR_ACTIVE_BORDER, ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND, ACTIVITY_BAR_INACTIVE_FOREGROUND, ACTIVITY_BAR_ACTIVE_BACKGROUND, ACTIVITY_BAR_DRAG_AND_DROP_BORDER, ACTIVITY_BAR_ACTIVE_FOCUS_BORDER, MODERN_ACTIVITY_BAR_BACKGROUND, MODERN_ACTIVITY_BAR_INACTIVE_BACKGROUND } from '../../../common/theme.js';
 import { activeContrastBorder, contrastBorder, focusBorder } from '../../../../platform/theme/common/colorRegistry.js';
 import { addDisposableListener, append, EventType, isAncestor, $, clearNode } from '../../../../base/browser/dom.js';
 import { assertReturnsDefined } from '../../../../base/common/types.js';
@@ -40,6 +40,7 @@ import { IExtensionService } from '../../../services/extensions/common/extension
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { SwitchCompositeViewAction } from '../compositeBarActions.js';
+import { IHostService } from '../../../services/host/browser/host.js';
 
 export class ActivitybarPart extends Part {
 
@@ -53,6 +54,13 @@ export class ActivitybarPart extends Part {
 	static readonly FLOATING_ACTION_HEIGHT = 36;
 	static readonly FLOATING_ACTIVITYBAR_WIDTH = 36;
 	static readonly FLOATING_COMPACT_ACTIVITYBAR_WIDTH = 28;
+
+	/**
+	 * Vertical gap between activity bar items at the default size under the floating
+	 * panels experiment. Published to CSS as `--activity-bar-action-gap` so that the
+	 * stylesheet and the overflow computation cannot drift apart.
+	 */
+	static readonly FLOATING_ACTION_GAP = 8;
 
 	static readonly ICON_SIZE = 24;
 	static readonly COMPACT_ICON_SIZE = 16;
@@ -84,12 +92,30 @@ export class ActivitybarPart extends Part {
 		return this._isCompact ? ActivitybarPart.COMPACT_ACTIVITYBAR_WIDTH : ActivitybarPart.ACTIVITYBAR_WIDTH;
 	}
 
-	/** The action (item) height that drives visible item sizing and the composite bar overflow size. */
+	/** The action (item) height that drives visible item sizing. */
 	private get actionHeight(): number {
 		if (this._isCompact) {
 			return ActivitybarPart.COMPACT_ACTION_HEIGHT;
 		}
 		return this.layoutService.isFloatingPanelsEnabled() ? ActivitybarPart.FLOATING_ACTION_HEIGHT : ActivitybarPart.ACTION_HEIGHT;
+	}
+
+	/**
+	 * Vertical gap rendered between two adjacent items. Only the floating panels
+	 * experiment separates items, and only at the default size.
+	 */
+	private get actionGap(): number {
+		return this.layoutService.isFloatingPanelsEnabled() && !this._isCompact ? ActivitybarPart.FLOATING_ACTION_GAP : 0;
+	}
+
+	/**
+	 * The vertical space a single item occupies in the bar (its height plus the gap that
+	 * separates it from the next one). This drives the overflow computation, so it has to
+	 * track the current activity bar size, otherwise items collapse into the overflow menu
+	 * prematurely.
+	 */
+	private get compositeSize(): number {
+		return this.actionHeight + this.actionGap;
 	}
 
 	private get floatingHorizontalGutter(): number {
@@ -104,6 +130,7 @@ export class ActivitybarPart extends Part {
 	private readonly compositeBar = this._register(new MutableDisposable<PaneCompositeBar>());
 	private content: HTMLElement | undefined;
 	private _isCompact: boolean;
+	private isInactive: boolean;
 
 	constructor(
 		private readonly location: ViewContainerLocation,
@@ -113,10 +140,12 @@ export class ActivitybarPart extends Part {
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IHostService private readonly hostService: IHostService,
 	) {
 		super(Parts.ACTIVITYBAR_PART, { hasTitle: false }, themeService, storageService, layoutService);
 
 		this._isCompact = this.configurationService.getValue<boolean>(LayoutSettings.ACTIVITY_BAR_COMPACT) ?? false;
+		this.isInactive = !this.hostService.hasFocus;
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(LayoutSettings.ACTIVITY_BAR_COMPACT)) {
@@ -132,8 +161,25 @@ export class ActivitybarPart extends Part {
 				this.updateCompactStyle();
 				this.recreateCompositeBar();
 				this._onDidChange.fire(undefined);
+				if (this.element) {
+					this.updateStyles();
+				}
 			}
 		}));
+
+		this._register(this.hostService.onDidChangeFocus(focused => this.setInactive(!focused)));
+		this._register(this.hostService.onDidChangeActiveWindow(windowId => this.setInactive(windowId !== mainWindow.vscodeWindowId)));
+	}
+
+	private setInactive(inactive: boolean): void {
+		if (this.isInactive === inactive) {
+			return;
+		}
+
+		this.isInactive = inactive;
+		if (this.element) {
+			this.updateStyles();
+		}
 	}
 
 	private updateCompactStyle(): void {
@@ -143,6 +189,7 @@ export class ActivitybarPart extends Part {
 			this.layoutService.mainContainer.classList.toggle('activitybar-compact', this._isCompact);
 			this.element.style.setProperty('--activity-bar-width', `${this.baseWidth}px`);
 			this.element.style.setProperty('--activity-bar-action-height', `${this.actionHeight}px`);
+			this.element.style.setProperty('--activity-bar-action-gap', `${this.actionGap}px`);
 			this.element.style.setProperty('--activity-bar-icon-size', `${this._isCompact ? ActivitybarPart.COMPACT_ICON_SIZE : ActivitybarPart.ICON_SIZE}px`);
 		}
 	}
@@ -163,7 +210,7 @@ export class ActivitybarPart extends Part {
 	}
 
 	private createCompositeBar(): PaneCompositeBar {
-		const actionHeight = this.actionHeight;
+		const compositeSize = this.compositeSize;
 		const iconSize = this._isCompact ? ActivitybarPart.COMPACT_ICON_SIZE : ActivitybarPart.ICON_SIZE;
 
 		return this.instantiationService.createInstance(ActivityBarCompositeBar, this.location, {
@@ -180,7 +227,7 @@ export class ActivitybarPart extends Part {
 			preventLoopNavigation: true,
 			recomputeSizes: false,
 			fillExtraContextMenuActions: (actions, e?: MouseEvent | GestureEvent) => { },
-			compositeSize: 52,
+			compositeSize,
 			colors: (theme: IColorTheme) => ({
 				activeForegroundColor: theme.getColor(ACTIVITY_BAR_FOREGROUND),
 				inactiveForegroundColor: theme.getColor(ACTIVITY_BAR_INACTIVE_FOREGROUND),
@@ -191,7 +238,7 @@ export class ActivitybarPart extends Part {
 				dragAndDropBorder: theme.getColor(ACTIVITY_BAR_DRAG_AND_DROP_BORDER),
 				activeBackgroundColor: undefined, inactiveBackgroundColor: undefined, activeBorderBottomColor: undefined,
 			}),
-			overflowActionSize: actionHeight,
+			overflowActionSize: compositeSize,
 		}, Parts.ACTIVITYBAR_PART, this.paneCompositePart, true);
 	}
 
@@ -228,7 +275,11 @@ export class ActivitybarPart extends Part {
 		super.updateStyles();
 
 		const container = assertReturnsDefined(this.getContainer());
-		const background = this.getColor(ACTIVITY_BAR_BACKGROUND) || '';
+		let backgroundColor = ACTIVITY_BAR_BACKGROUND;
+		if (this.configurationService.getValue<boolean>(LayoutSettings.MODERN_UI) === true) {
+			backgroundColor = this.isInactive ? MODERN_ACTIVITY_BAR_INACTIVE_BACKGROUND : MODERN_ACTIVITY_BAR_BACKGROUND;
+		}
+		const background = this.getColor(backgroundColor) || '';
 		container.style.backgroundColor = background;
 
 		const borderColor = this.getColor(ACTIVITY_BAR_BORDER) || this.getColor(contrastBorder) || '';
@@ -281,8 +332,8 @@ export class ActivitybarPart extends Part {
 		// Layout contents
 		const contentAreaSize = super.layoutContents(contentWidth, contentHeight).contentSize;
 
-		// Layout composite bar
-		this.compositeBar.value?.layout(contentWidth, contentAreaSize.height);
+		// The first item has no preceding gap, so give one gap back to the composite bar.
+		this.compositeBar.value?.layout(contentWidth, contentAreaSize.height + this.actionGap);
 	}
 
 	/**
@@ -477,7 +528,7 @@ export class ActivityBarCompositeBar extends PaneCompositeBar {
 		}
 		if (this.globalCompositeBar) {
 			if (this.options.orientation === ActionsOrientation.VERTICAL) {
-				height -= (this.globalCompositeBar.size() * this.options.overflowActionSize);
+				height -= this.globalCompositeBar.element.clientHeight;
 			} else {
 				width -= this.globalCompositeBar.element.clientWidth;
 			}

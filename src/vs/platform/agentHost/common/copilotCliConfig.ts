@@ -30,14 +30,18 @@ export const enum CopilotCliConfigKey {
 	ReasoningEffortOverride = 'reasoningEffortOverride',
 	/** Enable concise reasoning summaries for supported models. Off by default. */
 	ReasoningSummary = 'reasoningSummary',
+	/** Let the Auto router score prior turns instead of the latest message alone. Off by default. */
+	MultiTurnContextRouting = 'multiTurnContextRouting',
+	/** Tell the model to keep subagents on their default model unless the user asks otherwise. Off by default. */
+	SubagentModelGuidance = 'subagentModelGuidance',
 	/** Per-model capability overrides (family aliases) keyed by model id. */
 	ModelCapabilityOverrides = 'modelCapabilityOverrides',
 }
 
 export const CopilotCliVSCodeAssignmentContextKey = 'copilotCliVSCodeAssignmentContext';
 
-// VS Code `chat.agentHost.*` setting IDs that feed the root-config keys above,
-// kept beside the keys they forward to. Registered in `chat.shared.contribution.ts`
+// VS Code `chat.agentHost.*` / `chat.copilot.*` setting IDs that feed the root-config
+// keys above, kept beside the keys they forward to. Registered in `chat.shared.contribution.ts`
 // and forwarded into the host's root config by `AgentHostCopilotCliSettingsContribution`
 // (and, for the terminal-tool toggle, `AgentHostTerminalContribution`).
 
@@ -54,6 +58,10 @@ export const AgentHostToolSearchDeferThresholdSettingId = 'chat.agentHost.copilo
 export const AgentHostReasoningEffortOverrideSettingId = 'chat.agentHost.copilot.reasoningEffortOverride';
 
 export const AgentHostReasoningSummaryEnabledSettingId = 'chat.agentHost.copilot.reasoningSummary.enabled';
+
+export const AgentHostMultiTurnContextRoutingEnabledSettingId = 'chat.agentHost.copilot.multiTurnContextRouting.enabled';
+
+export const CopilotSubagentModelGuidanceEnabledSettingId = 'chat.copilot.subagentModelGuidance.enabled';
 
 export const AgentHostModelCapabilityOverridesSettingId = 'chat.agentHost.modelCapabilityOverrides';
 export const AgentHostCopilotModelCapabilityOverridesSettingId = 'chat.agentHost.copilot.modelCapabilityOverrides';
@@ -162,6 +170,18 @@ export const copilotCliConfigSchema = createSchema({
 		type: 'boolean',
 		title: localize('agentHost.config.reasoningSummary.title', "Reasoning Summary"),
 		description: localize('agentHost.config.reasoningSummary.description', "When enabled, requests concise reasoning summaries for supported Copilot SDK sessions."),
+		default: false,
+	}),
+	[CopilotCliConfigKey.MultiTurnContextRouting]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.multiTurnContextRouting.title', "Auto Multi-Turn Context Routing"),
+		description: localize('agentHost.config.multiTurnContextRouting.description', "When enabled, Auto model selection sends prior user messages to the router so it scores the conversation so far instead of the latest message alone."),
+		default: false,
+	}),
+	[CopilotCliConfigKey.SubagentModelGuidance]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.subagentModelGuidance.title', "Subagent Model Guidance"),
+		description: localize('agentHost.config.subagentModelGuidance.description', "When enabled, Copilot SDK sessions instruct the model to keep subagents on their default model unless the user explicitly names another one."),
 		default: false,
 	}),
 	[CopilotCliConfigKey.ModelCapabilityOverrides]: schemaProperty<CopilotCliModelCapabilityOverrides>({

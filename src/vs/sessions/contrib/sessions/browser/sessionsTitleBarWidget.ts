@@ -24,6 +24,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { AnchorAlignment, AnchorPosition, IAnchor } from '../../../../base/common/layout.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IContextViewService, IOpenContextView } from '../../../../platform/contextview/browser/contextView.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
@@ -32,14 +33,12 @@ import { ISessionsProvidersService } from '../../../services/sessions/browser/se
 import { SHOW_SESSIONS_PICKER_COMMAND_ID } from './sessionsActions.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { getUntitledSessionTitle } from '../../../services/sessions/common/session.js';
-import { BlockedSessions } from '../../blockedSessions/browser/blockedSessions.js';
 import { BlockedSessionsList, IBlockedSessionsHeaderActionContext, registerBlockedSessionsItemActions } from './blockedSessionsList.js';
-import { BlockedSessionsCIFixModel } from './blockedSessionsCIFixModel.js';
 import { SessionActionFeedback } from './sessionActionFeedback.js';
-import { AgentSessionApprovalModel } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { BlockedSessionsIndicatorModel, RequiresInputKind } from './blockedSessionsIndicatorModel.js';
 import { openSessionToTheSide } from './views/sessionsView.js';
+import { getSessionWorkspaceDisplayInfo, ISessionWorkspaceDisplayInfo } from '../../../browser/sessionWorkspace.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 
 /**
  * Internal command behind the blocked-sessions dropdown header's "Show All
@@ -127,9 +126,8 @@ const BLOCKED_DROPDOWN_MAX_WIDTH_RATIO = 0.9;
  * Sessions Title Bar Widget - renders the active chat session
  * in the command center of the agent sessions workbench.
  *
- * Shows the current chat session as a clickable pill with:
- * - Kind icon at the beginning (provider type icon)
- * - Repository folder name and active branch/worktree name when available
+ * Shows the current chat session as a clickable pill with its workspace icon
+ * and folder name when available.
  *
  * When at least one session is blocked (needs input or has failing CI checks),
  * the widget instead adopts an orange "N sessions require input" state and reveals those sessions as a
@@ -143,6 +141,12 @@ const BLOCKED_DROPDOWN_MAX_WIDTH_RATIO = 0.9;
  *
  * Session actions (changes, terminal, etc.) are rendered via the
  * SessionTitleActions menu toolbar next to this widget.
+ *
+ * The widget is a command center action view item, so it is disposed and
+ * re-created whenever the command center rebuilds (for example when the
+ * new-session view opens and flips `isNewChatSession`). It therefore owns no
+ * durable state: the indicator model and the approval feedback are supplied by
+ * {@link SessionsTitleBarContribution}, which outlives those rebuilds.
  */
 export class SessionsTitleBarWidget extends BaseActionViewItem {
 
@@ -157,9 +161,8 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 
 	/** Guard to prevent re-entrant rendering */
 	private _isRendering = false;
-
-	/** Model behind the "N sessions require input" indicator (blocked-session set, blink, labels). */
-	private readonly _blockedIndicator: BlockedSessionsIndicatorModel;
+	private _workspaceInfo: ISessionWorkspaceDisplayInfo | undefined;
+	private _isQuickChat = false;
 
 	/** The currently open blocked-sessions dropdown, if any. */
 	private _openContextView: IOpenContextView | undefined;
@@ -169,16 +172,13 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 	/** Tracks whether the blocked-sessions dropdown is open (drives the Escape keybinding). */
 	private readonly _blockedSessionsVisibleContext: IContextKey<boolean>;
 
-	/** Drives the transient "Approved N sessions" confirmation. Owned by the widget. */
-	private readonly _sessionActionFeedback: SessionActionFeedback;
-
 	constructor(
 		action: SubmenuItemAction,
 		options: IBaseActionViewItemOptions | undefined,
-		sessionActionFeedback: SessionActionFeedback | undefined,
-		approvalModel: AgentSessionApprovalModel | undefined,
-		blockedSessions: BlockedSessions | undefined,
-		ciFixModel: BlockedSessionsCIFixModel | undefined,
+		/** Drives the transient "Approved N sessions" confirmation. */
+		private readonly _sessionActionFeedback: SessionActionFeedback,
+		/** Model behind the "N sessions require input" indicator (blocked-session set, blink, labels). */
+		private readonly _blockedIndicator: BlockedSessionsIndicatorModel,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionsService private readonly sessionsService: ISessionsService,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
@@ -188,21 +188,11 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@IHoverService private readonly hoverService: IHoverService,
 	) {
 		super(undefined, action, options);
 
 		this._blockedSessionsVisibleContext = SessionsBlockedSessionsVisibleContext.bindTo(contextKeyService);
-
-		// The widget owns the approval-feedback state; the optional parameter is a
-		// test seam so fixtures can supply a preset instance.
-		this._sessionActionFeedback = sessionActionFeedback ?? this._register(new SessionActionFeedback());
-
-		// The blocked-session indicator model owns the requires-input logic (the
-		// visible-filtered blocked set, the requires-input kind, optimistic approval
-		// dismissals, labels and blink detection). The optional `approvalModel`,
-		// `blockedSessions` and `ciFixModel` are test seams forwarded to it so
-		// fixtures can preset them.
-		this._blockedIndicator = this._register(this.instantiationService.createInstance(BlockedSessionsIndicatorModel, approvalModel, blockedSessions, ciFixModel));
 
 		// Replay the attention blink when the model reports a genuinely new, not-yet-
 		// visible block. Invalidate the cached render state so the identical pill is
@@ -215,11 +205,8 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 		// Re-render when the active session's title, workspace, or quick-chat kind changes
 		this._register(autorun(reader => {
 			const sessionData = this.sessionsService.activeSession.read(reader);
-			if (sessionData) {
-				sessionData.title.read(reader);
-				sessionData.workspace.read(reader);
-				sessionData.isQuickChat?.read(reader);
-			}
+			this._workspaceInfo = getSessionWorkspaceDisplayInfo(sessionData, reader);
+			this._isQuickChat = sessionData?.isQuickChat?.read(reader) ?? false;
 			this._lastRenderState = undefined;
 			this._render();
 		}));
@@ -308,10 +295,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			} else if (showRequiresInput) {
 				renderState = `blocked|${blockedCount}|${requiresInputKind ?? 'mixed'}`;
 			} else {
-				const icon = this._getActiveSessionIcon();
-				const sessionTitle = this._getSessionTitle() ?? getUntitledSessionTitle(this.sessionsService.activeSession.get()?.isQuickChat?.get() ?? false);
-				const workspaceLabel = this._getRepositoryLabel();
-				renderState = `normal|${icon?.id ?? ''}|${sessionTitle ?? ''}|${workspaceLabel ?? ''}`;
+				renderState = `normal|${this._workspaceInfo?.icon.id ?? ''}|${this._workspaceInfo?.label ?? ''}|${this._isQuickChat}`;
 			}
 
 			// Skip re-render if state hasn't changed
@@ -362,43 +346,35 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 	}
 
 	/**
-	 * Render the active-session pill: icon + title + workspace. Clicking opens the
+	 * Render the active-session pill: workspace icon + folder. Clicking opens the
 	 * sessions picker.
 	 */
 	private _renderActiveSession(): void {
 		const container = this._container!;
 		container.setAttribute('aria-label', localize('agentSessionsShowSessions', "Show Sessions"));
 
-		const icon = this._getActiveSessionIcon();
-		const sessionTitle = this._getSessionTitle() ?? getUntitledSessionTitle(this.sessionsService.activeSession.get()?.isQuickChat?.get() ?? false);
-		const workspaceLabel = this._getRepositoryLabel();
+		const workspaceInfo = this._workspaceInfo;
 
-		// Session pill: icon + title + workspace together
+		// Session pill: workspace icon + label
 		const sessionPill = $('div.agent-sessions-titlebar-pill');
 
-		// Center group: icon + title + workspace name
+		// Center group: workspace icon and name
 		const centerGroup = $('div.agent-sessions-titlebar-center');
 
-		// Kind icon at the beginning
-		if (icon) {
-			const iconEl = $('div.agent-sessions-titlebar-icon' + ThemeIcon.asCSSSelector(icon));
-			centerGroup.appendChild(iconEl);
-		}
-
-		// Session title shown next to the icon
-		if (sessionTitle) {
-			const titleEl = $('div.agent-sessions-titlebar-title');
-			titleEl.textContent = sessionTitle;
-			centerGroup.appendChild(titleEl);
-		}
-
-		// Workspace name shown after the session title
-		if (workspaceLabel) {
-			const separatorEl = $('div.agent-sessions-titlebar-separator');
-			centerGroup.appendChild(separatorEl);
+		if (workspaceInfo) {
+			const workspaceIconEl = $(`div.agent-sessions-titlebar-workspace-icon${ThemeIcon.asCSSSelector(workspaceInfo.icon)}`, { 'aria-hidden': 'true' });
+			centerGroup.appendChild(workspaceIconEl);
 
 			const workspaceEl = $('div.agent-sessions-titlebar-workspace');
-			workspaceEl.textContent = workspaceLabel;
+			workspaceEl.textContent = workspaceInfo.label;
+			centerGroup.appendChild(workspaceEl);
+			this._dynamicDisposables.add(this.hoverService.setupDelayedHover(workspaceEl, { content: workspaceInfo.label }));
+		} else if (this._isQuickChat) {
+			const workspaceIconEl = $(`div.agent-sessions-titlebar-workspace-icon${ThemeIcon.asCSSSelector(Codicon.commentDiscussion)}`, { 'aria-hidden': 'true' });
+			centerGroup.appendChild(workspaceIconEl);
+
+			const workspaceEl = $('div.agent-sessions-titlebar-workspace');
+			workspaceEl.textContent = localize('noWorkspace', "No workspace");
 			centerGroup.appendChild(workspaceEl);
 		}
 
@@ -685,39 +661,6 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 		this.sessionsService.openSession(resource, { preserveFocus }).catch(onUnexpectedError);
 	}
 
-	/**
-	 * Get the icon for the active session's type.
-	 */
-	private _getActiveSessionIcon(): ThemeIcon | undefined {
-		const sessionData = this.sessionsService.activeSession.get();
-		if (sessionData) {
-			return sessionData.icon;
-		}
-		return undefined;
-	}
-
-	/**
-	 * Get the display title for the active session.
-	 */
-	private _getSessionTitle(): string | undefined {
-		const sessionData = this.sessionsService.activeSession.get();
-		return sessionData?.title.get()?.trim() || undefined;
-	}
-
-	/**
-	 * Get the repository label for the active session.
-	 */
-	private _getRepositoryLabel(): string | undefined {
-		const sessionData = this.sessionsService.activeSession.get();
-		if (sessionData) {
-			const workspace = sessionData.workspace.get();
-			if (workspace) {
-				return workspace.label;
-			}
-		}
-		return undefined;
-	}
-
 	private _showSessionsPicker(): void {
 		this.commandService.executeCommand(SHOW_SESSIONS_PICKER_COMMAND_ID);
 	}
@@ -735,8 +678,18 @@ export class SessionsTitleBarContribution extends Disposable implements IWorkben
 	constructor(
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@ILogService logService: ILogService,
 	) {
 		super();
+
+		// The command center rebuilds its action view items whenever its menu or
+		// context keys change (e.g. opening the new-session view flips
+		// `isNewChatSession`), which disposes and re-creates the widget. State that
+		// must outlive those rebuilds — acknowledged blocked occurrences, the
+		// requires-input models and the transient approval confirmation — is owned
+		// here, not by the widget.
+		const sessionActionFeedback = this._register(new SessionActionFeedback());
+		const blockedIndicator = this._register(instantiationService.createInstance(BlockedSessionsIndicatorModel, undefined /* approvalModel */, undefined /* blockedSessions */, undefined /* ciFixModel */));
 
 		// Register the submenu item in the Agent Sessions command center
 		this._register(MenuRegistry.appendMenuItem(Menus.CommandCenter, {
@@ -768,7 +721,10 @@ export class SessionsTitleBarContribution extends Disposable implements IWorkben
 			if (!(action instanceof SubmenuItemAction)) {
 				return undefined;
 			}
-			return instantiationService.createInstance(SessionsTitleBarWidget, action, options, undefined, undefined, undefined, undefined);
+			// Traced because each call means the command center threw the previous
+			// widget away; the state above deliberately survives it.
+			logService.trace('[SessionsTitleBar] creating the title bar widget');
+			return instantiationService.createInstance(SessionsTitleBarWidget, action, options, sessionActionFeedback, blockedIndicator);
 		}, undefined));
 	}
 }

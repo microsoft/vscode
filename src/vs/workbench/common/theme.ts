@@ -676,8 +676,8 @@ export const SURFACE_BACKGROUND = registerColor('surface.background', {
 export const SURFACE_FOREGROUND = registerColor('surface.foreground', SIDE_BAR_FOREGROUND, localize('surfaceForeground', "Foreground color of framed container surfaces (\"cards\"), such as the floating workbench panels in the modern layout."));
 
 export const SURFACE_BORDER = registerColor('surface.border', {
-	dark: transparent(foreground, 0.1),
-	light: transparent(foreground, 0.1),
+	dark: opaque(transparent(foreground, 0.1), SURFACE_BACKGROUND),
+	light: opaque(transparent(foreground, 0.1), SURFACE_BACKGROUND),
 	hcDark: contrastBorder,
 	hcLight: contrastBorder
 }, localize('surfaceBorder', "Border color of framed container surfaces (\"cards\"), such as the floating workbench panels in the modern layout."));
@@ -717,6 +717,10 @@ export const MODERN_EDITOR_TAB_ACTIVE_HOVER_ACTION_BACKGROUND = registerColor('m
 export const MODERN_EDITOR_TAB_SELECTED_ACTION_BACKGROUND = registerColor('modernEditorTab.selectedActionBackground', opaque(TAB_SELECTED_BACKGROUND, editorBackground), localize('modernEditorTabSelectedActionBackground', "Opaque background color of tab actions on selected editor tabs when the modern tab style is enabled."));
 
 // < --- Modern Activity Bar --- >
+
+export const MODERN_ACTIVITY_BAR_BACKGROUND = registerColor('modernActivityBar.background', ACTIVITY_BAR_BACKGROUND, localize('modernActivityBarBackground', "Background color of the Activity bar in the default side position when the modern UI is enabled."));
+
+export const MODERN_ACTIVITY_BAR_INACTIVE_BACKGROUND = registerColor('modernActivityBar.inactiveBackground', MODERN_ACTIVITY_BAR_BACKGROUND, localize('modernActivityBarInactiveBackground', "Background color of the Activity bar in an inactive window when it is in the default side position and the modern UI is enabled."));
 
 export const MODERN_ACTIVITY_BAR_ACTIVE_BACKGROUND = registerColor('modernActivityBar.activeBackground', MODERN_TAB_ACTIVE_BACKGROUND, localize('modernActivityBarActiveBackground', "Background color of active Activity bar items in the default side position when the modern UI is enabled."));
 

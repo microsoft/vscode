@@ -14,8 +14,9 @@ import { ILogService } from '../../log/common/log.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema, defaultAgentHostCustomizationConfigValues } from '../common/agentHostCustomizationConfig.js';
 import { getAgentCustomizationSettingsEntries, getProviderBackedRootConfigKeys, withAgentCustomizationSettings, type IAgentCustomizationSettingsRegistration } from '../common/agentCustomizationSettings.js';
 import { copilotCliConfigSchema } from '../common/copilotCliConfig.js';
+import { agentMergeRootConfigSchema } from '../common/agentMerge.js';
 import { sandboxConfigSchema } from '../common/sandboxConfigSchema.js';
-import type { ISchema, SchemaDefinition, SchemaValue } from '../common/agentHostSchema.js';
+import { agentHostProxyConfigSchema, clientOwnedApprovalRootConfigKeys, platformRootSchema, type ISchema, type SchemaDefinition, type SchemaValue } from '../common/agentHostSchema.js';
 import { ProtocolError } from '../common/state/sessionProtocol.js';
 import { ActionType, type ActionOrigin } from '../common/state/sessionActions.js';
 import { isAhpChatChannel, parseSubagentSessionUri, ROOT_STATE_URI, type URI as ProtocolURI } from '../common/state/sessionState.js';
@@ -206,10 +207,11 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 		const ownSchema = agentHostCustomizationConfigSchema.toProtocol();
 		const sandboxSchema = sandboxConfigSchema.toProtocol();
 		const copilotCliSchema = copilotCliConfigSchema.toProtocol();
+		const agentMergeSchema = agentMergeRootConfigSchema.toProtocol();
 		this._stateManager.rootState.config = {
 			schema: {
 				type: 'object',
-				properties: { ...existing?.schema.properties, ...ownSchema.properties, ...sandboxSchema.properties, ...copilotCliSchema.properties },
+				properties: { ...existing?.schema.properties, ...ownSchema.properties, ...sandboxSchema.properties, ...copilotCliSchema.properties, ...agentMergeSchema.properties },
 			},
 			values: { ...existing?.values, ...this._loadPersistedRootConfig() },
 		};
@@ -405,9 +407,12 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 			const raw = fs.readFileSync(this._rootConfigResource.fsPath, 'utf8');
 			const parsed = JSON.parse(raw) as Record<string, unknown>;
 			return {
+				...this._loadPersistedPlatformRootConfig(parsed),
 				...agentHostCustomizationConfigSchema.validateOrDefault(parsed, defaults),
 				...sandboxConfigSchema.validateOrDefault(parsed, {}),
 				...copilotCliConfigSchema.validateOrDefault(parsed, {}),
+				...agentMergeRootConfigSchema.validateOrDefault(parsed, {}),
+				...agentHostProxyConfigSchema.validateOrDefault(parsed, {}),
 			};
 		} catch (err) {
 			const code = err && typeof err === 'object' && hasKey(err, { code: true }) ? String(err.code) : undefined;
@@ -416,5 +421,22 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 			}
 			return { ...defaults };
 		}
+	}
+
+	/**
+	 * Restores the platform-owned half of the persisted bag. The host reads
+	 * some of these before any client connects (`showExternalSessions`, the
+	 * migrate-legacy gate, provider enablement), so without this a restart
+	 * runs its first pass against the schema default.
+	 */
+	private _loadPersistedPlatformRootConfig(parsed: Record<string, unknown>): Record<string, unknown> {
+		const values: Record<string, unknown> = { ...platformRootSchema.validateOrDefault(parsed, {}) };
+		// Approval and policy values are a snapshot of one client's settings and
+		// are re-pushed on every connect, so restoring them could re-grant an
+		// approval that was tightened while the host was stopped.
+		for (const key of clientOwnedApprovalRootConfigKeys) {
+			delete values[key];
+		}
+		return values;
 	}
 }

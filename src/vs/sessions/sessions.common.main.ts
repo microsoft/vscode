@@ -12,6 +12,7 @@ import { TERMINAL_BACKGROUND_COLOR } from '../workbench/contrib/terminal/common/
 
 import '../workbench/api/browser/extensionHost.contribution.js';
 import '../workbench/browser/workbench.contribution.js';
+import '../workbench/contrib/modernUI/browser/media/notificationsDialogs.css';
 import { agentsPanelBackground } from './common/theme.js';
 import './common/sizes.js';
 
@@ -221,8 +222,6 @@ import '../workbench/contrib/speech/browser/speech.contribution.js';
 
 // Chat
 import '../workbench/contrib/chat/browser/chat.shared.contribution.js';
-import '../workbench/contrib/chat/browser/chatInputWindow/chatInputWindow.contribution.js';
-import './contrib/chat/browser/omniSessionRoutingAdapter.contribution.js';
 //import '../workbench/contrib/inlineChat/browser/inlineChat.contribution.js';
 import '../workbench/contrib/mcp/browser/mcp.contribution.js';
 import '../workbench/contrib/chat/browser/chatSessions/chatSessions.contribution.js';
