@@ -174,7 +174,7 @@ function frontMatterAttributes(token: Token, extraClasses: string): string {
 		}
 	}
 
-	const classAttr = `class="${classes.filter(Boolean).join(' ')}"`;
+	const classAttr = `class="${escapeHtml(classes.filter(Boolean).join(' '))}"`;
 	const baseAttrs = `title="${label}" data-vscode-context='${escapeHtml(FRONT_MATTER_CONTEXT)}'`;
 	const extraAttrs = otherAttrs.length ? ' ' + otherAttrs.join(' ') : '';
 	return `${classAttr} ${baseAttrs}${extraAttrs}`;
