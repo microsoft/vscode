@@ -38,6 +38,7 @@ import {
 	buildSubagentChatUri,
 	chatStorageUri,
 	createErrorResponsePart,
+	getErrorResponsePart,
 	getToolFileEdits,
 	getInlineToolInput,
 	isAhpChatChannel,
@@ -389,6 +390,22 @@ export class AgentSideEffects extends Disposable {
 				const chatState = this._stateManager.getChatState(envelope.channel);
 				const action = envelope.action;
 				switch (action.type) {
+					case ActionType.ChatTurnStarted: {
+						if (envelope.rejectionReason) {
+							break;
+						}
+						const sessionChannel = parseRequiredSessionUriFromChatUri(envelope.channel);
+						const previousTurn = chatState?.turns.at(-1);
+						if (!this._stateManager.isEphemeralSession(sessionChannel)
+							&& previousTurn
+							&& previousTurn.id !== action.turnId
+							&& getErrorResponsePart(previousTurn)?.resumable === true) {
+							void this._checkpointService.discardTurnStartCheckpoint(URI.parse(sessionChannel), URI.parse(envelope.channel), previousTurn.id).catch(error => {
+								this._logService.warn(`[AgentSideEffects] Failed to discard checkpoint for superseded resumable turn ${previousTurn.id}`, error);
+							});
+						}
+						break;
+					}
 					case ActionType.ChatInputRequested: {
 						const turnId = chatState?.activeTurn?.id;
 						const provider = this._options.getAgent(parseRequiredSessionUriFromChatUri(envelope.channel))?.id;
@@ -1140,7 +1157,11 @@ export class AgentSideEffects extends Disposable {
 			const clientContext = this._turnTracker.getClientTelemetryContext(sessionKey, turnId);
 			this._completeTurn(sessionKey, turnId, 'error', { stage: 'provider', error: action.part.error });
 			this._toolCallTracker.clearSession(sessionKey);
-			this._captureTurnCheckpointAndRefresh(sessionKey, turnId, clientContext);
+			// A resumable error pauses the logical turn. Keep its start checkpoint
+			// until the eventual terminal completion captures the whole turn.
+			if (action.part.resumable !== true) {
+				this._captureTurnCheckpointAndRefresh(sessionKey, turnId, clientContext);
+			}
 			this._markSessionUnread(sessionUri);
 		}
 		if (action.type === ActionType.ChatTurnComplete || action.type === ActionType.ChatTurnCancelled || action.type === ActionType.ChatError) {
@@ -1672,6 +1693,7 @@ export class AgentSideEffects extends Disposable {
 				const turnStopWatch = StopWatch.create(false);
 				// Per-turn streaming part tracking is owned by the agent
 				// (e.g. CopilotAgentSession) and reset on its `send()` call.
+				const state = this._stateManager.getSessionState(channel);
 
 				// Generic, agent-agnostic host commands (`/rename`, `!command`,
 				// …) are intercepted here and handled by the local-command
@@ -1684,7 +1706,6 @@ export class AgentSideEffects extends Disposable {
 					break;
 				}
 
-				const state = this._stateManager.getSessionState(channel);
 				if (!state) {
 					this._logService.info(`[AgentSideEffects] Turn started for session not in state manager: ${channel}, turnId=${action.turnId} - status/summary updates may be dropped unless the session is restored`);
 				}

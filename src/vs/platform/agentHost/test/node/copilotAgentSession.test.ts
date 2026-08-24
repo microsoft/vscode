@@ -5365,63 +5365,6 @@ suite('CopilotAgentSession', () => {
 			assert.strictEqual(mockSession.sendRequests.length, 1);
 		});
 
-		test('resumes the same turn with zero SDK messages', async () => {
-			const { session, mockSession } = await createAgentSession(disposables);
-
-			await session.resume('turn-1', 'plan', 'client-1');
-
-			assert.deepStrictEqual({
-				sendRequests: mockSession.sendRequests,
-				sendMessagesRequests: mockSession.sendMessagesRequests,
-				modeSetCalls: mockSession.modeSetCalls,
-			}, {
-				sendRequests: [],
-				sendMessagesRequests: [{ messages: [] }],
-				modeSetCalls: [{ mode: 'plan' }],
-			});
-		});
-
-		test('clears the active turn when zero-message continuation fails immediately', async () => {
-			const { session, mockSession } = await createAgentSession(disposables);
-			mockSession.sendMessagesError = new Error('continuation failed');
-
-			await assert.rejects(() => session.resume('turn-1'), /continuation failed/);
-
-			assert.strictEqual(session.hasActiveTurn, false);
-		});
-
-		test('does not let an idle from the failed execution complete the resumed turn', async () => {
-			const gate = new DeferredPromise<void>();
-			const { session, mockSession, signals } = await createAgentSession(disposables);
-			mockSession.sendMessagesGate = gate.p;
-
-			const resumePromise = session.resume('turn-1');
-			await timeout(0);
-			mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
-			assert.strictEqual(session.hasActiveTurn, true);
-
-			gate.complete();
-			await resumePromise;
-			mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
-			assert.strictEqual(session.hasActiveTurn, true);
-
-			mockSession.fire('assistant.turn_start', { turnId: 'sdk-turn-2' } as SessionEventPayload<'assistant.turn_start'>['data']);
-			mockSession.fire('assistant.message', {
-				messageId: 'm2',
-				content: 'Recovered response',
-				toolRequests: [],
-			} as SessionEventPayload<'assistant.message'>['data']);
-			mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
-
-			assert.deepStrictEqual({
-				active: session.hasActiveTurn,
-				actions: getActions(signals).filter(action => action.type === ActionType.ChatResponsePart || action.type === ActionType.ChatTurnComplete).map(action => action.type),
-			}, {
-				active: false,
-				actions: [ActionType.ChatResponsePart, ActionType.ChatTurnComplete],
-			});
-		});
-
 		test('fires steering_consumed on abort when the steering never reached its turn', async () => {
 			const { session, signals } = await createAgentSession(disposables);
 
@@ -5473,6 +5416,305 @@ suite('CopilotAgentSession', () => {
 			const turnStarted = signals.find(s => s.kind === 'action' && (s as IAgentActionSignal).action.type === ActionType.ChatTurnStarted);
 			assert.strictEqual(consumed, undefined, 'should not fire steering_consumed on failure');
 			assert.strictEqual(turnStarted, undefined, 'should not start a new turn on failure');
+		});
+	});
+
+	suite('failed turn resume', () => {
+
+		test('the development $error path uses raw sendMessages even with attachments', async () => {
+			const { session, mockSession } = await createAgentSession(disposables);
+
+			await session.send('$error', [{
+				type: MessageAttachmentKind.Simple,
+				label: 'context',
+				modelRepresentation: 'attached context',
+			}], 'turn-error');
+
+			assert.deepStrictEqual({
+				sendRequests: mockSession.sendRequests,
+				sendMessagesRequests: mockSession.sendMessagesRequests,
+			}, {
+				sendRequests: [],
+				sendMessagesRequests: [{
+					messages: [{ prompt: '$error' }],
+					requestHeaders: { Authorization: '******' },
+				}],
+			});
+		});
+
+		test('resumes the same turn with zero SDK messages', async () => {
+			const { session, mockSession } = await createAgentSession(disposables);
+
+			await session.resume('turn-1', 'plan', 'client-1');
+
+			assert.deepStrictEqual({
+				sendRequests: mockSession.sendRequests,
+				sendMessagesRequests: mockSession.sendMessagesRequests,
+				modeSetCalls: mockSession.modeSetCalls,
+			}, {
+				sendRequests: [],
+				sendMessagesRequests: [{ messages: [] }],
+				modeSetCalls: [{ mode: 'plan' }],
+			});
+		});
+
+		test('clears the active turn when the continuation connection closes', async () => {
+			const { session, mockSession } = await createAgentSession(disposables);
+			mockSession.sendMessagesError = new Error('Connection closed during continuation');
+
+			await assert.rejects(() => session.resume('turn-1'), /Connection closed/);
+
+			assert.deepStrictEqual({
+				active: session.hasActiveTurn,
+				sendMessagesRequests: mockSession.sendMessagesRequests,
+			}, {
+				active: false,
+				sendMessagesRequests: [{ messages: [] }],
+			});
+		});
+
+		for (const timing of ['before', 'after'] as const) {
+			test(`ignores a stale idle ${timing} zero-message continuation resolves`, async () => {
+				const gate = new DeferredPromise<void>();
+				const { session, mockSession, signals } = await createAgentSession(disposables);
+				if (timing === 'before') {
+					mockSession.sendMessagesGate = gate.p;
+				}
+
+				const resumePromise = session.resume('turn-1');
+				await timeout(0);
+				if (timing === 'before') {
+					mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+					gate.complete();
+				}
+				await resumePromise;
+				if (timing === 'after') {
+					mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+				}
+				const beforeProviderStart = {
+					active: session.hasActiveTurn,
+					terminalActions: getActions(signals).filter(action => action.type === ActionType.ChatTurnComplete || action.type === ActionType.ChatError),
+				};
+
+				mockSession.fire('assistant.turn_start', { turnId: 'sdk-turn-2' } as SessionEventPayload<'assistant.turn_start'>['data']);
+				mockSession.fire('assistant.message', {
+					messageId: 'm2',
+					content: 'Recovered response',
+					toolRequests: [],
+				} as SessionEventPayload<'assistant.message'>['data']);
+				mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+
+				assert.deepStrictEqual({
+					beforeProviderStart,
+					active: session.hasActiveTurn,
+					actions: getActions(signals).filter(action => action.type === ActionType.ChatResponsePart || action.type === ActionType.ChatTurnComplete).map(action => action.type),
+				}, {
+					beforeProviderStart: { active: true, terminalActions: [] },
+					active: false,
+					actions: [ActionType.ChatResponsePart, ActionType.ChatTurnComplete],
+				});
+			});
+		}
+
+		test('cancellation before the provider turn starts clears the resumed turn', async () => {
+			const abortGate = new DeferredPromise<void>();
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			await session.resume('turn-1');
+			mockSession.abortGate = abortGate.p;
+
+			const abortPromise = session.abort();
+			await timeout(0);
+			mockSession.fire('abort', { reason: 'user_abort' } as SessionEventPayload<'abort'>['data']);
+			mockSession.fire('session.idle', { aborted: true } as SessionEventPayload<'session.idle'>['data']);
+			const activeAfterIdle = session.hasActiveTurn;
+			abortGate.complete();
+			await abortPromise;
+
+			assert.deepStrictEqual({
+				active: session.hasActiveTurn,
+				activeAfterIdle,
+				abortCalls: mockSession.abortCalls,
+				actions: getActions(signals),
+			}, {
+				active: false,
+				activeAfterIdle: false,
+				abortCalls: 1,
+				actions: [],
+			});
+		});
+
+		test('cancellation after provider start but before content clears without completing', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			await session.resume('turn-1');
+			mockSession.fire('assistant.turn_start', { turnId: 'sdk-turn-2' } as SessionEventPayload<'assistant.turn_start'>['data']);
+
+			await session.abort();
+			mockSession.fire('abort', { reason: 'user_abort' } as SessionEventPayload<'abort'>['data']);
+			mockSession.fire('session.idle', { aborted: true } as SessionEventPayload<'session.idle'>['data']);
+
+			assert.deepStrictEqual({
+				active: session.hasActiveTurn,
+				actions: getActions(signals),
+			}, {
+				active: false,
+				actions: [],
+			});
+		});
+
+		test('quarantines late cancelled events until the next provider turn starts', async () => {
+			const abortGate = new DeferredPromise<void>();
+			const logService = new CapturingLogService();
+			const { session, mockSession, signals } = await createAgentSession(disposables, { logService });
+			await session.resume('turn-1');
+			mockSession.fire('assistant.turn_start', { turnId: 'sdk-turn-2' } as SessionEventPayload<'assistant.turn_start'>['data']);
+			mockSession.abortGate = abortGate.p;
+			const abortPromise = session.abort();
+			await timeout(0);
+
+			mockSession.fire('assistant.message_delta', {
+				deltaContent: 'Late response delta before idle',
+			} as SessionEventPayload<'assistant.message_delta'>['data']);
+			mockSession.fire('assistant.message', {
+				messageId: 'late-message-before-idle',
+				content: 'Late response before idle',
+				toolRequests: [],
+			} as SessionEventPayload<'assistant.message'>['data']);
+			mockSession.fire('session.idle', { aborted: true } as SessionEventPayload<'session.idle'>['data']);
+			abortGate.complete();
+			await abortPromise;
+			const fireLateTurnEvents = (suffix: string) => {
+				mockSession.fire('assistant.message', {
+					messageId: `late-message-${suffix}`,
+					content: `Late response ${suffix}`,
+					toolRequests: [],
+				} as SessionEventPayload<'assistant.message'>['data']);
+				mockSession.fire('assistant.tool_call_delta', {
+					toolCallId: `late-tool-${suffix}`,
+					toolName: 'bash',
+					inputDelta: '{"command":"echo late"}',
+				});
+				mockSession.fire('tool.execution_start', {
+					toolCallId: `late-tool-${suffix}`,
+					toolName: 'bash',
+					arguments: { command: 'echo late' },
+				} as SessionEventPayload<'tool.execution_start'>['data']);
+				mockSession.fire('session.error', {
+					errorType: 'LateError',
+					message: `Late error ${suffix}`,
+				} as SessionEventPayload<'session.error'>['data']);
+				mockSession.fire('subagent.started', {
+					toolCallId: `late-subagent-${suffix}`,
+					agentName: 'late-agent',
+					agentDisplayName: 'Late Agent',
+					agentDescription: 'Late cancelled subagent',
+				} as SessionEventPayload<'subagent.started'>['data'], { agentId: `late-agent-${suffix}` });
+			};
+			fireLateTurnEvents('after-idle');
+			mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+
+			session.resetTurnState('turn-2');
+			fireLateTurnEvents('after-next-turn-reset');
+			const beforeProviderStart = {
+				active: session.hasActiveTurn,
+				actions: getActions(signals),
+			};
+
+			mockSession.fire('assistant.turn_start', { turnId: 'sdk-turn-3' } as SessionEventPayload<'assistant.turn_start'>['data']);
+			mockSession.fire('assistant.message', {
+				messageId: 'valid-message',
+				content: 'Valid next response',
+				toolRequests: [],
+			} as SessionEventPayload<'assistant.message'>['data']);
+			mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+
+			assert.deepStrictEqual({
+				beforeProviderStart,
+				activeAfterCompletion: session.hasActiveTurn,
+				actionsAfterCompletion: getActions(signals).map(action => action.type),
+				subagentSignals: signals.filter(signal => signal.kind === 'subagent_started' || signal.kind === 'subagent_resumed'),
+				droppedResponseLogged: logService.errors.some(error => /after cancellation/i.test(String(error.first))),
+			}, {
+				beforeProviderStart: { active: true, actions: [] },
+				activeAfterCompletion: false,
+				actionsAfterCompletion: [ActionType.ChatResponsePart, ActionType.ChatTurnComplete],
+				subagentSignals: [],
+				droppedResponseLogged: true,
+			});
+		});
+
+		test('inline commands complete while cancelled provider events remain quarantined', async () => {
+			const logService = new CapturingLogService();
+			const { session, mockSession, signals } = await createAgentSession(disposables, { logService });
+			await session.resume('turn-1');
+			mockSession.fire('assistant.turn_start', { turnId: 'sdk-turn-2' } as SessionEventPayload<'assistant.turn_start'>['data']);
+			await session.abort();
+			mockSession.fire('session.idle', { aborted: true } as SessionEventPayload<'session.idle'>['data']);
+
+			await session.send('/compact', undefined, 'turn-compact-after-cancel');
+			mockSession.fire('assistant.message', {
+				messageId: 'late-cancelled-message',
+				content: 'Late cancelled response',
+				toolRequests: [],
+			} as SessionEventPayload<'assistant.message'>['data']);
+
+			assert.deepStrictEqual({
+				active: session.hasActiveTurn,
+				actions: getActions(signals).map(action => action.type),
+				droppedResponseLogged: logService.errors.some(error => /after cancellation/i.test(String(error.first))),
+			}, {
+				active: false,
+				actions: [ActionType.ChatResponsePart, ActionType.ChatTurnComplete],
+				droppedResponseLogged: true,
+			});
+		});
+
+		test('turn-starting system notifications establish a trusted post-cancellation boundary', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			await session.resume('turn-1');
+			mockSession.fire('assistant.turn_start', { turnId: 'sdk-turn-2' } as SessionEventPayload<'assistant.turn_start'>['data']);
+			await session.abort();
+			mockSession.fire('session.idle', { aborted: true } as SessionEventPayload<'session.idle'>['data']);
+
+			mockSession.fire('system.notification', {
+				content: '<system_notification>\nAgent "agent-a" has finished processing and is now idle.\n</system_notification>',
+				kind: { type: 'agent_idle', agentId: 'agent-a', agentType: 'general-purpose', description: 'Investigate the issue' },
+			} as SessionEventPayload<'system.notification'>['data']);
+			mockSession.fire('assistant.message_delta', {
+				deltaContent: 'Reading the background agent result now.',
+			} as SessionEventPayload<'assistant.message_delta'>['data']);
+			mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+
+			assert.deepStrictEqual({
+				active: session.hasActiveTurn,
+				actions: getActions(signals).map(action => action.type),
+			}, {
+				active: false,
+				actions: [ActionType.ChatTurnStarted, ActionType.ChatResponsePart, ActionType.ChatTurnComplete],
+			});
+		});
+
+		test('a root user-message echo establishes the boundary for a no-op replacement turn', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			await session.resume('turn-1');
+			mockSession.fire('assistant.turn_start', { turnId: 'sdk-turn-2' } as SessionEventPayload<'assistant.turn_start'>['data']);
+			await session.abort();
+			mockSession.fire('session.idle', { aborted: true } as SessionEventPayload<'session.idle'>['data']);
+
+			await session.send('next request', undefined, 'turn-2');
+			mockSession.fire('user.message', {
+				content: 'next request',
+				interactionId: 'interaction-turn-2',
+				source: 'user',
+			} as SessionEventPayload<'user.message'>['data']);
+			mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+
+			assert.deepStrictEqual({
+				active: session.hasActiveTurn,
+				actions: getActions(signals).map(action => action.type),
+			}, {
+				active: false,
+				actions: [ActionType.ChatTurnComplete],
+			});
 		});
 	});
 

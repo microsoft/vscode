@@ -50,6 +50,10 @@ rounds:
           turnId: ${turn_0}
       - channel: ${chat_0}
         action:
+          type: chat/turnResume
+          turnId: ${turn_0}
+      - channel: ${chat_0}
+        action:
           type: chat/responsePart
           turnId: ${turn_0}
           part:

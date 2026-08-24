@@ -1136,6 +1136,40 @@ suite('ChatService', () => {
 		const hasHookHint2 = responseParts2.some(part => part.kind === 'disabledClaudeHooks');
 		assert.ok(hasHookHint2, 'Response should contain the disabledClaudeHooks hint on second request');
 	});
+
+	test('resendRequest honors an agent selected outside the parsed request', async () => {
+		const retryAgentId = 'retryAgent';
+		const invokedRequestIds: string[] = [];
+		testDisposables.add(chatAgentService.registerAgent(retryAgentId, getAgentData(retryAgentId)));
+		testDisposables.add(chatAgentService.registerAgentImplementation(retryAgentId, {
+			async invoke(request) {
+				invokedRequestIds.push(request.requestId);
+				return {};
+			},
+		}));
+		testDisposables.add(chatAgentService.registerChatParticipantDetectionProvider(1, {
+			provideParticipantDetection: async () => ({ participant: 'testAgent' }),
+		}));
+
+		const testService = createChatService();
+		const modelRef = testDisposables.add(startSessionModel(testService));
+		const model = modelRef.object;
+		const response = await testService.sendRequest(model.sessionResource, 'retry me', { agentIdSilent: retryAgentId });
+		ChatSendResult.assertSent(response);
+		await response.data.responseCompletePromise;
+		const firstRequest = model.getRequests()[0];
+
+		await testService.resendRequest(firstRequest, { agentId: retryAgentId }, true);
+
+		assert.deepStrictEqual({
+			invokedRequestIds,
+			requestIds: model.getRequests().map(request => request.id),
+		}, {
+			invokedRequestIds: [firstRequest.id, firstRequest.id],
+			requestIds: [firstRequest.id],
+		});
+	});
+
 	test('cancelCurrentRequestForSession waits for response completion', async () => {
 		const requestStarted = new DeferredPromise<void>();
 		const completeRequest = new DeferredPromise<void>();

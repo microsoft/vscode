@@ -688,6 +688,35 @@ export async function stopServer(server: IServerHandle | undefined): Promise<voi
 	}
 }
 
+/** Forcefully kill an Agent Host test server and its child processes without graceful shutdown. */
+export async function killServer(server: IServerHandle | undefined): Promise<void> {
+	const serverProcess = server?.process;
+	if (!serverProcess || serverProcess.exitCode !== null || serverProcess.signalCode !== null) {
+		return;
+	}
+	const pid = serverProcess.pid;
+	if (pid === undefined) {
+		throw new Error('Agent Host test server has no process id');
+	}
+
+	const serverExit = new Promise<void>(resolve => {
+		const onExit = () => resolve();
+		serverProcess.once('exit', onExit);
+		if (serverProcess.exitCode !== null || serverProcess.signalCode !== null) {
+			serverProcess.removeListener('exit', onExit);
+			resolve();
+		}
+	});
+	try {
+		await killTree(pid, true);
+	} catch (error) {
+		if (serverProcess.exitCode === null && serverProcess.signalCode === null) {
+			throw error;
+		}
+	}
+	await serverExit;
+}
+
 interface IMockLlmServerHandle {
 	readonly url: string;
 	requestCount(): number;

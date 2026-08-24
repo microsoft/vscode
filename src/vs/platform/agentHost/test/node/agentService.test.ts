@@ -671,6 +671,77 @@ suite('AgentService (node dispatcher)', () => {
 				});
 			});
 
+			test('accumulates duration and usage across repeated failed continuations', async () => {
+				const { chat } = await createErroredTurn();
+				copilotAgent.chats.resumeTurn = async () => { };
+				const failContinuation = (clientSeq: number, duration: number, usage: { inputTokens: number; outputTokens: number; cost: number; nanoAiu: number; cachedTokens: number }, message: string) => {
+					service.dispatchAction(chat, { type: ActionType.ChatTurnResume, turnId: 'turn-1' }, `client-${clientSeq}`, clientSeq);
+					copilotAgent.fireProgress({
+						kind: 'action',
+						resource: URI.parse(chat),
+						action: {
+							type: ActionType.ChatUsage,
+							turnId: 'turn-1',
+							usage: {
+								inputTokens: usage.inputTokens,
+								outputTokens: usage.outputTokens,
+								model: 'model-1',
+								_meta: {
+									cost: usage.cost,
+									copilotUsage: { totalNanoAiu: usage.nanoAiu },
+									turnTokenTotals: [{
+										model: 'model-1',
+										inputTokens: usage.inputTokens,
+										cachedTokens: usage.cachedTokens,
+										outputTokens: usage.outputTokens,
+									}],
+								},
+							},
+						},
+					});
+					copilotAgent.fireProgress({
+						kind: 'action',
+						resource: URI.parse(chat),
+						action: {
+							type: ActionType.ChatError,
+							turnId: 'turn-1',
+							duration,
+							part: createErrorResponsePart({ errorType: 'requestFailed', message }, true),
+						},
+					});
+				};
+
+				failContinuation(1, 50, { inputTokens: 20, outputTokens: 8, cost: 3, nanoAiu: 4, cachedTokens: 2 }, 'failed again');
+				failContinuation(2, 25, { inputTokens: 30, outputTokens: 10, cost: 5, nanoAiu: 6, cachedTokens: 3 }, 'failed a third time');
+
+				const state = getStateManager(service).getChatState(chat);
+				const turn = state?.turns.at(-1);
+				assert.deepStrictEqual({
+					turnCount: state?.turns.length,
+					id: turn?.id,
+					duration: turn?.duration,
+					errorMessages: turn?.responseParts
+						.filter(part => part.kind === ResponsePartKind.Error)
+						.map(part => part.error.message),
+					usage: turn?.usage,
+				}, {
+					turnCount: 1,
+					id: 'turn-1',
+					duration: 175,
+					errorMessages: ['failed', 'failed again', 'failed a third time'],
+					usage: {
+						inputTokens: 30,
+						outputTokens: 10,
+						model: 'model-1',
+						_meta: {
+							cost: 9,
+							copilotUsage: { totalNanoAiu: 12 },
+							turnTokenTotals: [{ model: 'model-1', inputTokens: 60, cachedTokens: 6, outputTokens: 23 }],
+						},
+					},
+				});
+			});
+
 			test('finalizes the same turn with another resumable error when continuation fails immediately', async () => {
 				const { chat } = await createErroredTurn();
 				copilotAgent.chats.resumeTurn = async () => {

@@ -1123,7 +1123,12 @@ export class ChatService extends Disposable implements IChatService {
 		const location = options?.location ?? model.initialLocation;
 		const attempt = options?.attempt ?? 0;
 		const enableCommandDetection = !options?.noCommandDetection;
-		const defaultAgent = this.chatAgentService.getDefaultAgent(location, options?.modeInfo?.kind)!;
+		const requestedAgentId = options?.agentId ?? options?.agentIdSilent;
+		const requestedAgent = requestedAgentId ? this.chatAgentService.getAgent(requestedAgentId) : undefined;
+		if (requestedAgentId && !requestedAgent) {
+			throw new Error('Unknown agent: ' + requestedAgentId);
+		}
+		const defaultAgent = requestedAgent ?? this.chatAgentService.getDefaultAgent(location, options?.modeInfo?.kind)!;
 
 		model.removeRequest(request.id, ChatRequestRemovalReason.Resend);
 
@@ -1701,6 +1706,7 @@ export class ChatService extends Disposable implements IChatService {
 						location !== ChatAgentLocation.EditorInline &&
 						options?.modeInfo?.kind !== ChatModeKind.Agent &&
 						options?.modeInfo?.kind !== ChatModeKind.Edit &&
+						!options?.agentId &&
 						!options?.agentIdSilent
 					) {
 						// We have no agent or command to scope history with, pass the full history to the participant detection provider

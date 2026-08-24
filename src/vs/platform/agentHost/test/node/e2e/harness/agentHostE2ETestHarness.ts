@@ -33,7 +33,7 @@ import { CopilotCliConfigKey } from '../../../../common/copilotCliConfig.js';
 import { AgentHostSessionReleaseGraceMsEnvVar } from '../../../../common/agentService.js';
 import { CapiReplayMode, type ICapiReplayResponse } from './capiReplayProxy.js';
 import {
-	fetchSessionWithChat, getActionEnvelope, getAgentHostE2ETestTimeout, isActionNotification, IServerHandle, stopServer, TestProtocolClient,
+	fetchSessionWithChat, getActionEnvelope, getAgentHostE2ETestTimeout, isActionNotification, IServerHandle, killServer, stopServer, TestProtocolClient,
 } from '../../serverIntegrationTestHelpers.js';
 import { defaultAgentHostTarget, type IAgentHostTarget } from './agentHostTarget.js';
 import { createProviderSession, dispatchTurn, dispatchTurnWithAttachments } from '../../providerIntegrationTestHelpers.js';
@@ -195,14 +195,17 @@ const STALE_RECORDED_REQUEST_EXCEPTIONS = new Set<string>([
 	'claude:side chat receives bounded source context without copied history',
 ]);
 
+const RECOVERABLE_RECORDING_MODEL_RESPONSE: ICapiReplayResponse = {
+	status: 400,
+	headers: {
+		'content-type': 'application/json',
+	},
+	body: '{"error":{"message":"Injected recoverable E2E failure.","type":"invalid_request_error","code":"invalid_request_error"}}',
+};
+
 const RECORDING_MODEL_RESPONSES = new Map<string, ICapiReplayResponse>([
-	['copilotcli:resumes a failed turn in place', {
-		status: 400,
-		headers: {
-			'content-type': 'application/json',
-		},
-		body: '{"error":{"message":"Injected recoverable E2E failure.","type":"invalid_request_error","code":"invalid_request_error"}}',
-	}],
+	['copilotcli:resumes a failed turn in place', RECOVERABLE_RECORDING_MODEL_RESPONSE],
+	['copilotcli:resumes the same turn after repeated failures', RECOVERABLE_RECORDING_MODEL_RESPONSE],
 ]);
 
 /** Identifies one provider's capture of a test, matching `fixturePathFor`. */
@@ -941,6 +944,15 @@ export class AgentHostE2EServerLease {
 	 * uninitialized client for the caller to initialize with a new client id.
 	 */
 	async restart(): Promise<TestProtocolClient> {
+		return this._restart(false);
+	}
+
+	/** Crash the target without graceful shutdown, then restart it over the same persisted state and replay proxy. */
+	async crashAndRestart(): Promise<TestProtocolClient> {
+		return this._restart(true);
+	}
+
+	private async _restart(crash: boolean): Promise<TestProtocolClient> {
 		const server = this._server;
 		const proxy = server?.capiReplay;
 		const capiReplay = this._currentCapiReplay;
@@ -948,9 +960,14 @@ export class AgentHostE2EServerLease {
 			throw new Error('[agent-host-e2e] no replay-backed server to restart');
 		}
 
-		this._client?.close();
+		if (crash) {
+			await killServer(server);
+			this._client?.close();
+		} else {
+			this._client?.close();
+			await stopServer(server);
+		}
 		this._client = undefined;
-		await stopServer(server);
 		this._server = undefined;
 
 		try {
