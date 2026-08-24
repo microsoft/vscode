@@ -37,6 +37,8 @@ The clone is **slim**: workspace storage, browser caches, file history, cached V
 
 > The launcher always sets `files.simpleDialog.enable: true` in the launched profile's `User/settings.json`. This is required for automation: VS Code's native OS file dialogs cannot be driven via `@playwright/cli` over CDP and are completely unreachable over SSH on headless macOS. The simple (quick-input) dialog can be navigated with `press` and clipboard paste. The override is per-launch and only affects throwaway profiles.
 
+> For unattended automation, pass `--disable-workspace-trust` so a trust dialog cannot block the flow or extension-host startup. The override is process-scoped and does not modify the source profile. Only use it with content you trust.
+
 ## Launch
 
 The launcher script lives next to this SKILL.md at `scripts/launch.sh` (macOS/Linux) or `scripts\launch.ps1` (Windows). Resolve it relative to wherever this skill file is installed - do not hardcode an absolute path.
@@ -51,6 +53,7 @@ The launcher script lives next to this SKILL.md at `scripts/launch.sh` (macOS/Li
 "$LAUNCH" --clone-extensions                 # start with a copy of the source extensions/ (~few seconds)
 "$LAUNCH" --full                             # skip slim excludes; copy everything
 "$LAUNCH" --skip-prelaunch                   # reuse already-current build outputs
+"$LAUNCH" --disable-workspace-trust          # avoid trust prompts for trusted automation inputs
 ```
 
 On Windows, invoke the PowerShell launcher with the same flags:
@@ -66,6 +69,7 @@ $launch = Join-Path $skillDir 'scripts\launch.ps1'
 & $launch --clone-extensions
 & $launch --full
 & $launch --skip-prelaunch
+& $launch --disable-workspace-trust
 ```
 
 If the local execution policy blocks scripts, invoke it with `powershell -ExecutionPolicy Bypass -File <path-to-launch.ps1>`. The Windows implementation has the same profile isolation, slim-copy excludes, settings merge, port allocation, foreground pre-launch, and CDP-ready contract as the bash launcher; only the shell commands and path syntax differ.
