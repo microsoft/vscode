@@ -22,7 +22,7 @@ import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uri
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { localize } from '../../../../nls.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { ISession, SESSION_WORKSPACE_GROUP_GITHUB, SessionTypeAuthRequirement } from '../../../services/sessions/common/session.js';
+import { ISession, SESSION_WORKSPACE_GROUP_GITHUB } from '../../../services/sessions/common/session.js';
 import { IOpenNewSessionResult, ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { isAllowSignedOutWhenUsableEnabled, shouldShowGitHubWorkspaceGroupSignIn } from '../../../browser/sessionsAuthGate.js';
 import { AGENTIC_SIGN_IN_COMMAND_ID } from '../../../common/sessionCommands.js';
@@ -109,7 +109,7 @@ export class NewChatWidget extends Disposable {
 	private readonly _workspacePickerVisibleKey: IContextKey<boolean>;
 
 	constructor(
-		private readonly options: IChatViewOptions,
+		private readonly options: IChatViewOptions & { readonly petHostPreferred?: IObservable<boolean> },
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
@@ -219,6 +219,7 @@ export class NewChatWidget extends Disposable {
 			renderSessionTypePickerInControls: this._renderHarnessPickerInControls,
 			supportsBackground: true,
 			deferredNotificationsEnabled,
+			petHostPreferred: this.options.petHostPreferred,
 		});
 		this._register(toDisposable(() => newChatInput.saveState()));
 		this._newChatInput = this._register(newChatInput);
@@ -603,19 +604,12 @@ export class NewChatWidget extends Disposable {
 		const preferredPick = userPick && this._isPreferredServable(folderUri, userPick)
 			? userPick
 			: this._newChatInput.sessionTypePicker.getPreferredSessionType(folderUri);
-		// A signed-out user (under the conditional-auth opt-in) can't run a type
-		// that requires GitHub, so default to the first offered type usable
-		// without it. No-op when signed in or the opt-in is off — today's behavior.
-		// TODO: reconsider silently switching away from the remembered selection;
-		// instead keep it and surface an inline "sign in for this type" affordance
-		// for GitHub-only types.
-		const effectivePick = this._preferUsableSessionTypeWhenSignedOut(folderUri, preferredPick);
 		const fallbackProviderId = this._workspacePicker.selectedResolved?.providerId;
 		try {
 			return await this.sessionsService.openNewSession({
 				folderUri,
-				...(effectivePick
-					? { providerId: effectivePick.providerId, sessionTypeId: effectivePick.sessionTypeId }
+				...(preferredPick
+					? { providerId: preferredPick.providerId, sessionTypeId: preferredPick.sessionTypeId }
 					: fallbackProviderId
 						? { providerId: fallbackProviderId }
 						: undefined),
@@ -624,29 +618,6 @@ export class NewChatWidget extends Disposable {
 			this.logService.error('Failed to create new session:', e);
 			return { session: undefined, trustDeclined: false };
 		}
-	}
-
-	/**
-	 * While the user is signed out and the conditional-auth opt-in is on, replace
-	 * a pick that requires GitHub with the first offered session type usable
-	 * without it. A no-op when signed in, when the opt-in is off (today's
-	 * behavior), or when no offered type is usable — in which case the caller's
-	 * existing fallbacks still apply.
-	 */
-	private _preferUsableSessionTypeWhenSignedOut(folderUri: URI, pick: IPreferredSessionType | undefined): IPreferredSessionType | undefined {
-		if (this.defaultAccountService.currentDefaultAccount !== null || !isAllowSignedOutWhenUsableEnabled(this.configurationService)) {
-			return pick;
-		}
-		const usable = this.sessionsManagementService.getSessionTypesForFolder(folderUri)
-			.filter(type => type.sessionType.authRequirement === SessionTypeAuthRequirement.None);
-		// Match on provider too when the pick names one: two providers can offer
-		// the same session type id, and only one of them may be usable.
-		const pickIsUsable = usable.some(type => type.sessionType.id === pick?.sessionTypeId
-			&& (pick?.providerId === undefined || type.providerId === pick.providerId));
-		if (usable.length === 0 || pickIsUsable) {
-			return pick;
-		}
-		return { providerId: usable[0].providerId, sessionTypeId: usable[0].sessionType.id };
 	}
 
 	private _scheduleRecreateOnProviderChange(folderUri: URI, userPick: IPreferredSessionType | undefined, created: ISession | undefined, replayMissedChange: boolean): void {
@@ -667,6 +638,12 @@ export class NewChatWidget extends Disposable {
 			if (userPick) {
 				if (!this._isPreferredServable(folderUri, userPick)) {
 					return; // the preferred provider still cannot serve the folder
+				}
+				// Already running the pick: nothing left to upgrade to, so stop watching.
+				if (userPick.sessionTypeId === active.sessionType
+					&& (userPick.providerId === undefined || userPick.providerId === active.providerId)) {
+					this._pendingPreferredUpgrade.clear();
+					return;
 				}
 			} else {
 				// No explicit pick: keep the draft on the preferred (first)

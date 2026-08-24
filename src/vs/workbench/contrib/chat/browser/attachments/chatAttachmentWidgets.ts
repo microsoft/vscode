@@ -493,7 +493,7 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 		resource: URI | undefined,
 		attachment: IChatRequestVariableEntry,
 		currentLanguageModel: ILanguageModelChatMetadataAndIdentifier | undefined,
-		options: { shouldFocusClearButton: boolean; supportsDeletion: boolean; isCurrentInput?: boolean },
+		options: { shouldFocusClearButton: boolean; supportsDeletion: boolean; isCurrentInput?: boolean; showImageInHover?: boolean },
 		container: HTMLElement,
 		contextResourceLabels: ResourceLabels,
 		@ICommandService commandService: ICommandService,
@@ -547,7 +547,7 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 
 		const imageElements = this._register(new MutableDisposable<IDisposable>());
 		const renderImageElements = (buffer: Uint8Array) => {
-			imageElements.value = createImageElements(resource, attachment.name, fullName, this.element, buffer, attachment.id, this.hoverService, ariaLabel, currentLanguageModelName, clickHandler, this.currentLanguageModel, omittedState, options.isCurrentInput === true);
+			imageElements.value = createImageElements(resource, attachment.name, fullName, this.element, buffer, attachment.id, this.hoverService, ariaLabel, currentLanguageModelName, clickHandler, this.currentLanguageModel, omittedState, options.isCurrentInput === true, options.showImageInHover ?? true);
 			// createImageElements resets the label; restore the deletion hint after each render.
 			this.element.ariaLabel = this.appendDeletionHint(ariaLabel);
 		};
@@ -636,22 +636,25 @@ export function createImageHoverContent(resource: URI | undefined, fullName: str
 	onContentsChanged?: () => void,
 	clickHandler?: () => void,
 	onImageUrl?: (url: string, isThumbnail: boolean, image: HTMLImageElement) => void,
-	imageAlt = ''): { readonly element: HTMLElement; readonly disposable: IDisposable } {
+	imageAlt = '',
+	showImageInHover = true): { readonly element: HTMLElement; readonly disposable: IDisposable } {
 
 	const disposable = new DisposableStore();
 	const hoverElement = dom.$('div.chat-attached-context-hover');
 	const hoverImage = dom.$<HTMLImageElement>('img.chat-attached-context-image', { alt: imageAlt });
-	const imageContainer = dom.$('div.chat-attached-context-image-container', {}, hoverImage);
-	hoverElement.appendChild(imageContainer);
+	if (showImageInHover) {
+		const imageContainer = dom.$('div.chat-attached-context-image-container', {}, hoverImage);
+		hoverElement.appendChild(imageContainer);
 
-	if (clickHandler) {
-		imageContainer.classList.add('clickable');
-		imageContainer.tabIndex = 0;
-		imageContainer.role = 'button';
-		imageContainer.ariaLabel = localize('chat.openImagePreview', "Open in Images Preview");
-		disposable.add(registerOpenEditorListeners(imageContainer, async () => {
-			await clickHandler();
-		}));
+		if (clickHandler) {
+			imageContainer.classList.add('clickable');
+			imageContainer.tabIndex = 0;
+			imageContainer.role = 'button';
+			imageContainer.ariaLabel = localize('chat.openImagePreview', "Open in Images Preview");
+			disposable.add(registerOpenEditorListeners(imageContainer, async () => {
+				await clickHandler();
+			}));
+		}
 	}
 
 	if (resource) {
@@ -693,7 +696,8 @@ function createImageElements(resource: URI | undefined, name: string, fullName: 
 	clickHandler: () => void,
 	currentLanguageModel?: ILanguageModelChatMetadataAndIdentifier,
 	omittedState?: OmittedState,
-	useCompactWarningIcon = false): IDisposable {
+	useCompactWarningIcon = false,
+	showImageInHover = true): IDisposable {
 
 	const disposable = new DisposableStore();
 	if (omittedState === OmittedState.Partial) {
@@ -759,7 +763,7 @@ function createImageElements(resource: URI | undefined, name: string, fullName: 
 				replacePill(pill);
 			}
 			hoverImage.onerror = onImageFailed;
-		});
+		}, '', showImageInHover);
 		disposable.add(hoverContent.disposable);
 		const hoverElement = hoverContent.element;
 		hoverElement.setAttribute('aria-label', ariaLabel);

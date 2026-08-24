@@ -1124,7 +1124,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			parent,
 			{
 				focusChat: () => this._widget.focusInput()
-			}
+			},
+			undefined
 		));
 
 		this._register(this.titleControl.onDidChangeHeight(() => {

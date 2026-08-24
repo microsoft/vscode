@@ -16,7 +16,7 @@ export interface ISessionWorkspaceDisplayInfo {
 	readonly worktreePending: boolean;
 }
 
-/** Returns the workspace presentation shared by the session header and Files pill. */
+/** Returns the workspace presentation shared by the command center and Files pill. */
 export function getSessionWorkspaceDisplayInfo(session: ISession | undefined, reader: IReader): ISessionWorkspaceDisplayInfo | undefined {
 	const workspace = session?.workspace.read(reader);
 	if (!workspace?.label) {

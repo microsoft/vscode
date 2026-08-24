@@ -175,6 +175,56 @@ function extractTitleFromThinkingContent(content: string): string | undefined {
 	return headerMatch ? headerMatch[1] : undefined;
 }
 
+/** A line that is entirely a bold span, e.g. `**Analyzing the request**`. */
+function isThinkingHeaderLine(line: string): boolean {
+	return /^\s*\*\*.+\*\*\s*$/.test(line);
+}
+
+/** Strips the surrounding `**` when the whole text is a single bold span, so a standalone header renders as plain text. */
+function stripStandaloneBold(text: string): string {
+	const trimmed = text.trim();
+	if (trimmed.startsWith('**') && trimmed.indexOf('**', 2) === trimmed.length - 2) {
+		return trimmed.slice(2, -2);
+	}
+	return text;
+}
+
+/**
+ * Splits a reasoning-summary value into one markdown string per display row.
+ * Rows are delimited by bold header lines. When {@link dropLeadingHeader} is set
+ * and the value starts with a header, that header is dropped because it is
+ * surfaced as the collapsible title. Returns `undefined` unless the value has at
+ * least two header lines, so ordinary reasoning prose keeps single-block rendering.
+ */
+export function splitReasoningSummaryRows(text: string, dropLeadingHeader = true): string[] | undefined {
+	const sections: { isHeader: boolean; lines: string[] }[] = [];
+	for (const line of text.split('\n')) {
+		if (isThinkingHeaderLine(line)) {
+			sections.push({ isHeader: true, lines: [line] });
+		} else if (sections.length === 0) {
+			sections.push({ isHeader: false, lines: [line] });
+		} else {
+			sections[sections.length - 1].lines.push(line);
+		}
+	}
+
+	if (sections.filter(section => section.isHeader).length < 2) {
+		return undefined;
+	}
+
+	const dropFirst = dropLeadingHeader && sections[0].isHeader;
+	const rows: string[] = [];
+	sections.forEach((section, index) => {
+		const lines = index === 0 && dropFirst ? section.lines.slice(1) : section.lines;
+		const markdown = lines.join('\n').trim();
+		if (markdown) {
+			rows.push(markdown);
+		}
+	});
+
+	return rows.length ? rows : undefined;
+}
+
 type ChatThinkingTitle = string | IMarkdownString;
 
 function getThinkingTitleValue(title: ChatThinkingTitle): string {
@@ -334,6 +384,11 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	private readonly workingTitle = localize('chat.thinking.header.working', 'Working');
 	private textContainer!: HTMLElement;
 	private readonly _markdownResult = this._register(new MutableDisposable<IRenderedMarkdown>());
+	private summaryRowItems: HTMLElement[] = [];
+	private summaryRowResults: (IRenderedMarkdown | undefined)[] = [];
+	private summaryRowTexts: string[] = [];
+	private droppedSummaryHeader: string | undefined;
+	private readonly retiredSummaryRowResults: IRenderedMarkdown[] = [];
 	private wrapper!: HTMLElement;
 	private fixedScrollingMode: boolean = false;
 	private readonly thinkingDisplayMode: ThinkingDisplayMode;
@@ -451,6 +506,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			this.extractedTitles.push(extractedTitle);
 		}
 		this.currentThinkingValue = initialText;
+		this.trackDroppedSummaryHeader(initialText);
 
 		if (initialText.trim()) {
 			this.appendedItemCount++;
@@ -509,6 +565,15 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 				d.dispose();
 			}
 			this.ownedToolParts.clear();
+		}));
+
+		this._register(toDisposable(() => {
+			for (const result of this.summaryRowResults) {
+				result?.dispose();
+			}
+			for (const result of this.retiredSummaryRowResults) {
+				result.dispose();
+			}
 		}));
 
 		// override for codicon chevron in the collapsible part
@@ -889,20 +954,39 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		if (this._store.isDisposed) {
 			return;
 		}
+
+		// A later thinking part reassigns textContainer; retire stale row tracking
+		// so the predecessor's rendered rows stay frozen while this part renders.
+		if (this.summaryRowItems.length && this.summaryRowItems[0] !== this.textContainer) {
+			this.retireSummaryRows();
+		}
+
 		const cleanedContent = content.trim();
 		if (!cleanedContent) {
 			this._markdownResult.clear();
+			this.clearSummaryRows();
 			if (this.textContainer) {
 				clearNode(this.textContainer);
 			}
 			return;
 		}
 
-		// If the entire content is bolded, strip the bold markers for rendering
-		let contentToRender = cleanedContent;
-		if (cleanedContent.startsWith('**') && cleanedContent.endsWith('**')) {
-			contentToRender = cleanedContent.slice(2, -2);
+		// Multi-header reasoning summaries render each header section as its own
+		// row so the dropdown reads as a list. Sibling rows need an attached container so their
+		// insertion isn't a no-op, so a detached (lazy) container falls through to
+		// single-block rendering until it is materialized. A block drops its leading
+		// header only when that header is the tracked title owner, so a grouped block
+		// never drops a header that isn't surfaced as the title.
+		const dropLeadingHeader = this.droppedSummaryHeader !== undefined && extractTitleFromThinkingContent(cleanedContent) === this.droppedSummaryHeader;
+		const summaryRows = splitReasoningSummaryRows(cleanedContent, dropLeadingHeader);
+		if (summaryRows && this.textContainer?.parentNode) {
+			this.renderSummaryRows(summaryRows);
+			return;
 		}
+		this.clearSummaryRows();
+
+		// If the entire content is bolded, strip the bold markers for rendering
+		const contentToRender = stripStandaloneBold(cleanedContent);
 
 		const target = reuseExisting ? this._markdownResult.value?.element : undefined;
 
@@ -917,6 +1001,106 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 				clearNode(this.textContainer);
 				this.textContainer.appendChild(createThinkingIcon(Codicon.circleFilled));
 				this.textContainer.appendChild(rendered.element);
+			}
+		}
+	}
+
+	/** Renders one summary row, reusing the row's element while its text only grows. */
+	private renderSummaryRow(container: HTMLElement, index: number, markdown: string): void {
+		const previous = this.summaryRowResults[index];
+		const reuse = !!previous && markdown.startsWith(this.summaryRowTexts[index] ?? '');
+		// A standalone header renders as plain text, not bold.
+		const rendered = this.chatContentMarkdownRenderer.render(new MarkdownString(stripStandaloneBold(markdown)), {
+			fillInIncompleteTokens: true,
+			asyncRenderCallback: this._asyncRenderCallback,
+			codeBlockRendererSync: ChatThinkingContentPart._codeBlockRendererSync,
+		}, reuse ? previous?.element : undefined);
+		if (!reuse) {
+			clearNode(container);
+			container.appendChild(createThinkingIcon(Codicon.circleFilled));
+			container.appendChild(rendered.element);
+		}
+		previous?.dispose();
+		this.summaryRowResults[index] = rendered;
+		this.summaryRowTexts[index] = markdown;
+	}
+
+	private renderSummaryRows(rows: string[]): void {
+		// Rows own the DOM in this mode; release the single-block renderer.
+		this._markdownResult.clear();
+
+		for (let i = 0; i < rows.length; i++) {
+			let container = this.summaryRowItems[i];
+			if (!container) {
+				container = i === 0 ? this.textContainer : $('.chat-thinking-item.markdown-content');
+				this.summaryRowItems[i] = container;
+				this.summaryRowTexts[i] = '';
+				if (i === 0) {
+					clearNode(container);
+				} else {
+					this.summaryRowItems[i - 1].after(container);
+				}
+			}
+			if (this.summaryRowTexts[i] !== rows[i]) {
+				this.renderSummaryRow(container, i, rows[i]);
+			}
+		}
+
+		// Streaming only appends, but guard against a shrinking row set on re-render.
+		for (let i = this.summaryRowItems.length - 1; i >= rows.length; i--) {
+			this.summaryRowResults[i]?.dispose();
+			if (this.summaryRowItems[i] !== this.textContainer) {
+				this.summaryRowItems[i].remove();
+			}
+		}
+		this.summaryRowItems.length = rows.length;
+		this.summaryRowResults.length = rows.length;
+		this.summaryRowTexts.length = rows.length;
+	}
+
+	/** Removes the extra summary rows and resets tracking, keeping the text container. */
+	private clearSummaryRows(): void {
+		if (!this.summaryRowItems.length) {
+			return;
+		}
+		for (let i = 0; i < this.summaryRowItems.length; i++) {
+			this.summaryRowResults[i]?.dispose();
+			if (i !== 0) {
+				this.summaryRowItems[i].remove();
+			}
+		}
+		this.summaryRowItems = [];
+		this.summaryRowResults = [];
+		this.summaryRowTexts = [];
+	}
+
+	/** Keeps a prior part's rendered rows in the DOM; defers disposal to teardown. */
+	private retireSummaryRows(): void {
+		for (const result of this.summaryRowResults) {
+			if (result) {
+				this.retiredSummaryRowResults.push(result);
+			}
+		}
+		this.summaryRowItems = [];
+		this.summaryRowResults = [];
+		this.summaryRowTexts = [];
+	}
+
+	/**
+	 * Records the leading header the primary summary block drops, derived from content
+	 * so it is available at finalize even when the rows never lazily rendered (the
+	 * collapsed-through-completion flow). First-writer wins: the first grouped block
+	 * that is a multi-header summary owns the title, and only that header is dropped.
+	 */
+	private trackDroppedSummaryHeader(value: string): void {
+		if (this.droppedSummaryHeader) {
+			return;
+		}
+		const trimmed = value.trim();
+		if (splitReasoningSummaryRows(trimmed, true)) {
+			this.droppedSummaryHeader = extractTitleFromThinkingContent(trimmed);
+			if (this.fixedScrollingMode && this.droppedSummaryHeader && this.currentTitle !== this.droppedSummaryHeader) {
+				this.setTitle(this.droppedSummaryHeader);
 			}
 		}
 	}
@@ -1219,6 +1403,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		const previousValue = this.currentThinkingValue;
 		const reuseExisting = !!(this._markdownResult.value && next.startsWith(previousValue) && next.length > previousValue.length);
 		this.currentThinkingValue = next;
+		this.trackDroppedSummaryHeader(next);
 		this.renderMarkdown(next, reuseExisting);
 
 		if (this.fixedScrollingMode && this.scrollableElement) {
@@ -1315,6 +1500,15 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		this.updateScrollDimensionsForCompletion();
 
 		this.updateDropdownClickability();
+
+		// A leading summary header removed from the rows must remain the title, even when a restored generated title exists.
+		if (this.droppedSummaryHeader) {
+			this.currentTitle = this.droppedSummaryHeader;
+			this.content.generatedTitle = this.droppedSummaryHeader;
+			this.setGeneratedTitleOnAllParts(this.droppedSummaryHeader);
+			this.setFinalizedTitle(this.droppedSummaryHeader);
+			return;
+		}
 
 		if (this.content.generatedTitle) {
 			this.currentTitle = this.content.generatedTitle;
@@ -2421,7 +2615,12 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 		}
 		this.appendedItemCount++;
 		this.allThinkingParts.push(content);
-		this.recordReasoningContent(extractTextFromPart(content));
+		const contentText = extractTextFromPart(content);
+		this.recordReasoningContent(contentText);
+		// First-writer wins: a later grouped block can be the first multi-header
+		// summary (when earlier blocks had <2 headers), so track it here too — the
+		// lazy/reload path never routes through updateThinking.
+		this.trackDroppedSummaryHeader(contentText);
 		this.textContainer = $('.chat-thinking-item.markdown-content');
 		// Observe the new textContainer for child resizes in fixed scrolling mode
 		if (this.childResizeObserver && this.fixedScrollingMode && !this.streamingCompleted) {

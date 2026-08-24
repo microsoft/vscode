@@ -8,7 +8,7 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { timeout } from '../../../../../base/common/async.js';
 import { IProtocolTransport } from '../../../../../platform/agentHost/common/state/sessionTransport.js';
-import { RemoteAgentHostProtocolClient } from '../../../../../platform/agentHost/browser/remoteAgentHostProtocolClient.js';
+import { AgentHostProtocolClient } from '../../../../../platform/agentHost/browser/agentHostProtocolClient.js';
 import { editorWindowAgentHostClientInfo } from '../../../../../platform/agentHost/common/agentHostClientInfo.js';
 import { WebPubSubRelayTransport } from '../../../../../platform/agentHost/browser/webPubSubRelayTransport.js';
 import { GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../../../../platform/agentHost/common/agentService.js';
@@ -39,7 +39,7 @@ const MAX_WAKING_RETRIES = 20;
  *
  * Mirrors {@link WebTunnelAgentHostService}: establishes a connection
  * out-of-band (mint creds → open a {@link WebPubSubRelayTransport} → drive the
- * AHP handshake) and hands the pre-connected {@link RemoteAgentHostProtocolClient}
+ * AHP handshake) and hands the pre-connected {@link AgentHostProtocolClient}
  * to {@link IRemoteAgentHostService.addManagedConnection}, so the existing
  * remote-agent-host contribution surfaces it as a native, interactive session.
  */
@@ -126,7 +126,7 @@ export class CloudSandboxAgentHostService extends Disposable implements ICloudSa
 		// Mission Control mints the client id and binds the relay lane to it, so the AHP identity
 		// must match or the host rejects requests on that lane.
 		const protocolClient = this._instantiationService.createInstance(
-			RemoteAgentHostProtocolClient, address, transportFactory, undefined, clientToken.client_id, editorWindowAgentHostClientInfo,
+			AgentHostProtocolClient, address, transportFactory, undefined, clientToken.client_id, editorWindowAgentHostClientInfo,
 		);
 
 		let status: RemoteAgentHostConnectionStatus = RemoteAgentHostConnectionStatus.connected;

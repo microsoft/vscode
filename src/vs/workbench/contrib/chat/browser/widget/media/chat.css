@@ -40,6 +40,24 @@
 	overflow: hidden;
 }
 
+.interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-tree-sticky-container.source-node-partially-visible .monaco-tree-sticky-container-shadow {
+	display: none;
+}
+
+.interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-tree-sticky-container:not(.source-node-partially-visible) .monaco-tree-sticky-container-shadow {
+	pointer-events: none;
+	transform: translateY(var(--vscode-spacing-size80));
+}
+
+.interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-tree-sticky-container:not(.source-node-partially-visible) .monaco-tree-sticky-container-shadow::before {
+	content: "";
+	position: absolute;
+	inset-inline: 0;
+	inset-block-end: 100%;
+	height: var(--vscode-spacing-size80);
+	background-color: var(--vscode-chat-list-background);
+}
+
 .interactive-list > .chat-scroll-down {
 	padding: 4px;
 }
@@ -656,7 +674,7 @@
 }
 
 .chat-list-at-bottom .chat-progress-reservable > .value:has(> .rendered-markdown:last-child) {
-	padding-bottom: var(--vscode-spacing-size360);
+	padding-bottom: calc(var(--vscode-spacing-size360) + var(--vscode-strokeThickness));
 }
 
 .interactive-item-container .value > :last-child,
@@ -2345,8 +2363,29 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	flex-direction: column;
 }
 
-.interactive-session .interactive-input-part:not(.chat-input-hidden) > .chat-input-persistent-content {
+.interactive-session:not(.chat-floating-persistent-content) .interactive-input-part:not(.chat-input-hidden) > .chat-input-persistent-content {
 	display: contents;
+}
+
+/* Opted in via `IChatWidgetViewOptions.persistentContentHeight`: the content
+	floats above the input so the transcript scrolls underneath it, landing where
+	it sat in flow - `bottom: 100%` leaves the flex `gap` it used to have below it,
+	since the gap and the input part's `padding-top` are both 4px. */
+.interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-input-persistent-content {
+	position: absolute;
+	inset-inline: 0;
+	bottom: 100%;
+	/* Match the input part's own horizontal padding. */
+	padding-inline: inherit;
+	box-sizing: border-box;
+	/* Clicks fall through to the transcript; the pills opt back in. */
+	pointer-events: none;
+}
+
+/* The composer is hidden, so there is no in-flow sibling left to gap against
+	and the row would sit one gap too high. */
+.interactive-session.chat-floating-persistent-content .interactive-input-part.chat-input-hidden > .chat-input-persistent-content {
+	bottom: calc(100% - var(--vscode-spacing-size40));
 }
 
 .interactive-session .interactive-input-part.chat-input-hidden > :not(.chat-input-persistent-content, .chat-tool-confirmation-carousel-container) {
@@ -3935,7 +3974,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session .chat-scroll-down {
 	display: none;
 	position: absolute;
-	bottom: 7px;
+	/* Clear any content floating above the input. */
+	bottom: calc(7px + var(--vscode-chat-persistent-content-height, 0px));
 	right: 12px;
 	border-radius: var(--vscode-cornerRadius-circle);
 	width: var(--vscode-spacing-size280);
@@ -4041,6 +4081,23 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 	.monaco-tree-sticky-row .interactive-item-container.interactive-request .value > .chat-markdown-part.rendered-markdown > p:first-child ~ * {
 		display: none;
+	}
+
+	.monaco-tree-sticky-row .interactive-item-container.interactive-request .value > .chat-markdown-part.rendered-markdown.chat-request-has-more > p:first-child::after {
+		content: '\2026';
+	}
+
+	.monaco-tree-sticky-row .interactive-item-container.interactive-request {
+		padding-block: var(--vscode-spacing-size80) 0;
+	}
+
+	.monaco-tree-sticky-row .interactive-item-container.interactive-request .value .rendered-markdown {
+		margin-bottom: 0;
+	}
+
+	.monaco-tree-sticky-row.source-node-partially-visible .interactive-item-container.interactive-request .value .rendered-markdown {
+		border-bottom-left-radius: 0;
+		border-bottom-right-radius: 0;
 	}
 
 	.monaco-tree-sticky-row .interactive-item-container.interactive-request .value .rendered-markdown .chat-request-text.sticky-editing {
@@ -4542,7 +4599,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	.checkpoint-container.group-hovered,
 	.checkpoint-container:has(.chat-restore-checkpoint-item.confirming),
 	.interactive-item-container.interactive-request:not(.editing):hover .checkpoint-container,
-	.monaco-tree-sticky-row .checkpoint-container,
 	.monaco-tree-sticky-row .interactive-item-container.interactive-request .request-hover {
 		opacity: 1;
 	}
@@ -4559,7 +4615,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		outline: none !important;
 	}
 
-	div[data-index="0"] .monaco-tl-contents {
+	div[data-index="0"]:not(.monaco-tree-sticky-row) .monaco-tl-contents {
 		.interactive-item-container.interactive-request:not(.editing) {
 			padding-top: var(--vscode-spacing-size200);
 		}
@@ -4649,6 +4705,11 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	cursor: default;
 }
 
+/* Scrim the content floating above the input along with the composer. */
+.chat-input-overlay.disabled {
+	top: calc(-1 * var(--vscode-chat-persistent-content-height, 0px));
+}
+
 .interactive-session .focused-input-dom {
 	position: absolute;
 	top: -50000px;
@@ -4675,6 +4736,9 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	margin: 0 0 0 0;
 	/* Keep standard padding with space for title */
 	padding: 32px 16px 8px 16px;
+	/* Grow the box, not the margin (which the layout measurement excludes), to
+		clear the content floating above the input. */
+	padding-bottom: calc(8px + var(--vscode-chat-persistent-content-height, 0px));
 	/* Left align buttons to match standard welcome view */
 	justify-content: flex-start;
 	/* Ensure flex layout is properly applied */

@@ -715,6 +715,119 @@ suite('ChatQuestionCarouselPart', () => {
 		});
 	});
 
+	suite('Single Select Keyboard Navigation', () => {
+		function createSelectWidget(optionCount: number = 3, allowFreeformInput: boolean = true) {
+			const options = Array.from({ length: optionCount }, (_, i) => ({
+				id: String.fromCharCode(97 + i),
+				label: `Option ${String.fromCharCode(65 + i)}`,
+				value: String.fromCharCode(97 + i),
+			}));
+			createWidget(createMockCarousel([{ id: 'q1', type: 'singleSelect', title: 'Choose one', options, allowFreeformInput }]));
+			return widget.domNode.querySelector('.chat-question-list') as HTMLElement;
+		}
+
+		/**
+		 * `keyCode` is a legacy read-only property. Chromium does accept it in the init dict, but
+		 * that is non-standard and would need a cast, so define it explicitly as the survey test
+		 * helper does. `StandardKeyboardEvent` reads it to derive its own key code.
+		 */
+		function press(target: HTMLElement, keyCode: number, key: string): void {
+			const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true });
+			Object.defineProperty(event, 'keyCode', { get: () => keyCode });
+			target.dispatchEvent(event);
+		}
+
+		/** The option index the list reports as selected, via the class the styling keys off. */
+		function selectedIndex(): number {
+			const items = [...widget.domNode.querySelectorAll('.chat-question-list-item')];
+			return items.findIndex(i => i.classList.contains('selected'));
+		}
+
+		/** The option index `aria-activedescendant` points at, which is what a screen reader reads. */
+		function activeDescendantIndex(list: HTMLElement): number {
+			const id = list.getAttribute('aria-activedescendant');
+			const items = [...widget.domNode.querySelectorAll('.chat-question-list-item')];
+			return items.findIndex(i => i.id === id);
+		}
+
+		test('arrow keys move the selection and clamp at both ends', () => {
+			const list = createSelectWidget(3);
+
+			const start = selectedIndex();
+			press(list, 40 /* DownArrow */, 'ArrowDown');
+			const afterDown = selectedIndex();
+			press(list, 38 /* UpArrow */, 'ArrowUp');
+			press(list, 38 /* UpArrow */, 'ArrowUp');
+			const clampedAtTop = selectedIndex();
+			press(list, 40 /* DownArrow */, 'ArrowDown');
+			press(list, 40 /* DownArrow */, 'ArrowDown');
+			press(list, 40 /* DownArrow */, 'ArrowDown');
+			const clampedAtBottom = selectedIndex();
+
+			assert.deepStrictEqual({ start, afterDown, clampedAtTop, clampedAtBottom }, {
+				start: 0,
+				afterDown: 1,
+				clampedAtTop: 0,
+				clampedAtBottom: 2,
+			});
+		});
+
+		test('number keys select the matching option, and the one past the last focuses freeform', () => {
+			const list = createSelectWidget(3);
+
+			press(list, 51 /* Digit3 */, '3');
+			const afterDigit3 = selectedIndex();
+			press(list, 52 /* Digit4 */, '4');
+			const afterDigitPastEnd = selectedIndex();
+			const freeform = widget.domNode.querySelector('.chat-question-freeform-textarea');
+
+			assert.deepStrictEqual({ afterDigit3, afterDigitPastEnd, freeformFocused: mainWindow.document.activeElement === freeform }, {
+				afterDigit3: 2,
+				afterDigitPastEnd: -1,
+				freeformFocused: true,
+			});
+		});
+
+		test('aria-activedescendant follows the selection', () => {
+			const list = createSelectWidget(3);
+
+			const initial = activeDescendantIndex(list);
+			press(list, 40 /* DownArrow */, 'ArrowDown');
+			const afterDown = activeDescendantIndex(list);
+
+			assert.deepStrictEqual({ initial, afterDown, matchesSelection: afterDown === selectedIndex() }, {
+				initial: 0,
+				afterDown: 1,
+				matchesSelection: true,
+			});
+		});
+
+		/**
+		 * `aria-activedescendant` is only honoured on the element that actually has DOM focus. The
+		 * list declares it, so the list is what has to be focused for the active option to be
+		 * announced as the user arrows through the options.
+		 */
+		test('auto focus lands on the listbox that owns aria-activedescendant', async () => {
+			const list = createSelectWidget(3);
+			await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => mainWindow.requestAnimationFrame(() => resolve())));
+
+			const items = [...widget.domNode.querySelectorAll('.chat-question-list-item')] as HTMLElement[];
+			const active = mainWindow.document.activeElement as HTMLElement | null;
+
+			assert.deepStrictEqual({
+				focusedElementOwnsActiveDescendant: !!active?.hasAttribute('aria-activedescendant'),
+				focusIsOnList: active === list,
+				focusIsOnAnOption: items.includes(active as HTMLElement),
+				optionsAreNotTabStops: items.every(i => i.tabIndex === -1),
+			}, {
+				focusedElementOwnsActiveDescendant: true,
+				focusIsOnList: true,
+				focusIsOnAnOption: false,
+				optionsAreNotTabStops: true,
+			});
+		});
+	});
+
 	suite('hasSameContent', () => {
 		test('returns true for same carousel instance', () => {
 			const carousel = createMockCarousel([

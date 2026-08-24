@@ -21,7 +21,7 @@ import { IAgentHostSessionTitleSignal } from '../../../node/agentHostSessionTitl
 import { IAgentSdkDownloader } from '../../../node/agentSdkDownloader.js';
 import { RecordingAgentSdkDownloader } from '../testAgentSdkDownloader.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../../common/agentHostCheckpointService.js';
-import { AGENT_SDK_SETUP_DOWNLOAD_REQUEST_KEY, readAgentSdkSetupInfos } from '../../../common/agentSdkSetup.js';
+import { AGENT_SDK_SETUP_DOWNLOAD_REQUEST_KEY, AGENT_SDK_SETUP_RELOAD_REQUEST_KEY, readAgentSdkSetupInfos } from '../../../common/agentSdkSetup.js';
 import { CodexAgent, toCodexModelSelectionId } from '../../../node/codex/codexAgent.js';
 import { ICodexProxyService } from '../../../node/codex/codexProxyService.js';
 import { ICopilotApiService } from '../../../node/shared/copilotApiService.js';
@@ -681,6 +681,11 @@ suite('CodexAgent — agent SDK setup channel', () => {
 		ctx.configurationService.updateRootConfig({ [AGENT_SDK_SETUP_DOWNLOAD_REQUEST_KEY]: { agent, request } });
 	}
 
+	/** Addresses a reload request the same way, as the banner's link does. */
+	function dispatchReload(ctx: ITestAgentContext, agent = 'codex', request = 'req-1'): void {
+		ctx.configurationService.updateRootConfig({ [AGENT_SDK_SETUP_RELOAD_REQUEST_KEY]: { agent, request } });
+	}
+
 	/** Waits for the ctor's queued publish (and any refresh it chains) to settle. */
 	async function settle(): Promise<void> {
 		for (let i = 0; i < 20; i++) {
@@ -838,6 +843,24 @@ suite('CodexAgent — agent SDK setup channel', () => {
 		}, {
 			download: 'notDownloaded',
 			held: 0,
+		});
+	});
+
+	test('a reload is claimed here too, since the request handling is the shared channel and not per-agent code', async () => {
+		const ctx = createAgentContext(disposables, async () => []);
+		ctx.agent['_ensureConnection'] = async () => { throw new Error('offline'); };
+		await settle();
+
+		dispatchReload(ctx);
+		await settle();
+
+		assert.deepStrictEqual({
+			key: ctx.configurationService.getRootConfigValues()[AGENT_SDK_SETUP_RELOAD_REQUEST_KEY],
+			// Reload only re-reads what is already there; nothing is ever fetched.
+			interests: ctx.sdkDownloader.progressInterests,
+		}, {
+			key: undefined,
+			interests: [],
 		});
 	});
 });

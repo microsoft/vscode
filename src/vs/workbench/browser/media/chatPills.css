@@ -17,6 +17,11 @@
 	display: none;
 }
 
+/* Take hit-testing back from the click-through row the pills may float in. */
+.chat-pills .monaco-action-bar .action-item {
+	pointer-events: auto;
+}
+
 .chat-pills .monaco-action-bar .actions-container {
 	gap: var(--vscode-spacing-size60);
 }
@@ -25,11 +30,6 @@
 	display: inline-flex;
 	align-items: center;
 	flex-shrink: 0;
-}
-
-.chat-pill-item.chat-pill-workspace-item {
-	flex: 1 1 auto;
-	min-width: 0;
 }
 
 .chat-pill-item .monaco-button.chat-pill-button {
@@ -42,17 +42,15 @@
 	touch-action: manipulation;
 }
 
-.chat-pill-item .monaco-button.chat-pill-workspace-button {
-	min-width: 0;
-	max-width: 100%;
-	overflow: hidden;
+/* Tint the opaque base `chatPills.ts` sets, so a translucent pill color never
+	shows the content behind the pill. */
+.chat-pill-item .monaco-button.chat-pill-button.secondary {
+	background-image: linear-gradient(var(--vscode-button-secondaryBackground), var(--vscode-button-secondaryBackground));
 }
 
-.chat-pill-workspace-button .chat-pill-label {
-	min-width: 0;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
+.chat-pill-item .monaco-button.chat-pill-button.secondary:hover,
+.chat-pill-item .monaco-button.chat-pill-button.secondary:focus {
+	background-image: linear-gradient(var(--vscode-button-secondaryHoverBackground), var(--vscode-button-secondaryHoverBackground));
 }
 
 /* Inset the focus ring so it sits on the pill's own border rather than the
@@ -74,7 +72,7 @@
 	min-width: 0;
 }
 
-.monaco-workbench .chat-pill-icon.codicon[class*='codicon-'] {
+.monaco-workbench .chat-pill-icon.codicon[class*=codicon-] {
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
@@ -115,9 +113,9 @@
 	white-space: nowrap;
 }
 
-/* The chevron is a codicon like the leading glyph, so it needs the same
-	compact box to sit on the label's baseline. */
-.monaco-workbench .chat-pill-chevron.codicon[class*='codicon-'] {
+/* The chevron shares the leading glyph's compact box. `chevron-down-compact` is
+	drawn on that box's centre, so it needs no nudge to sit on the label. */
+.monaco-workbench .chat-pill-chevron.codicon {
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
@@ -126,6 +124,11 @@
 	margin: 0;
 	font-size: var(--vscode-codiconFontSize-compact);
 	flex-shrink: 0;
+}
+
+/* The themed file icon carries its own leading gap, so the pill adds barely any. */
+.chat-pill-item .monaco-button.chat-resource-pill-button {
+	padding-left: var(--vscode-spacing-size20);
 }
 
 .chat-resource-pill-button .monaco-icon-label {
@@ -138,7 +141,7 @@
 .chat-resource-pill-button .monaco-icon-label::before {
 	background-size: var(--vscode-codiconFontSize-compact);
 	width: var(--vscode-codiconFontSize-compact);
-	height: var(--vscode-codiconFontSize-compact);
+	height: 14px;
 }
 
 /* File rows render a themed file icon in the same slot codicon rows use, so

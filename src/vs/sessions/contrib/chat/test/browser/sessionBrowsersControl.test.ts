@@ -60,7 +60,7 @@ function createControl(spec: IControlSpec, store: ReturnType<typeof ensureNoDisp
 			? subagent.resource.toString()
 			: browser.owner === 'other' ? 'chat:other' : browser.owner === 'unowned' ? undefined : mainChat.resource.toString();
 		const model = new class extends mock<IBrowserViewModel>() {
-			override readonly owner = ownerId ? { mainWindowId: 1, sessionId: ownerId } : { mainWindowId: 1 };
+			override readonly owner = ownerId ? { type: 'agent' as const, sessionId: ownerId } : { type: 'user' as const };
 			override readonly sharingState = browser.sharingState ?? BrowserViewSharingState.NotShared;
 		}();
 		return new class extends mock<BrowserEditorInput>() {
@@ -258,6 +258,25 @@ suite('SessionBrowsersControl', () => {
 			sharedHost: 'browser-1',
 			sharedExact: 'browser-2',
 			fallback: 'browser-0',
+		});
+	});
+
+	test('publishes the listed browser URLs only while the pill is visible', () => {
+		const browsers = [
+			{ title: 'Docs', url: 'https://example.com/docs' },
+			{ title: 'Subagent Preview', url: 'https://preview.test/', owner: 'subagent' as const },
+			{ title: 'Other Session', url: 'https://other.test/', owner: 'other' as const },
+			{ title: 'Blank' },
+		];
+
+		assert.deepStrictEqual({
+			visible: [...createControl({ browsers }, store).control.urls.get()],
+			hidden: [...createControl({ browsers, visible: false }, store).control.urls.get()],
+			disabled: [...createControl({ browsers, enabled: false }, store).control.urls.get()],
+		}, {
+			visible: ['https://example.com/docs', 'https://preview.test/'],
+			hidden: [],
+			disabled: [],
 		});
 	});
 });
