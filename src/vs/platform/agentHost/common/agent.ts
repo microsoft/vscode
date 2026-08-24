@@ -517,10 +517,17 @@ export interface IAgentCreateChatOptions {
 	 * is forked from the source so it can continue independently.
 	 */
 	readonly fork?: IAgentCreateChatForkSource;
+}
+
+/**
+ * Host-facing chat creation options. Providers receive the resolved
+ * {@link IAgentCreateChatOptions} and never receive side-chat provenance.
+ */
+export interface IAgentCreateChatRequestOptions extends IAgentCreateChatOptions {
 	/**
 	 * Create this new chat as a side chat branching from a turn in an existing
-	 * chat (via `/btw`). Unlike {@link fork}, inherited context is provider-owned
-	 * and must not appear in the chat's visible history.
+	 * chat (via `/btw`). The host resolves this into {@link fork} before calling
+	 * the provider, while retaining the side-chat provenance itself.
 	 */
 	readonly sideChat?: IAgentCreateChatSideChatSource;
 }
@@ -530,6 +537,12 @@ export interface IAgentCreateChatForkSource {
 	readonly source: URI;
 	/** Turn ID in the source chat; content up to and including this turn is copied. */
 	readonly turnId: string;
+	/**
+	 * Allows a fork to start without waiting for the source chat's queue.
+	 * Side chats branch from potentially active source turns and use this to
+	 * avoid blocking their own creation behind that turn.
+	 */
+	readonly independentQueue?: boolean;
 	/** Zero-based source turn index, when the provider needs it for import/fork mapping. */
 	readonly turnIndex?: number;
 	/**
@@ -554,12 +567,6 @@ export interface IAgentCreateChatSideChatSource {
 	readonly turnId: string;
 	/** Optional selected-text snapshot captured from the source chat transcript. */
 	readonly selection?: IAgentCreateChatSideChatSelection;
-	/** Concrete provider turn ID to fork/resume from when `turnId` names a host-only local turn. */
-	readonly providerAnchorTurnId?: string;
-	/** Bounded source-chat context captured from host state when the provider transcript lags. */
-	readonly sourceContext?: string;
-	/** User-visible assistant text captured while the source turn was active. */
-	readonly partialResponse?: string;
 }
 
 /** Result of {@link IAgentChats.createChat}: the opaque blob to persist for restore. */
@@ -567,6 +574,8 @@ export interface IAgentCreateChatResult {
 	readonly project?: IAgentSessionProjectInfo;
 	readonly resolvedWorkingDirectory?: URI;
 	readonly provisional?: boolean;
+	/** Id of the last provider turn copied into a newly created fork, when known. */
+	readonly inheritedTurnId?: string;
 	/**
 	 * Opaque, agent-owned token the orchestrator persists verbatim in the chat
 	 * catalog and hands back to {@link IAgent.materializeChat} on

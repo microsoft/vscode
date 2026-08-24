@@ -87,6 +87,7 @@ interface IChatEntry {
 	summary: ChatSummary;
 	state?: ChatState;
 	providerData?: string;
+	inheritedTurnId?: string;
 	draft?: Message;
 	resolver?: RestoredChatResolver;
 	inFlight?: Promise<ChatState | undefined>;
@@ -496,6 +497,11 @@ export class AgentHostStateManager extends Disposable {
 	 */
 	getChatOrigin(chat: URI): ChatOrigin | undefined {
 		return this._chatEntries.get(chat)?.summary.origin;
+	}
+
+	/** Returns the provider-derived inherited boundary retained by the host catalog. */
+	getChatInheritedTurnId(chat: URI): string | undefined {
+		return this._chatEntries.get(chat)?.inheritedTurnId;
 	}
 
 	/**
@@ -1025,7 +1031,7 @@ export class AgentHostStateManager extends Disposable {
 	 * chat, tool spawn). Omitting it defaults to {@link ChatOriginKind.User}
 	 * via {@link createDefaultChatSummary}, so every catalog chat has an origin.
 	 */
-	addChat(session: URI, chatUri: URI, options?: { readonly title?: string; readonly turns?: Turn[]; readonly origin?: ChatOrigin; readonly providerData?: string; readonly interactivity?: ChatInteractivity }): ChatSummary | undefined {
+	addChat(session: URI, chatUri: URI, options?: { readonly title?: string; readonly turns?: Turn[]; readonly origin?: ChatOrigin; readonly providerData?: string; readonly inheritedTurnId?: string; readonly interactivity?: ChatInteractivity }): ChatSummary | undefined {
 		const entry = this._sessionStates.get(session);
 		if (!entry) {
 			this._logService.warn(`[AgentHostStateManager] addChat for unknown session: ${session}`);
@@ -1056,6 +1062,7 @@ export class AgentHostStateManager extends Disposable {
 			summary: chatSummary,
 			state: { ...createChatState(chatSummary), turns: options?.turns ?? [] },
 			providerData: options?.providerData,
+			inheritedTurnId: options?.inheritedTurnId,
 			valid: true,
 		});
 		this.dispatchServerAction(session, { type: ActionType.SessionChatAdded, summary: chatSummary });
@@ -1067,7 +1074,7 @@ export class AgentHostStateManager extends Disposable {
 	 * creating conversation state. The state-manager-owned resolver installs a
 	 * complete state only through {@link resolveChatState}.
 	 */
-	registerRestoredChatSummary(session: URI, chatUri: URI, options: { readonly title?: string; readonly origin?: ChatOrigin; readonly interactivity?: ChatInteractivity; readonly draft?: Message; readonly providerData?: string; readonly resolver?: RestoredChatResolver }): ChatSummary | undefined {
+	registerRestoredChatSummary(session: URI, chatUri: URI, options: { readonly title?: string; readonly origin?: ChatOrigin; readonly interactivity?: ChatInteractivity; readonly draft?: Message; readonly providerData?: string; readonly inheritedTurnId?: string; readonly resolver?: RestoredChatResolver }): ChatSummary | undefined {
 		const entry = this._sessionStates.get(session);
 		if (!entry) {
 			this._logService.warn(`[AgentHostStateManager] registerRestoredChatSummary for unknown session: ${session}`);
@@ -1079,6 +1086,7 @@ export class AgentHostStateManager extends Disposable {
 			const existingEntry = this._chatEntries.get(chatUri);
 			if (existingEntry && !existingEntry.state && options.resolver) {
 				existingEntry.providerData = options.providerData;
+				existingEntry.inheritedTurnId = options.inheritedTurnId;
 				existingEntry.draft = options.draft;
 				existingEntry.resolver = options.resolver;
 			}
@@ -1100,6 +1108,7 @@ export class AgentHostStateManager extends Disposable {
 			session,
 			summary: chatSummary,
 			providerData: options.providerData,
+			inheritedTurnId: options.inheritedTurnId,
 			draft: options.draft,
 			resolver: options.resolver,
 			valid: true,
