@@ -1094,6 +1094,69 @@ suite('ModernUIContribution', () => {
 		});
 	});
 
+	test('applies the correct action background for each editor tab state', () => {
+		const root = document.createElement('div');
+		root.className = 'monaco-workbench modern-ui-tabs';
+		root.style.setProperty('--modern-ui-editor-tab-action-active-background', '#010203');
+		root.style.setProperty('--modern-ui-editor-tab-action-unfocused-active-background', '#040506');
+		root.style.setProperty('--modern-ui-editor-tab-action-hover-background', '#070809');
+		root.style.setProperty('--modern-ui-editor-tab-action-unfocused-hover-background', '#0A0B0C');
+		root.style.setProperty('--modern-ui-editor-tab-action-active-hover-background', '#0D0E0F');
+		root.style.setProperty('--modern-ui-editor-tab-action-unfocused-active-hover-background', '#101112');
+		root.style.setProperty('--vscode-modernEditorTab-selectedActionBackground', '#131415');
+		document.body.appendChild(root);
+		store.add(toDisposable(() => root.remove()));
+
+		const content = appendElement(appendElement(root, 'part editor'), 'content');
+		const activeGroup = appendElement(content, 'editor-group-container active');
+		const unfocusedGroup = appendElement(content, 'editor-group-container');
+		const getActionBackgroundColors = (group: HTMLElement, tabClassName: string) => {
+			const title = appendElement(group, 'title');
+			const tab = appendElement(appendElement(title, 'tabs-container'), tabClassName);
+			const actions = appendElement(tab, 'tab-actions');
+			const action = appendElement(actions, 'action-label');
+			action.tabIndex = 0;
+			action.focus();
+			return [
+				getWindow(actions).getComputedStyle(actions).backgroundColor,
+				getWindow(actions).getComputedStyle(actions, '::before').backgroundImage
+			];
+		};
+
+		assert.deepStrictEqual({
+			active: getActionBackgroundColors(activeGroup, 'tab active'),
+			activeLeft: getActionBackgroundColors(activeGroup, 'tab active tab-actions-left'),
+			unfocusedActive: getActionBackgroundColors(unfocusedGroup, 'tab active'),
+			unfocusedActiveLeft: getActionBackgroundColors(unfocusedGroup, 'tab active tab-actions-left'),
+			hover: getActionBackgroundColors(activeGroup, 'tab'),
+			hoverLeft: getActionBackgroundColors(activeGroup, 'tab tab-actions-left'),
+			unfocusedHover: getActionBackgroundColors(unfocusedGroup, 'tab'),
+			unfocusedHoverLeft: getActionBackgroundColors(unfocusedGroup, 'tab tab-actions-left'),
+			// Active hover states cannot be tested because they require the :hover state.
+			// activeHover: getActionBackgroundColors(activeGroup, 'tab active'),
+			// activeHoverLeft: getActionBackgroundColors(activeGroup, 'tab active tab-actions-left'),
+			// unfocusedActiveHover: getActionBackgroundColors(unfocusedGroup, 'tab active'),
+			// unfocusedActiveHoverLeft: getActionBackgroundColors(unfocusedGroup, 'tab active tab-actions-left'),
+			selected: getActionBackgroundColors(activeGroup, 'tab selected'),
+			selectedLeft: getActionBackgroundColors(activeGroup, 'tab selected tab-actions-left'),
+		}, {
+			active: ['rgb(1, 2, 3)', 'linear-gradient(to right, rgba(0, 0, 0, 0), rgb(1, 2, 3))'],
+			activeLeft: ['rgb(1, 2, 3)', 'linear-gradient(to left, rgba(0, 0, 0, 0), rgb(1, 2, 3))'],
+			unfocusedActive: ['rgb(4, 5, 6)', 'linear-gradient(to right, rgba(0, 0, 0, 0), rgb(4, 5, 6))'],
+			unfocusedActiveLeft: ['rgb(4, 5, 6)', 'linear-gradient(to left, rgba(0, 0, 0, 0), rgb(4, 5, 6))'],
+			hover: ['rgb(7, 8, 9)', 'linear-gradient(to right, rgba(0, 0, 0, 0), rgb(7, 8, 9))'],
+			hoverLeft: ['rgb(7, 8, 9)', 'linear-gradient(to left, rgba(0, 0, 0, 0), rgb(7, 8, 9))'],
+			unfocusedHover: ['rgb(10, 11, 12)', 'linear-gradient(to right, rgba(0, 0, 0, 0), rgb(10, 11, 12))'],
+			unfocusedHoverLeft: ['rgb(10, 11, 12)', 'linear-gradient(to left, rgba(0, 0, 0, 0), rgb(10, 11, 12))'],
+			// activeHover: ['rgb(13, 14, 15)', 'linear-gradient(to right, rgba(0, 0, 0, 0), rgb(13, 14, 15))'],
+			// activeHoverLeft: ['rgb(13, 14, 15)', 'linear-gradient(to left, rgba(0, 0, 0, 0), rgb(13, 14, 15))'],
+			// unfocusedActiveHover: ['rgb(16, 17, 18)', 'linear-gradient(to right, rgba(0, 0, 0, 0), rgb(16, 17, 18))'],
+			// unfocusedActiveHoverLeft: ['rgb(16, 17, 18)', 'linear-gradient(to left, rgba(0, 0, 0, 0), rgb(16, 17, 18))'],
+			selected: ['rgb(19, 20, 21)', 'linear-gradient(to right, rgba(0, 0, 0, 0), rgb(19, 20, 21))'],
+			selectedLeft: ['rgb(19, 20, 21)', 'linear-gradient(to left, rgba(0, 0, 0, 0), rgb(19, 20, 21))'],
+		});
+	});
+
 	test('uses legacy color customizations for Modern UI editor tabs only', () => {
 		const theme = ColorThemeData.createUnloadedTheme('vs-dark', {
 			[editorBackground]: '#000000',
