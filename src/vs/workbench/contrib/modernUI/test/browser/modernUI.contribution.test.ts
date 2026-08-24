@@ -851,10 +851,11 @@ suite('ModernUIContribution', () => {
 			},
 			railWidths: [leftActivityBounds.width, rightActivityBounds.width],
 		}, {
-			// The rail carries the cluster's outer gutter on the window side, meets the side
-			// bar flush on the other, and centers the icon column in the lane between them.
-			left: { actionWidth: 36, actionCenterOffset: 0, windowMargin: 8, seamGap: 0 },
-			right: { actionWidth: 36, actionCenterOffset: 0, windowMargin: 8, seamGap: 0 },
+			// The rail carries the cluster's 4px perimeter gutter on the window side, meets the
+			// side bar flush on the other, and centers the icon column in its own 8px lane —
+			// which is independent of the gutter, so the card stays 44px wide.
+			left: { actionWidth: 36, actionCenterOffset: 0, windowMargin: 4, seamGap: 0 },
+			right: { actionWidth: 36, actionCenterOffset: 0, windowMargin: 4, seamGap: 0 },
 			railWidths: [44, 44],
 		});
 	});

@@ -80,7 +80,6 @@ export const COMPACT_FLOATING_PANEL_MARGIN = 0;
  * cluster and the surrounding window chrome.
  */
 export const COMPACT_FLOATING_PANEL_OUTER_MARGIN = 4;
-
 /**
  * The trailing card margin (in pixels) when the Modern UI Update experiment is
  * enabled. Together with the next card's leading {@link FLOATING_PANEL_MARGIN},
@@ -93,8 +92,14 @@ export function getFloatingPanelMargin(layoutService: IWorkbenchLayoutService): 
 	return layoutService.isModernUICompact() ? COMPACT_FLOATING_PANEL_MARGIN : FLOATING_PANEL_MARGIN;
 }
 
+/**
+ * The perimeter gutter (in pixels) a card reserves on an edge that faces window chrome
+ * rather than another card. Both densities use the same 4px perimeter; they differ only in
+ * the gap *between* cards (see {@link getFloatingPanelMargin}). Keep in sync with
+ * `--modern-ui-floating-card-outer-margin` in `floatingPanels.css`.
+ */
 export function getFloatingPanelOuterMargin(layoutService: IWorkbenchLayoutService): number {
-	return layoutService.isModernUICompact() ? COMPACT_FLOATING_PANEL_OUTER_MARGIN : FLOATING_PANEL_MARGIN * 2;
+	return layoutService.isModernUICompact() ? COMPACT_FLOATING_PANEL_OUTER_MARGIN : FLOATING_PANEL_MARGIN;
 }
 
 export const enum ActivityBarPosition {

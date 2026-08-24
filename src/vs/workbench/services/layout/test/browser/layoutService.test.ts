@@ -196,12 +196,14 @@ suite('LayoutService - getFloatingPaneCompositeHorizontalMargins', () => {
 			compactJustifiedPanel: margins(Parts.PANEL_PART, [Parts.ACTIVITYBAR_PART, Parts.SIDEBAR_PART, Parts.EDITOR_PART, Parts.PANEL_PART, Parts.AUXILIARYBAR_PART], Position.LEFT, true, 'justify'),
 			compactJustifiedPanelSideBarRight: margins(Parts.PANEL_PART, [Parts.ACTIVITYBAR_PART, Parts.SIDEBAR_PART, Parts.EDITOR_PART, Parts.PANEL_PART, Parts.AUXILIARYBAR_PART], Position.RIGHT, true, 'justify'),
 		}, {
-			activityBarLeft: { left: 4, right: 8 },
-			activityBarRight: { left: 8, right: 0 },
-			secondarySideBarOnly: { left: 8, right: 8 },
+			// The default density uses the same 4px for the window-edge perimeter as for the
+			// gap between cards; only compact distinguishes them.
+			activityBarLeft: { left: 4, right: 4 },
+			activityBarRight: { left: 4, right: 0 },
+			secondarySideBarOnly: { left: 4, right: 4 },
 			primarySideBarLeft: { left: FLOATING_PANEL_INNER_MARGIN, right: FLOATING_PANEL_INNER_MARGIN },
 			primarySideBarRight: { left: 4, right: FLOATING_PANEL_INNER_MARGIN },
-			primarySideBarLeftNoActivityBar: { left: 8, right: FLOATING_PANEL_INNER_MARGIN },
+			primarySideBarLeftNoActivityBar: { left: 4, right: FLOATING_PANEL_INNER_MARGIN },
 			compactSecondarySideBarOnly: { left: COMPACT_FLOATING_PANEL_OUTER_MARGIN, right: COMPACT_FLOATING_PANEL_OUTER_MARGIN },
 			compactPrimarySideBarLeft: { left: COMPACT_FLOATING_PANEL_MARGIN, right: FLOATING_PANEL_INNER_MARGIN },
 			compactPrimarySideBarRight: { left: COMPACT_FLOATING_PANEL_MARGIN, right: FLOATING_PANEL_INNER_MARGIN },
@@ -290,7 +292,8 @@ suite('LayoutService - getFloatingPaneCompositeVerticalMargins', () => {
 
 	const inner = FLOATING_PANEL_INNER_MARGIN;
 	const margin = FLOATING_PANEL_MARGIN;
-	const outer = FLOATING_PANEL_MARGIN * 2;
+	// The window-edge perimeter matches the inter-card gap at the default density.
+	const outer = FLOATING_PANEL_MARGIN;
 
 	test('bottom panel top margin across editor visibility and top edge', () => {
 		const bottomPanel = (configure: (s: VerticalMarginLayoutService) => void) => margins(Parts.PANEL_PART, s => { s.visibleParts.add(Parts.PANEL_PART); configure(s); });
@@ -389,7 +392,8 @@ suite('LayoutService - getFloatingEditorVerticalMargins', () => {
 
 	const inner = FLOATING_PANEL_INNER_MARGIN;
 	const margin = FLOATING_PANEL_MARGIN;
-	const outer = FLOATING_PANEL_MARGIN * 2;
+	// The window-edge perimeter matches the inter-card gap at the default density.
+	const outer = FLOATING_PANEL_MARGIN;
 
 	test('margins across panel positions, title bar, banner and status bar', () => {
 		const actual = {

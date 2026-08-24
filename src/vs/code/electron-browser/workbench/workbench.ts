@@ -93,7 +93,8 @@
 			const { layoutInfo, colorInfo } = data;
 			const modernUI = layoutInfo.modernUI === true;
 			const floatingMargin = layoutInfo.modernUICompact === true ? 0 : 4;
-			const floatingOuterMargin = layoutInfo.modernUICompact === true ? 4 : floatingMargin * 2;
+			// The cluster perimeter is the same in both densities; only the inter-card gap differs.
+			const floatingOuterMargin = 4;
 			const floatingStatusBarMargin = modernUI ? 4 : 0;
 			const floatingBorderWidth = 1;
 			const floatingBorderRadius = 8;

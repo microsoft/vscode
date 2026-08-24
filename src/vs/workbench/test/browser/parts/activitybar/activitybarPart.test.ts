@@ -190,7 +190,7 @@ suite('ActivitybarPart', () => {
 	});
 
 	test('floating panels reserves the cluster perimeter, plus a leading gap only for a standalone right-hand rail', () => {
-		const base = ActivitybarPart.FLOATING_ACTIVITYBAR_WIDTH + ActivitybarPart.FLOATING_MARGIN * 4;
+		const base = ActivitybarPart.FLOATING_ACTIVITYBAR_WIDTH + ActivitybarPart.FLOATING_MARGIN + ActivitybarPart.FLOATING_LANE;
 		const withLeadingGap = base + ActivitybarPart.FLOATING_MARGIN;
 
 		const widthOf = (sideBarPosition: Position, sideBarVisible: boolean, modernUICompact = false) => {
@@ -212,7 +212,7 @@ suite('ActivitybarPart', () => {
 			// Only here does the rail follow another card and have to supply the gap itself.
 			rightCollapsed: withLeadingGap,
 			// Compact keeps its cards joined edge to edge, so no gap is ever needed.
-			compactRightCollapsed: ActivitybarPart.FLOATING_ACTIVITYBAR_WIDTH + COMPACT_FLOATING_PANEL_OUTER_MARGIN * 2,
+			compactRightCollapsed: ActivitybarPart.FLOATING_ACTIVITYBAR_WIDTH + COMPACT_FLOATING_PANEL_OUTER_MARGIN + ActivitybarPart.FLOATING_COMPACT_LANE,
 		});
 	});
 
@@ -222,8 +222,8 @@ suite('ActivitybarPart', () => {
 		assert.deepStrictEqual(
 			{ min: part.minimumWidth, max: part.maximumWidth },
 			{
-				min: ActivitybarPart.FLOATING_ACTIVITYBAR_WIDTH + COMPACT_FLOATING_PANEL_OUTER_MARGIN * 2,
-				max: ActivitybarPart.FLOATING_ACTIVITYBAR_WIDTH + COMPACT_FLOATING_PANEL_OUTER_MARGIN * 2,
+				min: ActivitybarPart.FLOATING_ACTIVITYBAR_WIDTH + COMPACT_FLOATING_PANEL_OUTER_MARGIN + ActivitybarPart.FLOATING_COMPACT_LANE,
+				max: ActivitybarPart.FLOATING_ACTIVITYBAR_WIDTH + COMPACT_FLOATING_PANEL_OUTER_MARGIN + ActivitybarPart.FLOATING_COMPACT_LANE,
 			}
 		);
 	});
@@ -300,7 +300,7 @@ suite('ActivitybarPart', () => {
 		fireConfigChange(configService, LayoutSettings.MODERN_UI);
 
 		assert.deepStrictEqual(events, [undefined]);
-		assert.strictEqual(part.minimumWidth, ActivitybarPart.FLOATING_ACTIVITYBAR_WIDTH + ActivitybarPart.FLOATING_MARGIN * 4);
+		assert.strictEqual(part.minimumWidth, ActivitybarPart.FLOATING_ACTIVITYBAR_WIDTH + ActivitybarPart.FLOATING_MARGIN + ActivitybarPart.FLOATING_LANE);
 	});
 
 	test('fires onDidChange(undefined) when Modern UI density changes', () => {
@@ -460,8 +460,10 @@ suite('ActivitybarPart', () => {
 		return parseInt(content!.style.height, 10);
 	}
 
-	test('reserves a doubled gutter on each window edge the activity bar faces', () => {
+	test('reserves the perimeter gutter on each window edge the activity bar faces', () => {
 		const margin = ActivitybarPart.FLOATING_MARGIN;
+		// At the default density the window-edge perimeter matches the inter-card gap.
+		const outerMargin = ActivitybarPart.FLOATING_MARGIN;
 		const borders = ActivitybarPart.FLOATING_BORDER * 2;
 		const actual = {
 			// Windowed default: a title bar above and a status bar below, so neither is a window edge.
@@ -485,10 +487,10 @@ suite('ActivitybarPart', () => {
 
 		assert.deepStrictEqual(actual, {
 			titleAndStatusBarVisible: 300 - margin - borders,
-			titleBarHidden: 300 - margin * 2 - margin - borders,
+			titleBarHidden: 300 - outerMargin - margin - borders,
 			bannerInsteadOfTitleBar: 300 - margin - borders,
-			statusBarHidden: 300 - margin * 2 - borders,
-			bothEdgesExposed: 300 - margin * 2 - margin * 2 - borders,
+			statusBarHidden: 300 - outerMargin - borders,
+			bothEdgesExposed: 300 - outerMargin * 2 - borders,
 			floatingPanelsDisabled: 300,
 		});
 	});

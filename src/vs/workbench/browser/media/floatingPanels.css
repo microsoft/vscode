@@ -24,13 +24,14 @@
 .monaco-workbench.floating-panels {
 	--modern-ui-floating-card-margin: var(--vscode-spacing-size40);
 	--modern-ui-floating-card-inner-margin: var(--vscode-spacing-sizeNone);
-	--modern-ui-floating-card-outer-margin: var(--vscode-spacing-size80);
+	/* The cluster perimeter — the gutter against window chrome — is the same in both
+	 * densities. Only the gap *between* cards differs. */
+	--modern-ui-floating-card-outer-margin: var(--vscode-spacing-size40);
 	--modern-ui-floating-card-statusbar-margin: var(--vscode-spacing-size40);
 }
 
 .monaco-workbench.floating-panels.modern-ui-compact {
 	--modern-ui-floating-card-margin: var(--vscode-spacing-sizeNone);
-	--modern-ui-floating-card-outer-margin: var(--vscode-spacing-size40);
 	--modern-ui-floating-card-border-color: transparent;
 	--modern-ui-editor-border-color: transparent;
 }
@@ -202,10 +203,11 @@
  * `ActivitybarPart.floatingHorizontalGutter` reserves both in the grid.
  */
 .monaco-workbench.floating-panels .part.activitybar {
-	/* The lane is the space inside the card beside the icon column. The card width and the
-	 * item centering below both derive from it, so a card that has to give up part of the
-	 * lane (see the standalone right-hand rail) stays centered automatically. */
-	--modern-ui-activitybar-lane: var(--modern-ui-floating-card-outer-margin);
+	/* The lane is the space inside the card beside the icon column — the rail's own
+	 * horizontal padding, doubled. It is independent of the cluster perimeter so the icons
+	 * keep their inset whatever the gutter is. The card width and the item centering below
+	 * both derive from it, and `ActivitybarPart.floatingHorizontalGutter` reserves it. */
+	--modern-ui-activitybar-lane: var(--vscode-spacing-size80);
 	margin: var(--modern-ui-floating-card-inner-margin) var(--modern-ui-floating-card-inner-margin) var(--modern-ui-floating-card-margin);
 	width: calc(var(--activity-bar-width, 48px) + var(--modern-ui-activitybar-lane));
 	height: calc(100% - var(--modern-ui-floating-card-margin));
@@ -258,7 +260,9 @@
 
 /* Compact density treats the status bar as chrome outside the cluster, so the rail's
  * bottom edge is a cluster perimeter rather than an inter-card gap. */
+/* Compact density keeps the tighter icon inset that matches its denser rhythm. */
 .monaco-workbench.floating-panels.modern-ui-compact .part.activitybar {
+	--modern-ui-activitybar-lane: var(--vscode-spacing-size40);
 	margin-bottom: var(--modern-ui-floating-card-outer-margin);
 	height: calc(100% - var(--modern-ui-floating-card-outer-margin));
 }

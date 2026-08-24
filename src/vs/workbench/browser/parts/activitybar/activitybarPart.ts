@@ -65,6 +65,14 @@ export class ActivitybarPart extends Part {
 	static readonly FLOATING_MARGIN = FLOATING_PANEL_MARGIN;
 
 	/**
+	 * The rail's own horizontal padding, doubled: the space inside the card beside the icon
+	 * column. Independent of the cluster perimeter so the icons keep their inset whatever the
+	 * gutter is. Must match `--modern-ui-activitybar-lane` in `floatingPanels.css`.
+	 */
+	static readonly FLOATING_LANE = 8;
+	static readonly FLOATING_COMPACT_LANE = 4;
+
+	/**
 	 * The card border the activity bar draws on each edge under the floating panels
 	 * experiment. Must match the border width applied in `floatingPanels.css`.
 	 */
@@ -110,9 +118,10 @@ export class ActivitybarPart extends Part {
 			return 0;
 		}
 
-		// Reserve the cluster perimeter on the window side plus the matching visual lane
-		// beside the rail, where the primary side bar meets it flush.
-		return getFloatingPanelOuterMargin(this.layoutService) * 2
+		// The cluster perimeter on the window side, plus the rail's own lane beside the icon
+		// column, where the primary side bar meets it flush.
+		const lane = this.layoutService.isModernUICompact() ? ActivitybarPart.FLOATING_COMPACT_LANE : ActivitybarPart.FLOATING_LANE;
+		return getFloatingPanelOuterMargin(this.layoutService) + lane
 			+ (this.needsFloatingLeadingGap ? getFloatingPanelMargin(this.layoutService) : 0);
 	}
 
