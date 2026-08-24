@@ -1928,26 +1928,34 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return this._ensureClientHealing;
 		}
 		const healing = (async () => {
-			for (let retries = 0; ; retries++) {
-				try {
-					return await this._ensureClientOnce();
-				} catch (error) {
-					if (retries < MAX_STARTUP_CONFIG_RETRIES
-						&& !this._shutdownPromise
-						&& error instanceof CopilotClientStartupConfigChangedError) {
-						this._logService.info('[Copilot] Startup config changed while the client was starting; re-acquiring the client with the current config');
-						continue;
+			try {
+				for (let retries = 0; ; retries++) {
+					try {
+						return await this._ensureClientOnce();
+					} catch (error) {
+						if (retries < MAX_STARTUP_CONFIG_RETRIES
+							&& !this._shutdownPromise
+							&& error instanceof CopilotClientStartupConfigChangedError) {
+							this._logService.info('[Copilot] Startup config changed while the client was starting; re-acquiring the client with the current config');
+							continue;
+						}
+						throw error;
 					}
-					throw error;
 				}
+			} finally {
+				// Clear the shared handle from inside the sequence so it is gone
+				// before this promise settles for any awaiting caller. Clearing it
+				// from a trailing `.finally()` on a separate chain would run one
+				// microtask too late: a caller resuming on success could re-enter
+				// `_ensureClient` (e.g. after `_stopClient()`) and be handed this
+				// fulfilled handle for an already-stopped client. Only one healing
+				// sequence is ever in flight — `_ensureClient` starts one only when
+				// the field is empty, and this is the only site that clears it — so
+				// this always owns the field here.
+				this._ensureClientHealing = undefined;
 			}
 		})();
 		this._ensureClientHealing = healing;
-		void healing.catch(() => { /* surfaced to the awaiting caller */ }).finally(() => {
-			if (this._ensureClientHealing === healing) {
-				this._ensureClientHealing = undefined;
-			}
-		});
 		return healing;
 	}
 

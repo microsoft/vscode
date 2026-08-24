@@ -3305,19 +3305,40 @@ suite('CopilotAgent', () => {
 			}
 		});
 
-		test('shares one global re-acquire budget across concurrent client acquisitions', async () => {
-			const client = new ConfigChangeOnStartClient([]);
+		test('shares one global re-acquire budget: a late joiner cannot drive an extra start', async () => {
+			const releaseAttempt2 = new DeferredPromise<void>();
+			// Parks its own second start so the healing sequence is observably in
+			// flight (mid-retry, attempt 2 running) when the late joiner arrives.
+			class LateJoinerBudgetClient extends ConfigChangeOnStartClient {
+				override async start(): Promise<void> {
+					if (this.startCallCount + 1 === 2) {
+						this.startGate = releaseAttempt2.p;
+					}
+					await super.start();
+				}
+			}
+			const client = new LateJoinerBudgetClient([]);
 			const { agent, configurationService } = createTestAgentContext(disposables, { copilotClient: client });
+			// Alternate the value so every attempt's post-start config differs from
+			// its pre-start snapshot and aborts as config-changed.
 			client.onAfterStart = () => {
 				configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: client.startCallCount % 2 === 0 });
 			};
 			const ensureClient = () => (agent as unknown as { _ensureClient(): Promise<unknown> })._ensureClient();
 			try {
 				const first = ensureClient();
+				// Wait until attempt 1 has aborted (config-changed) and attempt 2 has
+				// begun and parked on its gate: the sequence is now mid-retry.
+				for (let i = 0; i < 50 && client.startCallCount < 2; i++) {
+					await timeout(0);
+				}
+				// The late joiner arrives while attempt 2 is in flight.
 				const second = ensureClient();
+				releaseAttempt2.complete();
 				const outcomes = await Promise.allSettled([first, second]);
-				// A per-caller budget would let the second caller drive extra starts;
-				// the shared budget keeps the total at MAX_STARTUP_CONFIG_RETRIES + 1.
+				// Global budget: the late joiner shares the in-flight sequence, so it
+				// cannot force a third start. A per-caller budget would instead let
+				// `second` run its own retry after attempt 2 aborts, driving a third.
 				assert.deepStrictEqual({
 					firstRejected: outcomes[0].status === 'rejected',
 					secondRejected: outcomes[1].status === 'rejected',
@@ -3328,6 +3349,7 @@ suite('CopilotAgent', () => {
 					startCallCount: 2,
 				});
 			} finally {
+				releaseAttempt2.complete();
 				await disposeAgent(agent);
 			}
 		});
