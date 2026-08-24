@@ -13,17 +13,22 @@ async page => {
 	];
 
 	const findVisibleChatInput = async () => {
+		let firstVisible;
 		for (const selector of selectors) {
 			const candidates = page.locator(selector);
 			for (let index = 0; index < await candidates.count(); index++) {
 				const candidate = candidates.nth(index);
 				const isExcluded = await candidate.evaluate(element => Boolean(element.closest('.inline-chat-widget, .automation-form-prompt-host')));
 				if (await candidate.isVisible() && !isExcluded) {
-					return { input: candidate, selector };
+					const match = { input: candidate, selector };
+					if (await candidate.evaluate(element => document.activeElement === element)) {
+						return match;
+					}
+					firstVisible ??= match;
 				}
 			}
 		}
-		return undefined;
+		return firstVisible;
 	};
 
 	const isFocused = input => input.evaluate(element => document.activeElement === element);

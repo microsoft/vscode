@@ -63,6 +63,8 @@ done
 SESSION="${PW_SESSION_OVERRIDE:-${PW_SESSION:-}}"
 PW_ARGS=()
 [[ -n "$SESSION" ]] && PW_ARGS=("-s=$SESSION")
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+FOCUS_CHAT="$SCRIPT_DIR/../playwrightScripts/focus-chat-input.ts"
 
 # Text: prefer the positional arg; otherwise read all of stdin.
 # Stdin is preferred for arbitrary text because it avoids any shell
@@ -96,7 +98,13 @@ case "${OSTYPE:-$(uname -s)}" in
 	*)               SELECT_ALL_MOD="Control" ;;
 esac
 
-# Step 1 (optional): clear the focused Monaco editor by select-all + delete.
+# Step 1: ensure the intended Chat input has focus before sending any keys.
+if ! npx @playwright/cli ${PW_ARGS[@]+"${PW_ARGS[@]}"} run-code --filename="$FOCUS_CHAT" >/dev/null 2>&1; then
+	echo '{"ok":false,"error":"failed to focus a visible chat input"}'
+	exit 1
+fi
+
+# Step 2 (optional): clear the focused Monaco editor by select-all + delete.
 # Done via the CLI's `press` so the keys flow through Monaco's real key
 # handler. Stays inside the CDP connection — no system clipboard.
 if [[ "$APPEND" != "1" ]]; then
@@ -104,7 +112,7 @@ if [[ "$APPEND" != "1" ]]; then
 	npx @playwright/cli ${PW_ARGS[@]+"${PW_ARGS[@]}"} press Backspace >/dev/null 2>&1 || true
 fi
 
-# Step 2: build the eval payload via node so JSON escaping is automatic.
+# Step 3: build the eval payload via node so JSON escaping is automatic.
 # The async IIFE polls the rendered view lines after dispatch because Monaco
 # updates them asynchronously and Agents inputs can take longer than one paint.
 JS=$(node -e '
@@ -168,7 +176,7 @@ JS=$(node -e '
 	})()`);
 ' "$TEXT" "$VERIFY")
 
-# Step 3: run the eval. The CLI prints "### Result" then a JSON-encoded
+# Step 4: run the eval. The CLI prints "### Result" then a JSON-encoded
 # string on the next line, followed by "### Ran Playwright code" noise.
 RAW=$(npx @playwright/cli ${PW_ARGS[@]+"${PW_ARGS[@]}"} eval "$JS" 2>&1) || {
 	echo "{\"ok\":false,\"error\":\"@playwright/cli eval failed\"}"
