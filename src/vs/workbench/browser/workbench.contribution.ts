@@ -257,6 +257,16 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'default': 'default',
 				'markdownDescription': localize({ comment: ['{0}, {1} will be a setting name rendered as a link'], key: 'workbench.editor.tabHeight' }, "Controls the height of editor tabs. Also applies to the title control bar when {0} is not set to {1}.", '`#workbench.editor.showTabs#`', '`multiple`')
 			},
+			[LayoutSettings.MODERN_UI_DENSITY]: {
+				'type': 'string',
+				'enum': [ModernUIDensity.Default, ModernUIDensity.Compact],
+				'enumDescriptions': [
+					localize('windowDensityLayout.default', "Uses the standard spacing between workbench parts."),
+					localize('windowDensityLayout.compact', "Removes the gaps between workbench parts and reduces their internal spacing to provide more room for content."),
+				],
+				'default': ModernUIDensity.Default,
+				'markdownDescription': localize({ key: 'windowDensityLayout', comment: ['{0} is a placeholder for a setting identifier.'] }, "Controls the spacing density of the workbench layout. Only applies when {0} is enabled.", '`#workbench.experimental.modernUI#`'),
+			},
 			'workbench.editor.pinnedTabSizing': {
 				'type': 'string',
 				'enum': ['normal', 'compact', 'shrink'],
@@ -826,16 +836,6 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'default': false,
 				'description': localize('modernUI', "Controls whether the Modern UI Update is enabled. When on, the side bars and bottom panel are shown as floating cards with rounded corners and gaps, and a set of refreshed workbench styles is applied, matching the Agents window design."),
 				experiment: { mode: 'auto' },
-			},
-			[LayoutSettings.MODERN_UI_DENSITY]: {
-				'type': 'string',
-				'enum': [ModernUIDensity.Default, ModernUIDensity.Compact],
-				'enumDescriptions': [
-					localize('modernUIDensity.default', "Uses the standard Modern UI spacing."),
-					localize('modernUIDensity.compact', "Removes gaps between workbench parts and reduces their internal spacing to provide more room for content."),
-				],
-				'default': ModernUIDensity.Default,
-				'markdownDescription': localize({ key: 'modernUIDensity', comment: ['{0} is a placeholder for a setting identifier.'] }, "Controls the spacing density used when {0} is enabled.", '`#workbench.experimental.modernUI#`'),
 			},
 			[LayoutSettings.MODERN_UI_UPPERCASE_VIEW_HEADERS]: {
 				'type': 'boolean',

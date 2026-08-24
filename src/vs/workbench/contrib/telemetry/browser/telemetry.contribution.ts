@@ -363,7 +363,7 @@ class ConfigurationTelemetryContribution extends Disposable implements IWorkbenc
 					comment: 'This is used to know which Modern UI Update spacing density the user has selected.';
 					settingValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'value of the setting' };
 					source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'source of the setting' };
-				}>('workbench.modernUIDensity', { settingValue: this.getValueToReport(key, target), source });
+				}>('window.density.layout', { settingValue: this.getValueToReport(key, target), source });
 				return;
 
 			case AutoUpdateConfigurationKey:
