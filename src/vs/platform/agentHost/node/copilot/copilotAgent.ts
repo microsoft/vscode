@@ -2294,8 +2294,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	async collectDebugLogs(session: URI | undefined, outputDirectory: URI, chat?: URI): Promise<boolean> {
 		const sessionTarget = chat ? this._findChatByUri(chat) : session ? this._findSessionChat(session) : undefined;
 		if (sessionTarget) {
-			await sessionTarget.collectDebugLogs(outputDirectory, true);
-			return true;
+			return sessionTarget.collectDebugLogs(outputDirectory, true);
 		}
 
 		// A new/closed UI session can have a URI without a live SDK session. In
@@ -2306,8 +2305,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (!processLogsTarget) {
 			return false;
 		}
-		await processLogsTarget.collectDebugLogs(outputDirectory, false);
-		return true;
+		return processLogsTarget.collectDebugLogs(outputDirectory, false);
 	}
 
 	async getSessionStateFile(session: URI): Promise<URI | undefined> {
