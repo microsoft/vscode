@@ -190,7 +190,15 @@ npx @playwright/cli -s=$PW_SESSION press Control+Alt+i
 
 ### Typing into Monaco (chat input, editors)
 
-`fill` and `type` **silently fail** on Code OSS — Monaco's `native-edit-context` element doesn't react to Playwright's default input pipeline. Use one of these alternatives:
+First identify the input surface from a fresh snapshot:
+
+- **Chat Monaco input** exposes a focused `.native-edit-context` inside the chat input. Use the paste helper or per-key `press` below.
+- **Quick Input and ordinary textboxes** include the Command Palette and file/folder pickers. Use Playwright's normal `type` command for the focused input or `fill` with its snapshot ref.
+- **Other Monaco-backed controls**, such as Settings search, also expose `.native-edit-context`, but `monaco-paste.sh` is scoped to chat input selection and may target the wrong editor. Focus the intended control and try `type`; fall back to per-key `press` if needed.
+
+Re-snapshot after text entry to verify the intended control received the text and the expected results appeared.
+
+For chat Monaco inputs, `fill` and `type` can silently fail because `native-edit-context` doesn't always react to Playwright's default input pipeline. Use one of these alternatives:
 
 - **`scripts/monaco-paste.sh` helper** (recommended — fast, no system clipboard, parallel-safe). Reads text from a positional arg or stdin and dispatches a `ClipboardEvent('paste')` with a `DataTransfer` payload into the focused chat-input Monaco editor. Honors `--session NAME` or `$PW_SESSION` env so it stays inside the same `-s=` session as everything else.
 
