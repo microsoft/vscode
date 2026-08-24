@@ -67,6 +67,14 @@ suite('DOMLineBreaksComputer', () => {
 		assert.ok(result && result.breakOffsets.length > 1);
 	});
 
+	test('keeps rendered visible columns integral with fractional fixed widths', () => {
+		const result = computeLineBreaks('alpha beta gamma', [
+			new LineInjectedText(0, 1, 7, { content: '\xa0', widthInEm: 0.75 }, 0)
+		]);
+
+		assert.ok(result?.breakOffsetsVisibleColumn.every(Number.isInteger));
+	});
+
 	test('tracks adjacent fixed-width DOM spans', () => {
 		const result = computeLineBreaks('alpha beta gamma', [
 			new LineInjectedText(0, 1, 7, { content: 'x', widthInEm: 1 }, 0),

@@ -146,7 +146,7 @@ suite('Editor ViewModel - MonospaceLineBreaksComputer', () => {
 			breakOffsetsVisibleColumn: lineBreakData?.breakOffsetsVisibleColumn
 		}, {
 			breakOffsets: [4, 7],
-			breakOffsetsVisibleColumn: [4, 8]
+			breakOffsetsVisibleColumn: [4, 7]
 		});
 	});
 
@@ -161,7 +161,7 @@ suite('Editor ViewModel - MonospaceLineBreaksComputer', () => {
 			breakOffsetsVisibleColumn: lineBreakData?.breakOffsetsVisibleColumn
 		}, {
 			breakOffsets: [8, 11],
-			breakOffsetsVisibleColumn: [5, 8]
+			breakOffsetsVisibleColumn: [8, 11]
 		});
 	});
 
@@ -177,7 +177,7 @@ suite('Editor ViewModel - MonospaceLineBreaksComputer', () => {
 			breakOffsetsVisibleColumn: lineBreakData?.breakOffsetsVisibleColumn
 		}, {
 			breakOffsets: [4, 8],
-			breakOffsetsVisibleColumn: [4, 9]
+			breakOffsetsVisibleColumn: [4, 8]
 		});
 	});
 
@@ -192,7 +192,22 @@ suite('Editor ViewModel - MonospaceLineBreaksComputer', () => {
 			breakOffsetsVisibleColumn: lineBreakData?.breakOffsetsVisibleColumn
 		}, {
 			breakOffsets: [3, 4, 7],
-			breakOffsetsVisibleColumn: [3, 9, 12]
+			breakOffsetsVisibleColumn: [3, 4, 7]
+		});
+	});
+
+	test('keeps rendered visible columns integral with fractional fixed widths', () => {
+		const factory = new MonospaceLineBreaksComputerFactory('', '');
+		const lineBreakData = getLineBreakData(factory, 4, 4, 2, WrappingIndent.None, 'normal', false, 'ab\tcd', null, [
+			new LineInjectedText(0, 1, 3, { content: '\xa0', widthInEm: 0.75 }, 0)
+		]);
+
+		assert.deepStrictEqual({
+			breakOffsets: lineBreakData?.breakOffsets,
+			breakOffsetsVisibleColumn: lineBreakData?.breakOffsetsVisibleColumn
+		}, {
+			breakOffsets: [3, 6],
+			breakOffsetsVisibleColumn: [3, 6]
 		});
 	});
 
