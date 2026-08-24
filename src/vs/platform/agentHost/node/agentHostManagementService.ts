@@ -95,11 +95,11 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 		return this._agentService.getSessionStateFile(session);
 	}
 
-	collectDebugLogs(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind): Promise<IAgentHostDebugLogsArtifact> {
+	collectDebugLogs(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind, chat?: URI): Promise<IAgentHostDebugLogsArtifact> {
 		if (!this._agentService.collectDebugLogs) {
 			throw new Error('Agent Host debug log collection is unavailable');
 		}
-		return this._agentService.collectDebugLogs(session, kind);
+		return this._agentService.collectDebugLogs(session, kind, chat);
 	}
 
 	readDebugLogsChunk(resource: URI, position: number): Promise<IAgentHostDebugLogsChunk> {

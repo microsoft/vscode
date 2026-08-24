@@ -328,6 +328,14 @@ export interface IChatWidgetViewOptions {
 
 	/** Enables the transcript Find widget (`Ctrl/Cmd+F`) for this chat widget. Off by default. */
 	enableFind?: boolean;
+
+	/**
+	 * Height of the content this host mounts into
+	 * {@link ChatInputPart.persistentContentContainerElement}. Setting it floats that
+	 * content above the input, so the transcript scrolls underneath it, and reserves
+	 * the same space below the transcript. Must match the content's rendered height.
+	 */
+	persistentContentHeight?: number;
 }
 
 export interface IChatViewViewContext {

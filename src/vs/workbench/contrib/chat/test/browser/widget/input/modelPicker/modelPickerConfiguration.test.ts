@@ -58,7 +58,7 @@ function createModel(options?: { readonly omitEffortDefault?: boolean; readonly 
 
 /**
  * Builds a model shaped like Copilot's Auto entry: a single navigation group
- * that names itself "Tier" instead of reusing the thinking-effort wording.
+ * that names itself "Optimize for" instead of reusing the thinking-effort wording.
  */
 function createTierModel(): ILanguageModelChatMetadataAndIdentifier {
 	return {
@@ -77,10 +77,10 @@ function createTierModel(): ILanguageModelChatMetadataAndIdentifier {
 				properties: {
 					tier: {
 						type: 'string',
-						title: 'Tier',
+						title: 'Optimize for',
 						group: 'navigation',
 						enum: ['eco', 'balanced', 'max'],
-						enumItemLabels: ['Eco', 'Balanced', 'Max'],
+						enumItemLabels: ['Efficiency', 'Balance', 'Intelligence'],
 						enumDescriptions: ['Cheaper models', 'Balances capability and cost', 'Most capable models'],
 						default: 'balanced',
 					},
@@ -208,16 +208,16 @@ suite('ModelPickerConfiguration', () => {
 	// routing tier rather than thinking effort, and names it through `title`.
 	test('names the navigation group after the schema title when one is given', () => {
 		assert.deepStrictEqual(render(createTierModel(), { tier: 'max' }), {
-			label: 'Max',
-			ariaLabel: 'Tier: Max',
+			label: 'Intelligence',
+			ariaLabel: 'Optimize for: Intelligence',
 			listOptions: {
 				reserveSubmenuSpace: false,
 			},
 			sections: [
-				{ kind: ActionListItemKind.Header, label: 'Tier' },
-				{ className: 'chat-model-picker-config-option', label: 'Eco', checked: false, ariaDescription: 'Cheaper models' },
-				{ className: 'chat-model-picker-config-option', label: 'Balanced', checked: false, ariaDescription: 'Default, Balances capability and cost' },
-				{ className: 'chat-model-picker-config-option', label: 'Max', checked: true, ariaDescription: 'Most capable models' },
+				{ kind: ActionListItemKind.Header, label: 'Optimize for' },
+				{ className: 'chat-model-picker-config-option', label: 'Efficiency', checked: false, ariaDescription: 'Cheaper models' },
+				{ className: 'chat-model-picker-config-option', label: 'Balance', checked: false, ariaDescription: 'Default, Balances capability and cost' },
+				{ className: 'chat-model-picker-config-option', label: 'Intelligence', checked: true, ariaDescription: 'Most capable models' },
 			],
 		});
 	});

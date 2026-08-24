@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 import { BasePromptElementProps, PromptElement, PromptMetadata, PromptPiece, PromptSizing } from '@vscode/prompt-tsx';
 import type * as vscode from 'vscode';
-import { IPromptPathRepresentationService } from '../../../../../platform/prompts/common/promptPathRepresentationService';
 import { IWorkspaceService } from '../../../../../platform/workspace/common/workspaceService';
 import { WorkingDirectory } from '../../../../../platform/workspace/common/workingDirectory';
 import { createFencedCodeBlock } from '../../../../../util/common/markdown';
@@ -162,38 +161,6 @@ export class AgentMultirootWorkspaceStructure extends MultirootWorkspaceStructur
 		return <>
 			{base}<br />
 			This is the state of the context at this point in the conversation. The view of the workspace structure may be truncated. You can use tools to collect more context if needed.
-		</>;
-	}
-}
-
-type DirectoryStructureProps = BasePromptElementProps & {
-	maxSize: number;
-	directory: URI;
-};
-
-export class DirectoryStructure extends PromptElement<DirectoryStructureProps, IFileTreeData> {
-
-	constructor(
-		props: DirectoryStructureProps,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IPromptPathRepresentationService private readonly _promptPathRepresentationService: IPromptPathRepresentationService,
-	) {
-		super(props);
-	}
-
-	override async prepare(sizing: PromptSizing, progress: vscode.Progress<vscode.ChatResponseProgressPart> | undefined, token?: vscode.CancellationToken): Promise<IFileTreeData> {
-		return this._instantiationService.invokeFunction(accessor => workspaceVisualFileTree(accessor, this.props.directory, { maxLength: this.props.maxSize }, token ?? CancellationToken.None));
-	}
-
-	override render(state: IFileTreeData, sizing: PromptSizing): PromptPiece<any, any> | undefined {
-		if (!state) {
-			return;
-		}
-
-		return <>
-			The folder `{this._promptPathRepresentationService.getFilePath(this.props.directory)}` has the following structure:<br />
-			<br />
-			{createFencedCodeBlock('', state.tree)}
 		</>;
 	}
 }

@@ -31,7 +31,7 @@ import type { InitializeResult } from '../../../../platform/agentHost/common/sta
 import { IRemoteAgentService } from '../../remote/common/remoteAgentService.js';
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
 import { agentsWindowAgentHostClientInfo, editorWindowAgentHostClientInfo } from '../../../../platform/agentHost/common/agentHostClientInfo.js';
-import { agentHostAuthority } from '../../../../platform/agentHost/common/agentHostUri.js';
+import { agentHostAuthority, identityAgentHostResourceUriMapper } from '../../../../platform/agentHost/common/agentHostUri.js';
 import { IAgentHostFileSystemService } from '../common/agentHostFileSystemService.js';
 
 const REMOTE_NOT_SUPPORTED = (op: string) => new Error(`${op} is not supported when the agent host runs on a remote.`);
@@ -59,6 +59,7 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 	private _authenticationSettled = false;
 
 	private readonly _protocolClient: AgentHostProtocolClient | undefined;
+	get resourceUris() { return this._protocolClient?.resourceUris ?? identityAgentHostResourceUriMapper; }
 	private readonly _noopRootState: IAgentSubscription<RootState> = {
 		value: undefined,
 		verifiedValue: undefined,
@@ -229,8 +230,8 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 		return this._requireClient().getSessionStateFile(session);
 	}
 
-	collectDebugLogs(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind): Promise<IAgentHostDebugLogsArtifact> {
-		return this._requireClient().collectDebugLogs(session, kind);
+	collectDebugLogs(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind, chat?: URI): Promise<IAgentHostDebugLogsArtifact> {
+		return this._requireClient().collectDebugLogs(session, kind, chat);
 	}
 
 	readDebugLogsChunk(resource: URI, position: number): Promise<IAgentHostDebugLogsChunk> {

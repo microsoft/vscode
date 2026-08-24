@@ -230,6 +230,7 @@ export class SessionsView extends ViewPane {
 				}
 				this.sessionsService.openSession(resource, { preserveFocus }).then(onOpened).catch(onUnexpectedError);
 			},
+			canOpenSession: session => this.sessionsService.canOpenSession(session),
 		}));
 		this._register(this.onDidChangeBodyVisibility(visible => sessionsControl.setVisible(visible)));
 

@@ -167,9 +167,9 @@ export class ChatPetAchievementsWidget extends Disposable {
 			const accessoryId = achievement.accessories[0].id;
 			const card = this.renderDisposables.add(new Button(item, {
 				secondary: true,
-				ariaLabel: unlocked
-					? localize('chatPet.achievement.cardAriaLabel', "{0}. Reward: {1}. {2}", achievement.title, achievement.accessories[0].label, wearing ? localize('chatPet.achievement.wearing', "Wearing") : localize('chatPet.achievement.unlocked', "Unlocked"))
-					: localize('chatPet.achievement.lockedAriaLabel', "Locked secret achievement"),
+				ariaLabel: presentation.locked
+					? localize('chatPet.achievement.lockedAriaLabel', "Locked. Hint: {0} Rewards: {1}.", presentation.hint, presentation.rewardLabels.join(', '))
+					: localize('chatPet.achievement.cardAriaLabel', "{0}. Reward: {1}. {2}", presentation.title, presentation.accessories[0].label, wearing ? localize('chatPet.achievement.wearing', "Wearing") : localize('chatPet.achievement.unlocked', "Unlocked")),
 			}));
 			card.element.classList.add('chat-pet-achievement-card');
 			card.element.dataset.accessoryId = accessoryId;
@@ -206,8 +206,9 @@ export class ChatPetAchievementsWidget extends Disposable {
 				});
 			} else {
 				DOM.append(cardContent, DOM.$('h3')).textContent = localize('chatPet.achievement.locked', "Locked");
-				DOM.append(cardContent, DOM.$('p.chat-pet-achievement-secret')).textContent = localize('chatPet.achievement.secret', "Secret achievement.");
-				DOM.append(cardContent, DOM.$('p.chat-pet-achievement-description')).textContent = localize('chatPet.achievement.keepExploring', "Keep exploring agent features to uncover this secret.");
+				DOM.append(cardContent, DOM.$('span.chat-pet-achievement-state')).textContent = localize('chatPet.achievement.hint', "Hint");
+				DOM.append(cardContent, DOM.$('p.chat-pet-achievement-description')).textContent = presentation.hint;
+				DOM.append(cardContent, DOM.$('p.chat-pet-achievement-reward')).textContent = localize('chatPet.achievement.rewards', "Rewards: {0}", presentation.rewardLabels.join(', '));
 			}
 			this.renderDisposables.add(card.onDidClick(() => this.selectAccessory(accessoryId, achievement.id)));
 			this.renderDisposables.add(card.onDidEscape(() => this.onDidRequestClose()));

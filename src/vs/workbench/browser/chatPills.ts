@@ -9,6 +9,7 @@ import { BaseActionViewItem, IActionViewItemOptions } from '../../base/browser/u
 import { Button } from '../../base/browser/ui/button/button.js';
 import { ToolBar } from '../../base/browser/ui/toolbar/toolbar.js';
 import { IAction, IActionRunner } from '../../base/common/actions.js';
+import { Emitter, Event } from '../../base/common/event.js';
 import { isMacintosh } from '../../base/common/platform.js';
 import { Disposable } from '../../base/common/lifecycle.js';
 import { autorun, derived, IObservable } from '../../base/common/observable.js';
@@ -17,6 +18,7 @@ import { URI } from '../../base/common/uri.js';
 import { localize } from '../../nls.js';
 import type { IActionListItemHover } from '../../platform/actionWidget/browser/actionList.js';
 import { IContextMenuService } from '../../platform/contextview/browser/contextView.js';
+import { asCssVariable, asCssVariableWithDefault, buttonSecondaryBackground } from '../../platform/theme/common/colorRegistry.js';
 import { defaultButtonStyles } from '../../platform/theme/browser/defaultStyles.js';
 import './media/chatPills.css';
 
@@ -82,10 +84,13 @@ export class ChatPillsWidget extends Disposable {
 
 	readonly element: HTMLElement;
 	readonly isVisible: IObservable<boolean>;
+	private readonly _onDidChangePills = this._register(new Emitter<void>());
+	readonly onDidChangePills: Event<void> = this._onDidChangePills.event;
 
 	private readonly _toolbar: ToolBar;
 	private _pillByAction = new Map<IAction, IChatPill>();
 	private _pills: readonly IChatPill[] = [];
+	private _pillViewItems: ChatPillActionViewItemBase[] = [];
 
 	constructor(
 		model: IChatPillsModel,
@@ -99,7 +104,13 @@ export class ChatPillsWidget extends Disposable {
 			ariaLabel: options?.ariaLabel ?? localize('chatPills.ariaLabel', "Chat status"),
 			actionRunner: options?.actionRunner,
 			allowContextMenu: options?.allowContextMenu,
-			actionViewItemProvider: (action, viewItemOptions) => this._pillByAction.get(action)?.createActionViewItem?.(viewItemOptions) ?? new ChatPillActionViewItem(undefined, action, viewItemOptions),
+			actionViewItemProvider: (action, viewItemOptions) => {
+				const viewItem = this._pillByAction.get(action)?.createActionViewItem?.(viewItemOptions) ?? new ChatPillActionViewItem(undefined, action, viewItemOptions);
+				if (viewItem instanceof ChatPillActionViewItemBase) {
+					this._pillViewItems.push(viewItem);
+				}
+				return viewItem;
+			},
 		}));
 
 		this.isVisible = derived(this, reader => model.pills.read(reader).length > 0);
@@ -107,12 +118,22 @@ export class ChatPillsWidget extends Disposable {
 			const pills = model.pills.read(reader);
 			this._pillByAction = new Map(pills.map(pill => [pill.action, pill]));
 			this._toolbar.context = model.context?.read(reader);
-			if (pills.length !== this._pills.length || pills.some((pill, index) => pill !== this._pills[index])) {
+			const pillsChanged = pills.length !== this._pills.length || pills.some((pill, index) => pill !== this._pills[index]);
+			if (pillsChanged) {
 				this._pills = pills;
+				this._pillViewItems = [];
 				this._toolbar.setActions(pills.map(pill => pill.action));
 			}
 			this.element.classList.toggle('hidden', pills.length === 0);
+			if (pillsChanged) {
+				this._onDidChangePills.fire();
+			}
 		}));
+	}
+
+	/** Returns the rendered button for each pill. */
+	getPillElements(): readonly HTMLElement[] {
+		return this._pillViewItems.flatMap(viewItem => viewItem.buttonElement ? [viewItem.buttonElement] : []);
 	}
 
 	/**
@@ -129,6 +150,9 @@ export class ChatPillsWidget extends Disposable {
 	}
 }
 
+/** Opaque base so a pill never shows the content it floats over; `chatPills.css` tints it. */
+const chatPillBackground = asCssVariableWithDefault('chat.list.background', asCssVariable(buttonSecondaryBackground));
+
 /**
  * Shared plumbing for every chat pill: the button, click routing, enabled
  * state, and the roving-focus hooks the toolbar drives. Subclasses own only
@@ -137,6 +161,11 @@ export class ChatPillsWidget extends Disposable {
 export abstract class ChatPillActionViewItemBase extends BaseActionViewItem {
 
 	protected button: Button | undefined;
+
+	/** The rendered button owned by this pill. */
+	get buttonElement(): HTMLElement | undefined {
+		return this.button?.element;
+	}
 
 	/**
 	 * Per-pill modifier classes added alongside the shared `chat-pill-item` and
@@ -154,7 +183,15 @@ export abstract class ChatPillActionViewItemBase extends BaseActionViewItem {
 			container.classList.add(this.itemModifierClass);
 		}
 
-		const button = this.button = this._register(new Button(container, { secondary: true, small: true, ...this.buttonOptions, ...defaultButtonStyles }));
+		// Hover uses the same opaque base; CSS layers the hover tint on top.
+		const button = this.button = this._register(new Button(container, {
+			secondary: true,
+			small: true,
+			...this.buttonOptions,
+			...defaultButtonStyles,
+			buttonSecondaryBackground: chatPillBackground,
+			buttonSecondaryHoverBackground: chatPillBackground,
+		}));
 		button.element.classList.add('monaco-text-button', 'chat-pill-button');
 		if (this.buttonModifierClass) {
 			button.element.classList.add(this.buttonModifierClass);

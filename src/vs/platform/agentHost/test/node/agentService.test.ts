@@ -3130,6 +3130,153 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		/** An external session two newer local sessions postdate is no longer recent. */
+		test('recent drops external sessions that two newer local sessions superseded', () => {
+			const hour = 60 * 60 * 1000;
+			const at = (hourOfDay: number) => Date.UTC(2026, 0, 1) + hourOfDay * hour;
+			const now = at(18);
+			const external = (id: string, modifiedTime: number): IAgentSessionMetadata => ({
+				session: AgentSession.uri('copilot', id),
+				startTime: modifiedTime,
+				modifiedTime,
+				_meta: withSessionExternal(undefined, true),
+			});
+			const local = (id: string, startTime: number): IRegisteredSession => ({
+				session: AgentSession.uri('copilot', id),
+				provider: 'copilot',
+				startTime,
+				external: false,
+				source: 'restore',
+			});
+			const catalog = [external('external-morning', at(10)), external('external-afternoon', at(16))];
+			// The cutoff is snapshotted per service, so each case needs its own.
+			const recentIds = (...locals: IRegisteredSession[]) => {
+				const svc = createExternalSessionService() as unknown as {
+					_resolveRecentSupersedingCutoff(registered: readonly IRegisteredSession[], epoch: number): number | undefined;
+					_getRecentSessionKeys(sessions: readonly IAgentSessionMetadata[], now: number, supersededBefore: number | undefined): ReadonlySet<string>;
+					_registryEpoch: number;
+				};
+				const cutoff = svc._resolveRecentSupersedingCutoff(locals, svc._registryEpoch);
+				return [...svc._getRecentSessionKeys(catalog, now, cutoff)].map(key => AgentSession.id(URI.parse(key))).sort();
+			};
+
+			assert.deepStrictEqual({
+				noLocalSessionsAfter: recentIds(local('local-8am', at(8)), local('local-9am', at(9))),
+				oneLocalSessionAfter: recentIds(local('local-11am', at(11))),
+				twoLocalSessionsAfterTheMorningOne: recentIds(local('local-11am', at(11)), local('local-5pm', at(17))),
+				twoLocalSessionsAfterBoth: recentIds(local('local-5pm', at(17)), local('local-5pm-2', at(17))),
+			}, {
+				noLocalSessionsAfter: ['external-afternoon', 'external-morning'],
+				oneLocalSessionAfter: ['external-afternoon', 'external-morning'],
+				twoLocalSessionsAfterTheMorningOne: ['external-afternoon'],
+				twoLocalSessionsAfterBoth: [],
+			});
+		});
+
+		/**
+		 * The cutoff reads the registry, not the hydrated listing: a local session
+		 * whose provider is unavailable is dropped from the latter, which would
+		 * undercount and leave a superseded external row visible.
+		 */
+		testWithExternalSessionClock('recent counts local sessions the provider cannot hydrate', async () => {
+			const hour = 60 * 60 * 1000;
+			const now = Date.now();
+			const at = (hourOfDay: number) => now - (18 - hourOfDay) * hour;
+			const database = new TransientRegistryWriteDatabase();
+			for (const [id, startTime] of [['external-morning', at(10)], ['external-afternoon', at(16)]] as const) {
+				await database.registerSession(AgentSession.uri('copilot', id).toString(), { provider: 'copilot', startTime, source: 'discovery' }, { checkTombstone: true });
+			}
+			// Registered under a provider that is never registered with the service.
+			for (const [id, startTime] of [['local-11am', at(11)], ['local-5pm', at(17)]] as const) {
+				await database.registerSession(AgentSession.uri('claude', id).toString(), { provider: 'claude', startTime, source: 'restore' }, { checkTombstone: true });
+			}
+			await database.markProviderBackfilled('copilot');
+
+			const svc = createExternalSessionService(createSessionDataService(), database);
+			setExternalSessionsMode(svc, AgentHostExternalSessionsMode.Recent, 1);
+			await waitForSessionListReconciliation(svc);
+			const agent = disposables.add(new TimedExternalAgent('copilot'));
+			agent.addSession('external-morning', at(10));
+			agent.addSession('external-afternoon', at(16));
+			svc.registerProvider(agent);
+
+			const listed = await svc.listSessions();
+
+			assert.deepStrictEqual({
+				visible: listed.map(session => AgentSession.id(session.session)).sort(),
+				cutoffCountedUnhydratedLocals: (svc as unknown as { _recentSupersedingCutoff: number | undefined })._recentSupersedingCutoff === at(11),
+			}, {
+				visible: ['external-afternoon'],
+				cutoffCountedUnhydratedLocals: true,
+			});
+		});
+
+		/** A stale pass must not freeze its cutoff: the registry changed under it. */
+		test('recent does not commit a superseding cutoff computed for a stale registry epoch', () => {
+			const at = (hourOfDay: number) => Date.UTC(2026, 0, 1) + hourOfDay * 60 * 60 * 1000;
+			const svc = createExternalSessionService() as unknown as {
+				_resolveRecentSupersedingCutoff(registered: readonly IRegisteredSession[], epoch: number): number | undefined;
+				_hasRecentSupersedingCutoff: boolean;
+				_registryEpoch: number;
+			};
+			const locals: IRegisteredSession[] = [at(11), at(17)].map((startTime, index) => ({
+				session: AgentSession.uri('copilot', `local-${index}`),
+				provider: 'copilot',
+				startTime,
+				external: false,
+				source: 'restore',
+			}));
+
+			const staleCutoff = svc._resolveRecentSupersedingCutoff(locals, svc._registryEpoch - 1);
+			const committedAfterStalePass = svc._hasRecentSupersedingCutoff;
+			const currentCutoff = svc._resolveRecentSupersedingCutoff(locals, svc._registryEpoch);
+
+			assert.deepStrictEqual({ staleCutoff, committedAfterStalePass, currentCutoff, committedAfterCurrentPass: svc._hasRecentSupersedingCutoff }, {
+				staleCutoff: at(11),
+				committedAfterStalePass: false,
+				currentCutoff: at(11),
+				committedAfterCurrentPass: true,
+			});
+		});
+
+		/** A first message creates a local session, so the cutoff must not re-measure per listing. */
+		testWithExternalSessionClock('recent snapshots the superseding local sessions until the external mode changes', async () => {
+			const hour = 60 * 60 * 1000;
+			const at = (hourOfDay: number) => Date.now() + hourOfDay * hour - 18 * hour;
+			const now = at(18);
+			const svc = createExternalSessionService();
+			const internals = svc as unknown as {
+				_resolveRecentSupersedingCutoff(registered: readonly IRegisteredSession[], epoch: number): number | undefined;
+				_getRecentSessionKeys(sessions: readonly IAgentSessionMetadata[], now: number, supersededBefore: number | undefined): ReadonlySet<string>;
+				_registryEpoch: number;
+			};
+			const catalog: IAgentSessionMetadata[] = [
+				{ session: AgentSession.uri('copilot', 'external-morning'), startTime: at(10), modifiedTime: at(10), _meta: withSessionExternal(undefined, true) },
+				{ session: AgentSession.uri('copilot', 'external-afternoon'), startTime: at(16), modifiedTime: at(16), _meta: withSessionExternal(undefined, true) },
+			];
+			const locals: IRegisteredSession[] = [];
+			const recentIds = () => {
+				const cutoff = internals._resolveRecentSupersedingCutoff(locals, internals._registryEpoch);
+				return [...internals._getRecentSessionKeys(catalog, now, cutoff)].map(key => AgentSession.id(URI.parse(key))).sort();
+			};
+
+			const initial = recentIds();
+			for (const id of ['local-first', 'local-second']) {
+				locals.push({ session: AgentSession.uri('copilot', id), provider: 'copilot', startTime: at(17), external: false, source: 'restore' });
+			}
+			const afterLocalSessionsCreated = recentIds();
+			// Invalidation is synchronous; read before the queued reconciliation re-snapshots.
+			setExternalSessionsMode(svc, AgentHostExternalSessionsMode.Recent, 1);
+			const afterModeChange = recentIds();
+			await waitForSessionListReconciliation(svc);
+
+			assert.deepStrictEqual({ initial, afterLocalSessionsCreated, afterModeChange }, {
+				initial: ['external-afternoon', 'external-morning'],
+				afterLocalSessionsCreated: ['external-afternoon', 'external-morning'],
+				afterModeChange: [],
+			});
+		});
+
 		testWithExternalSessionClock('filters external sessions in every mode', async () => {
 			const day = 24 * 60 * 60 * 1000;
 			const now = Date.now();

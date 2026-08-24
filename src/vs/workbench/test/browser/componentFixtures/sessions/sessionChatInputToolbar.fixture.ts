@@ -15,7 +15,7 @@ import { IBrowserViewModel, IBrowserViewWorkbenchService } from '../../../../con
 // eslint-disable-next-line local/code-import-patterns
 import { IAgentFeedbackService } from '../../../../../sessions/contrib/agentFeedback/browser/agentFeedbackService.js';
 // eslint-disable-next-line local/code-import-patterns
-import { SessionChatInputToolbar } from '../../../../../sessions/contrib/chat/browser/sessionChatInputToolbar.js';
+import { SESSION_CHAT_INPUT_TOOLBAR_HEIGHT, SessionChatInputToolbar } from '../../../../../sessions/contrib/chat/browser/sessionChatInputToolbar.js';
 // eslint-disable-next-line local/code-import-patterns
 import { ISessionChatPillsDebugData } from '../../../../../sessions/contrib/chat/browser/sessionChatInputToolbarDebug.js';
 // eslint-disable-next-line local/code-import-patterns
@@ -183,6 +183,7 @@ function renderPills(ctx: ComponentFixtureContext, sessionMock: IMockSessionAndC
 async function renderChatViewWithPills(ctx: ComponentFixtureContext, mock: IMockSessionAndChat, messages: IFixtureMessage[]): Promise<void> {
 	await renderChatWidget(ctx, {
 		messages,
+		persistentContentHeight: SESSION_CHAT_INPUT_TOOLBAR_HEIGHT,
 		decorateInputPart: (inputPart, instantiationService) => {
 			// The fixture's test configuration has no product defaults, so opt in
 			// explicitly to make sure the pills render.
@@ -437,6 +438,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 			await renderChatWidget(ctx, {
 				messages: FULL_VIEW_MESSAGES,
 				inputVisible: false,
+				persistentContentHeight: SESSION_CHAT_INPUT_TOOLBAR_HEIGHT,
 				decorateInputPart: (inputPart, instantiationService) => {
 					instantiationService.invokeFunction(accessor => {
 						(accessor.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(ChatConfiguration.TurnStatusPills, true);

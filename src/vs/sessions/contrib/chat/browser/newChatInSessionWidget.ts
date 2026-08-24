@@ -40,7 +40,7 @@ export class NewChatInSessionWidget extends Disposable {
 	private readonly _session: IObservable<IActiveSession | undefined>;
 
 	constructor(
-		_options: IChatViewOptions,
+		_options: IChatViewOptions & { readonly petHostPreferred?: IObservable<boolean> },
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILogService private readonly logService: ILogService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
@@ -73,6 +73,7 @@ export class NewChatInSessionWidget extends Disposable {
 			historyKey: constObservable(undefined), // no persisted history for the new-chat-in-session view
 			minEditorHeight: 64,
 			placeholder: localize('newChatInSessionPlaceholder', 'Ask a follow-up question or start a new topic within this session...'),
+			petHostPreferred: _options.petHostPreferred,
 			supportsBackground: true,
 			voiceRoutesWhileSessionActive: true,
 		}));

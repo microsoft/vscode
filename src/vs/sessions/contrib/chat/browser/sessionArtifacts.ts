@@ -86,6 +86,28 @@ function getImageMimeType(uri: URI): string | undefined {
 	return mimeType?.startsWith('image/') ? mimeType : undefined;
 }
 
+/**
+ * A comparison key for a website URL that ignores origin casing and a trailing
+ * slash, so an artifact and the browser showing it are recognized as the same page.
+ */
+function websiteKey(url: string): string | undefined {
+	const parsed = URL.parse(url);
+	if (!parsed) {
+		return undefined;
+	}
+	const path = parsed.pathname.length > 1 && parsed.pathname.endsWith('/') ? parsed.pathname.slice(0, -1) : parsed.pathname;
+	return `${parsed.protocol}//${parsed.host}${path}${parsed.search}${parsed.hash}`;
+}
+
+/** Whether a website artifact points at a page one of the listed browsers shows. */
+function isShownInBrowser(link: URI | undefined, browserKeys: ReadonlySet<string>): boolean {
+	if (!link || browserKeys.size === 0) {
+		return false;
+	}
+	const key = websiteKey(link.toString());
+	return !!key && browserKeys.has(key);
+}
+
 function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions): IChatPillEntry | undefined {
 	if (artifact.kind === SessionArtifactKind.File) {
 		if (!artifact.uri) {
@@ -131,14 +153,25 @@ function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions): 
 /**
  * Builds the artifact sections shown in the pill: the agent-set artifacts plus
  * the previewable files the session wrote outside its workspace, de-duplicated
- * with the agent's own entries winning.
+ * with the agent's own entries winning. Websites the browsers pill already lists
+ * are left out, so the same page is offered once across the two pills.
  */
-export function buildSessionArtifactSections(artifacts: readonly ISessionArtifact[], externalFiles: readonly ISessionFile[], actions: ISessionArtifactActions, imageCarouselEnabled: boolean): readonly IChatPillSection[] {
+export function buildSessionArtifactSections(artifacts: readonly ISessionArtifact[], externalFiles: readonly ISessionFile[], actions: ISessionArtifactActions, imageCarouselEnabled: boolean, browserUrls: ReadonlySet<string>): readonly IChatPillSection[] {
 	const entriesByKind = new Map<SessionArtifactKind, IChatPillEntry[]>();
 	const images: ISessionArtifactImage[] = [];
 	const seen = new Set<string>();
+	const browserKeys = new Set<string>();
+	for (const url of browserUrls) {
+		const key = websiteKey(url);
+		if (key) {
+			browserKeys.add(key);
+		}
+	}
 
 	for (const artifact of artifacts) {
+		if (artifact.kind === SessionArtifactKind.Website && isShownInBrowser(artifact.link, browserKeys)) {
+			continue;
+		}
 		const imageMimeType = artifact.uri ? getImageMimeType(artifact.uri) : undefined;
 		if (artifact.kind === SessionArtifactKind.File && artifact.uri && imageMimeType) {
 			if (!seen.has(artifactValueKey(artifact))) {
@@ -210,6 +243,8 @@ export class SessionArtifacts extends Disposable {
 
 	constructor(
 		session: IObservable<IActiveSession | undefined>,
+		/** The URLs the browsers pill lists; website artifacts for them are left out. */
+		private readonly _browserUrls: IObservable<ReadonlySet<string>>,
 		@IClipboardService private readonly _clipboardService: IClipboardService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -229,6 +264,7 @@ export class SessionArtifacts extends Disposable {
 				this._readExternalFiles(current, reader),
 				this._actions(),
 				imageCarouselEnabled.read(reader),
+				this._browserUrls.read(reader),
 			);
 		});
 	}
@@ -239,7 +275,10 @@ export class SessionArtifacts extends Disposable {
 
 	private _actions(): ISessionArtifactActions {
 		return {
-			openExternal: link => { void this._openerService.open(link, { openExternal: true }); },
+			// Contributed openers make a link behave the same here as in the response
+			// markdown it came from, so a localhost page lands in the integrated
+			// browser rather than the system one.
+			openExternal: link => { void this._openerService.open(link, { openExternal: true, allowContributedOpeners: true, fromUserGesture: true }); },
 			openResource: uri => {
 				if (previewKind(uri)) {
 					void openChatTurnFile({ uri, kind: previewKind(uri)!, created: false }, this._openerService, this._configurationService);

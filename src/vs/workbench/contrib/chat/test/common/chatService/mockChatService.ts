@@ -17,6 +17,7 @@ export class MockChatService implements IChatService {
 	private readonly _chatModels: ISettableObservable<Iterable<IChatModel>> = observableValue('chatModels', []);
 	readonly chatModels = this._chatModels;
 	requestInProgressObs = observableValue('name', false);
+	getPendingRequestSessionTypes(): readonly string[] { return []; }
 	_serviceBrand: undefined;
 	editingSessions = [];
 	transferredSessionResource = undefined;

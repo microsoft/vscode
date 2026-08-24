@@ -18,6 +18,7 @@ import { ChatRequestTextPart } from '../../../../contrib/chat/common/requestPars
 import { ChatModel } from '../../../../contrib/chat/common/model/chatModel.js';
 import { ChatViewModel } from '../../../../contrib/chat/common/model/chatViewModel.js';
 import { ChatListWidget } from '../../../../contrib/chat/browser/widget/chatListWidget.js';
+import { chatFloatingPersistentContentClass, chatPersistentContentHeightVariable } from '../../../../contrib/chat/browser/widget/chatWidget.js';
 import { ChatInputPart, IChatInputPartOptions, IChatInputStyles } from '../../../../contrib/chat/browser/widget/input/chatInputPart.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IChatWidget, IChatWidgetService } from '../../../../contrib/chat/browser/chat.js';
@@ -103,6 +104,8 @@ export interface IChatWidgetFixtureOptions {
 	readonly onRendered?: (handle: IChatWidgetFixtureHandle) => void;
 	/** Selects the input-height consumer used by the ResizeObserver harness. */
 	readonly hostLayoutMode?: 'none' | 'listOnly' | 'stackedFull' | 'stackedTargeted';
+	/** Mirrors `IChatWidgetViewOptions.persistentContentHeight` for content mounted by {@link IChatWidgetFixtureOptions.decorateInputPart}. */
+	readonly persistentContentHeight?: number;
 }
 
 interface IChatWidgetFixtureHandle {
@@ -328,6 +331,11 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 
 	const session = dom.$('.interactive-session');
 	session.style.setProperty('--vscode-chat-list-background', listBackground);
+	if (options.persistentContentHeight) {
+		// Same switch `ChatWidget.render` flips.
+		session.classList.add(chatFloatingPersistentContentClass);
+		session.style.setProperty(chatPersistentContentHeightVariable, `${options.persistentContentHeight}px`);
+	}
 	auxContent.appendChild(session);
 
 	// Build the input part FIRST so the widget (with its inputPart) is registered
@@ -397,6 +405,7 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 				listBackground,
 			},
 			location: ChatAgentLocation.Chat,
+			paddingBottom: options.persistentContentHeight,
 			rendererOptions: {
 				progressMessageAtBottomOfResponse: mode => mode !== ChatModeKind.Ask,
 			},

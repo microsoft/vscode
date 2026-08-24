@@ -35,23 +35,31 @@ suite('ChatTurnPills', () => {
 		const action = disposables.add(new Action('test.chatPill', 'Session Changes'));
 		const pills = observableValue<readonly IChatPill[]>(disposables, []);
 		const widget = disposables.add(instantiationService.createInstance(ChatPillsWidget, { pills }, undefined));
+		let pillChangeCount = 0;
+		disposables.add(widget.onDidChangePills(() => pillChangeCount++));
 
 		pills.set([{ action }], undefined);
 		const visible = {
 			hidden: widget.element.classList.contains('hidden'),
 			labels: [...widget.element.querySelectorAll<HTMLElement>('.chat-pill-label')].map(element => element.textContent),
+			platformElementCount: widget.getPillElements().length,
 		};
 		pills.set([], undefined);
 
 		assert.deepStrictEqual({
 			visible,
 			hiddenAfterClear: widget.element.classList.contains('hidden'),
+			platformElementCountAfterClear: widget.getPillElements().length,
+			pillChangeCount,
 		}, {
 			visible: {
 				hidden: false,
 				labels: ['Session Changes'],
+				platformElementCount: 1,
 			},
 			hiddenAfterClear: true,
+			platformElementCountAfterClear: 0,
+			pillChangeCount: 2,
 		});
 	});
 

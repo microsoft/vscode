@@ -90,8 +90,9 @@ export function getToolSpecificDataDescription(toolSpecificData: ToolSpecificDat
 	switch (toolSpecificData.kind) {
 		case 'subagent': {
 			const parts: string[] = [];
-			if (toolSpecificData.agentName) {
-				parts.push(localize('subagentName', "Agent: {0}", toolSpecificData.agentName));
+			const agentName = toolSpecificData.agentDisplayName ?? toolSpecificData.agentName;
+			if (agentName) {
+				parts.push(localize('subagentName', "Agent: {0}", agentName));
 			}
 			if (toolSpecificData.description) {
 				parts.push(toolSpecificData.description);

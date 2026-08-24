@@ -1100,18 +1100,19 @@ suite('AgentSessionsDataSource', () => {
 		});
 
 		test('does not cap non-repository sections', () => {
-			const now = Date.now();
 			const sessions = Array.from({ length: 8 }, (_, i) =>
-				createMockSession({ id: `s${i}`, startTime: now - i * 1000 })
+				createMockSession({ id: `s${i}` })
 			);
 
 			const filter = createMockFilter({ groupBy: AgentSessionsGrouping.Date });
 			const dataSource = disposables.add(new AgentSessionsDataSource(filter, createMockSorter(), 5));
-			const model = createMockModel(sessions);
-			const topLevel = Array.from(dataSource.getChildren(model));
-			const todaySection = topLevel.find(item => isAgentSessionSection(item) && item.section === AgentSessionSection.Today) as IAgentSessionSection;
+			const section: IAgentSessionSection = {
+				section: AgentSessionSection.Today,
+				label: 'Today',
+				sessions,
+			};
 
-			const children = Array.from(dataSource.getChildren(todaySection));
+			const children = Array.from(dataSource.getChildren(section));
 			assert.strictEqual(children.length, 8);
 			assert.ok(!children.some(isAgentSessionShowMore));
 		});

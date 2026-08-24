@@ -13,7 +13,7 @@
 #
 # Usage:
 #   launch.sh [--agents] [--source-user-data-dir <path>] [--repo <vscode-repo-root>]
-#             [--clone-extensions] [--full] [-- <extra code.sh args>]
+#             [--clone-extensions] [--full] [--skip-prelaunch] [-- <extra code.sh args>]
 #
 # Flags:
 #   --clone-extensions  Copy the source extensions/ into the new profile (~10s).
@@ -21,6 +21,8 @@
 #                       and conflict-free, but no third-party extensions.
 #   --full              Copy the entire profile (incl. extensions). Use if the
 #                       slim copy is missing something you need.
+#   --skip-prelaunch    Skip build/lib/preLaunch.ts after a successful prepared
+#                       launch while build outputs remain current.
 #
 # Defaults:
 #   --source-user-data-dir  $CODE_OSS_DEV_AUTHED_USER_DATA_DIR  (else ~/.vscode-oss-dev)
@@ -35,6 +37,7 @@ REPO=""
 EXTRA_ARGS=()
 CLONE_EXTENSIONS=0
 FULL=0
+SKIP_PRELAUNCH=0
 
 while [[ $# -gt 0 ]]; do
 	case "$1" in
@@ -43,10 +46,17 @@ while [[ $# -gt 0 ]]; do
 		--repo) REPO="$2"; shift 2 ;;
 		--clone-extensions|--copy-extensions) CLONE_EXTENSIONS=1; shift ;;
 		--full) FULL=1; shift ;;
+		--skip-prelaunch) SKIP_PRELAUNCH=1; shift ;;
 		--) shift; EXTRA_ARGS=("$@"); break ;;
 		*) echo "Unknown arg: $1" >&2; exit 2 ;;
 	esac
 done
+
+monotonic_ms() {
+	node -e 'process.stdout.write(String(process.hrtime.bigint() / 1_000_000n))'
+}
+
+LAUNCH_START_MS=$(monotonic_ms)
 
 if [[ -z "$REPO" ]]; then
 	if [[ -x "$PWD/scripts/code.sh" ]]; then
@@ -63,18 +73,25 @@ if [[ ! -d "$SOURCE_UDD" ]]; then
 	exit 2
 fi
 
-pick_port() {
-	node -e '
-		const net = require("net");
-		const s = net.createServer();
-		s.listen(0, "127.0.0.1", () => { const p = s.address().port; s.close(() => console.log(p)); });
-	'
-}
+PORTS=$(node <<'NODE'
+const net = require('net');
 
-CDP_PORT=$(pick_port)
-EXTHOST_PORT=$(pick_port)
-MAIN_PORT=$(pick_port)
-AGENTHOST_PORT=$(pick_port)
+const fail = error => {
+	console.error('[launch.sh] failed to allocate debug ports:', error);
+	process.exit(1);
+};
+const servers = Array.from({ length: 4 }, () => net.createServer().on('error', fail));
+(async () => {
+	await Promise.all(servers.map(server => new Promise(resolve => server.listen(0, '127.0.0.1', resolve))));
+	const ports = servers.map(server => server.address().port);
+	await Promise.all(servers.map(server => new Promise((resolve, reject) => {
+		server.close(error => error ? reject(error) : resolve());
+	})));
+	console.log(ports.join(' '));
+})().catch(fail);
+NODE
+)
+read -r CDP_PORT EXTHOST_PORT MAIN_PORT AGENTHOST_PORT <<< "$PORTS"
 
 STAMP=$(date +%Y%m%d-%H%M%S)-$$
 # mktemp fills in the X's only when they trail the template; elsewhere they stay literal.
@@ -205,6 +222,7 @@ then
 	exit 1
 fi
 echo "[launch.sh] ensured files.simpleDialog.enable=true in $SETTINGS_FILE" >&2
+PROFILE_READY_MS=$(monotonic_ms)
 
 # Strip ELECTRON_RUN_AS_NODE, commonly inherited from VS Code's integrated
 # terminal / agent runtimes; it breaks ./scripts/code.sh.
@@ -238,12 +256,17 @@ echo "[launch.sh] logs: $LOG_FILE" >&2
 
 # Run pre-launch (electron download, compile-if-missing, built-in extensions) in the
 # foreground so any errors surface synchronously. Then skip code.sh's own pre-launch.
-echo "[launch.sh] running pre-launch (ensures electron + compiled output + built-ins)..." >&2
-if ! ( cd "$REPO" && node build/lib/preLaunch.ts ) >>"$LOG_FILE" 2>&1; then
-	echo "[launch.sh] pre-launch FAILED. Log tail:" >&2
-	tail -n 80 "$LOG_FILE" >&2
-	exit 1
+if [[ "$SKIP_PRELAUNCH" == "1" ]]; then
+	echo "[launch.sh] skipping pre-launch by request" >&2
+else
+	echo "[launch.sh] running pre-launch (ensures electron + compiled output + built-ins)..." >&2
+	if ! ( cd "$REPO" && node build/lib/preLaunch.ts ) >>"$LOG_FILE" 2>&1; then
+		echo "[launch.sh] pre-launch FAILED. Log tail:" >&2
+		tail -n 80 "$LOG_FILE" >&2
+		exit 1
+	fi
 fi
+PRELAUNCH_READY_MS=$(monotonic_ms)
 
 # Launch code.sh in the background. Detaching with `nohup ... & disown` is
 # sufficient: by the time we return below, CDP is up and Electron is fully
@@ -259,27 +282,25 @@ disown $PID 2>/dev/null || true
 # immediately. If code.sh dies or we time out, dump the log so the failure is
 # visible.
 echo "[launch.sh] waiting for CDP on port $CDP_PORT (timeout 90s)..." >&2
-READY=0
-for i in $(seq 1 90); do
-	if ! kill -0 "$PID" 2>/dev/null; then
-		echo "[launch.sh] code.sh (PID $PID) exited before CDP came up. Log tail:" >&2
-		tail -n 80 "$LOG_FILE" >&2
-		exit 1
-	fi
-	if curl -sf -o /dev/null --max-time 1 "http://127.0.0.1:$CDP_PORT/json/version" 2>/dev/null; then
-		READY=1
-		echo "[launch.sh] CDP ready after ${i}s" >&2
-		break
-	fi
-	sleep 1
-done
-if [[ "$READY" != "1" ]]; then
-	echo "[launch.sh] timed out waiting for CDP on port $CDP_PORT. Log tail:" >&2
+WAIT_FOR_CDP="$(cd "$(dirname "$0")" && pwd)/waitForCdp.ts"
+if READY_MS=$(node "$WAIT_FOR_CDP" "$PID" "$CDP_PORT"); then
+	echo "[launch.sh] CDP ready after ${READY_MS}ms" >&2
+else
+	READY_STATUS=$?
+	case "$READY_STATUS" in
+		1) echo "[launch.sh] timed out waiting for CDP on port $CDP_PORT. Log tail:" >&2 ;;
+		2) echo "[launch.sh] code.sh (PID $PID) exited before CDP came up. Log tail:" >&2 ;;
+		*) echo "[launch.sh] failed while waiting for CDP on port $CDP_PORT. Log tail:" >&2 ;;
+	esac
 	tail -n 80 "$LOG_FILE" >&2
 	exit 1
 fi
 
 node -e '
+	const finishedAt = Number(process.hrtime.bigint() / 1_000_000n);
+	const startedAt = Number(process.argv[7]);
+	const profileReadyAt = Number(process.argv[8]);
+	const preLaunchReadyAt = Number(process.argv[9]);
 	console.log(JSON.stringify({
 		pid: '"$PID"',
 		cdpPort: '"$CDP_PORT"',
@@ -293,5 +314,11 @@ node -e '
 		logFile: process.argv[5],
 		repo: process.argv[6],
 		agents: '"$AGENTS"' === 1,
+		timings: {
+			profileMs: profileReadyAt - startedAt,
+			preLaunchMs: preLaunchReadyAt - profileReadyAt,
+			cdpReadyMs: finishedAt - preLaunchReadyAt,
+			totalMs: finishedAt - startedAt,
+		},
 	}));
-' "$DEST_UDD" "$EXT_DIR" "$SHARED_DATA_DIR" "$RUN_DIR" "$LOG_FILE" "$REPO"
+' "$DEST_UDD" "$EXT_DIR" "$SHARED_DATA_DIR" "$RUN_DIR" "$LOG_FILE" "$REPO" "$LAUNCH_START_MS" "$PROFILE_READY_MS" "$PRELAUNCH_READY_MS"

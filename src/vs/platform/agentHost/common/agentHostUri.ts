@@ -35,6 +35,19 @@ import type { ResourceLabelFormatter } from '../../label/common/label.js';
 export const AGENT_HOST_SCHEME = 'vscode-agent-host';
 
 /**
+ * Maps resource URIs between the Agent Host and its client.
+ */
+export interface IAgentHostResourceUriMapper {
+	fromAgentHost(resource: URI): URI;
+	toAgentHost(resource: URI): URI;
+}
+
+export const identityAgentHostResourceUriMapper: IAgentHostResourceUriMapper = {
+	fromAgentHost: resource => resource,
+	toAgentHost: resource => resource,
+};
+
+/**
  * Query parameter that carries the {@link IAgentHostUriMeta} payload.
  */
 const AGENT_HOST_META_PARAM = '_ah';
@@ -115,6 +128,13 @@ export function fromAgentHostUri(agentHostUri: URI): URI {
 		query: meta.query || '',
 		fragment: agentHostUri.fragment,
 	});
+}
+
+export function createAgentHostResourceUriMapper(connectionAuthority: string): IAgentHostResourceUriMapper {
+	return {
+		fromAgentHost: resource => toAgentHostUri(resource, connectionAuthority),
+		toAgentHost: resource => fromAgentHostUri(resource),
+	};
 }
 
 /**

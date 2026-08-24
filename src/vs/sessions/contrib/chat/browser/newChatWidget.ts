@@ -109,7 +109,7 @@ export class NewChatWidget extends Disposable {
 	private readonly _workspacePickerVisibleKey: IContextKey<boolean>;
 
 	constructor(
-		private readonly options: IChatViewOptions,
+		private readonly options: IChatViewOptions & { readonly petHostPreferred?: IObservable<boolean> },
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
@@ -219,6 +219,7 @@ export class NewChatWidget extends Disposable {
 			renderSessionTypePickerInControls: this._renderHarnessPickerInControls,
 			supportsBackground: true,
 			deferredNotificationsEnabled,
+			petHostPreferred: this.options.petHostPreferred,
 		});
 		this._register(toDisposable(() => newChatInput.saveState()));
 		this._newChatInput = this._register(newChatInput);

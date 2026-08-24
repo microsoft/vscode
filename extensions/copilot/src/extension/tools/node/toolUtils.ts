@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { PromptElement, PromptPiece } from '@vscode/prompt-tsx';
 import { realpath } from 'fs/promises';
 import * as path from 'path';
 import type * as vscode from 'vscode';
@@ -26,28 +25,14 @@ import { extUriBiasedIgnorePathCase, isEqual, normalizePath } from '../../../uti
 import { isString } from '../../../util/vs/base/common/types';
 import { URI } from '../../../util/vs/base/common/uri';
 import { IInstantiationService, ServicesAccessor } from '../../../util/vs/platform/instantiation/common/instantiation';
-import { LanguageModelPromptTsxPart, LanguageModelToolResult } from '../../../vscodeTypes';
 import { isCustomizationsIndex, isPromptFile } from '../../prompt/common/chatVariablesCollection';
 import { IBuildPromptContext } from '../../prompt/common/intents';
 import { IChatDiskSessionResources } from '../../prompts/common/chatDiskSessionResources';
-import { renderPromptElementJSON } from '../../prompts/node/base/promptRenderer';
 
 export function checkCancellation(token: CancellationToken): void {
 	if (token.isCancellationRequested) {
 		throw new CancellationError();
 	}
-}
-
-export async function toolTSX(insta: IInstantiationService, options: vscode.LanguageModelToolInvocationOptions<unknown>, piece: PromptPiece, token: CancellationToken): Promise<vscode.LanguageModelToolResult> {
-	return new LanguageModelToolResult([
-		new LanguageModelPromptTsxPart(
-			await renderPromptElementJSON(insta, class extends PromptElement {
-				render() {
-					return piece;
-				}
-			}, {}, options.tokenizationOptions, token)
-		)
-	]);
 }
 
 export interface InputGlobResult {

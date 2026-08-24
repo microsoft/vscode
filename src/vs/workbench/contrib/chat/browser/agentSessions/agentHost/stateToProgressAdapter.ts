@@ -18,7 +18,7 @@ import type { ChatInputRequestWithPlanReview, IAgentHostPlanReview } from '../..
 import { getToolKind } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { readToolCallMeta } from '../../../../../../platform/agentHost/common/meta/agentToolCallMeta.js';
 import { getChatErrorDetailsFromMeta, IChatErrorContext } from '../../../common/chatErrorMessages.js';
-import { AGENT_HOST_SCHEME, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { AGENT_HOST_SCHEME, createAgentHostResourceUriMapper, type IAgentHostResourceUriMapper, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { AgentHostElementAttachmentDisplayKind, getElementAttachmentCorrelationId } from '../../../../../../platform/agentHost/common/meta/agentElementAttachments.js';
 import { AgentHostAutoReplyAnswer } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
 import { SessionServerToolName } from '../../../../../../platform/agentHost/common/serverToolNames.js';
@@ -292,7 +292,7 @@ export function createInputRequestCarousel(inputReq: ChatInputRequest, connectio
 	return carousel;
 }
 
-export function createInputRequestPlanReview(inputReq: ChatInputRequest, planReview: IAgentHostPlanReview): ChatPlanReviewData {
+export function createInputRequestPlanReview(inputReq: ChatInputRequest, planReview: IAgentHostPlanReview, resourceUris: IAgentHostResourceUriMapper): ChatPlanReviewData {
 	return new ChatPlanReviewData(
 		planReview.title,
 		planReview.content,
@@ -304,7 +304,7 @@ export function createInputRequestPlanReview(inputReq: ChatInputRequest, planRev
 			...(action.permissionLevel ? { permissionLevel: action.permissionLevel } : {}),
 		})),
 		planReview.canProvideFeedback,
-		planReview.planUri ? URI.parse(planReview.planUri).toJSON() : undefined,
+		planReview.planUri ? resourceUris.fromAgentHost(URI.parse(planReview.planUri)).toJSON() : undefined,
 		inputReq.id,
 	);
 }
@@ -327,11 +327,11 @@ export function getUrlInputRequestPresentation(inputReq: ChatInputRequest, url: 
 	return { authority, message };
 }
 
-export function inputRequestResponsePartToProgress(part: InputRequestResponsePart, connectionAuthority: string): IChatProgress {
+export function inputRequestResponsePartToProgress(part: InputRequestResponsePart, connectionAuthority: string, resourceUris: IAgentHostResourceUriMapper = createAgentHostResourceUriMapper(connectionAuthority)): IChatProgress {
 	const inputReq = part.request;
 	const planReview = (inputReq as ChatInputRequestWithPlanReview).planReview;
 	if (planReview) {
-		const review = createInputRequestPlanReview(inputReq, planReview);
+		const review = createInputRequestPlanReview(inputReq, planReview, resourceUris);
 		review.data = part.response === undefined
 			? undefined
 			: convertProtocolPlanReviewResult(planReview, part.response, inputReq.answers);
@@ -855,7 +855,7 @@ export function usageInfoToQuotas(usage: UsageInfo | undefined): IAgentHostQuota
  * The `lookup` callback is responsible for any session-level fallback (e.g.
  * `summary.model?.id` when usage hasn't reported a model yet).
  */
-export function turnsToHistory(backendSession: URI, turns: readonly Turn[], participantId: string, connectionAuthority: string, lookup?: TurnModelLookup, errorContext?: IChatErrorContext, terminalCommandPrefix?: string): IChatSessionHistoryItem[] {
+export function turnsToHistory(backendSession: URI, turns: readonly Turn[], participantId: string, connectionAuthority: string, lookup?: TurnModelLookup, errorContext?: IChatErrorContext, terminalCommandPrefix?: string, resourceUris: IAgentHostResourceUriMapper = createAgentHostResourceUriMapper(connectionAuthority)): IChatSessionHistoryItem[] {
 	const history: IChatSessionHistoryItem[] = [];
 	for (const turn of turns) {
 		const rawModelId = turn.usage?.model;
@@ -910,7 +910,7 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 				case ResponsePartKind.ToolCall: {
 					const tc = rp.toolCall as ICompletedToolCall;
 					const fileEditParts = completedToolCallToEditParts(tc, connectionAuthority);
-					const serialized = completedToolCallToSerialized(tc, undefined, backendSession, connectionAuthority);
+					const serialized = completedToolCallToSerialized(tc, undefined, backendSession, connectionAuthority, resourceUris);
 					if (fileEditParts.length > 0) {
 						serialized.presentation = ToolInvocationPresentation.Hidden;
 					}
@@ -936,7 +936,7 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 					// they are handled separately by the content provider.
 					break;
 				case ResponsePartKind.InputRequest: {
-					parts.push(inputRequestResponsePartToProgress(rp, connectionAuthority));
+					parts.push(inputRequestResponsePartToProgress(rp, connectionAuthority, resourceUris));
 					break;
 				}
 			}
@@ -1268,7 +1268,7 @@ function textRangeToIRange(range: TextRange): IRange {
  * reasoning, completed tool calls) and live {@link ChatToolInvocation}
  * objects for running tool calls and pending confirmations.
  */
-export function activeTurnToProgress(sessionResource: URI, activeTurn: ActiveTurn, connectionAuthority: string, mcpServerAuthority = sessionResource.authority, toolInvocationOptions?: IAgentHostToolInvocationOptions, lookup?: TurnModelLookup): IChatProgress[] {
+export function activeTurnToProgress(sessionResource: URI, activeTurn: ActiveTurn, connectionAuthority: string, mcpServerAuthority = sessionResource.authority, toolInvocationOptions?: IAgentHostToolInvocationOptions, lookup?: TurnModelLookup, resourceUris: IAgentHostResourceUriMapper = createAgentHostResourceUriMapper(connectionAuthority)): IChatProgress[] {
 	const parts: IChatProgress[] = [];
 	const usage = usageInfoToChatUsage(activeTurn.usage, lookup?.toModelDisplayName);
 	if (usage) {
@@ -1293,11 +1293,11 @@ export function activeTurnToProgress(sessionResource: URI, activeTurn: ActiveTur
 					&& toolInvocationOptions
 					&& tc.contributor.clientId !== toolInvocationOptions.currentClientId;
 				if (tc.status === ToolCallStatus.Completed || tc.status === ToolCallStatus.Cancelled) {
-					parts.push(completedToolCallToSerialized(tc as ICompletedToolCall, undefined, sessionResource, connectionAuthority));
+					parts.push(completedToolCallToSerialized(tc as ICompletedToolCall, undefined, sessionResource, connectionAuthority, resourceUris));
 				} else if (tc.status === ToolCallStatus.Streaming && !isOtherClientToolCall) {
 					parts.push(toolCallStateToStreamingInvocation(tc, undefined, sessionResource, connectionAuthority, mcpServerAuthority));
 				} else if (tc.status === ToolCallStatus.Running || tc.status === ToolCallStatus.AuthRequired || tc.status === ToolCallStatus.Streaming || tc.status === ToolCallStatus.PendingConfirmation) {
-					parts.push(toolCallStateToInvocation(tc, undefined, sessionResource, connectionAuthority, mcpServerAuthority, toolInvocationOptions));
+					parts.push(toolCallStateToInvocation(tc, undefined, sessionResource, connectionAuthority, mcpServerAuthority, toolInvocationOptions, resourceUris));
 				}
 				break;
 			}
@@ -1718,7 +1718,7 @@ function completedToolCallConfirmedReason(tc: ICompletedToolCall): NonNullable<I
  * Converts a completed tool call from the protocol state into a serialized
  * tool invocation suitable for history replay.
  */
-export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentInvocationId: string | undefined, sessionResource: URI, connectionAuthority: string): IChatToolInvocationSerialized {
+export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentInvocationId: string | undefined, sessionResource: URI, connectionAuthority: string, resourceUris: IAgentHostResourceUriMapper = createAgentHostResourceUriMapper(connectionAuthority)): IChatToolInvocationSerialized {
 	const isTerminal = isTerminalToolCall(tc);
 	const isSuccess = tc.status === ToolCallStatus.Completed && tc.success;
 	let invocationMsg = stringOrMarkdownToString(tc.invocationMessage, connectionAuthority) ?? tc.displayName;
@@ -1746,6 +1746,7 @@ export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentIn
 			toolSpecificData: {
 				kind: 'subagent',
 				description: getSubagentTaskDescription(tc) ?? tc.displayName,
+				...(subagentContent?.title ? { agentDisplayName: subagentContent.title } : {}),
 				agentName: subagentContent?.agentName ?? getSubagentAgentName(tc),
 				result: resultText,
 				chatResource: getSubagentChatResource(tc, subagentContent, sessionResource),
@@ -1774,7 +1775,7 @@ export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentIn
 	// Tools that render a bespoke, client-authored message override both the
 	// invocation and past-tense text here. Add new per-tool cases alongside.
 	if (isAddCommentTool(tc.toolName)) {
-		const ref = addCommentReference(tc);
+		const ref = addCommentReference(tc, resourceUris);
 		if (ref) {
 			invocationMsg = ref;
 			pastTenseMsg = ref;
@@ -2151,7 +2152,7 @@ function isOneBasedRange(value: unknown): value is IRange {
  * {@link isAddCommentTool}). Returns `undefined` when the arguments can't be
  * parsed, so the caller falls back to the server-authored message.
  */
-function addCommentReference(tc: ToolCallState): IMarkdownString | undefined {
+function addCommentReference(tc: ToolCallState, resourceUris: IAgentHostResourceUriMapper): IMarkdownString | undefined {
 	// `toolInput` is absent while parameters are still streaming; every other
 	// state carries it (see `ToolCallParameterFields`).
 	if (tc.status === ToolCallStatus.Streaming || !tc.toolInput) {
@@ -2173,7 +2174,8 @@ function addCommentReference(tc: ToolCallState): IMarkdownString | undefined {
 	const preview = escapeIcons(escapeMarkdownLinkLabel(addCommentPreview(args.text)));
 	// The command resolves the owning session from the file resource, so the
 	// link only needs the resource and range (both known here).
-	const commandArgs = encodeURIComponent(JSON.stringify([args.resourceUri, args.range]));
+	const resource = resourceUris.fromAgentHost(URI.parse(args.resourceUri));
+	const commandArgs = encodeURIComponent(JSON.stringify([resource.toString(), args.range]));
 	const link = `command:${AgentFeedbackReviewCommandId.RevealAt}?${commandArgs}`;
 	return new MarkdownString(`[addComment "${preview}"](${link})`, {
 		isTrusted: { enabledCommands: [AgentFeedbackReviewCommandId.RevealAt] },
@@ -2189,7 +2191,7 @@ function addCommentReference(tc: ToolCallState): IMarkdownString | undefined {
  *   wrapping remote file URIs into `vscode-agent-host:` URIs. Omit to skip
  *   URI wrapping (e.g. in tests that don't exercise the confirmation UI).
  */
-export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationId: string | undefined, sessionResource: URI, connectionAuthority: string, mcpServerAuthority = sessionResource.authority, options?: IAgentHostToolInvocationOptions): ChatToolInvocation {
+export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationId: string | undefined, sessionResource: URI, connectionAuthority: string, mcpServerAuthority = sessionResource.authority, options?: IAgentHostToolInvocationOptions, resourceUris: IAgentHostResourceUriMapper = createAgentHostResourceUriMapper(connectionAuthority)): ChatToolInvocation {
 	const toolData: IToolData = {
 		id: tc.toolName,
 		source: ToolDataSource.Internal,
@@ -2290,7 +2292,7 @@ export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationI
 	// Tools that render a bespoke, client-authored invocation message override
 	// the server text here. Add new per-tool cases alongside this branch.
 	if (isAddCommentTool(tc.toolName)) {
-		invocation.invocationMessage = addCommentReference(tc) ?? invocation.invocationMessage;
+		invocation.invocationMessage = addCommentReference(tc, resourceUris) ?? invocation.invocationMessage;
 	}
 
 	if (isTerminalToolCall(tc)) {
@@ -2316,6 +2318,7 @@ export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationI
 		invocation.toolSpecificData = {
 			kind: 'subagent',
 			description: getSubagentTaskDescription(tc),
+			...(subagentContent?.title ? { agentDisplayName: subagentContent.title } : {}),
 			agentName: subagentContent?.agentName ?? getSubagentAgentName(tc),
 			chatResource: getSubagentChatResource(tc, subagentContent, sessionResource),
 		};
@@ -2434,8 +2437,8 @@ export function updateStreamingToolInvocation(existing: ChatToolInvocation, tc: 
  * transition a streaming invocation into its confirmation/running presentation
  * without allocating a second visible card.
  */
-export function toolCallStateToPreparedInvocation(tc: ToolCallState, sessionResource: URI, connectionAuthority: string, mcpServerAuthority = sessionResource.authority, options?: IAgentHostToolInvocationOptions): IPreparedToolInvocation {
-	const built = toolCallStateToInvocation(tc, undefined, sessionResource, connectionAuthority, mcpServerAuthority, options);
+export function toolCallStateToPreparedInvocation(tc: ToolCallState, sessionResource: URI, connectionAuthority: string, mcpServerAuthority = sessionResource.authority, options?: IAgentHostToolInvocationOptions, resourceUris: IAgentHostResourceUriMapper = createAgentHostResourceUriMapper(connectionAuthority)): IPreparedToolInvocation {
+	const built = toolCallStateToInvocation(tc, undefined, sessionResource, connectionAuthority, mcpServerAuthority, options, resourceUris);
 	return {
 		invocationMessage: built.invocationMessage,
 		pastTenseMessage: built.pastTenseMessage,
@@ -2452,7 +2455,7 @@ export function toolCallStateToPreparedInvocation(tc: ToolCallState, sessionReso
  * Called from the session handler when a tool transitions to Running state
  * to set the initial `toolSpecificData`, or when content changes arrive.
  */
-export function updateRunningToolSpecificData(existing: ChatToolInvocation, tc: ToolCallState, sessionResource: URI, connectionAuthority: string): void {
+export function updateRunningToolSpecificData(existing: ChatToolInvocation, tc: ToolCallState, sessionResource: URI, connectionAuthority: string, resourceUris: IAgentHostResourceUriMapper = createAgentHostResourceUriMapper(connectionAuthority)): void {
 	if (tc.status !== ToolCallStatus.Running) {
 		return;
 	}
@@ -2462,7 +2465,7 @@ export function updateRunningToolSpecificData(existing: ChatToolInvocation, tc: 
 		existing.presentation = ToolInvocationPresentation.HiddenAfterComplete;
 	}
 	if (isAddCommentTool(tc.toolName)) {
-		existing.invocationMessage = addCommentReference(tc) ?? existing.invocationMessage;
+		existing.invocationMessage = addCommentReference(tc, resourceUris) ?? existing.invocationMessage;
 	}
 
 
@@ -2472,6 +2475,7 @@ export function updateRunningToolSpecificData(existing: ChatToolInvocation, tc: 
 			kind: 'subagent',
 			isActive: existing.toolSpecificData?.kind === 'subagent' ? existing.toolSpecificData.isActive : undefined,
 			description: getSubagentTaskDescription(tc),
+			agentDisplayName: subagentContent.title,
 			agentName: subagentContent.agentName,
 			credits: existing.toolSpecificData?.kind === 'subagent' ? existing.toolSpecificData.credits : undefined,
 			modelName: existing.toolSpecificData?.kind === 'subagent' ? existing.toolSpecificData.modelName : undefined,
@@ -2563,7 +2567,7 @@ export interface IToolCallFileEdit {
  * Returns file edits that the caller should route through the editing
  * session's external edits pipeline.
  */
-export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolCallState, backendSession: URI, connectionAuthority: string): IToolCallFileEdit[] {
+export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolCallState, backendSession: URI, connectionAuthority: string, resourceUris: IAgentHostResourceUriMapper = createAgentHostResourceUriMapper(connectionAuthority)): IToolCallFileEdit[] {
 	const isCompleted = tc.status === ToolCallStatus.Completed;
 	const isCancelled = tc.status === ToolCallStatus.Cancelled;
 	const isTerminal = isTerminalToolCall(tc, invocation.toolSpecificData?.kind);
@@ -2574,7 +2578,7 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 	// Tools that render a bespoke, client-authored message override the
 	// invocation text here. Add new per-tool cases alongside this branch.
 	if (isAddCommentTool(tc.toolName)) {
-		invocation.invocationMessage = addCommentReference(tc) ?? invocation.invocationMessage;
+		invocation.invocationMessage = addCommentReference(tc, resourceUris) ?? invocation.invocationMessage;
 	}
 	if (isAgentHostAskUserTool(tc.toolName)) {
 		invocation.presentation = ToolInvocationPresentation.HiddenAfterComplete;
@@ -2589,6 +2593,7 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 				kind: 'subagent',
 				isActive: invocation.toolSpecificData?.kind === 'subagent' ? invocation.toolSpecificData.isActive : undefined,
 				description: getSubagentTaskDescription(tc),
+				agentDisplayName: subagentContent.title,
 				agentName: subagentContent.agentName,
 				result: resultText,
 				credits: invocation.toolSpecificData?.kind === 'subagent' ? invocation.toolSpecificData.credits : undefined,
@@ -2604,6 +2609,7 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 				kind: 'subagent',
 				isActive: invocation.toolSpecificData.isActive,
 				description: getSubagentTaskDescription(tc) ?? invocation.toolSpecificData.description,
+				...(invocation.toolSpecificData.agentDisplayName ? { agentDisplayName: invocation.toolSpecificData.agentDisplayName } : {}),
 				agentName: getSubagentAgentName(tc) ?? invocation.toolSpecificData.agentName,
 				result: getToolOutputText(tc),
 				credits: invocation.toolSpecificData.credits,
@@ -2628,7 +2634,7 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 	// Tools that render a bespoke, client-authored message override the
 	// past-tense text here. Add new per-tool cases alongside this branch.
 	if (isCompleted && isAddCommentTool(tc.toolName)) {
-		invocation.pastTenseMessage = addCommentReference(tc) ?? invocation.pastTenseMessage;
+		invocation.pastTenseMessage = addCommentReference(tc, resourceUris) ?? invocation.pastTenseMessage;
 	}
 
 	if (isCompleted) {

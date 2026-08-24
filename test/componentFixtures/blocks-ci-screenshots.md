@@ -43,10 +43,10 @@
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/df1f42cc6f6a3eb52f36effd880cfc010b8107fccb88dcbeffbf57ae145ca2e4)
 
 #### chat/petAchievements/standaloneModal/chatPetAchievementsEditor/MixedSelected/Dark
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/5a1609dbdbd0452d5e037bc334c8f52b119a8e142331604bc6ad3c4778b437b9)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/987887f3edd330dfdcf3e9cb2164b03046eb6858780a98175bb8d4e3e089b4fa)
 
 #### chat/petAchievements/standaloneModal/chatPetAchievementsEditor/MixedSelected/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/2ed2c21fadb55a5799671ae54206454af12cf6b7967ca280662bfb58cef58cba)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/4c34a203cbbdad71b881f3a5aa2f715dfb50ed356dbf19e18e4a79b42f5f18fa)
 
 #### editor/codeEditor/CodeEditor/Dark
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/09075b2f4715fa8a8ad426165bb85ba96a15b7174259c7da7ef0c2d5e74f7f79)

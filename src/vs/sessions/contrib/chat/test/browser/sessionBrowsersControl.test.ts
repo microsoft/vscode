@@ -260,4 +260,23 @@ suite('SessionBrowsersControl', () => {
 			fallback: 'browser-0',
 		});
 	});
+
+	test('publishes the listed browser URLs only while the pill is visible', () => {
+		const browsers = [
+			{ title: 'Docs', url: 'https://example.com/docs' },
+			{ title: 'Subagent Preview', url: 'https://preview.test/', owner: 'subagent' as const },
+			{ title: 'Other Session', url: 'https://other.test/', owner: 'other' as const },
+			{ title: 'Blank' },
+		];
+
+		assert.deepStrictEqual({
+			visible: [...createControl({ browsers }, store).control.urls.get()],
+			hidden: [...createControl({ browsers, visible: false }, store).control.urls.get()],
+			disabled: [...createControl({ browsers, enabled: false }, store).control.urls.get()],
+		}, {
+			visible: ['https://example.com/docs', 'https://preview.test/'],
+			hidden: [],
+			disabled: [],
+		});
+	});
 });

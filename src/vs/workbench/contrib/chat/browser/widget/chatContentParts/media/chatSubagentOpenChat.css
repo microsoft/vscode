@@ -15,7 +15,7 @@
 	min-width: 0;
 }
 
-.chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget {
+.chat-subagent-open-chat-toolbar .actions-container .action-item.chat-subagent-pill-widget {
 	display: inline-flex;
 	flex-direction: column;
 	align-items: flex-start;
@@ -29,6 +29,7 @@
 	cursor: default;
 	white-space: nowrap;
 	text-decoration: none;
+	outline: none;
 }
 
 .chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget .chat-subagent-pill-header {
@@ -59,6 +60,23 @@
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
+}
+
+.chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget .chat-subagent-pill-agent-type {
+	flex: 0 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget .chat-subagent-pill-agent-type::after {
+	content: '\00b7';
+	margin-left: var(--vscode-spacing-size40);
+}
+
+.chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget .chat-subagent-pill-agent-type.hidden {
+	display: none;
 }
 
 .chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget .chat-subagent-pill-active-tool-label.rendered-markdown,
@@ -341,6 +359,6 @@
 	display: none;
 }
 
-.chat-subagent-part.chat-subagent-open-chat-only::after {
+.chat-subagent-part.chat-subagent-open-chat-only > .chat-used-context-label::after {
 	display: none;
 }

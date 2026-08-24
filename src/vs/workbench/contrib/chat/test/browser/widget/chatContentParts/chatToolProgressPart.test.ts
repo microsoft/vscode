@@ -220,7 +220,7 @@ suite('ChatToolProgressSubPart', () => {
 		assert.strictEqual(part.hasSameContent(invocation, [], {} as never), false);
 	});
 
-	test('confirmation carousel reports the active subagent and invokes its reference action', () => {
+	test('confirmation carousel reports the active subagent title and invokes its reference action', () => {
 		const createPendingInvocation = (toolCallId: string): IChatToolInvocation => ({
 			...createToolInvocation(),
 			toolCallId,
@@ -245,8 +245,8 @@ suite('ChatToolProgressSubPart', () => {
 			throw new Error('External tool parts should be reused');
 		}, []));
 		disposables.add(carousel.onDidChangeActiveSubagent(id => active.push(id)));
-		carousel.addToolInvocation(createPendingInvocation('first'), 'subagent-one', 'one', id => revealed.push(id), 'Open one Chat', createExternalPart());
-		carousel.addToolInvocation(createPendingInvocation('second'), 'subagent-two', 'two', id => revealed.push(id), 'Open two Chat', createExternalPart());
+		carousel.addToolInvocation(createPendingInvocation('first'), 'subagent-one', 'Inspect auth flow', id => revealed.push(id), 'Open Inspect auth flow Chat', createExternalPart());
+		carousel.addToolInvocation(createPendingInvocation('second'), 'subagent-two', 'Review current branch', id => revealed.push(id), 'Open Review current branch Chat', createExternalPart());
 
 		carousel.activateFirstToolForSubagent('subagent-two');
 		const agentLabel = carousel.domNode.querySelector<HTMLButtonElement>('.chat-tool-carousel-agent-label');
@@ -255,11 +255,13 @@ suite('ChatToolProgressSubPart', () => {
 		assert.deepStrictEqual({
 			active,
 			revealed,
+			text: agentLabel?.textContent,
 			label: agentLabel?.title,
 		}, {
 			active: ['subagent-one', 'subagent-two'],
 			revealed: ['subagent-two'],
-			label: 'Open two Chat',
+			text: '\u2014 Review current branch',
+			label: 'Open Review current branch Chat',
 		});
 	});
 

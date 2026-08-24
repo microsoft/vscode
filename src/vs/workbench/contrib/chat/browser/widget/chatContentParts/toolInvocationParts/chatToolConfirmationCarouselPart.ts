@@ -35,7 +35,7 @@ interface ICarouselToolItem {
 	readonly toolCallId: string;
 	readonly disposables: DisposableStore;
 	readonly subAgentInvocationId?: string;
-	readonly agentName?: string;
+	readonly subagentTitle?: string;
 	readonly revealSubagent?: RevealSubagentCallback;
 	readonly revealSubagentLabel?: string;
 	ownsToolPart: boolean;
@@ -76,7 +76,7 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 		private readonly revealSubagent?: RevealSubagentCallback,
 		private readonly initialRevealSubagentLabel?: string,
 		private readonly initialSubAgentInvocationId?: string,
-		private readonly initialAgentName?: string,
+		private readonly initialSubagentTitle?: string,
 	) {
 		super();
 
@@ -158,7 +158,7 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 		this._register(dom.addDisposableListener(this.domNode, 'keydown', e => this.onKeydown(e)));
 
 		for (const tool of initialTools) {
-			this.addToolInvocation(tool, this.initialSubAgentInvocationId, this.initialAgentName, this.revealSubagent, this.initialRevealSubagentLabel);
+			this.addToolInvocation(tool, this.initialSubAgentInvocationId, this.initialSubagentTitle, this.revealSubagent, this.initialRevealSubagentLabel);
 		}
 	}
 
@@ -179,7 +179,7 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 		return this.toolCallIds.has(toolCallId);
 	}
 
-	addToolInvocation(tool: IChatToolInvocation, subAgentInvocationId?: string, agentName?: string, revealSubagent?: RevealSubagentCallback, revealSubagentLabel?: string, toolPart?: ChatToolInvocationPart): void {
+	addToolInvocation(tool: IChatToolInvocation, subAgentInvocationId?: string, subagentTitle?: string, revealSubagent?: RevealSubagentCallback, revealSubagentLabel?: string, toolPart?: ChatToolInvocationPart): void {
 		if (this.toolCallIds.has(tool.toolCallId)) {
 			const existing = this.items.find(item => item.toolCallId === tool.toolCallId);
 			if (existing && toolPart && !existing.toolPart) {
@@ -197,7 +197,7 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 			toolCallId: tool.toolCallId,
 			disposables,
 			subAgentInvocationId,
-			agentName,
+			subagentTitle,
 			revealSubagent,
 			revealSubagentLabel,
 			ownsToolPart: !toolPart,
@@ -377,10 +377,10 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 		this.collapsedTitle.textContent = this.getToolTitle(item) ?? '';
 		dom.setVisibility(!!this.collapsedTitle.textContent, this.collapsedTitle);
 
-		if (item?.agentName) {
-			this.agentLabel.textContent = `\u2014 ${item.agentName}`;
+		if (item?.subagentTitle) {
+			this.agentLabel.textContent = `\u2014 ${item.subagentTitle}`;
 			this.agentLabel.disabled = !item.subAgentInvocationId || !item.revealSubagent;
-			this.agentLabel.title = item.revealSubagentLabel ?? localize('scrollToSubagent', "Scroll to {0}", item.agentName);
+			this.agentLabel.title = item.revealSubagentLabel ?? localize('scrollToSubagent', "Scroll to {0}", item.subagentTitle);
 			this.agentLabel.setAttribute('aria-label', this.agentLabel.title);
 			dom.show(this.agentLabel);
 		} else {
