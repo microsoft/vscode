@@ -798,15 +798,17 @@ suite('ModernUIContribution', () => {
 		});
 	});
 
-	test('balances default density activity indicators across the panel gutter', () => {
+	test('centers default density activity bar items and meets the side bar flush', () => {
 		const root = document.createElement('div');
 		root.className = 'monaco-workbench modern-ui floating-panels';
 		root.style.display = 'inline-flex';
 		root.style.setProperty('--activity-bar-action-height', '36px');
 		root.style.setProperty('--activity-bar-width', '36px');
+		root.style.setProperty('--vscode-spacing-sizeNone', '0px');
 		root.style.setProperty('--vscode-spacing-size20', '2px');
 		root.style.setProperty('--vscode-spacing-size40', '4px');
 		root.style.setProperty('--vscode-spacing-size60', '6px');
+		root.style.setProperty('--vscode-spacing-size80', '8px');
 		document.body.appendChild(root);
 		store.add(toDisposable(() => root.remove()));
 
@@ -816,14 +818,12 @@ suite('ModernUIContribution', () => {
 			const actionBar = appendElement(appendElement(content, 'composite-bar'), 'monaco-action-bar');
 			const action = appendElement(actionBar, 'action-item checked');
 			appendElement(action, 'action-label codicon');
-			const indicator = appendElement(action, 'active-item-indicator');
-			return { activityBar, action, indicator };
+			return { activityBar, action };
 		};
 
 		const left = appendActivityAction('left');
 		const leftSideBar = appendElement(root, 'part sidebar left');
 		leftSideBar.style.width = '60px';
-		leftSideBar.style.marginLeft = '4px';
 		const rightSideBar = appendElement(root, 'part sidebar right');
 		rightSideBar.style.width = '60px';
 		const right = appendActivityAction('right');
@@ -831,40 +831,30 @@ suite('ModernUIContribution', () => {
 		const rootBounds = root.getBoundingClientRect();
 		const leftActivityBounds = left.activityBar.getBoundingClientRect();
 		const leftActionBounds = left.action.getBoundingClientRect();
-		const leftIndicatorBounds = left.indicator.getBoundingClientRect();
 		const leftSideBarBounds = leftSideBar.getBoundingClientRect();
 		const rightSideBarBounds = rightSideBar.getBoundingClientRect();
 		const rightActivityBounds = right.activityBar.getBoundingClientRect();
 		const rightActionBounds = right.action.getBoundingClientRect();
-		const rightIndicatorBounds = right.indicator.getBoundingClientRect();
 
 		assert.deepStrictEqual({
 			left: {
 				actionWidth: leftActionBounds.width,
-				actionCenterOffset: leftActionBounds.left + leftActionBounds.width / 2 - (rootBounds.left + leftSideBarBounds.left) / 2,
-				windowPadding: leftIndicatorBounds.left - rootBounds.left,
-				panelPadding: leftSideBarBounds.left - leftIndicatorBounds.right,
+				actionCenterOffset: leftActionBounds.left + leftActionBounds.width / 2 - (leftActivityBounds.left + leftActivityBounds.width / 2),
+				windowMargin: leftActivityBounds.left - rootBounds.left,
+				seamGap: leftSideBarBounds.left - leftActivityBounds.right,
 			},
 			right: {
 				actionWidth: rightActionBounds.width,
-				actionCenterOffset: rightActionBounds.left + rightActionBounds.width / 2 - (rightSideBarBounds.right + rightActivityBounds.right) / 2,
-				windowPadding: rightActivityBounds.right - rightIndicatorBounds.right,
-				panelPadding: rightIndicatorBounds.left - rightSideBarBounds.right,
+				actionCenterOffset: rightActionBounds.left + rightActionBounds.width / 2 - (rightActivityBounds.left + rightActivityBounds.width / 2),
+				windowMargin: rootBounds.right - rightActivityBounds.right,
+				seamGap: rightActivityBounds.left - rightSideBarBounds.right,
 			},
 			railWidths: [leftActivityBounds.width, rightActivityBounds.width],
 		}, {
-			left: {
-				actionWidth: 36,
-				actionCenterOffset: 0,
-				windowPadding: 8,
-				panelPadding: 8,
-			},
-			right: {
-				actionWidth: 36,
-				actionCenterOffset: 0,
-				windowPadding: 8,
-				panelPadding: 8,
-			},
+			// The rail carries the cluster's outer gutter on the window side, meets the side
+			// bar flush on the other, and centers the icon column in the lane between them.
+			left: { actionWidth: 36, actionCenterOffset: 0, windowMargin: 8, seamGap: 0 },
+			right: { actionWidth: 36, actionCenterOffset: 0, windowMargin: 8, seamGap: 0 },
 			railWidths: [44, 44],
 		});
 	});
@@ -928,31 +918,49 @@ suite('ModernUIContribution', () => {
 		});
 	});
 
-	test('hides collapsed primary side bar grips without hiding constrained auxiliary sash grips', () => {
-		const root = document.createElement('div');
-		root.className = 'monaco-workbench modern-ui nosidebar nopanel';
-		document.body.appendChild(root);
-		store.add(toDisposable(() => root.remove()));
+	test('keeps collapsed primary side bar grips only while the activity bar can anchor them', () => {
+		const grips = (rootClassName: string) => {
+			const root = document.createElement('div');
+			root.className = rootClassName;
+			document.body.appendChild(root);
+			store.add(toDisposable(() => root.remove()));
 
-		const leftPrimarySideBarSash = appendElement(root, 'monaco-sash vertical minimum primary-sidebar-sash');
-		const rightPrimarySideBarSash = appendElement(root, 'monaco-sash vertical maximum primary-sidebar-sash');
-		const minimumAuxiliaryBarSash = appendElement(root, 'monaco-sash vertical minimum');
-		const maximumAuxiliaryBarSash = appendElement(root, 'monaco-sash vertical maximum');
-		const panelSash = appendElement(root, 'monaco-sash horizontal maximum');
-		const targetWindow = getWindow(root);
+			const leftPrimarySideBarSash = appendElement(root, 'monaco-sash vertical minimum primary-sidebar-sash');
+			const rightPrimarySideBarSash = appendElement(root, 'monaco-sash vertical maximum primary-sidebar-sash');
+			const minimumAuxiliaryBarSash = appendElement(root, 'monaco-sash vertical minimum');
+			const maximumAuxiliaryBarSash = appendElement(root, 'monaco-sash vertical maximum');
+			const panelSash = appendElement(root, 'monaco-sash horizontal maximum');
+			const targetWindow = getWindow(root);
+
+			return {
+				leftPrimarySideBarGrip: targetWindow.getComputedStyle(leftPrimarySideBarSash, '::after').content,
+				rightPrimarySideBarGrip: targetWindow.getComputedStyle(rightPrimarySideBarSash, '::after').content,
+				minimumAuxiliaryBarGrip: targetWindow.getComputedStyle(minimumAuxiliaryBarSash, '::after').content,
+				maximumAuxiliaryBarGrip: targetWindow.getComputedStyle(maximumAuxiliaryBarSash, '::after').content,
+				panelGrip: targetWindow.getComputedStyle(panelSash, '::after').content,
+			};
+		};
 
 		assert.deepStrictEqual({
-			leftPrimarySideBarGrip: targetWindow.getComputedStyle(leftPrimarySideBarSash, '::after').content,
-			rightPrimarySideBarGrip: targetWindow.getComputedStyle(rightPrimarySideBarSash, '::after').content,
-			minimumAuxiliaryBarGrip: targetWindow.getComputedStyle(minimumAuxiliaryBarSash, '::after').content,
-			maximumAuxiliaryBarGrip: targetWindow.getComputedStyle(maximumAuxiliaryBarSash, '::after').content,
-			panelGrip: targetWindow.getComputedStyle(panelSash, '::after').content,
+			// The rail stands alone as its own card, so the reveal sash sits in a real gap.
+			activityBarVisible: grips('monaco-workbench modern-ui nosidebar nopanel'),
+			// Nothing left on that edge to gap against.
+			activityBarHidden: grips('monaco-workbench modern-ui nosidebar noactivitybar nopanel'),
 		}, {
-			leftPrimarySideBarGrip: 'none',
-			rightPrimarySideBarGrip: 'none',
-			minimumAuxiliaryBarGrip: '\"\"',
-			maximumAuxiliaryBarGrip: '\"\"',
-			panelGrip: 'none',
+			activityBarVisible: {
+				leftPrimarySideBarGrip: '\"\"',
+				rightPrimarySideBarGrip: '\"\"',
+				minimumAuxiliaryBarGrip: '\"\"',
+				maximumAuxiliaryBarGrip: '\"\"',
+				panelGrip: 'none',
+			},
+			activityBarHidden: {
+				leftPrimarySideBarGrip: 'none',
+				rightPrimarySideBarGrip: 'none',
+				minimumAuxiliaryBarGrip: '\"\"',
+				maximumAuxiliaryBarGrip: '\"\"',
+				panelGrip: 'none',
+			},
 		});
 	});
 

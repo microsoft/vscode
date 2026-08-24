@@ -277,14 +277,22 @@
 	margin-top: var(--vscode-spacing-size80);
 }
 
+/*
+ * The compact cluster paints its perimeter stroke as background images rather than a real
+ * border, so a card can show an edge only where it faces the outside (see the corner/edge
+ * background stack below). A corner is a 1px-wide ring cut from a radial gradient. Hard
+ * colour stops are not antialiased, which rendered the arc as a stepped chamfer, so each
+ * edge of the ring is feathered by half a pixel either side of the solid 1px core. That
+ * restores a smooth curve matching the browser-drawn borders used at the default density.
+ */
 .monaco-workbench.floating-panels.modern-ui-compact .part.activitybar.left {
-	--modern-ui-floating-card-corner-top-left-border-image: radial-gradient(circle at bottom right, transparent calc(var(--vscode-cornerRadius-large) - var(--vscode-strokeThickness)), var(--modern-ui-floating-card-stroke-color) calc(var(--vscode-cornerRadius-large) - var(--vscode-strokeThickness)) var(--vscode-cornerRadius-large), transparent var(--vscode-cornerRadius-large));
-	--modern-ui-floating-card-corner-bottom-left-border-image: radial-gradient(circle at top right, transparent calc(var(--vscode-cornerRadius-large) - var(--vscode-strokeThickness)), var(--modern-ui-floating-card-stroke-color) calc(var(--vscode-cornerRadius-large) - var(--vscode-strokeThickness)) var(--vscode-cornerRadius-large), transparent var(--vscode-cornerRadius-large));
+	--modern-ui-floating-card-corner-top-left-border-image: radial-gradient(circle at bottom right, transparent calc(var(--vscode-cornerRadius-large) - var(--vscode-strokeThickness) - 0.5px), var(--modern-ui-floating-card-stroke-color) calc(var(--vscode-cornerRadius-large) - var(--vscode-strokeThickness)), var(--modern-ui-floating-card-stroke-color) var(--vscode-cornerRadius-large), transparent calc(var(--vscode-cornerRadius-large) + 0.5px));
+	--modern-ui-floating-card-corner-bottom-left-border-image: radial-gradient(circle at top right, transparent calc(var(--vscode-cornerRadius-large) - var(--vscode-strokeThickness) - 0.5px), var(--modern-ui-floating-card-stroke-color) calc(var(--vscode-cornerRadius-large) - var(--vscode-strokeThickness)), var(--modern-ui-floating-card-stroke-color) var(--vscode-cornerRadius-large), transparent calc(var(--vscode-cornerRadius-large) + 0.5px));
 }
 
 .monaco-workbench.floating-panels.modern-ui-compact .part.activitybar.right {
-	--modern-ui-floating-card-corner-top-right-border-image: radial-gradient(circle at bottom left, transparent calc(var(--vscode-cornerRadius-large) - var(--vscode-strokeThickness)), var(--modern-ui-floating-card-stroke-color) calc(var(--vscode-cornerRadius-large) - var(--vscode-strokeThickness)) var(--vscode-cornerRadius-large), transparent var(--vscode-cornerRadius-large));
-	--modern-ui-floating-card-corner-bottom-right-border-image: radial-gradient(circle at top left, transparent calc(var(--vscode-cornerRadius-large) - var(--vscode-strokeThickness)), var(--modern-ui-floating-card-stroke-color) calc(var(--vscode-cornerRadius-large) - var(--vscode-strokeThickness)) var(--vscode-cornerRadius-large), transparent var(--vscode-cornerRadius-large));
+	--modern-ui-floating-card-corner-top-right-border-image: radial-gradient(circle at bottom left, transparent calc(var(--vscode-cornerRadius-large) - var(--vscode-strokeThickness) - 0.5px), var(--modern-ui-floating-card-stroke-color) calc(var(--vscode-cornerRadius-large) - var(--vscode-strokeThickness)), var(--modern-ui-floating-card-stroke-color) var(--vscode-cornerRadius-large), transparent calc(var(--vscode-cornerRadius-large) + 0.5px));
+	--modern-ui-floating-card-corner-bottom-right-border-image: radial-gradient(circle at top left, transparent calc(var(--vscode-cornerRadius-large) - var(--vscode-strokeThickness) - 0.5px), var(--modern-ui-floating-card-stroke-color) calc(var(--vscode-cornerRadius-large) - var(--vscode-strokeThickness)), var(--modern-ui-floating-card-stroke-color) var(--vscode-cornerRadius-large), transparent calc(var(--vscode-cornerRadius-large) + 0.5px));
 }
 
 /*
@@ -469,22 +477,22 @@
 
 .monaco-workbench.floating-panels.modern-ui-compact .part.floating-part-outer-left.floating-part-outer-top {
 	border-top-left-radius: var(--vscode-cornerRadius-large);
-	--modern-ui-floating-card-corner-top-left-border-image: radial-gradient(circle at bottom right, transparent calc(var(--vscode-cornerRadius-large) - var(--vscode-strokeThickness)), var(--modern-ui-floating-card-stroke-color) calc(var(--vscode-cornerRadius-large) - var(--vscode-strokeThickness)) var(--vscode-cornerRadius-large), transparent var(--vscode-cornerRadius-large));
+	--modern-ui-floating-card-corner-top-left-border-image: radial-gradient(circle at bottom right, transparent calc(var(--vscode-cornerRadius-large) - var(--vscode-strokeThickness) - 0.5px), var(--modern-ui-floating-card-stroke-color) calc(var(--vscode-cornerRadius-large) - var(--vscode-strokeThickness)), var(--modern-ui-floating-card-stroke-color) var(--vscode-cornerRadius-large), transparent calc(var(--vscode-cornerRadius-large) + 0.5px));
 }
 
 .monaco-workbench.floating-panels.modern-ui-compact .part.floating-part-outer-right.floating-part-outer-top {
 	border-top-right-radius: var(--vscode-cornerRadius-large);
-	--modern-ui-floating-card-corner-top-right-border-image: radial-gradient(circle at bottom left, transparent calc(var(--vscode-cornerRadius-large) - var(--vscode-strokeThickness)), var(--modern-ui-floating-card-stroke-color) calc(var(--vscode-cornerRadius-large) - var(--vscode-strokeThickness)) var(--vscode-cornerRadius-large), transparent var(--vscode-cornerRadius-large));
+	--modern-ui-floating-card-corner-top-right-border-image: radial-gradient(circle at bottom left, transparent calc(var(--vscode-cornerRadius-large) - var(--vscode-strokeThickness) - 0.5px), var(--modern-ui-floating-card-stroke-color) calc(var(--vscode-cornerRadius-large) - var(--vscode-strokeThickness)), var(--modern-ui-floating-card-stroke-color) var(--vscode-cornerRadius-large), transparent calc(var(--vscode-cornerRadius-large) + 0.5px));
 }
 
 .monaco-workbench.floating-panels.modern-ui-compact .part.floating-part-outer-left.floating-part-outer-bottom {
 	border-bottom-left-radius: var(--vscode-cornerRadius-large);
-	--modern-ui-floating-card-corner-bottom-left-border-image: radial-gradient(circle at top right, transparent calc(var(--vscode-cornerRadius-large) - var(--vscode-strokeThickness)), var(--modern-ui-floating-card-stroke-color) calc(var(--vscode-cornerRadius-large) - var(--vscode-strokeThickness)) var(--vscode-cornerRadius-large), transparent var(--vscode-cornerRadius-large));
+	--modern-ui-floating-card-corner-bottom-left-border-image: radial-gradient(circle at top right, transparent calc(var(--vscode-cornerRadius-large) - var(--vscode-strokeThickness) - 0.5px), var(--modern-ui-floating-card-stroke-color) calc(var(--vscode-cornerRadius-large) - var(--vscode-strokeThickness)), var(--modern-ui-floating-card-stroke-color) var(--vscode-cornerRadius-large), transparent calc(var(--vscode-cornerRadius-large) + 0.5px));
 }
 
 .monaco-workbench.floating-panels.modern-ui-compact .part.floating-part-outer-right.floating-part-outer-bottom {
 	border-bottom-right-radius: var(--vscode-cornerRadius-large);
-	--modern-ui-floating-card-corner-bottom-right-border-image: radial-gradient(circle at top left, transparent calc(var(--vscode-cornerRadius-large) - var(--vscode-strokeThickness)), var(--modern-ui-floating-card-stroke-color) calc(var(--vscode-cornerRadius-large) - var(--vscode-strokeThickness)) var(--vscode-cornerRadius-large), transparent var(--vscode-cornerRadius-large));
+	--modern-ui-floating-card-corner-bottom-right-border-image: radial-gradient(circle at top left, transparent calc(var(--vscode-cornerRadius-large) - var(--vscode-strokeThickness) - 0.5px), var(--modern-ui-floating-card-stroke-color) calc(var(--vscode-cornerRadius-large) - var(--vscode-strokeThickness)), var(--modern-ui-floating-card-stroke-color) var(--vscode-cornerRadius-large), transparent calc(var(--vscode-cornerRadius-large) + 0.5px));
 }
 
 .monaco-workbench.floating-panels.modern-ui-compact .webview-overlay-content.webview-overlay-outer-left.webview-overlay-outer-top {
