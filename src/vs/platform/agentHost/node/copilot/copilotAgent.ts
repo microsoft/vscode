@@ -4630,6 +4630,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	// ---- helpers ------------------------------------------------------------
 
+	/**
+	 * Returns the effective Kerberos proxy SPN, treating an empty setting as absent.
+	 */
+	private _readKerberosSpn(env: Record<string, string | undefined>): string | undefined {
+		const spn = env['COPILOT_PROXY_KERBEROS_SPN'] || this._configurationService.getRootValue(agentHostProxyConfigSchema, AgentHostProxyConfigKey.ProxyKerberosServicePrincipal);
+		return spn || undefined;
+	}
+
 	private _applyProxyEnv(env: Record<string, string | undefined>): void {
 		const proxy = this._isSystemProxyEnabled() ? this._resolvedProxy : undefined;
 		this._appliedProxy = proxy;
@@ -4639,7 +4647,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 			this._logService.info('[Copilot] Resolved CAPI proxy and forwarded HTTP_PROXY/HTTPS_PROXY to Copilot SDK');
 		}
-		const kerberosSpn = env['COPILOT_PROXY_KERBEROS_SPN'] || this._configurationService.getRootValue(agentHostProxyConfigSchema, AgentHostProxyConfigKey.ProxyKerberosServicePrincipal);
+		const kerberosSpn = this._readKerberosSpn(env);
 		this._appliedProxyKerberosSpn = kerberosSpn;
 		if (kerberosSpn && !env['COPILOT_PROXY_KERBEROS_SPN']) {
 			env['COPILOT_PROXY_KERBEROS_SPN'] = kerberosSpn;
@@ -4683,7 +4691,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 			this._resolvedProxy = proxy;
 			const effectiveProxy = this._isSystemProxyEnabled() ? proxy : undefined;
-			const effectiveKerberosSpn = process.env['COPILOT_PROXY_KERBEROS_SPN'] || this._configurationService.getRootValue(agentHostProxyConfigSchema, AgentHostProxyConfigKey.ProxyKerberosServicePrincipal);
+			const effectiveKerberosSpn = this._readKerberosSpn(process.env);
 			if (effectiveProxy === this._appliedProxy && effectiveKerberosSpn === this._appliedProxyKerberosSpn) {
 				return;
 			}
@@ -4700,7 +4708,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 					return;
 				}
 			}
-			await this._requestClientRestart(`CAPI proxy configuration changed (${this._appliedProxy ?? '(none)'} -> ${effectiveProxy ?? '(none)'})`);
+			const changes: string[] = [];
+			if (effectiveProxy !== this._appliedProxy) {
+				changes.push(`proxy ${this._appliedProxy ?? '(none)'} -> ${effectiveProxy ?? '(none)'}`);
+			}
+			if (effectiveKerberosSpn !== this._appliedProxyKerberosSpn) {
+				changes.push('Kerberos SPN changed');
+			}
+			await this._requestClientRestart(`CAPI proxy configuration changed (${changes.join(', ')})`);
 		}).catch(error => this._logService.error('[Copilot] Failed to refresh CAPI proxy', error));
 		this._proxyRefresh = refresh;
 		void refresh.finally(() => {
