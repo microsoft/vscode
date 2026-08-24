@@ -7,6 +7,8 @@ import type Anthropic from '@anthropic-ai/sdk';
 import type { CopilotSession, CurrentToolMetadata, PermissionAllowAllMode, PermissionRequest, SessionEvent, SessionEventHandler, SessionEventPayload, SessionEventType, Tool, ToolResultObject, TypedSessionEventHandler } from '@github/copilot-sdk';
 import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
+import { existsSync, mkdirSync, mkdtempSync, rmSync } from 'fs';
+import { tmpdir } from 'os';
 import { PluginFormat } from '../../../agentPlugins/common/pluginParsers.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
@@ -91,6 +93,7 @@ class MockCopilotSession {
 	gitHubCredentialUpdateResult = { success: true, copilotUserResolved: true };
 	gitHubCredentialUpdateError: Error | undefined;
 	readonly collectLogsCalls: Parameters<CopilotSession['rpc']['debug']['collectLogs']>[0][] = [];
+	readonly collectLogsResults: Awaited<ReturnType<CopilotSession['rpc']['debug']['collectLogs']>>[] = [];
 	readonly experimentalModeUpdates: boolean[] = [];
 	experimentalModeUpdateSuccess = true;
 	sandboxConfigUpdateSuccess = true;
@@ -266,6 +269,10 @@ class MockCopilotSession {
 		debug: {
 			collectLogs: async (params: Parameters<CopilotSession['rpc']['debug']['collectLogs']>[0]) => {
 				this.collectLogsCalls.push(params);
+				const result = this.collectLogsResults.shift();
+				if (result) {
+					return result;
+				}
 				const { destination } = params;
 				return destination.kind === 'directory'
 					? { kind: 'directory' as const, path: destination.outputDirectory, entries: [] }
@@ -1050,16 +1057,77 @@ suite('CopilotAgentSession', () => {
 		const { session, mockSession } = await createAgentSession(disposables);
 		const outputDirectory = URI.file('/tmp/agent-host-debug');
 
-		await session.collectDebugLogs(outputDirectory, true);
-		await session.collectDebugLogs(outputDirectory, false);
+		const sessionLogsIncluded = await session.collectDebugLogs(outputDirectory, true);
+		const processLogsIncluded = await session.collectDebugLogs(outputDirectory, false);
 
-		assert.deepStrictEqual(mockSession.collectLogsCalls, [{
-			destination: { kind: 'directory', outputDirectory: outputDirectory.fsPath },
-			include: { events: true, processLogs: false, shellLogs: true },
+		assert.deepStrictEqual({
+			included: [sessionLogsIncluded, processLogsIncluded],
+			calls: mockSession.collectLogsCalls,
 		}, {
-			destination: { kind: 'directory', outputDirectory: outputDirectory.fsPath },
-			include: { events: false, processLogs: false, shellLogs: false },
-		}]);
+			included: [false, false],
+			calls: [{
+				destination: { kind: 'directory', outputDirectory: outputDirectory.fsPath },
+				include: { events: true, processLogs: false, shellLogs: true },
+			}, {
+				destination: { kind: 'directory', outputDirectory: outputDirectory.fsPath },
+				include: { events: false, processLogs: false, shellLogs: false },
+			}],
+		});
+	});
+
+	test('retries SDK debug collection while the event log is pending', async () => {
+		const { session, mockSession } = await createAgentSession(disposables);
+		const testRoot = mkdtempSync(join(tmpdir(), 'copilot-debug-logs-'));
+		const outputDirectory = URI.file(join(testRoot, 'output'));
+		const retryDirectory = join(testRoot, 'retry');
+		mkdirSync(retryDirectory);
+		try {
+			mockSession.collectLogsResults.push({
+				kind: 'directory',
+				path: retryDirectory,
+				entries: [],
+				skippedEntries: [{ bundlePath: 'events.jsonl', path: join(testRoot, 'events.jsonl'), reason: 'not found' }],
+			}, {
+				kind: 'directory',
+				path: outputDirectory.fsPath,
+				entries: [{ bundlePath: 'events.jsonl', source: 'events', sizeBytes: 42 }],
+			});
+
+			const included = await session.collectDebugLogs(outputDirectory, true);
+
+			assert.deepStrictEqual({
+				included,
+				callCount: mockSession.collectLogsCalls.length,
+				retryDirectoryExists: existsSync(retryDirectory),
+			}, {
+				included: true,
+				callCount: 2,
+				retryDirectoryExists: false,
+			});
+		} finally {
+			rmSync(testRoot, { recursive: true, force: true });
+		}
+	});
+
+	test('does not retry a permanently skipped SDK event log', async () => {
+		const { session, mockSession } = await createAgentSession(disposables);
+		const outputDirectory = URI.file('/tmp/agent-host-debug');
+		mockSession.collectLogsResults.push({
+			kind: 'directory',
+			path: outputDirectory.fsPath,
+			entries: [],
+			skippedEntries: [{ bundlePath: 'events.jsonl', path: '/tmp/events.jsonl', reason: 'permission denied' }],
+		});
+
+		const included = await session.collectDebugLogs(outputDirectory, true);
+
+		assert.deepStrictEqual({
+			included,
+			callCount: mockSession.collectLogsCalls.length,
+		}, {
+			included: false,
+			callCount: 1,
+		});
 	});
 
 	suite('CopilotSessionWrapper', () => {
