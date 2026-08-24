@@ -132,4 +132,9 @@
 		"modernActivityBar.activeBackground": "#FFFFFF22",
 		"modernActivityBar.hoverBackground": "#FFFFFF11",
 	},
+	"semanticTokenColors": {
+		"keyword": "#569cd6",
+		"function": "#DCDCAA",
+		"method": "#DCDCAA"
+	}
 }
