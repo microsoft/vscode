@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { MdLanguageClient } from '../client/client';
+import type { MdLanguageClient } from '../client/client';
 import * as proto from '../client/protocol';
 
 enum OpenMarkdownLinks {
@@ -12,28 +12,86 @@ enum OpenMarkdownLinks {
 	currentGroup = 'currentGroup',
 }
 
+interface MdLinkOpenerServices {
+	readonly fileSystem?: Pick<typeof vscode.workspace.fs, 'stat'>;
+	readonly openFile?: (resource: vscode.Uri, options: vscode.TextDocumentShowOptions) => Thenable<void>;
+}
+
+interface ResolveDocumentLinkOptions {
+	readonly allowAbsoluteFilePathFallback?: boolean;
+}
+
+interface OpenDocumentLinkOptions extends ResolveDocumentLinkOptions {
+	readonly viewColumn?: vscode.ViewColumn;
+}
+
+type ResourceStat =
+	| { readonly kind: 'found'; readonly stat: vscode.FileStat }
+	| { readonly kind: 'notFound' }
+	| { readonly kind: 'unavailable' };
+
 export class MdLinkOpener {
 
-	readonly #client: MdLanguageClient;
+	readonly #client: Pick<MdLanguageClient, 'resolveLinkTarget'>;
+	readonly #fileSystem: Pick<typeof vscode.workspace.fs, 'stat'>;
+	readonly #openFile: (resource: vscode.Uri, options: vscode.TextDocumentShowOptions) => Thenable<void>;
 
 	constructor(
-		client: MdLanguageClient,
+		client: Pick<MdLanguageClient, 'resolveLinkTarget'>,
+		services: MdLinkOpenerServices = {},
 	) {
 		this.#client = client;
+		this.#fileSystem = services.fileSystem ?? vscode.workspace.fs;
+		this.#openFile = services.openFile ?? (async (resource, options) => {
+			await vscode.commands.executeCommand('vscode.open', resource, options);
+		});
 	}
 
-	public async resolveDocumentLink(linkText: string, fromResource: vscode.Uri): Promise<proto.ResolvedDocumentLinkTarget> {
-		return this.#client.resolveLinkTarget(linkText, fromResource);
+	public async resolveDocumentLink(
+		linkText: string,
+		fromResource: vscode.Uri,
+		options: ResolveDocumentLinkOptions = {},
+	): Promise<proto.ResolvedDocumentLinkTarget | undefined> {
+		const resolved = await this.#client.resolveLinkTarget(linkText, fromResource);
+		if (!options.allowAbsoluteFilePathFallback || !resolved || resolved.kind === 'external') {
+			return resolved;
+		}
+
+		const absoluteFileResource = getAbsoluteFilePathUri(linkText, fromResource);
+		if (!absoluteFileResource) {
+			return resolved;
+		}
+
+		const resolvedResource = vscode.Uri.from(resolved.uri).with({ query: '', fragment: '' });
+		if (resolvedResource.toString() === absoluteFileResource.toString()) {
+			return resolved;
+		}
+		// Only reinterpret the link when normal Markdown resolution definitely
+		// points at a missing resource.
+		const resolvedStat = await this.#stat(resolvedResource);
+		if (resolvedStat.kind !== 'notFound') {
+			return resolved;
+		}
+
+		const absoluteFileStat = await this.#stat(absoluteFileResource);
+		if (absoluteFileStat.kind !== 'found' || absoluteFileStat.stat.type & vscode.FileType.Directory) {
+			return resolved;
+		}
+		return { kind: 'file', uri: absoluteFileResource };
 	}
 
-	public async openDocumentLink(linkText: string, fromResource: vscode.Uri, viewColumn?: vscode.ViewColumn): Promise<void> {
+	public async openDocumentLink(
+		linkText: string,
+		fromResource: vscode.Uri,
+		options: OpenDocumentLinkOptions = {},
+	): Promise<void> {
 		const absoluteUri = getAbsoluteUri(linkText);
 		if (absoluteUri && absoluteUri.scheme !== 'file') {
 			await openExternal(absoluteUri);
 			return;
 		}
 
-		const resolved = await this.#client.resolveLinkTarget(linkText, fromResource);
+		const resolved = await this.resolveDocumentLink(linkText, fromResource, options);
 		if (!resolved) {
 			return;
 		}
@@ -61,6 +119,7 @@ export class MdLinkOpener {
 				return vscode.commands.executeCommand('revealInExplorer', uri);
 
 			case 'file': {
+				let viewColumn = options.viewColumn;
 				// If no explicit viewColumn is given, check if the editor is already open in a tab
 				if (typeof viewColumn === 'undefined') {
 					for (const tab of vscode.window.tabGroups.all.flatMap(x => x.tabs)) {
@@ -73,13 +132,27 @@ export class MdLinkOpener {
 					}
 				}
 
-				return vscode.commands.executeCommand('vscode.open', uri, {
+				await this.#openFile(uri, {
 					selection: resolved.position
 						? new vscode.Range(resolved.position.line, resolved.position.character, resolved.position.line, resolved.position.character)
 						: rangeSelection,
 					viewColumn: viewColumn ?? getViewColumn(fromResource),
-				} satisfies vscode.TextDocumentShowOptions);
+				});
+				return;
 			}
+		}
+	}
+
+	async #stat(resource: vscode.Uri): Promise<ResourceStat> {
+		try {
+			return { kind: 'found', stat: await this.#fileSystem.stat(resource) };
+		} catch (error) {
+			if (error instanceof vscode.FileSystemError && error.code === 'FileNotFound') {
+				return { kind: 'notFound' };
+			}
+			// This is a speculative fallback. If a provider cannot stat the resource,
+			// preserve the normal Markdown resolution instead of breaking the click.
+			return { kind: 'unavailable' };
 		}
 	}
 }
@@ -96,6 +169,44 @@ export function getAbsoluteUri(linkText: string): vscode.Uri | undefined {
 	return !/^[a-z]:[\\/]/i.test(linkText) && /^[a-z][a-z0-9+.-]*:/i.test(linkText)
 		? vscode.Uri.parse(linkText, true)
 		: undefined;
+}
+
+function getAbsoluteFilePathUri(linkText: string, fromResource: vscode.Uri): vscode.Uri | undefined {
+	if ((fromResource.scheme !== 'file' && fromResource.scheme !== 'vscode-remote')
+		|| getAbsoluteUri(linkText)
+		|| linkText.startsWith('//')
+		|| linkText.startsWith('\\\\')) {
+		return undefined;
+	}
+
+	let parsed: vscode.Uri;
+	try {
+		parsed = vscode.Uri.parse(`markdown-link:${linkText}`);
+	} catch {
+		return undefined;
+	}
+	if (parsed.authority) {
+		return undefined;
+	}
+	const isWindowsAbsolutePath = /^[a-z]:[\\/]/i.test(parsed.path);
+	if ((!parsed.path.startsWith('/') && !isWindowsAbsolutePath)
+		|| (isWindowsAbsolutePath && process.platform !== 'win32')) {
+		return undefined;
+	}
+	if (parsed.path.replace(/\\/g, '/').startsWith('//')) {
+		return undefined;
+	}
+
+	const fileUri = vscode.Uri.file(parsed.path);
+	if (fileUri.authority) {
+		return undefined;
+	}
+	return fileUri.with({
+		scheme: fromResource.scheme,
+		authority: fromResource.authority,
+		query: '',
+		fragment: '',
+	});
 }
 
 function getSelectionFromLocationFragment(fragment: string): vscode.Range | undefined {

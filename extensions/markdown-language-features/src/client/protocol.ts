@@ -36,5 +36,5 @@ export const getUpdatePastedLinksEdit = new RequestType<{ pasteIntoDoc: string; 
 
 export const fs_watcher_onChange = new RequestType<{ id: number; uri: string; kind: 'create' | 'change' | 'delete' }, void, any>('markdown/fs/watcher/onChange');
 
-export const resolveLinkTarget = new RequestType<{ linkText: string; uri: string }, ResolvedDocumentLinkTarget, any>('markdown/resolveLinkTarget');
+export const resolveLinkTarget = new RequestType<{ linkText: string; uri: string }, ResolvedDocumentLinkTarget | null, any>('markdown/resolveLinkTarget');
 //#endregion

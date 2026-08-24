@@ -37,8 +37,9 @@ export class MdLanguageClient implements IDisposable {
 		this.#workspace.dispose();
 	}
 
-	resolveLinkTarget(linkText: string, uri: vscode.Uri): Promise<proto.ResolvedDocumentLinkTarget> {
-		return this.#client.sendRequest(proto.resolveLinkTarget, { linkText, uri: uri.toString() });
+	async resolveLinkTarget(linkText: string, uri: vscode.Uri): Promise<proto.ResolvedDocumentLinkTarget | undefined> {
+		const result = await this.#client.sendRequest(proto.resolveLinkTarget, { linkText, uri: uri.toString() });
+		return result ?? undefined;
 	}
 
 	getEditForFileRenames(files: ReadonlyArray<{ oldUri: string; newUri: string }>, token: vscode.CancellationToken) {

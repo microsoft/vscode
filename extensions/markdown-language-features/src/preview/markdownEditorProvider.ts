@@ -297,7 +297,9 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 				}
 				case 'openLink': {
 					if (typeof message.href === 'string' && !await this.#tryOpenLink(message.href)) {
-						await this.#linkOpener.openDocumentLink(message.href, document.uri);
+						await this.#linkOpener.openDocumentLink(message.href, document.uri, {
+							allowAbsoluteFilePathFallback: true,
+						});
 					}
 					break;
 				}
