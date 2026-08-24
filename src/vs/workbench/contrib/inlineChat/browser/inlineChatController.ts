@@ -390,12 +390,11 @@ export class InlineChatController implements IEditorContribution {
 			agentHostAttachmentId = entry.id;
 		}));
 
-		// Auto-approve tool confirmations for inline chat. The user implicitly
-		// consents to editing the current file by invoking inline chat on it,
-		// even if the file qualifies as a sensitive file.
+		// The legacy inline-chat path cannot use arbitrary tools, so it retains
+		// its focused-file approval. Agent Host sessions enforce that scope host-side.
 		this.#store.add(autorun(r => {
 			const session = this.#currentSession.read(r);
-			if (!session) {
+			if (!session || session.lockToAgent) {
 				return;
 			}
 			const lastRequest = session.chatModel.lastRequestObs.read(r);

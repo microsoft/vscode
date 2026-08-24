@@ -492,6 +492,13 @@ export function resolveAgentHostInstructions(context?: URI | IAgentChatContext):
 export interface IAgentCreateChatOptions {
 	/** Whether the owning session is transient and should skip durable-only provider work. */
 	readonly isEphemeral?: boolean;
+	/**
+	 * Whether the owning chat surface is scoped to editing a single file (editor
+	 * inline chat). Blanket shell auto-approvals must not apply to such a
+	 * session, because a shell command can write anywhere the sandbox allows and
+	 * carries no destination the permission layer can check against the scope.
+	 */
+	readonly hasScopedEditSurface?: boolean;
 	/** Optional display title for the new chat. */
 	readonly title?: string;
 	/** Optional model override; defaults to the session's model. */
