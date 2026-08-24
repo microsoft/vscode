@@ -597,28 +597,17 @@ try {
 
 	$process = Start-Code $codeBat $launchArgs.ToArray() $logFile
 	Write-LaunchError "[launch.ps1] waiting for CDP on port $cdpPort (timeout 90s)..."
-	$ready = $false
-	for ($second = 1; $second -le 90; $second++) {
-		if ($process.HasExited) {
-			Write-LaunchError "[launch.ps1] code.bat (PID $($process.Id)) exited before CDP came up. Log tail:"
-			Write-LogTail $logFile
-			exit 1
+	$waitForCdp = Join-Path $PSScriptRoot 'waitForCdp.ts'
+	$readyMs = & $node $waitForCdp $process.Id $cdpPort
+	$readyStatus = $LASTEXITCODE
+	if ($readyStatus -eq 0) {
+		Write-LaunchError "[launch.ps1] CDP ready after ${readyMs}ms"
+	} else {
+		switch ($readyStatus) {
+			1 { Write-LaunchError "[launch.ps1] timed out waiting for CDP on port $cdpPort. Log tail:" }
+			2 { Write-LaunchError "[launch.ps1] code.bat (PID $($process.Id)) exited before CDP came up. Log tail:" }
+			default { Write-LaunchError "[launch.ps1] failed while waiting for CDP on port $cdpPort. Log tail:" }
 		}
-
-		try {
-			$request = [Net.WebRequest]::Create("http://127.0.0.1:$cdpPort/json/version")
-			$request.Timeout = 1000
-			$response = $request.GetResponse()
-			$response.Close()
-			$ready = $true
-			Write-LaunchError "[launch.ps1] CDP ready after ${second}s"
-			break
-		} catch {
-			Start-Sleep -Seconds 1
-		}
-	}
-	if (-not $ready) {
-		Write-LaunchError "[launch.ps1] timed out waiting for CDP on port $cdpPort. Log tail:"
 		Write-LogTail $logFile
 		exit 1
 	}

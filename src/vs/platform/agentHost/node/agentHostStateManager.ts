@@ -339,18 +339,20 @@ export class AgentHostStateManager extends Disposable {
 				const entry = this._sessionStates.get(session);
 				return entry ? this._toSummary(session, entry) : undefined;
 			},
-			(session, changes) => {
-				this._onDidChangeSessionSummary.fire({ session, changes });
-				if (this._publishedSessionSummaries.has(session)) {
-					this._onDidEmitNotification.fire({
-						type: 'root/sessionSummaryChanged',
-						channel: ROOT_STATE_URI,
-						session,
-						changes,
-					});
-				}
-			},
+			(session, changes) => this._emitSessionSummaryChanged(session, changes),
 		));
+	}
+
+	private _emitSessionSummaryChanged(session: string, changes: SessionSummaryChangedParams['changes']): void {
+		this._onDidChangeSessionSummary.fire({ session, changes });
+		if (this._publishedSessionSummaries.has(session)) {
+			this._onDidEmitNotification.fire({
+				type: 'root/sessionSummaryChanged',
+				channel: ROOT_STATE_URI,
+				session,
+				changes,
+			});
+		}
 	}
 
 	private _emitSessionAdded(summary: SessionSummary): void {
@@ -836,6 +838,19 @@ export class AgentHostStateManager extends Disposable {
 			return;
 		}
 		this._emitSessionAdded(summary);
+	}
+
+	/**
+	 * Retitles a surfaced session (one with no live state) so clients update it
+	 * in place. Live sessions are retitled through the reducer instead.
+	 */
+	updateSurfacedSessionTitle(session: string, title: string): void {
+		const announced = this._summaryNotifier.getAnnounced(session);
+		if (this._sessionStates.has(session) || !announced || announced.title === title) {
+			return;
+		}
+		this._summaryNotifier.announce(session, { ...announced, title });
+		this._emitSessionSummaryChanged(session, { title });
 	}
 
 	/** Removes a surfaced session without affecting a live session. */

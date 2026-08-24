@@ -233,6 +233,11 @@ export interface ISessionsManagementService {
 	getSessions(): ISession[];
 
 	/**
+	 * Get new sessions whose first request is still being prepared or sent.
+	 */
+	getInFlightNewSessionRequests(): readonly ISession[];
+
+	/**
 	 * Get a session by its resource URI.
 	 */
 	getSession(resource: URI): ISession | undefined;

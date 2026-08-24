@@ -859,3 +859,23 @@ export const platformRootSchema = createSchema({
 		default: {},
 	}),
 });
+
+/**
+ * Root config keys the connected client re-pushes on every connect and
+ * reconnect, and which gate permission prompts or policy restrictions.
+ *
+ * These must NOT be restored from `agent-host-config.json` on startup. Their
+ * persisted value is a snapshot of one client's settings, so reviving it would
+ * re-grant approvals that a user, workspace, or policy tightened while the host
+ * was stopped. Falling back to the schema default until the client republishes
+ * is the fail-safe direction.
+ */
+export const clientOwnedApprovalRootConfigKeys: ReadonlySet<string> = new Set([
+	SessionConfigKey.Permissions,
+	AgentHostGlobalAutoApproveEnabledConfigKey,
+	AgentHostAutoApprovePolicyRestrictedConfigKey,
+	AgentHostTerminalAutoApproveEnabledConfigKey,
+	AgentHostTerminalAutoApproveRulesConfigKey,
+	AgentHostEditAutoApprovePatternsConfigKey,
+	AgentHostAutoReplyEnabledConfigKey,
+]);
