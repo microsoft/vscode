@@ -52,6 +52,18 @@ export function getTestAgentStateManager(agentService: AgentService): AgentHostS
 	return getTestAgentServiceComposition(agentService).stateManager;
 }
 
+export function createTestAgentHostProxyResolver(fetchFn: typeof globalThis.fetch = globalThis.fetch): IAgentHostProxyResolver {
+	return {
+		_serviceBrand: undefined,
+		onDidRegisterConnection: Event.None,
+		onDidChangeConfiguration: Event.None,
+		register: () => Disposable.None,
+		getConfigurationValue: () => undefined,
+		resolveProxy: async () => undefined,
+		fetch: fetchFn,
+	};
+}
+
 export function createTestAgentService(
 	logService: ILogService,
 	fileService: IFileService,
@@ -70,15 +82,7 @@ export function createTestAgentService(
 ): AgentService {
 	const effectiveFileMonitorService = fileMonitorService ?? new AgentHostFileMonitorService(fileService, logService);
 	const clientConnectionService = new AgentHostClientConnectionService();
-	const proxyResolver: IAgentHostProxyResolver = {
-		_serviceBrand: undefined,
-		onDidRegisterConnection: Event.None,
-		onDidChangeConfiguration: Event.None,
-		register: () => Disposable.None,
-		getConfigurationValue: () => undefined,
-		resolveProxy: async () => undefined,
-		fetch: fetchFn,
-	};
+	const proxyResolver = createTestAgentHostProxyResolver(fetchFn);
 	const services = new AgentHostServiceCollection(
 		[ILogService, logService],
 		[IFileService, fileService],
