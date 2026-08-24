@@ -478,6 +478,7 @@ for ($index = 0; $index -lt $cliArgs.Count; $index++) {
 }
 
 try {
+	$launchStopwatch = [Diagnostics.Stopwatch]::StartNew()
 	if ([string]::IsNullOrWhiteSpace($repo)) {
 		$candidateRepo = (Get-Location).Path
 		if (Test-Path -LiteralPath (Join-Path $candidateRepo 'scripts\code.bat') -PathType Leaf) {
@@ -563,6 +564,7 @@ try {
 	$settingsFile = Join-Path $destinationUdd 'User\settings.json'
 	Ensure-SimpleDialogSetting $settingsFile
 	Write-LaunchError "[launch.ps1] ensured files.simpleDialog.enable=true in $settingsFile"
+	$profileReadyMs = $launchStopwatch.ElapsedMilliseconds
 
 	$launchArgs = [System.Collections.Generic.List[string]]::new()
 	if ($agents) {
@@ -594,6 +596,7 @@ try {
 		Write-LogTail $logFile
 		exit 1
 	}
+	$preLaunchReadyMs = $launchStopwatch.ElapsedMilliseconds
 
 	$process = Start-Code $codeBat $launchArgs.ToArray() $logFile
 	Write-LaunchError "[launch.ps1] waiting for CDP on port $cdpPort (timeout 90s)..."
@@ -611,6 +614,7 @@ try {
 		Write-LogTail $logFile
 		exit 1
 	}
+	$launchReadyMs = $launchStopwatch.ElapsedMilliseconds
 
 	[PSCustomObject]@{
 		pid = $process.Id
@@ -625,6 +629,12 @@ try {
 		logFile = $logFile
 		repo = $repo
 		agents = [bool]$agents
+		timings = [PSCustomObject]@{
+			profileMs = $profileReadyMs
+			preLaunchMs = $preLaunchReadyMs - $profileReadyMs
+			cdpReadyMs = $launchReadyMs - $preLaunchReadyMs
+			totalMs = $launchReadyMs
+		}
 	} | ConvertTo-Json -Compress
 } catch {
 	Write-LaunchError "[launch.ps1] $($_.Exception.Message)"
