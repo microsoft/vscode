@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/* eslint-disable local/code-no-unused-expressions, @stylistic/semi -- playwright-cli requires a bare, unterminated function expression. */
 async page => {
 	const selectors = [
 		'.session-view.is-active .new-chat-input-area :is(.native-edit-context, textarea.inputarea)',
