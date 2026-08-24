@@ -181,34 +181,37 @@ If a target looks stale after relaunching, run `npx @playwright/cli -s=$PW_SESSI
 
 ### Focusing the chat input
 
-In the regular workbench, invoke **Chat: Open Chat**
-(`workbench.action.chat.open`) through the Command Palette. Search by command ID
-so the automation does not depend on the display language:
+Use the `playwrightScripts/focus-chat-input.ts` script in both the regular
+workbench and the Agents window. It performs the complete focus flow in one
+Playwright call:
+
+1. If a visible chat input is already focused, it does nothing.
+2. If a visible chat input exists but is not focused, it focuses that input.
+3. Otherwise, it invokes the platform chat-focus chord, waits for the input,
+   and focuses it only if the chord did not already do so.
+
+The script detects the platform from the browser page, prefers the active
+Agents session, and excludes inline chat inputs. If the cloned profile has
+customized the default chord, it falls back to the surface-specific command
+through the Command Palette.
 
 ```bash
-npx @playwright/cli -s=$PW_SESSION press F1
-npx @playwright/cli -s=$PW_SESSION type workbench.action.chat.open
-npx @playwright/cli -s=$PW_SESSION press Enter
+LAUNCH_DIR=<dir-of-this-SKILL.md>
+FOCUS_CHAT="$LAUNCH_DIR/playwrightScripts/focus-chat-input.ts"
+npx @playwright/cli -s=$PW_SESSION run-code --filename="$FOCUS_CHAT"
 ```
 
-The command is idempotent: it reveals Chat and focuses the input even when Chat
-is already open. Do not substitute its keybinding here—when the chat input
-already has focus, another context-specific keybinding can win and close Chat.
-
-In the Agents window, use the platform chord instead. The Agents window
-overrides it with `sessions.focusActiveSession`, which works for new-session
-views where `workbench.action.chat.open` does not:
-
-```bash
-# macOS
-npx @playwright/cli -s=$PW_SESSION press Control+Meta+i
-# Linux / Windows
-npx @playwright/cli -s=$PW_SESSION press Control+Alt+i
+```powershell
+$skillDir = '<dir-of-this-SKILL.md>'
+$focusChat = Join-Path $skillDir 'playwrightScripts\focus-chat-input.ts'
+npx @playwright/cli "-s=$pwSession" run-code "--filename=$focusChat"
 ```
 
-Either path should leave `document.activeElement` on VS Code's
-`native-edit-context` editing surface. If it does not, take a fresh snapshot and
-resolve any blocking dialog or unavailable chat state before retrying.
+The script returns
+`{ focused, focusChanged, shortcutInvoked, commandPaletteFallbackInvoked, selector }`.
+`focusChanged` is `false` when the chat input was already focused. If the script
+fails, take a fresh snapshot and resolve any blocking dialog or unavailable chat
+state before retrying.
 
 ### Typing into Monaco (chat input, editors)
 
@@ -218,18 +221,14 @@ resolve any blocking dialog or unavailable chat state before retrying.
 
   ```bash
   LAUNCH_DIR=<dir-of-this-SKILL.md>           # the same dir that holds scripts/launch.sh
+  FOCUS_CHAT="$LAUNCH_DIR/playwrightScripts/focus-chat-input.ts"
   PASTE="$LAUNCH_DIR/scripts/monaco-paste.sh"
   export PW_SESSION                            # helper reads this env var
 
-  # Send a prompt in the regular workbench:
-  npx @playwright/cli -s=$PW_SESSION press F1
-  npx @playwright/cli -s=$PW_SESSION type workbench.action.chat.open
-  npx @playwright/cli -s=$PW_SESSION press Enter
+  # Send a prompt:
+  npx @playwright/cli -s=$PW_SESSION run-code --filename="$FOCUS_CHAT"
   "$PASTE" 'Please run `pwd && ls` using your terminal tool.'
   npx @playwright/cli -s=$PW_SESSION press Enter
-
-  # In the Agents window, replace the three regular-workbench focus commands
-  # above with the platform chord documented in "Focusing the chat input".
 
   # Long / arbitrary text via stdin (avoids any shell-quoting headaches):
   printf 'multi-line prompt\nwith backticks `x`\nand emoji 🎉' | "$PASTE"
@@ -261,16 +260,10 @@ resolve any blocking dialog or unavailable chat state before retrying.
 
 - **Clipboard paste via `pbcopy`** (fast on macOS, **but `NSPasteboard` is system-wide so any concurrent shell that touches the pasteboard will collide**). Only use when nothing else on the machine is using the clipboard for the duration of the paste.
   ```bash
+  LAUNCH_DIR=<dir-of-this-SKILL.md>
+  FOCUS_CHAT="$LAUNCH_DIR/playwrightScripts/focus-chat-input.ts"
   printf '%s' "Your prompt here" | pbcopy
-
-  # Regular workbench:
-  npx @playwright/cli -s=$PW_SESSION press F1
-  npx @playwright/cli -s=$PW_SESSION type workbench.action.chat.open
-  npx @playwright/cli -s=$PW_SESSION press Enter
-
-  # Agents window instead:
-  # npx @playwright/cli -s=$PW_SESSION press Control+Meta+i
-
+  npx @playwright/cli -s=$PW_SESSION run-code --filename="$FOCUS_CHAT"
   npx @playwright/cli -s=$PW_SESSION press Meta+v
   npx @playwright/cli -s=$PW_SESSION press Enter
   ```
@@ -280,11 +273,16 @@ resolve any blocking dialog or unavailable chat state before retrying.
 Because the launch skill is built around isolation, the natural workload is **many agents on one machine, each driving their own Code OSS**. The pattern boils down to giving each agent a unique `PW_SESSION` and passing it everywhere:
 
 ```bash
+LAUNCH_DIR=<dir-of-this-SKILL.md>
+FOCUS_CHAT="$LAUNCH_DIR/playwrightScripts/focus-chat-input.ts"
+PASTE="$LAUNCH_DIR/scripts/monaco-paste.sh"
+
 # In agent A's shell:
 PW_SESSION="agent-A-$$"
 INFO=$("$LAUNCH" --agents -- --use-mock-keychain | tail -n1)
 CDP=$(jq -r .cdpPort <<<"$INFO")
 npx @playwright/cli -s=$PW_SESSION attach --cdp=http://127.0.0.1:$CDP
+npx @playwright/cli -s=$PW_SESSION run-code --filename="$FOCUS_CHAT"
 "$PASTE" "prompt for A"   # helper picks up $PW_SESSION
 
 # In agent B's shell (running concurrently):
@@ -292,6 +290,7 @@ PW_SESSION="agent-B-$$"
 INFO=$("$LAUNCH" --agents -- --use-mock-keychain | tail -n1)
 CDP=$(jq -r .cdpPort <<<"$INFO")
 npx @playwright/cli -s=$PW_SESSION attach --cdp=http://127.0.0.1:$CDP
+npx @playwright/cli -s=$PW_SESSION run-code --filename="$FOCUS_CHAT"
 "$PASTE" "prompt for B"
 ```
 
@@ -309,11 +308,11 @@ document.querySelectorAll('.interactive-input-editor .view-line')
 
 // More useful checks in Agents.
 document.querySelectorAll('.view-line')
-document.activeElement?.className === 'native-edit-context'
+document.activeElement?.matches('.native-edit-context, textarea.inputarea')
 ```
 
-The Agents window overrides the **Chat: Open Chat** chord to focus the active
-session, accounting for these DOM differences.
+The focus script accounts for these DOM differences and prioritizes the active
+Agents session.
 
 ### Verifying and clearing chat text
 
@@ -340,8 +339,8 @@ npx @playwright/cli -s=$PW_SESSION press Control+a
 npx @playwright/cli -s=$PW_SESSION press Backspace
 ```
 
-If the chosen focus path cannot reach Chat because the surface is not available
-yet, take a snapshot and navigate the UI into a state where chat exists before
+If the focus script cannot reach Chat because the surface is not available yet,
+take a snapshot and navigate the UI into a state where chat exists before
 retrying. Avoid treating completed CLI commands as proof that text was entered.
 
 ### Screenshots (paper trail)
@@ -428,5 +427,5 @@ Code OSS is a full Electron app and easily eats 1-4 GB. Always clean up.
 - **Built-in extension fails to load (`Cannot find module .../extensions/.../out/extension.js`)** - extensions weren't compiled. Run `npm run compile` (one-shot, also rebuilds all built-in extensions) or `npm run watch` (incremental). A common cause: you ran `npm run transpile-client` to satisfy unit tests, which populated `out/` but not `extensions/*/out/`, so preLaunch's "is `out/` missing?" check skipped the compile.
 - **`launch.sh` exits non-zero with a log tail** - either pre-launch failed, `code.sh` died before CDP came up, or CDP never opened within 90s. The tail printed to stderr is from `runDir/code.log` - read it to diagnose.
 - **Snapshot shows the wrong page or no expected controls** - use `tab-list`, switch with `tab-select <index>` if needed, then re-snapshot before interacting.
-- **CLI typing commands complete but the input stays empty** - invoke **Chat: Open Chat** through the Command Palette in the regular workbench, or use the platform chord in the Agents window. Then use `press` or clipboard paste rather than `fill` / `type`, and verify the input state before sending.
+- **CLI typing commands complete but the input stays empty** - run `playwrightScripts/focus-chat-input.ts`, use `press` or clipboard paste rather than `fill` / `type`, and verify the input state before sending.
 - **Auth missing in the launched window** - confirm the source profile is actually authed (`ls "$SOURCE_UDD"` should contain `User/`, and `ls "$SOURCE_UDD/User/globalStorage"` should show persisted extension state). **On Windows, check the shared-data-dir first**: the GitHub session blob lives in `%USERPROFILE%\.vscode-oss-shared\sharedStorage\state.vscdb`, not in the profile. The launcher logs `copying shared data: <src> -> <dst>` on stderr when it finds it, and warns `no shared-data-dir at <path>` when it doesn't. A missing or empty source shared-data-dir means signing in again against the source profile is what you need - see [Windows authentication](#windows-authentication).
