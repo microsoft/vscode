@@ -28,10 +28,12 @@
 #   1  paste verify failed, eval failed, or the page had no native-edit-context
 #   2  argument/usage error (empty input, missing tools)
 #
-# Required tools on PATH: npx (with @playwright/cli reachable), node, jq.
+# Required tools on PATH: node, jq. The repo-local @playwright/cli executable
+# resolves from this script's vscode checkout and can be overridden with
+# $PLAYWRIGHT_CLI.
 #
 # Assumes:
-#   - You have already run `npx @playwright/cli [-s=NAME] attach --cdp=http://127.0.0.1:$CDP`
+#   - You have already run `$PLAYWRIGHT_CLI [-s=NAME] attach --cdp=http://127.0.0.1:$CDP`
 #     in the same session this script reads (--session arg, $PW_SESSION env, or "default").
 #   - The Agents window is open and a new-chat / chat view with a Monaco
 #     editor is on screen. The script auto-focuses the first
@@ -41,6 +43,11 @@
 set -u
 umask 077
 
+if [[ -z "${PLAYWRIGHT_CLI:-}" ]]; then
+	SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
+	REPO_ROOT=$(cd "$SCRIPT_DIR/../../../.." && pwd)
+	PLAYWRIGHT_CLI="$REPO_ROOT/node_modules/.bin/playwright-cli"
+fi
 APPEND=0
 VERIFY=1
 TEXT_ARG=""
@@ -52,13 +59,18 @@ while [[ $# -gt 0 ]]; do
 		--session) PW_SESSION_OVERRIDE="$2"; shift 2 ;;
 		--session=*) PW_SESSION_OVERRIDE="${1#--session=}"; shift ;;
 		-h|--help)
-			sed -n '2,40p' "$0" | sed 's/^# \{0,1\}//'
+			sed -n '2,/^$/p' "$0" | sed '$d; s/^# \{0,1\}//'
 			exit 0 ;;
 		--) shift; TEXT_ARG="${*-}"; break ;;
 		-*) echo "monaco-paste.sh: unknown flag $1" >&2; exit 2 ;;
 		*) TEXT_ARG="$1"; shift ;;
 	esac
 done
+if [[ ! -x "$PLAYWRIGHT_CLI" ]]; then
+	printf '{"ok":false,"error":"@playwright/cli executable not found at %s"}\n' "$PLAYWRIGHT_CLI"
+	echo "monaco-paste.sh: run npm install in the vscode checkout or set PLAYWRIGHT_CLI" >&2
+	exit 2
+fi
 
 # Resolve session: --session arg wins, then $PW_SESSION, then empty (cli default).
 SESSION="${PW_SESSION_OVERRIDE:-${PW_SESSION:-}}"
@@ -80,7 +92,7 @@ if [[ -z "$TEXT" ]]; then
 fi
 
 # Sanity: required tools on PATH.
-for tool in npx node jq; do
+for tool in node jq; do
 	if ! command -v "$tool" >/dev/null 2>&1; then
 		printf '{"ok":false,"error":"%s not on PATH"}\n' "$tool"
 		echo "monaco-paste.sh: required tool '$tool' not on PATH" >&2
@@ -101,8 +113,8 @@ esac
 # Done via the CLI's `press` so the keys flow through Monaco's real key
 # handler. Stays inside the CDP connection — no system clipboard.
 if [[ "$APPEND" != "1" ]]; then
-	npx @playwright/cli ${PW_ARGS[@]+"${PW_ARGS[@]}"} press "${SELECT_ALL_MOD}+a" >/dev/null 2>&1 || true
-	npx @playwright/cli ${PW_ARGS[@]+"${PW_ARGS[@]}"} press Backspace >/dev/null 2>&1 || true
+	"$PLAYWRIGHT_CLI" ${PW_ARGS[@]+"${PW_ARGS[@]}"} press "${SELECT_ALL_MOD}+a" >/dev/null 2>&1 || true
+	"$PLAYWRIGHT_CLI" ${PW_ARGS[@]+"${PW_ARGS[@]}"} press Backspace >/dev/null 2>&1 || true
 fi
 
 # Step 2: build the eval payload via node so JSON escaping is automatic.
@@ -149,7 +161,7 @@ JS=$(node -e '
 
 # Step 3: run the eval. The CLI prints "### Result" then a JSON-encoded
 # string on the next line, followed by "### Ran Playwright code" noise.
-RAW=$(npx @playwright/cli ${PW_ARGS[@]+"${PW_ARGS[@]}"} eval "$JS" 2>&1) || {
+RAW=$("$PLAYWRIGHT_CLI" ${PW_ARGS[@]+"${PW_ARGS[@]}"} eval "$JS" 2>&1) || {
 	echo "{\"ok\":false,\"error\":\"@playwright/cli eval failed\"}"
 	echo "$RAW" >&2
 	exit 1
