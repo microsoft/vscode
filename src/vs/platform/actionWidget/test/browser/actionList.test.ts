@@ -339,7 +339,7 @@ suite('ActionListWidget', () => {
 		const measuredWidths = [120, 240, 180];
 		for (let i = 0; i < rows.length; i++) {
 			rows[i].getBoundingClientRect = () => {
-				allRowsAutoAtRead.push(rows.every(row => row.style.width === 'auto'));
+				allRowsAutoAtRead.push(rows.every(row => row.style.width === 'max-content'));
 				return new mainWindow.DOMRect(0, 0, measuredWidths[i], 24);
 			};
 		}

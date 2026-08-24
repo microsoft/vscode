@@ -1716,7 +1716,7 @@ export class ActionListWidget<T> extends Disposable {
 		for (let i = 0; i < items.length; i++) {
 			const element = this._getRowElement(i);
 			if (element) {
-				element.style.width = 'auto';
+				element.style.width = 'max-content';
 				rows.push({ element, item: items[i] });
 			}
 		}
