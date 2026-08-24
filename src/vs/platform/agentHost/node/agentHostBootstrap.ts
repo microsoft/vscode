@@ -18,8 +18,10 @@ import { InstantiationService } from '../../instantiation/common/instantiationSe
 import { ILoggerService, ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
+import { IAgentService } from '../common/agentService.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import type { IAgent } from '../common/agent.js';
+import { AgentHostActiveAgentTitleGenerationConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
 import { createAgentHostTelemetryService } from './agentHostTelemetryService.js';
 import { AgentService, IAgentServiceOptions } from './agentService.js';
 import { createAgentServiceComposition } from './agentServiceComposition.js';
@@ -33,6 +35,12 @@ import { SessionDataService } from './sessionDataService.js';
 import { IAgentCustomizationSettingsRegistration } from '../common/agentCustomizationSettings.js';
 import { AgentHostLaunchKind } from '../common/agentHostTelemetry.js';
 import { AgentHostClientConnectionService, IAgentHostClientConnectionService } from './agentHostClientConnectionService.js';
+import { AgentHostProviderLocator, IAgentHostProviderLocator } from './agentHostProviderLocator.js';
+import { AgentHostSessionTitleController, IAgentHostSessionTitleController } from './agentHostSessionTitleController.js';
+import { AgentHostLocalTurns } from './agentHostLocalTurns.js';
+import { AgentHostLocalCommands, IAgentHostLocalCommands } from './localCommands/localChatCommand.js';
+import { IAgentHostOctoKitService } from './shared/agentHostOctoKitService.js';
+import { ICopilotApiService } from './shared/copilotApiService.js';
 
 export interface ICreateAgentHostRuntimeOptions {
 	readonly environmentService: INativeEnvironmentService;
@@ -154,6 +162,26 @@ export async function createAgentHostRuntime(options: ICreateAgentHostRuntimeOpt
 			byok: options.byok,
 		});
 		instantiationService = new InstantiationService(services, /*strict*/ true);
+		services.set(IAgentHostProviderLocator, new AgentHostProviderLocator(session => foundation.callbackAdapter.value.getAgent(typeof session === 'string' ? session : session.toString())));
+		const octoKitService = instantiationService.invokeFunction(accessor => accessor.get(IAgentHostOctoKitService));
+		const copilotApiService = instantiationService.invokeFunction(accessor => accessor.get(ICopilotApiService));
+		services.set(IAgentHostSessionTitleController, infrastructure.add(instantiationService.createInstance(AgentHostSessionTitleController, foundation.stateManager, {
+			sessionDataService,
+			getGitHubCopilotToken: () => {
+				const resource = foundation.gitHubEndpointService.getCopilotResource();
+				return foundation.authenticationService.getAuthToken({ resource: resource.resource, scopes: resource.scopes_supported });
+			},
+			getGitHubToken: () => {
+				const resource = foundation.gitHubEndpointService.getRepoResource();
+				return foundation.authenticationService.getAuthToken({ resource: resource.resource, scopes: resource.scopes_supported });
+			},
+			getGitHubHost: () => foundation.gitHubEndpointService.getEnterpriseHost() ?? 'github.com',
+			octoKitService,
+			copilotApiService,
+			isActiveAgentTitleGenerationEnabled: () => foundation.configurationService.getRootValue(platformRootSchema, AgentHostActiveAgentTitleGenerationConfigKey) === true,
+		})));
+		const localTurns = new AgentHostLocalTurns(sessionDataService, logService);
+		services.set(IAgentHostLocalCommands, infrastructure.add(instantiationService.createInstance(AgentHostLocalCommands, localTurns)));
 		const agentServiceComposition = instantiationService.invokeFunction(accessor => createAgentServiceComposition(
 			agentServiceOptions,
 			accessor,
@@ -161,8 +189,10 @@ export async function createAgentHostRuntime(options: ICreateAgentHostRuntimeOpt
 			logService,
 			sessionDataService,
 			foundation,
+			localTurns,
 		));
 		agentService = agentServiceComposition.agentService;
+		services.set(IAgentService, agentService);
 		agentServiceComposition.setContributions(instantiationService.invokeFunction(accessor => activateAgentHostContributions(accessor, instantiationService!)));
 
 		const agentSdkDownloader = instantiationService.invokeFunction(accessor => accessor.get(IAgentSdkDownloader));

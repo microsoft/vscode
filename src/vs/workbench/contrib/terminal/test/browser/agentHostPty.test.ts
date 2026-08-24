@@ -26,11 +26,13 @@ import { IActiveSubscriptionInfo, IAgentSubscription } from '../../../../../plat
 import { StateComponents } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { terminalReducer } from '../../../../../platform/agentHost/common/state/protocol/reducers.js';
 import type { IRemoteWatchHandle } from '../../../../../platform/agentHost/common/agentHostFileSystemProvider.js';
+import { identityAgentHostResourceUriMapper } from '../../../../../platform/agentHost/common/agentHostUri.js';
 // ---- Mock IAgentConnection --------------------------------------------------
 
 class MockAgentConnection implements IAgentConnection {
 
 	readonly clientId = 'test-client';
+	readonly resourceUris = identityAgentHostResourceUriMapper;
 
 	private _seq = 0;
 	private readonly _onDidAction = new Emitter<ActionEnvelope>();

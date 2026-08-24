@@ -32,6 +32,7 @@ import { IAgentHostCustomizationEnablementService } from '../../../node/agentHos
 import { AgentHostStateManager, IAgentHostStateManager } from '../../../node/agentHostStateManager.js';
 import { IAgentHostSessionTitleSignal } from '../../../node/agentHostSessionTitleSignal.js';
 import { IAgentHostGitHubEndpointService } from '../../../node/agentHostGitHubEndpointService.js';
+import { IAgentHostProxyResolver } from '../../../node/agentHostProxyResolver.js';
 import { IAgentSdkDownloader } from '../../../node/agentSdkDownloader.js';
 import { CodexAgent, toCodexModelSelectionId } from '../../../node/codex/codexAgent.js';
 import { CodexAppServerClient, type ICodexAppServerTransport } from '../../../node/codex/codexAppServerClient.js';
@@ -40,6 +41,7 @@ import { ICopilotApiService } from '../../../node/shared/copilotApiService.js';
 import { createSessionDataService, TestSessionDatabase } from '../../common/sessionTestHelpers.js';
 import { createTestGitHubEndpointService } from '../testGitHubEndpointService.js';
 import { createNoopCustomizationEnablementService } from '../testCustomizationEnablementService.js';
+import { createTestAgentHostProxyResolver } from '../agentServiceTestUtils.js';
 
 const COPILOT_TEST_MODEL = toCodexModelSelectionId('vscode-proxy', 'gpt-test');
 
@@ -186,6 +188,7 @@ async function createAgent(disposables: Pick<DisposableStore, 'add'>, options: I
 	instantiationService.stub(IAgentConfigurationService, configurationService);
 	instantiationService.stub(IAgentHostWorktreeIsolation, new NullAgentHostWorktreeIsolation());
 	instantiationService.stub(IAgentHostGitHubEndpointService, createTestGitHubEndpointService());
+	instantiationService.stub(IAgentHostProxyResolver, createTestAgentHostProxyResolver());
 	instantiationService.stub(IAgentSdkDownloader, {
 		_serviceBrand: undefined,
 		onDidDownloadProgress: Event.None,

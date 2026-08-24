@@ -11,7 +11,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentSession } from '../../common/agentService.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
-import { SessionStatus, withSessionWorkspaceless, type SessionSummary } from '../../common/state/sessionState.js';
+import { SessionStatus, withSessionWorkspaceless, type SessionSummary, type Turn } from '../../common/state/sessionState.js';
 import { ISessionDataService, type ISessionDatabase } from '../../common/sessionDataService.js';
 import { ActionType } from '../../common/state/protocol/common/actions.js';
 import { CustomizationEnablementKind, CustomizationType } from '../../common/state/protocol/channels-session/state.js';
@@ -118,6 +118,10 @@ class TestWorktreeIsolation extends NullAgentHostWorktreeIsolation {
 
 	override isWorkingDirectoryPending(session: string): boolean {
 		return this.pending.has(session);
+	}
+
+	override async applyRestoreAnnouncement(_sessionUri: URI, turns: readonly Turn[]): Promise<readonly Turn[]> {
+		return turns;
 	}
 
 	firePendingChange(sessionId: string): void {

@@ -18,6 +18,7 @@ import { IProductService } from '../../../product/common/productService.js';
 import { IRequestService } from '../../../request/common/request.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { IAgentEditAttributionService, NullAgentEditAttributionService } from '../../common/fileEditAttribution.js';
+import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
@@ -127,6 +128,42 @@ function registerHostServices(services: AgentHostServiceCollection): void {
 	});
 }
 
+function assertCompleteAcyclicGraph(services: RecordingServiceCollection, externallyRegistered: ReadonlySet<ServiceIdentifier<unknown>>): void {
+	const descriptorIds = new Set(services.descriptorIds);
+	const dependencies = new Map<ServiceIdentifier<unknown>, readonly ServiceIdentifier<unknown>[]>();
+	for (const id of descriptorIds) {
+		const descriptor = services.get(id);
+		assert.ok(descriptor instanceof SyncDescriptor);
+		const serviceDependencies = _util.getServiceDependencies(descriptor.ctor).map(dependency => dependency.id);
+		dependencies.set(id, serviceDependencies);
+		for (const dependency of serviceDependencies) {
+			assert.ok(descriptorIds.has(dependency) || externallyRegistered.has(dependency), `${id} depends on unregistered service ${dependency}`);
+		}
+	}
+
+	const visiting = new Set<ServiceIdentifier<unknown>>();
+	const visited = new Set<ServiceIdentifier<unknown>>();
+	const visit = (id: ServiceIdentifier<unknown>): void => {
+		if (visited.has(id)) {
+			return;
+		}
+		assert.ok(!visiting.has(id), `Cyclic Agent Host service dependency at ${id}`);
+		visiting.add(id);
+		for (const dependency of dependencies.get(id) ?? []) {
+			if (descriptorIds.has(dependency)) {
+				visit(dependency);
+			}
+		}
+		visiting.delete(id);
+		visited.add(id);
+	};
+	for (const id of descriptorIds) {
+		visit(id);
+	}
+
+	assert.ok(descriptorIds.size > 0);
+}
+
 suite('AgentHostServiceCollection', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -196,39 +233,30 @@ suite('AgentHostServiceCollection', () => {
 			IAgentHostClientConnectionService,
 			IByokLmBridgeRegistry,
 		]);
-		const descriptorIds = new Set(services.descriptorIds);
-		const dependencies = new Map<ServiceIdentifier<unknown>, readonly ServiceIdentifier<unknown>[]>();
-		for (const id of descriptorIds) {
-			const descriptor = services.get(id);
-			assert.ok(descriptor instanceof SyncDescriptor);
-			const serviceDependencies = _util.getServiceDependencies(descriptor.ctor).map(dependency => dependency.id);
-			dependencies.set(id, serviceDependencies);
-			for (const dependency of serviceDependencies) {
-				assert.ok(descriptorIds.has(dependency) || externallyRegistered.has(dependency), `${id} depends on unregistered service ${dependency}`);
-			}
-		}
+		assertCompleteAcyclicGraph(services, externallyRegistered);
+	});
 
-		const visiting = new Set<ServiceIdentifier<unknown>>();
-		const visited = new Set<ServiceIdentifier<unknown>>();
-		const visit = (id: ServiceIdentifier<unknown>): void => {
-			if (visited.has(id)) {
-				return;
-			}
-			assert.ok(!visiting.has(id), `Cyclic Agent Host service dependency at ${id}`);
-			visiting.add(id);
-			for (const dependency of dependencies.get(id) ?? []) {
-				if (descriptorIds.has(dependency)) {
-					visit(dependency);
-				}
-			}
-			visiting.delete(id);
-			visited.add(id);
-		};
-		for (const id of descriptorIds) {
-			visit(id);
-		}
+	test('registers the core-only test graph with complete, acyclic dependencies', () => {
+		const services = new RecordingServiceCollection();
+		registerCoreServices(services);
 
-		assert.ok(descriptorIds.size > 0);
+		assertCompleteAcyclicGraph(services, new Set<ServiceIdentifier<unknown>>([
+			ILogService,
+			IFileService,
+			ISessionDataService,
+			IProductService,
+			ITelemetryService,
+			IRequestService,
+			IInstantiationService,
+			IAgentHostStateManager,
+			IAgentConfigurationService,
+			IAgentHostAuthenticationService,
+			IAgentHostGitHubEndpointService,
+			IAgentHostProxyResolver,
+			IAgentHostClientConnectionService,
+			IByokLmBridgeRegistry,
+			IAgentHostGitService,
+		]));
 	});
 
 	test('preserves typed overrides', () => {

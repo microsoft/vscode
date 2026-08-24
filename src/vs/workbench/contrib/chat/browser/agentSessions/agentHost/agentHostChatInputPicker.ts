@@ -49,6 +49,7 @@ import { IAgentHostSessionWorkingDirectoryResolver } from './agentHostSessionWor
 import { IAgentHostNewSessionFolderService } from './agentHostNewSessionFolderService.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { toAgentHostBackendSessionUri } from './agentHostSessionUri.js';
+import { getCompactCodicon } from '../../chatIcons.js';
 
 const FILTER_THRESHOLD = 10;
 
@@ -286,10 +287,8 @@ export function isWellKnownAutoApproveSchema(schema: SessionConfigPropertySchema
  * `Permissions` has no chip — it is surfaced through other UI — but is
  * included so the generic lane does not invent a chip for it.
  *
- * `WorktreeBranchPrefix` likewise has no chip: it is a carrier value seeded by
- * the client (from `git.branchPrefix`) and consumed by the agent for worktree
- * isolation, never edited by the user. Including it here keeps the generic lane
- * from surfacing it as a chip in the chat input.
+ * Host-owned worktree configuration also has no chip. Including those properties
+ * here keeps the generic lane from surfacing them in the chat input.
  */
 export const WELL_KNOWN_PICKER_PROPERTIES: ReadonlySet<string> = new Set<string>([
 	SessionConfigKey.Mode,
@@ -299,6 +298,7 @@ export const WELL_KNOWN_PICKER_PROPERTIES: ReadonlySet<string> = new Set<string>
 	SessionConfigKey.Permissions,
 	SessionConfigKey.WorktreeBranchPrefix,
 	SessionConfigKey.WorktreeBranchTrack,
+	SessionConfigKey.WorktreeCreateNewBranch,
 	SessionConfigKey.WorktreeIncludeFiles,
 	ClaudeSessionConfigKey.PermissionMode,
 	CodexSessionConfigKey.PermissionsPreset,
@@ -549,7 +549,7 @@ export class AgentHostChatInputPicker extends Disposable {
 
 		const icon = getConfigIcon(this._property, value);
 		if (icon) {
-			dom.append(trigger, renderIcon(icon));
+			dom.append(trigger, renderIcon(getCompactCodicon(icon)));
 		}
 		// Mirror the sessions-side picker: elevated approval levels get themed colors.
 		if (this._property === SessionConfigKey.AutoApprove) {

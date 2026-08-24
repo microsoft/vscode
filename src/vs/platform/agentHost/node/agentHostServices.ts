@@ -20,6 +20,7 @@ import { IAgentHostOTelService } from '../common/otel/agentHostOTelService.js';
 import { IAgentHostChangesetOperationService } from '../common/agentHostChangesetOperationService.js';
 import { IAgentHostChangesetService } from '../common/agentHostChangesetService.js';
 import { IAgentHostChangesetSubscriptionService } from '../common/agentHostChangesetSubscriptionService.js';
+import { IAgentHostChatContributions } from '../common/agentHostChatContributionsService.js';
 import { IAgentHostCheckpointService } from '../common/agentHostCheckpointService.js';
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
 import { IAgentHostReviewService } from '../common/agentHostReviewService.js';
@@ -39,6 +40,7 @@ import { AgentHostOTelService } from './otel/agentHostOTelService.js';
 import { AgentHostChangesetOperationService } from './agentHostChangesetOperationService.js';
 import { AgentHostChangesetService } from './agentHostChangesetService.js';
 import { AgentHostChangesetSubscriptionService } from './agentHostChangesetSubscriptionService.js';
+import { AgentHostChatContributions } from './agentHostChatContributionsService.js';
 import { AgentHostCheckpointService } from './agentHostCheckpointService.js';
 import { AgentHostCompletions, IAgentHostCompletions } from './agentHostCompletions.js';
 import { AgentHostCustomizationEnablementService, IAgentHostCustomizationEnablementService } from './agentHostCustomizationEnablementService.js';
@@ -49,6 +51,8 @@ import { AgentHostReviewService } from './agentHostReviewService.js';
 import { AgentHostSessionTitleSignal, IAgentHostSessionTitleSignal } from './agentHostSessionTitleSignal.js';
 import { AgentHostStorageService, IAgentHostStorageService } from './agentHostStorageService.js';
 import { AgentHostTerminalManager, IAgentHostTerminalManager } from './agentHostTerminalManager.js';
+import { AgentHostTelemetryReporter, IAgentHostTelemetryReporter } from './agentHostTelemetryReporter.js';
+import { AgentHostTurnTracker, IAgentHostTurnTracker } from './agentHostTurnTracker.js';
 import { AgentEditAttributionService } from './shared/agentEditAttributionService.js';
 import { AgentHostOctoKitService, IAgentHostOctoKitService } from './shared/agentHostOctoKitService.js';
 import { EditArcReporterService, IEditArcReporterService } from './shared/editArcReporter.js';
@@ -80,9 +84,6 @@ function assertExactStaticArguments(descriptor: SyncDescriptor<unknown>): void {
 		return;
 	}
 
-	// DI does not pad or truncate constructors without service dependencies. This
-	// heuristic still catches omitted required static arguments; default and rest
-	// parameters are intentionally excluded from Function.length.
 	const required = descriptor.ctor.length;
 	const actual = descriptor.staticArguments.length;
 	if (actual < required) {
@@ -108,7 +109,6 @@ export interface IAgentHostCoreServiceInputs {
 	readonly copilotApiService?: ICopilotApiService;
 }
 
-/** Registers services shared by production and the AgentService test graph. */
 export function registerAgentHostCoreServices(services: AgentHostServiceCollection, inputs: IAgentHostCoreServiceInputs): void {
 	registerService(services, IAgentHostFileMonitorService, new SyncDescriptor(AgentHostFileMonitorService));
 	registerService(services, INetworkDiagnosticsService, new SyncDescriptor(NetworkDiagnosticsService));
@@ -132,6 +132,9 @@ export function registerAgentHostCoreServices(services: AgentHostServiceCollecti
 	registerService(services, IAgentHostChangesetService, new SyncDescriptor(AgentHostChangesetService));
 	registerService(services, IAgentHostCompletions, new SyncDescriptor(AgentHostCompletions));
 	registerService(services, IAgentHostTerminalManager, new SyncDescriptor(AgentHostTerminalManager));
+	registerService(services, IAgentHostChatContributions, new SyncDescriptor(AgentHostChatContributions));
+	registerService(services, IAgentHostTelemetryReporter, new SyncDescriptor(AgentHostTelemetryReporter));
+	registerService(services, IAgentHostTurnTracker, new SyncDescriptor(AgentHostTurnTracker));
 	registerService(services, IAgentBranchNameGenerator, new SyncDescriptor(AgentBranchNameGenerator));
 	registerService(services, IAgentHostWorktreeIsolation, new SyncDescriptor(WorktreeIsolation));
 }

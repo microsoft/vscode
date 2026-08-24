@@ -15,6 +15,7 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { AgentSandboxSettingId } from '../../sandbox/common/settings.js';
 import type { IActiveSubscriptionInfo, IAgentSubscription } from './state/agentSubscription.js';
 import type { IRemoteWatchHandle } from './agentHostFileSystemProvider.js';
+import type { IAgentHostResourceUriMapper } from './agentHostUri.js';
 import type { IAgentHostClientTelemetryContext } from './agentHostTelemetry.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
 import type { InitializeResult } from './state/protocol/common/commands.js';
@@ -779,7 +780,7 @@ export interface IAgentHostManagementService {
 	getManagedSettingsDiagnostics(): Promise<readonly IAgentHostManagedSettingsDiagnostics[]>;
 	diagnosticsFetch(url: string): Promise<IAgentHostNetworkFetchResult>;
 	getSessionStateFile(session: URI): Promise<URI | undefined>;
-	collectDebugLogs(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind): Promise<IAgentHostDebugLogsArtifact>;
+	collectDebugLogs(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind, chat?: URI): Promise<IAgentHostDebugLogsArtifact>;
 	readDebugLogsChunk(resource: URI, position: number): Promise<IAgentHostDebugLogsChunk>;
 	startWebSocketServer(): Promise<IAgentHostSocketInfo>;
 	getInspectInfo(tryEnable: boolean): Promise<IAgentHostInspectInfo | undefined>;
@@ -912,7 +913,7 @@ export interface IAgentService {
 
 	getSessionStateFile?(session: URI): Promise<URI | undefined>;
 
-	collectDebugLogs?(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind): Promise<IAgentHostDebugLogsArtifact>;
+	collectDebugLogs?(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind, chat?: URI): Promise<IAgentHostDebugLogsArtifact>;
 
 	readDebugLogsChunk?(resource: URI, position: number): Promise<IAgentHostDebugLogsChunk>;
 
@@ -1039,6 +1040,7 @@ export interface IAgentService {
 export interface IAgentConnection {
 
 	readonly clientId: string;
+	readonly resourceUris: IAgentHostResourceUriMapper;
 
 	// ---- State subscriptions ------------------------------------------------
 	readonly rootState: IAgentSubscription<RootState>;
@@ -1145,7 +1147,7 @@ export interface IAgentConnection {
 
 	getSessionStateFile(session: URI): Promise<URI | undefined>;
 
-	collectDebugLogs(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind): Promise<IAgentHostDebugLogsArtifact>;
+	collectDebugLogs(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind, chat?: URI): Promise<IAgentHostDebugLogsArtifact>;
 
 	/**
 	 * Read one bounded slice of an artifact previously returned by

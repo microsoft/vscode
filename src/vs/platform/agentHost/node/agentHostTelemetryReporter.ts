@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { LanguageModelToolInvokedClassification, LanguageModelToolInvokedEvent } from '../../telemetry/common/languageModelToolTelemetry.js';
-import type { ITelemetryService } from '../../telemetry/common/telemetry.js';
+import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { TelemetryTrustedValue } from '../../telemetry/common/telemetryUtils.js';
 import { hash } from '../../../base/common/hash.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { AgentSession, type AgentTurnProviderCallState, type AgentTurnProviderSessionState, type IAgentTurnDiagnosticSnapshot } from '../common/agent.js';
 import type { SessionMode } from '../common/agentHostSchema.js';
 import { getTelemetryChatSessionId } from '../common/agentTelemetryCorrelation.js';
@@ -175,6 +176,8 @@ export interface IAgentHostTurnCompletedEvent extends IAgentHostInitiatorTelemet
 	chatSessionId: string;
 	isSubagentSession: boolean;
 	turnId: string;
+	parentTurnId: string | undefined;
+	parentToolCallId: string | undefined;
 	timeToFirstProgress: number | undefined;
 	totalTime: number;
 	result: AgentHostTurnResult;
@@ -188,6 +191,10 @@ export interface IAgentHostTurnCompletedEvent extends IAgentHostInitiatorTelemet
 	isMultiRoot: boolean;
 	folderCount: number;
 	billedNanoAiu: number | undefined;
+	directPromptTokenCount: number | undefined;
+	directPromptCacheTokenCount: number | undefined;
+	directCompletionTokenCount: number | undefined;
+	directBilledNanoAiu: number | undefined;
 	modelCallCount: number;
 }
 
@@ -197,6 +204,8 @@ export type IAgentHostTurnCompletedClassification = IAgentHostInitiatorClassific
 	chatSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The chat identifier within the agent host session.' };
 	isSubagentSession: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the turn belongs to a subagent session.' };
 	turnId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The identifier of the turn within the agent host session.' };
+	parentTurnId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The immediate parent turn identifier for a subagent turn.' };
+	parentToolCallId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The identifier of the tool call that spawned the subagent owning this turn; stable across resumed turns of the same subagent.' };
 	timeToFirstProgress: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds from turn start to the first visible progress (text delta, response part, tool call start, or reasoning).' };
 	totalTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Total time in milliseconds from turn start to turn completion.' };
 	result: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the turn completed successfully, with an error, or was cancelled.' };
@@ -210,7 +219,11 @@ export type IAgentHostTurnCompletedClassification = IAgentHostInitiatorClassific
 	isMultiRoot: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the session spans more than one working directory.' };
 	folderCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of effective working directories for the session at turn completion.' };
 	billedNanoAiu: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The AI credit usage billed for the turn in nano-AIU, when reported by the provider.' };
-	modelCallCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of completed upstream model responses attributed directly to the turn.' };
+	directPromptTokenCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Input tokens used directly by this turn, excluding descendant sub-agent calls.' };
+	directPromptCacheTokenCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Input tokens read from cache directly by this turn, excluding descendant sub-agent calls.' };
+	directCompletionTokenCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Output tokens generated directly by this turn, excluding descendant sub-agent calls.' };
+	directBilledNanoAiu: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'AI credit usage billed directly to this turn in nano-AIU, excluding descendant sub-agent calls.' };
+	modelCallCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of completed upstream model responses attributed directly to this turn, excluding descendant sub-agent calls.' };
 	owner: 'roblourens';
 	comment: 'Tracks agent host turn completion, including performance, configuration context, completed model responses, and billed AI credit usage when reported by the provider.';
 };
@@ -261,6 +274,8 @@ export interface IAgentHostTurnCompletedReport extends IAgentHostTurnAttributedR
 	provider: string;
 	session: string;
 	turnId: string;
+	parentTurnId: string | undefined;
+	parentToolCallId: string | undefined;
 	timeToFirstProgress: number | undefined;
 	totalTime: number;
 	result: AgentHostTurnResult;
@@ -273,6 +288,10 @@ export interface IAgentHostTurnCompletedReport extends IAgentHostTurnAttributedR
 	isMultiRoot: boolean;
 	folderCount: number;
 	billedNanoAiu: number | undefined;
+	directPromptTokenCount: number | undefined;
+	directPromptCacheTokenCount: number | undefined;
+	directCompletionTokenCount: number | undefined;
+	directBilledNanoAiu: number | undefined;
 	modelCallCount: number;
 }
 
@@ -474,7 +493,29 @@ export interface IAgentHostToolInvokedReport extends IAgentHostTurnAttributedRep
 	resultSizeInCharacters: number;
 	model: string | undefined;
 	modelTelemetryKind: AgentHostModelTelemetryKind | undefined;
+	errorCode: string | undefined;
+	errorMessage: string | undefined;
 }
+
+export type IAgentHostToolInvokedEvent = LanguageModelToolInvokedEvent & IAgentHostInitiatorTelemetry & {
+	provider: string;
+	agentSessionId: string;
+	chatSessionId: string;
+	isSubagentSession: boolean;
+	errorCode: string | undefined;
+	msg: string | undefined;
+};
+
+export type IAgentHostToolInvokedClassification = Omit<LanguageModelToolInvokedClassification, 'provider' | 'chatSessionId' | 'owner' | 'comment'> & IAgentHostInitiatorClassification & {
+	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The Agent Host provider that invoked the tool.' };
+	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The Agent Host session identifier.' };
+	chatSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The chat identifier within the Agent Host session.' };
+	isSubagentSession: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the tool call belongs to a subagent session.' };
+	errorCode: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The tool failure code, when available.' };
+	msg: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The tool failure message, when available. VS Code telemetry scrubs file paths and likely secrets before transmission.' };
+	owner: 'roblourens';
+	comment: 'Tracks Agent Host tool invocations with Agent Host correlation and optional failure diagnostics.';
+};
 
 export interface IAgentHostAskQuestionsToolInvokedEvent extends IAgentHostInitiatorTelemetry {
 	requestId: string;
@@ -778,9 +819,13 @@ export function toInitiatorTelemetry(clientContext: IAgentHostClientTelemetryCon
 	};
 }
 
+export const IAgentHostTelemetryReporter = createDecorator<AgentHostTelemetryReporter>('agentHostTelemetryReporter');
+
 export class AgentHostTelemetryReporter {
 
-	constructor(private readonly _telemetryService: ITelemetryService) { }
+	declare readonly _serviceBrand: undefined;
+
+	constructor(@ITelemetryService private readonly _telemetryService: ITelemetryService) { }
 
 	/** The restricted GH/MSFT telemetry surface, present when the agent-host telemetry service is wired. */
 	private get _restricted(): IAgentHostRestrictedTelemetry | undefined {
@@ -1151,6 +1196,8 @@ export class AgentHostTelemetryReporter {
 			chatSessionId,
 			isSubagentSession: isSubagent,
 			turnId: report.turnId,
+			parentTurnId: report.parentTurnId,
+			parentToolCallId: report.parentToolCallId,
 			timeToFirstProgress: report.timeToFirstProgress,
 			totalTime: report.totalTime,
 			result: report.result,
@@ -1164,6 +1211,10 @@ export class AgentHostTelemetryReporter {
 			isMultiRoot: report.isMultiRoot,
 			folderCount: report.folderCount,
 			billedNanoAiu: report.billedNanoAiu,
+			directPromptTokenCount: report.directPromptTokenCount,
+			directPromptCacheTokenCount: report.directPromptCacheTokenCount,
+			directCompletionTokenCount: report.directCompletionTokenCount,
+			directBilledNanoAiu: report.directBilledNanoAiu,
 			modelCallCount: report.modelCallCount,
 		});
 		if (report.failure) {
@@ -1262,6 +1313,25 @@ export class AgentHostTelemetryReporter {
 			turnId: report.turnId,
 			model: toTelemetryModel(report.model, report.modelTelemetryKind),
 		});
+		const event: IAgentHostToolInvokedEvent = {
+			...toInitiatorTelemetry(report.clientContext),
+			result: report.result,
+			agentSessionId: AgentSession.id(session),
+			chatSessionId: getTelemetryChatSessionId(report.session),
+			isSubagentSession: isSubagentChatUri(report.session) || isSubagentSession(session),
+			toolId: report.toolId,
+			toolExtensionId: undefined,
+			toolSourceKind: report.toolSourceKind,
+			toolCallId: report.toolCallId,
+			invocationTimeMs: report.invocationTimeMs,
+			provider: report.provider,
+			resultSizeInCharacters: report.resultSizeInCharacters,
+			turnId: report.turnId,
+			model: toTelemetryModel(report.model, report.modelTelemetryKind),
+			errorCode: report.errorCode,
+			msg: report.errorMessage,
+		};
+		this._telemetryService.publicLog2<IAgentHostToolInvokedEvent, IAgentHostToolInvokedClassification>('agentHost.toolInvoked', event);
 	}
 
 	askQuestionsToolInvoked(report: IAgentHostAskQuestionsToolInvokedReport): void {

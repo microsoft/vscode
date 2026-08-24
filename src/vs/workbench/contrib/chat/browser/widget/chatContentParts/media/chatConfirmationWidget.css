@@ -78,7 +78,7 @@
 	margin: 0 !important;
 }
 
-.chat-confirmation-widget .chat-confirmation-widget-title .codicon-error {
+.chat-confirmation-widget .chat-confirmation-widget-title .codicon-error-compact {
 	color: var(--vscode-errorForeground) !important;
 }
 

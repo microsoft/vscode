@@ -41,7 +41,6 @@ import { IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSepara
 import { ISecretStorageService } from '../../../../platform/secrets/common/secrets.js';
 import { StorageScope } from '../../../../platform/storage/common/storage.js';
 import { defaultCheckboxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
-import { spinningLoading } from '../../../../platform/theme/common/iconRegistry.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
 import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from '../../../browser/actions/workspaceCommands.js';
 import { ActiveEditorContext, RemoteNameContext, ResourceContextKey, WorkbenchStateContext, WorkspaceFolderCountContext } from '../../../common/contextkeys.js';
@@ -955,13 +954,13 @@ export class MCPServerActionRendering extends Disposable implements IWorkbenchCo
 						stateIndicator.className = 'chat-mcp-state-indicator';
 						if (state === DisplayedState.NewTools) {
 							stateIndicator.style.display = 'block';
-							stateIndicator.classList.add('chat-mcp-state-new', ...ThemeIcon.asClassNameArray(Codicon.refresh));
+							stateIndicator.classList.add('chat-mcp-state-new', ...ThemeIcon.asClassNameArray(Codicon.refreshCompact));
 						} else if (state === DisplayedState.Error) {
 							stateIndicator.style.display = 'block';
-							stateIndicator.classList.add('chat-mcp-state-error', ...ThemeIcon.asClassNameArray(Codicon.warning));
+							stateIndicator.classList.add('chat-mcp-state-error', ...ThemeIcon.asClassNameArray(Codicon.warningCompact));
 						} else if (state === DisplayedState.Refreshing) {
 							stateIndicator.style.display = 'block';
-							stateIndicator.classList.add('chat-mcp-state-refreshing', ...ThemeIcon.asClassNameArray(spinningLoading));
+							stateIndicator.classList.add('chat-mcp-state-refreshing', ...ThemeIcon.asClassNameArray(ThemeIcon.modify(Codicon.loadingCompact, 'spin')));
 						} else {
 							stateIndicator.style.display = 'none';
 						}
