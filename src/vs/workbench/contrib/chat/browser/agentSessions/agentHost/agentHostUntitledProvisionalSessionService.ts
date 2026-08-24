@@ -345,13 +345,23 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 					void this._changeWorkingDirectory(sessionResource, this._newSessionFolderService.resolveNewSessionPrimary(sessionResource));
 					continue;
 				}
-				if (!entry.usesWorkspaceRootSet && (this._computeWorkingDirectories(entry.workingDirectory, entry.provider)?.length ?? 0) > 1) {
-					entry.usesWorkspaceRootSet = true;
+				this._reconcileWorkspaceRootSet(sessionResource, entry);
+			}
+		}));
+		// The advertised `multipleWorkingDirectories` capability can flip at
+		// runtime: the hidden `multiRootEnabled` setting is mirrored to the host,
+		// which re-advertises it, so `rootState` changes without a reload.
+		// Recompute each not-yet-started draft's desired root set so the change
+		// takes effect immediately. Gated to untitled drafts because a started
+		// (rebound) session's working directories are immutable — recreating its
+		// backend would tear down the live conversation. This matches the
+		// setting's contract that newly created sessions pick up the change.
+		this._register(this._agentHostService.rootState.onDidChange(() => {
+			for (const [sessionResource, entry] of this._entries) {
+				if (entry.disposed || !isUntitledChatSession(sessionResource)) {
+					continue;
 				}
-				this._updateActiveClientScope(entry);
-				if (entry.usesWorkspaceRootSet && !this._generationMatchingDesiredState(entry)) {
-					void this._queue(sessionResource, () => this._reconcileGeneration(sessionResource, entry));
-				}
+				this._reconcileWorkspaceRootSet(sessionResource, entry);
 			}
 		}));
 		this._register(this._agentHostService.onAgentHostStart(() => this._retryPendingBackendDisposals()));
@@ -390,6 +400,25 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 
 		const scope = this._activeClientService.acquireScope(`agent-host-${entry.provider}`, roots);
 		entry.activeClientBinding.value = new ActiveClientBinding(roots, scope, this._agentHostService.clientId, () => this._publishActiveClient(entry));
+	}
+
+	/**
+	 * Escalate a draft to the workspace root set when its desired directory set
+	 * has grown beyond its primary, refresh its active-client scope, and recreate
+	 * its backend generation when the published one no longer matches the desired
+	 * set. Shared by the workspace-folder and root-state (capability) change
+	 * reactions. Escalation is one-way (never back to single-root); a later
+	 * capability-off or folder shrink is still honored because
+	 * {@link _computeEntryWorkingDirectories} recomputes the desired set live.
+	 */
+	private _reconcileWorkspaceRootSet(sessionResource: URI, entry: IEntry): void {
+		if (!entry.usesWorkspaceRootSet && (this._computeWorkingDirectories(entry.workingDirectory, entry.provider)?.length ?? 0) > 1) {
+			entry.usesWorkspaceRootSet = true;
+		}
+		this._updateActiveClientScope(entry);
+		if (entry.usesWorkspaceRootSet && !this._generationMatchingDesiredState(entry)) {
+			void this._queue(sessionResource, () => this._reconcileGeneration(sessionResource, entry));
+		}
 	}
 
 	getInitialSessionMetadata(sessionResource?: URI): Record<string, unknown> | undefined {
