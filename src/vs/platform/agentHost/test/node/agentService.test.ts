@@ -40,7 +40,7 @@ import { GitRefType } from '../../common/agentHostGitService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AgentMergeConfigKey, readAgentMergeSessionState } from '../../common/agentMerge.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
-import { ActionType, ActionEnvelope, NotificationType } from '../../common/state/sessionActions.js';
+import { ActionType, ActionEnvelope, NotificationType, type INotification } from '../../common/state/sessionActions.js';
 import { AH_META_IS_READ_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, readSessionEhcliAdopted, AH_META_IS_ARCHIVED_DB_KEY, AH_META_ORCHESTRATION_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, isDefaultChatUri, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionEhcliAdoptable, readSessionExternal, readSessionGitHubState, readSessionMultiRootMetadata, readSessionFolderPickerDecision, readSessionOrchestration, readSessionSourceControlState, withSessionEhcliAdoptable, withSessionExternal, withSessionMultiRootMetadata, ChatOriginKind, type ChangesetState, type ISessionFolderPickerDecision, type ISessionOrchestration, type ISessionWithDefaultChat, type MarkdownResponsePart, type SessionState, type SessionSummary, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
 import { ChatInteractivity, type MessageAttachment } from '../../common/state/protocol/state.js';
 import { isHostSnapshotAttachment, toHostSnapshotAttachmentMeta } from '../../common/meta/agentSnapshotAttachmentMeta.js';
@@ -7670,6 +7670,287 @@ suite('AgentService (node dispatcher)', () => {
 					{ action: action.type, adoptCalls: 0, restored: false },
 				);
 			}
+		});
+
+		test('a read/archive toggle on an un-loaded session persists and publishes without restoring it', async () => {
+			// Regression: routing these toggles through `restoreSession` lost the
+			// archived state whenever that restore failed.
+			for (const { action, key, expectedStatus } of [
+				{ action: { type: ActionType.SessionIsArchivedChanged, isArchived: true } as const, key: AH_META_IS_ARCHIVED_DB_KEY, expectedStatus: SessionStatus.Idle | SessionStatus.IsArchived },
+				{ action: { type: ActionType.SessionIsReadChanged, isRead: true } as const, key: AH_META_IS_READ_DB_KEY, expectedStatus: SessionStatus.Idle | SessionStatus.IsRead },
+			]) {
+				const db = new TestSessionDatabase();
+				const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+				const agent = disposables.add(new MockAgent('copilot'));
+				localService.registerProvider(agent);
+
+				const session = AgentSession.uri('copilot', `passive-${action.type}`);
+				const sessionStr = session.toString();
+				const summary = {
+					resource: sessionStr,
+					provider: 'copilot',
+					title: 'Idle',
+					status: SessionStatus.Idle,
+					createdAt: new Date().toISOString(),
+					modifiedAt: new Date().toISOString(),
+				};
+				getStateManager(localService).announceSurfacedSession(summary);
+				getStateManager(localService).prepareSessionSummariesForListing([summary]);
+
+				const notifications: INotification[] = [];
+				const listener = localService.onDidNotification(n => notifications.push(n));
+
+				localService.dispatchAction(sessionStr, action, 'test-client', 1, AgentHostClientType.EditorWindow);
+				await timeout(0);
+				await timeout(0);
+				listener.dispose();
+
+				const summaryChanged = notifications.find(n => n.type === 'root/sessionSummaryChanged');
+				assert.deepStrictEqual({
+					action: action.type,
+					persisted: await db.getMetadata(key),
+					restored: !!getStateManager(localService).getSessionState(sessionStr),
+					publishedStatus: summaryChanged?.type === 'root/sessionSummaryChanged' ? summaryChanged.changes.status : undefined,
+				}, {
+					action: action.type,
+					persisted: 'true',
+					restored: false,
+					publishedStatus: expectedStatus,
+				});
+			}
+		});
+
+		test('archiving an un-loaded session succeeds even when its working directory is gone', async () => {
+			// Restore recreates the worktree and throws for a missing directory, and only
+			// an *already* archived session resumes read-only — so archiving could never land.
+			class MissingWorkingDirectoryAgent extends MockAgent {
+				constructor() { super('copilot'); }
+				override async materializeChat(): Promise<never> {
+					throw new Error('working directory no longer exists');
+				}
+			}
+
+			const db = new TestSessionDatabase();
+			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new MissingWorkingDirectoryAgent());
+			localService.registerProvider(agent);
+
+			const session = AgentSession.uri('copilot', 'archive-missing-cwd');
+			const sessionStr = session.toString();
+			getStateManager(localService).announceSurfacedSession({
+				resource: sessionStr,
+				provider: 'copilot',
+				title: 'Gone',
+				status: SessionStatus.Idle,
+				createdAt: new Date().toISOString(),
+				modifiedAt: new Date().toISOString(),
+			});
+
+			localService.dispatchAction(sessionStr, { type: ActionType.SessionIsArchivedChanged, isArchived: true }, 'test-client', 1, AgentHostClientType.EditorWindow);
+			await timeout(0);
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				persisted: await db.getMetadata(AH_META_IS_ARCHIVED_DB_KEY),
+				restored: !!getStateManager(localService).getSessionState(sessionStr),
+			}, {
+				persisted: 'true',
+				restored: false,
+			});
+		});
+
+		test('unarchiving an un-loaded session clears the persisted flag', async () => {
+			const db = new TestSessionDatabase();
+			await db.setMetadata(AH_META_IS_ARCHIVED_DB_KEY, 'true');
+			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			localService.registerProvider(disposables.add(new MockAgent('copilot')));
+
+			const session = AgentSession.uri('copilot', 'unarchive-unloaded');
+			const sessionStr = session.toString();
+			getStateManager(localService).announceSurfacedSession({
+				resource: sessionStr,
+				provider: 'copilot',
+				title: 'Archived',
+				status: SessionStatus.Idle | SessionStatus.IsArchived,
+				createdAt: new Date().toISOString(),
+				modifiedAt: new Date().toISOString(),
+			});
+
+			localService.dispatchAction(sessionStr, { type: ActionType.SessionIsArchivedChanged, isArchived: false }, 'test-client', 1, AgentHostClientType.EditorWindow);
+			await timeout(0);
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				persisted: await db.getMetadata(AH_META_IS_ARCHIVED_DB_KEY),
+				restored: !!getStateManager(localService).getSessionState(sessionStr),
+			}, {
+				persisted: '',
+				restored: false,
+			});
+		});
+
+		test('a read/archive toggle for a session the host does not know creates no session database', async () => {
+			// Creating `agentSessionData/<id>` claims a session away from the extension
+			// host list, so a toggle must never do it for a never-surfaced session.
+			const db = new TestSessionDatabase();
+			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			localService.registerProvider(disposables.add(new MockAgent('copilot')));
+
+			const sessionStr = AgentSession.uri('copilot', 'never-surfaced').toString();
+			localService.dispatchAction(sessionStr, { type: ActionType.SessionIsArchivedChanged, isArchived: true }, 'test-client', 1, AgentHostClientType.EditorWindow);
+			await timeout(0);
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				metadataWrites: db.setMetadataCalls,
+				restored: !!getStateManager(localService).getSessionState(sessionStr),
+			}, {
+				metadataWrites: [],
+				restored: false,
+			});
+		});
+
+		test('a queued read/archive toggle still lands when an earlier action restored the session', async () => {
+			// The passive route is picked from a snapshot taken at dispatch entry, but the
+			// callback runs behind earlier queued dispatches — here one that restores the
+			// session. Deciding from the stale snapshot dropped the toggle outright.
+			const db = new TestSessionDatabase();
+			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new MockAgent('copilot'));
+			localService.registerProvider(agent);
+
+			const session = AgentSession.uri('copilot', 'restored-mid-queue');
+			const sessionStr = session.toString();
+			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(session), session);
+			const summary = {
+				resource: sessionStr,
+				provider: 'copilot',
+				title: 'Surfaced',
+				status: SessionStatus.Idle,
+				createdAt: new Date().toISOString(),
+				modifiedAt: new Date().toISOString(),
+			};
+			getStateManager(localService).announceSurfacedSession(summary);
+			getStateManager(localService).prepareSessionSummariesForListing([summary]);
+
+			// Both are queued while the session is still un-restored; the first restores it.
+			localService.dispatchAction(sessionStr, { type: ActionType.SessionTitleChanged, title: 'Renamed' }, 'test-client', 1, AgentHostClientType.EditorWindow);
+			localService.dispatchAction(sessionStr, { type: ActionType.SessionIsArchivedChanged, isArchived: true }, 'test-client', 2, AgentHostClientType.EditorWindow);
+			for (let i = 0; i < 20; i++) {
+				await timeout(0);
+			}
+
+			assert.deepStrictEqual({
+				restoredByFirstAction: !!getStateManager(localService).getSessionState(sessionStr),
+				persisted: await db.getMetadata(AH_META_IS_ARCHIVED_DB_KEY),
+				stateArchived: !!((getStateManager(localService).getSessionState(sessionStr)?.status ?? 0) & SessionStatus.IsArchived),
+			}, {
+				restoredByFirstAction: true,
+				persisted: 'true',
+				stateArchived: true,
+			});
+		});
+
+		test('archiving a session that was opened and then idle-evicted still persists and publishes', async () => {
+			// Eviction emits no `sessionRemoved`, so clients keep listing the session and
+			// can archive it; "evicted" must behave like any other un-loaded session.
+			const db = new TestSessionDatabase();
+			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			localService.registerProvider(disposables.add(new MockAgent('copilot')));
+
+			const created = await localService.createSession({ provider: 'copilot' });
+			const sessionStr = created.toString();
+			getStateManager(localService).prepareSessionSummariesForListing([getStateManager(localService).getSessionSummary(sessionStr)!]);
+			getStateManager(localService).removeSession(sessionStr);
+
+			const notifications: INotification[] = [];
+			const listener = localService.onDidNotification(n => notifications.push(n));
+			localService.dispatchAction(sessionStr, { type: ActionType.SessionIsArchivedChanged, isArchived: true }, 'test-client', 1, AgentHostClientType.EditorWindow);
+			for (let i = 0; i < 20; i++) {
+				await timeout(0);
+			}
+			listener.dispose();
+
+			const summaryChanged = notifications.find(n => n.type === 'root/sessionSummaryChanged');
+			assert.deepStrictEqual({
+				persisted: await db.getMetadata(AH_META_IS_ARCHIVED_DB_KEY),
+				publishedArchived: summaryChanged?.type === 'root/sessionSummaryChanged'
+					? !!((summaryChanged.changes.status ?? 0) & SessionStatus.IsArchived)
+					: undefined,
+			}, {
+				persisted: 'true',
+				publishedArchived: true,
+			});
+		});
+
+		test('deleting a session drops its announced summary so a later toggle cannot revive it', async () => {
+			// `removeSession` keeps the announced baseline for eviction; deletion must
+			// still clear it, or a stale toggle could republish a deleted session.
+			const db = new TestSessionDatabase();
+			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			localService.registerProvider(disposables.add(new MockAgent('copilot')));
+
+			const created = await localService.createSession({ provider: 'copilot' });
+			const sessionStr = created.toString();
+			getStateManager(localService).prepareSessionSummariesForListing([getStateManager(localService).getSessionSummary(sessionStr)!]);
+			getStateManager(localService).deleteSession(sessionStr);
+
+			assert.strictEqual(getStateManager(localService).getSurfacedSessionSummary(sessionStr), undefined);
+		});
+
+		test('a queued toggle still publishes when the session was evicted while it waited', async () => {
+			// Mirror of the restored-while-queued case: the session was live at dispatch
+			// entry, so the entry-time snapshot says "no passive handling needed", but it
+			// was evicted before the callback ran. Persistence rides the envelope either
+			// way; the catalogue delta is what goes missing.
+			let onWrite: (() => void) | undefined;
+			class HookedDb extends TestSessionDatabase {
+				override async setMetadataValues(values: Readonly<Record<string, string>>): Promise<void> {
+					await super.setMetadataValues(values);
+					onWrite?.();
+				}
+			}
+			const db = new HookedDb();
+			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			localService.registerProvider(disposables.add(new MockAgent('copilot')));
+
+			const liveSession = (await localService.createSession({ provider: 'copilot' })).toString();
+			getStateManager(localService).prepareSessionSummariesForListing([getStateManager(localService).getSessionSummary(liveSession)!]);
+
+			// An un-restored session whose toggle holds the per-client queue with a real
+			// async write, giving the second toggle a window to be evicted in.
+			const surfaced = AgentSession.uri('copilot', 'queue-holder').toString();
+			const surfacedSummary = {
+				resource: surfaced,
+				provider: 'copilot',
+				title: 'Holder',
+				status: SessionStatus.Idle,
+				createdAt: new Date().toISOString(),
+				modifiedAt: new Date().toISOString(),
+			};
+			getStateManager(localService).announceSurfacedSession(surfacedSummary);
+			getStateManager(localService).prepareSessionSummariesForListing([surfacedSummary]);
+			onWrite = () => { getStateManager(localService).removeSession(liveSession); onWrite = undefined; };
+
+			const notifications: INotification[] = [];
+			const listener = localService.onDidNotification(n => notifications.push(n));
+			localService.dispatchAction(surfaced, { type: ActionType.SessionIsArchivedChanged, isArchived: true }, 'c', 1, AgentHostClientType.EditorWindow);
+			localService.dispatchAction(liveSession, { type: ActionType.SessionIsArchivedChanged, isArchived: true }, 'c', 2, AgentHostClientType.EditorWindow);
+			for (let i = 0; i < 30; i++) {
+				await timeout(0);
+			}
+			listener.dispose();
+
+			const published = notifications.find(n => n.type === 'root/sessionSummaryChanged' && n.session === liveSession);
+			assert.deepStrictEqual({
+				evicted: !getStateManager(localService).getSessionState(liveSession),
+				publishedArchived: published?.type === 'root/sessionSummaryChanged'
+					? !!((published.changes.status ?? 0) & SessionStatus.IsArchived)
+					: undefined,
+			}, {
+				evicted: true,
+				publishedArchived: true,
+			});
 		});
 
 		test('turning the migrate setting off un-surfaces adoptable legacy sessions that were never opened', async () => {
