@@ -852,13 +852,16 @@ async function renderDisabledPetResizeObserverProbe(context: ComponentFixtureCon
 	trigger.style.height = '10px';
 	context.disposableStore.add(instantiationService.createInstance(
 		ChatPetWidget,
-		petHost,
-		dragBounds,
-		movementBounds,
-		constObservable(undefined),
-		constObservable(false),
-		constObservable(true),
-		Event.None,
+		{
+			parent: petHost,
+			dragBounds,
+			movementBounds,
+			model: constObservable(undefined),
+			hasInput: constObservable(false),
+			inputChanged: Event.None,
+			getPlatformTop: () => undefined,
+			onDidChangePlatform: Event.None,
+		},
 	));
 
 	const status = dom.append(context.container, dom.$('.disabled-pet-resize-observer-status'));
