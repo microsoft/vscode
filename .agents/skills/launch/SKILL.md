@@ -192,7 +192,14 @@ npx @playwright/cli -s=$PW_SESSION press Control+Alt+i
 
 ### Typing into Monaco (chat input, editors)
 
-First identify the input surface from a fresh snapshot:
+Use a fresh snapshot to locate and focus the intended input, then inspect the focused DOM element:
+
+```bash
+npx @playwright/cli -s=$PW_SESSION eval \
+  '() => ({ tagName: document.activeElement?.tagName, className: document.activeElement?.className, role: document.activeElement?.getAttribute("role") })'
+```
+
+Choose the text-entry method from that result:
 
 - **Chat Monaco input** exposes a focused `.native-edit-context` inside the chat input. Use the paste helper or per-key `press` below.
 - **Quick Input and ordinary textboxes** include the Command Palette and file/folder pickers. Use Playwright's normal `type` command for the focused input or `fill` with its snapshot ref.
