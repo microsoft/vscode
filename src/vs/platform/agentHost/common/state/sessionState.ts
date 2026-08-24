@@ -57,10 +57,6 @@ export {
 	PendingMessageKind,
 	PolicyState,
 	ResponsePartKind,
-	ChatInputAnswerState as SessionInputAnswerState,
-	ChatInputAnswerValueKind as SessionInputAnswerValueKind,
-	ChatInputQuestionKind as SessionInputQuestionKind,
-	ChatInputResponseKind as SessionInputResponseKind,
 	ChatInteractivity,
 	ChatOriginKind,
 	SessionLifecycle,
@@ -74,8 +70,7 @@ export {
 	type MessageResourceAttachment, type MessageEmbeddedResourceAttachment, type MessageAnnotationsAttachment, type MessageChatAttachment, type ModelSelection, type PendingMessage, type PluginCustomization, type ProjectInfo, type PromptCustomization, type ReasoningResponsePart,
 	type ResponsePart,
 	type RootState, type RuleCustomization, type SessionActiveClient,
-	type SessionConfigState, type ChatInputAnswer as SessionInputAnswer,
-	type ChatInputOption as SessionInputOption, type ChatInputQuestion as SessionInputQuestion, type ChatInputRequest as SessionInputRequest, type SessionModelInfo,
+	type SessionConfigState, type SessionModelInfo,
 	type SessionState,
 	type SessionSummary, type SkillCustomization, type Snapshot, type StringOrMarkdown, type TerminalState, type TextRange,
 	type ToolAnnotations,
@@ -453,7 +448,7 @@ export {
 // Canonical chat-input type names (the protocol renamed the former
 // `SessionInput*` types to `ChatInput*` when input requests moved onto the
 // chat channel). Re-exported here so consumers can import them from the glue
-// layer alongside the legacy `SessionInput*` aliases above.
+// layer.
 export {
 	ChatInputAnswerState,
 	ChatInputAnswerValueKind,
