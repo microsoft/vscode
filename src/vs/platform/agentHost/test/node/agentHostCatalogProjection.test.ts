@@ -36,6 +36,7 @@ function createSource(): IAgentHostCatalogSource {
 		},
 		workspaceless: false,
 		ehcliAdoptable: true,
+		ehcliAdopted: true,
 		multiRoot: {
 			workspaceFile: 'file:///workspace/project.code-workspace',
 		},
@@ -169,6 +170,7 @@ suite('AgentHostCatalogProjection', () => {
 			folderPicker: { primary: 'file:///workspace', hidden: true },
 			multiRoot: source.multiRoot,
 			ehcliAdoptable: true,
+			ehcliAdopted: true,
 			workspaceless: false,
 			project: { displayName: 'workspace', uri: 'file:///workspace' },
 			isArchived: false,
@@ -454,9 +456,9 @@ suite('AgentHostCatalogProjection', () => {
 			payloadError: payloadResult.ok ? undefined : payloadResult.error,
 			catalogError: catalogResult.ok ? undefined : catalogResult.error,
 		}, {
-			currentVersion: 4,
-			payloadError: { field: 'sourcePayload.projectionVersion', message: 'Expected projection version 4.' },
-			catalogError: { field: 'projectionVersion', message: 'Expected projection version 4.' },
+			currentVersion: AGENT_HOST_CATALOG_PROJECTION_VERSION,
+			payloadError: { field: 'sourcePayload.projectionVersion', message: `Expected projection version ${AGENT_HOST_CATALOG_PROJECTION_VERSION}.` },
+			catalogError: { field: 'projectionVersion', message: `Expected projection version ${AGENT_HOST_CATALOG_PROJECTION_VERSION}.` },
 		});
 	});
 

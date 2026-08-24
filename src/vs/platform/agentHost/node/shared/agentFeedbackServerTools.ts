@@ -7,9 +7,10 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { FEEDBACK_ANNOTATION_META_KEY, feedbackAnnotationEntryMeta, readFeedbackAnnotationMeta, resolveFeedbackEntryAuthor, VIEW_UNREVIEWED_COMMENTS_TOOL_NAME, ADD_COMMENT_TOOL_NAME, type IFeedbackAnnotationMeta } from '../../common/meta/agentFeedbackAnnotations.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
+import type { IAgentServerToolDefinition } from '../../common/agentServerTools.js';
 import type { AnnotationsAction } from '../../common/state/sessionActions.js';
 import { ActionType } from '../../common/state/protocol/common/actions.js';
-import { parseChatUri, type Annotation, type AnnotationsState, type StringOrMarkdown, type TextRange, type ToolDefinition } from '../../common/state/sessionState.js';
+import { parseChatUri, type Annotation, type AnnotationOrigin, type AnnotationsState, type StringOrMarkdown, type TextRange, type ToolDefinition } from '../../common/state/sessionState.js';
 import type { AgentHostStateManager } from '../agentHostStateManager.js';
 import type { IServerToolDisplay, IServerToolDisplayResult, IServerToolGroup } from './agentServerToolHost.js';
 
@@ -114,11 +115,11 @@ const resolveCommentsInputSchema: ToolDefinition['inputSchema'] = {
 };
 
 /**
- * Protocol {@link ToolDefinition}s for the feedback server tools, advertised on
+ * {@link IAgentServerToolDefinition}s for the feedback server tools, advertised on
  * {@link SessionState.serverTools} so clients know these tools are owned and
  * executed by the agent host.
  */
-export const feedbackServerToolDefinitions: ToolDefinition[] = [
+export const feedbackServerToolDefinitions: IAgentServerToolDefinition[] = [
 	{
 		name: addCommentToolName,
 		title: 'Add Comment (Agent Feedback)',
@@ -453,7 +454,7 @@ export interface IFeedbackToolOutcome {
  *
  * @throws if {@link toolName} is unknown or the arguments are invalid.
  */
-export function applyFeedbackTool(state: AnnotationsState, sessionResource: string, toolName: string, rawArgs: unknown): IFeedbackToolOutcome {
+export function applyFeedbackTool(state: AnnotationsState, sessionResource: string, toolName: string, rawArgs: unknown, origin: AnnotationOrigin = { session: sessionResource }): IFeedbackToolOutcome {
 	switch (toolName) {
 		case addCommentToolName: {
 			const { resourceUri, range, text } = getAddCommentArgs(rawArgs);
@@ -463,7 +464,7 @@ export function applyFeedbackTool(state: AnnotationsState, sessionResource: stri
 			const meta: IFeedbackAnnotationMeta = { kind: 'codeReview', state: 'created', sessionResource };
 			const annotation: Annotation = {
 				id,
-				turnId: '',
+				origin,
 				resource: resourceUri,
 				range: toTextRange(range),
 				resolved: false,
@@ -664,7 +665,12 @@ export const feedbackServerToolGroup: IServerToolGroup = {
 	},
 	execute(stateManager, context, toolName, rawArgs): string {
 		const { mainSessionUri, annotationsUri, state } = getFeedbackToolState(stateManager, context.chatUri);
-		const outcome = applyFeedbackTool(state, mainSessionUri, toolName, rawArgs);
+		const turnId = stateManager.getChatState(context.chatUri)?.activeTurn?.id;
+		const outcome = applyFeedbackTool(state, mainSessionUri, toolName, rawArgs, {
+			session: mainSessionUri,
+			chat: context.chatUri,
+			...(turnId ? { turnId } : {}),
+		});
 		for (const action of outcome.actions) {
 			stateManager.dispatchServerAction(annotationsUri, action);
 		}

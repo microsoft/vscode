@@ -7,7 +7,7 @@ import { createHash } from 'crypto';
 import { stableStringify } from '../../../base/common/objects.js';
 import type { AgentHostCatalogChatKind, AgentHostCatalogTitleSource, IAgentHostDatabaseCatalogChat, IAgentHostDatabaseSessionV2Projection } from './agentHostDatabase.js';
 
-export const AGENT_HOST_CATALOG_PROJECTION_VERSION = 4;
+export const AGENT_HOST_CATALOG_PROJECTION_VERSION = 5;
 
 /** Each GitHub URL history is truncated to this many list-visible references. */
 export const AGENT_HOST_CATALOG_GITHUB_REFERENCE_LIMIT = 10;
@@ -122,6 +122,7 @@ export interface IAgentHostCatalogSource {
 	readonly workspaceless: boolean;
 	readonly isChatBacking?: boolean;
 	readonly ehcliAdoptable?: boolean;
+	readonly ehcliAdopted?: boolean;
 	readonly multiRoot?: IAgentHostCatalogMultiRoot;
 	readonly folderPicker?: IAgentHostCatalogFolderPickerDecision;
 	readonly changes?: IAgentHostCatalogChangesSummary;
@@ -200,6 +201,7 @@ export function projectAgentHostCatalog(source: IAgentHostCatalogSource, options
 			workspaceless: normalizedSource.workspaceless,
 			isChatBacking: normalizedSource.isChatBacking ?? false,
 			ehcliAdoptable: normalizedSource.ehcliAdoptable,
+			ehcliAdopted: normalizedSource.ehcliAdopted,
 			multiRootJson: stringifyStructuredField('multiRoot', normalizedSource.multiRoot),
 			folderPickerJson: stringifyStructuredField('folderPicker', normalizedSource.folderPicker),
 			changesSummaryJson: stringifyStructuredField('changes', normalizedSource.changes),
@@ -272,6 +274,7 @@ function sourceFromCatalog(catalog: IAgentHostDatabaseSessionV2Projection): IAge
 		workspaceless: catalog.workspaceless,
 		isChatBacking: catalog.isChatBacking,
 		ehcliAdoptable: catalog.ehcliAdoptable ?? false,
+		ehcliAdopted: catalog.ehcliAdopted ?? false,
 		multiRoot: parseOptionalStructuredField('multiRootJson', catalog.multiRootJson),
 		folderPicker: parseOptionalStructuredField('folderPickerJson', catalog.folderPickerJson),
 		changes: parseOptionalStructuredField('changesSummaryJson', catalog.changesSummaryJson),
@@ -298,7 +301,7 @@ function normalizeSource(value: unknown): IAgentHostCatalogSource {
 	const raw = requirePlainObject('source', value);
 	requireExactKeys('source', raw, [
 		'modifiedTime', 'title', 'titleSource', 'isRead', 'isArchived', 'project', 'workspaceless', 'isChatBacking',
-		'ehcliAdoptable', 'multiRoot', 'folderPicker', 'changes', 'github', 'git', 'sourceControl', 'artifacts', 'orchestration',
+		'ehcliAdoptable', 'ehcliAdopted', 'multiRoot', 'folderPicker', 'changes', 'github', 'git', 'sourceControl', 'artifacts', 'orchestration',
 		'workingDirectories', 'chats'
 	]);
 	const workingDirectories = normalizeWorkingDirectories(raw['workingDirectories']);
@@ -313,6 +316,7 @@ function normalizeSource(value: unknown): IAgentHostCatalogSource {
 		workspaceless: requireBoolean('workspaceless', raw['workspaceless']),
 		isChatBacking: optionalBoolean('isChatBacking', raw['isChatBacking']) ?? false,
 		ehcliAdoptable: optionalBoolean('ehcliAdoptable', raw['ehcliAdoptable']) ?? false,
+		ehcliAdopted: optionalBoolean('ehcliAdopted', raw['ehcliAdopted']) ?? false,
 		multiRoot: normalizeMultiRoot(raw['multiRoot']),
 		folderPicker: normalizeFolderPicker(raw['folderPicker']),
 		changes: normalizeChanges(raw['changes']),
@@ -732,7 +736,7 @@ function assertByteLength(field: string, value: string, maximumBytes: number): v
 function requireCatalogEqual(actual: IAgentHostDatabaseSessionV2Projection, expected: IAgentHostDatabaseSessionV2Projection): void {
 	const scalarFields: ReadonlyArray<keyof IAgentHostDatabaseSessionV2Projection> = [
 		'session', 'sessionGeneration', 'modifiedTime', 'title', 'titleSource', 'isRead', 'isArchived',
-		'projectUri', 'projectDisplayName', 'workspaceless', 'isChatBacking', 'ehcliAdoptable', 'multiRootJson', 'folderPickerJson', 'changesSummaryJson',
+		'projectUri', 'projectDisplayName', 'workspaceless', 'isChatBacking', 'ehcliAdoptable', 'ehcliAdopted', 'multiRootJson', 'folderPickerJson', 'changesSummaryJson',
 		'githubSummaryJson', 'gitSummaryJson', 'sourceControlSummaryJson', 'artifactsJson', 'orchestrationJson', 'sourceRevision',
 		'projectionVersion', 'sourceHash', 'verified', 'workingDirectoriesJson', 'chatsJson'
 	];

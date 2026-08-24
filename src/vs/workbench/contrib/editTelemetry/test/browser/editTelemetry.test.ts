@@ -36,6 +36,43 @@ import { ITextFileService } from '../../../../services/textfile/common/textfiles
 suite('Edit Telemetry', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('reports Agent Host session mode for accepted and rejected edits', () => {
+		const instantiationService = new TestInstantiationService();
+		const sentTelemetry: { readonly eventName: string; readonly data: Record<string, unknown> | undefined }[] = [];
+		instantiationService.stub(ITelemetryService, {
+			publicLog2(eventName, data) {
+				sentTelemetry.push({ eventName, data });
+			},
+		});
+		instantiationService.stub(IRandomService, new DeterministicRandomService());
+		const aiEditTelemetryService = instantiationService.createInstance(AiEditTelemetryServiceImpl);
+		const baseData = {
+			suggestionId: undefined,
+			presentation: 'highlightedEdit' as const,
+			feature: 'inlineChat' as const,
+			source: undefined,
+			languageId: undefined,
+			editDeltaInfo: undefined,
+			modeId: undefined,
+			applyCodeBlockSuggestionId: undefined,
+			modelId: undefined,
+			sourceRequestId: undefined,
+		};
+
+		aiEditTelemetryService.createSuggestionId({ ...baseData, isAgentHostSession: true });
+		aiEditTelemetryService.handleCodeAccepted({ ...baseData, acceptanceMethod: 'accept', isAgentHostSession: true });
+		aiEditTelemetryService.handleCodeRejected({ ...baseData, rejectionMethod: 'reject', isAgentHostSession: false });
+
+		assert.deepStrictEqual(sentTelemetry.map(event => ({
+			eventName: event.eventName,
+			isAgentHostSession: event.data?.isAgentHostSession,
+		})), [
+			{ eventName: 'editTelemetry.codeSuggested', isAgentHostSession: true },
+			{ eventName: 'editTelemetry.codeAccepted', isAgentHostSession: true },
+			{ eventName: 'editTelemetry.codeRejected', isAgentHostSession: false },
+		]);
+	});
+
 	test('1', async () => runWithFakedTimers({}, async () => {
 		const disposables = new DisposableStore();
 		const instantiationService = disposables.add(new TestInstantiationService(new ServiceCollection(

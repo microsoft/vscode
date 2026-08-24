@@ -6,7 +6,7 @@
 import { URI } from '../../../base/common/uri.js';
 import { AgentSession, type IAgentSessionMetadata } from '../common/agent.js';
 import { SessionArtifactType, withSessionArtifacts } from '../common/sessionArtifacts.js';
-import { SessionSourceControlOutcome, SessionStatus, withSessionEhcliAdoptable, withSessionExternal, withSessionFolderPickerDecision, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionOrchestration, withSessionSourceControlState, withSessionStatusFlag, withSessionWorkspaceless } from '../common/state/sessionState.js';
+import { SessionSourceControlOutcome, SessionStatus, withSessionEhcliAdoptable, withSessionEhcliAdopted, withSessionExternal, withSessionFolderPickerDecision, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionOrchestration, withSessionSourceControlState, withSessionStatusFlag, withSessionWorkspaceless } from '../common/state/sessionState.js';
 import { AGENT_HOST_CATALOG_PROJECTION_VERSION, parseAgentHostDatabaseCatalog, type IAgentHostCatalogSource } from './agentHostCatalogProjection.js';
 import type { IAgentHostDatabase } from './agentHostDatabase.js';
 import type { IRegisteredSession } from './agentSessionRegistry.js';
@@ -84,6 +84,7 @@ export class AgentHostCatalogListReader {
 		if (source.ehcliAdoptable) {
 			meta = withSessionEhcliAdoptable(meta);
 		}
+		meta = withSessionEhcliAdopted(meta, source.ehcliAdopted === true);
 		meta = withSessionMultiRootMetadata(meta, source.multiRoot);
 		meta = withSessionFolderPickerDecision(meta, source.folderPicker);
 		meta = withSessionGitHubState(meta, source.github);

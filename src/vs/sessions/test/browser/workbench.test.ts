@@ -4,7 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
+import { IObservable, observableValue } from '../../../base/common/observable.js';
 import { SashState } from '../../../base/browser/ui/sash/sash.js';
+import { mainWindow } from '../../../base/browser/window.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { Part } from '../../../workbench/browser/part.js';
 import { IPartVisibilityChangeEvent, Parts } from '../../../workbench/services/layout/browser/layoutService.js';
@@ -12,10 +15,13 @@ import { DockedAuxiliaryBarController, IDockedAuxiliaryBarHost } from '../../bro
 import { ISidePaneToggleEvent, Workbench } from '../../browser/workbench.js';
 import { DockedEditorSizeMemento, SinglePaneWorkbench } from '../../browser/singlePaneWorkbench.js';
 import { SinglePaneMainEditorPart } from '../../browser/parts/singlePaneEditorPart.js';
+import { EditorParts } from '../../browser/parts/editorParts.js';
 import { DockedEditorInput } from '../../common/dockedEditorInput.js';
 import { EditorInputCapabilities } from '../../../workbench/common/editor.js';
+import { GroupDirection, GroupOrientation } from '../../../workbench/services/editor/common/editorGroupsService.js';
 import { SESSIONS_LIST_MINIMUM_WIDTH } from '../../browser/parts/sidebarPart.js';
 import { Menus } from '../../browser/menus.js';
+import { DEFAULT_NOTIFICATION_ROW_HEIGHT, onDidChangeNotificationRowHeight, setNotificationRowHeight } from '../../../workbench/browser/parts/notifications/notificationsViewer.js';
 
 interface IViewSize { width: number; height: number }
 
@@ -69,6 +75,10 @@ suite('Sessions - Workbench', () => {
 	const restoreEditorPartOnActivation = Reflect.get(Workbench.prototype, '_restoreEditorPartOnActivation') as (this: ITestWorkbench) => void;
 	const layoutSinglePaneGrid = Reflect.get(SinglePaneWorkbench.prototype, '_layoutGrid') as (this: IContainerResizeTestHarness) => void;
 	const preserveSessionsEditorRatio = Reflect.get(SinglePaneWorkbench.prototype, '_preserveSessionsEditorRatio') as (this: IProportionalResizeTestHarness, previousSessionsWidth: number, previousEditorWidth: number) => void;
+	const registerNotificationRowHeight = Reflect.get(Workbench.prototype, 'registerNotificationRowHeight') as (this: {
+		layoutPolicy: { isPhoneLayout: IObservable<boolean> };
+		_register<T extends IDisposable>(disposable: T): T;
+	}) => void;
 
 	// --- Harness ------------------------------------------------------------
 
@@ -346,6 +356,54 @@ suite('Sessions - Workbench', () => {
 			host.setAuxiliaryBarHidden(!visible);
 		}
 	}
+
+	// --- Notifications ------------------------------------------------------
+
+	test('uses touch-sized notification rows on phone layouts', () => {
+		setNotificationRowHeight(DEFAULT_NOTIFICATION_ROW_HEIGHT);
+		const registeredDisposables = new DisposableStore();
+		const isPhoneLayout = observableValue('isPhoneLayout', false);
+		const rowHeights: number[] = [];
+		const listener = onDidChangeNotificationRowHeight(height => rowHeights.push(height));
+
+		try {
+			registerNotificationRowHeight.call({
+				layoutPolicy: { isPhoneLayout },
+				_register: disposable => registeredDisposables.add(disposable),
+			});
+
+			isPhoneLayout.set(true, undefined);
+			isPhoneLayout.set(false, undefined);
+			registeredDisposables.dispose();
+
+			assert.deepStrictEqual(rowHeights, [34, 44, 34, 42]);
+		} finally {
+			listener.dispose();
+			registeredDisposables.dispose();
+			setNotificationRowHeight(DEFAULT_NOTIFICATION_ROW_HEIGHT);
+		}
+	});
+
+	test('centers notification content in touch-sized phone rows', () => {
+		const root = document.createElement('div');
+		root.className = 'agent-sessions-workbench phone-layout';
+		const list = document.createElement('div');
+		list.className = 'notifications-list-container';
+		const item = document.createElement('div');
+		item.className = 'notification-list-item';
+		const mainRow = document.createElement('div');
+		mainRow.className = 'notification-list-item-main-row';
+		item.appendChild(mainRow);
+		list.appendChild(item);
+		root.appendChild(list);
+		document.body.appendChild(root);
+
+		try {
+			assert.strictEqual(mainWindow.getComputedStyle(mainRow).alignItems, 'center');
+		} finally {
+			root.remove();
+		}
+	});
 
 	// --- Editor split / reveal ---------------------------------------------
 
@@ -1548,7 +1606,7 @@ suite('Sessions - Workbench', () => {
 		}, {
 			showHeader: true,
 			headerPrimary: Menus.SessionsEditorHeaderPrimary,
-			headerSecondary: Menus.SessionsEditorHeaderSecondary,
+			headerSecondary: undefined,
 			headerLayout: Menus.SessionsEditorHeaderLayout,
 		});
 	});
@@ -1574,6 +1632,81 @@ suite('Sessions - Workbench', () => {
 			editorAndAuxiliaryBarSingle: undefined,
 			editorOnlyNone: 'single',
 			fullyHiddenMultiple: undefined,
+		});
+	});
+
+	test('single-pane editor part rejects editor group creation and multi-group layouts', () => {
+		const group = {};
+		const addGroup = Reflect.get(SinglePaneMainEditorPart.prototype, 'addGroup') as (location: object, direction: GroupDirection) => object;
+		const applyLayout = Reflect.get(SinglePaneMainEditorPart.prototype, 'applyLayout') as (layout: { orientation: GroupOrientation; groups: object[] }) => void;
+
+		assert.deepStrictEqual({
+			addGroupResult: addGroup.call({ assertGroupView: () => group }, group, GroupDirection.RIGHT),
+			multiGroupLayoutRejected: (() => {
+				applyLayout.call({}, { orientation: GroupOrientation.HORIZONTAL, groups: [{}, {}] });
+				return true;
+			})(),
+		}, {
+			addGroupResult: group,
+			multiGroupLayoutRejected: true,
+		});
+	});
+
+	test('single-pane editor parts reject cross-part group moves and copies', () => {
+		const mainPart = Object.create(SinglePaneMainEditorPart.prototype) as SinglePaneMainEditorPart;
+		const auxiliaryPart = {};
+		const mainGroup = {};
+		const auxiliaryGroup = {};
+		const involvesSinglePaneMainPart = Reflect.get(EditorParts.prototype, 'involvesSinglePaneMainPart') as (group: object, location: object) => boolean;
+		const host = {
+			mainPart,
+			getPart: (group: object) => group === mainGroup ? mainPart : auxiliaryPart,
+			resolveGroup: (group: object) => group,
+			involvesSinglePaneMainPart,
+		};
+		const moveGroup = Reflect.get(EditorParts.prototype, 'moveGroup') as (group: object, location: object, direction: GroupDirection) => object;
+		const copyGroup = Reflect.get(EditorParts.prototype, 'copyGroup') as (group: object, location: object, direction: GroupDirection) => object;
+
+		assert.deepStrictEqual({
+			moveFromMain: moveGroup.call(host, mainGroup, auxiliaryGroup, GroupDirection.RIGHT),
+			moveToMain: moveGroup.call(host, auxiliaryGroup, mainGroup, GroupDirection.RIGHT),
+			copyFromMain: copyGroup.call(host, mainGroup, auxiliaryGroup, GroupDirection.RIGHT),
+			copyToMain: copyGroup.call(host, auxiliaryGroup, mainGroup, GroupDirection.RIGHT),
+		}, {
+			moveFromMain: mainGroup,
+			moveToMain: auxiliaryGroup,
+			copyFromMain: mainGroup,
+			copyToMain: auxiliaryGroup,
+		});
+	});
+
+	test('single-pane editor retains restored editors when collapsing restored groups', () => {
+		const firstEditor = { id: 'first' };
+		const secondEditor = { id: 'second' };
+		const activeGroup = { editors: [secondEditor], activeEditor: secondEditor };
+		const sourceGroup = { editors: [firstEditor], activeEditor: firstEditor };
+		const host = {
+			count: 2,
+			activeGroup,
+			groups: [sourceGroup, activeGroup],
+			mergeAllGroups(target: typeof activeGroup) {
+				target.editors.unshift(...sourceGroup.editors);
+				this.groups = [target];
+				this.count = 1;
+			},
+		};
+		const ensureSingleEditorGroup = Reflect.get(SinglePaneMainEditorPart.prototype, '_ensureSingleEditorGroup') as () => void;
+
+		ensureSingleEditorGroup.call(host);
+
+		assert.deepStrictEqual({
+			groupCount: host.count,
+			editors: host.activeGroup.editors.map(editor => editor.id),
+			activeEditor: host.activeGroup.activeEditor.id,
+		}, {
+			groupCount: 1,
+			editors: ['first', 'second'],
+			activeEditor: 'second',
 		});
 	});
 

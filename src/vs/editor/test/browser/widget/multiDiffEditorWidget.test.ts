@@ -37,7 +37,7 @@ suite('MultiDiffEditorWidget', () => {
 		sinon.restore();
 	});
 
-	test('applies document options before attaching the diff model', async () => {
+	test('applies document and responsive layout options before attaching the diff model', async () => {
 		const services = new ServiceCollection();
 		services.set(IAccessibilitySignalService, new class extends mock<IAccessibilitySignalService>() { }());
 		services.set(IActionViewItemService, new NullActionViewItemService());
@@ -78,6 +78,7 @@ suite('MultiDiffEditorWidget', () => {
 			{} satisfies IWorkbenchUIElementFactory,
 			undefined,
 		);
+		widget.setRenderSideBySide(true, { useInlineViewWhenSpaceIsLimited: true });
 		widget.layout(new Dimension(800, 600));
 		const viewModel = widget.createViewModel(model);
 		await waitForState(viewModel.items, items => items.length === 1);
@@ -85,12 +86,23 @@ suite('MultiDiffEditorWidget', () => {
 		widget.reveal({ original: originalUri, modified: modifiedUri }, { highlight: false });
 
 		try {
+			const activeControl = widget.getActiveControl();
+			const renderSideBySideWhenNarrow = activeControl?.renderSideBySide;
+			widget.layout(new Dimension(1000, 600));
 			assert.deepStrictEqual({
 				configuredAccessibilitySupport: updateOptionsSpy.firstCall.args[0].accessibilitySupport,
+				configuredRenderSideBySide: updateOptionsSpy.firstCall.args[0].renderSideBySide,
+				configuredUseInlineViewWhenSpaceIsLimited: updateOptionsSpy.firstCall.args[0].useInlineViewWhenSpaceIsLimited,
+				renderSideBySideWhenNarrow,
+				renderSideBySideWhenWide: activeControl?.renderSideBySide,
 				optionsAppliedBeforeModel: updateOptionsSpy.calledBefore(setDiffModelSpy),
-				effectiveAccessibilitySupport: widget.getActiveControl()?.getModifiedEditor().getOption(EditorOption.accessibilitySupport),
+				effectiveAccessibilitySupport: activeControl?.getModifiedEditor().getOption(EditorOption.accessibilitySupport),
 			}, {
 				configuredAccessibilitySupport: 'off',
+				configuredRenderSideBySide: true,
+				configuredUseInlineViewWhenSpaceIsLimited: true,
+				renderSideBySideWhenNarrow: false,
+				renderSideBySideWhenWide: true,
 				optionsAppliedBeforeModel: true,
 				effectiveAccessibilitySupport: AccessibilitySupport.Disabled,
 			});

@@ -8,7 +8,7 @@ import { equals } from '../../../base/common/objects.js';
 import { ILogService } from '../../log/common/log.js';
 import { AgentSession, type IAgentSessionMetadata } from '../common/agent.js';
 import { readSessionArtifacts } from '../common/sessionArtifacts.js';
-import { isSessionStatusArchived, isSessionStatusRead, readSessionEhcliAdoptable, readSessionFolderPickerDecision, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionOrchestration, readSessionSourceControlState, readSessionWorkspaceless } from '../common/state/sessionState.js';
+import { isSessionStatusArchived, isSessionStatusRead, readSessionEhcliAdoptable, readSessionEhcliAdopted, readSessionFolderPickerDecision, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionOrchestration, readSessionSourceControlState, readSessionWorkspaceless } from '../common/state/sessionState.js';
 import { parseAgentHostDatabaseCatalog, projectAgentHostCatalog, type IAgentHostCatalogSource } from './agentHostCatalogProjection.js';
 import type { IAgentHostDatabase } from './agentHostDatabase.js';
 import type { IRegisteredSession } from './agentSessionRegistry.js';
@@ -32,6 +32,7 @@ export const agentHostCatalogShadowDiagnosticCategories = [
 	'projectMismatch',
 	'workspacelessMismatch',
 	'adoptableMismatch',
+	'adoptedMismatch',
 	'multiRootMismatch',
 	'folderPickerMismatch',
 	'changesMismatch',
@@ -80,6 +81,7 @@ const repairableMismatchCategories: ReadonlySet<AgentHostCatalogShadowDiagnostic
 	'projectMismatch',
 	'workspacelessMismatch',
 	'adoptableMismatch',
+	'adoptedMismatch',
 	'multiRootMismatch',
 	'folderPickerMismatch',
 	'changesMismatch',
@@ -244,6 +246,7 @@ export class AgentHostCatalogShadowValidator {
 		this._compare(categories, 'projectMismatch', expected.project, actual.project);
 		this._compare(categories, 'workspacelessMismatch', expected.workspaceless, actual.workspaceless);
 		this._compare(categories, 'adoptableMismatch', expected.ehcliAdoptable, actual.ehcliAdoptable);
+		this._compare(categories, 'adoptedMismatch', expected.ehcliAdopted, actual.ehcliAdopted);
 		this._compare(categories, 'multiRootMismatch', expected.multiRoot, actual.multiRoot);
 		this._compare(categories, 'folderPickerMismatch', expected.folderPicker, actual.folderPicker);
 		this._compare(categories, 'changesMismatch', expected.changes, actual.changes);
@@ -288,6 +291,7 @@ export class AgentHostCatalogShadowValidator {
 			project: legacy.project ? { uri: legacy.project.uri.toString(), displayName: legacy.project.displayName } : undefined,
 			workspaceless: readSessionWorkspaceless(legacy._meta),
 			ehcliAdoptable: readSessionEhcliAdoptable(legacy._meta),
+			ehcliAdopted: readSessionEhcliAdopted(legacy._meta),
 			multiRoot: readSessionMultiRootMetadata(legacy._meta),
 			folderPicker: readSessionFolderPickerDecision(legacy._meta),
 			changes: legacy.changes,
@@ -328,6 +332,7 @@ export class AgentHostCatalogShadowValidator {
 			projectMismatch: 0,
 			workspacelessMismatch: 0,
 			adoptableMismatch: 0,
+			adoptedMismatch: 0,
 			multiRootMismatch: 0,
 			folderPickerMismatch: 0,
 			changesMismatch: 0,

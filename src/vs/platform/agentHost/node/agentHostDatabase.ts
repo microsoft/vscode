@@ -68,6 +68,7 @@ export interface IAgentHostDatabaseSessionV2Projection {
 	readonly workspaceless: boolean;
 	readonly isChatBacking: boolean;
 	readonly ehcliAdoptable?: boolean;
+	readonly ehcliAdopted?: boolean;
 	readonly multiRootJson: string | undefined;
 	readonly folderPickerJson: string | undefined;
 	readonly changesSummaryJson: string | undefined;
@@ -200,6 +201,10 @@ const migrations = [
 	{
 		version: 5,
 		sql: 'ALTER TABLE sessions_v2 ADD COLUMN is_chat_backing INTEGER NOT NULL DEFAULT 0 CHECK (is_chat_backing IN (0, 1))',
+	},
+	{
+		version: 6,
+		sql: 'ALTER TABLE sessions_v2 ADD COLUMN ehcli_adopted INTEGER CHECK (ehcli_adopted IN (0, 1))',
 	},
 ] as const;
 
@@ -524,11 +529,11 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 				await run(database, `INSERT INTO sessions_v2 (
 				session_uri, provider, start_time, external, registration_source,
 				modified_time, title, title_source, is_read, is_archived, project_uri, project_display_name,
-				workspaceless, is_chat_backing, ehcli_adoptable, working_directories_json, chats_json, multi_root_json,
+				workspaceless, is_chat_backing, ehcli_adoptable, ehcli_adopted, working_directories_json, chats_json, multi_root_json,
 				folder_picker_json, changes_summary_json, github_summary_json, git_summary_json,
 				source_control_summary_json, artifacts_json, orchestration_json, session_generation,
 				source_revision, projection_version, source_hash, verified
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
 			ON CONFLICT(session_uri) DO UPDATE SET
 				provider = excluded.provider,
 				start_time = excluded.start_time,
@@ -544,6 +549,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 				workspaceless = excluded.workspaceless,
 				is_chat_backing = excluded.is_chat_backing,
 				ehcli_adoptable = excluded.ehcli_adoptable,
+				ehcli_adopted = excluded.ehcli_adopted,
 				working_directories_json = excluded.working_directories_json,
 				chats_json = excluded.chats_json,
 				multi_root_json = excluded.multi_root_json,
@@ -574,6 +580,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 					projection.workspaceless ? 1 : 0,
 					projection.isChatBacking ? 1 : 0,
 					projection.ehcliAdoptable === undefined ? null : projection.ehcliAdoptable ? 1 : 0,
+					projection.ehcliAdopted === undefined ? null : projection.ehcliAdopted ? 1 : 0,
 					projection.workingDirectoriesJson,
 					projection.chatsJson,
 					projection.multiRootJson,
@@ -668,6 +675,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 			workspaceless: row.workspaceless === 1,
 			isChatBacking: row.is_chat_backing === 1,
 			ehcliAdoptable: row.ehcli_adoptable === null ? undefined : row.ehcli_adoptable === 1,
+			ehcliAdopted: row.ehcli_adopted === null ? undefined : row.ehcli_adopted === 1,
 			workingDirectoriesJson: row.working_directories_json as string,
 			chatsJson: row.chats_json as string,
 			multiRootJson: row.multi_root_json === null ? undefined : row.multi_root_json as string,
