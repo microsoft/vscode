@@ -21,7 +21,7 @@ import { IPaneComposite } from '../../../../common/panecomposite.js';
 import { Extensions, PaneCompositeDescriptor } from '../../../../browser/panecomposite.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ViewContainerLocation } from '../../../../common/views.js';
-import { ACTIVITY_BAR_BACKGROUND, MODERN_ACTIVITY_BAR_BACKGROUND, MODERN_ACTIVITY_BAR_INACTIVE_BACKGROUND } from '../../../../common/theme.js';
+import { ACTIVITY_BAR_BACKGROUND, ACTIVITY_BAR_BORDER, MODERN_ACTIVITY_BAR_BACKGROUND, MODERN_ACTIVITY_BAR_INACTIVE_BACKGROUND } from '../../../../common/theme.js';
 
 class StubPaneCompositePart implements IPaneCompositePart {
 	declare readonly _serviceBrand: undefined;
@@ -407,6 +407,26 @@ suite('ActivitybarPart', () => {
 		assert.strictEqual(el.style.getPropertyValue('--activity-bar-action-height'), `${ActivitybarPart.ACTION_HEIGHT}px`);
 		assert.strictEqual(el.style.getPropertyValue('--activity-bar-icon-size'), `${ActivitybarPart.ICON_SIZE}px`);
 		assert.strictEqual(el.classList.contains('compact'), false);
+	});
+
+	test('leaves the card border to the stylesheet in Modern UI, keeping the legacy inline border otherwise', () => {
+		const render = (floatingPanelsEnabled: boolean) => {
+			const { part } = createActivitybarPart(false, floatingPanelsEnabled, Position.LEFT, { [ACTIVITY_BAR_BORDER]: '#123456' });
+			const el = document.createElement('div');
+			fixture.appendChild(el);
+			part.create(el);
+			return { inlineBorderColor: el.style.borderColor, bordered: el.classList.contains('bordered') };
+		};
+
+		assert.deepStrictEqual({
+			modern: render(true),
+			classic: render(false),
+		}, {
+			// The rail is a floating card, so `modernActivityBar.border` drives it from CSS and
+			// no inline colour is written — which is what lets the seam be styled per edge.
+			modern: { inlineBorderColor: '', bordered: false },
+			classic: { inlineBorderColor: 'rgb(18, 52, 86)', bordered: true },
+		});
 	});
 
 	test('uses the inactive background only for inactive Modern UI windows', () => {

@@ -300,9 +300,14 @@ export class ActivitybarPart extends Part {
 		const background = this.getColor(backgroundColor) || '';
 		container.style.backgroundColor = background;
 
-		const borderColor = this.getColor(ACTIVITY_BAR_BORDER) || this.getColor(contrastBorder) || '';
+		// In Modern UI the rail is a floating card whose border is owned by the stylesheet via
+		// the `modernActivityBar.border` token. Leaving it out of the inline style lets CSS
+		// vary it per edge (the seam it shares with the side bar) without needing `!important`.
+		const borderColor = this.layoutService.isFloatingPanelsEnabled()
+			? ''
+			: this.getColor(ACTIVITY_BAR_BORDER) || this.getColor(contrastBorder) || '';
 		container.classList.toggle('bordered', !!borderColor);
-		container.style.borderColor = borderColor ? borderColor : '';
+		container.style.borderColor = borderColor;
 	}
 
 	show(focus?: boolean): void {

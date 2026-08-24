@@ -213,14 +213,12 @@
 	height: calc(100% - var(--modern-ui-floating-card-margin));
 	padding-left: var(--vscode-spacing-sizeNone);
 	padding-right: var(--vscode-spacing-sizeNone);
-	border: 1px solid var(--modern-ui-floating-card-border-color, var(--vscode-modernActivityBar-border, var(--vscode-surface-border, var(--vscode-widget-border, transparent)))) !important;
+	border: 1px solid var(--modern-ui-floating-card-border-color, var(--vscode-modernActivityBar-border, var(--vscode-surface-border, var(--vscode-widget-border, transparent))));
 	overflow: hidden;
 }
 
 /* The rail keeps a border on all four sides: the facing one is the seam the side bar gives up
- * (see above), so the icon column is always centered in an even interior. `!important` is
- * needed because `ActivitybarPart.updateStyles` sets the legacy `activityBar.border` color
- * inline. */
+ * (see above), so the icon column is always centered in an even interior. */
 .monaco-workbench.floating-panels .part.activitybar.left {
 	margin-left: var(--modern-ui-floating-card-outer-margin);
 	margin-right: var(--modern-ui-floating-card-inner-margin);
@@ -247,10 +245,6 @@
  * the icons keep the same inset as every other state. */
 .monaco-workbench.floating-panels:not(.modern-ui-compact).nosidebar .part.activitybar.right {
 	margin-left: var(--modern-ui-floating-card-margin);
-}
-
-.monaco-workbench.floating-panels .part.activitybar.bordered::before {
-	display: none;
 }
 
 .monaco-workbench.floating-panels.top-window-edge .part.activitybar {
