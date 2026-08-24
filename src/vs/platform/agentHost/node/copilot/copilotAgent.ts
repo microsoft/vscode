@@ -14,7 +14,7 @@ import { CancellationError, getErrorMessage } from '../../../../base/common/erro
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, type IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
-import { FileAccess } from '../../../../base/common/network.js';
+import { FileAccess, Schemas } from '../../../../base/common/network.js';
 import { formatTokenCount } from '../../../../base/common/numbers.js';
 import { equals } from '../../../../base/common/objects.js';
 import { autorun, observableValue, observableValueOpts, type IObservable, type ISettableObservable } from '../../../../base/common/observable.js';
@@ -25,7 +25,7 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { rgDiskPath } from '../../../../base/node/ripgrep.js';
 import { localize } from '../../../../nls.js';
-import { IParsedAgent, IParsedPlugin, IParsedRule, IParsedSkill, parseAgentFile, parsePlugin, parseRuleFile, parseSkillFile, PluginFormat } from '../../../agentPlugins/common/pluginParsers.js';
+import { IParsedAgent, IParsedPlugin, IParsedRule, IParsedSkill, parseAgentFile, parsePlugin, parseRuleFile, parseSkillFile, PluginFormat, type IMcpServerDefinition } from '../../../agentPlugins/common/pluginParsers.js';
 import { IFileService } from '../../../files/common/files.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILogService, LogLevel } from '../../../log/common/log.js';
@@ -43,7 +43,7 @@ import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabl
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { decodeProviderData, encodeProviderData, type IPersistedChat } from '../agentChatBackings.js';
 import { prepareSideChatPrompt, sliceSideChatTurns } from '../agentPeerChats.js';
-import { AgentChatOperationContext, AgentSession, AgentSignal, AuthenticateParams, IActiveClient, IAgent, IAgentChatAdoptionResult, IAgentChatConfigCompletionsParams, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentLegacyChat, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentDescriptor, IAgentDiscoveredChat, IAgentHostManagedSettingsSnapshot, IAgentHostNetworkEndpoint, IAgentKnownSessionsFilter, IAgentMaterializeChatEvent, IAgentModelInfo, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveAgentHostInstructions, resolveSubagentChatParent } from '../../common/agent.js';
+import { AgentChatOperationContext, AgentSession, AgentSignal, AuthenticateParams, IActiveClient, IAgent, IAgentChatAdoptionResult, type IAgentAdoptedWorktree, IAgentChatConfigCompletionsParams, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentLegacyChat, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentDescriptor, IAgentDiscoveredChat, IAgentHostManagedSettingsSnapshot, IAgentHostNetworkEndpoint, IAgentKnownSessionsFilter, IAgentMaterializeChatEvent, IAgentModelInfo, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveAgentHostInstructions, resolveSubagentChatParent, type IAgentTurnDiagnosticSnapshot } from '../../common/agent.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel, resolveDefaultReasoningEffort } from '../../common/reasoningEffort.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
@@ -57,7 +57,7 @@ import type { ErrorInfo } from '../../common/state/protocol/common/state.js';
 import { ProtectedResourceMetadata, type AgentSelection, type ChildCustomizationType, type ConfigPropertySchema, type ConfigSchema, type CustomizationEnablement, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { ActionType, AuthRequiredReason, type AuthRequiredParams, type SessionAction } from '../../common/state/sessionActions.js';
 import { areAdditionalWorkingDirectoriesEqual } from '../../common/state/sessionWorkingDirectories.js';
-import { AgentCustomization, CustomizationLoadStatus, CustomizationType, RuleCustomization, ChatInputResponseKind, SkillCustomization, customizationId, buildChatUri, buildDefaultChatUri, AH_META_WORKSPACELESS_DB_KEY, AH_META_IS_READ_DB_KEY, isDefaultChatUri, withSessionEhcliAdoptable, type ChildCustomization, type ClientPluginCustomization, type Customization, type DirectoryCustomization, type HookCustomization, type ISessionFolderPickerDecision, type MessageAttachment, type PendingMessage, type PluginCustomization, type PolicyState, type ChatInputAnswer, type ToolCallResult, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
+import { AgentCustomization, CustomizationLoadStatus, CustomizationType, RuleCustomization, ChatInputResponseKind, SkillCustomization, customizationId, buildChatUri, buildDefaultChatUri, AH_META_WORKSPACELESS_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_IS_READ_DB_KEY, isDefaultChatUri, withSessionEhcliAdoptable, type ChildCustomization, type ClientPluginCustomization, type Customization, type DirectoryCustomization, type HookCustomization, type ISessionFolderPickerDecision, type MessageAttachment, type PendingMessage, type PluginCustomization, type PolicyState, type ChatInputAnswer, type ToolCallResult, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
 import { getByokLmAgentModelId, resolveByokLmEnablement } from '../../common/agentHostByokLm.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
 import { ActiveClientToolSet, structuralToolsEqual } from '../activeClientState.js';
@@ -94,7 +94,7 @@ import { COPILOT_INTEGRATION_ID } from '../../../endpoint/common/licenseAgreemen
 import { getAppNodeModulesPath } from '../appNodeModules.js';
 import { CopilotSlashCommandProvider } from './copilotSlashCommandProvider.js';
 import { SessionMcpDiscovery } from '../shared/sessionMcpDiscovery.js';
-import { readClientPluginMcpDefaultCwd } from '../../common/meta/clientPluginCustomizationMeta.js';
+import { hasClientPluginMcpDefaultCwd, readClientPluginMcpDefaultCwd } from '../../common/meta/clientPluginCustomizationMeta.js';
 import { classifyCopilotClientOperationFailure, CopilotClientStartupConfigChangedError, createCopilotFailureCorrelation, isRecognizedCopilotClientStartupFailure, reportCopilotClientOperationFailure, reportCopilotClientRecovery, reportCopilotClientRecoveryTurn, reportCopilotClientStartup, type CopilotClientOperation, type CopilotClientOperationFailureKind, type ICopilotFailureCorrelation } from './copilotFailureTelemetry.js';
 
 interface ICopilotRuntimeManagedSettingsInput {
@@ -238,11 +238,36 @@ async function resolveCopilotCliPath(nodeModulesUri: URI): Promise<string> {
 	throw new Error(`Unable to resolve @github/copilot CLI path. Tried: ${tried.join(', ')}`);
 }
 
-export type ICopilotPluginInfo = IParsedPlugin & {
+/**
+ * Selects the single Copilot SDK path that owns an MCP server definition. Plugin discovery is for servers declared by a materialized plugin; session config is for definitions Agent Host assembled from workspace or client-synced state.
+ */
+export type CopilotMcpServerSdkRegistration = 'pluginDiscovery' | 'sessionConfig';
+
+export type ICopilotMcpServerInfo = IMcpServerDefinition & {
+	/** The SDK registration path chosen while resolving the session's AHP customizations. */
+	readonly sdkRegistration: CopilotMcpServerSdkRegistration;
+};
+
+export type ICopilotPluginInfo = Omit<IParsedPlugin, 'mcpServers'> & {
+	readonly mcpServers: readonly ICopilotMcpServerInfo[];
 	readonly pluginDir?: URI;
 	readonly sourceUri?: URI;
 	readonly disabledMcpServers?: readonly string[];
 };
+
+/**
+ * Resolves a parsed MCP child into its Copilot launch contract. Client default-CWD metadata identifies servers synthesized outside the plugin, so they are projected through session config independently of the resolved CWD value.
+ */
+export function resolveCopilotMcpServerInfo(definition: IMcpServerDefinition, pluginDir: URI | undefined, input?: ClientPluginCustomization, primaryCwd?: URI): ICopilotMcpServerInfo {
+	const clientDefaultCwd = input ? readClientPluginMcpDefaultCwd(input, definition.name, primaryCwd) : undefined;
+	return {
+		...definition,
+		defaultCwd: clientDefaultCwd ?? definition.defaultCwd,
+		sdkRegistration: input && hasClientPluginMcpDefaultCwd(input, definition.name)
+			? 'sessionConfig'
+			: pluginDir?.scheme === Schemas.file ? 'pluginDiscovery' : 'sessionConfig',
+	};
+}
 
 /**
  * In-memory chat reservation created by {@link IAgentChats.createChat} and
@@ -563,6 +588,14 @@ const COPILOT_DISCOVERY_BATCH_SIZE = 250;
  */
 const CHAT_DISCOVERY_RETRY_DELAYS_MS = [250, 1_000, 5_000];
 
+/**
+ * How many times `_ensureClient` re-acquires the SDK client after a cold-start
+ * abort caused by a startup-config change. One extra attempt covers the common
+ * one-time startup settle observed in the field; the bound prevents livelock if
+ * the config keeps changing on every start.
+ */
+const MAX_STARTUP_CONFIG_RETRIES = 1;
+
 /** `origin` value written by the VS Code extension-host Copilot CLI feature. */
 const EXTENSION_HOST_CLI_MARKER_ORIGIN = 'vscode';
 
@@ -577,10 +610,12 @@ const EXTENSION_HOST_CLI_MARKER_FILE = 'vscode.metadata.json';
 interface IExtensionHostCliMarker {
 	readonly origin?: string;
 	readonly customTitle?: string;
+	/** Whether the user archived the session in the extension host list. */
+	readonly archived?: boolean;
 	/** Folder-mode repository root recorded by the extension host. */
 	readonly repositoryProperties?: { readonly repositoryPath?: string };
 	/** Worktree-mode checkout; `worktreePath` is the directory the session ran in. */
-	readonly worktreeProperties?: { readonly worktreePath?: string; readonly repositoryPath?: string };
+	readonly worktreeProperties?: { readonly worktreePath?: string; readonly repositoryPath?: string; readonly branchName?: string; readonly baseBranchName?: string };
 	readonly workspaceFolder?: { readonly folderPath?: string };
 }
 
@@ -626,6 +661,15 @@ function extensionHostCliWorkingDirectoryPaths(marker: IExtensionHostCliMarker |
 		marker?.repositoryProperties?.repositoryPath,
 		marker?.worktreeProperties?.repositoryPath,
 	].filter((path): path is string => typeof path === 'string' && path.length > 0);
+}
+
+/**
+ * The local repository root the extension host recorded for a chat. Survives a
+ * deleted worktree checkout, unlike resolving git from the working directory.
+ */
+function extensionHostCliRepositoryPath(marker: IExtensionHostCliMarker | undefined): string | undefined {
+	const path = marker?.worktreeProperties?.repositoryPath ?? marker?.repositoryProperties?.repositoryPath;
+	return typeof path === 'string' && path.length > 0 ? path : undefined;
 }
 
 /**
@@ -736,6 +780,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	private _client: CopilotClient | undefined;
 	private _clientStarting: Promise<CopilotClient> | undefined;
+	/**
+	 * Coalesces the whole acquire-and-self-heal sequence in `_ensureClient` so
+	 * that all concurrent callers share a single, global retry budget for
+	 * startup-config-changed aborts (rather than each caller getting its own).
+	 */
+	private _ensureClientHealing: Promise<CopilotClient> | undefined;
 	private _clientStopping: Promise<void> | undefined;
 	private _clientStartupAttemptCount = 0;
 	private _resolvedProxy: string | undefined;
@@ -758,7 +808,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._serverToolHost = host;
 	}
 
-	/** Reflects the `rt=1` field on the GitHub Copilot bearer token; gates enhanced GH telemetry. */
+	/** Reflects the restricted-telemetry entitlement from `/copilot_internal/user`. */
 	private _restrictedTelemetryEnabled = false;
 	private readonly _onDidChangeRestrictedTelemetry = this._register(new Emitter<void>());
 	readonly onDidChangeRestrictedTelemetry = this._onDidChangeRestrictedTelemetry.event;
@@ -1550,11 +1600,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private _updateRestrictedTelemetry(githubToken: string | undefined): void {
-		// Safe default synchronously: keep restricted/enhanced telemetry disabled until the minted
-		// CAPI Copilot session token confirms the `rt=1` opt-in. The GitHub token here carries no
-		// `rt`/`tid` claims — those live in the Copilot session token, which the API service mints —
-		// so the real values are resolved asynchronously below. Mirrors how the Copilot extension
-		// reads `rt`/`tid` off its `CopilotToken` rather than the GitHub token.
+		// Keep restricted telemetry disabled until `/copilot_internal/user` confirms the opt-in.
 		this._applyRestrictedTelemetry(undefined);
 		if (githubToken) {
 			void this._resolveRestrictedTelemetry(githubToken);
@@ -1863,7 +1909,57 @@ export class CopilotAgent extends Disposable implements IAgent {
 		throw terminalError;
 	}
 
-	private async _ensureClient(): Promise<CopilotClient> {
+	/**
+	 * Acquires the SDK client, transparently self-healing a single cold-start
+	 * abort caused by a startup-config change (`CopilotClientStartupConfigChangedError`).
+	 * That abort is transient: the superseded client was built with now-stale
+	 * config and the next start uses the current config, so re-acquiring once
+	 * returns a healthy client and no caller ever sees the abort.
+	 *
+	 * The re-acquire is bounded by {@link MAX_STARTUP_CONFIG_RETRIES}. All
+	 * concurrent callers share one acquire-and-retry sequence via
+	 * `_ensureClientHealing`, so the retry budget is global rather than per
+	 * caller (a late caller cannot reset the budget and drive unbounded starts).
+	 * The per-attempt coalescing in `_ensureClientOnce` (via `_clientStarting`) is
+	 * unchanged.
+	 */
+	private _ensureClient(): Promise<CopilotClient> {
+		if (this._ensureClientHealing) {
+			return this._ensureClientHealing;
+		}
+		const healing = (async () => {
+			try {
+				for (let retries = 0; ; retries++) {
+					try {
+						return await this._ensureClientOnce();
+					} catch (error) {
+						if (retries < MAX_STARTUP_CONFIG_RETRIES
+							&& !this._shutdownPromise
+							&& error instanceof CopilotClientStartupConfigChangedError) {
+							this._logService.info('[Copilot] Startup config changed while the client was starting; re-acquiring the client with the current config');
+							continue;
+						}
+						throw error;
+					}
+				}
+			} finally {
+				// Clear the shared handle from inside the sequence so it is gone
+				// before this promise settles for any awaiting caller. Clearing it
+				// from a trailing `.finally()` on a separate chain would run one
+				// microtask too late: a caller resuming on success could re-enter
+				// `_ensureClient` (e.g. after `_stopClient()`) and be handed this
+				// fulfilled handle for an already-stopped client. Only one healing
+				// sequence is ever in flight — `_ensureClient` starts one only when
+				// the field is empty, and this is the only site that clears it — so
+				// this always owns the field here.
+				this._ensureClientHealing = undefined;
+			}
+		})();
+		this._ensureClientHealing = healing;
+		return healing;
+	}
+
+	private async _ensureClientOnce(): Promise<CopilotClient> {
 		if (this._shutdownPromise) {
 			throw new CancellationError();
 		}
@@ -2259,8 +2355,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return result;
 	}
 
-	async collectDebugLogs(session: URI | undefined, outputDirectory: URI): Promise<boolean> {
-		const sessionTarget = session ? this._findSessionChat(session) : undefined;
+	async collectDebugLogs(session: URI | undefined, outputDirectory: URI, chat?: URI): Promise<boolean> {
+		const sessionTarget = chat ? this._findChatByUri(chat) : session ? this._findSessionChat(session) : undefined;
 		if (sessionTarget) {
 			await sessionTarget.collectDebugLogs(outputDirectory, true);
 			return true;
@@ -2422,6 +2518,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		let outsideImportWindow = 0;
 		let withoutRepository = 0;
 		let suppressedAdoptable = 0;
+		let suppressedArchived = 0;
 		let failed = 0;
 		let discovered = 0;
 		let external = 0;
@@ -2435,6 +2532,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 				const adoptable = await this._isExtensionHostCliSession(s.sessionId);
 				if (adoptable && !emitAdoptable) {
 					suppressedAdoptable++;
+					return undefined;
+				}
+				// A chat the user archived in the extension host list stays archived:
+				// surfacing it here would resurface everything they filed away. It is
+				// still adoptable once unarchived there.
+				if (adoptable && await this._isExtensionHostCliSessionArchived(s.sessionId)) {
+					suppressedArchived++;
 					return undefined;
 				}
 				// A legacy chat the SDK reports without a cwd is still reachable: the
@@ -2469,7 +2573,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 					modifiedTime,
 					// Always key the project off the resolved working directory: a worktree
 					// session's context repository/gitRoot would resolve to the repo root.
-					project: await this._resolveSessionProject({ ...s.context, cwd: workingDirectory.fsPath }, projectLimiter, projectByContext),
+					project: await this._localProject(
+						await this._resolveSessionProject({ ...s.context, cwd: workingDirectory.fsPath }, projectLimiter, projectByContext),
+						adoptable ? s.sessionId : undefined,
+					),
 					summary: s.summary,
 					workingDirectories: [workingDirectory],
 					_meta: adoptable ? withSessionEhcliAdoptable(undefined) : undefined,
@@ -2493,7 +2600,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				publish(chats);
 			}
 		}
-		this._logService.info(`[Copilot] Chat discovery: ${sessions.length} SDK session(s) -> ${external} external, ${discovered - external} adoptable legacy extension-host, ${suppressedAdoptable} suppressed adoptable legacy extension-host, ${known} already known to Agent Host, ${withoutWorkingDirectory} without a working directory, ${unsupportedClientName} with unsupported or missing client name, ${outsideImportWindow} outside the import window, ${withoutRepository} without repository metadata, ${failed} failed to classify (adopt legacy extension-host chats: ${emitAdoptable})`);
+		this._logService.info(`[Copilot] Chat discovery: ${sessions.length} SDK session(s) -> ${external} external, ${discovered - external} adoptable legacy extension-host, ${suppressedAdoptable} suppressed adoptable legacy extension-host, ${suppressedArchived} suppressed archived legacy extension-host, ${known} already known to Agent Host, ${withoutWorkingDirectory} without a working directory, ${unsupportedClientName} with unsupported or missing client name, ${outsideImportWindow} outside the import window, ${withoutRepository} without repository metadata, ${failed} failed to classify (adopt legacy extension-host chats: ${emitAdoptable})`);
 		return true;
 	}
 
@@ -2816,6 +2923,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 		getMessages: (chat: URI, context: URI | IAgentChatContext): Promise<readonly Turn[]> => this._getChatMessages(chat, context),
 	};
 
+	getTurnDiagnosticSnapshot(chat: URI, turnId: string): IAgentTurnDiagnosticSnapshot {
+		const session = this._findChatByUri(chat);
+		if (!session) {
+			return { state: 'missingChat' };
+		}
+		return session.getTurnDiagnosticSnapshot(turnId) ?? { state: 'missingTurn' };
+	}
+
 	/** Creates one exact chat backing: fresh, deferred, imported, forked, or side-chat. */
 	private async _createChat(chat: URI, context: IAgentChatContext, options: IAgentCreateChatOptions = {}): Promise<IAgentCreateChatResult> {
 		const scope = context.configurationResource;
@@ -3079,10 +3194,48 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return isExtensionHostCliMarker(await this._readExtensionHostCliMarker(sessionId));
 	}
 
+	/** Reads the marker from disk, bypassing the cache, for its mutable fields. */
+	private async _readExtensionHostCliMarkerUncached(sessionId: string): Promise<IExtensionHostCliMarker | undefined> {
+		try {
+			const marker = parseExtensionHostCliMarker(await fs.readFile(this._extensionHostCliSidecarPath(sessionId, EXTENSION_HOST_CLI_MARKER_FILE), 'utf8'));
+			if (marker) {
+				this._extensionHostCliMarkerCache.set(sessionId, Promise.resolve(marker));
+			}
+			return marker;
+		} catch {
+			return undefined;
+		}
+	}
+
 	/** Reads a legacy extension-host Copilot CLI custom title, if present. */
 	private async _readExtensionHostCliCustomTitle(sessionId: string): Promise<string | undefined> {
 		const title = (await this._readExtensionHostCliMarker(sessionId))?.customTitle;
 		return typeof title === 'string' && title.trim() ? title : undefined;
+	}
+
+	/**
+	 * Whether the user archived this session in the extension host list, or
+	 * `undefined` when the current state cannot be established (unreadable or
+	 * malformed marker, or one that no longer identifies a VS Code legacy chat).
+	 * Callers that would commit to the state must not treat that as unarchived.
+	 */
+	private async _isExtensionHostCliSessionArchived(sessionId: string): Promise<boolean | undefined> {
+		// Archive state is toggled in the extension host while this agent runs, so it
+		// cannot be served from the marker cache, which memoizes successful reads.
+		const marker = await this._readExtensionHostCliMarkerUncached(sessionId);
+		if (!isExtensionHostCliMarker(marker)) {
+			return undefined;
+		}
+		return marker?.archived === true;
+	}
+
+	/** Whether `path` is a directory that still exists on disk. */
+	private async _isExistingDirectory(path: string): Promise<boolean> {
+		try {
+			return (await fs.stat(path)).isDirectory();
+		} catch {
+			return false;
+		}
 	}
 
 	/**
@@ -3095,15 +3248,59 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// Adoption is durable and one-way, so never persist a recorded path that no
 		// longer exists (a deleted worktree is the common case).
 		for (const candidate of extensionHostCliWorkingDirectoryPaths(await this._readExtensionHostCliMarker(sessionId))) {
-			try {
-				if ((await fs.stat(candidate)).isDirectory()) {
-					return URI.file(candidate);
-				}
-			} catch {
-				// Missing or unreadable; fall through to the next candidate.
+			if (await this._isExistingDirectory(candidate)) {
+				return URI.file(candidate);
 			}
 		}
 		return undefined;
+	}
+
+	/**
+	 * Worktree identity the extension host recorded, when its checkout is gone but
+	 * the repository remains. Resume recreates the worktree from this, matching how
+	 * a natively worktree-isolated session recovers.
+	 */
+	private async _extensionHostCliAdoptedWorktree(sessionId: string): Promise<IAgentAdoptedWorktree | undefined> {
+		const worktree = (await this._readExtensionHostCliMarker(sessionId))?.worktreeProperties;
+		if (!worktree?.worktreePath || !worktree.repositoryPath || !worktree.branchName) {
+			return undefined;
+		}
+		if (await this._isExistingDirectory(worktree.worktreePath) || !(await this._isExistingDirectory(worktree.repositoryPath))) {
+			return undefined;
+		}
+		return {
+			branchName: worktree.branchName,
+			baseBranch: worktree.baseBranchName,
+			worktreePath: URI.file(worktree.worktreePath),
+			repositoryRoot: URI.file(worktree.repositoryPath),
+		};
+	}
+
+	/**
+	 * Records the durable adopted-legacy marker on a session adopted by a build
+	 * that predates it. Without this those sessions keep the extension-host marker
+	 * but no provenance, so a worktree one stays filtered out of the window opened
+	 * on its repository. Keyed off the marker, so it never claims a native session.
+	 */
+	private async _backfillAdoptedLegacyMarker(session: URI, sessionId: string): Promise<void> {
+		const ref = await this._sessionDataService.tryOpenDatabase(session);
+		if (!ref) {
+			return;
+		}
+		try {
+			if (await ref.object.getMetadata(AH_META_EHCLI_ADOPTED_DB_KEY) !== undefined) {
+				return;
+			}
+			if (!(await this._isExtensionHostCliSession(sessionId))) {
+				return;
+			}
+			await ref.object.setMetadata(AH_META_EHCLI_ADOPTED_DB_KEY, 'true');
+			this._logService.info(`[Copilot] Backfilled the adopted-legacy marker for ${sessionId}, migrated before it was recorded`);
+		} catch (err) {
+			this._logService.warn(`[Copilot] Failed to backfill the adopted-legacy marker for ${sessionId}`, err);
+		} finally {
+			ref.dispose();
+		}
 	}
 
 	/** Adopts a legacy extension-host Copilot CLI session in place when it is eligible on disk. */
@@ -3118,30 +3315,54 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// existence — to avoid falsely treating an empty DB as migrated.
 			const existing = await this._readStoredSessionMetadata(session);
 			if (existing?.workingDirectory) {
-				return { adopted: false, eligible: false, native: true }; // already native / adopted
+				await this._backfillAdoptedLegacyMarker(session, sessionId);
+				this._logService.trace(`[Copilot] Adoption skipped for ${sessionId}: already has Agent Host metadata (cwd=${existing.workingDirectory.fsPath})`);
+				return { adopted: false, eligible: false, native: true, reason: 'alreadyNative' };
 			}
 			// Only migrate legacy EH Copilot CLI sessions — never other Copilot SDK
 			// sessions (standalone CLI, Local agent, …) that share `~/.copilot`.
 			if (!(await this._isExtensionHostCliSession(sessionId))) {
-				return { adopted: false, eligible: false };
+				this._logService.info(`[Copilot] Adoption declined for ${sessionId}: not a legacy extension-host Copilot CLI chat (no VS Code marker in its SDK session directory)`);
+				return { adopted: false, eligible: false, reason: 'notLegacyChat' };
 			}
 			const client = await this._ensureClient();
 			const sdkMetadata = await client.getSessionMetadata(sessionId).catch(() => undefined);
-			const workingDirectory = (typeof sdkMetadata?.context?.workingDirectory === 'string' ? URI.file(sdkMetadata.context.workingDirectory) : undefined)
+			// The SDK reports the directory recorded when the session ran, which may since
+			// have been deleted (a removed worktree). Adopting it anyway commits the claim
+			// and then fails to resume, leaving the session in neither list.
+			const sdkWorkingDirectory = typeof sdkMetadata?.context?.workingDirectory === 'string' ? sdkMetadata.context.workingDirectory : undefined;
+			// A deleted worktree is recoverable the same way a native session recovers
+			// one: keep it as the working directory and let resume recreate it from the
+			// recorded branch.
+			const adoptedWorktree = await this._extensionHostCliAdoptedWorktree(sessionId);
+			const workingDirectory = adoptedWorktree?.worktreePath
+				?? (sdkWorkingDirectory && await this._isExistingDirectory(sdkWorkingDirectory) ? URI.file(sdkWorkingDirectory) : undefined)
 				?? await this._extensionHostCliWorkingDirectory(sessionId);
 			if (!workingDirectory) {
 				// An eligible legacy session whose on-disk working directory could not
 				// be resolved: a genuine migration candidate that did not migrate.
-				return { adopted: false, eligible: true };
+				this._logService.warn(`[Copilot] Adoption skipped for ${sessionId}: no usable working directory (sdk='${sdkWorkingDirectory ?? '(none)'}' exists=${sdkWorkingDirectory ? await this._isExistingDirectory(sdkWorkingDirectory) : false}, no recorded worktree, no marker fallback). The session stays on the legacy provider.`);
+				return { adopted: false, eligible: true, reason: 'workingDirectoryMissing' };
 			}
-			this._logService.info(`[Copilot] Adopting legacy session ${sessionId} in place (reusing on-disk events.jsonl)`);
+			this._logService.info(`[Copilot] Adopting legacy session ${sessionId} in place (reusing on-disk events.jsonl): cwd=${workingDirectory.fsPath}${adoptedWorktree ? ` worktree=${adoptedWorktree.worktreePath.fsPath} branch=${adoptedWorktree.branchName} base=${adoptedWorktree.baseBranch ?? '(none)'} repo=${adoptedWorktree.repositoryRoot.fsPath} (checkout missing, will be recreated on resume)` : ''}`);
 			// Resolve the project from the SDK-derived cwd (authoritative) — the
 			// caller may not have supplied a working directory (e.g. the chat
 			// editor), so we cannot trust a hint.
-			const project = await projectFromCopilotContext({ cwd: workingDirectory.fsPath }, this._gitService);
+			const project = await this._localProject(
+				await projectFromCopilotContext({ cwd: (adoptedWorktree?.repositoryRoot ?? workingDirectory).fsPath }, this._gitService),
+				sessionId,
+			);
 			// Carry over the user-chosen session name (EH `customTitle`) so the
 			// adopted session keeps its title instead of regenerating one.
 			const customTitle = await this._readExtensionHostCliCustomTitle(sessionId);
+			const archived = await this._isExtensionHostCliSessionArchived(sessionId);
+			if (archived === undefined) {
+				// Adoption commits the archived state, and the extension host stops listing
+				// the chat once it does. Guessing `false` here would resurface a session the
+				// user had filed away, so leave it for the next open instead.
+				this._logService.warn(`[Copilot] Adoption skipped for ${sessionId}: its extension-host marker could not be re-read, so the archived state is unknown`);
+				return { adopted: false, eligible: true, reason: 'markerUnavailable' };
+			}
 			// Seed VS Code-layer metadata only — the SDK event log on disk is
 			// untouched. Writing `agentSessionData/<sanitizedId>/session.db` here
 			// is also what makes the legacy extension-host Copilot CLI list stop
@@ -3149,9 +3370,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// `isolation: 'folder'` keeps the session in place in the reused cwd —
 			// a git repo would otherwise default to worktree and show a spurious
 			// "Creating worktree…".
-			await this._storeSessionMetadata(session, undefined, workingDirectory, [workingDirectory], workingDirectory, project, project !== undefined, { [SessionConfigKey.Isolation]: 'folder' }, customTitle, /* markRead */ true);
+			await this._storeSessionMetadata(session, undefined, workingDirectory, [workingDirectory], workingDirectory, project, project !== undefined, { [SessionConfigKey.Isolation]: 'folder' }, customTitle, /* markRead */ true, archived, /* ehcliAdopted */ true);
 			await this._adoptLegacyTurnUsage(session, sessionId);
-			return { adopted: true, eligible: true };
+			this._logService.info(`[Copilot] Adopted legacy session ${sessionId}: project=${project ? project.uri.fsPath : '(unresolved)'} archived=${archived} customTitle=${customTitle !== undefined} worktreeBridged=${!!adoptedWorktree}`);
+			return { adopted: true, eligible: true, reason: 'adopted', ...(adoptedWorktree ? { worktree: adoptedWorktree } : {}) };
 		});
 	}
 
@@ -3927,9 +4149,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 		const inheritedTurnIndex = sourceTurnIndex === -1 ? sourceTurns.length - 1 : sourceTurnIndex;
 		const inheritedTurnId = sourceTurns[inheritedTurnIndex]?.id;
-		// toEventId is exclusive — events before it are included. If there's no
-		// next turn, omit it to include all events.
-		const toEventId = await sourceEntry.getNextTurnEventId(turnId);
+		// toEventId is exclusive; omitting it includes all events.
+		let toEventId: string | undefined;
+		try {
+			toEventId = await sourceEntry.getForkBoundaryEventId(turnId);
+		} catch (err) {
+			throw new Error(`[Copilot] fork: failed to resolve fork boundary for turn ${turnId} in source session ${sourceEntry.sessionId} because ${getErrorMessage(err)}`);
+		}
 		const forkResult = await client.rpc.sessions.fork({
 			sessionId: sourceEntry.sessionId,
 			...(toEventId ? { toEventId } : {}),
@@ -4755,7 +4981,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 
-	private async _storeSessionMetadata(session: URI, model: ModelSelection | undefined, workingDirectory: URI | undefined, workingDirectories: readonly URI[] | undefined, customizationDirectory: URI | undefined, project: IAgentSessionProjectInfo | undefined, projectResolved = project !== undefined, configValues?: Record<string, unknown>, customTitle?: string, markRead?: boolean): Promise<void> {
+	private async _storeSessionMetadata(session: URI, model: ModelSelection | undefined, workingDirectory: URI | undefined, workingDirectories: readonly URI[] | undefined, customizationDirectory: URI | undefined, project: IAgentSessionProjectInfo | undefined, projectResolved = project !== undefined, configValues?: Record<string, unknown>, customTitle?: string, markRead?: boolean, archived?: boolean, ehcliAdopted?: boolean): Promise<void> {
 		const dbRef = this._sessionDataService.openDatabase(session);
 		const db = dbRef.object;
 		try {
@@ -4766,6 +4992,16 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// Persist read ownership so the adopted session isn't reported unread on open.
 			if (markRead) {
 				work.push(db.setMetadata(AH_META_IS_READ_DB_KEY, 'true'));
+			}
+			// Archiving is user-curated state; losing it on adoption would resurface
+			// everything the user filed away in the extension host list.
+			if (archived) {
+				work.push(db.setMetadata(AH_META_IS_ARCHIVED_DB_KEY, 'true'));
+			}
+			// Outlives the transient `ehcliAdoptable` summary marker so the session
+			// keeps being listed like the legacy session it was migrated from.
+			if (ehcliAdopted) {
+				work.push(db.setMetadata(AH_META_EHCLI_ADOPTED_DB_KEY, 'true'));
 			}
 			if (workingDirectory) {
 				work.push(db.setMetadata(CopilotAgent._META_CWD, workingDirectory.toString()));
@@ -4923,6 +5159,25 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	private async _storeSessionProjectResolution(session: URI, project: IAgentSessionProjectInfo | undefined): Promise<void> {
 		await this._storeSessionMetadata(session, undefined, undefined, undefined, undefined, project, true);
+	}
+
+	/**
+	 * Git resolution runs in the session's working directory, so a legacy session
+	 * whose worktree checkout was deleted falls back to the remote (e.g.
+	 * `https://github.com/owner/repo`). That is not a location on disk, so the
+	 * session could never be matched to the repository folder a window has open.
+	 * The extension host recorded the local repository root — prefer it.
+	 */
+	private async _localProject(project: IAgentSessionProjectInfo | undefined, adoptableSessionId: string | undefined): Promise<IAgentSessionProjectInfo | undefined> {
+		if (project?.uri.scheme === Schemas.file || adoptableSessionId === undefined) {
+			return project;
+		}
+		const repositoryPath = extensionHostCliRepositoryPath(await this._readExtensionHostCliMarker(adoptableSessionId));
+		if (!repositoryPath) {
+			return project;
+		}
+		const uri = URI.file(repositoryPath);
+		return { uri, displayName: resourceBasename(uri) || project?.displayName || uri.toString() };
 	}
 
 	private _resolveSessionProject(context: ICopilotSessionContext | undefined, limiter: Limiter<IAgentSessionProjectInfo | undefined>, projectByContext: Map<string, Promise<IAgentSessionProjectInfo | undefined>>): Promise<IAgentSessionProjectInfo | undefined> {
@@ -5670,7 +5925,12 @@ class SessionPluginController extends Disposable {
 		};
 		const discovered = entry?.currentCustomizations() ?? [];
 		const sessionPlugin = discovered.some(isEnabledForSdk) ? mapToParsedPlugin(discovered) : undefined;
-		const sessionPlugins: IParsedPlugin[] = sessionPlugin ? [sessionPlugin] : [];
+		const withSdkRegistration = (plugin: IParsedPlugin, pluginDir: URI | undefined): ICopilotPluginInfo => ({
+			...plugin,
+			pluginDir,
+			mcpServers: plugin.mcpServers.map(definition => resolveCopilotMcpServerInfo(definition, pluginDir)),
+		});
+		const sessionPlugins: ICopilotPluginInfo[] = sessionPlugin ? [withSdkRegistration(sessionPlugin, undefined)] : [];
 
 		const primaryCwd = this._directory;
 		const withClientDefaults = (item: IResolvedCustomization): ICopilotPluginInfo => {
@@ -5678,12 +5938,7 @@ class SessionPluginController extends Disposable {
 			return {
 				...plugin,
 				pluginDir: item.pluginDir,
-				mcpServers: plugin.mcpServers.map(definition => ({
-					...definition,
-					defaultCwd: item.input
-						? readClientPluginMcpDefaultCwd(item.input, definition.name, primaryCwd) ?? definition.defaultCwd
-						: definition.defaultCwd,
-				})),
+				mcpServers: plugin.mcpServers.map(definition => resolveCopilotMcpServerInfo(definition, item.pluginDir, item.input, primaryCwd)),
 			};
 		};
 		const allWorkspaceDefinitions = mcpDiscovery?.definitions ?? [];
@@ -5691,7 +5946,7 @@ class SessionPluginController extends Disposable {
 		const workspaceMcp = allWorkspaceDefinitions.length ? [{
 			format: PluginFormat.Copilot,
 			hooks: [],
-			mcpServers: workspaceDefinitions,
+			mcpServers: workspaceDefinitions.map(definition => resolveCopilotMcpServerInfo(definition, undefined)),
 			disabledMcpServers: allWorkspaceDefinitions.filter(definition => !isEnabledForSdk(definition.customization)).map(definition => definition.name),
 			skills: [],
 			agents: [],
@@ -5700,7 +5955,7 @@ class SessionPluginController extends Disposable {
 		return [
 			...workspaceMcp,
 			...host.filter(item => !!item.plugin && isEnabledForSdk(item.customization))
-				.map(item => ({ ...item.plugin!, pluginDir: item.pluginDir, sourceUri: URI.parse(item.customization.uri), ...(disabledChildren(item.customization) ? { disabledMcpServers: disabledChildren(item.customization) } : {}) })),
+				.map(item => ({ ...withSdkRegistration(item.plugin!, item.pluginDir), sourceUri: URI.parse(item.customization.uri), ...(disabledChildren(item.customization) ? { disabledMcpServers: disabledChildren(item.customization) } : {}) })),
 			...this._flattenClientCustomizations().filter(item => !!item.plugin && isEnabledForSdk(item.customization))
 				.map(item => ({ ...withClientDefaults(item), sourceUri: URI.parse(item.customization.uri), ...(disabledChildren(item.customization) ? { disabledMcpServers: disabledChildren(item.customization) } : {}) })),
 			...sessionPlugins,

@@ -978,6 +978,7 @@
 	"others": [
 		"--action-widget-close-start-opacity",
 		"--action-widget-close-start-transform",
+		"--activity-bar-action-gap",
 		"--activity-bar-action-height",
 		"--activity-bar-icon-size",
 		"--activity-bar-width",
@@ -1109,6 +1110,7 @@
 		"--modern-ui-tab-hover-background",
 		"--scroll-shadow-surface",
 		"--vscode-chat-list-background",
+		"--vscode-chat-persistent-content-height",
 		"--vscode-editorCodeLens-fontFamily",
 		"--vscode-editorCodeLens-fontFamilyDefault",
 		"--vscode-editorCodeLens-fontFeatureSettings",

@@ -14,12 +14,12 @@ You're working on VS Code itself and you want to:
 
 This skill provides a launcher that clones an authenticated user-data-dir to a throwaway temp folder, picks free ports for every debug surface, and prints them as JSON so you can pick them up programmatically.
 
-The clone is **slim**: workspace storage, browser caches, file history, cached VSIX backups, and old logs are excluded by default. On macOS, auth tokens live in the OS keychain plus small files inside `User/globalStorage` - both of which *are* preserved.
+The clone is **slim**: workspace storage, browser caches, file history, cached VSIX backups, and old logs are excluded by default. On macOS, auth tokens live in the OS keychain plus small files inside `User/globalStorage` - both of which *are* preserved. On Windows the GitHub session lives in the **shared-data-dir** instead, which the launcher seeds separately (see [Windows authentication](#windows-authentication)).
 
 ## Prerequisites
 
 - macOS, Linux, or Windows.
-  - **macOS / Linux**: the launcher is a bash script (`scripts/launch.sh`) and depends on `rsync`, `curl`, `nohup`, and Node on `PATH`. The example caller snippets below also use `jq` (parse the JSON output) and `lsof` (kill-by-port fallback) — install those if you plan to use them, but the launcher itself does not require them.
+  - **macOS / Linux**: the launcher is a bash script (`scripts/launch.sh`) and depends on `rsync`, `nohup`, and Node on `PATH`. The example caller snippets below also use `jq` (parse the JSON output) and `lsof` (kill-by-port fallback) — install those if you plan to use them, but the launcher itself does not require them.
   - **Windows**: use `scripts\launch.ps1` instead. It needs no extra tooling beyond Node on `PATH`, and works on both Windows PowerShell 5.1 and PowerShell 7+. `jq` is not needed — parse the JSON with `ConvertFrom-Json`. If Node is managed with [fnm](https://github.com/Schniz/fnm), put it on `PATH` first:
     ```powershell
     fnm env --use-on-cd --shell powershell | Out-String | Invoke-Expression
@@ -50,6 +50,7 @@ The launcher script lives next to this SKILL.md at `scripts/launch.sh` (macOS/Li
 "$LAUNCH" --repo <vscode-repo-root>          # if not run from the repo
 "$LAUNCH" --clone-extensions                 # start with a copy of the source extensions/ (~few seconds)
 "$LAUNCH" --full                             # skip slim excludes; copy everything
+"$LAUNCH" --skip-prelaunch                   # reuse already-current build outputs
 ```
 
 On Windows, invoke the PowerShell launcher with the same flags:
@@ -64,6 +65,7 @@ $launch = Join-Path $skillDir 'scripts\launch.ps1'
 & $launch --repo C:\path\to\vscode
 & $launch --clone-extensions
 & $launch --full
+& $launch --skip-prelaunch
 ```
 
 If the local execution policy blocks scripts, invoke it with `powershell -ExecutionPolicy Bypass -File <path-to-launch.ps1>`. The Windows implementation has the same profile isolation, slim-copy excludes, settings merge, port allocation, foreground pre-launch, and CDP-ready contract as the bash launcher; only the shell commands and path syntax differ.
@@ -74,7 +76,20 @@ The exclude list mirrors the one used by VS Code's own perf-test skill (`.github
 
 #### Windows authentication
 
-Windows has no shared per-app keychain for these secrets. They live in the copied profile, notably `User/globalStorage/state.vscdb` and root `Local State`, so the launcher verifies that they (plus `machineid` and `Network`) survived the copy. If a launched instance prompts for sign-in, launch `.\scripts\code.bat --user-data-dir=<source-udd>` directly, sign in once, and close it; every later launch copies that source profile and inherits the session.
+Windows has no shared per-app keychain for these secrets, so they live in files on disk - but **not all in the user-data-dir**. The GitHub session is stored at `StorageScope.APPLICATION_SHARED` *only on Windows* (see `useSharedStorage` and `CROSS_APP_SHARED_SECRET_KEYS` in `src/vs/platform/secrets/common/secrets.ts`), which puts the two halves of the credential in **different directories**:
+
+| Piece | Location |
+|---|---|
+| Encrypted GitHub session blob | `<shared-data-dir>/sharedStorage/state.vscdb` |
+| DPAPI-wrapped decryption key (`os_crypt.encrypted_key`) | `<user-data-dir>/Local State` |
+
+The launcher therefore seeds **both**: it copies the source profile *and* copies the source shared-data-dir into the run's throwaway `shared-data` dir. The source resolves the same way `IEnvironmentService.appSharedDataHome` does - `$env:CODE_OSS_DEV_AUTHED_SHARED_DATA_DIR` if set, else `$env:VSCODE_PORTABLE\shared-data` when running portable, else `~/<product.sharedDataFolderName>` (i.e. `%USERPROFILE%\.vscode-oss-shared`). It also verifies `Local State`, `machineid`, and `Network` survived the profile copy, and warns on stderr if neither database holds a GitHub session.
+
+> This asymmetry is invisible on macOS/Linux, where the same token lands inside the profile. A Windows-only "always signed out" symptom is a shared-data-dir problem, **not** a profile problem: signing in against the source profile writes a perfectly good session, but before this seeding existed every launch handed Code OSS an empty shared dir and threw it away.
+
+To (re)establish the source session: run `.\scripts\code.bat --user-data-dir=$env:USERPROFILE\.vscode-oss-dev` directly, sign in once, and close it. That writes the blob to `%USERPROFILE%\.vscode-oss-shared` and the key to the profile's `Local State`; later launches copy both and inherit the session.
+
+> Profiles that predate the `APPLICATION_SHARED` migration can still hold the secret in `User/globalStorage/state.vscdb`. `ApplicationSharedStorageMain` registers application storage as a read fallback, so those profiles authenticate even with no shared-data-dir present - which is why a missing shared dir is reported as a fact rather than assumed fatal.
 
 Excluded (transient, regenerable, or known-not-needed):
 - `User/workspaceStorage/` - per-workspace state, **including stored chat sessions** (often multi-GB)
@@ -93,9 +108,13 @@ Excluded (transient, regenerable, or known-not-needed):
 
 The script runs pre-launch (electron download, compile-if-missing, built-in extensions) **in the foreground**, then starts Code OSS detached and **blocks until the renderer's CDP endpoint is responding** (up to ~90s) before printing the JSON line on stdout. If anything fails — preLaunch errors, code.sh exits early, CDP never opens — the script exits non-zero and dumps the relevant log tail to stderr.
 
+For repeated launches of the same prepared build, pass `--skip-prelaunch` after one successful normal launch. Only use it while a watch task keeps all output current or neither sources nor build outputs have changed; otherwise the new instance may run stale or incomplete code.
+
 ```json
-{"pid":12345,"cdpPort":53111,"extHostPort":53112,"mainPort":53113,"agentHostPort":53114,"userDataDir":".../user-data","extensionsDir":".../extensions","sharedDataDir":".../shared-data","runDir":"...","logFile":".../code.log","repo":"...","agents":false}
+{"pid":12345,"cdpPort":53111,"extHostPort":53112,"mainPort":53113,"agentHostPort":53114,"userDataDir":".../user-data","extensionsDir":".../extensions","sharedDataDir":".../shared-data","runDir":"...","logFile":".../code.log","repo":"...","agents":false,"timings":{"profileMs":231,"preLaunchMs":251,"cdpReadyMs":459,"totalMs":941}}
 ```
+
+The additive `timings` object uses monotonic elapsed time to identify time spent preparing the isolated profile, running pre-launch, and starting Code OSS through CDP readiness. `totalMs` covers the complete launcher operation through readiness.
 
 Capture it with `jq` — no retry loop needed, CDP is already up when the JSON is printed:
 
@@ -325,7 +344,7 @@ You can run `@playwright/cli` and `dap-cli` against the **same window simultaneo
 
 Every launch picks fresh ports and a fresh temp `runDir`, so you can run as many concurrent Code OSS windows as your machine can handle. Each one's ports come back in its own JSON blob - keep them separate.
 
-The launcher also passes `--shared-data-dir=<runDir>/shared-data`. This is **required** for multi-instance isolation: Code OSS keeps a fixed-path SQLite DB at `~/.<dataFolderName>-shared/sharedStorage/state.vscdb` that is *not* covered by `--user-data-dir`. Without overriding it, two concurrent instances would fight over the same file and one would die with "shared background process terminated unexpectedly". Each launch gets its own `shared-data` dir.
+The launcher also passes `--shared-data-dir=<runDir>/shared-data`. This is **required** for multi-instance isolation: Code OSS keeps a fixed-path SQLite DB at `~/.<dataFolderName>-shared/sharedStorage/state.vscdb` that is *not* covered by `--user-data-dir`. Without overriding it, two concurrent instances would fight over the same file and one would die with "shared background process terminated unexpectedly". Each launch gets its own `shared-data` dir, **seeded from the source shared-data-dir** so the Windows GitHub session survives - see [Windows authentication](#windows-authentication) for why that copy matters.
 
 ## Restart after source changes
 
@@ -341,7 +360,7 @@ npx @playwright/cli -s=$PW_SESSION tab-list
 npx @playwright/cli -s=$PW_SESSION snapshot
 ```
 
-If you are iterating frequently, keep the repo build/watch task running separately so relaunches pick up already-generated output.
+If you are iterating frequently, keep the repo build/watch task running separately so relaunches pick up already-generated output. After one successful normal launch, `--skip-prelaunch` avoids repeating the preparation while those outputs remain current.
 
 ## Cleanup
 
@@ -374,4 +393,4 @@ Code OSS is a full Electron app and easily eats 1-4 GB. Always clean up.
 - **`launch.sh` exits non-zero with a log tail** - either pre-launch failed, `code.sh` died before CDP came up, or CDP never opened within 90s. The tail printed to stderr is from `runDir/code.log` - read it to diagnose.
 - **Snapshot shows the wrong page or no expected controls** - use `tab-list`, switch with `tab-select <index>` if needed, then re-snapshot before interacting.
 - **CLI typing commands complete but the input stays empty** - focus chat with the platform shortcut, use `press` or clipboard paste rather than `fill` / `type`, then verify the input state before sending.
-- **Auth missing in the launched window** - confirm the source profile is actually authed (`ls "$SOURCE_UDD"` should contain `User/`, and `ls "$SOURCE_UDD/User/globalStorage"` should show persisted extension state). On Windows, sign in directly against the source profile once so its copied `state.vscdb` and `Local State` contain the session.
+- **Auth missing in the launched window** - confirm the source profile is actually authed (`ls "$SOURCE_UDD"` should contain `User/`, and `ls "$SOURCE_UDD/User/globalStorage"` should show persisted extension state). **On Windows, check the shared-data-dir first**: the GitHub session blob lives in `%USERPROFILE%\.vscode-oss-shared\sharedStorage\state.vscdb`, not in the profile. The launcher logs `copying shared data: <src> -> <dst>` on stderr when it finds it, and warns `no shared-data-dir at <path>` when it doesn't. A missing or empty source shared-data-dir means signing in again against the source profile is what you need - see [Windows authentication](#windows-authentication).

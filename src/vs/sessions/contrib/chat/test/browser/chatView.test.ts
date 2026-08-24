@@ -6,6 +6,7 @@
 import assert from 'assert';
 import * as dom from '../../../../../base/browser/dom.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { CHAT_WIDGET_VIEW_STATE_CACHE_LIMIT } from '../../../../../workbench/contrib/chat/browser/chat.js';
@@ -28,7 +29,9 @@ suite('Sessions - Chat View', () => {
 
 	test('forwards new chat visibility to the aquarium host', () => {
 		const forwarded: boolean[] = [];
+		const isVisible = observableValue(disposables, true);
 		const view: NewChatView = Object.assign(Object.create(NewChatView.prototype), {
+			_isVisibleObs: isVisible,
 			_widget: Object.assign(Object.create(NewChatWidget.prototype), {
 				setHostVisible: (visible: boolean) => forwarded.push(visible),
 			}),
@@ -37,15 +40,18 @@ suite('Sessions - Chat View', () => {
 		view.setVisible(false);
 		view.setVisible(true);
 
-		assert.deepStrictEqual(forwarded, [false, true]);
+		assert.deepStrictEqual({ forwarded, petHostVisible: isVisible.get() }, { forwarded: [false, true], petHostVisible: true });
 	});
 
 	test('does not forward aquarium visibility to the peer chat composer', () => {
+		const isVisible = observableValue(disposables, true);
 		const view: NewChatView = Object.assign(Object.create(NewChatView.prototype), {
+			_isVisibleObs: isVisible,
 			_widget: Object.create(NewChatInSessionWidget.prototype),
 		});
 
 		assert.doesNotThrow(() => view.setVisible(false));
+		assert.strictEqual(isVisible.get(), false);
 	});
 
 	test('stores view state independently by chat resource', () => {

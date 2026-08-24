@@ -9,12 +9,12 @@ import './media/workbench.css';
 import './media/phoneLayout.css';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../base/common/lifecycle.js';
 import { Emitter, Event, setGlobalLeakWarningThreshold } from '../../base/common/event.js';
-import { addDisposableGenericMouseDownListener, addDisposableListener, EventType, getActiveDocument, getActiveElement, getClientArea, getWindowId, getWindows, IDimension, isAncestorUsingFlowTo, size, Dimension, runWhenWindowIdle } from '../../base/browser/dom.js';
+import { addDisposableGenericMouseDownListener, addDisposableListener, EventType, getActiveDocument, getActiveElement, getClientArea, getWindow, getWindowId, getWindows, IDimension, isAncestorUsingFlowTo, size, Dimension, runWhenWindowIdle } from '../../base/browser/dom.js';
 import { DeferredPromise, RunOnceScheduler } from '../../base/common/async.js';
 import { isFullscreen, onDidChangeFullscreen, isChrome, isFirefox, isSafari } from '../../base/browser/browser.js';
 import { mark } from '../../base/common/performance.js';
 import { onUnexpectedError, setUnexpectedErrorHandler } from '../../base/common/errors.js';
-import { isWindows, isLinux, isWeb, isNative, isMacintosh } from '../../base/common/platform.js';
+import { isWindows, isLinux, isWeb, isNative, isMacintosh, isIOS } from '../../base/common/platform.js';
 import { Parts, Position, PanelAlignment, IWorkbenchLayoutService, SINGLE_WINDOW_PARTS, MULTI_WINDOW_PARTS, IPartVisibilityChangeEvent, positionToString } from '../../workbench/services/layout/browser/layoutService.js';
 import { ILayoutOffsetInfo } from '../../platform/layout/browser/layoutService.js';
 import { Part } from '../../workbench/browser/part.js';
@@ -73,7 +73,7 @@ import { SessionsLayoutPolicy } from './layoutPolicy.js';
 import { AGENTS_PART_CARD_CLASS } from './parts/agentsPartCard.js';
 import { MobileNavigationStack } from './mobileNavigationStack.js';
 import { MobileTitlebarPart } from './parts/mobile/mobileTitlebarPart.js';
-import { IMobileVisualViewport } from './parts/mobile/mobileVisualViewport.js';
+import { getMobileViewportDimension, IMobileVisualViewport } from './parts/mobile/mobileVisualViewport.js';
 import { autorun } from '../../base/common/observable.js';
 import { ISessionsService } from '../services/sessions/browser/sessionsService.js';
 import { ISessionsPartService } from '../services/sessions/browser/sessionsPartService.js';
@@ -1483,6 +1483,15 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		// Window resize — needed for device emulation and mobile viewport changes
 		const onWindowResize = () => this.layout();
 		this._register(addDisposableListener(mainWindow, 'resize', onWindowResize));
+
+		const visualViewport = getWindow(this.parent).visualViewport;
+		if (visualViewport && !isIOS) {
+			this._register(addDisposableListener(visualViewport, 'resize', () => {
+				if (this.layoutPolicy.viewportClass.get() === 'phone') {
+					this.layout();
+				}
+			}));
+		}
 	}
 
 	private updateFullscreenClass(): void {
@@ -1773,14 +1782,17 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 	private _previousViewportClass: string | undefined;
 
 	layout(): void {
-		this._mainContainerDimension = getClientArea(
+		const layoutViewportDimension = getClientArea(
 			this.mainWindowFullscreen ? mainWindow.document.body : this.parent
 		);
 
 		// Update viewport classification and toggle mobile CSS classes
 		const previousClass = this._previousViewportClass;
-		this.layoutPolicy.update(this._mainContainerDimension.width, this._mainContainerDimension.height);
+		this.layoutPolicy.update(layoutViewportDimension.width, layoutViewportDimension.height);
 		const currentClass = this.layoutPolicy.viewportClass.get();
+		this._mainContainerDimension = currentClass === 'phone'
+			? getMobileViewportDimension(layoutViewportDimension, getWindow(this.parent).visualViewport)
+			: layoutViewportDimension;
 		this.mainContainer.classList.toggle(LayoutClasses.PHONE_LAYOUT, currentClass === 'phone');
 
 		// When viewport class changes at runtime (e.g., device emulation toggle),

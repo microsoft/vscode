@@ -42,6 +42,8 @@ import { ITerminalChatService } from '../../../../terminal/browser/terminal.js';
 import { AgentHostAutoReplyAnswer } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
 import { ChatCollapsibleContentPart } from './chatCollapsibleContentPart.js';
 import { getChatMarkdownRenderOptions } from '../chatContentMarkdownRenderer.js';
+import { CHAT_CARD_HEADER_CLASS, CHAT_CARD_LARGE_CLASS, CHAT_CARD_TITLE_CLASS, createChatCardIconButton } from '../chatCard.js';
+import { ChatCardListbox } from '../chatCardListbox.js';
 import './media/chatQuestionCarousel.css';
 
 const PREVIOUS_QUESTION_ACTION_ID = 'workbench.action.chat.previousQuestion';
@@ -166,7 +168,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 	) {
 		super();
 
-		this.domNode = dom.$('.chat-question-carousel-container');
+		this.domNode = dom.$(`.chat-question-carousel-container.${CHAT_CARD_LARGE_CLASS}`);
 		this.domNode.classList.toggle('chat-question-carousel-conversation', carousel.answerPresentation === 'conversation');
 		this.domNode.id = generateUuid();
 		this._inChatQuestionCarouselContextKey = ChatContextKeys.inChatQuestionCarousel.bindTo(this._contextKeyService);
@@ -232,20 +234,22 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		this._headerActionsContainer = dom.$('.chat-question-header-actions');
 
 		const collapseToggleTitle = localize('chat.questionCarousel.collapseTitle', 'Collapse Questions');
-		const collapseButton = interactiveStore.add(new Button(this._headerActionsContainer, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
+		const collapseButton = createChatCardIconButton(interactiveStore, this._headerActionsContainer, this._hoverService, {
+			ariaLabel: collapseToggleTitle,
+		});
 		collapseButton.element.classList.add('chat-question-collapse-toggle');
-		collapseButton.element.setAttribute('aria-label', collapseToggleTitle);
 		this._collapseButton = collapseButton;
 
 		// Close/skip button (X) - placed in header row, only shown when allowSkip is true
 		if (carousel.allowSkip) {
 			this._closeButtonContainer = dom.$('.chat-question-close-container');
 			const skipAllTitle = localize('chat.questionCarousel.skipAllTitle', 'Skip all questions');
-			const skipAllButton = interactiveStore.add(new Button(this._closeButtonContainer, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
-			skipAllButton.label = `$(${Codicon.closeSmall.id})`;
+			const skipAllButton = createChatCardIconButton(interactiveStore, this._closeButtonContainer, this._hoverService, {
+				icon: Codicon.closeSmall,
+				ariaLabel: skipAllTitle,
+				hoverContent: skipAllTitle,
+			});
 			skipAllButton.element.classList.add('chat-question-close');
-			skipAllButton.element.setAttribute('aria-label', skipAllTitle);
-			interactiveStore.add(this._hoverService.setupDelayedHover(skipAllButton.element, { content: skipAllTitle }));
 			this._skipAllButton = skipAllButton;
 		}
 
@@ -257,11 +261,12 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			const focusTerminalAriaLabel = kbLabel
 				? localize('chat.questionCarousel.focusTerminalAriaLabel', 'Focus Terminal ({0})', kbLabel)
 				: focusTerminalTitle;
-			const focusTerminalButton = interactiveStore.add(new Button(this._focusTerminalButtonContainer, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
-			focusTerminalButton.label = `$(${Codicon.terminal.id})`;
+			const focusTerminalButton = createChatCardIconButton(interactiveStore, this._focusTerminalButtonContainer, this._hoverService, {
+				icon: Codicon.terminal,
+				ariaLabel: focusTerminalAriaLabel,
+				hoverContent: focusTerminalTitle,
+			});
 			focusTerminalButton.element.classList.add('chat-question-focus-terminal');
-			focusTerminalButton.element.setAttribute('aria-label', focusTerminalAriaLabel);
-			interactiveStore.add(this._hoverService.setupDelayedHover(focusTerminalButton.element, { content: focusTerminalTitle }));
 			interactiveStore.add(focusTerminalButton.onDidClick(() => this._focusTerminal()));
 
 			// Dismiss the carousel when the user types directly in the terminal,
@@ -776,7 +781,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		}
 
 		const headerRow = dom.$('.chat-question-header-row');
-		const titleRow = dom.$('.chat-question-title-row');
+		const titleRow = dom.$(`.chat-question-title-row.${CHAT_CARD_HEADER_CLASS}`);
 
 		// Render carousel-level message if present (e.g. from MCP elicitation)
 		if (this.carousel.message && this._currentIndex === 0) {
@@ -789,7 +794,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 
 		const questionText = getDisplayedQuestionText(question);
 		if (questionText) {
-			const title = dom.$('.chat-question-title');
+			const title = dom.$(`.chat-question-title.${CHAT_CARD_TITLE_CLASS}`);
 			const messageContent = this.getQuestionText(questionText);
 			title.setAttribute('aria-label', messageContent);
 
@@ -928,20 +933,24 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			const arrowsContainer = dom.$('.chat-question-nav-arrows');
 
 			const previousLabel = this.getLabelWithKeybinding(localize('previous', 'Previous'), PREVIOUS_QUESTION_ACTION_ID);
-			const prevButton = interactiveStore.add(new Button(arrowsContainer, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
+			const prevButton = createChatCardIconButton(interactiveStore, arrowsContainer, this._hoverService, {
+				icon: Codicon.chevronLeft,
+				ariaLabel: previousLabel,
+				hoverContent: previousLabel,
+				variant: 'strong',
+			});
 			prevButton.element.classList.add('chat-question-nav-arrow', 'chat-question-nav-prev');
-			prevButton.label = `$(${Codicon.chevronLeft.id})`;
-			prevButton.element.setAttribute('aria-label', previousLabel);
-			interactiveStore.add(this._hoverService.setupDelayedHover(prevButton.element, { content: previousLabel }));
 			interactiveStore.add(prevButton.onDidClick(() => this.navigate(-1)));
 			this._prevButton = prevButton;
 
 			const nextLabel = this.getLabelWithKeybinding(localize('next', 'Next'), NEXT_QUESTION_ACTION_ID);
-			const nextButton = interactiveStore.add(new Button(arrowsContainer, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
+			const nextButton = createChatCardIconButton(interactiveStore, arrowsContainer, this._hoverService, {
+				icon: Codicon.chevronRight,
+				ariaLabel: nextLabel,
+				hoverContent: nextLabel,
+				variant: 'strong',
+			});
 			nextButton.element.classList.add('chat-question-nav-arrow', 'chat-question-nav-next');
-			nextButton.label = `$(${Codicon.chevronRight.id})`;
-			nextButton.element.setAttribute('aria-label', nextLabel);
-			interactiveStore.add(this._hoverService.setupDelayedHover(nextButton.element, { content: nextLabel }));
 			interactiveStore.add(nextButton.onDidClick(() => this.navigate(1)));
 			this._nextButton = nextButton;
 
@@ -1123,9 +1132,6 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 	private renderSingleSelect(container: HTMLElement, question: IChatQuestion): void {
 		const orderedOptions = getOptionsWithDefaultsFirst(question);
 		const selectContainer = dom.$('.chat-question-list');
-		selectContainer.setAttribute('role', 'listbox');
-		selectContainer.setAttribute('aria-label', question.title);
-		selectContainer.tabIndex = 0;
 		container.appendChild(selectContainer);
 
 		// Restore previous answer if exists
@@ -1147,22 +1153,19 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			}
 		});
 
-		const listItems: HTMLElement[] = [];
+		const listbox = new ChatCardListbox(selectContainer, question.title, 'selected');
 		const indicators: HTMLElement[] = [];
-		const updateSelection = (newIndex: number) => {
-			// Update visual state
-			listItems.forEach((item, i) => {
+		/** Paints the row state without committing, which is what initial render needs. */
+		const paintSelection = (newIndex: number) => {
+			listbox.setActive(newIndex);
+			indicators.forEach((indicator, i) => {
 				const isSelected = i === newIndex;
-				item.classList.toggle('selected', isSelected);
-				item.setAttribute('aria-selected', String(isSelected));
-				const indicator = indicators[i];
 				indicator.classList.toggle('codicon', isSelected);
 				indicator.classList.toggle('codicon-check', isSelected);
 			});
-			// Update aria-activedescendant for screen reader announcements
-			if (newIndex >= 0 && newIndex < listItems.length) {
-				selectContainer.setAttribute('aria-activedescendant', listItems[newIndex].id);
-			}
+		};
+		const updateSelection = (newIndex: number) => {
+			paintSelection(newIndex);
 			// Update tracked state
 			const data = this._singleSelectItems.get(question.id);
 			if (data) {
@@ -1172,24 +1175,17 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			this.saveCurrentAnswer();
 		};
 
+		const listItems: HTMLElement[] = [];
 		orderedOptions.forEach(({ option }, index) => {
-			const isSelected = index === selectedIndex;
 			const listItem = dom.$('.chat-question-list-item');
-			listItem.setAttribute('role', 'option');
-			listItem.setAttribute('aria-selected', String(isSelected));
+			listbox.addOption(listItem, `option-${question.id}`);
 			listItem.setAttribute('aria-label', localize('chat.questionCarousel.optionLabel', "Option {0}: {1}", index + 1, option.label));
-			listItem.id = `option-${question.id}-${index}`;
-			listItem.tabIndex = -1;
 
 			const number = dom.$('.chat-question-list-number');
 			number.textContent = `${index + 1}`;
 			listItem.appendChild(number);
 
-			// Selection indicator (checkmark when selected)
 			const indicator = dom.$('.chat-question-list-indicator');
-			if (isSelected) {
-				indicator.classList.add('codicon', 'codicon-check');
-			}
 			indicators.push(indicator);
 
 			// Label with optional description (format: "Title - Description")
@@ -1209,10 +1205,6 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			}
 			listItem.appendChild(label);
 			listItem.appendChild(indicator);
-
-			if (isSelected) {
-				listItem.classList.add('selected');
-			}
 
 			// if we select an option, clear text and go to next question
 			this._inputBoxes.add(dom.addDisposableListener(listItem, dom.EventType.CLICK, (e: MouseEvent) => {
@@ -1238,10 +1230,9 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 
 		this._singleSelectItems.set(question.id, { items: listItems, selectedIndex, optionIndices: orderedOptions.map(o => o.originalIndex) });
 
-		// Set initial aria-activedescendant if there's a selected item
-		if (selectedIndex >= 0 && selectedIndex < listItems.length) {
-			selectContainer.setAttribute('aria-activedescendant', listItems[selectedIndex].id);
-		}
+		// Paints the initial row and points `aria-activedescendant` at it. Deliberately not
+		// `updateSelection`, which would commit an answer the user has not given yet.
+		paintSelection(selectedIndex);
 
 		// Show freeform input only when explicitly allowed
 		let freeformTextarea: HTMLTextAreaElement | undefined;
@@ -1294,10 +1285,10 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 
 			if (event.keyCode === KeyCode.DownArrow) {
 				e.preventDefault();
-				newIndex = Math.min(data.selectedIndex + 1, listItems.length - 1);
+				newIndex = listbox.clampedIndex(data.selectedIndex + 1);
 			} else if (event.keyCode === KeyCode.UpArrow) {
 				e.preventDefault();
-				newIndex = Math.max(data.selectedIndex - 1, 0);
+				newIndex = listbox.clampedIndex(data.selectedIndex - 1);
 			} else if ((event.keyCode === KeyCode.Enter || event.keyCode === KeyCode.Space) && !event.metaKey && !event.ctrlKey) {
 				// Enter confirms current selection and advances to next question
 				e.preventDefault();
@@ -1323,7 +1314,8 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			}
 		}));
 
-		// focus on the row when first rendered or textarea if it has content
+		// Focus the list itself, not an option: `aria-activedescendant` is only honoured on the
+		// focused element. Or the textarea, when it already has content.
 		if (this._shouldAutoFocus()) {
 			if (freeformTextarea && previousFreeform) {
 				const capturedFreeform = freeformTextarea;
@@ -1331,13 +1323,12 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 					capturedFreeform.focus();
 				}));
 			} else if (listItems.length > 0) {
-				const focusIndex = selectedIndex >= 0 ? selectedIndex : 0;
 				// if no default and no freeform text, select the first answer
 				if (selectedIndex < 0) {
 					updateSelection(0);
 				}
 				this._inputBoxes.add(dom.runAtThisOrScheduleAtNextAnimationFrame(dom.getWindow(selectContainer), () => {
-					listItems[focusIndex]?.focus();
+					listbox.focus();
 				}));
 			}
 		}

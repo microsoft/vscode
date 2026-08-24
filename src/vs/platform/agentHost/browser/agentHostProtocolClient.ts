@@ -3,9 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// Protocol client for communicating with a remote agent host process.
-// Wraps WebSocketClientTransport and SessionClientState to provide a
-// higher-level API matching IAgentService.
+// Protocol client for communicating with an agent host process.
 
 import { DeferredPromise, TimeoutTimer } from '../../../base/common/async.js';
 import { CancellationError } from '../../../base/common/errors.js';
@@ -19,12 +17,12 @@ import { ILogService } from '../../log/common/log.js';
 import { FileSystemProviderErrorCode, toFileSystemProviderErrorCode } from '../../files/common/files.js';
 import { ConfigurationTargetToString, IConfigurationService } from '../../configuration/common/configuration.js';
 import { AgentSession, IAgentCreateChatOptions, IAgentCreateSessionConfig, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification } from '../common/agent.js';
-import { AGENT_HOST_DEBUG_LOGS_CHUNK_BYTES, AGENT_HOST_DEBUG_LOGS_MAX_BYTES, AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES, IAgentConnection, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk } from '../common/agentService.js';
+import { AGENT_HOST_DEBUG_LOGS_CHUNK_BYTES, AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES, IAgentConnection, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk } from '../common/agentService.js';
 import { CollectAgentHostDebugLogsExtensionMethod, GetAgentHostSessionStateFileExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod, type IAgentHostExtensionCommandMap } from '../common/agentHostExtensionProtocol.js';
 import { AMBIENT_AGENT_HOST_AUTHORITY } from '../common/agentHostConnectionsService.js';
 import { createRemoteWatchHandle, type IRemoteWatchHandle } from '../common/agentHostFileSystemProvider.js';
 import { AgentSubscriptionManager, type IActiveSubscriptionInfo, type IAgentSubscription } from '../common/state/agentSubscription.js';
-import { agentHostAuthority, fromAgentHostUri, toAgentHostUri } from '../common/agentHostUri.js';
+import { agentHostAuthority, createAgentHostResourceUriMapper, fromAgentHostUri, identityAgentHostResourceUriMapper, type IAgentHostResourceUriMapper, toAgentHostUri } from '../common/agentHostUri.js';
 import { AgentHostResourceIdentity, AgentHostResourcePermissionError, IAgentHostResourceService, LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../common/agentHostResourceService.js';
 import type { ClientNotificationMap, CommandMap, JsonRpcErrorResponse, JsonRpcRequest } from '../common/state/protocol/messages.js';
 import { ActionType, type ActionEnvelope, type ChatAction, type ClientAnnotationsAction, type ClientChangesetAction, type INotification, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../common/state/sessionActions.js';
@@ -111,8 +109,8 @@ interface IPendingRequest {
 }
 
 /**
- * High-level connection state of a {@link RemoteAgentHostProtocolClient}.
- * Exposed via {@link RemoteAgentHostProtocolClient.onDidChangeConnectionState}
+ * High-level connection state of an {@link AgentHostProtocolClient}.
+ * Exposed via {@link AgentHostProtocolClient.onDidChangeConnectionState}
  * so consumers can surface transient reconnect activity in the UI.
  */
 export const enum AgentHostClientState {
@@ -166,14 +164,14 @@ type ClientState =
 	| { readonly kind: AgentHostClientState.Closed; readonly error: ProtocolError };
 
 /**
- * A protocol-level client for a single remote agent host connection.
- * Manages the WebSocket transport, handshake, subscriptions, action dispatch,
+ * A protocol-level client for a single agent host connection.
+ * Manages the transport, handshake, subscriptions, action dispatch,
  * and command/response correlation.
  *
  * Implements {@link IAgentConnection} so consumers can program against
  * a single interface regardless of whether the agent host is local or remote.
  */
-export class RemoteAgentHostProtocolClient extends Disposable implements IAgentConnection {
+export class AgentHostProtocolClient extends Disposable implements IAgentConnection {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -185,6 +183,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	/** Disposable holding the listeners attached to the current transport. */
 	private readonly _transportListeners = this._register(new MutableDisposable<DisposableStore>());
 	private readonly _connectionAuthority: string;
+	readonly resourceUris: IAgentHostResourceUriMapper;
 	private _serverSeq = 0;
 	private _nextClientSeq = 1;
 	private _defaultDirectory: string | undefined;
@@ -323,6 +322,9 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		this._address = identity === LOCAL_AGENT_HOST_RESOURCE_IDENTITY ? AMBIENT_AGENT_HOST_AUTHORITY : identity;
 		this._clientId = clientId ?? generateUuid();
 		this._connectionAuthority = identity === LOCAL_AGENT_HOST_RESOURCE_IDENTITY ? AMBIENT_AGENT_HOST_AUTHORITY : agentHostAuthority(identity);
+		this.resourceUris = identity === LOCAL_AGENT_HOST_RESOURCE_IDENTITY
+			? identityAgentHostResourceUriMapper
+			: createAgentHostResourceUriMapper(this._connectionAuthority);
 		this._loadEstimator = loadEstimator ?? LoadEstimator.getInstance();
 
 		if (typeof transportOrFactory === 'function') {
@@ -336,7 +338,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		this._subscriptionManager = this._register(new AgentSubscriptionManager(
 			this._clientId,
 			() => this.nextClientSeq(),
-			msg => this._logService.warn(`[RemoteAgentHostProtocolClient] ${msg}`),
+			msg => this._logService.warn(`[AgentHostProtocolClient] ${msg}`),
 			resource => this.subscribe(resource),
 			resource => this.unsubscribe(resource),
 		));
@@ -760,7 +762,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 					if (error instanceof ProtocolError && error.code === AHP_CLIENT_CONNECTION_CLOSED) {
 						throw error;
 					}
-					this._logService.warn(`[RemoteAgentHostProtocolClient] Failed to restore subscription ${subscription.resource.toString()} after host restart: ${error instanceof Error ? error.message : String(error)}`);
+					this._logService.warn(`[AgentHostProtocolClient] Failed to restore subscription ${subscription.resource.toString()} after host restart: ${error instanceof Error ? error.message : String(error)}`);
 					this._subscriptionManager.markSubscriptionsMissing([subscription.resource]);
 				}
 			}));
@@ -1026,7 +1028,6 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			_meta: config?._meta,
 			provider,
 			workingDirectories: config?.workingDirectories?.map(d => fromAgentHostUri(d).toString()),
-			fork: config?.fork ? { session: fromAgentHostUri(config.fork.session).toString(), turnId: config.fork.turnId } : undefined,
 			config: config?.config,
 			activeClient: config?.activeClient,
 			progressToken: config?.progressToken,
@@ -1143,9 +1144,10 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		return toAgentHostUri(resource, this._connectionAuthority);
 	}
 
-	async collectDebugLogs(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind): Promise<IAgentHostDebugLogsArtifact> {
+	async collectDebugLogs(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind, chat?: URI): Promise<IAgentHostDebugLogsArtifact> {
 		const result = await this._sendExtensionRequest(CollectAgentHostDebugLogsExtensionMethod, {
 			session: session?.toString(),
+			chat: chat?.toString(),
 			kind,
 		});
 		if (result.kind !== kind) {
@@ -1155,8 +1157,8 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		if (resource.scheme !== Schemas.file) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `Agent Host returned a non-file debug log resource: ${resource.toString()}`);
 		}
-		if (!Number.isSafeInteger(result.size) || result.size < 0 || result.size > AGENT_HOST_DEBUG_LOGS_MAX_BYTES
-			|| !Number.isSafeInteger(result.uncompressedSize) || result.uncompressedSize < 0 || result.uncompressedSize > AGENT_HOST_DEBUG_LOGS_MAX_BYTES) {
+		if (!Number.isSafeInteger(result.size) || result.size < 0
+			|| !Number.isSafeInteger(result.uncompressedSize) || result.uncompressedSize < 0) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Agent Host returned invalid debug log artifact sizes');
 		}
 		if (!Array.isArray(result.entries) || result.entries.length > AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES) {

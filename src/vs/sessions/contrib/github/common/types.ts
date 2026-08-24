@@ -80,6 +80,7 @@ export interface IGitHubPullRequestSummary {
 	readonly author: IGitHubUser;
 	readonly headRef: string;
 	readonly checkoutRef: string;
+	readonly isCrossRepository: boolean;
 	readonly isDraft: boolean;
 	readonly updatedAt: string;
 	readonly additions: number;
