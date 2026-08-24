@@ -35,7 +35,7 @@ suite('AgentHostPromptRegistry', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	const LARGE_OUTPUT_LINE = COPILOT_AGENT_HOST_LARGE_OUTPUT_TOOL_INSTRUCTION;
-	const UNCONDITIONAL_TOOL_INSTRUCTIONS = `${LARGE_OUTPUT_LINE}\n${COPILOT_AGENT_HOST_SUBAGENT_TOOL_INSTRUCTIONS}`;
+	const UNCONDITIONAL_TOOL_INSTRUCTIONS = LARGE_OUTPUT_LINE;
 
 	const withUniversalAgentHostInstructions = (config: SystemMessageConfig): SystemMessageConfig => {
 		const configWithToolInstructions = config.mode === 'replace'
@@ -282,6 +282,26 @@ suite('AgentHostPromptRegistry', () => {
 		test('layers the unconditional tool instructions onto the default config', () => {
 			const registry = new AgentHostPromptRegistry();
 			assert.deepStrictEqual(registry.resolveSystemMessageConfig({ id: 'm' }, context({}, ['anyTool'])), withUniversalAgentHostInstructions(COPILOT_AGENT_HOST_SYSTEM_MESSAGE));
+		});
+
+		test('layers the subagent model guidance only when its setting is enabled', () => {
+			const registry = new AgentHostPromptRegistry();
+			assert.deepStrictEqual(
+				[
+					registry.resolveSystemMessageConfig({ id: 'm' }, context({ [CopilotCliConfigKey.SubagentModelGuidance]: true })),
+					registry.resolveSystemMessageConfig({ id: 'm' }, context({ [CopilotCliConfigKey.SubagentModelGuidance]: false })),
+				],
+				[
+					withUniversalAgentHostInstructions({
+						mode: 'customize',
+						sections: {
+							identity: COPILOT_AGENT_HOST_SYSTEM_MESSAGE.sections.identity,
+							tool_instructions: { action: 'append', content: `\n${UNCONDITIONAL_TOOL_INSTRUCTIONS}\n${COPILOT_AGENT_HOST_SUBAGENT_TOOL_INSTRUCTIONS}` },
+						},
+					}),
+					withUniversalAgentHostInstructions(COPILOT_AGENT_HOST_SYSTEM_MESSAGE),
+				]
+			);
 		});
 
 		test('layers the browser tool_instructions onto the default config when browser tools are present', () => {
