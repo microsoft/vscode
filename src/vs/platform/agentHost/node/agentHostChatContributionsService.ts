@@ -8,7 +8,7 @@ import { NKeyMap } from '../../../base/common/map.js';
 import { observableValue, type ISettableObservable } from '../../../base/common/observable.js';
 import { IInstantiationService, type IConstructorSignature } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
-import type { IAgentHostChatContribution, IAgentHostChatContributionContext, IAgentHostChatContributionHost, IAgentHostChatContributions, IChatMementoKey, IHydrationContext, IObservedAction, IOutgoingTurn, ISessionMementoKey, ITurnEnd } from '../common/agentHostChatContributionsService.js';
+import type { IAgentHostChatContribution, IAgentHostChatContributionContext, IAgentHostChatContributionHost, IAgentHostChatContributions, IChatMementoKey, IHydrationContext, IObservedAction, IOutgoingTurn, IOutgoingTurnContributionResult, ISessionMementoKey, ITurnEnd } from '../common/agentHostChatContributionsService.js';
 import { isAhpChatChannel, parseRequiredSessionUriFromChatUri, type Turn, type URI as ProtocolURI } from '../common/state/sessionState.js';
 
 type MementoKeySegment = string | boolean | number;
@@ -160,23 +160,30 @@ export class AgentHostChatContributions extends Disposable implements IAgentHost
 		}
 	}
 
-	async outgoingTurn(turn: IOutgoingTurn): Promise<readonly string[]> {
+	async outgoingTurn(turn: IOutgoingTurn): Promise<IOutgoingTurnContributionResult> {
 		const instructions: string[] = [];
+		let message = turn.message;
 		for (const registration of this._getOrderedContributions()) {
 			const { contribution } = registration;
 			if (!contribution.onOutgoingTurn) {
 				continue;
 			}
 			try {
-				const result = await contribution.onOutgoingTurn(turn);
+				const result = await contribution.onOutgoingTurn({ ...turn, message });
 				if (result?.instructions) {
 					instructions.push(...result.instructions);
+				}
+				if (result?.message) {
+					message = result.message;
 				}
 			} catch (err) {
 				this._logContributionFailure(registration, err);
 			}
 		}
-		return instructions;
+		return {
+			...(instructions.length ? { instructions } : {}),
+			message,
+		};
 	}
 
 	async hydrateTurns(context: IHydrationContext, turns: readonly Turn[]): Promise<readonly Turn[]> {

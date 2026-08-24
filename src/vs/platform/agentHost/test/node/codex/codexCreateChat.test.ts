@@ -322,6 +322,12 @@ suite('CodexAgent createChat', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('advertises side-chat support through the shared fork creation path', async () => {
+		const agent = await createAgent(disposables);
+
+		assert.deepStrictEqual(agent.getDescriptor().capabilities?.multipleChats, { fork: true, sideChat: true });
+	});
+
 	test('fresh: binds the exact target chat during creation, never leaving the runtime unbound', async () => {
 		const agent = await createAgent(disposables);
 		const sessionUri = AgentSession.uri('codex', 'session-fresh');

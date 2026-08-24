@@ -23,6 +23,7 @@ import { AgentHostArtifactToolsConfigKey, AgentHostMarkdownPlanRichLinksEnabledC
 import { withChatSurfaceMeta } from '../../common/meta/agentChatSurfaceMeta.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
+import { ChatOriginKind } from '../../common/state/protocol/state.js';
 import { buildChatUri, buildDefaultChatUri, MessageKind, PendingMessageKind, SessionStatus, TurnState, type ISessionGitHubState, type Message, type PendingMessage, type Turn } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostClientConnectionService, IAgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
@@ -39,6 +40,8 @@ import { AgentHostLocalCommands, IAgentHostLocalCommands } from '../../node/loca
 import { registerBuiltInChatContributions } from '../../node/chatContributions/builtInChatContributions.js';
 import { QueueDrainContribution } from '../../node/chatContributions/queueDrain/queueDrainContribution.js';
 import { SessionTitleContribution } from '../../node/chatContributions/sessionTitle/sessionTitleContribution.js';
+import { SideChatContribution } from '../../node/chatContributions/sideChat/sideChatContribution.js';
+import { injectSideChatContext } from '../../node/chatContributions/sideChat/sideChatContext.js';
 import { ARTIFACT_TOOLS_INSTRUCTION } from '../../node/shared/artifactServerTools.js';
 import { AGENT_HOST_TITLE_SOURCE_USER, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
 import { IAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
@@ -377,6 +380,40 @@ class EmptyOutgoingTurnContribution extends TestContribution {
 	}
 }
 
+class FirstMessageReplacementContribution extends TestContribution {
+	static readonly id = 'firstMessageReplacement';
+	readonly order = 10;
+
+	onOutgoingTurn(turn: IOutgoingTurn) {
+		return turn.turnId === 'message-threading'
+			? { message: { ...turn.message, text: 'first replacement' } }
+			: undefined;
+	}
+}
+
+class SecondMessageReplacementContribution extends TestContribution {
+	static readonly id = 'secondMessageReplacement';
+	readonly order = 20;
+
+	onOutgoingTurn(turn: IOutgoingTurn) {
+		return turn.turnId === 'message-threading'
+			? { message: { ...turn.message, text: `${turn.message.text} then second` } }
+			: undefined;
+	}
+}
+
+class MessageObserverContribution extends TestContribution {
+	static readonly id = 'messageObserver';
+	readonly order = 30;
+
+	onOutgoingTurn(turn: IOutgoingTurn) {
+		if (turn.turnId === 'message-threading') {
+			calls.push(turn.message.text);
+		}
+		return undefined;
+	}
+}
+
 class FirstHydrationContribution extends TestContribution {
 	static readonly id = 'firstHydration';
 	readonly order = 10;
@@ -435,6 +472,26 @@ class FollowingHydrationContribution extends TestContribution {
 	}
 }
 
+class BeforeSideChatHydrationContribution extends TestContribution {
+	static readonly id = 'beforeSideChatHydration';
+	readonly order = 450;
+
+	onHydrateTurns(_context: IHydrationContext, turns: readonly Turn[]): readonly Turn[] {
+		calls.push(turns.some(turn => turn.message.text.startsWith('<side-chat-context>')) ? 'beforeSideChat:seed' : 'beforeSideChat:plain');
+		return turns;
+	}
+}
+
+class AfterSideChatHydrationContribution extends TestContribution {
+	static readonly id = 'afterSideChatHydration';
+	readonly order = 600;
+
+	onHydrateTurns(_context: IHydrationContext, turns: readonly Turn[]): readonly Turn[] {
+		calls.push(turns.some(turn => turn.message.text.startsWith('<side-chat-context>')) ? 'afterSideChat:seed' : 'afterSideChat:plain');
+		return turns;
+	}
+}
+
 function createConfigurationService(enableSendInstructions: boolean): IAgentConfigurationService {
 	const agentConfigService = { _serviceBrand: undefined } as IAgentConfigurationService;
 	agentConfigService.getEffectiveWorkingDirectories = () => undefined;
@@ -472,6 +529,34 @@ function createGitHubReferencesContributions(disposables: ReturnType<typeof ensu
 	return { service, gitStateService };
 }
 
+function createSideChatContributions(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, inheritedTurnId?: string) {
+	const logService = new NullLogService();
+	const stateManager = disposables.add(new AgentHostStateManager(logService));
+	const session = 'agent-host-session://side-chat';
+	const sourceChat = buildDefaultChatUri(session);
+	const sideChat = buildChatUri(session, 'side');
+	stateManager.createSession({
+		resource: session,
+		provider: 'test',
+		title: 'Side Chat',
+		status: SessionStatus.IsRead,
+		createdAt: '2025-01-01T00:00:00.000Z',
+		modifiedAt: '2025-01-01T00:00:00.000Z',
+	});
+	stateManager.addChat(session, sideChat, {
+		title: 'Side Chat',
+		origin: { kind: ChatOriginKind.SideChat, chat: sourceChat, turnId: 'source-turn' },
+		...(inheritedTurnId !== undefined ? { inheritedTurnId } : {}),
+	});
+	const instantiationService = disposables.add(new InstantiationService(new ServiceCollection(
+		[ILogService, logService],
+		[IAgentHostStateManager, stateManager],
+	), /*strict*/ true));
+	const service: IAgentHostChatContributions = disposables.add(new AgentHostChatContributions(logService, instantiationService));
+	disposables.add(service.registerContribution(SideChatContribution));
+	return { service, stateManager, session, sourceChat, sideChat };
+}
+
 function createSessionTitleContributions(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>) {
 	const logService = new NullLogService();
 	const stateManager = disposables.add(new AgentHostStateManager(logService));
@@ -503,7 +588,7 @@ function createSessionTitleContributions(disposables: ReturnType<typeof ensureNo
 	return { service, stateManager, database, titleController, session, defaultChat, peerChat };
 }
 
-function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, observed?: string[], enableSendInstructions = false): AgentHostChatContributions {
+function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, observed?: string[], enableSendInstructions = false): { readonly service: AgentHostChatContributions; readonly stateManager: AgentHostStateManager; readonly session: string } {
 	const logService = new NullLogService();
 	const stateManager = disposables.add(new AgentHostStateManager(logService));
 	stateManager.createSession({
@@ -569,7 +654,7 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 	};
 	disposables.add(service.registerHost(host));
 	disposables.add(registerBuiltInChatContributions(service));
-	return service;
+	return { service, stateManager, session: 'agent-host-session://test' };
 }
 
 function createQueueDrainContributions(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>) {
@@ -918,7 +1003,7 @@ suite('AgentHostChatContributions', () => {
 	test('runs built-in turn-end contributions in the original sequence', () => {
 		const observed: string[] = [];
 		const contributions = createBuiltInContributions(disposables, observed);
-		contributions.turnEnd(turnEnd('built-in-order'));
+		contributions.service.turnEnd(turnEnd('built-in-order'));
 
 		assert.deepStrictEqual(observed, ['checkpointAndChangeset', 'queueDrain', 'githubReferences', 'sessionTitle', 'markUnread']);
 	});
@@ -926,7 +1011,7 @@ suite('AgentHostChatContributions', () => {
 	test('drains the queue but skips other turn-end contributions for local commands', () => {
 		const observed: string[] = [];
 		const contributions = createBuiltInContributions(disposables, observed);
-		contributions.turnEnd(turnEnd('local-command', { kind: 'localCommand' }));
+		contributions.service.turnEnd(turnEnd('local-command', { kind: 'localCommand' }));
 
 		assert.deepStrictEqual({
 			queueDrain: observed.includes('queueDrain'),
@@ -945,9 +1030,19 @@ suite('AgentHostChatContributions', () => {
 
 	test('runs built-in outgoing-turn contributions in the original sequence', async () => {
 		const contributions = createBuiltInContributions(disposables, undefined, true);
-		const instructions = await contributions.outgoingTurn(outgoingTurn('built-in-send-order'));
+		const sideChat = buildChatUri(contributions.session, 'side');
+		contributions.stateManager.addChat(contributions.session, sideChat, {
+			title: 'Side Chat',
+			origin: { kind: ChatOriginKind.SideChat, chat: buildDefaultChatUri(contributions.session), turnId: 'source-turn' },
+		});
+		const result = await contributions.service.outgoingTurn({
+			session: contributions.session,
+			chat: sideChat,
+			message: { text: 'built-in-send-order', origin: { kind: MessageKind.User } },
+			turnId: 'built-in-send-order',
+		});
 
-		assert.deepStrictEqual(instructions.map(instruction => {
+		assert.deepStrictEqual((result.instructions ?? []).map(instruction => {
 			if (instruction.includes('<rich_plan_markdown>')) {
 				return 'markdownPlanRichLinks';
 			}
@@ -962,6 +1057,7 @@ suite('AgentHostChatContributions', () => {
 			}
 			return undefined;
 		}), ['markdownPlanRichLinks', 'artifactTools', 'chatSurface', 'sessionTitle']);
+		assert.deepStrictEqual(result.message, { text: injectSideChatContext('built-in-send-order'), origin: { kind: MessageKind.User } });
 	});
 
 	test('updates and persists an independent chat title', async () => {
@@ -1041,10 +1137,22 @@ suite('AgentHostChatContributions', () => {
 	test('runs built-in hydration contributions in the original sequence', async () => {
 		const observed: string[] = [];
 		const contributions = createBuiltInContributions(disposables, observed);
+		disposables.add(contributions.service.registerContribution(BeforeSideChatHydrationContribution));
+		disposables.add(contributions.service.registerContribution(AfterSideChatHydrationContribution));
+		const sideChat = buildChatUri(contributions.session, 'side');
+		contributions.stateManager.addChat(contributions.session, sideChat, {
+			title: 'Side Chat',
+			origin: { kind: ChatOriginKind.SideChat, chat: buildDefaultChatUri(contributions.session), turnId: 'source-turn' },
+		});
 
-		await contributions.hydrateTurns(hydrationContext(), [hydrationTurn('built-in-hydration-order')]);
+		const turns = await contributions.service.hydrateTurns({ session: contributions.session, chat: sideChat }, [
+			hydrationTurn('inherited'),
+			{ ...hydrationTurn('built-in-hydration-order'), message: { text: injectSideChatContext('side question'), origin: { kind: MessageKind.User } } },
+		]);
 
-		assert.deepStrictEqual(observed, ['persistedTurnUsage', 'worktreeAnnouncement']);
+		assert.deepStrictEqual(observed, ['persistedTurnUsage']);
+		assert.deepStrictEqual(calls, ['beforeSideChat:seed', 'afterSideChat:plain']);
+		assert.deepStrictEqual(turns.map(turn => [turn.id, turn.message.text]), [['built-in-hydration-order', 'side question']]);
 	});
 
 	test('isolates a throwing contribution', () => {
@@ -1095,27 +1203,154 @@ suite('AgentHostChatContributions', () => {
 	test('collects outgoing-turn instructions in contribution order', async () => {
 		const contributions = disposables.add(createContributions(disposables, OutgoingTurnOrderFirstContribution, OutgoingTurnOrderSecondContribution));
 
-		assert.deepStrictEqual(await contributions.outgoingTurn(outgoingTurn('send-order')), ['second', 'first']);
+		assert.deepStrictEqual(await contributions.outgoingTurn(outgoingTurn('send-order')), {
+			instructions: ['second', 'first'],
+			message: { text: 'send-order', origin: { kind: MessageKind.User } },
+		});
 	});
 
 	test('awaits asynchronous outgoing-turn contributions', async () => {
 		const contributions = disposables.add(createContributions(disposables, AsyncOutgoingTurnContribution));
 
-		assert.deepStrictEqual(await contributions.outgoingTurn(outgoingTurn('send-async')), ['async']);
+		assert.deepStrictEqual(await contributions.outgoingTurn(outgoingTurn('send-async')), {
+			instructions: ['async'],
+			message: { text: 'send-async', origin: { kind: MessageKind.User } },
+		});
 		assert.deepStrictEqual(calls, ['async']);
 	});
 
 	test('isolates a failing outgoing-turn contribution', async () => {
 		const contributions = disposables.add(createContributions(disposables, ThrowingOutgoingTurnContribution, FollowingOutgoingTurnContribution));
 
-		assert.deepStrictEqual(await contributions.outgoingTurn(outgoingTurn('send-failure')), ['following']);
+		assert.deepStrictEqual(await contributions.outgoingTurn(outgoingTurn('send-failure')), {
+			instructions: ['following'],
+			message: { text: 'send-failure', origin: { kind: MessageKind.User } },
+		});
 	});
 
 	test('omits empty outgoing-turn contribution results', async () => {
 		const contributions = disposables.add(createContributions(disposables, EmptyOutgoingTurnContribution));
 
-		assert.deepStrictEqual(await contributions.outgoingTurn(outgoingTurn('send-empty-array')), []);
-		assert.deepStrictEqual(await contributions.outgoingTurn(outgoingTurn('send-empty-object')), []);
+		assert.deepStrictEqual(await contributions.outgoingTurn(outgoingTurn('send-empty-array')), {
+			message: { text: 'send-empty-array', origin: { kind: MessageKind.User } },
+		});
+		assert.deepStrictEqual(await contributions.outgoingTurn(outgoingTurn('send-empty-object')), {
+			message: { text: 'send-empty-object', origin: { kind: MessageKind.User } },
+		});
+	});
+
+	test('threads outgoing messages through contributions in order', async () => {
+		const contributions = disposables.add(createContributions(disposables, MessageObserverContribution, SecondMessageReplacementContribution, FirstMessageReplacementContribution));
+
+		assert.deepStrictEqual(await contributions.outgoingTurn(outgoingTurn('message-threading')), {
+			message: { text: 'first replacement then second', origin: { kind: MessageKind.User } },
+		});
+		assert.deepStrictEqual(calls, ['first replacement then second']);
+	});
+
+	test('injects context into a first side-chat message only', async () => {
+		const sideChat = createSideChatContributions(disposables);
+		sideChat.stateManager.dispatchServerAction(sideChat.sourceChat, {
+			type: ActionType.ChatTurnStarted,
+			turnId: 'source-turn',
+			startedAt: '2025-01-01T00:00:00.000Z',
+			message: { text: 'source question', origin: { kind: MessageKind.User } },
+		});
+		sideChat.stateManager.dispatchServerAction(sideChat.sourceChat, {
+			type: ActionType.ChatTurnComplete,
+			turnId: 'source-turn',
+			duration: 1,
+		});
+
+		const first = await sideChat.service.outgoingTurn({
+			session: sideChat.session,
+			chat: sideChat.sideChat,
+			message: { text: 'side question', origin: { kind: MessageKind.User } },
+			turnId: 'side-turn',
+		});
+
+		sideChat.stateManager.dispatchServerAction(sideChat.sideChat, {
+			type: ActionType.ChatTurnStarted,
+			turnId: 'side-turn',
+			startedAt: '2025-01-01T00:00:00.000Z',
+			message: first.message,
+		});
+		sideChat.stateManager.dispatchServerAction(sideChat.sideChat, {
+			type: ActionType.ChatTurnComplete,
+			turnId: 'side-turn',
+			duration: 1,
+		});
+		const later = await sideChat.service.outgoingTurn({
+			session: sideChat.session,
+			chat: sideChat.sideChat,
+			message: { text: 'follow up', origin: { kind: MessageKind.User } },
+			turnId: 'later-turn',
+		});
+
+		assert.deepStrictEqual({
+			firstMessage: first.message.text,
+			laterMessage: later.message.text,
+		}, {
+			firstMessage: injectSideChatContext('side question', undefined, 'User request:\nsource question'),
+			laterMessage: 'follow up',
+		});
+	});
+
+	test('strips inherited turns and context while hydrating a side chat', async () => {
+		const sideChat = createSideChatContributions(disposables, 'inherited');
+		const turns = await sideChat.service.hydrateTurns(
+			{ session: sideChat.session, chat: sideChat.sideChat },
+			[
+				hydrationTurn('inherited'),
+				{ ...hydrationTurn('seed'), message: { text: injectSideChatContext('side question'), origin: { kind: MessageKind.User } } },
+				hydrationTurn('follow-up'),
+			],
+		);
+
+		assert.deepStrictEqual(turns.map(turn => [turn.id, turn.message.text]), [
+			['seed', 'side question'],
+			['follow-up', 'follow-up'],
+		]);
+	});
+
+	test('uses the host-persisted inherited turn id before the side chat sends its first turn', async () => {
+		const sideChat = createSideChatContributions(disposables, 'inherited');
+		const turns = await sideChat.service.hydrateTurns(
+			{ session: sideChat.session, chat: sideChat.sideChat },
+			[hydrationTurn('inherited'), hydrationTurn('side-turn')],
+		);
+
+		assert.deepStrictEqual(turns.map(turn => turn.id), ['side-turn']);
+	});
+
+	test('finds the side-chat boundary from its seed marker without a persisted inherited turn id', async () => {
+		const sideChat = createSideChatContributions(disposables);
+		const turns = await sideChat.service.hydrateTurns(
+			{ session: sideChat.session, chat: sideChat.sideChat },
+			[
+				hydrationTurn('inherited'),
+				{ ...hydrationTurn('seed'), message: { text: injectSideChatContext('side question'), origin: { kind: MessageKind.User } } },
+				hydrationTurn('follow-up'),
+			],
+		);
+
+		assert.deepStrictEqual(turns.map(turn => turn.id), ['seed', 'follow-up']);
+	});
+
+	test('preserves side-chat history when its boundary cannot be located', async () => {
+		const sideChat = createSideChatContributions(disposables);
+		const input = [hydrationTurn('restored-turn')];
+
+		assert.strictEqual(await sideChat.service.hydrateTurns({ session: sideChat.session, chat: sideChat.sideChat }, input), input);
+	});
+
+	test('leaves a non-side-chat origin untouched', async () => {
+		const sideChat = createSideChatContributions(disposables);
+		const ordinaryChat = buildChatUri(sideChat.session, 'ordinary');
+		sideChat.stateManager.addChat(sideChat.session, ordinaryChat, { title: 'Ordinary' });
+		const input = [hydrationTurn('ordinary')];
+
+		assert.strictEqual(await sideChat.service.hydrateTurns({ session: sideChat.session, chat: ordinaryChat }, input), input);
 	});
 
 	test('threads hydrated turns through contributions in order', async () => {
