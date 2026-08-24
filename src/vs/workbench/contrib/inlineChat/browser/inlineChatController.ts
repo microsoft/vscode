@@ -91,6 +91,19 @@ function getEditorId(editor: ICodeEditor, model: ITextModel): string {
 	return `${editor.getId()},${model.id}`;
 }
 
+/**
+ * Returns the editor range that identifies the Agent Host inline chat target.
+ */
+export function getAgentHostAttachmentRange(model: ITextModel, selection: Selection | null): IRange | undefined {
+	if (!selection) {
+		return undefined;
+	}
+	if (!selection.isEmpty()) {
+		return selection;
+	}
+	return new Range(selection.startLineNumber, 1, selection.startLineNumber, model.getLineMaxColumn(selection.startLineNumber));
+}
+
 export class InlineChatController implements IEditorContribution {
 
 	static readonly ID = INLINE_CHAT_ID;
@@ -385,7 +398,7 @@ export class InlineChatController implements IEditorContribution {
 			const attachmentModel = this.#zone.value.widget.chatWidget.attachmentModel;
 			agentHostAttachmentChanges?.read(r);
 			const selection = editorObs.cursorSelection.read(r);
-			const entry = attachmentModel.asFileVariableEntry(model.uri, selection?.isEmpty() ? undefined : selection ?? undefined);
+			const entry = attachmentModel.asFileVariableEntry(model.uri, getAgentHostAttachmentRange(model, selection));
 			attachmentModel.updateContext(agentHostAttachmentId && agentHostAttachmentId !== entry.id ? [agentHostAttachmentId] : [], [entry]);
 			agentHostAttachmentId = entry.id;
 		}));
