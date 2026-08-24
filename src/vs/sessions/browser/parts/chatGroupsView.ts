@@ -303,7 +303,6 @@ export class ChatGroupsView extends Themable {
 			tabsVisible,
 			showSessionActions,
 			openChat: resource => this._openChat(entry, resource),
-			newChat: () => this._newChat(entry).catch(onUnexpectedError),
 			onTabDragStart: () => { },
 			onTabDragEnd: () => { },
 		};
@@ -707,36 +706,6 @@ export class ChatGroupsView extends Themable {
 		this._setActiveGroup(entry);
 		if (this._session) {
 			this._sessionsService.openChat(this._session, resource).catch(onUnexpectedError);
-		}
-	}
-
-	private async _newChat(entry: IGroupEntry): Promise<void> {
-		this._setActiveGroup(entry);
-		const session = this._session;
-		if (session && !session.isArchived.get()) {
-			const existingIds = new Set(session.visibleChatTabs.get().map(chat => chat.resource.toString()));
-			await this._sessionsService.openNewChatInSession(session);
-			if (this._session === session && this._groups.includes(entry)) {
-				const createdChat = session.activeChat.get();
-				const createdId = createdChat.resource.toString();
-				if (!existingIds.has(createdId) && session.visibleChatTabs.get().includes(createdChat)) {
-					transaction(tx => {
-						for (const group of this._groups) {
-							if (group !== entry && group.resourceIds.get().includes(createdId)) {
-								this._detachChatFromGroup(group, createdId, tx);
-							}
-						}
-						if (!entry.resourceIds.get().includes(createdId)) {
-							entry.resourceIds.set([...entry.resourceIds.get(), createdId], tx);
-						}
-						entry.activeResourceId.set(createdId, tx);
-					});
-					this._setActiveGroup(entry);
-					this._removeEmptyGroups();
-					this._persistLayout();
-				}
-				entry.view.focus();
-			}
 		}
 	}
 

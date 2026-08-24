@@ -245,13 +245,25 @@ export class SessionsView extends ViewPane {
 					}
 				};
 				if (sideBySide) {
-					openSessionToTheSide(this.sessionsService, session, { preserveFocus, chatResource: chat.resource }).then(onOpened).catch(onUnexpectedError);
+					this.sessionsService.showSession(session.resource, { preserveFocus });
+					const sessionView = this.sessionsPartService.getSessionView(session.sessionId);
+					if (!sessionView) {
+						onUnexpectedError(new Error(`Unable to open chat to the side because session view '${session.sessionId}' is not mounted`));
+						return;
+					}
+					sessionView.openChatToSide(chat.resource).then(onOpened).catch(onUnexpectedError);
 					return;
 				}
 				this.sessionsService.openChat(session, chat.resource, { preserveFocus }).then(onOpened).catch(onUnexpectedError);
 			},
 			onChatOpenToSide: (session, chat) => {
-				this.sessionsPartService.getSessionView(session.sessionId)?.openChatToSide(chat.resource).catch(onUnexpectedError);
+				this.sessionsService.showSession(session.resource);
+				const sessionView = this.sessionsPartService.getSessionView(session.sessionId);
+				if (!sessionView) {
+					onUnexpectedError(new Error(`Unable to open chat to the side because session view '${session.sessionId}' is not mounted`));
+					return;
+				}
+				sessionView.openChatToSide(chat.resource).catch(onUnexpectedError);
 			},
 		}));
 		this._register(this.onDidChangeBodyVisibility(visible => sessionsControl.setVisible(visible)));
