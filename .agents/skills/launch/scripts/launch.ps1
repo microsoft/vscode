@@ -16,6 +16,7 @@ $sourceUserDataDir = ''
 $repo = ''
 $cloneExtensions = $false
 $full = $false
+$skipPreLaunch = $false
 if ($null -eq $cliArgs) {
 	$cliArgs = @()
 }
@@ -464,6 +465,10 @@ for ($index = 0; $index -lt $cliArgs.Count; $index++) {
 			$full = $true
 			continue
 		}
+		'--skip-prelaunch' {
+			$skipPreLaunch = $true
+			continue
+		}
 		'--' {
 			for ($forwardIndex = $index + 1; $forwardIndex -lt $cliArgs.Count; $forwardIndex++) {
 				$extraArgs.Add($cliArgs[$forwardIndex])
@@ -581,18 +586,22 @@ try {
 
 	Write-LaunchError "[launch.ps1] launching: $codeBat $($launchArgs -join ' ')"
 	Write-LaunchError "[launch.ps1] logs: $logFile"
-	Write-LaunchError '[launch.ps1] running pre-launch (ensures electron + compiled output + built-ins)...'
-	Push-Location -LiteralPath $repo
-	try {
-		& $node 'build/lib/preLaunch.ts' *>> $logFile
-		$preLaunchExitCode = $LASTEXITCODE
-	} finally {
-		Pop-Location
-	}
-	if ($preLaunchExitCode -ne 0) {
-		Write-LaunchError '[launch.ps1] pre-launch FAILED. Log tail:'
-		Write-LogTail $logFile
-		exit 1
+	if ($skipPreLaunch) {
+		Write-LaunchError '[launch.ps1] skipping pre-launch by request'
+	} else {
+		Write-LaunchError '[launch.ps1] running pre-launch (ensures electron + compiled output + built-ins)...'
+		Push-Location -LiteralPath $repo
+		try {
+			& $node 'build/lib/preLaunch.ts' *>> $logFile
+			$preLaunchExitCode = $LASTEXITCODE
+		} finally {
+			Pop-Location
+		}
+		if ($preLaunchExitCode -ne 0) {
+			Write-LaunchError '[launch.ps1] pre-launch FAILED. Log tail:'
+			Write-LogTail $logFile
+			exit 1
+		}
 	}
 
 	$process = Start-Code $codeBat $launchArgs.ToArray() $logFile
