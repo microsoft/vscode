@@ -3745,9 +3745,7 @@ suite('CopilotAgent', () => {
 		test('does not restart the Copilot runtime when an unset Kerberos proxy SPN is mirrored as empty', async () => {
 			const client = new TestCopilotClient([]);
 			const proxyResolver = new TestProxyResolver();
-			// The bug: the host spawns with the SPN key absent (undefined), then the
-			// workbench mirrors the same unset setting as an empty string. Both mean
-			// "no SPN", so the empty push must not be seen as a change that restarts.
+			// The workbench mirrors an unset SPN as an empty string, which must not trigger a restart.
 			const previousSpnEnv = process.env['COPILOT_PROXY_KERBEROS_SPN'];
 			delete process.env['COPILOT_PROXY_KERBEROS_SPN'];
 			const { agent, configurationService } = createTestAgentContext(disposables, {
