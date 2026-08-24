@@ -338,4 +338,55 @@ suite('ChatModeService', () => {
 		assert.strictEqual(modes.custom[0].id, mode1.uri.toString());
 	});
 
+	test('should return custom modes sorted alphabetically by name', async () => {
+		const modeZ: ICustomAgent = {
+			id: 'mode-z',
+			uri: URI.parse('file:///test/z-mode.md'),
+			name: 'Zeta Mode',
+			description: 'Zeta mode',
+			tools: [],
+			agentInstructions: { content: '', toolReferences: [] },
+			source: workspaceSource,
+			target: Target.Undefined,
+			visibility: { userInvocable: true, agentInvocable: true },
+			enabled: true
+		};
+
+		const modeA: ICustomAgent = {
+			id: 'mode-a',
+			uri: URI.parse('file:///test/a-mode.md'),
+			name: 'Alpha Mode',
+			description: 'Alpha mode',
+			tools: [],
+			agentInstructions: { content: '', toolReferences: [] },
+			source: workspaceSource,
+			target: Target.Undefined,
+			visibility: { userInvocable: true, agentInvocable: true },
+			enabled: true
+		};
+
+		const modeM: ICustomAgent = {
+			id: 'mode-m',
+			uri: URI.parse('file:///test/m-mode.md'),
+			name: 'Beta Mode',
+			description: 'Beta mode',
+			tools: [],
+			agentInstructions: { content: '', toolReferences: [] },
+			source: workspaceSource,
+			target: Target.Undefined,
+			visibility: { userInvocable: true, agentInvocable: true },
+			enabled: true
+		};
+
+		// Insert in unsorted order (Zeta, Alpha, Beta)
+		promptsService.setCustomModes([modeZ, modeA, modeM]);
+		await waitForRefresh();
+
+		const modes = await chatModeService.getLocalModes();
+		assert.strictEqual(modes.custom.length, 3);
+		assert.strictEqual(modes.custom[0].name.get(), 'Alpha Mode');
+		assert.strictEqual(modes.custom[1].name.get(), 'Beta Mode');
+		assert.strictEqual(modes.custom[2].name.get(), 'Zeta Mode');
+	});
+
 });

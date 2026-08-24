@@ -313,7 +313,12 @@ class ChatModes extends Disposable implements IChatModes {
 
 	private getCustomModes(): IChatMode[] {
 		// Show custom modes when agent mode is enabled OR when disabled by policy (to show them in the policy-managed group)
-		return this.chatAgentService.hasToolsAgent || this.isAgentModeDisabledByPolicy() ? Array.from(this._customModeInstances.values()) : [];
+		if (!this.chatAgentService.hasToolsAgent && !this.isAgentModeDisabledByPolicy()) {
+			return [];
+		}
+		const modes = Array.from(this._customModeInstances.values());
+		modes.sort((a, b) => a.name.get().localeCompare(b.name.get()) || a.id.localeCompare(b.id));
+		return modes;
 	}
 
 	private isAgentModeDisabledByPolicy(): boolean {
