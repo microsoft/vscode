@@ -579,6 +579,7 @@ impl Auth {
 					Ok(None) => old_creds,
 					Err(e) => {
 						info!(self.log, "error refreshing token: {}", e);
+						crate::tunnels::machine_status::emit_token_error(e.to_string());
 						let new_creds = self
 							.do_device_code_flow_with_provider(old_creds.provider)
 							.await?;
@@ -881,6 +882,7 @@ impl Auth {
 				}
 				Err(e) => {
 					warning!(this.log, "error refreshing token: {:?}", e);
+					crate::tunnels::machine_status::emit_token_error(e.to_string());
 					last_did_error = true;
 					continue;
 				}

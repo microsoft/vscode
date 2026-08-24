@@ -47,7 +47,7 @@ export class BaseIgnoreService implements IIgnoreService {
 		private readonly _requestLogger: IRequestLogger,
 	) {
 		this._disposables.push(this._onDidChangeCopilotIgnoreEnablement);
-		this._disposables.push(this._authService.onDidAuthenticationChange(() => {
+		this._disposables.push(this._authService.onDidCopilotTokenChange(() => {
 			const copilotIgnoreEnabled = this._authService.copilotToken?.isCopilotIgnoreEnabled() ?? false;
 			if (this._copilotIgnoreEnabled !== copilotIgnoreEnabled) {
 				this._onDidChangeCopilotIgnoreEnablement.fire(copilotIgnoreEnabled);

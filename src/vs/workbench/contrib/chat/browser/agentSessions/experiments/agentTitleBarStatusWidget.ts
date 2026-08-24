@@ -28,18 +28,20 @@ import { renderAsPlaintext } from '../../../../../../base/browser/markdownRender
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IMenuService, MenuId, MenuItemAction, SubmenuItemAction } from '../../../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { InEditorZenModeContext } from '../../../../../common/contextkeys.js';
 import { HiddenItemStrategy, WorkbenchToolBar } from '../../../../../../platform/actions/browser/toolbar.js';
 import { DropdownWithPrimaryActionViewItem } from '../../../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
 import { createActionViewItem } from '../../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { FocusAgentSessionsAction } from '../agentSessionsActions.js';
 import { IWorkbenchContribution } from '../../../../../common/contributions.js';
+import { WORKBENCH_MENU_MOTION_CLASS, workbenchMenuCloseAnimation } from '../../../../../browser/actions/menuMotion.js';
 import { IActionViewItemService } from '../../../../../../platform/actions/browser/actionViewItemService.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { mainWindow } from '../../../../../../base/browser/window.js';
 import { LayoutSettings } from '../../../../../services/layout/browser/layoutService.js';
 import { WindowTitle } from '../../../../../browser/parts/titlebar/windowTitle.js';
-import { ChatConfiguration } from '../../../common/constants.js';
+import { ChatAIDisabledSettingId, ChatConfiguration } from '../../../common/constants.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IChatWidgetService } from '../../chat.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
@@ -80,16 +82,21 @@ const PREVIOUS_FILTER_STORAGE_KEY = 'agentSessions.filterExcludes.previousUserFi
 
 type AgentStatusSettingMode = 'hidden' | 'badge' | 'compact';
 
-function shouldForceHiddenAgentStatus(configurationService: IConfigurationService): boolean {
-	const aiFeaturesDisabled = configurationService.getValue<boolean>(ChatConfiguration.AIDisabled) === true;
+function shouldForceHiddenAgentStatus(configurationService: IConfigurationService, contextKeyService: IContextKeyService): boolean {
+	// Hide all agent distractions while in Zen mode
+	if (contextKeyService.getContextKeyValue<boolean>(InEditorZenModeContext.key) === true) {
+		return true;
+	}
+
+	const aiFeaturesDisabled = configurationService.getValue<boolean>(ChatAIDisabledSettingId) === true;
 	const aiCustomizationsDisabled = configurationService.getValue<boolean>('disableAICustomizations') === true
 		|| configurationService.getValue<boolean>('workbench.disableAICustomizations') === true;
 
 	return aiFeaturesDisabled && aiCustomizationsDisabled;
 }
 
-function getAgentStatusSettingMode(configurationService: IConfigurationService): AgentStatusSettingMode {
-	if (shouldForceHiddenAgentStatus(configurationService)) {
+function getAgentStatusSettingMode(configurationService: IConfigurationService, contextKeyService: IContextKeyService): AgentStatusSettingMode {
+	if (shouldForceHiddenAgentStatus(configurationService, contextKeyService)) {
 		return 'hidden';
 	}
 
@@ -218,13 +225,21 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 			this._render();
 		}));
 
+		// Re-render when Zen mode toggles, to hide all agent distractions
+		this._register(this.contextKeyService.onDidChangeContext(e => {
+			if (e.affectsSome(new Set([InEditorZenModeContext.key]))) {
+				this._lastRenderState = undefined; // Force re-render
+				this._render();
+			}
+		}));
+
 		// Re-render when settings change
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (
 				e.affectsConfiguration(ChatConfiguration.AgentStatusEnabled)
 				|| e.affectsConfiguration(ChatConfiguration.UnifiedAgentsBar)
 				|| e.affectsConfiguration(ChatConfiguration.ChatViewSessionsEnabled)
-				|| e.affectsConfiguration(ChatConfiguration.AIDisabled)
+				|| e.affectsConfiguration(ChatAIDisabledSettingId)
 				|| e.affectsConfiguration('disableAICustomizations')
 				|| e.affectsConfiguration('workbench.disableAICustomizations')
 			) {
@@ -323,7 +338,7 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 			// Get current filter state for state key
 			const { isFilteredToUnread, isFilteredToInProgress, isFilteredToNeedsInput } = this._getCurrentFilterState();
 
-			const statusMode = getAgentStatusSettingMode(this.configurationService);
+			const statusMode = getAgentStatusSettingMode(this.configurationService, this.contextKeyService);
 			const unifiedAgentsBarEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.UnifiedAgentsBar) === true;
 			const viewSessionsEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.ChatViewSessionsEnabled) !== false;
 
@@ -873,7 +888,7 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 			dropdownAction,
 			menuActions,
 			'agent-status-sparkle-dropdown',
-			{ skipTelemetry: true }
+			{ skipTelemetry: true, menuClassName: WORKBENCH_MENU_MOTION_CLASS, closeAnimation: workbenchMenuCloseAnimation }
 		);
 		sparkleDropdown.render(sparkleContainer);
 		disposables.add(sparkleDropdown);
@@ -1417,7 +1432,7 @@ export class AgentTitleBarStatusRendering extends Disposable implements IWorkben
 
 		const updateClass = () => {
 			const commandCenterEnabled = configurationService.getValue<boolean>(LayoutSettings.COMMAND_CENTER) === true;
-			const statusMode = getAgentStatusSettingMode(configurationService);
+			const statusMode = getAgentStatusSettingMode(configurationService, contextKeyService);
 			const enabled = commandCenterEnabled && chatEnabled && statusMode !== 'hidden';
 			const enhanced = enabled && statusMode === 'compact';
 
@@ -1429,7 +1444,7 @@ export class AgentTitleBarStatusRendering extends Disposable implements IWorkben
 			if (
 				e.affectsConfiguration(ChatConfiguration.AgentStatusEnabled)
 				|| e.affectsConfiguration(LayoutSettings.COMMAND_CENTER)
-				|| e.affectsConfiguration(ChatConfiguration.AIDisabled)
+				|| e.affectsConfiguration(ChatAIDisabledSettingId)
 				|| e.affectsConfiguration('disableAICustomizations')
 				|| e.affectsConfiguration('workbench.disableAICustomizations')
 			) {
@@ -1437,7 +1452,7 @@ export class AgentTitleBarStatusRendering extends Disposable implements IWorkben
 			}
 		}));
 		this._register(contextKeyService.onDidChangeContext(e => {
-			if (e.affectsSome(new Set(['chatIsEnabled']))) {
+			if (e.affectsSome(new Set(['chatIsEnabled', InEditorZenModeContext.key]))) {
 				chatEnabled = !!contextKeyService.getContextKeyValue<boolean>('chatIsEnabled');
 				updateClass();
 			}

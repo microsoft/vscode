@@ -57,13 +57,19 @@ env:
   SCENARIOS_INPUT: ${{ inputs.scenarios || '' }}
   TEST_SETTINGS_INPUT: ${{ inputs.test_settings || '' }}
   BASELINE_SETTINGS_INPUT: ${{ inputs.baseline_settings || '' }}
+  # Skip binary downloads during `npm ci` (they hang intermittently on hosted
+  # runners inside the nested postinstall installs). Electron and Playwright are
+  # fetched explicitly later via `Download Electron` and `Install Playwright
+  # Chromium`, which ignore these flags. Mirrors pr-node-modules.yml.
+  ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+  PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
 
 jobs:
   # ── Shared setup: build once, cache everything ──────────────────────
   setup:
     name: Build & Cache
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 50
     outputs:
       test_is_version: ${{ steps.resolve.outputs.is_version }}
       test_build_arg: ${{ steps.resolve.outputs.build_arg }}
@@ -87,12 +93,12 @@ jobs:
           fi
 
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           ref: ${{ steps.resolve.outputs.is_version != 'true' && inputs.test_build || github.ref }}
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version-file: .nvmrc
           cache: npm
@@ -111,13 +117,33 @@ jobs:
             libasound2t64 libxshmfence1 libgtk-3-0
 
       - name: Install dependencies
-        run: npm ci
+        run: |
+          set -e
+          # Retry with a per-attempt timeout to survive transient npm registry
+          # hangs/failures on hosted runners (mirrors pr-node-modules.yml).
+          for i in {1..5}; do
+            timeout 900 npm ci && break
+            if [ $i -eq 5 ]; then
+              echo "npm ci failed/hung too many times" >&2
+              exit 1
+            fi
+            echo "npm ci attempt $i failed or timed out, retrying..."
+          done
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install build dependencies
-        run: npm ci
         working-directory: build
+        run: |
+          set -e
+          for i in {1..5}; do
+            timeout 900 npm ci && break
+            if [ $i -eq 5 ]; then
+              echo "npm ci failed/hung too many times" >&2
+              exit 1
+            fi
+            echo "npm ci attempt $i failed or timed out, retrying..."
+          done
 
       - name: Transpile source
         run: npm run transpile-client
@@ -130,7 +156,7 @@ jobs:
         run: node build/lib/preLaunch.ts
 
       - name: Cache Electron
-        uses: actions/cache/save@v5
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
         with:
           path: ~/.cache/electron
           key: electron-${{ runner.os }}-${{ hashFiles('.nvmrc', 'package.json') }}
@@ -139,7 +165,7 @@ jobs:
         run: npx playwright install chromium
 
       - name: Cache Playwright
-        uses: actions/cache/save@v5
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('package.json') }}
@@ -149,7 +175,7 @@ jobs:
         run: |
           node -e "
             require('./scripts/chat-simulation/common/perf-scenarios').registerPerfScenarios();
-            const { getScenarioIds } = require('./scripts/chat-simulation/common/mock-llm-server');
+            const { getScenarioIds } = require('./scripts/chat-simulation/common/mock-llm-server.ts');
             const userInput = process.env.SCENARIOS_INPUT || '';
             const parsed = userInput.split(',').map(s => s.trim()).filter(Boolean);
             const allScens = parsed.length > 0 ? parsed : getScenarioIds();
@@ -167,7 +193,7 @@ jobs:
           "
 
       - name: Upload build output
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: build-output
           path: |
@@ -186,12 +212,12 @@ jobs:
       matrix: ${{ fromJSON(needs.setup.outputs.perf_matrix) }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           ref: ${{ needs.setup.outputs.test_is_version != 'true' && inputs.test_build || github.ref }}
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version-file: .nvmrc
           cache: npm
@@ -210,17 +236,26 @@ jobs:
             libasound2t64 libxshmfence1 libgtk-3-0
 
       - name: Install dependencies
-        run: npm ci
+        run: |
+          set -e
+          for i in {1..5}; do
+            timeout 900 npm ci && break
+            if [ $i -eq 5 ]; then
+              echo "npm ci failed/hung too many times" >&2
+              exit 1
+            fi
+            echo "npm ci attempt $i failed or timed out, retrying..."
+          done
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Download build output
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: build-output
 
       - name: Restore Electron cache
-        uses: actions/cache/restore@v5
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
         with:
           path: ~/.cache/electron
           key: electron-${{ runner.os }}-${{ hashFiles('.nvmrc', 'package.json') }}
@@ -229,7 +264,7 @@ jobs:
         run: node build/lib/preLaunch.ts
 
       - name: Restore Playwright cache
-        uses: actions/cache/restore@v5
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('package.json') }}
@@ -243,7 +278,7 @@ jobs:
           node -e "
             const fs = require('fs');
             require('./scripts/chat-simulation/common/perf-scenarios').registerPerfScenarios();
-            const { getScenarioIds } = require('./scripts/chat-simulation/common/mock-llm-server');
+            const { getScenarioIds } = require('./scripts/chat-simulation/common/mock-llm-server.ts');
             const userInput = process.env.SCENARIOS_INPUT || '';
             const parsed = userInput.split(',').map(s => s.trim()).filter(Boolean);
             const allScens = parsed.length > 0 ? parsed : getScenarioIds();
@@ -321,7 +356,7 @@ jobs:
 
       - name: Upload perf results
         if: always() && steps.scenarios.outputs.skip != 'true'
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: perf-results-${{ matrix.group }}
           include-hidden-files: true
@@ -332,7 +367,7 @@ jobs:
 
       - name: Upload perf summary data
         if: always() && steps.scenarios.outputs.skip != 'true'
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: perf-summary-${{ matrix.group }}
           include-hidden-files: true
@@ -359,12 +394,12 @@ jobs:
     timeout-minutes: 60
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           ref: ${{ needs.setup.outputs.test_is_version != 'true' && inputs.test_build || github.ref }}
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version-file: .nvmrc
           cache: npm
@@ -383,17 +418,26 @@ jobs:
             libasound2t64 libxshmfence1 libgtk-3-0
 
       - name: Install dependencies
-        run: npm ci
+        run: |
+          set -e
+          for i in {1..5}; do
+            timeout 900 npm ci && break
+            if [ $i -eq 5 ]; then
+              echo "npm ci failed/hung too many times" >&2
+              exit 1
+            fi
+            echo "npm ci attempt $i failed or timed out, retrying..."
+          done
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Download build output
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: build-output
 
       - name: Restore Electron cache
-        uses: actions/cache/restore@v5
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
         with:
           path: ~/.cache/electron
           key: electron-${{ runner.os }}-${{ hashFiles('.nvmrc', 'package.json') }}
@@ -402,7 +446,7 @@ jobs:
         run: node build/lib/preLaunch.ts
 
       - name: Restore Playwright cache
-        uses: actions/cache/restore@v5
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('package.json') }}
@@ -432,7 +476,7 @@ jobs:
 
       - name: Upload leak results
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: leak-results
           include-hidden-files: true
@@ -458,24 +502,24 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           ref: ${{ needs.setup.outputs.test_is_version != 'true' && inputs.test_build || github.ref }}
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version-file: .nvmrc
 
       - name: Download perf summary data
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           pattern: perf-summary-*
           path: perf-results
 
       - name: Download leak results
         if: inputs.skip_leak_check != true && needs.leak-check.result != 'skipped'
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: leak-results
           path: leak-results
@@ -499,7 +543,7 @@ jobs:
 
       - name: Upload CI summary
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: chat-perf-summary
           path: ci-summary.md

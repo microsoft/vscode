@@ -8,14 +8,17 @@ import { Event } from '../../../../../base/common/event.js';
 import { registerAction2, Action2 } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
-import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { ITextFileService } from '../../../../../workbench/services/textfile/common/textfiles.js';
-import { ISessionsManagementService } from '../../../../../sessions/services/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../../../sessions/services/sessions/browser/sessionsService.js';
 import { IFileDiffViewData, IMobileDiffViewData, MobileDiffView, MOBILE_OPEN_DIFF_VIEW_COMMAND_ID, openMobileDiffView } from '../../../../../sessions/browser/parts/mobile/contributions/mobileDiffView.js';
-import { MobileChangesView, MOBILE_OPEN_CHANGES_VIEW_COMMAND_ID, openMobileChangesView, toRow, rowToDiffData } from '../../../../../sessions/browser/parts/mobile/contributions/mobileChangesView.js';
+import { MOBILE_OPEN_CHANGES_VIEW_COMMAND_ID, toRow, rowToDiffData } from '../../../../../sessions/browser/parts/mobile/contributions/mobileChangesView.js';
+import { MobileMultiDiffView, IMobileMultiDiffViewData } from '../../../../../sessions/browser/parts/mobile/contributions/mobileMultiDiffView.js';
 import { IsPhoneLayoutContext } from '../../../../../sessions/common/contextkeys.js';
-import { localize2 } from '../../../../../nls.js';
+import { localize, localize2 } from '../../../../../nls.js';
 
 // Module-level slots for the active overlays so a re-invocation of the
 // command (e.g. rapid double-tap) closes the prior overlay before opening
@@ -24,7 +27,7 @@ import { localize2 } from '../../../../../nls.js';
 // so `MutableDisposable.value === undefined` correctly tracks "no overlay
 // open" — guarding against stale references after self-dispose.
 const activeDiffView = new MutableDisposable<MobileDiffView>();
-const activeChangesView = new MutableDisposable<MobileChangesView>();
+const activeMultiDiffView = new MutableDisposable<MobileMultiDiffView>();
 
 class MobileOpenDiffViewAction extends Action2 {
 	constructor() {
@@ -75,34 +78,47 @@ class MobileOpenChangesViewAction extends Action2 {
 
 	run(accessor: ServicesAccessor): void {
 		const layoutService = accessor.get(ILayoutService);
-		const instantiationService = accessor.get(IInstantiationService);
-		const commandService = accessor.get(ICommandService);
-		const sessionsManagementService = accessor.get(ISessionsManagementService);
+		const textFileService = accessor.get(ITextFileService);
+		const fileService = accessor.get(IFileService);
+		const languageService = accessor.get(ILanguageService);
+		const notificationService = accessor.get(INotificationService);
+		const sessionsService = accessor.get(ISessionsService);
 
-		// Single-file shortcut: bypass the list when only one change
-		// exists — opening a list to show one row would be a useless tap.
-		const session = sessionsManagementService.activeSession.get();
+		const session = sessionsService.activeSession.get();
 		const changes = session?.changes.get() ?? [];
-		if (changes.length === 1) {
-			const diff = rowToDiffData(toRow(changes[0]));
-			commandService.executeCommand(MOBILE_OPEN_DIFF_VIEW_COMMAND_ID, { diff });
+
+		// Build per-file diff data, filtering out synthetic aggregate entries
+		// (entries with no original/modified URIs can't be diffed).
+		const rows = changes.map(c => toRow(c));
+		const diffs: IFileDiffViewData[] = rows
+			.map(r => rowToDiffData(r))
+			.filter(d => d.originalURI || d.modifiedURI);
+
+		if (diffs.length === 0) {
+			notificationService.info(localize('mobileChangesNotAvailable', "File-level changes are not available for this session yet."));
 			return;
 		}
 
-		activeChangesView.value = openMobileChangesView(
-			instantiationService,
+		// Single-file shortcut: bypass the multi-diff when only one change
+		// exists — jump straight to the single-file diff view.
+		if (diffs.length === 1) {
+			const commandService = accessor.get(ICommandService);
+			commandService.executeCommand(MOBILE_OPEN_DIFF_VIEW_COMMAND_ID, { diff: diffs[0] });
+			return;
+		}
+
+		const data: IMobileMultiDiffViewData = { diffs };
+		activeMultiDiffView.value = new MobileMultiDiffView(
 			layoutService.mainContainer,
-			(diff, siblings, index) => {
-				// Routing through the command keeps the diff overlay
-				// lifecycle (the `activeDiffView` slot) consistent with
-				// every other entry point.
-				commandService.executeCommand(MOBILE_OPEN_DIFF_VIEW_COMMAND_ID, { diff, siblings, index } satisfies IMobileDiffViewData);
-			},
+			data,
+			textFileService,
+			fileService,
+			languageService,
 		);
-		const view = activeChangesView.value;
+		const view = activeMultiDiffView.value;
 		Event.once(view.onDidDispose)(() => {
-			if (activeChangesView.value === view) {
-				activeChangesView.clear();
+			if (activeMultiDiffView.value === view) {
+				activeMultiDiffView.clear();
 			}
 		});
 	}

@@ -11,7 +11,7 @@ import {
 	TextCompareEditorActiveContext, ActiveEditorPinnedContext, EditorGroupEditorsCountContext, ActiveEditorStickyContext, ActiveEditorAvailableEditorIdsContext,
 	EditorPartMultipleEditorGroupsContext, ActiveEditorDirtyContext, ActiveEditorGroupLockedContext, ActiveEditorCanSplitInGroupContext, SideBySideEditorActiveContext,
 	EditorTabsVisibleContext, ActiveEditorLastInGroupContext, EditorPartMaximizedEditorGroupContext, MultipleEditorGroupsContext, InEditorZenModeContext,
-	IsAuxiliaryWindowContext, ActiveCompareEditorCanSwapContext, MultipleEditorsSelectedInGroupContext, SplitEditorsVertically,
+	IsAuxiliaryWindowContext, ActiveCompareEditorCanSwapContext, MultipleEditorsSelectedInGroupContext, SplitEditorsVertically, ActiveEditorCannotCloseContext,
 	IsSessionsWindowContext, ActiveCustomEditorDiffCanToggleLayoutContext, ActiveCustomEditorTextDiffContext, EditorPartModalContext
 } from '../../../common/contextkeys.js';
 import { SideBySideEditorInput, SideBySideEditorInputSerializer } from '../../../common/editor/sideBySideEditorInput.js';
@@ -391,7 +391,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorActionsPositionSubmenu, { command: { id
 MenuRegistry.appendMenuItem(MenuId.EditorTabsBarContext, { command: { id: ConfigureEditorTabsAction.ID, title: localize('configureTabs', "Configure Tabs") }, group: '9_configure', order: 10 });
 
 // Editor Title Context Menu
-MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: CLOSE_EDITOR_COMMAND_ID, title: localize('close', "Close") }, group: '1_close', order: 10 });
+MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: CLOSE_EDITOR_COMMAND_ID, title: localize('close', "Close") }, group: '1_close', order: 10, when: ActiveEditorCannotCloseContext.toNegated() });
 MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: CLOSE_OTHER_EDITORS_IN_GROUP_COMMAND_ID, title: localize('closeOthers', "Close Others"), precondition: EditorGroupEditorsCountContext.notEqualsTo('1') }, group: '1_close', order: 20 });
 MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: CLOSE_EDITORS_TO_THE_RIGHT_COMMAND_ID, title: localize('closeRight', "Close to the Right"), precondition: ContextKeyExpr.and(ActiveEditorLastInGroupContext.toNegated(), MultipleEditorsSelectedInGroupContext.negate()) }, group: '1_close', order: 30, when: EditorTabsVisibleContext });
 MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: CLOSE_SAVED_EDITORS_COMMAND_ID, title: localize('closeAllSaved', "Close Saved") }, group: '1_close', order: 40 });
@@ -465,13 +465,15 @@ const SPLIT_ORDER = 100000;  // towards the end
 const CLOSE_ORDER = 1000000; // towards the far end
 
 // Editor Title Menu: Split Editor
+// In the agents window the split editor action is moved into the overflow (...)
+// menu (see below) rather than being shown as a primary toolbar icon.
 appendEditorToolItem(
 	{
 		id: SPLIT_EDITOR,
 		title: localize('splitEditorRight', "Split Editor Right"),
 		icon: Codicon.splitHorizontal
 	},
-	SplitEditorsVertically.negate(),
+	ContextKeyExpr.and(SplitEditorsVertically.negate(), IsSessionsWindowContext.toNegated()),
 	SPLIT_ORDER,
 	{
 		id: SPLIT_EDITOR_DOWN,
@@ -486,7 +488,7 @@ appendEditorToolItem(
 		title: localize('splitEditorDown', "Split Editor Down"),
 		icon: Codicon.splitVertical
 	},
-	SplitEditorsVertically,
+	ContextKeyExpr.and(SplitEditorsVertically, IsSessionsWindowContext.toNegated()),
 	SPLIT_ORDER,
 	{
 		id: SPLIT_EDITOR_RIGHT,
@@ -494,6 +496,30 @@ appendEditorToolItem(
 		icon: Codicon.splitHorizontal
 	}
 );
+
+// Agents window: show Split Editor in the editor title overflow (...) menu
+// instead of as a primary toolbar icon. Mirror the orientation handling of the
+// primary toolbar items so the label/icon match the configured split direction.
+MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
+	command: {
+		id: SPLIT_EDITOR,
+		title: localize('splitEditorRight', "Split Editor Right"),
+		icon: Codicon.splitHorizontal
+	},
+	group: '4_split',
+	order: 10,
+	when: ContextKeyExpr.and(IsSessionsWindowContext, SplitEditorsVertically.negate())
+});
+MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
+	command: {
+		id: SPLIT_EDITOR,
+		title: localize('splitEditorDown', "Split Editor Down"),
+		icon: Codicon.splitVertical
+	},
+	group: '4_split',
+	order: 10,
+	when: ContextKeyExpr.and(IsSessionsWindowContext, SplitEditorsVertically)
+});
 
 // Side by side: layout
 appendEditorToolItem(
@@ -513,7 +539,7 @@ appendEditorToolItem(
 		title: localize('close', "Close"),
 		icon: Codicon.close
 	},
-	ContextKeyExpr.and(EditorTabsVisibleContext.toNegated(), ActiveEditorDirtyContext.toNegated(), ActiveEditorStickyContext.toNegated()),
+	ContextKeyExpr.and(EditorTabsVisibleContext.toNegated(), ActiveEditorDirtyContext.toNegated(), ActiveEditorStickyContext.toNegated(), ActiveEditorCannotCloseContext.toNegated()),
 	CLOSE_ORDER,
 	{
 		id: CLOSE_EDITORS_IN_GROUP_COMMAND_ID,
@@ -529,7 +555,7 @@ appendEditorToolItem(
 		title: localize('close', "Close"),
 		icon: Codicon.closeDirty
 	},
-	ContextKeyExpr.and(EditorTabsVisibleContext.toNegated(), ActiveEditorDirtyContext, ActiveEditorStickyContext.toNegated()),
+	ContextKeyExpr.and(EditorTabsVisibleContext.toNegated(), ActiveEditorDirtyContext, ActiveEditorStickyContext.toNegated(), ActiveEditorCannotCloseContext.toNegated()),
 	CLOSE_ORDER,
 	{
 		id: CLOSE_EDITORS_IN_GROUP_COMMAND_ID,
@@ -648,7 +674,9 @@ appendEditorToolItem(
 	ActiveCustomEditorTextDiffContext,
 	16,
 	undefined,
-	undefined
+	undefined,
+	undefined,
+	true
 );
 
 const toggleWhitespace = registerIcon('diff-editor-toggle-whitespace', Codicon.whitespace, localize('toggleWhitespace', 'Icon for the toggle whitespace action in the diff editor.'));

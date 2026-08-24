@@ -5,10 +5,12 @@
 
 import { getActiveWindow } from '../../../../../../base/browser/dom.js';
 import { IAction } from '../../../../../../base/common/actions.js';
+import { AnchorPosition } from '../../../../../../base/common/layout.js';
 import { autorun, IObservable } from '../../../../../../base/common/observable.js';
 import { ActionWidgetDropdownActionViewItem } from '../../../../../../platform/actions/browser/actionWidgetDropdownActionViewItem.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
-import { IActionWidgetDropdownOptions } from '../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
+import { IActionWidgetDropdownOptions, withActionWidgetDropdownMotion } from '../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
+import { IActionListOptions } from '../../../../../../platform/actionWidget/browser/actionList.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
@@ -24,6 +26,15 @@ export interface IChatInputPickerOptions {
 	readonly actionContext?: IChatExecuteActionContext;
 
 	readonly compact: IObservable<boolean>;
+
+	readonly listOptions?: IActionListOptions;
+}
+
+export function withChatInputPickerMotion(listOptions: IActionListOptions | undefined): IActionListOptions {
+	return {
+		...withActionWidgetDropdownMotion(listOptions),
+		anchorPosition: AnchorPosition.ABOVE,
+	};
 }
 
 /**
@@ -41,10 +52,16 @@ export abstract class ChatInputPickerActionViewItem extends ActionWidgetDropdown
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
-		// Inject the anchor getter into the options
+		const listOptionsProvider = actionWidgetOptions.listOptions === undefined ? actionWidgetOptions.listOptionsProvider : undefined;
 		const optionsWithAnchor: Omit<IActionWidgetDropdownOptions, 'label' | 'labelRenderer'> = {
 			...actionWidgetOptions,
 			getAnchor: () => this.getAnchorElement(),
+			listOptions: listOptionsProvider
+				? undefined
+				: withChatInputPickerMotion(actionWidgetOptions.listOptions),
+			listOptionsProvider: listOptionsProvider
+				? { getListOptions: () => withChatInputPickerMotion(listOptionsProvider.getListOptions()) }
+				: undefined,
 		};
 
 		super(action, optionsWithAnchor, actionWidgetService, keybindingService, contextKeyService, telemetryService);

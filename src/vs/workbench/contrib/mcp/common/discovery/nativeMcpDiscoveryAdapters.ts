@@ -21,13 +21,14 @@ export interface NativeMpcDiscoveryAdapter {
 	adaptFile(contents: VSBuffer, details: INativeMcpDiscoveryData): Promise<McpServerDefinition[] | undefined>;
 }
 
-export async function claudeConfigToServerDefinition(idPrefix: string, contents: VSBuffer, cwd?: URI) {
+export async function claudeConfigToServerDefinition(idPrefix: string, contents: VSBuffer, options?: { cwd?: URI; defaultCwd?: URI }) {
 	let parsed: {
 		mcpServers: Record<string, {
 			command: string;
 			args?: string[];
 			env?: Record<string, string>;
 			url?: string;
+			headers?: Record<string, string>;
 		}>;
 	};
 
@@ -41,22 +42,26 @@ export async function claudeConfigToServerDefinition(idPrefix: string, contents:
 		const launch: McpServerLaunch = server.url ? {
 			type: McpServerTransportType.HTTP,
 			uri: URI.parse(server.url),
-			headers: [],
+			headers: Object.entries(server.headers ?? {}),
 		} : {
 			type: McpServerTransportType.Stdio,
 			args: server.args || [],
 			command: server.command,
 			env: server.env || {},
 			envFile: undefined,
-			cwd: cwd?.fsPath,
+			cwd: options?.cwd?.fsPath,
 			sandbox: undefined
 		};
+		const defaultCwd = launch.type === McpServerTransportType.Stdio ? options?.defaultCwd : undefined;
+		// Keep the legacy fsPath-based nonce so existing trust decisions survive this URI-preservation change.
+		const nonceLaunch = defaultCwd && launch.type === McpServerTransportType.Stdio ? { ...launch, cwd: defaultCwd.fsPath } : launch;
 
 		return {
 			id: `${idPrefix}.${name}`,
 			label: name,
 			launch,
-			cacheNonce: await McpServerLaunch.hash(launch),
+			defaultCwd,
+			cacheNonce: await McpServerLaunch.hash(nonceLaunch),
 		};
 	}));
 }
@@ -83,7 +88,7 @@ export class ClaudeDesktopMpcDiscoveryAdapter implements NativeMpcDiscoveryAdapt
 	}
 
 	adaptFile(contents: VSBuffer, { homedir }: INativeMcpDiscoveryData): Promise<McpServerDefinition[] | undefined> {
-		return claudeConfigToServerDefinition(this.id, contents, homedir);
+		return claudeConfigToServerDefinition(this.id, contents, { cwd: homedir });
 	}
 }
 

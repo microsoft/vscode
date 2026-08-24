@@ -38,6 +38,32 @@ export type ChatRequestHooks = {
 	readonly [K in HookType]?: readonly IParsedHookCommand[];
 };
 
+export namespace ChatRequestHooks {
+	export function isEquals(a: ChatRequestHooks | undefined, b: ChatRequestHooks | undefined): boolean {
+		if (a === b) {
+			return true;
+		}
+		if (!a || !b) {
+			return false;
+		}
+		for (const hookType of Object.values(HookType)) {
+			const aArr = a[hookType];
+			const bArr = b[hookType];
+			if (aArr?.length !== bArr?.length) {
+				return false;
+			}
+			if (aArr && bArr) {
+				for (let i = 0; i < aArr.length; i++) {
+					if (!IParsedHookCommand.isEquals(aArr[i], bArr[i])) {
+						return false;
+					}
+				}
+			}
+		}
+		return true;
+	}
+}
+
 /**
  * Merges two sets of hooks by concatenating the command arrays for each hook type.
  * Additional hooks are appended after the base hooks.

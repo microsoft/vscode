@@ -9,7 +9,7 @@ import { decodeBase64 } from '../../../../../../base/common/buffer.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
-import { basename, joinPath } from '../../../../../../base/common/resources.js';
+import { basename, extname, joinPath } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { localize, localize2 } from '../../../../../../nls.js';
@@ -25,7 +25,7 @@ import { INotificationService } from '../../../../../../platform/notification/co
 import { IProgressService, ProgressLocation } from '../../../../../../platform/progress/common/progress.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { REVEAL_IN_EXPLORER_COMMAND_ID } from '../../../../files/browser/fileConstants.js';
-import { getAttachableImageExtension } from '../../../common/model/chatModel.js';
+import { CHAT_ATTACHABLE_IMAGE_MIME_TYPES, getAttachableImageExtension } from '../../../common/model/chatModel.js';
 import { IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { ChatAttachmentsContentPart } from './chatAttachmentsContentPart.js';
 import { IChatCollapsibleIODataPart } from './chatToolInputOutputContentPart.js';
@@ -71,23 +71,24 @@ export class ChatResourceGroupWidget extends Disposable {
 	private async _fillInResourceGroup(parts: IChatCollapsibleIODataPart[], itemsContainer: HTMLElement, actionsContainer: HTMLElement) {
 		// First pass: create entries immediately, using file placeholders for base64 images
 		const entries: IChatRequestVariableEntry[] = [];
-		const deferredImageParts: { index: number; part: IChatCollapsibleIODataPart }[] = [];
+		const deferredImageParts: { index: number; part: IChatCollapsibleIODataPart; mimeType: string }[] = [];
 
 		for (let i = 0; i < parts.length; i++) {
 			const part = parts[i];
-			if (part.mimeType && getAttachableImageExtension(part.mimeType)) {
+			const imageMimeType = getResourceImageMimeType(part);
+			if (imageMimeType) {
 				if (part.base64Value) {
 					// Defer base64 decode - use file placeholder for now
 					entries.push({ kind: 'file', id: generateUuid(), name: basename(part.uri), fullName: part.uri.path, value: part.uri });
-					deferredImageParts.push({ index: i, part });
+					deferredImageParts.push({ index: i, part, mimeType: imageMimeType });
 				} else if (part.value) {
-					entries.push({ kind: 'image', id: generateUuid(), name: basename(part.uri), value: part.value, mimeType: part.mimeType, isURL: false, references: [{ kind: 'reference', reference: part.uri }] });
+					entries.push({ kind: 'image', id: generateUuid(), name: basename(part.uri), value: part.value, mimeType: imageMimeType, isURL: false, references: [{ kind: 'reference', reference: part.uri }] });
 				} else {
 					const value = await this._fileService.readFile(part.uri).then(f => f.value.buffer, () => undefined);
 					if (!value) {
 						entries.push({ kind: 'file', id: generateUuid(), name: basename(part.uri), fullName: part.uri.path, value: part.uri });
 					} else {
-						entries.push({ kind: 'image', id: generateUuid(), name: basename(part.uri), value, mimeType: part.mimeType, isURL: false, references: [{ kind: 'reference', reference: part.uri }] });
+						entries.push({ kind: 'image', id: generateUuid(), name: basename(part.uri), value, mimeType: imageMimeType, isURL: false, references: [{ kind: 'reference', reference: part.uri }] });
 					}
 				}
 			} else {
@@ -139,10 +140,10 @@ export class ChatResourceGroupWidget extends Disposable {
 		// Second pass: decode base64 images asynchronously and update in place
 		if (deferredImageParts.length > 0) {
 			this._register(disposableTimeout(() => {
-				for (const { index, part } of deferredImageParts) {
+				for (const { index, part, mimeType } of deferredImageParts) {
 					try {
 						const value = decodeBase64(part.base64Value!).buffer;
-						entries[index] = { kind: 'image', id: generateUuid(), name: basename(part.uri), value, mimeType: part.mimeType!, isURL: false, references: [{ kind: 'reference', reference: part.uri }] };
+						entries[index] = { kind: 'image', id: generateUuid(), name: basename(part.uri), value, mimeType, isURL: false, references: [{ kind: 'reference', reference: part.uri }] };
 					} catch {
 						// Keep the file placeholder on decode failure
 					}
@@ -154,6 +155,15 @@ export class ChatResourceGroupWidget extends Disposable {
 			}, IMAGE_DECODE_DELAY_MS));
 		}
 	}
+}
+
+function getResourceImageMimeType(part: IChatCollapsibleIODataPart): string | undefined {
+	if (part.mimeType && getAttachableImageExtension(part.mimeType)) {
+		return part.mimeType;
+	}
+
+	const extension = extname(part.uri).slice(1).toLowerCase();
+	return CHAT_ATTACHABLE_IMAGE_MIME_TYPES[extension];
 }
 
 

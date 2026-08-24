@@ -8,7 +8,6 @@ import path from 'path';
 import { ApiEmbeddingsIndex, IApiEmbeddingsIndex } from '../../src/extension/context/node/resolvers/extensionApi';
 import { ConversationStore, IConversationStore } from '../../src/extension/conversationStore/node/conversationStore';
 import { IIntentService, IntentService } from '../../src/extension/intents/node/intentService';
-import { ITestGenInfoStorage, TestGenInfoStorage } from '../../src/extension/intents/node/testIntent/testInfoStorage';
 import { ILinkifyService, LinkifyService } from '../../src/extension/linkify/common/linkifyService';
 import { ChatMLFetcherImpl } from '../../src/extension/prompt/node/chatMLFetcher';
 import { createExtensionUnitTestingServices, ISimulationModelConfig } from '../../src/extension/test/node/services';
@@ -288,7 +287,6 @@ export async function createSimulationAccessor(
 	testingServiceCollection.define(INaiveChunkingService, new SyncDescriptor(NaiveChunkingService));
 	testingServiceCollection.define(ILinkifyService, new SyncDescriptor(LinkifyService));
 	testingServiceCollection.define(ITestProvider, new SyncDescriptor(NullTestProvider));
-	testingServiceCollection.define(ITestGenInfoStorage, new SyncDescriptor(TestGenInfoStorage));
 	testingServiceCollection.define(IConversationStore, new SyncDescriptor(ConversationStore));
 	testingServiceCollection.define(IReviewService, new SyncDescriptor(SimulationReviewService));
 	testingServiceCollection.define(IGitExtensionService, new SyncDescriptor(NullGitExtensionService));

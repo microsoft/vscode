@@ -11,9 +11,9 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import {
 	AgentHostPermissionMode,
-	IAgentHostPermissionService,
+	IAgentHostResourceService,
 	IPendingResourceRequest,
-} from '../../../../../../platform/agentHost/common/agentHostPermissionService.js';
+} from '../../../../../../platform/agentHost/common/agentHostResourceService.js';
 import { AGENT_HOST_SCHEME, agentHostAuthority } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -21,15 +21,25 @@ import { Event } from '../../../../../../base/common/event.js';
 import { MockLabelService } from '../../../../../services/label/test/common/mockLabelService.js';
 import { AgentHostPermissionUiContribution } from '../../../browser/agentSessions/agentHost/agentHostPermissionUiContribution.js';
 import {
+	ChatInputNotificationActionKind,
 	IChatInputNotification,
+	IChatInputNotificationCommandAction,
 	IChatInputNotificationService,
 } from '../../../browser/widget/input/chatInputNotificationService.js';
 
-class FakePermissionService extends Disposable implements IAgentHostPermissionService {
+class FakePermissionService extends Disposable implements IAgentHostResourceService {
 	declare readonly _serviceBrand: undefined;
 	readonly pending: ISettableObservable<readonly IPendingResourceRequest[]> = observableValue('pending', []);
 	readonly allPending: IObservable<readonly IPendingResourceRequest[]> = this.pending;
 
+	list = async () => { throw new Error('not implemented'); };
+	read = async () => { throw new Error('not implemented'); };
+	write = async () => { throw new Error('not implemented'); };
+	del = async () => { throw new Error('not implemented'); };
+	move = async () => { throw new Error('not implemented'); };
+	copy = async () => { throw new Error('not implemented'); };
+	resolve = async () => { throw new Error('not implemented'); };
+	mkdir = async () => { throw new Error('not implemented'); };
 	check = async () => true;
 	request = async () => { /* */ };
 	pendingFor = () => this.pending;
@@ -41,6 +51,7 @@ class FakePermissionService extends Disposable implements IAgentHostPermissionSe
 class FakeNotificationService implements IChatInputNotificationService {
 	declare readonly _serviceBrand: undefined;
 	readonly onDidChange: Event<void> = Event.None;
+	readonly onDidDismiss: Event<string> = Event.None;
 	readonly setCalls: IChatInputNotification[] = [];
 	readonly deleteCalls: string[] = [];
 
@@ -50,9 +61,10 @@ class FakeNotificationService implements IChatInputNotificationService {
 	deleteNotification(id: string): void {
 		this.deleteCalls.push(id);
 	}
-	dismissNotification(): void { /* */ }
+	dismissNotification(_id: string): void { /* */ }
 	getActiveNotification(): IChatInputNotification | undefined { return undefined; }
 	handleMessageSent(): void { /* */ }
+	announceRendered(): void { /* */ }
 }
 
 /**
@@ -108,7 +120,7 @@ suite('AgentHostPermissionUiContribution', () => {
 
 	function createContribution(): AgentHostPermissionUiContribution {
 		const instantiationService = disposables.add(new TestInstantiationService());
-		instantiationService.stub(IAgentHostPermissionService, permissionService);
+		instantiationService.stub(IAgentHostResourceService, permissionService);
 		instantiationService.stub(IChatInputNotificationService, notificationService);
 		instantiationService.stub(ILabelService, labelService);
 		const contribution = instantiationService.createInstance(AgentHostPermissionUiContribution);
@@ -129,11 +141,13 @@ suite('AgentHostPermissionUiContribution', () => {
 		assert.strictEqual(notificationService.setCalls.length, 1);
 		const notification = notificationService.setCalls[0];
 		assert.ok(isMarkdownString(notification.message), 'message should be an IMarkdownString');
+		const actions = notification.actions.filter((action): action is IChatInputNotificationCommandAction => action.kind === ChatInputNotificationActionKind.Command);
+		assert.strictEqual(actions.length, notification.actions.length);
 		assert.strictEqual(
-			notification.actions.map(a => a.commandId).join(','),
+			actions.map(action => action.commandId).join(','),
 			'_agentHost.permission.deny,_agentHost.permission.allow,_agentHost.permission.allowAlways',
 		);
-		for (const action of notification.actions) {
+		for (const action of actions) {
 			assert.deepStrictEqual(action.commandArgs, [request.id], 'each action carries the request id');
 		}
 	});

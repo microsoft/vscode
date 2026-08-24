@@ -43,3 +43,11 @@ export function formatModelDetailsWithCredits(modelName: string, creditsUsed: nu
 export function formatModelDetailsWithMultiplier(modelName: string, multiplier: number | undefined): string {
 	return multiplier !== undefined ? l10n.t('{0} \u2022 {1}x', modelName, multiplier) : modelName;
 }
+
+/**
+ * Formats model details for auto mode when the model name should be hidden.
+ * Shows "Auto • N credits" or "Auto • Nx" instead of the actual model name.
+ */
+export function formatAutoModeDetails(creditsUsed: number | undefined, multiplier: number | undefined): string {
+	return formatModelDetails(l10n.t('Auto'), multiplier, creditsUsed);
+}

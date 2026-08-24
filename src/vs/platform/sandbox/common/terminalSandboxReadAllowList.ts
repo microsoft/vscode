@@ -5,7 +5,7 @@
 
 import { OperatingSystem } from '../../../base/common/platform.js';
 import type { ITerminalSandboxCommand } from './terminalSandboxService.js';
-import { gitGlobalOptionsWithValue, type ITerminalSandboxCommandRule, matchesTerminalSandboxCommandRule } from './terminalSandboxCommandRules.js';
+import { type ITerminalSandboxCommandRule, matchesTerminalSandboxCommandRule } from './terminalSandboxCommandRules.js';
 
 export const enum TerminalSandboxReadAllowListOperation {
 	Git = 'git',
@@ -21,11 +21,13 @@ export const enum TerminalSandboxReadAllowListOperation {
 	NativeBuild = 'nativeBuild',
 	Conan = 'conan',
 	GnuPG = 'gnupg',
+	Ssh = 'ssh',
 }
 
 const terminalSandboxReadAllowListKeywordMap: ReadonlyMap<string, TerminalSandboxReadAllowListOperation> = new Map([
 	['git', TerminalSandboxReadAllowListOperation.Git],
 	['gh', TerminalSandboxReadAllowListOperation.Git],
+	['gpg', TerminalSandboxReadAllowListOperation.GnuPG],
 	['node', TerminalSandboxReadAllowListOperation.Node],
 	['npm', TerminalSandboxReadAllowListOperation.Node],
 	['npx', TerminalSandboxReadAllowListOperation.Node],
@@ -98,6 +100,7 @@ function getTerminalSandboxReadAllowListForOperation(operation: TerminalSandboxR
 				default:
 					return [
 						'~/.gitconfig',
+						'~/.config/gh/config.yml',
 						'~/.config/git/config',
 						'~/.gitignore',
 						'~/.gitignore_global',
@@ -322,6 +325,16 @@ function getTerminalSandboxReadAllowListForOperation(operation: TerminalSandboxR
 						'~/.gnupg',
 					];
 			}
+
+		case TerminalSandboxReadAllowListOperation.Ssh:
+			switch (os) {
+				case OperatingSystem.Macintosh:
+				case OperatingSystem.Linux:
+				default:
+					return [
+						'~/.ssh',
+					];
+			}
 	}
 }
 
@@ -340,11 +353,10 @@ function getTerminalSandboxReadAllowListForCommandDetails(os: OperatingSystem, c
 }
 
 /**
- * Argument-aware allow-list rules. Keyword-only rules apply to a command
- * executable, while subcommand rules can skip global options before matching.
+ * Command-detail allow-list rules match parsed command executables.
  *
- * For example, `git -C repo commit -S` matches the `git`/`commit` rule below,
- * while `gpg --list-keys` matches the keyword-only `gpg` rule.
+ * For example, `git rebase main` matches the `git` rule below, while
+ * `gpg --list-keys` matches the `gpg` rule.
  */
 const terminalSandboxReadAllowListCommandDetailRules: readonly ITerminalSandboxCommandRule<TerminalSandboxReadAllowListOperation>[] = [
 	{
@@ -354,8 +366,10 @@ const terminalSandboxReadAllowListCommandDetailRules: readonly ITerminalSandboxC
 	{
 		keywords: ['git'],
 		value: TerminalSandboxReadAllowListOperation.GnuPG,
-		subcommands: ['commit'],
-		optionsWithValue: gitGlobalOptionsWithValue,
+	},
+	{
+		keywords: ['git', 'ssh', 'scp', 'sftp', 'rsync'],
+		value: TerminalSandboxReadAllowListOperation.Ssh,
 	},
 ];
 

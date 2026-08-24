@@ -150,6 +150,28 @@ data: [DONE]
 		});
 	});
 
+	// Regression for https://github.com/microsoft/vscode/issues/329963
+	test('delta content is preserved when tool_calls is empty', async function () {
+		const response = `data: {"choices":[{"delta":{"content":" I","tool_calls":[]},"index":0,"finish_reason":null}]}
+data: {"choices":[{"delta":{"content":" am","tool_calls":[]},"index":0,"finish_reason":null}]}
+data: {"choices":[{"delta":{},"index":0,"finish_reason":"stop"}]}
+data: [DONE]
+`;
+		const processor = await SSEProcessor.create(
+			logService,
+			telemetryService,
+			1,
+			createFakeStreamResponse(response),
+		);
+		const results = await getAll(processor.processSSE());
+		assertSimplifiedResultsEqual(results, {
+			0: {
+				finishReason: FinishedCompletionReason.Stop,
+				chunks: [' I', ' am'],
+			},
+		});
+	});
+
 	test('response with text and without finish_reason yields "DONE" result', async function () {
 		// This is not an expected case, since the OpenAI API should always
 		// include a finish_reason, but we handle it anyway.
@@ -646,6 +668,72 @@ data: [DONE]
 		expect(thinkingText).toBeUndefined();
 		expect(thinkingId).toBe('cot_a3074ac0-a8e8-4a55-bb5b-65cbb1648dcf');
 		expect(metadata).toBeUndefined();
+	});
+
+	// Regression for https://github.com/microsoft/vscode/issues/312746
+	// DeepSeek / Moonshot (Kimi) / Minimax stream reasoning under `reasoning_content`.
+	test('stream containing reasoning_content (DeepSeek/Kimi/Moonshot)', async function () {
+		const response = [
+			`data: {"choices":[{"content_filter_results":{},"delta":{"reasoning_content":"Analy"},"index":0}],"created":1751057335,"id":"","model":"","object":"chat.completion.chunk","system_fingerprint":"fp","usage":null}\n`,
+			`data: {"choices":[{"content_filter_results":{},"delta":{"reasoning_content":"zing"},"index":0}],"created":1751057335,"id":"","model":"","object":"chat.completion.chunk","system_fingerprint":"fp","usage":null}\n`,
+			`data: [DONE]\n`,
+		];
+		const processor = await SSEProcessor.create(
+			logService,
+			telemetryService,
+			1,
+			createFakeStreamResponse(response),
+		);
+
+		let thinkingText: string | string[] | undefined = undefined;
+		const thinkingDeltas: string[] = [];
+
+		await getAll(processor.processSSE((text: string, index: number, delta: IResponseDelta) => {
+			if (delta.thinking && !isEncryptedThinkingDelta(delta.thinking) && delta.thinking.text) {
+				const thinkingDelta = Array.isArray(delta.thinking.text) ? delta.thinking.text.join('') : delta.thinking.text;
+				thinkingDeltas.push(thinkingDelta);
+				if (thinkingText === undefined) {
+					thinkingText = '';
+				}
+				thinkingText += thinkingDelta;
+			}
+			return Promise.resolve(undefined);
+		}));
+
+		expect({ thinkingDeltas, thinkingText }).toEqual({
+			thinkingDeltas: ['Analy', 'zing'],
+			thinkingText: 'Analyzing',
+		});
+	});
+
+	// Regression for https://github.com/microsoft/vscode/issues/312746
+	// OpenRouter streams reasoning under `reasoning`.
+	test('stream containing reasoning (OpenRouter)', async function () {
+		const response = [
+			`data: {"choices":[{"content_filter_results":{},"delta":{"reasoning":"Analy"},"index":0}],"created":1751057335,"id":"","model":"","object":"chat.completion.chunk","system_fingerprint":"fp","usage":null}\n`,
+			`data: {"choices":[{"content_filter_results":{},"delta":{"reasoning":"zing"},"index":0}],"created":1751057335,"id":"","model":"","object":"chat.completion.chunk","system_fingerprint":"fp","usage":null}\n`,
+			`data: [DONE]\n`,
+		];
+		const processor = await SSEProcessor.create(
+			logService,
+			telemetryService,
+			1,
+			createFakeStreamResponse(response),
+		);
+
+		let thinkingText: string | string[] | undefined = undefined;
+
+		await getAll(processor.processSSE((text: string, index: number, delta: IResponseDelta) => {
+			if (delta.thinking && !isEncryptedThinkingDelta(delta.thinking) && delta.thinking.text) {
+				if (thinkingText === undefined) {
+					thinkingText = '';
+				}
+				thinkingText += Array.isArray(delta.thinking.text) ? delta.thinking.text.join('') : delta.thinking.text;
+			}
+			return Promise.resolve(undefined);
+		}));
+
+		expect(thinkingText).toBe('Analyzing');
 	});
 
 	suite('real world snapshots', () => {

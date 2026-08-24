@@ -13,7 +13,7 @@ import { localize } from '../../../../../nls.js';
 import { IPlaywrightService } from '../../../../../platform/browserView/common/playwrightService.js';
 import { ToolDataSource, type CountTokensCallback, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type ToolProgress } from '../../../chat/common/tools/languageModelToolsService.js';
 import { createBrowserPageLink, errorResult, getSessionId, playwrightInvoke } from './browserToolHelpers.js';
-import { BrowserChatToolReferenceName } from '../../common/browserChatToolReferenceNames.js';
+import { BrowserChatToolReferenceName } from '../../../../../platform/browserView/common/browserChatToolReferenceNames.js';
 import { OpenPageToolId } from './openBrowserTool.js';
 
 export const TypeBrowserToolData: IToolData = {
@@ -35,31 +35,35 @@ export const TypeBrowserToolData: IToolData = {
 				type: 'string',
 				description: 'The text to type. One of "text" or "key" must be provided.'
 			},
+			submit: {
+				type: 'boolean',
+				description: 'Whether to press Enter after typing text. Ignored when "key" is provided. Default is false.'
+			},
 			key: {
 				type: 'string',
 				description: 'A key or key combination to press (e.g., "Enter", "Tab", "Control+c"). One of "text" or "key" must be provided.'
 			},
 			ref: {
 				type: 'string',
-				description: 'Element reference to target. If omitted, types into the focused element.'
+				description: 'Element reference to focus and type into. If omitted, types into the focused element.'
 			},
 			selector: {
 				type: 'string',
-				description: 'Playwright selector of element to target when "ref" is not available. If omitted, types into the focused element.'
+				description: 'Playwright selector of element to focus and type into. Use if "ref" is not available. If omitted, types into the focused element.'
 			},
 			element: {
 				type: 'string',
 				description: 'Human-readable description of the element to type into (e.g., "search box", "comment field"). Required when "ref" or "selector" is specified.'
 			},
 		},
-		required: ['pageId'],
-		$comment: 'If "ref" or "selector" is provided, then "element" is required.',
+		required: ['pageId']
 	},
 };
 
 interface ITypeBrowserToolParams {
 	pageId: string;
 	text?: string;
+	submit?: boolean;
 	key?: string;
 	ref?: string;
 	selector?: string;
@@ -94,13 +98,21 @@ export class TypeBrowserTool implements IToolImpl {
 		if (hasTarget && params.element) {
 			const element = escapeMarkdownSyntaxTokens(params.element);
 			return {
-				invocationMessage: new MarkdownString(localize('browser.type.invocation.element', "Typing text in {0} in {1}", element, link)),
-				pastTenseMessage: new MarkdownString(localize('browser.type.past.element', "Typed text in {0} in {1}", element, link)),
+				invocationMessage: params.submit
+					? new MarkdownString(localize('browser.typeAndSubmit.invocation.element', "Typing text in {0} in {1} and pressing Enter", element, link))
+					: new MarkdownString(localize('browser.type.invocation.element', "Typing text in {0} in {1}", element, link)),
+				pastTenseMessage: params.submit
+					? new MarkdownString(localize('browser.typeAndSubmit.past.element', "Typed text in {0} in {1} and pressed Enter", element, link))
+					: new MarkdownString(localize('browser.type.past.element', "Typed text in {0} in {1}", element, link)),
 			};
 		}
 		return {
-			invocationMessage: new MarkdownString(localize('browser.type.invocation', "Typing text in {0}", link)),
-			pastTenseMessage: new MarkdownString(localize('browser.type.past', "Typed text in {0}", link)),
+			invocationMessage: params.submit
+				? new MarkdownString(localize('browser.typeAndSubmit.invocation', "Typing text in {0} and pressing Enter", link))
+				: new MarkdownString(localize('browser.type.invocation', "Typing text in {0}", link)),
+			pastTenseMessage: params.submit
+				? new MarkdownString(localize('browser.typeAndSubmit.past', "Typed text in {0} and pressed Enter", link))
+				: new MarkdownString(localize('browser.type.past', "Typed text in {0}", link)),
 		};
 	}
 
@@ -131,8 +143,19 @@ export class TypeBrowserTool implements IToolImpl {
 
 		// Type text
 		if (selector) {
-			return playwrightInvoke(this.playwrightService, sessionId, params.pageId, (page, sel, text) => page.locator(sel).fill(text), selector, params.text!);
+			return playwrightInvoke(this.playwrightService, sessionId, params.pageId, async (page, sel, text, submit) => {
+				const locator = page.locator(sel);
+				await locator.fill(text);
+				if (submit) {
+					await locator.press('Enter');
+				}
+			}, selector, params.text!, params.submit ?? false);
 		}
-		return playwrightInvoke(this.playwrightService, sessionId, params.pageId, (page, text) => page.keyboard.type(text), params.text!);
+		return playwrightInvoke(this.playwrightService, sessionId, params.pageId, async (page, text, submit) => {
+			await page.keyboard.type(text);
+			if (submit) {
+				await page.keyboard.press('Enter');
+			}
+		}, params.text!, params.submit ?? false);
 	}
 }

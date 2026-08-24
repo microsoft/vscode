@@ -76,6 +76,7 @@ export class InlineCompletionsUnificationImpl extends Disposable implements IInl
 		this.isRunningUnificationExperiment = isRunningUnificationExperiment.bindTo(this._contextKeyService);
 
 		this._assignmentService.addTelemetryAssignmentFilter({
+			id: 'inlineCompletionsUnification',
 			exclude: (assignment) => assignment.startsWith(EXTENSION_UNIFICATION_PREFIX) && this._state.extensionUnification !== this._configurationService.getValue<boolean>(ExtensionUnificationSetting),
 			onDidChange: Event.any(this._onDidChangeExtensionUnificationState.event, this._onDidChangeExtensionUnificationSetting.event)
 		});

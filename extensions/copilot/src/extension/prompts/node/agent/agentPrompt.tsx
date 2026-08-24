@@ -115,6 +115,7 @@ export class AgentPrompt extends PromptElement<AgentPromptProps> {
 		const SafetyRules = customizations.SafetyRulesClass;
 
 		const omitBaseAgentInstructions = this.configurationService.getConfig(ConfigKey.Advanced.OmitBaseAgentInstructions);
+		const hasMemoryTool = !!this.props.promptContext.tools?.availableTools?.find(tool => tool.name === ToolName.Memory);
 		const baseAgentInstructions = <>
 			<SystemMessage>
 				You are an expert AI programming assistant, working with a user in the VS Code editor.<br />
@@ -122,11 +123,12 @@ export class AgentPrompt extends PromptElement<AgentPromptProps> {
 				<SafetyRules />
 			</SystemMessage>
 			{instructions}
-			<SystemMessage>
+			{hasMemoryTool && <SystemMessage>
 				<MemoryInstructionsPrompt />
-			</SystemMessage>
+			</SystemMessage>}
 		</>;
 		const isAutopilot = this.props.promptContext.request?.permissionLevel === 'autopilot';
+		const isVoiceModeInput = this.props.promptContext.request?.isVoiceModeInput && !this.props.promptContext.request.subAgentInvocationId;
 		const sessionResource = this.props.promptContext.request?.sessionResource;
 		const sessionId = sessionResource ? sessionResourceToId(sessionResource) : undefined;
 		const debugTargetSessionIds = extractDebugTargetSessionIds([...this.props.promptContext.chatVariables].map(v => v.reference));
@@ -138,6 +140,11 @@ export class AgentPrompt extends PromptElement<AgentPromptProps> {
 			{isAutopilot && <SystemMessage priority={80}>
 				When you have fully completed the task, call the task_complete tool to signal that you are done.<br />
 				IMPORTANT: Before calling task_complete, you MUST provide a brief text summary of what was accomplished in your message. The task is not complete until both the summary and the task_complete call are present.
+			</SystemMessage>}
+			{isVoiceModeInput && <SystemMessage priority={80}>
+				Voice Mode is active, and you are GitHub Copilot speaking directly to the user. Keep the final response concise and easy to understand aloud. Do not expose internal reasoning.<br />
+				You MUST call the report_voice_progress tool in the same response as your first real work tool calls, using investigating before reading or searching. Call it again at later meaningful stage changes, not for every operation, and in parallel with actual work when possible. Use planning when deciding the approach, editing while making changes, validating while running tests, builds, lint, or checks, and recovering after a concrete failure or change of approach.<br />
+				Each summary must be a concise factual update in plain speech, at most 240 characters, with no markdown, paths, commands, identifiers, secrets, reasoning, or raw source and tool output. Do not repeat the acknowledgement or final response. Questions, confirmations, questionnaires, and the final response use their existing structured flows instead.
 			</SystemMessage>}
 			{templateVariablesContext.length > 0 && <SystemMessage>{templateVariablesContext}</SystemMessage>}
 			<UserMessage>
@@ -259,7 +266,7 @@ export class AgentPrompt extends PromptElement<AgentPromptProps> {
 		if (!firstTurn) {
 			return undefined;
 		}
-		const variable = this.props.promptContext.chatVariables.find(isCustomizationsIndex);
+		const variable = this.props.promptContext.chatVariables.find(v => isCustomizationsIndex(v.reference));
 		const currentValue = variable && typeof variable.value === 'string' ? variable.value : undefined;
 		const currentToolReferences = variable?.reference.toolReferences;
 
@@ -342,6 +349,7 @@ interface GlobalAgentContextProps extends BasePromptElementProps {
  */
 class GlobalAgentContext extends PromptElement<GlobalAgentContextProps> {
 	render() {
+		const hasMemoryTool = !!this.props.availableTools?.find(tool => tool.name === ToolName.Memory);
 		return <UserMessage>
 			<Tag name='environment_info'>
 				<UserOSPrompt />
@@ -354,7 +362,7 @@ class GlobalAgentContext extends PromptElement<GlobalAgentContextProps> {
 				<AgentMultirootWorkspaceStructure maxSize={2000} excludeDotFiles={true} availableTools={this.props.availableTools} workingDir={this.props.workingDir} />
 			</Tag>
 			<UserPreferences flexGrow={7} priority={800} />
-			{this.props.isNewChat && <MemoryContextPrompt sessionResource={this.props.sessionResource} />}
+			{this.props.isNewChat && hasMemoryTool && <MemoryContextPrompt sessionResource={this.props.sessionResource} />}
 			<DeferredToolListReminder availableTools={this.props.availableTools} />
 			{this.props.enableCacheBreakpoints && <cacheBreakpoint type={CacheType} />}
 		</UserMessage>;
@@ -492,6 +500,7 @@ export class AgentUserMessage extends PromptElement<AgentUserMessageProps> {
 		const hasTerminalTool = !!this.props.availableTools?.find(tool => tool.name === ToolName.CoreRunInTerminal);
 		const hasToolsToEditNotebook = hasCreateFileTool || hasEditNotebookTool || hasReplaceStringTool || hasApplyPatchTool || hasEditFileTool;
 		const hasTodoTool = !!this.props.availableTools?.find(tool => tool.name === ToolName.CoreManageTodoList);
+		const hasMemoryTool = !!this.props.availableTools?.find(tool => tool.name === ToolName.Memory);
 
 		const userQueryTagName = this.props.userQueryTagName ?? 'userRequest';
 		const ReminderInstructionsClass = this.props.ReminderInstructionsClass ?? DefaultReminderInstructions;
@@ -501,6 +510,7 @@ export class AgentUserMessage extends PromptElement<AgentUserMessageProps> {
 			hasEditFileTool,
 			hasReplaceStringTool,
 			hasMultiReplaceStringTool,
+			hasMemoryTool,
 		};
 		const ToolReferencesHintClass = this.props.ToolReferencesHintClass ?? DefaultToolReferencesHint;
 		const toolReferencesHintProps: ToolReferencesHintProps = {
@@ -597,7 +607,9 @@ class CurrentDatePrompt extends PromptElement<BasePromptElementProps> {
 	}
 
 	async render(state: void, sizing: PromptSizing) {
-		const dateStr = new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+		// Use the local date in ISO 8601 format (no localized words) so the prompt is not affected by the user's system language (issue #309008)
+		const now = new Date();
+		const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 		// Only include current date when not running simulations, since if we generate cache entries with the current date, the cache will be invalidated every day
 		return (
 			!this.envService.isSimulation() && <>The current date is {dateStr}.</>
@@ -680,7 +692,7 @@ class SkillAdherenceReminder extends PromptElement<SkillAdherenceReminderProps> 
 
 	async render() {
 		// Check if any skills are available from the instruction index
-		const indexVariable = this.props.chatVariables.find(isCustomizationsIndex);
+		const indexVariable = this.props.chatVariables.find(p => isCustomizationsIndex(p.reference));
 		if (!indexVariable || !isString(indexVariable.value)) {
 			return undefined;
 		}

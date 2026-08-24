@@ -27,6 +27,10 @@
 			{
 				"command": "smoketest.openCopilotCliChat",
 				"title": "Smoke Test: Open CLI Test Session"
+			},
+			{
+				"command": "smoketest.openLocalChat",
+				"title": "Smoke Test: Open Local Test Session"
 			}
 		]
 	}

@@ -5,34 +5,47 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { changesetReducer, sessionReducer } from '../../common/state/protocol/reducers.js';
+import { sortCustomizationEnablement, withCustomizationEnablement } from '../../common/customizationEnablement.js';
+import { changesetReducer, chatReducer, sessionReducer } from '../../common/state/protocol/reducers.js';
+import { ChatInputRequestPurpose, withChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { ChangesetStatus, CustomizationStatus, SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, SessionLifecycle, SessionStatus, ToolCallConfirmationReason, type ChangesetState, type CustomizationAgentRef, type CustomizationRef, type SessionState } from '../../common/state/sessionState.js';
+import { ChangesetStatus, ChangesetOperationStatus, CustomizationLoadStatus, MessageKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ChatOriginKind, SessionLifecycle, SessionStatus, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ResponsePartKind, ToolCallStatus, TurnState, type AgentCustomization, type ChangesetState, type Customization, type PluginCustomization, type ChatState, type SessionState } from '../../common/state/sessionState.js';
+import { CustomizationEnablementKind, CustomizationType, McpServerStatus, ToolCallContributorKind, type ToolCallContributor } from '../../common/state/protocol/state.js';
 
 function makeSession(): SessionState {
 	return {
-		summary: {
-			resource: 'copilot:/test',
-			provider: 'copilot',
-			title: 'Test',
-			status: SessionStatus.Idle,
-			createdAt: Date.now(),
-			modifiedAt: Date.now(),
-			project: { uri: 'file:///test-project', displayName: 'Test Project' },
-		},
+		provider: 'copilot',
+		title: 'Test',
+		status: SessionStatus.Idle,
+		project: { uri: 'file:///test-project', displayName: 'Test Project' },
 		lifecycle: SessionLifecycle.Ready,
-		turns: [],
+		activeClients: [],
+		chats: [],
 	};
 }
 
-function withActiveTurnAndToolCall(state: SessionState): SessionState {
-	state = sessionReducer(state, {
-		type: ActionType.SessionTurnStarted,
+function makeChat(): ChatState {
+	const now = new Date(Date.now()).toISOString();
+	return {
+		resource: 'ahp-chat://test',
+		title: 'Test',
+		status: SessionStatus.Idle,
+		modifiedAt: now,
+		origin: { kind: ChatOriginKind.User },
+		turns: [],
+		activeTurn: undefined,
+	};
+}
+
+function withActiveTurnAndToolCall(state: ChatState): ChatState {
+	state = chatReducer(state, {
+		type: ActionType.ChatTurnStarted,
 		turnId: 'turn-1',
-		userMessage: { text: 'hello' },
+		startedAt: '2025-01-01T00:00:00.000Z',
+		message: { text: 'hello', origin: { kind: MessageKind.User } },
 	});
-	state = sessionReducer(state, {
-		type: ActionType.SessionToolCallStart,
+	state = chatReducer(state, {
+		type: ActionType.ChatToolCallStart,
 		turnId: 'turn-1',
 		toolCallId: 'tc-1',
 		toolName: 'readFile',
@@ -41,31 +54,81 @@ function withActiveTurnAndToolCall(state: SessionState): SessionState {
 	return state;
 }
 
-suite('sessionReducer – summaryStatus with tool call confirmations and input requests', () => {
+suite('chatReducer – summaryStatus with tool call confirmations and input requests', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('SessionStatus is InputNeeded when a tool call is PendingConfirmation', () => {
-		let state = withActiveTurnAndToolCall(makeSession());
+	test('preserves turn start timestamp and duration after completion', () => {
+		let state = chatReducer(makeChat(), {
+			type: ActionType.ChatTurnStarted,
+			turnId: 'turn-1',
+			startedAt: '2025-01-01T00:00:00.000Z',
+			message: { text: 'hello', origin: { kind: MessageKind.User } },
+		});
+		const activeStartedAt = state.activeTurn?.startedAt;
+		state = chatReducer(state, {
+			type: ActionType.ChatTurnComplete,
+			turnId: 'turn-1',
+			duration: 150_000,
+		});
+
+		assert.deepStrictEqual({
+			activeStartedAt,
+			completedStartedAt: state.turns[0].startedAt,
+			duration: state.turns[0].duration,
+		}, {
+			activeStartedAt: '2025-01-01T00:00:00.000Z',
+			completedStartedAt: '2025-01-01T00:00:00.000Z',
+			duration: 150_000,
+		});
+	});
+
+	test('clamps negative terminal duration', () => {
+		const active = chatReducer(makeChat(), {
+			type: ActionType.ChatTurnStarted,
+			turnId: 'turn-1',
+			startedAt: '2025-01-01T00:00:00.000Z',
+			message: { text: 'hello', origin: { kind: MessageKind.User } },
+		});
+		const afterNegativeDuration = chatReducer(active, {
+			type: ActionType.ChatTurnComplete,
+			turnId: 'turn-1',
+			duration: -5,
+		});
+
+		assert.deepStrictEqual(afterNegativeDuration.turns[0], {
+			id: 'turn-1',
+			startedAt: '2025-01-01T00:00:00.000Z',
+			duration: 0,
+			message: { text: 'hello', origin: { kind: MessageKind.User } },
+			responseParts: [],
+			usage: undefined,
+			state: TurnState.Complete,
+			error: undefined,
+		});
+	});
+
+	test('Chat status is InputNeeded when a tool call is PendingConfirmation', () => {
+		let state = withActiveTurnAndToolCall(makeChat());
 
 		// Transition to PendingConfirmation (no `confirmed` field)
-		state = sessionReducer(state, {
-			type: ActionType.SessionToolCallReady,
+		state = chatReducer(state, {
+			type: ActionType.ChatToolCallReady,
 			turnId: 'turn-1',
 			toolCallId: 'tc-1',
 			invocationMessage: 'Read file?',
 			toolInput: '/foo.ts',
 		});
 
-		assert.strictEqual(state.summary.status, SessionStatus.InputNeeded);
+		assert.strictEqual(state.status, SessionStatus.InputNeeded);
 	});
 
-	test('SessionStatus is InputNeeded when a tool call is PendingResultConfirmation', () => {
-		let state = withActiveTurnAndToolCall(makeSession());
+	test('Chat status is InputNeeded when a tool call is PendingResultConfirmation', () => {
+		let state = withActiveTurnAndToolCall(makeChat());
 
 		// Transition to Running first
-		state = sessionReducer(state, {
-			type: ActionType.SessionToolCallReady,
+		state = chatReducer(state, {
+			type: ActionType.ChatToolCallReady,
 			turnId: 'turn-1',
 			toolCallId: 'tc-1',
 			invocationMessage: 'Read file',
@@ -74,8 +137,8 @@ suite('sessionReducer – summaryStatus with tool call confirmations and input r
 		});
 
 		// Then complete with requiresResultConfirmation
-		state = sessionReducer(state, {
-			type: ActionType.SessionToolCallComplete,
+		state = chatReducer(state, {
+			type: ActionType.ChatToolCallComplete,
 			turnId: 'turn-1',
 			toolCallId: 'tc-1',
 			requiresResultConfirmation: true,
@@ -85,100 +148,400 @@ suite('sessionReducer – summaryStatus with tool call confirmations and input r
 			},
 		});
 
-		assert.strictEqual(state.summary.status, SessionStatus.InputNeeded);
+		assert.strictEqual(state.status, SessionStatus.InputNeeded);
 	});
 
 	test('SessionStatus transitions from InputNeeded to InProgress when tool call is confirmed', () => {
-		let state = withActiveTurnAndToolCall(makeSession());
+		let state = withActiveTurnAndToolCall(makeChat());
 
 		// Transition to PendingConfirmation
-		state = sessionReducer(state, {
-			type: ActionType.SessionToolCallReady,
+		state = chatReducer(state, {
+			type: ActionType.ChatToolCallReady,
 			turnId: 'turn-1',
 			toolCallId: 'tc-1',
 			invocationMessage: 'Read file?',
 			toolInput: '/foo.ts',
 		});
-		assert.strictEqual(state.summary.status, SessionStatus.InputNeeded);
+		assert.strictEqual(state.status, SessionStatus.InputNeeded);
 
 		// Confirm it
-		state = sessionReducer(state, {
-			type: ActionType.SessionToolCallConfirmed,
+		state = chatReducer(state, {
+			type: ActionType.ChatToolCallConfirmed,
 			turnId: 'turn-1',
 			toolCallId: 'tc-1',
 			approved: true,
 			confirmed: ToolCallConfirmationReason.UserAction,
 		});
 
-		assert.strictEqual(state.summary.status, SessionStatus.InProgress);
+		assert.strictEqual(state.status, SessionStatus.InProgress);
 	});
 
-	test('SessionStatus is InputNeeded with inputRequests', () => {
-		let state = withActiveTurnAndToolCall(makeSession());
+	test('Chat status is InputNeeded with an unresolved input request response part', () => {
+		let state = withActiveTurnAndToolCall(makeChat());
 
-		state = sessionReducer(state, {
-			type: ActionType.SessionInputRequested,
-			request: {
+		state = chatReducer(state, {
+			type: ActionType.ChatInputRequested,
+			request: withChatInputRequestPurpose({
 				id: 'req-1',
 				message: 'What is your name?',
 				questions: [{
-					kind: SessionInputQuestionKind.Text,
+					kind: ChatInputQuestionKind.Text,
 					id: 'q-1',
 					message: 'What is your name?',
 					required: true
-				}]
-			},
+				}],
+			}, ChatInputRequestPurpose.AskUser),
 		});
 
-		assert.strictEqual(state.summary.status, SessionStatus.InputNeeded);
+		assert.deepStrictEqual({
+			status: state.status,
+			responsePart: state.activeTurn?.responseParts.at(-1),
+		}, {
+			status: SessionStatus.InputNeeded,
+			responsePart: {
+				kind: ResponsePartKind.InputRequest,
+				request: withChatInputRequestPurpose({
+					id: 'req-1',
+					message: 'What is your name?',
+					questions: [{
+						kind: ChatInputQuestionKind.Text,
+						id: 'q-1',
+						message: 'What is your name?',
+						required: true,
+					}],
+				}, ChatInputRequestPurpose.AskUser),
+			},
+		});
 	});
 
-	test('SessionStatus transitions from InputNeeded to InProgress after SessionInputCompleted', () => {
-		let state = withActiveTurnAndToolCall(makeSession());
+	test('ChatInputRequested replacement preserves purpose and synchronized answers through completion', () => {
+		let state = withActiveTurnAndToolCall(makeChat());
+		state = chatReducer(state, {
+			type: ActionType.ChatInputRequested,
+			request: withChatInputRequestPurpose({
+				id: 'req-1',
+				questions: [{ kind: ChatInputQuestionKind.Text, id: 'q-1', message: 'First?' }],
+			}, ChatInputRequestPurpose.AskUser),
+		});
+		state = chatReducer(state, {
+			type: ActionType.ChatInputAnswerChanged,
+			requestId: 'req-1',
+			questionId: 'q-1',
+			answer: { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Text, value: 'answer' } },
+		});
+		state = chatReducer(state, {
+			type: ActionType.ChatInputRequested,
+			request: withChatInputRequestPurpose({
+				id: 'req-1',
+				questions: [{ kind: ChatInputQuestionKind.Text, id: 'q-1', message: 'Updated?' }],
+			}, ChatInputRequestPurpose.AskUser),
+		});
+		state = chatReducer(state, {
+			type: ActionType.ChatInputCompleted,
+			requestId: 'req-1',
+			response: ChatInputResponseKind.Accept,
+		});
+
+		assert.deepStrictEqual(state.activeTurn?.responseParts.at(-1), {
+			kind: ResponsePartKind.InputRequest,
+			request: withChatInputRequestPurpose({
+				id: 'req-1',
+				questions: [{ kind: ChatInputQuestionKind.Text, id: 'q-1', message: 'Updated?' }],
+				answers: {
+					'q-1': { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Text, value: 'answer' } },
+				},
+			}, ChatInputRequestPurpose.AskUser),
+			response: ChatInputResponseKind.Accept,
+		});
+	});
+
+	test('ChatInputRequested without an active turn is ignored', () => {
+		const state = chatReducer(makeChat(), {
+			type: ActionType.ChatInputRequested,
+			request: { id: 'req-1', questions: [] },
+		});
+
+		assert.deepStrictEqual({
+			status: state.status,
+			activeTurn: state.activeTurn,
+		}, {
+			status: SessionStatus.Idle,
+			activeTurn: undefined,
+		});
+	});
+
+	test('SessionStatus transitions from InputNeeded to InProgress after ChatInputCompleted', () => {
+		let state = withActiveTurnAndToolCall(makeChat());
 
 		// Add an input request
-		state = sessionReducer(state, {
-			type: ActionType.SessionInputRequested,
-			request: {
+		state = chatReducer(state, {
+			type: ActionType.ChatInputRequested,
+			request: withChatInputRequestPurpose({
 				id: 'req-1',
 				message: 'What is your name?',
 				questions: [{
-					kind: SessionInputQuestionKind.Text,
+					kind: ChatInputQuestionKind.Text,
 					id: 'q-1',
 					message: 'What is your name?',
 					required: true
-				}]
-			},
+				}],
+			}, ChatInputRequestPurpose.AskUser),
 		});
-		assert.strictEqual(state.summary.status, SessionStatus.InputNeeded);
+		assert.strictEqual(state.status, SessionStatus.InputNeeded);
 
 		// Complete the input request
-		state = sessionReducer(state, {
-			type: ActionType.SessionInputCompleted,
+		state = chatReducer(state, {
+			type: ActionType.ChatInputCompleted,
 			requestId: 'req-1',
-			response: SessionInputResponseKind.Accept,
-			answers: { 'q-1': { state: SessionInputAnswerState.Submitted, value: { kind: SessionInputAnswerValueKind.Text, value: 'Alice' } } },
+			response: ChatInputResponseKind.Accept,
+			answers: { 'q-1': { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Text, value: 'Alice' } } },
 		});
 
-		assert.strictEqual(state.summary.status, SessionStatus.InProgress);
+		assert.deepStrictEqual({
+			status: state.status,
+			responsePart: state.activeTurn?.responseParts.at(-1),
+		}, {
+			status: SessionStatus.InProgress,
+			responsePart: {
+				kind: ResponsePartKind.InputRequest,
+				request: withChatInputRequestPurpose({
+					id: 'req-1',
+					message: 'What is your name?',
+					questions: [{
+						kind: ChatInputQuestionKind.Text,
+						id: 'q-1',
+						message: 'What is your name?',
+						required: true,
+					}],
+					answers: {
+						'q-1': {
+							state: ChatInputAnswerState.Submitted,
+							value: { kind: ChatInputAnswerValueKind.Text, value: 'Alice' },
+						},
+					},
+				}, ChatInputRequestPurpose.AskUser),
+				response: ChatInputResponseKind.Accept,
+			},
+		});
 	});
 
-	test('Tool call transition to PendingConfirmation updates summary status to InputNeeded', () => {
-		let state = withActiveTurnAndToolCall(makeSession());
+	test('Tool call transition to PendingConfirmation updates chat status to InputNeeded', () => {
+		let state = withActiveTurnAndToolCall(makeChat());
 
-		// After SessionToolCallStart, status should be InProgress (tool is Streaming)
-		assert.strictEqual(state.summary.status, SessionStatus.InProgress);
+		// After ChatToolCallStart, status should be InProgress (tool is Streaming)
+		assert.strictEqual(state.status, SessionStatus.InProgress);
 
-		// Transition to PendingConfirmation via SessionToolCallReady (no confirmed)
-		state = sessionReducer(state, {
-			type: ActionType.SessionToolCallReady,
+		// Transition to PendingConfirmation via ChatToolCallReady (no confirmed)
+		state = chatReducer(state, {
+			type: ActionType.ChatToolCallReady,
 			turnId: 'turn-1',
 			toolCallId: 'tc-1',
 			invocationMessage: 'Read file?',
 			toolInput: '/foo.ts',
 		});
 
-		assert.strictEqual(state.summary.status, SessionStatus.InputNeeded);
+		assert.strictEqual(state.status, SessionStatus.InputNeeded);
+	});
+
+	test('ChatToolCallReady preserves action metadata on pending and running tool calls', () => {
+		const state = withActiveTurnAndToolCall(makeChat());
+		const pending = chatReducer(state, {
+			type: ActionType.ChatToolCallReady,
+			turnId: 'turn-1',
+			toolCallId: 'tc-1',
+			invocationMessage: 'Read file?',
+			toolInput: '/foo.ts',
+			_meta: { autoApproveBySetting: true },
+		});
+		const running = chatReducer(state, {
+			type: ActionType.ChatToolCallReady,
+			turnId: 'turn-1',
+			toolCallId: 'tc-1',
+			invocationMessage: 'Read file',
+			toolInput: '/foo.ts',
+			confirmed: ToolCallConfirmationReason.NotNeeded,
+			_meta: { autoApproveBySetting: true },
+		});
+
+		const getToolCall = (s: ChatState) => {
+			const part = s.activeTurn?.responseParts.find(part => part.kind === ResponsePartKind.ToolCall && part.toolCall.toolCallId === 'tc-1');
+			assert.ok(part?.kind === ResponsePartKind.ToolCall);
+			return part.toolCall;
+		};
+		assert.deepStrictEqual([
+			{ status: getToolCall(pending).status, meta: getToolCall(pending)._meta },
+			{ status: getToolCall(running).status, meta: getToolCall(running)._meta },
+		], [
+			{ status: ToolCallStatus.PendingConfirmation, meta: { autoApproveBySetting: true } },
+			{ status: ToolCallStatus.Running, meta: { autoApproveBySetting: true } },
+		]);
+	});
+
+	test('ChatToolCallDelta can update the invocation message without exposing partial input', () => {
+		let state = chatReducer(makeChat(), {
+			type: ActionType.ChatTurnStarted,
+			turnId: 'turn-1',
+			startedAt: '2025-01-01T00:00:00.000Z',
+			message: { text: 'hello', origin: { kind: MessageKind.User } },
+		});
+		state = chatReducer(state, {
+			type: ActionType.ChatToolCallStart,
+			turnId: 'turn-1',
+			toolCallId: 'tc-1',
+			toolName: 'edit',
+			displayName: 'Edit File',
+		});
+		state = chatReducer(state, {
+			type: ActionType.ChatToolCallDelta,
+			turnId: 'turn-1',
+			toolCallId: 'tc-1',
+			content: '',
+			invocationMessage: 'Replacing 2 lines with 3 lines',
+		});
+
+		const part = state.activeTurn?.responseParts.find(part => part.kind === ResponsePartKind.ToolCall);
+		assert.ok(part?.kind === ResponsePartKind.ToolCall);
+		assert.deepStrictEqual({
+			invocationMessage: part.toolCall.status === ToolCallStatus.Streaming ? part.toolCall.invocationMessage : undefined,
+			partialInput: part.toolCall.status === ToolCallStatus.Streaming ? part.toolCall.partialInput : undefined,
+		}, {
+			invocationMessage: 'Replacing 2 lines with 3 lines',
+			partialInput: '',
+		});
+	});
+
+	test('ChatToolCallReady replaces provisional contributor and intention', () => {
+		let state = chatReducer(makeChat(), {
+			type: ActionType.ChatTurnStarted,
+			turnId: 'turn-1',
+			startedAt: '2025-01-01T00:00:00.000Z',
+			message: { text: 'hello', origin: { kind: MessageKind.User } },
+		});
+		state = chatReducer(state, {
+			type: ActionType.ChatToolCallStart,
+			turnId: 'turn-1',
+			toolCallId: 'tc-1',
+			toolName: 'mcp_tool',
+			displayName: 'MCP Tool',
+			intention: 'Query',
+		});
+		state = chatReducer(state, {
+			type: ActionType.ChatToolCallReady,
+			turnId: 'turn-1',
+			toolCallId: 'tc-1',
+			contributor: { kind: ToolCallContributorKind.MCP, customizationId: 'mcp-1' },
+			intention: 'Query project metadata',
+			invocationMessage: 'Querying project metadata',
+			toolInput: '{"query":"metadata"}',
+			confirmed: ToolCallConfirmationReason.NotNeeded,
+		});
+
+		const part = state.activeTurn?.responseParts.find(part => part.kind === ResponsePartKind.ToolCall);
+		assert.ok(part?.kind === ResponsePartKind.ToolCall);
+		assert.deepStrictEqual({
+			status: part.toolCall.status,
+			contributor: part.toolCall.contributor,
+			intention: part.toolCall.intention,
+		}, {
+			status: ToolCallStatus.Running,
+			contributor: { kind: ToolCallContributorKind.MCP, customizationId: 'mcp-1' },
+			intention: 'Query project metadata',
+		});
+	});
+
+	test('ChatToolCallReady cannot change client execution ownership', () => {
+		const readyContributor = (startContributor: ToolCallContributor | undefined, contributor: ToolCallContributor) => {
+			let state = chatReducer(makeChat(), {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: 'hello', origin: { kind: MessageKind.User } },
+			});
+			state = chatReducer(state, {
+				type: ActionType.ChatToolCallStart,
+				turnId: 'turn-1',
+				toolCallId: 'tc-1',
+				toolName: 'tool',
+				displayName: 'Tool',
+				contributor: startContributor,
+			});
+			state = chatReducer(state, {
+				type: ActionType.ChatToolCallReady,
+				turnId: 'turn-1',
+				toolCallId: 'tc-1',
+				contributor,
+				invocationMessage: 'Running tool',
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+			});
+			const part = state.activeTurn?.responseParts.find(part => part.kind === ResponsePartKind.ToolCall);
+			assert.ok(part?.kind === ResponsePartKind.ToolCall);
+			return part.toolCall.contributor;
+		};
+
+		assert.deepStrictEqual([
+			readyContributor(undefined, { kind: ToolCallContributorKind.Client, clientId: 'client-1' }),
+			readyContributor(
+				{ kind: ToolCallContributorKind.MCP, customizationId: 'mcp-1' },
+				{ kind: ToolCallContributorKind.Client, clientId: 'client-1' },
+			),
+			readyContributor(
+				{ kind: ToolCallContributorKind.Client, clientId: 'client-1' },
+				{ kind: ToolCallContributorKind.Client, clientId: 'client-2' },
+			),
+			readyContributor(
+				{ kind: ToolCallContributorKind.Client, clientId: 'client-1' },
+				{ kind: ToolCallContributorKind.Client, clientId: 'client-1' },
+			),
+		], [
+			undefined,
+			{ kind: ToolCallContributorKind.MCP, customizationId: 'mcp-1' },
+			{ kind: ToolCallContributorKind.Client, clientId: 'client-1' },
+			{ kind: ToolCallContributorKind.Client, clientId: 'client-1' },
+		]);
+	});
+
+	test('ChatToolCallReady updates an asynchronous judge result on a pending confirmation', () => {
+		const loading = chatReducer(withActiveTurnAndToolCall(makeChat()), {
+			type: ActionType.ChatToolCallReady,
+			turnId: 'turn-1',
+			toolCallId: 'tc-1',
+			invocationMessage: 'Read file?',
+			confirmationTitle: 'Read file',
+			toolInput: '/foo.ts',
+			riskAssessment: {
+				kind: ToolCallRiskAssessmentKind.Judge,
+				status: ToolCallRiskAssessmentStatus.Loading,
+			},
+		});
+		const complete = chatReducer(loading, {
+			type: ActionType.ChatToolCallReady,
+			turnId: 'turn-1',
+			toolCallId: 'tc-1',
+			invocationMessage: 'Read file?',
+			riskAssessment: {
+				kind: ToolCallRiskAssessmentKind.Judge,
+				status: ToolCallRiskAssessmentStatus.Complete,
+				reason: 'This reads a sensitive file.',
+				safety: 0.2,
+			},
+		});
+		const part = complete.activeTurn?.responseParts.find(part => part.kind === ResponsePartKind.ToolCall && part.toolCall.toolCallId === 'tc-1');
+		assert.ok(part?.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.PendingConfirmation);
+
+		assert.deepStrictEqual({
+			confirmationTitle: part.toolCall.confirmationTitle,
+			toolInput: part.toolCall.toolInput,
+			riskAssessment: part.toolCall.riskAssessment,
+		}, {
+			confirmationTitle: 'Read file',
+			toolInput: '/foo.ts',
+			riskAssessment: {
+				kind: ToolCallRiskAssessmentKind.Judge,
+				status: ToolCallRiskAssessmentStatus.Complete,
+				reason: 'This reads a sensitive file.',
+				safety: 0.2,
+			},
+		});
 	});
 });
 
@@ -226,13 +589,13 @@ suite('changesetReducer', () => {
 	});
 
 	test('ChangesetOperationsChanged with array replaces operations', () => {
-		const ops = [{ id: 'stage', label: 'Stage', scopes: [] }];
+		const ops = [{ id: 'stage', label: 'Stage', scopes: [], status: ChangesetOperationStatus.Idle }];
 		const next = changesetReducer(ready, { type: ActionType.ChangesetOperationsChanged, operations: ops });
 		assert.deepStrictEqual(next.operations, ops);
 	});
 
 	test('ChangesetOperationsChanged with undefined strips operations', () => {
-		const seeded = changesetReducer(ready, { type: ActionType.ChangesetOperationsChanged, operations: [{ id: 'stage', label: 'Stage', scopes: [] }] });
+		const seeded = changesetReducer(ready, { type: ActionType.ChangesetOperationsChanged, operations: [{ id: 'stage', label: 'Stage', scopes: [], status: ChangesetOperationStatus.Idle }] });
 		const next = changesetReducer(seeded, { type: ActionType.ChangesetOperationsChanged, operations: undefined });
 		assert.strictEqual(next.operations, undefined);
 	});
@@ -249,87 +612,149 @@ suite('changesetReducer', () => {
 	});
 });
 
-suite('sessionReducer – SessionCustomizationUpdated.agents', () => {
+suite('sessionReducer – SessionCustomizationUpdated', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	const ref: CustomizationRef = { uri: 'file:///plugin-a', displayName: 'Plugin A' };
-	const agentA: CustomizationAgentRef = { uri: 'file:///plugin-a/agents/helper.md', name: 'helper' };
-	const agentB: CustomizationAgentRef = { uri: 'file:///plugin-a/agents/reviewer.md', name: 'reviewer', description: 'reviews code' };
+	const agentA: AgentCustomization = { type: CustomizationType.Agent, id: 'file:///plugin-a/agents/helper.md', uri: 'file:///plugin-a/agents/helper.md', name: 'helper' };
+	const agentB: AgentCustomization = { type: CustomizationType.Agent, id: 'file:///plugin-a/agents/reviewer.md', uri: 'file:///plugin-a/agents/reviewer.md', name: 'reviewer', description: 'reviews code' };
 
-	function withCustomization(status: CustomizationStatus): SessionState {
-		return sessionReducer(makeSession(), {
-			type: ActionType.SessionCustomizationUpdated,
-			customization: ref,
-			enabled: true,
-			status,
-		});
+	function pluginA(extra: Partial<PluginCustomization> = {}): Customization {
+		return {
+			type: CustomizationType.Plugin,
+			id: 'file:///plugin-a',
+			uri: 'file:///plugin-a',
+			name: 'Plugin A',
+			...extra,
+		};
 	}
 
-	test('insert: persists agents from the action onto SessionCustomization', () => {
+	test('insert: appends a new top-level customization with its children', () => {
+		const customization = pluginA({ load: { kind: CustomizationLoadStatus.Loaded }, children: [agentA, agentB] });
 		const state = sessionReducer(makeSession(), {
 			type: ActionType.SessionCustomizationUpdated,
-			customization: ref,
-			enabled: true,
-			status: CustomizationStatus.Loaded,
-			agents: [agentA, agentB],
+			customization,
 		});
 
-		assert.deepStrictEqual(state.customizations, [{
-			customization: ref,
-			enabled: true,
-			status: CustomizationStatus.Loaded,
-			agents: [agentA, agentB],
-		}]);
+		assert.deepStrictEqual(state.customizations, [customization]);
 	});
 
-	test('update: replaces previously-set agents when the action carries a new array', () => {
-		const seeded = sessionReducer(withCustomization(CustomizationStatus.Loading), {
+	test('update: replaces the matching entry entirely', () => {
+		const initial = pluginA({ load: { kind: CustomizationLoadStatus.Loading }, children: [agentA] });
+		const seeded = sessionReducer(makeSession(), {
 			type: ActionType.SessionCustomizationUpdated,
-			customization: ref,
-			agents: [agentA],
+			customization: initial,
 		});
+		const updated = pluginA({ load: { kind: CustomizationLoadStatus.Loaded }, children: [agentB] });
 		const next = sessionReducer(seeded, {
 			type: ActionType.SessionCustomizationUpdated,
-			customization: ref,
-			agents: [agentB],
+			customization: updated,
 		});
 
-		assert.deepStrictEqual(next.customizations?.[0].agents, [agentB]);
+		assert.deepStrictEqual(next.customizations, [updated]);
+	});
+});
+
+suite('customization enablement', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('sorts stably and replaces decisions for one scope', () => {
+		const workspaceFirst = { kind: CustomizationEnablementKind.Workspace, uri: 'file:///one', enabled: false } as const;
+		const workspaceSecond = { kind: CustomizationEnablementKind.Workspace, uri: 'file:///two', enabled: true } as const;
+		const global = { kind: CustomizationEnablementKind.Global, enabled: false } as const;
+		const session = { kind: CustomizationEnablementKind.Session, enabled: true } as const;
+
+		assert.deepStrictEqual(
+			withCustomizationEnablement([workspaceFirst, global, workspaceSecond, session], CustomizationEnablementKind.Workspace, { kind: CustomizationEnablementKind.Workspace, uri: 'file:///three', enabled: false }),
+			[session, { kind: CustomizationEnablementKind.Workspace, uri: 'file:///three', enabled: false }, global],
+		);
+		assert.deepStrictEqual(
+			sortCustomizationEnablement([workspaceFirst, global, workspaceSecond, session]),
+			[session, workspaceFirst, workspaceSecond, global],
+		);
 	});
 
-	test('update: preserves existing agents when the action omits the field', () => {
-		const seeded = sessionReducer(withCustomization(CustomizationStatus.Loading), {
-			type: ActionType.SessionCustomizationUpdated,
-			customization: ref,
-			agents: [agentA],
+	test('replaces enablement for plugins and MCP servers while retaining child enablement transitions', () => {
+		const plugin: PluginCustomization = {
+			type: CustomizationType.Plugin,
+			id: 'plugin',
+			uri: 'file:///plugin',
+			name: 'Plugin',
+			children: [{
+				type: CustomizationType.Agent,
+				id: 'agent',
+				uri: 'file:///plugin/agent.md',
+				name: 'Agent',
+			}],
+		};
+		const mcp = {
+			type: CustomizationType.McpServer,
+			id: 'mcp',
+			uri: 'file:///mcp.json',
+			name: 'MCP',
+			state: { kind: McpServerStatus.Stopped },
+		} as const;
+		const seeded = { ...makeSession(), customizations: [plugin, mcp] };
+		const withSet = sessionReducer(seeded, {
+			type: ActionType.SessionCustomizationToggled,
+			id: 'plugin',
+			enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
 		});
-		const next = sessionReducer(seeded, {
-			type: ActionType.SessionCustomizationUpdated,
-			customization: ref,
-			status: CustomizationStatus.Loaded,
+		const withMcpSet = sessionReducer(withSet, {
+			type: ActionType.SessionCustomizationToggled,
+			id: 'mcp',
+			enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
+		});
+		const withChange = sessionReducer(withMcpSet, {
+			type: ActionType.SessionCustomizationToggled,
+			id: 'plugin',
+			enablement: [{ kind: CustomizationEnablementKind.Session, enabled: true }],
+		});
+		const withMcpChange = sessionReducer(withChange, {
+			type: ActionType.SessionCustomizationToggled,
+			id: 'mcp',
+			enablement: [{ kind: CustomizationEnablementKind.Session, enabled: true }],
+		});
+		const withClear = sessionReducer(withMcpChange, {
+			type: ActionType.SessionCustomizationToggled,
+			id: 'plugin',
+			enablement: [],
+		});
+		const withMcpClear = sessionReducer(withClear, {
+			type: ActionType.SessionCustomizationToggled,
+			id: 'mcp',
+			enablement: [],
+		});
+		const withChildSet = sessionReducer(withMcpClear, {
+			type: ActionType.SessionCustomizationToggled,
+			id: 'agent',
+			enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
+		});
+		const withChildClear = sessionReducer(withChildSet, {
+			type: ActionType.SessionCustomizationToggled,
+			id: 'agent',
+			enablement: [],
 		});
 
-		assert.deepStrictEqual(next.customizations?.[0], {
-			customization: ref,
-			enabled: true,
-			status: CustomizationStatus.Loaded,
-			agents: [agentA],
-		});
-	});
-
-	test('update: an empty agents array is respected (means "no agents contributed")', () => {
-		const seeded = sessionReducer(withCustomization(CustomizationStatus.Loading), {
-			type: ActionType.SessionCustomizationUpdated,
-			customization: ref,
-			agents: [agentA],
-		});
-		const next = sessionReducer(seeded, {
-			type: ActionType.SessionCustomizationUpdated,
-			customization: ref,
-			agents: [],
-		});
-
-		assert.deepStrictEqual(next.customizations?.[0].agents, []);
+		assert.deepStrictEqual([
+			withSet.customizations,
+			withMcpSet.customizations,
+			withChange.customizations,
+			withMcpChange.customizations,
+			withClear.customizations,
+			withMcpClear.customizations,
+			withChildSet.customizations,
+			withChildClear.customizations,
+		], [
+			[{ ...plugin, enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }] }, mcp],
+			[{ ...plugin, enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }] }, { ...mcp, enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }] }],
+			[{ ...plugin, enablement: [{ kind: CustomizationEnablementKind.Session, enabled: true }] }, { ...mcp, enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }] }],
+			[{ ...plugin, enablement: [{ kind: CustomizationEnablementKind.Session, enabled: true }] }, { ...mcp, enablement: [{ kind: CustomizationEnablementKind.Session, enabled: true }] }],
+			[plugin, { ...mcp, enablement: [{ kind: CustomizationEnablementKind.Session, enabled: true }] }],
+			[plugin, mcp],
+			[{ ...plugin, children: [{ ...plugin.children![0], enabled: false }] }, mcp],
+			[{ ...plugin, children: [{ ...plugin.children![0], enabled: true }] }, mcp],
+		]);
 	});
 });

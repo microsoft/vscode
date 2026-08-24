@@ -5,12 +5,11 @@
 
 import assert from 'assert';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import type { Client, IPCServer } from '../../../base/parts/ipc/common/ipc.js';
 import { NullLogService } from '../../../platform/log/common/log.js';
 import { AgentHostChannel, IAgentHostUpstreamEndpoint, IUpstreamConnection, UnavailableAgentHostChannel } from '../../node/agentHostChannel.js';
-import { IServerLifetimeService } from '../../node/serverLifetimeService.js';
 
 class FakeUpstream extends Disposable implements IUpstreamConnection {
 	private readonly _onFrame = this._register(new Emitter<string>());
@@ -61,13 +60,6 @@ class FakeIPCServer {
 	}
 }
 
-class StubServerLifetimeService implements IServerLifetimeService {
-	declare readonly _serviceBrand: undefined;
-	get hasActiveConsumers(): boolean { return false; }
-	active(_consumer: string) { return toDisposable(() => { }); }
-	delay(): void { }
-}
-
 suite('AgentHostChannel', () => {
 	const ds = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -86,7 +78,6 @@ suite('AgentHostChannel', () => {
 			ipc as unknown as IPCServer<string>,
 			{ host: 'localhost', port: '12345' },
 			new NullLogService(),
-			new StubServerLifetimeService(),
 			factory,
 		));
 		return { channel, upstreams, ipc };
@@ -135,6 +126,94 @@ suite('AgentHostChannel', () => {
 
 		assert.strictEqual(upA.disposed, true);
 		assert.strictEqual(closed, 1);
+	});
+
+	test('resolves a deferred endpoint only when connecting', async () => {
+		const ipc = ds.add(new FakeIPCServer());
+		let resolveCount = 0;
+		const channel = ds.add(new AgentHostChannel<string>(
+			ipc as unknown as IPCServer<string>,
+			async () => {
+				resolveCount++;
+				return { socketPath: 'agent-host.sock' };
+			},
+			new NullLogService(),
+			() => ds.add(new FakeUpstream()),
+		));
+
+		channel.listen('renderer', 'frame');
+		assert.strictEqual(resolveCount, 0);
+
+		await channel.call('renderer', 'connect');
+		assert.strictEqual(resolveCount, 1);
+	});
+
+	test('shares deferred endpoint resolution between renderer contexts', async () => {
+		const ipc = ds.add(new FakeIPCServer());
+		let resolveCount = 0;
+		let resolveEndpoint!: (endpoint: IAgentHostUpstreamEndpoint) => void;
+		const endpoint = new Promise<IAgentHostUpstreamEndpoint>(resolve => resolveEndpoint = resolve);
+		const channel = ds.add(new AgentHostChannel<string>(
+			ipc as unknown as IPCServer<string>,
+			() => {
+				resolveCount++;
+				return endpoint;
+			},
+			new NullLogService(),
+			() => ds.add(new FakeUpstream()),
+		));
+
+		const connect = Promise.all([
+			channel.call('first', 'connect'),
+			channel.call('second', 'connect'),
+		]);
+		await Promise.resolve();
+		assert.strictEqual(resolveCount, 1);
+
+		resolveEndpoint({ socketPath: 'agent-host.sock' });
+		await connect;
+	});
+
+	test('surfaces deferred endpoint resolution failures and allows retry', async () => {
+		const ipc = ds.add(new FakeIPCServer());
+		let resolveCount = 0;
+		const channel = ds.add(new AgentHostChannel<string>(
+			ipc as unknown as IPCServer<string>,
+			async () => {
+				resolveCount++;
+				if (resolveCount === 1) {
+					throw new Error('agent host did not start');
+				}
+				return { socketPath: 'agent-host.sock' };
+			},
+			new NullLogService(),
+			() => ds.add(new FakeUpstream()),
+		));
+
+		await assert.rejects(() => channel.call('renderer', 'connect'), /agent host did not start/);
+		await assert.doesNotReject(() => channel.call('renderer', 'connect'));
+		assert.strictEqual(resolveCount, 2);
+	});
+
+	test('re-resolves the endpoint for later connections', async () => {
+		const ipc = ds.add(new FakeIPCServer());
+		let resolveCount = 0;
+		const channel = ds.add(new AgentHostChannel<string>(
+			ipc as unknown as IPCServer<string>,
+			async () => {
+				resolveCount++;
+				return { socketPath: 'agent-host.sock' };
+			},
+			new NullLogService(),
+			() => ds.add(new FakeUpstream()),
+		));
+
+		await channel.call('first', 'connect');
+		await channel.call('second', 'connect');
+
+		// Resolution is `ensureStarted()` in the lazy server path, so a later
+		// connection must be able to restart a host that has since died.
+		assert.strictEqual(resolveCount, 2);
 	});
 });
 

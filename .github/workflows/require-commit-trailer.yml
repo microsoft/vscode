@@ -1,0 +1,53 @@
+name: Require commit trailer
+
+on:
+  pull_request:
+    branches:
+      - 'release/msrc/*'
+
+permissions: {}
+
+jobs:
+  check-trailer:
+    name: Check for trailer
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          fetch-depth: 1
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Verify PR has a single commit
+        env:
+          COMMIT_COUNT: ${{ github.event.pull_request.commits }}
+        run: |
+          if [ "$COMMIT_COUNT" != "1" ]; then
+            echo "::error::This PR has $COMMIT_COUNT commits. release/msrc/* PRs must contain exactly one commit. Please squash your commits."
+            exit 1
+          fi
+          echo "PR has a single commit."
+      - name: Verify trailer on HEAD commit
+        shell: python
+        run: |
+          import re
+          import subprocess
+          import sys
+
+          sha = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
+          trailers = subprocess.check_output(
+              ['git', 'log', '-1', '--pretty=format:%(trailers:key=Msrc-Case-Id,valueonly=true)', 'HEAD'],
+              text=True,
+          )
+          values = [line.strip() for line in trailers.splitlines() if line.strip()]
+
+          if not values:
+              print(f"::error::Commit {sha} is missing the required 'Msrc-Case-Id' trailer.")
+              print("Add a trailer to the commit message, for example:\n\n    Msrc-Case-Id: 12345\n")
+              sys.exit(1)
+
+          if not all(re.fullmatch(r'\d+', value) for value in values):
+              print(f"::error::Commit {sha} has an invalid 'Msrc-Case-Id' trailer value. Expected a number.")
+              print("Use a numeric case id, for example:\n\n    Msrc-Case-Id: 12345\n")
+              sys.exit(1)
+
+          print(f"Commit {sha} has the required 'Msrc-Case-Id' trailer.")

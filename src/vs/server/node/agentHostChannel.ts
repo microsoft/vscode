@@ -10,14 +10,13 @@
 //
 // The renderer-side counterpart is `AgentHostIpcChannelTransport` in
 // `src/vs/platform/agentHost/browser/`. Together they reuse the existing
-// `RemoteAgentHostProtocolClient` over IPC instead of a raw WebSocket.
+// `AgentHostProtocolClient` over IPC instead of a raw WebSocket.
 
 import { Emitter, Event } from '../../base/common/event.js';
-import { Disposable, IDisposable, MutableDisposable } from '../../base/common/lifecycle.js';
+import { Disposable, IDisposable } from '../../base/common/lifecycle.js';
 import { connectionTokenQueryName } from '../../base/common/network.js';
 import { IPCServer, IServerChannel } from '../../base/parts/ipc/common/ipc.js';
 import { ILogService } from '../../platform/log/common/log.js';
-import { IServerLifetimeService } from './serverLifetimeService.js';
 import type * as wsTypes from 'ws';
 import type * as netTypes from 'net';
 
@@ -34,6 +33,8 @@ export interface IAgentHostUpstreamEndpoint {
 	readonly socketPath?: string;
 	readonly connectionToken?: string;
 }
+
+export type AgentHostUpstreamEndpointResolver = () => Promise<IAgentHostUpstreamEndpoint>;
 
 /**
  * Lazy-loaded `ws` module. Imported once on first connection so renderers
@@ -94,8 +95,88 @@ export class UnavailableAgentHostChannel<TContext> implements IServerChannel<TCo
 /**
  * Default upstream factory: opens an AHP WebSocket to the local agent host.
  */
-const defaultUpstreamFactory = (logService: ILogService, lifetime: IServerLifetimeService): UpstreamConnectionFactory =>
-	(endpoint) => new WebSocketUpstreamConnection(endpoint, logService, lifetime);
+const defaultUpstreamFactory = (logService: ILogService): UpstreamConnectionFactory =>
+	(endpoint) => new WebSocketUpstreamConnection(endpoint, logService);
+
+class LazyUpstreamConnection extends Disposable implements IUpstreamConnection {
+	private readonly _onFrame = this._register(new Emitter<string>());
+	readonly onFrame: Event<string> = this._onFrame.event;
+
+	private readonly _onClose = this._register(new Emitter<void>());
+	readonly onClose: Event<void> = this._onClose.event;
+
+	private _connection: IUpstreamConnection | undefined;
+	private _connectPromise: Promise<void> | undefined;
+	private _closeFired = false;
+
+	constructor(
+		private readonly _resolveEndpoint: AgentHostUpstreamEndpointResolver,
+		private readonly _upstreamFactory: UpstreamConnectionFactory,
+		private readonly _logService: ILogService,
+	) {
+		super();
+	}
+
+	async connect(): Promise<void> {
+		if (this._store.isDisposed) {
+			throw new Error('UpstreamConnection is disposed');
+		}
+
+		const connectPromise = this._connectPromise ??= this._connect();
+		try {
+			await connectPromise;
+		} catch (error) {
+			if (this._connectPromise === connectPromise) {
+				this._connectPromise = undefined;
+			}
+			throw error;
+		}
+	}
+
+	send(frame: string): void {
+		const connection = this._connection;
+		if (!connection) {
+			this._logService.warn('[AgentHostChannel] Drop send: upstream not open');
+			this._fireClose();
+			return;
+		}
+		connection.send(frame);
+	}
+
+	private async _connect(): Promise<void> {
+		const endpoint = await this._resolveEndpoint();
+		if (this._store.isDisposed) {
+			throw new Error('UpstreamConnection is disposed');
+		}
+
+		const connection = this._upstreamFactory(endpoint);
+		this._connection = connection;
+		this._register(connection);
+		this._register(connection.onFrame(frame => this._onFrame.fire(frame)));
+		this._register(connection.onClose(() => this._fireClose()));
+
+		try {
+			await connection.connect();
+		} catch (error) {
+			this._connection = undefined;
+			connection.dispose();
+			throw error;
+		}
+	}
+
+	override dispose(): void {
+		this._fireClose();
+		super.dispose();
+	}
+
+	private _fireClose(): void {
+		if (this._closeFired) {
+			return;
+		}
+		this._closeFired = true;
+		this._onClose.fire();
+	}
+}
 
 class WebSocketUpstreamConnection extends Disposable implements IUpstreamConnection {
 	private readonly _onFrame = this._register(new Emitter<string>());
@@ -107,12 +188,10 @@ class WebSocketUpstreamConnection extends Disposable implements IUpstreamConnect
 	private _ws: wsTypes.WebSocket | undefined;
 	private _connectPromise: Promise<void> | undefined;
 	private _closeFired = false;
-	private readonly _lifetimeToken = this._register(new MutableDisposable());
 
 	constructor(
 		private readonly _endpoint: IAgentHostUpstreamEndpoint,
 		private readonly _logService: ILogService,
-		private readonly _serverLifetimeService: IServerLifetimeService,
 	) {
 		super();
 	}
@@ -137,7 +216,6 @@ class WebSocketUpstreamConnection extends Disposable implements IUpstreamConnect
 			const onOpen = () => {
 				cleanup();
 				this._logService.trace('[AgentHostChannel] Upstream open');
-				this._lifetimeToken.value = this._serverLifetimeService.active('AgentHostChannel');
 				socket.on('message', (data: Buffer | string) => {
 					const text = typeof data === 'string' ? data : data.toString('utf-8');
 					this._onFrame.fire(text);
@@ -196,7 +274,6 @@ class WebSocketUpstreamConnection extends Disposable implements IUpstreamConnect
 			return;
 		}
 		this._closeFired = true;
-		this._lifetimeToken.clear();
 		this._onClose.fire();
 	}
 
@@ -231,16 +308,16 @@ export class AgentHostChannel<TContext> extends Disposable implements IServerCha
 
 	private readonly _perCtx = new Map<TContext, IUpstreamConnection>();
 	private readonly _upstreamFactory: UpstreamConnectionFactory;
+	private _endpointPromise: Promise<IAgentHostUpstreamEndpoint> | undefined;
 
 	constructor(
 		ipcServer: IPCServer<TContext>,
-		private readonly _endpoint: IAgentHostUpstreamEndpoint,
+		private readonly _endpoint: IAgentHostUpstreamEndpoint | AgentHostUpstreamEndpointResolver,
 		private readonly _logService: ILogService,
-		serverLifetimeService: IServerLifetimeService,
 		upstreamFactory?: UpstreamConnectionFactory,
 	) {
 		super();
-		this._upstreamFactory = upstreamFactory ?? defaultUpstreamFactory(_logService, serverLifetimeService);
+		this._upstreamFactory = upstreamFactory ?? defaultUpstreamFactory(_logService);
 		this._register(ipcServer.onDidRemoveConnection(c => this._disposeCtx(c.ctx as unknown as TContext)));
 	}
 
@@ -284,7 +361,9 @@ export class AgentHostChannel<TContext> extends Disposable implements IServerCha
 	private _getOrCreate(ctx: TContext): IUpstreamConnection {
 		let conn = this._perCtx.get(ctx);
 		if (!conn) {
-			conn = this._upstreamFactory(this._endpoint);
+			conn = typeof this._endpoint === 'function'
+				? new LazyUpstreamConnection(() => this._resolveEndpoint(), this._upstreamFactory, this._logService)
+				: this._upstreamFactory(this._endpoint);
 			this._perCtx.set(ctx, conn);
 			// If the upstream closes on its own (e.g. agent host restart or
 			// connection drop), evict it from the cache so the next
@@ -298,6 +377,26 @@ export class AgentHostChannel<TContext> extends Disposable implements IServerCha
 			});
 		}
 		return conn;
+	}
+
+	private async _resolveEndpoint(): Promise<IAgentHostUpstreamEndpoint> {
+		const endpoint = this._endpoint;
+		if (typeof endpoint !== 'function') {
+			return endpoint;
+		}
+
+		// Only the in-flight resolution is shared, so concurrent renderer connects
+		// collapse into one call. It is dropped once settled: in the lazy server
+		// path resolution *is* `ensureStarted()`, so caching a success would let a
+		// later reconnect dial a dead socket instead of restarting the host.
+		const endpointPromise = this._endpointPromise ??= Promise.resolve().then(() => endpoint());
+		try {
+			return await endpointPromise;
+		} finally {
+			if (this._endpointPromise === endpointPromise) {
+				this._endpointPromise = undefined;
+			}
+		}
 	}
 
 	private _disposeCtx(ctx: TContext): void {
