@@ -11,7 +11,6 @@ import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../../base/common/observable.js';
-import { ThemeIcon } from '../../../../../../../base/common/themables.js';
 // eslint-disable-next-line local/code-no-deep-import-of-internal
 import { BaseObservable } from '../../../../../../../base/common/observableInternal/observables/baseObservable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
@@ -450,7 +449,8 @@ suite('ChatSubagentContentPart', () => {
 				toolSpecificData: {
 					kind: 'subagent',
 					description: 'Audit narrative against captures',
-					agentName: 'explore',
+					agentDisplayName: 'Code Reviewer',
+					agentName: 'code-reviewer',
 					chatResource: 'ahp-chat://subagent/test/explore',
 				}
 			}), createMockRenderContext(false));
@@ -458,6 +458,7 @@ suite('ChatSubagentContentPart', () => {
 				toolSpecificData: {
 					kind: 'subagent',
 					description: 'Install npm dependencies',
+					agentDisplayName: 'Task',
 					agentName: 'task',
 					chatResource: 'ahp-chat://subagent/test/task',
 				}
@@ -467,7 +468,7 @@ suite('ChatSubagentContentPart', () => {
 				specialized: getOpenChatContext(specialized)?.agentType,
 				generic: getOpenChatContext(generic)?.agentType,
 			}, {
-				specialized: 'Explore',
+				specialized: 'Code Reviewer',
 				generic: undefined,
 			});
 		});
@@ -1375,6 +1376,37 @@ suite('ChatSubagentContentPart', () => {
 		function setToolSpecificData(toolInvocation: IChatToolInvocation, data: IChatSubagentToolInvocationData): void {
 			(toolInvocation as { toolSpecificData: IChatSubagentToolInvocationData }).toolSpecificData = data;
 		}
+
+		test('should publish a provider display name that arrives after initial rendering', () => {
+			const toolInvocation = createMockToolInvocation({
+				stateType: IChatToolInvocation.StateKind.WaitingForConfirmation,
+				toolSpecificData: {
+					kind: 'subagent',
+					description: 'Review current branch',
+					agentName: 'code-reviewer',
+					chatResource: 'ahp-chat://subagent/test/code-reviewer',
+				}
+			});
+			const part = createPart(toolInvocation, createMockRenderContext(false));
+			const before = getOpenChatContext(part)?.agentType;
+
+			setToolSpecificData(toolInvocation, {
+				kind: 'subagent',
+				description: 'Review current branch',
+				agentDisplayName: 'Code Reviewer',
+				agentName: 'code-reviewer',
+				chatResource: 'ahp-chat://subagent/test/code-reviewer',
+			});
+			getSettableState(toolInvocation).set(createState(IChatToolInvocation.StateKind.Executing), undefined);
+
+			assert.deepStrictEqual({
+				before,
+				after: getOpenChatContext(part)?.agentType,
+			}, {
+				before: undefined,
+				after: 'Code Reviewer',
+			});
+		});
 
 		test('updateTitle clears previous title file widget disposables', () => {
 			const toolInvocation = createMockToolInvocation({ invocationMessage: 'first' });
