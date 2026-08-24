@@ -13,7 +13,7 @@
 #
 # Usage:
 #   launch.sh [--agents] [--source-user-data-dir <path>] [--repo <vscode-repo-root>]
-#             [--clone-extensions] [--full] [-- <extra code.sh args>]
+#             [--clone-extensions] [--full] [--skip-prelaunch] [-- <extra code.sh args>]
 #
 # Flags:
 #   --clone-extensions  Copy the source extensions/ into the new profile (~10s).
@@ -21,6 +21,8 @@
 #                       and conflict-free, but no third-party extensions.
 #   --full              Copy the entire profile (incl. extensions). Use if the
 #                       slim copy is missing something you need.
+#   --skip-prelaunch    Skip build/lib/preLaunch.ts after a successful prepared
+#                       launch while build outputs remain current.
 #
 # Defaults:
 #   --source-user-data-dir  $CODE_OSS_DEV_AUTHED_USER_DATA_DIR  (else ~/.vscode-oss-dev)
@@ -35,6 +37,7 @@ REPO=""
 EXTRA_ARGS=()
 CLONE_EXTENSIONS=0
 FULL=0
+SKIP_PRELAUNCH=0
 
 while [[ $# -gt 0 ]]; do
 	case "$1" in
@@ -43,6 +46,7 @@ while [[ $# -gt 0 ]]; do
 		--repo) REPO="$2"; shift 2 ;;
 		--clone-extensions|--copy-extensions) CLONE_EXTENSIONS=1; shift ;;
 		--full) FULL=1; shift ;;
+		--skip-prelaunch) SKIP_PRELAUNCH=1; shift ;;
 		--) shift; EXTRA_ARGS=("$@"); break ;;
 		*) echo "Unknown arg: $1" >&2; exit 2 ;;
 	esac
@@ -252,11 +256,15 @@ echo "[launch.sh] logs: $LOG_FILE" >&2
 
 # Run pre-launch (electron download, compile-if-missing, built-in extensions) in the
 # foreground so any errors surface synchronously. Then skip code.sh's own pre-launch.
-echo "[launch.sh] running pre-launch (ensures electron + compiled output + built-ins)..." >&2
-if ! ( cd "$REPO" && node build/lib/preLaunch.ts ) >>"$LOG_FILE" 2>&1; then
-	echo "[launch.sh] pre-launch FAILED. Log tail:" >&2
-	tail -n 80 "$LOG_FILE" >&2
-	exit 1
+if [[ "$SKIP_PRELAUNCH" == "1" ]]; then
+	echo "[launch.sh] skipping pre-launch by request" >&2
+else
+	echo "[launch.sh] running pre-launch (ensures electron + compiled output + built-ins)..." >&2
+	if ! ( cd "$REPO" && node build/lib/preLaunch.ts ) >>"$LOG_FILE" 2>&1; then
+		echo "[launch.sh] pre-launch FAILED. Log tail:" >&2
+		tail -n 80 "$LOG_FILE" >&2
+		exit 1
+	fi
 fi
 PRELAUNCH_READY_MS=$(monotonic_ms)
 

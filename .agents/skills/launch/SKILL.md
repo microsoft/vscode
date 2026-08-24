@@ -50,6 +50,7 @@ The launcher script lives next to this SKILL.md at `scripts/launch.sh` (macOS/Li
 "$LAUNCH" --repo <vscode-repo-root>          # if not run from the repo
 "$LAUNCH" --clone-extensions                 # start with a copy of the source extensions/ (~few seconds)
 "$LAUNCH" --full                             # skip slim excludes; copy everything
+"$LAUNCH" --skip-prelaunch                   # reuse already-current build outputs
 ```
 
 On Windows, invoke the PowerShell launcher with the same flags:
@@ -64,6 +65,7 @@ $launch = Join-Path $skillDir 'scripts\launch.ps1'
 & $launch --repo C:\path\to\vscode
 & $launch --clone-extensions
 & $launch --full
+& $launch --skip-prelaunch
 ```
 
 If the local execution policy blocks scripts, invoke it with `powershell -ExecutionPolicy Bypass -File <path-to-launch.ps1>`. The Windows implementation has the same profile isolation, slim-copy excludes, settings merge, port allocation, foreground pre-launch, and CDP-ready contract as the bash launcher; only the shell commands and path syntax differ.
@@ -105,6 +107,8 @@ Excluded (transient, regenerable, or known-not-needed):
 > If the launched window says "language model unavailable" or otherwise looks unauthed, ask the user to sign in.
 
 The script runs pre-launch (electron download, compile-if-missing, built-in extensions) **in the foreground**, then starts Code OSS detached and **blocks until the renderer's CDP endpoint is responding** (up to ~90s) before printing the JSON line on stdout. If anything fails — preLaunch errors, code.sh exits early, CDP never opens — the script exits non-zero and dumps the relevant log tail to stderr.
+
+For repeated launches of the same prepared build, pass `--skip-prelaunch` after one successful normal launch. Only use it while a watch task keeps all output current or neither sources nor build outputs have changed; otherwise the new instance may run stale or incomplete code.
 
 ```json
 {"pid":12345,"cdpPort":53111,"extHostPort":53112,"mainPort":53113,"agentHostPort":53114,"userDataDir":".../user-data","extensionsDir":".../extensions","sharedDataDir":".../shared-data","runDir":"...","logFile":".../code.log","repo":"...","agents":false,"timings":{"profileMs":231,"preLaunchMs":251,"cdpReadyMs":459,"totalMs":941}}
@@ -356,7 +360,7 @@ npx @playwright/cli -s=$PW_SESSION tab-list
 npx @playwright/cli -s=$PW_SESSION snapshot
 ```
 
-If you are iterating frequently, keep the repo build/watch task running separately so relaunches pick up already-generated output.
+If you are iterating frequently, keep the repo build/watch task running separately so relaunches pick up already-generated output. After one successful normal launch, `--skip-prelaunch` avoids repeating the preparation while those outputs remain current.
 
 ## Cleanup
 
