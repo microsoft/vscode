@@ -8,9 +8,9 @@ import * as strings from '../../../base/common/strings.js';
 import { WrappingIndent, IComputedEditorOptions, EditorOption } from '../config/editorOptions.js';
 import { CharacterClassifier } from '../core/characterClassifier.js';
 import { FontInfo } from '../config/fontInfo.js';
-import { LineInjectedText, LineInjectedTextWidth } from '../textModelEvents.js';
+import { LineInjectedText } from '../textModelEvents.js';
 import { InjectedTextOptions } from '../model.js';
-import { ILineBreaksComputerFactory, ILineBreaksComputer, ModelLineProjectionData, ILineBreaksComputerContext } from '../modelLineProjectionData.js';
+import { FixedWidthInjectedTextRange, getFixedWidthInjectedTextRanges, ILineBreaksComputerFactory, ILineBreaksComputer, ModelLineProjectionData, ILineBreaksComputerContext } from '../modelLineProjectionData.js';
 
 export class MonospaceLineBreaksComputerFactory implements ILineBreaksComputerFactory {
 	public static create(options: IComputedEditorOptions): MonospaceLineBreaksComputerFactory {
@@ -358,7 +358,7 @@ function createLineBreaksFromPreviousLineBreaks(classifier: WrappingCharacterCla
 
 function createLineBreaks(classifier: WrappingCharacterClassifier, _lineText: string, injectedTexts: LineInjectedText[] | null, tabSize: number, firstLineBreakColumn: number, columnsForFullWidthChar: number, columnsPerEm: number, wrappingIndent: WrappingIndent, wordBreak: 'normal' | 'keepAll', wrapOnEscapedLineFeeds: boolean): ModelLineProjectionData | null {
 	const lineText = LineInjectedText.applyInjectedText(_lineText, injectedTexts);
-	const injectedTextWidthsInEm = LineInjectedText.getInjectedTextWidthsInEm(injectedTexts);
+	const injectedTextWidthsInEm = getFixedWidthInjectedTextRanges(injectedTexts);
 
 	let injectionOptions: InjectedTextOptions[] | null;
 	let injectionOffsets: number[] | null;
@@ -390,7 +390,7 @@ function createLineBreaks(classifier: WrappingCharacterClassifier, _lineText: st
 	}
 
 	const isKeepAll = (wordBreak === 'keepAll');
-	const wrappedTextIndentLength = computeWrappedTextIndentLength(lineText, tabSize, firstLineBreakColumn, columnsForFullWidthChar, wrappingIndent, injectedTextWidthsInEm, columnsPerEm);
+	const wrappedTextIndentLength = computeWrappedTextIndentLength(lineText, tabSize, firstLineBreakColumn, columnsForFullWidthChar, wrappingIndent, injectedTextWidthsInEm);
 	const wrappedLineBreakColumn = firstLineBreakColumn - wrappedTextIndentLength;
 
 	const breakingOffsets: number[] = [];
@@ -552,21 +552,18 @@ function canBreak(prevCharCode: number, prevCharCodeClass: CharacterClass, charC
 	);
 }
 
-function computeWrappedTextIndentLength(lineText: string, tabSize: number, firstLineBreakColumn: number, columnsForFullWidthChar: number, wrappingIndent: WrappingIndent, fixedWidthRanges: readonly LineInjectedTextWidth[] = [], columnsPerEm: number = 1): number {
+function computeWrappedTextIndentLength(lineText: string, tabSize: number, firstLineBreakColumn: number, columnsForFullWidthChar: number, wrappingIndent: WrappingIndent, fixedWidthRanges: readonly FixedWidthInjectedTextRange[] = []): number {
 	let wrappedTextIndentLength = 0;
 	if (wrappingIndent !== WrappingIndent.None) {
 		const firstNonWhitespaceIndex = strings.firstNonWhitespaceIndex(lineText);
 		if (firstNonWhitespaceIndex !== -1) {
 			// Track existing indent
 
-			let fixedWidthRangeIndex = 0;
 			for (let i = 0; i < firstNonWhitespaceIndex; i++) {
-				const fixedWidthRange = fixedWidthRanges?.[fixedWidthRangeIndex];
+				const fixedWidthRange = fixedWidthRanges[0];
 				const isFixedWidthStart = fixedWidthRange?.startOffset === i;
 				if (isFixedWidthStart) {
-					wrappedTextIndentLength += fixedWidthRange.widthInEm * columnsPerEm;
-					i = fixedWidthRange.endOffset - 1;
-					fixedWidthRangeIndex++;
+					break;
 				} else {
 					const charWidth = (lineText.charCodeAt(i) === CharCode.Tab ? tabCharacterWidth(wrappedTextIndentLength, tabSize) : 1);
 					wrappedTextIndentLength += charWidth;

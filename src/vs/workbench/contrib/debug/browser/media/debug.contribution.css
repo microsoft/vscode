@@ -25,7 +25,6 @@
 }
 
 .monaco-editor .debug-breakpoint-placeholder {
-	width: 0.9em;
 	display: inline-flex;
 	vertical-align: middle;
 	margin-top: -1px;

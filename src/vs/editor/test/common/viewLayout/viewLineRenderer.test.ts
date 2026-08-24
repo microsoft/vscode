@@ -201,7 +201,7 @@ suite('renderViewLine', () => {
 			injectedTextLineParts: [new InjectedTextLinePart(1, 2, 'injected', 1)]
 		}));
 
-		assert.strictEqual(actual.html, '<span><span style="display:inline-block;width:1em;" class="mtk0 injected">\xa0</span></span>');
+		assert.strictEqual(actual.html, '<span><span style="display:inline-block;box-sizing:border-box;width:1em;" class="mtk0 injected">\xa0</span></span>');
 	});
 
 	test('enforces fixed injected text width without a class name', () => {
@@ -211,7 +211,7 @@ suite('renderViewLine', () => {
 			injectedTextLineParts: [new InjectedTextLinePart(1, 2, '', 1)]
 		}));
 
-		assert.strictEqual(actual.html, '<span><span style="display:inline-block;width:1em;" class="mtk0">\xa0</span></span>');
+		assert.strictEqual(actual.html, '<span><span style="display:inline-block;box-sizing:border-box;width:1em;" class="mtk0">\xa0</span></span>');
 	});
 
 	test('does not render whitespace markers inside fixed injected text', () => {
@@ -222,7 +222,7 @@ suite('renderViewLine', () => {
 			renderWhitespace: 'all'
 		}));
 
-		assert.strictEqual(actual.html, '<span><span style="display:inline-block;width:1em;" class="mtkw injected">\xa0</span></span>');
+		assert.strictEqual(actual.html, '<span><span style="display:inline-block;box-sizing:border-box;width:1em;" class="mtkw injected">\xa0</span></span>');
 	});
 
 	test('preserves content around fixed injected text', () => {
@@ -232,7 +232,17 @@ suite('renderViewLine', () => {
 			injectedTextLineParts: [new InjectedTextLinePart(2, 5, 'injected', 3)]
 		}));
 
-		assert.strictEqual(actual.html, '<span><span class="mtk0">x</span><span style="display:inline-block;width:3em;" class="mtk0 injected">abc</span><span class="mtk0">y</span></span>');
+		assert.strictEqual(actual.html, '<span><span class="mtk0">x</span><span style="display:inline-block;box-sizing:border-box;width:3em;" class="mtk0 injected">abc</span><span class="mtk0">y</span></span>');
+	});
+
+	test('splits line parts at fixed injected text boundaries', () => {
+		const actual = renderViewLine(createRenderLineInput({
+			lineContent: 'xabcy',
+			lineTokens: createViewLineTokens([createPart(5, 0)]),
+			injectedTextLineParts: [new InjectedTextLinePart(2, 5, 'injected', 3)]
+		}));
+
+		assert.strictEqual(actual.html, '<span><span class="mtk0">x</span><span style="display:inline-block;box-sizing:border-box;width:3em;" class="mtk0 injected">abc</span><span class="mtk0">y</span></span>');
 	});
 
 	test('applies fixed injected text width once across line parts', () => {
@@ -243,7 +253,7 @@ suite('renderViewLine', () => {
 			renderWhitespace: 'all'
 		}));
 
-		assert.strictEqual(actual.html, '<span><span style="display:inline-block;width:3em;" class="mtk1 injected">a\xa0b</span></span>');
+		assert.strictEqual(actual.html, '<span><span style="display:inline-block;box-sizing:border-box;width:3em;" class="mtk1 injected">a\xa0b</span></span>');
 	});
 
 	test('keeps adjacent equal fixed widths separate', () => {
@@ -256,7 +266,7 @@ suite('renderViewLine', () => {
 			]
 		}));
 
-		assert.strictEqual(actual.html, '<span><span style="display:inline-block;width:1em;" class="mtk0 injected">a</span><span style="display:inline-block;width:1em;" class="mtk0 injected">b</span></span>');
+		assert.strictEqual(actual.html, '<span><span style="display:inline-block;box-sizing:border-box;width:1em;" class="mtk0 injected">a</span><span style="display:inline-block;box-sizing:border-box;width:1em;" class="mtk0 injected">b</span></span>');
 	});
 
 	test('applies decorations covering fixed-width injected text', () => {
@@ -267,7 +277,7 @@ suite('renderViewLine', () => {
 			injectedTextLineParts: [new InjectedTextLinePart(1, 4, 'injected', 3)]
 		}));
 
-		assert.strictEqual(actual.html, '<span><span style="display:inline-block;width:3em;" class="mtk0 secondary injected">abc</span></span>');
+		assert.strictEqual(actual.html, '<span><span style="display:inline-block;box-sizing:border-box;width:3em;" class="mtk0 secondary injected">abc</span></span>');
 	});
 
 	test('keeps fixed-width RTL injected text atomic', () => {
@@ -279,7 +289,7 @@ suite('renderViewLine', () => {
 			injectedTextLineParts: [new InjectedTextLinePart(1, 4, 'injected', 3)]
 		}));
 
-		assert.strictEqual(actual.html, '<span><span style="unicode-bidi:isolate;display:inline-block;width:3em;" class="mtk0 injected">\xa0אב</span></span>');
+		assert.strictEqual(actual.html, '<span><span style="unicode-bidi:isolate;display:inline-block;box-sizing:border-box;width:3em;" class="mtk0 injected">\xa0אב</span></span>');
 	});
 
 	test('clamps fixed injected text to the rendered line length', () => {
@@ -290,7 +300,7 @@ suite('renderViewLine', () => {
 			stopRenderingLineAfter: 3
 		}));
 
-		assert.ok(actual.html.includes('<span style="display:inline-block;width:3em;" class="mtk0 injected">bc</span>'));
+		assert.ok(actual.html.includes('<span style="display:inline-block;box-sizing:border-box;width:3em;" class="mtk0 injected">bc</span>'));
 	});
 
 	// overflow

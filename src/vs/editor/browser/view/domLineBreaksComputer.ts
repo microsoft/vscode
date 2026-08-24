@@ -11,8 +11,8 @@ import { applyFontInfo } from '../config/domFontInfo.js';
 import { WrappingIndent } from '../../common/config/editorOptions.js';
 import { StringBuilder } from '../../common/core/stringBuilder.js';
 import { InjectedTextOptions } from '../../common/model.js';
-import { ILineBreaksComputer, ILineBreaksComputerContext, ILineBreaksComputerFactory, ModelLineProjectionData } from '../../common/modelLineProjectionData.js';
-import { LineInjectedText, LineInjectedTextWidth } from '../../common/textModelEvents.js';
+import { FixedWidthInjectedTextRange, getFixedWidthInjectedTextRanges, ILineBreaksComputer, ILineBreaksComputerContext, ILineBreaksComputerFactory, ModelLineProjectionData } from '../../common/modelLineProjectionData.js';
+import { LineInjectedText } from '../../common/textModelEvents.js';
 import { FontInfo } from '../../common/config/fontInfo.js';
 
 const ttPolicy = createTrustedTypesPolicy('domLineBreaksComputer', { createHTML: value => value });
@@ -84,7 +84,7 @@ function createLineBreaks(targetWindow: Window, context: ILineBreaksComputerCont
 		const lineNumber = lineNumbers[i];
 		const injectedTexts = context.getLineInjectedText(lineNumber);
 		const lineContent = LineInjectedText.applyInjectedText(context.getLineContent(lineNumber), injectedTexts);
-		const fixedWidthRanges = LineInjectedText.getInjectedTextWidthsInEm(injectedTexts);
+		const fixedWidthRanges = getFixedWidthInjectedTextRanges(injectedTexts);
 
 		let firstNonWhitespaceIndex = 0;
 		let wrappedTextIndentLength = 0;
@@ -99,14 +99,12 @@ function createLineBreaks(targetWindow: Window, context: ILineBreaksComputerCont
 			} else {
 				// Track existing indent
 
-				let fixedWidthRangeIndex = 0;
 				for (let i = 0; i < firstNonWhitespaceIndex; i++) {
-					const fixedWidthRange = fixedWidthRanges[fixedWidthRangeIndex];
+					const fixedWidthRange = fixedWidthRanges[0];
 					const isFixedWidthStart = fixedWidthRange?.startOffset === i;
 					if (isFixedWidthStart) {
-						wrappedTextIndentLength += fixedWidthRange.widthInEm * fontInfo.fontSize / fontInfo.spaceWidth;
-						i = fixedWidthRange.endOffset - 1;
-						fixedWidthRangeIndex++;
+						firstNonWhitespaceIndex = i;
+						break;
 					} else if (lineContent.charCodeAt(i) === CharCode.Tab) {
 						wrappedTextIndentLength += tabSize - (wrappedTextIndentLength % tabSize);
 					} else {
@@ -129,12 +127,12 @@ function createLineBreaks(targetWindow: Window, context: ILineBreaksComputerCont
 		const renderLineContent = lineContent.substr(firstNonWhitespaceIndex);
 		const shiftedFixedWidthRanges = firstNonWhitespaceIndex === 0
 			? fixedWidthRanges
-			: fixedWidthRanges?.map(range => ({
+			: fixedWidthRanges.map(range => ({
 				startOffset: Math.max(0, range.startOffset - firstNonWhitespaceIndex),
 				endOffset: range.endOffset - firstNonWhitespaceIndex,
 				widthInEm: range.widthInEm
-			})).filter(range => range.endOffset > 0) ?? null;
-		const renderLineFixedWidthRanges = shiftedFixedWidthRanges ?? null;
+			})).filter(range => range.endOffset > 0);
+		const renderLineFixedWidthRanges = shiftedFixedWidthRanges.length > 0 ? shiftedFixedWidthRanges : null;
 		const tmp = renderLine(
 			renderLineContent,
 			wrappedTextIndentLength,
@@ -220,7 +218,7 @@ const enum Constants {
 	SPAN_MODULO_LIMIT = 16384
 }
 
-function renderLine(lineContent: string, initialVisibleColumn: number, tabSize: number, width: number, sb: StringBuilder, wrappingIndentLength: number, fixedWidthRanges: readonly LineInjectedTextWidth[] | null, columnsPerEm: number): [number[], number[], number[] | null] {
+function renderLine(lineContent: string, initialVisibleColumn: number, tabSize: number, width: number, sb: StringBuilder, wrappingIndentLength: number, fixedWidthRanges: readonly FixedWidthInjectedTextRange[] | null, columnsPerEm: number): [number[], number[], number[] | null] {
 
 	if (wrappingIndentLength !== 0) {
 		const hangingOffset = String(wrappingIndentLength);
@@ -252,13 +250,18 @@ function renderLine(lineContent: string, initialVisibleColumn: number, tabSize: 
 	for (let charIndex = 0; charIndex < len; charIndex++) {
 		const fixedWidthRange = fixedWidthRanges?.[fixedWidthRangeIndex];
 		const startsFixedWidth = fixedWidthRange?.startOffset === charIndex;
-		spanStartOffsets!.push(charOffset);
 		if (startsFixedWidth) {
-			sb.appendString('</span><span style="display:inline-block;width:');
+			if (spanOpen) {
+				sb.appendString('</span>');
+			}
+			sb.appendString('<span style="display:inline-block;box-sizing:border-box;width:');
 			sb.appendString(String(fixedWidthRange.widthInEm));
 			sb.appendString('em;">');
+			spanStartOffsets!.push(charOffset);
+			spanOpen = true;
 		} else if ((!fixedWidthRange || charIndex < fixedWidthRange.startOffset) && charIndex !== 0 && charIndex % Constants.SPAN_MODULO_LIMIT === 0) {
 			sb.appendString('</span><span>');
+			spanStartOffsets?.push(charOffset);
 		}
 		charOffsets[charIndex] = charOffset;
 		visibleColumns[charIndex] = visibleColumn;
@@ -332,7 +335,8 @@ function renderLine(lineContent: string, initialVisibleColumn: number, tabSize: 
 		if (fixedWidthRange && charIndex + 1 === fixedWidthRange.endOffset) {
 			sb.appendString('</span>');
 			spanOpen = false;
-			if (fixedWidthRange.endOffset < len) {
+			const nextFixedWidthRange = fixedWidthRanges?.[fixedWidthRangeIndex + 1];
+			if (fixedWidthRange.endOffset < len && nextFixedWidthRange?.startOffset !== fixedWidthRange.endOffset) {
 				sb.appendString('<span>');
 				spanStartOffsets!.push(charOffset);
 				spanOpen = true;

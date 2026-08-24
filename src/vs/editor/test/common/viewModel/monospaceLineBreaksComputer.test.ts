@@ -196,6 +196,21 @@ suite('Editor ViewModel - MonospaceLineBreaksComputer', () => {
 		});
 	});
 
+	test('does not use fixed-width injected whitespace as continuation indentation', () => {
+		const factory = new MonospaceLineBreaksComputerFactory('', '');
+		const lineBreakData = getLineBreakData(factory, 4, 5, 2, WrappingIndent.Same, 'normal', false, 'abcdef', null, [
+			new LineInjectedText(0, 1, 1, { content: ' ', widthInEm: 0.75 }, 0)
+		]);
+
+		assert.deepStrictEqual({
+			breakOffsets: lineBreakData?.breakOffsets,
+			wrappedTextIndentLength: lineBreakData?.wrappedTextIndentLength
+		}, {
+			breakOffsets: [4, 7],
+			wrappedTextIndentLength: 0
+		});
+	});
+
 	function assertLineBreakDataEqual(a: ModelLineProjectionData | null, b: ModelLineProjectionData | null): void {
 		if (!a || !b) {
 			assert.deepStrictEqual(a, b);

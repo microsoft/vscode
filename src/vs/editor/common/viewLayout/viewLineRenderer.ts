@@ -991,6 +991,7 @@ function createAtomicInjectedTextParts(parts: LinePart[], injectedTextLineParts:
 
 	const result: LinePart[] = [];
 	let partIndex = 0;
+	let partStartIndex = 0;
 	const renderedEndIndex = parts[parts.length - 1]?.endIndex ?? 0;
 
 	for (const injectedTextPart of injectedTextLineParts) {
@@ -1000,8 +1001,14 @@ function createAtomicInjectedTextParts(parts: LinePart[], injectedTextLineParts:
 			continue;
 		}
 
-		while (partIndex < parts.length && parts[partIndex].endIndex <= injectedTextStartIndex) {
-			result.push(parts[partIndex++]);
+		while (partIndex < parts.length && partStartIndex < injectedTextStartIndex) {
+			const part = parts[partIndex];
+			const endIndex = Math.min(part.endIndex, injectedTextStartIndex);
+			result.push(new LinePart(endIndex, part.type, part.metadata, part.containsRTL, part.widthInEm));
+			partStartIndex = endIndex;
+			if (partStartIndex === part.endIndex) {
+				partIndex++;
+			}
 		}
 
 		const firstPart = parts[partIndex];
@@ -1010,10 +1017,13 @@ function createAtomicInjectedTextParts(parts: LinePart[], injectedTextLineParts:
 		}
 
 		let containsRTL = false;
-		while (partIndex < parts.length && parts[partIndex].endIndex <= injectedTextEndIndex) {
+		while (partIndex < parts.length && partStartIndex < injectedTextEndIndex) {
 			const part = parts[partIndex];
 			containsRTL ||= part.containsRTL;
-			partIndex++;
+			partStartIndex = Math.min(part.endIndex, injectedTextEndIndex);
+			if (partStartIndex === part.endIndex) {
+				partIndex++;
+			}
 		}
 
 		const type = injectedTextPart.inlineClassName ? firstPart.type + ' ' + injectedTextPart.inlineClassName : firstPart.type;
@@ -1021,7 +1031,8 @@ function createAtomicInjectedTextParts(parts: LinePart[], injectedTextLineParts:
 	}
 
 	while (partIndex < parts.length) {
-		result.push(parts[partIndex++]);
+		const part = parts[partIndex++];
+		result.push(new LinePart(part.endIndex, part.type, part.metadata, part.containsRTL, part.widthInEm));
 	}
 
 	return result;
@@ -1078,7 +1089,7 @@ function _renderLine(input: ResolvedRenderLineInput, sb: StringBuilder): RenderL
 			if (partContainsRTL) {
 				sb.appendString('unicode-bidi:isolate;');
 			}
-			sb.appendString('display:inline-block;width:');
+			sb.appendString('display:inline-block;box-sizing:border-box;width:');
 			sb.appendString(String(partWidthInEm));
 			sb.appendString('em;');
 			sb.appendString('" ');

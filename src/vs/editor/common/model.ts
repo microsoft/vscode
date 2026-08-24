@@ -348,7 +348,8 @@ export interface InjectedTextOptions {
 	readonly inlineClassNameAffectsLetterSpacing?: boolean;
 
 	/**
-	 * Overrides the rendered width of this injected text, measured in em. Cannot be combined with {@link tokens}.
+	 * Sets the atomic rendered width and wrapping advance of this injected text in editor-font em units.
+	 * The inline class must not change the font size or add horizontal margins. Cannot be combined with {@link tokens}.
 	 * @internal
 	 */
 	readonly widthInEm?: number;

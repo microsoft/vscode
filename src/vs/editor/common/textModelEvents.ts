@@ -254,24 +254,6 @@ export class LineInjectedText {
 		return result;
 	}
 
-	public static getInjectedTextWidthsInEm(injectedTexts: LineInjectedText[] | null): LineInjectedTextWidth[] {
-		const result: LineInjectedTextWidth[] = [];
-		let injectedTextLength = 0;
-		for (const injectedText of injectedTexts ?? []) {
-			const startOffset = injectedText.column - 1 + injectedTextLength;
-			const endOffset = startOffset + injectedText.options.content.length;
-			if (injectedText.options.widthInEm !== undefined) {
-				result.push({
-					startOffset,
-					endOffset,
-					widthInEm: injectedText.options.widthInEm
-				});
-			}
-			injectedTextLength += injectedText.options.content.length;
-		}
-		return result;
-	}
-
 	public static fromDecorations(decorations: IModelDecoration[]): LineInjectedText[] {
 		const result: LineInjectedText[] = [];
 		for (const decoration of decorations) {
@@ -317,12 +299,6 @@ export class LineInjectedText {
 	public withText(text: string): LineInjectedText {
 		return new LineInjectedText(this.ownerId, this.lineNumber, this.column, { ...this.options, content: text }, this.order);
 	}
-}
-
-export interface LineInjectedTextWidth {
-	readonly startOffset: number;
-	readonly endOffset: number;
-	readonly widthInEm: number;
 }
 
 /**

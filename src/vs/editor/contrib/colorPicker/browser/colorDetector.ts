@@ -49,9 +49,7 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 
 	private readonly _decoratorLimitReporter = this._register(new DecoratorLimitReporter());
 
-	private _colorDecoratorWidthInEm = 0.8;
-	private _colorDecoratorTopMarginInEm = 0.1;
-	private _colorDecoratorHorizontalMarginInEm = 0.2;
+	private static readonly colorDecoratorWidthInEm = 1.2;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -210,9 +208,6 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 		const decorations: IModelDeltaDecoration[] = [];
 
 		const limit = this._editor.getOption(EditorOption.colorDecoratorsLimit);
-		const colorDecoratorMargin = `${this._colorDecoratorTopMarginInEm}em ${this._colorDecoratorHorizontalMarginInEm}em 0 ${this._colorDecoratorHorizontalMarginInEm}em`;
-		const colorDecoratorTotalWidthInEm = this._colorDecoratorWidthInEm + 2 * this._colorDecoratorHorizontalMarginInEm;
-
 		for (let i = 0; i < colorData.length && decorations.length < limit; i++) {
 			const { red, green, blue, alpha } = colorData[i].colorInfo.color;
 			const rgba = new RGBA(Math.round(red * 255), Math.round(green * 255), Math.round(blue * 255), alpha);
@@ -220,9 +215,7 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 
 			const ref = this._colorDecorationClassRefs.add(
 				this._ruleFactory.createClassNameRef({
-					backgroundColor: color,
-					margin: colorDecoratorMargin,
-					width: `${this._colorDecoratorWidthInEm}em` // !important
+					backgroundColor: color
 				})
 			);
 
@@ -239,7 +232,7 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 						content: noBreakWhitespace,
 						inlineClassName: `${ref.className} colorpicker-color-decoration`,
 						inlineClassNameAffectsLetterSpacing: true,
-						widthInEm: colorDecoratorTotalWidthInEm,
+						widthInEm: ColorDetector.colorDecoratorWidthInEm,
 						attachedData: ColorDecorationInjectedTextMarker
 					}
 				}
