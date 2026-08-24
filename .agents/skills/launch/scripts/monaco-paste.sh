@@ -67,8 +67,8 @@ while [[ $# -gt 0 ]]; do
 	esac
 done
 if [[ ! -x "$PLAYWRIGHT_CLI" ]]; then
-	printf '{"ok":false,"error":"@playwright/cli executable not found at %s"}\n' "$PLAYWRIGHT_CLI"
-	echo "monaco-paste.sh: run npm install in the vscode checkout or set PLAYWRIGHT_CLI" >&2
+	echo '{"ok":false,"error":"@playwright/cli executable not found"}'
+	printf 'monaco-paste.sh: executable not found at %s; run npm install in the vscode checkout or set PLAYWRIGHT_CLI\n' "$PLAYWRIGHT_CLI" >&2
 	exit 2
 fi
 
