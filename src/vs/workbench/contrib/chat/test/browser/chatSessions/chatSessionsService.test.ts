@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -280,6 +281,46 @@ suite('ChatSessionsService - in-progress lifecycle', () => {
 		await progressRemoved;
 
 		assert.deepStrictEqual(service.getInProgress(), []);
+	});
+
+	test('does not dispose a replacement controller or publish stale progress', async () => {
+		const firstRefresh = new DeferredPromise<void>();
+		const sessionType = 'test-provider';
+		const firstController: IChatSessionItemController = {
+			onDidChangeChatSessionItems: Event.None,
+			items: [{
+				resource: URI.from({ scheme: sessionType, path: '/session-1' }),
+				label: 'In-progress session',
+				status: ChatSessionStatus.InProgress,
+				timing: { created: 0, lastRequestStarted: 0, lastRequestEnded: undefined },
+			}],
+			refresh: () => firstRefresh.p,
+		};
+		const replacementController: IChatSessionItemController = {
+			onDidChangeChatSessionItems: Event.None,
+			items: [],
+			async refresh(): Promise<void> { },
+		};
+		const instantiationService = store.add(workbenchInstantiationService(undefined, store));
+		const service = store.add(instantiationService.createInstance(ChatSessionsService));
+		const firstRegistration = service.registerChatSessionItemController(sessionType, firstController);
+
+		type ServiceWithUpdateInProgressStatus = {
+			updateInProgressStatus(chatSessionType: string): Promise<void>;
+		};
+		const staleUpdate = (service as unknown as ServiceWithUpdateInProgressStatus).updateInProgressStatus(sessionType);
+		store.add(service.registerChatSessionItemController(sessionType, replacementController));
+		firstRegistration.dispose();
+		await firstRefresh.complete();
+		await staleUpdate;
+
+		assert.deepStrictEqual({
+			registeredProviders: service.getRegisteredChatSessionItemProviders(),
+			inProgress: service.getInProgress(),
+		}, {
+			registeredProviders: [sessionType],
+			inProgress: [],
+		});
 	});
 });
 
