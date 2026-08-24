@@ -310,14 +310,14 @@
 					setBounds(sideDiv, {
 						top: contentTop,
 						bottom: contentBottom + floatingStatusBarMargin,
-						left: layoutInfo.activityBarWidth + (modernUI && layoutInfo.modernUICompact !== true ? Math.max(floatingMargin, floatingOuterMargin) : 0),
+						left: layoutInfo.activityBarWidth + (modernUI ? floatingMargin : 0),
 						width: modernUI ? Math.max(0, layoutInfo.sideBarWidth - floatingOuterMargin - floatingBorderWidth * 2) : layoutInfo.sideBarWidth
 					});
 				} else {
 					setBounds(sideDiv, {
 						top: contentTop,
 						bottom: contentBottom + floatingStatusBarMargin,
-						right: layoutInfo.activityBarWidth + (modernUI && layoutInfo.modernUICompact !== true ? Math.max(floatingMargin, floatingOuterMargin) : 0),
+						right: layoutInfo.activityBarWidth + (modernUI ? floatingMargin : 0),
 						width: modernUI ? Math.max(0, layoutInfo.sideBarWidth - floatingOuterMargin - floatingBorderWidth * 2) : layoutInfo.sideBarWidth
 					});
 				}

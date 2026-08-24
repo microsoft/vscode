@@ -284,8 +284,10 @@
 
 /* With a compact activity bar the horizontal inset is tightened to match.
  * `activitybar-compact` is mirrored onto the workbench root by activitybarPart.ts;
- * the `:not` keeps a hidden compact bar resolving to the hidden inset below. */
-.monaco-workbench.floating-panels.activitybar-compact:not(.noactivitybar) .part.statusbar {
+ * the `:not` keeps a hidden compact bar resolving to the hidden inset below.
+ * Compact density owns its own perimeter inset below, so it is excluded here to
+ * keep the two densities mutually exclusive rather than specificity-ordered. */
+.monaco-workbench.floating-panels.activitybar-compact:not(.modern-ui-compact):not(.noactivitybar) .part.statusbar {
 	padding-left: var(--modern-ui-floating-card-margin);
 	padding-right: var(--modern-ui-floating-card-margin);
 }
@@ -293,11 +295,13 @@
 /* When the activity bar is hidden (`noactivitybar`, toggled by layout.ts like
  * the other part visibility classes) there is no bar to align to, so fall back
  * to the standard 4px inset. */
-.monaco-workbench.floating-panels.noactivitybar .part.statusbar {
+.monaco-workbench.floating-panels.noactivitybar:not(.modern-ui-compact) .part.statusbar {
 	padding-left: var(--modern-ui-floating-card-margin);
 	padding-right: var(--modern-ui-floating-card-margin);
 }
 
+/* Compact density insets the status bar by the cluster perimeter gutter so it
+ * lines up with every other card, independent of the activity bar state. */
 .monaco-workbench.floating-panels.modern-ui-compact .part.statusbar {
 	padding-left: var(--modern-ui-floating-card-outer-margin);
 	padding-right: var(--modern-ui-floating-card-outer-margin);
