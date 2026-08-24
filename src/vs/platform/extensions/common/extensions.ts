@@ -36,6 +36,10 @@ export interface IJSONValidation {
 	url: string;
 }
 
+export interface IJSONValidationRegistry {
+	url: string;
+}
+
 export interface IKeyBinding {
 	command: string;
 	key: string;
@@ -104,6 +108,7 @@ export interface ICodeActionContribution {
 export interface IAuthenticationContribution {
 	readonly id: string;
 	readonly label: string;
+	readonly authorizationServerGlobs?: string[];
 }
 
 export interface IWalkthroughStep {
@@ -111,9 +116,10 @@ export interface IWalkthroughStep {
 	readonly title: string;
 	readonly description: string | undefined;
 	readonly media:
-	| { image: string | { dark: string; light: string; hc: string }; altText: string; markdown?: never; svg?: never }
-	| { markdown: string; image?: never; svg?: never }
-	| { svg: string; altText: string; markdown?: never; image?: never };
+	| { image: string | { dark: string; light: string; hc: string }; altText: string; markdown?: never; svg?: never; video?: never }
+	| { markdown: string; image?: never; svg?: never; video?: never }
+	| { svg: string; altText: string; markdown?: never; image?: never; video?: never }
+	| { video: string | { dark: string; light: string; hc: string }; poster: string | { dark: string; light: string; hc: string }; altText: string; markdown?: never; image?: never; svg?: never };
 	readonly completionEvents?: string[];
 	/** @deprecated use `completionEvents: 'onCommand:...'` */
 	readonly doneOn?: { command: string };
@@ -167,12 +173,52 @@ export interface ILocalizationContribution {
 	minimalTranslations?: { [key: string]: string };
 }
 
+export interface IChatParticipantContribution {
+	id: string;
+	name: string;
+	fullName: string;
+	description?: string;
+	isDefault?: boolean;
+	commands?: { name: string }[];
+}
+
+export interface IToolContribution {
+	name: string;
+	displayName: string;
+	modelDescription: string;
+	userDescription?: string;
+}
+
+export interface IToolSetContribution {
+	name: string;
+	referenceName: string;
+	description: string;
+	icon?: string;
+	tools: string[];
+}
+
+export interface IMcpCollectionContribution {
+	readonly id: string;
+	readonly label: string;
+	readonly when?: string;
+}
+
+export interface IChatFileContribution {
+	readonly path: string;
+	readonly name?: string;
+	readonly description?: string;
+	readonly when?: string;
+	readonly sessionTypes?: readonly string[];
+}
+
 export interface IExtensionContributions {
 	commands?: ICommand[];
 	configuration?: any;
+	configurationDefaults?: any;
 	debuggers?: IDebugger[];
 	grammars?: IGrammar[];
 	jsonValidation?: IJSONValidation[];
+	jsonValidationRegistry?: IJSONValidationRegistry[];
 	keybindings?: IKeyBinding[];
 	languages?: ILanguage[];
 	menus?: { [context: string]: IMenu[] };
@@ -192,7 +238,15 @@ export interface IExtensionContributions {
 	readonly notebooks?: INotebookEntry[];
 	readonly notebookRenderer?: INotebookRendererContribution[];
 	readonly debugVisualizers?: IDebugVisualizationContribution[];
-	readonly chatParticipants?: ReadonlyArray<{ id: string }>;
+	readonly chatParticipants?: ReadonlyArray<IChatParticipantContribution>;
+	readonly chatPromptFiles?: ReadonlyArray<IChatFileContribution>;
+	readonly chatInstructions?: ReadonlyArray<IChatFileContribution>;
+	readonly chatAgents?: ReadonlyArray<IChatFileContribution>;
+	readonly chatSkills?: ReadonlyArray<IChatFileContribution>;
+	readonly chatPlugins?: ReadonlyArray<IChatFileContribution>;
+	readonly languageModelTools?: ReadonlyArray<IToolContribution>;
+	readonly languageModelToolSets?: ReadonlyArray<IToolSetContribution>;
+	readonly mcpServerDefinitionProviders?: ReadonlyArray<IMcpCollectionContribution>;
 }
 
 export interface IExtensionCapabilities {
@@ -256,6 +310,7 @@ export interface IRelaxedExtensionManifest {
 	engines: { readonly vscode: string };
 	description?: string;
 	main?: string;
+	type?: string;
 	browser?: string;
 	preview?: boolean;
 	// For now this only supports pointing to l10n bundle files
@@ -264,8 +319,9 @@ export interface IRelaxedExtensionManifest {
 	icon?: string;
 	categories?: string[];
 	keywords?: string[];
-	activationEvents?: string[];
+	activationEvents?: readonly string[];
 	extensionDependencies?: string[];
+	extensionAffinity?: string[];
 	extensionPack?: string[];
 	extensionKind?: ExtensionKind | ExtensionKind[];
 	contributes?: IExtensionContributions;
@@ -318,6 +374,7 @@ export interface IExtension {
 	readonly changelogUrl?: URI;
 	readonly isValid: boolean;
 	readonly validations: readonly [Severity, string][];
+	readonly preRelease: boolean;
 }
 
 /**
@@ -446,6 +503,27 @@ export class ExtensionIdentifierMap<T> {
 	}
 }
 
+/**
+ * An error that is clearly from an extension, identified by the `ExtensionIdentifier`
+ */
+export class ExtensionError extends Error {
+
+	readonly extension: ExtensionIdentifier;
+
+	constructor(extensionIdentifier: ExtensionIdentifier, cause: Error, message?: string) {
+		const detail = message && cause?.message ? `${message}: ${cause.message}` : (message ?? cause?.message);
+		super(`Error in extension ${ExtensionIdentifier.toKey(extensionIdentifier)}: ${detail}`, { cause });
+		this.name = 'ExtensionError';
+		this.extension = extensionIdentifier;
+		// Adopt the underlying cause's stack so error telemetry buckets by the real
+		// failure site inside the extension instead of the generic event-dispatch
+		// frames. Extension attribution relies on `this.extension`, not this stack.
+		if (cause?.stack) {
+			this.stack = cause.stack;
+		}
+	}
+}
+
 export interface IRelaxedExtensionDescription extends IRelaxedExtensionManifest {
 	id?: string;
 	identifier: ExtensionIdentifier;
@@ -456,6 +534,7 @@ export interface IRelaxedExtensionDescription extends IRelaxedExtensionManifest 
 	isUserBuiltin: boolean;
 	isUnderDevelopment: boolean;
 	extensionLocation: URI;
+	preRelease: boolean;
 }
 
 export type IExtensionDescription = Readonly<IRelaxedExtensionDescription>;
@@ -478,13 +557,6 @@ export function isResolverExtension(manifest: IExtensionManifest, remoteAuthorit
 		return !!manifest.activationEvents?.includes(activationEvent);
 	}
 	return false;
-}
-
-export function parseApiProposals(enabledApiProposals: string[]): { proposalName: string; version?: number }[] {
-	return enabledApiProposals.map(proposal => {
-		const [proposalName, version] = proposal.split('@');
-		return { proposalName, version: version ? parseInt(version) : undefined };
-	});
 }
 
 export function parseEnabledApiProposalNames(enabledApiProposals: string[]): string[] {

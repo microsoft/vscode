@@ -5,10 +5,11 @@
 import { isHotReloadEnabled } from '../../../base/common/hotReload.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
 import { autorunWithStore, IObservable } from '../../../base/common/observable.js';
-import { BrandedService, GetLeadingNonServiceArgs, IInstantiationService } from '../../instantiation/common/instantiation.js';
+import { BrandedService, IInstantiationService } from '../../instantiation/common/instantiation.js';
 
 export function hotClassGetOriginalInstance<T>(value: T): T {
 	if (value instanceof BaseClass) {
+		// eslint-disable-next-line local/code-no-any-casts
 		return value._instance as any;
 	}
 	return value;
@@ -19,7 +20,7 @@ export function hotClassGetOriginalInstance<T>(value: T): T {
  * When the wrapper is created, the original class is created.
  * When the original class changes, the instance is re-created.
 */
-export function wrapInHotClass0<TArgs extends BrandedService[]>(clazz: IObservable<Result<TArgs>>): Result<GetLeadingNonServiceArgs<TArgs>> {
+export function wrapInHotClass0<TArgs extends BrandedService[]>(clazz: IObservable<Result<TArgs>>): Result<TArgs> {
 	return !isHotReloadEnabled() ? clazz.get() : createWrapper(clazz, BaseClass0);
 }
 
@@ -36,13 +37,14 @@ class BaseClass {
 }
 
 function createWrapper<T extends any[]>(clazz: IObservable<any>, B: new (...args: T) => BaseClass) {
+	// eslint-disable-next-line local/code-no-any-casts
 	return (class ReloadableWrapper extends B {
 		private _autorun: IDisposable | undefined = undefined;
 
 		override init(...params: any[]) {
 			this._autorun = autorunWithStore((reader, store) => {
 				const clazz_ = clazz.read(reader);
-				this._instance = store.add(this.instantiationService.createInstance(clazz_, ...params) as IDisposable);
+				this._instance = store.add(this.instantiationService.createInstance(clazz_, ...params));
 			});
 		}
 
@@ -61,7 +63,7 @@ class BaseClass0 extends BaseClass {
  * When the wrapper is created, the original class is created.
  * When the original class changes, the instance is re-created.
 */
-export function wrapInHotClass1<TArgs extends [any, ...BrandedService[]]>(clazz: IObservable<Result<TArgs>>): Result<GetLeadingNonServiceArgs<TArgs>> {
+export function wrapInHotClass1<TArgs extends [any, ...BrandedService[]]>(clazz: IObservable<Result<TArgs>>): Result<TArgs> {
 	return !isHotReloadEnabled() ? clazz.get() : createWrapper(clazz, BaseClass1);
 }
 

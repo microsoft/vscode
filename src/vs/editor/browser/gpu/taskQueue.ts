@@ -4,14 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getActiveWindow } from '../../../base/browser/dom.js';
-import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, toDisposable, type IDisposable } from '../../../base/common/lifecycle.js';
+import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
+import { ILogService } from '../../../platform/log/common/log.js';
 
 /**
  * Copyright (c) 2022 The xterm.js authors. All rights reserved.
  * @license MIT
  */
 
-interface ITaskQueue {
+export interface ITaskQueue extends IDisposable {
 	/**
 	 * Adds a task to the queue which will run in a future idle callback.
 	 * To avoid perceivable stalls on the mainthread, tasks with heavy workload
@@ -41,7 +43,9 @@ abstract class TaskQueue extends Disposable implements ITaskQueue {
 	private _idleCallback?: number;
 	private _i = 0;
 
-	constructor() {
+	constructor(
+		@ILogService private readonly _logService: ILogService
+	) {
 		super();
 		this._register(toDisposable(() => this.clear()));
 	}
@@ -101,7 +105,7 @@ abstract class TaskQueue extends Disposable implements ITaskQueue {
 				// Warn when the time exceeding the deadline is over 20ms, if this happens in practice the
 				// task should be split into sub-tasks to ensure the UI remains responsive.
 				if (lastDeadlineRemaining - taskDuration < -20) {
-					console.warn(`task queue exceeded allotted deadline by ${Math.abs(Math.round(lastDeadlineRemaining - taskDuration))}ms`);
+					this._logService.warn(`task queue exceeded allotted deadline by ${Math.abs(Math.round(lastDeadlineRemaining - taskDuration))}ms`);
 				}
 				this._start();
 				return;
@@ -134,13 +138,7 @@ export class PriorityTaskQueue extends TaskQueue {
 	}
 }
 
-/**
- * A queue of that runs tasks over several idle callbacks, trying to respect the idle callback's
- * deadline given by the environment. The tasks will run in the order they are enqueued, but they
- * will run some time later, and care should be taken to ensure they're non-urgent and will not
- * introduce race conditions.
- */
-export class IdleTaskQueue extends TaskQueue {
+class IdleTaskQueueInternal extends TaskQueue {
 	protected _requestCallback(callback: IdleRequestCallback): number {
 		return getActiveWindow().requestIdleCallback(callback);
 	}
@@ -151,14 +149,26 @@ export class IdleTaskQueue extends TaskQueue {
 }
 
 /**
+ * A queue of that runs tasks over several idle callbacks, trying to respect the idle callback's
+ * deadline given by the environment. The tasks will run in the order they are enqueued, but they
+ * will run some time later, and care should be taken to ensure they're non-urgent and will not
+ * introduce race conditions.
+ *
+ * This reverts to a {@link PriorityTaskQueue} if the environment does not support idle callbacks.
+ */
+export const IdleTaskQueue = ('requestIdleCallback' in getActiveWindow()) ? IdleTaskQueueInternal : PriorityTaskQueue;
+
+/**
  * An object that tracks a single debounced task that will run on the next idle frame. When called
  * multiple times, only the last set task will run.
  */
 export class DebouncedIdleTask {
 	private _queue: ITaskQueue;
 
-	constructor() {
-		this._queue = new IdleTaskQueue();
+	constructor(
+		@IInstantiationService instantiationService: IInstantiationService
+	) {
+		this._queue = instantiationService.createInstance(IdleTaskQueue);
 	}
 
 	public set(task: () => boolean | void): void {

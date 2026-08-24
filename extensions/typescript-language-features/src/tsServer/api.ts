@@ -30,6 +30,7 @@ export class API {
 	public static readonly v540 = API.fromSimpleString('5.4.0');
 	public static readonly v560 = API.fromSimpleString('5.6.0');
 	public static readonly v570 = API.fromSimpleString('5.7.0');
+	public static readonly v590 = API.fromSimpleString('5.9.0');
 
 	public static fromVersionString(versionString: string): API {
 		let version = semver.valid(versionString);

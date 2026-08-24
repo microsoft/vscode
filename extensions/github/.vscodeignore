@@ -2,6 +2,8 @@ src/**
 !src/common/config.json
 out/**
 build/**
-extension.webpack.config.js
-tsconfig.json
+esbuild*.mts
+tsconfig*.json
+**/*.tsbuildinfo
 package-lock.json
+testWorkspace/**

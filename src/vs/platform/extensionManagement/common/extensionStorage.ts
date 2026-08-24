@@ -5,7 +5,7 @@
 
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
 import { IProfileStorageValueChangeEvent, IStorageService, StorageScope, StorageTarget } from '../../storage/common/storage.js';
 import { adoptToGalleryExtensionId, areSameExtensions, getExtensionId } from './extensionManagementUtil.js';
 import { IProductService } from '../../product/common/productService.js';
@@ -26,9 +26,9 @@ export const IExtensionStorageService = createDecorator<IExtensionStorageService
 export interface IExtensionStorageService {
 	readonly _serviceBrand: undefined;
 
-	getExtensionState(extension: IExtension | IGalleryExtension | string, global: boolean): IStringDictionary<any> | undefined;
+	getExtensionState(extension: IExtension | IGalleryExtension | string, global: boolean): IStringDictionary<unknown> | undefined;
 	getExtensionStateRaw(extension: IExtension | IGalleryExtension | string, global: boolean): string | undefined;
-	setExtensionState(extension: IExtension | IGalleryExtension | string, state: IStringDictionary<any> | undefined, global: boolean): void;
+	setExtensionState(extension: IExtension | IGalleryExtension | string, state: object | undefined, global: boolean): void;
 
 	readonly onDidChangeExtensionStorageToSync: Event<void>;
 	setKeysForSync(extensionIdWithVersion: IExtensionIdWithVersion, keys: string[]): void;
@@ -103,7 +103,7 @@ export class ExtensionStorageService extends Disposable implements IExtensionSto
 	) {
 		super();
 		this.extensionsWithKeysForSync = ExtensionStorageService.readAllExtensionsWithKeysForSync(storageService);
-		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, undefined, this._register(new DisposableStore()))(e => this.onDidChangeStorageValue(e)));
+		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, undefined, this._store)(e => this.onDidChangeStorageValue(e)));
 	}
 
 	private onDidChangeStorageValue(e: IProfileStorageValueChangeEvent): void {
@@ -140,7 +140,7 @@ export class ExtensionStorageService extends Disposable implements IExtensionSto
 		return getExtensionId(publisher, name);
 	}
 
-	getExtensionState(extension: IExtension | IGalleryExtension | string, global: boolean): IStringDictionary<any> | undefined {
+	getExtensionState(extension: IExtension | IGalleryExtension | string, global: boolean): IStringDictionary<unknown> | undefined {
 		const extensionId = this.getExtensionId(extension);
 		const jsonValue = this.getExtensionStateRaw(extension, global);
 		if (jsonValue) {
@@ -167,7 +167,7 @@ export class ExtensionStorageService extends Disposable implements IExtensionSto
 		return rawState;
 	}
 
-	setExtensionState(extension: IExtension | IGalleryExtension | string, state: IStringDictionary<any> | undefined, global: boolean): void {
+	setExtensionState(extension: IExtension | IGalleryExtension | string, state: IStringDictionary<unknown> | undefined, global: boolean): void {
 		const extensionId = this.getExtensionId(extension);
 		if (state === undefined) {
 			this.storageService.remove(extensionId, global ? StorageScope.PROFILE : StorageScope.WORKSPACE);

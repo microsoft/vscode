@@ -22,11 +22,11 @@ export async function launch(options: LaunchOptions): Promise<{ serverProcess: C
 	const { serverProcess, endpoint } = await launchServer(options);
 
 	// Launch browser
-	const { browser, context, page, pageLoadedPromise } = await launchBrowser(options, endpoint);
+	const { browser, context, page, pageLoadedPromise, videoStartedAt } = await launchBrowser(options, endpoint);
 
 	return {
 		serverProcess,
-		driver: new PlaywrightDriver(browser, context, page, serverProcess, pageLoadedPromise, options)
+		driver: new PlaywrightDriver(browser, context, page, serverProcess, pageLoadedPromise, options, videoStartedAt)
 	};
 }
 
@@ -35,7 +35,6 @@ async function launchServer(options: LaunchOptions) {
 	const serverLogsPath = join(logsPath, 'server');
 	const codeServerPath = codePath ?? process.env.VSCODE_REMOTE_SERVER_PATH;
 	const agentFolder = userDataDir;
-	await measureAndLog(() => fs.promises.mkdir(agentFolder, { recursive: true }), `mkdirp(${agentFolder})`, logger);
 
 	const env = {
 		VSCODE_REMOTE_SERVER_PATH: codeServerPath,
@@ -44,17 +43,26 @@ async function launchServer(options: LaunchOptions) {
 
 	const args = [
 		'--disable-telemetry',
+		'--disable-experiments',
 		'--disable-workspace-trust',
 		`--port=${port++}`,
 		'--enable-smoke-test-driver',
-		`--extensions-dir=${extensionsPath}`,
-		`--server-data-dir=${agentFolder}`,
 		'--accept-server-license-terms',
 		`--logsPath=${serverLogsPath}`
 	];
+	if (agentFolder) {
+		await measureAndLog(() => fs.promises.mkdir(agentFolder, { recursive: true }), `mkdirp(${agentFolder})`, logger);
+		args.push(`--server-data-dir=${agentFolder}`);
+	}
+	if (extensionsPath) {
+		args.push(`--extensions-dir=${extensionsPath}`);
+	}
 
 	if (options.verbose) {
 		args.push('--log=trace');
+	}
+	if (options.extensionDevelopmentPath) {
+		args.push(`--extensionDevelopmentPath=${options.extensionDevelopmentPath}`);
 	}
 
 	let serverLocation: string | undefined;
@@ -88,39 +96,68 @@ async function launchServer(options: LaunchOptions) {
 }
 
 async function launchBrowser(options: LaunchOptions, endpoint: string) {
-	const { logger, workspacePath, tracing, headless } = options;
+	const { logger, workspacePath, tracing, snapshots, headless } = options;
 
-	const browser = await measureAndLog(() => playwright[options.browser ?? 'chromium'].launch({
+	const playwrightImpl = options.playwright ?? playwright;
+	const [browserType, browserChannel] = (options.browser ?? 'chromium').split('-');
+	const browser = await measureAndLog(() => playwrightImpl[browserType as unknown as 'chromium' | 'webkit' | 'firefox'].launch({
 		headless: headless ?? false,
-		timeout: 0
+		timeout: 0,
+		channel: browserChannel,
 	}), 'playwright#launch', logger);
 
 	browser.on('disconnected', () => logger.log(`Playwright: browser disconnected`));
 
-	const context = await measureAndLog(() => browser.newContext(), 'browser.newContext', logger);
+	const context = await measureAndLog(
+		() => browser.newContext({
+			recordVideo: options.videosPath
+				? {
+					dir: options.videosPath,
+					size: { width: 1920, height: 1080 }
+				} : undefined,
+		}),
+		'browser.newContext',
+		logger
+	);
 
 	if (tracing) {
 		try {
-			await measureAndLog(() => context.tracing.start({ screenshots: true, /* remaining options are off for perf reasons */ }), 'context.tracing.start()', logger);
+			await measureAndLog(() => context.tracing.start({ screenshots: true, snapshots }), 'context.tracing.start()', logger);
 		} catch (error) {
 			logger.log(`Playwright (Browser): Failed to start playwright tracing (${error})`); // do not fail the build when this fails
 		}
 	}
 
+	// Recording is per page and starts when the page is created, so sample the
+	// origin here rather than at context creation: tracing startup above can take
+	// long enough to visibly skew offsets measured against it.
+	const videoStartedAt = options.videosPath ? Date.now() : undefined;
 	const page = await measureAndLog(() => context.newPage(), 'context.newPage()', logger);
-	await measureAndLog(() => page.setViewportSize({ width: 1200, height: 800 }), 'page.setViewportSize', logger);
+	// Match the recording canvas while recording, so the capture has no empty
+	// margins; keep the established size otherwise so smoke runs are unchanged.
+	const viewport = options.videosPath ? { width: 1920, height: 1080 } : { width: 1440, height: 900 };
+	await measureAndLog(() => page.setViewportSize(viewport), 'page.setViewportSize', logger);
+
+	// Always log failed requests and console errors/warnings (even without
+	// `--verbose`) so that hard-to-reproduce startup stalls can be root caused
+	// from CI logs. A stalled or aborted module fetch can prevent the workbench
+	// from rendering (e.g. `.monaco-workbench` never appears) without producing
+	// a page error, crash or HTTP error response, making it otherwise invisible.
+	context.on('requestfailed', e => logger.log(`Playwright (Browser): context.on('requestfailed') [${e.failure()?.errorText} for ${e.url()}]`));
+	page.on('requestfailed', e => logger.log(`Playwright (Browser): page.on('requestfailed') [${e.failure()?.errorText} for ${e.url()}]`));
+	page.on('console', e => {
+		if (options.verbose || e.type() === 'error' || e.type() === 'warning') {
+			logger.log(`Playwright (Browser): window.on('console') [${e.text()}]`);
+		}
+	});
 
 	if (options.verbose) {
 		context.on('page', () => logger.log(`Playwright (Browser): context.on('page')`));
-		context.on('requestfailed', e => logger.log(`Playwright (Browser): context.on('requestfailed') [${e.failure()?.errorText} for ${e.url()}]`));
-
-		page.on('console', e => logger.log(`Playwright (Browser): window.on('console') [${e.text()}]`));
 		page.on('dialog', () => logger.log(`Playwright (Browser): page.on('dialog')`));
 		page.on('domcontentloaded', () => logger.log(`Playwright (Browser): page.on('domcontentloaded')`));
 		page.on('load', () => logger.log(`Playwright (Browser): page.on('load')`));
 		page.on('popup', () => logger.log(`Playwright (Browser): page.on('popup')`));
 		page.on('framenavigated', () => logger.log(`Playwright (Browser): page.on('framenavigated')`));
-		page.on('requestfailed', e => logger.log(`Playwright (Browser): page.on('requestfailed') [${e.failure()?.errorText} for ${e.url()}]`));
 	}
 
 	page.on('pageerror', async (error) => logger.log(`Playwright (Browser) ERROR: page error: ${error}`));
@@ -139,12 +176,20 @@ async function launchBrowser(options: LaunchOptions, endpoint: string) {
 		`["logLevel","${options.verbose ? 'trace' : 'info'}"]`
 	].join(',')}]`;
 
-	const gotoPromise = measureAndLog(() => page.goto(`${endpoint}&${workspacePath.endsWith('.code-workspace') ? 'workspace' : 'folder'}=${URI.file(workspacePath!).path}&payload=${payloadParam}`), 'page.goto()', logger);
+	// Build URL with optional workspace path
+	let url = `${endpoint}&`;
+	if (workspacePath) {
+		const workspaceParam = workspacePath.endsWith('.code-workspace') ? 'workspace' : 'folder';
+		url += `${workspaceParam}=${URI.file(workspacePath).path}&`;
+	}
+	url += `payload=${payloadParam}`;
+
+	const gotoPromise = measureAndLog(() => page.goto(url), 'page.goto()', logger);
 	const pageLoadedPromise = page.waitForLoadState('load');
 
 	await gotoPromise;
 
-	return { browser, context, page, pageLoadedPromise };
+	return { browser, context, page, pageLoadedPromise, videoStartedAt };
 }
 
 function waitForEndpoint(server: ChildProcess, logger: Logger): Promise<string> {

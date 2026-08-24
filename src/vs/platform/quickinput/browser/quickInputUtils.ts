@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../base/browser/dom.js';
+import * as domStylesheetsJs from '../../../base/browser/domStylesheets.js';
 import * as cssJs from '../../../base/browser/cssValue.js';
 import { DomEmitter } from '../../../base/browser/event.js';
 import { Event } from '../../../base/common/event.js';
@@ -34,12 +35,43 @@ function getIconClass(iconPath: { dark: URI; light?: URI } | undefined): string 
 		iconClass = iconPathToClass[key];
 	} else {
 		iconClass = iconClassGenerator.nextId();
-		dom.createCSSRule(`.${iconClass}, .hc-light .${iconClass}`, `background-image: ${cssJs.asCSSUrl(iconPath.light || iconPath.dark)}`);
-		dom.createCSSRule(`.vs-dark .${iconClass}, .hc-black .${iconClass}`, `background-image: ${cssJs.asCSSUrl(iconPath.dark)}`);
+		domStylesheetsJs.createCSSRule(`.${iconClass}, .hc-light .${iconClass}`, `background-image: ${cssJs.asCSSUrl(iconPath.light || iconPath.dark)}`);
+		domStylesheetsJs.createCSSRule(`.vs-dark .${iconClass}, .hc-black .${iconClass}`, `background-image: ${cssJs.asCSSUrl(iconPath.dark)}`);
 		iconPathToClass[key] = iconClass;
 	}
 
 	return iconClass;
+}
+
+class QuickInputToggleButtonAction implements IAction {
+	class: string | undefined;
+
+	constructor(
+		public readonly id: string,
+		public label: string,
+		public tooltip: string,
+		className: string | undefined,
+		public enabled: boolean,
+		private _checked: boolean,
+		private _run: () => unknown
+	) {
+		this.class = className;
+	}
+
+	get checked(): boolean {
+		return this._checked;
+	}
+
+	set checked(value: boolean) {
+		this._checked = value;
+		// Toggles behave like buttons. When clicked, they run... the only difference is that their checked state also changes.
+		this._run();
+	}
+
+	run() {
+		this._checked = !this._checked;
+		return this._run();
+	}
 }
 
 export function quickInputButtonToAction(button: IQuickInputButton, id: string, run: () => unknown): IAction {
@@ -48,14 +80,62 @@ export function quickInputButtonToAction(button: IQuickInputButton, id: string, 
 		cssClasses = cssClasses ? `${cssClasses} always-visible` : 'always-visible';
 	}
 
-	return {
-		id,
-		label: '',
-		tooltip: button.tooltip || '',
-		class: cssClasses,
-		enabled: true,
-		run
+	const handler = () => {
+		if (button.toggle) {
+			button.toggle.checked = !button.toggle.checked;
+		}
+		return run();
 	};
+
+	const action = button.toggle
+		? new QuickInputToggleButtonAction(
+			id,
+			button.tooltip || '',
+			'',
+			cssClasses,
+			true,
+			button.toggle.checked,
+			handler
+		)
+		: {
+			id,
+			label: '',
+			tooltip: button.tooltip || '',
+			class: cssClasses,
+			enabled: true,
+			run: handler,
+		};
+
+	return action;
+}
+
+export function quickInputButtonsToActionArrays(
+	buttons: readonly IQuickInputButton[],
+	idPrefix: string,
+	onTrigger: (button: IQuickInputButton) => unknown
+): { primary: IAction[]; secondary: IAction[] } {
+	const primary: IAction[] = [];
+	const secondary: IAction[] = [];
+
+	buttons.forEach((button, index) => {
+		const action = quickInputButtonToAction(
+			button,
+			`${idPrefix}-${index}`,
+			async () => onTrigger(button)
+		);
+
+		if (button.label) {
+			action.label = button.label;
+		}
+
+		if (button.secondary) {
+			secondary.push(action);
+		} else {
+			primary.push(action);
+		}
+	});
+
+	return { primary, secondary };
 }
 
 export function renderQuickInputDescription(description: string, container: HTMLElement, actionHandler: { callback: (content: string) => void; disposables: DisposableStore }) {

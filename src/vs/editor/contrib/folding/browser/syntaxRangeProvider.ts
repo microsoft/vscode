@@ -47,6 +47,9 @@ export class SyntaxRangeProvider implements RangeProvider {
 
 	compute(cancellationToken: CancellationToken): Promise<FoldingRegions | null> {
 		return collectSyntaxRanges(this.providers, this.editorModel, cancellationToken).then(ranges => {
+			if (this.editorModel.isDisposed()) {
+				return null;
+			}
 			if (ranges) {
 				const res = sanitizeRanges(ranges, this.foldingRangesLimit);
 				return res;

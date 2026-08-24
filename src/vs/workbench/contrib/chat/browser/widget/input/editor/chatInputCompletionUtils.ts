@@ -1,0 +1,112 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { fuzzyScore, FuzzyScoreOptions, fuzzyScoreGracefulAggressive } from '../../../../../../../base/common/filters.js';
+import { InternalSuggestOptions } from '../../../../../../../editor/common/config/editorOptions.js';
+import { Position } from '../../../../../../../editor/common/core/position.js';
+import { Range } from '../../../../../../../editor/common/core/range.js';
+import { IWordAtPosition, getWordAtText } from '../../../../../../../editor/common/core/wordHelper.js';
+import { ITextModel } from '../../../../../../../editor/common/model.js';
+
+export const attachedContextCompletionSortText = '\u0000';
+export const attachedContextCompletionAdditionalTriggerCharacters = [':', '-'] as const;
+
+export function getAttachedContextCompletionSortText(score: number): string {
+	return `${attachedContextCompletionSortText}${(0x7FFFFFFF - score).toString(16).padStart(8, '0')}`;
+}
+
+export function getAttachedContextCompletionMatch(typedWord: string, leader: string, name: string, kind: string, suggestOptions: InternalSuggestOptions): { filterText: string; score: number } | undefined {
+	if (!typedWord) {
+		return { filterText: typedWord, score: 0 };
+	}
+
+	const searchableText = `${leader}${name} ${leader}attachment:${name} ${name} ${kind}`;
+	const scoreFn = suggestOptions.filterGraceful ? fuzzyScoreGracefulAggressive : fuzzyScore;
+	const score = scoreFn(
+		typedWord,
+		typedWord.toLowerCase(),
+		0,
+		searchableText,
+		searchableText.toLowerCase(),
+		0,
+		{ ...FuzzyScoreOptions.default, firstMatchCanBeWeak: !suggestOptions.matchOnWordStartOnly }
+	);
+	return score ? { filterText: typedWord, score: score[0] } : undefined;
+}
+
+export function escapeForCharClass(text: string): string {
+	return text.replace(/[-\\^\]]/g, '\\$&');
+}
+
+export interface IChatCompletionRangeResult {
+	insert: Range;
+	replace: Range;
+	varWord: IWordAtPosition | null;
+}
+
+export function getCompletionRangeWord(rangeResult: IChatCompletionRangeResult): string | undefined {
+	return rangeResult.varWord?.word.slice(0, rangeResult.insert.endColumn - rangeResult.insert.startColumn);
+}
+
+export function computeCompletionRanges(model: ITextModel, position: Position, reg: RegExp, onlyOnWordStart = false): IChatCompletionRangeResult | undefined {
+	const varWord = getWordAtText(position.column, reg, model.getLineContent(position.lineNumber), 0);
+	if (!varWord && model.getWordUntilPosition(position).word) {
+		// inside a "normal" word
+		return;
+	}
+
+	if (!varWord && position.column > 1) {
+		const textBefore = model.getValueInRange(new Range(position.lineNumber, position.column - 1, position.lineNumber, position.column));
+		if (textBefore !== ' ') {
+			return;
+		}
+	}
+
+	if (varWord && onlyOnWordStart) {
+		const wordBefore = model.getWordUntilPosition({ lineNumber: position.lineNumber, column: varWord.startColumn });
+		if (wordBefore.word) {
+			// inside a word
+			return;
+		}
+	}
+
+	let insert: Range;
+	let replace: Range;
+	if (!varWord) {
+		insert = replace = Range.fromPositions(position);
+	} else {
+		insert = new Range(position.lineNumber, varWord.startColumn, position.lineNumber, position.column);
+		replace = new Range(position.lineNumber, varWord.startColumn, position.lineNumber, varWord.endColumn);
+	}
+
+	return { insert, replace, varWord };
+}
+
+export function isEmptyUpToCompletionWord(model: ITextModel, rangeResult: IChatCompletionRangeResult): boolean {
+	const startToCompletionWordStart = new Range(1, 1, rangeResult.replace.startLineNumber, rangeResult.replace.startColumn);
+	return !!model.getValueInRange(startToCompletionWordStart).match(/^\s*$/);
+}
+
+/**
+ * Returns `true` when the cursor sits inside a non-empty token whose first
+ * character is one of the given trigger characters (or is positioned right
+ * after such a token). Used to gate completion providers so they only run
+ * when the user is actively editing a trigger-led token.
+ */
+export function isAtTriggerCharacterToken(model: ITextModel, position: Position, triggerCharacters: readonly string[]): boolean {
+	if (triggerCharacters.length === 0) {
+		return false;
+	}
+	const line = model.getLineContent(position.lineNumber);
+	const beforeCursor = line.slice(0, position.column - 1);
+	// The current token is everything from the last whitespace char (or
+	// start-of-line) up to the cursor.
+	const wsIdx = beforeCursor.search(/\s\S*$/);
+	const token = wsIdx >= 0 ? beforeCursor.slice(wsIdx + 1) : beforeCursor;
+	if (token.length === 0) {
+		return false;
+	}
+	return triggerCharacters.includes(token[0]);
+}

@@ -5,10 +5,10 @@
 
 import type { SerializeAddon as SerializeAddonType } from '@xterm/addon-serialize';
 import type { WebglAddon as WebglAddonType } from '@xterm/addon-webgl';
+import type { LigaturesAddon as LigaturesAddonType } from '@xterm/addon-ligatures';
 import type { IBufferLine, IMarker, ITerminalOptions, ITheme, Terminal as RawXtermTerminal, Terminal as XTermTerminal } from '@xterm/xterm';
-import { importAMDNodeModule } from '../../../../../amdX.js';
 import { $, addDisposableListener, addStandardDisposableListener, getWindow } from '../../../../../base/browser/dom.js';
-import { memoize, throttle } from '../../../../../base/common/decorators.js';
+import { debounce, throttle } from '../../../../../base/common/decorators.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, MutableDisposable, combinedDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { removeAnsiEscapeCodes } from '../../../../../base/common/strings.js';
@@ -20,7 +20,7 @@ import { IContextKeyService } from '../../../../../platform/contextkey/common/co
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { ICommandDetectionCapability, ITerminalCommand } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
-import { ICurrentPartialCommand } from '../../../../../platform/terminal/common/capabilities/commandDetection/terminalCommand.js';
+import { ICurrentPartialCommand, isFullTerminalCommand } from '../../../../../platform/terminal/common/capabilities/commandDetection/terminalCommand.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { ITerminalConfigurationService, ITerminalInstance, IXtermColorProvider, IXtermTerminal } from '../../../terminal/browser/terminal.js';
 import { openContextMenu } from '../../../terminal/browser/terminalContextMenu.js';
@@ -29,6 +29,7 @@ import { TERMINAL_CONFIG_SECTION, TerminalCommandId } from '../../../terminal/co
 import { terminalStrings } from '../../../terminal/common/terminalStrings.js';
 import { TerminalStickyScrollSettingId } from '../common/terminalStickyScrollConfiguration.js';
 import { terminalStickyScrollBackground, terminalStickyScrollHoverBackground } from './terminalStickyScrollColorRegistry.js';
+import { XtermAddonImporter } from '../../../terminal/browser/xterm/xtermAddonImporter.js';
 
 const enum OverlayState {
 	/** Initial state/disabled by the alt buffer. */
@@ -46,8 +47,12 @@ const enum Constants {
 
 export class TerminalStickyScrollOverlay extends Disposable {
 	private _stickyScrollOverlay?: RawXtermTerminal;
+
+	private readonly _xtermAddonLoader = new XtermAddonImporter();
 	private _serializeAddon?: SerializeAddonType;
-	private _webglAddon?: WebglAddonType;
+	private readonly _webglAddon: MutableDisposable<WebglAddonType> = this._register(new MutableDisposable());
+	private _webglAddonCustomGlyphs?: boolean;
+	private _ligaturesAddon?: LigaturesAddonType;
 
 	private _element?: HTMLElement;
 	private _currentStickyCommand?: ITerminalCommand | ICurrentPartialCommand;
@@ -59,6 +64,8 @@ export class TerminalStickyScrollOverlay extends Disposable {
 	private _state: OverlayState = OverlayState.Off;
 	private _isRefreshQueued = false;
 	private _rawMaxLineCount: number = 5;
+	private _ignoredCommands: string[] = [];
+	private _pendingShowOperation = false;
 
 	constructor(
 		private readonly _instance: ITerminalInstance,
@@ -88,6 +95,9 @@ export class TerminalStickyScrollOverlay extends Disposable {
 			if (!e || e.affectsConfiguration(TerminalStickyScrollSettingId.MaxLineCount)) {
 				this._rawMaxLineCount = configurationService.getValue(TerminalStickyScrollSettingId.MaxLineCount);
 			}
+			if (!e || e.affectsConfiguration(TerminalStickyScrollSettingId.IgnoredCommands)) {
+				this._ignoredCommands = configurationService.getValue(TerminalStickyScrollSettingId.IgnoredCommands);
+			}
 		}));
 
 		// React to terminal location changes
@@ -105,6 +115,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 				...this._getOptions()
 			}));
 			this._refreshGpuAcceleration();
+
 			this._register(configurationService.onDidChangeConfiguration(e => {
 				if (e.affectsConfiguration(TERMINAL_CONFIG_SECTION)) {
 					this._syncOptions();
@@ -123,7 +134,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 				}
 			}));
 
-			this._getSerializeAddonConstructor().then(SerializeAddon => {
+			this._xtermAddonLoader.importAddon('serialize').then(SerializeAddon => {
 				if (this._store.isDisposed) {
 					return;
 				}
@@ -147,6 +158,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		if (this._state === state) {
 			return;
 		}
+		this._state = state;
 		switch (state) {
 			case OverlayState.Off: {
 				this._setVisible(false);
@@ -171,6 +183,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 					// scrolling horizontally in a pager
 					this._xterm.raw.onCursorMove,
 				)(() => this._refresh()),
+				// eslint-disable-next-line no-restricted-syntax
 				addStandardDisposableListener(this._xterm.raw.element!.querySelector('.xterm-viewport')!, 'scroll', () => this._refresh()),
 			);
 		}
@@ -182,9 +195,25 @@ export class TerminalStickyScrollOverlay extends Disposable {
 
 	private _setVisible(isVisible: boolean) {
 		if (isVisible) {
-			this._ensureElement();
+			this._pendingShowOperation = true;
+			this._show();
+		} else {
+			this._hide();
 		}
-		this._element?.classList.toggle(CssClasses.Visible, isVisible);
+	}
+
+	@debounce(100)
+	private _show(): void {
+		if (this._pendingShowOperation) {
+			this._ensureElement();
+			this._element?.classList.toggle(CssClasses.Visible, true);
+		}
+		this._pendingShowOperation = false;
+	}
+
+	private _hide(): void {
+		this._pendingShowOperation = false;
+		this._element?.classList.toggle(CssClasses.Visible, false);
 	}
 
 	private _refresh(): void {
@@ -205,14 +234,14 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		// scroll.
 		this._currentStickyCommand = undefined;
 
-		// No command
-		if (!command) {
+		// No command or ignored command
+		if (!command || this._isIgnoredCommand(command)) {
 			this._setVisible(false);
 			return;
 		}
 
 		// Partial command
-		if (!('marker' in command)) {
+		if (!isFullTerminalCommand(command)) {
 			const partialCommand = this._commandDetection.currentCommand;
 			if (partialCommand?.commandStartMarker && partialCommand.commandExecutedMarker) {
 				this._updateContent(partialCommand, partialCommand.commandStartMarker);
@@ -256,10 +285,11 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		// of the sticky overlay because we do not want to show any content above the bounds of the
 		// original terminal. This is done because it seems like scrolling flickers more when a
 		// partial line can be drawn on the top.
-		const isPartialCommand = !('getOutput' in command);
+		const isPartialCommand = !isFullTerminalCommand(command);
 		const rowOffset = !isPartialCommand && command.endMarker ? Math.max(buffer.viewportY - command.endMarker.line + 1, 0) : 0;
 		const maxLineCount = Math.min(this._rawMaxLineCount, Math.floor(xterm.rows * Constants.StickyScrollPercentageCap));
 		const stickyScrollLineCount = Math.min(promptRowCount + commandRowCount - 1, maxLineCount) - rowOffset;
+		const isTruncated = stickyScrollLineCount < promptRowCount + commandRowCount - 1;
 
 		// Hide sticky scroll if it's currently on a line that contains it
 		if (buffer.viewportY <= stickyScrollLineStart) {
@@ -288,7 +318,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 				start: stickyScrollLineStart + rowOffset,
 				end: stickyScrollLineStart + rowOffset + Math.max(stickyScrollLineCount - 1, 0)
 			}
-		});
+		}) + (isTruncated ? '\x1b[0m …' : '');
 
 		// If a partial command's sticky scroll would show nothing, just hide it. This is another
 		// edge case when using a pager or interactive editor.
@@ -331,8 +361,9 @@ export class TerminalStickyScrollOverlay extends Disposable {
 					// following command.
 					let endMarkerOffset = 0;
 					if (!isPartialCommand && command.endMarker && command.endMarker.line !== -1) {
-						if (buffer.viewportY + stickyScrollLineCount > command.endMarker.line) {
-							const diff = buffer.viewportY + stickyScrollLineCount - command.endMarker.line;
+						const lastLine = Math.min(command.endMarker.line, buffer.baseY + buffer.cursorY);
+						if (buffer.viewportY + stickyScrollLineCount > lastLine) {
+							const diff = buffer.viewportY + stickyScrollLineCount - lastLine;
 							endMarkerOffset = diff * rowHeight;
 						}
 					}
@@ -382,12 +413,31 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		}
 		hoverOverlay.title = hoverTitle;
 
-		const scrollBarWidth = (this._xterm.raw as any as { _core: IXtermCore })._core.viewport?.scrollBarWidth;
+		interface XtermWithCore extends XTermTerminal {
+			_core: IXtermCore;
+		}
+		const scrollBarWidth = (this._xterm.raw as XtermWithCore)._core.viewport?.scrollBarWidth;
 		if (scrollBarWidth !== undefined) {
 			this._element.style.right = `${scrollBarWidth}px`;
 		}
 
 		this._stickyScrollOverlay.open(this._element);
+
+		// Prevent tab key from being handled by the xterm overlay to allow natural tab navigation
+		this._stickyScrollOverlay.attachCustomKeyEventHandler((event: KeyboardEvent) => {
+			if (event.key === 'Tab') {
+				return false;
+			}
+			return true;
+		});
+
+		this._xtermAddonLoader.importAddon('ligatures').then(LigaturesAddon => {
+			if (this._store.isDisposed || !this._stickyScrollOverlay) {
+				return;
+			}
+			this._ligaturesAddon = new LigaturesAddon();
+			this._stickyScrollOverlay.loadAddon(this._ligaturesAddon);
+		});
 
 		// Scroll to the command on click
 		this._register(addStandardDisposableListener(hoverOverlay, 'click', () => {
@@ -447,22 +497,24 @@ export class TerminalStickyScrollOverlay extends Disposable {
 			drawBoldTextInBrightColors: o.drawBoldTextInBrightColors,
 			minimumContrastRatio: o.minimumContrastRatio,
 			tabStopWidth: o.tabStopWidth,
-			customGlyphs: o.customGlyphs,
 		};
 	}
 
 	@throttle(0)
 	private async _refreshGpuAcceleration() {
-		if (this._shouldLoadWebgl() && !this._webglAddon) {
-			const WebglAddon = await this._getWebglAddonConstructor();
+		if (this._shouldLoadWebgl() && (!this._webglAddon.value || this._webglAddonCustomGlyphs !== this._terminalConfigurationService.config.customGlyphs)) {
+			const WebglAddon = await this._xtermAddonLoader.importAddon('webgl');
 			if (this._store.isDisposed) {
 				return;
 			}
-			this._webglAddon = this._register(new WebglAddon());
-			this._stickyScrollOverlay?.loadAddon(this._webglAddon);
-		} else if (!this._shouldLoadWebgl() && this._webglAddon) {
-			this._webglAddon.dispose();
-			this._webglAddon = undefined;
+			// Dispose of existing addon before creating a new one to avoid leaking WebGL contexts
+			this._webglAddon.value = new WebglAddon({
+				customGlyphs: this._terminalConfigurationService.config.customGlyphs
+			});
+			this._webglAddonCustomGlyphs = this._terminalConfigurationService.config.customGlyphs;
+			this._stickyScrollOverlay?.loadAddon(this._webglAddon.value);
+		} else if (!this._shouldLoadWebgl() && this._webglAddon.value) {
+			this._webglAddon.clear();
 		}
 	}
 
@@ -482,14 +534,12 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		};
 	}
 
-	@memoize
-	private async _getSerializeAddonConstructor(): Promise<typeof SerializeAddonType> {
-		return (await importAMDNodeModule<typeof import('@xterm/addon-serialize')>('@xterm/addon-serialize', 'lib/addon-serialize.js')).SerializeAddon;
-	}
-
-	@memoize
-	private async _getWebglAddonConstructor(): Promise<typeof WebglAddonType> {
-		return (await importAMDNodeModule<typeof import('@xterm/addon-webgl')>('@xterm/addon-webgl', 'lib/addon-webgl.js')).WebglAddon;
+	private _isIgnoredCommand(command: ITerminalCommand | ICurrentPartialCommand): boolean {
+		if (!command.command) {
+			return false;
+		}
+		const trimmedCommand = command.command.trim().toLowerCase();
+		return this._ignoredCommands.some(cmd => cmd.toLowerCase() === trimmedCommand);
 	}
 }
 

@@ -11,16 +11,30 @@ import { Action2, registerAction2 } from '../../../../../platform/actions/common
 import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { CHAT_CATEGORY } from './chatActions.js';
-import { IChatWidgetService } from '../chat.js';
-import { IChatEditorOptions } from '../chatEditor.js';
-import { ChatEditorInput } from '../chatEditorInput.js';
-import { CONTEXT_CHAT_ENABLED } from '../../common/chatContextKeys.js';
-import { isExportableSessionData } from '../../common/chatModel.js';
-import { IChatService } from '../../common/chatService.js';
-import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { ChatViewPaneTarget, IChatWidgetService } from '../chat.js';
+import { IChatEditorOptions } from '../widgetHosts/editor/chatEditor.js';
+import { ChatEditorInput } from '../widgetHosts/editor/chatEditorInput.js';
+import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { extractExportableSessionData, isExportableSessionData } from '../../common/model/chatModel.js';
+import { IChatService } from '../../common/chatService/chatService.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { revive } from '../../../../../base/common/marshalling.js';
+import { ACTIVE_GROUP, PreferredGroup } from '../../../../services/editor/common/editorService.js';
 
 const defaultFileName = 'chat.json';
 const filters = [{ name: localize('chat.file.label', "Chat Session"), extensions: ['json'] }];
+
+/**
+ * Target location for importing a chat session.
+ * - 'chatViewPane': Opens in the chat view pane (sidebar/panel)
+ * - 'default': Opens in the active editor group
+ */
+export type ChatImportTarget = 'chatViewPane' | 'default';
+
+export interface ChatImportOptions {
+	inputPath?: URI;
+	target?: ChatImportTarget;
+}
 
 export function registerChatExportActions() {
 	registerAction2(class ExportChatAction extends Action2 {
@@ -29,11 +43,11 @@ export function registerChatExportActions() {
 				id: 'workbench.action.chat.export',
 				category: CHAT_CATEGORY,
 				title: localize2('chat.export.label', "Export Chat..."),
-				precondition: CONTEXT_CHAT_ENABLED,
+				precondition: ChatContextKeys.enabled,
 				f1: true,
 			});
 		}
-		async run(accessor: ServicesAccessor, ...args: any[]) {
+		async run(accessor: ServicesAccessor, outputPath?: URI) {
 			const widgetService = accessor.get(IChatWidgetService);
 			const fileDialogService = accessor.get(IFileDialogService);
 			const fileService = accessor.get(IFileService);
@@ -44,23 +58,26 @@ export function registerChatExportActions() {
 				return;
 			}
 
-			const defaultUri = joinPath(await fileDialogService.defaultFilePath(), defaultFileName);
-			const result = await fileDialogService.showSaveDialog({
-				defaultUri,
-				filters
-			});
-			if (!result) {
-				return;
+			if (!outputPath) {
+				const defaultUri = joinPath(await fileDialogService.defaultFilePath(), defaultFileName);
+				const result = await fileDialogService.showSaveDialog({
+					defaultUri,
+					filters
+				});
+				if (!result) {
+					return;
+				}
+				outputPath = result;
 			}
 
-			const model = chatService.getSession(widget.viewModel.sessionId);
+			const model = chatService.getSession(widget.viewModel.sessionResource);
 			if (!model) {
 				return;
 			}
 
 			// Using toJSON on the model
 			const content = VSBuffer.fromString(JSON.stringify(model.toExport(), undefined, 2));
-			await fileService.writeFile(result, content);
+			await fileService.writeFile(outputPath, content);
 		}
 	});
 
@@ -70,34 +87,58 @@ export function registerChatExportActions() {
 				id: 'workbench.action.chat.import',
 				title: localize2('chat.import.label', "Import Chat..."),
 				category: CHAT_CATEGORY,
-				precondition: CONTEXT_CHAT_ENABLED,
+				precondition: ChatContextKeys.enabled,
 				f1: true,
 			});
 		}
-		async run(accessor: ServicesAccessor, ...args: any[]) {
-			const fileDialogService = accessor.get(IFileDialogService);
+		async run(accessor: ServicesAccessor, opts?: ChatImportOptions) {
 			const fileService = accessor.get(IFileService);
-			const editorService = accessor.get(IEditorService);
+			const widgetService = accessor.get(IChatWidgetService);
+			const chatService = accessor.get(IChatService);
+			const fileDialogService = accessor.get(IFileDialogService);
 
-			const defaultUri = joinPath(await fileDialogService.defaultFilePath(), defaultFileName);
-			const result = await fileDialogService.showOpenDialog({
-				defaultUri,
-				canSelectFiles: true,
-				filters
-			});
-			if (!result) {
-				return;
+			let inputPath = opts?.inputPath;
+			if (!inputPath) {
+				const defaultUri = joinPath(await fileDialogService.defaultFilePath(), defaultFileName);
+				const result = await fileDialogService.showOpenDialog({
+					defaultUri,
+					canSelectFiles: true,
+					filters
+				});
+				if (!result) {
+					return;
+				}
+				inputPath = result[0];
 			}
 
-			const content = await fileService.readFile(result[0]);
+			const content = await fileService.readFile(inputPath);
 			try {
-				const data = JSON.parse(content.value.toString());
+				const data = revive(JSON.parse(content.value.toString()));
 				if (!isExportableSessionData(data)) {
 					throw new Error('Invalid chat session data');
 				}
+				const importedData = extractExportableSessionData(data);
 
-				const options: IChatEditorOptions = { target: { data }, pinned: true };
-				await editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options });
+				let sessionResource: URI;
+				let resolvedTarget: typeof ChatViewPaneTarget | PreferredGroup;
+				let options: IChatEditorOptions;
+
+				if (opts?.target === 'chatViewPane') {
+					const modelRef = chatService.loadSessionFromData(importedData, 'ChatImportExport#importToChatView');
+					try {
+						sessionResource = modelRef.object.sessionResource;
+						resolvedTarget = ChatViewPaneTarget;
+						options = { pinned: true };
+						await widgetService.openSession(sessionResource, resolvedTarget, options);
+					} finally {
+						modelRef.dispose();
+					}
+				} else {
+					sessionResource = ChatEditorInput.getNewEditorUri();
+					resolvedTarget = ACTIVE_GROUP;
+					options = { target: { data: importedData }, pinned: true };
+					await widgetService.openSession(sessionResource, resolvedTarget, options);
+				}
 			} catch (err) {
 				throw err;
 			}

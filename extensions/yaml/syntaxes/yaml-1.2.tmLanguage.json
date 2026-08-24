@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/RedCMD/YAML-Syntax-Highlighter/commit/71a88711ec184b7dde5240c8f150ad3c2dbbd5f1",
+	"version": "https://github.com/RedCMD/YAML-Syntax-Highlighter/commit/53d38bbc66b704803de54ffce5b251bf97211c60",
 	"name": "YAML 1.2",
 	"scopeName": "source.yaml.1.2",
 	"comment": "https://yaml.org/spec/1.2.2",
@@ -38,7 +38,7 @@
 				},
 				{
 					"comment": "For when YAML is embedded inside a Markdown code-block",
-					"begin": "\\G",
+					"begin": "\\G(?!$)",
 					"while": "\\G",
 					"name": "meta.stream.yaml",
 					"patterns": [
@@ -331,10 +331,10 @@
 		"block-node": {
 			"patterns": [
 				{
-					"include": "#block-sequence"
+					"include": "#block-mapping"
 				},
 				{
-					"include": "#block-mapping"
+					"include": "#block-sequence"
 				},
 				{
 					"include": "#block-scalar"
@@ -624,6 +624,10 @@
 					"name": "punctuation.whitespace.separator.yaml"
 				},
 				{
+					"match": "[^\r\n\t ](?=[\t ]*+$)",
+					"name": "invalid.illegal.expected-map-separator.yaml"
+				},
+				{
 					"match": "\\x{FEFF}",
 					"name": "invalid.illegal.bom.yaml"
 				},
@@ -654,8 +658,8 @@
 			"patterns": [
 				{
 					"comment": "https://yaml.org/spec/1.2.2/#8111-block-indentation-indicator",
-					"begin": "(?>(\\|)|(>))(?<chomp>[+-])?+((1)|(2)|(3)|(4)|(5)|(6)|(7)|(8)|(9))(?(<chomp>)|([+-]))?+",
-					"while": "\\G(?>(?>(?!\\5) |(?!\\6) {2}|(?!\\7) {3}|(?!\\8) {4}|(?!\\9) {5}|(?!\\10) {6}|(?!\\11) {7}|(?!\\12) {8}|(?!\\13) {9})| *+($|[^#]))",
+					"begin": "(?>(\\|)|(>))(?<chomp>[+-])?+([1-9])(?(<chomp>)|\\g<chomp>)?+",
+					"while": "\\G(?> {\\4}| *+($|[^#]))",
 					"beginCaptures": {
 						"1": {
 							"name": "keyword.control.flow.block-scalar.literal.yaml"
@@ -668,9 +672,6 @@
 						},
 						"4": {
 							"name": "constant.numeric.indentation-indicator.yaml"
-						},
-						"14": {
-							"name": "storage.modifier.chomping-indicator.yaml"
 						}
 					},
 					"whileCaptures": {
@@ -705,7 +706,6 @@
 					]
 				},
 				{
-					"comment": "https://yaml.org/spec/1.2.2/#rule-c-b-block-header",
 					"//": "Soooooooo many edge cases",
 					"begin": "(?>(\\|)|(>))([+-]?+)",
 					"while": "\\G",
@@ -798,7 +798,7 @@
 							]
 						},
 						{
-							"comment": "Header Comment",
+							"comment": "https://yaml.org/spec/1.2.2/#rule-c-b-block-header",
 							"begin": "\\G",
 							"end": "$",
 							"patterns": [
@@ -1279,7 +1279,7 @@
 			"name": "meta.map.key.yaml string.quoted.double.yaml entity.name.tag.yaml",
 			"patterns": [
 				{
-					"match": "[^\t -\\x{10FFFF}]++",
+					"match": "[^\r\n\t -\\x{10FFFF}]++",
 					"name": "invalid.illegal.character.yaml"
 				},
 				{
@@ -1614,7 +1614,7 @@
 		"comment": {
 			"comment": "Comments must be separated from other tokens by white space characters. `space`, `tab`, `newline` or `carriage-return`. `#(.*)` causes performance issues",
 			"begin": "(?<=[\\x{FEFF}\t ]|^)#",
-			"end": "\r|\n",
+			"end": "$",
 			"captures": {
 				"0": {
 					"name": "punctuation.definition.comment.yaml"

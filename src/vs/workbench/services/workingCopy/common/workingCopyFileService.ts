@@ -102,6 +102,12 @@ export interface IStoredFileWorkingCopySaveParticipantContext {
 export interface IStoredFileWorkingCopySaveParticipant {
 
 	/**
+	 * The ordinal number which determines the order of participation.
+	 * Lower values mean to participant sooner
+	 */
+	readonly ordinal?: number;
+
+	/**
 	 * Participate in a save operation of file stored working copies.
 	 * Allows to make changes before content is being saved to disk.
 	 */
@@ -303,10 +309,13 @@ export class WorkingCopyFileService extends Disposable implements IWorkingCopyFi
 	constructor(
 		@IFileService private readonly fileService: IFileService,
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IInstantiationService instantiationService: IInstantiationService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
 	) {
 		super();
+
+		this.fileOperationParticipants = this._register(instantiationService.createInstance(WorkingCopyFileOperationParticipant));
+		this.saveParticipants = this._register(instantiationService.createInstance(StoredFileWorkingCopySaveParticipant));
 
 		// register a default working copy provider that uses the working copy service
 		this._register(this.registerWorkingCopyProvider(resource => {
@@ -485,7 +494,7 @@ export class WorkingCopyFileService extends Disposable implements IWorkingCopyFi
 
 	//#region File operation participants
 
-	private readonly fileOperationParticipants = this._register(this.instantiationService.createInstance(WorkingCopyFileOperationParticipant));
+	private readonly fileOperationParticipants: WorkingCopyFileOperationParticipant;
 
 	addFileOperationParticipant(participant: IWorkingCopyFileOperationParticipant): IDisposable {
 		return this.fileOperationParticipants.addFileOperationParticipant(participant);
@@ -499,7 +508,7 @@ export class WorkingCopyFileService extends Disposable implements IWorkingCopyFi
 
 	//#region Save participants (stored file working copies only)
 
-	private readonly saveParticipants = this._register(this.instantiationService.createInstance(StoredFileWorkingCopySaveParticipant));
+	private readonly saveParticipants: StoredFileWorkingCopySaveParticipant;
 
 	get hasSaveParticipants(): boolean { return this.saveParticipants.length > 0; }
 

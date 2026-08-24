@@ -30,10 +30,10 @@ import { EditorInput } from '../../../common/editor/editorInput.js';
 import { SideBySideEditorInput } from '../../../common/editor/sideBySideEditorInput.js';
 import { IJSONEditingService } from '../../configuration/common/jsonEditing.js';
 import { GroupDirection, IEditorGroupsService } from '../../editor/common/editorGroupsService.js';
-import { IEditorService, SIDE_GROUP, SIDE_GROUP_TYPE } from '../../editor/common/editorService.js';
+import { ACTIVE_GROUP, IEditorService, MODAL_GROUP, PreferredGroup, SIDE_GROUP } from '../../editor/common/editorService.js';
 import { KeybindingsEditorInput } from './keybindingsEditorInput.js';
-import { DEFAULT_SETTINGS_EDITOR_SETTING, FOLDER_SETTINGS_PATH, IKeybindingsEditorOptions, IKeybindingsEditorPane, IOpenSettingsOptions, IPreferencesEditorModel, IPreferencesService, ISetting, ISettingsEditorOptions, ISettingsGroup, SETTINGS_AUTHORITY, USE_SPLIT_JSON_SETTING, validateSettingsEditorOptions } from '../common/preferences.js';
-import { SettingsEditor2Input } from '../common/preferencesEditorInput.js';
+import { DEFAULT_SETTINGS_EDITOR_SETTING, FOLDER_SETTINGS_PATH, IKeybindingsEditorPane, IOpenKeybindingsEditorOptions, IOpenSettingsOptions, IPreferencesEditorModel, IPreferencesService, ISetting, ISettingsEditorOptions, ISettingsGroup, SETTINGS_AUTHORITY, USE_SPLIT_JSON_SETTING, validateSettingsEditorOptions } from '../common/preferences.js';
+import { PreferencesEditorInput, SettingsEditor2Input } from '../common/preferencesEditorInput.js';
 import { defaultKeybindingsContents, DefaultKeybindingsEditorModel, DefaultRawSettingsEditorModel, DefaultSettings, DefaultSettingsEditorModel, Settings2EditorModel, SettingsEditorModel, WorkspaceConfigurationEditorModel } from '../common/preferencesModels.js';
 import { IRemoteAgentService } from '../../remote/common/remoteAgentService.js';
 import { ITextEditorService } from '../../textfile/common/textEditorService.js';
@@ -48,6 +48,7 @@ import { IURLService } from '../../../../platform/url/common/url.js';
 import { compareIgnoreCase } from '../../../../base/common/strings.js';
 import { IExtensionService } from '../../extensions/common/extensions.js';
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
+import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
 
 const emptyEditableSettingsContent = '{\n}';
 
@@ -69,6 +70,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	private readonly _requestedDefaultSettings = new ResourceSet();
 
 	private _settingsGroups: ISettingsGroup[] | undefined = undefined;
+	private _cachedSettingsEditor2Input: SettingsEditor2Input | undefined = undefined;
 
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
@@ -89,7 +91,8 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		@ITextEditorService private readonly textEditorService: ITextEditorService,
 		@IURLService urlService: IURLService,
 		@IExtensionService private readonly extensionService: IExtensionService,
-		@IProgressService private readonly progressService: IProgressService
+		@IProgressService private readonly progressService: IProgressService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
 		// The default keybindings.json updates based on keyboard layouts, so here we make sure
@@ -107,7 +110,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	}
 
 	readonly defaultKeybindingsResource = URI.from({ scheme: network.Schemas.vscode, authority: 'defaultsettings', path: '/keybindings.json' });
-	private readonly defaultSettingsRawResource = URI.from({ scheme: network.Schemas.vscode, authority: 'defaultsettings', path: '/defaultSettings.json' });
+	private readonly defaultSettingsRawResource = URI.from({ scheme: network.Schemas.vscode, authority: 'defaultsettings', path: '/defaultSettings.jsonc' });
 
 	get userSettingsResource(): URI {
 		return this.userDataProfileService.currentProfile.settingsResource;
@@ -121,8 +124,13 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		return workspace.configuration || workspace.folders[0].toResource(FOLDER_SETTINGS_PATH);
 	}
 
-	createSettingsEditor2Input(): SettingsEditor2Input {
-		return new SettingsEditor2Input(this);
+	private createOrGetCachedSettingsEditor2Input(): SettingsEditor2Input {
+		if (!this._cachedSettingsEditor2Input || this._cachedSettingsEditor2Input.isDisposed()) {
+			// Recreate the input if the user never opened the Settings editor,
+			// or if they closed it and want to reopen it.
+			this._cachedSettingsEditor2Input = new SettingsEditor2Input(this);
+		}
+		return this._cachedSettingsEditor2Input;
 	}
 
 	getFolderSettingsResource(resource: URI): URI | null {
@@ -207,6 +215,10 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		return this.configurationService.getValue('workbench.settings.editor') === 'json';
 	}
 
+	async openPreferences(): Promise<void> {
+		await this.editorService.openEditor(this.instantiationService.createInstance(PreferencesEditorInput), undefined, MODAL_GROUP);
+	}
+
 	openSettings(options: IOpenSettingsOptions = {}): Promise<IEditorPane | undefined> {
 		options = {
 			...options,
@@ -237,19 +249,34 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			jsonEditor: options.jsonEditor ?? this.shouldOpenJsonByDefault()
 		};
 
+		if (options.jsonEditor && options.query && !options.revealSetting) {
+			const query = options.query.trim();
+			const idMatch = query.match(/^@id:(.+)$/);
+			let key: string | undefined;
+			if (idMatch) {
+				key = idMatch[1].trim();
+			} else if (Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties()[query.trim()]) {
+				key = query.trim();
+			}
+			options.query = undefined;
+			if (key) {
+				options.revealSetting = { key };
+			}
+		}
+
 		return options.jsonEditor ?
 			this.openSettingsJson(settingsResource, options) :
 			this.openSettings2(options);
 	}
 
-	private async openSettings2(options: IOpenSettingsOptions): Promise<IEditorPane> {
-		const input = this.createSettingsEditor2Input();
+	private async openSettings2(options: IOpenSettingsOptions): Promise<IEditorPane | undefined> {
+		const input = this.createOrGetCachedSettingsEditor2Input();
 		options = {
 			...options,
 			focusSearch: true
 		};
-		await this.editorService.openEditor(input, validateSettingsEditorOptions(options), options.openToSide ? SIDE_GROUP : undefined);
-		return this.editorGroupService.activeGroup.activeEditorPane!;
+		const group = this.getEditorGroupFromOptions(options);
+		return this.editorService.openEditor(input, validateSettingsEditorOptions(options), group);
 	}
 
 	openApplicationSettings(options: IOpenSettingsOptions = {}): Promise<IEditorPane | undefined> {
@@ -312,7 +339,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		return this.open(folderSettingsUri, options);
 	}
 
-	async openGlobalKeybindingSettings(textual: boolean, options?: IKeybindingsEditorOptions): Promise<void> {
+	async openGlobalKeybindingSettings(textual: boolean, options?: IOpenKeybindingsEditorOptions): Promise<void> {
 		options = { pinned: true, revealIfOpened: true, ...options };
 		if (textual) {
 			const emptyContents = '// ' + nls.localize('emptyKeybindingsHeader', "Place your key bindings in this file to override the defaults") + '\n[\n]';
@@ -322,18 +349,19 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			// Create as needed and open in editor
 			await this.createIfNotExists(editableKeybindings, emptyContents);
 			if (openDefaultKeybindings) {
-				const activeEditorGroup = this.editorGroupService.activeGroup;
-				const sideEditorGroup = this.editorGroupService.addGroup(activeEditorGroup.id, GroupDirection.RIGHT);
+				const sourceGroupId = options.groupId ?? this.editorGroupService.activeGroup.id;
+				const sideEditorGroup = this.editorGroupService.addGroup(sourceGroupId, GroupDirection.RIGHT);
 				await Promise.all([
-					this.editorService.openEditor({ resource: this.defaultKeybindingsResource, options: { pinned: true, preserveFocus: true, revealIfOpened: true, override: DEFAULT_EDITOR_ASSOCIATION.id }, label: nls.localize('defaultKeybindings', "Default Keybindings"), description: '' }),
+					this.editorService.openEditor({ resource: this.defaultKeybindingsResource, options: { pinned: true, preserveFocus: true, revealIfOpened: true, override: DEFAULT_EDITOR_ASSOCIATION.id }, label: nls.localize('defaultKeybindings', "Default Keybindings"), description: '' }, sourceGroupId),
 					this.editorService.openEditor({ resource: editableKeybindings, options }, sideEditorGroup.id)
 				]);
 			} else {
-				await this.editorService.openEditor({ resource: editableKeybindings, options });
+				await this.editorService.openEditor({ resource: editableKeybindings, options }, this.getEditorGroupFromOptions(options));
 			}
 
 		} else {
-			const editor = (await this.editorService.openEditor(this.instantiationService.createInstance(KeybindingsEditorInput), { ...options })) as IKeybindingsEditorPane;
+			const group = this.getEditorGroupFromOptions(options);
+			const editor = (await this.editorService.openEditor(this.instantiationService.createInstance(KeybindingsEditorInput), { ...options }, group)) as IKeybindingsEditorPane;
 			if (options.query) {
 				editor.search(options.query);
 			}
@@ -345,8 +373,42 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		return this.editorService.openEditor({ resource: this.defaultKeybindingsResource, label: nls.localize('defaultKeybindings', "Default Keybindings") });
 	}
 
+	private getEditorGroupFromOptions(options: { groupId?: number; openToSide?: boolean }): PreferredGroup {
+
+		// When the caller knows the source editor group (e.g. the editor title actions
+		// and their keyboard shortcuts that switch between the settings UI and JSON editor),
+		// open in that same group so the editor stays in the editor part (main, modal or
+		// auxiliary window) it was invoked from. If that group lives in the modal editor part,
+		// request the modal group so it stays modal; otherwise open in that exact group. This
+		// is skipped when opening to the side, where a new side group is preferred instead.
+		if (options?.groupId !== undefined && !options.openToSide) {
+			const group = this.editorGroupService.getGroup(options.groupId);
+			if (group) {
+				const modalEditorPart = this.editorGroupService.activeModalEditorPart;
+				if (modalEditorPart?.groups.some(modalGroup => modalGroup.id === group.id)) {
+					return MODAL_GROUP;
+				}
+				return group;
+			}
+		}
+
+		if (
+			this.configurationService.getValue<string>('workbench.editor.useModal') !== 'off' &&					// modal editors enabled in settings
+			!this.environmentService.enableSmokeTestDriver && !this.environmentService.extensionTestsLocationURI	// but not in smoke test or extension test environments to reduce flakiness
+		) {
+			return MODAL_GROUP;
+		}
+		if (options.openToSide) {
+			return SIDE_GROUP;
+		}
+		if (options?.groupId !== undefined) {
+			return this.editorGroupService.getGroup(options.groupId) ?? this.editorGroupService.activeGroup;
+		}
+		return ACTIVE_GROUP;
+	}
+
 	private async openSettingsJson(resource: URI, options: IOpenSettingsOptions): Promise<IEditorPane | undefined> {
-		const group = options?.openToSide ? SIDE_GROUP : undefined;
+		const group = this.getEditorGroupFromOptions(options);
 		const editor = await this.doOpenSettingsJson(resource, options, group);
 		if (editor && options?.revealSetting) {
 			await this.revealSetting(options.revealSetting.key, !!options.revealSetting.edit, editor, resource);
@@ -354,7 +416,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		return editor;
 	}
 
-	private async doOpenSettingsJson(resource: URI, options: ISettingsEditorOptions, group?: SIDE_GROUP_TYPE): Promise<IEditorPane | undefined> {
+	private async doOpenSettingsJson(resource: URI, options: ISettingsEditorOptions, group: PreferredGroup): Promise<IEditorPane | undefined> {
 		const openSplitJSON = !!this.configurationService.getValue(USE_SPLIT_JSON_SETTING);
 		const openDefaultSettings = !!this.configurationService.getValue(DEFAULT_SETTINGS_EDITOR_SETTING);
 		if (openSplitJSON || openDefaultSettings) {
@@ -364,10 +426,10 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		const configurationTarget = options?.target ?? ConfigurationTarget.USER;
 		const editableSettingsEditorInput = await this.getOrCreateEditableSettingsEditorInput(configurationTarget, resource);
 		options = { ...options, pinned: true };
-		return await this.editorService.openEditor(editableSettingsEditorInput, validateSettingsEditorOptions(options), group);
+		return await this.editorService.openEditor(editableSettingsEditorInput, { ...validateSettingsEditorOptions(options) }, group);
 	}
 
-	private async doOpenSplitJSON(resource: URI, options: ISettingsEditorOptions = {}, group?: SIDE_GROUP_TYPE): Promise<IEditorPane | undefined> {
+	private async doOpenSplitJSON(resource: URI, options: ISettingsEditorOptions = {}, group: PreferredGroup,): Promise<IEditorPane | undefined> {
 		const configurationTarget = options.target ?? ConfigurationTarget.USER;
 		await this.createSettingsIfNotExists(configurationTarget, resource);
 		const preferencesEditorInput = this.createSplitJsonEditorInput(configurationTarget, resource);
@@ -512,18 +574,18 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 
 	private getMostCommonlyUsedSettings(): string[] {
 		return [
-			'files.autoSave',
 			'editor.fontSize',
+			'editor.formatOnSave',
+			'files.autoSave',
+			'editor.defaultFormatter',
 			'editor.fontFamily',
-			'editor.tabSize',
-			'editor.renderWhitespace',
-			'editor.cursorStyle',
-			'editor.multiCursorModifier',
-			'editor.insertSpaces',
 			'editor.wordWrap',
+			'chat.agent.maxRequests',
 			'files.exclude',
-			'files.associations',
-			'workbench.editor.enablePreview'
+			'workbench.colorTheme',
+			'editor.tabSize',
+			'editor.mouseWheelZoom',
+			'editor.formatOnPaste'
 		];
 	}
 
@@ -576,13 +638,17 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 				if (isObject(setting.value) || Array.isArray(setting.value)) {
 					position = { lineNumber: setting.valueRange.startLineNumber, column: setting.valueRange.startColumn + 1 };
 					codeEditor.setPosition(position);
-					await CoreEditingCommands.LineBreakInsert.runEditorCommand(null, codeEditor, null);
+					await this.instantiationService.invokeFunction(accessor => {
+						return CoreEditingCommands.LineBreakInsert.runEditorCommand(accessor, codeEditor, null);
+					});
 					position = { lineNumber: position.lineNumber + 1, column: model.getLineMaxColumn(position.lineNumber + 1) };
 					const firstNonWhiteSpaceColumn = model.getLineFirstNonWhitespaceColumn(position.lineNumber);
 					if (firstNonWhiteSpaceColumn) {
 						// Line has some text. Insert another new line.
 						codeEditor.setPosition({ lineNumber: position.lineNumber, column: firstNonWhiteSpaceColumn });
-						await CoreEditingCommands.LineBreakInsert.runEditorCommand(null, codeEditor, null);
+						await this.instantiationService.invokeFunction(accessor => {
+							return CoreEditingCommands.LineBreakInsert.runEditorCommand(accessor, codeEditor, null);
+						});
 						position = { lineNumber: position.lineNumber, column: model.getLineMaxColumn(position.lineNumber) };
 					}
 				} else {
@@ -656,6 +722,9 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	}
 
 	public override dispose(): void {
+		if (this._cachedSettingsEditor2Input && !this._cachedSettingsEditor2Input.isDisposed()) {
+			this._cachedSettingsEditor2Input.dispose();
+		}
 		this._onDispose.fire();
 		super.dispose();
 	}

@@ -16,7 +16,6 @@ import { Promises } from '../../../../base/common/async.js';
 import { IEditorService } from '../../editor/common/editorService.js';
 import { EditorsOrder } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
-import { IEditorGroupsService } from '../../editor/common/editorGroupsService.js';
 
 /**
  * The working copy backup tracker deals with:
@@ -35,9 +34,10 @@ export abstract class WorkingCopyBackupTracker extends Disposable {
 		protected readonly filesConfigurationService: IFilesConfigurationService,
 		private readonly workingCopyEditorService: IWorkingCopyEditorService,
 		protected readonly editorService: IEditorService,
-		private readonly editorGroupService: IEditorGroupsService
 	) {
 		super();
+
+		this.whenReady = this.resolveBackupsToRestore();
 
 		// Fill in initial modified working copies
 		for (const workingCopy of this.workingCopyService.modifiedWorkingCopies) {
@@ -335,7 +335,7 @@ export abstract class WorkingCopyBackupTracker extends Disposable {
 	//#region Backup Restorer
 
 	protected readonly unrestoredBackups = new Set<IWorkingCopyIdentifier>();
-	protected readonly whenReady = this.resolveBackupsToRestore();
+	protected readonly whenReady: Promise<void>;
 
 	private _isReady = false;
 	protected get isReady(): boolean { return this._isReady; }
@@ -395,7 +395,7 @@ export abstract class WorkingCopyBackupTracker extends Disposable {
 		// Ensure editors are opened for each backup without editor
 		// in the background without stealing focus
 		if (nonOpenedEditorsForBackups.size > 0) {
-			await this.editorGroupService.activeGroup.openEditors([...nonOpenedEditorsForBackups].map(nonOpenedEditorForBackup => ({
+			await this.editorService.openEditors([...nonOpenedEditorsForBackups].map(nonOpenedEditorForBackup => ({
 				editor: nonOpenedEditorForBackup,
 				options: {
 					pinned: true,

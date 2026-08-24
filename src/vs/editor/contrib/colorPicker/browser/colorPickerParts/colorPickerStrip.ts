@@ -9,6 +9,7 @@ import { Color, RGBA } from '../../../../../base/common/color.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ColorPickerModel } from '../colorPickerModel.js';
+import { ColorPickerWidgetType } from '../colorPickerParticipantUtils.js';
 
 const $ = dom.$;
 
@@ -19,15 +20,15 @@ export abstract class Strip extends Disposable {
 	protected slider: HTMLElement;
 	private height!: number;
 
-	private readonly _onDidChange = new Emitter<number>();
+	private readonly _onDidChange = this._register(new Emitter<number>());
 	readonly onDidChange: Event<number> = this._onDidChange.event;
 
-	private readonly _onColorFlushed = new Emitter<void>();
+	private readonly _onColorFlushed = this._register(new Emitter<void>());
 	readonly onColorFlushed: Event<void> = this._onColorFlushed.event;
 
-	constructor(container: HTMLElement, protected model: ColorPickerModel, showingStandaloneColorPicker: boolean = false) {
+	constructor(container: HTMLElement, protected model: ColorPickerModel, type: ColorPickerWidgetType) {
 		super();
-		if (showingStandaloneColorPicker) {
+		if (type === ColorPickerWidgetType.Standalone) {
 			this.domNode = dom.append(container, $('.standalone-strip'));
 			this.overlay = dom.append(this.domNode, $('.standalone-overlay'));
 		} else {
@@ -92,8 +93,8 @@ export abstract class Strip extends Disposable {
 
 export class OpacityStrip extends Strip {
 
-	constructor(container: HTMLElement, model: ColorPickerModel, showingStandaloneColorPicker: boolean = false) {
-		super(container, model, showingStandaloneColorPicker);
+	constructor(container: HTMLElement, model: ColorPickerModel, type: ColorPickerWidgetType) {
+		super(container, model, type);
 		this.domNode.classList.add('opacity-strip');
 
 		this.onDidChangeColor(this.model.color);
@@ -115,8 +116,8 @@ export class OpacityStrip extends Strip {
 
 export class HueStrip extends Strip {
 
-	constructor(container: HTMLElement, model: ColorPickerModel, showingStandaloneColorPicker: boolean = false) {
-		super(container, model, showingStandaloneColorPicker);
+	constructor(container: HTMLElement, model: ColorPickerModel, type: ColorPickerWidgetType) {
+		super(container, model, type);
 		this.domNode.classList.add('hue-strip');
 	}
 

@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/singleeditortabscontrol.css';
-import { EditorResourceAccessor, Verbosity, IEditorPartOptions, SideBySideEditor, preventEditorClose, EditorCloseMethod, IToolbarActions } from '../../../common/editor.js';
+import { EditorResourceAccessor, Verbosity, IEditorPartOptions, SideBySideEditor, preventEditorClose, EditorCloseMethod, IToolbarActions, EditorInputCapabilities } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { EditorTabsControl } from './editorTabsControl.js';
 import { ResourceLabel, IResourceLabel } from '../../labels.js';
 import { TAB_ACTIVE_FOREGROUND, TAB_UNFOCUSED_ACTIVE_FOREGROUND } from '../../../common/theme.js';
 import { EventType as TouchEventType, GestureEvent, Gesture } from '../../../../base/browser/touch.js';
-import { addDisposableListener, EventType, EventHelper, Dimension, isAncestor, DragAndDropObserver, isHTMLElement } from '../../../../base/browser/dom.js';
+import { addDisposableListener, EventType, EventHelper, Dimension, isAncestor, DragAndDropObserver, isHTMLElement, $ } from '../../../../base/browser/dom.js';
 import { CLOSE_EDITOR_COMMAND_ID, UNLOCK_GROUP_COMMAND_ID } from './editorCommands.js';
 import { Color } from '../../../../base/common/color.js';
-import { assertIsDefined, assertAllDefined } from '../../../../base/common/types.js';
+import { assertReturnsDefined, assertReturnsAllDefined } from '../../../../base/common/types.js';
 import { equals } from '../../../../base/common/objects.js';
 import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { defaultBreadcrumbsWidgetStyles } from '../../../../platform/theme/browser/defaultStyles.js';
@@ -46,25 +46,30 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 		// Gesture Support
 		this._register(Gesture.addTarget(titleContainer));
 
-		const labelContainer = document.createElement('div');
-		labelContainer.classList.add('label-container');
+		const labelContainer = $('.label-container');
 		titleContainer.appendChild(labelContainer);
 
 		// Editor Label
 		this.editorLabel = this._register(this.instantiationService.createInstance(ResourceLabel, labelContainer, {})).element;
 		this._register(addDisposableListener(this.editorLabel.element, EventType.CLICK, e => this.onTitleLabelClick(e)));
 
-		// Breadcrumbs
-		this.breadcrumbsControlFactory = this._register(this.instantiationService.createInstance(BreadcrumbsControlFactory, labelContainer, this.groupView, {
-			showFileIcons: false,
-			showSymbolIcons: true,
-			showDecorationColors: false,
-			widgetStyles: { ...defaultBreadcrumbsWidgetStyles, breadcrumbsBackground: Color.transparent.toString() },
-			showPlaceholder: false
-		}));
-		this._register(this.breadcrumbsControlFactory.onDidEnablementChange(() => this.handleBreadcrumbsEnablementChange()));
+		if (!this.breadcrumbsInHeader) {
+			this.breadcrumbsControlFactory = this._register(this.instantiationService.createInstance(BreadcrumbsControlFactory, labelContainer, this.groupView, {
+				showFileIcons: false,
+				showSymbolIcons: true,
+				showDecorationColors: false,
+				widgetStyles: { ...defaultBreadcrumbsWidgetStyles, breadcrumbsBackground: Color.transparent.toString() },
+				showPlaceholder: false,
+				dragEditor: true,
+			}));
+			this._register(this.breadcrumbsControlFactory.onDidEnablementChange(() => this.handleBreadcrumbsEnablementChange()));
+		}
 		titleContainer.classList.toggle('breadcrumbs', Boolean(this.breadcrumbsControl));
 		this._register(toDisposable(() => titleContainer.classList.remove('breadcrumbs'))); // important to remove because the container is a shared dom node
+
+		if (this.menuIds?.tabsBarAddTab) {
+			this.createAddTabControl(labelContainer, this.menuIds.tabsBarAddTab);
+		}
 
 		// Create editor actions toolbar
 		this.createEditorActionsToolBar(titleContainer, ['title-actions']);
@@ -119,7 +124,7 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 		if (e.button === 1 /* Middle Button */ && this.tabsModel.activeEditor) {
 			EventHelper.stop(e, true /* for https://github.com/microsoft/vscode/issues/56715 */);
 
-			if (!preventEditorClose(this.tabsModel, this.tabsModel.activeEditor, EditorCloseMethod.MOUSE, this.groupsView.partOptions)) {
+			if (!this.tabsModel.activeEditor.hasCapability(EditorInputCapabilities.CannotClose) && !preventEditorClose(this.tabsModel, this.tabsModel.activeEditor, EditorCloseMethod.MOUSE, this.groupsView.partOptions)) {
 				this.groupView.closeEditor(this.tabsModel.activeEditor);
 			}
 		}
@@ -195,9 +200,13 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 		this.ifEditorIsActive(editor, () => this.redraw());
 	}
 
+	updateEditorCapabilities(editor: EditorInput): void {
+		this.ifEditorIsActive(editor, () => this.redraw());
+	}
+
 	updateEditorDirty(editor: EditorInput): void {
 		this.ifEditorIsActive(editor, () => {
-			const titleContainer = assertIsDefined(this.titleContainer);
+			const titleContainer = assertReturnsDefined(this.titleContainer);
 
 			// Signal dirty (unless saving)
 			if (editor.isDirty() && !editor.isSaving()) {
@@ -224,7 +233,7 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 	}
 
 	protected handleBreadcrumbsEnablementChange(): void {
-		const titleContainer = assertIsDefined(this.titleContainer);
+		const titleContainer = assertReturnsDefined(this.titleContainer);
 		titleContainer.classList.toggle('breadcrumbs', Boolean(this.breadcrumbsControl));
 
 		this.redraw();
@@ -280,7 +289,7 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 		}
 
 		// Clear if there is no editor
-		const [titleContainer, editorLabel] = assertAllDefined(this.titleContainer, this.editorLabel);
+		const [titleContainer, editorLabel] = assertReturnsAllDefined(this.titleContainer, this.editorLabel);
 		if (!editor) {
 			titleContainer.classList.remove('dirty');
 			editorLabel.clear();
@@ -296,7 +305,7 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 			// Editor Label
 			const { labelFormat } = this.groupsView.partOptions;
 			let description: string;
-			if (this.breadcrumbsControl && !this.breadcrumbsControl.isHidden()) {
+			if (this.breadcrumbsInHeader || this.breadcrumbsControl && !this.breadcrumbsControl.isHidden()) {
 				description = ''; // hide description when showing breadcrumbs
 			} else if (labelFormat === 'default' && !isGroupActive) {
 				description = ''; // hide description when group is not active and style is 'default'
@@ -357,6 +366,14 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 				secondary: editorActions.secondary
 			};
 		}
+	}
+
+	protected override prepareEditorLayoutActions(editorActions: IToolbarActions): IToolbarActions {
+		// Surface the editor layout actions (`MenuId.EditorTitleLayout`) even when tabs are
+		// shown as a single tab. This menu is only populated by the Agents window (e.g. the
+		// Maximize/Restore Editor Area actions), so showing it here has no effect on the
+		// regular workbench where the menu is empty.
+		return editorActions;
 	}
 
 	getHeight(): number {

@@ -12,17 +12,21 @@ import { ProfileAwareExtensionManagementChannelClient } from './extensionManagem
 import { IUserDataProfileService } from '../../userDataProfile/common/userDataProfile.js';
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { IAllowedExtensionsService } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 
 export class RemoteExtensionManagementService extends ProfileAwareExtensionManagementChannelClient implements IProfileAwareExtensionManagementService {
 
 	constructor(
 		channel: IChannel,
+		@IProductService productService: IProductService,
+		@IAllowedExtensionsService allowedExtensionsService: IAllowedExtensionsService,
 		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
 		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 		@IRemoteUserDataProfilesService private readonly remoteUserDataProfilesService: IRemoteUserDataProfilesService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService
 	) {
-		super(channel, userDataProfileService, uriIdentityService);
+		super(channel, productService, allowedExtensionsService, userDataProfileService, uriIdentityService);
 	}
 
 	protected async filterEvent(profileLocation: URI, applicationScoped: boolean): Promise<boolean> {

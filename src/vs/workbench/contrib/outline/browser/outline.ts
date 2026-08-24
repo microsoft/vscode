@@ -34,3 +34,4 @@ export const ctxFollowsCursor = new RawContextKey<boolean>('outlineFollowsCursor
 export const ctxFilterOnType = new RawContextKey<boolean>('outlineFiltersOnType', false);
 export const ctxSortMode = new RawContextKey<OutlineSortOrder>('outlineSortMode', OutlineSortOrder.ByPosition);
 export const ctxAllCollapsed = new RawContextKey<boolean>('outlineAllCollapsed', false);
+export const ctxFocused = new RawContextKey<boolean>('outlineFocused', true);

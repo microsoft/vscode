@@ -9,20 +9,22 @@ import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contex
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { NotebookOutlineContext } from '../contrib/outline/notebookOutline.js';
 import { FoldingController } from './foldingController.js';
-import { CellFoldingState, INotebookEditor } from '../notebookBrowser.js';
+import { CellEditState, CellFoldingState, ICellViewModel, INotebookEditor } from '../notebookBrowser.js';
 import * as icons from '../notebookIcons.js';
 import { OutlineEntry } from '../viewModel/OutlineEntry.js';
 import { CellKind } from '../../common/notebookCommon.js';
 import { OutlineTarget } from '../../../../services/outline/browser/outline.js';
+import { CELL_TITLE_CELL_GROUP_ID, CellToolbarOrder } from './coreActions.js';
+import { executeSectionCondition } from './executeActions.js';
 
-export type NotebookSectionArgs = {
-	notebookEditor: INotebookEditor | undefined;
+export type NotebookOutlineEntryArgs = {
+	notebookEditor: INotebookEditor;
 	outlineEntry: OutlineEntry;
 };
 
-export type ValidNotebookSectionArgs = {
+export type NotebookCellArgs = {
 	notebookEditor: INotebookEditor;
-	outlineEntry: OutlineEntry;
+	cell: ICellViewModel;
 };
 
 export class NotebookRunSingleCellInSection extends Action2 {
@@ -51,8 +53,8 @@ export class NotebookRunSingleCellInSection extends Action2 {
 		});
 	}
 
-	override async run(_accessor: ServicesAccessor, context: NotebookSectionArgs): Promise<void> {
-		if (!checkSectionContext(context)) {
+	override async run(_accessor: ServicesAccessor, context: any): Promise<void> {
+		if (!checkOutlineEntryContext(context)) {
 			return;
 		}
 
@@ -69,7 +71,7 @@ export class NotebookRunCellsInSection extends Action2 {
 				mnemonicTitle: localize({ key: 'mirunCellsInSection', comment: ['&& denotes a mnemonic'] }, "&&Run Cells In Section"),
 			},
 			shortTitle: localize('runCellsInSection', "Run Cells In Section"),
-			// icon: icons.executeBelowIcon, // TODO @Yoyokrazy replace this with new icon later
+			icon: icons.executeIcon, // TODO @Yoyokrazy replace this with new icon later
 			menu: [
 				{
 					id: MenuId.NotebookStickyScrollContext,
@@ -86,27 +88,46 @@ export class NotebookRunCellsInSection extends Action2 {
 						NotebookOutlineContext.CellHasChildren,
 						NotebookOutlineContext.CellHasHeader,
 					)
+				},
+				{
+					id: MenuId.NotebookCellTitle,
+					order: CellToolbarOrder.RunSection,
+					group: CELL_TITLE_CELL_GROUP_ID,
+					when: executeSectionCondition
 				}
 			]
 		});
 	}
 
-	override async run(_accessor: ServicesAccessor, context: NotebookSectionArgs): Promise<void> {
-		if (!checkSectionContext(context)) {
+	override async run(_accessor: ServicesAccessor, context: any): Promise<void> {
+		let cell: ICellViewModel;
+		if (checkOutlineEntryContext(context)) {
+			cell = context.outlineEntry.cell;
+		} else if (checkNotebookCellContext(context)) {
+			cell = context.cell;
+		} else {
 			return;
 		}
 
-		const cell = context.outlineEntry.cell;
-		const idx = context.notebookEditor.getViewModel()?.getCellIndex(cell);
-		if (idx === undefined) {
+		if (cell.getEditState() === CellEditState.Editing) {
+			const foldingController = context.notebookEditor.getContribution<FoldingController>(FoldingController.id);
+			foldingController.recompute();
+		}
+
+		const cellIdx = context.notebookEditor.getViewModel()?.getCellIndex(cell);
+		if (cellIdx === undefined) {
 			return;
 		}
-		const length = context.notebookEditor.getViewModel()?.getFoldedLength(idx);
+		const sectionIdx = context.notebookEditor.getViewModel()?.getFoldingStartIndex(cellIdx);
+		if (sectionIdx === undefined) {
+			return;
+		}
+		const length = context.notebookEditor.getViewModel()?.getFoldedLength(sectionIdx);
 		if (length === undefined) {
 			return;
 		}
 
-		const cells = context.notebookEditor.getCellsInRange({ start: idx, end: idx + length + 1 });
+		const cells = context.notebookEditor.getCellsInRange({ start: sectionIdx, end: sectionIdx + length + 1 });
 		context.notebookEditor.executeNotebookCells(cells);
 	}
 }
@@ -137,8 +158,8 @@ export class NotebookFoldSection extends Action2 {
 		});
 	}
 
-	override async run(_accessor: ServicesAccessor, context: NotebookSectionArgs): Promise<void> {
-		if (!checkSectionContext(context)) {
+	override async run(_accessor: ServicesAccessor, context: any): Promise<void> {
+		if (!checkOutlineEntryContext(context)) {
 			return;
 		}
 
@@ -181,8 +202,8 @@ export class NotebookExpandSection extends Action2 {
 		});
 	}
 
-	override async run(_accessor: ServicesAccessor, context: NotebookSectionArgs): Promise<void> {
-		if (!checkSectionContext(context)) {
+	override async run(_accessor: ServicesAccessor, context: any): Promise<void> {
+		if (!checkOutlineEntryContext(context)) {
 			return;
 		}
 
@@ -200,13 +221,25 @@ export class NotebookExpandSection extends Action2 {
 }
 
 /**
- * Take in context args and check if they exist
+ * Take in context args and check if they exist. True if action is run from notebook sticky scroll context menu or
+ * notebook outline context menu.
  *
- * @param context - Notebook Section Context containing a notebook editor and outline entry
+ * @param context - Notebook Outline Context containing a notebook editor and outline entry
  * @returns true if context is valid, false otherwise
  */
-function checkSectionContext(context: NotebookSectionArgs): context is ValidNotebookSectionArgs {
+function checkOutlineEntryContext(context: any): context is NotebookOutlineEntryArgs {
 	return !!(context && context.notebookEditor && context.outlineEntry);
+}
+
+/**
+ * Take in context args and check if they exist. True if action is run from a cell toolbar menu (potentially from the
+ * notebook cell container or cell editor context menus, but not tested or implemented atm)
+ *
+ * @param context - Notebook Outline Context containing a notebook editor and outline entry
+ * @returns true if context is valid, false otherwise
+ */
+function checkNotebookCellContext(context: any): context is NotebookCellArgs {
+	return !!(context && context.notebookEditor && context.cell);
 }
 
 registerAction2(NotebookRunSingleCellInSection);

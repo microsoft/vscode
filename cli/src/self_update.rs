@@ -29,16 +29,16 @@ static OLD_UPDATE_EXTENSION: &str = "Updating CLI";
 
 impl<'a> SelfUpdate<'a> {
 	pub fn new(update_service: &'a UpdateService) -> Result<Self, AnyError> {
-		let commit = VSCODE_CLI_COMMIT
-			.ok_or_else(|| CodeError::UpdatesNotConfigured("unknown build commit"))?;
+		let commit =
+			VSCODE_CLI_COMMIT.ok_or(CodeError::UpdatesNotConfigured("unknown build commit"))?;
 
 		let quality = VSCODE_CLI_QUALITY
-			.ok_or_else(|| CodeError::UpdatesNotConfigured("no configured quality"))
+			.ok_or(CodeError::UpdatesNotConfigured("no configured quality"))
 			.and_then(|q| {
 				Quality::try_from(q).map_err(|_| CodeError::UpdatesNotConfigured("unknown quality"))
 			})?;
 
-		let platform = Platform::env_default().ok_or_else(|| {
+		let platform = Platform::env_default().ok_or({
 			CodeError::UpdatesNotConfigured("Unknown platform, please report this error")
 		})?;
 
@@ -122,7 +122,7 @@ fn validate_cli_is_good(exe_path: &Path) -> Result<(), AnyError> {
 	let o = new_std_command(exe_path)
 		.args(["--version"])
 		.output()
-		.map_err(|e| CorruptDownload(format!("could not execute new binary, aborting: {}", e)))?;
+		.map_err(|e| CorruptDownload(format!("could not execute new binary, aborting: {e}")))?;
 
 	if !o.status.success() {
 		let msg = format!(

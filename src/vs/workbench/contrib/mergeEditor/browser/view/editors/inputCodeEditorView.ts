@@ -29,7 +29,7 @@ import { EditorGutter, IGutterItemInfo, IGutterItemView } from '../editorGutter.
 import { CodeEditorView, createSelectionsAutorun, TitleMenu } from './codeEditorView.js';
 
 export class InputCodeEditorView extends CodeEditorView {
-	public readonly otherInputNumber = this.inputNumber === 1 ? 2 : 1;
+	public readonly otherInputNumber;
 
 	constructor(
 		public readonly inputNumber: 1 | 2,
@@ -39,6 +39,119 @@ export class InputCodeEditorView extends CodeEditorView {
 		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super(instantiationService, viewModel, configurationService);
+		this.otherInputNumber = this.inputNumber === 1 ? 2 : 1;
+		this.modifiedBaseRangeGutterItemInfos = derivedOpts({ debugName: `input${this.inputNumber}.modifiedBaseRangeGutterItemInfos` }, reader => {
+			const viewModel = this.viewModel.read(reader);
+			if (!viewModel) { return []; }
+			const model = viewModel.model;
+			const inputNumber = this.inputNumber;
+
+			const showNonConflictingChanges = viewModel.showNonConflictingChanges.read(reader);
+
+			return model.modifiedBaseRanges.read(reader)
+				.filter((r) => r.getInputDiffs(this.inputNumber).length > 0 && (showNonConflictingChanges || r.isConflicting || !model.isHandled(r).read(reader)))
+				.map((baseRange, idx) => new ModifiedBaseRangeGutterItemModel(idx.toString(), baseRange, inputNumber, viewModel));
+		});
+		this.decorations = derivedOpts({ debugName: `input${this.inputNumber}.decorations` }, reader => {
+			const viewModel = this.viewModel.read(reader);
+			if (!viewModel) {
+				return [];
+			}
+			const model = viewModel.model;
+			const textModel = (this.inputNumber === 1 ? model.input1 : model.input2).textModel;
+
+			const activeModifiedBaseRange = viewModel.activeModifiedBaseRange.read(reader);
+
+			const result = new Array<IModelDeltaDecoration>();
+
+			const showNonConflictingChanges = viewModel.showNonConflictingChanges.read(reader);
+			const showDeletionMarkers = this.showDeletionMarkers.read(reader);
+			const diffWithThis = viewModel.baseCodeEditorView.read(reader) !== undefined && viewModel.baseShowDiffAgainst.read(reader) === this.inputNumber;
+			const useSimplifiedDecorations = !diffWithThis && this.useSimplifiedDecorations.read(reader);
+
+			for (const modifiedBaseRange of model.modifiedBaseRanges.read(reader)) {
+				const range = modifiedBaseRange.getInputRange(this.inputNumber);
+				if (!range) {
+					continue;
+				}
+
+				const blockClassNames = ['merge-editor-block'];
+				let blockPadding: [top: number, right: number, bottom: number, left: number] = [0, 0, 0, 0];
+				const isHandled = model.isInputHandled(modifiedBaseRange, this.inputNumber).read(reader);
+				if (isHandled) {
+					blockClassNames.push('handled');
+				}
+				if (modifiedBaseRange === activeModifiedBaseRange) {
+					blockClassNames.push('focused');
+					blockPadding = [0, 2, 0, 2];
+				}
+				if (modifiedBaseRange.isConflicting) {
+					blockClassNames.push('conflicting');
+				}
+				const inputClassName = this.inputNumber === 1 ? 'input i1' : 'input i2';
+				blockClassNames.push(inputClassName);
+
+				if (!modifiedBaseRange.isConflicting && !showNonConflictingChanges && isHandled) {
+					continue;
+				}
+
+				if (useSimplifiedDecorations && !isHandled) {
+					blockClassNames.push('use-simplified-decorations');
+				}
+
+				result.push({
+					range: range.toInclusiveRangeOrEmpty(),
+					options: {
+						showIfCollapsed: true,
+						blockClassName: blockClassNames.join(' '),
+						blockPadding,
+						blockIsAfterEnd: range.startLineNumber > textModel.getLineCount(),
+						description: 'Merge Editor',
+						minimap: {
+							position: MinimapPosition.Gutter,
+							color: { id: isHandled ? handledConflictMinimapOverViewRulerColor : unhandledConflictMinimapOverViewRulerColor },
+						},
+						overviewRuler: modifiedBaseRange.isConflicting ? {
+							position: OverviewRulerLane.Center,
+							color: { id: isHandled ? handledConflictMinimapOverViewRulerColor : unhandledConflictMinimapOverViewRulerColor },
+						} : undefined
+					}
+				});
+
+				if (!useSimplifiedDecorations && (modifiedBaseRange.isConflicting || !model.isHandled(modifiedBaseRange).read(reader))) {
+					const inputDiffs = modifiedBaseRange.getInputDiffs(this.inputNumber);
+					for (const diff of inputDiffs) {
+						const range = diff.outputRange.toInclusiveRange();
+						if (range) {
+							result.push({
+								range,
+								options: {
+									className: `merge-editor-diff ${inputClassName}`,
+									description: 'Merge Editor',
+									isWholeLine: true,
+								}
+							});
+						}
+
+						if (diff.rangeMappings) {
+							for (const d of diff.rangeMappings) {
+								if (showDeletionMarkers || !d.outputRange.isEmpty()) {
+									result.push({
+										range: d.outputRange,
+										options: {
+											className: d.outputRange.isEmpty() ? `merge-editor-diff-empty-word ${inputClassName}` : `merge-editor-diff-word ${inputClassName}`,
+											description: 'Merge Editor',
+											showIfCollapsed: true,
+										}
+									});
+								}
+							}
+						}
+					}
+				}
+			}
+			return result;
+		});
 
 		this.htmlElements.root.classList.add(`input`);
 
@@ -98,124 +211,14 @@ export class InputCodeEditorView extends CodeEditorView {
 		this._register(applyObservableDecorations(this.editor, this.decorations));
 	}
 
-	private readonly modifiedBaseRangeGutterItemInfos = derivedOpts({ debugName: `input${this.inputNumber}.modifiedBaseRangeGutterItemInfos` }, reader => {
-		const viewModel = this.viewModel.read(reader);
-		if (!viewModel) { return []; }
-		const model = viewModel.model;
-		const inputNumber = this.inputNumber;
+	private readonly modifiedBaseRangeGutterItemInfos;
 
-		const showNonConflictingChanges = viewModel.showNonConflictingChanges.read(reader);
-
-		return model.modifiedBaseRanges.read(reader)
-			.filter((r) => r.getInputDiffs(this.inputNumber).length > 0 && (showNonConflictingChanges || r.isConflicting || !model.isHandled(r).read(reader)))
-			.map((baseRange, idx) => new ModifiedBaseRangeGutterItemModel(idx.toString(), baseRange, inputNumber, viewModel));
-	});
-
-	private readonly decorations = derivedOpts({ debugName: `input${this.inputNumber}.decorations` }, reader => {
-		const viewModel = this.viewModel.read(reader);
-		if (!viewModel) {
-			return [];
-		}
-		const model = viewModel.model;
-		const textModel = (this.inputNumber === 1 ? model.input1 : model.input2).textModel;
-
-		const activeModifiedBaseRange = viewModel.activeModifiedBaseRange.read(reader);
-
-		const result = new Array<IModelDeltaDecoration>();
-
-		const showNonConflictingChanges = viewModel.showNonConflictingChanges.read(reader);
-		const showDeletionMarkers = this.showDeletionMarkers.read(reader);
-		const diffWithThis = viewModel.baseCodeEditorView.read(reader) !== undefined && viewModel.baseShowDiffAgainst.read(reader) === this.inputNumber;
-		const useSimplifiedDecorations = !diffWithThis && this.useSimplifiedDecorations.read(reader);
-
-		for (const modifiedBaseRange of model.modifiedBaseRanges.read(reader)) {
-			const range = modifiedBaseRange.getInputRange(this.inputNumber);
-			if (!range) {
-				continue;
-			}
-
-			const blockClassNames = ['merge-editor-block'];
-			let blockPadding: [top: number, right: number, bottom: number, left: number] = [0, 0, 0, 0];
-			const isHandled = model.isInputHandled(modifiedBaseRange, this.inputNumber).read(reader);
-			if (isHandled) {
-				blockClassNames.push('handled');
-			}
-			if (modifiedBaseRange === activeModifiedBaseRange) {
-				blockClassNames.push('focused');
-				blockPadding = [0, 2, 0, 2];
-			}
-			if (modifiedBaseRange.isConflicting) {
-				blockClassNames.push('conflicting');
-			}
-			const inputClassName = this.inputNumber === 1 ? 'input i1' : 'input i2';
-			blockClassNames.push(inputClassName);
-
-			if (!modifiedBaseRange.isConflicting && !showNonConflictingChanges && isHandled) {
-				continue;
-			}
-
-			if (useSimplifiedDecorations && !isHandled) {
-				blockClassNames.push('use-simplified-decorations');
-			}
-
-			result.push({
-				range: range.toInclusiveRangeOrEmpty(),
-				options: {
-					showIfCollapsed: true,
-					blockClassName: blockClassNames.join(' '),
-					blockPadding,
-					blockIsAfterEnd: range.startLineNumber > textModel.getLineCount(),
-					description: 'Merge Editor',
-					minimap: {
-						position: MinimapPosition.Gutter,
-						color: { id: isHandled ? handledConflictMinimapOverViewRulerColor : unhandledConflictMinimapOverViewRulerColor },
-					},
-					overviewRuler: modifiedBaseRange.isConflicting ? {
-						position: OverviewRulerLane.Center,
-						color: { id: isHandled ? handledConflictMinimapOverViewRulerColor : unhandledConflictMinimapOverViewRulerColor },
-					} : undefined
-				}
-			});
-
-			if (!useSimplifiedDecorations && (modifiedBaseRange.isConflicting || !model.isHandled(modifiedBaseRange).read(reader))) {
-				const inputDiffs = modifiedBaseRange.getInputDiffs(this.inputNumber);
-				for (const diff of inputDiffs) {
-					const range = diff.outputRange.toInclusiveRange();
-					if (range) {
-						result.push({
-							range,
-							options: {
-								className: `merge-editor-diff ${inputClassName}`,
-								description: 'Merge Editor',
-								isWholeLine: true,
-							}
-						});
-					}
-
-					if (diff.rangeMappings) {
-						for (const d of diff.rangeMappings) {
-							if (showDeletionMarkers || !d.outputRange.isEmpty()) {
-								result.push({
-									range: d.outputRange,
-									options: {
-										className: d.outputRange.isEmpty() ? `merge-editor-diff-empty-word ${inputClassName}` : `merge-editor-diff-word ${inputClassName}`,
-										description: 'Merge Editor',
-										showIfCollapsed: true,
-									}
-								});
-							}
-						}
-					}
-				}
-			}
-		}
-		return result;
-	});
+	private readonly decorations;
 }
 
 export class ModifiedBaseRangeGutterItemModel implements IGutterItemInfo {
-	private readonly model = this.viewModel.model;
-	public readonly range = this.baseRange.getInputRange(this.inputNumber);
+	private readonly model;
+	public readonly range;
 
 	constructor(
 		public readonly id: string,
@@ -223,30 +226,35 @@ export class ModifiedBaseRangeGutterItemModel implements IGutterItemInfo {
 		private readonly inputNumber: 1 | 2,
 		private readonly viewModel: MergeEditorViewModel
 	) {
+		this.model = this.viewModel.model;
+		this.range = this.baseRange.getInputRange(this.inputNumber);
+		this.enabled = this.model.isUpToDate;
+		this.toggleState = derived(this, reader => {
+			const input = this.model
+				.getState(this.baseRange)
+				.read(reader)
+				.getInput(this.inputNumber);
+			return input === InputState.second && !this.baseRange.isOrderRelevant
+				? InputState.first
+				: input;
+		});
+		this.state = derived(this, reader => {
+			const active = this.viewModel.activeModifiedBaseRange.read(reader);
+			if (!this.model.hasBaseRange(this.baseRange)) {
+				return { handled: false, focused: false }; // Invalid state, should only be observed temporarily
+			}
+			return {
+				handled: this.model.isHandled(this.baseRange).read(reader),
+				focused: this.baseRange === active,
+			};
+		});
 	}
 
-	public readonly enabled = this.model.isUpToDate;
+	public readonly enabled;
 
-	public readonly toggleState: IObservable<InputState> = derived(this, reader => {
-		const input = this.model
-			.getState(this.baseRange)
-			.read(reader)
-			.getInput(this.inputNumber);
-		return input === InputState.second && !this.baseRange.isOrderRelevant
-			? InputState.first
-			: input;
-	});
+	public readonly toggleState: IObservable<InputState>;
 
-	public readonly state: IObservable<{ handled: boolean; focused: boolean }> = derived(this, reader => {
-		const active = this.viewModel.activeModifiedBaseRange.read(reader);
-		if (!this.model.hasBaseRange(this.baseRange)) {
-			return { handled: false, focused: false }; // Invalid state, should only be observed temporarily
-		}
-		return {
-			handled: this.model.isHandled(this.baseRange).read(reader),
-			focused: this.baseRange === active,
-		};
-	});
+	public readonly state: IObservable<{ handled: boolean; focused: boolean }>;
 
 	public setState(value: boolean, tx: ITransaction): void {
 		this.viewModel.setState(

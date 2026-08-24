@@ -32,7 +32,7 @@ export type IUserDataSyncMachine = Readonly<IMachineData> & { readonly isCurrent
 
 export const IUserDataSyncMachinesService = createDecorator<IUserDataSyncMachinesService>('IUserDataSyncMachinesService');
 export interface IUserDataSyncMachinesService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	readonly onDidChange: Event<void>;
 
@@ -79,7 +79,7 @@ export class UserDataSyncMachinesService extends Disposable implements IUserData
 	private static readonly VERSION = 1;
 	private static readonly RESOURCE = 'machines';
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange = this._onDidChange.event;
@@ -151,7 +151,10 @@ export class UserDataSyncMachinesService extends Disposable implements IUserData
 	private computeCurrentMachineName(machines: IMachineData[]): string {
 		const previousName = this.storageService.get(currentMachineNameKey, StorageScope.APPLICATION);
 		if (previousName) {
-			return previousName;
+			if (!machines.some(machine => machine.name === previousName)) {
+				return previousName;
+			}
+			this.storageService.remove(currentMachineNameKey, StorageScope.APPLICATION);
 		}
 
 		const namePrefix = `${this.productService.embedderIdentifier ? `${this.productService.embedderIdentifier} - ` : ''}${getPlatformName()} (${this.productService.nameShort})`;

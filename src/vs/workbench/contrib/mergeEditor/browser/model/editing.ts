@@ -6,15 +6,15 @@
 import { equals } from '../../../../../base/common/arrays.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { IIdentifiedSingleEditOperation } from '../../../../../editor/common/model.js';
-import { LineRange } from './lineRange.js';
+import { MergeEditorLineRange } from './lineRange.js';
 
 /**
  * Represents an edit, expressed in whole lines:
- * At (before) {@link LineRange.startLineNumber}, delete {@link LineRange.lineCount} many lines and insert {@link newLines}.
+ * At (before) {@link MergeEditorLineRange.startLineNumber}, delete {@link MergeEditorLineRange.length} many lines and insert {@link newLines}.
 */
 export class LineRangeEdit {
 	constructor(
-		public readonly range: LineRange,
+		public readonly range: MergeEditorLineRange,
 		public readonly newLines: string[]
 	) { }
 

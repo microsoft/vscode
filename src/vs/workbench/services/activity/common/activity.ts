@@ -3,20 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable } from '../../../../base/common/lifecycle.js';
-import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { ThemeIcon } from '../../../../base/common/themables.js';
-import { Event } from '../../../../base/common/event.js';
-import { ViewContainer } from '../../../common/views.js';
-import { IColorTheme } from '../../../../platform/theme/common/themeService.js';
-import { Color } from '../../../../base/common/color.js';
-import { registerColor } from '../../../../platform/theme/common/colorUtils.js';
-import { localize } from '../../../../nls.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { Color } from '../../../../base/common/color.js';
+import { Event } from '../../../../base/common/event.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { activityErrorBadgeBackground, activityErrorBadgeForeground, activityWarningBadgeBackground, activityWarningBadgeForeground } from '../../../../platform/theme/common/colors/miscColors.js';
+import { IColorTheme } from '../../../../platform/theme/common/themeService.js';
+import { ViewContainer } from '../../../common/views.js';
 
 export interface IActivity {
 	readonly badge: IBadge;
-	readonly priority?: number;
 }
 
 export const IActivityService = createDecorator<IActivityService>('activityService');
@@ -72,16 +70,16 @@ export interface IBadgeStyles {
 	readonly badgeBorder: Color | undefined;
 }
 
-class BaseBadge implements IBadge {
+class BaseBadge<T = unknown> implements IBadge {
 
 	constructor(
-		protected readonly descriptorFn: (arg: any) => string,
+		protected readonly descriptorFn: (arg: T) => string,
 		private readonly stylesFn: ((theme: IColorTheme) => IBadgeStyles | undefined) | undefined,
 	) {
 	}
 
 	getDescription(): string {
-		return this.descriptorFn(null);
+		return this.descriptorFn(null as T);
 	}
 
 	getColors(theme: IColorTheme): IBadgeStyles | undefined {
@@ -89,7 +87,7 @@ class BaseBadge implements IBadge {
 	}
 }
 
-export class NumberBadge extends BaseBadge {
+export class NumberBadge extends BaseBadge<number> {
 
 	constructor(readonly number: number, descriptorFn: (num: number) => string) {
 		super(descriptorFn, undefined);
@@ -102,7 +100,7 @@ export class NumberBadge extends BaseBadge {
 	}
 }
 
-export class IconBadge extends BaseBadge {
+export class IconBadge extends BaseBadge<void> {
 	constructor(
 		readonly icon: ThemeIcon,
 		descriptorFn: () => string,
@@ -112,7 +110,7 @@ export class IconBadge extends BaseBadge {
 	}
 }
 
-export class ProgressBadge extends BaseBadge {
+export class ProgressBadge extends BaseBadge<void> {
 	constructor(descriptorFn: () => string) {
 		super(descriptorFn, undefined);
 	}
@@ -137,19 +135,3 @@ export class ErrorBadge extends IconBadge {
 		}));
 	}
 }
-
-const activityWarningBadgeForeground = registerColor('activityWarningBadge.foreground',
-	{ dark: Color.black.lighten(0.2), light: Color.white, hcDark: null, hcLight: Color.black.lighten(0.2) },
-	localize('activityWarningBadge.foreground', 'Foreground color of the warning activity badge'));
-
-const activityWarningBadgeBackground = registerColor('activityWarningBadge.background',
-	{ dark: '#CCA700', light: '#BF8803', hcDark: null, hcLight: '#CCA700' },
-	localize('activityWarningBadge.background', 'Background color of the warning activity badge'));
-
-const activityErrorBadgeForeground = registerColor('activityErrorBadge.foreground',
-	{ dark: Color.black.lighten(0.2), light: Color.white, hcDark: null, hcLight: Color.black.lighten(0.2) },
-	localize('activityErrorBadge.foreground', 'Foreground color of the error activity badge'));
-
-const activityErrorBadgeBackground = registerColor('activityErrorBadge.background',
-	{ dark: '#F14C4C', light: '#E51400', hcDark: null, hcLight: '#F14C4C' },
-	localize('activityErrorBadge.background', 'Background color of the error activity badge'));

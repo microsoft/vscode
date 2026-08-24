@@ -38,6 +38,8 @@ import { SelectionClipboardContributionID } from '../../codeEditor/browser/selec
 import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { ContentHoverController } from '../../../../editor/contrib/hover/browser/contentHoverController.js';
 import { GlyphHoverController } from '../../../../editor/contrib/hover/browser/glyphHoverController.js';
+import { PlaceholderTextContribution } from '../../../../editor/contrib/placeholderText/browser/placeholderTextContribution.js';
+import { IUserInteractionService } from '../../../../platform/userInteraction/browser/userInteractionService.js';
 
 export const ctxCommentEditorFocused = new RawContextKey<boolean>('commentEditorFocused', false);
 export const MIN_EDITOR_HEIGHT = 5 * 18;
@@ -65,6 +67,7 @@ export class SimpleCommentEditor extends CodeEditorWidget {
 		@IAccessibilityService accessibilityService: IAccessibilityService,
 		@ILanguageConfigurationService languageConfigurationService: ILanguageConfigurationService,
 		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
+		@IUserInteractionService userInteractionService: IUserInteractionService,
 	) {
 		const codeEditorWidgetOptions: ICodeEditorWidgetOptions = {
 			contributions: <IEditorContributionDescription[]>[
@@ -84,12 +87,13 @@ export class SimpleCommentEditor extends CodeEditorWidget {
 					SelectionClipboardContributionID,
 					InlineCompletionsController.ID,
 					CodeActionController.ID,
+					PlaceholderTextContribution.ID
 				])
 			],
 			contextMenuId: MenuId.SimpleEditorContext
 		};
 
-		super(domElement, options, codeEditorWidgetOptions, instantiationService, codeEditorService, commandService, scopedContextKeyService, themeService, notificationService, accessibilityService, languageConfigurationService, languageFeaturesService);
+		super(domElement, options, codeEditorWidgetOptions, instantiationService, codeEditorService, commandService, scopedContextKeyService, themeService, notificationService, accessibilityService, languageConfigurationService, languageFeaturesService, userInteractionService);
 
 		this._commentEditorFocused = ctxCommentEditorFocused.bindTo(scopedContextKeyService);
 		this._commentEditorEmpty = CommentContextKeys.commentIsEmpty.bindTo(scopedContextKeyService);
@@ -145,6 +149,8 @@ export class SimpleCommentEditor extends CodeEditorWidget {
 			quickSuggestions: false,
 			accessibilitySupport: configurationService.getValue<'auto' | 'off' | 'on'>('editor.accessibilitySupport'),
 			fontFamily: configurationService.getValue('editor.fontFamily'),
+			fontSize: configurationService.getValue('editor.fontSize'),
+			allowVariableLineHeights: false
 		};
 	}
 }

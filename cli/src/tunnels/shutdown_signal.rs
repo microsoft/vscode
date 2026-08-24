@@ -28,7 +28,7 @@ impl fmt::Display for ShutdownSignal {
 		match self {
 			ShutdownSignal::CtrlC => write!(f, "Ctrl-C received"),
 			ShutdownSignal::ParentProcessKilled(p) => {
-				write!(f, "Parent process {} no longer exists", p)
+				write!(f, "Parent process {p} no longer exists")
 			}
 			ShutdownSignal::ExeUninstalled => {
 				write!(f, "Executable no longer exists")

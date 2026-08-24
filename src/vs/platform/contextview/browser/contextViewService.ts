@@ -12,12 +12,14 @@ import { getWindow } from '../../../base/browser/dom.js';
 export class ContextViewHandler extends Disposable implements IContextViewProvider {
 
 	private openContextView: IOpenContextView | undefined;
-	protected readonly contextView = this._register(new ContextView(this.layoutService.mainContainer, ContextViewDOMPosition.ABSOLUTE));
+	protected readonly contextView: ContextView;
 
 	constructor(
 		@ILayoutService private readonly layoutService: ILayoutService
 	) {
 		super();
+
+		this.contextView = this._register(new ContextView(this.layoutService.mainContainer, ContextViewDOMPosition.ABSOLUTE));
 
 		this.layout();
 		this._register(layoutService.onDidLayoutContainer(() => this.layout()));
@@ -25,7 +27,7 @@ export class ContextViewHandler extends Disposable implements IContextViewProvid
 
 	// ContextView
 
-	showContextView(delegate: IContextViewDelegate, container?: HTMLElement, shadowRoot?: boolean): IOpenContextView {
+	showContextView(delegate: IContextViewDelegate, container?: HTMLElement, shadowRoot?: boolean, useWindowContainerForShadowRoot?: boolean): IOpenContextView {
 		let domPosition: ContextViewDOMPosition;
 		if (container) {
 			if (container === this.layoutService.getContainer(getWindow(container))) {
@@ -39,7 +41,8 @@ export class ContextViewHandler extends Disposable implements IContextViewProvid
 			domPosition = ContextViewDOMPosition.ABSOLUTE;
 		}
 
-		this.contextView.setContainer(container ?? this.layoutService.activeContainer, domPosition);
+		const contextViewContainer = useWindowContainerForShadowRoot && container ? this.layoutService.getContainer(getWindow(container)) : container ?? this.layoutService.activeContainer;
+		this.contextView.setContainer(contextViewContainer, domPosition);
 
 		this.contextView.show(delegate);
 
@@ -59,7 +62,7 @@ export class ContextViewHandler extends Disposable implements IContextViewProvid
 		this.contextView.layout();
 	}
 
-	hideContextView(data?: any): void {
+	hideContextView(data?: unknown): void {
 		this.contextView.hide(data);
 		this.openContextView = undefined;
 	}

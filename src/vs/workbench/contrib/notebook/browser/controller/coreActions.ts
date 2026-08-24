@@ -10,7 +10,7 @@ import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contex
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { getNotebookEditorFromEditorPane, IActiveNotebookEditor, ICellViewModel, cellRangeToViewCells, ICellOutputViewModel } from '../notebookBrowser.js';
-import { IS_COMPOSITE_NOTEBOOK, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_KERNEL_COUNT, NOTEBOOK_KERNEL_SOURCE_COUNT } from '../../common/notebookContextKeys.js';
+import { INTERACTIVE_WINDOW_IS_ACTIVE_EDITOR, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_KERNEL_COUNT, NOTEBOOK_KERNEL_SOURCE_COUNT, REPL_NOTEBOOK_IS_ACTIVE_EDITOR } from '../../common/notebookContextKeys.js';
 import { ICellRange, isICellRange } from '../../common/notebookRange.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { isEditorCommandsContext } from '../../../../common/editor.js';
@@ -34,6 +34,7 @@ export const NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT = KeybindingWeight.EditorContr
 export const NOTEBOOK_OUTPUT_WEBVIEW_ACTION_WEIGHT = KeybindingWeight.WorkbenchContrib + 1; // higher than Workbench contribution (such as Notebook List View), etc
 
 export const enum CellToolbarOrder {
+	RunSection,
 	EditCell,
 	ExecuteAboveCells,
 	ExecuteCellAndBelow,
@@ -135,7 +136,7 @@ export abstract class NotebookAction extends Action2 {
 			desc.f1 = false;
 			const f1Menu = {
 				id: MenuId.CommandPalette,
-				when: ContextKeyExpr.or(NOTEBOOK_IS_ACTIVE_EDITOR, IS_COMPOSITE_NOTEBOOK)
+				when: ContextKeyExpr.or(NOTEBOOK_IS_ACTIVE_EDITOR, INTERACTIVE_WINDOW_IS_ACTIVE_EDITOR, REPL_NOTEBOOK_IS_ACTIVE_EDITOR)
 			};
 
 			if (!desc.menu) {
@@ -206,7 +207,7 @@ export abstract class NotebookMultiCellAction extends Action2 {
 		super(desc);
 	}
 
-	parseArgs(accessor: ServicesAccessor, ...args: any[]): INotebookCommandContext | undefined {
+	parseArgs(accessor: ServicesAccessor, ...args: unknown[]): INotebookCommandContext | undefined {
 		return undefined;
 	}
 
@@ -305,7 +306,7 @@ function sendEntryTelemetry(accessor: ServicesAccessor, id: string, context?: an
 }
 
 function isCellToolbarContext(context?: unknown): context is INotebookCellToolbarActionContext {
-	return !!context && !!(context as INotebookActionContext).notebookEditor && (context as any).$mid === MarshalledId.NotebookCellActionContext;
+	return !!context && !!(context as INotebookActionContext).notebookEditor && (context as INotebookActionContext & { $mid: MarshalledId }).$mid === MarshalledId.NotebookCellActionContext;
 }
 
 function isMultiCellArgs(arg: unknown): arg is IMultiCellArgs {

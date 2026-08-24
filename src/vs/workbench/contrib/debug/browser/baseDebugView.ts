@@ -9,19 +9,21 @@ import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { HighlightedLabel, IHighlight } from '../../../../base/browser/ui/highlightedlabel/highlightedLabel.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IInputValidationOptions, InputBox } from '../../../../base/browser/ui/inputbox/inputBox.js';
+import { IKeyboardNavigationLabelProvider } from '../../../../base/browser/ui/list/list.js';
 import { IAsyncDataSource, ITreeNode, ITreeRenderer } from '../../../../base/browser/ui/tree/tree.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { FuzzyScore, createMatches } from '../../../../base/common/filters.js';
 import { createSingleCallFunction } from '../../../../base/common/functional.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { DisposableStore, IDisposable, dispose, toDisposable } from '../../../../base/common/lifecycle.js';
+import { removeAnsiEscapeCodes } from '../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { defaultInputBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
-import { IDebugService, IExpression } from '../common/debug.js';
+import { IDebugService, IExpression, IScope } from '../common/debug.js';
 import { Variable } from '../common/debugModel.js';
 import { IDebugVisualizerService } from '../common/debugVisualizers.js';
 import { LinkDetector } from './linkDetector.js';
@@ -51,7 +53,7 @@ export interface IVariableTemplateData {
 
 export function renderViewTree(container: HTMLElement): HTMLElement {
 	const treeContainer = $('.');
-	treeContainer.classList.add('debug-view-content');
+	treeContainer.classList.add('debug-view-content', 'file-icon-themable-tree');
 	container.appendChild(treeContainer);
 	return treeContainer;
 }
@@ -77,6 +79,32 @@ export interface IExpressionTemplateData {
 	lazyButton: HTMLElement;
 	currentElement: IExpression | undefined;
 }
+
+/** Splits highlights based on matching of the {@link expressionAndScopeLabelProvider} */
+export const splitExpressionOrScopeHighlights = (e: IExpression | IScope, highlights: IHighlight[]) => {
+	const nameEndsAt = e.name.length;
+	const labelBeginsAt = e.name.length + 2;
+	const name: IHighlight[] = [];
+	const value: IHighlight[] = [];
+	for (const hl of highlights) {
+		if (hl.start < nameEndsAt) {
+			name.push({ start: hl.start, end: Math.min(hl.end, nameEndsAt) });
+		}
+		if (hl.end > labelBeginsAt) {
+			value.push({ start: Math.max(hl.start - labelBeginsAt, 0), end: hl.end - labelBeginsAt });
+		}
+	}
+
+	return { name, value };
+};
+
+/** Keyboard label provider for expression and scope tree elements. */
+export const expressionAndScopeLabelProvider: IKeyboardNavigationLabelProvider<IExpression | IScope> = {
+	getKeyboardNavigationLabel(e) {
+		const stripAnsi = e.getSession()?.rememberedCapabilities?.supportsANSIStyling;
+		return `${e.name}: ${stripAnsi ? removeAnsiEscapeCodes(e.value) : e.value}`;
+	},
+};
 
 export abstract class AbstractExpressionDataSource<Input, Element extends IExpression> implements IAsyncDataSource<Input, Element> {
 	constructor(

@@ -12,7 +12,7 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
 import * as platform from '../../registry/common/platform.js';
 import { ColorIdentifier } from './colorRegistry.js';
 import { IconContribution, IconDefinition } from './iconRegistry.js';
-import { ColorScheme } from './theme.js';
+import { ColorScheme, ThemeTypeSelector } from './theme.js';
 
 export const IThemeService = createDecorator<IThemeService>('themeService');
 
@@ -23,12 +23,12 @@ export function themeColorFromId(id: ColorIdentifier) {
 export const FileThemeIcon = Codicon.file;
 export const FolderThemeIcon = Codicon.folder;
 
-export function getThemeTypeSelector(type: ColorScheme): string {
+export function getThemeTypeSelector(type: ColorScheme): ThemeTypeSelector {
 	switch (type) {
-		case ColorScheme.DARK: return 'vs-dark';
-		case ColorScheme.HIGH_CONTRAST_DARK: return 'hc-black';
-		case ColorScheme.HIGH_CONTRAST_LIGHT: return 'hc-light';
-		default: return 'vs';
+		case ColorScheme.DARK: return ThemeTypeSelector.VS_DARK;
+		case ColorScheme.HIGH_CONTRAST_DARK: return ThemeTypeSelector.HC_BLACK;
+		case ColorScheme.HIGH_CONTRAST_LIGHT: return ThemeTypeSelector.HC_LIGHT;
+		default: return ThemeTypeSelector.VS;
 	}
 }
 
@@ -71,9 +71,20 @@ export interface IColorTheme {
 	readonly tokenColorMap: string[];
 
 	/**
+	 * List of all the fonts used with tokens.
+	 */
+	readonly tokenFontMap: IFontTokenOptions[];
+
+	/**
 	 * Defines whether semantic highlighting should be enabled for the theme.
 	 */
 	readonly semanticHighlighting: boolean;
+}
+
+export class IFontTokenOptions {
+	fontFamily?: string;
+	fontSizeMultiplier?: number;
+	lineHeightMultiplier?: number;
 }
 
 export interface IFileIconTheme {
@@ -134,13 +145,14 @@ export interface IThemingRegistry {
 	readonly onThemingParticipantAdded: Event<IThemingParticipant>;
 }
 
-class ThemingRegistry implements IThemingRegistry {
+class ThemingRegistry extends Disposable implements IThemingRegistry {
 	private themingParticipants: IThemingParticipant[] = [];
 	private readonly onThemingParticipantAddedEmitter: Emitter<IThemingParticipant>;
 
 	constructor() {
+		super();
 		this.themingParticipants = [];
-		this.onThemingParticipantAddedEmitter = new Emitter<IThemingParticipant>();
+		this.onThemingParticipantAddedEmitter = this._register(new Emitter<IThemingParticipant>());
 	}
 
 	public onColorThemeChange(participant: IThemingParticipant): IDisposable {
@@ -208,7 +220,7 @@ export class Themable extends Disposable {
 
 export interface IPartsSplash {
 	zoomLevel: number | undefined;
-	baseTheme: string;
+	baseTheme: ThemeTypeSelector;
 	colorInfo: {
 		background: string;
 		foreground: string | undefined;
@@ -219,6 +231,10 @@ export interface IPartsSplash {
 		activityBarBorder: string | undefined;
 		sideBarBackground: string | undefined;
 		sideBarBorder: string | undefined;
+		panelBackground: string | undefined;
+		editorGroupBorder: string | undefined;
+		agentsPanelBackground: string | undefined;
+		agentsPanelBorder: string | undefined;
 		statusBarBackground: string | undefined;
 		statusBarBorder: string | undefined;
 		statusBarNoFolderBackground: string | undefined;
@@ -230,8 +246,16 @@ export interface IPartsSplash {
 		titleBarHeight: number;
 		activityBarWidth: number;
 		sideBarWidth: number;
+		auxiliaryBarWidth: number;
 		statusBarHeight: number;
 		windowBorder: boolean;
 		windowBorderRadius: string | undefined;
+		modernUI: boolean;
+		partBounds: {
+			sideBar: { top: number; left: number; width: number; height: number } | undefined;
+			auxiliaryBar: { top: number; left: number; width: number; height: number } | undefined;
+			panel: { top: number; left: number; width: number; height: number } | undefined;
+			editor: { top: number; left: number; width: number; height: number } | undefined;
+		} | undefined;
 	} | undefined;
 }

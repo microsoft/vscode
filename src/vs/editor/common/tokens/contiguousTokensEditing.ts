@@ -135,10 +135,10 @@ export class ContiguousTokensEditing {
 	}
 }
 
-export function toUint32Array(arr: Uint32Array | ArrayBuffer): Uint32Array {
+export function toUint32Array(arr: Uint32Array | ArrayBuffer): Uint32Array<ArrayBuffer> {
 	if (arr instanceof Uint32Array) {
-		return arr;
+		return arr as Uint32Array<ArrayBuffer>;
 	} else {
-		return new Uint32Array(arr);
+		return new Uint32Array<ArrayBuffer>(arr);
 	}
 }

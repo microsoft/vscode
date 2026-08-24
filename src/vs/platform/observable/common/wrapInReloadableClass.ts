@@ -13,7 +13,7 @@ import { BrandedService, GetLeadingNonServiceArgs, IInstantiationService } from 
  * When the wrapper is created, the original class is created.
  * When the original class changes, the instance is re-created.
 */
-export function wrapInReloadableClass0<TArgs extends BrandedService[]>(getClass: () => Result<TArgs>): Result<GetLeadingNonServiceArgs<TArgs>> {
+export function wrapInReloadableClass0<TArgs extends BrandedService[]>(getClass: () => Result<TArgs>): Result<TArgs> {
 	return !isHotReloadEnabled() ? getClass() : createWrapper(getClass, BaseClass0);
 }
 
@@ -28,13 +28,14 @@ class BaseClass {
 }
 
 function createWrapper<T extends any[]>(getClass: () => any, B: new (...args: T) => BaseClass) {
+	// eslint-disable-next-line local/code-no-any-casts
 	return (class ReloadableWrapper extends B {
 		private _autorun: IDisposable | undefined = undefined;
 
 		override init(...params: any[]) {
 			this._autorun = autorunWithStore((reader, store) => {
 				const clazz = readHotReloadableExport(getClass(), reader);
-				store.add(this.instantiationService.createInstance(clazz as any, ...params) as IDisposable);
+				store.add(this.instantiationService.createInstance(clazz, ...params));
 			});
 		}
 
@@ -54,6 +55,7 @@ class BaseClass0 extends BaseClass {
  * When the original class changes, the instance is re-created.
 */
 export function wrapInReloadableClass1<TArgs extends [any, ...BrandedService[]]>(getClass: () => Result<TArgs>): Result<GetLeadingNonServiceArgs<TArgs>> {
+	// eslint-disable-next-line local/code-no-any-casts
 	return !isHotReloadEnabled() ? getClass() as any : createWrapper(getClass, BaseClass1);
 }
 

@@ -14,7 +14,7 @@ import { Selection } from '../../../common/core/selection.js';
 import { IEditorContribution } from '../../../common/editorCommon.js';
 import { EditorContextKeys } from '../../../common/editorContextKeys.js';
 import { TrackedRangeStickiness } from '../../../common/model.js';
-import { localize } from '../../../../nls.js';
+import { localize, localize2 } from '../../../../nls.js';
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 
@@ -103,8 +103,7 @@ class SetSelectionAnchor extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.setSelectionAnchor',
-			label: localize('setSelectionAnchor', "Set Selection Anchor"),
-			alias: 'Set Selection Anchor',
+			label: localize2('setSelectionAnchor', "Set Selection Anchor"),
 			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
@@ -123,8 +122,7 @@ class GoToSelectionAnchor extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.goToSelectionAnchor',
-			label: localize('goToSelectionAnchor', "Go to Selection Anchor"),
-			alias: 'Go to Selection Anchor',
+			label: localize2('goToSelectionAnchor', "Go to Selection Anchor"),
 			precondition: SelectionAnchorSet,
 		});
 	}
@@ -138,8 +136,7 @@ class SelectFromAnchorToCursor extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.selectFromAnchorToCursor',
-			label: localize('selectFromAnchorToCursor', "Select from Anchor to Cursor"),
-			alias: 'Select from Anchor to Cursor',
+			label: localize2('selectFromAnchorToCursor', "Select from Anchor to Cursor"),
 			precondition: SelectionAnchorSet,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
@@ -158,8 +155,7 @@ class CancelSelectionAnchor extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.cancelSelectionAnchor',
-			label: localize('cancelSelectionAnchor', "Cancel Selection Anchor"),
-			alias: 'Cancel Selection Anchor',
+			label: localize2('cancelSelectionAnchor', "Cancel Selection Anchor"),
 			precondition: SelectionAnchorSet,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,

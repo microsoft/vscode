@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { IAccessibleViewImplentation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { IAccessibleViewImplementation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { IS_COMPOSITE_NOTEBOOK, NOTEBOOK_EDITOR_FOCUSED } from '../common/notebookContextKeys.js';
 import { localize } from '../../../../nls.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
@@ -14,7 +14,7 @@ import { IVisibleEditorPane } from '../../../common/editor.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 
-export class NotebookAccessibilityHelp implements IAccessibleViewImplentation {
+export class NotebookAccessibilityHelp implements IAccessibleViewImplementation {
 	readonly priority = 105;
 	readonly name = 'notebook';
 	readonly when = ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, IS_COMPOSITE_NOTEBOOK.negate());

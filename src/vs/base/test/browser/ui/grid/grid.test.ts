@@ -664,6 +664,32 @@ suite('Grid', function () {
 		assert.deepStrictEqual(grid.isViewVisible(view3), true);
 		assert.deepStrictEqual(grid.isViewVisible(view4), true);
 	});
+
+	test('Distribute sibling sizes when revealing a view', function () {
+		const view1 = store.add(new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE));
+		const grid = store.add(new Grid(view1));
+		container.appendChild(grid.element);
+		grid.layout(800, 600);
+
+		const view2 = store.add(new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE));
+		grid.addView(view2, Sizing.Distribute, view1, Direction.Right);
+		const view3 = store.add(new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE));
+		grid.addView(view3, Sizing.Distribute, view2, Direction.Down);
+
+		grid.setViewVisible(view1, false);
+		grid.resizeView(view2, { width: 200, height: 450 });
+		grid.setViewVisible(view1, true, Sizing.Distribute);
+
+		assert.deepStrictEqual({
+			view1: grid.getViewSize(view1),
+			view2: grid.getViewSize(view2),
+			view3: grid.getViewSize(view3),
+		}, {
+			view1: { width: 400, height: 600 },
+			view2: { width: 400, height: 450 },
+			view3: { width: 400, height: 150 },
+		});
+	});
 });
 
 class TestSerializableView extends TestView implements ISerializableView {

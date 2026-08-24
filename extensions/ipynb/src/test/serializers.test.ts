@@ -42,6 +42,12 @@ suite(`ipynb serializer`, () => {
 				metadata: {}
 			},
 			{
+				cell_type: 'code',
+				outputs: [],
+				source: 'print(2)',
+				metadata: {}
+			},
+			{
 				cell_type: 'markdown',
 				source: '# HEAD',
 				metadata: {}
@@ -55,15 +61,67 @@ suite(`ipynb serializer`, () => {
 		expectedCodeCell.metadata = { execution_count: 10, metadata: {} };
 		expectedCodeCell.executionSummary = { executionOrder: 10 };
 
+		const expectedCodeCell2 = new vscode.NotebookCellData(vscode.NotebookCellKind.Code, 'print(2)', 'python');
+		expectedCodeCell2.outputs = [];
+		expectedCodeCell2.metadata = { execution_count: null, metadata: {} };
+		expectedCodeCell2.executionSummary = {};
+
 		const expectedMarkdownCell = new vscode.NotebookCellData(vscode.NotebookCellKind.Markup, '# HEAD', 'markdown');
 		expectedMarkdownCell.outputs = [];
 		expectedMarkdownCell.metadata = {
 			metadata: {}
 		};
 
-		assert.deepStrictEqual(notebook.cells, [expectedCodeCell, expectedMarkdownCell]);
+		assert.deepStrictEqual(notebook.cells, [expectedCodeCell, expectedCodeCell2, expectedMarkdownCell]);
 	});
 
+	test('Deserialize cells without metadata field', async () => {
+		// Test case for issue where cells without metadata field cause "Cannot read properties of undefined" error
+		const cells: nbformat.ICell[] = [
+			{
+				cell_type: 'code',
+				execution_count: 10,
+				outputs: [],
+				source: 'print(1)'
+			},
+			{
+				cell_type: 'code',
+				outputs: [],
+				source: 'print(2)'
+			},
+			{
+				cell_type: 'markdown',
+				source: '# HEAD'
+			}
+		] as unknown as nbformat.ICell[];
+		const notebook = jupyterNotebookModelToNotebookData({ cells }, 'python');
+		assert.ok(notebook);
+		assert.strictEqual(notebook.cells.length, 3);
+
+		// First cell with execution count
+		const cell1 = notebook.cells[0];
+		assert.strictEqual(cell1.kind, vscode.NotebookCellKind.Code);
+		assert.strictEqual(cell1.value, 'print(1)');
+		assert.strictEqual(cell1.languageId, 'python');
+		assert.ok(cell1.metadata);
+		assert.strictEqual(cell1.metadata.execution_count, 10);
+		assert.deepStrictEqual(cell1.executionSummary, { executionOrder: 10 });
+
+		// Second cell without execution count
+		const cell2 = notebook.cells[1];
+		assert.strictEqual(cell2.kind, vscode.NotebookCellKind.Code);
+		assert.strictEqual(cell2.value, 'print(2)');
+		assert.strictEqual(cell2.languageId, 'python');
+		assert.ok(cell2.metadata);
+		assert.strictEqual(cell2.metadata.execution_count, null);
+		assert.deepStrictEqual(cell2.executionSummary, {});
+
+		// Markdown cell
+		const cell3 = notebook.cells[2];
+		assert.strictEqual(cell3.kind, vscode.NotebookCellKind.Markup);
+		assert.strictEqual(cell3.value, '# HEAD');
+		assert.strictEqual(cell3.languageId, 'markdown');
+	});
 
 	test('Serialize', async () => {
 		const markdownCell = new vscode.NotebookCellData(vscode.NotebookCellKind.Markup, '# header1', 'markdown');

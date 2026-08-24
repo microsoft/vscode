@@ -10,7 +10,7 @@ import { parseLinkedText } from '../../../../base/common/linkedText.js';
 import Severity from '../../../../base/common/severity.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
-import { SeverityIcon } from '../../../../platform/severityIcon/browser/severityIcon.js';
+import { SeverityIcon } from '../../../../base/browser/ui/severityIcon/severityIcon.js';
 import { TextSearchCompleteMessage, TextSearchCompleteMessageType } from '../../../services/search/common/searchExtTypes.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -48,6 +48,7 @@ export const renderSearchMessage = (
 					const parsed = URI.parse(href, true);
 					if (parsed.scheme === Schemas.command && message.trusted) {
 						const result = await commandService.executeCommand(parsed.path);
+						// eslint-disable-next-line local/code-no-any-casts
 						if ((result as any)?.triggerSearch) {
 							triggerSearch();
 						}

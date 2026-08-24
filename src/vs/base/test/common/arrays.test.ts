@@ -399,6 +399,8 @@ suite('Arrays', () => {
 		);
 	});
 
+
+
 	suite('ArrayQueue', () => {
 		suite('takeWhile/takeFromEndWhile', () => {
 			test('TakeWhile 1', () => {
@@ -413,6 +415,16 @@ suite('Arrays', () => {
 				assert.deepStrictEqual(queue1.takeFromEndWhile(x => x > 5), [7, 6]);
 				assert.deepStrictEqual(queue1.takeFromEndWhile(x => x < 2), [1]);
 				assert.deepStrictEqual(queue1.takeFromEndWhile(x => true), [9, 8]);
+			});
+
+			test('takeWhile and takeFromEndWhile mixed', () => {
+				const queue1 = new arrays.ArrayQueue([1, 2, 3, 4, 5]);
+				assert.deepStrictEqual(queue1.takeFromEndWhile(x => x > 3), [4, 5]);
+				assert.deepStrictEqual(queue1.takeWhile(x => x > 0), [1, 2, 3]);
+
+				const queue2 = new arrays.ArrayQueue([1, 2, 3, 4, 5]);
+				assert.deepStrictEqual(queue2.takeWhile(x => x < 3), [1, 2]);
+				assert.deepStrictEqual(queue2.takeFromEndWhile(x => x > 0), [3, 4, 5]);
 			});
 		});
 

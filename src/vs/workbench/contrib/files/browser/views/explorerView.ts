@@ -8,12 +8,11 @@ import { URI } from '../../../../../base/common/uri.js';
 import * as perf from '../../../../../base/common/performance.js';
 import { WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from '../../../../../base/common/actions.js';
 import { memoize } from '../../../../../base/common/decorators.js';
-import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocusedContext, ExplorerFocusedContext, ExplorerRootContext, ExplorerResourceReadonlyContext, ExplorerResourceCut, ExplorerResourceMoveableToTrash, ExplorerCompressedFocusContext, ExplorerCompressedFirstFocusContext, ExplorerCompressedLastFocusContext, ExplorerResourceAvailableEditorIdsContext, VIEW_ID, ExplorerResourceNotReadonlyContext, ViewHasSomeCollapsibleRootItemContext, FoldersViewVisibleContext } from '../../common/files.js';
+import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocusedContext, ExplorerFocusedContext, ExplorerRootContext, ExplorerResourceReadonlyContext, ExplorerResourceCut, ExplorerResourceMoveableToTrash, ExplorerCompressedFocusContext, ExplorerCompressedFirstFocusContext, ExplorerCompressedLastFocusContext, ExplorerResourceAvailableEditorIdsContext, VIEW_ID, ExplorerResourceWritableContext, ViewHasSomeCollapsibleRootItemContext, FoldersViewVisibleContext, ExplorerResourceParentReadOnlyContext, ExplorerFindProviderActive } from '../../common/files.js';
 import { FileCopiedContext, NEW_FILE_COMMAND_ID, NEW_FOLDER_COMMAND_ID } from '../fileActions.js';
 import * as DOM from '../../../../../base/browser/dom.js';
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
-import { ExplorerDecorationsProvider } from './explorerDecorationsProvider.js';
-import { IWorkspaceContextService, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
+import { isUntitledWorkspace, IWorkspace, IWorkspaceContextService, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
 import { IConfigurationService, IConfigurationChangeEvent } from '../../../../../platform/configuration/common/configuration.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -21,13 +20,12 @@ import { IProgressService, ProgressLocation } from '../../../../../platform/prog
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IContextKeyService, IContextKey, ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ResourceContextKey } from '../../../../common/contextkeys.js';
-import { IDecorationsService } from '../../../../services/decorations/common/decorations.js';
 import { WorkbenchCompressibleAsyncDataTree } from '../../../../../platform/list/browser/listService.js';
 import { DelayedDragHandler } from '../../../../../base/browser/dnd.js';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from '../../../../services/editor/common/editorService.js';
 import { IViewPaneOptions, ViewPane } from '../../../../browser/parts/views/viewPane.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
-import { ExplorerDelegate, ExplorerDataSource, FilesRenderer, ICompressedNavigationController, FilesFilter, FileSorter, FileDragAndDrop, ExplorerCompressionDelegate, isCompressedFolderName } from './explorerViewer.js';
+import { ExplorerDelegate, ExplorerDataSource, FilesRenderer, ICompressedNavigationController, FilesFilter, FileSorter, FileDragAndDrop, ExplorerCompressionDelegate, isCompressedFolderName, ExplorerFindProvider } from './explorerViewer.js';
 import { IThemeService, IFileIconTheme } from '../../../../../platform/theme/common/themeService.js';
 import { IWorkbenchThemeService } from '../../../../services/themes/common/workbenchThemeService.js';
 import { ITreeContextMenuEvent, TreeVisibility } from '../../../../../base/browser/ui/tree/tree.js';
@@ -36,11 +34,11 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { ExplorerItem, NewExplorerItem } from '../../common/explorerModel.js';
 import { ResourceLabels } from '../../../../browser/labels.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { IAsyncDataTreeViewState, IAsyncFindProvider, IAsyncFindResult } from '../../../../../base/browser/ui/tree/asyncDataTree.js';
-import { fuzzyScore, FuzzyScore } from '../../../../../base/common/filters.js';
+import { IAsyncDataTreeViewState } from '../../../../../base/browser/ui/tree/asyncDataTree.js';
+import { FuzzyScore } from '../../../../../base/common/filters.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { IFileService, FileSystemProviderCapabilities } from '../../../../../platform/files/common/files.js';
-import { IDisposable } from '../../../../../base/common/lifecycle.js';
+import { IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Event } from '../../../../../base/common/event.js';
 import { IViewDescriptorService } from '../../../../common/views.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
@@ -53,12 +51,10 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { IEditorResolverService } from '../../../../services/editor/common/editorResolverService.js';
 import { EditorOpenSource } from '../../../../../platform/editor/common/editor.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
-import { AbstractTreePart, contiguousFuzzyScore, ITreeFindToggleContribution } from '../../../../../base/browser/ui/tree/abstractTree.js';
+import { AbstractTreePart } from '../../../../../base/browser/ui/tree/abstractTree.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
-import { basename, relativePath } from '../../../../../base/common/resources.js';
-import { IFilesConfigurationService } from '../../../../services/filesConfiguration/common/filesConfigurationService.js';
-import { getExcludes, ISearchComplete, ISearchConfiguration, ISearchService, QueryType } from '../../../../services/search/common/search.js';
-import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
+import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 
 
 function hasExpandedRootChild(tree: WorkbenchCompressibleAsyncDataTree<ExplorerItem | ExplorerItem[], ExplorerItem, FuzzyScore>, treeInput: ExplorerItem[]): boolean {
@@ -108,14 +104,14 @@ export function getContext(focus: ExplorerItem[], selection: ExplorerItem[], res
 	}
 
 	const compressedNavigationControllers = focusedStat && compressedNavigationControllerProvider.getCompressedNavigationController(focusedStat);
-	const compressedNavigationController = compressedNavigationControllers && compressedNavigationControllers.length ? compressedNavigationControllers[0] : undefined;
+	const compressedNavigationController = compressedNavigationControllers?.length ? compressedNavigationControllers[0] : undefined;
 	focusedStat = compressedNavigationController ? compressedNavigationController.current : focusedStat;
 
 	const selectedStats: ExplorerItem[] = [];
 
 	for (const stat of selection) {
 		const controllers = compressedNavigationControllerProvider.getCompressedNavigationController(stat);
-		const controller = controllers && controllers.length ? controllers[0] : undefined;
+		const controller = controllers?.at(0);
 		if (controller && focusedStat && controller === compressedNavigationController) {
 			if (stat === focusedStat) {
 				selectedStats.push(stat);
@@ -154,127 +150,41 @@ export interface IExplorerViewPaneOptions extends IViewPaneOptions {
 	delegate: IExplorerViewContainerDelegate;
 }
 
-const explorerFuzzyMatch = {
-	id: 'fuzzyMatch',
-	title: 'Fuzzy Match',
-	icon: Codicon.searchFuzzy,
-	isChecked: false
-};
+/**
+ * Marks the Explorer pane header as showing a name the user chose.
+ */
+export const PRESERVE_WORKSPACE_NAME_CASE_CLASS = 'preserve-workspace-name-case';
 
-class ExplorerFindProvider implements IAsyncFindProvider<ExplorerItem> {
+/**
+ * Marks the part hosting the Explorer as showing a name the user chose in its
+ * merged (single view) title.
+ */
+export const PRESERVE_MERGED_WORKSPACE_NAME_CASE_CLASS = 'preserve-merged-workspace-name-case';
 
-	readonly toggles: ITreeFindToggleContribution[] = [explorerFuzzyMatch];
-	readonly placeholder: string = nls.localize('type to search files', "Type to search files");
-
-	constructor(
-		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
-		@ISearchService private readonly searchService: ISearchService,
-		@IFileService private readonly fileService: IFileService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IFilesConfigurationService private readonly filesConfigService: IFilesConfigurationService,
-		@IProgressService private readonly progressService: IProgressService,
-		@IExplorerService private readonly explorerService: IExplorerService,
-	) { }
-
-	async *getFindResults(pattern: string, sessionId: number, token: CancellationToken, toggleStates: ITreeFindToggleContribution[]): AsyncIterable<IAsyncFindResult<ExplorerItem>> {
-		const isFuzzyMatch = toggleStates.find(t => t.id === explorerFuzzyMatch.id)?.isChecked!!;
-
-		const workspaceFolders = this.workspaceContextService.getWorkspace().folders;
-		const folderPromises = Promise.all(workspaceFolders.map(async folder => {
-			// Get exclude settings used for search
-			const searchExcludePattern = getExcludes(this.configurationService.getValue<ISearchConfiguration>({ resource: folder.uri })) || {};
-
-			const result = await this.searchService.fileSearch({
-				folderQueries: [{ folder: folder.uri }],
-				type: QueryType.File,
-				shouldGlobMatchFilePattern: !isFuzzyMatch,
-				filePattern: isFuzzyMatch ? pattern : `**/*${pattern}*`,
-				maxResults: 512,
-				sortByScore: true,
-				cacheKey: `explorerfindprovider:${sessionId}`,
-				excludePattern: searchExcludePattern,
-			}, token);
-
-			return { folder: folder.uri, result };
-		}));
-
-		const folderResults = await this.progressService.withProgress({
-			location: ProgressLocation.Explorer,
-			delay: 1000,
-		}, _progress => folderPromises);
-
-		if (token.isCancellationRequested) {
-			return;
-		}
-
-		yield* this.createResultItems(folderResults, pattern, isFuzzyMatch);
+/**
+ * Whether the Explorer title shows a name the user provided and therefore has to
+ * be rendered with its original casing. Untitled workspaces show a generated
+ * label and empty workbenches show a static label, so both keep the default casing.
+ */
+export function shouldPreserveWorkspaceNameCase(workbenchState: WorkbenchState, workspace: IWorkspace, environmentService: IEnvironmentService): boolean {
+	if (workbenchState === WorkbenchState.EMPTY) {
+		return false;
 	}
 
-	private async *createResultItems(folderResults: { folder: URI; result: ISearchComplete }[], pattern: string, isFuzzyMatch: boolean): AsyncIterable<IAsyncFindResult<ExplorerItem>> {
-		const lowercasePattern = pattern.toLowerCase();
-
-		for (const { folder, result } of folderResults) {
-			const folderRoot = new ExplorerItem(folder, this.fileService, this.configurationService, this.filesConfigService, undefined);
-
-			for (const file of result.results) {
-				const baseName = basename(file.resource);
-
-				let filterdata;
-				if (isFuzzyMatch) {
-					filterdata = fuzzyScore(pattern, lowercasePattern, 0, baseName, baseName.toLowerCase(), 0, { firstMatchCanBeWeak: true, boostFullMatch: true });
-				} else {
-					filterdata = contiguousFuzzyScore(lowercasePattern, baseName.toLowerCase());
-				}
-
-				if (!filterdata) {
-					continue;
-				}
-
-				const item = this.createItem(file.resource, folderRoot);
-				if (item) {
-					yield { element: item, filterdata };
-				}
-			}
-		}
-	}
-
-	private createItem(resource: URI, root: ExplorerItem): ExplorerItem | undefined {
-		const relativePathToRoot = relativePath(root.resource, resource);
-		if (!relativePathToRoot) {
-			return undefined;
-		}
-
-		let currentItem = root;
-		let currentResource = root.resource;
-		const pathSegments = relativePathToRoot.split('/');
-		for (const stat of pathSegments) {
-			currentResource = currentResource.with({ path: `${currentResource.path}/${stat}` });
-
-			let child = currentItem.children.get(stat);
-			if (!child) {
-				const isDirectory = pathSegments[pathSegments.length - 1] !== stat;
-				child = new ExplorerItem(currentResource, this.fileService, this.configurationService, this.filesConfigService, currentItem, isDirectory);
-			}
-
-			currentItem = child;
-		}
-
-		return currentItem;
-	}
-
-	revealResultInTree(findElement: ExplorerItem): void {
-		this.explorerService.select(findElement.resource, true);
-	}
+	return !workspace.configuration || !isUntitledWorkspace(workspace.configuration, environmentService);
 }
 
 export class ExplorerView extends ViewPane implements IExplorerView {
+
 	static readonly TREE_VIEW_STATE_STORAGE_KEY: string = 'workbench.explorer.treeViewState';
 
 	private tree!: WorkbenchCompressibleAsyncDataTree<ExplorerItem | ExplorerItem[], ExplorerItem, FuzzyScore>;
 	private filter!: FilesFilter;
+	private findProvider!: ExplorerFindProvider;
 
 	private resourceContext: ResourceContextKey;
 	private folderContext: IContextKey<boolean>;
+	private parentReadonlyContext: IContextKey<boolean>;
 	private readonlyContext: IContextKey<boolean>;
 	private availableEditorIdsContext: IContextKey<string>;
 
@@ -297,8 +207,12 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 
 	private dragHandler!: DelayedDragHandler;
 	private _autoReveal: boolean | 'force' | 'focusNoScroll' = false;
-	private decorationsProvider: ExplorerDecorationsProvider | undefined;
 	private readonly delegate: IExplorerViewContainerDelegate | undefined;
+	private workspaceTitleContainer: HTMLElement | undefined;
+
+	override get singleViewPaneContainerTitle(): string {
+		return this.name;
+	}
 
 	constructor(
 		options: IExplorerViewPaneOptions,
@@ -313,10 +227,9 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IDecorationsService private readonly decorationService: IDecorationsService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IThemeService themeService: IWorkbenchThemeService,
-		@ITelemetryService telemetryService: ITelemetryService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IHoverService hoverService: IHoverService,
 		@IExplorerService private readonly explorerService: IExplorerService,
 		@IStorageService private readonly storageService: IStorageService,
@@ -324,14 +237,17 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		@IFileService private readonly fileService: IFileService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@ICommandService private readonly commandService: ICommandService,
-		@IOpenerService openerService: IOpenerService
+		@IOpenerService openerService: IOpenerService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
 		this.delegate = options.delegate;
 		this.resourceContext = instantiationService.createInstance(ResourceContextKey);
 		this._register(this.resourceContext);
 
+		this.parentReadonlyContext = ExplorerResourceParentReadOnlyContext.bindTo(contextKeyService);
 		this.folderContext = ExplorerFolderContext.bindTo(contextKeyService);
 		this.readonlyContext = ExplorerResourceReadonlyContext.bindTo(contextKeyService);
 		this.availableEditorIdsContext = ExplorerResourceAvailableEditorIdsContext.bindTo(contextKeyService);
@@ -343,8 +259,8 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		this.viewHasSomeCollapsibleRootItem = ViewHasSomeCollapsibleRootItemContext.bindTo(contextKeyService);
 		this.viewVisibleContextKey = FoldersViewVisibleContext.bindTo(contextKeyService);
 
-
 		this.explorerService.registerView(this);
+		this._register(toDisposable(() => this.clearWorkspaceTitleContainer()));
 	}
 
 	get autoReveal() {
@@ -367,9 +283,24 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		// noop
 	}
 
+	override get headerVisible(): boolean {
+		return super.headerVisible;
+	}
+
+	override set headerVisible(visible: boolean) {
+		super.headerVisible = visible;
+		this.updateWorkspaceTitleCase();
+	}
+
 	override setVisible(visible: boolean): void {
+		if (!visible) {
+			this.clearWorkspaceTitleContainer();
+		}
 		this.viewVisibleContextKey.set(visible);
 		super.setVisible(visible);
+		if (visible) {
+			this.updateWorkspaceTitleContainer();
+		}
 	}
 
 	@memoize private get fileCopiedContextKey(): IContextKey<boolean> {
@@ -388,6 +319,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		// Expand on drag over
 		this.dragHandler = new DelayedDragHandler(container, () => this.setExpanded(true));
 
+		// eslint-disable-next-line no-restricted-syntax
 		const titleElement = container.querySelector('.title') as HTMLElement;
 		const setHeader = () => {
 			titleElement.textContent = this.name;
@@ -396,9 +328,33 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 			titleElement.setAttribute('aria-label', this.ariaHeaderLabel);
 		};
 
-		this._register(this.contextService.onDidChangeWorkspaceName(setHeader));
+		this._register(this.contextService.onDidChangeWorkspaceName(() => {
+			setHeader();
+			this.updateWorkspaceTitleCase();
+		}));
+		this._register(this.contextService.onDidChangeWorkbenchState(() => this.updateWorkspaceTitleCase()));
 		this._register(this.labelService.onDidChangeFormatters(setHeader));
 		setHeader();
+	}
+
+	private updateWorkspaceTitleContainer(): void {
+		const workspaceTitleContainer = DOM.findParentWithClass(this.element, 'part') ?? undefined;
+		if (this.workspaceTitleContainer !== workspaceTitleContainer) {
+			this.workspaceTitleContainer?.classList.remove(PRESERVE_MERGED_WORKSPACE_NAME_CASE_CLASS);
+			this.workspaceTitleContainer = workspaceTitleContainer;
+		}
+		this.updateWorkspaceTitleCase();
+	}
+
+	private clearWorkspaceTitleContainer(): void {
+		this.workspaceTitleContainer?.classList.remove(PRESERVE_MERGED_WORKSPACE_NAME_CASE_CLASS);
+		this.workspaceTitleContainer = undefined;
+	}
+
+	private updateWorkspaceTitleCase(): void {
+		const preserveWorkspaceNameCase = shouldPreserveWorkspaceNameCase(this.contextService.getWorkbenchState(), this.contextService.getWorkspace(), this.environmentService);
+		this.element.classList.toggle(PRESERVE_WORKSPACE_NAME_CASE_CLASS, preserveWorkspaceNameCase);
+		this.workspaceTitleContainer?.classList.toggle(PRESERVE_MERGED_WORKSPACE_NAME_CASE_CLASS, preserveWorkspaceNameCase && this.isVisible() && !this.headerVisible);
 	}
 
 	protected override layoutBody(height: number, width: number): void {
@@ -549,18 +505,27 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		const explorerLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility });
 		this._register(explorerLabels);
 
+		this.findProvider = this.instantiationService.createInstance(ExplorerFindProvider, this.filter, () => this.tree);
+
 		const updateWidth = (stat: ExplorerItem) => this.tree.updateWidth(stat);
-		this.renderer = this.instantiationService.createInstance(FilesRenderer, container, explorerLabels, updateWidth);
+		this.renderer = this.instantiationService.createInstance(FilesRenderer, container, explorerLabels, this.findProvider.highlightTree, updateWidth);
 		this._register(this.renderer);
 
 		this._register(createFileIconThemableTreeContainerScope(container, this.themeService));
 
-		const isCompressionEnabled = () => this.configurationService.getValue<boolean>('explorer.compactFolders');
+		const isCompressionEnabled = () => {
+			const configValue = this.configurationService.getValue<boolean>('explorer.compactFolders');
+			// Disable compact folders when screen reader is optimized for better accessibility
+			if (this.accessibilityService.isScreenReaderOptimized()) {
+				return false;
+			}
+			return configValue;
+		};
 
 		const getFileNestingSettings = (item?: ExplorerItem) => this.configurationService.getValue<IFilesConfiguration>({ resource: item?.root.resource }).explorer.fileNesting;
 
-		this.tree = <WorkbenchCompressibleAsyncDataTree<ExplorerItem | ExplorerItem[], ExplorerItem, FuzzyScore>>this.instantiationService.createInstance(WorkbenchCompressibleAsyncDataTree, 'FileExplorer', container, new ExplorerDelegate(), new ExplorerCompressionDelegate(), [this.renderer],
-			this.instantiationService.createInstance(ExplorerDataSource, this.filter), {
+		this.tree = this.instantiationService.createInstance(WorkbenchCompressibleAsyncDataTree<ExplorerItem | ExplorerItem[], ExplorerItem, FuzzyScore>, 'FileExplorer', container, new ExplorerDelegate(), new ExplorerCompressionDelegate(), [this.renderer],
+			this.instantiationService.createInstance(ExplorerDataSource, this.filter, this.findProvider), {
 			compressionEnabled: isCompressionEnabled(),
 			accessibilityProvider: this.renderer,
 			identityProvider,
@@ -589,6 +554,9 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 					if (e.hasNests && getFileNestingSettings(e).expand) {
 						return false;
 					}
+					if (this.findProvider.isShowingFilterResults()) {
+						return false;
+					}
 				}
 				return true;
 			},
@@ -606,7 +574,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 			},
 			paddingBottom: ExplorerDelegate.ITEM_HEIGHT,
 			overrideStyles: this.getLocationBasedColors().listOverrideStyles,
-			findResultsProvider: this.instantiationService.createInstance(ExplorerFindProvider),
+			findProvider: this.findProvider,
 		});
 		this._register(this.tree);
 		this._register(this.themeService.onDidColorThemeChange(() => this.tree.rerender()));
@@ -614,6 +582,11 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		// Bind configuration
 		const onDidChangeCompressionConfiguration = Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('explorer.compactFolders'));
 		this._register(onDidChangeCompressionConfiguration(_ => this.tree.updateOptions({ compressionEnabled: isCompressionEnabled() })));
+
+		// Update compression when screen reader mode changes
+		this._register(this.accessibilityService.onDidChangeScreenReaderOptimized(() => {
+			this.tree.updateOptions({ compressionEnabled: isCompressionEnabled() });
+		}));
 
 		// Bind context keys
 		FilesExplorerFocusedContext.bindTo(this.tree.contextKeyService);
@@ -651,7 +624,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 
 		this._register(this.tree.onDidScroll(async e => {
 			const editable = this.explorerService.getEditable();
-			if (e.scrollTopChanged && editable && this.tree.getRelativeTop(editable.stat) === null) {
+			if (e.scrollTopChanged && editable && this.tryGetRelativeTop(editable.stat) === null) {
 				await editable.data.onFinish('', false);
 			}
 		}));
@@ -659,7 +632,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		this._register(this.tree.onDidChangeCollapseState(e => {
 			const element = e.node.element?.element;
 			if (element) {
-				const navigationControllers = this.renderer.getCompressedNavigationController(element instanceof Array ? element[0] : element);
+				const navigationControllers = this.renderer.getCompressedNavigationController(Array.isArray(element) ? element[0] : element);
 				navigationControllers?.forEach(controller => controller.updateCollapsed(e.node.collapsed));
 			}
 			// Update showing expand / collapse button
@@ -708,6 +681,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		this.resourceContext.set(resource);
 		this.folderContext.set(!!stat && stat.isDirectory);
 		this.readonlyContext.set(!!stat && !!stat.isReadonly);
+		this.parentReadonlyContext.set(Boolean(stat?.parent?.isReadonly));
 		this.rootContext.set(!!stat && stat.isRoot);
 
 		if (resource) {
@@ -751,7 +725,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		let arg: URI | {};
 		if (stat instanceof ExplorerItem) {
 			const compressedControllers = this.renderer.getCompressedNavigationController(stat);
-			arg = compressedControllers && compressedControllers.length ? compressedControllers[0].current.resource : stat.resource;
+			arg = compressedControllers?.length ? compressedControllers[0].current.resource : stat.resource;
 		} else {
 			arg = roots.length === 1 ? roots[0].resource : {};
 		}
@@ -773,7 +747,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 	}
 
 	private onFocusChanged(elements: readonly ExplorerItem[]): void {
-		const stat = elements && elements.length ? elements[0] : undefined;
+		const stat = elements.at(0);
 		this.setContextKeys(stat);
 
 		if (stat) {
@@ -800,11 +774,39 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 	// General methods
 
 	/**
+	 * Safely queries the file explorer tree for the relative top of an element.
+	 *
+	 * `hasNode()` and `getRelativeTop()` consult different internal maps in the
+	 * compressible async data tree. During an async refresh (e.g. when the
+	 * underlying file system provider changes, or file nesting settings update)
+	 * there is a microtask gap where one map has been updated but the other has
+	 * not. In that window `getRelativeTop()` can throw
+	 * `TreeError [FileExplorer] Tree element not found` (issue #188365) even
+	 * though the caller reasonably believed the element was still present.
+	 *
+	 * Treat such a failure as "not currently visible" so that callers fall back
+	 * to their not-visible branch (e.g. finishing editable state, or calling
+	 * `reveal()`), which is safe when the element is still in the data source
+	 * even if the view has not caught up yet.
+	 */
+	private tryGetRelativeTop(element: ExplorerItem): number | null {
+		if (!this.tree) {
+			return null;
+		}
+
+		try {
+			return this.tree.getRelativeTop(element);
+		} catch {
+			return null;
+		}
+	}
+
+	/**
 	 * Refresh the contents of the explorer to get up to date data from the disk about the file structure.
 	 * If the item is passed we refresh only that level of the tree, otherwise we do a full refresh.
 	 */
 	refresh(recursive: boolean, item?: ExplorerItem, cancelEditing: boolean = true): Promise<void> {
-		if (!this.tree || !this.isBodyVisible() || (item && !this.tree.hasNode(item))) {
+		if (!this.tree || !this.isBodyVisible() || (item && !this.tree.hasNode(item)) || (this.findProvider?.isShowingFilterResults() && recursive)) {
 			// Tree node doesn't exist yet, when it becomes visible we will refresh
 			return Promise.resolve(undefined);
 		}
@@ -819,6 +821,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 
 	override getOptimalWidth(): number {
 		const parentNode = this.tree.getHTMLElement();
+		// eslint-disable-next-line no-restricted-syntax
 		const childNodes = ([] as HTMLElement[]).slice.call(parentNode.querySelectorAll('.explorer-item .label-name')); // select all file labels
 
 		return DOM.getLargestChildWidth(parentNode, childNodes);
@@ -846,7 +849,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		}
 
 		let viewState: IAsyncDataTreeViewState | undefined;
-		if (this.tree && this.tree.getInput()) {
+		if (this.tree?.getInput()) {
 			viewState = this.tree.getViewState();
 		} else {
 			const rawViewState = this.storageService.get(ExplorerView.TREE_VIEW_STATE_STORAGE_KEY, StorageScope.WORKSPACE);
@@ -896,10 +899,6 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		}, _progress => promise);
 
 		await promise;
-		if (!this.decorationsProvider) {
-			this.decorationsProvider = new ExplorerDecorationsProvider(this.explorerService, this.contextService);
-			this._register(this.decorationService.registerDecorationsProvider(this.decorationsProvider));
-		}
 	}
 
 	public async selectResource(resource: URI | undefined, reveal = this._autoReveal, retry = 0): Promise<void> {
@@ -1071,6 +1070,10 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		this.storeTreeViewState();
 	}
 
+	hasPhantomElements(): boolean {
+		return !!this.findProvider?.isShowingFilterResults();
+	}
+
 	override dispose(): void {
 		this.dragHandler?.dispose();
 		super.dispose();
@@ -1090,6 +1093,13 @@ export function createFileIconThemableTreeContainerScope(container: HTMLElement,
 	return themeService.onDidFileIconThemeChange(onDidChangeFileIconTheme);
 }
 
+const CanCreateContext = ContextKeyExpr.or(
+	// Folder: can create unless readonly
+	ContextKeyExpr.and(ExplorerFolderContext, ExplorerResourceWritableContext),
+	// File: can create unless parent is readonly
+	ContextKeyExpr.and(ExplorerFolderContext.toNegated(), ExplorerResourceParentReadOnlyContext.toNegated())
+);
+
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
@@ -1097,7 +1107,7 @@ registerAction2(class extends Action2 {
 			title: nls.localize('createNewFile', "New File..."),
 			f1: false,
 			icon: Codicon.newFile,
-			precondition: ExplorerResourceNotReadonlyContext,
+			precondition: CanCreateContext,
 			menu: {
 				id: MenuId.ViewTitle,
 				group: 'navigation',
@@ -1120,7 +1130,7 @@ registerAction2(class extends Action2 {
 			title: nls.localize('createNewFolder', "New Folder..."),
 			f1: false,
 			icon: Codicon.newFolder,
-			precondition: ExplorerResourceNotReadonlyContext,
+			precondition: CanCreateContext,
 			menu: {
 				id: MenuId.ViewTitle,
 				group: 'navigation',
@@ -1147,11 +1157,12 @@ registerAction2(class extends Action2 {
 				id: MenuId.ViewTitle,
 				group: 'navigation',
 				when: ContextKeyExpr.equals('view', VIEW_ID),
-				order: 30
+				order: 30,
 			},
 			metadata: {
 				description: nls.localize2('refreshExplorerMetadata', "Forces a refresh of the Explorer.")
-			}
+			},
+			precondition: ExplorerFindProviderActive.negate()
 		});
 	}
 

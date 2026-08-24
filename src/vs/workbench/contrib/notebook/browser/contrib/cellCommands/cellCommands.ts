@@ -205,6 +205,8 @@ registerAction2(class extends NotebookCellAction {
 					],
 					{ quotableLabel: 'Split Notebook Cell' }
 				);
+
+				context.notebookEditor.cellAt(index + 1)?.updateEditState(cell.getEditState(), 'splitCell');
 			}
 		}
 	}
@@ -367,7 +369,7 @@ registerAction2(class CollapseCellInputAction extends NotebookMultiCellAction {
 		});
 	}
 
-	override parseArgs(accessor: ServicesAccessor, ...args: any[]): INotebookCommandContext | undefined {
+	override parseArgs(accessor: ServicesAccessor, ...args: unknown[]): INotebookCommandContext | undefined {
 		return parseMultiCellExecutionArgs(accessor, ...args);
 	}
 
@@ -393,7 +395,7 @@ registerAction2(class ExpandCellInputAction extends NotebookMultiCellAction {
 		});
 	}
 
-	override parseArgs(accessor: ServicesAccessor, ...args: any[]): INotebookCommandContext | undefined {
+	override parseArgs(accessor: ServicesAccessor, ...args: unknown[]): INotebookCommandContext | undefined {
 		return parseMultiCellExecutionArgs(accessor, ...args);
 	}
 
@@ -463,7 +465,7 @@ registerAction2(class extends NotebookMultiCellAction {
 		});
 	}
 
-	override parseArgs(accessor: ServicesAccessor, ...args: any[]): INotebookCommandContext | undefined {
+	override parseArgs(accessor: ServicesAccessor, ...args: unknown[]): INotebookCommandContext | undefined {
 		return parseMultiCellExecutionArgs(accessor, ...args);
 	}
 

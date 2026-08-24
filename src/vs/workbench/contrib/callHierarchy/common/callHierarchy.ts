@@ -164,7 +164,7 @@ CommandsRegistry.registerCommand('_executePrepareCallHierarchy', async (accessor
 	}
 });
 
-function isCallHierarchyItemDto(obj: any): obj is CallHierarchyItem {
+function isCallHierarchyItemDto(obj: unknown): obj is CallHierarchyItem {
 	return true;
 }
 
@@ -175,7 +175,7 @@ CommandsRegistry.registerCommand('_executeProvideIncomingCalls', async (_accesso
 	// find model
 	const model = _models.get(item._sessionId);
 	if (!model) {
-		return undefined;
+		return [];
 	}
 
 	return model.resolveIncomingCalls(item, CancellationToken.None);
@@ -188,7 +188,7 @@ CommandsRegistry.registerCommand('_executeProvideOutgoingCalls', async (_accesso
 	// find model
 	const model = _models.get(item._sessionId);
 	if (!model) {
-		return undefined;
+		return [];
 	}
 
 	return model.resolveOutgoingCalls(item, CancellationToken.None);

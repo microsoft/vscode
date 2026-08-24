@@ -5,39 +5,42 @@
 
 import { LogLevel as MsalLogLevel } from '@azure/msal-node';
 import { env, LogLevel, LogOutputChannel } from 'vscode';
+import { MicrosoftAuthenticationTelemetryReporter } from './telemetryReporter';
 
 export class MsalLoggerOptions {
 	piiLoggingEnabled = false;
 
-	constructor(private readonly _output: LogOutputChannel) { }
+	constructor(
+		private readonly _output: LogOutputChannel,
+		private readonly _telemtryReporter: MicrosoftAuthenticationTelemetryReporter
+	) { }
 
 	get logLevel(): MsalLogLevel {
 		return this._toMsalLogLevel(env.logLevel);
 	}
 
-	loggerCallback(level: MsalLogLevel, message: string, containsPii: boolean): void {
-		if (containsPii) {
-			return;
-		}
+	loggerCallback(level: MsalLogLevel, message: string, _containsPii: boolean): void {
 
+		// Log to output channel one level lower than the MSAL log level
 		switch (level) {
 			case MsalLogLevel.Error:
 				this._output.error(message);
+				this._telemtryReporter.sendTelemetryErrorEvent(message);
 				return;
 			case MsalLogLevel.Warning:
 				this._output.warn(message);
 				return;
 			case MsalLogLevel.Info:
-				this._output.info(message);
-				return;
-			case MsalLogLevel.Verbose:
 				this._output.debug(message);
 				return;
-			case MsalLogLevel.Trace:
+			case MsalLogLevel.Verbose:
 				this._output.trace(message);
 				return;
+			case MsalLogLevel.Trace:
+				// Do not log trace messages
+				return;
 			default:
-				this._output.info(message);
+				this._output.debug(message);
 				return;
 		}
 	}

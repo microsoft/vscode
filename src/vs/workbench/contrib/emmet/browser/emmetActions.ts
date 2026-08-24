@@ -42,9 +42,9 @@ class GrammarContributions implements IGrammarContributions {
 	}
 }
 
-interface IEmmetActionOptions extends IActionOptions {
+type IEmmetActionOptions = IActionOptions & {
 	actionName: string;
-}
+};
 
 export abstract class EmmetEditorAction extends EditorAction {
 

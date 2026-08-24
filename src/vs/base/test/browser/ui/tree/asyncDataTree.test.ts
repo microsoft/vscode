@@ -12,6 +12,7 @@ import { IAsyncDataSource, ITreeNode } from '../../../../browser/ui/tree/tree.js
 import { timeout } from '../../../../common/async.js';
 import { Iterable } from '../../../../common/iterator.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../common/utils.js';
+import { runWithFakedTimers } from '../../../common/timeTravelScheduler.js';
 
 interface Element {
 	id: string;
@@ -50,7 +51,7 @@ class Renderer implements ICompressibleTreeRenderer<Element, void, HTMLElement> 
 	disposeTemplate(templateData: HTMLElement): void {
 		// noop
 	}
-	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<Element>, void>, index: number, templateData: HTMLElement, height: number | undefined): void {
+	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<Element>, void>, index: number, templateData: HTMLElement): void {
 		const result: string[] = [];
 
 		for (const element of node.element.elements) {
@@ -306,7 +307,7 @@ suite('AsyncDataTree', function () {
 		assert(!aNode.collapsed);
 		assert.equal(aNode.children.length, 1);
 		assert.equal(aNode.children[0].element.id, 'b');
-		const bChild = container.querySelector('.monaco-list-row:nth-child(2)') as HTMLElement | undefined;
+		const bChild = container.querySelector('.monaco-list-row:nth-child(2)');
 		assert.equal(bChild?.textContent, 'b');
 		tree.collapse(a);
 		assert(aNode.collapsed);
@@ -318,8 +319,8 @@ suite('AsyncDataTree', function () {
 		assert.equal(aNodeUpdated1.children.length, 0);
 		let didCheckNoChildren = false;
 		const event = tree.onDidChangeCollapseState(e => {
-			const child = container.querySelector('.monaco-list-row:nth-child(2)') as HTMLElement | undefined;
-			assert.equal(child, undefined);
+			const child = container.querySelector('.monaco-list-row:nth-child(2)');
+			assert.equal(child, null);
 			didCheckNoChildren = true;
 		});
 		await tree.expand(aUpdated1);
@@ -330,7 +331,7 @@ suite('AsyncDataTree', function () {
 		assert(!aNodeUpdated2.collapsed);
 		assert.equal(aNodeUpdated2.children.length, 1);
 		assert.equal(aNodeUpdated2.children[0].element.id, 'c');
-		const child = container.querySelector('.monaco-list-row:nth-child(2)') as HTMLElement | undefined;
+		const child = container.querySelector('.monaco-list-row:nth-child(2)');
 		assert.equal(child?.textContent, 'c');
 	});
 
@@ -363,7 +364,7 @@ suite('AsyncDataTree', function () {
 		assert(!aNode.collapsed);
 		assert.equal(aNode.children.length, 1);
 		assert.equal(aNode.children[0].element.id, 'b');
-		const bChild = container.querySelector('.monaco-list-row:nth-child(2)') as HTMLElement | undefined;
+		const bChild = container.querySelector('.monaco-list-row:nth-child(2)');
 		assert.equal(bChild?.textContent, 'b');
 		tree.collapse(a);
 		assert(aNode.collapsed);
@@ -374,7 +375,7 @@ suite('AsyncDataTree', function () {
 		assert.equal(aNodeUpdated1.children.length, 1);
 		let didCheckSameChildren = false;
 		const event = tree.onDidChangeCollapseState(e => {
-			const child = container.querySelector('.monaco-list-row:nth-child(2)') as HTMLElement | undefined;
+			const child = container.querySelector('.monaco-list-row:nth-child(2)');
 			assert.equal(child?.textContent, 'b');
 			didCheckSameChildren = true;
 		});
@@ -386,7 +387,7 @@ suite('AsyncDataTree', function () {
 		assert(!aNodeUpdated2.collapsed);
 		assert.equal(aNodeUpdated2.children.length, 1);
 		assert.equal(aNodeUpdated2.children[0].element.id, 'b');
-		const child = container.querySelector('.monaco-list-row:nth-child(2)') as HTMLElement | undefined;
+		const child = container.querySelector('.monaco-list-row:nth-child(2)');
 		assert.equal(child?.textContent, 'b');
 	});
 
@@ -465,45 +466,47 @@ suite('AsyncDataTree', function () {
 	});
 
 	test('issue #80098 - first expand should call getChildren', async () => {
-		const container = document.createElement('div');
+		return runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const container = document.createElement('div');
 
-		const calls: Function[] = [];
-		const dataSource = new class implements IAsyncDataSource<Element, Element> {
-			hasChildren(element: Element): boolean {
-				return !!element.children && element.children.length > 0;
-			}
-			getChildren(element: Element): Promise<Element[]> {
-				return new Promise(c => calls.push(() => c(element.children || [])));
-			}
-		};
+			const calls: Function[] = [];
+			const dataSource = new class implements IAsyncDataSource<Element, Element> {
+				hasChildren(element: Element): boolean {
+					return !!element.children && element.children.length > 0;
+				}
+				getChildren(element: Element): Promise<Element[]> {
+					return new Promise(c => calls.push(() => c(element.children || [])));
+				}
+			};
 
-		const model = new Model({
-			id: 'root',
-			children: [{
-				id: 'a', children: [{
-					id: 'aa'
+			const model = new Model({
+				id: 'root',
+				children: [{
+					id: 'a', children: [{
+						id: 'aa'
+					}]
 				}]
-			}]
+			});
+
+			const tree = store.add(new AsyncDataTree<Element, Element>('test', container, new VirtualDelegate(), [new Renderer()], dataSource, { identityProvider: new IdentityProvider() }));
+			tree.layout(200);
+
+			const pSetInput = tree.setInput(model.root);
+			calls.pop()!(); // resolve getChildren(root)
+			await pSetInput;
+
+			const pExpandA = tree.expand(model.get('a'));
+			assert.strictEqual(calls.length, 1, 'expand(a) should\'ve called getChildren(a)');
+
+			let race = await Promise.race([pExpandA.then(() => 'expand'), timeout(1).then(() => 'timeout')]);
+			assert.strictEqual(race, 'timeout', 'expand(a) should not be yet done');
+
+			calls.pop()!();
+			assert.strictEqual(calls.length, 0, 'no pending getChildren calls');
+
+			race = await Promise.race([pExpandA.then(() => 'expand'), timeout(1).then(() => 'timeout')]);
+			assert.strictEqual(race, 'expand', 'expand(a) should now be done');
 		});
-
-		const tree = store.add(new AsyncDataTree<Element, Element>('test', container, new VirtualDelegate(), [new Renderer()], dataSource, { identityProvider: new IdentityProvider() }));
-		tree.layout(200);
-
-		const pSetInput = tree.setInput(model.root);
-		calls.pop()!(); // resolve getChildren(root)
-		await pSetInput;
-
-		const pExpandA = tree.expand(model.get('a'));
-		assert.strictEqual(calls.length, 1, 'expand(a) should\'ve called getChildren(a)');
-
-		let race = await Promise.race([pExpandA.then(() => 'expand'), timeout(1).then(() => 'timeout')]);
-		assert.strictEqual(race, 'timeout', 'expand(a) should not be yet done');
-
-		calls.pop()!();
-		assert.strictEqual(calls.length, 0, 'no pending getChildren calls');
-
-		race = await Promise.race([pExpandA.then(() => 'expand'), timeout(1).then(() => 'timeout')]);
-		assert.strictEqual(race, 'expand', 'expand(a) should now be done');
 	});
 
 	test('issue #78388 - tree should react to hasChildren toggles', async () => {

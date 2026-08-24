@@ -48,7 +48,7 @@ export class ExtensionsWatcher extends Disposable {
 		await this.extensionsScannerService.initializeDefaultProfileExtensions();
 		await this.onDidChangeProfiles(this.userDataProfilesService.profiles);
 		this.registerListeners();
-		await this.uninstallExtensionsNotInProfiles();
+		await this.deleteExtensionsNotInProfiles();
 	}
 
 	private registerListeners(): void {
@@ -102,7 +102,7 @@ export class ExtensionsWatcher extends Disposable {
 	}
 
 	private async onDidRemoveExtensions(e: DidRemoveProfileExtensionsEvent): Promise<void> {
-		const extensionsToUninstall: IExtension[] = [];
+		const extensionsToDelete: IExtension[] = [];
 		const promises: Promise<void>[] = [];
 		for (const extension of e.extensions) {
 			const key = this.getKey(extension.identifier, extension.version);
@@ -115,7 +115,7 @@ export class ExtensionsWatcher extends Disposable {
 					promises.push(this.extensionManagementService.scanInstalledExtensionAtLocation(extension.location)
 						.then(result => {
 							if (result) {
-								extensionsToUninstall.push(result);
+								extensionsToDelete.push(result);
 							} else {
 								this.logService.info('Extension not found at the location', extension.location.toString());
 							}
@@ -125,8 +125,8 @@ export class ExtensionsWatcher extends Disposable {
 		}
 		try {
 			await Promise.all(promises);
-			if (extensionsToUninstall.length) {
-				await this.uninstallExtensionsNotInProfiles(extensionsToUninstall);
+			if (extensionsToDelete.length) {
+				await this.deleteExtensionsNotInProfiles(extensionsToDelete);
 			}
 		} catch (error) {
 			this.logService.error(error);
@@ -180,13 +180,13 @@ export class ExtensionsWatcher extends Disposable {
 		}
 	}
 
-	private async uninstallExtensionsNotInProfiles(toUninstall?: IExtension[]): Promise<void> {
-		if (!toUninstall) {
+	private async deleteExtensionsNotInProfiles(toDelete?: IExtension[]): Promise<void> {
+		if (!toDelete) {
 			const installed = await this.extensionManagementService.scanAllUserInstalledExtensions();
-			toUninstall = installed.filter(installedExtension => !this.allExtensions.has(this.getKey(installedExtension.identifier, installedExtension.manifest.version)));
+			toDelete = installed.filter(installedExtension => !this.allExtensions.has(this.getKey(installedExtension.identifier, installedExtension.manifest.version)));
 		}
-		if (toUninstall.length) {
-			await this.extensionManagementService.markAsUninstalled(...toUninstall);
+		if (toDelete.length) {
+			await this.extensionManagementService.deleteExtensions(...toDelete);
 		}
 	}
 

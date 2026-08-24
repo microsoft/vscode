@@ -26,6 +26,7 @@ import { WordDistance } from './wordDistance.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 
 class SuggestInlineCompletion implements InlineCompletion {
+	readonly doNotLog = true;
 
 	constructor(
 		readonly range: IRange,
@@ -33,6 +34,7 @@ class SuggestInlineCompletion implements InlineCompletion {
 		readonly filterText: string,
 		readonly additionalTextEdits: ISingleEditOperation[] | undefined,
 		readonly command: Command | undefined,
+		readonly gutterMenuLinkAction: Command | undefined,
 		readonly completion: CompletionItem,
 	) { }
 }
@@ -91,6 +93,7 @@ class InlineCompletionResults extends RefCountedDisposable implements InlineComp
 				item.filterTextLow ?? item.labelLow,
 				item.completion.additionalTextEdits,
 				item.completion.command,
+				item.completion.action,
 				item
 			));
 
@@ -220,7 +223,7 @@ export class SuggestInlineCompletions extends Disposable implements InlineComple
 		item.completion.resolve(CancellationToken.None);
 	}
 
-	freeInlineCompletions(result: InlineCompletionResults): void {
+	disposeInlineCompletions(result: InlineCompletionResults): void {
 		result.release();
 	}
 

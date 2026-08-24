@@ -8,7 +8,7 @@ import { AccessibleViewType, AccessibleContentProvider, ExtensionContentProvider
 import { ContextKeyExpression } from '../../contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../instantiation/common/instantiation.js';
 
-export interface IAccessibleViewImplentation {
+export interface IAccessibleViewImplementation {
 	type: AccessibleViewType;
 	priority: number;
 	name: string;
@@ -20,9 +20,9 @@ export interface IAccessibleViewImplentation {
 }
 
 export const AccessibleViewRegistry = new class AccessibleViewRegistry {
-	_implementations: IAccessibleViewImplentation[] = [];
+	_implementations: IAccessibleViewImplementation[] = [];
 
-	register(implementation: IAccessibleViewImplentation): IDisposable {
+	register(implementation: IAccessibleViewImplementation): IDisposable {
 		this._implementations.push(implementation);
 		return {
 			dispose: () => {
@@ -34,7 +34,7 @@ export const AccessibleViewRegistry = new class AccessibleViewRegistry {
 		};
 	}
 
-	getImplementations(): IAccessibleViewImplentation[] {
+	getImplementations(): IAccessibleViewImplementation[] {
 		return this._implementations;
 	}
 };

@@ -8,7 +8,7 @@ import { IExtensionManagementService } from '../../../../platform/extensionManag
 import { ExtensionType } from '../../../../platform/extensions/common/extensions.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IWorkbenchIssueService } from '../common/issue.js';
-import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IUserDataProfileImportExportService, IUserDataProfileManagementService, IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
@@ -332,7 +332,7 @@ class IssueTroubleshootUi extends Disposable {
 		if (troubleshootIssueService.isActive()) {
 			troubleshootIssueService.resume();
 		}
-		this._register(storageService.onDidChangeValue(StorageScope.PROFILE, TroubleshootIssueService.storageKey, this._register(new DisposableStore()))(() => {
+		this._register(storageService.onDidChangeValue(StorageScope.PROFILE, TroubleshootIssueService.storageKey, this._store)(() => {
 			this.updateContext();
 		}));
 	}

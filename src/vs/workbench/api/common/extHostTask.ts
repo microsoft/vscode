@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* eslint-disable local/code-no-native-private */
-
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { asPromise } from '../../../base/common/async.js';
 import { Event, Emitter } from '../../../base/common/event.js';
@@ -29,16 +27,19 @@ import { IExtHostApiDeprecationService } from './extHostApiDeprecationService.js
 import { USER_TASKS_GROUP_KEY } from '../../contrib/tasks/common/tasks.js';
 import { ErrorNoTelemetry, NotSupportedError } from '../../../base/common/errors.js';
 import { asArray } from '../../../base/common/arrays.js';
+import { ITaskProblemMatcherStartedDto, ITaskProblemMatcherEndedDto } from './shared/tasks.js';
 
 export interface IExtHostTask extends ExtHostTaskShape {
 
 	readonly _serviceBrand: undefined;
 
 	taskExecutions: vscode.TaskExecution[];
-	onDidStartTask: Event<vscode.TaskStartEvent>;
-	onDidEndTask: Event<vscode.TaskEndEvent>;
-	onDidStartTaskProcess: Event<vscode.TaskProcessStartEvent>;
-	onDidEndTaskProcess: Event<vscode.TaskProcessEndEvent>;
+	readonly onDidStartTask: Event<vscode.TaskStartEvent>;
+	readonly onDidEndTask: Event<vscode.TaskEndEvent>;
+	readonly onDidStartTaskProcess: Event<vscode.TaskProcessStartEvent>;
+	readonly onDidEndTaskProcess: Event<vscode.TaskProcessEndEvent>;
+	readonly onDidStartTaskProblemMatchers: Event<vscode.TaskProblemMatcherStartedEvent>;
+	readonly onDidEndTaskProblemMatchers: Event<vscode.TaskProblemMatcherEndedEvent>;
 
 	registerTaskProvider(extension: IExtensionDescription, type: string, provider: vscode.TaskProvider): vscode.Disposable;
 	registerTaskSystem(scheme: string, info: tasks.ITaskSystemInfoDTO): void;
@@ -331,6 +332,9 @@ export namespace TaskDTO {
 		if (value.presentationOptions) {
 			result.presentationOptions = TaskPresentationOptionsDTO.to(value.presentationOptions)!;
 		}
+		if (value.runOptions) {
+			result.runOptions = value.runOptions;
+		}
 		if (value._id) {
 			result._id = value._id;
 		}
@@ -357,6 +361,7 @@ namespace TaskFilterDTO {
 class TaskExecutionImpl implements vscode.TaskExecution {
 
 	readonly #tasks: ExtHostTaskBase;
+	private _terminal: vscode.Terminal | undefined;
 
 	constructor(tasks: ExtHostTaskBase, readonly _id: string, private readonly _task: vscode.Task) {
 		this.#tasks = tasks;
@@ -374,6 +379,14 @@ class TaskExecutionImpl implements vscode.TaskExecution {
 	}
 
 	public fireDidEndProcess(value: tasks.ITaskProcessEndedDTO): void {
+	}
+
+	public get terminal(): vscode.Terminal | undefined {
+		return this._terminal;
+	}
+
+	public set terminal(term: vscode.Terminal | undefined) {
+		this._terminal = term;
 	}
 }
 
@@ -406,6 +419,8 @@ export abstract class ExtHostTaskBase implements ExtHostTaskShape, IExtHostTask 
 
 	protected readonly _onDidTaskProcessStarted: Emitter<vscode.TaskProcessStartEvent> = new Emitter<vscode.TaskProcessStartEvent>();
 	protected readonly _onDidTaskProcessEnded: Emitter<vscode.TaskProcessEndEvent> = new Emitter<vscode.TaskProcessEndEvent>();
+	protected readonly _onDidStartTaskProblemMatchers: Emitter<vscode.TaskProblemMatcherStartedEvent> = new Emitter<vscode.TaskProblemMatcherStartedEvent>();
+	protected readonly _onDidEndTaskProblemMatchers: Emitter<vscode.TaskProblemMatcherEndedEvent> = new Emitter<vscode.TaskProblemMatcherEndedEvent>();
 
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService,
@@ -492,8 +507,14 @@ export abstract class ExtHostTaskBase implements ExtHostTaskShape, IExtHostTask 
 		}
 		this._lastStartedTask = execution.id;
 
+		const taskExecution = await this.getTaskExecution(execution);
+		const terminal = this._terminalService.getTerminalById(terminalId)?.value;
+		if (taskExecution) {
+			taskExecution.terminal = terminal;
+		}
+
 		this._onDidExecuteTask.fire({
-			execution: await this.getTaskExecution(execution)
+			execution: taskExecution
 		});
 	}
 
@@ -538,6 +559,38 @@ export abstract class ExtHostTaskBase implements ExtHostTaskShape, IExtHostTask 
 			execution: execution,
 			exitCode: value.exitCode
 		});
+	}
+
+	public get onDidStartTaskProblemMatchers(): Event<vscode.TaskProblemMatcherStartedEvent> {
+		return this._onDidStartTaskProblemMatchers.event;
+	}
+
+	public async $onDidStartTaskProblemMatchers(value: ITaskProblemMatcherStartedDto): Promise<void> {
+		let execution;
+		try {
+			execution = await this.getTaskExecution(value.execution.id);
+		} catch (error) {
+			// The task execution is not available anymore
+			return;
+		}
+
+		this._onDidStartTaskProblemMatchers.fire({ execution });
+	}
+
+	public get onDidEndTaskProblemMatchers(): Event<vscode.TaskProblemMatcherEndedEvent> {
+		return this._onDidEndTaskProblemMatchers.event;
+	}
+
+	public async $onDidEndTaskProblemMatchers(value: ITaskProblemMatcherEndedDto): Promise<void> {
+		let execution;
+		try {
+			execution = await this.getTaskExecution(value.execution.id);
+		} catch (error) {
+			// The task execution is not available anymore
+			return;
+		}
+
+		this._onDidEndTaskProblemMatchers.fire({ execution, hasErrors: value.hasErrors });
 	}
 
 	protected abstract provideTasksInternal(validTypes: { [key: string]: boolean }, taskIdPromises: Promise<void>[], handler: HandlerData, value: vscode.Task[] | null | undefined): { tasks: tasks.ITaskDTO[]; extension: IExtensionDescription };

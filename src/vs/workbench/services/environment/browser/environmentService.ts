@@ -70,7 +70,7 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 			const result: [string, string][] = [];
 			for (const entry of logLevelFromPayload.split(',')) {
 				const matches = EXTENSION_IDENTIFIER_WITH_LOG_REGEX.exec(entry);
-				if (matches && matches[1] && matches[2]) {
+				if (matches?.[1] && matches[2]) {
 					result.push([matches[1], matches[2]]);
 				}
 			}
@@ -114,6 +114,9 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 	get workspaceStorageHome(): URI { return joinPath(this.userRoamingDataHome, 'workspaceStorage'); }
 
 	@memoize
+	get appSharedDataHome(): URI { return joinPath(this.userRoamingDataHome, 'sharedData'); }
+
+	@memoize
 	get localHistoryHome(): URI { return joinPath(this.userRoamingDataHome, 'History'); }
 
 	@memoize
@@ -139,15 +142,13 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 	get untitledWorkspacesHome(): URI { return joinPath(this.userRoamingDataHome, 'Workspaces'); }
 
 	@memoize
+	get agentSessionsWorkspace(): URI { return joinPath(this.userRoamingDataHome, 'agent-sessions.code-workspace'); }
+
+	@memoize
 	get serviceMachineIdResource(): URI { return joinPath(this.userRoamingDataHome, 'machineid'); }
 
 	@memoize
 	get extHostLogsPath(): URI { return joinPath(this.logsHome, 'exthost'); }
-
-	@memoize
-	get extHostTelemetryLogFile(): URI {
-		return joinPath(this.extHostLogsPath, 'extensionTelemetry.log');
-	}
 
 	private extensionHostDebugEnvironment: IExtensionHostDebugEnvironment | undefined = undefined;
 
@@ -202,7 +203,15 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 			this.extensionHostDebugEnvironment = this.resolveExtensionHostDebugEnvironment();
 		}
 
-		return this.extensionHostDebugEnvironment.extensionEnabledProposedApi;
+		if (this.extensionHostDebugEnvironment.extensionEnabledProposedApi !== undefined) {
+			return this.extensionHostDebugEnvironment.extensionEnabledProposedApi;
+		}
+
+		if (this.options.enabledExtensionProposedApi !== undefined) {
+			return [...this.options.enabledExtensionProposedApi];
+		}
+
+		return undefined;
 	}
 
 	@memoize
@@ -242,6 +251,9 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 	get disableTelemetry(): boolean { return false; }
 
 	@memoize
+	get disableExperiments(): boolean { return false; }
+
+	@memoize
 	get verbose(): boolean { return this.payload?.get('verbose') === 'true'; }
 
 	@memoize
@@ -257,9 +269,13 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 	get disableWorkspaceTrust(): boolean { return !this.options.enableWorkspaceTrust; }
 
 	@memoize
+	get isSessionsWindow(): boolean { return this.payload?.get('isSessionsWindow') === 'true'; }
+
+	@memoize
 	get profile(): string | undefined { return this.payload?.get('profile'); }
 
-	editSessionId: string | undefined = this.options.editSessionId;
+	@memoize
+	get editSessionId(): string | undefined { return this.options.editSessionId; }
 
 	private payload: Map<string, string> | undefined;
 
@@ -290,8 +306,8 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 			extensionDevelopmentKind: undefined
 		};
 
-		// Fill in selected extra environmental properties
-		if (this.payload) {
+		// Extension host development options from the payload are only valid in development or smoke test builds.
+		if (this.payload && (!this.isBuilt || this.enableSmokeTestDriver)) {
 			for (const [key, value] of this.payload) {
 				switch (key) {
 					case 'extensionDevelopmentPath':
@@ -319,6 +335,13 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 						break;
 					case 'inspect-extensions':
 						extensionHostDebugEnvironment.params.port = parseInt(value);
+						break;
+					case 'extensionEnvironment':
+						try {
+							extensionHostDebugEnvironment.params.env = JSON.parse(value);
+						} catch (error) {
+							onUnexpectedError(error);
+						}
 						break;
 					case 'enableProposedApi':
 						extensionHostDebugEnvironment.extensionEnabledProposedApi = [];

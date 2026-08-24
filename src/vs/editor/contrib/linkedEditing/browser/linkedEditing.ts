@@ -63,8 +63,8 @@ export class LinkedEditingContribution extends Disposable implements IEditorCont
 	private readonly _visibleContextKey: IContextKey<boolean>;
 	private readonly _debounceInformation: IFeatureDebounceInformation;
 
-	private _rangeUpdateTriggerPromise: Promise<any> | null;
-	private _rangeSyncTriggerPromise: Promise<any> | null;
+	private _rangeUpdateTriggerPromise: Promise<unknown> | null;
+	private _rangeSyncTriggerPromise: Promise<unknown> | null;
 
 	private _currentRequestCts: CancellationTokenSource | null;
 	private _currentRequestPosition: Position | null;
@@ -265,11 +265,11 @@ export class LinkedEditingContribution extends Disposable implements IEditorCont
 		}
 	}
 
-	public get currentUpdateTriggerPromise(): Promise<any> {
+	public get currentUpdateTriggerPromise(): Promise<unknown> {
 		return this._rangeUpdateTriggerPromise || Promise.resolve();
 	}
 
-	public get currentSyncTriggerPromise(): Promise<any> {
+	public get currentSyncTriggerPromise(): Promise<unknown> {
 		return this._rangeSyncTriggerPromise || Promise.resolve();
 	}
 
@@ -300,8 +300,15 @@ export class LinkedEditingContribution extends Disposable implements IEditorCont
 			}
 		}
 
-		// Clear existing decorations while we compute new ones
-		this.clearRanges();
+		if (!this._currentRequestPosition?.equals(position)) {
+			// Get the current range of the first decoration (reference range)
+			const currentRange = this._currentDecorations.getRange(0);
+			// If there is no current range or the current range does not contain the new position, clear the ranges
+			if (!currentRange?.containsPosition(position)) {
+				// Clear existing decorations while we compute new ones
+				this.clearRanges();
+			}
+		}
 
 		this._currentRequestPosition = position;
 		this._currentRequestModelVersion = modelVersionId;
@@ -392,8 +399,7 @@ export class LinkedEditingAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.linkedEditing',
-			label: nls.localize('linkedEditing.label', "Start Linked Editing"),
-			alias: 'Start Linked Editing',
+			label: nls.localize2('linkedEditing.label', "Start Linked Editing"),
 			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasRenameProvider),
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,

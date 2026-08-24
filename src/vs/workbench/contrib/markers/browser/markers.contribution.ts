@@ -16,14 +16,14 @@ import { MenuId, registerAction2, Action2 } from '../../../../platform/actions/c
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { MarkersViewMode, Markers, MarkersContextKeys } from '../common/markers.js';
 import Messages from './messages.js';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from '../../../common/contributions.js';
+import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { IMarkersView } from './markers.js';
 import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { Disposable, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment, IStatusbarEntry } from '../../../services/statusbar/browser/statusbar.js';
 import { IMarkerService, MarkerStatistics } from '../../../../platform/markers/common/markers.js';
-import { ViewContainer, IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainerLocation, IViewsRegistry } from '../../../common/views.js';
+import { ViewContainer, IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainerLocation, IViewsRegistry, WindowEnablement } from '../../../common/views.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { getVisbileViewContextKey, FocusedViewContext } from '../../../common/contextkeys.js';
 import { ViewPaneContainer } from '../../../browser/parts/views/viewPaneContainer.js';
@@ -36,6 +36,9 @@ import { IActivityService, NumberBadge } from '../../../services/activity/common
 import { viewFilterSubmenu } from '../../../browser/parts/views/viewFilter.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { problemsConfigurationNodeBase } from '../../../common/configuration.js';
+import { MarkerChatContextContribution } from './markersChatContext.js';
+import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { ProblemsAccessibilityHelp } from './markersAccessibilityHelp.js';
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: Markers.MARKER_OPEN_ACTION_ID,
@@ -134,13 +137,14 @@ const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewC
 	order: 0,
 	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [Markers.MARKERS_CONTAINER_ID, { mergeViewWithContainerWhenSingleView: true }]),
 	storageId: Markers.MARKERS_VIEW_STORAGE_ID,
+	windowEnablement: WindowEnablement.Both
 }, ViewContainerLocation.Panel, { doNotRegisterOpenCommand: true });
 
 Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews([{
 	id: Markers.MARKERS_VIEW_ID,
 	containerIcon: markersViewIcon,
 	name: Messages.MARKERS_PANEL_TITLE_PROBLEMS,
-	canToggleVisibility: false,
+	canToggleVisibility: true,
 	canMoveView: true,
 	ctorDescriptor: new SyncDescriptor(MarkersView),
 	openCommandActionDescriptor: {
@@ -148,7 +152,8 @@ Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews
 		mnemonicTitle: localize({ key: 'miMarker', comment: ['&& denotes a mnemonic'] }, "&&Problems"),
 		keybindings: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyM },
 		order: 0,
-	}
+	},
+	windowEnablement: WindowEnablement.Both
 }], VIEW_CONTAINER);
 
 // workbench
@@ -160,6 +165,9 @@ registerAction2(class extends ViewAction<IMarkersView> {
 		super({
 			id: `workbench.actions.table.${Markers.MARKERS_VIEW_ID}.viewAsTree`,
 			title: localize('viewAsTree', "View as Tree"),
+			metadata: {
+				description: localize2('viewAsTreeDescription', "Show the problems view as a tree.")
+			},
 			menu: {
 				id: MenuId.ViewTitle,
 				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', Markers.MARKERS_VIEW_ID), MarkersContextKeys.MarkersViewModeContextKey.isEqualTo(MarkersViewMode.Table)),
@@ -181,6 +189,9 @@ registerAction2(class extends ViewAction<IMarkersView> {
 		super({
 			id: `workbench.actions.table.${Markers.MARKERS_VIEW_ID}.viewAsTable`,
 			title: localize('viewAsTable', "View as Table"),
+			metadata: {
+				description: localize2('viewAsTableDescription', "Show the problems view as a table.")
+			},
 			menu: {
 				id: MenuId.ViewTitle,
 				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', Markers.MARKERS_VIEW_ID), MarkersContextKeys.MarkersViewModeContextKey.isEqualTo(MarkersViewMode.Tree)),
@@ -202,6 +213,9 @@ registerAction2(class extends ViewAction<IMarkersView> {
 		super({
 			id: `workbench.actions.${Markers.MARKERS_VIEW_ID}.toggleErrors`,
 			title: localize('show errors', "Show Errors"),
+			metadata: {
+				description: localize2('toggleErrorsDescription', "Show or hide errors in the problems view.")
+			},
 			category: localize('problems', "Problems"),
 			toggled: MarkersContextKeys.ShowErrorsFilterContextKey,
 			menu: {
@@ -224,6 +238,9 @@ registerAction2(class extends ViewAction<IMarkersView> {
 		super({
 			id: `workbench.actions.${Markers.MARKERS_VIEW_ID}.toggleWarnings`,
 			title: localize('show warnings', "Show Warnings"),
+			metadata: {
+				description: localize2('toggleWarningsDescription', "Show or hide warnings in the problems view.")
+			},
 			category: localize('problems', "Problems"),
 			toggled: MarkersContextKeys.ShowWarningsFilterContextKey,
 			menu: {
@@ -248,6 +265,9 @@ registerAction2(class extends ViewAction<IMarkersView> {
 			title: localize('show infos', "Show Infos"),
 			category: localize('problems', "Problems"),
 			toggled: MarkersContextKeys.ShowInfoFilterContextKey,
+			metadata: {
+				description: localize2('toggleInfosDescription', "Show or hide infos in the problems view.")
+			},
 			menu: {
 				id: viewFilterSubmenu,
 				group: '1_filter',
@@ -268,6 +288,9 @@ registerAction2(class extends ViewAction<IMarkersView> {
 		super({
 			id: `workbench.actions.${Markers.MARKERS_VIEW_ID}.toggleActiveFile`,
 			title: localize('show active file', "Show Active File Only"),
+			metadata: {
+				description: localize2('toggleActiveFileDescription', "Show or hide problems (errors, warnings, info) only from the active file in the problems view.")
+			},
 			category: localize('problems', "Problems"),
 			toggled: MarkersContextKeys.ShowActiveFileFilterContextKey,
 			menu: {
@@ -290,6 +313,9 @@ registerAction2(class extends ViewAction<IMarkersView> {
 		super({
 			id: `workbench.actions.${Markers.MARKERS_VIEW_ID}.toggleExcludedFiles`,
 			title: localize('show excluded files', "Show Excluded Files"),
+			metadata: {
+				description: localize2('toggleExcludedFilesDescription', "Show or hide excluded files in the problems view.")
+			},
 			category: localize('problems', "Problems"),
 			toggled: MarkersContextKeys.ShowExcludedFilesFilterContextKey.negate(),
 			menu: {
@@ -321,7 +347,28 @@ registerAction2(class extends Action2 {
 	}
 });
 
-registerAction2(class extends ViewAction<IMarkersView> {
+abstract class MarkersViewAction extends ViewAction<IMarkersView> {
+
+	protected getSelectedMarkers(markersView: IMarkersView): Marker[] {
+		const selection = markersView.getFocusedSelectedElements() || markersView.getAllResourceMarkers();
+		const markers: Marker[] = [];
+		const addMarker = (marker: Marker) => {
+			if (!markers.includes(marker)) {
+				markers.push(marker);
+			}
+		};
+		for (const selected of selection) {
+			if (selected instanceof ResourceMarkers) {
+				selected.markers.forEach(addMarker);
+			} else if (selected instanceof Marker) {
+				addMarker(selected);
+			}
+		}
+		return markers;
+	}
+}
+
+registerAction2(class extends MarkersViewAction {
 	constructor() {
 		const when = ContextKeyExpr.and(FocusedViewContext.isEqualTo(Markers.MARKERS_VIEW_ID), MarkersContextKeys.MarkersTreeVisibilityContextKey, MarkersContextKeys.RelatedInformationFocusContextKey.toNegated());
 		super({
@@ -342,27 +389,14 @@ registerAction2(class extends ViewAction<IMarkersView> {
 	}
 	async runInView(serviceAccessor: ServicesAccessor, markersView: IMarkersView): Promise<void> {
 		const clipboardService = serviceAccessor.get(IClipboardService);
-		const selection = markersView.getFocusedSelectedElements() || markersView.getAllResourceMarkers();
-		const markers: Marker[] = [];
-		const addMarker = (marker: Marker) => {
-			if (!markers.includes(marker)) {
-				markers.push(marker);
-			}
-		};
-		for (const selected of selection) {
-			if (selected instanceof ResourceMarkers) {
-				selected.markers.forEach(addMarker);
-			} else if (selected instanceof Marker) {
-				addMarker(selected);
-			}
-		}
+		const markers = this.getSelectedMarkers(markersView);
 		if (markers.length) {
 			await clipboardService.writeText(`[${markers}]`);
 		}
 	}
 });
 
-registerAction2(class extends ViewAction<IMarkersView> {
+registerAction2(class extends MarkersViewAction {
 	constructor() {
 		super({
 			id: Markers.MARKER_COPY_MESSAGE_ACTION_ID,
@@ -377,9 +411,10 @@ registerAction2(class extends ViewAction<IMarkersView> {
 	}
 	async runInView(serviceAccessor: ServicesAccessor, markersView: IMarkersView): Promise<void> {
 		const clipboardService = serviceAccessor.get(IClipboardService);
-		const element = markersView.getFocusElement();
-		if (element instanceof Marker) {
-			await clipboardService.writeText(element.marker.message);
+
+		const markers = this.getSelectedMarkers(markersView);
+		if (markers.length) {
+			await clipboardService.writeText(markers.map(m => m.marker.message).join('\n'));
 		}
 	}
 });
@@ -656,6 +691,8 @@ class MarkersStatusBarContributions extends Disposable implements IWorkbenchCont
 
 workbenchRegistry.registerWorkbenchContribution(MarkersStatusBarContributions, LifecyclePhase.Restored);
 
+registerWorkbenchContribution2(MarkerChatContextContribution.ID, MarkerChatContextContribution, WorkbenchPhase.AfterRestored);
+
 class ActivityUpdater extends Disposable implements IWorkbenchContribution {
 
 	private readonly activity = this._register(new MutableDisposable<IDisposable>());
@@ -682,3 +719,6 @@ class ActivityUpdater extends Disposable implements IWorkbenchContribution {
 }
 
 workbenchRegistry.registerWorkbenchContribution(ActivityUpdater, LifecyclePhase.Restored);
+
+// Register Accessible View Help
+AccessibleViewRegistry.register(new ProblemsAccessibilityHelp());

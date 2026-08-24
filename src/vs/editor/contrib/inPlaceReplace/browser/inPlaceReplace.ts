@@ -131,8 +131,7 @@ class InPlaceReplaceUp extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.inPlaceReplace.up',
-			label: nls.localize('InPlaceReplaceAction.previous.label', "Replace with Previous Value"),
-			alias: 'Replace with Previous Value',
+			label: nls.localize2('InPlaceReplaceAction.previous.label', "Replace with Previous Value"),
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
@@ -156,8 +155,7 @@ class InPlaceReplaceDown extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.inPlaceReplace.down',
-			label: nls.localize('InPlaceReplaceAction.next.label', "Replace with Next Value"),
-			alias: 'Replace with Next Value',
+			label: nls.localize2('InPlaceReplaceAction.next.label', "Replace with Next Value"),
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,

@@ -1,0 +1,59 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.session-chat-pills-debug-dialog .dialog-message-row {
+	min-width: min(560px, calc(100vw - var(--vscode-spacing-size400)));
+}
+
+.session-chat-pills-debug-form,
+.session-chat-pills-debug-row {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size40);
+}
+
+.session-chat-pills-debug-form {
+	gap: var(--vscode-spacing-size120);
+}
+
+.session-chat-pills-debug-description {
+	margin: 0;
+}
+
+.session-chat-pills-debug-checkbox-row {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+}
+
+.session-chat-pills-debug-checkbox-label {
+	cursor: pointer;
+}
+
+.session-chat-pills-debug-stats {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: var(--vscode-spacing-size80);
+}
+
+.session-chat-pills-debug-label {
+	font-size: var(--vscode-agents-fontSize-label1);
+}
+
+.session-chat-pills-debug-input {
+	min-width: 0;
+}
+
+.session-chat-pills-debug-banner-stats {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: var(--vscode-spacing-size80);
+}
+
+.session-chat-pills-debug-heading {
+	margin: 0;
+	font-size: var(--vscode-agents-fontSize-heading3);
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
+}

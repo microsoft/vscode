@@ -316,16 +316,22 @@ interface ISerializedRecentlyOpened {
 
 export type RecentlyOpenedStorageData = object;
 
-function isSerializedRecentWorkspace(data: any): data is ISerializedRecentWorkspace {
-	return data.workspace && typeof data.workspace === 'object' && typeof data.workspace.id === 'string' && typeof data.workspace.configPath === 'string';
+function isSerializedRecentWorkspace(data: unknown): data is ISerializedRecentWorkspace {
+	const candidate = data as ISerializedRecentWorkspace | undefined;
+
+	return typeof candidate?.workspace === 'object' && typeof candidate.workspace.id === 'string' && typeof candidate.workspace.configPath === 'string';
 }
 
-function isSerializedRecentFolder(data: any): data is ISerializedRecentFolder {
-	return typeof data.folderUri === 'string';
+function isSerializedRecentFolder(data: unknown): data is ISerializedRecentFolder {
+	const candidate = data as ISerializedRecentFolder | undefined;
+
+	return typeof candidate?.folderUri === 'string';
 }
 
-function isSerializedRecentFile(data: any): data is ISerializedRecentFile {
-	return typeof data.fileUri === 'string';
+function isSerializedRecentFile(data: unknown): data is ISerializedRecentFile {
+	const candidate = data as ISerializedRecentFile | undefined;
+
+	return typeof candidate?.fileUri === 'string';
 }
 
 export function restoreRecentlyOpened(data: RecentlyOpenedStorageData | undefined, logService: ILogService): IRecentlyOpened {
@@ -364,16 +370,39 @@ export function restoreRecentlyOpened(data: RecentlyOpenedStorageData | undefine
 export function toStoreData(recents: IRecentlyOpened): RecentlyOpenedStorageData {
 	const serialized: ISerializedRecentlyOpened = { entries: [] };
 
+	const storeLabel = (label: string | undefined, uri: URI) => {
+		// Only store the label if it is provided
+		// and only if it differs from the path
+		// This gives us a chance to render the
+		// path better, e.g. use `~` for home.
+		return label && label !== uri.fsPath && label !== uri.path;
+	};
+
 	for (const recent of recents.workspaces) {
 		if (isRecentFolder(recent)) {
-			serialized.entries.push({ folderUri: recent.folderUri.toString(), label: recent.label, remoteAuthority: recent.remoteAuthority });
+			serialized.entries.push({
+				folderUri: recent.folderUri.toString(),
+				label: storeLabel(recent.label, recent.folderUri) ? recent.label : undefined,
+				remoteAuthority: recent.remoteAuthority
+			});
 		} else {
-			serialized.entries.push({ workspace: { id: recent.workspace.id, configPath: recent.workspace.configPath.toString() }, label: recent.label, remoteAuthority: recent.remoteAuthority });
+			serialized.entries.push({
+				workspace: {
+					id: recent.workspace.id,
+					configPath: recent.workspace.configPath.toString()
+				},
+				label: storeLabel(recent.label, recent.workspace.configPath) ? recent.label : undefined,
+				remoteAuthority: recent.remoteAuthority
+			});
 		}
 	}
 
 	for (const recent of recents.files) {
-		serialized.entries.push({ fileUri: recent.fileUri.toString(), label: recent.label, remoteAuthority: recent.remoteAuthority });
+		serialized.entries.push({
+			fileUri: recent.fileUri.toString(),
+			label: storeLabel(recent.label, recent.fileUri) ? recent.label : undefined,
+			remoteAuthority: recent.remoteAuthority
+		});
 	}
 
 	return serialized;

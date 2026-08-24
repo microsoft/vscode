@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { IHoverWidget, IManagedHoverOptions } from './hover.js';
+import type { IHoverPositionOptions, IHoverWidget, IManagedHoverContentOrFactory, IManagedHoverOptions } from './hover.js';
 import { HoverPosition } from './hoverWidget.js';
 import { IMarkdownString } from '../../../common/htmlContent.js';
 import { IDisposable } from '../../../common/lifecycle.js';
@@ -36,12 +36,7 @@ export interface IHoverDelegateOptions extends IManagedHoverOptions {
 	/**
 	 * Options that defines where the hover is positioned.
 	 */
-	position?: {
-		/**
-		 * Position of the hover. The default is to show above the target. This option will be ignored
-		 * if there is not enough room to layout the hover in the specified position, unless the
-		 * forcePosition option is set.
-		 */
+	position?: Pick<IHoverPositionOptions, 'anchorAlignment'> & {
 		hoverPosition?: HoverPosition;
 	};
 	appearance?: {
@@ -67,7 +62,7 @@ export interface IHoverDelegateOptions extends IManagedHoverOptions {
 export interface IHoverDelegate {
 	showHover(options: IHoverDelegateOptions, focus?: boolean): IHoverWidget | undefined;
 	onDidHideHover?: () => void;
-	delay: number;
+	delay: number | ((content?: IManagedHoverContentOrFactory) => number);
 	placement?: 'mouse' | 'element';
 	showNativeHover?: boolean; // TODO@benibenj remove this, only temp fix for contextviews
 }

@@ -41,7 +41,7 @@ impl From<reqwest::Error> for WrappedError {
 				"error requesting {}",
 				e.url().map_or("<unknown>", |u| u.as_str())
 			),
-			original: format!("{}", e),
+			original: format!("{e}"),
 		}
 	}
 }
@@ -53,7 +53,7 @@ where
 {
 	WrappedError {
 		message: message.into(),
-		original: format!("{:?}", original),
+		original: format!("{original:?}"),
 	}
 }
 
@@ -64,7 +64,7 @@ where
 {
 	WrappedError {
 		message: message.into(),
-		original: format!("{}", original),
+		original: format!("{original}"),
 	}
 }
 
@@ -93,10 +93,7 @@ impl StatusError {
 		let body = res.text().await.map_err(|e| {
 			wrap(
 				e,
-				format!(
-					"failed to read response body on {} code from {}",
-					status_code, url
-				),
+				format!("failed to read response body on {status_code} code from {url}"),
 			)
 		})?;
 
@@ -290,7 +287,7 @@ pub struct CannotForwardControlPort();
 
 impl std::fmt::Display for CannotForwardControlPort {
 	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-		write!(f, "Cannot forward or unforward port {}.", CONTROL_PORT)
+		write!(f, "Cannot forward or unforward port {CONTROL_PORT}.")
 	}
 }
 
@@ -308,7 +305,7 @@ pub struct ServiceAlreadyRegistered();
 
 impl std::fmt::Display for ServiceAlreadyRegistered {
 	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-		write!(f, "Already registered the service. Run `{} tunnel service uninstall` to unregister it first", APPLICATION_NAME)
+		write!(f, "Already registered the service. Run `{APPLICATION_NAME} tunnel service uninstall` to unregister it first")
 	}
 }
 
@@ -434,7 +431,7 @@ impl Display for DbusConnectFailedError {
 		str.push_str(&self.0);
 		str.push('\n');
 
-		write!(f, "{}", str)
+		write!(f, "{str}")
 	}
 }
 
@@ -454,6 +451,8 @@ pub enum CodeError {
 	SingletonLockedProcessExited(u32),
 	#[error("no tunnel process is currently running")]
 	NoRunningTunnel,
+	#[error("no agent host process is currently running")]
+	NoRunningAgentHost,
 	#[error("rpc call failed: {0:?}")]
 	TunnelRpcCallFailed(ResponseError),
 	#[cfg(windows)]
@@ -496,7 +495,7 @@ pub enum CodeError {
 	#[error("could not parse `host`: {0}")]
 	InvalidHostAddress(std::net::AddrParseError),
 	#[error("could not start server on the given host/port: {0}")]
-	CouldNotListenOnInterface(hyper::Error),
+	CouldNotListenOnInterface(std::io::Error),
 	#[error(
 		"Run this command again with --accept-server-license-terms to indicate your agreement."
 	)]
@@ -522,6 +521,22 @@ pub enum CodeError {
 	ServerOriginTimeout,
 	#[error("Server exited without writing port/socket: {0}")]
 	ServerUnexpectedExit(String),
+	#[error("Server binary is not executable: {0}")]
+	ServerNotExecutable(String),
+	#[error("no agent host could be reached: {0}")]
+	NoAgentHostReachable(String),
+	#[error("no session matching \"{0}\" was found on any discovered agent host")]
+	SessionNotFoundOnAnyHost(String),
+	#[error("could not confirm whether session \"{0}\" exists: {1} could not be searched")]
+	IncompleteSessionSearch(String, String),
+	#[error("multiple live standalone agent hosts are registered ({0}); pass --instance-id to select one")]
+	AmbiguousAgentHostInstance(String),
+	#[error("no live standalone agent host with instance id \"{0}\" was found")]
+	UnknownAgentHostInstance(String),
+	#[error("no live agent host endpoint with instance id \"{0}\" was found (it may not be running, or may have just exited)")]
+	UnknownAgentHostRelayTarget(String),
+	#[error("multiple live agent host endpoints are registered with instance id \"{0}\"; this indicates registry corruption")]
+	AmbiguousAgentHostRelayTarget(String),
 }
 
 makeAnyError!(

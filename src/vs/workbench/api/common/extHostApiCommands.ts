@@ -22,6 +22,8 @@ import * as types from './extHostTypes.js';
 import { TransientCellMetadata, TransientDocumentMetadata } from '../../contrib/notebook/common/notebookCommon.js';
 import * as search from '../../contrib/search/common/search.js';
 import type * as vscode from 'vscode';
+import { PromptsType } from '../../contrib/chat/common/promptSyntax/promptTypes.js';
+import type { IExtensionPromptFileResult } from '../../contrib/chat/common/promptSyntax/chatPromptFilesContribution.js';
 
 //#region --- NEW world
 
@@ -60,7 +62,7 @@ const newCommands: ApiCommand[] = [
 				range!: vscode.Range;
 				selectionRange!: vscode.Range;
 				children!: vscode.DocumentSymbol[];
-				override containerName!: string;
+				override containerName: string = '';
 			}
 			return value.map(MergedInfo.to);
 
@@ -509,6 +511,16 @@ const newCommands: ApiCommand[] = [
 		[ApiCommandArgument.TestItem],
 		ApiCommandResult.Void
 	),
+	new ApiCommand(
+		'vscode.startContinuousTestRun', 'testing.startContinuousRunFromExtension', 'Starts running the given tests with continuous run mode.',
+		[ApiCommandArgument.TestProfile, ApiCommandArgument.Arr(ApiCommandArgument.TestItem)],
+		ApiCommandResult.Void
+	),
+	new ApiCommand(
+		'vscode.stopContinuousTestRun', 'testing.stopContinuousRunFromExtension', 'Stops running the given tests with continuous run mode.',
+		[ApiCommandArgument.Arr(ApiCommandArgument.TestItem)],
+		ApiCommandResult.Void
+	),
 	// --- continue edit session
 	new ApiCommand(
 		'vscode.experimental.editSession.continue', '_workbench.editSessions.actions.continueEditSession', 'Continue the current edit session in a different workspace',
@@ -524,25 +536,6 @@ const newCommands: ApiCommand[] = [
 		],
 		ApiCommandResult.Void
 	),
-	// --- mapped edits
-	new ApiCommand(
-		'vscode.executeMappedEditsProvider', '_executeMappedEditsProvider', 'Execute Mapped Edits Provider',
-		[
-			ApiCommandArgument.Uri,
-			ApiCommandArgument.StringArray,
-			new ApiCommandArgument(
-				'MappedEditsContext',
-				'Mapped Edits Context',
-				(v: unknown) => typeConverters.MappedEditsContext.is(v),
-				(v: vscode.MappedEditsContext) => typeConverters.MappedEditsContext.from(v)
-			)
-		],
-		new ApiCommandResult<IWorkspaceEditDto | null, vscode.WorkspaceEdit | null>(
-			'A promise that resolves to a workspace edit or null',
-			(value) => {
-				return value ? typeConverters.WorkspaceEdit.to(value) : null;
-			})
-	),
 	// --- inline chat
 	new ApiCommand(
 		'vscode.editorChat.start', 'inlineChat.start', 'Invoke a new editor chat session',
@@ -556,11 +549,31 @@ const newCommands: ApiCommand[] = [
 				initialRange: v.initialRange ? typeConverters.Range.from(v.initialRange) : undefined,
 				initialSelection: types.Selection.isSelection(v.initialSelection) ? typeConverters.Selection.from(v.initialSelection) : undefined,
 				message: v.message,
+				attachments: v.attachments,
 				autoSend: v.autoSend,
 				position: v.position ? typeConverters.Position.from(v.position) : undefined,
+				resolveOnResponse: v.resolveOnResponse
 			};
 		})],
 		ApiCommandResult.Void
+	),
+	// --- extension prompt files
+	new ApiCommand(
+		'vscode.extensionPromptFileProvider', '_listExtensionPromptFiles', 'Get all extension-contributed prompt files (custom agents, instructions, and prompt files).',
+		[],
+		new ApiCommandResult<IExtensionPromptFileResult[], { uri: vscode.Uri; type: PromptsType; extensionId: string }[]>(
+			'A promise that resolves to an array of objects containing uri, type, and extensionId.',
+			(value) => {
+				if (!value) {
+					return [];
+				}
+				return value.map(item => ({
+					uri: URI.revive(item.uri),
+					type: item.type,
+					extensionId: item.extensionId
+				}));
+			}
+		)
 	)
 ];
 
@@ -568,16 +581,20 @@ type InlineChatEditorApiArg = {
 	initialRange?: vscode.Range;
 	initialSelection?: vscode.Selection;
 	message?: string;
+	attachments?: vscode.Uri[];
 	autoSend?: boolean;
 	position?: vscode.Position;
+	resolveOnResponse?: boolean;
 };
 
 type InlineChatRunOptions = {
 	initialRange?: IRange;
 	initialSelection?: ISelection;
 	message?: string;
+	attachments?: URI[];
 	autoSend?: boolean;
 	position?: IPosition;
+	resolveOnResponse?: boolean;
 };
 
 //#endregion

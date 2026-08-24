@@ -26,7 +26,8 @@ import { IHostService } from '../../../services/host/browser/host.js';
 import { IExpression } from '../../../../base/common/glob.js';
 import { ResourceGlobMatcher } from '../../../common/resources.js';
 import { IFilesConfigurationService } from '../../../services/filesConfiguration/common/filesConfigurationService.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { IDecorationsService } from '../../../services/decorations/common/decorations.js';
+import { ExplorerDecorationsProvider } from './views/explorerDecorationsProvider.js';
 
 export const UNDO_REDO_SOURCE = new UndoRedoSource();
 
@@ -40,6 +41,7 @@ export class ExplorerService implements IExplorerService {
 	private config: IFilesConfiguration['explorer'];
 	private cutItems: ExplorerItem[] | undefined;
 	private view: IExplorerView | undefined;
+	private decorationsProviderRegistered = false;
 	private model: ExplorerModel;
 	private onFileChangesScheduler: RunOnceScheduler;
 	private fileChangeEvents: FileChangesEvent[] = [];
@@ -56,7 +58,7 @@ export class ExplorerService implements IExplorerService {
 		@IProgressService private readonly progressService: IProgressService,
 		@IHostService hostService: IHostService,
 		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService
+		@IDecorationsService private readonly decorationsService: IDecorationsService
 	) {
 		this.config = this.configurationService.getValue('explorer');
 
@@ -64,7 +66,7 @@ export class ExplorerService implements IExplorerService {
 		this.disposables.add(this.model);
 		this.disposables.add(this.fileService.onDidRunOperation(e => this.onDidRunOperation(e)));
 
-		this.onFileChangesScheduler = new RunOnceScheduler(async () => {
+		this.onFileChangesScheduler = this.disposables.add(new RunOnceScheduler(async () => {
 			const events = this.fileChangeEvents;
 			this.fileChangeEvents = [];
 
@@ -100,7 +102,7 @@ export class ExplorerService implements IExplorerService {
 				await this.refresh(false);
 			}
 
-		}, ExplorerService.EXPLORER_FILE_CHANGES_REACT_DELAY);
+		}, ExplorerService.EXPLORER_FILE_CHANGES_REACT_DELAY));
 
 		this.disposables.add(this.fileService.onDidFilesChange(e => {
 			this.fileChangeEvents.push(e);
@@ -158,6 +160,20 @@ export class ExplorerService implements IExplorerService {
 
 	registerView(contextProvider: IExplorerView): void {
 		this.view = contextProvider;
+
+		// The explorer decorations are computed from this (window wide) model and
+		// are therefore shared by all explorer views. Register the provider only
+		// once, otherwise each view contributes its own badge and decorations
+		// render multiple times per resource.
+		if (!this.decorationsProviderRegistered) {
+			this.decorationsProviderRegistered = true;
+			const provider = this.disposables.add(new ExplorerDecorationsProvider(this, this.contextService));
+			this.disposables.add(this.decorationsService.registerDecorationsProvider(provider));
+		}
+	}
+
+	getViewId(): string | undefined {
+		return this.view?.id;
 	}
 
 	getContext(respectMultiSelection: boolean, ignoreNestedChildren: boolean = false): ExplorerItem[] {
@@ -245,46 +261,6 @@ export class ExplorerService implements IExplorerService {
 		try {
 			await this.view.setEditable(stat, isEditing);
 		} catch {
-			const parent = stat.parent;
-			type ExplorerViewEditableErrorData = {
-				parentIsDirectory: boolean | undefined;
-				isDirectory: boolean | undefined;
-				isReadonly: boolean | undefined;
-				parentIsReadonly: boolean | undefined;
-				parentIsExcluded: boolean | undefined;
-				isExcluded: boolean | undefined;
-				parentIsRoot: boolean | undefined;
-				isRoot: boolean | undefined;
-				parentHasNests: boolean | undefined;
-				hasNests: boolean | undefined;
-			};
-			type ExplorerViewEditableErrorClassification = {
-				owner: 'lramos15';
-				comment: 'Helps gain a broard understanding of why users are unable to edit files in the explorer';
-				parentIsDirectory: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the parent of the editable element is a directory' };
-				isDirectory: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the editable element is a directory' };
-				isReadonly: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the editable element is readonly' };
-				parentIsReadonly: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the parent of the editable element is readonly' };
-				parentIsExcluded: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the parent of the editable element is excluded from being shown in the explorer' };
-				isExcluded: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the editable element is excluded from being shown in the explorer' };
-				parentIsRoot: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the parent of the editable element is a root' };
-				isRoot: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the editable element is a root' };
-				parentHasNests: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the parent of the editable element has nested children' };
-				hasNests: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the editable element has nested children' };
-			};
-			const errorData = {
-				parentIsDirectory: parent?.isDirectory,
-				isDirectory: stat.isDirectory,
-				isReadonly: !!stat.isReadonly,
-				parentIsReadonly: !!parent?.isReadonly,
-				parentIsExcluded: parent?.isExcluded,
-				isExcluded: stat.isExcluded,
-				parentIsRoot: parent?.isRoot,
-				isRoot: stat.isRoot,
-				parentHasNests: parent?.hasNests,
-				hasNests: stat.hasNests,
-			};
-			this.telemetryService.publicLogError2<ExplorerViewEditableErrorData, ExplorerViewEditableErrorClassification>('explorerView.setEditableError', errorData);
 			return;
 		}
 
@@ -364,6 +340,11 @@ export class ExplorerService implements IExplorerService {
 	}
 
 	async refresh(reveal = true): Promise<void> {
+		// Do not refresh the tree when it is showing temporary nodes (phantom elements)
+		if (this.view?.hasPhantomElements()) {
+			return;
+		}
+
 		this.model.roots.forEach(r => r.forgetChildren());
 		if (this.view) {
 			await this.view.refresh(true);
@@ -388,7 +369,7 @@ export class ExplorerService implements IExplorerService {
 		// Add
 		if (e.isOperation(FileOperation.CREATE) || e.isOperation(FileOperation.COPY)) {
 			const addedElement = e.target;
-			const parentResource = dirname(addedElement.resource)!;
+			const parentResource = dirname(addedElement.resource);
 			const parents = this.model.findAll(parentResource);
 
 			if (parents.length) {
@@ -483,7 +464,7 @@ export class ExplorerService implements IExplorerService {
 		if (item === undefined || ignore) {
 			return true;
 		}
-		if (this.revealExcludeMatcher.matches(item.resource, name => !!(item.parent && item.parent.getChild(name)))) {
+		if (this.revealExcludeMatcher.matches(item.resource, name => !!(item.parent?.getChild(name)))) {
 			return false;
 		}
 		const root = item.root;
@@ -558,7 +539,7 @@ function doesFileEventAffect(item: ExplorerItem, view: IExplorerView, events: Fi
 }
 
 function getRevealExcludes(configuration: IFilesConfiguration): IExpression {
-	const revealExcludes = configuration && configuration.explorer && configuration.explorer.autoRevealExclude;
+	const revealExcludes = configuration?.explorer?.autoRevealExclude;
 
 	if (!revealExcludes) {
 		return {};

@@ -17,17 +17,17 @@ import { shorten } from '../../../base/common/labels.js';
 import { isResolvedEditorModel } from '../../../platform/editor/common/editor.js';
 
 interface IDiffEditorInputLabels {
-	name: string;
+	readonly name: string;
 
-	shortDescription: string | undefined;
-	mediumDescription: string | undefined;
-	longDescription: string | undefined;
+	readonly shortDescription: string | undefined;
+	readonly mediumDescription: string | undefined;
+	readonly longDescription: string | undefined;
 
-	forceDescription: boolean;
+	readonly forceDescription: boolean;
 
-	shortTitle: string;
-	mediumTitle: string;
-	longTitle: string;
+	readonly shortTitle: string;
+	readonly mediumTitle: string;
+	readonly longTitle: string;
 }
 
 /**
@@ -59,7 +59,7 @@ export class DiffEditorInput extends SideBySideEditorInput implements IDiffEdito
 
 	private cachedModel: DiffEditorModel | undefined = undefined;
 
-	private readonly labels = this.computeLabels();
+	private readonly labels: IDiffEditorInputLabels;
 
 	constructor(
 		preferredName: string | undefined,
@@ -70,6 +70,8 @@ export class DiffEditorInput extends SideBySideEditorInput implements IDiffEdito
 		@IEditorService editorService: IEditorService
 	) {
 		super(preferredName, preferredDescription, original, modified, editorService);
+
+		this.labels = this.computeLabels();
 	}
 
 	private computeLabels(): IDiffEditorInputLabels {
@@ -105,6 +107,10 @@ export class DiffEditorInput extends SideBySideEditorInput implements IDiffEdito
 			// a label that resembles the difference between the two
 			const originalMediumDescription = this.original.getDescription(Verbosity.MEDIUM);
 			const modifiedMediumDescription = this.modified.getDescription(Verbosity.MEDIUM);
+			forceDescription = forceDescription
+				&& !!originalMediumDescription
+				&& !!modifiedMediumDescription
+				&& originalMediumDescription !== modifiedMediumDescription;
 			if (
 				(typeof originalMediumDescription === 'string' && typeof modifiedMediumDescription === 'string') && // we can only `shorten` when both sides are strings...
 				(originalMediumDescription || modifiedMediumDescription) 											// ...however never when both sides are empty strings

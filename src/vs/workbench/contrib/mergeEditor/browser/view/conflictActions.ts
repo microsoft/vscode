@@ -3,13 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, createStyleSheet, h, isInShadowDOM, reset } from '../../../../../base/browser/dom.js';
+import { $, h, isInShadowDOM, reset } from '../../../../../base/browser/dom.js';
+import { createStyleSheet } from '../../../../../base/browser/domStylesheets.js';
 import { renderLabelWithIcons } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { hash } from '../../../../../base/common/hash.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, derived, IObservable, transaction } from '../../../../../base/common/observable.js';
 import { ICodeEditor, IViewZoneChangeAccessor } from '../../../../../editor/browser/editorBrowser.js';
-import { EditorOption, EDITOR_FONT_DEFAULTS } from '../../../../../editor/common/config/editorOptions.js';
+import { EditorOption } from '../../../../../editor/common/config/editorOptions.js';
+import { EDITOR_FONT_DEFAULTS } from '../../../../../editor/common/config/fontInfo.js';
 import { localize } from '../../../../../nls.js';
 import { ModifiedBaseRange, ModifiedBaseRangeState, ModifiedBaseRangeStateKind } from '../model/modifiedBaseRange.js';
 import { FixedZoneWidget } from './fixedZoneWidget.js';

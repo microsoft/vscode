@@ -6,14 +6,15 @@
 import * as path from '../../../../base/common/path.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
+import * as strings from '../../../../base/common/strings.js';
 import * as glob from '../../../../base/common/glob.js';
 import * as resources from '../../../../base/common/resources.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IFileMatch, IFileSearchProviderStats, IFolderQuery, ISearchCompleteStats, IFileQuery, QueryGlobTester, resolvePatternsForProvider, hasSiblingFn, excludeToGlobPattern, DEFAULT_MAX_SEARCH_RESULTS } from './search.js';
-import { FileSearchProviderFolderOptions, FileSearchProviderNew, FileSearchProviderOptions } from './searchExtTypes.js';
-import { TernarySearchTree } from '../../../../base/common/ternarySearchTree.js';
+import { FileSearchProviderFolderOptions, FileSearchProvider2, FileSearchProviderOptions } from './searchExtTypes.js';
 import { OldFileSearchProviderConverter } from './searchExtConversionTypes.js';
+import { FolderQuerySearchTree } from './folderQuerySearchTree.js';
 
 interface IInternalFileMatch {
 	base: URI;
@@ -54,14 +55,15 @@ class FileSearchEngine {
 
 	private globalExcludePattern?: glob.ParsedExpression;
 
-	constructor(private config: IFileQuery, private provider: FileSearchProviderNew, private sessionLifecycle?: SessionLifecycle) {
+	constructor(private config: IFileQuery, private provider: FileSearchProvider2, private sessionLifecycle?: SessionLifecycle) {
 		this.filePattern = config.filePattern;
-		this.includePattern = config.includePattern && glob.parse(config.includePattern);
+		const globOptions = config.ignoreGlobCase ? { ignoreCase: true } : undefined;
+		this.includePattern = config.includePattern && glob.parse(config.includePattern, globOptions);
 		this.maxResults = config.maxResults || undefined;
 		this.exists = config.exists;
 		this.activeCancellationTokens = new Set<CancellationTokenSource>();
 
-		this.globalExcludePattern = config.excludePattern && glob.parse(config.excludePattern);
+		this.globalExcludePattern = config.excludePattern && glob.parse(config.excludePattern, globOptions);
 	}
 
 	cancel(): void {
@@ -125,13 +127,13 @@ class FileSearchEngine {
 		};
 
 
-		const folderMappings: TernarySearchTree<URI, FolderQueryInfo> = TernarySearchTree.forUris<FolderQueryInfo>();
-		fqs.forEach(fq => {
+		const getFolderQueryInfo = (fq: IFolderQuery) => {
 			const queryTester = new QueryGlobTester(this.config, fq);
 			const noSiblingsClauses = !queryTester.hasSiblingExcludeClauses();
-			folderMappings.set(fq.folder, { queryTester, noSiblingsClauses, folder: fq.folder, tree: this.initDirectoryTree() });
-		});
+			return { queryTester, noSiblingsClauses, folder: fq.folder, tree: this.initDirectoryTree() };
+		};
 
+		const folderMappings: FolderQuerySearchTree<FolderQueryInfo> = new FolderQuerySearchTree<FolderQueryInfo>(fqs, getFolderQueryInfo);
 
 		let providerSW: StopWatch;
 
@@ -153,8 +155,7 @@ class FileSearchEngine {
 
 			if (results) {
 				results.forEach(result => {
-
-					const fqFolderInfo = folderMappings.findSubstr(result)!;
+					const fqFolderInfo = folderMappings.findQueryFragmentAwareSubstr(result)!;
 					const relativePath = path.posix.relative(fqFolderInfo.folder.path, result.path);
 
 					if (fqFolderInfo.noSiblingsClauses) {
@@ -173,7 +174,7 @@ class FileSearchEngine {
 				return null;
 			}
 
-			folderMappings.forEach(e => {
+			folderMappings.forEachFolderQueryInfo(e => {
 				this.matchDirectoryTree(e.tree, e.queryTester, onResult);
 			});
 
@@ -225,7 +226,7 @@ class FileSearchEngine {
 
 	private addDirectoryEntries({ pathToEntries }: IDirectoryTree, base: URI, relativeFile: string, onResult: (result: IInternalFileMatch) => void) {
 		// Support relative paths to files from a root resource (ignores excludes)
-		if (relativeFile === this.filePattern) {
+		if (this.filePattern && strings.equals(relativeFile, this.filePattern, this.config.ignoreGlobCase)) {
 			const basename = path.basename(this.filePattern);
 			this.matchFile(onResult, { base: base, relativePath: this.filePattern, basename });
 		}
@@ -251,6 +252,7 @@ class FileSearchEngine {
 	private matchDirectoryTree({ rootEntries, pathToEntries }: IDirectoryTree, queryTester: QueryGlobTester, onResult: (result: IInternalFileMatch) => void) {
 		const self = this;
 		const filePattern = this.filePattern;
+		const ignoreGlobCase = this.config.ignoreGlobCase;
 		function matchDirectory(entries: IDirectoryEntry[]) {
 			const hasSibling = hasSiblingFn(() => entries.map(entry => entry.basename));
 			for (let i = 0, n = entries.length; i < n; i++) {
@@ -261,7 +263,7 @@ class FileSearchEngine {
 				// If the user searches for the exact file name, we adjust the glob matching
 				// to ignore filtering by siblings because the user seems to know what they
 				// are searching for and we want to include the result in that case anyway
-				if (queryTester.matchesExcludesSync(relativePath, basename, filePattern !== basename ? hasSibling : undefined)) {
+				if (queryTester.matchesExcludesSync(relativePath, basename, !strings.equals(filePattern, basename, ignoreGlobCase) ? hasSibling : undefined)) {
 					continue;
 				}
 
@@ -269,7 +271,7 @@ class FileSearchEngine {
 				if (sub) {
 					matchDirectory(sub);
 				} else {
-					if (relativePath === filePattern) {
+					if (strings.equals(relativePath, filePattern, ignoreGlobCase)) {
 						continue; // ignore file if its path matches with the file pattern because that is already matched above
 					}
 
@@ -335,7 +337,7 @@ export class FileSearchManager {
 
 	private readonly sessions = new Map<string, SessionLifecycle>();
 
-	fileSearch(config: IFileQuery, provider: FileSearchProviderNew, onBatch: (matches: IFileMatch[]) => void, token: CancellationToken): Promise<ISearchCompleteStats> {
+	fileSearch(config: IFileQuery, provider: FileSearchProvider2, onBatch: (matches: IFileMatch[]) => void, token: CancellationToken): Promise<ISearchCompleteStats> {
 		const sessionTokenSource = this.getSessionTokenSource(config.cacheKey);
 		const engine = new FileSearchEngine(config, provider, sessionTokenSource);
 

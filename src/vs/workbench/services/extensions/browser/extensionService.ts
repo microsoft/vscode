@@ -26,7 +26,7 @@ import { IBrowserWorkbenchEnvironmentService } from '../../environment/browser/e
 import { IWebExtensionsScannerService, IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService } from '../../extensionManagement/common/extensionManagement.js';
 import { IWebWorkerExtensionHostDataProvider, IWebWorkerExtensionHostInitData, WebWorkerExtensionHost } from './webWorkerExtensionHost.js';
 import { FetchFileSystemProvider } from './webWorkerFileSystemProvider.js';
-import { AbstractExtensionService, IExtensionHostFactory, ResolvedExtensions, checkEnabledAndProposedAPI } from '../common/abstractExtensionService.js';
+import { AbstractExtensionService, IExtensionHostFactory, LocalExtensions, RemoteExtensions, ResolvedExtensions, ResolverExtensions, checkEnabledAndProposedAPI, isResolverExtension } from '../common/abstractExtensionService.js';
 import { ExtensionDescriptionRegistrySnapshot } from '../common/extensionDescriptionRegistry.js';
 import { ExtensionHostKind, ExtensionRunningPreference, IExtensionHostKindPicker, extensionHostKindToString, extensionRunningPreferenceToString } from '../common/extensionHostKind.js';
 import { IExtensionManifestPropertiesService } from '../common/extensionManifestPropertiesService.js';
@@ -41,6 +41,7 @@ import { IRemoteAgentService } from '../../remote/common/remoteAgentService.js';
 import { IRemoteExplorerService } from '../../remote/common/remoteExplorerService.js';
 import { IUserDataInitializationService } from '../../userData/browser/userDataInit.js';
 import { IUserDataProfileService } from '../../userDataProfile/common/userDataProfile.js';
+import { AsyncIterableEmitter, AsyncIterableProducer } from '../../../../base/common/async.js';
 
 export class ExtensionService extends AbstractExtensionService implements IExtensionService {
 
@@ -80,6 +81,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			logService
 		);
 		super(
+			{ hasLocalProcess: false, allowRemoteExtensionsInLocalWebWorker: true },
 			extensionsProposedApi,
 			extensionHostFactory,
 			new BrowserExtensionHostKindPicker(logService),
@@ -104,8 +106,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 
 		// Initialize installed extensions first and do it only after workbench is ready
 		lifecycleService.when(LifecyclePhase.Ready).then(async () => {
-			await this._userDataInitializationService.initializeInstalledExtensions(this._instantiationService);
-			this._initialize();
+			await this._initializeIfNeeded();
 		});
 
 		this._initFetchFileSystem();
@@ -117,32 +118,50 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		this._register(this._fileService.registerProvider(Schemas.https, provider));
 	}
 
-	private async _scanWebExtensions(): Promise<IExtensionDescription[]> {
-		const system: IExtensionDescription[] = [], user: IExtensionDescription[] = [], development: IExtensionDescription[] = [];
-		try {
-			await Promise.all([
-				this._webExtensionsScannerService.scanSystemExtensions().then(extensions => system.push(...extensions.map(e => toExtensionDescription(e)))),
-				this._webExtensionsScannerService.scanUserExtensions(this._userDataProfileService.currentProfile.extensionsResource, { skipInvalidExtensions: true }).then(extensions => user.push(...extensions.map(e => toExtensionDescription(e)))),
-				this._webExtensionsScannerService.scanExtensionsUnderDevelopment().then(extensions => development.push(...extensions.map(e => toExtensionDescription(e, true))))
-			]);
-		} catch (error) {
-			this._logService.error(error);
-		}
-		return dedupExtensions(system, user, [], development, this._logService);
+	protected override async _initialize(): Promise<void> {
+		await this._userDataInitializationService.initializeInstalledExtensions(this._instantiationService);
+		await super._initialize();
 	}
 
-	protected async _resolveExtensionsDefault() {
+	private _scanWebExtensionsPromise: Promise<IExtensionDescription[]> | undefined;
+	private async _scanWebExtensions(): Promise<IExtensionDescription[]> {
+		if (!this._scanWebExtensionsPromise) {
+			this._scanWebExtensionsPromise = (async () => {
+				const system: IExtensionDescription[] = [], user: IExtensionDescription[] = [], development: IExtensionDescription[] = [];
+				try {
+					await Promise.all([
+						this._webExtensionsScannerService.scanSystemExtensions().then(extensions => system.push(...extensions.map(e => toExtensionDescription(e)))),
+						this._webExtensionsScannerService.scanUserExtensions(this._userDataProfileService.currentProfile.extensionsResource, { skipInvalidExtensions: true }).then(extensions => user.push(...extensions.map(e => toExtensionDescription(e)))),
+						this._webExtensionsScannerService.scanExtensionsUnderDevelopment().then(extensions => development.push(...extensions.map(e => toExtensionDescription(e, true))))
+					]);
+				} catch (error) {
+					this._logService.error(error);
+				}
+				return dedupExtensions(system, user, [], development, this._logService);
+			})();
+		}
+		return this._scanWebExtensionsPromise;
+	}
+
+	private async _resolveExtensionsDefault(emitter: AsyncIterableEmitter<ResolvedExtensions>) {
 		const [localExtensions, remoteExtensions] = await Promise.all([
 			this._scanWebExtensions(),
 			this._remoteExtensionsScannerService.scanExtensions()
 		]);
 
-		return new ResolvedExtensions(localExtensions, remoteExtensions, /*hasLocalProcess*/false, /*allowRemoteExtensionsInLocalWebWorker*/true);
+		if (remoteExtensions.length) {
+			emitter.emitOne(new RemoteExtensions(remoteExtensions));
+		}
+		emitter.emitOne(new LocalExtensions(localExtensions));
 	}
 
-	protected async _resolveExtensions(): Promise<ResolvedExtensions> {
+	protected _resolveExtensions(): AsyncIterable<ResolvedExtensions> {
+		return new AsyncIterableProducer(emitter => this._doResolveExtensions(emitter));
+	}
+
+	private async _doResolveExtensions(emitter: AsyncIterableEmitter<ResolvedExtensions>): Promise<void> {
 		if (!this._browserEnvironmentService.expectsResolverExtension) {
-			return this._resolveExtensionsDefault();
+			return this._resolveExtensionsDefault(emitter);
 		}
 
 		const remoteAuthority = this._environmentService.remoteAuthority!;
@@ -152,6 +171,11 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		// override the trust state through the resolver result.
 		await this._workspaceTrustManagementService.workspaceResolved;
 
+		const localExtensions = await this._scanWebExtensions();
+		const resolverExtensions = localExtensions.filter(extension => isResolverExtension(extension));
+		if (resolverExtensions.length) {
+			emitter.emitOne(new ResolverExtensions(resolverExtensions));
+		}
 
 		let resolverResult: ResolverResult;
 		try {
@@ -163,7 +187,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			this._remoteAuthorityResolverService._setResolvedAuthorityError(remoteAuthority, err);
 
 			// Proceed with the local extension host
-			return this._resolveExtensionsDefault();
+			return this._resolveExtensionsDefault(emitter);
 		}
 
 		// set the resolved authority
@@ -173,15 +197,15 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		// monitor for breakage
 		const connection = this._remoteAgentService.getConnection();
 		if (connection) {
-			connection.onDidStateChange(async (e) => {
+			this._register(connection.onDidStateChange(async (e) => {
 				if (e.type === PersistentConnectionEventType.ConnectionLost) {
 					this._remoteAuthorityResolverService._clearResolvedAuthority(remoteAuthority);
 				}
-			});
-			connection.onReconnecting(() => this._resolveAuthorityAgain());
+			}));
+			this._register(connection.onReconnecting(() => this._resolveAuthorityAgain()));
 		}
 
-		return this._resolveExtensionsDefault();
+		return this._resolveExtensionsDefault(emitter);
 	}
 
 	protected async _onExtensionHostExit(code: number): Promise<void> {

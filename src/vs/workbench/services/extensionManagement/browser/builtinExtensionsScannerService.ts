@@ -20,7 +20,7 @@ import { mainWindow } from '../../../../base/browser/window.js';
 interface IBundledExtension {
 	extensionPath: string;
 	packageJSON: IExtensionManifest;
-	packageNLS?: any;
+	packageNLS?: ITranslations;
 	readmePath?: string;
 	changelogPath?: string;
 }
@@ -56,6 +56,7 @@ export class BuiltinExtensionsScannerService implements IBuiltinExtensionsScanne
 					bundledExtensions = [/*BUILD->INSERT_BUILTIN_EXTENSIONS*/];
 				} else {
 					// Find builtin extensions by checking for DOM
+					// eslint-disable-next-line no-restricted-syntax
 					const builtinExtensionsElement = mainWindow.document.getElementById('vscode-workbench-builtin-extensions');
 					const builtinExtensionsElementAttribute = builtinExtensionsElement ? builtinExtensionsElement.getAttribute('data-settings') : undefined;
 					if (builtinExtensionsElementAttribute) {
@@ -77,7 +78,8 @@ export class BuiltinExtensionsScannerService implements IBuiltinExtensionsScanne
 						changelogUrl: e.changelogPath ? uriIdentityService.extUri.joinPath(builtinExtensionsServiceUrl, e.changelogPath) : undefined,
 						targetPlatform: TargetPlatform.WEB,
 						validations: [],
-						isValid: true
+						isValid: true,
+						preRelease: false,
 					};
 				});
 			}

@@ -119,8 +119,16 @@ export class CallStackWidget extends Disposable {
 	private readonly currentFramesDs = this._register(new DisposableStore());
 	private cts?: CancellationTokenSource;
 
+	public get onDidChangeContentHeight() {
+		return this.list.onDidChangeContentHeight;
+	}
+
 	public get onDidScroll() {
 		return this.list.onDidScroll;
+	}
+
+	public get contentHeight() {
+		return this.list.contentHeight;
 	}
 
 	constructor(
@@ -149,6 +157,7 @@ export class CallStackWidget extends Disposable {
 				mouseSupport: false,
 				keyboardSupport: false,
 				setRowLineHeight: false,
+				alwaysConsumeMouseWheel: false,
 				accessibilityProvider: instantiationService.createInstance(StackAccessibilityProvider),
 			}
 		) as WorkbenchList<ListItem>);
@@ -158,8 +167,9 @@ export class CallStackWidget extends Disposable {
 	public setFrames(frames: AnyStackFrame[]): void {
 		// cancel any existing load
 		this.currentFramesDs.clear();
-		this.cts = new CancellationTokenSource();
-		this._register(toDisposable(() => this.cts!.dispose(true)));
+		const cts = new CancellationTokenSource();
+		this.currentFramesDs.add(toDisposable(() => cts.dispose(true)));
+		this.cts = cts;
 
 		this.list.splice(0, this.list.length, this.mapFrames(frames));
 	}
@@ -363,7 +373,7 @@ abstract class AbstractFrameRenderer<T extends IAbstractFrameRendererTemplateDat
 
 	protected abstract finishRenderTemplate(data: IAbstractFrameRendererTemplateData): T;
 
-	renderElement(element: ListItem, index: number, template: T, height: number | undefined): void {
+	renderElement(element: ListItem, index: number, template: T): void {
 		const { elementStore } = template;
 		elementStore.clear();
 		const item = element as IFrameLikeItem;
@@ -384,7 +394,7 @@ abstract class AbstractFrameRenderer<T extends IAbstractFrameRendererTemplateDat
 		elementStore.add(dom.addDisposableListener(elements.title, 'click', toggleCollapse));
 	}
 
-	disposeElement(element: ListItem, index: number, templateData: T, height: number | undefined): void {
+	disposeElement(element: ListItem, index: number, templateData: T): void {
 		templateData.elementStore.clear();
 	}
 
@@ -444,8 +454,8 @@ class FrameCodeRenderer extends AbstractFrameRenderer<IStackTemplateData> {
 		return { ...data, editor, toolbar };
 	}
 
-	override renderElement(element: ListItem, index: number, template: IStackTemplateData, height: number | undefined): void {
-		super.renderElement(element, index, template, height);
+	override renderElement(element: ListItem, index: number, template: IStackTemplateData): void {
+		super.renderElement(element, index, template);
 
 		const { elementStore, editor } = template;
 
@@ -575,8 +585,8 @@ class CustomRenderer extends AbstractFrameRenderer<IAbstractFrameRendererTemplat
 		return data;
 	}
 
-	override renderElement(element: ListItem, index: number, template: IAbstractFrameRendererTemplateData, height: number | undefined): void {
-		super.renderElement(element, index, template, height);
+	override renderElement(element: ListItem, index: number, template: IAbstractFrameRendererTemplateData): void {
+		super.renderElement(element, index, template);
 
 		const item = element as WrappedCustomStackFrame;
 		const { elementStore, container, label } = template;
@@ -636,7 +646,7 @@ class SkippedRenderer implements IListRenderer<ListItem, ISkippedTemplateData> {
 		return data;
 	}
 
-	renderElement(element: ListItem, index: number, templateData: ISkippedTemplateData, height: number | undefined): void {
+	renderElement(element: ListItem, index: number, templateData: ISkippedTemplateData): void {
 		const cast = element as SkippedCallFrames;
 		templateData.button.enabled = true;
 		templateData.button.label = cast.label;

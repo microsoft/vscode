@@ -38,11 +38,11 @@ export class TerminalLogService extends Disposable implements ITerminalLogServic
 	setLevel(level: LogLevel): void { this._logger.setLevel(level); }
 	flush(): void { this._logger.flush(); }
 
-	trace(message: string, ...args: any[]): void { this._logger.trace(this._formatMessage(message), args); }
-	debug(message: string, ...args: any[]): void { this._logger.debug(this._formatMessage(message), args); }
-	info(message: string, ...args: any[]): void { this._logger.info(this._formatMessage(message), args); }
-	warn(message: string, ...args: any[]): void { this._logger.warn(this._formatMessage(message), args); }
-	error(message: string | Error, ...args: any[]): void {
+	trace(message: string, ...args: unknown[]): void { this._logger.trace(this._formatMessage(message), args); }
+	debug(message: string, ...args: unknown[]): void { this._logger.debug(this._formatMessage(message), args); }
+	info(message: string, ...args: unknown[]): void { this._logger.info(this._formatMessage(message), args); }
+	warn(message: string, ...args: unknown[]): void { this._logger.warn(this._formatMessage(message), args); }
+	error(message: string | Error, ...args: unknown[]): void {
 		if (message instanceof Error) {
 			this._logger.error(this._formatMessage(''), message, args);
 			return;

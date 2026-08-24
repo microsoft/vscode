@@ -9,7 +9,7 @@
 	border-radius: 8px;
 	display: flex;
 	align-items: center;
-	box-shadow: 0 4px 8px var(--vscode-widget-shadow);
+	box-shadow: var(--vscode-shadow-lg);
 	z-index: 1000;
 	min-height: var(--vscode-editor-dictation-widget-height);
 	line-height: var(--vscode-editor-dictation-widget-height);

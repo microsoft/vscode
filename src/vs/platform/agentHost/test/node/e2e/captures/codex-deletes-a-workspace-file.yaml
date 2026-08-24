@@ -1,0 +1,44 @@
+version: 1
+dialect: responses
+exchanges:
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Run exactly this shell command, with no modifications: `node -e "require(''fs'').unlinkSync(''delete-me.txt'')"`. Then reply with exactly "deleted".'
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: exec_command
+          input:
+            cmd: node -e "require('fs').unlinkSync('delete-me.txt')"
+            workdir: ${workdir}
+      stopReason: tool_use
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Run exactly this shell command, with no modifications: `node -e "require(''fs'').unlinkSync(''delete-me.txt'')"`. Then reply with exactly "deleted".'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: exec_command
+              input:
+                cmd: node -e "require('fs').unlinkSync('delete-me.txt')"
+                workdir: ${workdir}
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                Chunk ID: a444ab
+                Wall time: 0.0000 seconds
+                Process exited with code 0
+                Original token count: 0
+                Output:
+    response:
+      content: deleted
+      stopReason: end_turn

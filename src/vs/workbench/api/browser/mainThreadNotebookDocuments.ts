@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Event } from '../../../base/common/event.js';
 import { DisposableStore, dispose } from '../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../base/common/map.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
@@ -131,7 +132,7 @@ export class MainThreadNotebookDocuments implements MainThreadNotebookDocumentsS
 
 			// untitled notebooks are disposed when they get saved. we should not hold a reference
 			// to such a disposed notebook and therefore dispose the reference as well
-			ref.object.notebook.onWillDispose(() => {
+			Event.once(ref.object.notebook.onWillDispose)(() => {
 				ref.dispose();
 			});
 

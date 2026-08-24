@@ -57,7 +57,7 @@ export interface ILanguageService {
 	 * **Note**: Basic language features refers to language configuration related features.
 	 * **Note**: This event is a superset of `onDidRequestRichLanguageFeatures`
 	 */
-	onDidRequestBasicLanguageFeatures: Event<string>;
+	readonly onDidRequestBasicLanguageFeatures: Event<string>;
 
 	/**
 	 * An event emitted when rich language features are requested for the first time.
@@ -66,12 +66,12 @@ export interface ILanguageService {
 	 * **Note**: Rich language features refers to tokenizers, language features based on providers, etc.
 	 * **Note**: This event is a subset of `onDidRequestRichLanguageFeatures`
 	 */
-	onDidRequestRichLanguageFeatures: Event<string>;
+	readonly onDidRequestRichLanguageFeatures: Event<string>;
 
 	/**
 	 * An event emitted when languages have changed.
 	 */
-	onDidChange: Event<void>;
+	readonly onDidChange: Event<void>;
 
 	/**
 	 * Register a language.

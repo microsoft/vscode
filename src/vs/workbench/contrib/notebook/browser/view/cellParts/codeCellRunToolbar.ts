@@ -10,7 +10,7 @@ import { MarshalledId } from '../../../../../../base/common/marshallingIds.js';
 import { EditorContextKeys } from '../../../../../../editor/common/editorContextKeys.js';
 import { localize } from '../../../../../../nls.js';
 import { DropdownWithPrimaryActionViewItem } from '../../../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
-import { createAndFillInActionBarActions } from '../../../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { getActionBarActions } from '../../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IMenu, IMenuService, MenuId, MenuItemAction } from '../../../../../../platform/actions/common/actions.js';
 import { IContextKeyService, IScopedContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { InputFocusedContext } from '../../../../../../platform/contextkey/common/contextkeys.js';
@@ -72,13 +72,7 @@ export class RunToolbar extends CellContentPart {
 	}
 
 	getCellToolbarActions(menu: IMenu): { primary: IAction[]; secondary: IAction[] } {
-		const primary: IAction[] = [];
-		const secondary: IAction[] = [];
-		const result = { primary, secondary };
-
-		createAndFillInActionBarActions(menu, { shouldForwardArgs: true }, result, g => /^inline/.test(g));
-
-		return result;
+		return getActionBarActions(menu.getActions({ shouldForwardArgs: true }), g => /^inline/.test(g));
 	}
 
 	private createRunCellToolbar(container: HTMLElement, cellContainer: HTMLElement, contextKeyService: IContextKeyService) {

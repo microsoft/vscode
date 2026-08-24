@@ -29,6 +29,7 @@ export const terminalTypeAheadConfiguration: IStringDictionary<IConfigurationPro
 		type: 'integer',
 		minimum: -1,
 		default: 30,
+		tags: ['preview'],
 	},
 	[TerminalTypeAheadSettingId.LocalEchoEnabled]: {
 		markdownDescription: localize('terminal.integrated.localEchoEnabled', "When local echo should be enabled. This will override {0}", '`#terminal.integrated.localEchoLatencyThreshold#`'),
@@ -39,7 +40,8 @@ export const terminalTypeAheadConfiguration: IStringDictionary<IConfigurationPro
 			localize('terminal.integrated.localEchoEnabled.off', "Always disabled"),
 			localize('terminal.integrated.localEchoEnabled.auto', "Enabled only for remote workspaces")
 		],
-		default: 'auto'
+		default: 'off',
+		tags: ['preview'],
 	},
 	[TerminalTypeAheadSettingId.LocalEchoExcludePrograms]: {
 		description: localize('terminal.integrated.localEchoExcludePrograms', "Local echo will be disabled when any of these program names are found in the terminal title."),
@@ -49,6 +51,7 @@ export const terminalTypeAheadConfiguration: IStringDictionary<IConfigurationPro
 			uniqueItems: true
 		},
 		default: DEFAULT_LOCAL_ECHO_EXCLUDE,
+		tags: ['preview'],
 	},
 	[TerminalTypeAheadSettingId.LocalEchoStyle]: {
 		description: localize('terminal.integrated.localEchoStyle', "Terminal style of locally echoed text; either a font style or an RGB color."),
@@ -61,6 +64,7 @@ export const terminalTypeAheadConfiguration: IStringDictionary<IConfigurationPro
 				type: 'string',
 				format: 'color-hex',
 			}
-		]
+		],
+		tags: ['preview'],
 	},
 };

@@ -5,6 +5,7 @@
 
 import * as vscode from 'vscode';
 import { PackageDocument } from './packageDocumentHelper';
+import { PackageDocumentL10nSupport } from './packageDocumentL10nSupport';
 import { ExtensionLinter } from './extensionLinter';
 
 export function activate(context: vscode.ExtensionContext) {
@@ -14,6 +15,9 @@ export function activate(context: vscode.ExtensionContext) {
 
 	//package.json code actions for lint warnings
 	context.subscriptions.push(registerCodeActionsProvider());
+
+	// package.json l10n support
+	context.subscriptions.push(new PackageDocumentL10nSupport());
 
 	context.subscriptions.push(new ExtensionLinter());
 }

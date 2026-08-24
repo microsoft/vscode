@@ -19,10 +19,26 @@ declare module 'vscode' {
 		readonly mimeType: string;
 
 		/**
-		 * Retrieves the binary data of the reference.
+		 * Retrieves the binary data of the reference. This is primarily used to receive image attachments from the chat.
 		 * @returns A promise that resolves to the binary data as a Uint8Array.
 		 */
 		data(): Thenable<Uint8Array>;
+
+		/**
+		 * Retrieves a URI reference to the binary data, if available.
+		 */
+		readonly reference?: Uri;
+
+		/**
+		 * Whether this image was pasted from the clipboard.
+		 */
+		readonly isPasted?: boolean;
+
+		/**
+		 * Whether this image originated from a URL. `true` when it was attached from a URL,
+		 * `false` when it came from a local file, and `undefined` when the origin is unknown.
+		 */
+		readonly isURL?: boolean;
 
 		/**
 		 * @param mimeType The MIME type of the binary data.

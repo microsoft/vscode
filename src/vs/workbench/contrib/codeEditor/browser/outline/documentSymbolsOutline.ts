@@ -5,12 +5,12 @@
 
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { OutlineConfigCollapseItemsValues, IBreadcrumbsDataSource, IOutline, IOutlineCreator, IOutlineListConfig, IOutlineService, OutlineChangeEvent, OutlineConfigKeys, OutlineTarget, } from '../../../../services/outline/browser/outline.js';
+import { OutlineConfigCollapseItemsValues, IBreadcrumbsDataSource, IBreadcrumbsOutlineElement, IOutline, IOutlineCreator, IOutlineListConfig, IOutlineService, OutlineChangeEvent, OutlineConfigKeys, OutlineTarget, } from '../../../../services/outline/browser/outline.js';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from '../../../../common/contributions.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { LifecyclePhase } from '../../../../services/lifecycle/common/lifecycle.js';
 import { IEditorPane } from '../../../../common/editor.js';
-import { DocumentSymbolComparator, DocumentSymbolAccessibilityProvider, DocumentSymbolRenderer, DocumentSymbolFilter, DocumentSymbolGroupRenderer, DocumentSymbolIdentityProvider, DocumentSymbolNavigationLabelProvider, DocumentSymbolVirtualDelegate } from './documentSymbolsTree.js';
+import { DocumentSymbolComparator, DocumentSymbolAccessibilityProvider, DocumentSymbolRenderer, DocumentSymbolFilter, DocumentSymbolGroupRenderer, DocumentSymbolIdentityProvider, DocumentSymbolNavigationLabelProvider, DocumentSymbolVirtualDelegate, DocumentSymbolDragAndDrop } from './documentSymbolsTree.js';
 import { ICodeEditor, isCodeEditor, isDiffEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { OutlineGroup, OutlineElement, OutlineModel, TreeElement, IOutlineMarker, IOutlineModelService } from '../../../../../editor/contrib/documentSymbols/browser/outlineModel.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
@@ -38,14 +38,14 @@ type DocumentSymbolItem = OutlineGroup | OutlineElement;
 
 class DocumentSymbolBreadcrumbsSource implements IBreadcrumbsDataSource<DocumentSymbolItem> {
 
-	private _breadcrumbs: (OutlineGroup | OutlineElement)[] = [];
+	private _breadcrumbs: IBreadcrumbsOutlineElement<DocumentSymbolItem>[] = [];
 
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@ITextResourceConfigurationService private readonly _textResourceConfigurationService: ITextResourceConfigurationService,
 	) { }
 
-	getBreadcrumbElements(): readonly DocumentSymbolItem[] {
+	getBreadcrumbElements(): readonly IBreadcrumbsOutlineElement<DocumentSymbolItem>[] {
 		return this._breadcrumbs;
 	}
 
@@ -55,7 +55,10 @@ class DocumentSymbolBreadcrumbsSource implements IBreadcrumbsDataSource<Document
 
 	update(model: OutlineModel, position: IPosition): void {
 		const newElements = this._computeBreadcrumbs(model, position);
-		this._breadcrumbs = newElements;
+		this._breadcrumbs = newElements.map(element => ({
+			element,
+			label: element instanceof OutlineElement ? element.symbol.name : ''
+		}));
 	}
 
 	private _computeBreadcrumbs(model: OutlineModel, position: IPosition): Array<OutlineGroup | OutlineElement> {
@@ -107,7 +110,7 @@ class DocumentSymbolBreadcrumbsSource implements IBreadcrumbsDataSource<Document
 class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 
 	private readonly _disposables = new DisposableStore();
-	private readonly _onDidChange = new Emitter<OutlineChangeEvent>();
+	private readonly _onDidChange = this._disposables.add(new Emitter<OutlineChangeEvent>());
 
 	readonly onDidChange: Event<OutlineChangeEvent> = this._onDidChange.event;
 
@@ -169,7 +172,8 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 				? instantiationService.createInstance(DocumentSymbolFilter, 'outline')
 				: target === OutlineTarget.Breadcrumbs
 					? instantiationService.createInstance(DocumentSymbolFilter, 'breadcrumbs')
-					: undefined
+					: undefined,
+			dnd: instantiationService.createInstance(DocumentSymbolDragAndDrop),
 		};
 
 		this.config = {
@@ -179,7 +183,7 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 			treeDataSource,
 			comparator,
 			options,
-			quickPickDataSource: { getQuickPickElements: () => { throw new Error('not implemented'); } }
+			quickPickDataSource: { getQuickPickElements: () => { throw new Error('not implemented'); } },
 		};
 
 

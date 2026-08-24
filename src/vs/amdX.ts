@@ -9,7 +9,10 @@ import { IProductConfiguration } from './base/common/product.js';
 import { URI } from './base/common/uri.js';
 import { generateUuid } from './base/common/uuid.js';
 
-export const canASAR = false; // TODO@esm: ASAR disabled in ESM
+declare const window: any;
+declare const document: any;
+declare const self: any;
+declare const globalThis: any;
 
 class DefineCall {
 	constructor(
@@ -33,15 +36,13 @@ class AMDModuleImporter {
 
 	private readonly _defineCalls: DefineCall[] = [];
 	private _state = AMDModuleImporterState.Uninitialized;
-	private _amdPolicy: Pick<TrustedTypePolicy<{
-		createScriptURL(value: string): string;
-	}>, 'name' | 'createScriptURL'> | undefined;
+	private _amdPolicy: Pick<TrustedTypePolicy, 'name' | 'createScriptURL'> | undefined;
 
 	constructor() { }
 
 	private _initialize(): void {
 		if (this._state === AMDModuleImporterState.Uninitialized) {
-			if ((globalThis as any).define) {
+			if (globalThis.define) {
 				this._state = AMDModuleImporterState.InitializedExternal;
 				return;
 			}
@@ -51,7 +52,7 @@ class AMDModuleImporter {
 
 		this._state = AMDModuleImporterState.InitializedInternal;
 
-		(globalThis as any).define = (id: any, dependencies: any, callback: any) => {
+		globalThis.define = (id: any, dependencies: any, callback: any) => {
 			if (typeof id !== 'string') {
 				callback = dependencies;
 				dependencies = id;
@@ -67,11 +68,11 @@ class AMDModuleImporter {
 			this._defineCalls.push(new DefineCall(id, dependencies, callback));
 		};
 
-		(globalThis as any).define.amd = true;
+		globalThis.define.amd = true;
 
 		if (this._isRenderer) {
-			this._amdPolicy = (globalThis as any)._VSCODE_WEB_PACKAGE_TTP ?? window.trustedTypes?.createPolicy('amdLoader', {
-				createScriptURL(value) {
+			this._amdPolicy = globalThis._VSCODE_WEB_PACKAGE_TTP ?? window.trustedTypes?.createPolicy('amdLoader', {
+				createScriptURL(value: any) {
 					if (value.startsWith(window.location.origin)) {
 						return value;
 					}
@@ -82,7 +83,7 @@ class AMDModuleImporter {
 				}
 			});
 		} else if (this._isWebWorker) {
-			this._amdPolicy = (globalThis as any)._VSCODE_WEB_PACKAGE_TTP ?? (globalThis as any).trustedTypes?.createPolicy('amdLoader', {
+			this._amdPolicy = globalThis._VSCODE_WEB_PACKAGE_TTP ?? globalThis.trustedTypes?.createPolicy('amdLoader', {
 				createScriptURL(value: string) {
 					return value;
 				}
@@ -96,7 +97,7 @@ class AMDModuleImporter {
 		if (this._state === AMDModuleImporterState.InitializedExternal) {
 			return new Promise<T>(resolve => {
 				const tmpModuleId = generateUuid();
-				(globalThis as any).define(tmpModuleId, [scriptSrc], function (moduleResult: T) {
+				globalThis.define(tmpModuleId, [scriptSrc], function (moduleResult: T) {
 					resolve(moduleResult);
 				});
 			});
@@ -157,7 +158,7 @@ class AMDModuleImporter {
 			scriptElement.addEventListener('load', loadEventListener);
 			scriptElement.addEventListener('error', errorEventListener);
 			if (this._amdPolicy) {
-				scriptSrc = this._amdPolicy.createScriptURL(scriptSrc) as any as string;
+				scriptSrc = this._amdPolicy.createScriptURL(scriptSrc) as unknown as string;
 			}
 			scriptElement.setAttribute('src', scriptSrc);
 			window.document.getElementsByTagName('head')[0].appendChild(scriptElement);
@@ -166,17 +167,24 @@ class AMDModuleImporter {
 
 	private async _workerLoadScript(scriptSrc: string): Promise<DefineCall | undefined> {
 		if (this._amdPolicy) {
-			scriptSrc = this._amdPolicy.createScriptURL(scriptSrc) as any as string;
+			scriptSrc = this._amdPolicy.createScriptURL(scriptSrc) as unknown as string;
 		}
-		await import(scriptSrc);
+		await import(/* webpackIgnore: true */ /* @vite-ignore */ scriptSrc);
 		return this._defineCalls.pop();
 	}
 
 	private async _nodeJSLoadScript(scriptSrc: string): Promise<DefineCall | undefined> {
 		try {
-			const fs = (await import(`${'fs'}`)).default;
-			const vm = (await import(`${'vm'}`)).default;
-			const module = (await import(`${'module'}`)).default;
+			// `import('module')` is not remapped (only `fs` is), so it yields the real
+			// `module` builtin. We use its `createRequire` to obtain `fs`/`vm`: the ESM
+			// resolution hook maps `import('fs')` to the ASAR-unaware `original-fs`, but
+			// `scriptSrc` may point inside the `node_modules.asar` archive. The `fs`
+			// returned by `require` stays ASAR-aware in Electron, so it can read module
+			// files from within the archive.
+			const module = (await import(/* webpackIgnore: true */ /* @vite-ignore */ `${'module'}`)).default;
+			const nodeRequire = module.createRequire(import.meta.url);
+			const fs = nodeRequire('fs');
+			const vm = nodeRequire('vm');
 
 			const filePath = URI.parse(scriptSrc).fsPath;
 			const content = fs.readFileSync(filePath).toString();
@@ -202,7 +210,7 @@ const cache = new Map<string, Promise<any>>();
 export async function importAMDNodeModule<T>(nodeModuleName: string, pathInsideNodeModule: string, isBuilt?: boolean): Promise<T> {
 	if (isBuilt === undefined) {
 		const product = globalThis._VSCODE_PRODUCT_JSON as unknown as IProductConfiguration;
-		isBuilt = Boolean((product ?? (globalThis as any).vscode?.context?.configuration()?.product)?.commit);
+		isBuilt = Boolean((product ?? globalThis.vscode?.context?.configuration()?.product)?.commit);
 	}
 
 	const nodeModulePath = pathInsideNodeModule ? `${nodeModuleName}/${pathInsideNodeModule}` : nodeModuleName;
@@ -212,10 +220,10 @@ export async function importAMDNodeModule<T>(nodeModuleName: string, pathInsideN
 	let scriptSrc: string;
 	if (/^\w[\w\d+.-]*:\/\//.test(nodeModulePath)) {
 		// looks like a URL
-		// bit of a special case for: src/vs/workbench/services/languageDetection/browser/languageDetectionSimpleWorker.ts
+		// bit of a special case for: src/vs/workbench/services/languageDetection/browser/languageDetectionWebWorker.ts
 		scriptSrc = nodeModulePath;
 	} else {
-		const useASAR = (canASAR && isBuilt && !platform.isWeb);
+		const useASAR = (isBuilt && (platform.isElectron || (platform.isWebWorker && platform.hasElectronUserAgent)));
 		const actualNodeModulesPath = (useASAR ? nodeModulesAsarPath : nodeModulesPath);
 		const resourcePath: AppResourcePath = `${actualNodeModulesPath}/${nodeModulePath}`;
 		scriptSrc = FileAccess.asBrowserUri(resourcePath).toString(true);
@@ -227,8 +235,8 @@ export async function importAMDNodeModule<T>(nodeModuleName: string, pathInsideN
 
 export function resolveAmdNodeModulePath(nodeModuleName: string, pathInsideNodeModule: string): string {
 	const product = globalThis._VSCODE_PRODUCT_JSON as unknown as IProductConfiguration;
-	const isBuilt = Boolean((product ?? (globalThis as any).vscode?.context?.configuration()?.product)?.commit);
-	const useASAR = (canASAR && isBuilt && !platform.isWeb);
+	const isBuilt = Boolean((product ?? globalThis.vscode?.context?.configuration()?.product)?.commit);
+	const useASAR = (isBuilt && (platform.isElectron || (platform.isWebWorker && platform.hasElectronUserAgent)));
 
 	const nodeModulePath = `${nodeModuleName}/${pathInsideNodeModule}`;
 	const actualNodeModulesPath = (useASAR ? nodeModulesAsarPath : nodeModulesPath);

@@ -72,6 +72,7 @@ export class NotebookEditorContextKeys {
 	dispose(): void {
 		this._disposables.dispose();
 		this._viewModelDisposables.dispose();
+		this._selectedKernelDisposables.dispose();
 		this._notebookKernelCount.reset();
 		this._notebookKernelSourceCount.reset();
 		this._interruptibleKernel.reset();

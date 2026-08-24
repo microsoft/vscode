@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { GroupIdentifier, IWorkbenchEditorConfiguration, IEditorIdentifier, IEditorCloseEvent, IEditorPartOptions, IEditorPartOptionsChangeEvent, SideBySideEditor, EditorCloseContext, IEditorPane, IEditorPartLimitOptions, IEditorPartDecorationOptions, IEditorWillOpenEvent } from '../../../common/editor.js';
+import { GroupIdentifier, IWorkbenchEditorConfiguration, IEditorIdentifier, IEditorCloseEvent, IEditorPartOptions, IEditorPartOptionsChangeEvent, SideBySideEditor, EditorCloseContext, IEditorPane, IEditorPartLimitOptions, IEditorPartDecorationOptions, IEditorWillOpenEvent, EditorInputWithOptions } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
-import { IEditorGroup, GroupDirection, IMergeGroupOptions, GroupsOrder, GroupsArrangement, IAuxiliaryEditorPart, IEditorPart } from '../../../services/editor/common/editorGroupsService.js';
+import { MenuId } from '../../../../platform/actions/common/actions.js';
+import { IEditorGroup, GroupDirection, IMergeGroupOptions, GroupsOrder, GroupsArrangement, IAuxiliaryEditorPart, IEditorPart, IModalEditorPart, GroupActivationReason } from '../../../services/editor/common/editorGroupsService.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { Dimension } from '../../../../base/browser/dom.js';
 import { Event } from '../../../../base/common/event.js';
@@ -19,6 +20,7 @@ import { IWindowsConfiguration } from '../../../../platform/window/common/window
 import { BooleanVerifier, EnumVerifier, NumberVerifier, ObjectVerifier, SetVerifier, verifyObject } from '../../../../base/common/verifier.js';
 import { IAuxiliaryWindowOpenOptions } from '../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { ContextKeyValue, IContextKey, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { coalesce } from '../../../../base/common/arrays.js';
 
 export interface IEditorPartCreationOptions {
 	readonly restorePreviousState: boolean;
@@ -31,8 +33,10 @@ export const DEFAULT_EDITOR_PART_OPTIONS: IEditorPartOptions = {
 	showTabs: 'multiple',
 	highlightModifiedTabs: false,
 	tabActionLocation: 'right',
+	tabActionReserveSpace: true,
 	tabActionCloseVisibility: true,
 	tabActionUnpinVisibility: true,
+	showTabIndex: false,
 	alwaysShowEditorActions: false,
 	tabSizing: 'fit',
 	tabSizingFixedMinWidth: 50,
@@ -42,6 +46,7 @@ export const DEFAULT_EDITOR_PART_OPTIONS: IEditorPartOptions = {
 	tabHeight: 'default',
 	preventPinnedEditorClose: 'keyboardAndMouse',
 	titleScrollbarSizing: 'default',
+	titleScrollbarVisibility: 'auto',
 	focusRecentEditorAfterClose: true,
 	showIcons: true,
 	hasIcons: true, // 'vs-seti' is our default icon theme
@@ -52,6 +57,7 @@ export const DEFAULT_EDITOR_PART_OPTIONS: IEditorPartOptions = {
 	labelFormat: 'default',
 	splitSizing: 'auto',
 	splitOnDragAndDrop: true,
+	allowDropIntoGroup: true,
 	dragToOpenWindow: true,
 	centeredLayoutFixedWidth: false,
 	doubleClickTabToToggleEditorGroupSizes: 'expand',
@@ -61,6 +67,7 @@ export const DEFAULT_EDITOR_PART_OPTIONS: IEditorPartOptions = {
 	scrollToSwitchTabs: false,
 	enablePreviewFromCodeNavigation: false,
 	closeOnFileDelete: false,
+	swipeToNavigate: false,
 	mouseBackForwardToNavigate: true,
 	restoreViewState: true,
 	splitInGroupLayout: 'horizontal',
@@ -121,8 +128,10 @@ function validateEditorPartOptions(options: IEditorPartOptions): IEditorPartOpti
 		'wrapTabs': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS['wrapTabs']),
 		'scrollToSwitchTabs': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS['scrollToSwitchTabs']),
 		'highlightModifiedTabs': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS['highlightModifiedTabs']),
+		'tabActionReserveSpace': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS['tabActionReserveSpace']),
 		'tabActionCloseVisibility': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS['tabActionCloseVisibility']),
 		'tabActionUnpinVisibility': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS['tabActionUnpinVisibility']),
+		'showTabIndex': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS['showTabIndex']),
 		'alwaysShowEditorActions': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS['alwaysShowEditorActions']),
 		'pinnedTabsOnSeparateRow': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS['pinnedTabsOnSeparateRow']),
 		'focusRecentEditorAfterClose': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS['focusRecentEditorAfterClose']),
@@ -133,9 +142,11 @@ function validateEditorPartOptions(options: IEditorPartOptions): IEditorPartOpti
 		'closeOnFileDelete': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS['closeOnFileDelete']),
 		'closeEmptyGroups': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS['closeEmptyGroups']),
 		'revealIfOpen': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS['revealIfOpen']),
+		'swipeToNavigate': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS['swipeToNavigate']),
 		'mouseBackForwardToNavigate': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS['mouseBackForwardToNavigate']),
 		'restoreViewState': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS['restoreViewState']),
 		'splitOnDragAndDrop': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS['splitOnDragAndDrop']),
+		'allowDropIntoGroup': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS['allowDropIntoGroup']),
 		'dragToOpenWindow': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS['dragToOpenWindow']),
 		'centeredLayoutFixedWidth': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS['centeredLayoutFixedWidth']),
 		'hasIcons': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS['hasIcons']),
@@ -150,6 +161,7 @@ function validateEditorPartOptions(options: IEditorPartOptions): IEditorPartOpti
 		'tabHeight': new EnumVerifier(DEFAULT_EDITOR_PART_OPTIONS['tabHeight'], ['default', 'compact']),
 		'preventPinnedEditorClose': new EnumVerifier(DEFAULT_EDITOR_PART_OPTIONS['preventPinnedEditorClose'], ['keyboardAndMouse', 'keyboard', 'mouse', 'never']),
 		'titleScrollbarSizing': new EnumVerifier(DEFAULT_EDITOR_PART_OPTIONS['titleScrollbarSizing'], ['default', 'large']),
+		'titleScrollbarVisibility': new EnumVerifier(DEFAULT_EDITOR_PART_OPTIONS['titleScrollbarVisibility'], ['auto', 'visible', 'hidden']),
 		'openPositioning': new EnumVerifier(DEFAULT_EDITOR_PART_OPTIONS['openPositioning'], ['left', 'right', 'first', 'last']),
 		'openSideBySideDirection': new EnumVerifier(DEFAULT_EDITOR_PART_OPTIONS['openSideBySideDirection'], ['right', 'down']),
 		'labelFormat': new EnumVerifier(DEFAULT_EDITOR_PART_OPTIONS['labelFormat'], ['default', 'short', 'medium', 'long']),
@@ -188,6 +200,7 @@ export interface IEditorPartsView {
 	readonly count: number;
 
 	createAuxiliaryEditorPart(options?: IAuxiliaryWindowOpenOptions): Promise<IAuxiliaryEditorPart>;
+	createModalEditorPart(): Promise<IModalEditorPart>;
 
 	bind<T extends ContextKeyValue>(contextKey: RawContextKey<T>, group: IEditorGroupView): IContextKey<T>;
 }
@@ -210,7 +223,7 @@ export interface IEditorGroupsView {
 	getGroup(identifier: GroupIdentifier): IEditorGroupView | undefined;
 	getGroups(order: GroupsOrder): IEditorGroupView[];
 
-	activateGroup(identifier: IEditorGroupView | GroupIdentifier, preserveWindowOrder?: boolean): IEditorGroupView;
+	activateGroup(identifier: IEditorGroupView | GroupIdentifier, preserveWindowOrder?: boolean, reason?: GroupActivationReason): IEditorGroupView;
 	restoreGroup(identifier: IEditorGroupView | GroupIdentifier): IEditorGroupView;
 
 	addGroup(location: IEditorGroupView | GroupIdentifier, direction: GroupDirection, groupToCopy?: IEditorGroupView): IEditorGroupView;
@@ -249,6 +262,30 @@ export interface IEditorGroupViewOptions {
 	 * after creation or not.
 	 */
 	readonly preserveFocus?: boolean;
+
+	/**
+	 * Optional menu ids used by the group header and tab bar. When unset the
+	 * workbench uses the shared defaults and renders no custom header actions.
+	 */
+	readonly menuIds?: IEditorGroupMenuIds;
+
+	/** Shows the full-width group header with its configured actions and breadcrumbs. */
+	readonly showHeader?: boolean;
+}
+
+export interface IEditorGroupMenuIds {
+	/** Menu whose actions render as the leading (left) header toolbar. */
+	readonly headerPrimary?: MenuId;
+	/** Menu whose actions render as the trailing (right) header toolbar. */
+	readonly headerSecondary?: MenuId;
+	/** Menu whose actions render after the trailing header toolbar. */
+	readonly headerLayout?: MenuId;
+	/** Menu whose actions render in the editor-actions toolbar on the tab bar. */
+	readonly editorActions?: MenuId;
+	/** Menu shown when right-clicking the empty tab-bar area. */
+	readonly tabsBarContext?: MenuId;
+	/** Menu whose actions populate the add-tab (`+`) control in the tab bar. */
+	readonly tabsBarAddTab?: MenuId;
 }
 
 /**
@@ -298,6 +335,50 @@ export function fillActiveEditorViewState(group: IEditorGroup, expectedActiveEdi
 	}
 
 	return presetOptions || Object.create(null);
+}
+
+export function prepareMoveCopyEditors(sourceGroup: IEditorGroup, editors: EditorInput[], preserveFocus?: boolean): EditorInputWithOptions[] {
+	if (editors.length === 0) {
+		return [];
+	}
+
+	const editorsWithOptions: EditorInputWithOptions[] = [];
+
+	let activeEditor: EditorInput | undefined;
+	const inactiveEditors: EditorInput[] = [];
+	for (const editor of editors) {
+		if (!activeEditor && sourceGroup.isActive(editor)) {
+			activeEditor = editor;
+		} else {
+			inactiveEditors.push(editor);
+		}
+	}
+
+	if (!activeEditor) {
+		activeEditor = inactiveEditors.shift(); // just take the first editor as active if none is active
+	}
+
+	// ensure inactive editors are then sorted by inverse visual order
+	// so that we can preserve the order in the target group. we inverse
+	// because editors will open to the side of the active editor as
+	// inactive editors, and the active editor is always the reference
+	inactiveEditors.sort((a, b) => sourceGroup.getIndexOfEditor(b) - sourceGroup.getIndexOfEditor(a));
+
+	const sortedEditors = coalesce([activeEditor, ...inactiveEditors]);
+	for (let i = 0; i < sortedEditors.length; i++) {
+		const editor = sortedEditors[i];
+		editorsWithOptions.push({
+			editor,
+			options: {
+				pinned: true,
+				sticky: sourceGroup.isSticky(editor),
+				inactive: i > 0,
+				preserveFocus
+			}
+		});
+	}
+
+	return editorsWithOptions;
 }
 
 /**
@@ -366,6 +447,12 @@ export interface IInternalEditorCloseOptions extends IInternalEditorTitleControl
 	 * Additional context as to why an editor is closed.
 	 */
 	readonly context?: EditorCloseContext;
+
+	/**
+	 * Forces the editor to close even if it declares
+	 * `EditorInputCapabilities.CannotClose`.
+	 */
+	readonly force?: boolean;
 }
 
 export interface IInternalMoveCopyOptions extends IInternalEditorOpenOptions {

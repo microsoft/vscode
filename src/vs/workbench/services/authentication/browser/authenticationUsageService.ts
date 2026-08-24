@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Queue } from '../../../../base/common/async.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -50,14 +50,16 @@ export interface IAuthenticationUsageService {
 	 * @param extensionId The id of the extension to add a usage for
 	 * @param extensionName The name of the extension to add a usage for
 	 */
-	addAccountUsage(providerId: string, accountName: string, scopes: ReadonlyArray<string>, extensionId: string, extensionName: string): void;
+	addAccountUsage(providerId: string, accountName: string, scopes: ReadonlyArray<string> | undefined, extensionId: string, extensionName: string): void;
 }
 
 export class AuthenticationUsageService extends Disposable implements IAuthenticationUsageService {
 	_serviceBrand: undefined;
 
-	private _queue = new Queue();
+	private _queue = this._register(new Queue());
 	private _extensionsUsingAuth = new Set<string>();
+
+	private _disposed = false;
 
 	constructor(
 		@IStorageService private readonly _storageService: IStorageService,
@@ -66,7 +68,7 @@ export class AuthenticationUsageService extends Disposable implements IAuthentic
 		@IProductService productService: IProductService,
 	) {
 		super();
-
+		this._register(toDisposable(() => this._disposed = true));
 		// If an extension is listed in `trustedExtensionAuthAccess` we should consider it as using auth
 		const trustedExtensionAuthAccess = productService.trustedExtensionAuthAccess;
 		if (Array.isArray(trustedExtensionAuthAccess)) {
@@ -81,11 +83,11 @@ export class AuthenticationUsageService extends Disposable implements IAuthentic
 			}
 		}
 
-		this._authenticationService.onDidRegisterAuthenticationProvider(
+		this._register(this._authenticationService.onDidRegisterAuthenticationProvider(
 			provider => this._queue.queue(
 				() => this._addExtensionsToCache(provider.id)
 			)
-		);
+		));
 	}
 
 	async initializeExtensionUsageCache(): Promise<void> {
@@ -117,7 +119,7 @@ export class AuthenticationUsageService extends Disposable implements IAuthentic
 		this._storageService.remove(accountKey, StorageScope.APPLICATION);
 	}
 
-	addAccountUsage(providerId: string, accountName: string, scopes: string[], extensionId: string, extensionName: string): void {
+	addAccountUsage(providerId: string, accountName: string, scopes: string[] | undefined, extensionId: string, extensionName: string): void {
 		const accountKey = `${providerId}-${accountName}-usages`;
 		const usages = this.readAccountUsages(providerId, accountName);
 
@@ -143,6 +145,9 @@ export class AuthenticationUsageService extends Disposable implements IAuthentic
 	}
 
 	private async _addExtensionsToCache(providerId: string) {
+		if (this._disposed) {
+			return;
+		}
 		try {
 			const accounts = await this._authenticationService.getAccounts(providerId);
 			for (const account of accounts) {

@@ -25,7 +25,7 @@ import { IClipboardService } from '../../../../platform/clipboard/common/clipboa
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
 import { ICommandService, CommandsRegistry } from '../../../../platform/commands/common/commands.js';
-import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { IDialogService, IConfirmationResult, getFileNamesMessage } from '../../../../platform/dialogs/common/dialogs.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
@@ -54,7 +54,7 @@ import { IPaneCompositePartService } from '../../../services/panecomposite/brows
 import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
 import { IPathService } from '../../../services/path/common/pathService.js';
 import { Action2 } from '../../../../platform/actions/common/actions.js';
-import { ActiveEditorCanToggleReadonlyContext, ActiveEditorContext, EmptyWorkspaceSupportContext } from '../../../common/contextkeys.js';
+import { ActiveEditorCanToggleReadonlyContext, ActiveEditorContext, EmptyWorkspaceSupportContext, IsSessionsWindowContext } from '../../../common/contextkeys.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
@@ -78,14 +78,6 @@ export const UPLOAD_LABEL = nls.localize('upload', "Upload...");
 const CONFIRM_DELETE_SETTING_KEY = 'explorer.confirmDelete';
 const MAX_UNDO_FILE_SIZE = 5000000; // 5mb
 
-function onError(notificationService: INotificationService, error: any): void {
-	if (error.message === 'string') {
-		error = error.message;
-	}
-
-	notificationService.error(toErrorMessage(error, false));
-}
-
 async function refreshIfSeparator(value: string, explorerService: IExplorerService): Promise<void> {
 	if (value && ((value.indexOf('/') >= 0) || (value.indexOf('\\') >= 0))) {
 		// New input contains separator, multiple resources will get created workaround for #68204
@@ -93,7 +85,7 @@ async function refreshIfSeparator(value: string, explorerService: IExplorerServi
 	}
 }
 
-async function deleteFiles(explorerService: IExplorerService, workingCopyFileService: IWorkingCopyFileService, dialogService: IDialogService, configurationService: IConfigurationService, elements: ExplorerItem[], useTrash: boolean, skipConfirm = false, ignoreIfNotExists = false): Promise<void> {
+async function deleteFiles(explorerService: IExplorerService, workingCopyFileService: IWorkingCopyFileService, dialogService: IDialogService, configurationService: IConfigurationService, filesConfigurationService: IFilesConfigurationService, elements: ExplorerItem[], useTrash: boolean, skipConfirm = false, ignoreIfNotExists = false): Promise<void> {
 	let primaryButton: string;
 	if (useTrash) {
 		primaryButton = isWindows ? nls.localize('deleteButtonLabelRecycleBin', "&&Move to Recycle Bin") : nls.localize({ key: 'deleteButtonLabelTrash', comment: ['&& denotes a mnemonic'] }, "&&Move to Trash");
@@ -109,7 +101,7 @@ async function deleteFiles(explorerService: IExplorerService, workingCopyFileSer
 			dirtyWorkingCopies.add(dirtyWorkingCopy);
 		}
 	}
-	let confirmed = true;
+
 	if (dirtyWorkingCopies.size) {
 		let message: string;
 		if (distinctElements.length > 1) {
@@ -132,24 +124,46 @@ async function deleteFiles(explorerService: IExplorerService, workingCopyFileSer
 		});
 
 		if (!response.confirmed) {
-			confirmed = false;
+			return;
 		} else {
 			skipConfirm = true;
 		}
 	}
 
-	// Check if file is dirty in editor and save it to avoid data loss
-	if (!confirmed) {
-		return;
+	// Handle readonly
+	if (!skipConfirm) {
+		const readonlyResources = distinctElements.filter(e => filesConfigurationService.isReadonly(e.resource));
+		if (readonlyResources.length) {
+			let message: string;
+			if (readonlyResources.length > 1) {
+				message = nls.localize('readonlyMessageFilesDelete', "You are deleting files that are configured to be read-only. Do you want to continue?");
+			} else if (readonlyResources[0].isDirectory) {
+				message = nls.localize('readonlyMessageFolderOneDelete', "You are deleting a folder {0} that is configured to be read-only. Do you want to continue?", distinctElements[0].name);
+			} else {
+				message = nls.localize('readonlyMessageFolderDelete', "You are deleting a file {0} that is configured to be read-only. Do you want to continue?", distinctElements[0].name);
+			}
+
+			const response = await dialogService.confirm({
+				type: 'warning',
+				message,
+				detail: nls.localize('continueDetail', "The read-only protection will be overridden if you continue."),
+				primaryButton: nls.localize('continueButtonLabel', "Continue")
+			});
+
+			if (!response.confirmed) {
+				return;
+			}
+		}
 	}
 
 	let confirmation: IConfirmationResult;
+
 	// We do not support undo of folders, so in that case the delete action is irreversible
 	const deleteDetail = distinctElements.some(e => e.isDirectory) ? nls.localize('irreversible', "This action is irreversible!") :
 		distinctElements.length > 1 ? nls.localize('restorePlural', "You can restore these files using the Undo command.") : nls.localize('restore', "You can restore this file using the Undo command.");
 
 	// Check if we need to ask for confirmation at all
-	if (skipConfirm || (useTrash && configurationService.getValue<boolean>(CONFIRM_DELETE_SETTING_KEY) === false)) {
+	if (skipConfirm || configurationService.getValue<boolean>(CONFIRM_DELETE_SETTING_KEY) === false) {
 		confirmation = { confirmed: true };
 	}
 
@@ -234,7 +248,7 @@ async function deleteFiles(explorerService: IExplorerService, workingCopyFileSer
 			skipConfirm = true;
 			ignoreIfNotExists = true;
 
-			return deleteFiles(explorerService, workingCopyFileService, dialogService, configurationService, elements, useTrash, skipConfirm, ignoreIfNotExists);
+			return deleteFiles(explorerService, workingCopyFileService, dialogService, configurationService, filesConfigurationService, elements, useTrash, skipConfirm, ignoreIfNotExists);
 		}
 	}
 }
@@ -491,7 +505,7 @@ export class GlobalCompareResourcesAction extends Action2 {
 			title: GlobalCompareResourcesAction.LABEL,
 			f1: true,
 			category: Categories.File,
-			precondition: ActiveEditorContext,
+			precondition: ContextKeyExpr.and(ActiveEditorContext, IsSessionsWindowContext.negate()),
 			metadata: {
 				description: nls.localize2('compareFileWithMeta', "Opens a picker to select a file to diff with the active editor.")
 			}
@@ -530,6 +544,7 @@ export class ToggleAutoSaveAction extends Action2 {
 			title: nls.localize2('toggleAutoSave', "Toggle Auto Save"),
 			f1: true,
 			category: Categories.File,
+			precondition: IsSessionsWindowContext.negate(),
 			metadata: { description: nls.localize2('toggleAutoSaveDescription', "Toggle the ability to save files automatically after typing") }
 		});
 	}
@@ -578,7 +593,7 @@ abstract class BaseSaveAllAction extends Action {
 		try {
 			await this.doRun(context);
 		} catch (error) {
-			onError(this.notificationService, error);
+			this.notificationService.error(toErrorMessage(error, false));
 		}
 	}
 }
@@ -622,6 +637,7 @@ export class FocusFilesExplorer extends Action2 {
 			title: FocusFilesExplorer.LABEL,
 			f1: true,
 			category: Categories.File,
+			precondition: IsSessionsWindowContext.negate(),
 			metadata: {
 				description: nls.localize2('focusFilesExplorerMetadata', "Moves focus to the file explorer view container.")
 			}
@@ -645,6 +661,7 @@ export class ShowActiveFileInExplorer extends Action2 {
 			title: ShowActiveFileInExplorer.LABEL,
 			f1: true,
 			category: Categories.File,
+			precondition: IsSessionsWindowContext.negate(),
 			metadata: {
 				description: nls.localize2('showInExplorerMetadata', "Reveals and selects the active file within the explorer view.")
 			}
@@ -664,7 +681,7 @@ export class ShowActiveFileInExplorer extends Action2 {
 export class OpenActiveFileInEmptyWorkspace extends Action2 {
 
 	static readonly ID = 'workbench.action.files.showOpenedFileInNewWindow';
-	static readonly LABEL = nls.localize2('openFileInEmptyWorkspace', "Open Active File in New Empty Workspace");
+	static readonly LABEL = nls.localize2('openFileInEmptyWorkspace', "Open Active Editor in New Empty Workspace");
 
 	constructor(
 	) {
@@ -673,9 +690,9 @@ export class OpenActiveFileInEmptyWorkspace extends Action2 {
 			title: OpenActiveFileInEmptyWorkspace.LABEL,
 			f1: true,
 			category: Categories.File,
-			precondition: EmptyWorkspaceSupportContext,
+			precondition: ContextKeyExpr.and(EmptyWorkspaceSupportContext, IsSessionsWindowContext.negate()),
 			metadata: {
-				description: nls.localize2('openFileInEmptyWorkspaceMetadata', "Opens the active file in a new window with no folders open.")
+				description: nls.localize2('openFileInEmptyWorkspaceMetadata', "Opens the active editor in a new window with no folders open.")
 			}
 		});
 	}
@@ -687,12 +704,10 @@ export class OpenActiveFileInEmptyWorkspace extends Action2 {
 		const fileService = accessor.get(IFileService);
 
 		const fileResource = EditorResourceAccessor.getOriginalUri(editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
-		if (fileResource) {
-			if (fileService.hasProvider(fileResource)) {
-				hostService.openWindow([{ fileUri: fileResource }], { forceNewWindow: true });
-			} else {
-				dialogService.error(nls.localize('openFileToShowInNewWindow.unsupportedschema', "The active editor must contain an openable resource."));
-			}
+		if (fileResource && fileService.hasProvider(fileResource)) {
+			hostService.openWindow([{ fileUri: fileResource }], { forceNewWindow: true });
+		} else {
+			dialogService.error(nls.localize('openFileToShowInNewWindow.unsupportedschema', "The active editor must contain an openable resource."));
 		}
 	}
 }
@@ -785,6 +800,7 @@ export class CompareNewUntitledTextFilesAction extends Action2 {
 			title: CompareNewUntitledTextFilesAction.LABEL,
 			f1: true,
 			category: Categories.File,
+			precondition: IsSessionsWindowContext.negate(),
 			metadata: {
 				description: nls.localize2('compareNewUntitledTextFilesMeta', "Opens a new diff editor with two untitled files.")
 			}
@@ -816,6 +832,7 @@ export class CompareWithClipboardAction extends Action2 {
 			title: CompareWithClipboardAction.LABEL,
 			f1: true,
 			category: Categories.File,
+			precondition: IsSessionsWindowContext.negate(),
 			keybinding: { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyC), weight: KeybindingWeight.WorkbenchContrib },
 			metadata: {
 				description: nls.localize2('compareWithClipboardMeta', "Opens a new diff editor to compare the active file with the contents of the clipboard.")
@@ -894,8 +911,9 @@ async function openExplorerAndCreate(accessor: ServicesAccessor, isFolder: boole
 	const commandService = accessor.get(ICommandService);
 	const pathService = accessor.get(IPathService);
 
-	const wasHidden = !viewsService.isViewVisible(VIEW_ID);
-	const view = await viewsService.openView(VIEW_ID, true);
+	const explorerViewId = explorerService.getViewId() ?? VIEW_ID;
+	const wasHidden = !viewsService.isViewVisible(explorerViewId);
+	const view = await viewsService.openView(explorerViewId, true);
 	if (wasHidden) {
 		// Give explorer some time to resolve itself #111218
 		await timeout(500);
@@ -1020,7 +1038,7 @@ export const moveFileToTrashHandler = async (accessor: ServicesAccessor) => {
 	const explorerService = accessor.get(IExplorerService);
 	const stats = explorerService.getContext(true).filter(s => !s.isRoot);
 	if (stats.length) {
-		await deleteFiles(accessor.get(IExplorerService), accessor.get(IWorkingCopyFileService), accessor.get(IDialogService), accessor.get(IConfigurationService), stats, true);
+		await deleteFiles(accessor.get(IExplorerService), accessor.get(IWorkingCopyFileService), accessor.get(IDialogService), accessor.get(IConfigurationService), accessor.get(IFilesConfigurationService), stats, true);
 	}
 };
 
@@ -1029,7 +1047,7 @@ export const deleteFileHandler = async (accessor: ServicesAccessor) => {
 	const stats = explorerService.getContext(true).filter(s => !s.isRoot);
 
 	if (stats.length) {
-		await deleteFiles(accessor.get(IExplorerService), accessor.get(IWorkingCopyFileService), accessor.get(IDialogService), accessor.get(IConfigurationService), stats, false);
+		await deleteFiles(accessor.get(IExplorerService), accessor.get(IWorkingCopyFileService), accessor.get(IDialogService), accessor.get(IConfigurationService), accessor.get(IFilesConfigurationService), stats, false);
 	}
 };
 
@@ -1259,7 +1277,7 @@ export const pasteFileHandler = async (accessor: ServicesAccessor, fileList?: Fi
 			}
 		}
 	} catch (e) {
-		onError(notificationService, new Error(nls.localize('fileDeleted', "The file(s) to paste have been deleted or moved since you copied them. {0}", getErrorMessage(e))));
+		notificationService.error(toErrorMessage(new Error(nls.localize('fileDeleted', "The file(s) to paste have been deleted or moved since you copied them. {0}", getErrorMessage(e))), false));
 	} finally {
 		if (pasteShouldMove) {
 			// Cut is done. Make sure to clear cut state.
@@ -1324,7 +1342,7 @@ class BaseSetActiveEditorReadonlyInSession extends Action2 {
 			title,
 			f1: true,
 			category: Categories.File,
-			precondition: ActiveEditorCanToggleReadonlyContext
+			precondition: ContextKeyExpr.and(ActiveEditorCanToggleReadonlyContext, IsSessionsWindowContext.negate())
 		});
 	}
 

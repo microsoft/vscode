@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as http from 'http';
-import * as https from 'https';
+import type * as http from 'http';
+import type * as https from 'https';
 import { parse as parseUrl } from 'url';
-import { Promises } from '../../../base/common/async.js';
+import { Promises, timeout } from '../../../base/common/async.js';
 import { streamToBufferReadableStream } from '../../../base/common/buffer.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { CancellationError, getErrorMessage } from '../../../base/common/errors.js';
@@ -17,14 +17,28 @@ import { IConfigurationService } from '../../configuration/common/configuration.
 import { INativeEnvironmentService } from '../../environment/common/environment.js';
 import { getResolvedShellEnv } from '../../shell/node/shellEnv.js';
 import { ILogService } from '../../log/common/log.js';
-import { AbstractRequestService, AuthInfo, Credentials, IRequestService } from '../common/request.js';
+import { AbstractRequestService, AuthInfo, Credentials, IRequestService, systemCertificatesNodeDefault } from '../common/request.js';
 import { Agent, getProxyAgent } from './proxy.js';
 import { createGunzip } from 'zlib';
 
-interface IHTTPConfiguration {
-	proxy?: string;
-	proxyStrictSSL?: boolean;
-	proxyAuthorization?: string;
+const TRANSIENT_ERROR_CODES = new Set([
+	'EAI_AGAIN',     // DNS lookup timed out
+	'ECONNREFUSED',  // Connection refused by server
+	'EHOSTDOWN',     // Host is down
+	'EHOSTUNREACH',  // No route to host
+	'ENETDOWN',      // Network is down
+	'ENETUNREACH',   // Network is unreachable
+	'EPROTO'         // Protocol error (TLS/SSL handshake failure)
+]);
+
+const IDEMPOTENT_HTTP_METHODS_REGEX = /^(GET|HEAD|OPTIONS)$/i;
+
+function isTransientError(error: unknown): boolean {
+	if (error instanceof Error) {
+		const code = (error as NodeJS.ErrnoException).code;
+		return !!code && TRANSIENT_ERROR_CODES.has(code);
+	}
+	return false;
 }
 
 export interface IRawRequestFunction {
@@ -52,6 +66,7 @@ export class RequestService extends AbstractRequestService implements IRequestSe
 	private shellEnvErrorLogged?: boolean;
 
 	constructor(
+		private readonly machine: 'local' | 'remote',
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@INativeEnvironmentService private readonly environmentService: INativeEnvironmentService,
 		@ILogService logService: ILogService,
@@ -66,11 +81,9 @@ export class RequestService extends AbstractRequestService implements IRequestSe
 	}
 
 	private configure() {
-		const config = this.configurationService.getValue<IHTTPConfiguration | undefined>('http');
-
-		this.proxyUrl = config?.proxy;
-		this.strictSSL = !!config?.proxyStrictSSL;
-		this.authorization = config?.proxyAuthorization;
+		this.proxyUrl = this.getConfigValue<string>('http.proxy');
+		this.strictSSL = !!this.getConfigValue<boolean>('http.proxyStrictSSL');
+		this.authorization = this.getConfigValue<string>('http.proxyAuthorization');
 	}
 
 	async request(options: NodeRequestOptions, token: CancellationToken): Promise<IRequestContext> {
@@ -115,13 +128,8 @@ export class RequestService extends AbstractRequestService implements IRequestSe
 
 	async lookupKerberosAuthorization(urlStr: string): Promise<string | undefined> {
 		try {
-			const kerberos = await import('kerberos');
-			const url = new URL(urlStr);
-			const spn = this.configurationService.getValue<string>('http.proxyKerberosServicePrincipal')
-				|| (process.platform === 'win32' ? `HTTP/${url.hostname}` : `HTTP@${url.hostname}`);
-			this.logService.debug('RequestService#lookupKerberosAuthorization Kerberos authentication lookup', `proxyURL:${url}`, `spn:${spn}`);
-			const client = await kerberos.initializeClient(spn);
-			const response = await client.step('');
+			const spnConfig = this.getConfigValue<string>('http.proxyKerberosServicePrincipal');
+			const response = await lookupKerberosAuthorization(urlStr, spnConfig, this.logService, 'RequestService#lookupKerberosAuthorization');
 			return 'Negotiate ' + response;
 		} catch (err) {
 			this.logService.debug('RequestService#lookupKerberosAuthorization Kerberos authentication failed', err);
@@ -131,8 +139,30 @@ export class RequestService extends AbstractRequestService implements IRequestSe
 
 	async loadCertificates(): Promise<string[]> {
 		const proxyAgent = await import('@vscode/proxy-agent');
-		return proxyAgent.loadSystemCertificates({ log: this.logService });
+		return proxyAgent.loadSystemCertificates({
+			loadSystemCertificatesFromNode: () => this.getConfigValue<boolean>('http.systemCertificatesNode', systemCertificatesNodeDefault),
+			log: this.logService,
+		});
 	}
+
+	private getConfigValue<T>(key: string, fallback?: T): T | undefined {
+		if (this.machine === 'remote') {
+			return this.configurationService.getValue<T>(key);
+		}
+		const values = this.configurationService.inspect<T>(key);
+		return values.userLocalValue ?? values.defaultValue ?? fallback;
+	}
+}
+
+export async function lookupKerberosAuthorization(urlStr: string, spnConfig: string | undefined, logService: ILogService, logPrefix: string) {
+	const importKerberos = await import('kerberos');
+	const kerberos = importKerberos.default || importKerberos;
+	const url = new URL(urlStr);
+	const spn = spnConfig
+		|| (process.platform === 'win32' ? `HTTP/${url.hostname}` : `HTTP@${url.hostname}`);
+	logService.debug(`${logPrefix} Kerberos authentication lookup`, `proxyURL:${url}`, `spn:${spn}`);
+	const client = await kerberos.initializeClient(spn);
+	return client.step('');
 }
 
 async function getNodeRequest(options: IRequestOptions): Promise<IRawRequestFunction> {
@@ -143,13 +173,38 @@ async function getNodeRequest(options: IRequestOptions): Promise<IRawRequestFunc
 }
 
 export async function nodeRequest(options: NodeRequestOptions, token: CancellationToken): Promise<IRequestContext> {
+	const maxRetries = 3;
+	let lastError: Error | undefined;
+	const isIdempotent = IDEMPOTENT_HTTP_METHODS_REGEX.test(options.type || 'GET');
+
+	for (let attempt = 1; attempt <= maxRetries; attempt++) {
+		try {
+			return await nodeRequestAttempt(options, token);
+		} catch (error) {
+			lastError = error as Error;
+			if (error instanceof CancellationError) {
+				throw error;
+			}
+
+			if (!isIdempotent || !isTransientError(error) || attempt === maxRetries) {
+				throw error;
+			}
+
+			await timeout(100 * attempt, token);
+		}
+	}
+
+	throw lastError;
+}
+
+async function nodeRequestAttempt(options: NodeRequestOptions, token: CancellationToken): Promise<IRequestContext> {
 	return Promises.withAsyncBody<IRequestContext>(async (resolve, reject) => {
 		const endpoint = parseUrl(options.url!);
 		const rawRequest = options.getRawRequest
 			? options.getRawRequest(options)
 			: await getNodeRequest(options);
 
-		const opts: https.RequestOptions = {
+		const opts: https.RequestOptions & { cache?: 'default' | 'no-store' | 'reload' | 'no-cache' | 'force-cache' | 'only-if-cached' } = {
 			hostname: endpoint.hostname,
 			port: endpoint.port ? parseInt(endpoint.port) : (endpoint.protocol === 'https:' ? 443 : 80),
 			protocol: endpoint.protocol,
@@ -162,6 +217,10 @@ export async function nodeRequest(options: NodeRequestOptions, token: Cancellati
 
 		if (options.user && options.password) {
 			opts.auth = options.user + ':' + options.password;
+		}
+
+		if (options.disableCache) {
+			opts.cache = 'no-store';
 		}
 
 		const req = rawRequest(opts, (res: http.IncomingMessage) => {
@@ -190,8 +249,23 @@ export async function nodeRequest(options: NodeRequestOptions, token: Cancellati
 
 		req.on('error', reject);
 
+		// Handle timeout
 		if (options.timeout) {
-			req.setTimeout(options.timeout);
+			// Chromium network requests do not support the `timeout` option
+			if (options.isChromiumNetwork) {
+				// Use Node's setTimeout for Chromium network requests
+				const timeout = setTimeout(() => {
+					req.abort();
+					reject(new Error(`Request timeout after ${options.timeout}ms`));
+				}, options.timeout);
+
+				// Clear timeout when request completes
+				req.on('response', () => clearTimeout(timeout));
+				req.on('error', () => clearTimeout(timeout));
+				req.on('abort', () => clearTimeout(timeout));
+			} else {
+				req.setTimeout(options.timeout);
+			}
 		}
 
 		// Chromium will abort the request if forbidden headers are set.
@@ -209,10 +283,14 @@ export async function nodeRequest(options: NodeRequestOptions, token: Cancellati
 
 		req.end();
 
-		token.onCancellationRequested(() => {
+		const cancellationListener = token.onCancellationRequested(() => {
+			cancellationListener.dispose();
 			req.abort();
 
 			reject(new CancellationError());
 		});
+
+		req.on('response', () => cancellationListener.dispose());
+		req.on('error', () => cancellationListener.dispose());
 	});
 }

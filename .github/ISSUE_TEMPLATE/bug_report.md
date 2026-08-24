@@ -1,7 +1,12 @@
 ---
 name: Bug report
 about: Create a report to help us improve
+title: ''
+labels: ''
+assignees: ''
+
 ---
+
 <!-- ⚠️⚠️ Do Not Delete This! bug_report_template ⚠️⚠️ -->
 <!-- Please read our Rules of Conduct: https://opensource.microsoft.com/codeofconduct/ -->
 <!-- 🕮 Read our guide about submitting issues: https://github.com/microsoft/vscode/wiki/Submitting-Bugs-and-Suggestions -->
@@ -19,4 +24,4 @@ Does this issue occur when all extensions are disabled?: Yes/No
 Steps to Reproduce:
 
 1. 
-2. 
+2.

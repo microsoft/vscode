@@ -276,6 +276,11 @@ export interface ILifecycleService {
 	readonly onWillShutdown: Event<WillShutdownEvent>;
 
 	/**
+	 * A flag indicating that we are about to shutdown without further veto.
+	 */
+	readonly willShutdown: boolean;
+
+	/**
 	 * Fired when the shutdown is about to happen after long running shutdown operations
 	 * have finished (from `onWillShutdown`).
 	 *

@@ -43,6 +43,11 @@ export class SideBySideEditorInput extends EditorInput implements ISideBySideEdi
 			capabilities |= EditorInputCapabilities.Singleton;
 		}
 
+		// ForceReveal: should be considered for both sides
+		if (this.secondary.hasCapability(EditorInputCapabilities.ForceReveal)) {
+			capabilities |= EditorInputCapabilities.ForceReveal;
+		}
+
 		// Indicate we show more than one editor
 		capabilities |= EditorInputCapabilities.MultipleEditors;
 
@@ -60,7 +65,7 @@ export class SideBySideEditorInput extends EditorInput implements ISideBySideEdi
 		return undefined;
 	}
 
-	private hasIdenticalSides = this.primary.matches(this.secondary);
+	private hasIdenticalSides: boolean;
 
 	constructor(
 		protected readonly preferredName: string | undefined,
@@ -70,6 +75,8 @@ export class SideBySideEditorInput extends EditorInput implements ISideBySideEdi
 		@IEditorService private readonly editorService: IEditorService
 	) {
 		super();
+
+		this.hasIdenticalSides = this.primary.matches(this.secondary);
 
 		this.registerListeners();
 	}

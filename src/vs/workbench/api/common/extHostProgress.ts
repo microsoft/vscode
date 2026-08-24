@@ -4,22 +4,30 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ProgressOptions } from 'vscode';
-import { MainThreadProgressShape, ExtHostProgressShape } from './extHost.protocol.js';
+import { MainThreadProgressShape, ExtHostProgressShape, MainContext } from './extHost.protocol.js';
 import { ProgressLocation } from './extHostTypeConverters.js';
 import { Progress, IProgressStep } from '../../../platform/progress/common/progress.js';
 import { CancellationTokenSource, CancellationToken } from '../../../base/common/cancellation.js';
 import { throttle } from '../../../base/common/decorators.js';
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { onUnexpectedExternalError } from '../../../base/common/errors.js';
+import { INotificationSource } from '../../../platform/notification/common/notification.js';
+import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
+import { IExtHostRpcService } from './extHostRpcService.js';
+
+export interface IExtHostProgress extends ExtHostProgress { }
+export const IExtHostProgress = createDecorator<IExtHostProgress>('IExtHostProgress');
 
 export class ExtHostProgress implements ExtHostProgressShape {
+
+	declare readonly _serviceBrand: undefined;
 
 	private _proxy: MainThreadProgressShape;
 	private _handles: number = 0;
 	private _mapHandleToCancellationSource: Map<number, CancellationTokenSource> = new Map();
 
-	constructor(proxy: MainThreadProgressShape) {
-		this._proxy = proxy;
+	constructor(@IExtHostRpcService extHostRpc: IExtHostRpcService) {
+		this._proxy = extHostRpc.getProxy(MainContext.MainThreadProgress);
 	}
 
 	async withProgress<R>(extension: IExtensionDescription, options: ProgressOptions, task: (progress: Progress<IProgressStep>, token: CancellationToken) => Thenable<R>): Promise<R> {
@@ -28,6 +36,14 @@ export class ExtHostProgress implements ExtHostProgressShape {
 		const source = { label: extension.displayName || extension.name, id: extension.identifier.value };
 
 		this._proxy.$startProgress(handle, { location: ProgressLocation.from(location), title, source, cancellable }, !extension.isUnderDevelopment ? extension.identifier.value : undefined).catch(onUnexpectedExternalError);
+		return this._withProgress(handle, task, !!cancellable);
+	}
+
+	async withProgressFromSource<R>(source: string | INotificationSource, options: ProgressOptions, task: (progress: Progress<IProgressStep>, token: CancellationToken) => Thenable<R>): Promise<R> {
+		const handle = this._handles++;
+		const { title, location, cancellable } = options;
+
+		this._proxy.$startProgress(handle, { location: ProgressLocation.from(location), title, source, cancellable }, undefined).catch(onUnexpectedExternalError);
 		return this._withProgress(handle, task, !!cancellable);
 	}
 

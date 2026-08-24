@@ -8,7 +8,7 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { Event, Emitter } from '../../../../base/common/event.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { RawContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { RawContextKey, IContextKeyService, IContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IFilesConfiguration, AutoSaveConfiguration, HotExitConfiguration, FILES_READONLY_INCLUDE_CONFIG, FILES_READONLY_EXCLUDE_CONFIG, IFileStatWithMetadata, IFileService, IBaseFileStat, hasReadonlyCapability, IFilesConfigurationNode } from '../../../../platform/files/common/files.js';
 import { equals } from '../../../../base/common/objects.js';
@@ -92,6 +92,7 @@ export interface IFilesConfigurationService {
 
 	toggleAutoSave(): Promise<void>;
 
+	enableAutoSaveAfterShortDelay(resourceOrEditor: EditorInput | URI): IDisposable;
 	disableAutoSave(resourceOrEditor: EditorInput | URI): IDisposable;
 
 	//#endregion
@@ -102,7 +103,11 @@ export interface IFilesConfigurationService {
 
 	isReadonly(resource: URI, stat?: IBaseFileStat): boolean | IMarkdownString;
 
-	updateReadonly(resource: URI, readonly: true | false | 'toggle' | 'reset'): Promise<void>;
+	/**
+	 * Passing an IMarkdownString marks the resource read-only and displays it as the reason instead of the default session read-only message.
+	 */
+	updateReadonly(resource: URI, readonly: true | IMarkdownString | false | 'toggle' | 'reset'): Promise<void>;
+	updateReadonly(resource: URI[], readonly: true | IMarkdownString | false | 'reset'): Promise<void>;
 
 	//#endregion
 
@@ -147,18 +152,20 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 	private currentHotExitConfiguration: string;
 
 	private readonly autoSaveConfigurationCache = new LRUCache<URI, ICachedAutoSaveConfiguration>(1000);
+
+	private readonly autoSaveAfterShortDelayOverrides = new ResourceMap<number /* counter */>();
 	private readonly autoSaveDisabledOverrides = new ResourceMap<number /* counter */>();
 
-	private readonly autoSaveAfterShortDelayContext = AutoSaveAfterShortDelayContext.bindTo(this.contextKeyService);
+	private readonly autoSaveAfterShortDelayContext: IContextKey<boolean>;
 
 	private readonly readonlyIncludeMatcher = this._register(new GlobalIdleValue(() => this.createReadonlyMatcher(FILES_READONLY_INCLUDE_CONFIG)));
 	private readonly readonlyExcludeMatcher = this._register(new GlobalIdleValue(() => this.createReadonlyMatcher(FILES_READONLY_EXCLUDE_CONFIG)));
 	private configuredReadonlyFromPermissions: boolean | undefined;
 
-	private readonly sessionReadonlyOverrides = new ResourceMap<boolean>(resource => this.uriIdentityService.extUri.getComparisonKey(resource));
+	private readonly sessionReadonlyOverrides = new ResourceMap<boolean | IMarkdownString>(resource => this.uriIdentityService.extUri.getComparisonKey(resource));
 
 	constructor(
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
@@ -168,6 +175,8 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 		@ITextResourceConfigurationService private readonly textResourceConfigurationService: ITextResourceConfigurationService
 	) {
 		super();
+
+		this.autoSaveAfterShortDelayContext = AutoSaveAfterShortDelayContext.bindTo(contextKeyService);
 
 		const configuration = configurationService.getValue<IFilesConfiguration>();
 
@@ -208,6 +217,9 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 		if (typeof sessionReadonlyOverride === 'boolean') {
 			return sessionReadonlyOverride === true ? FilesConfigurationService.READONLY_MESSAGES.sessionReadonly : false;
 		}
+		if (sessionReadonlyOverride !== undefined) {
+			return sessionReadonlyOverride;
+		}
 
 		if (
 			this.uriIdentityService.extUri.isEqualOrParent(resource, this.environmentService.userRoamingDataHome) ||
@@ -234,7 +246,17 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 		return false;
 	}
 
-	async updateReadonly(resource: URI, readonly: true | false | 'toggle' | 'reset'): Promise<void> {
+	async updateReadonly(resource: URI | URI[], readonly: true | IMarkdownString | false | 'toggle' | 'reset'): Promise<void> {
+		if (Array.isArray(resource)) {
+			for (const r of resource) {
+				this.applyReadonly(r, readonly as true | IMarkdownString | false | 'reset');
+			}
+			if (resource.length > 0) {
+				this._onDidChangeReadonly.fire();
+			}
+			return;
+		}
+
 		if (readonly === 'toggle') {
 			let stat: IFileStatWithMetadata | undefined = undefined;
 			try {
@@ -246,13 +268,16 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 			readonly = !this.isReadonly(resource, stat);
 		}
 
+		this.applyReadonly(resource, readonly);
+		this._onDidChangeReadonly.fire();
+	}
+
+	private applyReadonly(resource: URI, readonly: true | IMarkdownString | false | 'reset'): void {
 		if (readonly === 'reset') {
 			this.sessionReadonlyOverrides.delete(resource);
 		} else {
 			this.sessionReadonlyOverrides.set(resource, readonly);
 		}
-
-		this._onDidChangeReadonly.fire();
 	}
 
 	private registerListeners(): void {
@@ -377,6 +402,11 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 
 	hasShortAutoSaveDelay(resourceOrEditor: EditorInput | URI | undefined): boolean {
 		const resource = this.toResource(resourceOrEditor);
+
+		if (resource && this.autoSaveAfterShortDelayOverrides.has(resource)) {
+			return true; // overridden to be enabled after short delay
+		}
+
 		if (this.getAutoSaveConfiguration(resource).isShortAutoSaveDelay) {
 			return !resource || !this.autoSaveDisabledOverrides.has(resource);
 		}
@@ -386,6 +416,10 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 
 	getAutoSaveMode(resourceOrEditor: EditorInput | URI | undefined, saveReason?: SaveReason): IAutoSaveMode {
 		const resource = this.toResource(resourceOrEditor);
+		if (resource && this.autoSaveAfterShortDelayOverrides.has(resource)) {
+			return { mode: AutoSaveMode.AFTER_SHORT_DELAY }; // overridden to be enabled after short delay
+		}
+
 		if (resource && this.autoSaveDisabledOverrides.has(resource)) {
 			return { mode: AutoSaveMode.OFF, reason: AutoSaveDisabledReason.DISABLED };
 		}
@@ -444,6 +478,25 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 		}
 
 		return this.configurationService.updateValue('files.autoSave', newAutoSaveValue);
+	}
+
+	enableAutoSaveAfterShortDelay(resourceOrEditor: EditorInput | URI): IDisposable {
+		const resource = this.toResource(resourceOrEditor);
+		if (!resource) {
+			return Disposable.None;
+		}
+
+		const counter = this.autoSaveAfterShortDelayOverrides.get(resource) ?? 0;
+		this.autoSaveAfterShortDelayOverrides.set(resource, counter + 1);
+
+		return toDisposable(() => {
+			const counter = this.autoSaveAfterShortDelayOverrides.get(resource) ?? 0;
+			if (counter <= 1) {
+				this.autoSaveAfterShortDelayOverrides.delete(resource);
+			} else {
+				this.autoSaveAfterShortDelayOverrides.set(resource, counter - 1);
+			}
+		});
 	}
 
 	disableAutoSave(resourceOrEditor: EditorInput | URI): IDisposable {

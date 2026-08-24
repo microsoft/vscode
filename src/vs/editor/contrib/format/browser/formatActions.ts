@@ -214,8 +214,7 @@ class FormatDocumentAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.formatDocument',
-			label: nls.localize('formatDocument.label', "Format Document"),
-			alias: 'Format Document',
+			label: nls.localize2('formatDocument.label', "Format Document"),
 			precondition: ContextKeyExpr.and(EditorContextKeys.notInCompositeEditor, EditorContextKeys.writable, EditorContextKeys.hasDocumentFormattingProvider),
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
@@ -247,8 +246,7 @@ class FormatSelectionAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.formatSelection',
-			label: nls.localize('formatSelection.label', "Format Selection"),
-			alias: 'Format Selection',
+			label: nls.localize2('formatSelection.label', "Format Selection"),
 			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasDocumentSelectionFormattingProvider),
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,

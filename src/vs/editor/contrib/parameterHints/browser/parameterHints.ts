@@ -77,8 +77,7 @@ export class TriggerParameterHintsAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.triggerParameterHints',
-			label: nls.localize('parameterHints.trigger.label', "Trigger Parameter Hints"),
-			alias: 'Trigger Parameter Hints',
+			label: nls.localize2('parameterHints.trigger.label', "Trigger Parameter Hints"),
 			precondition: EditorContextKeys.hasSignatureHelpProvider,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,

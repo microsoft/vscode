@@ -10,7 +10,7 @@ const offlineName = 'Offline';
 /**
  * Checks if the given error is offline error
  */
-export function isOfflineError(error: any): boolean {
+export function isOfflineError(error: unknown): boolean {
 	if (error instanceof OfflineError) {
 		return true;
 	}
@@ -45,6 +45,16 @@ export interface IRequestOptions {
 	data?: string;
 	followRedirects?: number;
 	proxyAuthorization?: string;
+	/**
+	 * A signal to not cache the response. This may not
+	 * be supported in all implementations.
+	 */
+	disableCache?: boolean;
+	/**
+	 * Identifies the call site making this request, used for telemetry.
+	 * Use "NO_FETCH_TELEMETRY" to opt out of request telemetry.
+	 */
+	callSite: string;
 }
 
 export interface IRequestContext {

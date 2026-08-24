@@ -66,4 +66,17 @@ export namespace CommentContextKeys {
 	 * The comment widget is focused.
 	 */
 	export const commentFocused = new RawContextKey<boolean>('commentFocused', false, { type: 'boolean', description: nls.localize('commentFocused', "Set when the comment is focused") });
+
+	/**
+	 * A context key that is set when a comment widget is visible in the editor.
+	 */
+	export const commentWidgetVisible = new RawContextKey<boolean>('commentWidgetVisible', false, { type: 'boolean', description: nls.localize('commentWidgetVisible', "Set when a comment widget is visible in the editor") });
+
+	/**
+	 * A context key that is set when commenting is enabled.
+	 */
+	export const commentingEnabled = new RawContextKey<boolean>('commentingEnabled', true, {
+		description: nls.localize('commentingEnabled', "Whether commenting functionality is enabled"),
+		type: 'boolean'
+	});
 }

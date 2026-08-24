@@ -99,11 +99,13 @@ suite('Terminal history', () => {
 			history.add('6', 6);
 			strictEqual(Array.from(history.entries).length, 5);
 			configurationService.setUserConfiguration('terminal', getConfig(2).terminal);
+			// eslint-disable-next-line local/code-no-any-casts
 			configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true } as any);
 			strictEqual(Array.from(history.entries).length, 2);
 			history.add('7', 7);
 			strictEqual(Array.from(history.entries).length, 2);
 			configurationService.setUserConfiguration('terminal', getConfig(3).terminal);
+			// eslint-disable-next-line local/code-no-any-casts
 			configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true } as any);
 			strictEqual(Array.from(history.entries).length, 2);
 			history.add('8', 8);
@@ -179,7 +181,7 @@ suite('Terminal history', () => {
 				});
 				test('current OS', async () => {
 					filePath = '/home/user/.bash_history';
-					deepStrictEqual(Array.from((await instantiationService.invokeFunction(fetchBashHistory))!), expectedCommands);
+					deepStrictEqual((await instantiationService.invokeFunction(fetchBashHistory))!.commands, expectedCommands);
 				});
 			});
 		}
@@ -205,105 +207,128 @@ suite('Terminal history', () => {
 			});
 			test('macOS', async () => {
 				remoteEnvironment = { os: OperatingSystem.Macintosh };
-				deepStrictEqual(Array.from((await instantiationService.invokeFunction(fetchBashHistory))!), expectedCommands);
+				deepStrictEqual((await instantiationService.invokeFunction(fetchBashHistory))!.commands, expectedCommands);
 			});
 			test('Linux', async () => {
 				remoteEnvironment = { os: OperatingSystem.Linux };
-				deepStrictEqual(Array.from((await instantiationService.invokeFunction(fetchBashHistory))!), expectedCommands);
+				deepStrictEqual((await instantiationService.invokeFunction(fetchBashHistory))!.commands, expectedCommands);
 			});
 		});
 	});
 	suite('fetchZshHistory', () => {
 		let fileScheme: string;
 		let filePath: string;
-		const fileContent: string = [
-			': 1655252330:0;single line command',
-			': 1655252330:0;git commit -m "A wrapped line in pwsh history\\',
-			'\\',
-			'Some commit description\\',
-			'\\',
-			'Fixes #xyz"',
-			': 1655252330:0;git status',
-			': 1655252330:0;two "\\',
-			'line"'
-		].join('\n');
+		const fileContentType = [
+			{
+				type: 'simple',
+				content: [
+					'single line command',
+					'git commit -m "A wrapped line in pwsh history\\',
+					'\\',
+					'Some commit description\\',
+					'\\',
+					'Fixes #xyz"',
+					'git status',
+					'two "\\',
+					'line"'
+				].join('\n')
+			},
+			{
+				type: 'extended',
+				content: [
+					': 1655252330:0;single line command',
+					': 1655252330:0;git commit -m "A wrapped line in pwsh history\\',
+					'\\',
+					'Some commit description\\',
+					'\\',
+					'Fixes #xyz"',
+					': 1655252330:0;git status',
+					': 1655252330:0;two "\\',
+					'line"'
+				].join('\n')
+			},
+		];
 
 		let instantiationService: TestInstantiationService;
 		let remoteConnection: Pick<IRemoteAgentConnection, 'remoteAuthority'> | null = null;
 		let remoteEnvironment: Pick<IRemoteAgentEnvironment, 'os'> | null = null;
 
-		setup(() => {
-			instantiationService = new TestInstantiationService();
-			instantiationService.stub(IFileService, {
-				async readFile(resource: URI) {
-					const expected = URI.from({ scheme: fileScheme, path: filePath });
-					strictEqual(resource.scheme, expected.scheme);
-					strictEqual(resource.path, expected.path);
-					return { value: VSBuffer.fromString(fileContent) };
-				}
-			} as Pick<IFileService, 'readFile'>);
-			instantiationService.stub(IRemoteAgentService, {
-				async getEnvironment() { return remoteEnvironment; },
-				getConnection() { return remoteConnection; }
-			} as Pick<IRemoteAgentService, 'getConnection' | 'getEnvironment'>);
-		});
-
-		teardown(() => {
-			instantiationService.dispose();
-		});
-
-		if (!isWindows) {
-			suite('local', () => {
-				let originalEnvValues: { HOME: string | undefined };
+		for (const { type, content } of fileContentType) {
+			suite(type, () => {
 				setup(() => {
-					originalEnvValues = { HOME: env['HOME'] };
-					env['HOME'] = '/home/user';
-					remoteConnection = { remoteAuthority: 'some-remote' };
-					fileScheme = Schemas.vscodeRemote;
-					filePath = '/home/user/.bash_history';
+					instantiationService = new TestInstantiationService();
+					instantiationService.stub(IFileService, {
+						async readFile(resource: URI) {
+							const expected = URI.from({ scheme: fileScheme, path: filePath });
+							strictEqual(resource.scheme, expected.scheme);
+							strictEqual(resource.path, expected.path);
+							return { value: VSBuffer.fromString(content) };
+						}
+					} as Pick<IFileService, 'readFile'>);
+					instantiationService.stub(IRemoteAgentService, {
+						async getEnvironment() { return remoteEnvironment; },
+						getConnection() { return remoteConnection; }
+					} as Pick<IRemoteAgentService, 'getConnection' | 'getEnvironment'>);
 				});
+
 				teardown(() => {
-					if (originalEnvValues['HOME'] === undefined) {
-						delete env['HOME'];
-					} else {
-						env['HOME'] = originalEnvValues['HOME'];
-					}
+					instantiationService.dispose();
 				});
-				test('current OS', async () => {
-					filePath = '/home/user/.zsh_history';
-					deepStrictEqual(Array.from((await instantiationService.invokeFunction(fetchZshHistory))!), expectedCommands);
+
+				if (!isWindows) {
+					suite('local', () => {
+						let originalEnvValues: { HOME: string | undefined };
+						setup(() => {
+							originalEnvValues = { HOME: env['HOME'] };
+							env['HOME'] = '/home/user';
+							remoteConnection = { remoteAuthority: 'some-remote' };
+							fileScheme = Schemas.vscodeRemote;
+							filePath = '/home/user/.bash_history';
+						});
+						teardown(() => {
+							if (originalEnvValues['HOME'] === undefined) {
+								delete env['HOME'];
+							} else {
+								env['HOME'] = originalEnvValues['HOME'];
+							}
+						});
+						test('current OS', async () => {
+							filePath = '/home/user/.zsh_history';
+							deepStrictEqual((await instantiationService.invokeFunction(fetchZshHistory))!.commands, expectedCommands);
+						});
+					});
+				}
+				suite('remote', () => {
+					let originalEnvValues: { HOME: string | undefined };
+					setup(() => {
+						originalEnvValues = { HOME: env['HOME'] };
+						env['HOME'] = '/home/user';
+						remoteConnection = { remoteAuthority: 'some-remote' };
+						fileScheme = Schemas.vscodeRemote;
+						filePath = '/home/user/.zsh_history';
+					});
+					teardown(() => {
+						if (originalEnvValues['HOME'] === undefined) {
+							delete env['HOME'];
+						} else {
+							env['HOME'] = originalEnvValues['HOME'];
+						}
+					});
+					test('Windows', async () => {
+						remoteEnvironment = { os: OperatingSystem.Windows };
+						strictEqual(await instantiationService.invokeFunction(fetchZshHistory), undefined);
+					});
+					test('macOS', async () => {
+						remoteEnvironment = { os: OperatingSystem.Macintosh };
+						deepStrictEqual((await instantiationService.invokeFunction(fetchZshHistory))!.commands, expectedCommands);
+					});
+					test('Linux', async () => {
+						remoteEnvironment = { os: OperatingSystem.Linux };
+						deepStrictEqual((await instantiationService.invokeFunction(fetchZshHistory))!.commands, expectedCommands);
+					});
 				});
 			});
 		}
-		suite('remote', () => {
-			let originalEnvValues: { HOME: string | undefined };
-			setup(() => {
-				originalEnvValues = { HOME: env['HOME'] };
-				env['HOME'] = '/home/user';
-				remoteConnection = { remoteAuthority: 'some-remote' };
-				fileScheme = Schemas.vscodeRemote;
-				filePath = '/home/user/.zsh_history';
-			});
-			teardown(() => {
-				if (originalEnvValues['HOME'] === undefined) {
-					delete env['HOME'];
-				} else {
-					env['HOME'] = originalEnvValues['HOME'];
-				}
-			});
-			test('Windows', async () => {
-				remoteEnvironment = { os: OperatingSystem.Windows };
-				strictEqual(await instantiationService.invokeFunction(fetchZshHistory), undefined);
-			});
-			test('macOS', async () => {
-				remoteEnvironment = { os: OperatingSystem.Macintosh };
-				deepStrictEqual(Array.from((await instantiationService.invokeFunction(fetchZshHistory))!), expectedCommands);
-			});
-			test('Linux', async () => {
-				remoteEnvironment = { os: OperatingSystem.Linux };
-				deepStrictEqual(Array.from((await instantiationService.invokeFunction(fetchZshHistory))!), expectedCommands);
-			});
-		});
 	});
 	suite('fetchPwshHistory', () => {
 		let fileScheme: string;
@@ -377,7 +402,7 @@ suite('Terminal history', () => {
 				} else {
 					filePath = join(env['HOME']!, '.local/share/powershell/PSReadline/ConsoleHost_history.txt');
 				}
-				deepStrictEqual(Array.from((await instantiationService.invokeFunction(fetchPwshHistory))!), expectedCommands);
+				deepStrictEqual((await instantiationService.invokeFunction(fetchPwshHistory))!.commands, expectedCommands);
 			});
 		});
 		suite('remote', () => {
@@ -403,19 +428,19 @@ suite('Terminal history', () => {
 				remoteEnvironment = { os: OperatingSystem.Windows };
 				env['APPDATA'] = 'C:\\AppData';
 				filePath = 'C:\\AppData\\Microsoft\\Windows\\PowerShell\\PSReadLine\\ConsoleHost_history.txt';
-				deepStrictEqual(Array.from((await instantiationService.invokeFunction(fetchPwshHistory))!), expectedCommands);
+				deepStrictEqual((await instantiationService.invokeFunction(fetchPwshHistory))!.commands, expectedCommands);
 			});
 			test('macOS', async () => {
 				remoteEnvironment = { os: OperatingSystem.Macintosh };
 				env['HOME'] = '/home/user';
 				filePath = '/home/user/.local/share/powershell/PSReadline/ConsoleHost_history.txt';
-				deepStrictEqual(Array.from((await instantiationService.invokeFunction(fetchPwshHistory))!), expectedCommands);
+				deepStrictEqual((await instantiationService.invokeFunction(fetchPwshHistory))!.commands, expectedCommands);
 			});
 			test('Linux', async () => {
 				remoteEnvironment = { os: OperatingSystem.Linux };
 				env['HOME'] = '/home/user';
 				filePath = '/home/user/.local/share/powershell/PSReadline/ConsoleHost_history.txt';
-				deepStrictEqual(Array.from((await instantiationService.invokeFunction(fetchPwshHistory))!), expectedCommands);
+				deepStrictEqual((await instantiationService.invokeFunction(fetchPwshHistory))!.commands, expectedCommands);
 			});
 		});
 	});
@@ -459,10 +484,11 @@ suite('Terminal history', () => {
 
 		if (!isWindows) {
 			suite('local', () => {
-				let originalEnvValues: { HOME: string | undefined };
+				let originalEnvValues: { HOME: string | undefined; XDG_DATA_HOME: string | undefined };
 				setup(() => {
-					originalEnvValues = { HOME: env['HOME'] };
+					originalEnvValues = { HOME: env['HOME'], XDG_DATA_HOME: env['XDG_DATA_HOME'] };
 					env['HOME'] = '/home/user';
+					delete env['XDG_DATA_HOME'];
 					remoteConnection = { remoteAuthority: 'some-remote' };
 					fileScheme = Schemas.vscodeRemote;
 					filePath = '/home/user/.local/share/fish/fish_history';
@@ -473,10 +499,15 @@ suite('Terminal history', () => {
 					} else {
 						env['HOME'] = originalEnvValues['HOME'];
 					}
+					if (originalEnvValues['XDG_DATA_HOME'] === undefined) {
+						delete env['XDG_DATA_HOME'];
+					} else {
+						env['XDG_DATA_HOME'] = originalEnvValues['XDG_DATA_HOME'];
+					}
 				});
 				test('current OS', async () => {
 					filePath = '/home/user/.local/share/fish/fish_history';
-					deepStrictEqual(Array.from((await instantiationService.invokeFunction(fetchFishHistory))!), expectedCommands);
+					deepStrictEqual((await instantiationService.invokeFunction(fetchFishHistory))!.commands, expectedCommands);
 				});
 			});
 
@@ -498,15 +529,16 @@ suite('Terminal history', () => {
 				});
 				test('current OS', async () => {
 					filePath = '/home/user/data-home/fish/fish_history';
-					deepStrictEqual(Array.from((await instantiationService.invokeFunction(fetchFishHistory))!), expectedCommands);
+					deepStrictEqual((await instantiationService.invokeFunction(fetchFishHistory))!.commands, expectedCommands);
 				});
 			});
 		}
 		suite('remote', () => {
-			let originalEnvValues: { HOME: string | undefined };
+			let originalEnvValues: { HOME: string | undefined; XDG_DATA_HOME: string | undefined };
 			setup(() => {
-				originalEnvValues = { HOME: env['HOME'] };
+				originalEnvValues = { HOME: env['HOME'], XDG_DATA_HOME: env['XDG_DATA_HOME'] };
 				env['HOME'] = '/home/user';
+				delete env['XDG_DATA_HOME'];
 				remoteConnection = { remoteAuthority: 'some-remote' };
 				fileScheme = Schemas.vscodeRemote;
 				filePath = '/home/user/.local/share/fish/fish_history';
@@ -517,6 +549,11 @@ suite('Terminal history', () => {
 				} else {
 					env['HOME'] = originalEnvValues['HOME'];
 				}
+				if (originalEnvValues['XDG_DATA_HOME'] === undefined) {
+					delete env['XDG_DATA_HOME'];
+				} else {
+					env['XDG_DATA_HOME'] = originalEnvValues['XDG_DATA_HOME'];
+				}
 			});
 			test('Windows', async () => {
 				remoteEnvironment = { os: OperatingSystem.Windows };
@@ -524,11 +561,11 @@ suite('Terminal history', () => {
 			});
 			test('macOS', async () => {
 				remoteEnvironment = { os: OperatingSystem.Macintosh };
-				deepStrictEqual(Array.from((await instantiationService.invokeFunction(fetchFishHistory))!), expectedCommands);
+				deepStrictEqual((await instantiationService.invokeFunction(fetchFishHistory))!.commands, expectedCommands);
 			});
 			test('Linux', async () => {
 				remoteEnvironment = { os: OperatingSystem.Linux };
-				deepStrictEqual(Array.from((await instantiationService.invokeFunction(fetchFishHistory))!), expectedCommands);
+				deepStrictEqual((await instantiationService.invokeFunction(fetchFishHistory))!.commands, expectedCommands);
 			});
 		});
 
@@ -554,11 +591,11 @@ suite('Terminal history', () => {
 			});
 			test('macOS', async () => {
 				remoteEnvironment = { os: OperatingSystem.Macintosh };
-				deepStrictEqual(Array.from((await instantiationService.invokeFunction(fetchFishHistory))!), expectedCommands);
+				deepStrictEqual((await instantiationService.invokeFunction(fetchFishHistory))!.commands, expectedCommands);
 			});
 			test('Linux', async () => {
 				remoteEnvironment = { os: OperatingSystem.Linux };
-				deepStrictEqual(Array.from((await instantiationService.invokeFunction(fetchFishHistory))!), expectedCommands);
+				deepStrictEqual((await instantiationService.invokeFunction(fetchFishHistory))!.commands, expectedCommands);
 			});
 		});
 

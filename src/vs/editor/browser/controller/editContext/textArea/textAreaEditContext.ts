@@ -6,6 +6,7 @@
 import './textAreaEditContext.css';
 import * as nls from '../../../../../nls.js';
 import * as browser from '../../../../../base/browser/browser.js';
+import { $ } from '../../../../../base/browser/dom.js';
 import { FastDomNode, createFastDomNode } from '../../../../../base/browser/fastDomNode.js';
 import { IKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import * as platform from '../../../../../base/common/platform.js';
@@ -36,10 +37,10 @@ import { IKeybindingService } from '../../../../../platform/keybinding/common/ke
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { AbstractEditContext } from '../editContext.js';
 import { ICompositionData, IPasteData, ITextAreaInputHost, TextAreaInput, TextAreaWrapper } from './textAreaEditContextInput.js';
-import { ariaLabelForScreenReaderContent, ISimpleModel, newlinecount, PagedScreenReaderStrategy } from '../screenReaderUtils.js';
-import { ClipboardDataToCopy, getDataToCopy } from '../clipboardUtils.js';
+import { ariaLabelForScreenReaderContent, newlinecount, SimplePagedScreenReaderStrategy } from '../screenReaderUtils.js';
 import { _debugComposition, ITypeData, TextAreaState } from './textAreaEditContextState.js';
 import { getMapForWordSeparators, WordCharacterClass } from '../../../../common/core/wordCharacterClassifier.js';
+import { TextAreaEditContextRegistry } from './textAreaEditContextRegistry.js';
 
 export interface IVisibleRangeProvider {
 	visibleRangeForPosition(position: Position): HorizontalPosition | null;
@@ -125,9 +126,7 @@ export class TextAreaEditContext extends AbstractEditContext {
 	private _contentWidth: number;
 	private _contentHeight: number;
 	private _fontInfo: FontInfo;
-	private _lineHeight: number;
 	private _emptySelectionClipboard: boolean;
-	private _copyWithSyntaxHighlighting: boolean;
 
 	/**
 	 * Defined only when the text area is visible (composition case).
@@ -147,6 +146,7 @@ export class TextAreaEditContext extends AbstractEditContext {
 	private readonly _textAreaInput: TextAreaInput;
 
 	constructor(
+		ownerID: string,
 		context: ViewContext,
 		overflowGuardContainer: FastDomNode<HTMLElement>,
 		viewController: ViewController,
@@ -169,9 +169,7 @@ export class TextAreaEditContext extends AbstractEditContext {
 		this._contentWidth = layoutInfo.contentWidth;
 		this._contentHeight = layoutInfo.height;
 		this._fontInfo = options.get(EditorOption.fontInfo);
-		this._lineHeight = options.get(EditorOption.lineHeight);
 		this._emptySelectionClipboard = options.get(EditorOption.emptySelectionClipboard);
-		this._copyWithSyntaxHighlighting = options.get(EditorOption.copyWithSyntaxHighlighting);
 
 		this._visibleTextArea = null;
 		this._selections = [new Selection(1, 1, 1, 1)];
@@ -205,28 +203,9 @@ export class TextAreaEditContext extends AbstractEditContext {
 		overflowGuardContainer.appendChild(this.textArea);
 		overflowGuardContainer.appendChild(this.textAreaCover);
 
-		const simpleModel: ISimpleModel = {
-			getLineCount: (): number => {
-				return this._context.viewModel.getLineCount();
-			},
-			getLineMaxColumn: (lineNumber: number): number => {
-				return this._context.viewModel.getLineMaxColumn(lineNumber);
-			},
-			getValueInRange: (range: Range, eol: EndOfLinePreference): string => {
-				return this._context.viewModel.getValueInRange(range, eol);
-			},
-			getValueLengthInRange: (range: Range, eol: EndOfLinePreference): number => {
-				return this._context.viewModel.getValueLengthInRange(range, eol);
-			},
-			modifyPosition: (position: Position, offset: number): Position => {
-				return this._context.viewModel.modifyPosition(position, offset);
-			}
-		};
-
+		const simplePagedScreenReaderStrategy = new SimplePagedScreenReaderStrategy();
 		const textAreaInputHost: ITextAreaInputHost = {
-			getDataToCopy: (): ClipboardDataToCopy => {
-				return getDataToCopy(this._context.viewModel, this._modelSelections, this._emptySelectionClipboard, this._copyWithSyntaxHighlighting);
-			},
+			context: this._context,
 			getScreenReaderContent: (): TextAreaState => {
 				if (this._accessibilitySupport === AccessibilitySupport.Disabled) {
 					// We know for a fact that a screen reader is not attached
@@ -250,8 +229,8 @@ export class TextAreaEditContext extends AbstractEditContext {
 					// thousand chars
 					// (https://github.com/microsoft/vscode/issues/27799)
 					const LIMIT_CHARS = 500;
-					if (platform.isMacintosh && !selection.isEmpty() && simpleModel.getValueLengthInRange(selection, EndOfLinePreference.TextDefined) < LIMIT_CHARS) {
-						const text = simpleModel.getValueInRange(selection, EndOfLinePreference.TextDefined);
+					if (platform.isMacintosh && !selection.isEmpty() && this._context.viewModel.getValueLengthInRange(selection, EndOfLinePreference.TextDefined) < LIMIT_CHARS) {
+						const text = this._context.viewModel.getValueInRange(selection, EndOfLinePreference.TextDefined);
 						return new TextAreaState(text, 0, text.length, selection, 0);
 					}
 
@@ -282,7 +261,7 @@ export class TextAreaEditContext extends AbstractEditContext {
 					return TextAreaState.EMPTY;
 				}
 
-				const screenReaderContentState = PagedScreenReaderStrategy.fromEditorSelection(simpleModel, this._selections[0], this._accessibilityPageSize, this._accessibilitySupport === AccessibilitySupport.Unknown);
+				const screenReaderContentState = simplePagedScreenReaderStrategy.fromEditorSelection(this._context.viewModel, this._selections[0], this._accessibilityPageSize, this._accessibilitySupport === AccessibilitySupport.Unknown);
 				return TextAreaState.fromScreenReaderContentState(screenReaderContentState);
 			},
 
@@ -298,6 +277,11 @@ export class TextAreaEditContext extends AbstractEditContext {
 			isFirefox: browser.isFirefox,
 			isSafari: browser.isSafari,
 		}));
+
+		// Relay clipboard events from TextAreaInput
+		this._register(this._textAreaInput.onWillCopy(e => this._onWillCopy.fire(e)));
+		this._register(this._textAreaInput.onWillCut(e => this._onWillCut.fire(e)));
+		this._register(this._textAreaInput.onWillPaste(e => this._onWillPaste.fire(e)));
 
 		this._register(this._textAreaInput.onKeyDown((e: IKeyboardEvent) => {
 			this._viewController.emitKeyDown(e);
@@ -464,6 +448,8 @@ export class TextAreaEditContext extends AbstractEditContext {
 		this._register(IME.onDidChange(() => {
 			this._ensureReadOnlyAttribute();
 		}));
+
+		this._register(TextAreaEditContextRegistry.register(ownerID, this));
 	}
 
 	public get domNode() {
@@ -474,6 +460,10 @@ export class TextAreaEditContext extends AbstractEditContext {
 		this._textAreaInput.writeNativeTextAreaContent(reason);
 	}
 
+	public getTextAreaDomNode(): HTMLTextAreaElement {
+		return this.textArea.domNode;
+	}
+
 	public override dispose(): void {
 		super.dispose();
 		this.textArea.domNode.remove();
@@ -481,6 +471,9 @@ export class TextAreaEditContext extends AbstractEditContext {
 	}
 
 	private _getAndroidWordAtPosition(position: Position): [string, number] {
+		if (position.lineNumber > this._context.viewModel.getLineCount()) {
+			return ['', 0];
+		}
 		const ANDROID_WORD_SEPARATORS = '`~!@#$%^&*()-=+[{]}\\|;:",.<>/?';
 		const lineContent = this._context.viewModel.getLineContent(position.lineNumber);
 		const wordSeparators = getMapForWordSeparators(ANDROID_WORD_SEPARATORS, []);
@@ -522,6 +515,9 @@ export class TextAreaEditContext extends AbstractEditContext {
 	}
 
 	private _getWordBeforePosition(position: Position): string {
+		if (position.lineNumber > this._context.viewModel.getLineCount()) {
+			return '';
+		}
 		const lineContent = this._context.viewModel.getLineContent(position.lineNumber);
 		const wordSeparators = getMapForWordSeparators(this._context.configuration.options.get(EditorOption.wordSeparators), []);
 
@@ -541,6 +537,9 @@ export class TextAreaEditContext extends AbstractEditContext {
 
 	private _getCharacterBeforePosition(position: Position): string {
 		if (position.column > 1) {
+			if (position.lineNumber > this._context.viewModel.getLineCount()) {
+				return '';
+			}
 			const lineContent = this._context.viewModel.getLineContent(position.lineNumber);
 			const charBefore = lineContent.charAt(position.column - 2);
 			if (!strings.isHighSurrogate(charBefore.charCodeAt(0))) {
@@ -587,9 +586,7 @@ export class TextAreaEditContext extends AbstractEditContext {
 		this._contentWidth = layoutInfo.contentWidth;
 		this._contentHeight = layoutInfo.height;
 		this._fontInfo = options.get(EditorOption.fontInfo);
-		this._lineHeight = options.get(EditorOption.lineHeight);
 		this._emptySelectionClipboard = options.get(EditorOption.emptySelectionClipboard);
-		this._copyWithSyntaxHighlighting = options.get(EditorOption.copyWithSyntaxHighlighting);
 		this.textArea.setAttribute('wrap', this._textAreaWrapping && !this._visibleTextArea ? 'on' : 'off');
 		const { tabSize } = this._context.viewModel.model.getOptions();
 		this.textArea.domNode.style.tabSize = `${tabSize * this._fontInfo.spaceWidth}px`;
@@ -741,6 +738,8 @@ export class TextAreaEditContext extends AbstractEditContext {
 				}
 
 				// Try to render the textarea with the color/font style to match the text under it
+				const lineHeight = this._context.viewLayout.getLineHeightForLineNumber(startPosition.lineNumber);
+				const fontSize = this._context.viewModel.getFontSizeAtPosition(this._primaryCursorPosition);
 				const viewLineData = this._context.viewModel.getViewLineData(startPosition.lineNumber);
 				const startTokenIndex = viewLineData.tokens.findTokenIndexAtOffset(startPosition.column - 1);
 				const endTokenIndex = viewLineData.tokens.findTokenIndexAtOffset(endPosition.column - 1);
@@ -749,7 +748,7 @@ export class TextAreaEditContext extends AbstractEditContext {
 					(textareaSpansSingleToken ? viewLineData.tokens.getPresentation(startTokenIndex) : null)
 				);
 
-				this.textArea.domNode.scrollTop = lineCount * this._lineHeight;
+				this.textArea.domNode.scrollTop = lineCount * lineHeight;
 				this.textArea.domNode.scrollLeft = scrollLeft;
 
 				this._doRender({
@@ -757,13 +756,14 @@ export class TextAreaEditContext extends AbstractEditContext {
 					top: top,
 					left: left,
 					width: width,
-					height: this._lineHeight,
+					height: lineHeight,
 					useCover: false,
 					color: (TokenizationRegistry.getColorMap() || [])[presentation.foreground],
 					italic: presentation.italic,
 					bold: presentation.bold,
 					underline: presentation.underline,
-					strikethrough: presentation.strikethrough
+					strikethrough: presentation.strikethrough,
+					fontSize
 				});
 			}
 			return;
@@ -794,19 +794,21 @@ export class TextAreaEditContext extends AbstractEditContext {
 		if (platform.isMacintosh || this._accessibilitySupport === AccessibilitySupport.Enabled) {
 			// For the popup emoji input, we will make the text area as high as the line height
 			// We will also make the fontSize and lineHeight the correct dimensions to help with the placement of these pickers
+			const lineNumber = this._primaryCursorPosition.lineNumber;
+			const lineHeight = this._context.viewLayout.getLineHeightForLineNumber(lineNumber);
 			this._doRender({
 				lastRenderPosition: this._primaryCursorPosition,
 				top,
 				left: this._textAreaWrapping ? this._contentLeft : left,
 				width: this._textAreaWidth,
-				height: this._lineHeight,
+				height: lineHeight,
 				useCover: false
 			});
 			// In case the textarea contains a word, we're going to try to align the textarea's cursor
 			// with our cursor by scrolling the textarea as much as possible
 			this.textArea.domNode.scrollLeft = this._primaryCursorVisibleRange.left;
 			const lineCount = this._textAreaInput.textAreaState.newlineCountBeforeSelection ?? newlinecount(this.textArea.domNode.value.substring(0, this.textArea.domNode.selectionStart));
-			this.textArea.domNode.scrollTop = lineCount * this._lineHeight;
+			this.textArea.domNode.scrollTop = lineCount * lineHeight;
 			return;
 		}
 
@@ -844,7 +846,9 @@ export class TextAreaEditContext extends AbstractEditContext {
 		ta.setLeft(renderData.left);
 		ta.setWidth(renderData.width);
 		ta.setHeight(renderData.height);
+		ta.setLineHeight(renderData.height);
 
+		ta.setFontSize(renderData.fontSize ?? this._fontInfo.fontSize);
 		ta.setColor(renderData.color ? Color.Format.CSS.formatHex(renderData.color) : '');
 		ta.setFontStyle(renderData.italic ? 'italic' : '');
 		if (renderData.bold) {
@@ -880,6 +884,7 @@ interface IRenderData {
 	height: number;
 	useCover: boolean;
 
+	fontSize?: string | null;
 	color?: Color | null;
 	italic?: boolean;
 	bold?: boolean;
@@ -892,12 +897,12 @@ function measureText(targetDocument: Document, text: string, fontInfo: FontInfo,
 		return 0;
 	}
 
-	const container = targetDocument.createElement('div');
+	const container = $<HTMLDivElement>('div');
 	container.style.position = 'absolute';
 	container.style.top = '-50000px';
 	container.style.width = '50000px';
 
-	const regularDomNode = targetDocument.createElement('span');
+	const regularDomNode = $<HTMLSpanElement>('span');
 	applyFontInfo(regularDomNode, fontInfo);
 	regularDomNode.style.whiteSpace = 'pre'; // just like the textarea
 	regularDomNode.style.tabSize = `${tabSize * fontInfo.spaceWidth}px`; // just like the textarea

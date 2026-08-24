@@ -15,7 +15,7 @@ import { URI } from '../../../base/common/uri.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IEnvironmentService } from '../../environment/common/environment.js';
 import { GlobalExtensionEnablementService } from '../../extensionManagement/common/extensionEnablementService.js';
-import { IExtensionGalleryService, IExtensionManagementService, IGlobalExtensionEnablementService, ILocalExtension, ExtensionManagementError, ExtensionManagementErrorCode, IGalleryExtension, DISABLED_EXTENSIONS_STORAGE_PATH, EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT, EXTENSION_INSTALL_SOURCE_CONTEXT, InstallExtensionInfo, ExtensionInstallSource } from '../../extensionManagement/common/extensionManagement.js';
+import { IExtensionGalleryService, IExtensionManagementService, IGlobalExtensionEnablementService, ILocalExtension, ExtensionManagementError, ExtensionManagementErrorCode, IGalleryExtension, DISABLED_EXTENSIONS_STORAGE_PATH, EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT, EXTENSION_INSTALL_SOURCE_CONTEXT, InstallExtensionInfo, ExtensionInstallSource, EXTENSION_INSTALL_SKIP_PUBLISHER_TRUST_CONTEXT } from '../../extensionManagement/common/extensionManagement.js';
 import { areSameExtensions } from '../../extensionManagement/common/extensionManagementUtil.js';
 import { ExtensionStorageService, IExtensionStorageService } from '../../extensionManagement/common/extensionStorage.js';
 import { ExtensionType, IExtensionIdentifier, isApplicationScopedExtension } from '../../extensions/common/extensions.js';
@@ -32,6 +32,7 @@ import { IMergeResult as IExtensionMergeResult, merge } from './extensionsMerge.
 import { IIgnoredExtensionsManagementService } from './ignoredExtensions.js';
 import { Change, IRemoteUserData, ISyncData, ISyncExtension, IUserDataSyncLocalStoreService, IUserDataSynchroniser, IUserDataSyncLogService, IUserDataSyncEnablementService, IUserDataSyncStoreService, SyncResource, USER_DATA_SYNC_SCHEME, ILocalSyncExtension } from './userDataSync.js';
 import { IUserDataProfileStorageService } from '../../userDataProfile/common/userDataProfileStorageService.js';
+import { IProductService } from '../../product/common/productService.js';
 
 type IExtensionResourceMergeResult = IAcceptResult & IExtensionMergeResult;
 
@@ -57,10 +58,10 @@ async function parseAndMigrateExtensions(syncData: ISyncData, extensionManagemen
 		for (const extension of extensions) {
 			// #region Migration from v1 (enabled -> disabled)
 			if (syncData.version === 1) {
-				if ((<any>extension).enabled === false) {
+				if (extension.enabled === false) {
 					extension.disabled = true;
 				}
-				delete (<any>extension).enabled;
+				delete extension.enabled;
 			}
 			// #endregion
 
@@ -242,7 +243,8 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 	private async acceptLocal(resourcePreview: IExtensionResourcePreview): Promise<IExtensionResourceMergeResult> {
 		const installedExtensions = await this.extensionManagementService.getInstalled(undefined, this.syncResource.profile.extensionsResource);
 		const ignoredExtensions = this.ignoredExtensionsManagementService.getIgnoredExtensions(installedExtensions);
-		const mergeResult = merge(resourcePreview.localExtensions, null, null, resourcePreview.skippedExtensions, ignoredExtensions, resourcePreview.builtinExtensions);
+		const remoteExtensions = resourcePreview.remoteContent ? JSON.parse(resourcePreview.remoteContent) : null;
+		const mergeResult = merge(resourcePreview.localExtensions, remoteExtensions, remoteExtensions, resourcePreview.skippedExtensions, ignoredExtensions, resourcePreview.builtinExtensions);
 		const { local, remote } = mergeResult;
 		return {
 			content: resourcePreview.localContent,
@@ -367,6 +369,7 @@ export class LocalExtensionsProvider {
 		@IIgnoredExtensionsManagementService private readonly ignoredExtensionsManagementService: IIgnoredExtensionsManagementService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IUserDataSyncLogService private readonly logService: IUserDataSyncLogService,
+		@IProductService private readonly productService: IProductService,
 	) { }
 
 	async getLocalExtensions(profile: IUserDataProfile): Promise<{ localExtensions: ILocalSyncExtension[]; ignoredExtensions: string[] }> {
@@ -377,21 +380,24 @@ export class LocalExtensionsProvider {
 			return installedExtensions
 				.map(extension => {
 					const { identifier, isBuiltin, manifest, preRelease, pinned, isApplicationScoped } = extension;
-					const syncExntesion: ILocalSyncExtension = { identifier, preRelease, version: manifest.version, pinned: !!pinned };
+					const syncExtension: ILocalSyncExtension = { identifier, preRelease, version: manifest.version, pinned: !!pinned };
 					if (isApplicationScoped && !isApplicationScopedExtension(manifest)) {
-						syncExntesion.isApplicationScoped = isApplicationScoped;
+						syncExtension.isApplicationScoped = isApplicationScoped;
+					}
+					if (this.productService.builtInExtensionsEnabledWithAutoUpdates?.some(id => id.toLowerCase() === identifier.id.toLowerCase())) {
+						syncExtension.isApplicationScoped = true;
 					}
 					if (disabledExtensions.some(disabledExtension => areSameExtensions(disabledExtension, identifier))) {
-						syncExntesion.disabled = true;
+						syncExtension.disabled = true;
 					}
 					if (!isBuiltin) {
-						syncExntesion.installed = true;
+						syncExtension.installed = true;
 					}
 					try {
 						const keys = extensionStorageService.getKeysForSync({ id: identifier.id, version: manifest.version });
 						if (keys) {
 							const extensionStorageState = extensionStorageService.getExtensionState(extension, true) || {};
-							syncExntesion.state = Object.keys(extensionStorageState).reduce((state: IStringDictionary<any>, key) => {
+							syncExtension.state = Object.keys(extensionStorageState).reduce((state: IStringDictionary<any>, key) => {
 								if (keys.includes(key)) {
 									state[key] = extensionStorageState[key];
 								}
@@ -401,7 +407,7 @@ export class LocalExtensionsProvider {
 					} catch (error) {
 						this.logService.info(`${getSyncResourceLogLabel(SyncResource.Extensions, profile)}: Error while parsing extension state`, getErrorMessage(error));
 					}
-					return syncExntesion;
+					return syncExtension;
 				});
 		});
 		return { localExtensions, ignoredExtensions };
@@ -477,7 +483,7 @@ export class LocalExtensionsProvider {
 								|| installedExtension.pinned !== e.pinned  // Install if the extension pinned preference has changed
 								|| (version && installedExtension.manifest.version !== version)  // Install if the extension version has changed
 							) {
-								if (await this.extensionManagementService.canInstall(extension)) {
+								if (await this.extensionManagementService.canInstall(extension) === true) {
 									extensionsToInstall.push({
 										extension, options: {
 											isMachineScoped: false /* set isMachineScoped value to prevent install and sync dialog in web */,
@@ -485,9 +491,10 @@ export class LocalExtensionsProvider {
 											installGivenVersion: e.pinned && !!e.version,
 											pinned: e.pinned,
 											installPreReleaseVersion: e.preRelease,
+											preRelease: e.preRelease,
 											profileLocation: profile.extensionsResource,
 											isApplicationScoped: e.isApplicationScoped,
-											context: { [EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT]: true, [EXTENSION_INSTALL_SOURCE_CONTEXT]: ExtensionInstallSource.SETTINGS_SYNC }
+											context: { [EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT]: true, [EXTENSION_INSTALL_SOURCE_CONTEXT]: ExtensionInstallSource.SETTINGS_SYNC, [EXTENSION_INSTALL_SKIP_PUBLISHER_TRUST_CONTEXT]: true }
 										}
 									});
 									syncExtensionsToInstall.set(extension.identifier.id.toLowerCase(), e);

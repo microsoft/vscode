@@ -133,14 +133,19 @@ export class CellEditorOptions extends CellContentPart implements ITextModelUpda
 				break;
 		}
 
+		const overrides: Partial<IEditorOptions> = {};
 		if (value.lineNumbers !== cellRenderLineNumber) {
-			return {
-				...value,
-				...{ lineNumbers: cellRenderLineNumber }
-			};
-		} else {
-			return Object.assign({}, value);
+			overrides.lineNumbers = cellRenderLineNumber;
 		}
+
+		if (this.notebookOptions.getLayoutConfiguration().disableRulers) {
+			overrides.rulers = [];
+		}
+
+		return {
+			...value,
+			...overrides,
+		};
 	}
 
 	getUpdatedValue(internalMetadata: NotebookCellInternalMetadata, cellUri: URI): IEditorOptions {
@@ -193,6 +198,7 @@ registerAction2(class ToggleLineNumberAction extends Action2 {
 		super({
 			id: 'notebook.toggleLineNumbers',
 			title: localize2('notebook.toggleLineNumbers', 'Toggle Notebook Line Numbers'),
+			shortTitle: localize2('notebook.toggleLineNumbers.short', 'Line Numbers'),
 			precondition: NOTEBOOK_EDITOR_FOCUSED,
 			menu: [
 				{
@@ -205,7 +211,7 @@ registerAction2(class ToggleLineNumberAction extends Action2 {
 			f1: true,
 			toggled: {
 				condition: ContextKeyExpr.notEquals('config.notebook.lineNumbers', 'off'),
-				title: localize('notebook.showLineNumbers', "Notebook Line Numbers"),
+				title: localize('notebook.showLineNumbers', "Line Numbers"),
 			}
 		});
 	}

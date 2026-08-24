@@ -5,7 +5,7 @@
 import assert from 'assert';
 import * as sinon from 'sinon';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { Match, FileMatch, SearchResult, SearchModel, FolderMatch, CellMatch } from '../../browser/searchModel.js';
+import { SearchModelImpl } from '../../browser/searchTreeModel/searchModel.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IFileMatch, TextSearchMatch, OneLineRange, ITextSearchMatch, QueryType } from '../../../../services/search/common/search.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
@@ -36,6 +36,12 @@ import { IContextKeyService } from '../../../../../platform/contextkey/common/co
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { CellMatch, NotebookCompatibleFileMatch } from '../../browser/notebookSearch/notebookSearchModel.js';
+import { INotebookFileInstanceMatch } from '../../browser/notebookSearch/notebookSearchModelBase.js';
+import { ISearchResult, ISearchTreeFolderMatch, isSearchTreeFolderMatchNoRoot, MATCH_PREFIX } from '../../browser/searchTreeModel/searchTreeCommon.js';
+import { FolderMatchImpl } from '../../browser/searchTreeModel/folderMatch.js';
+import { SearchResultImpl } from '../../browser/searchTreeModel/searchResult.js';
+import { MatchImpl } from '../../browser/searchTreeModel/match.js';
 
 const lineOneRange = new OneLineRange(1, 0, 1);
 
@@ -66,13 +72,13 @@ suite('SearchResult', () => {
 
 	test('Line Match', function () {
 		const fileMatch = aFileMatch('folder/file.txt', null!);
-		const lineMatch = new Match(fileMatch, ['0 foo bar'], new OneLineRange(0, 2, 5), new OneLineRange(1, 0, 5), false);
+		const lineMatch = new MatchImpl(fileMatch, ['0 foo bar'], new OneLineRange(0, 2, 5), new OneLineRange(1, 0, 5), false);
 		assert.strictEqual(lineMatch.text(), '0 foo bar');
 		assert.strictEqual(lineMatch.range().startLineNumber, 2);
 		assert.strictEqual(lineMatch.range().endLineNumber, 2);
 		assert.strictEqual(lineMatch.range().startColumn, 1);
 		assert.strictEqual(lineMatch.range().endColumn, 6);
-		assert.strictEqual(lineMatch.id(), 'file:///folder/file.txt>[2,1 -> 2,6]foo');
+		assert.strictEqual(lineMatch.id(), MATCH_PREFIX + 'file:///folder/file.txt>[2,1 -> 2,6]foo');
 
 		assert.strictEqual(lineMatch.fullMatchText(), 'foo');
 		assert.strictEqual(lineMatch.fullMatchText(true), '0 foo bar');
@@ -169,12 +175,12 @@ suite('SearchResult', () => {
 
 	test('Match -> FileMatch -> SearchResult hierarchy exists', function () {
 
-		const searchModel = instantiationService.createInstance(SearchModel);
+		const searchModel = instantiationService.createInstance(SearchModelImpl);
 		store.add(searchModel);
-		const searchResult = instantiationService.createInstance(SearchResult, searchModel);
+		const searchResult = instantiationService.createInstance(SearchResultImpl, searchModel);
 		store.add(searchResult);
 		const fileMatch = aFileMatch('far/boo', searchResult);
-		const lineMatch = new Match(fileMatch, ['foo bar'], new OneLineRange(0, 0, 3), new OneLineRange(1, 0, 3), false);
+		const lineMatch = new MatchImpl(fileMatch, ['foo bar'], new OneLineRange(0, 0, 3), new OneLineRange(1, 0, 3), false);
 
 		assert(lineMatch.parent() === fileMatch);
 		assert(fileMatch.parent() === searchResult.folderMatches()[0]);
@@ -245,7 +251,7 @@ suite('SearchResult', () => {
 
 		sinon.stub(CellMatch.prototype, 'addContext');
 
-		const addFileMatch = sinon.spy(FolderMatch.prototype, "addFileMatch");
+		const addFileMatch = sinon.spy(FolderMatchImpl.prototype, 'addFileMatch');
 		const fileMatch1 = aRawFileMatchWithCells('/1',
 			{
 				cell: cell1,
@@ -415,6 +421,65 @@ suite('SearchResult', () => {
 		assert.deepStrictEqual([{ elements: expectedArrayResult, removed: true, added: false }], target.args[0]);
 	});
 
+	test('batchRemove should remove FolderMatchNoRoot (Other files) correctly', function () {
+		const target = sinon.spy();
+		const testObject = aSearchResult();
+
+		testObject.query = {
+			type: QueryType.Text,
+			contentPattern: { pattern: 'foo' },
+			folderQueries: [{
+				folder: createFileUriFromPathFromRoot('/workspace')
+			}]
+		};
+
+		// Add a file inside the workspace folder
+		addToSearchResult(testObject, [
+			aRawMatch('/workspace/file.txt',
+				new TextSearchMatch('preview 1', lineOneRange)),
+		]);
+
+		// Add a file outside of the workspace folder (goes to "Other files")
+		addToSearchResult(testObject, [
+			aRawMatch('/other/outside.txt',
+				new TextSearchMatch('preview 2', lineOneRange)),
+		]);
+
+		// Should have 2 folder matches: workspace root and "Other files"
+		const folderMatches = testObject.folderMatches();
+		assert.strictEqual(folderMatches.length, 2);
+
+		// Find the "Other files" folder match (FolderMatchNoRoot)
+		const otherFilesMatch = folderMatches.find(fm => isSearchTreeFolderMatchNoRoot(fm));
+		assert.ok(otherFilesMatch, 'Should have an Other files folder match');
+		assert.strictEqual(otherFilesMatch.allDownstreamFileMatches().length, 1);
+
+		store.add(testObject.onChange(target));
+		testObject.batchRemove([otherFilesMatch]);
+
+		assert.ok(target.calledOnce);
+		// After removal, the Other files folder should be cleared
+		assert.strictEqual(otherFilesMatch.allDownstreamFileMatches().length, 0);
+	});
+
+	test('folder matches are not retained across queries', function () {
+		const testObject = aSearchResult();
+		const disposeSpies = testObject.folderMatches().map(folderMatch => sinon.spy(folderMatch, 'dispose'));
+
+		for (const folder of ['/second', '/third']) {
+			testObject.query = {
+				type: QueryType.Text,
+				contentPattern: { pattern: '' },
+				folderQueries: [{ folder: createFileUriFromPathFromRoot(folder) }]
+			};
+			testObject.add([], 'test', false);
+		}
+
+		testObject.dispose();
+
+		assert.deepStrictEqual(disposeSpies.map(spy => spy.callCount), [1, 1]);
+	});
+
 	test('batchReplace should trigger the onChange event correctly', async function () {
 		const replaceSpy = sinon.spy();
 		instantiationService.stub(IReplaceService, 'replace', (arg: any) => {
@@ -460,7 +525,7 @@ suite('SearchResult', () => {
 		assert.deepStrictEqual(getFolderMatchAtIndex(root0, 0).allDownstreamFileMatches(), Array.from(getFolderMatchAtIndex(root0, 0).fileMatchesIterator()));
 		assert.deepStrictEqual(getFileMatchAtIndex(getFolderMatchAtIndex(root0, 0), 0).parent(), getFolderMatchAtIndex(root0, 0));
 		assert.deepStrictEqual(getFolderMatchAtIndex(root0, 0).parent(), root0);
-		assert.deepStrictEqual(getFolderMatchAtIndex(root0, 0).closestRoot, root0);
+		assert.deepStrictEqual((getFolderMatchAtIndex(root0, 0) as FolderMatchImpl).closestRoot, root0);
 		root0DownstreamFiles.forEach((e) => {
 			assert.deepStrictEqual(e.closestRoot, root0);
 		});
@@ -520,7 +585,7 @@ suite('SearchResult', () => {
 
 	});
 
-	function aFileMatch(path: string, searchResult: SearchResult | undefined, ...lineMatches: ITextSearchMatch[]): FileMatch {
+	function aFileMatch(path: string, searchResult: ISearchResult | undefined, ...lineMatches: ITextSearchMatch[]): INotebookFileInstanceMatch {
 		if (!searchResult) {
 			searchResult = aSearchResult();
 		}
@@ -529,17 +594,17 @@ suite('SearchResult', () => {
 			results: lineMatches
 		};
 		const root = searchResult?.folderMatches()[0];
-		const fileMatch = instantiationService.createInstance(FileMatch, {
+		const fileMatch = instantiationService.createInstance(NotebookCompatibleFileMatch, {
 			pattern: ''
 		}, undefined, undefined, root, rawMatch, null, '');
-		fileMatch.createMatches(false);
+		fileMatch.createMatches();
 
 		store.add(fileMatch);
 		return fileMatch;
 	}
 
-	function aSearchResult(): SearchResult {
-		const searchModel = instantiationService.createInstance(SearchModel);
+	function aSearchResult(): ISearchResult {
+		const searchModel = instantiationService.createInstance(SearchModelImpl);
 		store.add(searchModel);
 		searchModel.searchResult.query = {
 			type: QueryType.Text, folderQueries: [{ folder: createFileUriFromPathFromRoot() }], contentPattern: {
@@ -669,11 +734,11 @@ suite('SearchResult', () => {
 		return testObject;
 	}
 
-	function getFolderMatchAtIndex(parent: FolderMatch, index: number) {
+	function getFolderMatchAtIndex(parent: ISearchTreeFolderMatch, index: number) {
 		return Array.from(parent.folderMatchesIterator())[index];
 	}
 
-	function getFileMatchAtIndex(parent: FolderMatch, index: number) {
+	function getFileMatchAtIndex(parent: ISearchTreeFolderMatch, index: number) {
 		return Array.from(parent.fileMatchesIterator())[index];
 	}
 });

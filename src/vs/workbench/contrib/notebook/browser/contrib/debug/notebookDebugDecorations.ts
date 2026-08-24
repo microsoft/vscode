@@ -10,7 +10,7 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { debugIconBreakpointForeground } from '../../../../debug/browser/breakpointEditorContribution.js';
 import { focusedStackFrameColor, topStackFrameColor } from '../../../../debug/browser/callStackEditorContribution.js';
 import { IDebugService, IStackFrame } from '../../../../debug/common/debug.js';
-import { INotebookCellDecorationOptions, INotebookDeltaDecoration, INotebookEditor, INotebookEditorContribution, NotebookOverviewRulerLane } from '../../notebookBrowser.js';
+import { INotebookCellDecorationOptions, INotebookDeltaCellDecoration, INotebookEditor, INotebookEditorContribution, NotebookOverviewRulerLane } from '../../notebookBrowser.js';
 import { registerNotebookContribution } from '../../notebookEditorExtensions.js';
 import { runningCellRulerDecorationColor } from '../../notebookEditorWidget.js';
 import { CellUri, NotebookCellExecutionState } from '../../../common/notebookCommon.js';
@@ -96,7 +96,7 @@ export class PausedCellDecorationContribution extends Disposable implements INot
 	}
 
 	private setTopFrameDecoration(handlesAndRanges: ICellAndRange[]): void {
-		const newDecorations = handlesAndRanges.map(({ handle, range }) => {
+		const newDecorations: INotebookDeltaCellDecoration[] = handlesAndRanges.map(({ handle, range }) => {
 			const options: INotebookCellDecorationOptions = {
 				overviewRuler: {
 					color: topStackFrameColor,
@@ -105,14 +105,17 @@ export class PausedCellDecorationContribution extends Disposable implements INot
 					position: NotebookOverviewRulerLane.Full
 				}
 			};
-			return { handle, options };
+			return {
+				handle,
+				options
+			};
 		});
 
 		this._currentTopDecorations = this._notebookEditor.deltaCellDecorations(this._currentTopDecorations, newDecorations);
 	}
 
 	private setFocusedFrameDecoration(focusedFrameCellAndRange: ICellAndRange | undefined): void {
-		let newDecorations: INotebookDeltaDecoration[] = [];
+		let newDecorations: INotebookDeltaCellDecoration[] = [];
 		if (focusedFrameCellAndRange) {
 			const options: INotebookCellDecorationOptions = {
 				overviewRuler: {
@@ -122,14 +125,17 @@ export class PausedCellDecorationContribution extends Disposable implements INot
 					position: NotebookOverviewRulerLane.Full
 				}
 			};
-			newDecorations = [{ handle: focusedFrameCellAndRange.handle, options }];
+			newDecorations = [{
+				handle: focusedFrameCellAndRange.handle,
+				options
+			}];
 		}
 
 		this._currentOtherDecorations = this._notebookEditor.deltaCellDecorations(this._currentOtherDecorations, newDecorations);
 	}
 
 	private setExecutingCellDecorations(handles: number[]): void {
-		const newDecorations = handles.map(handle => {
+		const newDecorations: INotebookDeltaCellDecoration[] = handles.map(handle => {
 			const options: INotebookCellDecorationOptions = {
 				overviewRuler: {
 					color: runningCellRulerDecorationColor,
@@ -138,7 +144,10 @@ export class PausedCellDecorationContribution extends Disposable implements INot
 					position: NotebookOverviewRulerLane.Left
 				}
 			};
-			return { handle, options };
+			return {
+				handle,
+				options
+			};
 		});
 
 		this._executingCellDecorations = this._notebookEditor.deltaCellDecorations(this._executingCellDecorations, newDecorations);
@@ -180,7 +189,7 @@ export class NotebookBreakpointDecorations extends Disposable implements INotebo
 					}
 				};
 				return { handle: parsed.handle, options };
-			}).filter(x => !!x) as INotebookDeltaDecoration[]
+			}).filter(x => !!x) as INotebookDeltaCellDecoration[]
 			: [];
 		this._currentDecorations = this._notebookEditor.deltaCellDecorations(this._currentDecorations, newDecorations);
 	}

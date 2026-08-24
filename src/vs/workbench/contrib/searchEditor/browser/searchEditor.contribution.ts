@@ -28,15 +28,18 @@ import * as SearchConstants from '../../search/common/constants.js';
 import * as SearchEditorConstants from './constants.js';
 import { SearchEditor } from './searchEditor.js';
 import { createEditorFromSearchResult, modifySearchEditorContextLinesCommand, openNewSearchEditor, openSearchEditor, selectAllSearchEditorMatchesCommand, toggleSearchEditorCaseSensitiveCommand, toggleSearchEditorContextLinesCommand, toggleSearchEditorRegexCommand, toggleSearchEditorWholeWordCommand } from './searchEditorActions.js';
-import { getOrMakeSearchEditorInput, SearchConfiguration, SearchEditorInput, SEARCH_EDITOR_EXT } from './searchEditorInput.js';
+import { getOrMakeSearchEditorInput, SearchEditorInput, SEARCH_EDITOR_EXT } from './searchEditorInput.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { VIEW_ID } from '../../../services/search/common/search.js';
+import { searchConfigurationNode } from '../../search/common/search.js';
 import { RegisteredEditorPriority, IEditorResolverService } from '../../../services/editor/common/editorResolverService.js';
 import { IWorkingCopyEditorHandler, IWorkingCopyEditorService } from '../../../services/workingCopy/common/workingCopyEditorService.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IWorkingCopyIdentifier } from '../../../services/workingCopy/common/workingCopy.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { getActiveElement } from '../../../../base/browser/dom.js';
+import * as nls from '../../../../nls.js';
+import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 
 
 const OpenInEditorCommandId = 'search.action.openInEditor';
@@ -56,6 +59,49 @@ const CleanSearchEditorStateCommandId = 'cleanSearchEditorState';
 const SelectAllSearchEditorMatchesCommandId = 'selectAllSearchEditorMatches';
 
 
+//#region Search Editor Configuration
+Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
+	...searchConfigurationNode,
+	properties: {
+		'search.searchEditor.doubleClickBehaviour': {
+			type: 'string',
+			enum: ['selectWord', 'goToLocation', 'openLocationToSide'],
+			default: 'goToLocation',
+			enumDescriptions: [
+				nls.localize('search.searchEditor.doubleClickBehaviour.selectWord', "Double-clicking selects the word under the cursor."),
+				nls.localize('search.searchEditor.doubleClickBehaviour.goToLocation', "Double-clicking opens the result in the active editor group."),
+				nls.localize('search.searchEditor.doubleClickBehaviour.openLocationToSide', "Double-clicking opens the result in the editor group to the side, creating one if it does not yet exist."),
+			],
+			markdownDescription: nls.localize('search.searchEditor.doubleClickBehaviour', "Configure effect of double-clicking a result in a search editor.")
+		},
+		'search.searchEditor.singleClickBehaviour': {
+			type: 'string',
+			enum: ['default', 'peekDefinition'],
+			default: 'default',
+			enumDescriptions: [
+				nls.localize('search.searchEditor.singleClickBehaviour.default', "Single-clicking does nothing."),
+				nls.localize('search.searchEditor.singleClickBehaviour.peekDefinition', "Single-clicking opens a Peek Definition window."),
+			],
+			markdownDescription: nls.localize('search.searchEditor.singleClickBehaviour', "Configure effect of single-clicking a result in a search editor.")
+		},
+		'search.searchEditor.reusePriorSearchConfiguration': {
+			type: 'boolean',
+			default: false,
+			markdownDescription: nls.localize({ key: 'search.searchEditor.reusePriorSearchConfiguration', comment: ['"Search Editor" is a type of editor that can display search results. "includes, excludes, and flags" refers to the "files to include" and "files to exclude" input boxes, and the flags that control whether a query is case-sensitive or a regex.'] }, "When enabled, new Search Editors will reuse the includes, excludes, and flags of the previously opened Search Editor.")
+		},
+		'search.searchEditor.defaultNumberOfContextLines': {
+			type: ['number', 'null'],
+			default: 1,
+			markdownDescription: nls.localize('search.searchEditor.defaultNumberOfContextLines', "The default number of surrounding context lines to use when creating new Search Editors. If using `#search.searchEditor.reusePriorSearchConfiguration#`, this can be set to `null` (empty) to use the prior Search Editor's configuration.")
+		},
+		'search.searchEditor.focusResultsOnSearch': {
+			type: 'boolean',
+			default: false,
+			markdownDescription: nls.localize('search.searchEditor.focusResultsOnSearch', "When a search is triggered, focus the Search Editor results instead of the Search Editor input.")
+		},
+	}
+});
+//#endregion
 
 //#region Editor Descriptior
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
@@ -104,7 +150,7 @@ registerWorkbenchContribution2(SearchEditorContribution.ID, SearchEditorContribu
 //#endregion
 
 //#region Input Serializer
-type SerializedSearchEditor = { modelUri: string | undefined; dirty: boolean; config?: SearchConfiguration; name: string; matchRanges: Range[]; backingUri?: string };
+type SerializedSearchEditor = { modelUri: string | undefined; dirty: boolean; config?: SearchEditorConstants.SearchConfiguration; name: string; matchRanges: Range[]; backingUri?: string };
 
 class SearchEditorInputSerializer implements IEditorSerializer {
 
@@ -202,12 +248,13 @@ const translateLegacyConfig = (legacyConfig: LegacySearchEditorArgs & OpenSearch
 		useIgnores: 'useExcludeSettingsAndIgnoreFiles',
 	};
 	Object.entries(legacyConfig).forEach(([key, value]) => {
+		// eslint-disable-next-line local/code-no-any-casts
 		(config as any)[(overrides as any)[key] ?? key] = value;
 	});
 	return config;
 };
 
-export type OpenSearchEditorArgs = Partial<SearchConfiguration & { triggerSearch: boolean; focusResults: boolean; location: 'reuse' | 'new' }>;
+export type OpenSearchEditorArgs = Partial<SearchEditorConstants.SearchConfiguration & { triggerSearch: boolean; focusResults: boolean; location: 'reuse' | 'new' }>;
 const openArgMetadata = {
 	description: 'Open a new search editor. Arguments passed can include variables like ${relativeFileDirname}.',
 	args: [{
@@ -338,11 +385,11 @@ registerAction2(class extends Action2 {
 				weight: KeybindingWeight.EditorContrib
 			},
 			icon: searchRefreshIcon,
-			menu: [{
-				id: MenuId.EditorTitle,
+			menu: [...[MenuId.EditorTitle, MenuId.CompactWindowEditorTitle].map(id => ({
+				id,
 				group: 'navigation',
 				when: ActiveEditorContext.isEqualTo(SearchEditorConstants.SearchEditorID)
-			},
+			})),
 			{
 				id: MenuId.CommandPalette,
 				when: ActiveEditorContext.isEqualTo(SearchEditorConstants.SearchEditorID)
@@ -564,7 +611,7 @@ registerAction2(class OpenSearchEditorAction extends Action2 {
 			}]
 		});
 	}
-	run(accessor: ServicesAccessor, ...args: any[]) {
+	run(accessor: ServicesAccessor, ...args: unknown[]) {
 		return openSearchEditor(accessor);
 	}
 });

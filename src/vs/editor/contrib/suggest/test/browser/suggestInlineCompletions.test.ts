@@ -11,7 +11,7 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { Position } from '../../../../common/core/position.js';
 import { Range } from '../../../../common/core/range.js';
-import { CompletionContext, CompletionItem, CompletionItemKind, CompletionItemProvider, CompletionList, InlineCompletionTriggerKind, ProviderResult } from '../../../../common/languages.js';
+import { CompletionContext, CompletionItem, CompletionItemKind, CompletionItemProvider, CompletionList, InlineCompletionContext, InlineCompletionTriggerKind, ProviderResult } from '../../../../common/languages.js';
 import { ITextModel } from '../../../../common/model.js';
 import { TextModel } from '../../../../common/model/textModel.js';
 import { ILanguageFeaturesService } from '../../../../common/services/languageFeatures.js';
@@ -21,6 +21,7 @@ import { createCodeEditorServices, instantiateTestCodeEditor, ITestCodeEditor } 
 import { createTextModel } from '../../../../test/common/testTextModel.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
 
 
 suite('Suggest Inline Completions', function () {
@@ -74,19 +75,21 @@ suite('Suggest Inline Completions', function () {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	const context: InlineCompletionContext = { triggerKind: InlineCompletionTriggerKind.Explicit, selectedSuggestionInfo: undefined, includeInlineCompletions: true, includeInlineEdits: false, requestUuid: generateUuid(), requestIssuedDateTime: 0, earliestShownDateTime: 0 };
+
 	test('Aggressive inline completions when typing within line #146948', async function () {
 
 		const completions: SuggestInlineCompletions = disposables.add(insta.createInstance(SuggestInlineCompletions));
 
 		{
 			// (1,3), end of word -> suggestions
-			const result = await completions.provideInlineCompletions(model, new Position(1, 3), { triggerKind: InlineCompletionTriggerKind.Explicit, selectedSuggestionInfo: undefined }, CancellationToken.None);
+			const result = await completions.provideInlineCompletions(model, new Position(1, 3), context, CancellationToken.None);
 			assert.strictEqual(result?.items.length, 3);
-			completions.freeInlineCompletions(result);
+			completions.disposeInlineCompletions(result);
 		}
 		{
 			// (1,2), middle of word -> NO suggestions
-			const result = await completions.provideInlineCompletions(model, new Position(1, 2), { triggerKind: InlineCompletionTriggerKind.Explicit, selectedSuggestionInfo: undefined }, CancellationToken.None);
+			const result = await completions.provideInlineCompletions(model, new Position(1, 2), context, CancellationToken.None);
 			assert.ok(result === undefined);
 		}
 	});
@@ -96,17 +99,17 @@ suite('Suggest Inline Completions', function () {
 
 		{
 			// unfiltered
-			const result = await completions.provideInlineCompletions(model, new Position(1, 3), { triggerKind: InlineCompletionTriggerKind.Explicit, selectedSuggestionInfo: undefined }, CancellationToken.None);
+			const result = await completions.provideInlineCompletions(model, new Position(1, 3), context, CancellationToken.None);
 			assert.strictEqual(result?.items.length, 3);
-			completions.freeInlineCompletions(result);
+			completions.disposeInlineCompletions(result);
 		}
 
 		{
 			// filtered
 			editor.updateOptions({ suggest: { showSnippets: false } });
-			const result = await completions.provideInlineCompletions(model, new Position(1, 3), { triggerKind: InlineCompletionTriggerKind.Explicit, selectedSuggestionInfo: undefined }, CancellationToken.None);
+			const result = await completions.provideInlineCompletions(model, new Position(1, 3), context, CancellationToken.None);
 			assert.strictEqual(result?.items.length, 2);
-			completions.freeInlineCompletions(result);
+			completions.disposeInlineCompletions(result);
 		}
 
 	});

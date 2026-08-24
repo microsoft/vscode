@@ -16,10 +16,11 @@ import { Selection } from '../../../../../editor/common/core/selection.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchListOptionsUpdate } from '../../../../../platform/list/browser/listService.js';
-import { CellRevealRangeType, CellRevealType, ICellOutputViewModel, ICellViewModel, INotebookViewZoneChangeAccessor } from '../notebookBrowser.js';
+import { CellRevealRangeType, CellRevealType, ICellOutputViewModel, ICellViewModel, INotebookCellOverlayChangeAccessor, INotebookViewZoneChangeAccessor } from '../notebookBrowser.js';
 import { CellPartsCollection } from './cellPart.js';
 import { CellViewModel, NotebookViewModel } from '../viewModel/notebookViewModelImpl.js';
 import { ICellRange } from '../../common/notebookRange.js';
+import { createTrustedTypesPolicy } from '../../../../../base/browser/trustedTypes.js';
 
 
 export interface INotebookCellList extends ICoordinatesConverter {
@@ -31,11 +32,11 @@ export interface INotebookCellList extends ICoordinatesConverter {
 	element(index: number): ICellViewModel | undefined;
 	elementAt(position: number): ICellViewModel | undefined;
 	elementHeight(element: ICellViewModel): number;
-	onWillScroll: Event<ScrollEvent>;
-	onDidScroll: Event<ScrollEvent>;
-	onDidChangeFocus: Event<IListEvent<ICellViewModel>>;
-	onDidChangeContentHeight: Event<number>;
-	onDidChangeVisibleRanges: Event<void>;
+	readonly onWillScroll: Event<ScrollEvent>;
+	readonly onDidScroll: Event<ScrollEvent>;
+	readonly onDidChangeFocus: Event<IListEvent<ICellViewModel>>;
+	readonly onDidChangeContentHeight: Event<number>;
+	readonly onDidChangeVisibleRanges: Event<void>;
 	visibleRanges: ICellRange[];
 	scrollTop: number;
 	scrollHeight: number;
@@ -66,6 +67,8 @@ export interface INotebookCellList extends ICoordinatesConverter {
 	revealOffsetInCenterIfOutsideViewport(offset: number): void;
 	setHiddenAreas(_ranges: ICellRange[], triggerViewUpdate: boolean): boolean;
 	changeViewZones(callback: (accessor: INotebookViewZoneChangeAccessor) => void): void;
+	changeCellOverlays(callback: (accessor: INotebookCellOverlayChangeAccessor) => void): void;
+	getViewZoneLayoutInfo(viewZoneId: string): { height: number; top: number } | null;
 	domElementOfElement(element: ICellViewModel): HTMLElement | null;
 	focusView(): void;
 	triggerScrollFromMouseWheelEvent(browserEvent: IMouseWheelEvent): void;
@@ -120,3 +123,5 @@ export interface ICoordinatesConverter {
 	modelIndexIsVisible(modelIndex: number): boolean;
 	convertModelIndexToViewIndex(modelIndex: number): number;
 }
+
+export const collapsedCellTTPolicy = createTrustedTypesPolicy('collapsedCellPreview', { createHTML: value => value });

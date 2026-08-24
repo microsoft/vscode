@@ -8,7 +8,7 @@ import { ModifierKeyEmitter } from '../../../base/browser/dom.js';
 import { IAction, Separator } from '../../../base/common/actions.js';
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
-import { createAndFillInContextMenuActions } from '../../actions/browser/menuEntryActionViewItem.js';
+import { getFlatContextMenuActions } from '../../actions/browser/menuEntryActionViewItem.js';
 import { IMenuService, MenuId } from '../../actions/common/actions.js';
 import { IContextKeyService } from '../../contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../keybinding/common/keybinding.js';
@@ -84,10 +84,10 @@ export namespace ContextMenuMenuDelegate {
 		return {
 			...delegate,
 			getActions: () => {
-				const target: IAction[] = [];
+				let target: IAction[] = [];
 				if (menuId) {
 					const menu = menuService.getMenuActions(menuId, contextKeyService ?? globalContextKeyService, menuActionOptions);
-					createAndFillInContextMenuActions(menu, target);
+					target = getFlatContextMenuActions(menu);
 				}
 				if (!delegate.getActions) {
 					return target;
