@@ -330,6 +330,11 @@
 	color: var(--vscode-foreground);
 }
 
+.agent-sessions-workbench .sessions-account-titlebar-panel-provider-avatar.hidden,
+.agent-sessions-workbench .sessions-account-titlebar-panel-provider-icon.hidden {
+	display: none;
+}
+
 .agent-sessions-workbench .sessions-account-titlebar-panel-provider-details {
 	display: flex;
 	flex: 1;

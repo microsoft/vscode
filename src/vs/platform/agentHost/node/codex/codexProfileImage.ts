@@ -3,10 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { createHash } from 'crypto';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { URI } from '../../../../base/common/uri.js';
+import type { IFileService } from '../../../files/common/files.js';
+import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
+import { CODEX_PROFILE_IMAGE_SCHEME, MAX_CODEX_PROFILE_IMAGE_BYTES, type ICodexProfileImageReference } from '../../common/codexAccount.js';
+
 const CHATGPT_ACCOUNTS_URL = 'https://chatgpt.com/backend-api/wham/accounts/check';
 const CHATGPT_PROFILE_URL = 'https://chatgpt.com/backend-api/wham/profiles/me';
 const CHATGPT_ORIGIN = 'https://chatgpt.com';
-const MAX_PROFILE_IMAGE_BYTES = 1024 * 1024;
 const PROFILE_IMAGE_REQUEST_TIMEOUT_MS = 10_000;
 const SUPPORTED_PROFILE_IMAGE_MEDIA_TYPES = new Set([
 	'image/avif',
@@ -28,12 +34,62 @@ interface IChatGPTAccountEntry {
 	readonly profile_picture_url?: unknown;
 }
 
+export interface ICodexProfileImage {
+	readonly mediaType: string;
+	readonly bytes: Uint8Array;
+}
+
 /**
- * Fetches the current ChatGPT account image and returns a self-contained,
- * renderer-safe data URI. Failures intentionally resolve to `undefined` so UI
- * callers can retain their normal account-icon fallback.
+ * Owns the one process-local resource that backs the current account image.
+ * Root state carries only the returned reference; clients read the bytes once
+ * through the Agent Host resource protocol.
  */
-export async function fetchCodexProfileImageDataUri(accessToken: string, fetchFn: FetchFunction): Promise<string | undefined> {
+export class CodexProfileImageStore extends Disposable {
+
+	private readonly _provider = this._register(new InMemoryFileSystemProvider());
+	private _reference: ICodexProfileImageReference | undefined;
+
+	constructor(fileService: IFileService) {
+		super();
+		this._provider.setReadOnly(true);
+		this._register(fileService.registerProvider(CODEX_PROFILE_IMAGE_SCHEME, this._provider));
+	}
+
+	clear(): void {
+		this._reference = undefined;
+	}
+
+	async update(image: ICodexProfileImage | undefined): Promise<ICodexProfileImageReference | undefined> {
+		if (!image) {
+			this.clear();
+			return undefined;
+		}
+
+		const nonce = createHash('sha256')
+			.update(image.mediaType)
+			.update(image.bytes)
+			.digest('hex');
+		if (this._reference?.nonce === nonce) {
+			return this._reference;
+		}
+
+		const resource = URI.from({ scheme: CODEX_PROFILE_IMAGE_SCHEME, path: `/profile.${getProfileImageExtension(image.mediaType)}` });
+		await this._provider.writeFile(resource, image.bytes, { create: true, overwrite: true, append: false, unlock: false, atomic: false });
+		this._reference = {
+			uri: resource.toString(),
+			contentType: image.mediaType,
+			sizeHint: image.bytes.byteLength,
+			nonce,
+		};
+		return this._reference;
+	}
+}
+
+/**
+ * Fetches the current ChatGPT account image. Failures intentionally resolve to
+ * `undefined` so UI callers can retain their normal account-icon fallback.
+ */
+export async function fetchCodexProfileImage(accessToken: string, fetchFn: FetchFunction): Promise<ICodexProfileImage | undefined> {
 	const accountId = getChatGPTAccountId(accessToken);
 	const headers = { ...getAuthenticatedHeaders(accessToken, accountId), Accept: 'application/json' };
 	const profile = await fetchJson(CHATGPT_PROFILE_URL, headers, fetchFn);
@@ -43,8 +99,9 @@ export async function fetchCodexProfileImageDataUri(accessToken: string, fetchFn
 		return undefined;
 	}
 
-	if (isSupportedProfileImageDataUri(profileImageUrl)) {
-		return profileImageUrl;
+	const inlineImage = parseSupportedProfileImageDataUri(profileImageUrl);
+	if (inlineImage) {
+		return inlineImage;
 	}
 
 	let resolvedImageUrl: URL;
@@ -78,7 +135,7 @@ export async function fetchCodexProfileImageDataUri(accessToken: string, fetchFn
 	}
 
 	const contentLength = Number(imageResponse.headers.get('content-length'));
-	if (Number.isFinite(contentLength) && contentLength > MAX_PROFILE_IMAGE_BYTES) {
+	if (Number.isFinite(contentLength) && contentLength > MAX_CODEX_PROFILE_IMAGE_BYTES) {
 		return undefined;
 	}
 
@@ -88,11 +145,11 @@ export async function fetchCodexProfileImageDataUri(accessToken: string, fetchFn
 	} catch {
 		return undefined;
 	}
-	if (bytes.byteLength === 0 || bytes.byteLength > MAX_PROFILE_IMAGE_BYTES) {
+	if (bytes.byteLength === 0 || bytes.byteLength > MAX_CODEX_PROFILE_IMAGE_BYTES) {
 		return undefined;
 	}
 
-	return `data:${mediaType};base64,${bytes.toString('base64')}`;
+	return { mediaType, bytes };
 }
 
 export function getChatGPTProfileImageUrl(value: unknown): string | undefined {
@@ -115,13 +172,10 @@ export function getCodexProfileImageUrl(value: unknown, accountId: string | unde
 	}
 
 	const accounts = response.accounts.filter(isObject) as IChatGPTAccountEntry[];
-	let account: IChatGPTAccountEntry | undefined;
-	if (Array.isArray(response.account_ordering)) {
+	let account = accountId ? accounts.find(candidate => candidate.id === accountId) : undefined;
+	if (!account && Array.isArray(response.account_ordering)) {
 		const orderedAccountId = response.account_ordering.find(candidate => typeof candidate === 'string');
 		account = accounts.find(candidate => candidate.id === orderedAccountId);
-	}
-	if (!account && accountId) {
-		account = accounts.find(candidate => candidate.id === accountId);
 	}
 	account ??= accounts[0];
 
@@ -183,11 +237,22 @@ async function fetchJson(url: string, headers: Record<string, string>, fetchFn: 
 	}
 }
 
-function isSupportedProfileImageDataUri(value: string): boolean {
-	if (value.length > Math.ceil(MAX_PROFILE_IMAGE_BYTES * 4 / 3) + 64) {
-		return false;
+function parseSupportedProfileImageDataUri(value: string): ICodexProfileImage | undefined {
+	if (value.length > Math.ceil(MAX_CODEX_PROFILE_IMAGE_BYTES * 4 / 3) + 64) {
+		return undefined;
 	}
-	return [...SUPPORTED_PROFILE_IMAGE_MEDIA_TYPES].some(mediaType => value.startsWith(`data:${mediaType};base64,`));
+	const match = /^data:(image\/(?:avif|gif|jpeg|png|webp));base64,([a-zA-Z0-9+/]*={0,2})$/.exec(value);
+	if (!match || !SUPPORTED_PROFILE_IMAGE_MEDIA_TYPES.has(match[1])) {
+		return undefined;
+	}
+	const bytes = Buffer.from(match[2], 'base64');
+	return bytes.byteLength > 0 && bytes.byteLength <= MAX_CODEX_PROFILE_IMAGE_BYTES
+		? { mediaType: match[1], bytes }
+		: undefined;
+}
+
+function getProfileImageExtension(mediaType: string): string {
+	return mediaType === 'image/jpeg' ? 'jpg' : mediaType.slice('image/'.length);
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {

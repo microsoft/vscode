@@ -85,7 +85,7 @@ import { codexDelegationDisplayText } from './codexDelegation.js';
 import { THREAD_LIST_MAX_PAGES, collectThreadListPages } from './codexThreadList.js';
 import { ICodexRolloutMetadata, ICodexRolloutModel, readCodexRolloutMetadata } from './codexRolloutMetadata.js';
 import { codexAccountRateLimitFromResponse, codexAccountStateFromResponse, type ICodexAccountState } from './codexAccountState.js';
-import { fetchCodexProfileImageDataUri } from './codexProfileImage.js';
+import { CodexProfileImageStore, fetchCodexProfileImage } from './codexProfileImage.js';
 import { CodexSessionConfigKey, CODEX_DEFAULT_PERMISSIONS_PRESET, CODEX_PERMISSIONS_PRESETS, collaborationModeKind, getCodexAutonomousSessionConfig, migrateCodexPermissionValues, narrowAdditionalDirectories, narrowBoolean, narrowPersonality, narrowReasoningEffort, narrowReasoningSummary, narrowWebSearchMode, resolveCodexPermissions, type CodexApprovalPolicy, type CodexPermissionsPreset, type ICodexResolvedPermissions } from './codexSessionConfigKeys.js';
 import type { ReasoningEffort } from './protocol/generated/ReasoningEffort.js';
 import type { ReasoningSummary } from './protocol/generated/ReasoningSummary.js';
@@ -991,8 +991,9 @@ export class CodexAgent extends Disposable implements IAgent {
 	private readonly _coldSessionReadLimiter = this._register(new Limiter<ICodexSessionRead | undefined>(CODEX_COLD_SESSION_READ_CONCURRENCY));
 	private _openAIAccountState: ICodexAccountState = { usageSource: 'openai', status: 'unknown' };
 	private _openAIAccountRateLimit: ICodexAccountInfo['rateLimit'];
-	private _openAIAccountProfileImageDataUri: string | undefined;
+	private _openAIAccountProfileImage: ICodexAccountInfo['profileImage'];
 	private _openAIAccountProfileImageRequest = 0;
+	private _profileImageStore: CodexProfileImageStore | undefined;
 	private _providerConfigurationValues: Record<string, unknown> = {};
 	private _providerConfigurationWrite = Promise.resolve();
 	private _providerConfigurationReady = false;
@@ -1202,7 +1203,8 @@ export class CodexAgent extends Disposable implements IAgent {
 			&& previousState.email === state.email;
 		if (!sameChatGPTAccount) {
 			this._openAIAccountRateLimit = undefined;
-			this._openAIAccountProfileImageDataUri = undefined;
+			this._openAIAccountProfileImage = undefined;
+			this._profileImageStore?.clear();
 			this._openAIAccountProfileImageRequest++;
 		}
 		if (_publish) {
@@ -1254,7 +1256,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			status: state.status,
 			email: state.authType === 'chatgpt' ? state.email : undefined,
 			planType: state.authType === 'chatgpt' ? state.planType : undefined,
-			profileImageDataUri: state.authType === 'chatgpt' ? this._openAIAccountProfileImageDataUri : undefined,
+			profileImage: state.authType === 'chatgpt' ? this._openAIAccountProfileImage : undefined,
 			requiresOpenaiAuth: state.requiresOpenaiAuth,
 			rateLimit: state.authType === 'chatgpt' ? this._openAIAccountRateLimit : undefined,
 		};
@@ -2644,20 +2646,33 @@ export class CodexAgent extends Disposable implements IAgent {
 		const request = ++this._openAIAccountProfileImageRequest;
 		try {
 			const response = await client.request<'getAuthStatus', GetAuthStatusResponse>('getAuthStatus', { includeToken: true, refreshToken: false });
-			const profileImageDataUri = response.authToken
-				? await fetchCodexProfileImageDataUri(response.authToken, (input, init) => this._proxyResolver.fetch(input, init))
+			const profileImage = response.authToken
+				? await fetchCodexProfileImage(response.authToken, (input, init) => this._proxyResolver.fetch(input, init))
 				: undefined;
 			if (request !== this._openAIAccountProfileImageRequest || this._connection.kind !== 'ready' || this._connection.client !== client || this._openAIAccountState.status !== 'signedIn' || this._openAIAccountState.authType !== 'chatgpt' || this._openAIAccountState.email !== accountEmail) {
 				return;
 			}
-			if (profileImageDataUri === this._openAIAccountProfileImageDataUri) {
+			const profileImageReference = profileImage
+				? await this._getProfileImageStore().update(profileImage)
+				: undefined;
+			if (!profileImage) {
+				this._profileImageStore?.clear();
+			}
+			if (request !== this._openAIAccountProfileImageRequest || this._connection.kind !== 'ready' || this._connection.client !== client || this._openAIAccountState.status !== 'signedIn' || this._openAIAccountState.authType !== 'chatgpt' || this._openAIAccountState.email !== accountEmail) {
 				return;
 			}
-			this._openAIAccountProfileImageDataUri = profileImageDataUri;
+			if (profileImageReference?.nonce === this._openAIAccountProfileImage?.nonce) {
+				return;
+			}
+			this._openAIAccountProfileImage = profileImageReference;
 			this._publishAccountInfo(this._toAccountInfo(this._openAIAccountState));
 		} catch (error) {
 			this._logService.warn(`[Codex] ChatGPT profile image refresh failed: ${error instanceof Error ? error.message : String(error)}`);
 		}
+	}
+
+	private _getProfileImageStore(): CodexProfileImageStore {
+		return this._profileImageStore ??= this._register(new CodexProfileImageStore(this._fileService));
 	}
 
 	private async _refreshAccountRateLimits(client: ICodexAppServerClient, accountEmail = this._openAIAccountState.email): Promise<void> {

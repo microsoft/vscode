@@ -5,10 +5,13 @@
 
 import * as assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { fetchCodexProfileImageDataUri, getChatGPTAccountId, getCodexProfileImageUrl } from '../../../node/codex/codexProfileImage.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { FileService } from '../../../../files/common/fileService.js';
+import { NullLogService } from '../../../../log/common/log.js';
+import { CodexProfileImageStore, fetchCodexProfileImage, getChatGPTAccountId, getCodexProfileImageUrl, type ICodexProfileImage } from '../../../node/codex/codexProfileImage.js';
 
 suite('Codex profile image', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('selects the current ChatGPT account', () => {
 		const accessToken = createAccessToken('account-2');
@@ -19,7 +22,7 @@ suite('Codex profile image', () => {
 				{ id: 'account-1', profile_picture_url: 'https://example.test/one.png' },
 				{ id: 'account-2', profile_picture_url: 'https://example.test/two.png' },
 			],
-		}, 'account-2'), 'https://example.test/one.png');
+		}, 'account-2'), 'https://example.test/two.png');
 	});
 
 	test('downloads protected profile images with ChatGPT authentication', async () => {
@@ -37,7 +40,7 @@ suite('Codex profile image', () => {
 			});
 		};
 
-		assert.strictEqual(await fetchCodexProfileImageDataUri(accessToken, fetchFn), 'data:image/png;base64,iVBORw==');
+		assert.deepStrictEqual(asComparable(await fetchCodexProfileImage(accessToken, fetchFn)), { mediaType: 'image/png', bytes: [0x89, 0x50, 0x4e, 0x47] });
 		assert.deepStrictEqual(requests.map(request => request.url), [
 			'https://chatgpt.com/backend-api/wham/profiles/me',
 			'https://chatgpt.com/backend-api/estuary/public_content/enc/avatar',
@@ -58,7 +61,7 @@ suite('Codex profile image', () => {
 				: new Response(Uint8Array.from([1, 2, 3]), { headers: { 'content-type': 'image/jpeg' } });
 		};
 
-		assert.strictEqual(await fetchCodexProfileImageDataUri(createAccessToken('account-1'), fetchFn), 'data:image/jpeg;base64,AQID');
+		assert.deepStrictEqual(asComparable(await fetchCodexProfileImage(createAccessToken('account-1'), fetchFn)), { mediaType: 'image/jpeg', bytes: [1, 2, 3] });
 		assert.strictEqual(requests[1].has('authorization'), false);
 		assert.strictEqual(requests[1].has('chatgpt-account-id'), false);
 	});
@@ -72,7 +75,7 @@ suite('Codex profile image', () => {
 				accounts: [{ id: 'account-1', profile_picture_url: 'data:image/png;base64,AQID' }],
 			});
 
-		assert.strictEqual(await fetchCodexProfileImageDataUri(createAccessToken('account-1'), fetchFn), 'data:image/png;base64,AQID');
+		assert.deepStrictEqual(asComparable(await fetchCodexProfileImage(createAccessToken('account-1'), fetchFn)), { mediaType: 'image/png', bytes: [1, 2, 3] });
 		assert.strictEqual(request, 2);
 	});
 
@@ -81,7 +84,7 @@ suite('Codex profile image', () => {
 		const fetchFn: typeof globalThis.fetch = async () => ++request === 1
 			? Response.json({ profile: { profile_picture_url: 'https://chatgpt.com/avatar.svg' } })
 			: new Response('<svg/>', { headers: { 'content-type': 'image/svg+xml' } });
-		assert.strictEqual(await fetchCodexProfileImageDataUri(createAccessToken('account-1'), fetchFn), undefined);
+		assert.strictEqual(await fetchCodexProfileImage(createAccessToken('account-1'), fetchFn), undefined);
 	});
 
 	test('falls back when the profile image cannot be downloaded', async () => {
@@ -92,9 +95,32 @@ suite('Codex profile image', () => {
 			}
 			throw new Error('network unavailable');
 		};
-		assert.strictEqual(await fetchCodexProfileImageDataUri(createAccessToken('account-1'), fetchFn), undefined);
+		assert.strictEqual(await fetchCodexProfileImage(createAccessToken('account-1'), fetchFn), undefined);
+	});
+
+	test('stores profile bytes behind a small resource reference', async () => {
+		const fileService = disposables.add(new FileService(new NullLogService()));
+		const store = disposables.add(new CodexProfileImageStore(fileService));
+		const reference = await store.update({ mediaType: 'image/png', bytes: Uint8Array.from([1, 2, 3]) });
+
+		assert.deepStrictEqual(reference && {
+			uri: reference.uri,
+			contentType: reference.contentType,
+			sizeHint: reference.sizeHint,
+			nonceLength: reference.nonce.length,
+		}, {
+			uri: 'vscode-codex-profile-image:/profile.png',
+			contentType: 'image/png',
+			sizeHint: 3,
+			nonceLength: 64,
+		});
+		assert.deepStrictEqual([...((await fileService.readFile(URI.parse(reference!.uri))).value.buffer)], [1, 2, 3]);
 	});
 });
+
+function asComparable(image: ICodexProfileImage | undefined): { readonly mediaType: string; readonly bytes: number[] } | undefined {
+	return image ? { mediaType: image.mediaType, bytes: [...image.bytes] } : undefined;
+}
 
 function createAccessToken(accountId: string): string {
 	const payload = Buffer.from(JSON.stringify({
