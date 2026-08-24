@@ -197,10 +197,11 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 			const isMouseOnContentHoverWidget = this._isMouseOnContentHoverWidget(mouseEvent);
 			const isMouseOnHoverWithColorPicker = isColorPickerVisible && isMouseOnContentHoverWidget;
 			const isMaybeChoosingColor = isColorPickerVisible && this._isMouseDown;
-			// Keep the hover open while the mouse is still over the color decorator (swatch) that
-			// triggered the picker, even if the pointer is not yet inside the picker itself.
-			// A tiny mouse movement over the swatch should not dismiss the color picker.
-			const isMouseOnColorDecorator = isColorPickerVisible && isOnColorDecorator(mouseEvent);
+			// Keep the hover open while the mouse is over the decorator that opened the visible picker
+			const pickerRange = contentWidget.colorPickerRange;
+			const targetRange = mouseEvent.target.range;
+			const isMouseOnColorDecorator = isColorPickerVisible && isOnColorDecorator(mouseEvent)
+				&& !!pickerRange && !!targetRange && Range.areIntersecting(pickerRange, targetRange);
 			return isMouseOnHoverWithColorPicker || isMaybeChoosingColor || isMouseOnColorDecorator;
 		};
 		// TODO@aiday-mar verify if the following is necessary code
