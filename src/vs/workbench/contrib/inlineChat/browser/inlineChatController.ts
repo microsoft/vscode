@@ -5,11 +5,13 @@
 
 import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
 import { alert } from '../../../../base/browser/ui/aria/aria.js';
+import { disposableTimeout } from '../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { CancellationError, isCancellationError, onUnexpectedError } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
 import { Lazy } from '../../../../base/common/lazy.js';
 import { DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { autorun, derived, IObservable, observableFromEvent, observableSignalFromEvent, observableValue, waitForState } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { assertType } from '../../../../base/common/types.js';
@@ -30,6 +32,7 @@ import { IContextKey, IContextKeyService } from '../../../../platform/contextkey
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
+import { EditorResourceAccessor, SaveReason } from '../../../common/editor.js';
 import { IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { IChatWidgetLocationOptions } from '../../chat/browser/widget/chatWidget.js';
 import { IChatEditingService, ModifiedFileEntryState } from '../../chat/common/editing/chatEditingService.js';
@@ -37,7 +40,7 @@ import { ChatMode } from '../../chat/common/chatModes.js';
 import { IChatService, IChatToolInvocation, ToolConfirmKind } from '../../chat/common/chatService/chatService.js';
 import { IChatRequestVariableEntry, IDiagnosticVariableEntryFilterData } from '../../chat/common/attachments/chatVariableEntries.js';
 import { isResponseVM } from '../../chat/common/model/chatViewModel.js';
-import { ChatAgentLocation } from '../../chat/common/constants.js';
+import { ChatAgentLocation, ChatConfiguration } from '../../chat/common/constants.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatSelector, ILanguageModelsService, isILanguageModelChatSelector } from '../../chat/common/languageModels.js';
 import { isNotebookContainingCellEditor as isNotebookWithCellEditor } from '../../notebook/browser/notebookEditor.js';
 import { INotebookEditorService } from '../../notebook/browser/services/notebookEditorService.js';
@@ -104,6 +107,42 @@ export function getAgentHostAttachmentRange(model: ITextModel, selection: Select
 	return new Range(selection.startLineNumber, 1, selection.startLineNumber, model.getLineMaxColumn(selection.startLineNumber));
 }
 
+/** Handles the required save before an Agent Host request can target an untitled editor. */
+export class InlineChatUntitledSaveHandler {
+
+	constructor(
+		private readonly _isEligible: (resource: URI) => boolean,
+		private readonly _editorService: IEditorService,
+		private readonly _onSaved: (source: URI, target: URI, message: string) => Promise<void>,
+		private readonly _logService: ILogService,
+	) { }
+
+	async handle(resource: URI, message: string): Promise<boolean> {
+		if (!this._isEligible(resource)) {
+			return false;
+		}
+
+		const editor = this._editorService.findEditors(resource).at(0);
+		if (!editor) {
+			return false;
+		}
+
+		const result = await this._editorService.save(editor, { reason: SaveReason.EXPLICIT });
+		if (!result.success) {
+			return true;
+		}
+
+		const savedResource = EditorResourceAccessor.getCanonicalUri(result.editors[0]);
+		if (!savedResource) {
+			this._logService.warn(`[InlineChat] No saved resource returned for untitled resource ${resource.toString()}`);
+			return true;
+		}
+
+		await this._onSaved(resource, savedResource, message);
+		return true;
+	}
+}
+
 export class InlineChatController implements IEditorContribution {
 
 	static readonly ID = INLINE_CHAT_ID;
@@ -130,6 +169,7 @@ export class InlineChatController implements IEditorContribution {
 	readonly #instaService: IInstantiationService;
 	readonly #notebookEditorService: INotebookEditorService;
 	readonly #inlineChatSessionService: IInlineChatSessionService;
+	readonly #codeEditorService: ICodeEditorService;
 	readonly #configurationService: IConfigurationService;
 	readonly #editorService: IEditorService;
 	readonly #markerDecorationsService: IMarkerDecorationsService;
@@ -138,6 +178,7 @@ export class InlineChatController implements IEditorContribution {
 	readonly #chatEditingService: IChatEditingService;
 	readonly #chatService: IChatService;
 	readonly #ctxInlineChatVisible: IContextKey<boolean>;
+	readonly #untitledSaveHandler: InlineChatUntitledSaveHandler;
 
 	get widget(): EditorBasedInlineChatWidget {
 		return this.#zone.value.widget;
@@ -166,6 +207,7 @@ export class InlineChatController implements IEditorContribution {
 		this.#instaService = instaService;
 		this.#notebookEditorService = notebookEditorService;
 		this.#inlineChatSessionService = inlineChatSessionService;
+		this.#codeEditorService = codeEditorService;
 		this.#configurationService = configurationService;
 		this.#editorService = editorService;
 		this.#markerDecorationsService = markerDecorationsService;
@@ -173,6 +215,17 @@ export class InlineChatController implements IEditorContribution {
 		this.#logService = logService;
 		this.#chatEditingService = chatEditingService;
 		this.#chatService = chatService;
+		this.#untitledSaveHandler = new InlineChatUntitledSaveHandler(
+			resource => this.#configurationService.getValue<boolean>(ChatConfiguration.InlineChatAgentHostEnabled) === true
+				&& !this.#notebookEditorService.getNotebookForPossibleCell(this.#editor)
+				&& resource.scheme === Schemas.untitled,
+			editorService,
+			async (source, target, message) => {
+				this.#inlineChatSessionService.getSessionByTextModel(source)?.dispose();
+				await this.#replaySavedUntitledInput(target, message);
+			},
+			logService,
+		);
 
 		const editorObs = observableCodeEditor(editor);
 		let agentHostAttachmentId: string | undefined;
@@ -268,7 +321,11 @@ export class InlineChatController implements IEditorContribution {
 						executeToolbar: MenuId.ChatEditorInlineExecute,
 						inputSideToolbar: MenuId.ChatEditorInlineInputSide
 					},
-					defaultMode: ChatMode.Ask
+					defaultMode: ChatMode.Ask,
+					submitHandler: query => {
+						const model = this.#editor.getModel();
+						return model ? this.#untitledSaveHandler.handle(model.uri, query) : Promise.resolve(false);
+					}
 				},
 				{ editor: this.#editor, notebookEditor },
 				() => Promise.resolve(),
@@ -574,6 +631,58 @@ export class InlineChatController implements IEditorContribution {
 				}
 			}
 		}));
+	}
+
+	async #replaySavedUntitledInput(resource: URI, message: string): Promise<void> {
+		const controller = await this.#waitForSavedEditorController(resource);
+		if (!controller) {
+			this.#logService.warn(`[InlineChat] No editor available after saving untitled resource ${resource.toString()}`);
+			return;
+		}
+
+		// Must remain un-awaited so the shared widget clears its submit guard before the replay submits.
+		void controller.run({ message, autoSend: true }).catch(onUnexpectedError);
+	}
+
+	#waitForSavedEditorController(resource: URI): Promise<InlineChatController | undefined> {
+		const findController = (): InlineChatController | undefined => {
+			for (const editor of this.#codeEditorService.listCodeEditors()) {
+				if (isEqual(editor.getModel()?.uri, resource)) {
+					return InlineChatController.get(editor);
+				}
+			}
+			return undefined;
+		};
+
+		const controller = findController();
+		if (controller) {
+			return Promise.resolve(controller);
+		}
+
+		return new Promise(resolve => {
+			const store = new DisposableStore();
+			let didComplete = false;
+			const complete = (controller: InlineChatController | undefined) => {
+				if (didComplete) {
+					return;
+				}
+				didComplete = true;
+				store.dispose();
+				resolve(controller);
+			};
+			store.add(Event.any(this.#editorService.onDidActiveEditorChange, this.#editorService.onDidVisibleEditorsChange)(() => {
+				const controller = findController();
+				if (controller) {
+					complete(controller);
+				}
+			}));
+			store.add(disposableTimeout(() => complete(undefined), 5_000));
+
+			const controller = findController();
+			if (controller) {
+				complete(controller);
+			}
+		});
 	}
 
 	dispose(): void {
