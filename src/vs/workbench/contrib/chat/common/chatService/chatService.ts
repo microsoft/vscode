@@ -1137,6 +1137,9 @@ export interface IChatSubagentToolInvocationData {
 	isActive?: boolean;
 	activity?: 'markdown' | 'reasoning';
 	description?: string;
+	/** Provider-supplied display name for the subagent type. */
+	agentDisplayName?: string;
+	/** Internal identifier for the subagent type. */
 	agentName?: string;
 	prompt?: string;
 	result?: string;

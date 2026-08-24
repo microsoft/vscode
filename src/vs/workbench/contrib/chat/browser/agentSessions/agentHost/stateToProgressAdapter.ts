@@ -1746,6 +1746,7 @@ export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentIn
 			toolSpecificData: {
 				kind: 'subagent',
 				description: getSubagentTaskDescription(tc) ?? tc.displayName,
+				...(subagentContent?.title ? { agentDisplayName: subagentContent.title } : {}),
 				agentName: subagentContent?.agentName ?? getSubagentAgentName(tc),
 				result: resultText,
 				chatResource: getSubagentChatResource(tc, subagentContent, sessionResource),
@@ -2317,6 +2318,7 @@ export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationI
 		invocation.toolSpecificData = {
 			kind: 'subagent',
 			description: getSubagentTaskDescription(tc),
+			...(subagentContent?.title ? { agentDisplayName: subagentContent.title } : {}),
 			agentName: subagentContent?.agentName ?? getSubagentAgentName(tc),
 			chatResource: getSubagentChatResource(tc, subagentContent, sessionResource),
 		};
@@ -2473,6 +2475,7 @@ export function updateRunningToolSpecificData(existing: ChatToolInvocation, tc: 
 			kind: 'subagent',
 			isActive: existing.toolSpecificData?.kind === 'subagent' ? existing.toolSpecificData.isActive : undefined,
 			description: getSubagentTaskDescription(tc),
+			agentDisplayName: subagentContent.title,
 			agentName: subagentContent.agentName,
 			credits: existing.toolSpecificData?.kind === 'subagent' ? existing.toolSpecificData.credits : undefined,
 			modelName: existing.toolSpecificData?.kind === 'subagent' ? existing.toolSpecificData.modelName : undefined,
@@ -2590,6 +2593,7 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 				kind: 'subagent',
 				isActive: invocation.toolSpecificData?.kind === 'subagent' ? invocation.toolSpecificData.isActive : undefined,
 				description: getSubagentTaskDescription(tc),
+				agentDisplayName: subagentContent.title,
 				agentName: subagentContent.agentName,
 				result: resultText,
 				credits: invocation.toolSpecificData?.kind === 'subagent' ? invocation.toolSpecificData.credits : undefined,
@@ -2605,6 +2609,7 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 				kind: 'subagent',
 				isActive: invocation.toolSpecificData.isActive,
 				description: getSubagentTaskDescription(tc) ?? invocation.toolSpecificData.description,
+				...(invocation.toolSpecificData.agentDisplayName ? { agentDisplayName: invocation.toolSpecificData.agentDisplayName } : {}),
 				agentName: getSubagentAgentName(tc) ?? invocation.toolSpecificData.agentName,
 				result: getToolOutputText(tc),
 				credits: invocation.toolSpecificData.credits,
