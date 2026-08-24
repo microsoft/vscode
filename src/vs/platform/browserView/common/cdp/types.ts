@@ -104,6 +104,7 @@ export interface CDPTargetInfo {
 	attached: boolean;
 	canAccessOpener: boolean;
 	browserContextId?: string;
+	vscodeBrowserViewId?: string;
 }
 
 export interface CDPBrowserVersion {

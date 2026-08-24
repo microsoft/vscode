@@ -8,9 +8,11 @@ import { Action, SubmenuAction } from '../../../../../base/common/actions.js';
 import { Event } from '../../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { AgentHostCodexAgentEnabledSettingId, CodexPreferAgentHostEditorSettingId } from '../../../../../platform/agentHost/common/agentService.js';
+import { CODEX_AGENT_PROVIDER_ID } from '../../../../../platform/agentHost/common/agent.js';
 import { ChatAIDisabledSettingId } from '../../../../../platform/chat/common/chatSettings.js';
 import { OpenOptions } from '../../../../../platform/opener/common/opener.js';
-import { ICodexAccountService, createCodexAccountMenuActions, hasSignedInCodexChatGPTAccount, openCodexAuthUrl, shouldShowCodexAccount } from '../../browser/codexAccountService.js';
+import { ContentEncoding } from '../../../../../platform/agentHost/common/state/sessionProtocol.js';
+import { ICodexAccountService, createCodexAccountMenuActions, hasSignedInCodexChatGPTAccount, openCodexAuthUrl, readCodexProfileImageDataUri, shouldShowCodexAccount } from '../../browser/codexAccountService.js';
 
 suite('CodexAccountService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -18,6 +20,7 @@ suite('CodexAccountService', () => {
 	function service(status: ICodexAccountService['account']['status'], email?: string): ICodexAccountService & { signInCalls: number; signOutCalls: number } {
 		return {
 			_serviceBrand: undefined,
+			agent: CODEX_AGENT_PROVIDER_ID,
 			account: { status, email },
 			onDidChangeAccount: Event.None,
 			signInCalls: 0,
@@ -128,6 +131,24 @@ suite('CodexAccountService', () => {
 			resource: 'https://auth.openai.com/authorize?token=secret',
 			options: { openExternal: true, skipValidation: true },
 		});
+	});
+
+	test('reads profile-image bytes through the Agent Host resource connection', async () => {
+		const reference = {
+			uri: 'vscode-codex-profile-image:/profile.jpg',
+			contentType: 'image/jpeg',
+			sizeHint: 3,
+			nonce: 'a'.repeat(64),
+		};
+		const dataUri = await readCodexProfileImageDataUri({
+			resourceRead: async () => ({ data: 'AQID', encoding: ContentEncoding.Base64, contentType: 'image/jpg' }),
+		}, reference);
+		assert.strictEqual(dataUri, 'data:image/jpeg;base64,AQID');
+
+		const invalidDataUri = await readCodexProfileImageDataUri({
+			resourceRead: async () => ({ data: 'AQID', encoding: ContentEncoding.Base64, contentType: 'image/png' }),
+		}, reference);
+		assert.strictEqual(invalidDataUri, undefined);
 	});
 
 });

@@ -764,7 +764,7 @@ export class DictationOnboardingBanner extends ChatInputNoticeWidget implements 
 			return;
 		}
 
-		dom.append(this.pickerContainer, dom.$(`span.codicon.codicon-${Codicon.mic.id}.dictation-onboarding-picker-icon`))
+		dom.append(this.pickerContainer, dom.$(`span.codicon.codicon-${Codicon.micCompact.id}.dictation-onboarding-picker-icon`))
 			.setAttribute('aria-hidden', 'true');
 
 		const selected = indexOfMicrophone(this.options, this.currentDeviceId());

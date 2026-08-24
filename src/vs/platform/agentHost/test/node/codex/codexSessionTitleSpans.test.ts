@@ -19,14 +19,20 @@ import { ISessionDataService } from '../../../common/sessionDataService.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
 import { SessionStatus } from '../../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../../../node/agentConfigurationService.js';
+import { IAgentHostWorktreeIsolation, NullAgentHostWorktreeIsolation } from '../../../node/shared/worktreeIsolation.js';
 import { IAgentHostCustomizationEnablementService } from '../../../node/agentHostCustomizationEnablementService.js';
 import { AgentHostSessionTitleSignal, IAgentHostSessionTitleSignal } from '../../../node/agentHostSessionTitleSignal.js';
 import { AgentHostStateManager } from '../../../node/agentHostStateManager.js';
 import { IAgentSdkDownloader } from '../../../node/agentSdkDownloader.js';
+import { RecordingAgentSdkDownloader } from '../testAgentSdkDownloader.js';
 import { CodexAgent } from '../../../node/codex/codexAgent.js';
 import { ICodexProxyService } from '../../../node/codex/codexProxyService.js';
 import { ICopilotApiService } from '../../../node/shared/copilotApiService.js';
 import { createNoopCustomizationEnablementService } from '../testCustomizationEnablementService.js';
+import { IAgentHostGitHubEndpointService } from '../../../node/agentHostGitHubEndpointService.js';
+import { IAgentHostProxyResolver } from '../../../node/agentHostProxyResolver.js';
+import { createTestGitHubEndpointService } from '../testGitHubEndpointService.js';
+import { createTestAgentHostProxyResolver } from '../agentServiceTestUtils.js';
 
 /**
  * Records `emitSessionTitleChanged` invocations so the OTel title-span wiring
@@ -68,11 +74,14 @@ function createTestContext(disposables: Pick<DisposableStore, 'add'>): { stateMa
 		onDidRootConfigChange: Event.None,
 		getRootValue: () => undefined,
 	});
+	instantiationService.stub(IAgentHostWorktreeIsolation, new NullAgentHostWorktreeIsolation());
 	instantiationService.stub(IAgentHostCustomizationEnablementService, createNoopCustomizationEnablementService());
-	instantiationService.stub(IAgentSdkDownloader, { _serviceBrand: undefined });
+	instantiationService.stub(IAgentSdkDownloader, new RecordingAgentSdkDownloader());
 	instantiationService.stub(IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE);
 	instantiationService.stub(IAgentHostOTelService, otelService);
 	instantiationService.stub(IAgentHostSessionTitleSignal, disposables.add(new AgentHostSessionTitleSignal(stateManager)));
+	instantiationService.stub(IAgentHostGitHubEndpointService, createTestGitHubEndpointService());
+	instantiationService.stub(IAgentHostProxyResolver, createTestAgentHostProxyResolver());
 	instantiationService.stub(IProductService, { _serviceBrand: undefined, version: '1.0.0-test' } as IProductService);
 	instantiationService.stub(INativeEnvironmentService, { userHome: URI.file('/tmp') });
 	instantiationService.stub(ILogService, logService);

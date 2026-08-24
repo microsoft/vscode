@@ -30,6 +30,7 @@ import { Progress } from '../../../../../platform/progress/common/progress.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { isVirtualWorkspace } from '../../../../../platform/workspace/common/virtualWorkspace.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IChatDebugService } from '../chatDebugService.js';
@@ -275,7 +276,7 @@ export class ChatService extends Disposable implements IChatService {
 						logChangesToStateModel(model.inputModel, `disposing session ${model.sessionResource} (${localSessionId}) with title, storing to storage`, undefined, undefined, this.logService);
 						await this._chatSessionStore.storeSessions([model]);
 					}
-				} else if (!localSessionId && (model.getRequests().length > 0 || hasDraftInput(model))) {
+				} else if (!localSessionId && this.shouldStoreExternalSession(model) && (model.getRequests().length > 0 || hasDraftInput(model))) {
 					logChangesToStateModel(model.inputModel, `disposing external session ${model.sessionResource} with requests or draft input, storing metadata to storage`, undefined, undefined, this.logService);
 					// External sessions: persist metadata when there are requests, OR when the
 					// user has typed/attached unsent input we need to restore on next open.
@@ -318,6 +319,16 @@ export class ChatService extends Disposable implements IChatService {
 		return [...this._sessionModels.values()].map(v => v.editingSession).filter(isDefined);
 	}
 
+	getPendingRequestSessionTypes(): readonly string[] {
+		const sessionTypes = new Set(Array.from(this._inFlightUntitledMaterializations.keys(), getChatSessionType));
+		for (const model of this._sessionModels.values()) {
+			if (model.requestInProgress.get()) {
+				sessionTypes.add(getChatSessionType(model.sessionResource));
+			}
+		}
+		return Array.from(sessionTypes);
+	}
+
 	isEnabled(location: ChatAgentLocation): boolean {
 		return this.chatAgentService.getContributedDefaultAgent(location) !== undefined;
 	}
@@ -346,7 +357,7 @@ export class ChatService extends Disposable implements IChatService {
 			.filter(session => this.shouldStoreSession(session));
 
 		const liveNonLocalChats = Array.from(this._sessionModels.values())
-			.filter(session => !LocalChatSessionUri.parseLocalSessionId(session.sessionResource));
+			.filter(session => this.shouldStoreExternalSession(session));
 
 		// Synchronously update the index for all live sessions and flush it to
 		// storage. This is critical because `onWillSaveState` is synchronous —
@@ -372,6 +383,18 @@ export class ChatService extends Disposable implements IChatService {
 			return false;
 		}
 		return session.initialLocation === ChatAgentLocation.Chat && !session.isImported;
+	}
+
+	/**
+	 * Only persist external (provider-backed) sessions that belong to chat.
+	 * Transient surfaces such as inline chat and terminal chat create throwaway
+	 * sessions that must never show up in chat history.
+	 */
+	private shouldStoreExternalSession(session: ChatModel): boolean {
+		if (LocalChatSessionUri.parseLocalSessionId(session.sessionResource)) {
+			return false;
+		}
+		return session.initialLocation === ChatAgentLocation.Chat;
 	}
 
 	notifyUserAction(action: IChatUserActionEvent): void {
@@ -665,11 +688,13 @@ export class ChatService extends Disposable implements IChatService {
 	}
 
 	private async loadRemoteSession(sessionResource: URI, location: ChatAgentLocation, token: CancellationToken, debugOwner?: string): Promise<IChatModelReference | undefined> {
+		this.trace('loadRemoteSession', `start ${sessionResource.toString()}`);
 		// Check if session already exists before resolving the provider,
 		// so we can return a cached model even if the provider was unregistered.
 		{
 			const existingRef = this.acquireExistingSession(sessionResource, debugOwner);
 			if (existingRef) {
+				this.trace('loadRemoteSession', `reused existing model for ${sessionResource.toString()}`);
 				return existingRef;
 			}
 		}
@@ -679,6 +704,7 @@ export class ChatService extends Disposable implements IChatService {
 		}
 
 		const providedSession = await this.chatSessionService.getOrCreateChatSession(sessionResource, token);
+		this.trace('loadRemoteSession', `session content resolved for ${sessionResource.toString()} with ${providedSession.history.length} history item(s)`);
 
 		// Make sure we haven't created this in the meantime
 		{
@@ -907,6 +933,7 @@ export class ChatService extends Disposable implements IChatService {
 				}
 			}
 		}
+		this.trace('loadRemoteSession', `history applied to model for ${sessionResource.toString()}: ${model.getRequests().length} request(s)`);
 
 		// Set up progress streaming and cancellation for contributed sessions.
 		// This handles both the initial in-flight response (from session load)
@@ -1127,7 +1154,7 @@ export class ChatService extends Disposable implements IChatService {
 		}
 
 		this.trace('sendRequest', `Queued message for session ${sessionResource}`);
-		return { kind: 'queued', requestId: requestModel.id, deferred: deferred.p };
+		return { kind: 'queued', deferred: deferred.p };
 	}
 
 	async sendRequest(sessionResource: URI, request: string, options?: IChatSendRequestOptions): Promise<ChatSendResult> {
@@ -1391,9 +1418,14 @@ export class ChatService extends Disposable implements IChatService {
 			agentSlashCommandPart,
 			commandPart,
 			sessionResource: model.sessionResource,
+			requestIndex: requests.length,
 			location: model.initialLocation,
 			options,
-			enableCommandDetection
+			enableCommandDetection,
+			isVirtualWorkspace: isVirtualWorkspace(this.workspaceContextService.getWorkspace()),
+			settingDefaultToCopilotHarness: this.configurationService.getValue<boolean>(ChatConfiguration.DefaultToCopilotHarness) ?? false,
+			settingPreferCopilotHarness: this.configurationService.getValue<boolean>(ChatConfiguration.EditorPreferCopilotHarness) ?? false,
+			settingLocalAgentEnabled: this.configurationService.getValue<boolean>(ChatConfiguration.EditorLocalAgentEnabled) ?? true,
 		});
 
 		let gotProgress = false;
@@ -1794,7 +1826,7 @@ export class ChatService extends Disposable implements IChatService {
 						agentOrCommandFollowups.then(followups => {
 							model.setFollowups(completedRequest, followups);
 							const commandForTelemetry = agentSlashCommandPart ? agentSlashCommandPart.command.name : commandPart?.slashCommand.command;
-							this._chatServiceTelemetry.retrievedFollowups(agentPart?.agent.id ?? '', commandForTelemetry, followups?.length ?? 0);
+							this._chatServiceTelemetry.retrievedFollowups(model.sessionResource, agentPart?.agent.id ?? '', commandForTelemetry, followups?.length ?? 0);
 						});
 					}
 				}
@@ -1858,7 +1890,7 @@ export class ChatService extends Disposable implements IChatService {
 	 * controls queued-message dequeuing on the server side.
 	 */
 	private _isServerManagedQueue(sessionResource: URI): boolean {
-		return getChatSessionType(sessionResource).startsWith('agent-host-');
+		return this.chatSessionService.getChatSessionContribution(getChatSessionType(sessionResource))?.agentHostProviderId !== undefined;
 	}
 
 	/**
@@ -2196,7 +2228,7 @@ export class ChatService extends Disposable implements IChatService {
 		// Reject the deferred promise for the removed request
 		const deferred = this._queuedRequestDeferreds.get(requestId);
 		if (deferred) {
-			deferred.complete({ kind: 'rejected', reason: 'Request was removed from queue', reasonCode: 'cancelled' });
+			deferred.complete({ kind: 'rejected', reason: 'Request was removed from queue' });
 			this._queuedRequestDeferreds.delete(requestId);
 		}
 	}
@@ -2247,7 +2279,7 @@ export class ChatService extends Disposable implements IChatService {
 			}
 			const deferred = this._queuedRequestDeferreds.get(local.request.id);
 			if (deferred) {
-				deferred.complete({ kind: 'rejected', reason: 'Request is no longer in the provider queue', reasonCode: 'providerRemoved' });
+				deferred.complete({ kind: 'rejected', reason: 'Request was removed from queue' });
 				this._queuedRequestDeferreds.delete(local.request.id);
 			}
 		}

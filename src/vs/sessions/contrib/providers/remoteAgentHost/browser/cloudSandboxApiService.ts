@@ -9,12 +9,15 @@ import { isCancellationError } from '../../../../../base/common/errors.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import {
 	CLOUD_SANDBOX_AGENT_SLUG,
+	CLOUD_SANDBOX_ON_DEMAND_ENVIRONMENT_ID,
 	CloudSandboxAuthenticationRequiredError,
 	CloudSandboxConnectResult,
 	CloudSandboxRequestError,
 	ICloudSandboxClientToken,
 	ICloudSandboxConnectionRequest,
 	ICloudSandboxApiService,
+	ICloudSandboxCreatedSession,
+	ICloudSandboxCreateSessionRequest,
 	ICloudSandboxDiscoveredSession,
 	ICloudSandboxDiscoveryResult,
 	ICloudSandboxEnvironment,
@@ -70,8 +73,11 @@ const DISCOVERY_TIMEOUT_MS = 30_000;
 /** Default Retry-After (seconds) when a 202 "waking" response omits the header. */
 const DEFAULT_WAKING_RETRY_AFTER_SECONDS = 5;
 
-/** How many recent tasks to scan for sandbox sessions during discovery. */
+/** How many recent tasks to scan for sandbox sessions during discovery, per page. */
 const DISCOVERY_TASK_SCAN_LIMIT = 100;
+
+/** Bounds sequential page fetches. Hitting it leaves tasks unscanned, so the result is `partial`. */
+const DISCOVERY_TASK_PAGE_LIMIT = 10;
 
 /** Fallback scopes when the product does not configure `defaultChatAgent.providerScopes`. */
 const FALLBACK_SCOPES = ['read:user', 'user:email', 'repo', 'workflow'];
@@ -132,21 +138,47 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 	 * Enumerate sandbox-backed cloud sessions by scanning recent tasks and resolving each one's
 	 * Mission Control environment binding.
 	 *
-	 * The result distinguishes a full scan from a partial or failed one: a caller that reconciles
-	 * against this list would otherwise treat a transient request failure as "these sessions no
-	 * longer exist" and tear down live providers.
+	 * Only a `complete` result may be reconciled against: a partial or truncated scan is missing
+	 * entries that still exist.
 	 */
 	async listSessions(token: CancellationToken): Promise<ICloudSandboxDiscoveryResult> {
-		let tasks: readonly ITaskSummary[];
-		try {
-			const context = await this._sendTask(`${this._tasksBaseUrl()}/tasks?per_page=${DISCOVERY_TASK_SCAN_LIMIT}`, 'list', token);
-			const response = await this._readJson<{ tasks?: readonly ITaskSummary[] }>(context);
-			if (!response?.tasks) {
-				return { kind: 'failed', reason: `listTasks returned no 'tasks' array` };
+		const tasks: ITaskSummary[] = [];
+		let truncated = false;
+		for (let page = 1; page <= DISCOVERY_TASK_PAGE_LIMIT; page++) {
+			let batch: readonly ITaskSummary[];
+			let hasNextPage: boolean;
+			try {
+				const context = await this._sendTask(`${this._tasksBaseUrl()}/tasks?per_page=${DISCOVERY_TASK_SCAN_LIMIT}&page=${page}`, 'list', token);
+				const response = await this._readJson<{ tasks?: readonly ITaskSummary[] }>(context);
+				if (!response?.tasks) {
+					// Earlier pages are still worth seeding, so only fail outright on the first.
+					if (page === 1) {
+						return { kind: 'failed', reason: `listTasks returned no 'tasks' array` };
+					}
+					truncated = true;
+					break;
+				}
+				batch = response.tasks;
+				hasNextPage = hasNextLink(context.res.headers?.['link']);
+			} catch (error) {
+				if (page === 1) {
+					return { kind: 'failed', reason: `listTasks failed: ${toErrorMessage(error)}` };
+				}
+				this._logService.warn(`${LOG_PREFIX} Discovery page ${page} failed: ${toErrorMessage(error)}`);
+				truncated = true;
+				break;
 			}
-			tasks = response.tasks;
-		} catch (error) {
-			return { kind: 'failed', reason: `listTasks failed: ${toErrorMessage(error)}` };
+			tasks.push(...batch);
+			if (!hasNextPage) {
+				break;
+			}
+			if (page === DISCOVERY_TASK_PAGE_LIMIT) {
+				truncated = true;
+			}
+			if (token.isCancellationRequested) {
+				truncated = true;
+				break;
+			}
 		}
 
 		const sandboxTasks = tasks.filter(task => !task.archived_at && isCloudSandboxTask(task));
@@ -183,8 +215,63 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 
 		const sessions = discovered.filter((session): session is ICloudSandboxDiscoveredSession => session !== undefined);
 		const unnamed = sessions.filter(session => !session.repoName).length;
-		this._logService.info(`${LOG_PREFIX} Discovery found ${sessions.length} sandbox session(s) from ${sandboxTasks.length} sandbox task(s) out of ${tasks.length} scanned${unresolved > 0 ? `; ${unresolved} unresolved` : ''}${unnamed > 0 ? `; ${unnamed} without a repository name (they group under "Unknown")` : ''}.`);
-		return { kind: unresolved > 0 ? 'partial' : 'complete', sessions };
+		this._logService.info(`${LOG_PREFIX} Discovery found ${sessions.length} sandbox session(s) from ${sandboxTasks.length} sandbox task(s) out of ${tasks.length} scanned${truncated ? ' (scan truncated)' : ''}${unresolved > 0 ? `; ${unresolved} unresolved` : ''}${unnamed > 0 ? `; ${unnamed} without a repository name (they group under "Unknown")` : ''}.`);
+		return { kind: unresolved > 0 || truncated ? 'partial' : 'complete', sessions };
+	}
+
+	/**
+	 * Provision a sandbox task bound to an on-demand environment. Mission Control provisions a VM
+	 * and binds a session but starts no run, so the caller sends the first turn over the relay.
+	 * The environment on the returned session is the real VM, not the sentinel.
+	 */
+	async createSession(request: ICloudSandboxCreateSessionRequest, token: CancellationToken): Promise<ICloudSandboxCreatedSession> {
+		const repository = parseNwo(request.repoNwo);
+		const context = await this._request(`${this._tasksBaseUrl()}/tasks`, 'mc.taskClient.create', 'createTask', {
+			'Accept': 'application/json',
+			'Copilot-Integration-Id': COPILOT_INTEGRATION_ID,
+		}, token, REQUEST_TIMEOUT_MS, {
+			environment_id: CLOUD_SANDBOX_ON_DEMAND_ENVIRONMENT_ID,
+			// Persisted for display, so replayed history shows the prompt no run was started for.
+			prompt: request.prompt,
+			...(repository && { repositories: [repository] }),
+		});
+		if (!isSuccess(context)) {
+			await this._throwForStatus('task create', context);
+		}
+		const task = await this._readJson<ITaskDetail>(context);
+		const taskId = task?.id;
+		if (!taskId) {
+			throw new CloudSandboxRequestError(context.res.statusCode, 'Mission Control task create returned no task id');
+		}
+		const binding = task && getTaskEnvironmentBinding(task);
+		if (!binding) {
+			// A task with no bound session is unusable — the relay has nothing to address — but it
+			// still shows up in the user's task list, so drop it rather than leaving litter behind.
+			await this._deleteTaskBestEffort(taskId);
+			throw new CloudSandboxRequestError(context.res.statusCode, `Mission Control bound no sandbox session to task ${taskId}`);
+		}
+		this._logService.info(`${LOG_PREFIX} Provisioned sandbox task ${taskId} (session ${binding.sessionId}) on environment ${binding.environmentId}.`);
+		return { taskId, sessionId: binding.sessionId, environmentId: binding.environmentId };
+	}
+
+	/**
+	 * Delete a task we created but cannot use. Best-effort: the caller is already failing, and a
+	 * failed cleanup must not replace the error that explains why.
+	 *
+	 * Only covers tasks Mission Control actually returned to us. A create that is rejected *after*
+	 * the task record exists (HTTP 403 from the sandbox authorization check) reports no id, so
+	 * that orphan can only be cleaned up server-side.
+	 */
+	private async _deleteTaskBestEffort(taskId: string): Promise<void> {
+		try {
+			const context = await this._request(`${this._tasksBaseUrl()}/tasks/${encodeURIComponent(taskId)}`, 'mc.taskClient.delete', 'deleteTask', {
+				'Accept': 'application/json',
+				'Copilot-Integration-Id': COPILOT_INTEGRATION_ID,
+			}, CancellationToken.None, REQUEST_TIMEOUT_MS, undefined, 'DELETE');
+			this._logService.info(`${LOG_PREFIX} Cleaned up unusable sandbox task ${taskId}: HTTP ${context.res.statusCode ?? 'none'}`);
+		} catch (error) {
+			this._logService.warn(`${LOG_PREFIX} Could not clean up sandbox task ${taskId}: ${toErrorMessage(error)}`);
+		}
 	}
 
 	/**
@@ -303,7 +390,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		return context;
 	}
 
-	private async _request(url: string, callSite: string, action: CloudSandboxRequestAction, headers: Record<string, string>, token: CancellationToken, timeout: number = REQUEST_TIMEOUT_MS): Promise<IRequestContext> {
+	private async _request(url: string, callSite: string, action: CloudSandboxRequestAction, headers: Record<string, string>, token: CancellationToken, timeout: number = REQUEST_TIMEOUT_MS, body?: unknown, method?: 'GET' | 'POST' | 'DELETE'): Promise<IRequestContext> {
 		const accessToken = await this._resolveGitHubToken();
 		if (!accessToken) {
 			// No request is issued, so there is no request outcome to count.
@@ -312,9 +399,10 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		const started = Date.now();
 		try {
 			const context = await this._requestService.request({
-				type: 'GET',
+				type: method ?? (body === undefined ? 'GET' : 'POST'),
 				url,
 				headers: { ...headers, ['Authorization']: `Bearer ${accessToken}` },
+				...(body === undefined ? undefined : { data: JSON.stringify(body) }),
 				timeout,
 				callSite,
 			}, token);
@@ -430,10 +518,29 @@ function parseRetryAfter(value: string | string[] | undefined): number {
 /**
  * Whether a task is a cloud sandbox task: owned by {@link CLOUD_SANDBOX_AGENT_SLUG} and running on
  * the `sandboxes` compute provider. Reads list-level fields only.
+ *
+ * The slug half must be settled before `chat.agentHost.cloudSandbox.enabled` is turned on: sandbox
+ * tasks are expected to move to a different slug, which would silently make discovery return
+ * nothing. `compute.provider` is the durable test.
  */
 function isCloudSandboxTask(task: ITaskSummary): boolean {
 	const isCloudCodingAgent = task.agent_collaborators?.some(c => c.slug === CLOUD_SANDBOX_AGENT_SLUG) ?? false;
 	return isCloudCodingAgent && task.compute?.provider === 'sandboxes';
+}
+
+/** Whether a `Link` header advertises another page (`rel="next"`). */
+function hasNextLink(value: string | string[] | undefined): boolean {
+	const raw = Array.isArray(value) ? value.join(',') : value;
+	return raw ? /rel="?next"?/.test(raw) : false;
+}
+
+/** Split an `owner/name` into the pair Mission Control expects, or `undefined` when unusable. */
+function parseNwo(nwo: string | undefined): { owner: string; name: string } | undefined {
+	const separator = nwo?.indexOf('/') ?? -1;
+	if (!nwo || separator <= 0 || separator === nwo.length - 1) {
+		return undefined;
+	}
+	return { owner: nwo.slice(0, separator), name: nwo.slice(separator + 1) };
 }
 
 /**

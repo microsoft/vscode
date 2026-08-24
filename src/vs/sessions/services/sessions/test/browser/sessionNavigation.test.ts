@@ -28,6 +28,7 @@ const stubChat = {
 	changes: constObservable([]),
 	checkpoints: constObservable(undefined),
 	modelId: constObservable(undefined),
+	modelSource: constObservable(undefined),
 	mode: constObservable(undefined),
 	isArchived: constObservable(false),
 	isRead: constObservable(true),
@@ -46,6 +47,7 @@ function stubChatWithId(id: string, status: SessionStatus = SessionStatus.Comple
 		checkpoints: constObservable(undefined),
 		changes: constObservable([]),
 		modelId: constObservable(undefined),
+		modelSource: constObservable(undefined),
 		mode: constObservable(undefined),
 		isArchived: constObservable(false),
 		isRead: constObservable(true),
@@ -153,11 +155,16 @@ class MockSessionStore implements ISessionsManagementService {
 	}
 
 	getSessions(): ISession[] { return [...this._sessions.values()]; }
+	getInFlightNewSessionRequests(): readonly ISession[] { return []; }
 
 	getRecentlyOpenedSessions(): IRecentlyOpenedSessions { return { recent: [...this._sessions.values()], other: [] }; }
 
 	getSession(resource: URI): ISession | undefined {
 		return this._sessions.get(resource.toString());
+	}
+
+	async resolveSessionResource(resource: URI): Promise<URI> {
+		return resource;
 	}
 
 	getSessionForChatResource(resource: URI): { session: ISession; chat: IChat } | undefined {

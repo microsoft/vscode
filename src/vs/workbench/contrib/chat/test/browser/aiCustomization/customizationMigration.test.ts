@@ -106,7 +106,7 @@ suite('customizationMigration', () => {
 			agent: {
 				card: category.getCardDescription([agent], harnessLabel),
 				page: category.getPageDescription([agent], harnessLabel),
-				confirmation: category.getConfirmation([agent], harnessLabel).detail,
+				confirmation: category.getConfirmation([agent], harnessLabel, '~/.copilot/agents'),
 			},
 			instruction: {
 				card: category.getCardDescription([instruction], harnessLabel),
@@ -124,7 +124,12 @@ suite('customizationMigration', () => {
 			agent: {
 				card: 'User data customizations are only used by VS Code. Found 1 agent that Copilot [Agent Host] ignores. Move it to keep it available.',
 				page: 'Found 1 agent in user data that local VS Code can still use, but Copilot [Agent Host] ignores. Move it to the harness agents folder to keep it available.',
-				confirmation: 'This moves 1 agent out of user data.',
+				confirmation: {
+					message: 'Migrate user data customizations to \'~/.copilot/agents\'?',
+					detail: 'This moves 1 agent out of user data.',
+					primaryButton: 'Migrate',
+					deleteOriginalsLabel: 'Delete the original files from user data after migration',
+				},
 			},
 			instruction: {
 				card: 'User data customizations are only used by VS Code. Found 1 instruction file that Copilot [Agent Host] ignores. Move it to keep it available.',

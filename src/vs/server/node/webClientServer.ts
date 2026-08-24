@@ -58,12 +58,11 @@ export async function serveFile(filePath: string, cacheControl: CacheControl, lo
 
 			// Check if file modified since
 			const etag = `W/"${[stat.ino, stat.size, stat.mtime.getTime()].join('-')}"`; // weak validator (https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/ETag)
+			responseHeaders['Etag'] = etag;
 			if (req.headers['if-none-match'] === etag) {
-				res.writeHead(304);
+				res.writeHead(304, responseHeaders);
 				return void res.end();
 			}
-
-			responseHeaders['Etag'] = etag;
 		} else if (cacheControl === CacheControl.NO_EXPIRY) {
 			responseHeaders['Cache-Control'] = 'public, max-age=31536000';
 		} else if (cacheControl === CacheControl.NO_CACHING) {

@@ -6,8 +6,8 @@
 import { Promises, raceTimeout } from '../../../base/common/async.js';
 import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
-import { IAgentCreateChatOptions, IAgentCreateSessionConfig } from '../common/agent.js';
-import { IAgentHostInspectInfo, IAgentHostManagedSettingsDiagnostics, IAgentHostManagementService, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentHostSocketInfo, IAgentService, IConnectionTrackerService } from '../common/agentService.js';
+import { IAgentCreateChatRequestOptions, IAgentCreateSessionConfig } from '../common/agent.js';
+import { IAgentHostInspectInfo, IAgentHostManagedSettingsDiagnostics, IAgentHostManagementService, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentHostSocketInfo, IAgentService, IConnectionTrackerService, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk } from '../common/agentService.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 
 const SHUTDOWN_DRAIN_TIMEOUT_MS = 1000;
@@ -33,7 +33,7 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 		return this._runMutation(() => this._agentService.createSession(config));
 	}
 
-	createChatWithExtensions(session: URI, chat: URI, options: IAgentCreateChatOptions): Promise<void> {
+	createChatWithExtensions(session: URI, chat: URI, options: IAgentCreateChatRequestOptions): Promise<void> {
 		return this._runMutation(() => this._agentService.createChat(session, chat, options));
 	}
 
@@ -86,6 +86,27 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 
 	diagnosticsFetch(url: string): Promise<IAgentHostNetworkFetchResult> {
 		return this._agentService.diagnosticsFetch(url);
+	}
+
+	getSessionStateFile(session: URI): Promise<URI | undefined> {
+		if (!this._agentService.getSessionStateFile) {
+			throw new Error('Agent Host session state files are unavailable');
+		}
+		return this._agentService.getSessionStateFile(session);
+	}
+
+	collectDebugLogs(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind, chat?: URI): Promise<IAgentHostDebugLogsArtifact> {
+		if (!this._agentService.collectDebugLogs) {
+			throw new Error('Agent Host debug log collection is unavailable');
+		}
+		return this._agentService.collectDebugLogs(session, kind, chat);
+	}
+
+	readDebugLogsChunk(resource: URI, position: number): Promise<IAgentHostDebugLogsChunk> {
+		if (!this._agentService.readDebugLogsChunk) {
+			throw new Error('Agent Host debug log collection is unavailable');
+		}
+		return this._agentService.readDebugLogsChunk(resource, position);
 	}
 
 	startWebSocketServer(): Promise<IAgentHostSocketInfo> {

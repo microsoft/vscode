@@ -28,7 +28,7 @@ import { ISessionsProvidersService } from '../../../../../services/sessions/brow
 import { showMobilePickerSheet, IMobilePickerSheetItem } from '../../../../../browser/parts/mobile/mobilePickerSheet.js';
 import { getAgentHostModeIcon } from '../agentHostModeIcon.js';
 import { isWellKnownModeSchema, isWellKnownModeValue } from '../agentHostPermissionPickerDelegate.js';
-import { normalizeModelPickerOptions } from '../../../../chat/browser/sessionModelSelectionModel.js';
+import { normalizeModelPickerOptions } from '../../../../chat/browser/sessionModelPickerState.js';
 import { createChatPhoneInputSessionContext, createChatPhoneInputTarget, IChatPhoneInputTarget, matchesChatPhoneInputTarget } from './mobileChatPhoneInputTarget.js';
 
 /**

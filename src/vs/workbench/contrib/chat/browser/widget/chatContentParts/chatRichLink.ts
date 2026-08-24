@@ -168,10 +168,11 @@ const richLinkIcons: Readonly<Record<ChatLinkPresentationKind, string>> = {
 	pullRequest: 'git-pull-request',
 	commit: 'git-commit',
 	file: 'file',
-	folder: 'folder',
-	session: 'comment-discussion',
-	repository: 'repo',
-	branch: 'git-branch',
+	folder: 'folder-compact',
+	session: 'agent',
+	chat: 'comment-discussion',
+	repository: 'repo-compact',
+	branch: 'git-branch-compact',
 };
 
 function createRichLinkStatusDom(document: Document, className: string): IChatRichLinkStatusDom {
@@ -276,8 +277,6 @@ function hasLeadingLifecycleStatus(presentation: IChatLinkPresentation): boolean
 			return statusKind === 'open' || statusKind === 'closed' || statusKind === 'notPlanned';
 		case 'pullRequest':
 			return statusKind === 'open' || statusKind === 'closed' || statusKind === 'merged' || statusKind === 'draft';
-		case 'session':
-			return statusKind !== undefined;
 		default:
 			return false;
 	}
@@ -295,7 +294,7 @@ function getRichLinkStatusIcon(
 			case 'neutral':
 				return 'comment-discussion';
 			case 'error':
-				return 'error';
+				return 'error-compact';
 		}
 	}
 	switch (statusKind) {
@@ -303,11 +302,11 @@ function getRichLinkStatusIcon(
 		case 'closed': return presentationKind === 'pullRequest' ? 'git-pull-request-closed' : 'issue-closed';
 		case 'merged': return 'git-merge';
 		case 'draft': return 'git-pull-request-draft';
-		case 'notPlanned': return 'circle-slash';
-		case 'pending': return 'circle-filled';
-		case 'success': return 'pass-filled';
-		case 'warning': return 'warning';
-		case 'error': return 'error';
+		case 'notPlanned': return 'circle-slash-compact';
+		case 'pending': return 'circle-filled-compact';
+		case 'success': return 'pass-filled-compact';
+		case 'warning': return 'warning-compact';
+		case 'error': return 'error-compact';
 		case 'neutral': return 'circle-outline';
 	}
 }

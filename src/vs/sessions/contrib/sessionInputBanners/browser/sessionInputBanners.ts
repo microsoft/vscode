@@ -19,8 +19,8 @@ import { ISessionsService } from '../../../services/sessions/browser/sessionsSer
 import { SessionStatus } from '../../../services/sessions/common/session.js';
 import { IGitHubService } from '../../github/browser/githubService.js';
 import { GitHubPullRequestCIModel } from '../../github/browser/models/githubPullRequestCIModel.js';
-import { GitHubCheckStatus } from '../../github/common/types.js';
-import { getFailedChecks, REVEAL_CI_CHECKS_COMMAND_ID, submitFixCIChecks } from '../../changes/browser/checksActions.js';
+import { GitHubCheckStatus, OPEN_PULL_REQUEST_ACTION_ID } from '../../github/common/types.js';
+import { getFailedChecks, submitFixCIChecks } from '../../changes/browser/checksActions.js';
 import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedbackService } from '../../agentFeedback/browser/agentFeedbackService.js';
 import type { ISessionChatPillsDebugData } from '../../chat/browser/sessionChatInputToolbarDebug.js';
 import { ISessionInputBanner, SessionInputBannerWidget } from './sessionInputBannerWidget.js';
@@ -230,7 +230,7 @@ export class SessionInputBanners extends Disposable {
 				},
 				{
 					label: localize('ci.revealChecks', "Reveal"),
-					run: () => { if (!state.debug) { void this._executeCommand(REVEAL_CI_CHECKS_COMMAND_ID); } },
+					run: () => { if (!state.debug) { void this._executeCommand(OPEN_PULL_REQUEST_ACTION_ID); } },
 				},
 			],
 			dismiss: () => { if (!state.debug) { this._dismiss(STORAGE_KEY_CI_DISMISSED, this._ciDismissed, state.sessionId); } },

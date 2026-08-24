@@ -718,6 +718,10 @@ export const MODERN_EDITOR_TAB_SELECTED_ACTION_BACKGROUND = registerColor('moder
 
 // < --- Modern Activity Bar --- >
 
+export const MODERN_ACTIVITY_BAR_BACKGROUND = registerColor('modernActivityBar.background', ACTIVITY_BAR_BACKGROUND, localize('modernActivityBarBackground', "Background color of the Activity bar in the default side position when the modern UI is enabled."));
+
+export const MODERN_ACTIVITY_BAR_INACTIVE_BACKGROUND = registerColor('modernActivityBar.inactiveBackground', MODERN_ACTIVITY_BAR_BACKGROUND, localize('modernActivityBarInactiveBackground', "Background color of the Activity bar in an inactive window when it is in the default side position and the modern UI is enabled."));
+
 export const MODERN_ACTIVITY_BAR_ACTIVE_BACKGROUND = registerColor('modernActivityBar.activeBackground', MODERN_TAB_ACTIVE_BACKGROUND, localize('modernActivityBarActiveBackground', "Background color of active Activity bar items in the default side position when the modern UI is enabled."));
 
 export const MODERN_ACTIVITY_BAR_ACTIVE_FOREGROUND = registerColor('modernActivityBar.activeForeground', MODERN_TAB_ACTIVE_FOREGROUND, localize('modernActivityBarActiveForeground', "Foreground color of active Activity bar items in the default side position when the modern UI is enabled."));
@@ -725,6 +729,8 @@ export const MODERN_ACTIVITY_BAR_ACTIVE_FOREGROUND = registerColor('modernActivi
 export const MODERN_ACTIVITY_BAR_HOVER_BACKGROUND = registerColor('modernActivityBar.hoverBackground', MODERN_TAB_HOVER_BACKGROUND, localize('modernActivityBarHoverBackground', "Background color of Activity bar items in the default side position when hovering and the modern UI is enabled."));
 
 export const MODERN_ACTIVITY_BAR_HOVER_FOREGROUND = registerColor('modernActivityBar.hoverForeground', MODERN_TAB_HOVER_FOREGROUND, localize('modernActivityBarHoverForeground', "Foreground color of Activity bar items in the default side position when hovering and the modern UI is enabled."));
+
+export const MODERN_ACTIVITY_BAR_BORDER = registerColor('modernActivityBar.border', SURFACE_BORDER, localize('modernActivityBarBorder', "Border color of the Activity bar in the default side position when the modern UI is enabled."));
 
 // < --- Title Bar --- >
 

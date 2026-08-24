@@ -26,6 +26,8 @@ import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { localize } from '../../../../../nls.js';
 import { MenuId, IMenuService, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
+import { DropdownWithPrimaryActionViewItem } from '../../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
+import { getFlatContextMenuActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
@@ -48,7 +50,7 @@ import { AgentSessionApprovalModel, agentSessionApprovalId, IAgentSessionApprova
 import { IVoicePlaybackService } from '../../../../../workbench/contrib/chat/common/voicePlaybackService.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
-import { ActionRunner, IAction, Separator, SubmenuAction, toAction } from '../../../../../base/common/actions.js';
+import { Action, ActionRunner, IAction, Separator, SubmenuAction, toAction } from '../../../../../base/common/actions.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { HoverStyle } from '../../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
@@ -87,6 +89,7 @@ import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/
 import { IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
 import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../automationsConstants.js';
+import { Menus } from '../../../../browser/menus.js';
 
 const $ = DOM.$;
 
@@ -98,6 +101,7 @@ export const SessionItemToolbarMenuId = new MenuId('SessionItemToolbar');
 export const SessionItemContextMenuId = MenuId.SessionItemContextMenu;
 export const SessionSectionToolbarMenuId = new MenuId('SessionSectionToolbar');
 export const SessionGroupToolbarMenuId = new MenuId('SessionGroupToolbar');
+export const NEW_SESSION_FOR_WORKSPACE_ACTION_ID = 'sessionsView.sectionNewSession';
 
 /** Controls whether the empty default Chats group is shown in the sessions list. */
 export const SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING = 'sessions.list.showEmptyDefaultGroups';
@@ -175,6 +179,27 @@ function isSessionGroupItem(item: SessionListItem): item is ISessionGroupItem {
 
 function isSessionSection(item: SessionListItem): item is ISessionSection {
 	return !isSessionGroupItem(item) && 'sessions' in item && Array.isArray((item as ISessionSection).sessions);
+}
+
+function getSessionSectionIcon(sectionId: string): ThemeIcon | undefined {
+	switch (sectionId) {
+		case QUICK_CHATS_SECTION_ID:
+			return Codicon.commentDiscussion;
+		case 'pinned':
+			return Codicon.pinned;
+		case AUTOMATIONS_SECTION_ID:
+			return Codicon.watch;
+		case 'archived':
+			return Codicon.archive;
+		case 'recent':
+			return Codicon.history;
+		case 'older':
+			return Codicon.calendar;
+		default:
+			return sectionId.startsWith('workspace:')
+				? Codicon.folder
+				: undefined;
+	}
 }
 
 function isSessionShowMore(item: SessionListItem): item is ISessionShowMore {
@@ -655,7 +680,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 
 			if (!hideDetails) {
 				const badgeLabel = isQuickChat
-					? localize('quickChatBadge', "Chat")
+					? localize('quickChatBadge', "No workspace")
 					: workspace && (
 						this.options.grouping() !== SessionsGrouping.Workspace ||
 						this.options.isPinned(element) ||
@@ -896,7 +921,6 @@ function renderSessionHeaderToolbar<T>(template: ISessionHeaderTemplate, element
 interface ISessionSectionTemplate extends ISessionHeaderTemplate {
 	readonly container: HTMLElement;
 	readonly icon: HTMLElement;
-	readonly statusIndicator: HTMLElement;
 	readonly label: HTMLElement;
 	readonly count: HTMLElement;
 	readonly chevron: HTMLElement;
@@ -953,30 +977,70 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		private readonly automationSessions: IObservable<readonly ISession[]>,
 		private readonly uriIdentityService: IUriIdentityService,
 		private readonly customViewService: ICustomViewService,
+		private readonly menuService: IMenuService,
 	) { }
 
 	renderTemplate(container: HTMLElement): ISessionSectionTemplate {
 		const disposables = new DisposableStore();
 		const elementDisposables = disposables.add(new DisposableStore());
+		const actionViewItemDisposables = disposables.add(new DisposableStore());
+		const dropdownAction = disposables.add(new Action(
+			'sessionsView.sectionNewSession.moreActions',
+			localize('newSessionForWorkspaceMoreActions', "More Actions"),
+		));
 
 		container.classList.add('session-section');
+		const chevron = DOM.append(container, $('span.session-section-chevron'));
+		chevron.setAttribute('aria-hidden', 'true');
 		const icon = DOM.append(container, $('span.session-section-icon'));
 		icon.setAttribute('aria-hidden', 'true');
 		const label = DOM.append(container, $('span.session-section-label'));
-		const statusIndicator = DOM.append(container, $('span.session-section-status-indicator'));
-		statusIndicator.setAttribute('aria-hidden', 'true');
 		const count = DOM.append(container, $('span.session-section-count'));
 		const toolbarContainer = DOM.append(container, $('.session-section-toolbar'));
-		const chevron = DOM.append(container, $('span.session-section-chevron'));
-		chevron.setAttribute('aria-hidden', 'true');
 
 		const contextKeyService = disposables.add(this.contextKeyService.createScoped(container));
 		const scopedInstantiationService = disposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService])));
 		const toolbar = disposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, toolbarContainer, SessionSectionToolbarMenuId, {
 			menuOptions: { shouldForwardArgs: true },
+			actionViewItemProvider: (action, options) => {
+				if (action.id !== NEW_SESSION_FOR_WORKSPACE_ACTION_ID || !(action instanceof MenuItemAction)) {
+					return undefined;
+				}
+
+				actionViewItemDisposables.clear();
+
+				const dropdownActions = getFlatContextMenuActions(this.menuService.getMenuActions(
+					Menus.SessionSectionNewSession,
+					contextKeyService,
+					{ shouldForwardArgs: true },
+				));
+				if (dropdownActions.length === 0) {
+					return undefined;
+				}
+
+				const item = scopedInstantiationService.createInstance(
+					DropdownWithPrimaryActionViewItem,
+					action,
+					dropdownAction,
+					dropdownActions,
+					'',
+					{
+						hoverDelegate: options.hoverDelegate,
+						menuAsChild: false
+					},
+				);
+
+				actionViewItemDisposables.add(item.onDidChangeDropdownVisibility(visible =>
+					container.classList.toggle('dropdown-active', visible)));
+
+				actionViewItemDisposables.add(toDisposable(() =>
+					container.classList.remove('dropdown-active')));
+
+				return item;
+			},
 		}));
 
-		return { container, icon, statusIndicator, label, count, toolbarContainer, toolbar, chevron, contextKeyService, elementDisposables, disposables };
+		return { container, icon, label, count, toolbarContainer, toolbar, chevron, contextKeyService, elementDisposables, disposables };
 	}
 
 	renderElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionSectionTemplate): void {
@@ -996,10 +1060,8 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 
 		// Leading icon for the "Pinned" and "Chats" (quick chats) section headers.
 		// Templates are reused across rows, so recompute the icon every render.
-		const sectionIcon = element.id === QUICK_CHATS_SECTION_ID ? Codicon.commentDiscussion
-			: element.id === 'pinned' ? Codicon.pinned
-				: element.id === AUTOMATIONS_SECTION_ID ? Codicon.watch
-					: undefined;
+		DOM.clearNode(template.icon);
+		const sectionIcon = getSessionSectionIcon(element.id);
 		template.icon.className = sectionIcon ? `session-section-icon ${ThemeIcon.asClassName(sectionIcon)}` : 'session-section-icon';
 		template.icon.style.display = sectionIcon ? '' : 'none';
 
@@ -1008,26 +1070,23 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 				const activeCustomView = this.customViewService.activeCustomView.read(reader);
 				template.container.classList.toggle('active', activeCustomView?.id === AUTOMATIONS_CUSTOM_VIEW_ID);
 			}));
-			DOM.clearNode(template.statusIndicator);
-			const statusIcon = template.elementDisposables.add(this.instantiationService.createInstance(SessionStatusIcon, template.statusIndicator));
+			const statusIcon = template.elementDisposables.add(this.instantiationService.createInstance(SessionStatusIcon, template.icon));
 			template.elementDisposables.add(autorun(reader => {
 				const automationStatus = this.automationStatus.read(reader);
 				if (automationStatus === SessionStatus.NeedsInput) {
-					template.statusIndicator.style.display = '';
+					template.icon.className = 'session-section-icon';
 					statusIcon.setStatus(SessionStatus.NeedsInput, true, false);
 				} else if (automationStatus === SessionStatus.InProgress) {
-					template.statusIndicator.style.display = '';
+					template.icon.className = 'session-section-icon';
 					statusIcon.setStatus(SessionStatus.InProgress, true, false);
 				} else if (automationStatus === SessionStatus.Completed) {
-					template.statusIndicator.style.display = '';
+					template.icon.className = 'session-section-icon';
 					statusIcon.setStatus(SessionStatus.Completed, false, false);
 				} else {
-					template.statusIndicator.style.display = 'none';
+					statusIcon.reset();
+					template.icon.className = `session-section-icon ${ThemeIcon.asClassName(Codicon.watch)}`;
 				}
 			}));
-		} else {
-			template.statusIndicator.style.display = 'none';
-			DOM.clearNode(template.statusIndicator);
 		}
 
 		template.label.textContent = element.label;
@@ -1040,6 +1099,7 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		}
 
 		this.updateChevron(template, node.collapsible, node.collapsed);
+		template.chevron.classList.toggle('collapsible', node.collapsible);
 
 		// Set context key for section type so toolbar actions can use when clauses
 		const sectionType = element.id.startsWith('workspace:') ? 'workspace' : element.id;
@@ -1140,11 +1200,14 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 		const disposables = new DisposableStore();
 
 		container.classList.add('session-section', 'session-group');
+		const chevron = DOM.append(container, $('span.session-section-chevron'));
+		chevron.setAttribute('aria-hidden', 'true');
+		const icon = DOM.append(container, $('span.session-section-icon'));
+		icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.folderLibrary));
+		icon.setAttribute('aria-hidden', 'true');
 		const label = DOM.append(container, $('span.session-section-label'));
 		const inputContainer = DOM.append(container, $('.session-group-input'));
 		const toolbarContainer = DOM.append(container, $('.session-section-toolbar'));
-		const chevron = DOM.append(container, $('span.session-section-chevron'));
-		chevron.setAttribute('aria-hidden', 'true');
 
 		const contextKeyService = disposables.add(this.contextKeyService.createScoped(container));
 		const scopedInstantiationService = disposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService])));
@@ -1340,7 +1403,7 @@ interface ISessionsAccessibilityProviderOptions {
 	readonly grouping: () => SessionsGrouping;
 	readonly isPinned: (session: ISession) => boolean;
 	readonly isRenderedInCustomGroup?: (session: ISession) => boolean;
-	readonly includeQuickChatIdentity?: boolean;
+	readonly includeQuickChatInAriaLabel?: boolean;
 }
 
 class SessionsAccessibilityProvider {
@@ -1397,7 +1460,7 @@ class SessionsAccessibilityProvider {
 			const title = element.title.read(reader);
 			const updated = fromNow(element.updatedAt.read(reader), true);
 			let label: string;
-			if (this.options?.includeQuickChatIdentity && element.isQuickChat?.read(reader)) {
+			if (this.options?.includeQuickChatInAriaLabel && element.isQuickChat?.read(reader)) {
 				label = localize('sessionItemQuickChatAria', "{0}, chat, updated {1}", title, updated);
 			} else if (element.worktreePending?.read(reader)) {
 				label = localize('sessionItemWorktreePendingAria', "{0}, creating worktree, updated {1}", title, updated);
@@ -1795,6 +1858,14 @@ export interface ISessionsListControlOptions {
 	readonly sorting: () => SessionsSorting;
 	readonly findWidgetContainer?: HTMLElement;
 	onSessionOpen(resource: URI, preserveFocus: boolean, sideBySide: boolean): void;
+
+	/**
+	 * Gate invoked before a session is opened (before mark-read, activation, and
+	 * folder mount). Return `false` to refuse the open — e.g. the session's folder
+	 * is not trusted — leaving the current session/empty slot untouched. When
+	 * omitted, opens are not gated.
+	 */
+	canOpenSession?(session: ISession): Promise<boolean>;
 }
 
 /**
@@ -2010,7 +2081,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			this.tree.setFocus([element], event);
 			this.tree.setSelection([element], event);
 		};
-		const sectionRenderer = new SessionSectionRenderer(true /* hideSectionCount */, selectHeader, instantiationService, contextKeyService, this.automationService, this.automationSessions, this.uriIdentityService, this.customViewService);
+		const sectionRenderer = new SessionSectionRenderer(true /* hideSectionCount */, selectHeader, instantiationService, contextKeyService, this.automationService, this.automationSessions, this.uriIdentityService, this.customViewService, this.menuService);
 		this._sectionRenderer = sectionRenderer;
 		const groupRenderer = new SessionGroupRenderer({
 			commitEdit: (group, name) => this.commitGroupEdit(group, name),
@@ -2124,7 +2195,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			}
 		));
 
-		this._register(this.tree.onDidOpen(e => {
+		this._register(this.tree.onDidOpen(async e => {
 			const element = e.element;
 			if (!element) {
 				return;
@@ -2151,6 +2222,12 @@ export class SessionsList extends Disposable implements ISessionsList {
 				return;
 			}
 			if (!isSessionSection(element) && !isSessionGroupItem(element)) {
+				// Gate the open on workspace trust before any side effect (mark-read,
+				// activation, folder mount). A refused open leaves the current
+				// session (or empty new-session slot) untouched.
+				if (this.options.canOpenSession && !(await this.options.canOpenSession(element))) {
+					return;
+				}
 				this.markRead(element);
 				// A deliberate left mouse click on a session should move keyboard
 				// focus into the chat input so the user can start typing right
@@ -3803,7 +3880,7 @@ export class SessionsFlatList extends Disposable {
 				accessibilityProvider: new SessionsAccessibilityProvider(undefined, {
 					grouping: () => SessionsGrouping.Date,
 					isPinned: session => this._sessionsListModelService.isSessionPinned(session),
-					includeQuickChatIdentity: !useCompactQuickChatRows,
+					includeQuickChatInAriaLabel: !useCompactQuickChatRows,
 				}),
 				identityProvider: {
 					getId: (element: SessionListItem) => (element as ISession).resource.toString(),

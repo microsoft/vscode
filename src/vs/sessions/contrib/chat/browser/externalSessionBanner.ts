@@ -47,12 +47,12 @@ export function shouldConfirmExternalSessionVisibilityChange(mode: ChatExternalS
 			return true;
 		case ChatExternalSessionsMode.None:
 			return true;
-		case ChatExternalSessionsMode.All:
-			return false;
 		case ChatExternalSessionsMode.Last24Hours:
 			return updatedAt.getTime() < now - DAY;
 		case ChatExternalSessionsMode.Last7Days:
 			return updatedAt.getTime() < now - 7 * DAY;
+		case ChatExternalSessionsMode.Last30Days:
+			return updatedAt.getTime() < now - 30 * DAY;
 	}
 }
 
@@ -66,7 +66,7 @@ export function getExternalSessionVisibilityConfirmation(mode: ChatExternalSessi
 		return {
 			type: 'warning',
 			message,
-			detail: localize('externalSessionBanner.confirm.recent.detail', "Only the 2 most recently updated external sessions from the last 7 days will be shown. Are you sure you want to save this change?"),
+			detail: localize('externalSessionBanner.confirm.recent.detail', "Only up to the 2 most recently updated external sessions from the last 7 days will be shown. Are you sure you want to save this change?"),
 			primaryButton,
 		};
 	}
@@ -86,7 +86,9 @@ export function getExternalSessionVisibilityConfirmation(mode: ChatExternalSessi
 		: localize('externalSessionBanner.confirm.daysAgo', "{0} days ago", daysAgo);
 	const detail = mode === ChatExternalSessionsMode.Last24Hours
 		? localize('externalSessionBanner.confirm.lastDay.detail', "Only external sessions updated in the last day will be shown. This session was last updated {0}. Are you sure you want to save this change?", lastUpdated)
-		: localize('externalSessionBanner.confirm.last7Days.detail', "Only external sessions updated in the last 7 days will be shown. This session was last updated {0}. Are you sure you want to save this change?", lastUpdated);
+		: mode === ChatExternalSessionsMode.Last7Days
+			? localize('externalSessionBanner.confirm.last7Days.detail', "Only external sessions updated in the last 7 days will be shown. This session was last updated {0}. Are you sure you want to save this change?", lastUpdated)
+			: localize('externalSessionBanner.confirm.last30Days.detail', "Only external sessions updated in the last 30 days will be shown. This session was last updated {0}. Are you sure you want to save this change?", lastUpdated);
 
 	return { type: 'warning', message, detail, primaryButton };
 }
@@ -136,7 +138,7 @@ export class ExternalSessionBanner extends Disposable {
 		);
 		dom.append(content, dom.$('.external-session-banner-description', { role: 'status' })).textContent = localize(
 			'externalSessionBanner.description',
-			"Choose which external sessions you want to see in {0}. You can change this later in Settings.",
+			"Choose how you want external sessions to appear in {0}. You can change this later in Settings.",
 			this._productService.nameShort
 		);
 
@@ -150,6 +152,8 @@ export class ExternalSessionBanner extends Disposable {
 			defaultSelectBoxStyles,
 			{
 				ariaLabel: localize('externalSessionBanner.select.ariaLabel', "External sessions to show"),
+				hideDisabledOptions: true,
+				showOptionDescriptionHovers: true,
 				useCustomDrawn: true,
 			}
 		));
@@ -225,7 +229,7 @@ export class ExternalSessionBanner extends Disposable {
 				mode: ChatExternalSessionsMode.Recent,
 				item: {
 					text: localize('externalSessionBanner.select.recent', "Recent"),
-					description: localize('externalSessionBanner.select.recent.description', "Show the 2 most recently updated external sessions from the last 7 days."),
+					description: localize('externalSessionBanner.select.recent.description', "Show up to the 2 most recently updated external sessions from the last 7 days."),
 				},
 			},
 			{
@@ -243,10 +247,10 @@ export class ExternalSessionBanner extends Disposable {
 				},
 			},
 			{
-				mode: ChatExternalSessionsMode.All,
+				mode: ChatExternalSessionsMode.Last30Days,
 				item: {
-					text: localize('externalSessionBanner.select.all', "All"),
-					description: localize('externalSessionBanner.select.all.description', "Show all sessions created in another application."),
+					text: localize('externalSessionBanner.select.last30Days', "Last 30 Days"),
+					description: localize('externalSessionBanner.select.last30Days.description', "Show external sessions updated in the last 30 days."),
 				},
 			},
 		];

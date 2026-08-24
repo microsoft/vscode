@@ -27,10 +27,12 @@ import { ISessionDataService, type ISessionDatabase } from '../../../common/sess
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../../common/agentHostCheckpointService.js';
 import { IAgentHostOTelService } from '../../../common/otel/agentHostOTelService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../../node/agentConfigurationService.js';
+import { IAgentHostWorktreeIsolation, NullAgentHostWorktreeIsolation } from '../../../node/shared/worktreeIsolation.js';
 import { IAgentHostCustomizationEnablementService } from '../../../node/agentHostCustomizationEnablementService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../../node/agentHostStateManager.js';
 import { IAgentHostSessionTitleSignal } from '../../../node/agentHostSessionTitleSignal.js';
 import { IAgentHostGitHubEndpointService } from '../../../node/agentHostGitHubEndpointService.js';
+import { IAgentHostProxyResolver } from '../../../node/agentHostProxyResolver.js';
 import { IAgentSdkDownloader } from '../../../node/agentSdkDownloader.js';
 import { CodexAgent, toCodexModelSelectionId } from '../../../node/codex/codexAgent.js';
 import { CodexAppServerClient, type ICodexAppServerTransport } from '../../../node/codex/codexAppServerClient.js';
@@ -39,6 +41,7 @@ import { ICopilotApiService } from '../../../node/shared/copilotApiService.js';
 import { createSessionDataService, TestSessionDatabase } from '../../common/sessionTestHelpers.js';
 import { createTestGitHubEndpointService } from '../testGitHubEndpointService.js';
 import { createNoopCustomizationEnablementService } from '../testCustomizationEnablementService.js';
+import { createTestAgentHostProxyResolver } from '../agentServiceTestUtils.js';
 
 const COPILOT_TEST_MODEL = toCodexModelSelectionId('vscode-proxy', 'gpt-test');
 
@@ -183,7 +186,9 @@ async function createAgent(disposables: Pick<DisposableStore, 'add'>, options: I
 	instantiationService.stub(ICopilotApiService, { _serviceBrand: undefined, models: async () => models });
 	instantiationService.stub(ICodexProxyService, { _serviceBrand: undefined });
 	instantiationService.stub(IAgentConfigurationService, configurationService);
+	instantiationService.stub(IAgentHostWorktreeIsolation, new NullAgentHostWorktreeIsolation());
 	instantiationService.stub(IAgentHostGitHubEndpointService, createTestGitHubEndpointService());
+	instantiationService.stub(IAgentHostProxyResolver, createTestAgentHostProxyResolver());
 	instantiationService.stub(IAgentSdkDownloader, {
 		_serviceBrand: undefined,
 		onDidDownloadProgress: Event.None,
@@ -248,6 +253,7 @@ function createRecordingServerToolHost(advertised: string[]): IAgentServerToolHo
 		definitions: [],
 		toolNames: [],
 		advertise: session => advertised.push(session.toString()),
+		getDefinitionsForSession: () => [],
 		canRequireConfirmation: () => false,
 		requiresConfirmation: () => false,
 		executeTool: () => '',
@@ -260,6 +266,7 @@ function createThrowingAdvertiseServerToolHost(message: string): IAgentServerToo
 		definitions: [],
 		toolNames: [],
 		advertise: () => { throw new Error(message); },
+		getDefinitionsForSession: () => [],
 		canRequireConfirmation: () => false,
 		requiresConfirmation: () => false,
 		executeTool: () => '',
@@ -277,6 +284,7 @@ function createRecordingChatServerToolHost(calls: { readonly method: 'requiresCo
 		definitions: [{ name: PEER_TEST_TOOL_NAME, description: 'test', inputSchema: { type: 'object' } }],
 		toolNames: [PEER_TEST_TOOL_NAME],
 		advertise: () => { },
+		getDefinitionsForSession: () => [{ name: PEER_TEST_TOOL_NAME, description: 'test', inputSchema: { type: 'object' } }],
 		canRequireConfirmation: () => false,
 		requiresConfirmation: (chatUri, toolName) => {
 			calls.push({ method: 'requiresConfirmation', chatUri: chatUri.toString() });
@@ -315,6 +323,12 @@ function readNextMessage(stream: PassThrough): Promise<{ readonly id?: number; r
 suite('CodexAgent createChat', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('advertises chat fork support without side-chat support', async () => {
+		const agent = await createAgent(disposables);
+
+		assert.deepStrictEqual(agent.getDescriptor().capabilities?.multipleChats, { fork: true });
+	});
 
 	test('fresh: binds the exact target chat during creation, never leaving the runtime unbound', async () => {
 		const agent = await createAgent(disposables);

@@ -93,7 +93,7 @@ import { chatInputStackClass, chatInputStackSlotClass, ChatInputStackSlot, refre
 import { IChatSubmitRequestHandlerService } from '../../../../workbench/contrib/chat/browser/chatSubmitRequestHandlerService.js';
 import { INewChatModelPickerService, NewChatModelPickerService } from './newChatModelPicker.js';
 import { ModelPicker, ModelPickerActionViewItem } from './modelPicker.js';
-import { ISessionModelSelectionModel, SessionModelSelectionModel } from './sessionModelSelectionModel.js';
+import { ISessionModelSelection, SessionModelSelection } from './sessionModelSelection.js';
 import { ISessionContext, SessionContext } from '../../../services/sessions/browser/sessionContext.js';
 import { AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING } from './sessionsChatHistory.js';
 import { IChatStatusItemService } from '../../../../workbench/contrib/chat/browser/chatStatus/chatStatusItemService.js';
@@ -113,7 +113,7 @@ import { combineVoiceInput } from '../../../../workbench/contrib/chat/browser/vo
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { DictationDownloadRing, getDictationDownloadHoverMarkdown, getDictationPreparingLabel } from '../../../../workbench/contrib/chat/browser/speechToText/dictationDownloadRing.js';
 import { IVoiceSessionController } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceSessionController.js';
-import { ChatPetWidget } from '../../../../workbench/contrib/chat/browser/widget/chatPetWidget.js';
+import { IChatPetWidgetService } from '../../../../workbench/contrib/chat/browser/widget/chatPetWidgetService.js';
 import { IVoiceModeOnboardingService } from '../../../../workbench/contrib/agentsVoice/browser/voiceModeOnboarding.js';
 import { AGENTS_VOICE_ENABLED } from '../../../../workbench/contrib/agentsVoice/common/agentsVoice.js';
 import { animatePromptTyping, IPromptTypingAnimation } from './promptTypingAnimation.js';
@@ -337,7 +337,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	get inputEditor(): CodeEditorWidget | undefined { return this._editor; }
 
 	/** The current model-selection state. Exposed so host widgets can react to model changes. */
-	get selectedModelState() { return this._sessionModelSelectionModel.state; }
+	get selectedModelState() { return this._modelSelection.state; }
 
 	get workspacePreselectionSource(): NewSessionWorkspacePreselectionSource | undefined {
 		return this.options.getWorkspacePreselectionSource?.();
@@ -381,7 +381,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	private _agentHostInputCompletionHandler: AgentHostInputCompletionHandler | undefined;
 	private readonly _scopedInstantiationService: IInstantiationService;
 	private readonly _newChatModelPickerService = new NewChatModelPickerService();
-	private readonly _sessionModelSelectionModel: SessionModelSelectionModel;
+	private readonly _modelSelection: SessionModelSelection;
 	private readonly _canSendRequest: IObservable<boolean>;
 	private readonly _compactModelPicker = observableValue(this, false);
 
@@ -414,6 +414,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			sessionTypePickerOptions?: ISessionTypePickerOptions;
 			supportsBackground?: boolean;
 			deferredNotificationsEnabled?: IObservable<boolean>;
+			petHostPreferred?: IObservable<boolean>;
 			/**
 			 * Keep this composer a valid voice target even while a created session
 			 * is active. Used by the in-session "new chat" composer so dictation
@@ -447,20 +448,21 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		@IVoiceModeOnboardingService private readonly voiceModeOnboardingService: IVoiceModeOnboardingService,
 		@INewChatVoiceTargetService private readonly newChatVoiceTargetService: INewChatVoiceTargetService,
 		@IThemeService private readonly themeService: IThemeService,
+		@IChatPetWidgetService private readonly chatPetWidgetService: IChatPetWidgetService,
 	) {
 		super();
-		this._sessionModelSelectionModel = this._register(this.instantiationService.createInstance(SessionModelSelectionModel, this.options.session));
+		this._modelSelection = this._register(this.instantiationService.createInstance(SessionModelSelection, this.options.session));
 		this._canSendRequest = derived(this, reader => {
 			if (this.options.canSubmitWithoutSession?.read(reader)) {
 				return true;
 			}
-			const modelSelection = this._sessionModelSelectionModel.state.read(reader);
+			const modelSelection = this._modelSelection.state.read(reader);
 			return this.options.canSendRequest.read(reader) && modelSelection.hasSelectableModel && !modelSelection.pendingSelection;
 		});
 		this._scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection(
 			[INewChatModelPickerService, this._newChatModelPickerService],
 			[ISessionContext, new SessionContext(this.options.session)],
-			[ISessionModelSelectionModel, this._sessionModelSelectionModel],
+			[ISessionModelSelection, this._modelSelection],
 		)));
 		this._history = this._register(this.instantiationService.createInstance(ChatHistoryNavigator, ChatAgentLocation.Chat));
 		if (this.options.historyKey) {
@@ -597,7 +599,16 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 
 		this._createEditor(inputArea, editorOverflowWidgetsDomNode);
 		const inputHasContent = observableFromEvent(this, this._editor.onDidChangeModelContent, () => this._editor.getValue().length > 0);
-		this._register(this.instantiationService.createInstance(ChatPetWidget, chatInputContainer, inputArea, root, constObservable(undefined), inputHasContent, constObservable(true), this._editor.onDidChangeModelContent));
+		this._register(this.chatPetWidgetService.register(this, {
+			parent: chatInputContainer,
+			dragBounds: inputArea,
+			movementBounds: root,
+			model: constObservable(undefined),
+			hasInput: inputHasContent,
+			inputChanged: this._editor.onDidChangeModelContent,
+			getPlatformTop: () => undefined,
+			onDidChangePlatform: Event.None,
+		}, this.options.petHostPreferred, this.onDidFocus));
 		this._createInputToolbar(inputArea);
 
 		const newChatBottomContainer = dom.append(parent, dom.$('.new-chat-bottom-container'));
@@ -799,13 +810,18 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		}));
 
 		const dictationFocusKey = SessionsChatInputHasDictationFocus.bindTo(inputScopedContextKeyService);
+		// The composer is a chat input, so it carries the shared focus key that
+		// chat input keybindings such as paste as text are scoped to.
+		const inputHasFocusKey = ChatContextKeys.inputHasFocus.bindTo(inputScopedContextKeyService);
 		this._register(this._editor.onDidFocusEditorWidget(() => {
 			dictationFocusKey.set(true);
+			inputHasFocusKey.set(true);
 			activeDictationComposer = this;
 			this._onDidFocus.fire();
 		}));
 		this._register(this._editor.onDidBlurEditorWidget(() => {
 			dictationFocusKey.set(false);
+			inputHasFocusKey.set(false);
 			if (activeDictationComposer === this) {
 				activeDictationComposer = undefined;
 			}
@@ -1042,7 +1058,6 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			this.voiceSessionController.isConnecting.read(reader),
 			this.voiceSessionController.targetSession.read(reader),
 			this.voiceSessionController.hasDraftTarget.read(reader),
-			this.voiceSessionController.omniInputOpen.read(reader),
 		));
 
 		const action = toAction({
@@ -1159,7 +1174,6 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 				this.voiceSessionController.isConnecting.get(),
 				this.voiceSessionController.targetSession.get(),
 				this.voiceSessionController.hasDraftTarget.get(),
-				this.voiceSessionController.omniInputOpen.get(),
 			);
 			const dict = this.voiceInputModeService.dictationAvailable.get();
 			const voice = this.voiceInputModeService.voiceAvailable.get();
@@ -1181,7 +1195,6 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			this.voiceSessionController.isConnecting.read(reader);
 			this.voiceSessionController.targetSession.read(reader);
 			this.voiceSessionController.hasDraftTarget.read(reader);
-			this.voiceSessionController.omniInputOpen.read(reader);
 			this.voiceInputModeService.dictationAvailable.read(reader);
 			this.voiceInputModeService.voiceAvailable.read(reader);
 			this.voiceInputModeService.handsFree.read(reader);
@@ -1624,11 +1637,11 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	}
 
 	getVoiceModels() {
-		return this._sessionModelSelectionModel.state.get().models;
+		return this._modelSelection.state.get().models;
 	}
 
 	selectVoiceModel(identifier: string): boolean {
-		return this._sessionModelSelectionModel.selectModel(identifier);
+		return this._modelSelection.selectModel(identifier);
 	}
 }
 

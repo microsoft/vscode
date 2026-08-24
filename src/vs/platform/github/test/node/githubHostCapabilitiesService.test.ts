@@ -6,10 +6,19 @@
 import assert from 'assert';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { NullLogService } from '../../../log/common/log.js';
 import { GitHubHostCapabilitiesService } from '../../common/githubHostCapabilitiesService.js';
 import { GitHubTransport } from '../../common/githubTransport.js';
 import { nodeFetch } from './nodeFetch.js';
 import { gitHubGraphQLResponse, gitHubGraphQLStep, ProgrammableGitHubServer } from './programmableGitHubServer.js';
+
+class RecordingLogService extends NullLogService {
+	readonly warnings: string[] = [];
+
+	override warn(message: string): void {
+		this.warnings.push(message);
+	}
+}
 
 suite('GitHubHostCapabilitiesService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -30,7 +39,7 @@ suite('GitHubHostCapabilitiesService', () => {
 				response: gitHubGraphQLResponse({
 					pullRequest: { fields: [{ name: 'mergeQueueEntry' }, { name: 'reviewThreads' }] },
 					repository: { fields: [{ name: 'mergeQueue' }] },
-					requirableByPullRequest: { fields: [{ name: 'isRequired' }] },
+					requirableByPullRequest: { name: 'RequirableByPullRequest' },
 				}),
 			}));
 			const transport = disposables.add(new GitHubTransport(nodeFetch));
@@ -65,6 +74,34 @@ suite('GitHubHostCapabilitiesService', () => {
 		});
 	});
 
+	test('stays within the GitHub introspection budget', async () => {
+		await withServer(async server => {
+			server.enqueue(gitHubGraphQLStep({
+				response: gitHubGraphQLResponse({
+					pullRequest: { fields: [{ name: 'reviewThreads' }] },
+					repository: { fields: [] },
+					requirableByPullRequest: { name: 'RequirableByPullRequest' },
+				}),
+			}));
+			const transport = disposables.add(new GitHubTransport(nodeFetch));
+			const service = disposables.add(new GitHubHostCapabilitiesService(transport, server.createEndpointService()));
+			const signal = new AbortController().signal;
+
+			await service.getCapabilities({
+				account: { host: new URL(server.apiBaseUrl).host, accountId: '101' },
+				token: 'token',
+				generation: 1,
+				signal,
+			}, undefined, signal);
+
+			// GitHub rejects a query that selects `__Type.fields` more than twice with
+			// INTROSPECTION_LIMIT_EXCEEDED, which would silently disable every GraphQL capability.
+			const query = server.requests[0].graphQl?.query ?? '';
+			assert.strictEqual(query.match(/\bfields\b/g)?.length, 2);
+			server.assertSatisfied();
+		});
+	});
+
 	test('fails closed when the schema probe returns errors', async () => {
 		await withServer(async server => {
 			server.enqueue(gitHubGraphQLStep({
@@ -87,6 +124,37 @@ suite('GitHubHostCapabilitiesService', () => {
 				internalMergeStatus: false,
 				reviewThreads: false,
 				checkContextRequiredness: false,
+			});
+			server.assertSatisfied();
+		});
+	});
+
+	test('warns when an unexpected probe error disables GraphQL capabilities', async () => {
+		await withServer(async server => {
+			server.enqueue(gitHubGraphQLStep({
+				response: gitHubGraphQLResponse(undefined, [{
+					message: 'Introspection fields may only be used 2 times, but some fields were used more than that: __Type.fields (3)',
+					type: 'INTROSPECTION_LIMIT_EXCEEDED',
+				}]),
+			}));
+			const transport = disposables.add(new GitHubTransport(nodeFetch));
+			const logService = disposables.add(new RecordingLogService());
+			const service = disposables.add(new GitHubHostCapabilitiesService(transport, server.createEndpointService(), logService));
+			const signal = new AbortController().signal;
+
+			const result = await service.getCapabilities({
+				account: { host: new URL(server.apiBaseUrl).host, accountId: '101' },
+				token: 'token',
+				generation: 1,
+				signal,
+			}, undefined, signal);
+
+			assert.deepStrictEqual({
+				graphql: result.graphql,
+				warnings: logService.warnings.map(warning => warning.includes('INTROSPECTION_LIMIT_EXCEEDED')),
+			}, {
+				graphql: false,
+				warnings: [true],
 			});
 			server.assertSatisfied();
 		});
@@ -133,7 +201,7 @@ suite('GitHubHostCapabilitiesService', () => {
 					response: gitHubGraphQLResponse({
 						pullRequest: { fields: [{ name: 'reviewThreads' }] },
 						repository: { fields: [] },
-						requirableByPullRequest: { fields: [] },
+						requirableByPullRequest: null,
 					}),
 				}),
 			);
@@ -185,7 +253,7 @@ suite('GitHubHostCapabilitiesService', () => {
 				response: gitHubGraphQLResponse({
 					pullRequest: { fields: [{ name: 'reviewThreads' }] },
 					repository: { fields: [] },
-					requirableByPullRequest: { fields: [] },
+					requirableByPullRequest: null,
 				}),
 			}));
 			const transport = disposables.add(new GitHubTransport(nodeFetch));

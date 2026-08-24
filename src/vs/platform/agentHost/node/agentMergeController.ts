@@ -6,6 +6,7 @@
 import { RunOnceScheduler, SequencerByKey } from '../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { structuralEquals } from '../../../base/common/equals.js';
+import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { autorun } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
@@ -14,13 +15,13 @@ import { IGitHubService } from '../../github/common/githubService.js';
 import { PullRequestRef, PullRequestSnapshot, PullRequestSubscription } from '../../github/common/githubPullRequestService.js';
 import { GitHubRequestError } from '../../github/common/githubTransport.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentMergeConfigKey, AgentMergeConfiguration, AgentMergePromptContext, AgentMergeRepairAction, AgentMergeSessionState, AgentMergeTarget, agentMergeRootConfigSchema, defaultAgentMergeConfiguration, evaluateAgentMerge, readAgentMergeSessionState, resolveAgentMergeConfiguration } from '../common/agentMerge.js';
+import { AgentMergeConfigKey, AgentMergeConfiguration, AgentMergePromptContext, AgentMergeRepairAction, AgentMergeSessionState, AgentMergeTarget, agentMergeGateFragments, agentMergeRootConfigSchema, defaultAgentMergeConfiguration, evaluateAgentMerge, readAgentMergeSessionState, resolveAgentMergeConfiguration } from '../common/agentMerge.js';
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
 import { deriveGitHubEndpoints } from '../common/githubEndpoints.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { ActionType } from '../common/state/protocol/common/actions.js';
 import { AuthRequiredReason } from '../common/state/sessionActions.js';
-import { getSessionRelatedPullRequestUrls, isAhpChatChannel, isSessionStatusArchived, parseRequiredSessionUriFromChatUri, readSessionGitHubState, readSessionGitState, SessionLifecycle, TurnState } from '../common/state/sessionState.js';
+import { getSessionRelatedPullRequestUrls, isAhpChatChannel, isSessionStatusArchived, needsSessionGitStateRefresh, parseRequiredSessionUriFromChatUri, readSessionGitHubState, readSessionGitState, SessionLifecycle, TurnState } from '../common/state/sessionState.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
@@ -30,8 +31,12 @@ const snapshotDebounce = 30_000;
 const backstopInterval = 10 * 60_000;
 const maximumRepeatedPromptCount = 3;
 const maximumTotalPromptCount = 6;
+/** How long one unchanged indeterminate cause may persist before Agent Merge gives up. */
+const maximumIndeterminateDuration = 30 * 60_000;
+/** How long a gap between indeterminate observations may be before the budget window restarts. */
+const indeterminateObservationGap = 2 * backstopInterval;
 
-interface IAgentMergeControllerOptions {
+export interface IAgentMergeControllerOptions {
 	readonly startTurn: (session: string, turnId: string, prompt: string) => boolean;
 	readonly cancelTurn: (session: string, turnId: string) => void;
 	readonly getAutonomousSessionConfig: (session: string, config: Readonly<Record<string, unknown>>) => Record<string, unknown> | undefined;
@@ -46,6 +51,17 @@ class AgentMergeRuntime extends Disposable {
 	readonly evaluationScheduler: RunOnceScheduler;
 	readonly backstopScheduler: RunOnceScheduler;
 	ref: PullRequestRef | undefined;
+	/**
+	 * Whether this runtime already tried to recompute git state that reported
+	 * no usable branch. Caps that repair at one git call per runtime so a
+	 * checkout that can never report a branch does not spawn one on every
+	 * backstop.
+	 */
+	didRefreshForMissingBranch = false;
+	/** The unchanged indeterminate cause being timed out, if any. */
+	indeterminate: { readonly cause: string; readonly since: number; observedAt: number } | undefined;
+	/** The refused fragment a credential was last requested for, if any. */
+	reportedCredentialFailure: string | undefined;
 
 	constructor(
 		readonly session: string,
@@ -64,6 +80,13 @@ export class AgentMergeController extends Disposable {
 	private readonly _runtimes = this._register(new DisposableMap<string, AgentMergeRuntime>());
 	private readonly _evaluations = new SequencerByKey<string>();
 	private readonly _activeTurns = new Map<string, IAgentMergeTurnContext>();
+
+	private readonly _onDidReleaseHold = this._register(new Emitter<string>());
+	/** Fires when Agent Merge stops holding a session, so the host can re-arm its idle release. */
+	readonly onDidReleaseHold: Event<string> = this._onDidReleaseHold.event;
+
+	/** Sessions kept resident so their monitoring survives with no client subscriber. */
+	private readonly _heldSessions = new Set<string>();
 
 	constructor(
 		private readonly _options: IAgentMergeControllerOptions,
@@ -115,6 +138,15 @@ export class AgentMergeController extends Disposable {
 		return this._isFeatureEnabled();
 	}
 
+	/**
+	 * Whether Agent Merge is keeping `session` resident. The host consults this
+	 * before releasing an idle session, and re-arms that release when
+	 * {@link onDidReleaseHold} reports the hold has ended.
+	 */
+	holdsSession(session: string): boolean {
+		return this._heldSessions.has(session);
+	}
+
 	onSessionAvailable(session: string): void {
 		this._logService.trace(`[AgentMergeController] Session available: session=${session}`);
 		this._syncSession(session);
@@ -129,7 +161,53 @@ export class AgentMergeController extends Disposable {
 		return context;
 	}
 
+	/**
+	 * Whether monitoring needs `session` in memory. Persisted enablement counts
+	 * even before a runtime starts, so a restore is not evicted out from under
+	 * the runtime that is about to claim it.
+	 */
+	private _shouldHoldSession(session: string): boolean {
+		if (this._runtimes.has(session)) {
+			return true;
+		}
+		if (!this._isFeatureEnabled()) {
+			return false;
+		}
+		const state = this._stateManager.getSessionState(session);
+		if (!state || isSessionStatusArchived(state.status)) {
+			return false;
+		}
+		return readAgentMergeSessionState(state.config?.values)?.enabled === true;
+	}
+
+	/**
+	 * Recomputes the hold after a state transition. Tracking it here — rather
+	 * than lazily when the host happens to ask — keeps the answer correct for a
+	 * session the host has never had reason to evict.
+	 */
+	private _updateHold(session: string): void {
+		const shouldHold = this._shouldHoldSession(session);
+		if (shouldHold === this._heldSessions.has(session)) {
+			return;
+		}
+		if (shouldHold) {
+			this._heldSessions.add(session);
+			return;
+		}
+		this._heldSessions.delete(session);
+		this._logService.debug(`[AgentMergeController] Released session hold: session=${session}`);
+		this._onDidReleaseHold.fire(session);
+	}
+
 	private _syncSession(session: string): void {
+		try {
+			this._doSyncSession(session);
+		} finally {
+			this._updateHold(session);
+		}
+	}
+
+	private _doSyncSession(session: string): void {
 		const state = this._stateManager.getSessionState(session);
 		const agentMerge = readAgentMergeSessionState(state?.config?.values);
 		if (!state || !agentMerge?.enabled) {
@@ -255,11 +333,8 @@ export class AgentMergeController extends Disposable {
 					this._logService.trace(`[AgentMergeController] Evaluation stopped with disposed runtime: session=${session}`);
 					return;
 				}
-				if (error instanceof GitHubRequestError && error.kind === 'authentication') {
-					this._stateManager.emitAuthRequired({
-						resource: this._gitHubEndpointService.getRepoResource(),
-						reason: AuthRequiredReason.Required,
-					});
+				if (error instanceof GitHubRequestError && (error.kind === 'authentication' || error.kind === 'authorization')) {
+					this._requestGitHubAuthorization(session, error.kind, error.message);
 				}
 				this._logService.error(error, `[AgentMergeController] Evaluation failed: session=${session}, kind=${githubErrorKind(error)}`);
 				this._runtimes.get(session)?.backstopScheduler.schedule();
@@ -274,8 +349,10 @@ export class AgentMergeController extends Disposable {
 		if (!runtime || !state || !agentMerge?.enabled || this._stateManager.hasActiveTurn(session)) {
 			return;
 		}
-		const gitState = readSessionGitState(state._meta);
-		const branchName = gitState?.branchName;
+		const branchName = await this._resolveCurrentBranch(session, runtime, state);
+		if (!this._isCurrentRuntime(session, runtime)) {
+			return;
+		}
 		if (!branchName) {
 			this._logService.trace(`[AgentMergeController] Waiting for a current branch: session=${session}`);
 			runtime.backstopScheduler.schedule();
@@ -342,8 +419,17 @@ export class AgentMergeController extends Disposable {
 		const configuration = this._getConfiguration(agentMerge);
 		const gate = evaluateAgentMerge(snapshot, configuration, target.commentWatermark);
 		this._logGateResult(session, gate);
+		if (gate.kind !== 'indeterminate') {
+			runtime.indeterminate = undefined;
+			runtime.reportedCredentialFailure = undefined;
+		}
 		switch (gate.kind) {
 			case 'indeterminate':
+				this._reportBlockedCredential(session, runtime, snapshot);
+				if (this._isIndeterminateBudgetExhausted(session, runtime, gate.cause)) {
+					this._disable(session, agentMerge, `the pull request state could not be evaluated for ${Math.round(maximumIndeterminateDuration / 60_000)} minutes: ${gate.reason}`);
+					return;
+				}
 				runtime.backstopScheduler.schedule();
 				return;
 			case 'terminal':
@@ -414,6 +500,46 @@ export class AgentMergeController extends Disposable {
 				await this._merge(session, runtime, ref, snapshot, configuration, agentMerge);
 				return;
 		}
+	}
+
+	/**
+	 * Resolves the branch Agent Merge should act on, repairing session git
+	 * state that does not report one.
+	 *
+	 * A failed git probe can leave persisted git state without a branch. The
+	 * refresh that would repair it normally rides along with a client watching
+	 * the session or an edit landing in the worktree, and neither happens for a
+	 * session this controller is holding resident on its own. Every later step
+	 * — binding the pull request, subscribing to it, acting on its feedback —
+	 * is gated on the branch, so without this the session idles on the backstop
+	 * indefinitely and Agent Merge silently never runs.
+	 *
+	 * A detached `HEAD` is excluded: it reports no branch by design, so
+	 * refreshing would never produce one. The attempt is capped at once per
+	 * runtime regardless, so any other checkout that cannot report a branch
+	 * costs a single git call rather than one per backstop.
+	 */
+	private async _resolveCurrentBranch(session: string, runtime: AgentMergeRuntime, state: NonNullable<ReturnType<AgentHostStateManager['getSessionState']>>): Promise<string | undefined> {
+		const gitState = readSessionGitState(state._meta);
+		if (gitState?.branchName) {
+			return gitState.branchName;
+		}
+		if (runtime.didRefreshForMissingBranch || !needsSessionGitStateRefresh(gitState)) {
+			return undefined;
+		}
+		runtime.didRefreshForMissingBranch = true;
+		this._logService.debug(`[AgentMergeController] Refreshing git state because the session reports no branch: session=${session}`);
+		await this._gitStateService.refreshSessionGitState(session, state.workingDirectories?.[0] ? URI.parse(state.workingDirectories[0]) : undefined);
+		if (!this._isCurrentRuntime(session, runtime)) {
+			return undefined;
+		}
+		const refreshed = readSessionGitState(this._stateManager.getSessionState(session)?._meta)?.branchName;
+		if (refreshed) {
+			this._logService.info(`[AgentMergeController] Recovered the session branch after refreshing git state: session=${session}`);
+		} else {
+			this._logService.warn(`[AgentMergeController] Session still reports no branch after refreshing git state: session=${session}`);
+		}
+		return refreshed;
 	}
 
 	private async _resolveRef(parsed: IParsedPullRequestUrl, signal: AbortSignal): Promise<PullRequestRef | undefined> {
@@ -653,10 +779,73 @@ export class AgentMergeController extends Disposable {
 			this._runtimes.deleteAndDispose(session);
 			this._logService.debug(`[AgentMergeController] Disposed session runtime: session=${session}`);
 		}
+		// Also reached directly when the session is removed from state, which
+		// does not go through `_syncSession`.
+		this._updateHold(session);
 	}
 
 	private _hasTargetBranch(state: ReturnType<AgentHostStateManager['getSessionState']>, branchName: string): boolean {
 		return readSessionGitState(state?._meta)?.branchName === branchName;
+	}
+
+	/** Resolves the organization owning the bound pull request, for diagnostics. */
+	private _organizationForSession(session: string): string | undefined {
+		const state = this._stateManager.getSessionState(session);
+		const pullRequestUrl = readAgentMergeSessionState(state?.config?.values)?.target?.pullRequestUrl;
+		return pullRequestUrl ? parsePullRequestUrl(pullRequestUrl)?.owner : undefined;
+	}
+
+	/**
+	 * Asks the client for a credential that can read the bound pull request,
+	 * naming the organization to authorize when GitHub reports SAML enforcement.
+	 */
+	private _requestGitHubAuthorization(session: string, kind: 'authentication' | 'authorization', message: string): void {
+		this._stateManager.emitAuthRequired({
+			resource: this._gitHubEndpointService.getRepoResource(),
+			reason: AuthRequiredReason.Required,
+		});
+		const organization = this._organizationForSession(session);
+		const remedy = isSamlEnforcementError(message) && organization
+			? `; the credential must be SSO-authorized for ${organization}`
+			: '';
+		this._logService.warn(`[AgentMergeController] GitHub refused the credential (${kind})${remedy}: session=${session}`);
+	}
+
+	/**
+	 * Requests a credential when a fragment the gate needs was refused by
+	 * GitHub, which only the first refresh of a subscription reports by throwing.
+	 */
+	private _reportBlockedCredential(session: string, runtime: AgentMergeRuntime, snapshot: PullRequestSnapshot): void {
+		const blocked = firstCredentialFailure(snapshot);
+		if (!blocked) {
+			runtime.reportedCredentialFailure = undefined;
+			return;
+		}
+		if (runtime.reportedCredentialFailure === blocked.id) {
+			return;
+		}
+		runtime.reportedCredentialFailure = blocked.id;
+		this._requestGitHubAuthorization(session, blocked.kind, blocked.message);
+	}
+
+	/**
+	 * Reports whether one unchanged indeterminate cause has persisted past its
+	 * budget, measured over continuously observed time so a turn or a sleeping
+	 * host cannot exhaust it.
+	 */
+	private _isIndeterminateBudgetExhausted(session: string, runtime: AgentMergeRuntime, cause: string): boolean {
+		const now = Date.now();
+		const current = runtime.indeterminate;
+		if (current?.cause !== cause || now - current.observedAt > indeterminateObservationGap) {
+			runtime.indeterminate = { cause, since: now, observedAt: now };
+			return false;
+		}
+		current.observedAt = now;
+		if (now - current.since < maximumIndeterminateDuration) {
+			return false;
+		}
+		this._logService.warn(`[AgentMergeController] Indeterminate budget exhausted: session=${session}, cause=${cause}`);
+		return true;
 	}
 
 	private _logGateResult(session: string, gate: ReturnType<typeof evaluateAgentMerge>): void {
@@ -812,4 +1001,20 @@ function githubErrorKind(error: unknown): string {
 	return error instanceof GitHubRequestError
 		? `${error.kind}${error.statusCode === undefined ? '' : `:${error.statusCode}`}`
 		: error instanceof Error ? error.name : typeof error;
+}
+
+/** Detects the SAML single sign-on refusal GitHub returns for organizations that enforce it. */
+export function isSamlEnforcementError(message: string): boolean {
+	return message.toLowerCase().includes('saml enforcement');
+}
+
+/** Finds the first fragment the gate needs that GitHub refused to serve. */
+export function firstCredentialFailure(snapshot: PullRequestSnapshot): { readonly id: string; readonly kind: 'authentication' | 'authorization'; readonly message: string } | undefined {
+	for (const fragment of agentMergeGateFragments) {
+		const error = snapshot[fragment].error;
+		if (error?.kind === 'authentication' || error?.kind === 'authorization') {
+			return { id: `${fragment}:${error.kind}`, kind: error.kind, message: error.message };
+		}
+	}
+	return undefined;
 }
