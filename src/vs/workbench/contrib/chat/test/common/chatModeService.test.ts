@@ -378,7 +378,6 @@ suite('ChatModeService', () => {
 			enabled: true
 		};
 
-		// Insert in unsorted order (Zeta, Alpha, Beta)
 		promptsService.setCustomModes([modeZ, modeA, modeM]);
 		await waitForRefresh();
 
