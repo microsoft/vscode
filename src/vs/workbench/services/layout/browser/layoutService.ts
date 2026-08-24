@@ -52,7 +52,7 @@ export const enum LayoutSettings {
 	LAYOUT_ACTIONS = 'workbench.layoutControl.enabled',
 	SHADOWS = 'workbench.shadows',
 	MODERN_UI = 'workbench.experimental.modernUI',
-	MODERN_UI_DENSITY = 'workbench.experimental.modernUIDensity',
+	MODERN_UI_DENSITY = 'workbench.modernUIDensity',
 	MODERN_UI_UPPERCASE_VIEW_HEADERS = 'workbench.experimental.modernUIUppercaseViewHeaders'
 }
 
