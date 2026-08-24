@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { disposableTimeout } from '../../../../base/common/async.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
@@ -14,6 +14,7 @@ import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { IManagedSettingsFreshness, ManagedSettingsFreshnessFailure, ManagedSettingsFreshnessState } from '../../../../platform/policy/common/managedSettingsFreshness.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -33,9 +34,9 @@ type AccountPolicyGateStateEvent = {
 type AccountPolicyGateStateClassification = {
 	owner: 'joshspicer';
 	comment: 'Tracks the Account Policy gate state for diagnosing account-driven restriction issues.';
-	gateActive: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'True if an admin has activated the Approved Account gate (non-empty approved-organization list).' };
-	gateSatisfied: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'True if the gate is satisfied (signed-in approved account with resolved policy).' };
-	reasonNotSatisfied: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bucketed reason the gate is unsatisfied: noAccount, wrongProvider, orgNotApproved, policyNotResolved.' };
+	gateActive: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'True if an enterprise account or managed-settings gate is active.' };
+	gateSatisfied: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'True if the active enterprise gate is satisfied.' };
+	reasonNotSatisfied: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bucketed reason the gate is unsatisfied: noAccount, wrongProvider, orgNotApproved, policyNotResolved, or managedSettingsRefresh.' };
 };
 
 /**
@@ -51,6 +52,7 @@ export class AccountPolicyGateContribution extends Disposable implements IWorkbe
 	private lastInfo: IAccountPolicyGateInfo;
 
 	private readonly notificationHandle = this._register(new MutableDisposable());
+	private readonly managedSettingsRefreshNotificationHandle = this._register(new MutableDisposable());
 	private compatibilityDialogVisible = false;
 	private dismissedKey: string | undefined;
 
@@ -111,6 +113,14 @@ export class AccountPolicyGateContribution extends Disposable implements IWorkbe
 				reasonNotSatisfied: info.reason,
 			});
 		}
+
+		if (info.reason === AccountPolicyGateUnsatisfiedReason.ManagedSettingsRefresh) {
+			this.notificationHandle.clear();
+			this.dismissedKey = undefined;
+			this.updateManagedSettingsRefreshNotification(info.managedSettingsFreshness);
+			return;
+		}
+		this.managedSettingsRefreshNotificationHandle.clear();
 
 		if (info.state !== AccountPolicyGateState.Restricted) {
 			this.notificationHandle.clear();
@@ -226,6 +236,52 @@ export class AccountPolicyGateContribution extends Disposable implements IWorkbe
 
 		this.compatibilityDialogVisible = true;
 		void this.showManagedSettingsCompatibilityDialog(error).finally(() => this.compatibilityDialogVisible = false);
+	}
+
+	private updateManagedSettingsRefreshNotification(freshness: IManagedSettingsFreshness | undefined): void {
+		if (!freshness || freshness.state !== ManagedSettingsFreshnessState.Blocked) {
+			this.managedSettingsRefreshNotificationHandle.clear();
+			return;
+		}
+
+		this.managedSettingsRefreshNotificationHandle.clear();
+		const actions = freshness.failure === ManagedSettingsFreshnessFailure.NoToken
+			? [{
+				label: localize('managedSettingsRefresh.notification.signIn', "Sign In"),
+				run: () => this.commandService.executeCommand(DEFAULT_ACCOUNT_SIGN_IN_COMMAND),
+			}]
+			: freshness.failure === ManagedSettingsFreshnessFailure.RateLimited || freshness.failure === ManagedSettingsFreshnessFailure.NoUrl
+				? []
+				: [{
+					label: localize('managedSettingsRefresh.notification.retry', "Retry"),
+					run: () => this.defaultAccountService.refresh({ forceRefresh: true }),
+				}];
+		const handle = this.notificationService.prompt(
+			Severity.Warning,
+			this.getManagedSettingsRefreshMessage(freshness),
+			actions,
+			{ sticky: true }
+		);
+		this.managedSettingsRefreshNotificationHandle.value = toDisposable(() => handle.close());
+	}
+
+	private getManagedSettingsRefreshMessage(freshness: Extract<IManagedSettingsFreshness, { state: ManagedSettingsFreshnessState.Blocked }>): string {
+		switch (freshness.failure) {
+			case ManagedSettingsFreshnessFailure.NoToken:
+				return localize('managedSettingsRefresh.notification.noToken', "AI features are unavailable because {0} must refresh your organization's managed settings. Sign in to continue.", this.productService.nameShort);
+			case ManagedSettingsFreshnessFailure.NoUrl:
+				return localize('managedSettingsRefresh.notification.noUrl', "AI features are unavailable because {0} cannot locate your organization's managed settings service. Contact your administrator.", this.productService.nameShort);
+			case ManagedSettingsFreshnessFailure.RateLimited:
+				return localize('managedSettingsRefresh.notification.rateLimited', "AI features are temporarily unavailable because your organization's managed settings service is rate limiting requests. {0} will retry automatically.", this.productService.nameShort);
+			case ManagedSettingsFreshnessFailure.HttpError:
+				return localize('managedSettingsRefresh.notification.httpError', "AI features are unavailable because {0} could not refresh your organization's managed settings (HTTP {1}). Retry after checking your connection.", this.productService.nameShort, freshness.httpStatus);
+			case ManagedSettingsFreshnessFailure.Malformed:
+				return localize('managedSettingsRefresh.notification.malformed', "AI features are unavailable because {0} received an invalid managed settings response. Retry or contact your administrator.", this.productService.nameShort);
+			case ManagedSettingsFreshnessFailure.Network:
+				return localize('managedSettingsRefresh.notification.network', "AI features are unavailable because {0} could not refresh your organization's managed settings. Check your connection, then retry.", this.productService.nameShort);
+			case ManagedSettingsFreshnessFailure.UpdateRequired:
+				return localize('managedSettingsRefresh.notification.updateRequired', "AI features are unavailable until {0} is updated to support your organization's managed settings.", this.productService.nameShort);
+		}
 	}
 
 	private async showManagedSettingsCompatibilityDialog(error: IManagedSettingsCompatibilityError): Promise<void> {

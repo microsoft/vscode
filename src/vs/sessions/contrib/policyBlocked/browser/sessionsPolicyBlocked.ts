@@ -14,6 +14,8 @@ import { IProductService } from '../../../../platform/product/common/productServ
 import { URI } from '../../../../base/common/uri.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
+import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
+import { IManagedSettingsFreshness, ManagedSettingsFreshnessFailure, ManagedSettingsFreshnessState } from '../../../../platform/policy/common/managedSettingsFreshness.js';
 
 export const enum SessionsBlockedReason {
 	AgentDisabled = 'agentDisabled',
@@ -21,12 +23,14 @@ export const enum SessionsBlockedReason {
 	Loading = 'loading',
 	/** Signed in but not in an approved org — must switch accounts. */
 	AccountPolicyGate = 'accountPolicyGate',
+	ManagedSettingsRefresh = 'managedSettingsRefresh',
 }
 
 export interface ISessionsBlockedOverlayOptions {
 	readonly reason: SessionsBlockedReason;
 	readonly approvedOrganizations?: readonly string[];
 	readonly accountName?: string;
+	readonly freshness?: Extract<IManagedSettingsFreshness, { state: ManagedSettingsFreshnessState.Blocked }>;
 }
 
 /**
@@ -42,6 +46,7 @@ export class SessionsPolicyBlockedOverlay extends Disposable {
 		@ICommandService private readonly commandService: ICommandService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IProductService private readonly productService: IProductService,
+		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 	) {
 		super();
@@ -85,6 +90,9 @@ export class SessionsPolicyBlockedOverlay extends Disposable {
 				break;
 			case SessionsBlockedReason.AccountPolicyGate:
 				this._renderAccountPolicyGate(card, options);
+				break;
+			case SessionsBlockedReason.ManagedSettingsRefresh:
+				this._renderManagedSettingsRefresh(card, options.freshness);
 				break;
 		}
 	}
@@ -162,6 +170,34 @@ export class SessionsPolicyBlockedOverlay extends Disposable {
 		this._register(signInButton.onDidClick(() => {
 			this.commandService.executeCommand('workbench.action.agenticSignIn');
 		}));
+	}
+
+	private _renderManagedSettingsRefresh(card: HTMLElement, freshness: ISessionsBlockedOverlayOptions['freshness']): void {
+		this.overlay.setAttribute('aria-label', localize('managedSettingsRefresh.aria', "Managed settings refresh required"));
+		append(card, $('h2', undefined, localize('managedSettingsRefresh.title', "Managed Settings Unavailable")));
+
+		const message = freshness?.failure === ManagedSettingsFreshnessFailure.NoToken
+			? localize('managedSettingsRefresh.noToken', "Sign in so {0} can refresh your organization's managed settings before starting an agent.", this.productService.nameShort)
+			: freshness?.failure === ManagedSettingsFreshnessFailure.RateLimited
+				? localize('managedSettingsRefresh.rateLimited', "{0} is waiting to retry your organization's managed settings service. Agents will remain unavailable until the refresh succeeds.", this.productService.nameShort)
+				: localize('managedSettingsRefresh.failed', "{0} could not refresh your organization's managed settings. Agents will remain unavailable until the refresh succeeds.", this.productService.nameShort);
+		append(card, $('p', undefined, message));
+
+		if (freshness?.failure === ManagedSettingsFreshnessFailure.NoToken) {
+			const signInButton = this._register(new Button(card, { ...defaultButtonStyles }));
+			signInButton.label = localize('managedSettingsRefresh.signIn', "Sign In");
+			this._register(signInButton.onDidClick(() => this.commandService.executeCommand('workbench.action.agenticSignIn')));
+		} else if (freshness?.failure !== ManagedSettingsFreshnessFailure.RateLimited
+			&& freshness?.failure !== ManagedSettingsFreshnessFailure.NoUrl
+			&& freshness?.failure !== ManagedSettingsFreshnessFailure.UpdateRequired) {
+			const retryButton = this._register(new Button(card, { ...defaultButtonStyles }));
+			retryButton.label = localize('managedSettingsRefresh.retry', "Retry");
+			this._register(retryButton.onDidClick(() => this.defaultAccountService.refresh({ forceRefresh: true })));
+		}
+
+		const openVSCodeButton = this._register(new Button(card, { ...defaultButtonStyles, secondary: true }));
+		openVSCodeButton.label = localize('managedSettingsRefresh.openVSCode', "Open VS Code");
+		this._register(openVSCodeButton.onDidClick(() => this._openVSCode()));
 	}
 
 	private _openVSCode(): void {

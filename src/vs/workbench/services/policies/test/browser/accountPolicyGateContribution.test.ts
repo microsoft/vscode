@@ -15,6 +15,7 @@ import { MockContextKeyService } from '../../../../../platform/keybinding/test/c
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { ManagedSettingsFreshnessFailure, ManagedSettingsFreshnessState } from '../../../../../platform/policy/common/managedSettingsFreshness.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
@@ -82,6 +83,8 @@ suite('AccountPolicyGateContribution', () => {
 		const storageService = disposables.add(new InMemoryStorageService());
 		const dialogService = new TestDialogService();
 		const promptStub = sinon.stub(dialogService, 'prompt').resolves({});
+		const notificationService = new TestNotificationService();
+		const notificationPromptSpy = sinon.spy(notificationService, 'prompt');
 		const productService = new class extends mock<IProductService>() {
 			override readonly nameShort = 'Code';
 		}();
@@ -92,7 +95,7 @@ suite('AccountPolicyGateContribution', () => {
 			chatEntitlementService,
 			defaultAccountService,
 			new NullLogService(),
-			new TestNotificationService(),
+			notificationService,
 			dialogService,
 			new class extends mock<ICommandService>() { }(),
 			new class extends mock<IOpenerService>() { }(),
@@ -130,6 +133,31 @@ suite('AccountPolicyGateContribution', () => {
 		captureState();
 		defaultAccountService.setManagedSettingsCompatibilityError(null);
 		captureState();
+		gateService.setGateInfo({
+			state: AccountPolicyGateState.Restricted,
+			reason: AccountPolicyGateUnsatisfiedReason.ManagedSettingsRefresh,
+			managedSettingsFreshness: {
+				state: ManagedSettingsFreshnessState.Blocked,
+				source: 'server',
+				failure: ManagedSettingsFreshnessFailure.Network,
+				lastAttemptAt: 42,
+			},
+		});
+		captureState();
+		const refreshNotification = notificationPromptSpy.lastCall;
+		gateService.setGateInfo({
+			state: AccountPolicyGateState.Restricted,
+			reason: AccountPolicyGateUnsatisfiedReason.ManagedSettingsRefresh,
+			managedSettingsFreshness: {
+				state: ManagedSettingsFreshnessState.Blocked,
+				source: 'nativeMdm',
+				failure: ManagedSettingsFreshnessFailure.NoToken,
+			},
+		});
+		captureState();
+		const signInNotification = notificationPromptSpy.lastCall;
+		gateService.setGateInfo({ state: AccountPolicyGateState.Inactive });
+		captureState();
 
 		const compatibilityDialog = promptStub.firstCall.args[0];
 		const fallbackCompatibilityDialog = promptStub.secondCall.args[0];
@@ -144,6 +172,14 @@ suite('AccountPolicyGateContribution', () => {
 				cancelButton: compatibilityDialog.cancelButton,
 			},
 			fallbackCompatibilityMessage: fallbackCompatibilityDialog.message,
+			refreshNotification: {
+				message: refreshNotification.args[1],
+				actions: refreshNotification.args[2].map(action => action.label),
+			},
+			signInNotification: {
+				message: signInNotification.args[1],
+				actions: signInNotification.args[2].map(action => action.label),
+			},
 		}, {
 			states: [
 				{ context: false, hidden: false },
@@ -153,8 +189,11 @@ suite('AccountPolicyGateContribution', () => {
 				{ context: true, hidden: true },
 				{ context: true, hidden: true },
 				{ context: false, hidden: false },
+				{ context: true, hidden: true },
+				{ context: true, hidden: true },
+				{ context: false, hidden: false },
 			],
-			forceHiddenValues: [false, true, false, true, false],
+			forceHiddenValues: [false, true, false, true, false, true, false],
 			compatibilityDialog: {
 				title: 'Update Required',
 				message: 'Your version of Code cannot enforce your organization\'s managed settings. Update Code to version 1.135.0 or later to continue using AI features.',
@@ -163,6 +202,14 @@ suite('AccountPolicyGateContribution', () => {
 				cancelButton: 'Close',
 			},
 			fallbackCompatibilityMessage: 'Your version of Code cannot enforce your organization\'s managed settings. Update Code to continue using AI features.',
+			refreshNotification: {
+				message: 'AI features are unavailable because Code could not refresh your organization\'s managed settings. Check your connection, then retry.',
+				actions: ['Retry'],
+			},
+			signInNotification: {
+				message: 'AI features are unavailable because Code must refresh your organization\'s managed settings. Sign in to continue.',
+				actions: ['Sign In'],
+			},
 		});
 	});
 });

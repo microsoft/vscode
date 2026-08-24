@@ -6,6 +6,7 @@
 import { ICopilotTokenInfo, IDefaultAccount, IDefaultAccountAuthenticationProvider, IPolicyData } from '../../../base/common/defaultAccount.js';
 import { Event } from '../../../base/common/event.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { IManagedSettingsFreshness, MANAGED_SETTINGS_FRESHNESS_NOT_REQUIRED } from '../../policy/common/managedSettingsFreshness.js';
 
 /**
  * Well-known GitHub URL paths used with {@link IDefaultAccountService.resolveGitHubUrl}.
@@ -49,6 +50,8 @@ export interface IDefaultAccountProvider {
 	readonly managedSettingsRawResponse: unknown;
 	readonly managedSettingsCompatibilityError: IManagedSettingsCompatibilityError | null;
 	readonly onDidChangeManagedSettingsCompatibilityError: Event<IManagedSettingsCompatibilityError | null>;
+	readonly managedSettingsFreshness: IManagedSettingsFreshness;
+	readonly onDidChangeManagedSettingsFreshness: Event<IManagedSettingsFreshness>;
 	getDefaultAccountAuthenticationProvider(): IDefaultAccountAuthenticationProvider;
 
 	/**
@@ -82,6 +85,8 @@ export interface IDefaultAccountService {
 	readonly managedSettingsRawResponse: unknown;
 	readonly managedSettingsCompatibilityError: IManagedSettingsCompatibilityError | null;
 	readonly onDidChangeManagedSettingsCompatibilityError: Event<IManagedSettingsCompatibilityError | null>;
+	readonly managedSettingsFreshness: IManagedSettingsFreshness;
+	readonly onDidChangeManagedSettingsFreshness: Event<IManagedSettingsFreshness>;
 	getDefaultAccount(): Promise<IDefaultAccount | null>;
 	getDefaultAccountAuthenticationProvider(): IDefaultAccountAuthenticationProvider;
 	setDefaultAccountProvider(provider: IDefaultAccountProvider): void;
@@ -98,3 +103,5 @@ export interface IDefaultAccountService {
 	 */
 	resolveGitHubUrl(path: string): string;
 }
+
+export { MANAGED_SETTINGS_FRESHNESS_NOT_REQUIRED };

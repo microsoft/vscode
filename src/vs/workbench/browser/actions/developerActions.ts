@@ -1072,12 +1072,25 @@ class PolicyDiagnosticsAction extends Action2 {
 			const fetchedAt = defaultAccountService.managedSettingsFetchedAt;
 			const clientIdentity = appendManagedSettingsClientIdentity('https://api.github.com/copilot_internal/managed_settings', productService);
 			const compatibilityError = defaultAccountService.managedSettingsCompatibilityError;
+			const freshness = defaultAccountService.managedSettingsFreshness;
+			const freshnessFailure = freshness.state === 'blocked'
+				? freshness.failure === 'httpError'
+					? `${freshness.failure} (${freshness.httpStatus})`
+					: freshness.failure === 'rateLimited'
+						? `${freshness.failure} (retry after ${new Date(freshness.retryAfter).toLocaleString()})`
+						: freshness.failure
+				: 'none';
 			content += '#### GitHub Server API\n\n';
 			content += markdownTable(
 				['Property', 'Value'],
 				[
 					['Endpoint', '/copilot_internal/managed_settings'],
 					['Last fetch', fetchStatus === null ? 'never' : `${fetchStatus}${fetchedAt ? ` at ${new Date(fetchedAt).toLocaleString()}` : ''}`],
+					['Freshness', freshness.state],
+					['Freshness source', freshness.state === 'notRequired' ? 'none' : freshness.source],
+					['Last freshness attempt', freshness.state !== 'notRequired' && freshness.lastAttemptAt ? new Date(freshness.lastAttemptAt).toLocaleString() : 'never'],
+					['Freshness failure', freshnessFailure],
+					['Satisfied scope', freshness.state === 'satisfied' ? `${freshness.scope.authenticationProviderId} at ${freshness.scope.endpointOrigin}` : 'none'],
 					['Client identity', new URL(clientIdentity).search.replace(/^\?/, '')],
 					['Compatibility', compatibilityError ? `update required (${compatibilityError.clientVersion ?? '?'} → ${compatibilityError.minimumClientVersion ?? '?'})` : 'compatible or not evaluated'],
 					['Contributes winning keys', channelContributes('server') ? 'yes' : 'no']

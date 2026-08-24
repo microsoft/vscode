@@ -158,12 +158,9 @@ export function managedSettingValue(key: string): (policyData: IPolicyData) => M
  * actively lifting the requirement, whereas an absent value simply leaves it unset. Consumers that
  * persist the requirement need that distinction to know when they may clear it.
  */
-export interface IForceRemoteSettingsRefreshResolution {
-	/** Whether a fresh managed-settings response is required before enabling agent functionality. */
-	readonly effective: boolean;
-	/** Channel that supplied the winning value, or `'none'` when no channel supplies a usable one. */
-	readonly source: ManagedSettingsSource;
-}
+export type IForceRemoteSettingsRefreshResolution =
+	| { readonly effective: true; readonly source: ManagedSettingsChannel }
+	| { readonly effective: false; readonly source: ManagedSettingsSource };
 
 /**
  * Resolve the fail-closed startup refresh control across every delivery channel, reusing
@@ -698,6 +695,7 @@ export interface IFileManagedSettingsService {
 	readonly managedSettings: ManagedSettingsData;
 	readonly onDidChangeRawManagedSettings: Event<RawManagedSettingsData>;
 	readonly onDidChangeManagedSettings: Event<ManagedSettingsData>;
+	initialize(): Promise<ManagedSettingsData>;
 }
 
 export class NullFileManagedSettingsService implements IFileManagedSettingsService {
@@ -706,4 +704,6 @@ export class NullFileManagedSettingsService implements IFileManagedSettingsServi
 	readonly managedSettings: ManagedSettingsData = {};
 	readonly onDidChangeRawManagedSettings = Event.None;
 	readonly onDidChangeManagedSettings = Event.None;
+
+	async initialize(): Promise<ManagedSettingsData> { return this.managedSettings; }
 }
