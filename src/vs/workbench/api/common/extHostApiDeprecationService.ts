@@ -12,7 +12,7 @@ import { IExtHostRpcService } from './extHostRpcService.js';
 export interface IExtHostApiDeprecationService {
 	readonly _serviceBrand: undefined;
 
-	report(apiId: string, extension: IExtensionDescription, migrationSuggestion: string): void;
+	report(apiId: string, extension: IExtensionDescription, migrationSuggestion: string, options?: { usageId?: string }): void;
 }
 
 export const IExtHostApiDeprecationService = createDecorator<IExtHostApiDeprecationService>('IExtHostApiDeprecationService');
@@ -31,8 +31,8 @@ export class ExtHostApiDeprecationService implements IExtHostApiDeprecationServi
 		this._telemetryShape = rpc.getProxy(extHostProtocol.MainContext.MainThreadTelemetry);
 	}
 
-	public report(apiId: string, extension: IExtensionDescription, migrationSuggestion: string): void {
-		const key = this.getUsageKey(apiId, extension);
+	public report(apiId: string, extension: IExtensionDescription, migrationSuggestion: string, options?: { usageId?: string }): void {
+		const key = this.getUsageKey(apiId, extension, options?.usageId);
 		if (this._reportedUsages.has(key)) {
 			return;
 		}
@@ -45,21 +45,25 @@ export class ExtHostApiDeprecationService implements IExtHostApiDeprecationServi
 		type DeprecationTelemetry = {
 			extensionId: string;
 			apiId: string;
+			usageId: string;
 		};
 		type DeprecationTelemetryMeta = {
 			extensionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The id of the extension that is using the deprecated API' };
 			apiId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The id of the deprecated API' };
+			usageId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Id identifying the specific usage of the deprecated API' };
 			owner: 'mjbvz';
 			comment: 'Helps us gain insights on extensions using deprecated API so we can assist in migration to new API';
 		};
 		this._telemetryShape.$publicLog2<DeprecationTelemetry, DeprecationTelemetryMeta>('extHostDeprecatedApiUsage', {
 			extensionId: extension.identifier.value,
 			apiId: apiId,
+			usageId: options?.usageId ?? '',
 		});
 	}
 
-	private getUsageKey(apiId: string, extension: IExtensionDescription): string {
-		return `${apiId}-${extension.identifier.value}`;
+	private getUsageKey(apiId: string, extension: IExtensionDescription, usageId?: string): string {
+		const rootKey = `${apiId}-${extension.identifier.value}`;
+		return usageId ? `${rootKey}-${usageId}` : rootKey;
 	}
 }
 

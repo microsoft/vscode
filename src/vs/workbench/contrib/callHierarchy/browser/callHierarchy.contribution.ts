@@ -65,7 +65,7 @@ class CallHierarchyController implements IEditorContribution {
 		this._ctxIsVisible = _ctxCallHierarchyVisible.bindTo(this._contextKeyService);
 		this._ctxHasProvider = _ctxHasCallHierarchyProvider.bindTo(this._contextKeyService);
 		this._ctxDirection = _ctxCallHierarchyDirection.bindTo(this._contextKeyService);
-		this._dispoables.add(Event.any<any>(_editor.onDidChangeModel, _editor.onDidChangeModelLanguage, CallHierarchyProviderRegistry.onDidChange)(() => {
+		this._dispoables.add(Event.any<unknown>(_editor.onDidChangeModel, _editor.onDidChangeModelLanguage, CallHierarchyProviderRegistry.onDidChange)(() => {
 			this._ctxHasProvider.set(_editor.hasModel() && CallHierarchyProviderRegistry.has(_editor.getModel()));
 		}));
 		this._dispoables.add(this._sessionDisposables);
@@ -125,7 +125,7 @@ class CallHierarchyController implements IEditorContribution {
 
 		this._ctxIsVisible.set(true);
 		this._ctxDirection.set(direction);
-		Event.any<any>(this._editor.onDidChangeModel, this._editor.onDidChangeModelLanguage)(this.endCallHierarchy, this, this._sessionDisposables);
+		Event.any<unknown>(this._editor.onDidChangeModel, this._editor.onDidChangeModelLanguage)(this.endCallHierarchy, this, this._sessionDisposables);
 		this._widget = this._instantiationService.createInstance(CallHierarchyTreePeekWidget, this._editor, position, direction);
 		this._widget.showLoading();
 		this._sessionDisposables.add(this._widget.onDidClose(() => {

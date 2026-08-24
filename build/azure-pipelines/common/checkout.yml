@@ -1,0 +1,11 @@
+steps:
+  # Pin self to the default sources directory (`s`) so that adding a second
+  # checkout (e.g. the distro repository in download-distro.yml) does not relocate
+  # self into a repo-named subfolder, which would break every script that assumes
+  # self lives at $(Build.SourcesDirectory).
+  - checkout: self
+    path: s
+    fetchDepth: 1
+    fetchTags: false
+    retryCountOnTaskFailure: 3
+    displayName: Checkout microsoft/vscode

@@ -63,7 +63,7 @@ suite('vscode API - debug', function () {
 		assert.strictEqual(functionBreakpoint.functionName, 'func');
 	});
 
-	test('start debugging', async function () {
+	test.skip('start debugging', async function () { // Flaky: https://github.com/microsoft/vscode/issues/242033
 		let stoppedEvents = 0;
 		let variablesReceived: () => void;
 		let initializedReceived: () => void;

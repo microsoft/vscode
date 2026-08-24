@@ -18,6 +18,7 @@ import { getGalleryExtensionId } from '../../../../../platform/extensionManageme
 import { TestExtensionEnablementService } from '../../../../services/extensionManagement/test/browser/extensionEnablementService.test.js';
 import { ExtensionGalleryService } from '../../../../../platform/extensionManagement/common/extensionGalleryService.js';
 import { IURLService } from '../../../../../platform/url/common/url.js';
+import { ChatAIDisabledSettingId } from '../../../../../platform/chat/common/chatSettings.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IPager } from '../../../../../base/common/paging.js';
@@ -57,6 +58,8 @@ import { platform } from '../../../../../base/common/platform.js';
 import { arch } from '../../../../../base/common/process.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IUpdateService, State } from '../../../../../platform/update/common/update.js';
+import { IMeteredConnectionService } from '../../../../../platform/meteredConnection/common/meteredConnection.js';
+import { ExtensionGalleryManifestStatus, IExtensionGalleryManifestService } from '../../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { FileService } from '../../../../../platform/files/common/fileService.js';
 import { Mutable } from '../../../../../base/common/types.js';
@@ -92,12 +95,21 @@ function setupTest(disposables: Pick<DisposableStore, 'add'>) {
 	instantiationService.stub(IContextKeyService, new MockContextKeyService());
 
 	instantiationService.stub(IExtensionGalleryService, ExtensionGalleryService);
+	instantiationService.stub(IExtensionGalleryManifestService, {
+		onDidChangeExtensionGalleryManifest: Event.None,
+		onDidChangeExtensionGalleryManifestStatus: Event.None,
+		extensionGalleryManifestStatus: ExtensionGalleryManifestStatus.Unavailable,
+		async getExtensionGalleryManifest() { return null; }
+	});
 	instantiationService.stub(ISharedProcessService, TestSharedProcessService);
 
 	instantiationService.stub(IWorkbenchExtensionManagementService, {
 		onDidInstallExtensions: didInstallEvent.event,
+		// eslint-disable-next-line local/code-no-any-casts
 		onInstallExtension: installEvent.event as any,
+		// eslint-disable-next-line local/code-no-any-casts
 		onUninstallExtension: uninstallEvent.event as any,
+		// eslint-disable-next-line local/code-no-any-casts
 		onDidUninstallExtension: didUninstallEvent.event as any,
 		onDidUpdateExtensionMetadata: Event.None,
 		onDidChangeProfile: Event.None,
@@ -148,6 +160,7 @@ function setupTest(disposables: Pick<DisposableStore, 'add'>) {
 	instantiationService.stub(IUserDataSyncEnablementService, disposables.add(instantiationService.createInstance(UserDataSyncEnablementService)));
 
 	instantiationService.stub(IUpdateService, { onStateChange: Event.None, state: State.Uninitialized });
+	instantiationService.stub(IMeteredConnectionService, { isConnectionMetered: false, onDidChangeIsConnectionMetered: Event.None });
 	instantiationService.set(IExtensionsWorkbenchService, disposables.add(instantiationService.createInstance(ExtensionsWorkbenchService)));
 	instantiationService.stub(IWorkspaceTrustManagementService, disposables.add(new TestWorkspaceTrustManagementService()));
 }
@@ -2531,6 +2544,50 @@ suite('LocalInstallAction', () => {
 
 		uninstallEvent.fire({ identifier: languagePackExtension.identifier, profileLocation: null! });
 		assert.ok(!testObject.enabled);
+	});
+
+});
+
+suite('EnableAIFeaturesInWorkspaceAction', () => {
+
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	setup(() => {
+		setupTest(disposables);
+		instantiationService.stub(IProductService, { defaultChatAgent: { chatExtensionId: 'GitHub.copilot-chat' } } as Partial<IProductService>);
+	});
+
+	test('test enable AI in workspace updates workspace setting when AI is disabled globally', async () => {
+		const configurationService = instantiationService.get(IConfigurationService) as TestConfigurationService;
+		configurationService.setUserConfiguration(ChatAIDisabledSettingId, true);
+
+		let updatedValue: { key: string; value: unknown; target: unknown } | undefined;
+		const originalUpdateValue = configurationService.updateValue.bind(configurationService);
+		configurationService.updateValue = async (key: string, value: unknown, target?: any) => {
+			updatedValue = { key, value, target };
+			return originalUpdateValue(key, value);
+		};
+
+		const chatExtension = aLocalExtension('copilot-chat', { publisher: 'GitHub' }, { type: ExtensionType.System });
+		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [chatExtension]);
+
+		const workbenchService = instantiationService.get(IExtensionsWorkbenchService);
+		await workbenchService.queryLocal();
+
+		const extensions = workbenchService.local;
+		const copilotChat = extensions.find(e => e.identifier.id === 'github.copilot-chat');
+		assert.ok(copilotChat);
+
+		const testObject: ExtensionsActions.EnableAIFeaturesInWorkspaceAction = disposables.add(instantiationService.createInstance(ExtensionsActions.EnableAIFeaturesInWorkspaceAction));
+		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
+		testObject.extension = copilotChat;
+		assert.ok(testObject.enabled);
+
+		await testObject.run();
+
+		assert.ok(updatedValue, 'updateValue should have been called');
+		assert.strictEqual(updatedValue.key, ChatAIDisabledSettingId);
+		assert.strictEqual(updatedValue.value, false, 'workspace setting should be set to false');
 	});
 
 });

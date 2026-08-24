@@ -6,11 +6,11 @@
 import { assert } from '../../../../base/common/assert.js';
 import { splitLines } from '../../../../base/common/strings.js';
 import { Position } from '../position.js';
-import { PositionOffsetTransformer } from './positionToOffsetImpl.js';
 import { Range } from '../range.js';
 import { LineRange } from '../ranges/lineRange.js';
-import { TextLength } from '../text/textLength.js';
 import { OffsetRange } from '../ranges/offsetRange.js';
+import { TextLength } from '../text/textLength.js';
+import { PositionOffsetTransformer } from './positionToOffsetImpl.js';
 
 export abstract class AbstractText {
 	abstract getValueOfRange(range: Range): string;
@@ -121,5 +121,10 @@ export class StringText extends AbstractText {
 
 	get length(): TextLength {
 		return this._t.textLength;
+	}
+
+	// Override the getTransformer method to return the cached transformer
+	override getTransformer() {
+		return this._t;
 	}
 }

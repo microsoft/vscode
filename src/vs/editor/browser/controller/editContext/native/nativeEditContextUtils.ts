@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addDisposableListener, getActiveElement, getShadowRoot } from '../../../../../base/browser/dom.js';
+import { addDisposableListener, getShadowRoot } from '../../../../../base/browser/dom.js';
 import { IDisposable, Disposable } from '../../../../../base/common/lifecycle.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 
@@ -67,7 +67,7 @@ export class FocusTracker extends Disposable {
 
 	public refreshFocusState(): void {
 		const shadowRoot = getShadowRoot(this._domNode);
-		const activeElement = shadowRoot ? shadowRoot.activeElement : getActiveElement();
+		const activeElement = shadowRoot ? shadowRoot.activeElement : this._domNode.ownerDocument.activeElement;
 		const focused = this._domNode === activeElement;
 		this._handleFocusedChanged(focused);
 	}
@@ -77,10 +77,12 @@ export class FocusTracker extends Disposable {
 	}
 }
 
-export function editContextAddDisposableListener<K extends keyof EditContextEventHandlersEventMap>(target: EventTarget, type: K, listener: (this: GlobalEventHandlers, ev: EditContextEventHandlersEventMap[K]) => any, options?: boolean | AddEventListenerOptions): IDisposable {
+export function editContextAddDisposableListener<K extends keyof EditContextEventHandlersEventMap>(target: EventTarget, type: K, listener: (this: GlobalEventHandlers, ev: EditContextEventHandlersEventMap[K]) => void, options?: boolean | AddEventListenerOptions): IDisposable {
+	// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
 	target.addEventListener(type, listener as any, options);
 	return {
 		dispose() {
+			// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
 			target.removeEventListener(type, listener as any);
 		}
 	};

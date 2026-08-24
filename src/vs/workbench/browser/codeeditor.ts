@@ -54,7 +54,7 @@ export class RangeHighlightDecorations extends Disposable {
 		this.rangeHighlightDecorationId = null;
 	}
 
-	highlightRange(range: IRangeHighlightDecoration, editor?: any) {
+	highlightRange(range: IRangeHighlightDecoration, editor?: unknown) {
 		editor = editor ?? this.getEditor(range);
 		if (isCodeEditor(editor)) {
 			this.doHighlightRange(editor, range);
@@ -139,11 +139,7 @@ export class FloatingEditorClickWidget extends FloatingClickWidget implements IO
 		keyBindingAction: string | null,
 		@IKeybindingService keybindingService: IKeybindingService
 	) {
-		super(
-			keyBindingAction && keybindingService.lookupKeybinding(keyBindingAction)
-				? `${label} (${keybindingService.lookupKeybinding(keyBindingAction)!.getLabel()})`
-				: label
-		);
+		super(keybindingService.appendKeybinding(label, keyBindingAction));
 	}
 
 	getId(): string {

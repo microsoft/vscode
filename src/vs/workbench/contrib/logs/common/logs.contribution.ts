@@ -16,11 +16,11 @@ import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js'
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { Event } from '../../../../base/common/event.js';
 import { windowLogId, showWindowLogActionId } from '../../../services/log/common/logConstants.js';
-import { IDefaultLogLevelsService } from './defaultLogLevels.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { CounterSet } from '../../../../base/common/map.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { Schemas } from '../../../../base/common/network.js';
+import { IDefaultLogLevelsService } from '../../../services/log/common/defaultLogLevels.js';
 
 registerAction2(class extends Action2 {
 	constructor() {
@@ -32,7 +32,8 @@ registerAction2(class extends Action2 {
 		});
 	}
 	run(servicesAccessor: ServicesAccessor): Promise<void> {
-		return servicesAccessor.get(IInstantiationService).createInstance(SetLogLevelAction, SetLogLevelAction.ID, SetLogLevelAction.TITLE.value).run();
+		const action = servicesAccessor.get(IInstantiationService).createInstance(SetLogLevelAction, SetLogLevelAction.ID, SetLogLevelAction.TITLE.value);
+		return action.run().finally(() => action.dispose());
 	}
 });
 

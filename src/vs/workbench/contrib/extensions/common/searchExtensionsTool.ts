@@ -9,7 +9,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
 import { SortBy } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { EXTENSION_CATEGORIES } from '../../../../platform/extensions/common/extensions.js';
-import { CountTokensCallback, IToolData, IToolImpl, IToolInvocation, IToolResult, ToolDataSource, ToolProgress } from '../../chat/common/languageModelToolsService.js';
+import { CountTokensCallback, IToolData, IToolImpl, IToolInvocation, IToolResult, ToolDataSource, ToolProgress } from '../../chat/common/tools/languageModelToolsService.js';
 import { ExtensionState, IExtension, IExtensionsWorkbenchService } from '../common/extensions.js';
 
 export const SearchExtensionsToolId = 'vscode_searchExtensions_internal';
@@ -17,11 +17,11 @@ export const SearchExtensionsToolId = 'vscode_searchExtensions_internal';
 export const SearchExtensionsToolData: IToolData = {
 	id: SearchExtensionsToolId,
 	toolReferenceName: 'extensions',
-	canBeReferencedInPrompt: true,
+	legacyToolReferenceFullNames: ['extensions'],
 	icon: ThemeIcon.fromId(Codicon.extensions.id),
 	displayName: localize('searchExtensionsTool.displayName', 'Search Extensions'),
-	modelDescription: localize('searchExtensionsTool.modelDescription', "This is a tool for browsing Visual Studio Code Extensions Marketplace. It allows the model to search for extensions and retrieve detailed information about them. The model should use this tool whenever it needs to discover extensions or resolve information about known ones. To use the tool, the model has to provide the category of the extensions, relevant search keywords, or known extension IDs. Note that search results may include false positives, so reviewing and filtering is recommended."),
-	userDescription: localize('searchExtensionsTool.userDescription', 'Search for extensions in the Visual Studio Code Extensions Marketplace'),
+	modelDescription: 'This is a tool for browsing Visual Studio Code Extensions Marketplace. It allows the model to search for extensions and retrieve detailed information about them. The model should use this tool whenever it needs to discover extensions or resolve information about known ones. To use the tool, the model has to provide the category of the extensions, relevant search keywords, or known extension IDs. Note that search results may include false positives, so reviewing and filtering is recommended.',
+	userDescription: localize('searchExtensionsTool.userDescription', 'Search for VS Code extensions'),
 	source: ToolDataSource.Internal,
 	inputSchema: {
 		type: 'object',

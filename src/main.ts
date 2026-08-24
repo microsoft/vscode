@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'path';
+import * as path from 'node:path';
 import * as fs from 'original-fs';
-import * as os from 'os';
-import { performance } from 'perf_hooks';
+import * as os from 'node:os';
+import { performance } from 'node:perf_hooks';
 import { configurePortable } from './bootstrap-node.js';
 import { bootstrapESM } from './bootstrap-esm.js';
 import { app, protocol, crashReporter, Menu, contentTracing } from 'electron';
@@ -88,7 +88,7 @@ perf.mark('code/didStartCrashReporter');
 // to ensure that no 'logs' folder is created on disk at a
 // location outside of the portable directory
 // (https://github.com/microsoft/vscode/issues/56651)
-if (portable && portable.isPortable) {
+if (portable.isPortable) {
 	app.setAppLogsPath(path.join(userDataPath, 'logs'));
 }
 
@@ -101,6 +101,14 @@ protocol.registerSchemesAsPrivileged([
 	{
 		scheme: 'vscode-file',
 		privileges: { secure: true, standard: true, supportFetchAPI: true, corsEnabled: true, codeCache: true }
+	},
+	{
+		scheme: 'vscode-remote-resource',
+		privileges: { secure: true, supportFetchAPI: true, corsEnabled: true }
+	},
+	{
+		scheme: 'vscode-managed-remote-resource',
+		privileges: { secure: true, supportFetchAPI: true, corsEnabled: true }
 	}
 ]);
 
@@ -320,18 +328,19 @@ function configureCommandlineSwitchesSync(cliArgs: NativeParsedArgs) {
 	});
 
 	// Following features are enabled from the runtime:
+	// `NetAdapterMaxBufSizeFeature` - Specify the max buffer size for NetToMojoPendingBuffer, refs https://github.com/microsoft/vscode/issues/268800
 	// `DocumentPolicyIncludeJSCallStacksInCrashReports` - https://www.electronjs.org/docs/latest/api/web-frame-main#framecollectjavascriptcallstack-experimental
 	// `EarlyEstablishGpuChannel` - Refs https://issues.chromium.org/issues/40208065
 	// `EstablishGpuChannelAsync` - Refs https://issues.chromium.org/issues/40208065
+	// `GlobalShortcutsPortal` - Enables Electron's `globalShortcut` (system-wide keybindings) on Linux Wayland via the XDG global shortcuts portal (no-op elsewhere)
 	const featuresToEnable =
-		`DocumentPolicyIncludeJSCallStacksInCrashReports,EarlyEstablishGpuChannel,EstablishGpuChannelAsync,${app.commandLine.getSwitchValue('enable-features')}`;
+		`NetAdapterMaxBufSizeFeature:NetAdapterMaxBufSize/8192,DocumentPolicyIncludeJSCallStacksInCrashReports,EarlyEstablishGpuChannel,EstablishGpuChannelAsync${process.platform === 'linux' ? ',GlobalShortcutsPortal' : ''},${app.commandLine.getSwitchValue('enable-features')}`;
 	app.commandLine.appendSwitch('enable-features', featuresToEnable);
 
 	// Following features are disabled from the runtime:
 	// `CalculateNativeWinOcclusion` - Disable native window occlusion tracker (https://groups.google.com/a/chromium.org/g/embedder-dev/c/ZF3uHHyWLKw/m/VDN2hDXMAAAJ)
-	// `FontationsLinuxSystemFonts` - Revert to FreeType for system fonts on Linux Refs https://github.com/microsoft/vscode/issues/260391
 	const featuresToDisable =
-		`CalculateNativeWinOcclusion,FontationsLinuxSystemFonts,${app.commandLine.getSwitchValue('disable-features')}`;
+		`CalculateNativeWinOcclusion,${app.commandLine.getSwitchValue('disable-features')}`;
 	app.commandLine.appendSwitch('disable-features', featuresToDisable);
 
 	// Blink features to configure.
@@ -342,7 +351,7 @@ function configureCommandlineSwitchesSync(cliArgs: NativeParsedArgs) {
 	app.commandLine.appendSwitch('disable-blink-features', blinkFeaturesToDisable);
 
 	// Support JS Flags
-	const jsFlags = getJSFlags(cliArgs);
+	const jsFlags = getJSFlags(cliArgs, argvConfig);
 	if (jsFlags) {
 		app.commandLine.appendSwitch('js-flags', jsFlags);
 	}
@@ -351,6 +360,10 @@ function configureCommandlineSwitchesSync(cliArgs: NativeParsedArgs) {
 	// to address https://github.com/microsoft/vscode/issues/213780
 	// Runtime sets the default version to 3, refs https://github.com/electron/electron/pull/44426
 	app.commandLine.appendSwitch('xdg-portal-required-version', '4');
+
+	// Increase the maximum number of active WebGL contexts as each terminal may
+	// use up to 2
+	app.commandLine.appendSwitch('max-active-webgl-contexts', '32');
 
 	return argvConfig;
 }
@@ -370,6 +383,7 @@ interface IArgvConfig {
 	readonly 'use-inmemory-secretstorage'?: boolean;
 	readonly 'enable-rdp-display-tracking'?: boolean;
 	readonly 'remote-debugging-port'?: string;
+	readonly 'js-flags'?: string;
 }
 
 function readArgvConfigSync(): IArgvConfig {
@@ -528,11 +542,12 @@ function configureCrashReporter(): void {
 		productName: process.env['VSCODE_DEV'] ? `${productName} Dev` : productName,
 		submitURL,
 		uploadToServer,
-		compress: true
+		compress: true,
+		ignoreSystemCrashHandler: true
 	});
 }
 
-function getJSFlags(cliArgs: NativeParsedArgs): string | null {
+function getJSFlags(cliArgs: NativeParsedArgs, argvConfig: IArgvConfig): string | null {
 	const jsFlags: string[] = [];
 
 	// Add any existing JS flags we already got from the command line
@@ -540,16 +555,9 @@ function getJSFlags(cliArgs: NativeParsedArgs): string | null {
 		jsFlags.push(cliArgs['js-flags']);
 	}
 
-	if (process.platform === 'linux') {
-		// Fix cppgc crash on Linux with 16KB page size.
-		// Refs https://issues.chromium.org/issues/378017037
-		// The fix from https://github.com/electron/electron/commit/6c5b2ef55e08dc0bede02384747549c1eadac0eb
-		// only affects non-renderer process.
-		// The following will ensure that the flag will be
-		// applied to the renderer process as well.
-		// TODO(deepak1556): Remove this once we update to
-		// Chromium >= 134.
-		jsFlags.push('--nodecommit_pooled_pages');
+	// Add JS flags from runtime arguments (argv.json)
+	if (typeof argvConfig['js-flags'] === 'string' && argvConfig['js-flags']) {
+		jsFlags.push(argvConfig['js-flags']);
 	}
 
 	return jsFlags.length > 0 ? jsFlags.join(' ') : null;
@@ -582,7 +590,7 @@ function registerListeners(): void {
 	 * the app-ready event. We listen very early for open-file and remember this upon startup as path to open.
 	 */
 	const macOpenFiles: string[] = [];
-	(globalThis as any)['macOpenFiles'] = macOpenFiles;
+	(globalThis as { macOpenFiles?: string[] }).macOpenFiles = macOpenFiles;
 	app.on('open-file', function (event, path) {
 		macOpenFiles.push(path);
 	});
@@ -602,7 +610,7 @@ function registerListeners(): void {
 		app.on('open-url', onOpenUrl);
 	});
 
-	(globalThis as any)['getOpenUrls'] = function () {
+	(globalThis as { getOpenUrls?: () => string[] }).getOpenUrls = function () {
 		app.removeListener('open-url', onOpenUrl);
 
 		return openUrls;

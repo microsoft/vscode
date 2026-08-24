@@ -5,6 +5,7 @@
 
 import { timeout } from '../../../../../base/common/async.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { isString } from '../../../../../base/common/types.js';
 import { isWindows } from '../../../../../base/common/platform.js';
 import { ILogService } from '../../../../log/common/log.js';
 import { ITerminalChildProcess } from '../../../common/terminal.js';
@@ -36,7 +37,7 @@ export class TerminalAutoResponder extends Disposable {
 			if (this._paused || this._throttled) {
 				return;
 			}
-			const data = typeof e === 'string' ? e : e.data;
+			const data = isString(e) ? e : e.data;
 			for (let i = 0; i < data.length; i++) {
 				if (data[i] === matchWord[this._pointer]) {
 					this._pointer++;

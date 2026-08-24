@@ -120,6 +120,22 @@ export function onUnexpectedExternalError(e: any): undefined {
 	return undefined;
 }
 
+type ObjectWithCode = {
+	readonly code: unknown;
+};
+
+function hasErrorCode(error: object): error is ObjectWithCode {
+	return Object.hasOwn(error, 'code');
+}
+
+export function getErrorCode(error: unknown): string | undefined {
+	if (!error || typeof error !== 'object' || !hasErrorCode(error)) {
+		return undefined;
+	}
+	const code = error.code;
+	return typeof code === 'string' || typeof code === 'number' ? String(code) : undefined;
+}
+
 export interface SerializedError {
 	readonly $isError: true;
 	readonly name: string;
@@ -139,6 +155,7 @@ export function transformErrorForSerialization(error: any): any;
 export function transformErrorForSerialization(error: any): any {
 	if (error instanceof Error) {
 		const { name, message, cause } = error;
+		// eslint-disable-next-line local/code-no-any-casts
 		const stack: string = (<any>error).stacktrace || (<any>error).stack;
 		return {
 			$isError: true,

@@ -528,10 +528,6 @@ export class InMemoryWorkingCopyBackupService extends Disposable implements IWor
 
 	private backups = new ResourceMap<{ typeId: string; content: VSBuffer; meta?: IWorkingCopyBackupMeta }>();
 
-	constructor() {
-		super();
-	}
-
 	hasBackupSync(identifier: IWorkingCopyIdentifier, versionId?: number): boolean {
 		const backupResource = this.toBackupResource(identifier);
 

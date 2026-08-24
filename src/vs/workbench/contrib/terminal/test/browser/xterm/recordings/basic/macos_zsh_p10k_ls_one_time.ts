@@ -35,7 +35,7 @@ export const events = [
 	},
 	{
 		"type": "promptInputChange",
-		"data": "|                                                                                                     [─╯]"
+		"data": "|                                                                                                     ─╯"
 	},
 	{
 		"type": "input",
@@ -47,7 +47,7 @@ export const events = [
 	},
 	{
 		"type": "promptInputChange",
-		"data": "l|                                                                                                    [─╯]"
+		"data": "l|                                                                                                    ─╯"
 	},
 	{
 		"type": "input",
@@ -59,7 +59,7 @@ export const events = [
 	},
 	{
 		"type": "promptInputChange",
-		"data": "ls|                                                                                                   [─╯]"
+		"data": "ls|                                                                                                   ─╯"
 	},
 	{
 		"type": "input",
@@ -71,7 +71,7 @@ export const events = [
 	},
 	{
 		"type": "promptInputChange",
-		"data": "ls                                                                                                   "
+		"data": "ls                                                                                                   ─╯"
 	},
 	{
 		"type": "output",

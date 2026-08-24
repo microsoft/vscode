@@ -10,7 +10,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
-import { assertType } from '../../../../base/common/types.js';
+import { assertType, hasKey } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IWriteFileOptions, IFileStatWithMetadata, FileOperationError, FileOperationResult } from '../../../../platform/files/common/files.js';
@@ -111,7 +111,7 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 	}
 
 	get hasErrorState(): boolean {
-		if (this._workingCopy && 'hasState' in this._workingCopy) {
+		if (this._workingCopy && hasKey(this._workingCopy, { hasState: true })) {
 			return this._workingCopy.hasState(StoredFileWorkingCopyState.ERROR);
 		}
 

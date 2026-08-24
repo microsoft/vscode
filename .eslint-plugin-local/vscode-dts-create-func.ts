@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as eslint from 'eslint';
+import type * as ESTree from 'estree';
 import { TSESTree, AST_NODE_TYPES } from '@typescript-eslint/utils';
 
-export = new class ApiLiteralOrTypes implements eslint.Rule.RuleModule {
+export default new class ApiLiteralOrTypes implements eslint.Rule.RuleModule {
 
 	readonly meta: eslint.Rule.RuleMetaData = {
 		docs: { url: 'https://github.com/microsoft/vscode/wiki/Extension-API-guidelines#creating-objects' },
@@ -17,9 +18,9 @@ export = new class ApiLiteralOrTypes implements eslint.Rule.RuleModule {
 	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
 
 		return {
-			['TSDeclareFunction Identifier[name=/create.*/]']: (node: any) => {
+			['TSDeclareFunction Identifier[name=/create.*/]']: (node: ESTree.Node) => {
 
-				const decl = <TSESTree.FunctionDeclaration>(<TSESTree.Identifier>node).parent;
+				const decl = (node as TSESTree.Identifier).parent as TSESTree.FunctionDeclaration;
 
 				if (decl.returnType?.typeAnnotation.type !== AST_NODE_TYPES.TSTypeReference) {
 					return;

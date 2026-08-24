@@ -167,6 +167,9 @@ function sanitize(documentContent: string, sanitizerConfig: MarkdownDocumentSani
 		allowedLinkProtocols: {
 			override: sanitizerConfig?.allowedLinkProtocols?.override ?? defaultAllowedLinkProtocols,
 		},
+		allowRelativeLinkPaths: sanitizerConfig?.allowRelativeLinkPaths,
+		allowedMediaProtocols: sanitizerConfig?.allowedMediaProtocols,
+		allowRelativeMediaPaths: sanitizerConfig?.allowRelativeMediaPaths,
 		allowedTags: {
 			override: allowedMarkdownHtmlTags,
 			augment: sanitizerConfig?.allowedTags?.augment
@@ -190,9 +193,17 @@ interface MarkdownDocumentSanitizerConfig {
 	readonly allowedLinkProtocols?: {
 		readonly override: readonly string[] | '*';
 	};
+	readonly allowRelativeLinkPaths?: boolean;
+
+	readonly allowedMediaProtocols?: {
+		readonly override: readonly string[] | '*';
+	};
+	readonly allowRelativeMediaPaths?: boolean;
+
 	readonly allowedTags?: {
 		readonly augment: readonly string[];
 	};
+
 	readonly allowedAttributes?: {
 		readonly augment: readonly string[];
 	};
@@ -215,7 +226,7 @@ export async function renderMarkdownDocument(
 	languageService: ILanguageService,
 	options?: IRenderMarkdownDocumentOptions,
 	token: CancellationToken = CancellationToken.None,
-): Promise<string> {
+): Promise<TrustedHTML> {
 	const m = new marked.Marked(
 		MarkedHighlight.markedHighlight({
 			async: true,
@@ -238,7 +249,7 @@ export async function renderMarkdownDocument(
 	);
 
 	const raw = await raceCancellationError(m.parse(text, { async: true }), token ?? CancellationToken.None);
-	return sanitize(raw, options?.sanitizerConfig) as any as string;
+	return sanitize(raw, options?.sanitizerConfig);
 }
 
 namespace MarkedHighlight {

@@ -9,7 +9,7 @@ import { Color } from '../../../../base/common/color.js';
 import { Event } from '../../../../base/common/event.js';
 import { DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { editorBackground, foreground } from '../../../../platform/theme/common/colorRegistry.js';
-import { getThemeTypeSelector, IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { getThemeTypeSelector, IPartsSplashPartBounds, IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { DEFAULT_EDITOR_MIN_DIMENSIONS } from '../../../browser/parts/editor/editor.js';
 import * as themes from '../../../common/theme.js';
 import { IWorkbenchLayoutService, Parts, Position } from '../../../services/layout/browser/layoutService.js';
@@ -82,8 +82,17 @@ export class PartsSplash {
 				titleBarBorder: theme.getColor(themes.TITLE_BAR_BORDER)?.toString(),
 				activityBarBackground: theme.getColor(themes.ACTIVITY_BAR_BACKGROUND)?.toString(),
 				activityBarBorder: theme.getColor(themes.ACTIVITY_BAR_BORDER)?.toString(),
+				modernActivityBarBackground: theme.getColor(themes.MODERN_ACTIVITY_BAR_BACKGROUND)?.toString(),
+				modernActivityBarInactiveBackground: theme.getColor(themes.MODERN_ACTIVITY_BAR_INACTIVE_BACKGROUND)?.toString(),
+				modernActivityBarBorder: theme.getColor(themes.MODERN_ACTIVITY_BAR_BORDER)?.toString(),
 				sideBarBackground: theme.getColor(themes.SIDE_BAR_BACKGROUND)?.toString(),
 				sideBarBorder: theme.getColor(themes.SIDE_BAR_BORDER)?.toString(),
+				panelBackground: theme.getColor(themes.PANEL_BACKGROUND)?.toString(),
+				editorGroupBorder: theme.getColor(themes.EDITOR_GROUP_BORDER)?.toString(),
+				editorBorder: theme.getColor(themes.EDITOR_BORDER)?.toString(),
+				surfaceBorder: theme.getColor(themes.SURFACE_BORDER)?.toString(),
+				agentsPanelBackground: theme.getColor('agentsPanel.background')?.toString(),
+				agentsPanelBorder: theme.getColor('agentsPanel.border')?.toString(),
 				statusBarBackground: theme.getColor(themes.STATUS_BAR_BACKGROUND)?.toString(),
 				statusBarBorder: theme.getColor(themes.STATUS_BAR_BORDER)?.toString(),
 				statusBarNoFolderBackground: theme.getColor(themes.STATUS_BAR_NO_FOLDER_BACKGROUND)?.toString(),
@@ -98,9 +107,50 @@ export class PartsSplash {
 				auxiliaryBarWidth: this._layoutService.isAuxiliaryBarMaximized() ? Number.MAX_SAFE_INTEGER /* marker for maximized state */ : this._layoutService.isVisible(Parts.AUXILIARYBAR_PART) ? dom.getTotalWidth(assertReturnsDefined(this._layoutService.getContainer(mainWindow, Parts.AUXILIARYBAR_PART))) : 0,
 				statusBarHeight: this._layoutService.isVisible(Parts.STATUSBAR_PART, mainWindow) ? dom.getTotalHeight(assertReturnsDefined(this._layoutService.getContainer(mainWindow, Parts.STATUSBAR_PART))) : 0,
 				windowBorder: this._layoutService.hasMainWindowBorder(),
-				windowBorderRadius: this._layoutService.getMainWindowBorderRadius()
+				windowBorderRadius: this._layoutService.getMainWindowBorderRadius(),
+				modernUI: this._layoutService.isFloatingPanelsEnabled(),
+				modernUICompact: this._layoutService.isModernUICompact(),
+				partBounds: this._layoutService.isFloatingPanelsEnabled() ? {
+					activityBar: this._getPartBounds(Parts.ACTIVITYBAR_PART),
+					sideBar: this._getPartBounds(Parts.SIDEBAR_PART),
+					auxiliaryBar: this._getPartBounds(Parts.AUXILIARYBAR_PART),
+					panel: this._getPartBounds(Parts.PANEL_PART),
+					editor: this._getPartBounds(Parts.EDITOR_PART)
+				} : undefined
 			}
 		});
+	}
+
+	private _getPartBounds(part: Parts.ACTIVITYBAR_PART | Parts.SIDEBAR_PART | Parts.AUXILIARYBAR_PART | Parts.PANEL_PART | Parts.EDITOR_PART): IPartsSplashPartBounds | undefined {
+		if (part === Parts.EDITOR_PART) {
+			if (!this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
+				return undefined;
+			}
+		} else if (!this._layoutService.isVisible(part)) {
+			return undefined;
+		}
+
+		const container = assertReturnsDefined(this._layoutService.getContainer(mainWindow, part));
+		const position = dom.getDomNodePagePosition(container);
+		const classPrefix = part === Parts.EDITOR_PART ? 'floating-editor' : 'floating-part';
+		const activityBarOnLeft = this._layoutService.getSideBarPosition() === Position.LEFT;
+		return {
+			top: position.top,
+			left: position.left,
+			width: position.width,
+			height: position.height,
+			outerEdges: part === Parts.ACTIVITYBAR_PART ? {
+				left: activityBarOnLeft,
+				right: !activityBarOnLeft,
+				top: true,
+				bottom: true,
+			} : {
+				left: container.classList.contains(`${classPrefix}-outer-left`),
+				right: container.classList.contains(`${classPrefix}-outer-right`),
+				top: container.classList.contains(`${classPrefix}-outer-top`),
+				bottom: container.classList.contains(`${classPrefix}-outer-bottom`),
+			}
+		};
 	}
 
 	private _shouldSaveLayoutInfo(): boolean {
@@ -108,12 +158,14 @@ export class PartsSplash {
 	}
 
 	private _removePartsSplash(): void {
+		// eslint-disable-next-line no-restricted-syntax
 		const element = mainWindow.document.getElementById(PartsSplash._splashElementId);
 		if (element) {
 			element.style.display = 'none';
 		}
 
 		// remove initial colors
+		// eslint-disable-next-line no-restricted-syntax
 		const defaultStyles = mainWindow.document.head.getElementsByClassName('initialShellColors');
 		defaultStyles[0]?.remove();
 	}

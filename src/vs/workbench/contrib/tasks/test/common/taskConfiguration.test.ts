@@ -567,7 +567,7 @@ function assertProblemMatcher(actual: string | ProblemMatcher, expected: string 
 	}
 }
 
-function assertProblemPatterns(actual: IProblemPattern | IProblemPattern[], expected: IProblemPattern | IProblemPattern[]) {
+function assertProblemPatterns(actual: Types.SingleOrMany<IProblemPattern>, expected: Types.SingleOrMany<IProblemPattern>) {
 	assert.strictEqual(typeof actual, typeof expected);
 	if (Array.isArray(actual)) {
 		const actuals = <IProblemPattern[]>actual;
@@ -1823,13 +1823,13 @@ suite('Task configuration conversions', () => {
 		test('returns config for a known problem matcher', () => {
 			const result = (ProblemMatcherConverter.from('$real', parseContext));
 			assert.strictEqual(result.errors?.length, 0);
-			assert.deepEqual(result.value, [{ "label": "real label" }]);
+			assert.deepEqual(result.value, [{ 'label': 'real label' }]);
 		});
 		test('returns config for a known problem matcher including applyTo', () => {
 			namedProblemMatcher.applyTo = ApplyToKind.closedDocuments;
 			const result = (ProblemMatcherConverter.from('$real', parseContext));
 			assert.strictEqual(result.errors?.length, 0);
-			assert.deepEqual(result.value, [{ "label": "real label", "applyTo": ApplyToKind.closedDocuments }]);
+			assert.deepEqual(result.value, [{ 'label': 'real label', 'applyTo': ApplyToKind.closedDocuments }]);
 		});
 	});
 	suite('TaskParser.from', () => {
@@ -1841,7 +1841,7 @@ suite('Task configuration conversions', () => {
 				});
 				test('command', () => {
 					const result = TaskParser.from([{ taskName: 'task' } as ICustomTask], globals, parseContext, taskConfigSource);
-					assertTaskParseResult(result, undefined, problemReporter, "Error: the task 'task' doesn't define a command");
+					assertTaskParseResult(result, undefined, problemReporter, `Error: the task 'task' doesn't define a command`);
 				});
 			});
 			test('returns expected result', () => {

@@ -63,6 +63,7 @@ export interface GridBranchNode<T extends IView> {
 export type GridNode<T extends IView> = GridLeafNode<T> | GridBranchNode<T>;
 
 export function isGridBranchNode<T extends IView>(node: GridNode<T>): node is GridBranchNode<T> {
+	// eslint-disable-next-line local/code-no-any-casts
 	return !!(node as any).children;
 }
 
@@ -602,13 +603,14 @@ export class Grid<T extends IView = IView> extends Disposable {
 	/**
 	 * Maximizes the specified view and hides all other views.
 	 * @param view The view to maximize.
+	 * @param excludeViews Optional array of views to exclude from being hidden.
 	 */
-	maximizeView(view: T) {
+	maximizeView(view: T, excludeViews: readonly T[] = []) {
 		if (this.views.size < 2) {
 			throw new Error('At least two views are required to maximize a view');
 		}
 		const location = this.getViewLocation(view);
-		this.gridview.maximizeView(location);
+		this.gridview.maximizeView(location, excludeViews);
 	}
 
 	exitMaximizedView(): void {
@@ -627,8 +629,7 @@ export class Grid<T extends IView = IView> extends Disposable {
 	}
 
 	/**
-	 * Distribute the size among all {@link IView views} within the entire
-	 * grid or within a single {@link SplitView}.
+	 * Distribute the size among all {@link IView views} within the entire grid.
 	 */
 	distributeViewSizes(): void {
 		this.gridview.distributeViewSizes();
@@ -648,10 +649,15 @@ export class Grid<T extends IView = IView> extends Disposable {
 	 * Set the visibility state of a {@link IView view}.
 	 *
 	 * @param view The {@link IView view}.
+	 * @param sizing Whether to redistribute the containing {@link SplitView} after revealing the view.
 	 */
-	setViewVisible(view: T, visible: boolean): void {
+	setViewVisible(view: T, visible: boolean, sizing?: DistributeSizing): void {
 		const location = this.getViewLocation(view);
 		this.gridview.setViewVisible(location, visible);
+		if (visible && sizing?.type === 'distribute') {
+			const parentLocation = location.length > 0 ? tail(location)[0] : undefined;
+			this.gridview.distributeViewSizes(parentLocation);
+		}
 	}
 
 	/**
@@ -869,7 +875,9 @@ function isGridBranchNodeDescriptor<T>(nodeDescriptor: GridNodeDescriptor<T>): n
 }
 
 export function sanitizeGridNodeDescriptor<T>(nodeDescriptor: GridNodeDescriptor<T>, rootNode: boolean): void {
+	// eslint-disable-next-line local/code-no-any-casts
 	if (!rootNode && (nodeDescriptor as any).groups && (nodeDescriptor as any).groups.length <= 1) {
+		// eslint-disable-next-line local/code-no-any-casts
 		(nodeDescriptor as any).groups = undefined;
 	}
 

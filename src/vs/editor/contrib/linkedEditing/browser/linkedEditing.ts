@@ -63,8 +63,8 @@ export class LinkedEditingContribution extends Disposable implements IEditorCont
 	private readonly _visibleContextKey: IContextKey<boolean>;
 	private readonly _debounceInformation: IFeatureDebounceInformation;
 
-	private _rangeUpdateTriggerPromise: Promise<any> | null;
-	private _rangeSyncTriggerPromise: Promise<any> | null;
+	private _rangeUpdateTriggerPromise: Promise<unknown> | null;
+	private _rangeSyncTriggerPromise: Promise<unknown> | null;
 
 	private _currentRequestCts: CancellationTokenSource | null;
 	private _currentRequestPosition: Position | null;
@@ -265,11 +265,11 @@ export class LinkedEditingContribution extends Disposable implements IEditorCont
 		}
 	}
 
-	public get currentUpdateTriggerPromise(): Promise<any> {
+	public get currentUpdateTriggerPromise(): Promise<unknown> {
 		return this._rangeUpdateTriggerPromise || Promise.resolve();
 	}
 
-	public get currentSyncTriggerPromise(): Promise<any> {
+	public get currentSyncTriggerPromise(): Promise<unknown> {
 		return this._rangeSyncTriggerPromise || Promise.resolve();
 	}
 

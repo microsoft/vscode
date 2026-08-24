@@ -1,0 +1,52 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-opus-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "TARGET_MATERIALIZED".
+    response:
+      content: TARGET_MATERIALIZED
+      stopReason: end_turn
+  - request:
+      model: claude-opus-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call send_message exactly once with session "claude:/${uuid_0}" and message "/rename Target Via Send", then reply exactly "sent".
+    response:
+      content:
+        - type: text
+          text: I'll send that message.
+        - type: tool_use
+          id: toolcall_0
+          name: mcp__host__send_message
+          input:
+            session: claude:/${uuid_0}
+            message: /rename Target Via Send
+      stopReason: tool_use
+  - request:
+      model: claude-opus-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call send_message exactly once with session "claude:/${uuid_0}" and message "/rename Target Via Send", then reply exactly "sent".
+        - role: assistant
+          content:
+            - type: text
+              text: I'll send that message.
+            - type: tool_use
+              name: mcp__host__send_message
+              input:
+                session: claude:/${uuid_0}
+                message: /rename Target Via Send
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: Message sent (agent-host-session://claude/${uuid_0}). Reply with one short sentence confirming the message was sent; do not print the URL or mention a button.
+    response:
+      content: sent
+      stopReason: end_turn

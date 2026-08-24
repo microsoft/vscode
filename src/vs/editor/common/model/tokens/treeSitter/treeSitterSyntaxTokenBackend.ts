@@ -54,7 +54,7 @@ export class TreeSitterSyntaxTokenBackend extends AbstractSyntaxTokenBackend {
 			}
 
 			const currentLanguage = this._languageIdObs.read(reader);
-			const treeSitterLang = this._treeSitterLibraryService.getLanguage(currentLanguage, reader);
+			const treeSitterLang = this._treeSitterLibraryService.getLanguage(currentLanguage, false, reader);
 			if (!treeSitterLang) {
 				return undefined;
 			}
