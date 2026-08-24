@@ -120,6 +120,23 @@ suite('AgentHostTelemetryReporter', () => {
 		}]);
 	});
 
+	test('userMessageSent reports the producing actor on both standard events', () => {
+		const service = new TestRestrictedTelemetryService();
+		const reporter = new AgentHostTelemetryReporter(service);
+		const agentMessage: Message = { text: 'please take over', origin: { kind: MessageKind.Agent } };
+
+		reporter.userMessageSent('copilot', 'client-1', createUnknownAgentHostClientTelemetryContext(AgentHostClientType.AgentsWindow), session, 'turn-1', undefined, 'direct', agentMessage);
+		reporter.userMessageSent('copilot', 'client-1', createUnknownAgentHostClientTelemetryContext(AgentHostClientType.AgentsWindow), session, 'turn-2', undefined, 'queued', userMessage);
+
+		assert.deepStrictEqual({
+			standard: service.standardEvents.map(event => event.data?.messageOriginKind),
+			github: service.githubStandardEvents.map(event => event.properties?.messageOriginKind),
+		}, {
+			standard: ['agent', 'user'],
+			github: ['agent', 'user'],
+		});
+	});
+
 	test('executionModeChanged attributes a client-originated mode change', () => {
 		const service = new TestRestrictedTelemetryService();
 		const reporter = new AgentHostTelemetryReporter(service);

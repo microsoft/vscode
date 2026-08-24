@@ -1184,9 +1184,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 * client-initiated turn takes (which sends the message to the provider).
 	 */
 	private async _startSessionPrompt(session: URI, chat: URI, prompt: string): Promise<void> {
-		// The prompt was authored by the calling agent, not by the user, so the
-		// message origin marks it as agent-produced. Telemetry uses this to
-		// attribute sessions/chats/messages to their true source.
+		// The calling agent authored this prompt, not the user.
 		const message: Message = { text: prompt, origin: { kind: MessageKind.Agent } };
 		const action = { type: ActionType.ChatTurnStarted, turnId: generateUuid(), startedAt: new Date().toISOString(), message } as const;
 		this._stateManager.dispatchServerAction(chat.toString(), action);
