@@ -528,6 +528,7 @@
 		"surface.border": "#00222c",
 		"modernActivityBar.activeBackground": "#005A6F",
 		"modernActivityBar.hoverBackground": "#005A6F87",
+		"modernActivityBar.background": "#00000000",
 	},
 	"semanticHighlighting": true
 }

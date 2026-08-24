@@ -46,7 +46,7 @@
 /* Session pill - clickable area for session picker, fills the command center box */
 .command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-pill {
 	display: flex;
-	justify-content: space-around;
+	justify-content: flex-start;
 	align-items: center;
 	flex: 1 1 auto;
 	padding: 0 8px;
@@ -64,52 +64,39 @@
 	outline-offset: -1px;
 }
 
-/* Center group: icon + label + folder */
+/* Center group: workspace icon and folder */
 .command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-center {
 	display: flex;
 	align-items: center;
-	gap: 6px;
+	gap: 0;
+	height: 100%;
 	min-width: 0;
 	justify-content: flex-start;
 	cursor: pointer;
 	overflow: hidden;
 }
-/* Codicons use the base 16px token rather than an unsupported intermediate size. */
-.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-icon {
+/* Workspace name shown beside its icon. */
+.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-workspace {
 	display: flex;
 	align-items: center;
-	flex-shrink: 0;
-	font-size: var(--vscode-codiconFontSize);
-}
-
-/* Session title - primary label in the command center box. */
-.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-title {
 	flex: 0 1 auto;
+	height: 100%;
 	min-width: 0;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
 }
 
-/* Workspace name - secondary, dimmed label shown after the session title.
-	It must not be cropped: when space is tight the session title truncates
-	first while the workspace name stays fully visible. */
-.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-workspace {
-	flex: 0 0 auto;
-	white-space: nowrap;
+.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-workspace-icon {
+	display: flex;
+	align-items: center;
+	flex-shrink: 0;
+	height: 100%;
+	font-size: var(--vscode-codiconFontSize-compact);
 }
 
 .command-center > .monaco-toolbar > .monaco-action-bar > .actions-container > .action-item:not(.disabled) > .action-label {
 	color: var(--vscode-icon-foreground);
-}
-
-/* Separator between the session title and the workspace name. */
-.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-separator {
-	flex-shrink: 0;
-
-	&::before {
-		content: '\00B7';
-	}
 }
 
 /* Sidebar toggle unread badge */

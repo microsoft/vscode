@@ -428,7 +428,7 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 		const mcpServerDefinitions = observeComponent(
 			'mcpServers',
 			paths => readPluginMcpServers(uri, paths, format, this._fileService),
-			async section => parseMcpServerDefinitionMap(manifestUri, { mcpServers: section }, uri.fsPath, format),
+			async section => parseMcpServerDefinitionMap(manifestUri, { mcpServers: section }, uri, format),
 			'.mcp.json',
 		);
 

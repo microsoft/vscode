@@ -66,16 +66,19 @@ suite('ModelProviderIcons', () => {
 		]);
 	});
 
-	test('status icon wins, warning text keeps provider icon', () => {
+	test('status icon wins, warning and info text keep the provider icon', () => {
 		const model = createModel('gpt-5.6-terra', 'GPT-5.6 Terra');
 		const modelWithStatusIcon = { ...model, metadata: { ...model.metadata, statusIcon: Codicon.info } };
 		const modelWithWarningText = { ...model, metadata: { ...model.metadata, warningText: { degradation: 'Degraded' } } };
+		const modelWithInfoText = { ...model, metadata: { ...model.metadata, infoText: { model_relocated: 'Now served from a new region.' } } };
 
 		assert.deepStrictEqual([
 			getModelPickerIcon(modelWithStatusIcon).id,
 			getModelPickerIcon(modelWithWarningText).id,
+			getModelPickerIcon(modelWithInfoText).id,
 		], [
 			Codicon.info.id,
+			getModelProviderIcon(model).id,
 			getModelProviderIcon(model).id,
 		]);
 	});

@@ -18,6 +18,7 @@ import type { ListSessionsResult, SubscribeResult } from '../../../../common/sta
 import { ActionType, NotificationType, type ChatToolCallCompleteAction, type ChatToolCallStartAction, type SessionAddedParams, type StateAction } from '../../../../common/state/sessionActions.js';
 import {
 	buildDefaultChatUri,
+	readSessionOrchestration,
 	ROOT_STATE_URI,
 	type AnnotationsState,
 	type ChatState,
@@ -53,7 +54,7 @@ interface ISeedFeedbackOptions {
 	readonly replies?: readonly string[];
 }
 
-const feedbackToolNames = ['addComment', 'listComments', 'deleteComments', 'resolveComments', 'viewUnreviewedComments'] as const;
+const feedbackToolNames = ['addComment', 'listComments', 'replyToComment', 'deleteComments', 'resolveComments', 'viewUnreviewedComments'] as const;
 const feedbackResourceUri = 'untitled://server-tools/reviewed.ts';
 const sessionToolNames = [
 	SessionServerToolName.ListSessions,
@@ -178,7 +179,7 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 			type: ActionType.AnnotationsSet,
 			annotation: {
 				id: options.id,
-				turnId: 'seed-feedback',
+				origin: { session: sessionUri, chat: buildDefaultChatUri(sessionUri), turnId: 'seed-feedback' },
 				resource: options.resource,
 				range: { start: { line: 1, character: 2 }, end: { line: 1, character: 8 } },
 				resolved: options.resolved ?? false,
@@ -316,12 +317,14 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 			'Call listComments exactly once, then reply exactly "listed".',
 			'listComments',
 		);
-		const result = JSON.parse(tool.resultText) as { comments: readonly { id: string; replies?: readonly string[] }[]; note?: string };
+		const result = JSON.parse(tool.resultText) as { comments: readonly { id: string; author?: string; replies?: readonly { author: string; text: string }[] }[]; note?: string };
 		assert.deepStrictEqual({
-			comments: result.comments.map(comment => ({ id: comment.id, replies: comment.replies })),
+			comments: result.comments.map(comment => ({ id: comment.id, author: comment.author, replies: comment.replies })),
 			noteMentionsUnreviewed: result.note?.includes('1 code review comment') ?? false,
 		}, {
-			comments: [{ id: 'accepted-comment', replies: ['reply'] }],
+			// The seeded entries carry no author, so the comment falls back to its
+			// `codeReview` origin and the reply to the user.
+			comments: [{ id: 'accepted-comment', author: 'agent', replies: [{ author: 'user', text: 'reply' }] }],
 			noteMentionsUnreviewed: true,
 		});
 	});
@@ -863,6 +866,8 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 		}, 30_000);
 		const child = (childAdded.params as SessionAddedParams).summary;
 		createdSessions.push(child.resource);
+		const orchestration = readSessionOrchestration(child._meta);
+		assert.ok(orchestration, 'child SessionAdded summary should include orchestration metadata');
 		const childRequest = await retry(async () => {
 			const requests = context.observedModelRequestBodies
 				.map(summarizeAnthropicRequest)
@@ -879,11 +884,17 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 			provider: child.provider,
 			messages: childState.turns.map(turn => turn.message.text),
 			childRequestModel: childRequest.model,
+			orchestration,
 		}, {
 			sawPendingConfirmation: true,
 			provider: model.provider,
 			messages: [childPrompt],
 			childRequestModel: model.id,
+			orchestration: {
+				parentSession: session.sessionUri,
+				creatorSession: session.sessionUri,
+				coordinateWithCreator: true,
+			},
 		});
 	}, supportsProviderModelSessionCreation);
 

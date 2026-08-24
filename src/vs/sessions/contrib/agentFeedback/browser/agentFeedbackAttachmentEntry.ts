@@ -8,6 +8,7 @@ import { basename, isEqualOrParent, relativePath } from '../../../../base/common
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
+import { authorForFeedbackKind } from '../../../../platform/agentHost/common/meta/agentFeedbackAnnotations.js';
 import { IAgentFeedbackVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { IAgentFeedback } from './agentFeedbackModel.js';
 
@@ -46,7 +47,7 @@ export function createAgentFeedbackVariableEntry(sessionResource: URI, feedbackI
 			codeSelection: f.codeSelection,
 			diffHunks: f.diffHunks,
 			sourcePRReviewCommentId: f.sourcePRReviewCommentId,
-			replies: f.replies,
+			replies: f.replies?.map(reply => reply.text),
 		})),
 		value: buildAgentFeedbackValue(feedbackItems),
 	};
@@ -76,10 +77,10 @@ export function buildAgentFeedbackValue(feedbackItems: readonly IAgentFeedback[]
 		if (item.diffHunks) {
 			part += `\nDiff Hunks:\n\`\`\`diff\n${item.diffHunks}\n\`\`\``;
 		}
-		part += `\nComment: ${item.text}`;
+		part += `\nComment (${authorForFeedbackKind(item.kind)}): ${item.text}`;
 		if (item.replies?.length) {
 			for (const reply of item.replies) {
-				part += `\nReply: ${reply}`;
+				part += `\nReply (${reply.author}): ${reply.text}`;
 			}
 		}
 		parts.push(part);
@@ -101,7 +102,7 @@ export function buildNewSessionPrompt(prompt: string, feedbackItems: readonly IA
 		const location = formatFeedbackLocation(item, workspaceRoots);
 		parts.push(formatPromptLine(`${item.text} (${location})`, useCommentBullets ? '- ' : '', useCommentBullets ? '  ' : ''));
 		for (const reply of item.replies ?? []) {
-			parts.push(formatPromptLine(`reply: ${reply}`, '  - ', '    '));
+			parts.push(formatPromptLine(`reply: ${reply.text}`, '  - ', '    '));
 		}
 	}
 

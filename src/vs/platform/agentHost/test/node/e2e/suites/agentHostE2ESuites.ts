@@ -11,6 +11,7 @@ import { defineCustomizationDiscoveryTests } from './customizationDiscoverySuite
 import { defineAnnotationsTests } from './annotationsSuite.js';
 import { defineChangesetTests } from './changesetSuite.js';
 import { defineClientFilesystemTests } from './clientFilesystemSuite.js';
+import { defineClientHostedFilesystemTests } from './clientHostedFilesystemSuite.js';
 import { defineProtocolContractTests } from './protocolContractsSuite.js';
 import { defineServerToolsTests } from './serverToolsSuite.js';
 import { defineSessionPersistenceTests } from './sessionPersistenceSuite.js';
@@ -146,6 +147,7 @@ function defineSuite(config: IAgentHostE2EProviderConfig, options: IDefineOption
 			defineHostFeaturesTests(context);
 			defineStateOperationsTests(context);
 			defineClientFilesystemTests(context);
+			defineClientHostedFilesystemTests(context);
 			defineAnnotationsTests(context);
 			defineProtocolContractTests(context);
 		}
