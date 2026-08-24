@@ -8,23 +8,32 @@ import { decodeKeybinding } from '../../../../../base/common/keybindings.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { OperatingSystem } from '../../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { KeybindingsRegistry, KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { IKeybindings, KeybindingsRegistry, KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import '../../../../../editor/contrib/format/browser/formatActions.js';
-import { getOpenChatActionIdForMode, registerChatActions } from '../../../../../workbench/contrib/chat/browser/actions/chatActions.js';
-import { ChatMode } from '../../../../../workbench/contrib/chat/common/chatModes.js';
+import { OPEN_CHAT_AGENT_KEYBINDING } from '../../../../../workbench/contrib/chat/browser/actions/chatActions.js';
 import { FOCUS_ACTIVE_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import '../../browser/sessionsActions.js';
-
-registerChatActions();
 
 suite('Sessions - Focus Active Session keybinding', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	function getPrimaryKeybindingForOS(keybinding: IKeybindings, os: OperatingSystem): number | undefined {
+		switch (os) {
+			case OperatingSystem.Windows:
+				return keybinding.win?.primary ?? keybinding.primary;
+			case OperatingSystem.Macintosh:
+				return keybinding.mac?.primary ?? keybinding.primary;
+			case OperatingSystem.Linux:
+				return keybinding.linux?.primary ?? keybinding.primary;
+		}
+	}
+
 	function getAgentAlias(os: OperatingSystem) {
 		const rules = KeybindingsRegistry.getDefaultKeybindingsForOS(os);
-		const openAgentRule = rules.find(item => item.command === getOpenChatActionIdForMode(ChatMode.Agent) && item.weight2 === 0);
-		return rules.find(item => item.command === FOCUS_ACTIVE_SESSION_COMMAND_ID && item.keybinding?.getHashCode() === openAgentRule?.keybinding?.getHashCode());
+		const openAgentKeybinding = getPrimaryKeybindingForOS(OPEN_CHAT_AGENT_KEYBINDING, os);
+		const hash = openAgentKeybinding && decodeKeybinding(openAgentKeybinding, os)?.getHashCode();
+		return rules.find(item => item.command === FOCUS_ACTIVE_SESSION_COMMAND_ID && item.keybinding?.getHashCode() === hash);
 	}
 
 	test('aliases the platform Open Chat (Agent) keybinding', () => {
