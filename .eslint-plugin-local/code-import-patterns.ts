@@ -7,9 +7,9 @@ import * as eslint from 'eslint';
 import { TSESTree } from '@typescript-eslint/utils';
 import * as path from 'path';
 import minimatch from 'minimatch';
-import { createImportRuleListener } from './utils';
+import { createImportRuleListener } from './utils.ts';
 
-const REPO_ROOT = path.normalize(path.join(__dirname, '../'));
+const REPO_ROOT = path.normalize(path.join(import.meta.dirname, '../'));
 
 interface ConditionalPattern {
 	when?: 'hasBrowser' | 'hasNode' | 'hasElectron' | 'test';
@@ -31,7 +31,7 @@ interface LayerAllowRule {
 type RawOption = RawImportPatternsConfig | LayerAllowRule;
 
 function isLayerAllowRule(option: RawOption): option is LayerAllowRule {
-	return !!((<LayerAllowRule>option).when && (<LayerAllowRule>option).allow);
+	return !!((option as LayerAllowRule).when && (option as LayerAllowRule).allow);
 }
 
 interface ImportPatternsConfig {
@@ -39,7 +39,7 @@ interface ImportPatternsConfig {
 	restrictions: string[];
 }
 
-export = new class implements eslint.Rule.RuleModule {
+export default new class implements eslint.Rule.RuleModule {
 
 	readonly meta: eslint.Rule.RuleMetaData = {
 		messages: {
@@ -55,7 +55,7 @@ export = new class implements eslint.Rule.RuleModule {
 	};
 
 	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
-		const options = <RawOption[]>context.options;
+		const options = context.options as RawOption[];
 		const configs = this._processOptions(options);
 		const relativeFilename = getRelativeFilename(context);
 
@@ -217,7 +217,7 @@ export = new class implements eslint.Rule.RuleModule {
 					configs.push(testConfig);
 				}
 			} else {
-				configs.push({ target, restrictions: <string[]>restrictions.filter(r => typeof r === 'string') });
+				configs.push({ target, restrictions: restrictions.filter(r => typeof r === 'string') as string[] });
 			}
 		}
 		this._optionsCache.set(options, configs);
@@ -282,6 +282,6 @@ export = new class implements eslint.Rule.RuleModule {
  * Returns the filename relative to the project root and using `/` as separators
  */
 function getRelativeFilename(context: eslint.Rule.RuleContext): string {
-	const filename = path.normalize(context.getFilename());
+	const filename = path.normalize(context.filename);
 	return filename.substring(REPO_ROOT.length).replace(/\\/g, '/');
 }

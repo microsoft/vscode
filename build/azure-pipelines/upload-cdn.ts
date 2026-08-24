@@ -6,11 +6,10 @@
 import es from 'event-stream';
 import Vinyl from 'vinyl';
 import vfs from 'vinyl-fs';
-import filter from 'gulp-filter';
-import gzip from 'gulp-gzip';
+import { filter, gzip, azureStorage } from '../lib/gulp/facade.ts';
 import mime from 'mime';
 import { ClientAssertionCredential } from '@azure/identity';
-const azure = require('gulp-azure-storage');
+import { VinylStat } from '../lib/util.ts';
 
 const commit = process.env['BUILD_SOURCEVERSION'];
 const credential = new ClientAssertionCredential(process.env['AZURE_TENANT_ID']!, process.env['AZURE_CLIENT_ID']!, () => Promise.resolve(process.env['AZURE_ID_TOKEN']!));
@@ -70,7 +69,7 @@ const MimeTypesToCompress = new Set([
 function wait(stream: es.ThroughStream): Promise<void> {
 	return new Promise<void>((c, e) => {
 		stream.on('end', () => c());
-		stream.on('error', (err: any) => e(err));
+		stream.on('error', (err) => e(err));
 	});
 }
 
@@ -93,11 +92,11 @@ async function main(): Promise<void> {
 	const compressed = all
 		.pipe(filter(f => MimeTypesToCompress.has(mime.lookup(f.path))))
 		.pipe(gzip({ append: false }))
-		.pipe(azure.upload(options(true)));
+		.pipe(azureStorage.upload(options(true)));
 
 	const uncompressed = all
 		.pipe(filter(f => !MimeTypesToCompress.has(mime.lookup(f.path))))
-		.pipe(azure.upload(options(false)));
+		.pipe(azureStorage.upload(options(false)));
 
 	const out = es.merge(compressed, uncompressed)
 		.pipe(es.through(function (f) {
@@ -112,12 +111,12 @@ async function main(): Promise<void> {
 	const listing = new Vinyl({
 		path: 'files.txt',
 		contents: Buffer.from(files.join('\n')),
-		stat: { mode: 0o666 } as any
+		stat: new VinylStat({ mode: 0o666 })
 	});
 
 	const filesOut = es.readArray([listing])
 		.pipe(gzip({ append: false }))
-		.pipe(azure.upload(options(true)));
+		.pipe(azureStorage.upload(options(true)));
 
 	console.log(`Uploading: files.txt (${files.length} files)`); // debug
 	await wait(filesOut);

@@ -1,0 +1,22 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* While a dictation session is active the caret is parked at the end of the
+ * dictated region, so a blinking cursor there is distracting as transcript text
+ * streams in. Hide it for the duration of the session. */
+.monaco-editor.dictation-hide-cursor .cursors-layer {
+	display: none !important;
+}
+
+/* The not-yet-final transcript is rendered in the input's placeholder color to
+ * signal it is provisional; the decoration is removed once the transcript is
+ * finalized, leaving solid text.
+ *
+ * The selector has to out-specify Monaco's syntax-token rules (`.monaco-editor
+ * .mtkN`), which are injected into the document after this stylesheet and would
+ * otherwise win the tie and paint the text in the normal foreground color. */
+.monaco-editor .view-line span.dictation-interim-processing {
+	color: var(--vscode-input-placeholderForeground);
+}

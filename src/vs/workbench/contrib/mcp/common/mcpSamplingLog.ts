@@ -17,7 +17,7 @@ const enum Constants {
 	SamplingLastNMessage = 30,
 }
 
-interface ISamplingStoredData {
+export interface ISamplingStoredData {
 	// UTC day ordinal of the first bin in the bins
 	head: number;
 	// Requests per day, max length of `Constants.SamplingRetentionDays`

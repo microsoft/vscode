@@ -3,11 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { n } from '../../../../../../../base/browser/dom.js';
-import { IMouseEvent } from '../../../../../../../base/browser/mouseEvent.js';
-import { Emitter } from '../../../../../../../base/common/event.js';
+import { Event } from '../../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
 import { constObservable, derived, derivedObservableWithCache, IObservable } from '../../../../../../../base/common/observable.js';
-import { editorBackground } from '../../../../../../../platform/theme/common/colorRegistry.js';
 import { asCssVariable } from '../../../../../../../platform/theme/common/colorUtils.js';
 import { ICodeEditor } from '../../../../../../browser/editorBrowser.js';
 import { ObservableCodeEditor, observableCodeEditor } from '../../../../../../browser/observableCodeEditor.js';
@@ -19,20 +17,20 @@ import { Position } from '../../../../../../common/core/position.js';
 import { Range } from '../../../../../../common/core/range.js';
 import { IInlineEditsView, InlineEditTabAction } from '../inlineEditsViewInterface.js';
 import { InlineEditWithChanges } from '../inlineEditWithChanges.js';
-import { getOriginalBorderColor, originalBackgroundColor } from '../theme.js';
+import { getEditorBackgroundColor, getOriginalBorderColor, INLINE_EDITS_BORDER_RADIUS, originalBackgroundColor } from '../theme.js';
 import { getPrefixTrim, mapOutFalsy, maxContentWidthInRange } from '../utils/utils.js';
+import { InlineCompletionEditorType } from '../../../model/provideInlineCompletions.js';
 
 const HORIZONTAL_PADDING = 0;
 const VERTICAL_PADDING = 0;
 const BORDER_WIDTH = 1;
 const WIDGET_SEPARATOR_WIDTH = 1;
 const WIDGET_SEPARATOR_DIFF_EDITOR_WIDTH = 3;
-const BORDER_RADIUS = 4;
+const BORDER_RADIUS = INLINE_EDITS_BORDER_RADIUS;
 
 export class InlineEditsDeletionView extends Disposable implements IInlineEditsView {
 
-	private readonly _onDidClick = this._register(new Emitter<IMouseEvent>());
-	readonly onDidClick = this._onDidClick.event;
+	readonly onDidClick = Event.None;
 
 	private readonly _editorObs: ObservableCodeEditor;
 
@@ -47,7 +45,7 @@ export class InlineEditsDeletionView extends Disposable implements IInlineEditsV
 		private readonly _uiState: IObservable<{
 			originalRange: LineRange;
 			deletions: Range[];
-			inDiffEditor: boolean;
+			editorType: InlineCompletionEditorType;
 		} | undefined>,
 		private readonly _tabAction: IObservable<InlineEditTabAction>,
 	) {
@@ -73,7 +71,7 @@ export class InlineEditsDeletionView extends Disposable implements IInlineEditsV
 			domNode: this._nonOverflowView.element,
 			position: constObservable(null),
 			allowEditorOverflow: false,
-			minContentWidthInPx: derived(reader => {
+			minContentWidthInPx: derived(this, reader => {
 				const info = this._editorLayoutInfo.read(reader);
 				if (info === null) { return 0; }
 				return info.codeRect.width;
@@ -98,7 +96,7 @@ export class InlineEditsDeletionView extends Disposable implements IInlineEditsV
 		});
 	}).map((v, r) => v.read(r));
 
-	private readonly _maxPrefixTrim = derived(reader => {
+	private readonly _maxPrefixTrim = derived(this, reader => {
 		const state = this._uiState.read(reader);
 		if (!state) {
 			return { prefixTrim: 0, prefixLeftOffset: 0 };
@@ -142,7 +140,7 @@ export class InlineEditsDeletionView extends Disposable implements IInlineEditsV
 
 	private readonly _originalOverlay = n.div({
 		style: { pointerEvents: 'none', }
-	}, derived(reader => {
+	}, derived(this, reader => {
 		const layoutInfoObs = mapOutFalsy(this._editorLayoutInfo).read(reader);
 		if (!layoutInfoObs) { return undefined; }
 
@@ -155,22 +153,22 @@ export class InlineEditsDeletionView extends Disposable implements IInlineEditsV
 			layoutInfo.codeRect.bottom
 		));
 
-		const overlayRect = derived(reader => {
+		const overlayRect = derived(this, reader => {
 			const rect = layoutInfoObs.read(reader).codeRect;
 			const overlayHider = overlayhider.read(reader);
 			return rect.intersectHorizontal(new OffsetRange(overlayHider.left, Number.MAX_SAFE_INTEGER));
 		});
 
-		const separatorWidth = this._uiState.map(s => s?.inDiffEditor ? WIDGET_SEPARATOR_DIFF_EDITOR_WIDTH : WIDGET_SEPARATOR_WIDTH).read(reader);
+		const separatorWidth = this._uiState.map(s => s?.editorType === InlineCompletionEditorType.DiffEditor ? WIDGET_SEPARATOR_DIFF_EDITOR_WIDTH : WIDGET_SEPARATOR_WIDTH).read(reader);
 		const separatorRect = overlayRect.map(rect => rect.withMargin(separatorWidth, separatorWidth));
-
+		const editorBackground = getEditorBackgroundColor(this._uiState.map(s => s?.editorType ?? InlineCompletionEditorType.TextEditor).read(reader));
 		return [
 			n.div({
 				class: 'originalSeparatorDeletion',
 				style: {
 					...separatorRect.read(reader).toStyles(),
 					borderRadius: `${BORDER_RADIUS}px`,
-					border: `${BORDER_WIDTH + separatorWidth}px solid ${asCssVariable(editorBackground)}`,
+					border: `${BORDER_WIDTH + separatorWidth}px solid ${editorBackground}`,
 					boxSizing: 'border-box',
 				}
 			}),
@@ -188,7 +186,7 @@ export class InlineEditsDeletionView extends Disposable implements IInlineEditsV
 				class: 'originalOverlayHiderDeletion',
 				style: {
 					...overlayhider.read(reader).toStyles(),
-					backgroundColor: asCssVariable(editorBackground),
+					backgroundColor: editorBackground,
 				}
 			})
 		];

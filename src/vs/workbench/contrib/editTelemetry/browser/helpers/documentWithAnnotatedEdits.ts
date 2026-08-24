@@ -7,10 +7,11 @@ import { AsyncReader, AsyncReaderEndOfStream } from '../../../../../base/common/
 import { CachedFunction } from '../../../../../base/common/cache.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { IObservableWithChange, ISettableObservable, observableValue, runOnChange } from '../../../../../base/common/observable.js';
-import { AnnotatedStringEdit, IEditData } from '../../../../../editor/common/core/edits/stringEdit.js';
+import { AnnotatedStringEdit, IEditData, StringEdit } from '../../../../../editor/common/core/edits/stringEdit.js';
 import { StringText } from '../../../../../editor/common/core/text/abstractText.js';
 import { IEditorWorkerService } from '../../../../../editor/common/services/editorWorker.js';
 import { TextModelEditSource } from '../../../../../editor/common/textModelEditSource.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IObservableDocument } from './observableWorkspace.js';
 import { iterateObservableChanges, mapObservableDelta } from './utils.js';
 
@@ -103,9 +104,9 @@ export abstract class EditSourceBase {
 			case 'inlineCompletionAccept': {
 				const type = 'type' in data ? data.type : undefined;
 				if ('$nes' in data && data.$nes) {
-					return this._cache.get(new InlineSuggestEditSource('nes', data.$extensionId ?? '', type));
+					return this._cache.get(new InlineSuggestEditSource('nes', data.$extensionId ?? '', data.$providerId ?? '', type));
 				}
-				return this._cache.get(new InlineSuggestEditSource('completion', data.$extensionId ?? '', type));
+				return this._cache.get(new InlineSuggestEditSource('completion', data.$extensionId ?? '', data.$providerId ?? '', type));
 			}
 			case 'snippet':
 				return this._cache.get(new IdeEditSource('suggest'));
@@ -120,7 +121,9 @@ export abstract class EditSourceBase {
 				return this._cache.get(new UnknownEditSource());
 
 			case 'Chat.applyEdits':
-				return this._cache.get(new ChatEditSource('sidebar'));
+				return '$origin' in data && data.$origin === 'agentHost'
+					? this._cache.get(new AgentHostEditSource())
+					: this._cache.get(new ChatEditSource('sidebar'));
 			case 'inlineChat.applyEdits':
 				return this._cache.get(new ChatEditSource('inline'));
 			case 'cursor':
@@ -133,7 +136,7 @@ export abstract class EditSourceBase {
 	public abstract getColor(): string;
 }
 
-export type EditSource = InlineSuggestEditSource | ChatEditSource | IdeEditSource | UserEditSource | UnknownEditSource | ExternalEditSource;
+export type EditSource = InlineSuggestEditSource | ChatEditSource | AgentHostEditSource | IdeEditSource | UserEditSource | UnknownEditSource | ExternalEditSource;
 
 export class InlineSuggestEditSource extends EditSourceBase {
 	public readonly category = 'ai';
@@ -141,10 +144,11 @@ export class InlineSuggestEditSource extends EditSourceBase {
 	constructor(
 		public readonly kind: 'completion' | 'nes',
 		public readonly extensionId: string,
+		public readonly providerId: string,
 		public readonly type: 'word' | 'line' | undefined,
 	) { super(); }
 
-	override toString() { return `${this.category}/${this.feature}/${this.kind}/${this.extensionId}/${this.type}`; }
+	override toString() { return `${this.category}/${this.feature}/${this.kind}/${this.extensionId}/${this.providerId}/${this.type}`; }
 
 	public getColor(): string { return '#00ff0033'; }
 }
@@ -157,6 +161,15 @@ class ChatEditSource extends EditSourceBase {
 	) { super(); }
 
 	override toString() { return `${this.category}/${this.feature}/${this.kind}`; }
+
+	public getColor(): string { return '#00ff0066'; }
+}
+
+class AgentHostEditSource extends EditSourceBase {
+	public readonly category = 'agentHost';
+	public readonly feature = 'chat';
+
+	override toString() { return `${this.category}/${this.feature}`; }
 
 	public getColor(): string { return '#00ff0066'; }
 }
@@ -206,16 +219,18 @@ export class CombineStreamedChanges<TEditData extends (EditKeySourceData | EditS
 	private readonly _runStore = this._register(new DisposableStore());
 	private _runQueue: Promise<void> = Promise.resolve();
 
+	private readonly _diffService: DiffService;
+
 	constructor(
 		private readonly _originalDoc: IDocumentWithAnnotatedEdits<TEditData>,
-		@IEditorWorkerService private readonly _diffService: IEditorWorkerService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
 
+		this._diffService = this._instantiationService.createInstance(DiffService);
 		this.value = this._value = observableValue(this, _originalDoc.value.get());
 		this._restart();
 
-		this._diffService.computeStringEditFromDiff('foo', 'last.value.value', { maxComputationTimeMs: 500 }, 'advanced');
 	}
 
 	async _restart(): Promise<void> {
@@ -251,7 +266,7 @@ export class CombineStreamedChanges<TEditData extends (EditKeySourceData | EditS
 
 				if (!chatEdit.isEmpty()) {
 					const data = chatEdit.replacements[0].data;
-					const diffEdit = await this._diffService.computeStringEditFromDiff(first.prevValue.value, last.value.value, { maxComputationTimeMs: 500 }, 'advanced');
+					const diffEdit = await this._diffService.computeDiff(first.prevValue.value, last.value.value);
 					const edit = diffEdit.mapData(_e => data);
 					this._value.set(last.value, undefined, { edit });
 				}
@@ -266,6 +281,18 @@ export class CombineStreamedChanges<TEditData extends (EditKeySourceData | EditS
 	async waitForQueue(): Promise<void> {
 		await this._originalDoc.waitForQueue();
 		await this._restart();
+	}
+}
+
+export class DiffService {
+	constructor(
+		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
+	) {
+	}
+
+	public async computeDiff(original: string, modified: string): Promise<StringEdit> {
+		const diffEdit = await this._editorWorkerService.computeStringEditFromDiff(original, modified, { maxComputationTimeMs: 500 }, 'advanced');
+		return diffEdit;
 	}
 }
 
@@ -314,4 +341,3 @@ export function createDocWithJustReason(docWithAnnotatedEdits: IDocumentWithAnno
 	};
 	return docWithJustReason;
 }
-

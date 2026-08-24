@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs';
-import * as url from 'url';
+import { pathToFileURL } from 'url';
 import * as cp from 'child_process';
-import * as http from 'http';
+import type * as http from 'http';
 import { cwd } from '../../base/common/process.js';
 import { dirname, extname, resolve, join } from '../../base/common/path.js';
 import { parseArgs, buildHelpMessage, buildVersionMessage, OPTIONS, OptionDescriptions, ErrorReporter } from '../../platform/environment/node/argv.js';
@@ -16,6 +16,7 @@ import { PipeCommand } from '../../workbench/api/node/extHostCLIServer.js';
 import { hasStdinWithoutTty, getStdinFilePath, readFromStdin } from '../../platform/environment/node/stdin.js';
 import { DeferredPromise } from '../../base/common/async.js';
 import { FileAccess } from '../../base/common/network.js';
+import { hasAgentCommand } from './server.cliAgent.js';
 
 /*
  * Implements a standalone CLI app that opens VS Code from a remote terminal.
@@ -92,6 +93,12 @@ const cliStdInFilePath = process.env['VSCODE_STDIN_FILE_PATH'] as string;
 export async function main(desc: ProductDescription, args: string[]): Promise<void> {
 	if (!cliPipe && !cliCommand) {
 		console.log('Command is only available in WSL or inside a Visual Studio Code terminal.');
+		return;
+	}
+
+	if (hasAgentCommand(args)) {
+		console.error(`The 'agent' command is not supported by the remote CLI.`);
+		process.exitCode = 1;
 		return;
 	}
 
@@ -279,7 +286,12 @@ export async function main(desc: ProductDescription, args: string[]): Promise<vo
 		} else {
 			const cliCwd = dirname(cliCommand);
 			const env = { ...process.env, ELECTRON_RUN_AS_NODE: '1' };
-			newCommandline.unshift('resources/app/out/cli.js');
+			const versionFolder = desc.commit.substring(0, 10);
+			if (fs.existsSync(join(cliCwd, versionFolder))) {
+				newCommandline.unshift(`${versionFolder}/resources/app/out/cli.js`);
+			} else {
+				newCommandline.unshift('resources/app/out/cli.js');
+			}
 			if (verbose) {
 				console.log(`Invoking: cd "${cliCwd}" && ELECTRON_RUN_AS_NODE=1 "${cliCommand}" "${newCommandline.join('" "')}"`);
 			}
@@ -389,7 +401,7 @@ async function openInBrowser(args: string[], verbose: boolean) {
 	for (const location of args) {
 		try {
 			if (/^[a-z-]+:\/\/.+/.test(location)) {
-				uris.push(url.parse(location).href);
+				uris.push(new URL(location).href);
 			} else {
 				uris.push(pathToURI(location).href);
 			}
@@ -407,7 +419,8 @@ async function openInBrowser(args: string[], verbose: boolean) {
 	}
 }
 
-function sendToPipe(args: PipeCommand, verbose: boolean): Promise<string> {
+async function sendToPipe(args: PipeCommand, verbose: boolean): Promise<string> {
+	const http = await import('http');
 	if (verbose) {
 		console.log(JSON.stringify(args, null, '  '));
 	}
@@ -466,7 +479,7 @@ function asExtensionIdOrVSIX(inputs: string[] | undefined) {
 	return inputs?.map(input => /\.vsix$/i.test(input) ? pathToURI(input).href : input);
 }
 
-function fatal(message: string, err: any): void {
+function fatal(message: string, err: unknown): void {
 	console.error('Unable to connect to VS Code server: ' + message);
 	console.error(err);
 	process.exit(1);
@@ -474,11 +487,11 @@ function fatal(message: string, err: any): void {
 
 const preferredCwd = process.env.PWD || cwd(); // prefer process.env.PWD as it does not follow symlinks
 
-function pathToURI(input: string): url.URL {
+function pathToURI(input: string): URL {
 	input = input.trim();
 	input = resolve(preferredCwd, input);
 
-	return url.pathToFileURL(input);
+	return pathToFileURL(input);
 }
 
 function translatePath(input: string, mapFileUri: (input: string) => string, folderURIS: string[], fileURIS: string[]) {

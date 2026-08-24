@@ -1,0 +1,12 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.ai-models-management-editor {
+	height: 100%;
+	overflow: hidden;
+	max-width: 1400px;
+	margin: 0 auto;
+	padding: 15px 0px 0px 24px;
+}

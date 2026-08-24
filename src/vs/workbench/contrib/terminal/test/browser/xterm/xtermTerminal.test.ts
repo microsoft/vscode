@@ -3,15 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { WebglAddon } from '@xterm/addon-webgl';
-import type { IEvent, Terminal } from '@xterm/xterm';
-import { deepStrictEqual, strictEqual } from 'assert';
+import type { Terminal } from '@xterm/xterm';
+import { deepStrictEqual, ok, strictEqual } from 'assert';
 import { importAMDNodeModule } from '../../../../../../amdX.js';
+import { timeout } from '../../../../../../base/common/async.js';
 import { Color, RGBA } from '../../../../../../base/common/color.js';
 import { Emitter } from '../../../../../../base/common/event.js';
+import { toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IEditorOptions } from '../../../../../../editor/common/config/editorOptions.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IConfigurationChangeEvent } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { TerminalCapabilityStore } from '../../../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
 import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
@@ -22,37 +25,9 @@ import { XtermTerminal } from '../../../browser/xterm/xtermTerminal.js';
 import { ITerminalConfiguration, TERMINAL_VIEW_ID } from '../../../common/terminal.js';
 import { registerColors, TERMINAL_BACKGROUND_COLOR, TERMINAL_CURSOR_BACKGROUND_COLOR, TERMINAL_CURSOR_FOREGROUND_COLOR, TERMINAL_FOREGROUND_COLOR, TERMINAL_INACTIVE_SELECTION_BACKGROUND_COLOR, TERMINAL_SELECTION_BACKGROUND_COLOR, TERMINAL_SELECTION_FOREGROUND_COLOR } from '../../../common/terminalColorRegistry.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
-import { IXtermAddonNameToCtor, XtermAddonImporter } from '../../../browser/xterm/xtermAddonImporter.js';
+import { TestWebglAddon, TestXtermAddonImporter } from './xtermTestUtils.js';
 
 registerColors();
-
-class TestWebglAddon implements WebglAddon {
-	static shouldThrow = false;
-	static isEnabled = false;
-	readonly onChangeTextureAtlas = new Emitter().event as IEvent<HTMLCanvasElement>;
-	readonly onAddTextureAtlasCanvas = new Emitter().event as IEvent<HTMLCanvasElement>;
-	readonly onRemoveTextureAtlasCanvas = new Emitter().event as IEvent<HTMLCanvasElement, void>;
-	readonly onContextLoss = new Emitter().event as IEvent<void>;
-	activate() {
-		TestWebglAddon.isEnabled = !TestWebglAddon.shouldThrow;
-		if (TestWebglAddon.shouldThrow) {
-			throw new Error('Test webgl set to throw');
-		}
-	}
-	dispose() {
-		TestWebglAddon.isEnabled = false;
-	}
-	clearTextureAtlas() { }
-}
-
-class TestXtermAddonImporter extends XtermAddonImporter {
-	override async importAddon<T extends keyof IXtermAddonNameToCtor>(name: T): Promise<IXtermAddonNameToCtor[T]> {
-		if (name === 'webgl') {
-			return Promise.resolve(TestWebglAddon) as any;
-		}
-		return super.importAddon(name);
-	}
-}
 
 export class TestViewDescriptorService implements Partial<IViewDescriptorService> {
 	private _location = ViewContainerLocation.Panel;
@@ -66,7 +41,7 @@ export class TestViewDescriptorService implements Partial<IViewDescriptorService
 		this._location = to;
 		this._onDidChangeLocation.fire({
 			views: [
-				{ id: TERMINAL_VIEW_ID } as any
+				{ id: TERMINAL_VIEW_ID } as unknown as IViewDescriptor
 			],
 			from: oldLocation,
 			to
@@ -120,7 +95,7 @@ suite('XtermTerminal', () => {
 		XTermBaseCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
 
 		const capabilityStore = store.add(new TerminalCapabilityStore());
-		xterm = store.add(instantiationService.createInstance(XtermTerminal, XTermBaseCtor, {
+		xterm = store.add(instantiationService.createInstance(XtermTerminal, undefined, XTermBaseCtor, {
 			cols: 80,
 			rows: 30,
 			xtermColorProvider: { getBackgroundColor: () => undefined },
@@ -131,11 +106,92 @@ suite('XtermTerminal', () => {
 
 		TestWebglAddon.shouldThrow = false;
 		TestWebglAddon.isEnabled = false;
+		TestWebglAddon.customGlyphOptions.length = 0;
 	});
 
 	test('should use fallback dimensions of 80x30', () => {
 		strictEqual(xterm.raw.cols, 80);
 		strictEqual(xterm.raw.rows, 30);
+	});
+
+	test('disables custom glyphs when moved into an auxiliary window', async () => {
+		await configurationService.setUserConfiguration('terminal.integrated', {
+			...defaultTerminalConfig,
+			gpuAcceleration: 'on',
+			customGlyphs: true,
+		});
+		configurationService.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
+			override affectsConfiguration(section: string): boolean {
+				return section.startsWith('terminal.integrated');
+			}
+		});
+
+		const mainContainer = document.createElement('div');
+		document.body.appendChild(mainContainer);
+		store.add(toDisposable(() => mainContainer.remove()));
+		xterm.attachToElement(mainContainer);
+		await timeout(0);
+
+		const iframe = document.createElement('iframe');
+		document.body.appendChild(iframe);
+		store.add(toDisposable(() => iframe.remove()));
+		const auxiliaryDocument = iframe.contentDocument!;
+		const auxiliaryContainer = document.createElement('div');
+		auxiliaryDocument.body.appendChild(auxiliaryContainer);
+		const createElement = auxiliaryDocument.createElement;
+		auxiliaryDocument.createElement = () => {
+			throw new Error('Not allowed to create elements in child window JavaScript context.');
+		};
+		store.add(toDisposable(() => auxiliaryDocument.createElement = createElement));
+
+		auxiliaryContainer.appendChild(xterm.raw.element!);
+		xterm.raw.open(xterm.raw.element!);
+		xterm.refresh();
+		await timeout(0);
+
+		mainContainer.appendChild(xterm.raw.element!);
+		xterm.raw.open(xterm.raw.element!);
+		xterm.refresh();
+		await timeout(0);
+
+		deepStrictEqual(TestWebglAddon.customGlyphOptions, [true, false, true]);
+	});
+
+	test('does not load stale custom glyph settings when moved during addon import', async () => {
+		await configurationService.setUserConfiguration('terminal.integrated', {
+			...defaultTerminalConfig,
+			gpuAcceleration: 'on',
+			customGlyphs: true,
+		});
+		configurationService.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
+			override affectsConfiguration(section: string): boolean {
+				return section.startsWith('terminal.integrated');
+			}
+		});
+
+		const mainContainer = document.createElement('div');
+		document.body.appendChild(mainContainer);
+		store.add(toDisposable(() => mainContainer.remove()));
+		xterm.attachToElement(mainContainer);
+
+		const iframe = document.createElement('iframe');
+		document.body.appendChild(iframe);
+		store.add(toDisposable(() => iframe.remove()));
+		const auxiliaryDocument = iframe.contentDocument!;
+		const auxiliaryContainer = document.createElement('div');
+		auxiliaryDocument.body.appendChild(auxiliaryContainer);
+		const createElement = auxiliaryDocument.createElement;
+		auxiliaryDocument.createElement = () => {
+			throw new Error('Not allowed to create elements in child window JavaScript context.');
+		};
+		store.add(toDisposable(() => auxiliaryDocument.createElement = createElement));
+
+		auxiliaryContainer.appendChild(xterm.raw.element!);
+		xterm.raw.open(xterm.raw.element!);
+		xterm.refresh();
+		await timeout(0);
+
+		deepStrictEqual(TestWebglAddon.customGlyphOptions, [false]);
 	});
 
 	suite('getContentsAsText', () => {
@@ -202,19 +258,16 @@ suite('XtermTerminal', () => {
 			strictEqual(result.startsWith('hello world\n  indented line\nline with $pecial chars!@#\n\nempty line above'), true, 'Should handle spaces and special characters correctly');
 		});
 
-		test('should throw error when startMarker is disposed (line === -1)', async () => {
+		test('should fall back to line 0 when startMarker is disposed (line === -1)', async () => {
 			await write('line 1\r\n');
 			const disposedMarker = xterm.raw.registerMarker(0)!;
 			await write('line 2\r\nline 3\r\nline 4\r\nline 5');
 
 			disposedMarker.dispose();
 
-			try {
-				xterm.getContentsAsText(disposedMarker);
-				throw new Error('Expected error was not thrown');
-			} catch (error: any) {
-				strictEqual(error.message, 'Cannot get contents of a disposed startMarker');
-			}
+			const result = xterm.getContentsAsText(disposedMarker);
+			// Should return content from line 0 (including line 1) instead of throwing
+			ok(result.startsWith('line 1\nline 2\nline 3\nline 4\nline 5'), `Unexpected result: ${result}`);
 		});
 
 		test('should throw error when endMarker is disposed (line === -1)', async () => {
@@ -278,7 +331,7 @@ suite('XtermTerminal', () => {
 				[PANEL_BACKGROUND]: '#ff0000',
 				[SIDE_BAR_BACKGROUND]: '#00ff00'
 			}));
-			xterm = store.add(instantiationService.createInstance(XtermTerminal, XTermBaseCtor, {
+			xterm = store.add(instantiationService.createInstance(XtermTerminal, undefined, XTermBaseCtor, {
 				cols: 80,
 				rows: 30,
 				xtermAddonImporter: new TestXtermAddonImporter(),
@@ -314,7 +367,7 @@ suite('XtermTerminal', () => {
 				'terminal.ansiBrightCyan': '#150000',
 				'terminal.ansiBrightWhite': '#160000',
 			}));
-			xterm = store.add(instantiationService.createInstance(XtermTerminal, XTermBaseCtor, {
+			xterm = store.add(instantiationService.createInstance(XtermTerminal, undefined, XTermBaseCtor, {
 				cols: 80,
 				rows: 30,
 				xtermAddonImporter: new TestXtermAddonImporter(),

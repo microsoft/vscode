@@ -21,6 +21,8 @@ import { accessibleViewIsShown, accessibleViewCurrentProviderId, AccessibilityVe
 import { TerminalHistoryCommandId } from '../../history/common/terminal.history.js';
 import { TerminalSuggestCommandId } from '../../suggest/common/terminal.suggest.js';
 import { TerminalSuggestSettingId } from '../../suggest/common/terminalSuggestConfiguration.js';
+import { HasSpeechProvider } from '../../../speech/common/speechService.js';
+import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
 
 export const enum ClassName {
 	Active = 'active',
@@ -69,7 +71,7 @@ export class TerminalAccessibilityHelpProvider extends Disposable implements IAc
 		}
 
 		if (this._configurationService.getValue(TerminalSuggestSettingId.Enabled)) {
-			content.push(localize('suggestTrigger', 'The terminal request completions command can be invoked manually<keybinding:{0}>, but also appears while typing.', TerminalSuggestCommandId.RequestCompletions));
+			content.push(localize('suggestTrigger', 'The terminal request completions command can be invoked manually<keybinding:{0}>, but also appears while typing.', TerminalSuggestCommandId.TriggerSuggest));
 			content.push(localize('suggest', 'When the terminal suggest widget is focused:'));
 			content.push(localize('suggestCommands', '- Accept the suggestion<keybinding:{0}> and configure suggest settings<keybinding:{1}>.', TerminalSuggestCommandId.AcceptSelectedSuggestion, TerminalSuggestCommandId.ConfigureSettings));
 			content.push(localize('suggestCommandsMore', '- Toggle between the widget and terminal<keybinding:{0}> and toggle details focus<keybinding:{1}> to learn more about the suggestion.', TerminalSuggestCommandId.ToggleDetails, TerminalSuggestCommandId.ToggleDetailsFocus));
@@ -79,6 +81,11 @@ export class TerminalAccessibilityHelpProvider extends Disposable implements IAc
 
 		if (this._instance.shellType === WindowsShellType.CommandPrompt) {
 			content.push(localize('commandPromptMigration', "Consider using powershell instead of command prompt for an improved experience"));
+		}
+
+		if (HasSpeechProvider.getValue(this._contextKeyService) ||
+			(ChatContextKeys.enabled.getValue(this._contextKeyService) && ChatContextKeys.speechToTextConfigured.getValue(this._contextKeyService))) {
+			content.push(localize('terminalDictation', 'Start or stop dictation in the terminal<keybinding:{0}>.', TerminalCommandId.StartVoice));
 		}
 
 		if (this._hasShellIntegration) {

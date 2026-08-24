@@ -1,0 +1,16 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-opus-5
+      system: ${system}
+      messages:
+        - role: user
+          content:
+            - type: text
+              text: Reply with only the value from the attachment.
+            - type: text
+              text: ATTACHMENT_SIMPLE_VALUE
+    response:
+      content: I don't see an attachment in this conversation — only the literal text `ATTACHMENT_SIMPLE_VALUE`. Could you re-send it?
+      stopReason: end_turn

@@ -104,22 +104,28 @@ suite('ExtHostTelemetry', function () {
 	};
 
 	test('Validate sender instances', function () {
+		// eslint-disable-next-line local/code-no-any-casts
 		assert.throws(() => ExtHostTelemetryLogger.validateSender(<any>null));
+		// eslint-disable-next-line local/code-no-any-casts
 		assert.throws(() => ExtHostTelemetryLogger.validateSender(<any>1));
+		// eslint-disable-next-line local/code-no-any-casts
 		assert.throws(() => ExtHostTelemetryLogger.validateSender(<any>{}));
 		assert.throws(() => {
+			// eslint-disable-next-line local/code-no-any-casts
 			ExtHostTelemetryLogger.validateSender(<any>{
 				sendErrorData: () => { },
 				sendEventData: true
 			});
 		});
 		assert.throws(() => {
+			// eslint-disable-next-line local/code-no-any-casts
 			ExtHostTelemetryLogger.validateSender(<any>{
 				sendErrorData: 123,
 				sendEventData: () => { },
 			});
 		});
 		assert.throws(() => {
+			// eslint-disable-next-line local/code-no-any-casts
 			ExtHostTelemetryLogger.validateSender(<any>{
 				sendErrorData: () => { },
 				sendEventData: () => { },

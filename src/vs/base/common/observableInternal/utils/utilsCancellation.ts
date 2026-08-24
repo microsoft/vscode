@@ -75,10 +75,12 @@ export function derivedWithCancellationToken<T>(computeFnOrOwner: ((reader: IRea
 	let computeFn: (reader: IReader, store: CancellationToken) => T;
 	let owner: DebugOwner;
 	if (computeFnOrUndefined === undefined) {
+		// eslint-disable-next-line local/code-no-any-casts
 		computeFn = computeFnOrOwner as any;
 		owner = undefined;
 	} else {
 		owner = computeFnOrOwner;
+		// eslint-disable-next-line local/code-no-any-casts
 		computeFn = computeFnOrUndefined as any;
 	}
 

@@ -5,10 +5,10 @@
 
 import { ClientAssertionCredential } from '@azure/identity';
 import { CosmosClient } from '@azure/cosmos';
-import { retry } from './retry';
+import { retry } from './retry.ts';
 
 if (process.argv.length !== 3) {
-	console.error('Usage: node createBuild.js VERSION');
+	console.error('Usage: node createBuild.ts VERSION');
 	process.exit(-1);
 }
 
@@ -29,22 +29,31 @@ async function main(): Promise<void> {
 	const queuedBy = getEnv('BUILD_QUEUEDBY');
 	const sourceBranch = getEnv('BUILD_SOURCEBRANCH');
 	const version = _version + (quality === 'stable' ? '' : `-${quality}`);
+	const buildId = process.env['BUILD_BUILDID'];
+	const definitionId = process.env['SYSTEM_DEFINITIONID'];
 
 	console.log('Creating build...');
 	console.log('Quality:', quality);
 	console.log('Version:', version);
 	console.log('Commit:', commit);
 
+	const timestamp = Date.now();
 	const build = {
 		id: commit,
-		timestamp: (new Date()).getTime(),
+		timestamp,
 		version,
 		isReleased: false,
 		private: process.env['VSCODE_PRIVATE_BUILD']?.toLowerCase() === 'true',
 		sourceBranch,
 		queuedBy,
 		assets: [],
-		updates: {}
+		updates: {},
+		firstReleaseTimestamp: null,
+		history: [
+			{ event: 'created', timestamp }
+		],
+		buildId,
+		definitionId
 	};
 
 	const aadCredentials = new ClientAssertionCredential(process.env['AZURE_TENANT_ID']!, process.env['AZURE_CLIENT_ID']!, () => Promise.resolve(process.env['AZURE_ID_TOKEN']!));

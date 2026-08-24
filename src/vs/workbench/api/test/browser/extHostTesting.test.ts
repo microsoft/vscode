@@ -637,6 +637,7 @@ suite('ExtHost Testing', () => {
 		let req: TestRunRequest;
 
 		let dto: TestRunDto;
+		// eslint-disable-next-line local/code-no-any-casts
 		const ext: IExtensionDescription = {} as any;
 
 		teardown(() => {

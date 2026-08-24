@@ -18,6 +18,7 @@ import { bindContextKey } from '../../../../platform/observable/common/platformO
 import { IEditorProgressService } from '../../../../platform/progress/common/progress.js';
 import { IDiffEditorOptions } from '../../../common/config/editorOptions.js';
 import { IDimension } from '../../../common/core/2d/dimension.js';
+import { LineRange } from '../../../common/core/ranges/lineRange.js';
 import { Position } from '../../../common/core/position.js';
 import { Range } from '../../../common/core/range.js';
 import { CursorChangeReason, ICursorPositionChangedEvent } from '../../../common/cursorEvents.js';
@@ -85,13 +86,21 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 
 	public get collapseUnchangedRegions() { return this._options.hideUnchangedRegions.get(); }
 
+	/**
+	 * `true` when every hidden-unchanged region of the current diff is fully
+	 * revealed (or there are none). Read by `DiffEditorItemTemplate` to drive the
+	 * multi-diff per-file expand/collapse toggle. Not external API.
+	 * @internal
+	 */
+	public readonly allUnchangedRegionsShown: IObservable<boolean>;
+
 	constructor(
 		private readonly _domElement: HTMLElement,
 		options: Readonly<IDiffEditorConstructionOptions>,
 		codeEditorWidgetOptions: IDiffCodeEditorWidgetOptions,
 		@IContextKeyService private readonly _parentContextKeyService: IContextKeyService,
 		@IInstantiationService private readonly _parentInstantiationService: IInstantiationService,
-		@ICodeEditorService codeEditorService: ICodeEditorService,
+		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
 		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService,
 		@IEditorProgressService private readonly _editorProgressService: IEditorProgressService,
 	) {
@@ -103,6 +112,10 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 		]);
 		this._diffModelSrc = this._register(disposableObservableValue<RefCounted<DiffEditorViewModel> | undefined>(this, undefined));
 		this._diffModel = derived<DiffEditorViewModel | undefined>(this, reader => this._diffModelSrc.read(reader)?.object);
+		this.allUnchangedRegionsShown = derived(this, reader => {
+			const regions = this._diffModel.read(reader)?.unchangedRegions.read(reader) ?? [];
+			return regions.every(r => r.visibleLineCountTop.read(reader) + r.visibleLineCountBottom.read(reader) >= r.lineCount);
+		});
 		this.onDidChangeModel = Event.fromObservableLight(this._diffModel);
 		this._contextKeyService = this._register(this._parentContextKeyService.createScoped(this._domElement));
 		this._instantiationService = this._register(this._parentInstantiationService.createChild(
@@ -179,7 +192,7 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 		});
 		this._diffValue = this._diffModel.map((m, r) => m?.diff.read(r));
 		this.onDidUpdateDiff = Event.fromObservableLight(this._diffValue);
-		codeEditorService.willCreateDiffEditor();
+		this._codeEditorService.willCreateDiffEditor();
 
 		this._contextKeyService.createKey('isInDiffEditor', true);
 
@@ -293,7 +306,7 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 				this._diffModel,
 				this._options,
 				this,
-				() => isUpdatingViewZones || unchangedRangesFeature.get().isUpdatingHiddenAreas,
+				() => isUpdatingViewZones || unchangedRangesFeature.read(undefined).isUpdatingHiddenAreas,
 				origViewZoneIdsToIgnore,
 				modViewZoneIdsToIgnore
 			)
@@ -343,7 +356,10 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 
 		this._createDiffEditorContributions();
 
-		codeEditorService.addDiffEditor(this);
+		this._codeEditorService.addDiffEditor(this);
+		this._register(toDisposable(() => {
+			this._codeEditorService.removeDiffEditor(this);
+		}));
 
 		this._gutter = derivedDisposable(this, reader => {
 			return this._options.shouldRenderGutterMenu.read(reader)
@@ -469,10 +485,11 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 
 	public override restoreViewState(s: IDiffEditorViewState): void {
 		if (s && s.original && s.modified) {
-			const diffEditorState = s as IDiffEditorViewState;
+			const diffEditorState = s;
 			this._editors.original.restoreViewState(diffEditorState.original);
 			this._editors.modified.restoreViewState(diffEditorState.modified);
 			if (diffEditorState.modelState) {
+				// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
 				this._diffModel.get()?.restoreSerializedState(diffEditorState.modelState as any);
 			}
 		}
@@ -573,12 +590,14 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 		const model = this._diffModel.get();
 		if (!model || !model.isDiffUpToDate.get()) { return; }
 
+		this._editors.modified.pushUndoStop();
 		this._editors.modified.executeEdits('diffEditor', [
 			{
 				range: diff.modified.toExclusiveRange(),
 				text: model.model.original.getValueInRange(diff.original.toExclusiveRange())
 			}
 		]);
+		this._editors.modified.pushUndoStop();
 	}
 
 	revertRangeMappings(diffs: RangeMapping[]): void {
@@ -590,8 +609,38 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 			text: model.model.original.getValueInRange(c.originalRange)
 		}));
 
+		this._editors.modified.pushUndoStop();
 		this._editors.modified.executeEdits('diffEditor', changes);
+		this._editors.modified.pushUndoStop();
 	}
+
+	revertFocusedRangeMappings() {
+		const model = this._diffModel.get();
+		if (!model || !model.isDiffUpToDate.get()) { return; }
+
+		const diffs = this._diffModel.get()?.diff.get()?.mappings;
+		if (!diffs || diffs.length === 0) { return; }
+
+		const modifiedEditor = this._editors.modified;
+		if (!modifiedEditor.hasTextFocus()) { return; }
+
+		const curLineNumber = modifiedEditor.getPosition()!.lineNumber;
+		const selection = modifiedEditor.getSelection();
+		const selectedRange = LineRange.fromRange(selection || new Range(curLineNumber, 0, curLineNumber, 0));
+		const diffsToRevert = diffs.filter(d => {
+			return d.lineRangeMapping.modified.intersect(selectedRange);
+		});
+
+		modifiedEditor.pushUndoStop();
+		modifiedEditor.executeEdits('diffEditor', diffsToRevert.map(d => (
+			{
+				range: d.lineRangeMapping.modified.toExclusiveRange(),
+				text: model.model.original.getValueInRange(d.lineRangeMapping.original.toExclusiveRange())
+			}
+		)));
+		modifiedEditor.pushUndoStop();
+	}
+
 
 	private _goTo(diff: DiffMapping): void {
 		this._editors.modified.setPosition(new Position(diff.lineRangeMapping.modified.startLineNumber, 1));

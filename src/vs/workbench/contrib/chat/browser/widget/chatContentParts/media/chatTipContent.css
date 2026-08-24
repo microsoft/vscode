@@ -1,0 +1,70 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.chat-getting-started-tip-container .chat-tip-widget .chat-tip-toolbar {
+	opacity: 0;
+	pointer-events: none;
+}
+
+.chat-getting-started-tip-container .chat-tip-widget .chat-tip-toolbar > .monaco-toolbar {
+	position: absolute;
+	top: -20px;
+	right: 10px;
+	height: 26px;
+	line-height: 26px;
+	background-color: var(--vscode-editorWidget-background);
+	border: 1px solid var(--vscode-chat-requestBorder);
+	border-radius: var(--vscode-cornerRadius-medium);
+	transition: opacity 0.1s ease-in-out;
+}
+
+.chat-getting-started-tip-container .chat-tip-widget:hover .chat-tip-toolbar,
+.chat-getting-started-tip-container .chat-tip-widget:focus-within .chat-tip-toolbar {
+	opacity: 1;
+	pointer-events: auto;
+}
+
+.chat-getting-started-tip-container .chat-tip-widget .chat-tip-toolbar .action-item {
+	height: 24px;
+	width: 24px;
+	margin: 1px 2px;
+}
+
+.chat-getting-started-tip-container .chat-tip-widget .chat-tip-toolbar .action-item:first-of-type {
+	margin-left: 1px;
+}
+
+.chat-getting-started-tip-container .chat-tip-widget .chat-tip-toolbar .action-item:last-of-type {
+	margin-right: 1px;
+}
+
+.chat-getting-started-tip-container .chat-tip-widget .chat-tip-toolbar .action-item .action-label {
+	color: var(--vscode-descriptionForeground);
+	padding: var(--vscode-spacing-size40);
+}
+
+.chat-getting-started-tip-container .chat-tip-widget .chat-tip-toolbar .action-item .action-label:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	color: var(--vscode-foreground);
+}
+
+.chat-getting-started-tip-container {
+	width: 100%;
+}
+
+/*
+ * The frame, row layout, type and link colours come from `.chat-input-notice`;
+ * only what is particular to this tip is styled here. This one line is a single
+ * row of text, so it centres rather than taking the variant's top alignment.
+ * Prefixed with the base class deliberately: without it this ties the base rule
+ * on specificity and which one wins would depend on stylesheet order.
+ */
+.chat-getting-started-tip-container .chat-input-notice.chat-tip-widget {
+	align-items: center;
+}
+
+.chat-getting-started-tip-container .chat-tip-widget .rendered-markdown p {
+	margin: 0;
+}

@@ -21,6 +21,7 @@ import { TerminalViewPane } from './terminalView.js';
 import { TERMINAL_VIEW_ID } from '../common/terminal.js';
 import { TerminalContextKeys } from '../common/terminalContextKey.js';
 import { asArray } from '../../../../base/common/arrays.js';
+import type { SingleOrMany } from '../../../../base/common/types.js';
 
 export class TerminalGroupService extends Disposable implements ITerminalGroupService {
 	declare _serviceBrand: undefined;
@@ -147,8 +148,11 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 		pane?.terminalTabbedView?.focusHover();
 	}
 
-	async focusInstance(_: ITerminalInstance): Promise<void> {
-		return this.showPanel(true);
+	async focusInstance(instance: ITerminalInstance): Promise<void> {
+		if (this.instances.includes(instance)) {
+			this.setActiveInstance(instance);
+		}
+		await this.showPanel(true);
 	}
 
 	async focusActiveInstance(): Promise<void> {
@@ -339,7 +343,7 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 		);
 	};
 
-	moveGroup(source: ITerminalInstance | ITerminalInstance[], target: ITerminalInstance) {
+	moveGroup(source: SingleOrMany<ITerminalInstance>, target: ITerminalInstance) {
 		source = asArray(source);
 		const sourceGroups = this._getValidTerminalGroups(source);
 		const targetGroup = this.getGroupForInstance(target);
@@ -376,7 +380,7 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 		this._onDidChangeInstances.fire();
 	}
 
-	moveGroupToEnd(source: ITerminalInstance | ITerminalInstance[]): void {
+	moveGroupToEnd(source: SingleOrMany<ITerminalInstance>): void {
 		source = asArray(source);
 		const sourceGroups = this._getValidTerminalGroups(source);
 		if (sourceGroups.size === 0) {

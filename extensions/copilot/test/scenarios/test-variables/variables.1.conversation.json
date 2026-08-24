@@ -1,0 +1,11 @@
+[
+    {
+        "question": "Summarize #file:functions.ts",
+        "stateFile": "./variables.0.state.json",
+        "keywords": {
+            "anyOf": [
+                "foo", "bar", "baz"
+            ]
+        }
+    }
+]

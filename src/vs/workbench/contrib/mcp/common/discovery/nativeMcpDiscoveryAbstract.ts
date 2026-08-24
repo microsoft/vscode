@@ -26,7 +26,10 @@ import { ClaudeDesktopMpcDiscoveryAdapter, CursorDesktopMpcDiscoveryAdapter, Nat
 
 export type WritableMcpCollectionDefinition = McpCollectionDefinition & { serverDefinitions: ISettableObservable<readonly McpServerDefinition[]> };
 
-export abstract class FilesystemMcpDiscovery extends Disposable {
+export abstract class FilesystemMcpDiscovery extends Disposable implements IMcpDiscovery {
+
+	readonly fromGallery: boolean = false;
+
 	protected readonly _fsDiscoveryEnabled: IObservable<{ [K in DiscoverySource]: boolean } | undefined>;
 
 	constructor(
@@ -90,6 +93,8 @@ export abstract class FilesystemMcpDiscovery extends Disposable {
 
 		return store;
 	}
+
+	public abstract start(): void;
 }
 
 /**
@@ -120,8 +125,6 @@ export abstract class NativeFilesystemMcpDiscovery extends FilesystemMcpDiscover
 		];
 	}
 
-	public abstract start(): void;
-
 	protected setDetails(detailsDto: Dto<INativeMcpDiscoveryData> | undefined) {
 		if (!detailsDto) {
 			return;
@@ -148,9 +151,9 @@ export abstract class NativeFilesystemMcpDiscovery extends FilesystemMcpDiscover
 				scope: StorageScope.PROFILE,
 				trustBehavior: McpServerTrust.Kind.TrustedOnNonce,
 				serverDefinitions: observableValue<readonly McpServerDefinition[]>(this, []),
+				order: adapter.order + (adapter.remoteAuthority ? McpCollectionSortOrder.RemoteBoost : 0),
 				presentation: {
 					origin: file,
-					order: adapter.order + (adapter.remoteAuthority ? McpCollectionSortOrder.RemoteBoost : 0),
 				},
 			};
 

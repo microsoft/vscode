@@ -1,0 +1,22 @@
+data: {"choices":[{"index":0,"finish_reason":null}]}
+
+data: {"choices":[{"text":" ","index":0,"finish_reason":null}]}
+
+data: {"choices":[{"text":" console","index":0,"finish_reason":null}]}
+
+data: {"choices":[{"text":".log","index":0,"finish_reason":null}]}
+
+data: {"choices":[{"text":"(\"","index":0,"finish_reason":null}]}
+
+data: {"choices":[{"text":"Hello","index":0,"finish_reason":null}]}
+
+data: {"choices":[{"text":",","index":0,"finish_reason":null}]}
+
+data: {"choices":[{"text":" World","index":0,"finish_reason":null}]}
+
+data: {"choices":[{"text":"!\");","index":0,"finish_reason":null}]}
+
+data: {"choices":[{"index":0,"finish_reason":"stop"}]}
+
+data: [DONE]
+

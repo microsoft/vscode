@@ -21,7 +21,7 @@ const REDIRECT_URL_INSIDERS = 'https://insiders.vscode.dev/redirect';
 export interface IGitHubServer {
 	login(scopes: string, signInProvider?: GitHubSocialSignInProvider, extraAuthorizeParameters?: Record<string, string>, existingLogin?: string): Promise<string>;
 	logout(session: vscode.AuthenticationSession): Promise<void>;
-	getUserInfo(token: string): Promise<{ id: string; accountName: string }>;
+	getUserInfo(token: string): Promise<{ id: string; accountName: string; avatarUrl: string | undefined }>;
 	sendAdditionalTelemetryInfo(session: vscode.AuthenticationSession): Promise<void>;
 	friendlyName: string;
 }
@@ -179,6 +179,7 @@ export class GitHubServer implements IGitHubServer {
 			// Defined here: https://docs.github.com/en/rest/apps/oauth-applications?apiVersion=2022-11-28#delete-an-app-token
 			const result = await fetching(uri.toString(true), {
 				logger: this._logger,
+				retryFallbacks: true,
 				expectJSON: false,
 				method: 'DELETE',
 				headers: {
@@ -216,12 +217,13 @@ export class GitHubServer implements IGitHubServer {
 		return vscode.Uri.parse(`${apiUri.scheme}://${apiUri.authority}/api/v3${path}`);
 	}
 
-	public async getUserInfo(token: string): Promise<{ id: string; accountName: string }> {
+	public async getUserInfo(token: string): Promise<{ id: string; accountName: string; avatarUrl: string | undefined }> {
 		let result;
 		try {
 			this._logger.info('Getting user info...');
 			result = await fetching(this.getServerUri('/user').toString(), {
 				logger: this._logger,
+				retryFallbacks: true,
 				expectJSON: true,
 				headers: {
 					Authorization: `token ${token}`,
@@ -235,9 +237,9 @@ export class GitHubServer implements IGitHubServer {
 
 		if (result.ok) {
 			try {
-				const json = await result.json() as { id: number; login: string };
+				const json = await result.json() as { id: number; login: string; avatar_url?: string };
 				this._logger.info('Got account info!');
-				return { id: `${json.id}`, accountName: json.login };
+				return { id: `${json.id}`, accountName: json.login, avatarUrl: json.avatar_url };
 			} catch (e) {
 				this._logger.error(`Unexpected error parsing response from GitHub: ${e.message ?? e}`);
 				throw e;
@@ -282,6 +284,7 @@ export class GitHubServer implements IGitHubServer {
 		try {
 			const result = await fetching('https://education.github.com/api/user', {
 				logger: this._logger,
+				retryFallbacks: true,
 				expectJSON: true,
 				headers: {
 					Authorization: `token ${session.accessToken}`,
@@ -298,9 +301,11 @@ export class GitHubServer implements IGitHubServer {
 						? 'faculty'
 						: 'none';
 			} else {
+				this._logger.info(`Unable to resolve optional EDU details. Status: ${result.status} ${result.statusText}`);
 				edu = 'unknown';
 			}
 		} catch (e) {
+			this._logger.info(`Unable to resolve optional EDU details. Error: ${e}`);
 			edu = 'unknown';
 		}
 
@@ -324,6 +329,7 @@ export class GitHubServer implements IGitHubServer {
 			if (!isSupportedTarget(this._type, this._ghesUri)) {
 				const result = await fetching(this.getServerUri('/meta').toString(), {
 					logger: this._logger,
+					retryFallbacks: true,
 					expectJSON: true,
 					headers: {
 						Authorization: `token ${token}`,

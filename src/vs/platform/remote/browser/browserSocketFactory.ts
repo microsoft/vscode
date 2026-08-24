@@ -7,7 +7,7 @@ import * as dom from '../../../base/browser/dom.js';
 import { RunOnceScheduler } from '../../../base/common/async.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { Disposable, IDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { ISocket, SocketCloseEvent, SocketCloseEventType, SocketDiagnostics, SocketDiagnosticsEventType } from '../../../base/parts/ipc/common/ipc.net.js';
 import { ISocketFactory } from '../common/remoteSocketFactoryService.js';
 import { RemoteAuthorityResolverError, RemoteAuthorityResolverErrorCode, RemoteConnectionType, WebSocketRemoteConnection } from '../common/remoteAuthorityResolver.js';
@@ -43,13 +43,13 @@ export interface IWebSocket {
 	readonly onError: Event<unknown>;
 
 	traceSocketEvent?(type: SocketDiagnosticsEventType, data?: VSBuffer | Uint8Array | ArrayBuffer | ArrayBufferView | unknown): void;
-	send(data: ArrayBuffer | ArrayBufferView): void;
+	send(data: ArrayBuffer | ArrayBufferView<ArrayBuffer>): void;
 	close(): void;
 }
 
 class BrowserWebSocket extends Disposable implements IWebSocket {
 
-	private readonly _onData = new Emitter<ArrayBuffer>();
+	private readonly _onData = this._register(new Emitter<ArrayBuffer>());
 	public readonly onData = this._onData.event;
 
 	private readonly _onOpen = this._register(new Emitter<void>());
@@ -86,6 +86,7 @@ class BrowserWebSocket extends Disposable implements IWebSocket {
 
 		this._fileReader.onload = (event) => {
 			this._isReading = false;
+			// eslint-disable-next-line local/code-no-any-casts
 			const buff = <ArrayBuffer>(<any>event.target).result;
 
 			this.traceSocketEvent(SocketDiagnosticsEventType.Read, buff);
@@ -181,7 +182,7 @@ class BrowserWebSocket extends Disposable implements IWebSocket {
 		}));
 	}
 
-	send(data: ArrayBuffer | ArrayBufferView): void {
+	send(data: ArrayBuffer | ArrayBufferView<ArrayBuffer>): void {
 		if (this._isClosed) {
 			// Refuse to write data to closed WebSocket...
 			return;
@@ -253,7 +254,7 @@ class BrowserSocket implements ISocket {
 	}
 
 	public write(buffer: VSBuffer): void {
-		this.socket.send(buffer.buffer);
+		this.socket.send(buffer.buffer as Uint8Array<ArrayBuffer>);
 	}
 
 	public end(): void {
@@ -282,11 +283,12 @@ export class BrowserSocketFactory implements ISocketFactory<RemoteConnectionType
 		return new Promise<ISocket>((resolve, reject) => {
 			const webSocketSchema = (/^https:/.test(mainWindow.location.href) ? 'wss' : 'ws');
 			const socket = this._webSocketFactory.create(`${webSocketSchema}://${(/:/.test(host) && !/\[/.test(host)) ? `[${host}]` : host}:${port}${path}?${query}&skipWebSocketFrames=false`, debugLabel);
-			const errorListener = socket.onError(reject);
-			socket.onOpen(() => {
-				errorListener.dispose();
+			const disposables = new DisposableStore();
+			disposables.add(socket.onError(reject));
+			disposables.add(socket.onOpen(() => {
+				disposables.dispose();
 				resolve(new BrowserSocket(socket, debugLabel));
-			});
+			}));
 		});
 	}
 }

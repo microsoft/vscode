@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type Token = require('markdown-it/lib/token');
 import * as vscode from 'vscode';
 import { FileRename, RequestType } from 'vscode-languageclient';
 import type * as lsp from 'vscode-languageserver-types';
@@ -16,7 +15,7 @@ export type ResolvedDocumentLinkTarget =
 	| { readonly kind: 'external'; readonly uri: vscode.Uri };
 
 //#region From server
-export const parse = new RequestType<{ uri: string; text?: string }, Token[], any>('markdown/parse');
+export const parse = new RequestType<{ uri: string; text?: string }, md.Token[], any>('markdown/parse');
 
 export const fs_readFile = new RequestType<{ uri: string }, number[], any>('markdown/fs/readFile');
 export const fs_readDirectory = new RequestType<{ uri: string }, [string, { isDirectory: boolean }][], any>('markdown/fs/readDirectory');

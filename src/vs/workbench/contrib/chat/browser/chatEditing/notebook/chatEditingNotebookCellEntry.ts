@@ -15,8 +15,8 @@ import { CellEditState } from '../../../../notebook/browser/notebookBrowser.js';
 import { INotebookEditorService } from '../../../../notebook/browser/services/notebookEditorService.js';
 import { NotebookCellTextModel } from '../../../../notebook/common/model/notebookCellTextModel.js';
 import { CellKind } from '../../../../notebook/common/notebookCommon.js';
-import { ModifiedFileEntryState } from '../../../common/chatEditingService.js';
-import { IChatResponseModel } from '../../../common/chatModel.js';
+import { ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
+import { IChatResponseModel } from '../../../common/model/chatModel.js';
 import { ChatEditingTextModelChangeService } from '../chatEditingTextModelChangeService.js';
 
 
@@ -52,6 +52,7 @@ export class ChatEditingNotebookCellEntry extends Disposable {
 		public readonly cell: NotebookCellTextModel,
 		private readonly modifiedModel: ITextModel,
 		private readonly originalModel: ITextModel,
+		isExternalEditInProgress: (() => boolean) | undefined,
 		disposables: DisposableStore,
 		@INotebookEditorService private readonly notebookEditorService: INotebookEditorService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
@@ -59,7 +60,7 @@ export class ChatEditingNotebookCellEntry extends Disposable {
 		super();
 		this.initialContent = this.originalModel.getValue();
 		this._register(disposables);
-		this._textModelChangeService = this._register(this.instantiationService.createInstance(ChatEditingTextModelChangeService, this.originalModel, this.modifiedModel, this.state));
+		this._textModelChangeService = this._register(this.instantiationService.createInstance(ChatEditingTextModelChangeService, this.originalModel, this.modifiedModel, this.state, isExternalEditInProgress));
 
 		this._register(this._textModelChangeService.onDidAcceptOrRejectAllHunks(action => {
 			this.revertMarkdownPreviewState();
@@ -72,7 +73,6 @@ export class ChatEditingNotebookCellEntry extends Disposable {
 				this._stateObs.set(ModifiedFileEntryState.Rejected, undefined);
 			}
 		}));
-
 	}
 
 	public clearCurrentEditLineDecoration() {
@@ -82,7 +82,7 @@ export class ChatEditingNotebookCellEntry extends Disposable {
 		this._textModelChangeService.clearCurrentEditLineDecoration();
 	}
 
-	async acceptAgentEdits(textEdits: TextEdit[], isLastEdits: boolean, responseModel: IChatResponseModel): Promise<void> {
+	async acceptAgentEdits(textEdits: TextEdit[], isLastEdits: boolean, responseModel: IChatResponseModel | undefined): Promise<void> {
 		const { maxLineNumber } = await this._textModelChangeService.acceptAgentEdits(this.modifiedModel.uri, textEdits, isLastEdits, responseModel);
 
 		transaction((tx) => {

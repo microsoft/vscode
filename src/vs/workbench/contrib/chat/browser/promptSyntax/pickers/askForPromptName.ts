@@ -20,7 +20,8 @@ export async function askForPromptFileName(
 	accessor: ServicesAccessor,
 	type: PromptsType,
 	selectedFolder: URI,
-	existingFileName?: string
+	existingFileName?: string,
+	fileExtensionOverride?: string,
 ): Promise<string | undefined> {
 	const quickInputService = accessor.get(IQuickInputService);
 	const fileService = accessor.get(IFileService);
@@ -31,7 +32,7 @@ export async function askForPromptFileName(
 			return undefined;
 		}
 
-		const fileExtension = getPromptFileExtension(type);
+		const fileExtension = fileExtensionOverride ?? getPromptFileExtension(type);
 		return (trimmedName.endsWith(fileExtension))
 			? trimmedName
 			: `${trimmedName}${fileExtension}`;
@@ -78,8 +79,8 @@ function getPlaceholderStringForNew(type: PromptsType): string {
 			return localize('askForInstructionsFileName.placeholder', "Enter the name of the instructions file");
 		case PromptsType.prompt:
 			return localize('askForPromptFileName.placeholder', "Enter the name of the prompt file");
-		case PromptsType.mode:
-			return localize('askForModeFileName.placeholder', "Enter the name of the custom chat mode file");
+		case PromptsType.agent:
+			return localize('askForAgentFileName.placeholder', "Enter the name of the agent file");
 		default:
 			throw new Error('Unknown prompt type');
 	}
@@ -91,8 +92,8 @@ function getPlaceholderStringForRename(type: PromptsType): string {
 			return localize('askForRenamedInstructionsFileName.placeholder', "Enter a new name of the instructions file");
 		case PromptsType.prompt:
 			return localize('askForRenamedPromptFileName.placeholder', "Enter a new name of the prompt file");
-		case PromptsType.mode:
-			return localize('askForRenamedModeFileName.placeholder', "Enter a new name of the custom chat mode file");
+		case PromptsType.agent:
+			return localize('askForRenamedAgentFileName.placeholder', "Enter a new name of the agent file");
 		default:
 			throw new Error('Unknown prompt type');
 	}

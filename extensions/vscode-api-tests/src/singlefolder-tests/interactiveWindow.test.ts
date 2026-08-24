@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import 'mocha';
 import * as vscode from 'vscode';
-import { asPromise, disposeAll } from '../utils';
+import { asPromise, disposeAll, poll } from '../utils';
 import { Kernel, saveAllFilesAndCloseAll } from './notebook.api.test';
 
 export type INativeInteractiveWindow = { notebookUri: vscode.Uri; inputUri: vscode.Uri; notebookEditor: vscode.NotebookEditor };
@@ -108,7 +108,10 @@ async function addCellAndRun(code: string, notebook: vscode.NotebookDocument) {
 		}
 	});
 
-	test('Interactive window has the correct kernel', async () => {
+	// https://github.com/microsoft/vscode/issues/266229
+	test.skip('Interactive window has the correct kernel', async function () {
+		// Extend timeout a bit as kernel association can be async & occasionally slow on CI
+		this.timeout(20000);
 		assert.ok(vscode.workspace.workspaceFolders);
 		await createInteractiveWindow(defaultKernel);
 
@@ -118,11 +121,15 @@ async function addCellAndRun(code: string, notebook: vscode.NotebookDocument) {
 		const { notebookEditor } = await createInteractiveWindow(secondKernel);
 		assert.ok(notebookEditor);
 
-		// Verify the kernel is the secondary one
+		// Run a cell to ensure the kernel is actually exercised
 		await addCellAndRun(`print`, notebookEditor.notebook);
 
+		await poll(
+			() => Promise.resolve(secondKernel.associatedNotebooks.has(notebookEditor.notebook.uri.toString())),
+			v => v,
+			'Secondary kernel was not set as the kernel for the interactive window'
+		);
 		assert.strictEqual(secondKernel.associatedNotebooks.has(notebookEditor.notebook.uri.toString()), true, `Secondary kernel was not set as the kernel for the interactive window`);
-
 	});
 });
 

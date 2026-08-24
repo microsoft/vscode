@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/*eslint-env mocha*/
-
 // @ts-check
 
 const fs = require('fs');
@@ -170,7 +168,11 @@ async function loadTestModules(opts) {
 	}
 
 	const pattern = opts.runGlob || _tests_glob;
-	const files = await globAsync(pattern, { cwd: loadFn._out });
+	let files = await globAsync(pattern, { cwd: loadFn._out });
+	if (opts.excludeRunGlob) {
+		const excludedFiles = new Set(await globAsync(opts.excludeRunGlob, { cwd: loadFn._out }));
+		files = files.filter(file => !excludedFiles.has(file));
+	}
 	let modules = files.map(file => file.replace(/\.js$/, ''));
 	if (opts.testSplit) {
 		const [i, n] = opts.testSplit.split('/').map(Number);
@@ -304,7 +306,7 @@ async function loadTests(opts) {
 			const msg = [];
 			for (const error of errors) {
 				console.error(`Error: Test run should not have unexpected errors:\n${error}`);
-				msg.push(String(error))
+				msg.push(String(error));
 			}
 			assert.ok(false, `Error: Test run should not have unexpected errors:\n${msg.join('\n')}`);
 		}
@@ -464,7 +466,7 @@ async function runTests(opts) {
 	await loadTests(opts);
 
 	const runner = mocha.run(async () => {
-		await createCoverageReport(opts)
+		await createCoverageReport(opts);
 		ipcRenderer.send('all done');
 	});
 
