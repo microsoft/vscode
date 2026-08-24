@@ -37,7 +37,12 @@ suite('AgentHostDebugLogsCollector', () => {
 	});
 
 	teardown(async () => {
-		await rm(testRoot, { recursive: true, force: true });
+		// The collector's disposal cleans retained artifacts without awaiting
+		// (`dispose` is synchronous), and that teardown runs first. So this
+		// delete can race a still-running recursive delete of the same tree,
+		// which Windows reports as `EPERM` on `rmdir`. `maxRetries` is Node's
+		// built-in backoff for exactly those errors.
+		await rm(testRoot, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
 	});
 
 	test('creates a flat archive from provider and host logs', async () => {
