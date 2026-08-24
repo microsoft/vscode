@@ -647,11 +647,15 @@ export function shouldShowCustomTitleBar(configurationService: IConfigurationSer
 
 	const inFullscreen = isFullscreen(window);
 	const nativeTitleBarEnabled = hasNativeTitlebar(configurationService);
+	const nativeMenuEnabled = hasNativeMenu(configurationService);
 
 	if (!isWeb) {
 		const showCustomTitleBar = configurationService.getValue<CustomTitleBarVisibility>(TitleBarSetting.CUSTOM_TITLE_BAR_VISIBILITY);
-		if (showCustomTitleBar === CustomTitleBarVisibility.NEVER && nativeTitleBarEnabled || showCustomTitleBar === CustomTitleBarVisibility.WINDOWED && inFullscreen) {
+		if (showCustomTitleBar === CustomTitleBarVisibility.NEVER && (nativeTitleBarEnabled || nativeMenuEnabled && inFullscreen) || showCustomTitleBar === CustomTitleBarVisibility.WINDOWED && inFullscreen) {
 			return false;
+		}
+		if (showCustomTitleBar === CustomTitleBarVisibility.AUTO && nativeMenuEnabled && !nativeTitleBarEnabled && inFullscreen) {
+			return true;
 		}
 	}
 
@@ -660,7 +664,7 @@ export function shouldShowCustomTitleBar(configurationService: IConfigurationSer
 	}
 
 	// Hide custom title bar when native title bar enabled and custom title bar is empty
-	if (nativeTitleBarEnabled && hasNativeMenu(configurationService)) {
+	if (nativeTitleBarEnabled && nativeMenuEnabled) {
 		return false;
 	}
 
