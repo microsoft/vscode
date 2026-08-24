@@ -327,7 +327,7 @@ suite('ChatToolProgressSubPart', () => {
 				text: button?.textContent,
 				ariaLabel: button?.getAttribute('aria-label'),
 				tabIndex: button?.tabIndex,
-				watchIconIsChild: !!button?.querySelector('.codicon-watch'),
+				calendarIconIsChild: !!button?.querySelector('.codicon-calendar'),
 				// `codicon-*` on the root would restyle the label text.
 				rootCarriesCodiconClass: button?.classList.contains('codicon'),
 				injectedIcons: [...button?.querySelectorAll('.codicon') ?? []]
@@ -340,17 +340,17 @@ suite('ChatToolProgressSubPart', () => {
 				text: 'Created an automation: $(error)',
 				ariaLabel: 'Open automation $(error)',
 				tabIndex: 0,
-				watchIconIsChild: true,
+				calendarIconIsChild: true,
 				rootCarriesCodiconClass: false,
-				injectedIcons: ['codicon-watch'],
+				injectedIcons: ['codicon-calendar'],
 			},
 			{
 				text: 'Created an automation: a \\$(error) b',
 				ariaLabel: 'Open automation a \\$(error) b',
 				tabIndex: 0,
-				watchIconIsChild: true,
+				calendarIconIsChild: true,
 				rootCarriesCodiconClass: false,
-				injectedIcons: ['codicon-watch'],
+				injectedIcons: ['codicon-calendar'],
 			},
 		]);
 	});
