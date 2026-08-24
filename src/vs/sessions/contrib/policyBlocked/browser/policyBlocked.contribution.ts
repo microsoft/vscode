@@ -89,7 +89,9 @@ export class SessionsPolicyBlockedContribution extends Disposable implements IWo
 
 	private showOverlay(options: ISessionsBlockedOverlayOptions): void {
 		// AccountPolicyGate may need re-render when the account name changes.
-		if (this.currentReason === options.reason && options.reason !== SessionsBlockedReason.AccountPolicyGate) {
+		if (this.currentReason === options.reason
+			&& options.reason !== SessionsBlockedReason.AccountPolicyGate
+			&& options.reason !== SessionsBlockedReason.ManagedSettingsRefresh) {
 			return;
 		}
 		this.overlayRef.clear();

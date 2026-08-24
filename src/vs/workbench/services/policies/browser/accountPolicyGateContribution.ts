@@ -117,7 +117,9 @@ export class AccountPolicyGateContribution extends Disposable implements IWorkbe
 		if (info.reason === AccountPolicyGateUnsatisfiedReason.ManagedSettingsRefresh) {
 			this.notificationHandle.clear();
 			this.dismissedKey = undefined;
-			this.updateManagedSettingsRefreshNotification(info.managedSettingsFreshness);
+			if (showNotification) {
+				this.updateManagedSettingsRefreshNotification(info.managedSettingsFreshness);
+			}
 			return;
 		}
 		this.managedSettingsRefreshNotificationHandle.clear();

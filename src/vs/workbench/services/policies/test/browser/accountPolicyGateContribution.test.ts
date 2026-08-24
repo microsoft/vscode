@@ -30,6 +30,13 @@ class TestAccountPolicyGateService extends mock<IAccountPolicyGateService>() {
 	private readonly _onDidChangeGateInfo = new Emitter<IAccountPolicyGateInfo>();
 	override readonly onDidChangeGateInfo = this._onDidChangeGateInfo.event;
 
+	constructor(initial?: IAccountPolicyGateInfo) {
+		super();
+		if (initial) {
+			this._gateInfo = initial;
+		}
+	}
+
 	setGateInfo(info: IAccountPolicyGateInfo): void {
 		this._gateInfo = info;
 		this._onDidChangeGateInfo.fire(info);
@@ -211,5 +218,39 @@ suite('AccountPolicyGateContribution', () => {
 				actions: ['Sign In'],
 			},
 		});
+	});
+
+	test('defers an initial managed settings notification until startup settles', async () => {
+		const clock = sinon.useFakeTimers();
+		const gateService = disposables.add(new TestAccountPolicyGateService({
+			state: AccountPolicyGateState.Restricted,
+			reason: AccountPolicyGateUnsatisfiedReason.ManagedSettingsRefresh,
+			managedSettingsFreshness: {
+				state: ManagedSettingsFreshnessState.Blocked,
+				source: 'server',
+				failure: ManagedSettingsFreshnessFailure.Network,
+			},
+		}));
+		const notificationService = new TestNotificationService();
+		const notificationPromptSpy = sinon.spy(notificationService, 'prompt');
+
+		disposables.add(new AccountPolicyGateContribution(
+			gateService,
+			new MockContextKeyService(),
+			new TestChatEntitlementService(),
+			disposables.add(new TestDefaultAccountService()),
+			new NullLogService(),
+			notificationService,
+			new TestDialogService(),
+			new class extends mock<ICommandService>() { }(),
+			new class extends mock<IOpenerService>() { }(),
+			new class extends mock<IProductService>() { override readonly nameShort = 'Code'; }(),
+			disposables.add(new InMemoryStorageService()),
+			NullTelemetryService,
+		));
+
+		assert.strictEqual(notificationPromptSpy.callCount, 0);
+		await clock.tickAsync(5000);
+		assert.strictEqual(notificationPromptSpy.callCount, 1);
 	});
 });
