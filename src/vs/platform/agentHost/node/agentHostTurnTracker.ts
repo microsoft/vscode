@@ -9,7 +9,7 @@ import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, toDisposable } from '../../../base/common/lifecycle.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
 import { URI } from '../../../base/common/uri.js';
-import type { IAgent, IAgentTurnDiagnosticSnapshot } from '../common/agent.js';
+import type { AgentModelCallFinishedOutcome, IAgent, IAgentTurnDiagnosticSnapshot } from '../common/agent.js';
 import type { SessionMode } from '../common/agentHostSchema.js';
 import { createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
 import { AgentHostClientType } from '../common/agentHostClientInfo.js';
@@ -69,6 +69,10 @@ interface ITurnTiming {
 	readonly clientContext: IAgentHostClientTelemetryContext;
 	readonly initiatorClientId: string | undefined;
 	readonly completedModelCallIds: Set<string>;
+	readonly finishedModelCallIds: Set<string>;
+	modelCallDispatchDurationMs: number;
+	timeToFirstEditMs: number | undefined;
+	timeToFirstEditClassifierVersion: number | undefined;
 	firstProgressMs: number | undefined;
 	currentStage: AgentHostTurnFailureStage;
 
@@ -176,6 +180,10 @@ export class AgentHostTurnTracker extends Disposable {
 			clientContext,
 			initiatorClientId,
 			completedModelCallIds: new Set(),
+			finishedModelCallIds: new Set(),
+			modelCallDispatchDurationMs: 0,
+			timeToFirstEditMs: undefined,
+			timeToFirstEditClassifierVersion: undefined,
 			firstProgressMs: undefined,
 			currentStage: 'validation',
 			quietStopWatch: StopWatch.create(false),
@@ -353,6 +361,22 @@ export class AgentHostTurnTracker extends Disposable {
 		this._turnTimings.get(this._key(session, turnId))?.completedModelCallIds.add(modelCallId);
 	}
 
+	modelCallFinished(session: string, turnId: string, modelCallId: string, dispatchDurationMs: number, outcome: AgentModelCallFinishedOutcome, containsBuiltInFileEditRequest: boolean | undefined, editClassifierVersion: number): void {
+		const timing = this._turnTimings.get(this._key(session, turnId));
+		if (!timing || timing.finishedModelCallIds.has(modelCallId)) {
+			return;
+		}
+		timing.finishedModelCallIds.add(modelCallId);
+		if (timing.timeToFirstEditMs !== undefined) {
+			return;
+		}
+		timing.modelCallDispatchDurationMs += dispatchDurationMs;
+		if (outcome === 'success' && containsBuiltInFileEditRequest === true) {
+			timing.timeToFirstEditMs = timing.modelCallDispatchDurationMs;
+			timing.timeToFirstEditClassifierVersion = editClassifierVersion;
+		}
+	}
+
 	getModelTelemetryContext(session: string, turnId: string): { model: string | undefined; modelTelemetryKind: AgentHostModelTelemetryKind | undefined } | undefined {
 		const timing = this._turnTimings.get(this._key(session, turnId));
 		return timing ? { model: timing.model, modelTelemetryKind: timing.modelTelemetryKind } : undefined;
@@ -383,6 +407,8 @@ export class AgentHostTurnTracker extends Disposable {
 			parentTurnId: timing.parentTurnId,
 			parentToolCallId: timing.parentToolCallId,
 			timeToFirstProgress: timing.firstProgressMs,
+			timeToFirstEditMs: timing.timeToFirstEditMs,
+			timeToFirstEditClassifierVersion: timing.timeToFirstEditClassifierVersion,
 			totalTime: timing.stopWatch.elapsed(),
 			result,
 			model: timing.model,

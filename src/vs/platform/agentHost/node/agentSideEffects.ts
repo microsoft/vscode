@@ -22,7 +22,7 @@ import { ARTIFACT_TOOLS_INSTRUCTION } from './shared/artifactServerTools.js';
 import { AgentHostClientType } from '../common/agentHostClientInfo.js';
 import { AgentHostLaunchKind, createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
 import { readAgentModelByokIdentifier } from '../common/agentModelByokMeta.js';
-import { AgentSession, AgentSignal, IAgent, IAgentChatContext, IAgentToolPendingConfirmationSignal, type IAgentModelCallCompletedSignal } from '../common/agent.js';
+import { AgentSession, AgentSignal, IAgent, IAgentChatContext, IAgentToolPendingConfirmationSignal, type IAgentModelCallCompletedSignal, type IAgentModelCallFinishedSignal } from '../common/agent.js';
 import { createEditorInlineChatInstruction, createTerminalChatInstruction } from '../common/meta/agentChatSurfaceMeta.js';
 import { readToolCallMeta, toToolCallMeta } from '../common/meta/agentToolCallMeta.js';
 
@@ -856,7 +856,7 @@ export class AgentSideEffects extends Disposable {
 			});
 			return;
 		}
-		const signalResource = signal.kind === 'action' || signal.kind === 'model_call_completed' ? signal.resource.toString() : signal.chat.toString();
+		const signalResource = signal.kind === 'action' || signal.kind === 'model_call_completed' || signal.kind === 'model_call_finished' ? signal.resource.toString() : signal.chat.toString();
 		if (signal.kind === 'action' && !isChatAction(signal.action) && isAhpChatChannel(signalResource)) {
 			throw new Error(`Session action ${signal.action.type} must not be dispatched on chat channel ${signalResource}`);
 		}
@@ -877,6 +877,8 @@ export class AgentSideEffects extends Disposable {
 				if (subTurnId) {
 					if (signal.kind === 'model_call_completed') {
 						this._recordModelCallCompleted(signal, subagentSession.chatUri, subTurnId, 'remap');
+					} else if (signal.kind === 'model_call_finished') {
+						this._recordModelCallFinished(signal, subagentSession.chatUri, subTurnId, 'remap');
 					} else {
 						this._dispatchActionForSession(signal, subagentSession.chatUri, subTurnId, 'remap', agent);
 					}
@@ -927,6 +929,8 @@ export class AgentSideEffects extends Disposable {
 		if (turnId) {
 			if (signal.kind === 'model_call_completed') {
 				this._recordModelCallCompleted(signal, sessionKey, turnId, 'preserve');
+			} else if (signal.kind === 'model_call_finished') {
+				this._recordModelCallFinished(signal, sessionKey, turnId, 'preserve');
 			} else {
 				this._dispatchActionForSession(signal, sessionKey, turnId, 'preserve', agent);
 			}
@@ -1133,6 +1137,14 @@ export class AgentSideEffects extends Disposable {
 			return;
 		}
 		this._turnTracker.modelCallCompleted(sessionKey, turnId, signal.modelCallId);
+	}
+
+	private _recordModelCallFinished(signal: IAgentModelCallFinishedSignal, sessionKey: ProtocolURI, turnId: string, turnIdRouting: AgentSignalTurnIdRouting): void {
+		if (signal.turnId !== turnId && turnIdRouting === 'preserve') {
+			this._logService.trace(`[AgentSideEffects] Dropping stale model_call_finished for ${sessionKey}: producerTurnId=${signal.turnId}, activeTurnId=${turnId}`);
+			return;
+		}
+		this._turnTracker.modelCallFinished(sessionKey, turnId, signal.modelCallId, signal.dispatchDurationMs, signal.outcome, signal.containsBuiltInFileEditRequest, signal.editClassifierVersion);
 	}
 
 	/**

@@ -784,6 +784,7 @@ export interface IAgentModelInfo {
 export type AgentSignal =
 	| IAgentActionSignal
 	| IAgentModelCallCompletedSignal
+	| IAgentModelCallFinishedSignal
 	| IAgentToolPendingConfirmationSignal
 	| IAgentSubagentStartedSignal
 	| IAgentSubagentResumedSignal
@@ -817,6 +818,27 @@ export interface IAgentModelCallCompletedSignal {
 	readonly turnId: string;
 	/** Stable provider message or response identifier used to suppress duplicate notifications. */
 	readonly modelCallId: string;
+	/** If set, route the model call to the subagent session belonging to this tool call. */
+	readonly parentToolCallId?: string;
+}
+
+export type AgentModelCallFinishedOutcome = 'success' | 'error' | 'cancelled' | 'rejected';
+
+/** Reports the final lifecycle outcome of one dispatched model-call attempt. */
+export interface IAgentModelCallFinishedSignal {
+	readonly kind: 'model_call_finished';
+	/** Target chat channel URI. For inner subagent calls this is the parent chat channel. */
+	readonly resource: URI;
+	/** Host turn identifier owning this model-call attempt. */
+	readonly turnId: string;
+	/** Stable SDK event identifier used to suppress duplicate notifications. */
+	readonly modelCallId: string;
+	/** Monotonic provider-dispatch duration in milliseconds. */
+	readonly dispatchDurationMs: number;
+	readonly outcome: AgentModelCallFinishedOutcome;
+	/** Present only for accepted successful responses. */
+	readonly containsBuiltInFileEditRequest?: boolean;
+	readonly editClassifierVersion: number;
 	/** If set, route the model call to the subagent session belonging to this tool call. */
 	readonly parentToolCallId?: string;
 }
