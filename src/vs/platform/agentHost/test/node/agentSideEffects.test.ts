@@ -772,6 +772,7 @@ suite('AgentSideEffects', () => {
 				'- You\'re targeting Windows.',
 				'- The active shell is pwsh.',
 				'- Prefer single-line commands. Omit explanations unless the command is complex; then be concise.',
+				'- Always put each command in its own fenced Markdown code block using triple backticks, never in plain text or inline code. Use the shell type as the code block language when known.',
 				'- Use `{placeholder_text}` for required replacement text that the user did not provide.',
 				'- Prefer idiomatic PowerShell: use `Stop-Process` or `Get-NetTCPConnection` instead of `kill` or `lsof`.',
 				'- Prefer cross-platform PowerShell and use Unix utilities only when PowerShell has no equivalent.',
