@@ -7694,8 +7694,8 @@ suite('AgentService (node dispatcher)', () => {
 					createdAt: new Date().toISOString(),
 					modifiedAt: new Date().toISOString(),
 				};
-				localService.stateManager.announceSurfacedSession(summary);
-				localService.stateManager.prepareSessionSummariesForListing([summary]);
+				getStateManager(localService).announceSurfacedSession(summary);
+				getStateManager(localService).prepareSessionSummariesForListing([summary]);
 
 				const notifications: INotification[] = [];
 				const listener = localService.onDidNotification(n => notifications.push(n));
@@ -7709,7 +7709,7 @@ suite('AgentService (node dispatcher)', () => {
 				assert.deepStrictEqual({
 					action: action.type,
 					persisted: await db.getMetadata(key),
-					restored: !!localService.stateManager.getSessionState(sessionStr),
+					restored: !!getStateManager(localService).getSessionState(sessionStr),
 					publishedStatus: summaryChanged?.type === 'root/sessionSummaryChanged' ? summaryChanged.changes.status : undefined,
 				}, {
 					action: action.type,
@@ -7737,7 +7737,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			const session = AgentSession.uri('copilot', 'archive-missing-cwd');
 			const sessionStr = session.toString();
-			localService.stateManager.announceSurfacedSession({
+			getStateManager(localService).announceSurfacedSession({
 				resource: sessionStr,
 				provider: 'copilot',
 				title: 'Gone',
@@ -7752,7 +7752,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			assert.deepStrictEqual({
 				persisted: await db.getMetadata(AH_META_IS_ARCHIVED_DB_KEY),
-				restored: !!localService.stateManager.getSessionState(sessionStr),
+				restored: !!getStateManager(localService).getSessionState(sessionStr),
 			}, {
 				persisted: 'true',
 				restored: false,
@@ -7767,7 +7767,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			const session = AgentSession.uri('copilot', 'unarchive-unloaded');
 			const sessionStr = session.toString();
-			localService.stateManager.announceSurfacedSession({
+			getStateManager(localService).announceSurfacedSession({
 				resource: sessionStr,
 				provider: 'copilot',
 				title: 'Archived',
@@ -7782,7 +7782,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			assert.deepStrictEqual({
 				persisted: await db.getMetadata(AH_META_IS_ARCHIVED_DB_KEY),
-				restored: !!localService.stateManager.getSessionState(sessionStr),
+				restored: !!getStateManager(localService).getSessionState(sessionStr),
 			}, {
 				persisted: '',
 				restored: false,
@@ -7803,7 +7803,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			assert.deepStrictEqual({
 				metadataWrites: db.setMetadataCalls,
-				restored: !!localService.stateManager.getSessionState(sessionStr),
+				restored: !!getStateManager(localService).getSessionState(sessionStr),
 			}, {
 				metadataWrites: [],
 				restored: false,
@@ -7830,8 +7830,8 @@ suite('AgentService (node dispatcher)', () => {
 				createdAt: new Date().toISOString(),
 				modifiedAt: new Date().toISOString(),
 			};
-			localService.stateManager.announceSurfacedSession(summary);
-			localService.stateManager.prepareSessionSummariesForListing([summary]);
+			getStateManager(localService).announceSurfacedSession(summary);
+			getStateManager(localService).prepareSessionSummariesForListing([summary]);
 
 			// Both are queued while the session is still un-restored; the first restores it.
 			localService.dispatchAction(sessionStr, { type: ActionType.SessionTitleChanged, title: 'Renamed' }, 'test-client', 1, AgentHostClientType.EditorWindow);
@@ -7841,9 +7841,9 @@ suite('AgentService (node dispatcher)', () => {
 			}
 
 			assert.deepStrictEqual({
-				restoredByFirstAction: !!localService.stateManager.getSessionState(sessionStr),
+				restoredByFirstAction: !!getStateManager(localService).getSessionState(sessionStr),
 				persisted: await db.getMetadata(AH_META_IS_ARCHIVED_DB_KEY),
-				stateArchived: !!((localService.stateManager.getSessionState(sessionStr)?.status ?? 0) & SessionStatus.IsArchived),
+				stateArchived: !!((getStateManager(localService).getSessionState(sessionStr)?.status ?? 0) & SessionStatus.IsArchived),
 			}, {
 				restoredByFirstAction: true,
 				persisted: 'true',
@@ -7860,8 +7860,8 @@ suite('AgentService (node dispatcher)', () => {
 
 			const created = await localService.createSession({ provider: 'copilot' });
 			const sessionStr = created.toString();
-			localService.stateManager.prepareSessionSummariesForListing([localService.stateManager.getSessionSummary(sessionStr)!]);
-			localService.stateManager.removeSession(sessionStr);
+			getStateManager(localService).prepareSessionSummariesForListing([getStateManager(localService).getSessionSummary(sessionStr)!]);
+			getStateManager(localService).removeSession(sessionStr);
 
 			const notifications: INotification[] = [];
 			const listener = localService.onDidNotification(n => notifications.push(n));
@@ -7892,10 +7892,10 @@ suite('AgentService (node dispatcher)', () => {
 
 			const created = await localService.createSession({ provider: 'copilot' });
 			const sessionStr = created.toString();
-			localService.stateManager.prepareSessionSummariesForListing([localService.stateManager.getSessionSummary(sessionStr)!]);
-			localService.stateManager.deleteSession(sessionStr);
+			getStateManager(localService).prepareSessionSummariesForListing([getStateManager(localService).getSessionSummary(sessionStr)!]);
+			getStateManager(localService).deleteSession(sessionStr);
 
-			assert.strictEqual(localService.stateManager.getSurfacedSessionSummary(sessionStr), undefined);
+			assert.strictEqual(getStateManager(localService).getSurfacedSessionSummary(sessionStr), undefined);
 		});
 
 		test('a queued toggle still publishes when the session was evicted while it waited', async () => {
@@ -7915,7 +7915,7 @@ suite('AgentService (node dispatcher)', () => {
 			localService.registerProvider(disposables.add(new MockAgent('copilot')));
 
 			const liveSession = (await localService.createSession({ provider: 'copilot' })).toString();
-			localService.stateManager.prepareSessionSummariesForListing([localService.stateManager.getSessionSummary(liveSession)!]);
+			getStateManager(localService).prepareSessionSummariesForListing([getStateManager(localService).getSessionSummary(liveSession)!]);
 
 			// An un-restored session whose toggle holds the per-client queue with a real
 			// async write, giving the second toggle a window to be evicted in.
@@ -7928,9 +7928,9 @@ suite('AgentService (node dispatcher)', () => {
 				createdAt: new Date().toISOString(),
 				modifiedAt: new Date().toISOString(),
 			};
-			localService.stateManager.announceSurfacedSession(surfacedSummary);
-			localService.stateManager.prepareSessionSummariesForListing([surfacedSummary]);
-			onWrite = () => { localService.stateManager.removeSession(liveSession); onWrite = undefined; };
+			getStateManager(localService).announceSurfacedSession(surfacedSummary);
+			getStateManager(localService).prepareSessionSummariesForListing([surfacedSummary]);
+			onWrite = () => { getStateManager(localService).removeSession(liveSession); onWrite = undefined; };
 
 			const notifications: INotification[] = [];
 			const listener = localService.onDidNotification(n => notifications.push(n));
@@ -7943,7 +7943,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			const published = notifications.find(n => n.type === 'root/sessionSummaryChanged' && n.session === liveSession);
 			assert.deepStrictEqual({
-				evicted: !localService.stateManager.getSessionState(liveSession),
+				evicted: !getStateManager(localService).getSessionState(liveSession),
 				publishedArchived: published?.type === 'root/sessionSummaryChanged'
 					? !!((published.changes.status ?? 0) & SessionStatus.IsArchived)
 					: undefined,
