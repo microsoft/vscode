@@ -382,10 +382,7 @@ suite('ChatModeService', () => {
 		await waitForRefresh();
 
 		const modes = await chatModeService.getLocalModes();
-		assert.strictEqual(modes.custom.length, 3);
-		assert.strictEqual(modes.custom[0].name.get(), 'Alpha Mode');
-		assert.strictEqual(modes.custom[1].name.get(), 'Beta Mode');
-		assert.strictEqual(modes.custom[2].name.get(), 'Zeta Mode');
+		assert.deepStrictEqual(modes.custom.map(m => m.name.get()), ['Alpha Mode', 'Beta Mode', 'Zeta Mode']);
 	});
 
 });
