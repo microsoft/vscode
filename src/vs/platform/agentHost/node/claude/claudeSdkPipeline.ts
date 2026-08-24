@@ -665,6 +665,12 @@ export class ClaudeSdkPipeline extends Disposable {
 		}
 		try {
 			for await (const message of query) {
+				// A rebind can leave the previous SDK iterator alive briefly. It no
+				// longer owns router state or the shared prompt queue once `_query`
+				// changes, even if it still produces a buffered message.
+				if (this._query !== query) {
+					return;
+				}
 				if (this._abortController.signal.aborted) {
 					throw new CancellationError();
 				}
@@ -688,6 +694,11 @@ export class ClaudeSdkPipeline extends Disposable {
 					});
 				} catch (handlerErr) {
 					this._logService.warn(`[ClaudeSdkPipeline:${this.sessionId}] router threw, skipping: ${handlerErr}`);
+				}
+				// The router is async, so ownership may have changed while it was
+				// handling the message. Never let that old result settle a new turn.
+				if (this._query !== query) {
+					return;
 				}
 				if (message.type === 'result') {
 					const completed = this._queue.settleHead();

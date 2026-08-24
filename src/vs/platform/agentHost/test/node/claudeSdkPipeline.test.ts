@@ -20,9 +20,11 @@ import { ServiceCollection } from '../../../instantiation/common/serviceCollecti
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { ISessionDatabase } from '../../common/sessionDataService.js';
+import { ActionType } from '../../common/state/sessionActions.js';
 import { buildDefaultChatUri } from '../../common/state/sessionState.js';
 import { ClaudeSdkPipeline, IRematerializer } from '../../node/claude/claudeSdkPipeline.js';
 import { SubagentRegistry } from '../../node/claude/claudeSubagentRegistry.js';
+import { makeResultSuccess } from './claudeMapSessionEventsTestUtils.js';
 import { createZeroDiffComputeService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 
 // ===== Test doubles =====
@@ -137,6 +139,12 @@ class RecordingWarmQuery extends FakeWarmQuery {
 type IControllableQuery = Query & {
 	/** Ends the stream (models a dispose-driven close of the underlying query). */
 	end(): void;
+	/** Emits one SDK message from this query's output stream. */
+	emit(message: SDKMessage): void;
+	/** Pulls one prompt from the iterable bound to this query. */
+	pullPrompt(): Promise<IteratorResult<SDKUserMessage, void>>;
+	/** Resolves when the consumer closes this query's output iterator. */
+	readonly returned: Promise<void>;
 	/** How many times the consumer loop has pulled from this query's iterator. */
 	readonly nextCallCount: number;
 };
@@ -147,21 +155,35 @@ type IControllableQuery = Query & {
  * loop pulled from it. Lets a test hold the consumer loop on one query while a
  * rebind swaps in the next, then observe whether the new query gets drained.
  */
-function makeControllableQuery(): IControllableQuery {
+function makeControllableQuery(prompt: string | AsyncIterable<SDKUserMessage>): IControllableQuery {
 	let ended = false;
 	let wake: (() => void) | undefined;
+	const messages: SDKMessage[] = [];
+	const promptIterator = typeof prompt === 'string' ? undefined : prompt[Symbol.asyncIterator]();
+	const returned = new DeferredPromise<void>();
 	const q = Object.assign(new ImmediatelyDoneQuery(), {
 		nextCallCount: 0,
+		returned: returned.p,
 		end(): void { ended = true; wake?.(); wake = undefined; },
+		emit(message: SDKMessage): void { messages.push(message); wake?.(); wake = undefined; },
+		async pullPrompt(): Promise<IteratorResult<SDKUserMessage, void>> {
+			if (!promptIterator) {
+				return { done: true, value: undefined };
+			}
+			return promptIterator.next();
+		},
 		[Symbol.asyncIterator]() { return this; },
 		async next(this: { nextCallCount: number }): Promise<IteratorResult<SDKMessage, void>> {
 			this.nextCallCount++;
-			while (!ended) {
+			while (messages.length === 0 && !ended) {
 				await new Promise<void>(resolve => { wake = resolve; });
+			}
+			if (messages.length > 0) {
+				return { done: false, value: messages.shift()! };
 			}
 			return { done: true, value: undefined };
 		},
-		async return() { return { done: true, value: undefined }; },
+		async return() { returned.complete(); return { done: true, value: undefined }; },
 		async throw(err: unknown) { throw err; },
 	});
 	return q as unknown as IControllableQuery;
@@ -171,9 +193,9 @@ function makeControllableQuery(): IControllableQuery {
 class ControllableWarmQuery extends FakeWarmQuery {
 	readonly queries: IControllableQuery[] = [];
 
-	override query(_prompt: string | AsyncIterable<SDKUserMessage>): Query {
+	override query(prompt: string | AsyncIterable<SDKUserMessage>): Query {
 		this.queryCallCount++;
-		const q = makeControllableQuery();
+		const q = makeControllableQuery(prompt);
 		this.queries.push(q);
 		return q;
 	}
@@ -452,6 +474,52 @@ suite('ClaudeSdkPipeline', () => {
 			assert.ok(q2.nextCallCount > 0, 'consumer loop handed off to the new query after the old one ended');
 
 			// Clean teardown: let the re-armed loop unwind before dispose.
+			q2.end();
+			await flushMicrotasks();
+		});
+
+		test('a late result from the pre-rebind query cannot settle the post-rebind prompt', async () => {
+			const warm1 = new ControllableWarmQuery();
+			const { pipeline } = createPipeline(disposables, warm1);
+			let producedSignalCount = 0;
+			let secondTurnCompleteCount = 0;
+			disposables.add(pipeline.onDidProduceSignal(signal => {
+				producedSignalCount++;
+				if (signal.kind === 'action' && signal.action.type === ActionType.ChatTurnComplete && signal.action.turnId === 'turn-2') {
+					secondTurnCompleteCount++;
+				}
+			}));
+
+			const firstSend = pipeline.send(makePrompt('p1'), 'turn-1');
+			await flushMicrotasks();
+			const q1 = warm1.queries[0];
+			assert.strictEqual((await q1.pullPrompt()).value?.uuid, makeUuid('p1'));
+			q1.emit(makeResultSuccess('sess-1'));
+			await firstSend;
+			const parkedOldPrompt = q1.pullPrompt();
+
+			const warm2 = new ControllableWarmQuery();
+			pipeline.attachRematerializer(async () => ({ warm: warm2, abortController: new AbortController() }));
+			await pipeline.rebindForRestart();
+			assert.strictEqual((await parkedOldPrompt).done, true, 'the old query prompt iterator is retired on rebind');
+			const q2 = warm2.queries[0];
+
+			let secondSendResolved = false;
+			const secondSend = pipeline.send(makePrompt('p2'), 'turn-2').then(() => { secondSendResolved = true; });
+			assert.strictEqual((await q2.pullPrompt()).value?.uuid, makeUuid('p2'));
+
+			const signalCountBeforeLateResult = producedSignalCount;
+			q1.emit(makeResultSuccess('sess-1'));
+			await q1.returned;
+			assert.strictEqual(secondSendResolved, false, 'the old query must not settle the new query\'s prompt');
+			assert.strictEqual(producedSignalCount, signalCountBeforeLateResult, 'the old query must not route signals into the new turn');
+			assert.strictEqual(secondTurnCompleteCount, 0, 'the old query must not complete the new turn');
+
+			q1.end();
+			await flushMicrotasks();
+			q2.emit(makeResultSuccess('sess-1'));
+			await secondSend;
+			assert.strictEqual(secondTurnCompleteCount, 1, 'the new query completes its own turn exactly once');
 			q2.end();
 			await flushMicrotasks();
 		});
