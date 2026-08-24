@@ -72,7 +72,8 @@
 	max-width: none;
 }
 
-.monaco-workbench.agent-sessions-workbench .part.sessionspart .interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-list-rows {
+.monaco-workbench.vs.agent-sessions-workbench .part.sessionspart .interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-list-rows,
+.monaco-workbench.vs-dark.agent-sessions-workbench .part.sessionspart .interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-list-rows {
 	background: transparent !important;
 
 	> .monaco-list-row {

@@ -255,19 +255,33 @@ suite('Sessions - Chat View', () => {
 		const selectedResponse = dom.append(rows, dom.$('.monaco-list-row.response.selected'));
 		const selectedPendingDivider = dom.append(rows, dom.$('.monaco-list-row.pending-divider.selected'));
 		selectedPendingDivider.style.backgroundColor = 'rgb(255, 0, 0)';
+		const highContrastWorkbench = dom.$('.monaco-workbench.hc-black.agent-sessions-workbench');
+		const highContrastPart = dom.append(highContrastWorkbench, dom.$('.part.sessionspart'));
+		const highContrastList = dom.append(highContrastPart, dom.$('.interactive-list'));
+		const highContrastMonacoList = dom.append(highContrastList, dom.$('.monaco-list'));
+		const highContrastScrollable = dom.append(highContrastMonacoList, dom.$('.monaco-scrollable-element'));
+		const highContrastRows = dom.append(highContrastScrollable, dom.$('.monaco-list-rows'));
+		const highContrastSelectedResponse = dom.append(highContrastRows, dom.$('.monaco-list-row.response.selected'));
+		highContrastSelectedResponse.style.backgroundColor = 'rgb(255, 0, 0)';
 		dom.getWindow(workbench).document.body.appendChild(workbench);
-		disposables.add(toDisposable(() => workbench.remove()));
+		dom.getWindow(highContrastWorkbench).document.body.appendChild(highContrastWorkbench);
+		disposables.add(toDisposable(() => {
+			workbench.remove();
+			highContrastWorkbench.remove();
+		}));
 
 		assert.deepStrictEqual({
 			rows: dom.getWindow(rows).getComputedStyle(rows).backgroundColor,
 			focusedRequest: dom.getWindow(focusedRequest).getComputedStyle(focusedRequest).backgroundColor,
 			selectedResponse: dom.getWindow(selectedResponse).getComputedStyle(selectedResponse).backgroundColor,
 			selectedPendingDivider: dom.getWindow(selectedPendingDivider).getComputedStyle(selectedPendingDivider).backgroundColor,
+			highContrastSelectedResponse: dom.getWindow(highContrastSelectedResponse).getComputedStyle(highContrastSelectedResponse).backgroundColor,
 		}, {
 			rows: 'rgba(0, 0, 0, 0)',
 			focusedRequest: 'rgba(0, 0, 0, 0)',
 			selectedResponse: 'rgba(0, 0, 0, 0)',
 			selectedPendingDivider: 'rgb(255, 0, 0)',
+			highContrastSelectedResponse: 'rgb(255, 0, 0)',
 		});
 	});
 

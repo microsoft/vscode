@@ -110,7 +110,7 @@ suite('Sessions Chat Background Service', () => {
 	test('returns every configured image layout', async () => {
 		const configurationService = new TestConfigurationService({
 			[AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_SETTING]: URI.file('/textures/kirby.png').fsPath,
-			[AGENT_SESSIONS_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING]: 'cover',
+			[AGENT_SESSIONS_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING]: 'repeat',
 		});
 		const service = disposables.add(new SessionsChatBackgroundService(configurationService, new TestThemeService(), disposables.add(new MockContextKeyService())));
 		const actual: Partial<Record<ChatBackgroundImageLayout, Omit<ISessionsChatBackground, 'backgroundImage'> | undefined>> = {};
@@ -129,7 +129,7 @@ suite('Sessions Chat Background Service', () => {
 		}
 
 		assert.deepStrictEqual(actual, {
-			cover: { backgroundRepeat: 'repeat', backgroundSize: 'auto', backgroundPosition: 'left top' },
+			repeat: { backgroundRepeat: 'repeat', backgroundSize: 'auto', backgroundPosition: 'left top' },
 			stretch: { backgroundRepeat: 'no-repeat', backgroundSize: '100% 100%', backgroundPosition: 'center center' },
 			center: { backgroundRepeat: 'no-repeat', backgroundSize: 'auto', backgroundPosition: 'center center' },
 			top: { backgroundRepeat: 'no-repeat', backgroundSize: 'auto', backgroundPosition: 'center top' },

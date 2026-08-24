@@ -21,7 +21,7 @@ export const AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_SETTING = 'cha
 export const AGENT_SESSIONS_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING = 'chat.agentSessions.backgroundImageLayout';
 
 export const chatBackgroundImageLayoutValues = [
-	'cover',
+	'repeat',
 	'stretch',
 	'center',
 	'top',
@@ -44,7 +44,7 @@ export interface ISessionsChatBackground {
 }
 
 const backgroundImageStyles: Record<ChatBackgroundImageLayout, Omit<ISessionsChatBackground, 'backgroundImage'>> = {
-	cover: { backgroundRepeat: 'repeat', backgroundSize: 'auto', backgroundPosition: 'left top' },
+	repeat: { backgroundRepeat: 'repeat', backgroundSize: 'auto', backgroundPosition: 'left top' },
 	stretch: { backgroundRepeat: 'no-repeat', backgroundSize: '100% 100%', backgroundPosition: 'center center' },
 	center: { backgroundRepeat: 'no-repeat', backgroundSize: 'auto', backgroundPosition: 'center center' },
 	top: { backgroundRepeat: 'no-repeat', backgroundSize: 'auto', backgroundPosition: 'center top' },
@@ -129,7 +129,7 @@ export class SessionsChatBackgroundService extends Disposable implements ISessio
 		const value = this.configurationService.getValue<string>(AGENT_SESSIONS_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING);
 		return chatBackgroundImageLayoutValues.includes(value as ChatBackgroundImageLayout)
 			? value as ChatBackgroundImageLayout
-			: 'cover';
+			: 'repeat';
 	}
 
 	private resolveBackgroundImage(value: string | undefined): URI | undefined {
