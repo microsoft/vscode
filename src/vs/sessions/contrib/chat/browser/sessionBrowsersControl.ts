@@ -5,7 +5,7 @@
 
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { derived, IObservable, IReader, observableSignal, observableValue } from '../../../../base/common/observable.js';
+import { derived, derivedOpts, IObservable, IReader, observableSignal, observableValue } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { localize } from '../../../../nls.js';
 import { BrowserEditorInput } from '../../../../workbench/contrib/browserView/common/browserEditorInput.js';
@@ -26,11 +26,30 @@ export const sessionBrowsersPillOptions: IChatDropdownPillOptions = {
 	summaryAriaLabel: count => localize('browsers.show', "Show {0} browsers", count),
 };
 
+const NO_URLS: ReadonlySet<string> = new Set();
+
+function urlsEqual(a: ReadonlySet<string>, b: ReadonlySet<string>): boolean {
+	if (a === b) {
+		return true;
+	}
+	if (a.size !== b.size) {
+		return false;
+	}
+	for (const url of a) {
+		if (!b.has(url)) {
+			return false;
+		}
+	}
+	return true;
+}
+
 /** Supplies the live browsers of the viewed chat (and its subagents) to its pill. */
 export class SessionBrowsersControl extends Disposable {
 
 	/** The pill's sections, empty while the user has the pill hidden. */
 	readonly sections: IObservable<readonly IChatPillSection[]>;
+	/** The URLs the pill's browsers show, empty while the user has the pill hidden. */
+	readonly urls: IObservable<ReadonlySet<string>>;
 	/** Whether there are browsers to show, regardless of the user's visibility choice. */
 	readonly hasData: IObservable<boolean>;
 
@@ -49,25 +68,45 @@ export class SessionBrowsersControl extends Disposable {
 	) {
 		super();
 
-		const allSections = derived(this, reader => {
+		// The browsers the pill lists, before the user's visibility choice. Empty while
+		// the debug overlay supplies its own browsers in their place.
+		const allBrowsers = derived(this, reader => {
 			this._browsersChanged.read(reader);
-			const debugData = this._debugData.read(reader);
 			const currentSession = session.read(reader);
+			const currentChat = chat.read(reader);
+			return !this._debugData.read(reader) && enabled.read(reader) && currentSession && currentChat
+				// Read the chat list through the reader so browsers registered by a
+				// subagent show up as soon as that subagent joins the session.
+				? this._collectBrowsers(this._collectOwnerIds(currentSession, currentChat, reader))
+				: [];
+		});
+
+		const allSections = derived(this, reader => {
+			const debugData = this._debugData.read(reader);
 			const currentChat = chat.read(reader);
 			const browsers = debugData
 				? debugData.browsers.map(label => this._entry(label, undefined, currentChat))
-				: enabled.read(reader) && currentSession && currentChat
-					// Read the chat list through the reader so browsers registered by a
-					// subagent show up as soon as that subagent joins the session.
-					? this._collectBrowsers(this._collectOwnerIds(currentSession, currentChat, reader), currentChat)
-					: [];
+				: allBrowsers.read(reader).map(input => this._entry(input.title?.trim() || localize('browsers.browser', "Browser"), input, currentChat));
 			return browsers.length > 0
 				? [{ title: localize('browsers.browsers', "Browsers"), entries: browsers }]
 				: [];
 		});
 
+		// Browser titles and loading states change far more often than the pages
+		// themselves, so only report a genuinely different set of URLs.
+		const allUrls = derivedOpts<ReadonlySet<string>>({ owner: this, equalsFn: urlsEqual }, reader => {
+			const urls = new Set<string>();
+			for (const input of allBrowsers.read(reader)) {
+				if (input.url) {
+					urls.add(input.url);
+				}
+			}
+			return urls;
+		});
+
 		this.hasData = derived(this, reader => getChatPillEntries(allSections.read(reader)).length > 0);
 		this.sections = derived(this, reader => visible.read(reader) ? allSections.read(reader) : []);
+		this.urls = derivedOpts<ReadonlySet<string>>({ owner: this, equalsFn: urlsEqual }, reader => visible.read(reader) ? allUrls.read(reader) : NO_URLS);
 
 		this._register(this._browserViewService.onDidChangeBrowserViews(() => this._refreshBrowserListeners()));
 		this._refreshBrowserListeners();
@@ -96,15 +135,15 @@ export class SessionBrowsersControl extends Disposable {
 		return ownerIds;
 	}
 
-	private _collectBrowsers(ownerIds: ReadonlySet<string>, chat: IChat | undefined): IChatPillEntry[] {
-		const entries: IChatPillEntry[] = [];
+	private _collectBrowsers(ownerIds: ReadonlySet<string>): BrowserEditorInput[] {
+		const inputs: BrowserEditorInput[] = [];
 		for (const input of this._browserViewService.getKnownBrowserViews().values()) {
 			const ownerId = input.model?.owner.type === 'agent' ? input.model.owner.sessionId : undefined;
 			if (ownerId && ownerIds.has(ownerId)) {
-				entries.push(this._entry(input.title?.trim() || localize('browsers.browser', "Browser"), input, chat));
+				inputs.push(input);
 			}
 		}
-		return entries;
+		return inputs;
 	}
 
 	private _entry(label: string, input: BrowserEditorInput | undefined, chat: IChat | undefined): IChatPillEntry {

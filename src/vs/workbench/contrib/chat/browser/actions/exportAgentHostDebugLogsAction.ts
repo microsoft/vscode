@@ -15,6 +15,7 @@ import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/
 import { AGENT_HOST_ENABLED_CONTEXT_KEY } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IAgentHostService, type AgentHostDebugLogsArtifactKind, type IAgentConnection, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk } from '../../../../../platform/agentHost/common/agentService.js';
 import { IRemoteAgentHostService, remoteAgentHostLogOutputChannelId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { DEFAULT_CHAT_ID, getSessionChatResource, StateComponents } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IsWebContext } from '../../../../../platform/contextkey/common/contextkeys.js';
 import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
@@ -47,10 +48,16 @@ const MAX_INLINE_DEBUG_LOGS_BYTES = 30 * ByteSize.MB;
 export interface IActiveAgentHostSessionForExport {
 	/** The chat session resource. */
 	readonly resource: URI;
-	/** Optional display title used to derive the default zip filename. */
-	readonly title: string | undefined;
+	/** Optional owning-session title used to namespace the default zip filename. */
+	readonly sessionTitle: string | undefined;
+	/** Optional active-chat title used to derive the default zip filename. */
+	readonly chatTitle: string | undefined;
 	/** True for local agent-host sessions (`agent-host-*` scheme). */
 	readonly isLocal: boolean;
+	/** Backend chat identifier selected within the session. */
+	readonly chatId: string;
+	/** Exact host-published backend chat resource, when already resolved by the provider. */
+	readonly backendChatResource: URI | undefined;
 }
 
 export type IAgentHostDebugLogFile =
@@ -164,6 +171,8 @@ export async function collectAgentHostDebugLogs(
 
 	let connection: IAgentConnection;
 	let backendSession: URI | undefined;
+	let backendChat: URI | undefined;
+	let sessionTitle = activeSession?.sessionTitle;
 	if (activeSession) {
 		const sessionResolution = agentHostConnectionsService.resolveSessionResource(activeSession.resource);
 		if (!sessionResolution) {
@@ -171,13 +180,30 @@ export async function collectAgentHostDebugLogs(
 		}
 		connection = sessionResolution.connection;
 		backendSession = sessionResolution.backendSession;
+		backendChat = activeSession.backendChatResource;
+		if (!backendChat || !sessionTitle) {
+			const state = connection.getSubscriptionUnmanaged(StateComponents.Session, backendSession)?.value;
+			if (!backendChat) {
+				if (!state || state instanceof Error) {
+					throw new Error(`Cannot resolve the active chat because session state is unavailable for ${activeSession.resource.toString()}`);
+				}
+				const backendChatResource = getSessionChatResource(state, activeSession.chatId);
+				if (!backendChatResource) {
+					throw new Error(`Cannot resolve active chat '${activeSession.chatId}' for ${activeSession.resource.toString()}`);
+				}
+				backendChat = URI.parse(backendChatResource);
+			}
+			if (state && !(state instanceof Error)) {
+				sessionTitle ??= state.title;
+			}
+		}
 	} else {
 		connection = agentHostConnectionsService.ambientConnection;
 	}
 	// The Agent Host owns discovery and packaging of its own logs; failures
 	// surface to the user rather than being papered over by a second,
 	// path-guessing implementation on this side.
-	const hostArtifact = await connection.collectDebugLogs(backendSession, exportService.hostArtifactKind);
+	const hostArtifact = await connection.collectDebugLogs(backendSession, exportService.hostArtifactKind, backendChat);
 	onDidCreateHostArtifact(hostArtifact);
 	let remainingInlineBytes = MAX_INLINE_DEBUG_LOGS_BYTES;
 
@@ -309,14 +335,23 @@ export async function collectAgentHostDebugLogs(
 		}
 	}
 
-	const titleSlug = activeSession?.title
-		? `-${activeSession.title.replace(/[/\\:*?"<>|\s]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40)}`
-		: '';
 	return {
 		files,
-		exportName: `ah-logs${titleSlug}`,
+		exportName: getAgentHostDebugLogsExportName(sessionTitle, activeSession?.chatTitle, activeSession?.chatId === DEFAULT_CHAT_ID),
 		hostArtifact: { artifact: hostArtifact, readChunk: createChunkReader(connection) },
 	};
+}
+
+export function getAgentHostDebugLogsExportName(sessionTitle: string | undefined, chatTitle: string | undefined, isPrimaryChat: boolean): string {
+	const namespace = [
+		toDebugLogsTitleSlug(sessionTitle),
+		...(!isPrimaryChat ? [toDebugLogsTitleSlug(chatTitle)] : []),
+	].filter(title => title.length > 0);
+	return namespace.length > 0 ? `ah-logs-${namespace.join('--')}` : 'ah-logs';
+}
+
+function toDebugLogsTitleSlug(title: string | undefined): string {
+	return title?.replace(/[/\\:*?"<>|\s]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) ?? '';
 }
 
 /** Binds a connection's chunked artifact read to one artifact. */
@@ -408,12 +443,12 @@ export class ExportAgentHostDebugLogsAction extends Action2 {
  * session (i.e. local AH or remote AH; the EH CLI extension's own
  * `copilotcli:` sessions are excluded).
  */
-export function toActiveAgentHostSession(resource: URI, title: string | undefined): IActiveAgentHostSessionForExport | undefined {
+export function toActiveAgentHostSession(resource: URI, chatTitle: string | undefined, sessionTitle?: string): IActiveAgentHostSessionForExport | undefined {
 	if (resource.scheme === COPILOT_CLI_LOCAL_AH_SCHEME) {
-		return { resource, title, isLocal: true };
+		return { resource: resource.with({ fragment: null }), sessionTitle, chatTitle, isLocal: true, chatId: resource.fragment || DEFAULT_CHAT_ID, backendChatResource: undefined };
 	}
 	if (parseRemoteAuthorityFromScheme(resource.scheme)) {
-		return { resource, title, isLocal: false };
+		return { resource: resource.with({ fragment: null }), sessionTitle, chatTitle, isLocal: false, chatId: resource.fragment || DEFAULT_CHAT_ID, backendChatResource: undefined };
 	}
 	return undefined;
 }
