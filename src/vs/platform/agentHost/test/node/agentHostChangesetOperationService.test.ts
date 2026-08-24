@@ -94,6 +94,7 @@ class TestConfigurationService implements IAgentConfigurationService {
 
 	readonly onDidRootConfigChange = Event.None;
 	readonly onDidSessionConfigChange = Event.None;
+	readonly onDidChangeWorkingDirectoryPending = Event.None;
 
 	constructor(private _workingDirectories: string[] | undefined) { }
 

@@ -6,16 +6,18 @@
 import assert from 'assert';
 import * as dom from '../../../../../base/browser/dom.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { CHAT_WIDGET_VIEW_STATE_CACHE_LIMIT } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { ChatInputNoticeHost, ChatInputNoticeLane } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputNoticeHost.js';
-import { SessionType } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { ChatViewSessionTypeDelegate, findTranscriptContextEntry, getChatViewSessionType, getGettingReadyMessage, NewChatView, shouldShowGettingReady } from '../../browser/chatView.js';
+import { isChatInputStackSlotShowing } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputStack.js';
+import { findTranscriptContextEntry, getTranscriptProgress, NewChatView, shouldShowSessionChatTip, shouldShowTranscriptPreparationProgress } from '../../browser/chatView.js';
 import { SessionsChatViewStateService } from '../../browser/chatViewStateService.js';
 import { NewChatInSessionWidget } from '../../browser/newChatInSessionWidget.js';
 import { NewChatWidget } from '../../browser/newChatWidget.js';
 import { IChatRequestTranscriptContextVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
+import { SessionStatus } from '../../../../services/sessions/common/session.js';
 
 suite('Sessions - Chat View', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -27,7 +29,9 @@ suite('Sessions - Chat View', () => {
 
 	test('forwards new chat visibility to the aquarium host', () => {
 		const forwarded: boolean[] = [];
+		const isVisible = observableValue(disposables, true);
 		const view: NewChatView = Object.assign(Object.create(NewChatView.prototype), {
+			_isVisibleObs: isVisible,
 			_widget: Object.assign(Object.create(NewChatWidget.prototype), {
 				setHostVisible: (visible: boolean) => forwarded.push(visible),
 			}),
@@ -36,44 +40,18 @@ suite('Sessions - Chat View', () => {
 		view.setVisible(false);
 		view.setVisible(true);
 
-		assert.deepStrictEqual(forwarded, [false, true]);
+		assert.deepStrictEqual({ forwarded, petHostVisible: isVisible.get() }, { forwarded: [false, true], petHostVisible: true });
 	});
 
 	test('does not forward aquarium visibility to the peer chat composer', () => {
+		const isVisible = observableValue(disposables, true);
 		const view: NewChatView = Object.assign(Object.create(NewChatView.prototype), {
+			_isVisibleObs: isVisible,
 			_widget: Object.create(NewChatInSessionWidget.prototype),
 		});
 
 		assert.doesNotThrow(() => view.setVisible(false));
-	});
-
-	test('defaults the session target to Agent Host and preserves the loaded session type', () => {
-		assert.deepStrictEqual({
-			beforeChatAssigned: getChatViewSessionType(undefined),
-			agentHost: getChatViewSessionType(URI.parse(`${SessionType.AgentHostClaude}:///chat`)),
-			extensionHost: getChatViewSessionType(URI.parse(`${SessionType.CopilotCLI}:///chat`)),
-		}, {
-			beforeChatAssigned: SessionType.AgentHostCopilot,
-			agentHost: SessionType.AgentHostClaude,
-			extensionHost: SessionType.CopilotCLI,
-		});
-	});
-
-	test('announces the destination session type before its chat model loads', () => {
-		const delegate = disposables.add(new ChatViewSessionTypeDelegate());
-		const changes: string[] = [];
-		disposables.add(delegate.onDidChangeActiveSessionProvider(type => changes.push(type)));
-
-		delegate.setChatResource(URI.parse(`${SessionType.AgentHostClaude}:///chat`));
-		delegate.setChatResource(URI.parse(`${SessionType.CopilotCLI}:///chat`));
-
-		assert.deepStrictEqual({
-			initial: getChatViewSessionType(undefined),
-			changes,
-		}, {
-			initial: SessionType.AgentHostCopilot,
-			changes: [SessionType.AgentHostClaude, SessionType.CopilotCLI],
-		});
+		assert.strictEqual(isVisible.get(), false);
 	});
 
 	test('stores view state independently by chat resource', () => {
@@ -108,12 +86,12 @@ suite('Sessions - Chat View', () => {
 	});
 
 
-	test('shows getting ready until a hidden bootstrap completes or visible content appears', () => {
+	test('allows transcript progress until a hidden bootstrap completes or visible content appears', () => {
 		assert.deepStrictEqual({
-			empty: shouldShowGettingReady(0, 0, undefined),
-			hiddenPending: shouldShowGettingReady(1, 0, true),
-			hiddenComplete: shouldShowGettingReady(1, 0, false),
-			visiblePending: shouldShowGettingReady(2, 1, true),
+			empty: shouldShowTranscriptPreparationProgress(0, 0, undefined),
+			hiddenPending: shouldShowTranscriptPreparationProgress(1, 0, true),
+			hiddenComplete: shouldShowTranscriptPreparationProgress(1, 0, false),
+			visiblePending: shouldShowTranscriptPreparationProgress(2, 1, true),
 		}, {
 			empty: true,
 			hiddenPending: true,
@@ -122,15 +100,33 @@ suite('Sessions - Chat View', () => {
 		});
 	});
 
-	test('shows current worktree activity while getting ready', () => {
+	test('shows the session-list status message in the pre-request progress surface', () => {
 		assert.deepStrictEqual({
-			activity: getGettingReadyMessage(true, 'Creating isolated worktree (42%)', 'Getting ready...'),
-			fallback: getGettingReadyMessage(true, undefined, 'Getting ready...'),
-			visibleRequest: getGettingReadyMessage(false, 'Creating isolated worktree (42%)', 'Getting ready...'),
+			fallback: getTranscriptProgress(true, 'Working...'),
+			activity: getTranscriptProgress(true, 'Creating isolated worktree (42%)'),
+			noActivity: getTranscriptProgress(true, undefined),
+			visibleRequest: getTranscriptProgress(false, 'Creating isolated worktree (42%)'),
 		}, {
+			fallback: 'Working...',
 			activity: 'Creating isolated worktree (42%)',
-			fallback: 'Getting ready...',
+			noActivity: undefined,
 			visibleRequest: undefined,
+		});
+	});
+
+	test('does not show chat tips while the initial request is active', () => {
+		assert.deepStrictEqual({
+			unbound: shouldShowSessionChatTip(undefined),
+			untitled: shouldShowSessionChatTip(SessionStatus.Untitled),
+			inProgress: shouldShowSessionChatTip(SessionStatus.InProgress),
+			needsInput: shouldShowSessionChatTip(SessionStatus.NeedsInput),
+			completed: shouldShowSessionChatTip(SessionStatus.Completed),
+		}, {
+			unbound: true,
+			untitled: true,
+			inProgress: false,
+			needsInput: false,
+			completed: true,
 		});
 	});
 
@@ -167,7 +163,7 @@ suite('Sessions - Chat View', () => {
 
 		const showing = () => {
 			const tip = container.querySelector<HTMLElement>('.sub-session-tip-container');
-			return !!tip && tip.style.display !== 'none';
+			return !!tip && isChatInputStackSlotShowing(tip);
 		};
 		const shownInitially = showing();
 		// A notification owns the space outright, so the banner must not stack with it.

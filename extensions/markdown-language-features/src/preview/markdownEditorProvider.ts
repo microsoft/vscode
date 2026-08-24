@@ -17,6 +17,7 @@ import type {
 	MarkdownContributionProvider,
 } from '../markdownExtensions';
 import { generateUuid } from '../util/uuid';
+import { MarkdownEditorRichLinkController } from './markdownEditorRichLinks';
 
 interface CodeBlockEditorProviderDefinition {
 	readonly id: string;
@@ -98,6 +99,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 	readonly #linkOpener: MdLinkOpener;
 	readonly #contributions: MarkdownContributionProvider;
 	readonly #logger: ILogger;
+	readonly #tryOpenLink: (href: string) => Promise<boolean>;
 	readonly #webviewPanels = new Map<vscode.WebviewPanel, AuthenticatedWebview>();
 	readonly #focusedWebviewPanels = new Set<vscode.WebviewPanel>();
 	readonly #providerApis = new Map<string, Promise<MarkdownCodeBlockEditorProviderApi | undefined>>();
@@ -110,6 +112,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 		linkOpener: MdLinkOpener,
 		contributions: MarkdownContributionProvider,
 		logger: ILogger,
+		tryOpenLink: (href: string) => Promise<boolean>,
 	) {
 		super();
 		this.#extensionUri = extensionUri;
@@ -117,6 +120,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 		this.#linkOpener = linkOpener;
 		this.#contributions = contributions;
 		this.#logger = logger;
+		this.#tryOpenLink = tryOpenLink;
 		this.#mediaRoot = vscode.Uri.joinPath(this.#extensionUri, 'markdown-editor-out');
 		this._register(new vscode.Disposable(() => {
 			void vscode.commands.executeCommand('setContext', 'markdownEditorFocus', false);
@@ -192,6 +196,12 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 		let codeBlockEditorProviders: readonly CodeBlockEditorProviderDefinition[] | undefined;
 		let contributionUpdate = 0;
 		const resolveCancellation = new vscode.CancellationTokenSource();
+		const richLinks = new MarkdownEditorRichLinkController(
+			document,
+			this.#linkOpener,
+			this.#logger,
+			message => editorWebview.postMessage(message),
+		);
 		const postCodeBlockEditorProviders = async (): Promise<void> => {
 			if (webviewReady && codeBlockEditorProviders) {
 				await editorWebview.postMessage({ type: 'codeBlockEditorProviders', codeBlockEditorProviders });
@@ -247,6 +257,13 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 					break;
 				}
 
+				case 'richLinkTargets': {
+					if (Array.isArray(message.hrefs)) {
+						richLinks.updateTargets(message.hrefs.filter((href: unknown): href is string => typeof href === 'string'));
+					}
+					break;
+				}
+
 				case 'editorFocusChanged': {
 					if (message.focused) {
 						this.#focusedWebviewPanels.add(webviewPanel);
@@ -279,7 +296,9 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 					break;
 				}
 				case 'openLink': {
-					await this.#linkOpener.openDocumentLink(message.href as string, document.uri);
+					if (typeof message.href === 'string' && !await this.#tryOpenLink(message.href)) {
+						await this.#linkOpener.openDocumentLink(message.href, document.uri);
+					}
 					break;
 				}
 				case 'edit': {
@@ -358,6 +377,18 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 		const onDidRenameFiles = vscode.workspace.onDidRenameFiles(event => invalidateResourceCache(
 			event.files.flatMap(file => [file.oldUri, file.newUri])));
 		const onDidChangeViewState = webviewPanel.onDidChangeViewState(() => this.#updateEditorFocusContext());
+		const onDidChangeRichLinksConfiguration = vscode.workspace.onDidChangeConfiguration(event => {
+			if (event.affectsConfiguration('markdown.experimental.richLinks.enabled', document.uri)) {
+				richLinks.updateTargets([]);
+				webviewReady = false;
+				this.#configureWebview(document, editorWebview);
+			}
+		});
+		const onDidChangeLinkPresentationRules = vscode.window.onDidChangeLinkPresentationRules(() => {
+			richLinks.updateTargets([]);
+			webviewReady = false;
+			this.#configureWebview(document, editorWebview);
+		});
 
 		webviewPanel.onDidDispose(() => {
 			contributionUpdate++;
@@ -378,6 +409,9 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 			onDidDeleteFiles.dispose();
 			onDidRenameFiles.dispose();
 			onDidChangeViewState.dispose();
+			onDidChangeRichLinksConfiguration.dispose();
+			onDidChangeLinkPresentationRules.dispose();
+			richLinks.dispose();
 		});
 	}
 
@@ -727,6 +761,13 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 			content: document.getText(),
 			documentVersion: document.version,
 			readonly: this.#globalState.get(MarkdownEditorProvider.#readonlyStateKey, true),
+			richLinksEnabled: vscode.workspace.getConfiguration('markdown').get<boolean>('experimental.richLinks.enabled', false),
+			linkPresentationRules: vscode.window.linkPresentationRules.map(rule => ({
+				id: rule.id,
+				source: rule.uriPattern.source,
+				flags: rule.uriPattern.flags,
+				initialKind: rule.initialKind === 'chat' ? 'session' : rule.initialKind,
+			})),
 		});
 
 		const body = /* html */ `

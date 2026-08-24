@@ -105,7 +105,7 @@
 }
 
 .monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-update-container:not(.has-no-actions) {
-	margin-left: 4px;
+	margin-right: var(--vscode-spacing-size40);
 }
 
 .monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-center > .titlebar-actions-container.overflowing,

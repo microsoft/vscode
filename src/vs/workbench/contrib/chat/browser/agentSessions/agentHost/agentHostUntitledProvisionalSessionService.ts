@@ -50,7 +50,7 @@
 
 import { SequencerByKey } from '../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../../../base/common/map.js';
 import { equals } from '../../../../../../base/common/objects.js';
 import { autorun } from '../../../../../../base/common/observable.js';
@@ -68,13 +68,15 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
-import { IWorkspaceContextService, WorkbenchState } from '../../../../../../platform/workspace/common/workspace.js';
+import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { IWorkspaceContextService, IWorkspaceFoldersChangeEvent, WorkbenchState } from '../../../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { ChatConfiguration, getChatPermissionLevelFromDefaultConfiguration, type IChatDefaultConfiguration } from '../../../common/constants.js';
+import { isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { IAgentHostNewSessionFolderService, computeDesiredWorkingDirectories, computeWorkingDirectories, hasImmutablePrimaryWorkingDirectory, supportsMultipleWorkingDirectories } from './agentHostNewSessionFolderService.js';
-import { IAgentHostActiveClientService } from './agentHostActiveClientService.js';
+import { IAgentCustomizationScope, IAgentHostActiveClientService } from './agentHostActiveClientService.js';
 import { type IAgentHostImportConversation, IAgentHostImportConversationStore } from './agentHostImportConversationStore.js';
 
 export const IAgentHostUntitledProvisionalSessionService =
@@ -110,8 +112,14 @@ export interface IAgentHostUntitledProvisionalSessionService {
 	 */
 	getInitialSessionConfig(): Record<string, unknown> | undefined;
 
-	/** Initial session metadata contributed by the current Editor workspace. */
-	getInitialSessionMetadata(): Record<string, unknown> | undefined;
+	/** Initial session metadata, including any metadata registered for the resource. */
+	getInitialSessionMetadata(sessionResource?: URI): Record<string, unknown> | undefined;
+
+	/** Associates creation metadata with a real chat resource until the backend session is created. */
+	setSessionCreationMetadata(sessionResource: URI, metadata: Record<string, unknown>): void;
+
+	/** Drops creation metadata after the backend session has been created or abandoned. */
+	clearSessionCreationMetadata(sessionResource: URI): void;
 
 	/**
 	 * Ensure a backend provisional exists for an untitled chat UI resource.
@@ -156,7 +164,6 @@ export interface IAgentHostUntitledProvisionalSessionService {
 		oldSessionResource: URI,
 		newSessionResource: URI,
 		provider: string,
-		workingDirectory: URI | undefined,
 	): Promise<URI | undefined>;
 
 	/**
@@ -196,9 +203,30 @@ interface IProvisionalGeneration {
 
 type ProvisionalOperationResult = URI | void;
 
+class ActiveClientBinding extends Disposable {
+	constructor(
+		readonly roots: readonly URI[],
+		readonly scope: IAgentCustomizationScope | undefined,
+		clientId: string,
+		publish: () => void,
+	) {
+		super();
+		if (scope) {
+			this._register(scope);
+			this._register(autorun(reader => {
+				if (!scope.isResolved.read(reader)) {
+					return;
+				}
+				scope.activeClient(clientId).read(reader);
+				publish();
+			}));
+		}
+	}
+}
+
 interface IEntry {
 	readonly provider: string;
-	readonly activeClientSync: DisposableStore;
+	readonly activeClientBinding: MutableDisposable<ActiveClientBinding>;
 	generation: IProvisionalGeneration | undefined;
 	/**
 	 * Workbench-owned snapshot of session-config values for this provisional.
@@ -239,6 +267,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 	private readonly _pending = new ResourceMap<Promise<ProvisionalOperationResult>>();
 	private readonly _resolvedConfigs = new ResourceMap<ResolveSessionConfigResult>();
 	private readonly _resolvedConfigRequestSeq = new ResourceMap<number>();
+	private readonly _sessionCreationMetadata = new ResourceMap<Record<string, unknown>>();
 	private readonly _pendingBackendDisposals = new ResourceSet();
 	// URIs that were the source of a successful `tryRebind`. The chat widget
 	// briefly reattaches to the old untitled URI before its viewModel switches
@@ -260,6 +289,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IAgentHostImportConversationStore private readonly _importConversationStore: IAgentHostImportConversationStore,
 		@IAgentHostActiveClientService private readonly _activeClientService: IAgentHostActiveClientService,
+		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 	) {
 		super();
 
@@ -275,6 +305,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 				}
 				this._resolvedConfigs.delete(sessionResource);
 				this._resolvedConfigRequestSeq.delete(sessionResource);
+				this._sessionCreationMetadata.delete(sessionResource);
 				// Drop any tombstone for the abandoned untitled URI so the
 				// set doesn't grow unbounded across the workbench lifetime.
 				this._rebound.delete(sessionResource);
@@ -286,6 +317,14 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		// a provisional backend session (built up by config chips), recreate that
 		// provisional at the new cwd so chip schemas resolve against it. The
 		// service owns this reaction so concurrent chip instances don't race.
+		//
+		// This path is intentionally not gated to untitled drafts: it stays safe
+		// for started sessions because on workspace-folder removal the folder
+		// service *clears* (never reselects) the removed selection, so `getFolder`
+		// returns `undefined` and this becomes a no-op — a started session keeps
+		// its immutable primary. If the folder service is ever changed to reselect
+		// a real resource's selection on removal, add an isUntitledChatSession
+		// guard here too.
 		this._register(this._newSessionFolderService.onDidChangeFolder(sessionResource => {
 			const folder = this._newSessionFolderService.getFolder(sessionResource);
 			if (folder && this._entries.has(sessionResource)) {
@@ -296,14 +335,20 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		// differs from what the existing provisional was created with, dispose that
 		// backend session and create a replacement provisional session with the new
 		// set of directories.
-		this._register(this._workspaceContextService.onDidChangeWorkspaceFolders(() => {
+		this._register(this._workspaceContextService.onDidChangeWorkspaceFolders(e => {
 			for (const [sessionResource, entry] of this._entries) {
 				if (entry.disposed) {
+					continue;
+				}
+				// Untitled drafts reselect removed primaries; rebound sessions retain their immutable primary.
+				if (isUntitledChatSession(sessionResource) && this._primaryWasRemoved(entry, e)) {
+					void this._changeWorkingDirectory(sessionResource, this._newSessionFolderService.resolveNewSessionPrimary(sessionResource));
 					continue;
 				}
 				if (!entry.usesWorkspaceRootSet && (this._computeWorkingDirectories(entry.workingDirectory, entry.provider)?.length ?? 0) > 1) {
 					entry.usesWorkspaceRootSet = true;
 				}
+				this._updateActiveClientScope(entry);
 				if (entry.usesWorkspaceRootSet && !this._generationMatchingDesiredState(entry)) {
 					void this._queue(sessionResource, () => this._reconcileGeneration(sessionResource, entry));
 				}
@@ -337,16 +382,38 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		);
 	}
 
-	getInitialSessionMetadata(): Record<string, unknown> | undefined {
-		const workspace = this._workspaceContextService.getWorkspace();
-		if (this._environmentService.isSessionsWindow
-			|| this._workspaceContextService.getWorkbenchState() !== WorkbenchState.WORKSPACE
-			|| !URI.isUri(workspace.configuration)) {
-			return undefined;
+	private _updateActiveClientScope(entry: IEntry): void {
+		const roots = this._computeEntryWorkingDirectories(entry) ?? [];
+		if (entry.activeClientBinding.value && this._activeClientService.areScopeRootsEqual(entry.activeClientBinding.value.roots, roots)) {
+			return;
 		}
-		return withSessionMultiRootMetadata(undefined, {
-			workspaceFile: workspace.configuration.toString(),
-		});
+
+		const scope = this._activeClientService.acquireScope(`agent-host-${entry.provider}`, roots);
+		entry.activeClientBinding.value = new ActiveClientBinding(roots, scope, this._agentHostService.clientId, () => this._publishActiveClient(entry));
+	}
+
+	getInitialSessionMetadata(sessionResource?: URI): Record<string, unknown> | undefined {
+		const workspace = this._workspaceContextService.getWorkspace();
+		const workspaceMetadata = this._environmentService.isSessionsWindow
+			|| this._workspaceContextService.getWorkbenchState() !== WorkbenchState.WORKSPACE
+			|| !URI.isUri(workspace.configuration)
+			? undefined
+			: withSessionMultiRootMetadata(undefined, {
+				workspaceFile: workspace.configuration.toString(),
+			});
+		const sessionMetadata = sessionResource ? this._sessionCreationMetadata.get(sessionResource) : undefined;
+		if (!sessionMetadata) {
+			return workspaceMetadata;
+		}
+		return { ...(workspaceMetadata ?? {}), ...sessionMetadata };
+	}
+
+	setSessionCreationMetadata(sessionResource: URI, metadata: Record<string, unknown>): void {
+		this._sessionCreationMetadata.set(sessionResource, metadata);
+	}
+
+	clearSessionCreationMetadata(sessionResource: URI): void {
+		this._sessionCreationMetadata.delete(sessionResource);
 	}
 
 	getInitialSessionConfig(): Record<string, unknown> | undefined {
@@ -417,7 +484,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 	private _createEntry(provider: string, config: Record<string, unknown>, configVersion: number, workingDirectory: URI | undefined, resolvedConfig?: ResolveSessionConfigResult): IEntry {
 		const entry: IEntry = {
 			provider,
-			activeClientSync: new DisposableStore(),
+			activeClientBinding: new MutableDisposable(),
 			generation: undefined,
 			config,
 			configVersion,
@@ -426,10 +493,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 			resolvedConfig,
 			disposed: false,
 		};
-		entry.activeClientSync.add(autorun(reader => {
-			this._activeClientService.getCustomizations(`agent-host-${provider}`).read(reader);
-			this._publishActiveClient(entry);
-		}));
+		this._updateActiveClientScope(entry);
 		return entry;
 	}
 
@@ -437,9 +501,17 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		if (entry.disposed || !entry.generation) {
 			return;
 		}
+		const scope = entry.activeClientBinding.value?.scope;
+		if (!scope?.isResolved.get()) {
+			return;
+		}
+		const activeClient = scope.activeClient(this._agentHostService.clientId).get();
+		if (!activeClient) {
+			return;
+		}
 		this._agentHostService.dispatch(entry.generation.backendSession.toString(), {
 			type: ActionType.SessionActiveClientSet,
-			activeClient: this._activeClientService.getActiveClient(`agent-host-${entry.provider}`, this._agentHostService.clientId),
+			activeClient,
 		});
 	}
 
@@ -470,6 +542,25 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 
 	private _sameUri(first: URI | undefined, second: URI | undefined): boolean {
 		return first === undefined || second === undefined ? first === second : isEqual(first, second);
+	}
+
+	/**
+	 * Whether a draft's primary working directory was just removed from the
+	 * workspace. Only folders present in `e.removed` and no longer among the
+	 * current workspace folders qualify, so a standalone folder outside the
+	 * workspace (never a member) is preserved, and a folder removed and re-added
+	 * in the same event is not treated as gone.
+	 */
+	private _primaryWasRemoved(entry: IEntry, e: IWorkspaceFoldersChangeEvent): boolean {
+		const primary = entry.workingDirectory;
+		if (!primary || e.removed.length === 0) {
+			return false;
+		}
+		// Provider-aware comparator so a case-distinct sibling on a case-sensitive
+		// remote isn't mistaken for the removed primary (matches the folder service).
+		const extUri = this._uriIdentityService.extUri;
+		const stillPresent = this._workspaceContextService.getWorkspace().folders.some(folder => extUri.isEqual(folder.uri, primary));
+		return !stillPresent && e.removed.some(removed => extUri.isEqual(removed.uri, primary));
 	}
 
 	/** Provider-agnostic: only an agent advertising `immutablePrimary` pins index 0. */
@@ -590,7 +681,6 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		oldSessionResource: URI,
 		newSessionResource: URI,
 		provider: string,
-		workingDirectory: URI | undefined,
 	): Promise<URI | undefined> {
 		// Graduation must run after any queued folder or config reconciliation.
 		return this._queue(oldSessionResource, async () => {
@@ -612,7 +702,12 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 				// The workbench cache is authoritative; backend state can lag synchronous chip edits.
 				const config = { ...oldEntry.config };
 				const configVersion = oldEntry.configVersion;
-				const targetWorkingDirectory = oldEntry.workingDirectory ?? workingDirectory;
+				// The draft's own primary is authoritative: it mirrors what
+				// `_computeEntryWorkingDirectories(oldEntry)` sends to the backend, so
+				// the scalar and the array can't diverge. A cleared primary
+				// (`undefined`, last folder removed) therefore lets the host choose
+				// rather than resurrecting a folder that no longer exists.
+				const targetWorkingDirectory = oldEntry.workingDirectory;
 				if (!oldEntry.usesWorkspaceRootSet && (this._computeWorkingDirectories(targetWorkingDirectory, provider)?.length ?? 0) > 1) {
 					oldEntry.usesWorkspaceRootSet = true;
 				}
@@ -647,7 +742,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 					return undefined;
 				}
 				if (oldEntry.configVersion !== configVersion
-					|| !this._sameUri(oldEntry.workingDirectory ?? workingDirectory, targetWorkingDirectory)
+					|| !this._sameUri(oldEntry.workingDirectory, targetWorkingDirectory)
 					|| !this._sameWorkingDirectories(oldEntry.provider, this._computeEntryWorkingDirectories(oldEntry), targetWorkingDirectories)) {
 					const disposed = await this._disposeBackend(created, 'obsolete rebound candidate');
 					if (!disposed) {
@@ -661,12 +756,13 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 				// Publish the real mapping before retiring the untitled entry so consumers never observe a partial swap.
 				const newEntry = this._createEntry(provider, config, configVersion, targetWorkingDirectory, oldEntry.resolvedConfig);
 				newEntry.usesWorkspaceRootSet = oldEntry.usesWorkspaceRootSet;
+				this._updateActiveClientScope(newEntry);
 				newEntry.generation = { backendSession: created, workingDirectory: targetWorkingDirectory, workingDirectories: targetWorkingDirectories };
 				this._entries.set(newSessionResource, newEntry);
 				this._publishActiveClient(newEntry);
 				this._entries.delete(oldSessionResource);
 				oldEntry.disposed = true;
-				oldEntry.activeClientSync.dispose();
+				oldEntry.activeClientBinding.dispose();
 				this._resolvedConfigs.delete(oldSessionResource);
 				this._resolvedConfigRequestSeq.delete(oldSessionResource);
 				this._rebound.add(oldSessionResource);
@@ -696,14 +792,20 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 	 * session's cwd is immutable, so the only way to honor a folder change is to
 	 * dispose and recreate. The replacement uses a fresh backend URI so existing
 	 * subscribers acquire an authoritative snapshot for the new incarnation.
+	 *
+	 * `newWorkingDirectory` may be `undefined` when the workspace has no folders
+	 * left (e.g. the draft's only/primary folder was removed); the provisional is
+	 * then recreated with no working directory, letting the host choose — the same
+	 * as a draft first created in an empty workspace.
 	 */
-	private _changeWorkingDirectory(sessionResource: URI, newWorkingDirectory: URI): Promise<void> {
+	private _changeWorkingDirectory(sessionResource: URI, newWorkingDirectory: URI | undefined): Promise<void> {
 		const entry = this._entries.get(sessionResource);
 		if (!entry || entry.disposed || this._sameUri(entry.workingDirectory, newWorkingDirectory)) {
 			return Promise.resolve();
 		}
 		entry.workingDirectory = newWorkingDirectory;
 		entry.usesWorkspaceRootSet = (this._computeWorkingDirectories(newWorkingDirectory, entry.provider)?.length ?? 0) > 1;
+		this._updateActiveClientScope(entry);
 		entry.configVersion++;
 		entry.resolvedConfig = undefined;
 		const work = this._queue(sessionResource, async () => {
@@ -741,11 +843,12 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		const entry = this._entries.get(sessionResource);
 		this._resolvedConfigs.delete(sessionResource);
 		this._resolvedConfigRequestSeq.delete(sessionResource);
+		this._sessionCreationMetadata.delete(sessionResource);
 		if (!entry) {
 			return Promise.resolve();
 		}
 		entry.disposed = true;
-		entry.activeClientSync.dispose();
+		entry.activeClientBinding.dispose();
 		this._entries.delete(sessionResource);
 		this._onDidChange.fire(sessionResource);
 		return this._queue(sessionResource, async () => {
@@ -761,7 +864,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		// awaiting in `dispose()` to keep workbench teardown synchronous.
 		for (const [, entry] of this._entries) {
 			entry.disposed = true;
-			entry.activeClientSync.dispose();
+			entry.activeClientBinding.dispose();
 			if (entry.generation) {
 				this._agentHostService.disposeSession(entry.generation.backendSession).catch(() => { /* swallow on shutdown */ });
 			}
@@ -774,6 +877,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		this._pendingBackendDisposals.clear();
 		this._resolvedConfigs.clear();
 		this._resolvedConfigRequestSeq.clear();
+		this._sessionCreationMetadata.clear();
 		this._rebound.clear();
 		super.dispose();
 	}

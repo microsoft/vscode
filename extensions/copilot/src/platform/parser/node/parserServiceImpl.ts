@@ -123,6 +123,10 @@ class WorkerOrLocal<T extends object> {
 		const self = this;
 		return new Proxy({} as Proxied<T>, {
 			get(_target, prop) {
+				// Answering `then` makes this proxy a thenable, so `await` would call the worker and never settle.
+				if (prop === 'then') {
+					return undefined;
+				}
 				return async (...args: unknown[]) => {
 					const timedOut = Symbol();
 					const workerProxy = self._worker.value.proxy;

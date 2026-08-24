@@ -28,6 +28,8 @@ export interface IAgentHostTargetLaunchOptions {
 	readonly homeDir: string;
 	/** Absolute path to a user-data directory the implementation must confine its own state to. */
 	readonly userDataDir: string;
+	/** Absolute path to the Codex home directory. */
+	readonly codexHomeDir: string;
 	/** Record/replay proxy configuration fronting the model boundary. */
 	readonly capiReplay: { readonly fixturePath: string; readonly mode?: CapiReplayMode; readonly real?: boolean };
 	/** Existing replay proxy whose consumed exchange sequence must survive a target restart. */
@@ -66,6 +68,7 @@ export const vscodeAgentHostTarget: IAgentHostTarget = {
 		return startRealServer({
 			homeDir: options.homeDir,
 			userDataDir: options.userDataDir,
+			codexHomeDir: options.codexHomeDir,
 			capiReplay: options.capiReplay,
 			existingCapiReplay: options.existingCapiReplay,
 			claudeSdkRoot: options.claudeSdkRoot,

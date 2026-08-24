@@ -167,7 +167,6 @@ export class AutomationSchedulerCore extends Disposable {
 				timeoutMs,
 				() => {
 					timedOut = true;
-					this.logService.warn(`[AutomationScheduler] runOnce for automation ${automation.id} timed out after ${timeoutMs}ms.`);
 				},
 			);
 
@@ -179,14 +178,21 @@ export class AutomationSchedulerCore extends Disposable {
 			try {
 				const active = this.automationService.getActiveRunFor(automation.id);
 				if (active) {
-					await this.automationService.updateRun(active.id, {
+					const updated = await this.automationService.updateRun(active.id, {
 						status: 'failed',
 						errorMessage: localize('automation.timedOut', "Timed out after {0} minute(s).", Math.round(timeoutMs / 60_000)),
 						completedAt: this._now().toISOString(),
 					});
+					if (updated) {
+						this.logService.warn(`[AutomationScheduler] automation ${automation.id} timed out after ${timeoutMs}ms; marked run ${active.id} failed (previousStatus=${active.status}, session=${updated.sessionResource?.toString() ?? '(none)'}).`);
+					} else {
+						this.logService.warn(`[AutomationScheduler] automation ${automation.id} timed out after ${timeoutMs}ms, but active run ${active.id} disappeared before it could be marked failed (previousStatus=${active.status}, session=${active.sessionResource?.toString() ?? '(none)'}).`);
+					}
+				} else {
+					this.logService.warn(`[AutomationScheduler] automation ${automation.id} timed out after ${timeoutMs}ms with no active run recorded.`);
 				}
 			} catch (err) {
-				this.logService.warn('[AutomationScheduler] failed to mark timed-out run as failed', err);
+				this.logService.warn(`[AutomationScheduler] automation ${automation.id} timed out after ${timeoutMs}ms and failed to mark its active run as failed.`, err);
 			}
 			perRunCts.cancel();
 		} finally {

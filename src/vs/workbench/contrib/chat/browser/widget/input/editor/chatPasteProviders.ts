@@ -26,17 +26,24 @@ import { localize } from '../../../../../../../nls.js';
 import { IEnvironmentService } from '../../../../../../../platform/environment/common/environment.js';
 import { IFileService } from '../../../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
+import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../../../../platform/log/common/log.js';
 import { IExtensionService, isProposedApiEnabled } from '../../../../../../services/extensions/common/extensions.js';
 import { IChatRequestPasteVariableEntry, IChatRequestVariableEntry, isImageVariableEntry, toPasteVariableEntry, ChatPasteAttachmentMetadata } from '../../../../common/attachments/chatVariableEntries.js';
 import { chatVariableLeader } from '../../../../common/requestParser/chatParserTypes.js';
 import { IDynamicVariable } from '../../../../common/attachments/chatVariables.js';
 import { IChatPasteTarget, IChatPasteTargetService } from '../../../chat.js';
-import { chatInputSchemes, isChatInputModel } from '../../../../common/constants.js';
+import { chatInputSchemes, isChatInputModel, ChatConfiguration } from '../../../../common/constants.js';
 import { cleanupOldImages, createFileForMedia, resizeImage } from '../../../chatImageUtils.js';
 
 const COPY_MIME_TYPES = 'application/vnd.code.additional-editor-data';
-const pastedTextArtifactMinLength = 1000;
+export const pastedTextArtifactDefaultMinLength = 10000;
+/**
+ * A long single line, such as a URL, a stack frame, or a dictated sentence, is
+ * content the user means to write with, so length alone must not turn it into
+ * an attachment. Only text that is also shaped like a document qualifies.
+ */
+const pastedTextArtifactMinLines = 10;
 export const CHAT_ATTACHMENT_MIME_TYPE = 'application/vnd.chat.attachment+json';
 
 interface SerializedCopyData {
@@ -345,6 +352,7 @@ export class PasteTextProvider implements DocumentPasteEditProvider {
 		private readonly pasteTargetService: IChatPasteTargetService,
 		private readonly modelService: IModelService,
 		private readonly logService: ILogService,
+		private readonly configurationService: IConfigurationService,
 	) { }
 
 	async provideDocumentPasteEdits(model: ITextModel, ranges: readonly IRange[], dataTransfer: IReadonlyVSDataTransfer, _context: DocumentPasteContext, token: CancellationToken): Promise<DocumentPasteEditsSession | undefined> {
@@ -400,7 +408,10 @@ export class PasteTextProvider implements DocumentPasteEditProvider {
 		if (token.isCancellationRequested) {
 			return;
 		}
-		const artifact = hasRicherPaste ? undefined : createPastedTextArtifact(textdata, target.attachments, markdown);
+		const artifact = hasRicherPaste ? undefined : createPastedTextArtifact(textdata, target.attachments, {
+			content: markdown,
+			minLength: this.configurationService.getValue<number>(ChatConfiguration.PasteAsAttachmentThreshold, { resource: model.uri }),
+		});
 		if (artifact) {
 			if (ranges.length !== 1 || target.isTerminalCommandPaste(textdata, ranges[0])) {
 				return;
@@ -448,10 +459,16 @@ export class PasteTextProvider implements DocumentPasteEditProvider {
 export function createPastedTextArtifact(
 	text: string,
 	existingAttachments: readonly IChatRequestVariableEntry[],
-	/** Richer representation to store instead of `text`, e.g. Markdown from pasted HTML. */
-	content?: string,
+	options?: {
+		/** Richer representation to store instead of `text`, e.g. Markdown from pasted HTML. */
+		readonly content?: string;
+		/** Character count the paste must exceed to become an attachment. */
+		readonly minLength?: number;
+	},
 ): { readonly attachment: IChatRequestPasteVariableEntry; readonly referenceText: string } | undefined {
-	if (text.trim().length < pastedTextArtifactMinLength) {
+	const trimmed = text.trim();
+	const minLength = options?.minLength ?? pastedTextArtifactDefaultMinLength;
+	if (trimmed.length < minLength || countLines(trimmed) < pastedTextArtifactMinLines) {
 		return undefined;
 	}
 
@@ -461,8 +478,9 @@ export function createPastedTextArtifact(
 		name = localize('pastedTextArtifact.name', "Pasted text #{0}", index++);
 	} while (existingAttachments.some(attachment => attachment.name === name));
 
+	const content = options?.content;
 	const value = content ?? text;
-	const lineCount = value.split(/\r\n|\r|\n/).length;
+	const lineCount = countLines(value);
 	const pastedLines = lineCount === 1
 		? localize('pastedTextArtifact.oneLine', "1 line")
 		: localize('pastedTextArtifact.multipleLines', "{0} lines", lineCount);
@@ -477,6 +495,10 @@ export function createPastedTextArtifact(
 		attachment,
 		referenceText: `${chatVariableLeader}attachment:${name}`,
 	};
+}
+
+function countLines(value: string): number {
+	return value.split(/\r\n|\r|\n/).length;
 }
 
 function getCopiedContext(code: string, file: URI, language: string, range: IRange): IChatRequestPasteVariableEntry {
@@ -846,12 +868,13 @@ export class ChatPasteProvidersFeature extends Disposable {
 		@IModelService modelService: IModelService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@ILogService logService: ILogService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
 		const chatInputProviders: DocumentPasteEditProvider[] = [
 			instaService.createInstance(CopyAttachmentsProvider),
 			new PasteImageProvider(pasteTargetService, extensionService, fileService, environmentService, logService),
-			new PasteTextProvider(pasteTargetService, modelService, logService),
+			new PasteTextProvider(pasteTargetService, modelService, logService, configurationService),
 			new PasteHtmlProvider(),
 		];
 		for (const scheme of chatInputSchemes) {

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 
-import { IChatEndpoint, IChatEndpointTokenPricing } from '../../../platform/networking/common/networking';
+import { IChatEndpoint, IChatEndpointTokenPricing, PENDING_DEPRECATION_CODE } from '../../../platform/networking/common/networking';
 import * as l10n from '@vscode/l10n';
 import type { LanguageModelChatInformation, LanguageModelConfigurationSchema } from 'vscode';
 
@@ -127,6 +127,23 @@ export function buildAutoModeTierSchemaProperty(tiers: readonly string[], defaul
 		default: defaultTier,
 		group: 'navigation',
 	};
+}
+
+/**
+ * Resolves the model picker's warning presentation. All warnings show as hover banners,
+ * but only a degradation or a pending deprecation flags the row, and `rowWarning` is the
+ * message explaining it. Callers must skip the synthetic Auto model, which wraps another
+ * endpoint and must not inherit its warnings.
+ */
+export function resolveModelWarnings(endpoint: Pick<IChatEndpoint, 'warningText' | 'degradationReason'>): { texts: Record<string, string>; rowWarning: string | undefined } | undefined {
+	const texts: Record<string, string> = { ...endpoint.warningText };
+	if (endpoint.degradationReason) {
+		texts['degradation'] = endpoint.degradationReason;
+	}
+	if (Object.keys(texts).length === 0) {
+		return undefined;
+	}
+	return { texts, rowWarning: endpoint.degradationReason ?? texts[PENDING_DEPRECATION_CODE] };
 }
 
 /**
@@ -290,6 +307,21 @@ const TOKENS_PER_MILLION = 1_000_000;
 const NANO_AIU_DIVISOR = 1_000_000_000;
 
 /**
+ * A single pricing tier as returned by CAPI. `cache_read_price` and
+ * `max_prompt_tokens` are the current field names; `cache_price` and
+ * `context_max` are the earlier spellings and are still accepted.
+ */
+interface IRawTokenPriceTier {
+	input_price?: number;
+	cache_read_price?: number;
+	cache_price?: number;
+	cache_write_price?: number;
+	output_price?: number;
+	max_prompt_tokens?: number;
+	context_max?: number;
+}
+
+/**
  * Raw token prices from the CAPI billing response. Supports both the tiered
  * format (API 2026-06-01+, prices in AIUs) and the legacy flat format
  * (pre-2026-06-01, prices in nano-AIUs) which is still used by some endpoints
@@ -300,8 +332,8 @@ export interface IRawTokenPrices {
 	input_price?: number;
 	cache_price?: number;
 	output_price?: number;
-	default?: { input_price?: number; cache_price?: number; cache_write_price?: number; output_price?: number; context_max?: number };
-	long_context?: { input_price?: number; cache_price?: number; cache_write_price?: number; output_price?: number; context_max?: number };
+	default?: IRawTokenPriceTier;
+	long_context?: IRawTokenPriceTier;
 }
 
 export interface INormalizedPriceTier {
@@ -334,12 +366,16 @@ export function normalizeTokenPrices(tokenPrices: IRawTokenPrices | undefined): 
 
 	if (defaultTier && defaultTier.input_price !== undefined && defaultTier.output_price !== undefined) {
 		// Tiered format (API 2026-06-01+): values are in AIUs
+		const cacheReadPrice = (tier: IRawTokenPriceTier): number | undefined => {
+			const raw = tier.cache_read_price ?? tier.cache_price;
+			return raw !== undefined ? raw * scale : undefined;
+		};
 		const normalized: INormalizedPriceTier = {
 			inputPrice: defaultTier.input_price * scale,
 			outputPrice: defaultTier.output_price * scale,
-			cachePrice: defaultTier.cache_price !== undefined ? defaultTier.cache_price * scale : undefined,
+			cachePrice: cacheReadPrice(defaultTier),
 			cacheWritePrice: defaultTier.cache_write_price !== undefined ? defaultTier.cache_write_price * scale : undefined,
-			contextMax: defaultTier.context_max,
+			contextMax: defaultTier.max_prompt_tokens ?? defaultTier.context_max,
 		};
 		let longContext: INormalizedPriceTier | undefined;
 		const lc = tokenPrices.long_context;
@@ -347,9 +383,9 @@ export function normalizeTokenPrices(tokenPrices: IRawTokenPrices | undefined): 
 			const lcNormalized: INormalizedPriceTier = {
 				inputPrice: lc.input_price * scale,
 				outputPrice: lc.output_price * scale,
-				cachePrice: lc.cache_price !== undefined ? lc.cache_price * scale : undefined,
+				cachePrice: cacheReadPrice(lc),
 				cacheWritePrice: lc.cache_write_price !== undefined ? lc.cache_write_price * scale : undefined,
-				contextMax: lc.context_max,
+				contextMax: lc.max_prompt_tokens ?? lc.context_max,
 			};
 			// Only include long-context tier when prices differ from default
 			if (lcNormalized.inputPrice !== normalized.inputPrice

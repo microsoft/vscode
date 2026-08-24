@@ -241,7 +241,7 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 	const serverLifetimeService = instantiationService.createInstance(ServerLifetimeService, {
 		enableAutoShutdown: !!args['enable-remote-auto-shutdown'],
 		shutdownWithoutDelay: !!args['remote-auto-shutdown-without-delay'],
-	});
+	}, process.exit);
 	services.set(IServerLifetimeService, serverLifetimeService);
 
 	// ---- Agent host wiring -------------------------------------------------

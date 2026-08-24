@@ -24,7 +24,8 @@ import { IContextViewService } from '../../../../platform/contextview/browser/co
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { CONFIGURE_VOICE_INSTRUCTIONS_ACTION_ID } from '../../chat/browser/actions/configureVoiceInstructionsAction.js';
-import { ChatInputOnboarding, ChatInputOnboardingCard, IChatInputOnboardingBanner, IChatInputOnboardingContext, IChatInputOnboardingHostOptions } from '../../chat/browser/widget/input/chatInputOnboarding.js';
+import { ChatInputOnboarding, IChatInputOnboardingBanner, IChatInputOnboardingContext, IChatInputOnboardingHostOptions } from '../../chat/browser/widget/input/chatInputOnboarding.js';
+import { ChatInputNoticeVariant, ChatInputNoticeWidget } from '../../chat/browser/widget/input/chatInputNoticeWidget.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { asCssVariable, asCssVariableWithDefault, selectBackground, selectListBackground } from '../../../../platform/theme/common/colorRegistry.js';
@@ -675,11 +676,8 @@ interface IVoiceElement {
  * afterwards. The leading icon carries that story: play before the click,
  * animating bars while it speaks, then a check once it is yours.
  */
-export class VoiceModeOnboardingBanner extends Disposable implements IChatInputOnboardingBanner {
+export class VoiceModeOnboardingBanner extends ChatInputNoticeWidget implements IChatInputOnboardingBanner {
 
-	readonly domNode: HTMLElement;
-
-	private readonly card: ChatInputOnboardingCard;
 	private readonly player: VoiceSamplePlayer;
 	private animator: VoiceModeOnboardingAnimator | undefined;
 	private readonly options: IVoiceModeOnboardingBannerOptions;
@@ -711,12 +709,9 @@ export class VoiceModeOnboardingBanner extends Disposable implements IChatInputO
 		@IStorageService private readonly storageService: IStorageService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
-		super();
-
-		this.options = options;
-
-		this.card = this._register(new ChatInputOnboardingCard({
+		super({
 			container: options.container,
+			variant: ChatInputNoticeVariant.Onboarding,
 			className: 'voice-mode-onboarding-banner',
 			ariaLabel: localize('voiceMode.onboarding.region', "Voice Mode introduction"),
 			ariaDescription: localize('voiceMode.onboarding.regionDescription', "Choose how your agent speaks to you. Adjust settings anytime."),
@@ -724,14 +719,15 @@ export class VoiceModeOnboardingBanner extends Disposable implements IChatInputO
 				this.logAction('escape');
 				this.options.onDismiss();
 			},
-		}));
-		this.domNode = this.card.domNode;
+		});
+
+		this.options = options;
 		this.localizedVoice = localizedVoiceForLanguage(this.resolveSpokenLanguage());
 		this.player = this._register(instantiationService.createInstance(VoiceSamplePlayer, this.domNode, options.audioFactory));
 		this._register(this.player.onDidChangePlayingVoice(voiceId => this.updatePlaying(voiceId)));
 
 		const copy = dom.append(this.domNode, dom.$('.voice-mode-onboarding-copy'));
-		const title = dom.append(copy, dom.$('.voice-mode-onboarding-title'));
+		const title = dom.append(copy, dom.$('.chat-input-notice-title.voice-mode-onboarding-title'));
 		title.textContent = localize('voiceMode.onboarding.title', "Welcome to Voice Mode");
 		this.renderDescription(copy);
 
@@ -774,7 +770,7 @@ export class VoiceModeOnboardingBanner extends Disposable implements IChatInputO
 	}
 
 	private renderMicrophonePicker(): void {
-		this.microphonePickerContainer = dom.append(this.domNode, dom.$('.voice-mode-onboarding-microphone-picker'));
+		this.microphonePickerContainer = dom.append(this.domNode, dom.$('.chat-input-notice-picker.voice-mode-onboarding-microphone-picker'));
 		this.microphoneOptions = [{
 			deviceId: '',
 			label: localize('voiceMode.onboarding.systemDefault', "System default"),
@@ -1018,7 +1014,7 @@ export class VoiceModeOnboardingBanner extends Disposable implements IChatInputO
 	 * concatenated onto the end.
 	 */
 	private renderDescription(container: HTMLElement): void {
-		const description = dom.append(container, dom.$('.voice-mode-onboarding-description'));
+		const description = dom.append(container, dom.$('.chat-input-notice-description.voice-mode-onboarding-description'));
 		const text = localize({
 			key: 'voiceMode.onboarding.description',
 			comment: [
@@ -1062,16 +1058,11 @@ export class VoiceModeOnboardingBanner extends Disposable implements IChatInputO
 	 * ever "I am done here" - and closing is what hands the session back.
 	 */
 	private renderClose(): void {
-		this.card.addAction({
+		this.addDismissAction({
 			className: 'voice-mode-onboarding-close',
 			ariaLabel: localize('voiceMode.onboarding.close', "Close the introduction"),
-			icon: Codicon.closeCompact,
 			onActivate: () => this.finish(),
 		});
-	}
-
-	announce(): void {
-		this.card.announce();
 	}
 
 	/**
@@ -1079,19 +1070,12 @@ export class VoiceModeOnboardingBanner extends Disposable implements IChatInputO
 	 * notification, so an invisible introduction is not still playing audio or
 	 * painting every frame.
 	 */
-	setVisible(visible: boolean): void {
+	override setVisible(visible: boolean): void {
+		super.setVisible(visible);
 		this.animator?.setSuspended(!visible);
 		if (!visible) {
 			this.player.stop();
 		}
-	}
-
-	hasFocus(): boolean {
-		return this.card.hasFocus();
-	}
-
-	focus(): void {
-		this.card.focus();
 	}
 
 	private selectVoice(voice: IVoiceModeVoice): void {
@@ -1227,7 +1211,6 @@ export class VoiceModeOnboardingService extends Disposable implements IVoiceMode
 
 		this.onboarding = this._register(this.instantiationService.createInstance(ChatInputOnboarding, {
 			storageKey: AgentsVoiceStorageKeys.IntroBannerShown,
-			hostClass: 'has-voice-mode-onboarding',
 		}));
 	}
 
