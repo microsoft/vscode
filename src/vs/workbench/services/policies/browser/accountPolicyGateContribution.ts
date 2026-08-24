@@ -85,6 +85,7 @@ export class AccountPolicyGateContribution extends Disposable implements IWorkbe
 			this.apply(info, /*forceTelemetry*/ false, /*showNotification*/ true);
 		}));
 		this._register(this.defaultAccountService.onDidChangeManagedSettingsCompatibilityError(error => this.updateManagedSettingsCompatibilityState(error)));
+		this._register(this.defaultAccountService.onDidChangeManagedSettingsRefreshBlocked(() => this.updatePolicyGateState()));
 
 		this._register(disposableTimeout(() => {
 			if (!this.initialised) {
@@ -213,7 +214,9 @@ export class AccountPolicyGateContribution extends Disposable implements IWorkbe
 	}
 
 	private updatePolicyGateState(): void {
-		const blocked = this.isGateRestricted(this.lastInfo) || this.defaultAccountService.managedSettingsCompatibilityError !== null;
+		const blocked = this.isGateRestricted(this.lastInfo)
+			|| this.defaultAccountService.managedSettingsCompatibilityError !== null
+			|| this.defaultAccountService.managedSettingsRefreshBlocked;
 		this.contextKey.set(blocked);
 		this.chatEntitlementService.setForceHidden(blocked);
 	}

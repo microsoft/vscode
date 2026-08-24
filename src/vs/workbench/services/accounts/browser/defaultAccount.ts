@@ -24,6 +24,7 @@ import { IDefaultAccountProvider, IDefaultAccountService, IManagedSettingsCompat
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
+import { COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY, IFileManagedSettingsService, INativeManagedSettingsService, ManagedSettingsData, resolveForceRemoteSettingsRefresh } from '../../../../platform/policy/common/copilotManagedSettings.js';
 import { asJson, asText, IRequestService, isClientError, isSuccess, readHeader, retryAfterFromHeaders } from '../../../../platform/request/common/request.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -65,8 +66,33 @@ export const enum DefaultAccountStatus {
 
 export const CONTEXT_DEFAULT_ACCOUNT_STATE = new RawContextKey<string>('defaultAccountStatus', DefaultAccountStatus.Uninitialized);
 const CACHED_POLICY_DATA_KEY = 'defaultAccount.cachedPolicyData';
+/**
+ * Sticky record of an admin having required a fresh managed-settings fetch. Deliberately stored
+ * outside {@link CACHED_POLICY_DATA_KEY}: the cached policy payload expires after
+ * {@link ACCOUNT_DATA_POLL_INTERVAL_MS} and is dropped when a fetch fails, which would otherwise
+ * take the requirement down with it and silently reopen the gate.
+ */
+const MANAGED_SETTINGS_REFRESH_REQUIRED_KEY = 'defaultAccount.managedSettingsRefreshRequired';
+
+/**
+ * Persisted form of the refresh requirement: the accounts whose organization set the control.
+ * Only the server channel is recorded per account — native MDM and the on-disk file are read live
+ * on every evaluation, so they need no persistence, while a server-delivered value cannot be
+ * re-derived offline. Precedence between the channels is applied when the requirement is read.
+ */
+interface IManagedSettingsRefreshRequirement {
+	readonly accounts: readonly string[];
+	/**
+	 * Last known machine-wide requirement from the local channels. Only a startup hint: those
+	 * channels load asynchronously and start empty, so without it the gate would stand open until
+	 * native MDM reports in. Live values take over as soon as they arrive.
+	 */
+	readonly local?: boolean;
+}
 const ACCOUNT_DATA_POLL_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
 const MANAGED_SETTINGS_REQUEST_TIMEOUT_MS = 5000;
+/** Minimum spacing between cache-bypassing retries while the refresh gate is closed. */
+const MANAGED_SETTINGS_BLOCKED_RETRY_INTERVAL_MS = 60 * 1000;
 
 interface ITokenEntitlementsResponse {
 	token: string;
@@ -126,6 +152,7 @@ export class DefaultAccountService extends Disposable implements IDefaultAccount
 	get managedSettingsFetchedAt(): number | null { return this.defaultAccountProvider?.managedSettingsFetchedAt ?? null; }
 	get managedSettingsRawResponse(): unknown { return this.defaultAccountProvider?.managedSettingsRawResponse ?? null; }
 	get managedSettingsCompatibilityError(): IManagedSettingsCompatibilityError | null { return this.defaultAccountProvider?.managedSettingsCompatibilityError ?? null; }
+	get managedSettingsRefreshBlocked(): boolean { return this.defaultAccountProvider?.managedSettingsRefreshBlocked ?? false; }
 
 	private readonly initBarrier = new Barrier();
 
@@ -140,6 +167,9 @@ export class DefaultAccountService extends Disposable implements IDefaultAccount
 
 	private readonly _onDidChangeManagedSettingsCompatibilityError = this._register(new Emitter<IManagedSettingsCompatibilityError | null>());
 	readonly onDidChangeManagedSettingsCompatibilityError = this._onDidChangeManagedSettingsCompatibilityError.event;
+
+	private readonly _onDidChangeManagedSettingsRefreshBlocked = this._register(new Emitter<boolean>());
+	readonly onDidChangeManagedSettingsRefreshBlocked = this._onDidChangeManagedSettingsRefreshBlocked.event;
 
 	private readonly defaultAccountConfig: IDefaultAccountConfig;
 	private defaultAccountProvider: IDefaultAccountProvider | null = null;
@@ -173,11 +203,15 @@ export class DefaultAccountService extends Disposable implements IDefaultAccount
 
 		this.defaultAccountProvider = provider;
 		this._register(provider.onDidChangeManagedSettingsCompatibilityError(error => this._onDidChangeManagedSettingsCompatibilityError.fire(error)));
+		this._register(provider.onDidChangeManagedSettingsRefreshBlocked(blocked => this._onDidChangeManagedSettingsRefreshBlocked.fire(blocked)));
 		if (this.defaultAccountProvider.policyData) {
 			this._onDidChangePolicyData.fire(this.defaultAccountProvider.policyData);
 		}
 		if (this.defaultAccountProvider.managedSettingsCompatibilityError) {
 			this._onDidChangeManagedSettingsCompatibilityError.fire(this.defaultAccountProvider.managedSettingsCompatibilityError);
+		}
+		if (this.defaultAccountProvider.managedSettingsRefreshBlocked) {
+			this._onDidChangeManagedSettingsRefreshBlocked.fire(true);
 		}
 		provider.refresh().then(account => {
 			this.defaultAccount = account;
@@ -247,8 +281,8 @@ interface IDefaultAccountData {
 }
 
 type ManagedSettingsRequestResult =
-	| { readonly kind: 'success'; readonly data: Partial<IPolicyData> }
-	| { readonly kind: 'noSettings' }
+	| { readonly kind: 'success'; readonly data: Partial<IPolicyData>; readonly accountId: string | undefined }
+	| { readonly kind: 'noSettings'; readonly accountId: string | undefined }
 	| { readonly kind: 'updateRequired'; readonly error: IManagedSettingsCompatibilityError }
 	| { readonly kind: 'unavailable' };
 
@@ -297,6 +331,22 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 	private _managedSettingsCompatibilityError: IManagedSettingsCompatibilityError | null = null;
 	get managedSettingsCompatibilityError(): IManagedSettingsCompatibilityError | null { return this._managedSettingsCompatibilityError; }
 
+	/**
+	 * Accounts whose organization requires a fresh fetch. The server delivers the control per
+	 * account, so one account's response must never speak for another's. Persisted because, unlike
+	 * the local channels, it cannot be re-derived while offline.
+	 */
+	private readonly _serverRefreshRequiredAccounts = new Set<string>();
+	/** @see IManagedSettingsRefreshRequirement.local */
+	private _localRefreshRequiredHint = false;
+	/** Whether the asynchronously-loading local channels have reported, making their values usable. */
+	private _localChannelsReported = false;
+	/** The account for which the server last answered authoritatively, if any (per process). */
+	private _managedSettingsFreshForAccount: string | undefined;
+	private _managedSettingsRefreshBlocked = false;
+	get managedSettingsRefreshBlocked(): boolean { return this._managedSettingsRefreshBlocked; }
+	private _managedSettingsAttemptedAt = 0;
+
 	private readonly _onDidChangeDefaultAccount = this._register(new Emitter<IDefaultAccount | null>());
 	readonly onDidChangeDefaultAccount = this._onDidChangeDefaultAccount.event;
 
@@ -308,6 +358,9 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 
 	private readonly _onDidChangeManagedSettingsCompatibilityError = this._register(new Emitter<IManagedSettingsCompatibilityError | null>());
 	readonly onDidChangeManagedSettingsCompatibilityError = this._onDidChangeManagedSettingsCompatibilityError.event;
+
+	private readonly _onDidChangeManagedSettingsRefreshBlocked = this._register(new Emitter<boolean>());
+	readonly onDidChangeManagedSettingsRefreshBlocked = this._onDidChangeManagedSettingsRefreshBlocked.event;
 
 	private readonly accountStatusContext: IContextKey<string>;
 	private initialized = false;
@@ -331,6 +384,8 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 		@IStorageService private readonly storageService: IStorageService,
 		@IHostService private readonly hostService: IHostService,
 		@ICommandService private readonly commandService: ICommandService,
+		@INativeManagedSettingsService private readonly nativeManagedSettingsService: INativeManagedSettingsService,
+		@IFileManagedSettingsService private readonly fileManagedSettingsService: IFileManagedSettingsService,
 	) {
 		super();
 		this.accountStatusContext = CONTEXT_DEFAULT_ACCOUNT_STATE.bindTo(contextKeyService);
@@ -338,6 +393,17 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 		this._policyData = cachedAccountData?.accountPolicyData ?? null;
 		this._copilotTokenInfo = cachedAccountData?.copilotTokenInfo ?? null;
 		this._managedSettingsCompatibilityError = cachedAccountData?.accountPolicyData.managedSettingsCompatibilityError ?? null;
+		this.restoreManagedSettingsRefreshRequirement();
+		this.seedRefreshRequirementFromCachedPolicy(cachedAccountData?.accountPolicyData);
+		this.updateManagedSettingsRefreshBlocked();
+		// The local channels load asynchronously and start empty. Until they report, fall back to
+		// the persisted hint so an MDM-mandated refresh is not skipped on an offline launch; once
+		// they do, their live values decide (precedence is applied when the requirement is read).
+		this.nativeManagedSettingsService.initialize()
+			.catch(() => undefined)
+			.finally(() => this.onLocalManagedSettingsChannelReported());
+		this._register(this.nativeManagedSettingsService.onDidChangeManagedSettings(() => this.onLocalManagedSettingsChannelReported()));
+		this._register(this.fileManagedSettingsService.onDidChangeManagedSettings(() => this.onLocalManagedSettingsChannelReported()));
 		this.initPromise = this.init()
 			.finally(() => {
 				this.telemetryService.publicLog2<DefaultAccountStatusTelemetry, DefaultAccountStatusTelemetryClassification>('defaultaccount:status', { status: this.defaultAccount ? 'available' : 'unavailable', initial: true });
@@ -561,6 +627,7 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 			this.setCopilotTokenInfo(account.copilotTokenInfo);
 			this.setPolicyData(account.policyData);
 			this.setManagedSettingsCompatibilityError(account.policyData?.managedSettingsCompatibilityError ?? null);
+			this.updateManagedSettingsRefreshBlocked();
 			this._onDidChangeDefaultAccount.fire(this._defaultAccount.defaultAccount);
 			this.accountStatusContext.set(DefaultAccountStatus.Available);
 			this.logService.debug('[DefaultAccount] Account status set to Available');
@@ -569,6 +636,7 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 			this.setPolicyData(null);
 			this.setManagedSettingsCompatibilityError(null);
 			this.setCopilotTokenInfo(null);
+			this.updateManagedSettingsRefreshBlocked();
 			this._onDidChangeDefaultAccount.fire(null);
 			this.accountDataPollScheduler.cancel();
 			this.accountStatusContext.set(DefaultAccountStatus.Unavailable);
@@ -926,22 +994,48 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 			}
 			: undefined;
 		const hasFetchedThisProcess = this.managedSettingsFetchAttemptedAccounts.has(accountId);
-		if (!options?.forceRefresh && cachedManagedSettings && hasFetchedThisProcess) {
+
+		// While the gate is closed the cache must not satisfy startup, so the fast path below is
+		// bypassed — but not unboundedly: a refresh fires on every window focus, so an offline
+		// client would otherwise issue a request per alt-tab. Skipping a retry inside the throttle
+		// window never reopens the gate, which stays closed until a fetch actually succeeds.
+		if (!options?.forceRefresh && this.managedSettingsRefreshBlocked) {
+			if (Date.now() - this._managedSettingsAttemptedAt < MANAGED_SETTINGS_BLOCKED_RETRY_INTERVAL_MS) {
+				this.logService.trace('[DefaultAccount] Managed settings refresh gate is closed; throttling retry');
+				return {
+					data: { managedSettings: cachedManagedSettings?.data.managedSettings },
+					fetchedAt: cachedManagedSettings?.fetchedAt,
+					compatibilityError: this._managedSettingsCompatibilityError,
+				};
+			}
+		} else if (!options?.forceRefresh && cachedManagedSettings && hasFetchedThisProcess) {
 			this.logService.debug('[DefaultAccount] Using last fetched managed settings data');
 			return { ...cachedManagedSettings, compatibilityError: this._managedSettingsCompatibilityError };
 		}
 
 		this.managedSettingsFetchAttemptedAccounts.add(accountId);
-		const result = await this.requestManagedSettings(sessions);
+		this._managedSettingsAttemptedAt = Date.now();
+		// Restrict the fetch to the account being evaluated. `request` otherwise falls through to
+		// the next session on 401/404, and another organization's managed settings would be applied
+		// to — and cached under — this account, which is both wrong on its own terms and would let
+		// one organization's refresh requirement decide another's gate.
+		const accountSessions = sessions.filter(session => session.account.id === accountId);
+		const result = await this.requestManagedSettings(accountSessions);
 		const fetchedAt = Date.now();
 		switch (result.kind) {
 			case 'success':
+				this.updateManagedSettingsFreshness(result.accountId, result.data.managedSettings, true);
 				return { data: result.data, fetchedAt, compatibilityError: null };
 			case 'noSettings':
+				// A fresh 404 means "no policy file configured" — an authoritative answer that
+				// satisfies the refresh requirement rather than blocking on it.
+				this.updateManagedSettingsFreshness(result.accountId, undefined, true);
 				return { data: { managedSettings: undefined }, fetchedAt, compatibilityError: null };
 			case 'updateRequired':
+				this.updateManagedSettingsFreshness(undefined, undefined, false);
 				return { data: { managedSettings: undefined }, fetchedAt, compatibilityError: result.error };
 			case 'unavailable': {
+				this.updateManagedSettingsFreshness(undefined, undefined, false);
 				// A failed fetch must not extend the life of the cached response: carry the cache's timestamp for expiry
 				const retained = this._managedSettingsCompatibilityError ? undefined : cachedManagedSettings;
 				return {
@@ -950,6 +1044,162 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 					compatibilityError: this._managedSettingsCompatibilityError,
 				};
 			}
+		}
+	}
+
+	/**
+	 * Records the outcome of a managed-settings fetch against the `forceRemoteSettingsRefresh`
+	 * control. Only an authoritative response (settings, or a 404 meaning "no policy file present")
+	 * counts as having refreshed; anything else leaves the recorded requirement in place so the gate
+	 * stays closed until the client has genuinely reached the server.
+	 *
+	 * @param respondingAccountId the account that answered, or `undefined` when none did.
+	 * @param serverManagedSettings the bag that account returned, or `undefined` for no settings.
+	 * @param authoritative whether the server answered definitively this time.
+	 */
+	private updateManagedSettingsFreshness(respondingAccountId: string | undefined, serverManagedSettings: ManagedSettingsData | undefined, authoritative: boolean): void {
+		// No answer carries no new information: the persisted requirement already remembers what
+		// the server last said. Deliberately not re-derived from the cached policy bag — that bag
+		// is written per account but can hold another account's response, so escalating from it
+		// could gate a user whose own organization never set the control.
+		if (respondingAccountId !== undefined) {
+			this.recordServerRefreshRequirement(respondingAccountId, serverManagedSettings, authoritative);
+			if (authoritative) {
+				this._managedSettingsFreshForAccount = respondingAccountId;
+			}
+		}
+		this.updateManagedSettingsRefreshBlocked();
+	}
+
+	/**
+	 * Records what the *server channel* said about the control for one account. The server delivers
+	 * it per account, so this is stored per account and never speaks for another one.
+	 *
+	 * Only a fresh response may retract the requirement: a cached bag can be arbitrarily stale, so
+	 * on its own it must never reopen the gate.
+	 */
+	private recordServerRefreshRequirement(accountId: string, serverManagedSettings: ManagedSettingsData | undefined, serverIsFresh: boolean): void {
+		const serverValue = resolveForceRemoteSettingsRefresh(undefined, serverManagedSettings, undefined)?.value;
+		if (serverValue === true) {
+			if (!this._serverRefreshRequiredAccounts.has(accountId)) {
+				this._serverRefreshRequiredAccounts.add(accountId);
+				this.persistManagedSettingsRefreshRequirement();
+			}
+		} else if (serverIsFresh && this._serverRefreshRequiredAccounts.delete(accountId)) {
+			// A fresh answer that omits or disables the control settles it for this account.
+			this.persistManagedSettingsRefreshRequirement();
+		}
+	}
+
+	/**
+	 * Whether a fresh fetch is required for an account, applying the standard channel precedence
+	 * (native MDM → server → file) to the *live* local channels and this account's recorded server
+	 * requirement. Resolving at read time is what lets a native MDM `false` override a server
+	 * `true`, and lets a local channel that loaded late take effect without a refetch.
+	 */
+	private isManagedSettingsRefreshRequiredFor(accountId: string | undefined): boolean {
+		const server = accountId !== undefined && this._serverRefreshRequiredAccounts.has(accountId)
+			? { [COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: true }
+			: undefined;
+		const resolved = resolveForceRemoteSettingsRefresh(
+			this.nativeManagedSettingsService.managedSettings,
+			server,
+			this.fileManagedSettingsService.managedSettings,
+		);
+		if (resolved) {
+			return resolved.value;
+		}
+		// Nothing is known yet from the local channels: prefer the last value they reported over
+		// standing the gate open through the window in which they are still loading.
+		if (!this._localChannelsReported && this._localRefreshRequiredHint) {
+			return true;
+		}
+		// Signed out: no account to resolve against, so any recorded requirement keeps the gate shut.
+		return accountId === undefined && this._serverRefreshRequiredAccounts.size > 0;
+	}
+
+	private onLocalManagedSettingsChannelReported(): void {
+		this._localChannelsReported = true;
+		const local = resolveForceRemoteSettingsRefresh(
+			this.nativeManagedSettingsService.managedSettings,
+			undefined,
+			this.fileManagedSettingsService.managedSettings,
+		);
+		// Once a channel has reported, an absent value means the control is not set — otherwise
+		// removing it would leave the hint asserted forever, blocking on every later startup.
+		const required = local?.value === true;
+		if (required !== this._localRefreshRequiredHint) {
+			this._localRefreshRequiredHint = required;
+			this.persistManagedSettingsRefreshRequirement();
+		}
+		this.updateManagedSettingsRefreshBlocked();
+	}
+
+	/**
+	 * Recovers a requirement recorded by a build that predates the per-account store. The flag is
+	 * preserved in the cached server bag, which is written per account, so it can be attributed —
+	 * and any mistake self-corrects on the next successful fetch for that account.
+	 */
+	private seedRefreshRequirementFromCachedPolicy(accountPolicyData: IAccountPolicyData | undefined): void {
+		if (!accountPolicyData || this._serverRefreshRequiredAccounts.has(accountPolicyData.accountId)) {
+			return;
+		}
+		const cached = resolveForceRemoteSettingsRefresh(undefined, accountPolicyData.policyData.managedSettings, undefined);
+		if (cached?.value === true) {
+			this._serverRefreshRequiredAccounts.add(accountPolicyData.accountId);
+		}
+	}
+
+	/**
+	 * The gate is closed while a refresh is required for the *current* account and that account has
+	 * not had an authoritative response this process. A signed-out state cannot have one, so a known
+	 * requirement blocks — sign-in stays reachable, which is how a user recovers.
+	 */
+	private computeManagedSettingsRefreshBlocked(): boolean {
+		const accountId = this._defaultAccount?.accountId;
+		if (!this.isManagedSettingsRefreshRequiredFor(accountId)) {
+			return false;
+		}
+		return accountId === undefined || this._managedSettingsFreshForAccount !== accountId;
+	}
+
+	private updateManagedSettingsRefreshBlocked(): void {
+		const blocked = this.computeManagedSettingsRefreshBlocked();
+		if (blocked === this._managedSettingsRefreshBlocked) {
+			return;
+		}
+		this._managedSettingsRefreshBlocked = blocked;
+		this.logService.info(`[DefaultAccount] Managed settings refresh gate ${blocked ? 'blocking AI features' : 'released'}`);
+		this._onDidChangeManagedSettingsRefreshBlocked.fire(blocked);
+	}
+
+	private persistManagedSettingsRefreshRequirement(): void {
+		if (this._serverRefreshRequiredAccounts.size === 0 && !this._localRefreshRequiredHint) {
+			this.storageService.remove(MANAGED_SETTINGS_REFRESH_REQUIRED_KEY, StorageScope.APPLICATION);
+			return;
+		}
+		const state: IManagedSettingsRefreshRequirement = {
+			accounts: Array.from(this._serverRefreshRequiredAccounts),
+			local: this._localRefreshRequiredHint,
+		};
+		this.storageService.store(MANAGED_SETTINGS_REFRESH_REQUIRED_KEY, JSON.stringify(state), StorageScope.APPLICATION, StorageTarget.MACHINE);
+	}
+
+	private restoreManagedSettingsRefreshRequirement(): void {
+		const stored = this.storageService.get(MANAGED_SETTINGS_REFRESH_REQUIRED_KEY, StorageScope.APPLICATION);
+		if (!stored) {
+			return;
+		}
+		try {
+			const state: IManagedSettingsRefreshRequirement = JSON.parse(stored);
+			this._localRefreshRequiredHint = state.local === true;
+			for (const accountId of Array.isArray(state.accounts) ? state.accounts : []) {
+				if (isString(accountId)) {
+					this._serverRefreshRequiredAccounts.add(accountId);
+				}
+			}
+		} catch (error) {
+			this.logService.warn('[DefaultAccount] Failed to parse the managed settings refresh requirement', getErrorMessage(error));
 		}
 	}
 
@@ -964,7 +1214,10 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 		const requestUrl = appendManagedSettingsClientIdentity(managedSettingsUrl, this.productService);
 		this.logService.debug('[DefaultAccount] Fetching managed settings from:', requestUrl);
 		const rateLimitBackoffActive = Date.now() < this._rateLimitBackoffUntil;
-		const response = await this.request(requestUrl, 'GET', undefined, sessions, CancellationToken.None, 'defaultAccount.managedSettings', MANAGED_SETTINGS_REQUEST_TIMEOUT_MS);
+		// `request` falls through to the next session on 401/404, which may belong to a different
+		// account. Track which session actually answered so the refresh gate credits the right one.
+		const respondingSession: { session?: AuthenticationSession } = {};
+		const response = await this.request(requestUrl, 'GET', undefined, sessions, CancellationToken.None, 'defaultAccount.managedSettings', MANAGED_SETTINGS_REQUEST_TIMEOUT_MS, respondingSession);
 		if (!response) {
 			this.logService.debug('[DefaultAccount] Managed settings fetch returned no response (network error, all sessions rejected, or active rate-limit backoff); falling back to local-only policy');
 			this.reportManagedSettingsOutcome('no-response', rateLimitBackoffActive);
@@ -974,7 +1227,7 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 		const status = response.res.statusCode ?? 0;
 		if (status === 404) {
 			this.reportManagedSettingsOutcome(status, rateLimitBackoffActive);
-			return { kind: 'noSettings' };
+			return { kind: 'noSettings', accountId: respondingSession.session?.account.id };
 		}
 		if (status === 466) {
 			const error = await this.readManagedSettingsCompatibilityError(response);
@@ -1003,7 +1256,7 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 				this.logService.trace('[DefaultAccount] Managed settings payload:', JSON.stringify(adapted));
 			}
 			this.reportManagedSettingsOutcome('ok', rateLimitBackoffActive);
-			return { kind: 'success', data: adapted };
+			return { kind: 'success', data: adapted, accountId: respondingSession.session?.account.id };
 		} catch (error) {
 			this.logService.error('[DefaultAccount] Failed to parse managed settings response', getErrorMessage(error));
 			this.reportManagedSettingsOutcome('parse-error', rateLimitBackoffActive);
@@ -1061,9 +1314,9 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 
 	private _rateLimitBackoffUntil = 0;
 
-	private async request(url: string, type: 'GET', body: undefined, sessions: AuthenticationSession[], token: CancellationToken, callSite: string, requestTimeoutMs?: number): Promise<IRequestContext | undefined>;
-	private async request(url: string, type: 'POST', body: object, sessions: AuthenticationSession[], token: CancellationToken, callSite: string, requestTimeoutMs?: number): Promise<IRequestContext | undefined>;
-	private async request(url: string, type: 'GET' | 'POST', body: object | undefined, sessions: AuthenticationSession[], token: CancellationToken, callSite: string, requestTimeoutMs?: number): Promise<IRequestContext | undefined> {
+	private async request(url: string, type: 'GET', body: undefined, sessions: AuthenticationSession[], token: CancellationToken, callSite: string, requestTimeoutMs?: number, respondingSession?: { session?: AuthenticationSession }): Promise<IRequestContext | undefined>;
+	private async request(url: string, type: 'POST', body: object, sessions: AuthenticationSession[], token: CancellationToken, callSite: string, requestTimeoutMs?: number, respondingSession?: { session?: AuthenticationSession }): Promise<IRequestContext | undefined>;
+	private async request(url: string, type: 'GET' | 'POST', body: object | undefined, sessions: AuthenticationSession[], token: CancellationToken, callSite: string, requestTimeoutMs?: number, respondingSession?: { session?: AuthenticationSession }): Promise<IRequestContext | undefined> {
 		// Rate-limit backoff: when any prior `/copilot_internal/*` request was
 		// throttled (429 or 403 + `X-RateLimit-Remaining: 0`), every subsequent
 		// request is short-circuited until the parsed `Retry-After` elapses.
@@ -1078,6 +1331,7 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 		}
 
 		let lastResponse: IRequestContext | undefined;
+		let lastResponseSession: AuthenticationSession | undefined;
 
 		for (const session of sessions) {
 			if (token.isCancellationRequested) {
@@ -1107,9 +1361,13 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 				if (status === 401 || status === 404) {
 					this.logService.debug(`[DefaultAccount] Received ${status} for URL ${url} with session ${session.id}, likely due to expired/revoked token or insufficient permissions.`, 'Trying next session if available.');
 					lastResponse = response;
+					lastResponseSession = session;
 					continue; // try next session
 				}
 
+				if (respondingSession) {
+					respondingSession.session = session;
+				}
 				return response;
 			} catch (error) {
 				if (!token.isCancellationRequested) {
@@ -1123,6 +1381,9 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 			return undefined;
 		}
 
+		if (respondingSession) {
+			respondingSession.session = lastResponseSession;
+		}
 		return lastResponse;
 	}
 

@@ -53,8 +53,20 @@ class TestDefaultAccountService extends mock<IDefaultAccountService>() {
 		this._onDidChangeManagedSettingsCompatibilityError.fire(error);
 	}
 
+	private _managedSettingsRefreshBlocked = false;
+	override get managedSettingsRefreshBlocked(): boolean { return this._managedSettingsRefreshBlocked; }
+
+	private readonly _onDidChangeManagedSettingsRefreshBlocked = new Emitter<boolean>();
+	override readonly onDidChangeManagedSettingsRefreshBlocked = this._onDidChangeManagedSettingsRefreshBlocked.event;
+
+	setManagedSettingsRefreshBlocked(blocked: boolean): void {
+		this._managedSettingsRefreshBlocked = blocked;
+		this._onDidChangeManagedSettingsRefreshBlocked.fire(blocked);
+	}
+
 	dispose(): void {
 		this._onDidChangeManagedSettingsCompatibilityError.dispose();
+		this._onDidChangeManagedSettingsRefreshBlocked.dispose();
 	}
 }
 
@@ -163,6 +175,56 @@ suite('AccountPolicyGateContribution', () => {
 				cancelButton: 'Close',
 			},
 			fallbackCompatibilityMessage: 'Your version of Code cannot enforce your organization\'s managed settings. Update Code to continue using AI features.',
+		});
+	});
+
+	test('a required managed settings refresh withholds AI features until it resolves', async () => {
+		const gateService = disposables.add(new TestAccountPolicyGateService());
+		const defaultAccountService = disposables.add(new TestDefaultAccountService());
+		const chatEntitlementService = new TestChatEntitlementService();
+		const contextKeyService = new MockContextKeyService();
+
+		disposables.add(new AccountPolicyGateContribution(
+			gateService,
+			contextKeyService,
+			chatEntitlementService,
+			defaultAccountService,
+			new NullLogService(),
+			new TestNotificationService(),
+			new TestDialogService(),
+			new class extends mock<ICommandService>() { }(),
+			new class extends mock<IOpenerService>() { }(),
+			new class extends mock<IProductService>() { override readonly nameShort = 'Code'; }(),
+			disposables.add(new InMemoryStorageService()),
+			NullTelemetryService,
+		));
+
+		const states: { context: boolean | undefined; hidden: boolean | undefined }[] = [];
+		const captureState = () => states.push({
+			context: ChatAccountPolicyGateActiveContext.getValue(contextKeyService),
+			hidden: chatEntitlementService.forceHidden,
+		});
+
+		captureState();
+		defaultAccountService.setManagedSettingsRefreshBlocked(true);
+		captureState();
+		// The gate must not reopen merely because the account-side gate is satisfied.
+		gateService.setGateInfo({ state: AccountPolicyGateState.Satisfied });
+		captureState();
+		defaultAccountService.setManagedSettingsRefreshBlocked(false);
+		captureState();
+
+		assert.deepStrictEqual({
+			states,
+			forceHiddenValues: chatEntitlementService.forceHiddenValues,
+		}, {
+			states: [
+				{ context: false, hidden: false },
+				{ context: true, hidden: true },
+				{ context: true, hidden: true },
+				{ context: false, hidden: false },
+			],
+			forceHiddenValues: [false, true, false],
 		});
 	});
 });

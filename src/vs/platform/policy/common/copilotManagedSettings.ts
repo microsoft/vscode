@@ -151,15 +151,27 @@ export function managedSettingValue(key: string): (policyData: IPolicyData) => M
 }
 
 /**
- * Resolves the startup refresh control with native MDM taking precedence over the cached server
- * response. A malformed native value is treated as absent, matching the managed-settings schema.
+ * Resolves the `forceRemoteSettingsRefresh` transport control across the delivery channels, in the
+ * same fixed precedence as {@link MANAGED_SETTINGS_CHANNELS} (native MDM → server → file).
+ *
+ * Returns `undefined` when no channel supplies the key. That is deliberately distinct from an
+ * explicit `false`: callers that persist the requirement need to tell "an admin turned this off"
+ * (clear it) from "nobody answered — e.g. the server channel is unreachable" (keep what we had).
+ * A malformed value is treated as absent for its channel, so the next channel decides.
+ *
+ * The winning `channel` is reported because the control's *scope* differs by source: native MDM and
+ * the on-disk file are machine-wide, while the server delivers it per account. A caller that
+ * persists the requirement must not let one account's server response overwrite another's.
  */
-export function shouldForceRemoteSettingsRefresh(nativeMdm: ManagedSettingsData | undefined, server: ManagedSettingsData | undefined): boolean {
-	const nativeValue = nativeMdm?.[COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY];
-	if (typeof nativeValue === 'boolean') {
-		return nativeValue;
+export function resolveForceRemoteSettingsRefresh(nativeMdm: ManagedSettingsData | undefined, server: ManagedSettingsData | undefined, file: ManagedSettingsData | undefined): { readonly value: boolean; readonly channel: ManagedSettingsChannel } | undefined {
+	const bags: Record<ManagedSettingsChannel, ManagedSettingsData | undefined> = { nativeMdm, server, file };
+	for (const channel of MANAGED_SETTINGS_CHANNELS) {
+		const value = bags[channel]?.[COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY];
+		if (typeof value === 'boolean') {
+			return { value, channel };
+		}
 	}
-	return server?.[COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY] === true;
+	return undefined;
 }
 
 export const IManagedSettingsService = createDecorator<IManagedSettingsService>('managedSettingsService');

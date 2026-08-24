@@ -41,6 +41,8 @@ class DefaultAccountProvider implements IDefaultAccountProvider {
 	readonly managedSettingsRawResponse: unknown = null;
 	readonly managedSettingsCompatibilityError = null;
 	readonly onDidChangeManagedSettingsCompatibilityError = Event.None;
+	readonly managedSettingsRefreshBlocked = false;
+	readonly onDidChangeManagedSettingsRefreshBlocked = Event.None;
 
 	constructor(
 		readonly defaultAccount: IDefaultAccount,

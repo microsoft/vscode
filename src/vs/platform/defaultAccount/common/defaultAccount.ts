@@ -49,6 +49,13 @@ export interface IDefaultAccountProvider {
 	readonly managedSettingsRawResponse: unknown;
 	readonly managedSettingsCompatibilityError: IManagedSettingsCompatibilityError | null;
 	readonly onDidChangeManagedSettingsCompatibilityError: Event<IManagedSettingsCompatibilityError | null>;
+	/**
+	 * True when an administrator requires managed settings to be fetched fresh
+	 * (`forceRemoteSettingsRefresh`) and no authoritative response has been obtained this session.
+	 * Consumers must withhold AI features while this is set — cached policy is not good enough.
+	 */
+	readonly managedSettingsRefreshBlocked: boolean;
+	readonly onDidChangeManagedSettingsRefreshBlocked: Event<boolean>;
 	getDefaultAccountAuthenticationProvider(): IDefaultAccountAuthenticationProvider;
 
 	/**
@@ -82,6 +89,13 @@ export interface IDefaultAccountService {
 	readonly managedSettingsRawResponse: unknown;
 	readonly managedSettingsCompatibilityError: IManagedSettingsCompatibilityError | null;
 	readonly onDidChangeManagedSettingsCompatibilityError: Event<IManagedSettingsCompatibilityError | null>;
+	/**
+	 * True when an administrator requires managed settings to be fetched fresh
+	 * (`forceRemoteSettingsRefresh`) and no authoritative response has been obtained this session.
+	 * Consumers must withhold AI features while this is set — cached policy is not good enough.
+	 */
+	readonly managedSettingsRefreshBlocked: boolean;
+	readonly onDidChangeManagedSettingsRefreshBlocked: Event<boolean>;
 	getDefaultAccount(): Promise<IDefaultAccount | null>;
 	getDefaultAccountAuthenticationProvider(): IDefaultAccountAuthenticationProvider;
 	setDefaultAccountProvider(provider: IDefaultAccountProvider): void;

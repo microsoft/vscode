@@ -372,15 +372,51 @@ constant, configuration policy, or policy-data export.
 
 `forceRemoteSettingsRefresh` is not a user configuration setting. It controls whether the
 server-managed-settings cache may satisfy startup, so VS Code preserves it in the cached raw server
-bag and always includes it in the native MDM watch schema. `DefaultAccountProvider` resolves an
-explicit native MDM boolean ahead of the cached server value; when the result is `true`, it bypasses
-an otherwise-fresh server cache for the first fetch for that account in the current process. The
-cache remains available as the normal fetch-failure fallback.
+bag and always includes it in the native MDM watch schema. `resolveForceRemoteSettingsRefresh`
+resolves it across the delivery channels in the standard precedence (native MDM → server → file),
+reporting both the value and the winning channel. It returns `undefined` when no channel sets it, so
+callers can distinguish an explicit `false` (an admin turned it off) from an absent value (nobody
+answered — e.g. the server is unreachable).
+
+When the control resolves to `true`, the requirement is **fail-closed**: `DefaultAccountProvider`
+bypasses the server cache and withholds AI features until the server answers authoritatively.
+Unlike other managed settings, the cache is *not* an acceptable fetch-failure fallback here — that
+is the point of the control. Both a successful response and a `404` (meaning "no policy file is
+configured") count as authoritative and release the gate; only a genuine failure to reach the
+server keeps it closed.
+
+The requirement is persisted under `defaultAccount.managedSettingsRefreshRequired`, deliberately
+*outside* the cached policy payload: that payload expires after an hour and is dropped on a failed
+fetch, which would otherwise take the requirement down with it and silently reopen the gate. The
+**server** channel is recorded **per account** — the server delivers the control per organization,
+so one account's response must never speak for another's — alongside a machine-wide `local` hint.
+That hint exists only to cover startup: native MDM and the on-disk file load asynchronously and
+start empty, so until they report, the last value they gave keeps the gate shut; their live values
+take over the moment they arrive. Channel precedence is applied when the requirement is *read*,
+which is what lets a native MDM `false` override a server `true`. Because the local channels are
+read live rather than behind an authenticated fetch, a signed-out machine carrying an MDM- or
+file-delivered flag is gated on first launch. A requirement recorded by a build predating the
+per-account store is recovered from the cached server bag on first run.
+
+The managed-settings fetch is restricted to the sessions of the account being evaluated. `request`
+otherwise falls through to the next session on 401/404, which would let another organization answer
+for — and have its settings cached under — this account.
+
+The gate is surfaced as `IDefaultAccountService.managedSettingsRefreshBlocked` and consumed by
+`AccountPolicyGateContribution`, alongside the HTTP 466 client-compatibility gate it mirrors.
+Sign-in remains reachable so a user can recover; a signed-out state cannot have been refreshed, so
+a known requirement keeps the gate closed. Retries that bypass the cache are throttled, because a
+refresh fires on every window focus. Renderer-side only: remote/SSH/tunnel Agent Hosts are not
+gated, because the managed-settings channel to them intentionally does not exist.
 
 Reference tests:
 - `src/vs/platform/policy/test/common/copilotManagedSettings.test.ts`
 - `src/vs/platform/policy/test/node/nativeManagedSettingsService.test.ts`
 - `src/vs/workbench/services/policies/test/browser/accountPolicyService.test.ts`
+- `src/vs/workbench/services/accounts/test/browser/defaultAccount.test.ts`
+  (covers the fail-closed gate: inertness when unset, a fresh 404 releasing it, and the
+  requirement outliving an expired cache)
+- `src/vs/workbench/services/policies/test/browser/accountPolicyGateContribution.test.ts`
 - `src/vs/workbench/services/accounts/test/browser/managedSettings.test.ts`
   (includes an end-to-end equivalence test: a server JSON string and a native MDM JSON
   string resolve to the **identical** typed object).
