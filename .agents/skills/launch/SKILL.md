@@ -110,6 +110,8 @@ The script runs pre-launch (electron download, compile-if-missing, built-in exte
 
 For repeated launches of the same prepared build, pass `--skip-prelaunch` after one successful normal launch. Only use it while a watch task keeps all output current or neither sources nor build outputs have changed; otherwise the new instance may run stale or incomplete code.
 
+Run the launcher once in the foreground and retain its JSON result. If your command runner reports that invocation as still running or backgrounded, retrieve that same command's output instead of invoking the launcher again. Before retrying a failed launch, confirm its process exited or clean up the emitted `pid` and `runDir`; otherwise the retry creates a second Code OSS instance.
+
 ```json
 {"pid":12345,"cdpPort":53111,"extHostPort":53112,"mainPort":53113,"agentHostPort":53114,"userDataDir":".../user-data","extensionsDir":".../extensions","sharedDataDir":".../shared-data","runDir":"...","logFile":".../code.log","repo":"...","agents":false,"timings":{"profileMs":231,"preLaunchMs":251,"cdpReadyMs":459,"totalMs":941}}
 ```
