@@ -3742,6 +3742,88 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		test('does not restart the Copilot runtime when an unset Kerberos proxy SPN is mirrored as empty', async () => {
+			const client = new TestCopilotClient([]);
+			const proxyResolver = new TestProxyResolver();
+			// The bug: the host spawns with the SPN key absent (undefined), then the
+			// workbench mirrors the same unset setting as an empty string. Both mean
+			// "no SPN", so the empty push must not be seen as a change that restarts.
+			const previousSpnEnv = process.env['COPILOT_PROXY_KERBEROS_SPN'];
+			delete process.env['COPILOT_PROXY_KERBEROS_SPN'];
+			const { agent, configurationService } = createTestAgentContext(disposables, {
+				copilotClient: client,
+				proxyResolver,
+			});
+			try {
+				await agent.listChatsToMigrate();
+				const resolveProxyCallsBefore = proxyResolver.resolveProxyCalls;
+				configurationService.updateRootConfig({ [AgentHostProxyConfigKey.ProxyKerberosServicePrincipal]: '' });
+				proxyResolver.fireConfigurationChange();
+				for (let i = 0; i < 20; i++) {
+					await timeout(0);
+				}
+
+				assert.deepStrictEqual({
+					startCallCount: client.startCallCount,
+					stopCallCount: client.stopCallCount,
+					proxyRefreshRan: proxyResolver.resolveProxyCalls > resolveProxyCallsBefore,
+				}, {
+					startCallCount: 1,
+					stopCallCount: 0,
+					proxyRefreshRan: true,
+				});
+			} finally {
+				if (previousSpnEnv === undefined) {
+					delete process.env['COPILOT_PROXY_KERBEROS_SPN'];
+				} else {
+					process.env['COPILOT_PROXY_KERBEROS_SPN'] = previousSpnEnv;
+				}
+				await disposeAgent(agent);
+			}
+		});
+
+		test('restarts the Copilot runtime without a Kerberos proxy SPN when a configured SPN is cleared', async () => {
+			const client = new TestCopilotClient([]);
+			const proxyResolver = new TestProxyResolver();
+			const initialSpn = 'HTTP/initial.proxy';
+			// Clearing a previously-set SPN also mirrors as an empty string, but here
+			// it is a real change: the client baked in the old SPN and must restart
+			// so the replacement runs without one.
+			const previousSpnEnv = process.env['COPILOT_PROXY_KERBEROS_SPN'];
+			delete process.env['COPILOT_PROXY_KERBEROS_SPN'];
+			const { agent, configurationService } = createTestAgentContext(disposables, {
+				copilotClient: client,
+				proxyResolver,
+				rootConfig: { [AgentHostProxyConfigKey.ProxyKerberosServicePrincipal]: initialSpn },
+			});
+			try {
+				await agent.listChatsToMigrate();
+				configurationService.updateRootConfig({ [AgentHostProxyConfigKey.ProxyKerberosServicePrincipal]: '' });
+				proxyResolver.fireConfigurationChange();
+				for (let i = 0; i < 20 && client.stopCallCount < 1; i++) {
+					await timeout(0);
+				}
+				await agent.listChatsToMigrate();
+
+				assert.deepStrictEqual({
+					startCallCount: client.startCallCount,
+					stopCallCount: client.stopCallCount,
+					kerberosSpn: getCreatedClientOptions(agent).at(-1)?.env?.['COPILOT_PROXY_KERBEROS_SPN'],
+				}, {
+					startCallCount: 2,
+					stopCallCount: 1,
+					kerberosSpn: undefined,
+				});
+			} finally {
+				if (previousSpnEnv === undefined) {
+					delete process.env['COPILOT_PROXY_KERBEROS_SPN'];
+				} else {
+					process.env['COPILOT_PROXY_KERBEROS_SPN'] = previousSpnEnv;
+				}
+				await disposeAgent(agent);
+			}
+		});
+
 		test('resolves the proxy on first client start without a bridge', async () => {
 			const client = new TestCopilotClient([]);
 			const proxyResolver = new TestProxyResolver();
