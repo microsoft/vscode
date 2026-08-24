@@ -8,8 +8,7 @@ import './media/newChatInSession.css';
 import * as dom from '../../../../base/browser/dom.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { constObservable, derived, IObservable, observableSignalFromEvent } from '../../../../base/common/observable.js';
-import { Gesture, EventType as TouchEventType } from '../../../../base/browser/touch.js';
+import { constObservable, derived, IObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -17,11 +16,13 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { NewChatInputWidget } from './newChatInput.js';
-import { sessionHasNoSelectableModel } from './modelPicker.js';
-import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { IChatViewOptions } from '../../../browser/parts/chatView.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
+import { ChatInputNoticeLane } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputNoticeHost.js';
+import { ChatInputNoticeVariant, ChatInputNoticeWidget } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputNoticeWidget.js';
+import { chatInputStackClass, chatInputStackSlotClass, ChatInputStackSlot, setChatInputStackSlot } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputStack.js';
 
 // #region --- New Chat In Session Widget ---
 
@@ -39,17 +40,17 @@ export class NewChatInSessionWidget extends Disposable {
 	private readonly _session: IObservable<IActiveSession | undefined>;
 
 	constructor(
-		_options: IChatViewOptions,
+		_options: IChatViewOptions & { readonly petHostPreferred?: IObservable<boolean> },
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILogService private readonly logService: ILogService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
+		@ISessionsService private readonly sessionsService: ISessionsService,
 		@IStorageService private readonly storageService: IStorageService,
-		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 	) {
 		super();
 
 		this._session = derived(reader => {
-			const activeSession = this.sessionsManagementService.activeSession.read(reader);
+			const activeSession = this.sessionsService.activeSession.read(reader);
 			return activeSession;
 		});
 
@@ -58,16 +59,7 @@ export class NewChatInSessionWidget extends Disposable {
 			if (!session) {
 				return false;
 			}
-			// Re-evaluate the no-available-model gate whenever the active
-			// session's provider reports a model-list change. The provider
-			// aggregates both language-model registry changes and (for cloud
-			// sessions) option-group changes, matching the model picker's own
-			// reactivity so the gate never goes stale.
-			const provider = this.sessionsProvidersService.getProvider(session.providerId);
-			if (provider) {
-				observableSignalFromEvent(this, provider.onDidChangeModels).read(reader);
-			}
-			return !sessionHasNoSelectableModel(session, this.sessionsProvidersService);
+			return true;
 		});
 
 		const loading = derived(_reader => false);
@@ -75,12 +67,15 @@ export class NewChatInSessionWidget extends Disposable {
 		this._newChatInput = this._register(this.instantiationService.createInstance(NewChatInputWidget, {
 			session: this._session,
 			getContextFolderUri: () => this._getContextFolderUri(),
-			sendRequest: async ({ query, attachments }) => this._send(query, attachments),
+			sendRequest: async ({ query, attachments, background }) => this._send(query, attachments, background),
 			canSendRequest,
 			loading,
 			historyKey: constObservable(undefined), // no persisted history for the new-chat-in-session view
 			minEditorHeight: 64,
 			placeholder: localize('newChatInSessionPlaceholder', 'Ask a follow-up question or start a new topic within this session...'),
+			petHostPreferred: _options.petHostPreferred,
+			supportsBackground: true,
+			voiceRoutesWhileSessionActive: true,
 		}));
 	}
 
@@ -89,7 +84,7 @@ export class NewChatInSessionWidget extends Disposable {
 	render(parent: HTMLElement): void {
 		const element = dom.append(parent, dom.$('.sessions-chat-widget.new-chat-in-session'));
 		const chatWidgetContainer = dom.append(element, dom.$('.new-chat-widget-container'));
-		const chatWidgetContent = dom.append(chatWidgetContainer, dom.$('.new-chat-widget-content'));
+		const chatWidgetContent = dom.append(chatWidgetContainer, dom.$(`.new-chat-widget-content.${chatInputStackClass}`));
 
 		this._renderSubSessionTip(chatWidgetContent);
 		this._newChatInput.render(chatWidgetContent, parent);
@@ -102,43 +97,73 @@ export class NewChatInSessionWidget extends Disposable {
 			return;
 		}
 
-		const tipContainer = dom.append(container, dom.$('.sub-session-tip-container'));
-		const tipWidget = dom.append(tipContainer, dom.$('.sub-session-tip-widget'));
-		tipWidget.setAttribute('role', 'status');
-		tipWidget.setAttribute('aria-label', localize('subSessionTip.ariaLabel', "Sub-session tip"));
+		const store = new DisposableStore();
+		const tipContainer = dom.append(container, dom.$(`.sub-session-tip-container.${chatInputStackSlotClass}`));
 
-		// Tip icon
-		const iconEl = dom.append(tipWidget, renderIcon(Codicon.lightbulb));
-		iconEl.classList.add('sub-session-tip-icon');
-
-		// Tip text
-		const textEl = dom.append(tipWidget, dom.$('span.sub-session-tip-text'));
-		textEl.textContent = localize(
+		const message = localize(
 			'subSessionTip.message',
-			"This is a sub-session, a new chat in the same workspace. Use it to ask questions, run tasks, or explore ideas with fresh context."
+			"Start a parallel conversation to build on all the changes made in this session."
 		);
 
-		// Dismiss button
-		const dismissBtn = dom.append(tipWidget, dom.$('button.sub-session-tip-dismiss')) as HTMLButtonElement;
-		dismissBtn.type = 'button';
-		dismissBtn.setAttribute('aria-label', localize('subSessionTip.dismiss', "Dismiss tip"));
-		dom.append(dismissBtn, renderIcon(Codicon.close));
+		// Named by what it says, like every other tip: the label is both what the
+		// landmark is called and what is spoken when the tip first appears.
+		const tip = store.add(new ChatInputNoticeWidget({
+			container: tipContainer,
+			variant: ChatInputNoticeVariant.Tip,
+			ariaLabel: message,
+			ariaRoleDescription: localize('subSessionTip.ariaLabel', "New chat tip"),
+		}));
+
+		const iconEl = dom.append(tip.domNode, renderIcon(Codicon.lightbulb));
+		iconEl.classList.add('sub-session-tip-icon');
+
+		const textEl = dom.append(tip.domNode, dom.$('span.sub-session-tip-text'));
+		textEl.textContent = message;
 
 		const dismiss = () => {
+			// Removing the banner would strand keyboard focus on <body>, which also
+			// drops the context keys the chat keybindings depend on.
+			const hadFocus = tip.hasFocus();
 			this.storageService.store(STORAGE_KEY_SUB_SESSION_TIP_DISMISSED, true, StorageScope.PROFILE, StorageTarget.USER);
+			// Stood down before it leaves the DOM: once detached it cannot report.
+			setChatInputStackSlot(tipContainer, ChatInputStackSlot.Empty);
 			tipContainer.remove();
 			this._tipDisposable.clear();
+			if (hadFocus) {
+				this._newChatInput.focus();
+			}
 		};
 
-		const handleDismiss = (e: Event) => {
-			dom.EventHelper.stop(e, true);
-			dismiss();
-		};
+		tip.addDismissAction({
+			ariaLabel: localize('subSessionTip.dismiss', "Dismiss tip"),
+			onActivate: dismiss,
+		});
 
-		const store = new DisposableStore();
-		store.add(Gesture.addTarget(dismissBtn));
-		store.add(dom.addDisposableListener(dismissBtn, dom.EventType.CLICK, handleDismiss));
-		store.add(dom.addDisposableListener(dismissBtn, TouchEventType.Tap, handleDismiss));
+		// Claims the tip lane above this input, so the banner yields to a
+		// notification or a first-run introduction instead of stacking with them.
+		// Hidden until the claim leads, which it does immediately when nothing
+		// else holds the space.
+		let leading = false;
+		let announced = false;
+		setChatInputStackSlot(tipContainer, ChatInputStackSlot.Empty);
+		store.add(this._newChatInput.noticeHost.occupy(ChatInputNoticeLane.Tip, {
+			focusTarget: {
+				hasFocus: () => tip.hasFocus(),
+				focus: () => tip.focus(),
+				canFocus: () => leading,
+			},
+			onDidChangeLeading: isLeading => {
+				leading = isLeading;
+				setChatInputStackSlot(tipContainer, isLeading ? ChatInputStackSlot.Docked : ChatInputStackSlot.Empty);
+				// Spoken once, the first time it actually reaches the screen. The
+				// lane can hand back and forth as notifications come and go, and
+				// re-announcing on every return would talk over the user.
+				if (isLeading && !announced) {
+					announced = true;
+					tip.announce();
+				}
+			},
+		}));
 		this._tipDisposable.value = store;
 	}
 
@@ -153,16 +178,25 @@ export class NewChatInSessionWidget extends Disposable {
 
 	// --- Send ---
 
-	private async _send(query: string, attachedContext?: IChatRequestVariableEntry[]): Promise<void> {
+	private async _send(query: string, attachedContext?: IChatRequestVariableEntry[], background?: boolean): Promise<boolean> {
 		const activeSession = this._session.get();
 		if (!activeSession) {
-			return;
+			return false;
 		}
 		const activeChat = activeSession.activeChat.get();
 		try {
-			await this.sessionsManagementService.sendRequest(activeSession, activeChat, { query, attachedContext });
+			// Reset the composer before dispatching the send: both touch shared
+			// chat-session state for chats in the same group, and running them
+			// concurrently races and leaves the sent chat stuck spinning.
+			if (background) {
+				await this.sessionsService.openNewChatInSession(activeSession, { forceNew: true });
+			}
+
+			await this.sessionsManagementService.sendRequest(activeSession, activeChat, { query, attachedContext, background });
+			return true;
 		} catch (e) {
 			this.logService.error('Failed to send secondary chat request:', e);
+			return false;
 		}
 	}
 

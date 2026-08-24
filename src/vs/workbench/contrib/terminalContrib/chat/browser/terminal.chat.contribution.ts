@@ -32,10 +32,12 @@ import { TerminalChatEnabler } from './terminalChatEnabler.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import { ITerminalChatService } from '../../../terminal/browser/terminal.js';
 import { TerminalChatService } from './terminalChatService.js';
+import { ITerminalChatSessionResolver, TerminalChatSessionResolver } from './terminalChatSessionResolver.js';
 
 // #region Services
 
 registerSingleton(ITerminalChatService, TerminalChatService, InstantiationType.Delayed);
+registerSingleton(ITerminalChatSessionResolver, TerminalChatSessionResolver, InstantiationType.Delayed);
 
 // #endregion
 

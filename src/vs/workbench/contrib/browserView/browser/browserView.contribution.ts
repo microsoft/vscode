@@ -4,10 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { registerSingleton, InstantiationType } from '../../../../platform/instantiation/common/extensions.js';
-import { IBrowserViewWorkbenchService, IBrowserViewCDPService, IBrowserViewModel, IBrowserEditorViewState } from '../common/browserView.js';
+import { IBrowserViewWorkbenchService, IBrowserViewCDPService, IBrowserViewModel, IBrowserViewContextualFilter, IBrowserViewOpenHandler, IBrowserViewWorkbenchCreateOptions } from '../common/browserView.js';
+import type { PreferredGroup } from '../../../services/editor/common/editorService.js';
 import { Event } from '../../../../base/common/event.js';
+import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
+import { IBrowserViewEditorOpenOptions } from '../../../../platform/browserView/common/browserView.js';
 import { CDPEvent, CDPRequest, CDPResponse } from '../../../../platform/browserView/common/cdp/types.js';
-import { BrowserEditorInput } from '../common/browserEditorInput.js';
+import { ITunnelProxyInfo } from '../../../../platform/tunnel/common/tunnelProxy.js';
+import { BrowserEditorInput, IBrowserEditorInputData } from '../common/browserEditorInput.js';
 
 class WebBrowserViewWorkbenchService implements IBrowserViewWorkbenchService {
 	declare readonly _serviceBrand: undefined;
@@ -15,6 +19,8 @@ class WebBrowserViewWorkbenchService implements IBrowserViewWorkbenchService {
 	willUseRemoteProxy(): boolean {
 		return false;
 	}
+
+	setRemoteProxyInfo(_info: ITunnelProxyInfo | undefined): void { }
 
 	readonly onDidChangeBrowserViews = Event.None;
 	readonly onDidChangeSharingAvailable = Event.None;
@@ -26,7 +32,27 @@ class WebBrowserViewWorkbenchService implements IBrowserViewWorkbenchService {
 		return this._known;
 	}
 
-	getOrCreateLazy(_id: string, _state: IBrowserEditorViewState): BrowserEditorInput {
+	registerContextualFilter(_filter: IBrowserViewContextualFilter): IDisposable {
+		return Disposable.None;
+	}
+
+	getContextualBrowserViews(): Map<string, BrowserEditorInput> {
+		return this._known;
+	}
+
+	async getPreferredGroup(preferredGroup?: PreferredGroup): Promise<PreferredGroup | undefined> {
+		return preferredGroup;
+	}
+
+	registerOpenHandler(_handler: IBrowserViewOpenHandler): IDisposable {
+		return Disposable.None;
+	}
+
+	async createBrowserView(_options: IBrowserViewWorkbenchCreateOptions, _editorOpenOptions?: IBrowserViewEditorOpenOptions): Promise<BrowserEditorInput> {
+		throw new Error('Integrated Browser is not available in web.');
+	}
+
+	getOrCreateLazy(_data: IBrowserEditorInputData): BrowserEditorInput {
 		throw new Error('Integrated Browser is not available in web.');
 	}
 

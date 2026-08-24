@@ -1,21 +1,23 @@
 steps:
+  # Check out the private microsoft/vscode-extensions-loc repository using the
+  # agent's GitHub App (Monaco) credentials instead of cloning it with a PAT.
+  # The repository resource is declared in the top-level pipeline (resources.repositories).
+  - checkout: vscode_loc
+    path: s/.build/vscode-extensions-loc
+    fetchDepth: 1
+    sparseCheckoutDirectories: out/GitHub.copilot-chat
+    retryCountOnTaskFailure: 3
+    displayName: Checkout microsoft/vscode-extensions-loc
+
   - script: |
       set -e
 
       EXTENSION_ID="GitHub.copilot-chat"
-      L10N_REPO="https://github.com/microsoft/vscode-extensions-loc.git"
-      L10N_DIR="$(Agent.TempDirectory)/vscode-extensions-loc"
-
-      echo "Cloning vscode-extensions-loc (sparse checkout)..."
-      git clone --depth 1 --filter=blob:none --sparse "$L10N_REPO" "$L10N_DIR"
-      cd "$L10N_DIR"
-      git sparse-checkout set "out/$EXTENSION_ID"
-
+      L10N_DIR="$(Build.SourcesDirectory)/.build/vscode-extensions-loc"
       TRANSLATED_DIR="$L10N_DIR/out/$EXTENSION_ID"
 
       if [ ! -d "$TRANSLATED_DIR" ] || [ -z "$(ls -A "$TRANSLATED_DIR" 2>/dev/null)" ]; then
         echo "No translated strings found for $EXTENSION_ID, skipping l10n import."
-        rm -rf "$L10N_DIR"
         exit 0
       fi
 
@@ -36,7 +38,4 @@ steps:
       echo "Localized files:"
       ls -la package.nls.*.json 2>/dev/null || echo "  (no package.nls.*.json)"
       ls -la "$L10N_ROOT"/bundle.l10n.*.json 2>/dev/null || echo "  (no bundle.l10n.*.json)"
-
-      # Cleanup
-      rm -rf "$L10N_DIR"
     displayName: Import localized strings

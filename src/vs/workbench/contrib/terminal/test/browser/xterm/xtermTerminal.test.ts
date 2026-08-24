@@ -4,13 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { Terminal } from '@xterm/xterm';
-import { deepStrictEqual, strictEqual } from 'assert';
+import { deepStrictEqual, ok, strictEqual } from 'assert';
 import { importAMDNodeModule } from '../../../../../../amdX.js';
+import { timeout } from '../../../../../../base/common/async.js';
 import { Color, RGBA } from '../../../../../../base/common/color.js';
 import { Emitter } from '../../../../../../base/common/event.js';
+import { toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IEditorOptions } from '../../../../../../editor/common/config/editorOptions.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IConfigurationChangeEvent } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { TerminalCapabilityStore } from '../../../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
 import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
@@ -102,11 +106,92 @@ suite('XtermTerminal', () => {
 
 		TestWebglAddon.shouldThrow = false;
 		TestWebglAddon.isEnabled = false;
+		TestWebglAddon.customGlyphOptions.length = 0;
 	});
 
 	test('should use fallback dimensions of 80x30', () => {
 		strictEqual(xterm.raw.cols, 80);
 		strictEqual(xterm.raw.rows, 30);
+	});
+
+	test('disables custom glyphs when moved into an auxiliary window', async () => {
+		await configurationService.setUserConfiguration('terminal.integrated', {
+			...defaultTerminalConfig,
+			gpuAcceleration: 'on',
+			customGlyphs: true,
+		});
+		configurationService.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
+			override affectsConfiguration(section: string): boolean {
+				return section.startsWith('terminal.integrated');
+			}
+		});
+
+		const mainContainer = document.createElement('div');
+		document.body.appendChild(mainContainer);
+		store.add(toDisposable(() => mainContainer.remove()));
+		xterm.attachToElement(mainContainer);
+		await timeout(0);
+
+		const iframe = document.createElement('iframe');
+		document.body.appendChild(iframe);
+		store.add(toDisposable(() => iframe.remove()));
+		const auxiliaryDocument = iframe.contentDocument!;
+		const auxiliaryContainer = document.createElement('div');
+		auxiliaryDocument.body.appendChild(auxiliaryContainer);
+		const createElement = auxiliaryDocument.createElement;
+		auxiliaryDocument.createElement = () => {
+			throw new Error('Not allowed to create elements in child window JavaScript context.');
+		};
+		store.add(toDisposable(() => auxiliaryDocument.createElement = createElement));
+
+		auxiliaryContainer.appendChild(xterm.raw.element!);
+		xterm.raw.open(xterm.raw.element!);
+		xterm.refresh();
+		await timeout(0);
+
+		mainContainer.appendChild(xterm.raw.element!);
+		xterm.raw.open(xterm.raw.element!);
+		xterm.refresh();
+		await timeout(0);
+
+		deepStrictEqual(TestWebglAddon.customGlyphOptions, [true, false, true]);
+	});
+
+	test('does not load stale custom glyph settings when moved during addon import', async () => {
+		await configurationService.setUserConfiguration('terminal.integrated', {
+			...defaultTerminalConfig,
+			gpuAcceleration: 'on',
+			customGlyphs: true,
+		});
+		configurationService.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
+			override affectsConfiguration(section: string): boolean {
+				return section.startsWith('terminal.integrated');
+			}
+		});
+
+		const mainContainer = document.createElement('div');
+		document.body.appendChild(mainContainer);
+		store.add(toDisposable(() => mainContainer.remove()));
+		xterm.attachToElement(mainContainer);
+
+		const iframe = document.createElement('iframe');
+		document.body.appendChild(iframe);
+		store.add(toDisposable(() => iframe.remove()));
+		const auxiliaryDocument = iframe.contentDocument!;
+		const auxiliaryContainer = document.createElement('div');
+		auxiliaryDocument.body.appendChild(auxiliaryContainer);
+		const createElement = auxiliaryDocument.createElement;
+		auxiliaryDocument.createElement = () => {
+			throw new Error('Not allowed to create elements in child window JavaScript context.');
+		};
+		store.add(toDisposable(() => auxiliaryDocument.createElement = createElement));
+
+		auxiliaryContainer.appendChild(xterm.raw.element!);
+		xterm.raw.open(xterm.raw.element!);
+		xterm.refresh();
+		await timeout(0);
+
+		deepStrictEqual(TestWebglAddon.customGlyphOptions, [false]);
 	});
 
 	suite('getContentsAsText', () => {
@@ -173,19 +258,16 @@ suite('XtermTerminal', () => {
 			strictEqual(result.startsWith('hello world\n  indented line\nline with $pecial chars!@#\n\nempty line above'), true, 'Should handle spaces and special characters correctly');
 		});
 
-		test('should throw error when startMarker is disposed (line === -1)', async () => {
+		test('should fall back to line 0 when startMarker is disposed (line === -1)', async () => {
 			await write('line 1\r\n');
 			const disposedMarker = xterm.raw.registerMarker(0)!;
 			await write('line 2\r\nline 3\r\nline 4\r\nline 5');
 
 			disposedMarker.dispose();
 
-			try {
-				xterm.getContentsAsText(disposedMarker);
-				throw new Error('Expected error was not thrown');
-			} catch (error: any) {
-				strictEqual(error.message, 'Cannot get contents of a disposed startMarker');
-			}
+			const result = xterm.getContentsAsText(disposedMarker);
+			// Should return content from line 0 (including line 1) instead of throwing
+			ok(result.startsWith('line 1\nline 2\nline 3\nline 4\nline 5'), `Unexpected result: ${result}`);
 		});
 
 		test('should throw error when endMarker is disposed (line === -1)', async () => {

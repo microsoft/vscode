@@ -20,11 +20,11 @@ import { Action2, registerAction2 } from '../../../../platform/actions/common/ac
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
-import { IDefaultAccountProvider, IDefaultAccountService, ManagedSettingsFetchStatus } from '../../../../platform/defaultAccount/common/defaultAccount.js';
+import { IDefaultAccountProvider, IDefaultAccountService, IManagedSettingsCompatibilityError, MANAGED_SETTINGS_UPDATE_REQUIRED_ERROR_CODE, ManagedSettingsFetchStatus } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
-import { asJson, IRequestService, isClientError, isSuccess, readHeader, retryAfterFromHeaders } from '../../../../platform/request/common/request.js';
+import { asJson, asText, IRequestService, isClientError, isSuccess, readHeader, retryAfterFromHeaders } from '../../../../platform/request/common/request.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
@@ -32,7 +32,7 @@ import { AuthenticationSession, AuthenticationSessionAccount, IAuthenticationExt
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
 import { IExtensionService } from '../../extensions/common/extensions.js';
 import { IHostService } from '../../host/browser/host.js';
-import { adaptManagedSettings, IManagedSettingsResponse } from './managedSettings.js';
+import { adaptManagedSettings, appendManagedSettingsClientIdentity, IManagedSettingsResponse, parseManagedSettingsCompatibilityError } from './managedSettings.js';
 
 interface IDefaultAccountConfig {
 	readonly preferredExtensions: string[];
@@ -57,13 +57,13 @@ interface IDefaultAccountConfig {
 
 export const DEFAULT_ACCOUNT_SIGN_IN_COMMAND = 'workbench.actions.accounts.signIn';
 
-const enum DefaultAccountStatus {
+export const enum DefaultAccountStatus {
 	Uninitialized = 'uninitialized',
 	Unavailable = 'unavailable',
 	Available = 'available',
 }
 
-const CONTEXT_DEFAULT_ACCOUNT_STATE = new RawContextKey<string>('defaultAccountStatus', DefaultAccountStatus.Uninitialized);
+export const CONTEXT_DEFAULT_ACCOUNT_STATE = new RawContextKey<string>('defaultAccountStatus', DefaultAccountStatus.Uninitialized);
 const CACHED_POLICY_DATA_KEY = 'defaultAccount.cachedPolicyData';
 const ACCOUNT_DATA_POLL_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
 const MANAGED_SETTINGS_REQUEST_TIMEOUT_MS = 5000;
@@ -124,6 +124,8 @@ export class DefaultAccountService extends Disposable implements IDefaultAccount
 
 	get managedSettingsFetchStatus(): ManagedSettingsFetchStatus { return this.defaultAccountProvider?.managedSettingsFetchStatus ?? null; }
 	get managedSettingsFetchedAt(): number | null { return this.defaultAccountProvider?.managedSettingsFetchedAt ?? null; }
+	get managedSettingsRawResponse(): unknown { return this.defaultAccountProvider?.managedSettingsRawResponse ?? null; }
+	get managedSettingsCompatibilityError(): IManagedSettingsCompatibilityError | null { return this.defaultAccountProvider?.managedSettingsCompatibilityError ?? null; }
 
 	private readonly initBarrier = new Barrier();
 
@@ -135,6 +137,9 @@ export class DefaultAccountService extends Disposable implements IDefaultAccount
 
 	private readonly _onDidChangeCopilotTokenInfo = this._register(new Emitter<ICopilotTokenInfo | null>());
 	readonly onDidChangeCopilotTokenInfo = this._onDidChangeCopilotTokenInfo.event;
+
+	private readonly _onDidChangeManagedSettingsCompatibilityError = this._register(new Emitter<IManagedSettingsCompatibilityError | null>());
+	readonly onDidChangeManagedSettingsCompatibilityError = this._onDidChangeManagedSettingsCompatibilityError.event;
 
 	private readonly defaultAccountConfig: IDefaultAccountConfig;
 	private defaultAccountProvider: IDefaultAccountProvider | null = null;
@@ -167,8 +172,12 @@ export class DefaultAccountService extends Disposable implements IDefaultAccount
 		}
 
 		this.defaultAccountProvider = provider;
+		this._register(provider.onDidChangeManagedSettingsCompatibilityError(error => this._onDidChangeManagedSettingsCompatibilityError.fire(error)));
 		if (this.defaultAccountProvider.policyData) {
 			this._onDidChangePolicyData.fire(this.defaultAccountProvider.policyData);
+		}
+		if (this.defaultAccountProvider.managedSettingsCompatibilityError) {
+			this._onDidChangeManagedSettingsCompatibilityError.fire(this.defaultAccountProvider.managedSettingsCompatibilityError);
 		}
 		provider.refresh().then(account => {
 			this.defaultAccount = account;
@@ -222,6 +231,7 @@ interface IAccountPolicyData {
 	readonly tokenEntitlementsFetchedAt?: number;
 	readonly mcpRegistryDataFetchedAt?: number;
 	readonly managedSettingsFetchedAt?: number;
+	readonly managedSettingsCompatibilityError?: IManagedSettingsCompatibilityError;
 }
 
 interface ICachedAccountData {
@@ -235,6 +245,12 @@ interface IDefaultAccountData {
 	policyData: IAccountPolicyData | null;
 	copilotTokenInfo: ICopilotTokenInfo | null;
 }
+
+type ManagedSettingsRequestResult =
+	| { readonly kind: 'success'; readonly data: Partial<IPolicyData> }
+	| { readonly kind: 'noSettings' }
+	| { readonly kind: 'updateRequired'; readonly error: IManagedSettingsCompatibilityError }
+	| { readonly kind: 'unavailable' };
 
 type DefaultAccountStatusTelemetry = {
 	status: string;
@@ -260,7 +276,7 @@ type ManagedSettingsFetchTelemetryClassification = {
 	rateLimitBackoffActive: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'True when the request was short-circuited because a prior rate-limit Retry-After window was still active.' };
 };
 
-class DefaultAccountProvider extends Disposable implements IDefaultAccountProvider {
+export class DefaultAccountProvider extends Disposable implements IDefaultAccountProvider {
 
 	private _defaultAccount: IDefaultAccountData | null = null;
 	get defaultAccount(): IDefaultAccount | null { return this._defaultAccount?.defaultAccount ?? null; }
@@ -275,6 +291,12 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 	get managedSettingsFetchStatus(): ManagedSettingsFetchStatus { return this._managedSettingsFetchStatus; }
 	get managedSettingsFetchedAt(): number | null { return this._policyData?.managedSettingsFetchedAt ?? null; }
 
+	private _managedSettingsRawResponse: unknown = null;
+	get managedSettingsRawResponse(): unknown { return this._managedSettingsRawResponse; }
+
+	private _managedSettingsCompatibilityError: IManagedSettingsCompatibilityError | null = null;
+	get managedSettingsCompatibilityError(): IManagedSettingsCompatibilityError | null { return this._managedSettingsCompatibilityError; }
+
 	private readonly _onDidChangeDefaultAccount = this._register(new Emitter<IDefaultAccount | null>());
 	readonly onDidChangeDefaultAccount = this._onDidChangeDefaultAccount.event;
 
@@ -284,11 +306,15 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 	private readonly _onDidChangeCopilotTokenInfo = this._register(new Emitter<ICopilotTokenInfo | null>());
 	readonly onDidChangeCopilotTokenInfo = this._onDidChangeCopilotTokenInfo.event;
 
+	private readonly _onDidChangeManagedSettingsCompatibilityError = this._register(new Emitter<IManagedSettingsCompatibilityError | null>());
+	readonly onDidChangeManagedSettingsCompatibilityError = this._onDidChangeManagedSettingsCompatibilityError.event;
+
 	private readonly accountStatusContext: IContextKey<string>;
 	private initialized = false;
 	private readonly initPromise: Promise<void>;
 	private readonly updateThrottler = this._register(new ThrottledDelayer(100));
 	private readonly accountDataPollScheduler = this._register(new RunOnceScheduler(() => this.refetchDefaultAccount(), ACCOUNT_DATA_POLL_INTERVAL_MS));
+	private readonly managedSettingsFetchAttemptedAccounts = new Set<string>();
 
 	constructor(
 		private readonly defaultAccountConfig: IDefaultAccountConfig,
@@ -300,6 +326,7 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 		@IRequestService private readonly requestService: IRequestService,
 		@ILogService private readonly logService: ILogService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@IProductService private readonly productService: IProductService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IHostService private readonly hostService: IHostService,
@@ -310,6 +337,7 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 		const cachedAccountData = this.getCachedAccountData();
 		this._policyData = cachedAccountData?.accountPolicyData ?? null;
 		this._copilotTokenInfo = cachedAccountData?.copilotTokenInfo ?? null;
+		this._managedSettingsCompatibilityError = cachedAccountData?.accountPolicyData.managedSettingsCompatibilityError ?? null;
 		this.initPromise = this.init()
 			.finally(() => {
 				this.telemetryService.publicLog2<DefaultAccountStatusTelemetry, DefaultAccountStatusTelemetryClassification>('defaultaccount:status', { status: this.defaultAccount ? 'available' : 'unavailable', initial: true });
@@ -532,12 +560,14 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 			this._defaultAccount = account;
 			this.setCopilotTokenInfo(account.copilotTokenInfo);
 			this.setPolicyData(account.policyData);
+			this.setManagedSettingsCompatibilityError(account.policyData?.managedSettingsCompatibilityError ?? null);
 			this._onDidChangeDefaultAccount.fire(this._defaultAccount.defaultAccount);
 			this.accountStatusContext.set(DefaultAccountStatus.Available);
 			this.logService.debug('[DefaultAccount] Account status set to Available');
 		} else {
 			this._defaultAccount = null;
 			this.setPolicyData(null);
+			this.setManagedSettingsCompatibilityError(null);
 			this.setCopilotTokenInfo(null);
 			this._onDidChangeDefaultAccount.fire(null);
 			this.accountDataPollScheduler.cancel();
@@ -553,6 +583,14 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 		this._policyData = accountPolicyData;
 		this.cachePolicyData(accountPolicyData);
 		this._onDidChangePolicyData.fire(this._policyData?.policyData ?? null);
+	}
+
+	private setManagedSettingsCompatibilityError(error: IManagedSettingsCompatibilityError | null): void {
+		if (equals(this._managedSettingsCompatibilityError, error)) {
+			return;
+		}
+		this._managedSettingsCompatibilityError = error;
+		this._onDidChangeManagedSettingsCompatibilityError.fire(error);
 	}
 
 	private setCopilotTokenInfo(copilotTokenInfo: ICopilotTokenInfo | null): void {
@@ -629,6 +667,9 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 
 			const tokenEntitlementsFetchedAt: number | undefined = tokenEntitlementsResult?.fetchedAt;
 			const managedSettingsFetchedAt: number | undefined = managedSettingsResult?.fetchedAt;
+			const managedSettingsCompatibilityError = managedSettingsResult
+				? managedSettingsResult.compatibilityError
+				: this._managedSettingsCompatibilityError;
 			let mcpRegistryDataFetchedAt: number | undefined;
 			let policyData: Mutable<IPolicyData> | undefined = accountPolicyData?.policyData ? { ...accountPolicyData.policyData } : undefined;
 			if (entitlementsData) {
@@ -664,7 +705,15 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 			};
 			this.logService.debug('[DefaultAccount] Successfully created default account for provider:', authenticationProvider.id);
 			const accountPolicyResult: IAccountPolicyData | null = policyData || entitlementsFetchedAt
-				? { accountId, policyData: policyData ?? {}, entitlementsFetchedAt, tokenEntitlementsFetchedAt, mcpRegistryDataFetchedAt, managedSettingsFetchedAt }
+				? {
+					accountId,
+					policyData: policyData ?? {},
+					entitlementsFetchedAt,
+					tokenEntitlementsFetchedAt,
+					mcpRegistryDataFetchedAt,
+					managedSettingsFetchedAt,
+					managedSettingsCompatibilityError: managedSettingsCompatibilityError ?? undefined,
+				}
 				: null;
 			return {
 				defaultAccount,
@@ -866,75 +915,115 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 		}
 	}
 
-	private async getManagedSettings(sessions: AuthenticationSession[], accountPolicyData: IAccountPolicyData | undefined, options?: { forceRefresh?: boolean }): Promise<{ data: Partial<IPolicyData> | undefined; fetchedAt: number }> {
-		if (!options?.forceRefresh && accountPolicyData?.managedSettingsFetchedAt && !this.isDataStale(accountPolicyData.managedSettingsFetchedAt)) {
-			this.logService.debug('[DefaultAccount] Using last fetched managed settings data');
-			// Seed status so Policy Diagnostics reflects "applied" rather than
-			// "not yet fetched" after a process restart that warm-starts from
-			// the cached policy payload.
-			this._managedSettingsFetchStatus = 'ok';
-			return {
+	private async getManagedSettings(sessions: AuthenticationSession[], accountPolicyData: IAccountPolicyData | undefined, options?: { forceRefresh?: boolean }): Promise<{ data: Partial<IPolicyData> | undefined; fetchedAt: number | undefined; compatibilityError: IManagedSettingsCompatibilityError | null }> {
+		const accountId = sessions[0].account.id;
+		const cachedManagedSettings = accountPolicyData?.managedSettingsFetchedAt !== undefined && !this.isDataStale(accountPolicyData.managedSettingsFetchedAt)
+			? {
 				data: {
 					managedSettings: accountPolicyData.policyData.managedSettings,
-					enabledPlugins: accountPolicyData.policyData.enabledPlugins,
-					extraKnownMarketplaces: accountPolicyData.policyData.extraKnownMarketplaces,
-					strictKnownMarketplaces: accountPolicyData.policyData.strictKnownMarketplaces,
 				},
 				fetchedAt: accountPolicyData.managedSettingsFetchedAt,
-			};
+			}
+			: undefined;
+		const hasFetchedThisProcess = this.managedSettingsFetchAttemptedAccounts.has(accountId);
+		if (!options?.forceRefresh && cachedManagedSettings && hasFetchedThisProcess) {
+			this.logService.debug('[DefaultAccount] Using last fetched managed settings data');
+			return { ...cachedManagedSettings, compatibilityError: this._managedSettingsCompatibilityError };
 		}
-		const data = await this.requestManagedSettings(sessions);
-		return { data, fetchedAt: Date.now() };
+
+		this.managedSettingsFetchAttemptedAccounts.add(accountId);
+		const result = await this.requestManagedSettings(sessions);
+		const fetchedAt = Date.now();
+		switch (result.kind) {
+			case 'success':
+				return { data: result.data, fetchedAt, compatibilityError: null };
+			case 'noSettings':
+				return { data: { managedSettings: undefined }, fetchedAt, compatibilityError: null };
+			case 'updateRequired':
+				return { data: { managedSettings: undefined }, fetchedAt, compatibilityError: result.error };
+			case 'unavailable': {
+				// A failed fetch must not extend the life of the cached response: carry the cache's timestamp for expiry
+				const retained = this._managedSettingsCompatibilityError ? undefined : cachedManagedSettings;
+				return {
+					data: { managedSettings: retained?.data.managedSettings },
+					fetchedAt: retained?.fetchedAt,
+					compatibilityError: this._managedSettingsCompatibilityError,
+				};
+			}
+		}
 	}
 
-	private async requestManagedSettings(sessions: AuthenticationSession[]): Promise<Partial<IPolicyData> | undefined> {
+	private async requestManagedSettings(sessions: AuthenticationSession[]): Promise<ManagedSettingsRequestResult> {
 		const managedSettingsUrl = this.getManagedSettingsUrl();
 		if (!managedSettingsUrl) {
 			this.logService.debug('[DefaultAccount] No managed settings URL configured; skipping enterprise policy fetch');
 			this._managedSettingsFetchStatus = 'no-url';
-			return undefined;
+			return { kind: 'unavailable' };
 		}
 
-		this.logService.debug('[DefaultAccount] Fetching managed settings from:', managedSettingsUrl);
+		const requestUrl = appendManagedSettingsClientIdentity(managedSettingsUrl, this.productService);
+		this.logService.debug('[DefaultAccount] Fetching managed settings from:', requestUrl);
 		const rateLimitBackoffActive = Date.now() < this._rateLimitBackoffUntil;
-		const response = await this.request(managedSettingsUrl, 'GET', undefined, sessions, CancellationToken.None, 'defaultAccount.managedSettings', MANAGED_SETTINGS_REQUEST_TIMEOUT_MS);
+		const response = await this.request(requestUrl, 'GET', undefined, sessions, CancellationToken.None, 'defaultAccount.managedSettings', MANAGED_SETTINGS_REQUEST_TIMEOUT_MS);
 		if (!response) {
 			this.logService.debug('[DefaultAccount] Managed settings fetch returned no response (network error, all sessions rejected, or active rate-limit backoff); falling back to local-only policy');
 			this.reportManagedSettingsOutcome('no-response', rateLimitBackoffActive);
-			return undefined;
+			return { kind: 'unavailable' };
 		}
 
-		// Any non-2xx response means "fall back to local settings only and continue
-		// operating normally" — silent fallback, no policy.
+		const status = response.res.statusCode ?? 0;
+		if (status === 404) {
+			this.reportManagedSettingsOutcome(status, rateLimitBackoffActive);
+			return { kind: 'noSettings' };
+		}
+		if (status === 466) {
+			const error = await this.readManagedSettingsCompatibilityError(response);
+			this.setManagedSettingsCompatibilityError(error);
+			this.reportManagedSettingsOutcome(status, rateLimitBackoffActive);
+			return { kind: 'updateRequired', error };
+		}
+
 		if (!isSuccess(response)) {
-			const status = response.res.statusCode ?? 0;
 			this.logService.warn(`[DefaultAccount] Managed settings fetch returned non-success status ${status}; falling back to local-only policy`);
 			this.reportManagedSettingsOutcome(status, rateLimitBackoffActive);
-			return undefined;
+			return { kind: 'unavailable' };
 		}
 
 		try {
 			const data = await asJson<IManagedSettingsResponse>(response);
 			this.logService.trace('[DefaultAccount] Managed settings raw response:', JSON.stringify(data ?? null));
+			this._managedSettingsRawResponse = data ?? null;
 			const adapted = adaptManagedSettings(data ?? {}, msg => this.logService.warn(msg));
 			// An empty response (`{}`) is a successful "no policy file present" signal.
-			const pluginCount = adapted.enabledPlugins ? Object.keys(adapted.enabledPlugins).length : 0;
-			const marketplaceCount = adapted.extraKnownMarketplaces?.length ?? 0;
-			const strictSet = adapted.strictKnownMarketplaces !== undefined;
 			const managedSettingsCount = adapted.managedSettings ? Object.keys(adapted.managedSettings).length : 0;
-			if (pluginCount === 0 && marketplaceCount === 0 && !strictSet && managedSettingsCount === 0) {
+			if (managedSettingsCount === 0) {
 				this.logService.debug('[DefaultAccount] Managed settings fetched (empty response — no enterprise policy file present)');
 			} else {
 				this.logService.info('[DefaultAccount] Managed settings applied');
 				this.logService.trace('[DefaultAccount] Managed settings payload:', JSON.stringify(adapted));
 			}
 			this.reportManagedSettingsOutcome('ok', rateLimitBackoffActive);
-			return adapted;
+			return { kind: 'success', data: adapted };
 		} catch (error) {
 			this.logService.error('[DefaultAccount] Failed to parse managed settings response', getErrorMessage(error));
 			this.reportManagedSettingsOutcome('parse-error', rateLimitBackoffActive);
-			return undefined;
+			return { kind: 'unavailable' };
 		}
+	}
+
+	private async readManagedSettingsCompatibilityError(response: IRequestContext): Promise<IManagedSettingsCompatibilityError> {
+		try {
+			const text = await asText(response);
+			const body: unknown = text ? JSON.parse(text) : undefined;
+			const parsed = parseManagedSettingsCompatibilityError(body);
+			if (parsed) {
+				return parsed;
+			}
+			this.logService.error('[DefaultAccount] Managed settings compatibility response did not contain the expected error code');
+		} catch (error) {
+			this.logService.error('[DefaultAccount] Failed to parse managed settings compatibility response', getErrorMessage(error));
+		}
+		return { errorCode: MANAGED_SETTINGS_UPDATE_REQUIRED_ERROR_CODE };
 	}
 
 	private reportManagedSettingsOutcome(status: Exclude<ManagedSettingsFetchStatus, null | 'no-url'>, rateLimitBackoffActive: boolean): void {

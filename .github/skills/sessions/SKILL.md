@@ -1,49 +1,127 @@
 ---
 name: sessions
-description: Agents window architecture — covers the agents-first app, layering, folder structure, chat widget, menus, contributions, entry points, and development guidelines. Use when implementing features or fixing issues in the Agents window.
+description: Core principles and workflow router for changes to the Agents Window under src/vs/sessions.
 ---
 
-## Before Making Any Changes
+# Agents Window development
 
-**MANDATORY:** Before writing or modifying any code in `src/vs/sessions/`, you **must** read these documents:
+Use this skill for implementation, review, or design work under
+`src/vs/sessions/**`.
 
-1. **`.github/instructions/coding-guidelines.instructions.md`** — Naming conventions, code style, string localization, disposable management, and DI patterns.
-2. **`.github/instructions/source-code-organization.instructions.md`** — Layers, target environments, dependency injection, and folder structure conventions.
+## 1. Apply the core principles
 
-Then read the relevant spec for the area you are changing (see table below). If you modify the implementation, you **must** update the corresponding spec to keep it in sync.
+- Preserve the layer direction: `vs/sessions` may import `vs/workbench` and
+  lower layers; `vs/workbench` must never import `vs/sessions`.
+- Keep shared Sessions code provider-neutral. Non-provider contributions must
+  not import provider implementations.
+- Model mutable session and chat state with observables. Use events for
+  notifications, not as a parallel state model or for control flow.
+- Register Sessions menu IDs in `browser/menus.ts` and consume `Menus.*`.
+- Import contributions from the appropriate `sessions.*.main.ts` entry point.
+- Prefer Sessions-owned adaptations over shared workbench changes unless the
+  capability is genuinely shared.
+- Put stable architecture in the owning specification and concrete behavior in
+  tests. Do not preserve implementation chronology as development guidance.
 
-## Specification Documents
+## 2. Identify the owning area
 
-| Document | Path | When to read |
-|----------|------|-------------|
-| Layer rules | `src/vs/sessions/LAYERS.md` | Before adding any cross-module imports. Defines the internal layer hierarchy (`core` → `services` → `contrib` → `providers`) with ESLint-enforced import restrictions. Key rule: `contrib/*` must NOT import from `contrib/providers/*`. |
-| Layout spec | `src/vs/sessions/LAYOUT.md` | Before changing any part, grid structure, titlebar, or CSS. Documents the fixed grid layout (Sidebar \| ChatBar \| AuxiliaryBar), part positions, the modal editor system, per-session layout state persistence, and the titlebar's three-section design. |
-| Layout controller spec | `src/vs/sessions/LAYOUT_CONTROLLER.md` | Before changing `LayoutController` or per-session layout state. Details how the auxiliary bar, panel, and editor working sets are captured/restored when switching sessions, multi-session suppression, the auto-reveal-on-changes flow, workspace-folder ordering, and storage/migration. |
-| Sessions spec | `src/vs/sessions/SESSIONS.md` | Before changing session/provider interfaces or data flow. Covers the pluggable provider model (`ISessionsProvider` → `ISessionsProvidersService` → `ISessionsManagementService`), `ISession`/`IChat` interfaces, observable state propagation, workspace/folder model, and session type system. |
-| Sessions list spec | `src/vs/sessions/SESSIONS_LIST.md` | Before changing the sessions sidebar list. Covers the tree widget (`WorkbenchObjectTree`), renderers, grouping (workspace/date), filtering (type/status/archived/read), pinning, read/unread state, workspace capping, mobile adaptations, storage keys, and registered actions. |
-| Mobile spec | `src/vs/sessions/MOBILE.md` | Before adding any phone-specific UI. Covers the mobile part subclass architecture, viewport classification (phone < 640px), `MobileTitlebarPart`, drawer-based sidebar, `MobilePickerSheet`, view/action gating with `IsPhoneLayoutContext`, and the desktop → mobile component mapping. |
-| AI Customizations | `src/vs/sessions/AI_CUSTOMIZATIONS.md` | Before working on the customization editor or tree view. Documents the management editor (in `vs/workbench`) and the tree view/overview (in `vs/sessions/contrib/aiCustomizationTreeView`). |
+Start with `src/vs/sessions/README.md`, then read only the specifications relevant
+to the change:
 
-## Common Pitfalls
+| Area | Specification |
+|------|---------------|
+| Layering, folder ownership, cross-module imports | `src/vs/sessions/LAYERS.md` |
+| Session/chat model, services, provider contract, core data flow | `src/vs/sessions/SESSIONS.md` |
+| Workbench parts, grid, title bar, editor presentation | `src/vs/sessions/LAYOUT.md` |
+| Session-aware layout state and restoration | `src/vs/sessions/LAYOUT_CONTROLLER.md` |
+| Single-pane behavior and expected compositions | `src/vs/sessions/SINGLE_PANE_SCENARIOS.md` |
+| Sessions sidebar list, grouping, filtering, and persistence | `src/vs/sessions/SESSIONS_LIST.md` |
+| Phone layout and mobile components | `src/vs/sessions/MOBILE.md` |
+| AI customizations | `src/vs/sessions/AI_CUSTOMIZATIONS.md` |
+| Copilot customizations | `src/vs/sessions/copilot-customizations-spec.md` |
+| Copilot Chat provider | `src/vs/sessions/contrib/providers/copilotChatSessions/COPILOT_CHAT_SESSIONS_PROVIDER.md` |
+| Agent Host provider | `src/vs/sessions/contrib/providers/agentHost/AGENT_HOST_SESSIONS_PROVIDER.md` |
+| Remote Agent Host provider | `src/vs/sessions/contrib/providers/remoteAgentHost/REMOTE_AGENT_HOST_SESSIONS_PROVIDER.md` |
 
-- **Wrong menu IDs**: Never use `MenuId.*` from `vs/platform/actions` for Agents window UI. Always use `Menus.*` from `browser/menus.ts`.
-- **Events instead of observables**: Session state must flow through `IObservable`, not `Event`. Use `autorun`/`derived` for reactive UI, not `onDid*` event listeners.
-- **Importing from providers**: Non-provider `contrib/*` code must never import from `contrib/providers/*`. Extract shared interfaces to `services/` or `common/`.
-- **`IAgentSessionsService` in shared code**: `IAgentSessionsService` (`vs/workbench/contrib/chat/browser/agentSessions/agentSessionsService`) is a Copilot-provider internal and may be imported **only** by the Copilot chat sessions provider (`contrib/providers/copilotChatSessions/`). Shared sessions code (core/services/non-provider contribs, e.g. the sessions list or visible-sessions grid) must stay provider-agnostic and go through `ISession`/`ISessionsManagementService` — never reach into `model.observeSession(...)` etc. for lazy loading. This is enforced by an ESLint `no-restricted-imports` ban scoped to `src/vs/sessions/**` (Copilot provider exempted).
-- **Missing entry point import**: New contribution files must be imported in the appropriate `sessions.*.main.ts` entry point to be loaded (for example `sessions.common.main.ts`, `sessions.desktop.main.ts`, `sessions.web.main.ts`, or `sessions.web.main.internal.ts`).
-- **Modifying workbench code**: Prefer extending/wrapping workbench classes in the sessions layer over modifying shared workbench components.
-- **Timeouts as fixes**: Never use `setTimeout`/`disposableTimeout`/arbitrary delays to fix bugs or implement behaviour. They are race-prone guesses that mask the real ordering/state problem. Drive logic off deterministic signals instead — observables (`autorun`/`derived`), explicit events (`onDidChange*`), lifecycle phases, or awaiting the actual async operation.
-- **Stashed state read back later (side-channels)**: Never stash a value on a service during one method call and read it back from a separate query later, assuming it is still valid (e.g. a `Set`/flag set in `openSession` and consumed by a `shouldX()` pull-API). This is fragile temporal coupling. Instead, make it reactive state that is set **atomically together with its source of truth** and consumed reactively. Example: per-activation intent like "open in background / preserve focus" is exposed as an `IObservable` set in the **same transaction** as `activeSession` (via a single internal setter so it can never go stale), and read with `.read(reader)` in the consumer's `autorun` — never via a consume-once getter.
-- **Blocking on a "pending/waiting" state instead of creating + upgrading**: When an entity (e.g. a draft session) depends on something that registers asynchronously, don't withhold creation behind a pending/waiting state. Prefer creating immediately with the best available data, then **replace/upgrade** it once the awaited dependency arrives (driven by an `onDidChange*`/observable signal), cancelling the upgrade if the user changes the inputs meanwhile. Do **not** bound the upgrade with a timeout or even a lifecycle milestone like `LifecyclePhase.Eventually` — an agent host connects lazily and can surface its session types arbitrarily late, which would lock in the wrong fallback. Let the upgrade listener live for the consumer's lifetime instead.
+Do not load the learning inbox by default. Search its headings and scopes, then
+read only matching entries after the authoritative specification.
 
-## Capturing Feedback (meta-rule)
+## 3. Inspect before changing
 
-Whenever the user flags a wrong pattern, rejects an approach, or gives design/rules feedback, **automatically add it** as a concise pitfall/learning to this `Common Pitfalls` section (or the most relevant spec doc) in the same change — without being asked again. Keep each entry 1–3 sentences: the anti-pattern, why it is wrong, and the preferred pattern.
+- Trace the current implementation and its existing tests.
+- Search for shared helpers, context keys, menu IDs, entry-point imports, and
+  provider abstractions before adding new ones.
+- Confirm which layer owns the behavior. Keep provider-specific decisions in the
+  provider and view/layout decisions in Sessions-owned browser code.
+- For UI work, also invoke the applicable accessibility, design, CSS, layout, or
+  theming skill.
+- For agent, LLM, policy, permissions, telemetry, or managed-setting changes,
+  invoke the applicable specialist skill before implementation.
 
-## Validating Changes
+## 4. Implement the contract
 
-You **must** run these checks before declaring work complete:
+Apply the core principles and the focused specification. Prefer small changes
+that preserve these boundaries:
 
-1. `npm run compile-check-ts-native` — TypeScript compilation check. **Do not run `tsc` directly.**
-2. `npm run valid-layers-check` — **MANDATORY.** Catches layering violations. If this fails, fix the imports before proceeding.
-3. `scripts/test.sh --grep <pattern>` — unit tests for affected areas
+- `ISessionsManagementService` owns model orchestration and provider routing.
+- `ISessionsService` owns visible and active session behavior.
+- Providers expose provider-neutral state through `ISession` and `IChat`.
+- Session state is observable; consumers derive UI state reactively.
+- Contributions load through the appropriate `sessions.*.main.ts` entry point.
+- Sessions menus use the shared `Menus` registry.
+- Shared workbench changes represent shared capability, not Sessions-specific
+  policy.
+
+### Specification edit gate
+
+Bug fixes do not update specifications when they restore an existing contract.
+Before editing an authoritative specification, identify all three:
+
+1. the existing ownership, interface, lifecycle, state-machine, persistence, or
+   cross-component contract that intentionally changes;
+2. the implementation surfaces affected by that contract change;
+3. why a regression test and a brief code comment cannot fully represent it.
+
+If any answer is missing, leave the specification unchanged. Put concrete
+behavior in a focused test, keep a non-obvious implementation constraint beside
+the owning code, and preserve investigation history in the issue or pull
+request.
+
+Update a specification only when component ownership, an interface or lifecycle
+contract, a state machine, persistence, or a cross-component invariant changes.
+Do not update specifications for styling, copy, action placement, telemetry
+fields, settings defaults, implementation algorithms, or individual bug fixes.
+Those details belong in code and focused tests.
+
+## 5. Validate proportionally
+
+Run the smallest existing checks that cover the change:
+
+- focused unit tests for affected behavior;
+- `npm run valid-layers-check` when imports or module ownership change;
+- targeted type checking or compilation when TypeScript changes warrant it;
+- relevant integration, E2E, or visual validation for cross-process or UI work.
+
+Documentation-only changes require link, path, and consistency checks rather
+than a full build.
+
+## 6. Record feedback correctly
+
+When a user explicitly corrects or rejects an approach, invoke the
+`feedback-learning` skill unless they use the literal `learn!` trigger. Literal
+`learn!` requests follow `.github/instructions/learnings.instructions.md`
+instead. A durable architecture invariant belongs in the owning specification,
+concrete behavior belongs in a regression test, and unproven reusable guidance
+belongs temporarily in the scoped learning inbox. Never append every correction
+to this skill.
+
+## 7. Maintain this skill
+
+Update this skill only when a principle is stable, cross-cutting, and useful for
+most Agents Window work, or when the routing/workflow itself changes. Put
+subsystem contracts in their focused specification and bug behavior in tests.
+
+Keep the core-principles section at no more than ten bullets. Before adding one,
+merge overlap, remove obsolete guidance, and prefer rewriting an existing
+principle. Never append incident-specific details or use this skill as a
+learning log.

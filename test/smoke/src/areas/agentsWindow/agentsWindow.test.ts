@@ -8,36 +8,34 @@ import * as cp from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import { Application, ApplicationOptions, Logger } from '../../../../automation';
-import { createApp, dumpFailureDiagnostics, getCopilotSmokeTestEnv, getMockLlmServerPath, installAppAfterHandler, installDiagnosticsHandler, installAllHandlers, MockLlmServer, suiteCrashPath, suiteLogsPath } from '../../utils';
+import { createApp, dumpFailureDiagnostics, getCopilotSmokeTestEnv, getMockLlmServerPath, getMockLlmServerUrl, installAppAfterHandler, installDiagnosticsHandler, MockLlmServer, suiteCrashPath, suiteLogsPath } from '../../utils';
+import { shellEchoResponseMatcher, shellEchoScenario } from '../chat/shellScenarios';
 
 // Selector for the send button in the Agents Window new-session homepage.
 // Kept in sync with `SEND_BUTTON_ENABLED` in `test/automation/src/agentsWindow.ts`
 // (without the `:not(.disabled)` filter so we can observe the disabled state).
 const AGENTS_SEND_BUTTON_SELECTOR = '.sessions-chat-widget .new-chat-widget-container .sessions-chat-send-button .monaco-button';
+const NETWORK_PROXY_HEADER_NAME = 'X-VSCode-Smoke-Proxy';
 
-/**
- * Per-test scenarios. Each test uses a unique scenario id so that the mock
- * reply is distinct — this catches stale-content bugs where the previous
- * test's response is mistakenly accepted as the current test's response.
- */
-const COPILOT_SCENARIO_ID = 'smoke-hello-copilot';
-const COPILOT_REPLY = 'MOCKED_COPILOT_RESPONSE';
+function mockServerStartOptions(logger: (message: string) => void, captureRequests = false) {
+	const requiredRequestHeaderValue = process.env.VSCODE_SMOKE_TEST_PROXY_HEADER;
+	return {
+		logger,
+		verbose: true,
+		captureRequests,
+		requiredRequestHeader: requiredRequestHeaderValue ? { name: NETWORK_PROXY_HEADER_NAME, value: requiredRequestHeaderValue } : undefined,
+		trustedRequestHost: requiredRequestHeaderValue ? process.env.VSCODE_SMOKE_TEST_MOCK_HOST : undefined,
+	};
+}
 
-const COPILOT_SANDBOX_SCENARIO_ID = 'smoke-hello-copilot-sandbox';
-const COPILOT_SANDBOX_REPLY = 'MOCKED_COPILOT_SANDBOX_RESPONSE';
+const CODEX_SCENARIO_ID = 'smoke-hello-codex';
+const CODEX_REPLY = 'MOCKED_CODEX_RESPONSE';
 
-const LOCAL_SCENARIO_ID = 'smoke-hello-local';
-const LOCAL_REPLY = 'MOCKED_LOCAL_RESPONSE';
-
-const CLAUDE_SCENARIO_ID = 'smoke-hello-claude';
-const CLAUDE_REPLY = 'MOCKED_CLAUDE_RESPONSE';
-
-// Lightweight throwaway scenario used by {@link warmUpClaudeModel} to
-// pre-pay the Claude session cold-start cost (bundled SDK import, language
-// model server startup, SDK subprocess spawn, plugin loading) before the
-// real assertion runs.
-const CLAUDE_WARMUP_SCENARIO_ID = 'smoke-hello-claude-warmup';
-const CLAUDE_WARMUP_REPLY = 'MOCKED_CLAUDE_WARMUP_RESPONSE';
+// Lightweight throwaway scenario used by {@link warmUpCodexModel} to pre-pay
+// the Codex session cold-start cost (native codex app-server spawn + model
+// list resolution) before the real assertion runs.
+const CODEX_WARMUP_SCENARIO_ID = 'smoke-hello-codex-warmup';
+const CODEX_WARMUP_REPLY = 'MOCKED_CODEX_WARMUP_RESPONSE';
 
 const AGENT_HOST_SCENARIO_ID = 'smoke-hello-agent-host';
 const AGENT_HOST_REPLY = 'MOCKED_AGENT_HOST_RESPONSE';
@@ -56,266 +54,6 @@ const AGENT_HOST_WARMUP_REPLY = 'MOCKED_AGENT_HOST_WARMUP_RESPONSE';
 
 export function setup(logger: Logger) {
 
-	describe('Agents Window', () => {
-
-		let mockServer: MockLlmServer;
-
-		// Start the mock server BEFORE installAllHandlers' `before` runs so
-		// the mock URL is available when we configure the app's env vars via
-		// `optionsTransform`.
-		before(async function () {
-			const { startServer, ScenarioBuilder, registerScenario } = require(getMockLlmServerPath());
-
-			// Fallback for ancillary requests (title/branch) that don't carry a [scenario:...] tag.
-			registerScenario('text-only', new ScenarioBuilder().emit('OK').build());
-
-			// One scenario per session type, each emitting a distinct reply
-			// so the assertion is unambiguous.
-			registerScenario(COPILOT_SCENARIO_ID, new ScenarioBuilder().emit(COPILOT_REPLY).build());
-			registerScenario(COPILOT_SANDBOX_SCENARIO_ID, shellEchoScenario(COPILOT_SANDBOX_REPLY));
-			registerScenario(LOCAL_SCENARIO_ID, new ScenarioBuilder().emit(LOCAL_REPLY).build());
-			registerScenario(CLAUDE_SCENARIO_ID, new ScenarioBuilder().emit(CLAUDE_REPLY).build());
-			registerScenario(CLAUDE_WARMUP_SCENARIO_ID, new ScenarioBuilder().emit(CLAUDE_WARMUP_REPLY).build());
-
-			mockServer = await startServer(0, { logger: (msg: string) => logger.log(`[mock-llm] ${msg}`), verbose: true });
-			logger.log(`[Agents Window] mock LLM server started at ${mockServer.url} (platform=${process.platform}, arch=${process.arch}, node=${process.version})`);
-			logger.log(`[Agents Window] env: VSCODE_DEV=${process.env.VSCODE_DEV ?? '<unset>'}, VSCODE_QUALITY=${process.env.VSCODE_QUALITY ?? '<unset>'}, BUILD_SOURCEBRANCH=${process.env.BUILD_SOURCEBRANCH ?? '<unset>'}, GITHUB_RUN_ID=${process.env.GITHUB_RUN_ID ?? '<unset>'}, GITHUB_ACTIONS=${process.env.GITHUB_ACTIONS ?? '<unset>'}`);
-		});
-
-		installAllHandlers(logger, opts => {
-			const copilotEnv = getCopilotSmokeTestEnv(mockServer);
-			logger.log(`[Agents Window] extraEnv keys for app: ${Object.keys(copilotEnv).join(', ')} (token len=${(copilotEnv.VSCODE_COPILOT_CHAT_TOKEN ?? '').length})`);
-			return {
-				...opts,
-				extraEnv: {
-					...(opts.extraEnv ?? {}),
-					...copilotEnv,
-				},
-			};
-		});
-
-		before(async function () {
-			// One-time setup: write VS Code settings and open the Agents Window
-			// with the smoke-test workspace folder pre-selected. Subsequent tests
-			// reuse this window and just start fresh sessions.
-			const app = this.app as Application;
-			logger.log(`[Agents Window] one-time setup begin; workspace=${app.workspacePathOrFolder}; mock URL=${mockServer.url}; requestCount=${mockServer.requestCount()}`);
-
-			// Reset any uncommitted changes left by earlier smoke test suites
-			// (e.g. the Tasks test modifies .vscode/tasks.json). A dirty
-			// workspace prevents worktree creation and triggers the
-			// "uncommitted changes" confirmation flow which aborts the session.
-			cp.execSync('git checkout . --quiet', { cwd: app.workspacePathOrFolder });
-			logger.log(`[Agents Window] reset workspace via 'git checkout .'`);
-
-			// overrideProxyUrl redirects all Copilot SDK traffic to our mock server
-			// and enables HMAC auth — no real GitHub token required.
-			// allowAnonymousAccess skips the token-validation gate in the
-			// extension-host copilotTokenManager when there is no real GitHub session.
-			// githubMcpServer is disabled to prevent a real-network MCP connection
-			// to the GitHub MCP server during the test.
-			// sessions.chat.localAgent.enabled exposes the "Local" session type.
-			await app.workbench.settingsEditor.addUserSettings([
-				['github.copilot.advanced.debug.overrideProxyUrl', JSON.stringify(mockServer.url)],
-				// Use token auth (not HMAC) so the SDK can call /models and
-				// /models/session against the mock server without HMAC validation.
-				['github.copilot.advanced.debug.overrideAuthType', '"token"'],
-				['chat.allowAnonymousAccess', 'true'],
-				['github.copilot.chat.githubMcpServer.enabled', 'false'],
-				['sessions.chat.localAgent.enabled', 'true'],
-				['github.copilot.chat.cli.sandbox.enabled', '"on"'],
-				['github.copilot.chat.cli.sessionEventLogging.enabled', 'true'],
-			]);
-			logger.log(`[Agents Window] user settings written; requestCount=${mockServer.requestCount()}`);
-
-			// `--enable-smoke-test-driver` (set by the runner) skips the auth dialog.
-			const windowsBefore = app.code.driver.getAllWindows().length;
-			logger.log(`[Agents Window] windowsBefore=${windowsBefore}; opening current folder in Agents Window`);
-			await app.workbench.agentsWindow.openCurrentFolderInAgentsWindow();
-			logger.log(`[Agents Window] command dispatched; awaiting new Agents Window to appear (current windows=${app.code.driver.getAllWindows().length})`);
-			await app.workbench.agentsWindow.switchToAgentsWindow(windowsBefore);
-			logger.log(`[Agents Window] switched to Agents Window (current windows=${app.code.driver.getAllWindows().length}); requestCount=${mockServer.requestCount()}`);
-		});
-
-		after(async function () {
-			if (mockServer) {
-				logger.log(`[Agents Window] closing mock LLM server; total requestCount=${mockServer.requestCount()}`);
-				await mockServer.close();
-			}
-		});
-
-		it('Test Copilot CLI session', async function () {
-			const app = this.app as Application;
-			logger.log(`[Agents Window/Copilot] starting test; requestCount=${mockServer.requestCount()}`);
-
-			try {
-				logger.log(`[Agents Window/Copilot] waiting for new session view`);
-				await app.workbench.agentsWindow.waitForNewSessionView();
-				logger.log(`[Agents Window/Copilot] selecting session type 'Copilot CLI'`);
-				await app.workbench.agentsWindow.selectSessionType('Copilot CLI');
-
-				const requestsBefore = mockServer.requestCount();
-				logger.log(`[Agents Window/Copilot] submitting prompt; requestCount=${requestsBefore}`);
-				await app.workbench.agentsWindow.submitNewSessionPrompt(`hello world [scenario:${COPILOT_SCENARIO_ID}]`);
-				logger.log(`[Agents Window/Copilot] prompt submitted; waiting for assistant text '${COPILOT_REPLY}'; requestCount=${mockServer.requestCount()}`);
-
-				const text = await app.workbench.agentsWindow.waitForAssistantText(COPILOT_REPLY);
-				logger.log(`[Agents Window/Copilot] response (length=${text.length}): ${text}`);
-				logger.log(`[Agents Window/Copilot] mock server requestCount after response: ${mockServer.requestCount()} (before=${requestsBefore})`);
-
-				assert.ok(
-					mockServer.requestCount() > requestsBefore,
-					`expected the mock LLM server to have received a new request from the Copilot session (before=${requestsBefore}, after=${mockServer.requestCount()})`
-				);
-			} catch (error) {
-				logger.log(`[Agents Window/Copilot] FAILURE: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
-				logger.log(`[Agents Window/Copilot] mock server requestCount at failure: ${mockServer.requestCount()}`);
-				await dumpFailureDiagnostics(app, logger, 'Agents Window/Copilot', { sendButtonSelector: AGENTS_SEND_BUTTON_SELECTOR });
-				throw error;
-			}
-		});
-
-		it('Test Copilot CLI session (sandbox)', async function () {
-			// Sandbox-backed shell tool currently only runs cleanly on macOS
-			// in CI. On Linux the bubblewrap policy fails to start bash inside
-			// the sandbox; on Windows AppContainer cold-start usually exceeds
-			// the 120s budget. Re-enable here once both backends are fixed.
-			//
-			// To debug a CI run, download the per-platform logs artifact from
-			// the Azure DevOps build:
-			//
-			//   az pipelines runs artifact download \
-			//     --org <ORG_URL> --project <PROJECT_NAME> \
-			//     --run-id <BUILD_ID> --artifact-name logs-<os>-<arch>-1 \
-			//     --path ./logs-<os>
-			//
-			// where <os>-<arch> is one of `linux-x64`, `macos-arm64`,
-			// `windows-x64`. Inside the artifact:
-			//
-			// - `smoke-tests-electron/smoke-test-runner.log` — the mock LLM's
-			//   verbose request/response bodies (look for `request body:`)
-			//   alongside the mocha test driver output.
-			// - `smoke-tests-electron/<N>_suite_Agents_Window/window2/exthost/
-			//   GitHub.copilot-chat/GitHub Copilot Chat.log` — the
-			//   CopilotCLISession diagnostic log: `[sandboxSpawn]` lines from
-			//   the runtime and `[CopilotCLISession] tool.execution_complete
-			//   ... success=… sandboxed=… [error=…] content=…` lines from
-			//   `_logSessionEvent` (gated by the
-			//   `github.copilot.chat.cli.sessionEventLogging.enabled`
-			//   setting that this suite sets in the `before` hook).
-			// - `smoke-tests-electron/<N>_suite_Agents_Window/playwright-screenshot-
-			//   *-Test_Copilot_CLI_session*.png` — last-frame screenshot of
-			//   the Agents Window when a test fails; the JSON dump in the
-			//   chat usually surfaces the raw `tool_result` payload.
-			if (process.platform !== 'darwin') {
-				this.skip();
-			}
-
-			const app = this.app as Application;
-
-			await app.workbench.agentsWindow.startNewSession();
-			await app.workbench.agentsWindow.waitForNewSessionView();
-			await app.workbench.agentsWindow.selectSessionType('Copilot CLI');
-
-			const requestsBefore = mockServer.requestCount();
-			await app.workbench.agentsWindow.submitNewSessionPrompt(`hello world [scenario:${COPILOT_SANDBOX_SCENARIO_ID}]`);
-
-			// 120s timeout: Windows sandbox cold-start can take ~60s before the
-			// shell tool returns its first output.
-			// Match the JSON `output` field of the tool result in the final
-			// response, not the `echo <reply>` command preview — see
-			// shellEchoScenario / shellEchoResponseMatcher.
-			const text = await app.workbench.agentsWindow.waitForAssistantText(shellEchoResponseMatcher(COPILOT_SANDBOX_REPLY), 120_000);
-			logger.log(`Agents Window (Copilot sandbox) response: ${text}`);
-
-			assert.ok(
-				mockServer.requestCount() > requestsBefore,
-				'expected the mock LLM server to have received a new request from the Copilot sandbox session'
-			);
-
-			// Confirm the shell tool actually ran inside the sandbox.
-			const chatLogPath = path.join(app.logsPath, 'window2', 'exthost', 'GitHub.copilot-chat', 'GitHub Copilot Chat.log');
-			const chatLog = await fs.promises.readFile(chatLogPath, 'utf8');
-			assert.match(
-				chatLog,
-				/\[CopilotCLISession\] tool\.execution_complete .* sandboxed=true/,
-				`expected tool.execution_complete with sandboxed=true in ${chatLogPath}`
-			);
-		});
-
-		it('Test Claude session', async function () {
-			const app = this.app as Application;
-			logger.log(`[Agents Window/Claude] starting test; requestCount=${mockServer.requestCount()}`);
-
-			try {
-				logger.log(`[Agents Window/Claude] starting new session (Ctrl+L)`);
-				await app.workbench.agentsWindow.startNewSession();
-				logger.log(`[Agents Window/Claude] waiting for new session view`);
-				await app.workbench.agentsWindow.waitForNewSessionView();
-
-				// Pre-pay the Claude session cold-start cost (#321072): the first
-				// Claude session in the Agents Window's extension host has to
-				// bundle-load the SDK, start the localhost language model server,
-				// spawn the SDK subprocess and load plugins — collectively often
-				// >60s on macOS arm64 CI. A throwaway prompt absorbs that cost so
-				// the real assertion below runs against a warm pipeline.
-				await warmUpClaudeModel(app, logger, 'Agents Window/Claude');
-
-				const requestsBefore = mockServer.requestCount();
-				logger.log(`[Agents Window/Claude] submitting prompt; requestCount=${requestsBefore}`);
-				await app.workbench.agentsWindow.submitNewSessionPrompt(`hello world [scenario:${CLAUDE_SCENARIO_ID}]`);
-				logger.log(`[Agents Window/Claude] prompt submitted; waiting for assistant text '${CLAUDE_REPLY}'; requestCount=${mockServer.requestCount()}`);
-
-				const text = await app.workbench.agentsWindow.waitForAssistantText(CLAUDE_REPLY);
-				logger.log(`[Agents Window/Claude] response (length=${text.length}): ${text}`);
-				logger.log(`[Agents Window/Claude] mock server requestCount after response: ${mockServer.requestCount()} (before=${requestsBefore})`);
-
-				assert.ok(
-					mockServer.requestCount() > requestsBefore,
-					`expected the mock LLM server to have received a new request from the Claude session (before=${requestsBefore}, after=${mockServer.requestCount()})`
-				);
-			} catch (error) {
-				logger.log(`[Agents Window/Claude] FAILURE: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
-				logger.log(`[Agents Window/Claude] mock server requestCount at failure: ${mockServer.requestCount()}`);
-				await dumpFailureDiagnostics(app, logger, 'Agents Window/Claude', { sendButtonSelector: AGENTS_SEND_BUTTON_SELECTOR });
-				throw error;
-			}
-		});
-
-		it('Test Local session', async function () {
-			const app = this.app as Application;
-			logger.log(`[Agents Window/Local] starting test; requestCount=${mockServer.requestCount()}`);
-
-			try {
-				logger.log(`[Agents Window/Local] starting new session (Ctrl+L)`);
-				await app.workbench.agentsWindow.startNewSession();
-				logger.log(`[Agents Window/Local] waiting for new session view`);
-				await app.workbench.agentsWindow.waitForNewSessionView();
-				logger.log(`[Agents Window/Local] selecting session type 'Local'`);
-				await app.workbench.agentsWindow.selectSessionType('Local');
-
-				const requestsBefore = mockServer.requestCount();
-				logger.log(`[Agents Window/Local] submitting prompt; requestCount=${requestsBefore}`);
-				await app.workbench.agentsWindow.submitNewSessionPrompt(`hello world [scenario:${LOCAL_SCENARIO_ID}]`);
-				logger.log(`[Agents Window/Local] prompt submitted; waiting for assistant text '${LOCAL_REPLY}'; requestCount=${mockServer.requestCount()}`);
-
-				const text = await app.workbench.agentsWindow.waitForAssistantText(LOCAL_REPLY);
-				logger.log(`[Agents Window/Local] response (length=${text.length}): ${text}`);
-				logger.log(`[Agents Window/Local] mock server requestCount after response: ${mockServer.requestCount()} (before=${requestsBefore})`);
-
-				assert.ok(
-					mockServer.requestCount() > requestsBefore,
-					`expected the mock LLM server to have received a new request from the Local session (before=${requestsBefore}, after=${mockServer.requestCount()})`
-				);
-			} catch (error) {
-				logger.log(`[Agents Window/Local] FAILURE: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
-				logger.log(`[Agents Window/Local] mock server requestCount at failure: ${mockServer.requestCount()}`);
-				await dumpFailureDiagnostics(app, logger, 'Agents Window/Local', { sendButtonSelector: AGENTS_SEND_BUTTON_SELECTOR });
-				throw error;
-			}
-		});
-	});
-
 	describe('Agents Window (local AgentHost)', () => {
 
 		const agentHost = setupAgentHostSuite(logger, {
@@ -330,6 +68,15 @@ export function setup(logger: Logger) {
 				// turns the sandbox on for the auto-approve path used by the sandbox test.
 				'chat.agentHost.customTerminalTool.enabled': true,
 				'chat.agent.sandbox.enabled': 'on',
+				// CI macOS runners commonly resolve the default shell as /bin/sh, which
+				// exercises the sentinel-based completion parser path. Force the same
+				// profile on macOS so local runs cover the same branch.
+				...(process.platform === 'darwin' ? {
+					'terminal.integrated.profiles.osx': {
+						'Smoke AgentHost Sandbox sh': { path: '/bin/sh' },
+					},
+					'terminal.integrated.defaultProfile.osx': 'Smoke AgentHost Sandbox sh',
+				} : {}),
 			},
 		});
 
@@ -354,15 +101,17 @@ export function setup(logger: Logger) {
 
 				// Confirm the request flowed through the AgentHost process (not
 				// the renderer-side Copilot Chat extension fallback) by checking
-				// for a `session/turnStarted` frame in the AHP JSONL transcript.
-				// The transcript is written through an async queue (see
-				// AhpJsonlLogger), so the frame may not be on disk yet even
-				// after the assistant reply has rendered — poll briefly.
+				// for a `chat/turnStarted` frame in the AHP JSONL transcript.
+				// In the multi-chat protocol turns are dispatched as chat
+				// actions on the session's default chat channel. The transcript
+				// is written through an async queue (see AhpJsonlLogger), so the
+				// frame may not be on disk yet even after the assistant reply has
+				// rendered — poll briefly.
 				const ahpLogDir = path.join(agentHost.logsPath, 'ahp');
-				const ahpFrames = await waitForLogContent(() => readAhpFrames(ahpLogDir), '"type":"session/turnStarted"');
+				const ahpFrames = await waitForLogContent(() => readAhpFrames(ahpLogDir), '"type":"chat/turnStarted"');
 				assert.ok(
-					ahpFrames.includes('"type":"session/turnStarted"'),
-					`expected the AgentHost process to have received a session/turnStarted dispatchAction (checked ${ahpJsonlFiles(ahpLogDir).length} jsonl files under ${ahpLogDir}); if missing, the renderer-side extension likely served the reply instead`
+					ahpFrames.includes('"type":"chat/turnStarted"'),
+					`expected the AgentHost process to have received a chat/turnStarted dispatchAction (checked ${ahpJsonlFiles(ahpLogDir).length} jsonl files under ${ahpLogDir}); if missing, the renderer-side extension likely served the reply instead`
 				);
 			} catch (error) {
 				logger.log(`Agents Window (AgentHost) FAILURE: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
@@ -377,7 +126,7 @@ export function setup(logger: Logger) {
 			// The AgentHost-side sandbox log we assert on is
 			// `<logsPath>/agenthost.log` (the utility-process log), produced by
 			// CopilotAgentSession when it auto-approves a sandboxed shell call.
-			if (process.platform !== 'darwin') {
+			if (process.platform === 'win32') {
 				this.skip();
 			}
 
@@ -388,7 +137,7 @@ export function setup(logger: Logger) {
 			try {
 				await app.workbench.agentsWindow.startNewSession();
 				await app.workbench.agentsWindow.waitForNewSessionView();
-				await app.workbench.agentsWindow.selectSessionType('Local Agent Host');
+				await app.workbench.agentsWindow.selectSessionType('Copilot');
 
 				const requestsBefore = agentHost.mockServer.requestCount();
 				await app.workbench.agentsWindow.submitNewSessionPrompt(`hello world [scenario:${AGENT_HOST_SANDBOX_SCENARIO_ID}]`);
@@ -428,6 +177,13 @@ export function setup(logger: Logger) {
 					engineShellRun,
 					`expected the AgentHost's own shell engine ([ShellManager]) to have run the command in ${agentHostLogPath}`
 				);
+				if (process.platform === 'darwin') {
+					assert.match(
+						agentHostLog,
+						/\[ShellManager\] Created \w+ shell .*executable=\/bin\/sh\)/,
+						`expected the macOS AgentHost sandbox smoke test to run under /bin/sh (CI parity and sentinel-parser coverage), in ${agentHostLogPath}`
+					);
+				}
 				assert.doesNotMatch(
 					agentHostLog,
 					/Applied SDK sandboxConfig/,
@@ -475,7 +231,7 @@ export function setup(logger: Logger) {
 			// The AgentHost-side sandbox log we assert on is
 			// `<logsPath>/agenthost.log` (the utility-process log), produced by
 			// CopilotAgentSession when it auto-approves a sandboxed shell call.
-			if (process.platform !== 'darwin') {
+			if (process.platform === 'win32') {
 				this.skip();
 			}
 
@@ -536,54 +292,122 @@ export function setup(logger: Logger) {
 			}
 		});
 	});
-}
 
-/**
- * Builds a two-turn mock scenario that exercises a sandboxed shell tool: the
- * model first runs `echo <reply>` via the bash/pwsh/powershell tool, then —
- * after the tool result round-trips — replays the last (tool-result) message
- * back as a ```json fenced block via `echo-last-message`.
- *
- * The reply text therefore appears in two kinds of `.rendered-markdown`
- * elements (both searched by {@link AgentsWindow.waitForAssistantText}):
- *   1. the terminal tool-call's command preview — rendered as `echo <reply>`
- *      (the bareword, no surrounding quotes), and
- *   2. the final assistant response — the JSON dump of the tool result, an
- *      object whose `output` field holds the echoed `<reply>` (possibly with
- *      a prefix, e.g. shell-integration noise, and an `<exited ...>` suffix).
- * To assert on the real response (2) and not the command preview (1), callers
- * match with {@link shellEchoResponseMatcher} — see the sandbox tests.
- */
-function shellEchoScenario(reply: string) {
-	return {
-		type: 'multi-turn',
-		turns: [
-			{
-				kind: 'tool-calls',
-				toolCalls: [
-					{
-						toolNamePattern: /^(bash|pwsh|powershell)$/i,
-						arguments: { command: `echo ${reply}` },
-					},
-				],
+	describe('Agents Window (Codex)', () => {
+
+		const codex = setupAgentHostSuite(logger, {
+			serverLabel: 'Codex',
+			registerScenarios: ({ ScenarioBuilder, registerScenario }) => {
+				registerScenario(CODEX_SCENARIO_ID, new ScenarioBuilder().emit(CODEX_REPLY).build());
+				registerScenario(CODEX_WARMUP_SCENARIO_ID, new ScenarioBuilder().emit(CODEX_WARMUP_REPLY).build());
 			},
-			{ kind: 'echo-last-message' },
-		],
-	};
-}
+			settings: {
+				// Register the Codex provider in the agent host process (it is
+				// off by default). The provider resolves the codex SDK from the
+				// repo's `node_modules` in dev, or `product.agentSdks.codex` in
+				// packaged builds (or the VSCODE_AGENT_HOST_CODEX_SDK_ROOT
+				// override) — so the test below is a hard requirement in dev and
+				// skips only in built products where the SDK is genuinely absent.
+				'chat.agentHost.codexAgent.enabled': true,
+			},
+		});
 
-/**
- * Builds the {@link AgentsWindow.waitForAssistantText} matcher for a
- * {@link shellEchoScenario} reply. The final response renders the tool result
- * as a ```json block of the form
- * `{ ..., "output": "<reply>\n<exited with exit code 0>" }`, so anchoring on
- * `"output": ... <reply>` matches that JSON value specifically — not the
- * `echo <reply>` command preview (which has no `"output"` field) — while still
- * tolerating any prefix inside the captured output (e.g. shell-integration
- * noise). `<reply>` contains no regex metacharacters.
- */
-function shellEchoResponseMatcher(reply: string): RegExp {
-	return new RegExp(`"output":.*${reply}`);
+		it('Test Codex session', async function () {
+			this.timeout(5 * 60 * 1000);
+
+			const app = this.app as Application;
+
+			// Resolve Codex availability OUTSIDE the try/catch below so that the
+			// Pending thrown by `this.skip()` is not swallowed (and re-thrown as a
+			// failure) by the failure-diagnostics handler.
+			await app.workbench.agentsWindow.startNewSession();
+			const codexAvailable = await app.workbench.agentsWindow.isSessionTypeAvailable('Codex');
+			if (!codexAvailable) {
+				// Codex must be available — and so this test must run rather than
+				// skip — whenever the build under test is supposed to be able to
+				// resolve the SDK:
+				//   - Running from source (VSCODE_DEV=1, set by the smoke runner
+				//     when no `--build` is passed): the agent host is not built, so
+				//     it resolves the SDK from the repo's `node_modules`
+				//     (`@openai/codex` is a devDependency).
+				//   - Publish builds: `product.agentSdks.codex` is stamped (only
+				//     when VSCODE_PUBLISH=true, see build/azure-pipelines/common/
+				//     agent-sdk-produce.yml) so the SDK is fetched from the CDN.
+				// In both cases an unavailable Codex is a regression — fail loudly.
+				// Otherwise (built non-publish CI, where the SDK is neither shipped
+				// nor stamped) Codex is legitimately absent, so skip gracefully.
+				//
+				// VSCODE_DEV (not app.quality === Quality.Dev) is the precise
+				// "from source" signal: parseQuality() also returns Quality.Dev for
+				// a `--build` product when VSCODE_QUALITY is unset, which would
+				// wrongly hard-fail a packaged build that legitimately lacks Codex.
+				const isFromSource = process.env['VSCODE_DEV'] === '1';
+				const isPublishBuild = (process.env['VSCODE_PUBLISH'] ?? '').toLowerCase() === 'true';
+				if (isFromSource || isPublishBuild) {
+					throw new Error(`[Agents Window/Codex] Codex session type unexpectedly unavailable (VSCODE_DEV=${process.env['VSCODE_DEV'] ?? '<unset>'}, VSCODE_PUBLISH=${process.env['VSCODE_PUBLISH'] ?? '<unset>'}) — the SDK should be resolvable from node_modules (from source) or product.agentSdks.codex (publish build)`);
+				}
+				logger.log('[Agents Window/Codex] Codex session type not available in this built product (no product.agentSdks.codex); skipping');
+				this.skip();
+			}
+
+			// Codex reports as "available" once the `@openai/codex` launcher shim
+			// resolves, but the native binary ships as a separate per-platform
+			// optional dependency that npm silently skips when its install fails.
+			// A stale `node_modules` cache can thus have the shim but no binary, so
+			// fail fast here (from source) instead of timing out at spawn time.
+			if (process.env['VSCODE_DEV'] === '1') {
+				const repoRoot = path.resolve(process.cwd(), '..', '..');
+				const platformPkgDir = path.join(repoRoot, 'node_modules', `@openai/codex-${process.platform}-${process.arch}`);
+				const binaryName = process.platform === 'win32' ? 'codex.exe' : 'codex';
+				let codexBinaryFound = false;
+				try {
+					const vendorDir = path.join(platformPkgDir, 'vendor');
+					codexBinaryFound = fs.readdirSync(vendorDir).some(triple => fs.existsSync(path.join(vendorDir, triple, 'bin', binaryName)));
+				} catch {
+					// vendor dir (or the whole platform package) is missing → treated as not found
+				}
+				if (!codexBinaryFound) {
+					throw new Error(`[Agents Window/Codex] Codex native binary missing at ${platformPkgDir}. We depend on \`@openai/codex\`, which is only a thin launcher shim; the actual native binaries ship as its per-platform optional dependencies (\`@openai/codex-<platform>-<arch>\`). \`npm install\` does not fail when an optional dependency can't be installed, so node_modules can end up with the shim but no binary — Codex then reports as "available" but has nothing to spawn. Try bumping build/.cachesalt to force a fresh \`npm ci\` that reinstalls the binary.`);
+				}
+			}
+
+			try {
+				// Pre-pay the Codex session cold-start cost: the first Codex session
+				// in a fresh agent host has to spawn the native codex app-server and
+				// resolve its model list before the first /responses request can
+				// complete. A throwaway prompt absorbs that so the real assertion
+				// runs against a warm pipeline.
+				await warmUpCodexModel(app, logger, 'Agents Window/Codex');
+
+				const requestsBefore = codex.mockServer.requestCount();
+				logger.log(`[Agents Window/Codex] submitting prompt; requestCount=${requestsBefore}`);
+				await app.workbench.agentsWindow.submitNewSessionPrompt(`hello world [scenario:${CODEX_SCENARIO_ID}]`);
+
+				const text = await app.workbench.agentsWindow.waitForAssistantText(CODEX_REPLY);
+				logger.log(`[Agents Window/Codex] response (length=${text.length}): ${text}`);
+
+				assert.ok(
+					codex.mockServer.requestCount() > requestsBefore,
+					`expected the mock LLM server to have received a new request from the Codex session (before=${requestsBefore}, after=${codex.mockServer.requestCount()})`
+				);
+
+				// Confirm the request flowed through the AgentHost process (the codex
+				// harness) and not a renderer-side fallback by checking for a
+				// `chat/turnStarted` frame in the AHP JSONL transcript. The transcript
+				// is written through an async queue, so poll briefly.
+				const ahpLogDir = path.join(codex.logsPath, 'ahp');
+				const ahpFrames = await waitForLogContent(() => readAhpFrames(ahpLogDir), '"type":"chat/turnStarted"');
+				assert.ok(
+					ahpFrames.includes('"type":"chat/turnStarted"'),
+					`expected the AgentHost process to have received a chat/turnStarted dispatchAction (checked ${ahpJsonlFiles(ahpLogDir).length} jsonl files under ${ahpLogDir}); if missing, the renderer-side extension likely served the reply instead`
+				);
+			} catch (error) {
+				logger.log(`[Agents Window/Codex] FAILURE: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
+				await dumpFailureDiagnostics(app, logger, 'Agents Window/Codex', { sendButtonSelector: AGENTS_SEND_BUTTON_SELECTOR });
+				throw error;
+			}
+		});
+	});
 }
 
 /**
@@ -595,12 +419,12 @@ function shellEchoResponseMatcher(reply: string): RegExp {
  *
  * Assumes the Agents Window is showing a new-session view. Sends a throwaway
  * prompt, ignores its outcome, then leaves a fresh new-session view with
- * 'Local Agent Host' selected so the caller can submit the real prompt
+ * Agent Host Copilot selected so the caller can submit the real prompt
  * against an already-warmed model list.
  */
 async function warmUpAgentHostModel(app: Application, logger: Logger, label: string): Promise<void> {
 	await app.workbench.agentsWindow.waitForNewSessionView();
-	await app.workbench.agentsWindow.selectSessionType('Local Agent Host');
+	await app.workbench.agentsWindow.selectSessionType('Copilot');
 	await app.workbench.agentsWindow.submitNewSessionPrompt(`hello world [scenario:${AGENT_HOST_WARMUP_SCENARIO_ID}]`);
 	try {
 		await app.workbench.agentsWindow.waitForAssistantText(AGENT_HOST_WARMUP_REPLY, 30_000);
@@ -611,41 +435,36 @@ async function warmUpAgentHostModel(app: Application, logger: Logger, label: str
 	}
 	await app.workbench.agentsWindow.startNewSession();
 	await app.workbench.agentsWindow.waitForNewSessionView();
-	await app.workbench.agentsWindow.selectSessionType('Local Agent Host');
+	await app.workbench.agentsWindow.selectSessionType('Copilot');
 }
 
+
 /**
- * Pre-pays the Claude session cold-start cost (#321072): the first Claude
- * session in a fresh Agents Window extension host has to first-import the
- * bundled `@anthropic-ai/claude-agent-sdk`, start a localhost
- * `ClaudeLanguageModelServer`, spawn the SDK subprocess and load plugins
- * (8 from skill locations) before the first /messages request can complete.
- * On a busy macOS arm64 CI runner this can collectively exceed the default
- * 60s {@link AgentsWindow.waitForAssistantText} timeout, surfacing as a
- * `:not(.chat-response-loading)` selector timeout.
+ * Pre-pays the Codex session cold-start cost: the first Codex session in a
+ * fresh agent host has to spawn the native `codex app-server` binary and
+ * resolve its model list before the first `/responses` request can complete.
  *
- * Assumes the Agents Window is showing a new-session view. Sends a throwaway
- * prompt to a 'Claude' session, ignores its outcome (the warm-up itself may
- * hit the cold start), then leaves a fresh new-session view with 'Claude'
- * selected so the caller can submit the real prompt against a warm pipeline.
+ * Assumes the Agents Window is showing a new-session view AND that the 'Codex'
+ * session type is available (callers gate on
+ * {@link AgentsWindow.isSessionTypeAvailable} first). Sends a throwaway prompt
+ * to a 'Codex' session, ignores its outcome (the warm-up itself may hit the
+ * cold start), then leaves a fresh new-session view with 'Codex' selected so
+ * the caller can submit the real prompt against a warm pipeline.
  */
-async function warmUpClaudeModel(app: Application, logger: Logger, label: string): Promise<void> {
+async function warmUpCodexModel(app: Application, logger: Logger, label: string): Promise<void> {
 	await app.workbench.agentsWindow.waitForNewSessionView();
-	await app.workbench.agentsWindow.selectSessionType('Claude');
-	await app.workbench.agentsWindow.submitNewSessionPrompt(`hello world [scenario:${CLAUDE_WARMUP_SCENARIO_ID}]`);
+	await app.workbench.agentsWindow.selectSessionType('Codex');
+	await app.workbench.agentsWindow.submitNewSessionPrompt(`hello world [scenario:${CODEX_WARMUP_SCENARIO_ID}]`);
 	try {
-		// 60s mirrors the default response wait — long enough to absorb the
-		// cold-start observed at ~60s in #321072, but not so long that a hung
-		// pipeline blocks the test from making forward progress.
-		await app.workbench.agentsWindow.waitForAssistantText(CLAUDE_WARMUP_REPLY, 60_000);
+		await app.workbench.agentsWindow.waitForAssistantText(CODEX_WARMUP_REPLY, 60_000);
 	} catch (error) {
-		// Ignore — the warm-up itself may hit the cold-start race; the
-		// caller's real attempt runs against an already-warmed pipeline.
+		// Ignore — the warm-up itself may hit the cold-start race; the caller's
+		// real attempt runs against an already-warmed pipeline.
 		logger.log(`${label} warm-up attempt did not produce the expected reply (likely the cold-start race); proceeding with the real attempt. Reason: ${error instanceof Error ? error.message : String(error)}`);
 	}
 	await app.workbench.agentsWindow.startNewSession();
 	await app.workbench.agentsWindow.waitForNewSessionView();
-	await app.workbench.agentsWindow.selectSessionType('Claude');
+	await app.workbench.agentsWindow.selectSessionType('Codex');
 }
 
 /**
@@ -682,8 +501,8 @@ function setupAgentHostSuite(logger: Logger, config: {
 		registerScenario(AGENT_HOST_WARMUP_SCENARIO_ID, new ScenarioBuilder().emit(AGENT_HOST_WARMUP_REPLY).build());
 		config.registerScenarios({ ScenarioBuilder, registerScenario });
 
-		mockServer = await startServer(0, { logger: (msg: string) => logger.log(msg), verbose: true });
-		logger.log(`Mock LLM server (${config.serverLabel}) started at ${mockServer.url}`);
+		mockServer = await startServer(0, mockServerStartOptions((msg: string) => logger.log(msg)));
+		logger.log(`Mock LLM server (${config.serverLabel}) started at ${getMockLlmServerUrl(mockServer)}`);
 	});
 
 	installDiagnosticsHandler(logger);
@@ -700,27 +519,35 @@ function setupAgentHostSuite(logger: Logger, config: {
 			...opts,
 			extraEnv: {
 				...(opts.extraEnv ?? {}),
-				...getCopilotSmokeTestEnv(mockServer),
+				...getCopilotSmokeTestEnv(mockServer, { userDataDir: opts.userDataDir }),
 				COPILOT_ENABLE_ALT_PROVIDERS: 'true',
-				COPILOT_API_URL: mockServer.url,
-				COPILOT_DEBUG_GITHUB_API_URL: mockServer.url,
+				COPILOT_API_URL: getMockLlmServerUrl(mockServer),
+				COPILOT_DEBUG_GITHUB_API_URL: getMockLlmServerUrl(mockServer),
 				GITHUB_COPILOT_API_TOKEN: 'smoketest-fake-agent-host-token',
+				// Route the agent host's shared CAPI client (used by the Codex /
+				// agent-host harnesses for model discovery + requests) at the mock
+				// instead of api.github.com, which would 401 with the fake token.
+				VSCODE_AGENT_HOST_CAPI_URL_OVERRIDE: getMockLlmServerUrl(mockServer),
 			},
 		}));
 
 		// Pre-seed settings.json on disk into BOTH the default profile and the
-		// Agents profile. Writing settings after the workbench is up would race
-		// with AgentHostContribution’s startup (it gates on
-		// `chat.agentHost.enabled` at construction).
+		// Agents profile so Agent Host startup observes the test configuration.
 		const userDataDir = (this.app as Application).userDataPath;
 		if (userDataDir) {
 			const settings = JSON.stringify({
-				'github.copilot.advanced.debug.overrideProxyUrl': mockServer.url,
+				'github.copilot.advanced.debug.overrideProxyUrl': getMockLlmServerUrl(mockServer),
+				// AgentHost's fetch patch honors PAC/system proxy resolution only
+				// when proxy support is enabled. The smoke profile is pre-seeded from
+				// scratch, so set the production default explicitly rather than
+				// relying on configuration registration timing.
+				'http.proxySupport': 'override',
 				'chat.allowAnonymousAccess': true,
 				'github.copilot.chat.githubMcpServer.enabled': false,
-				'chat.agentHost.enabled': true,
 				'chat.agentHost.ahpJsonlLoggingEnabled': true,
 				'chat.agentHost.unsafeTestToken': 'smoketest-fake-agent-host-token',
+				// Verbose Copilot runtime logging for capturable failure diagnostics.
+				'chat.agentHost.copilotSdk.logLevel': 'trace',
 				...config.settings,
 			}, null, 2);
 			for (const settingsPath of [

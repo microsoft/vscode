@@ -6,7 +6,7 @@
 import { ActionListItemKind, IActionListItem } from '../../../../../platform/actionWidget/browser/actionList.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { isPhoneLayout } from '../../../../browser/parts/mobile/mobileLayout.js';
-import { IMobilePickerSheetHeaderAction, IMobilePickerSheetItem, IMobilePickerSheetSearchSource, MOBILE_PICKER_SHEET_HEADER_ACTION_PREFIX, showMobilePickerSheet } from '../../../../browser/parts/mobile/mobilePickerSheet.js';
+import { IMobilePickerSheetHeaderAction, IMobilePickerSheetItem, IMobilePickerSheetSearchSource, MOBILE_PICKER_SHEET_CONFIRM, MOBILE_PICKER_SHEET_HEADER_ACTION_PREFIX, showMobilePickerSheet } from '../../../../browser/parts/mobile/mobilePickerSheet.js';
 import { localize } from '../../../../../nls.js';
 import { IWorkspacePickerItem } from '../sessionWorkspacePicker.js';
 import { SubmenuAction, IAction } from '../../../../../base/common/actions.js';
@@ -25,6 +25,12 @@ const SEARCH_RESULT_ID_PREFIX = 'searchResult:';
  */
 type MobilePickerRow = {
 	readonly sheetItem: IMobilePickerSheetItem;
+	readonly run: () => void;
+};
+
+type BrowsedFolder = {
+	readonly query: string;
+	readonly label: string;
 	readonly run: () => void;
 };
 
@@ -192,6 +198,7 @@ export async function showMobileWorkspacePickerSheet(
 	// the sheet can resolve folder taps back to a provider selection.
 	const folderRunById = new Map<string, () => void>();
 	const folderLabelById = new Map<string, string>();
+	let currentFolder: BrowsedFolder | undefined;
 	// Track the current search query so drill-down can append to it.
 	let currentSearchQuery = '';
 	const search: IMobilePickerSheetSearchSource | undefined = inlineFolderActions.length > 0
@@ -231,24 +238,33 @@ export async function showMobileWorkspacePickerSheet(
 						label: entry.workspace.label,
 						description: entry.workspace.description,
 						icon: entry.workspace.icon,
+						navigates: true,
 					});
 				});
 				return sheetItems;
+			},
+			// The pinned "Select this folder" action follows the folder
+			// we drilled into (when the live query still matches it),
+			// instead of mixing a confirm row into the navigable list.
+			getPrimaryAction: (query) => {
+				if (currentFolder?.query !== query) {
+					return undefined;
+				}
+				const folder = currentFolder;
+				return {
+					label: localize('mobileWorkspacePicker.selectCurrentFolder', "Select '{0}'", folder.label),
+					icon: Codicon.arrowRight,
+					run: folder.run,
+				};
 			},
 		}
 		: undefined;
 
 	triggerElement.setAttribute('aria-expanded', 'true');
 
-	// Track the last-tapped folder from search results so Done can
-	// dispatch it. In `stayOpenOnSelect` mode, row taps don't close
-	// the sheet — instead they apply the selection and let the user
-	// browse further. The workspace-picker-specific rows (recents)
-	// dispatch immediately on tap since those are confirmed choices.
-	let lastSearchFolderRun: (() => void) | undefined;
-
+	let result: string | undefined;
 	try {
-		await showMobilePickerSheet(
+		result = await showMobilePickerSheet(
 			layoutService.mainContainer,
 			localize('mobileWorkspacePicker.title', "Choose Workspace"),
 			rows.map(r => r.sheetItem),
@@ -257,17 +273,15 @@ export async function showMobileWorkspacePickerSheet(
 				search,
 				caption: localize('mobileWorkspacePicker.caption', "Search to browse folders on the host"),
 				stayOpenOnSelect: true,
+				doneLabel: localize('mobileWorkspacePicker.cancel', "Cancel"),
 				onDidSelect: (id) => {
-					if (id.startsWith(MOBILE_PICKER_SHEET_HEADER_ACTION_PREFIX)) {
-						const idx = Number(id.slice(MOBILE_PICKER_SHEET_HEADER_ACTION_PREFIX.length));
-						headerBrowseActions[idx]?.invoke();
-						return;
-					}
 					if (id.startsWith(SEARCH_RESULT_ID_PREFIX)) {
-						lastSearchFolderRun = folderRunById.get(id);
-						// Drill down: build a path query from the
-						// current query prefix + this folder's name,
-						// e.g. "projects/" → "projects/subfolder/".
+						// Drill down: build a path query from the current
+						// query prefix + this folder's name, e.g.
+						// "projects/" → "projects/subfolder/". Tapping a
+						// folder navigates into it; the pinned "Open this
+						// folder" action confirms the current level.
+						const run = folderRunById.get(id);
 						const folderName = folderLabelById.get(id);
 						if (folderName) {
 							// Compute the prefix up to (and including)
@@ -275,28 +289,33 @@ export async function showMobileWorkspacePickerSheet(
 							// append the tapped folder name + `/`.
 							const lastSlash = currentSearchQuery.lastIndexOf('/');
 							const prefix = lastSlash >= 0 ? currentSearchQuery.slice(0, lastSlash + 1) : '';
-							return `${prefix}${folderName}/`;
+							const query = `${prefix}${folderName}/`;
+							if (run) {
+								currentFolder = { query, label: folderName, run };
+							}
+							return query;
 						}
 						return;
 					}
-					// Recent workspace row — dispatch immediately (it
-					// sets the workspace on the session).
+					// Recent workspace row — dispatch immediately and
+					// close (recents are confirmed choices).
 					const row = rows.find(r => r.sheetItem.id === id);
 					if (row) {
 						row.run();
-						lastSearchFolderRun = undefined;
+						currentFolder = undefined;
+						return MOBILE_PICKER_SHEET_CONFIRM;
 					}
 					return;
 				},
 			},
 		);
-
-		// Done was tapped — if the last selection was a search folder,
-		// dispatch it now. Recent rows were already dispatched on tap.
-		lastSearchFolderRun?.();
 	} finally {
 		triggerElement.setAttribute('aria-expanded', 'false');
 		triggerElement.focus();
+	}
+	if (result?.startsWith(MOBILE_PICKER_SHEET_HEADER_ACTION_PREFIX)) {
+		const index = Number(result.slice(MOBILE_PICKER_SHEET_HEADER_ACTION_PREFIX.length));
+		headerBrowseActions[index]?.invoke();
 	}
 }
 

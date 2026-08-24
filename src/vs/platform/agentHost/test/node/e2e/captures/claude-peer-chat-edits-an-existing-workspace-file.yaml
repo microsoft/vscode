@@ -1,0 +1,140 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-opus-4.8
+      system: ${system}
+      messages:
+        - role: user
+          content: Replace the complete contents of ${workdir}/peer-edit.txt with AFTER_PEER. Use your file tools; do not run a shell command.
+    response:
+      content:
+        - type: text
+          text: I'll replace the contents of that file.
+        - type: tool_use
+          id: toolcall_0
+          name: Write
+          input:
+            file_path: ${workdir}/peer-edit.txt
+            content: AFTER_PEER
+      stopReason: tool_use
+  - request:
+      model: claude-opus-4.8
+      system: ${system}
+      messages:
+        - role: user
+          content: Replace the complete contents of ${workdir}/peer-edit.txt with AFTER_PEER. Use your file tools; do not run a shell command.
+        - role: assistant
+          content:
+            - type: text
+              text: I'll replace the contents of that file.
+            - type: tool_use
+              name: Write
+              input:
+                file_path: ${workdir}/peer-edit.txt
+                content: AFTER_PEER
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: <tool_use_error>File has not been read yet. Read it first before writing to it.</tool_use_error>
+    response:
+      content:
+        - type: text
+          text: I need to read the file first.
+        - type: tool_use
+          id: toolcall_1
+          name: Read
+          input:
+            file_path: ${workdir}/peer-edit.txt
+      stopReason: tool_use
+  - request:
+      model: claude-opus-4.8
+      system: ${system}
+      messages:
+        - role: user
+          content: Replace the complete contents of ${workdir}/peer-edit.txt with AFTER_PEER. Use your file tools; do not run a shell command.
+        - role: assistant
+          content:
+            - type: text
+              text: I'll replace the contents of that file.
+            - type: tool_use
+              name: Write
+              input:
+                file_path: ${workdir}/peer-edit.txt
+                content: AFTER_PEER
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: <tool_use_error>File has not been read yet. Read it first before writing to it.</tool_use_error>
+        - role: assistant
+          content:
+            - type: text
+              text: I need to read the file first.
+            - type: tool_use
+              name: Read
+              input:
+                file_path: ${workdir}/peer-edit.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: "1\tBEFORE_PEER"
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_2
+          name: Write
+          input:
+            content: AFTER_PEER
+            file_path: ${workdir}/peer-edit.txt
+      stopReason: tool_use
+  - request:
+      model: claude-opus-4.8
+      system: ${system}
+      messages:
+        - role: user
+          content: Replace the complete contents of ${workdir}/peer-edit.txt with AFTER_PEER. Use your file tools; do not run a shell command.
+        - role: assistant
+          content:
+            - type: text
+              text: I'll replace the contents of that file.
+            - type: tool_use
+              name: Write
+              input:
+                file_path: ${workdir}/peer-edit.txt
+                content: AFTER_PEER
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: <tool_use_error>File has not been read yet. Read it first before writing to it.</tool_use_error>
+        - role: assistant
+          content:
+            - type: text
+              text: I need to read the file first.
+            - type: tool_use
+              name: Read
+              input:
+                file_path: ${workdir}/peer-edit.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: "1\tBEFORE_PEER"
+        - role: assistant
+          content:
+            - type: tool_use
+              name: Write
+              input:
+                file_path: ${workdir}/peer-edit.txt
+                content: AFTER_PEER
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_2
+              content: The file ${workdir}/peer-edit.txt has been updated successfully. (file state is current in your context — no need to Read it back)
+    response:
+      content: Done. The file now contains `AFTER_PEER`.
+      stopReason: end_turn

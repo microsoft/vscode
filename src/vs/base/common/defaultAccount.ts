@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IExtraKnownMarketplaceEntry } from './managedSettings.js';
 import type { ManagedSettingsData } from './policy.js';
 
 export interface IQuotaSnapshotData {
 	readonly overage_count: number;
 	readonly overage_entitlement: number;
 	readonly overage_permitted: boolean;
+	readonly credits_used?: number;
 	readonly percent_remaining: number;
 	readonly unlimited: boolean;
 	readonly quota_reset_at?: number;
@@ -49,6 +49,7 @@ export interface IEntitlementsData extends ILegacyQuotaSnapshotData {
 		completions?: IQuotaSnapshotData;
 		premium_interactions?: IQuotaSnapshotData;
 	};
+	readonly endpoints?: Record<string, string>;
 }
 
 export interface IPolicyData {
@@ -61,33 +62,23 @@ export interface IPolicyData {
 
 	/**
 	 * Normalized enterprise-managed settings, keyed by dot-separated managed-settings
-	 * paths such as `permissions.disableBypassPermissionsMode`.
+	 * paths such as `permissions.disableBypassPermissionsMode`. This is the single
+	 * channel for enterprise-managed configuration: server-delivered settings and
+	 * native MDM settings both project into this bag, so policy `value()` callbacks
+	 * behave identically regardless of source. Structured settings (e.g.
+	 * `enabledPlugins`, `extraKnownMarketplaces`) are carried as canonical JSON strings.
 	 */
 	readonly managedSettings?: ManagedSettingsData;
 
 	/**
-	 * Enterprise-managed plugin enablement, delivered via the Copilot
-	 * `managed_settings` API. Keys are plugin IDs in `<plugin>@<marketplace>`
-	 * form; values are explicit enable/disable. Consumers that read
-	 * `chat.pluginLocations` should merge these with user-supplied path-keyed
-	 * entries via `IConfigurationService.inspect()`.
+	 * Whether at least one managed-settings delivery channel currently supplies a setting — i.e.
+	 * the user is governed by GitHub Copilot managed settings at all, independent of which keys
+	 * were set.
+	 *
+	 * Unlike {@link managedSettings}, this is not projected onto the keys VS Code declares, so it
+	 * also reflects runtime-owned keys VS Code never reads.
 	 */
-	readonly enabledPlugins?: Readonly<Record<string, boolean>>;
-
-	/**
-	 * Enterprise-managed marketplace references, delivered via the Copilot
-	 * `managed_settings` API. Each entry preserves the marketplace `name`
-	 * (used as `displayLabel` so that `enabledPlugins["plugin@<name>"]` keys
-	 * resolve) plus the original `source` discriminator. Legacy string entries
-	 * are still accepted for forward/backward compatibility.
-	 */
-	readonly extraKnownMarketplaces?: readonly (string | IExtraKnownMarketplaceEntry)[];
-
-	/**
-	 * Enterprise-managed strict-marketplace flag. When true, only marketplaces
-	 * listed in `extraKnownMarketplaces` (plus the user's own) are trusted.
-	 */
-	readonly strictKnownMarketplaces?: boolean;
+	readonly managedSettingsActive?: boolean;
 }
 
 export interface ICopilotTokenInfo {

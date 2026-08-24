@@ -23,6 +23,39 @@ export function extractSchemaDefaults(schema: ILanguageModelConfigurationSchema 
 }
 
 /**
+ * Filters a (e.g. restored) configuration down to what the *current* schema
+ * accepts, so a value captured against an older schema cannot be re-pinned as a
+ * stale override. Two rules are applied:
+ *   1. Keys absent from the current schema are dropped (removed properties).
+ *   2. Values that violate the property's `enum` constraint are dropped, so the
+ *      property falls back to its live default instead of an invalid value.
+ * Properties without an `enum` keep their value (no constraint to validate
+ * against). When the schema is missing entirely, nothing can be validated and an
+ * empty configuration is returned.
+ */
+export function filterConfigurationToSchema(
+	values: IStringDictionary<unknown>,
+	schema: ILanguageModelConfigurationSchema | undefined,
+): IStringDictionary<unknown> {
+	const properties = schema?.properties;
+	if (!properties) {
+		return {};
+	}
+	const result: IStringDictionary<unknown> = {};
+	for (const [key, value] of Object.entries(values)) {
+		const propSchema = properties[key];
+		if (!propSchema) {
+			continue;
+		}
+		if (Array.isArray(propSchema.enum) && !propSchema.enum.includes(value)) {
+			continue;
+		}
+		result[key] = value;
+	}
+	return result;
+}
+
+/**
  * Resolves the effective configuration for a model within a single
  * `(location, sessionType)` scope.
  *
@@ -30,6 +63,13 @@ export function extractSchemaDefaults(schema: ILanguageModelConfigurationSchema 
  * reset-to-default — wins and is merged over the schema defaults. Only a
  * *missing* entry (`undefined`) falls back to the profile-global value, which is
  * the one-time migration for setups that pre-date per-editor scoping.
+ *
+ * Schema defaults are merged in every branch so a value the user never
+ * explicitly set (e.g. a model's default `contextSize`) is always present in the
+ * resolved configuration. Otherwise the model picker — which paints the schema
+ * default when a key is absent — would show one value while the request and the
+ * context-usage widget, which read the resolved configuration, fall back to the
+ * model's full native window. See issue #320393.
  *
  * Distinguishing "present but empty" from "absent" is what prevents a newly
  * opened editor from reverting an explicit default selection back to a stale
@@ -43,7 +83,7 @@ export function resolveModelConfiguration(
 	if (storedEntry) {
 		return { ...schemaDefaults, ...storedEntry };
 	}
-	return globalConfig ? { ...globalConfig } : {};
+	return globalConfig ? { ...schemaDefaults, ...globalConfig } : { ...schemaDefaults };
 }
 
 /**

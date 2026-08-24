@@ -6,12 +6,16 @@
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
-import type { IAgent } from '../common/agentService.js';
+import { SYNCED_CUSTOMIZATION_SCHEME } from '../common/agentHostFileSystemService.js';
+import type { IAgent } from '../common/agent.js';
+import { isCustomizationEnabled } from '../common/customizationEnablement.js';
 import { CompletionItem, CompletionItemKind, CompletionsParams } from '../common/state/protocol/commands.js';
 import { MessageAttachmentKind } from '../common/state/protocol/state.js';
-import { CustomizationType, SkillCustomization } from '../common/state/sessionState.js';
+import { toSkillCompletionAttachmentMeta } from '../common/meta/agentCompletionAttachmentMeta.js';
+import { buildDefaultChatUri, CustomizationType, DirectoryCustomization, PluginCustomization, SkillCustomization, type Customization } from '../common/state/sessionState.js';
 import { CompletionTriggerCharacter, IAgentHostCompletionItemProvider } from './agentHostCompletions.js';
-import { extractWhitespaceDelimitedSlashToken } from './agentHostSlashCompletion.js';
+import { extractWhitespaceDelimitedSlashToken, matchesSlashCompletion } from './agentHostSlashCompletion.js';
+
 
 /**
  * Generic completion provider that contributes slash completions for skills
@@ -24,6 +28,14 @@ export class AgentHostSkillCompletionProvider extends Disposable implements IAge
 
 	constructor(
 		private readonly _getAgent: (session: URI | string) => IAgent | undefined,
+		/**
+		 * The owning session's last host-published customization snapshot.
+		 * Supplied by Agent Host so the provider hands it to
+		 * `getChatCustomizations` explicitly instead of the agent reading it
+		 * from shared host state. `undefined` when the host has published no
+		 * snapshot for the session yet.
+		 */
+		private readonly _getHostCustomizations: (session: URI | string) => readonly Customization[] | undefined = () => undefined,
 	) {
 		super();
 	}
@@ -46,49 +58,73 @@ export class AgentHostSkillCompletionProvider extends Disposable implements IAge
 
 		// `/abc` → typed = 'abc'; empty after just '/' → typed = ''.
 		const typed = leading.typed;
+		// A skill's synced-bundle copy has a different URI than its on-disk file, so dedupe by name + description, not URI.
 		const skillsSeen = new Set<string>();
 		return candidates
 			.filter(skill => {
-				const uri = skill.uri.toString();
-				if ((!typed.length || skill.name.startsWith(typed)) && !skillsSeen.has(uri)) {
-					skillsSeen.add(uri);
+				const identity = `${skill.slashCommandName}\0${skill.description ?? ''}`;
+				if (matchesSlashCompletion(typed, skill.slashCommandName) && !skillsSeen.has(identity)) {
+					skillsSeen.add(identity);
 					return true;
 				}
 				return false;
 			})
 			.map(skill => ({
-				insertText: '/' + skill.name + ' ',
+				insertText: '/' + skill.slashCommandName + ' ',
 				rangeStart: leading.rangeStart,
 				rangeEnd: leading.rangeEnd,
 				attachment: {
 					type: MessageAttachmentKind.Simple,
-					label: '/' + skill.name,
-					_meta: {
-						uri: skill.uri.toString(),
+					label: '/' + skill.slashCommandName,
+					_meta: toSkillCompletionAttachmentMeta({
+						uri: skill.uri,
 						name: skill.name,
-						displayName: skill.name,
-						...(skill.description !== undefined ? { description: skill.description } : {}),
-					},
+						displayName: skill.slashCommandName,
+						description: skill.description,
+					}),
 				},
 			}));
 	}
 
-	private async _getCandidates(agent: IAgent, session: URI): Promise<readonly SkillCustomization[]> {
-		if (!agent.getSessionCustomizations) {
-			return [];
-		}
-		const customizations = await agent.getSessionCustomizations(session);
-		const result: SkillCustomization[] = [];
+	private async _getCandidates(agent: IAgent, session: URI): Promise<readonly SlashCommmandCandidate[]> {
+		const chat = URI.parse(buildDefaultChatUri(session));
+		const customizations = await agent.getChatCustomizations(chat, { configurationResource: session, resource: session }, this._getHostCustomizations(session));
+		const result: SlashCommmandCandidate[] = [];
 		for (const c of customizations) {
-			if (c.type === CustomizationType.McpServer || !c.enabled || !c.children) {
+			if (c.type === CustomizationType.McpServer || (c.type === CustomizationType.Plugin ? !isCustomizationEnabled(c) : !c.enabled) || !c.children) {
 				continue;
 			}
 			for (const child of c.children) {
 				if (child.type === CustomizationType.Skill) {
-					result.push(child);
+					result.push(this._toSlashCommandCandidate(c, child));
 				}
 			}
 		}
 		return result;
 	}
+
+	private _toSlashCommandCandidate(container: PluginCustomization | DirectoryCustomization, skill: SkillCustomization): SlashCommmandCandidate {
+		// see getCanonicalPluginCommandId
+		let slashCommandName = skill.name;
+		if (container.type === CustomizationType.Plugin && !isSyncedCustomization(container) && skill.name !== container.name) {
+			slashCommandName = `${container.name}:${skill.name}`;
+		}
+		return {
+			slashCommandName: slashCommandName,
+			name: skill.name,
+			description: skill.description,
+			uri: skill.uri,
+		};
+	}
+}
+
+function isSyncedCustomization(container: PluginCustomization): boolean {
+	return container.uri.startsWith(SYNCED_CUSTOMIZATION_SCHEME + ':');
+}
+
+interface SlashCommmandCandidate {
+	readonly slashCommandName: string;
+	readonly name: string;
+	readonly description: string | undefined;
+	readonly uri: string;
 }

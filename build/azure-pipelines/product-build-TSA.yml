@@ -17,7 +17,7 @@ parameters:
     default: true
 
 variables:
-  - template: build/azure-pipelines/product-build-variables.yml@self
+  - template: product-build-variables.yml@self
     parameters:
       VSCODE_PUBLISH: false
 
@@ -56,7 +56,7 @@ extends:
       ubuntu-2004-arm64:
         image: onebranch.azurecr.io/linux/ubuntu-2004-arm64:latest
     stages:
-      - template: build/azure-pipelines/product-build-template.yml@self
+      - template: product-build-template.yml@self
         parameters:
           VSCODE_RUN_APISCAN: ${{ parameters.VSCODE_RUN_TSA }}
           VSCODE_PUBLISH: false

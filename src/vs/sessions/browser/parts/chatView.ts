@@ -12,7 +12,7 @@ import { IObservable } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
 import { defaultProgressBarStyles } from '../../../platform/theme/browser/defaultStyles.js';
 import { IProgressScope, ScopedProgressIndicator } from '../../../workbench/services/progress/browser/progressIndicator.js';
-import { IChat } from '../../services/sessions/common/session.js';
+import { IChat, ISession } from '../../services/sessions/common/session.js';
 
 /**
  * Discriminates between concrete {@link AbstractChatView} subclasses without
@@ -74,7 +74,7 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 	 * no-op; subclasses that host a chat widget (e.g. `ChatView`) override
 	 * this to load the chat model and feed it into the widget.
 	 */
-	setChat(_chat: IChat, _historyKey?: string): void {
+	setChat(_chat: IChat, _historyKey?: string, _session?: ISession): void {
 		// no-op by default
 	}
 
@@ -105,6 +105,11 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 		// no-op by default
 	}
 
+	/** Submit the current composer input, returning whether it was sent. */
+	submitInput(): Promise<boolean> {
+		return Promise.resolve(false);
+	}
+
 	/**
 	 * Attach the given resources as context to this view's chat input. The
 	 * default implementation is a no-op; subclasses that host a chat widget
@@ -121,6 +126,14 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 	 * is a no-op.
 	 */
 	setActive(_active: boolean): void {
+		// no-op by default
+	}
+
+	/**
+	 * Notifies the view whether it is currently shown. Unlike {@link setActive},
+	 * inactive sessions displayed side by side are still visible.
+	 */
+	setVisible(_visible: boolean): void {
 		// no-op by default
 	}
 

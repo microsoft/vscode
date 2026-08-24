@@ -9,10 +9,12 @@ import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
+import { IDefaultAccountService, IManagedSettingsCompatibilityError } from '../../../../platform/defaultAccount/common/defaultAccount.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
@@ -49,6 +51,7 @@ export class AccountPolicyGateContribution extends Disposable implements IWorkbe
 	private lastInfo: IAccountPolicyGateInfo;
 
 	private readonly notificationHandle = this._register(new MutableDisposable());
+	private compatibilityDialogVisible = false;
 	private dismissedKey: string | undefined;
 
 	private initialised = false;
@@ -60,14 +63,17 @@ export class AccountPolicyGateContribution extends Disposable implements IWorkbe
 		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
 		@ILogService private readonly logService: ILogService,
 		@INotificationService private readonly notificationService: INotificationService,
+		@IDialogService private readonly dialogService: IDialogService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IOpenerService private readonly openerService: IOpenerService,
+		@IProductService private readonly productService: IProductService,
 		@IStorageService private readonly storageService: IStorageService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
 		this.contextKey = ChatAccountPolicyGateActiveContext.bindTo(contextKeyService);
 		this.lastInfo = this.gateService.gateInfo;
+		this.updateManagedSettingsCompatibilityState(this.defaultAccountService.managedSettingsCompatibilityError);
 
 		// Apply context key + setForceHidden immediately (fail-closed), but defer the
 		// notification until either the first onDidChangeGateInfo or a 5s timeout —
@@ -78,6 +84,7 @@ export class AccountPolicyGateContribution extends Disposable implements IWorkbe
 			this.initialised = true;
 			this.apply(info, /*forceTelemetry*/ false, /*showNotification*/ true);
 		}));
+		this._register(this.defaultAccountService.onDidChangeManagedSettingsCompatibilityError(error => this.updateManagedSettingsCompatibilityState(error)));
 
 		this._register(disposableTimeout(() => {
 			if (!this.initialised) {
@@ -93,10 +100,8 @@ export class AccountPolicyGateContribution extends Disposable implements IWorkbe
 
 		// Suppress the context key during the transient `policyNotResolved` state
 		// (user IS in approved org, just waiting for data) so the UI doesn't flash.
-		const isRestricted = info.state === AccountPolicyGateState.Restricted
-			&& info.reason !== AccountPolicyGateUnsatisfiedReason.PolicyNotResolved;
-		this.contextKey.set(isRestricted);
-		this.chatEntitlementService.setForceHidden(isRestricted);
+		const isRestricted = this.isGateRestricted(info);
+		this.updatePolicyGateState();
 		this.logService.info(`[AccountPolicyGate] apply: state=${info.state}, reason=${info.reason}, isRestricted=${isRestricted}`);
 
 		if (stateChanged) {
@@ -122,7 +127,6 @@ export class AccountPolicyGateContribution extends Disposable implements IWorkbe
 			return;
 		}
 
-		// Composite key so swapping accounts (while still blocked) re-shows the notification.
 		const accountName = this.defaultAccountService.currentDefaultAccount?.accountName;
 		const notificationKey = `${info.reason ?? ''}:${accountName ?? ''}`;
 
@@ -201,5 +205,58 @@ export class AccountPolicyGateContribution extends Disposable implements IWorkbe
 		}));
 		handleDisposables.add({ dispose: () => handle.close() });
 		this.notificationHandle.value = handleDisposables;
+	}
+
+	private isGateRestricted(info: IAccountPolicyGateInfo): boolean {
+		return info.state === AccountPolicyGateState.Restricted
+			&& info.reason !== AccountPolicyGateUnsatisfiedReason.PolicyNotResolved;
+	}
+
+	private updatePolicyGateState(): void {
+		const blocked = this.isGateRestricted(this.lastInfo) || this.defaultAccountService.managedSettingsCompatibilityError !== null;
+		this.contextKey.set(blocked);
+		this.chatEntitlementService.setForceHidden(blocked);
+	}
+
+	private updateManagedSettingsCompatibilityState(error: IManagedSettingsCompatibilityError | null): void {
+		this.updatePolicyGateState();
+		if (!error || this.compatibilityDialogVisible) {
+			return;
+		}
+
+		this.compatibilityDialogVisible = true;
+		void this.showManagedSettingsCompatibilityDialog(error).finally(() => this.compatibilityDialogVisible = false);
+	}
+
+	private async showManagedSettingsCompatibilityDialog(error: IManagedSettingsCompatibilityError): Promise<void> {
+		const message = error.minimumClientVersion
+			? localize(
+				'managedSettingsUpdate.notificationWithMinimumVersion',
+				"Your version of {0} cannot enforce your organization's managed settings. Update {0} to version {1} or later to continue using AI features.",
+				this.productService.nameShort,
+				error.minimumClientVersion
+			)
+			: localize(
+				'managedSettingsUpdate.notification',
+				"Your version of {0} cannot enforce your organization's managed settings. Update {0} to continue using AI features.",
+				this.productService.nameShort
+			);
+		await this.dialogService.prompt({
+			type: Severity.Warning,
+			title: localize('managedSettingsUpdate.dialog.title', "Update Required"),
+			message,
+			custom: true,
+			buttons: [
+				{
+					label: localize('managedSettingsUpdate.dialog.update', "Check for Updates"),
+					run: () => this.commandService.executeCommand('update.checkForUpdate'),
+				},
+				{
+					label: localize('managedSettingsUpdate.dialog.learnMore', "Learn More"),
+					run: () => this.openerService.open(URI.parse('https://code.visualstudio.com/docs/enterprise/overview')),
+				},
+			],
+			cancelButton: localize('managedSettingsUpdate.dialog.close', "Close"),
+		});
 	}
 }

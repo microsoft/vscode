@@ -7,7 +7,7 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import { NesDatagenSampleTask } from '../base/simulationOptions';
 import { IGeneratedPrompt } from './promptStep';
-import { IProcessedRow } from './replayRecording';
+import type { IProcessedRow, IWorkspaceRecordingSampleProvenance } from './replayRecording';
 import { IGeneratedResponse } from './responseStep';
 import { openWriteStream } from './writeStream';
 
@@ -27,6 +27,7 @@ export interface ISampleMetadataBase {
 	readonly oracleEdits: readonly (readonly [start: number, endEx: number, text: string])[];
 	readonly originalPrompt: unknown[];
 	readonly modelResponse: string;
+	readonly workspaceRecording?: IWorkspaceRecordingSampleProvenance;
 }
 
 /**
@@ -102,6 +103,7 @@ export function assembleSample(
 		oracleEdits: processedRow.nextUserEdit?.edit ?? [],
 		originalPrompt: processedRow.row.prompt,
 		modelResponse,
+		workspaceRecording: processedRow.workspaceRecording,
 	};
 
 	return { messages, metadata: { ...base, ...classification } };
