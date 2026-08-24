@@ -418,6 +418,7 @@ export async function initializeMermaidWebview(vscode: VsCodeApi, options?: PanZ
 
 	// Capture diagram state
 	const diagramText = stripDiffMarkers(diagram.textContent ?? '');
+	diagram.textContent = diagramText;
 	const themeTracker = new VsCodeMermaidThemeTracker();
 	const state: LocalState = {
 		mermaidSource: diagramText,
