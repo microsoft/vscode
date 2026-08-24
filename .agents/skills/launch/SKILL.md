@@ -29,7 +29,7 @@ The clone is **slim**: workspace storage, browser caches, file history, cached V
 - A VS Code checkout with sources built. Run `npm run compile` once (one-shot) or `npm run watch` for incremental rebuilds. Both build the full client **and** all built-in extensions under `extensions/`. You must build the full product to run successfully, building just the client is not enough.
 - An **authenticated** Code OSS profile to seed from. By default the launcher uses `~/.vscode-oss-dev` on macOS/Linux or `$env:USERPROFILE\.vscode-oss-dev` on Windows, which is the user-data-dir the repo's `launch.json` configs use - if the user has ever signed in to Copilot in a dev build, this should work. Only pass `--source-user-data-dir <path>` (or set `$CODE_OSS_DEV_AUTHED_USER_DATA_DIR`) when you specifically want to seed from a different profile (e.g. your regular `~/Library/Application Support/Code` install).
   - If Code OSS launches and needs a sign-in, don't give up! Use the questions tool to ask the user to sign in.
-- `@playwright/cli` available (it's a devDependency in the vscode repo - `npm install` then use `npx @playwright/cli`).
+- `@playwright/cli` available (it's a devDependency in the vscode repo - run `npm install`, then use the repo-local `node_modules/.bin/playwright-cli` executable directly).
 - For debugger work: `dap-cli` on `PATH`. If debugger support would be useful but the `dap-cli` skill is not present, prompt the user to install it from https://github.com/roblourens/dap-cli.
 - CSS selectors are internal implementation details. If a selector-based `eval` stops working, take a fresh `snapshot`, inspect the current DOM, and update the selector rather than assuming an old one still applies.
 
@@ -153,16 +153,25 @@ $pid = $info.pid
 
 Use the dynamic `cdpPort` from the launch JSON. The normal loop is: attach, confirm the target, snapshot, interact, then re-snapshot after meaningful UI changes.
 
-> **Always pick a unique `PW_SESSION` name and pass it as `-s=$PW_SESSION`** on every `npx @playwright/cli ...` call. The CLI is backed by a persistent daemon (`cliDaemon.js`) keyed by session name; if two shells both omit `-s=`, they share the implicit `"default"` session and the most-recently-attached CDP "wins" for every subsequent command from either shell. The launch skill is built around isolation (per-instance UDD, ports, shared-data-dir), and this pattern keeps that isolation intact at the Playwright-driving layer too. **A note on the alternative `PLAYWRIGHT_CLI_SESSION` env var:** it's documented in the package README and works correctly for `open`-style workflows, but it interacts poorly with `attach --cdp=...` (the daemon ends up with both `--cdp=...` and `--endpoint=<env-value>`, and the latter wins, causing a `connect ENOENT` failure). Confirmed against `@playwright/cli@0.1.13`. Explicit `-s=NAME` works in all modes.
+Invoke the installed executable directly instead of going through `npx` on every action:
+
+```bash
+VSCODE_REPO=$(jq -r .repo <<<"$INFO")
+export PLAYWRIGHT_CLI="${PLAYWRIGHT_CLI:-$VSCODE_REPO/node_modules/.bin/playwright-cli}"
+```
+
+On Windows PowerShell, use `$playwrightCli = Join-Path $info.repo 'node_modules\.bin\playwright-cli.cmd'` and invoke it with `& $playwrightCli`.
+
+> **Always pick a unique `PW_SESSION` name and pass it as `-s=$PW_SESSION`** on every `"$PLAYWRIGHT_CLI" ...` call. The CLI is backed by a persistent daemon (`cliDaemon.js`) keyed by session name; if two shells both omit `-s=`, they share the implicit `"default"` session and the most-recently-attached CDP "wins" for every subsequent command from either shell. The launch skill is built around isolation (per-instance UDD, ports, shared-data-dir), and this pattern keeps that isolation intact at the Playwright-driving layer too. **A note on the alternative `PLAYWRIGHT_CLI_SESSION` env var:** it's documented in the package README and works correctly for `open`-style workflows, but it interacts poorly with `attach --cdp=...` (the daemon ends up with both `--cdp=...` and `--endpoint=<env-value>`, and the latter wins, causing a `connect ENOENT` failure). Confirmed against `@playwright/cli@0.1.13`. Explicit `-s=NAME` works in all modes.
 
 ```bash
 # At the top of your script / subagent prompt:
 PW_SESSION="my-uniq-$$"        # any unique string; $$ is fine for one shell per agent
 
 # launch.sh blocks until CDP is ready, so a single attach is enough.
-npx @playwright/cli -s=$PW_SESSION attach --cdp=http://127.0.0.1:$CDP
-npx @playwright/cli -s=$PW_SESSION tab-list
-npx @playwright/cli -s=$PW_SESSION snapshot
+"$PLAYWRIGHT_CLI" -s=$PW_SESSION attach --cdp=http://127.0.0.1:$CDP
+"$PLAYWRIGHT_CLI" -s=$PW_SESSION tab-list
+"$PLAYWRIGHT_CLI" -s=$PW_SESSION snapshot
 ```
 
 After `attach`, later `@playwright/cli` commands keep using the connected app until you close or reattach — as long as you keep passing the same `-s=$PW_SESSION`.
@@ -172,20 +181,20 @@ After `attach`, later `@playwright/cli` commands keep using the connected app un
 Electron apps can expose multiple windows or webviews. If `tab-list` shows `about:blank`, a webview, or otherwise the wrong target, switch targets before interacting:
 
 ```bash
-npx @playwright/cli -s=$PW_SESSION tab-list
-npx @playwright/cli -s=$PW_SESSION tab-select 2
-npx @playwright/cli -s=$PW_SESSION snapshot
+"$PLAYWRIGHT_CLI" -s=$PW_SESSION tab-list
+"$PLAYWRIGHT_CLI" -s=$PW_SESSION tab-select 2
+"$PLAYWRIGHT_CLI" -s=$PW_SESSION snapshot
 ```
 
-If a target looks stale after relaunching, run `npx @playwright/cli -s=$PW_SESSION close`, attach again with `$CDP`, and re-check `tab-list`.
+If a target looks stale after relaunching, run `"$PLAYWRIGHT_CLI" -s=$PW_SESSION close`, attach again with `$CDP`, and re-check `tab-list`.
 
 ### Focusing the chat input (works on Code OSS, including the Agents window)
 
 ```bash
 # macOS
-npx @playwright/cli -s=$PW_SESSION press Control+Meta+i
+"$PLAYWRIGHT_CLI" -s=$PW_SESSION press Control+Meta+i
 # Linux / Windows
-npx @playwright/cli -s=$PW_SESSION press Control+Alt+i
+"$PLAYWRIGHT_CLI" -s=$PW_SESSION press Control+Alt+i
 ```
 
 ### Typing into Monaco (chat input, editors)
@@ -200,9 +209,9 @@ npx @playwright/cli -s=$PW_SESSION press Control+Alt+i
   export PW_SESSION                            # helper reads this env var
 
   # Send a prompt:
-  npx @playwright/cli -s=$PW_SESSION press Control+Meta+i  # focus chat input
+  "$PLAYWRIGHT_CLI" -s=$PW_SESSION press Control+Meta+i  # focus chat input
   "$PASTE" 'Please run `pwd && ls` using your terminal tool.'
-  npx @playwright/cli -s=$PW_SESSION press Enter
+  "$PLAYWRIGHT_CLI" -s=$PW_SESSION press Enter
 
   # Long / arbitrary text via stdin (avoids any shell-quoting headaches):
   printf 'multi-line prompt\nwith backticks `x`\nand emoji 🎉' | "$PASTE"
@@ -227,17 +236,17 @@ npx @playwright/cli -s=$PW_SESSION press Control+Alt+i
 
 - **Per-key `press`** (universal but slow — each press is a separate CLI invocation with Node startup cost):
   ```bash
-  npx @playwright/cli -s=$PW_SESSION press H
-  npx @playwright/cli -s=$PW_SESSION press i
-  npx @playwright/cli -s=$PW_SESSION press Enter
+  "$PLAYWRIGHT_CLI" -s=$PW_SESSION press H
+  "$PLAYWRIGHT_CLI" -s=$PW_SESSION press i
+  "$PLAYWRIGHT_CLI" -s=$PW_SESSION press Enter
   ```
 
 - **Clipboard paste via `pbcopy`** (fast on macOS, **but `NSPasteboard` is system-wide so any concurrent shell that touches the pasteboard will collide**). Only use when nothing else on the machine is using the clipboard for the duration of the paste.
   ```bash
   printf '%s' "Your prompt here" | pbcopy
-  npx @playwright/cli -s=$PW_SESSION press Control+Meta+i
-  npx @playwright/cli -s=$PW_SESSION press Meta+v
-  npx @playwright/cli -s=$PW_SESSION press Enter
+  "$PLAYWRIGHT_CLI" -s=$PW_SESSION press Control+Meta+i
+  "$PLAYWRIGHT_CLI" -s=$PW_SESSION press Meta+v
+  "$PLAYWRIGHT_CLI" -s=$PW_SESSION press Enter
   ```
 
 The focus shortcut should leave `document.activeElement` on VS Code's `native-edit-context` editing surface. That is a useful sanity check when key presses appear to do nothing.
@@ -251,20 +260,20 @@ Because the launch skill is built around isolation, the natural workload is **ma
 PW_SESSION="agent-A-$$"
 INFO=$("$LAUNCH" --agents -- --use-mock-keychain | tail -n1)
 CDP=$(jq -r .cdpPort <<<"$INFO")
-npx @playwright/cli -s=$PW_SESSION attach --cdp=http://127.0.0.1:$CDP
+"$PLAYWRIGHT_CLI" -s=$PW_SESSION attach --cdp=http://127.0.0.1:$CDP
 "$PASTE" "prompt for A"   # helper picks up $PW_SESSION
 
 # In agent B's shell (running concurrently):
 PW_SESSION="agent-B-$$"
 INFO=$("$LAUNCH" --agents -- --use-mock-keychain | tail -n1)
 CDP=$(jq -r .cdpPort <<<"$INFO")
-npx @playwright/cli -s=$PW_SESSION attach --cdp=http://127.0.0.1:$CDP
+"$PLAYWRIGHT_CLI" -s=$PW_SESSION attach --cdp=http://127.0.0.1:$CDP
 "$PASTE" "prompt for B"
 ```
 
 Each agent gets its own `cliDaemon` bound to its own CDP, so the pastes / clicks / snapshots don't cross-contaminate. Verified live with two concurrent instances. **macOS Mach-ports caveat:** on macOS, beyond ~2–3 concurrent Code OSS instances Crashpad's exception handler tends to die with `mach_port_request_notification: invalid capability`. That's a separate, OS-level limit; it's not affected by the session name.
 
-> **Cleanup for `cliDaemon` processes:** stop your session's daemon with `npx @playwright/cli -s=$PW_SESSION close`, or nuke all stale daemons (after killing all the Code OSS windows) with `npx @playwright/cli kill-all`. Session daemons live under `~/Library/Caches/ms-playwright/daemon/<hash>/`.
+> **Cleanup for `cliDaemon` processes:** stop your session's daemon with `"$PLAYWRIGHT_CLI" -s=$PW_SESSION close`, or nuke all stale daemons (after killing all the Code OSS windows) with `"$PLAYWRIGHT_CLI" kill-all`. Session daemons live under `~/Library/Caches/ms-playwright/daemon/<hash>/`.
 
 ### Agents window selector differences
 
@@ -286,7 +295,7 @@ The `Control+Meta+i` / `Control+Alt+i` focus shortcut still works; only the DOM 
 For the regular workbench sidebar, this confirms that text landed in the Monaco input:
 
 ```bash
-npx @playwright/cli -s=$PW_SESSION eval '
+"$PLAYWRIGHT_CLI" -s=$PW_SESSION eval '
 (() => {
   const sidebar = document.querySelector(".part.auxiliarybar");
   const viewLines = sidebar?.querySelectorAll(".interactive-input-editor .view-line") ?? [];
@@ -300,10 +309,10 @@ To clear the focused Monaco input:
 
 ```bash
 # macOS
-npx @playwright/cli -s=$PW_SESSION press Meta+a
+"$PLAYWRIGHT_CLI" -s=$PW_SESSION press Meta+a
 # Linux / Windows
-npx @playwright/cli -s=$PW_SESSION press Control+a
-npx @playwright/cli -s=$PW_SESSION press Backspace
+"$PLAYWRIGHT_CLI" -s=$PW_SESSION press Control+a
+"$PLAYWRIGHT_CLI" -s=$PW_SESSION press Backspace
 ```
 
 If the keyboard shortcut cannot focus chat because the surface is not available yet, take a snapshot and navigate the UI into a state where chat exists before retrying. Avoid treating completed CLI commands as proof that text was entered.
@@ -313,7 +322,7 @@ If the keyboard shortcut cannot focus chat because the surface is not available 
 ```bash
 SHOTS="$PWD/screenshots/$(date +%Y-%m-%dT%H-%M-%S)"
 mkdir -p "$SHOTS"
-npx @playwright/cli -s=$PW_SESSION screenshot --filename="$SHOTS/after-launch.png"
+"$PLAYWRIGHT_CLI" -s=$PW_SESSION screenshot --filename="$SHOTS/after-launch.png"
 ```
 
 > Keep screenshots inside the workspace, not `/tmp`, so they survive for review.
@@ -321,8 +330,8 @@ npx @playwright/cli -s=$PW_SESSION screenshot --filename="$SHOTS/after-launch.pn
 For wide windows, `--full-page` can make layout easier to inspect, and element screenshots are useful when a snapshot gives a stable ref for the panel you care about:
 
 ```bash
-npx @playwright/cli -s=$PW_SESSION screenshot --full-page --filename="$SHOTS/full-window.png"
-npx @playwright/cli -s=$PW_SESSION screenshot e42 --filename="$SHOTS/panel.png"
+"$PLAYWRIGHT_CLI" -s=$PW_SESSION screenshot --full-page --filename="$SHOTS/full-window.png"
+"$PLAYWRIGHT_CLI" -s=$PW_SESSION screenshot e42 --filename="$SHOTS/panel.png"
 ```
 
 On macOS, a screenshot "Permission denied" failure usually means the terminal lacks Screen Recording permission. Use text/state verification while resolving that permission issue.
@@ -355,9 +364,9 @@ kill "$PID" 2>/dev/null || true
 INFO=$("$LAUNCH" | tail -n1)
 CDP=$(jq -r .cdpPort <<<"$INFO")
 PID=$(jq -r .pid <<<"$INFO")
-npx @playwright/cli -s=$PW_SESSION attach --cdp=http://127.0.0.1:$CDP
-npx @playwright/cli -s=$PW_SESSION tab-list
-npx @playwright/cli -s=$PW_SESSION snapshot
+"$PLAYWRIGHT_CLI" -s=$PW_SESSION attach --cdp=http://127.0.0.1:$CDP
+"$PLAYWRIGHT_CLI" -s=$PW_SESSION tab-list
+"$PLAYWRIGHT_CLI" -s=$PW_SESSION snapshot
 ```
 
 If you are iterating frequently, keep the repo build/watch task running separately so relaunches pick up already-generated output. After one successful normal launch, `--skip-prelaunch` avoids repeating the preparation while those outputs remain current.
@@ -368,10 +377,10 @@ The launcher writes everything under a temp `runDir` (printed in the JSON). When
 
 ```bash
 # Disconnect this session's playwright daemon (leaves other sessions' daemons alone)
-npx @playwright/cli -s=$PW_SESSION close
+"$PLAYWRIGHT_CLI" -s=$PW_SESSION close
 
 # Or nuke any stale daemons left behind by crashed callers across all sessions:
-# npx @playwright/cli kill-all
+# "$PLAYWRIGHT_CLI" kill-all
 
 # Kill the Code OSS instance
 kill "$PID" 2>/dev/null || true
@@ -386,7 +395,7 @@ Code OSS is a full Electron app and easily eats 1-4 GB. Always clean up.
 
 ## Troubleshooting
 
-- **`Daemon pid=...: listen EINVAL` from `@playwright/cli`** - the daemon's socket path (`TMPDIR` + a fixed ~33-char prefix + the `-s=` session name) exceeded the ~103-byte unix socket limit. macOS's default `TMPDIR` leaves only ~16 characters for the session name, so shorten `-s=` first. If you need a longer name, scope the override to the single command (`TMPDIR=/tmp npx @playwright/cli ...`) rather than `export`ing it, so the launcher keeps using your private per-user temp dir.
+- **`Daemon pid=...: listen EINVAL` from `@playwright/cli`** - the daemon's socket path (`TMPDIR` + a fixed ~33-char prefix + the `-s=` session name) exceeded the ~103-byte unix socket limit. macOS's default `TMPDIR` leaves only ~16 characters for the session name, so shorten `-s=` first. If you need a longer name, scope the override to the single command (`TMPDIR=/tmp "$PLAYWRIGHT_CLI" ...`) rather than `export`ing it, so the launcher keeps using your private per-user temp dir.
 - **"Sent env to running instance. Terminating..."** - The dynamic `--user-data-dir` should prevent this. If you see it, another Code OSS is using the same profile path; pass `--source-user-data-dir` to a different source or check that the temp copy actually happened (`ls "$(jq -r .userDataDir <<<"$INFO")"`).
 - **Renderer ESM errors / `import { Menu } from 'electron'`** - `ELECTRON_RUN_AS_NODE` is set in your env. The launcher unsets it for the child, but if you spawn `code.sh` yourself, do the same.
 - **Built-in extension fails to load (`Cannot find module .../extensions/.../out/extension.js`)** - extensions weren't compiled. Run `npm run compile` (one-shot, also rebuilds all built-in extensions) or `npm run watch` (incremental). A common cause: you ran `npm run transpile-client` to satisfy unit tests, which populated `out/` but not `extensions/*/out/`, so preLaunch's "is `out/` missing?" check skipped the compile.
