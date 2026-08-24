@@ -7301,7 +7301,7 @@ suite('AgentHostChatContribution', () => {
 			}
 		});
 
-		test('restores subagent pills from the chat catalog when tool metadata was lost', async () => {
+		test('restores failed subagent calls from the chat catalog when tool metadata was lost', async () => {
 			const byok = createByokLanguageModelTestData();
 			const { sessionHandler, agentHostService } = createContribution(disposables, byok);
 			const sessionUri = AgentSession.uri('copilot', 'subagent-history');
@@ -7333,7 +7333,8 @@ suite('AgentHostChatContribution', () => {
 							displayName: 'Delegating task',
 							invocationMessage: 'Delegating task',
 							confirmed: ToolCallConfirmationReason.NotNeeded,
-							success: true,
+							success: false,
+							error: { message: 'Subagent failed after producing a child chat' },
 							content: [],
 						},
 					}],
