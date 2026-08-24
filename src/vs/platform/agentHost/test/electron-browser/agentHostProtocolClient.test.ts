@@ -27,7 +27,7 @@ import { ActionType, type ChatTurnStartedAction, type SessionActiveClientSetActi
 import { ProtocolError, type AhpServerNotification, type JsonRpcNotification, type JsonRpcRequest, type JsonRpcResponse, type ProtocolMessage } from '../../common/state/sessionProtocol.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { mainWindow } from '../../../../base/browser/window.js';
-import { CustomizationType, MessageAttachmentKind, MessageKind, PendingMessageKind, readSessionExternal, readSessionWorkspaceless, ROOT_STATE_URI, SessionStatus, StateComponents, customizationId, withSessionExternal, withSessionWorkspaceless } from '../../common/state/sessionState.js';
+import { buildChatUri, CustomizationType, MessageAttachmentKind, MessageKind, PendingMessageKind, readSessionExternal, readSessionWorkspaceless, ROOT_STATE_URI, SessionStatus, StateComponents, customizationId, withSessionExternal, withSessionWorkspaceless } from '../../common/state/sessionState.js';
 import { NonReconnectableTransportError, type IClientTransport, type IProtocolTransport } from '../../common/state/sessionTransport.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { ITelemetryService, TelemetryConfiguration, TelemetryLevel, TELEMETRY_SETTING_ID } from '../../../telemetry/common/telemetry.js';
@@ -1369,13 +1369,14 @@ suite('AgentHostProtocolClient', () => {
 	test('collectDebugLogs maps the returned host resource', async () => {
 		const { client, transport } = createClient();
 		const session = URI.parse('copilotcli:/session-1');
-		const resultPromise = client.collectDebugLogs(session, 'archive');
+		const chat = URI.parse(buildChatUri(session, 'peer-1'));
+		const resultPromise = client.collectDebugLogs(session, 'archive', chat);
 
 		assert.deepStrictEqual(transport.sentMessages[0], {
 			jsonrpc: '2.0',
 			id: 1,
 			method: 'vscode/collectAgentHostDebugLogs',
-			params: { session: session.toString(), kind: 'archive' },
+			params: { session: session.toString(), chat: chat.toString(), kind: 'archive' },
 		});
 
 		transport.fireMessage({

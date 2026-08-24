@@ -150,7 +150,7 @@ class MockAgentService implements IAgentService {
 	readonly createSessionConfigs: (IAgentCreateSessionConfig | undefined)[] = [];
 	managedSettingsDiagnostics: readonly IAgentHostManagedSettingsDiagnostics[] = [];
 	readonly getSessionStateFileCalls: string[] = [];
-	readonly collectDebugLogsCalls: { session: string | undefined; kind: 'archive' | 'directory' }[] = [];
+	readonly collectDebugLogsCalls: { session: string | undefined; chat: string | undefined; kind: 'archive' | 'directory' }[] = [];
 	shutdownCalls = 0;
 	createSessionBarrier: DeferredPromise<void> | undefined;
 	subscribeBarrier: DeferredPromise<void> | undefined;
@@ -232,8 +232,8 @@ class MockAgentService implements IAgentService {
 		this.getSessionStateFileCalls.push(session.toString());
 		return URI.file('/state/sdk-session/events.jsonl');
 	}
-	async collectDebugLogs(session: URI | undefined, kind: 'archive' | 'directory') {
-		this.collectDebugLogsCalls.push({ session: session?.toString(), kind });
+	async collectDebugLogs(session: URI | undefined, kind: 'archive' | 'directory', chat?: URI) {
+		this.collectDebugLogsCalls.push({ session: session?.toString(), chat: chat?.toString(), kind });
 		return { kind, resource: URI.file('/tmp/agent-host-debug.zip'), providerLogsIncluded: true, size: 1024, uncompressedSize: 2048, entries: [{ path: 'agenthost.log', size: 2048 }] };
 	}
 	async authenticate(_params: AuthenticateParams): Promise<AuthenticateResult> { return { authenticated: true }; }
@@ -644,6 +644,7 @@ suite('ProtocolServerHandler', () => {
 
 		transport.simulateMessage(request(12, 'vscode/collectAgentHostDebugLogs', {
 			session: 'copilotcli:/session-1',
+			chat: buildChatUri('copilotcli:/session-1', 'peer-1'),
 			kind: 'archive',
 		}));
 
@@ -656,7 +657,7 @@ suite('ProtocolServerHandler', () => {
 				id: 12,
 				result: { kind: 'archive', resource: 'file:///tmp/agent-host-debug.zip', providerLogsIncluded: true, size: 1024, uncompressedSize: 2048, entries: [{ path: 'agenthost.log', size: 2048 }] },
 			},
-			calls: [{ session: 'copilotcli:/session-1', kind: 'archive' }],
+			calls: [{ session: 'copilotcli:/session-1', chat: buildChatUri('copilotcli:/session-1', 'peer-1'), kind: 'archive' }],
 		});
 	});
 
@@ -679,6 +680,24 @@ suite('ProtocolServerHandler', () => {
 				result: { resource: 'file:///state/sdk-session/events.jsonl' },
 			},
 			calls: ['copilotcli:/session-1'],
+		});
+	});
+
+	test('rejects a debug-log chat belonging to another session', async () => {
+		const transport = connectClient('client-debug-logs-wrong-chat');
+		transport.sent.length = 0;
+		const responsePromise = waitForResponse(transport, 19);
+
+		transport.simulateMessage(request(19, 'vscode/collectAgentHostDebugLogs', {
+			session: 'copilotcli:/session-1',
+			chat: buildChatUri('copilotcli:/session-2', 'peer-1'),
+			kind: 'archive',
+		}));
+
+		assert.deepStrictEqual(await responsePromise, {
+			jsonrpc: '2.0',
+			id: 19,
+			error: { code: JsonRpcErrorCodes.InvalidParams, message: 'chat must belong to the requested Agent Session' },
 		});
 	});
 
@@ -706,7 +725,7 @@ suite('ProtocolServerHandler', () => {
 		assert.deepStrictEqual(await responsePromise, {
 			jsonrpc: '2.0',
 			id: 13,
-			error: { code: JsonRpcErrorCodes.InvalidParams, message: 'kind must be archive or directory' },
+			error: { code: JsonRpcErrorCodes.InvalidParams, message: `Error in property 'kind': Expected one of: archive, directory` },
 		});
 	});
 
@@ -726,7 +745,7 @@ suite('ProtocolServerHandler', () => {
 				id: 16,
 				result: { kind: 'archive', resource: 'file:///tmp/agent-host-debug.zip', providerLogsIncluded: true, size: 1024, uncompressedSize: 2048, entries: [{ path: 'agenthost.log', size: 2048 }] },
 			},
-			calls: { session: undefined, kind: 'archive' },
+			calls: { session: undefined, chat: undefined, kind: 'archive' },
 		});
 	});
 
@@ -740,7 +759,7 @@ suite('ProtocolServerHandler', () => {
 		assert.deepStrictEqual(await responsePromise, {
 			jsonrpc: '2.0',
 			id: 14,
-			error: { code: JsonRpcErrorCodes.InvalidParams, message: 'session must be a URI string' },
+			error: { code: JsonRpcErrorCodes.InvalidParams, message: `Error in property 'session': Expected string, but got number` },
 		});
 	});
 
@@ -749,12 +768,12 @@ suite('ProtocolServerHandler', () => {
 		transport.sent.length = 0;
 		const responsePromise = waitForResponse(transport, 15);
 
-		transport.simulateMessage(request(15, 'vscode/collectAgentHostDebugLogs', []));
+		transport.simulateMessage(request(15, 'vscode/collectAgentHostDebugLogs', null));
 
 		assert.deepStrictEqual(await responsePromise, {
 			jsonrpc: '2.0',
 			id: 15,
-			error: { code: JsonRpcErrorCodes.InvalidParams, message: 'params must be an object' },
+			error: { code: JsonRpcErrorCodes.InvalidParams, message: 'Expected object' },
 		});
 	});
 
