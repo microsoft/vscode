@@ -94,6 +94,26 @@ function isReasoningBlock(block: unknown): boolean {
 	return REASONING_BLOCK_TYPES.has((block as { type?: string })?.type ?? '');
 }
 
+/**
+ * The runtime prepends a `<tools_changed_notice>` block onto the next user
+ * message whenever the offered tool set changed since the model last saw it
+ * (for example after `exit_plan_mode` leaves plan mode and the tool is
+ * withdrawn). The block is runtime-authored preamble derived from the live tool
+ * diff, not host-authored structure, and a capture recorded before the runtime
+ * emitted it — or on a build whose tool set did not change — legitimately lacks
+ * it. Comparing it would report a runtime behavior change as a host regression,
+ * so both sides drop it, exactly like a `tool_result` payload.
+ *
+ * This must run before path elision: `PATH_RE` matches the leading `/` of the
+ * closing `</tools_changed_notice>` tag and would otherwise rewrite it to
+ * `${path}`, leaving no closing tag for this strip to find.
+ */
+const TOOLS_CHANGED_NOTICE_RE = /<tools_changed_notice>[\s\S]*?<\/tools_changed_notice>\s*/g;
+
+function elideToolsChangedNotice(text: string): string {
+	return text.replace(TOOLS_CHANGED_NOTICE_RE, '');
+}
+
 export interface IProjectedMessage {
 	readonly role: string;
 	readonly content: unknown;
@@ -105,7 +125,7 @@ export interface IProjectedModelRequest {
 }
 
 function elideRuntimeIds(text: string): string {
-	return elidePaths(text.replace(RAW_UUID_RE, RUNTIME_ID_PLACEHOLDER).replace(ORDINAL_UUID_RE, RUNTIME_ID_PLACEHOLDER));
+	return elidePaths(elideToolsChangedNotice(text).replace(RAW_UUID_RE, RUNTIME_ID_PLACEHOLDER).replace(ORDINAL_UUID_RE, RUNTIME_ID_PLACEHOLDER));
 }
 
 function projectValue(value: unknown): unknown {
