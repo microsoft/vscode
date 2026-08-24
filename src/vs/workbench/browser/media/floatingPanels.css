@@ -44,6 +44,27 @@
 	color: var(--vscode-surface-foreground);
 }
 
+/*
+ * The primary side bar meets the activity bar rail flush, so the two read as one connected
+ * surface: the facing edge drops its gap and its rounded corners, and gives up its border so
+ * the rail's own facing border is the single hairline seam. The rail has to be the one that
+ * draws it — otherwise its visible interior would run past its transparent edge to the side
+ * bar's border, leaving an odd number of pixels around the icon column and pushing the items
+ * 1px off-center. Kept in sync with `getFloatingPaneCompositeHorizontalMargins`.
+ */
+.monaco-workbench.floating-panels:not(.noactivitybar) .part.sidebar.left {
+	margin-left: var(--modern-ui-floating-card-inner-margin);
+	border-left-color: transparent !important;
+	border-top-left-radius: 0;
+	border-bottom-left-radius: 0;
+}
+
+.monaco-workbench.floating-panels:not(.noactivitybar) .part.sidebar.right {
+	border-right-color: transparent !important;
+	border-top-right-radius: 0;
+	border-bottom-right-radius: 0;
+}
+
 /* Keep the panel surface aligned with the panel theme background in light theme. */
 .monaco-workbench.floating-panels .part.panel {
 	margin: var(--modern-ui-floating-card-inner-margin) var(--modern-ui-floating-card-inner-margin) var(--modern-ui-floating-card-margin) var(--modern-ui-floating-card-margin);
@@ -173,32 +194,57 @@
 	border-top-color: transparent !important;
 }
 
-/* The activity bar is a navigation rail between the full-width title and status bars. */
+/*
+ * The activity bar is the outermost card of the side bar cluster. It is inset by the
+ * cluster's outer gutter, rounded on the window side and square where it meets the
+ * primary side bar, so the rail and the side bar read as one connected surface.
+ * The rail's own width carries the visual lane beside it (see the item centering below);
+ * `ActivitybarPart.floatingHorizontalGutter` reserves both in the grid.
+ */
 .monaco-workbench.floating-panels .part.activitybar {
-	margin: var(--modern-ui-floating-card-inner-margin) var(--modern-ui-floating-card-margin) var(--modern-ui-floating-card-margin);
-	width: calc(var(--activity-bar-width, 48px) + var(--modern-ui-floating-card-margin));
+	/* The lane is the space inside the card beside the icon column. The card width and the
+	 * item centering below both derive from it, so a card that has to give up part of the
+	 * lane (see the standalone right-hand rail) stays centered automatically. */
+	--modern-ui-activitybar-lane: var(--modern-ui-floating-card-outer-margin);
+	margin: var(--modern-ui-floating-card-inner-margin) var(--modern-ui-floating-card-inner-margin) var(--modern-ui-floating-card-margin);
+	width: calc(var(--activity-bar-width, 48px) + var(--modern-ui-activitybar-lane));
 	height: calc(100% - var(--modern-ui-floating-card-margin));
-	border-radius: var(--vscode-cornerRadius-medium);
+	padding-left: var(--vscode-spacing-sizeNone);
+	padding-right: var(--vscode-spacing-sizeNone);
+	border: 1px solid var(--modern-ui-floating-card-border-color, var(--vscode-surface-border, var(--vscode-widget-border, transparent))) !important;
 	overflow: hidden;
 }
 
-/* Extend the rail to the window edge with extra space outside the activity items. */
+/* The rail keeps a border on all four sides: the facing one is the seam the side bar gives up
+ * (see above), so the icon column is always centered in an even interior. `!important` is
+ * needed because `ActivitybarPart.updateStyles` sets the legacy `activityBar.border` color
+ * inline. */
 .monaco-workbench.floating-panels .part.activitybar.left {
-	margin-left: 0;
-	margin-right: 0;
-	padding-left: var(--vscode-spacing-size60);
-	padding-right: var(--vscode-spacing-size20);
-	width: calc(var(--activity-bar-width, 48px) + (var(--modern-ui-floating-card-margin) * 2));
-	border-radius: 0 var(--vscode-cornerRadius-medium) var(--vscode-cornerRadius-medium) 0;
+	margin-left: var(--modern-ui-floating-card-outer-margin);
+	margin-right: var(--modern-ui-floating-card-inner-margin);
+	border-radius: var(--vscode-cornerRadius-large) 0 0 var(--vscode-cornerRadius-large);
 }
 
 .monaco-workbench.floating-panels .part.activitybar.right {
+	margin-left: var(--modern-ui-floating-card-inner-margin);
+	margin-right: var(--modern-ui-floating-card-outer-margin);
+	border-radius: 0 var(--vscode-cornerRadius-large) var(--vscode-cornerRadius-large) 0;
+}
+
+/* With the primary side bar collapsed there is no card to connect to, so the rail closes up
+ * as a standalone panel with every corner rounded. Its border is already opaque on all four
+ * sides. Compact density keeps its cards joined edge to edge, so it is excluded. */
+.monaco-workbench.floating-panels:not(.modern-ui-compact).nosidebar .part.activitybar {
+	border-radius: var(--vscode-cornerRadius-large);
+}
+
+/* A left-hand rail gets its gap for free from the leading margin of the card beside it. A
+ * right-hand rail is the one that follows its neighbour, so under this system's
+ * leading-margin convention it has to supply that gap itself. The extra width this needs is
+ * reserved by `ActivitybarPart.needsFloatingLeadingGap`, so the card keeps its full lane and
+ * the icons keep the same inset as every other state. */
+.monaco-workbench.floating-panels:not(.modern-ui-compact).nosidebar .part.activitybar.right {
 	margin-left: var(--modern-ui-floating-card-margin);
-	margin-right: 0;
-	padding-left: var(--vscode-spacing-size20);
-	padding-right: var(--vscode-spacing-size60);
-	width: calc(var(--activity-bar-width, 48px) + (var(--modern-ui-floating-card-margin) * 2));
-	border-radius: var(--vscode-cornerRadius-medium) 0 0 var(--vscode-cornerRadius-medium);
 }
 
 .monaco-workbench.floating-panels .part.activitybar.bordered::before {
@@ -208,6 +254,17 @@
 .monaco-workbench.floating-panels.top-window-edge .part.activitybar {
 	margin-top: var(--modern-ui-floating-card-outer-margin);
 	height: calc(100% - var(--modern-ui-floating-card-outer-margin) - var(--modern-ui-floating-card-margin));
+}
+
+/* Compact density treats the status bar as chrome outside the cluster, so the rail's
+ * bottom edge is a cluster perimeter rather than an inter-card gap. */
+.monaco-workbench.floating-panels.modern-ui-compact .part.activitybar {
+	margin-bottom: var(--modern-ui-floating-card-outer-margin);
+	height: calc(100% - var(--modern-ui-floating-card-outer-margin));
+}
+
+.monaco-workbench.floating-panels.modern-ui-compact.top-window-edge .part.activitybar {
+	height: calc(100% - (var(--modern-ui-floating-card-outer-margin) * 2));
 }
 
 .monaco-workbench.floating-panels .activitybar.compact > .content > .composite-bar {
@@ -220,49 +277,40 @@
 	margin-top: var(--vscode-spacing-size80);
 }
 
-.monaco-workbench.floating-panels.modern-ui-compact .part.activitybar.left,
-.monaco-workbench.floating-panels.modern-ui-compact .part.activitybar.right {
-	padding-left: var(--vscode-spacing-sizeNone);
-	padding-right: var(--vscode-spacing-sizeNone);
-	margin-bottom: var(--modern-ui-floating-card-outer-margin);
-	width: calc(var(--activity-bar-width, 48px) + var(--modern-ui-floating-card-outer-margin));
-	height: calc(100% - var(--modern-ui-floating-card-outer-margin));
-	border-radius: 0;
-}
-
 .monaco-workbench.floating-panels.modern-ui-compact .part.activitybar.left {
-	margin-left: var(--modern-ui-floating-card-outer-margin);
-	border-radius: var(--vscode-cornerRadius-large) 0 0 var(--vscode-cornerRadius-large);
 	--modern-ui-floating-card-corner-top-left-border-image: radial-gradient(circle at bottom right, transparent calc(var(--vscode-cornerRadius-large) - var(--vscode-strokeThickness)), var(--modern-ui-floating-card-stroke-color) calc(var(--vscode-cornerRadius-large) - var(--vscode-strokeThickness)) var(--vscode-cornerRadius-large), transparent var(--vscode-cornerRadius-large));
 	--modern-ui-floating-card-corner-bottom-left-border-image: radial-gradient(circle at top right, transparent calc(var(--vscode-cornerRadius-large) - var(--vscode-strokeThickness)), var(--modern-ui-floating-card-stroke-color) calc(var(--vscode-cornerRadius-large) - var(--vscode-strokeThickness)) var(--vscode-cornerRadius-large), transparent var(--vscode-cornerRadius-large));
 }
 
 .monaco-workbench.floating-panels.modern-ui-compact .part.activitybar.right {
-	margin-left: var(--vscode-spacing-sizeNone);
-	margin-right: var(--modern-ui-floating-card-outer-margin);
-	border-radius: 0 var(--vscode-cornerRadius-large) var(--vscode-cornerRadius-large) 0;
 	--modern-ui-floating-card-corner-top-right-border-image: radial-gradient(circle at bottom left, transparent calc(var(--vscode-cornerRadius-large) - var(--vscode-strokeThickness)), var(--modern-ui-floating-card-stroke-color) calc(var(--vscode-cornerRadius-large) - var(--vscode-strokeThickness)) var(--vscode-cornerRadius-large), transparent var(--vscode-cornerRadius-large));
 	--modern-ui-floating-card-corner-bottom-right-border-image: radial-gradient(circle at top left, transparent calc(var(--vscode-cornerRadius-large) - var(--vscode-strokeThickness)), var(--modern-ui-floating-card-stroke-color) calc(var(--vscode-cornerRadius-large) - var(--vscode-strokeThickness)) var(--vscode-cornerRadius-large), transparent var(--vscode-cornerRadius-large));
 }
 
-.monaco-workbench.floating-panels.modern-ui-compact.top-window-edge .part.activitybar {
-	height: calc(100% - (var(--modern-ui-floating-card-outer-margin) * 2));
+/*
+ * Center the full-size action targets in the card's lane (see `--modern-ui-activitybar-lane`).
+ * The card's two 1px borders shrink its content box, so they come off the lane before it is
+ * halved — otherwise the items sit 1px off-center.
+ */
+.monaco-workbench.floating-panels .part.activitybar > .content {
+	transform: translateX(calc((var(--modern-ui-activitybar-lane) - 2px) / 2));
 }
 
 /*
- * In compact density the cluster's outer gutter is the remaining space beside
- * the Activity Bar. Center the full-size action targets in that visual lane,
- * rather than in the narrower Activity Bar grid cell alone.
+ * Inset the first and last item from the card's ends by the same amount as the sides. The
+ * horizontal inset is half the lane, of which the card's border already contributes one
+ * stroke, so the remainder is what these margins have to supply. Overrides the fixed values
+ * in `modernUI/browser/media/padding.css`, which predate the lane.
  */
-.monaco-workbench.floating-panels.modern-ui-compact .part.activitybar.left > .content {
-	transform: translateX(calc(var(--modern-ui-floating-card-outer-margin) / 2));
+.monaco-workbench.floating-panels .part.activitybar:not(.top):not(.bottom) > .content > .composite-bar {
+	margin-top: calc(var(--modern-ui-activitybar-lane) / 2 - var(--vscode-strokeThickness));
 }
 
-.monaco-workbench.floating-panels.modern-ui-compact .part.activitybar.right > .content {
-	transform: translateX(calc(var(--modern-ui-floating-card-outer-margin) / 2));
+.monaco-workbench.floating-panels .part.activitybar:not(.top):not(.bottom) > .content > :not(.composite-bar):last-child {
+	margin-bottom: calc(var(--modern-ui-activitybar-lane) / 2 - var(--vscode-strokeThickness));
 }
 
-.monaco-workbench.floating-panels.modern-ui-compact .part.activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item {
+.monaco-workbench.floating-panels .part.activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item {
 	width: var(--activity-bar-width);
 }
 

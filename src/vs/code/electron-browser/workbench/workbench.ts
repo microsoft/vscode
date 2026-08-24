@@ -303,6 +303,9 @@
 
 			// part: side bar
 			if (layoutInfo.sideBarWidth > 0) {
+				// The side bar meets the activity bar rail flush; with no rail it is the outermost
+				// card on that edge and takes the cluster's outer gutter instead.
+				const sideBarClusterInset = modernUI && layoutInfo.activityBarWidth === 0 ? floatingOuterMargin : 0;
 				const sideDiv = document.createElement('div');
 				if (modernUI && layoutInfo.partBounds?.sideBar) {
 					setPartBounds(sideDiv, layoutInfo.partBounds.sideBar);
@@ -310,15 +313,15 @@
 					setBounds(sideDiv, {
 						top: contentTop,
 						bottom: contentBottom + floatingStatusBarMargin,
-						left: layoutInfo.activityBarWidth + (modernUI ? floatingMargin : 0),
-						width: modernUI ? Math.max(0, layoutInfo.sideBarWidth - floatingOuterMargin - floatingBorderWidth * 2) : layoutInfo.sideBarWidth
+						left: layoutInfo.activityBarWidth + sideBarClusterInset,
+						width: modernUI ? Math.max(0, layoutInfo.sideBarWidth - sideBarClusterInset - floatingBorderWidth * 2) : layoutInfo.sideBarWidth
 					});
 				} else {
 					setBounds(sideDiv, {
 						top: contentTop,
 						bottom: contentBottom + floatingStatusBarMargin,
-						right: layoutInfo.activityBarWidth + (modernUI ? floatingMargin : 0),
-						width: modernUI ? Math.max(0, layoutInfo.sideBarWidth - floatingOuterMargin - floatingBorderWidth * 2) : layoutInfo.sideBarWidth
+						right: layoutInfo.activityBarWidth + sideBarClusterInset,
+						width: modernUI ? Math.max(0, layoutInfo.sideBarWidth - sideBarClusterInset - floatingBorderWidth * 2) : layoutInfo.sideBarWidth
 					});
 				}
 				if (modernUI) {

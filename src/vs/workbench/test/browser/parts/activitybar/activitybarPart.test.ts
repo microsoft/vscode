@@ -189,28 +189,31 @@ suite('ActivitybarPart', () => {
 		assert.strictEqual(part.maximumHeight, Number.POSITIVE_INFINITY);
 	});
 
-	test('floating panels reserves outer padding on the left', () => {
-		const { part } = createActivitybarPart(false, true);
+	test('floating panels reserves the cluster perimeter, plus a leading gap only for a standalone right-hand rail', () => {
+		const base = ActivitybarPart.FLOATING_ACTIVITYBAR_WIDTH + ActivitybarPart.FLOATING_MARGIN * 4;
+		const withLeadingGap = base + ActivitybarPart.FLOATING_MARGIN;
 
-		assert.deepStrictEqual(
-			{ min: part.minimumWidth, max: part.maximumWidth },
-			{
-				min: ActivitybarPart.FLOATING_ACTIVITYBAR_WIDTH + ActivitybarPart.FLOATING_MARGIN * 2,
-				max: ActivitybarPart.FLOATING_ACTIVITYBAR_WIDTH + ActivitybarPart.FLOATING_MARGIN * 2,
-			}
-		);
-	});
+		const widthOf = (sideBarPosition: Position, sideBarVisible: boolean, modernUICompact = false) => {
+			const { part, layoutService } = createActivitybarPart(false, true, sideBarPosition, {}, modernUICompact);
+			layoutService.isVisible = (partId: Parts) => partId === Parts.SIDEBAR_PART && sideBarVisible;
+			return part.minimumWidth;
+		};
 
-	test('floating panels reserves a 4px inner gap and both gutters on the right', () => {
-		const { part } = createActivitybarPart(false, true, Position.RIGHT);
-
-		assert.deepStrictEqual(
-			{ min: part.minimumWidth, max: part.maximumWidth },
-			{
-				min: ActivitybarPart.FLOATING_ACTIVITYBAR_WIDTH + ActivitybarPart.FLOATING_MARGIN * 3,
-				max: ActivitybarPart.FLOATING_ACTIVITYBAR_WIDTH + ActivitybarPart.FLOATING_MARGIN * 3,
-			}
-		);
+		assert.deepStrictEqual({
+			left: widthOf(Position.LEFT, true),
+			leftCollapsed: widthOf(Position.LEFT, false),
+			right: widthOf(Position.RIGHT, true),
+			rightCollapsed: widthOf(Position.RIGHT, false),
+			compactRightCollapsed: widthOf(Position.RIGHT, false, true),
+		}, {
+			left: base,
+			leftCollapsed: base,
+			right: base,
+			// Only here does the rail follow another card and have to supply the gap itself.
+			rightCollapsed: withLeadingGap,
+			// Compact keeps its cards joined edge to edge, so no gap is ever needed.
+			compactRightCollapsed: ActivitybarPart.FLOATING_ACTIVITYBAR_WIDTH + COMPACT_FLOATING_PANEL_OUTER_MARGIN * 2,
+		});
 	});
 
 	test('compact Modern UI density reserves the connected cluster perimeter and rail padding', () => {
@@ -297,7 +300,7 @@ suite('ActivitybarPart', () => {
 		fireConfigChange(configService, LayoutSettings.MODERN_UI);
 
 		assert.deepStrictEqual(events, [undefined]);
-		assert.strictEqual(part.minimumWidth, ActivitybarPart.FLOATING_ACTIVITYBAR_WIDTH + ActivitybarPart.FLOATING_MARGIN * 2);
+		assert.strictEqual(part.minimumWidth, ActivitybarPart.FLOATING_ACTIVITYBAR_WIDTH + ActivitybarPart.FLOATING_MARGIN * 4);
 	});
 
 	test('fires onDidChange(undefined) when Modern UI density changes', () => {
@@ -459,6 +462,7 @@ suite('ActivitybarPart', () => {
 
 	test('reserves a doubled gutter on each window edge the activity bar faces', () => {
 		const margin = ActivitybarPart.FLOATING_MARGIN;
+		const borders = ActivitybarPart.FLOATING_BORDER * 2;
 		const actual = {
 			// Windowed default: a title bar above and a status bar below, so neither is a window edge.
 			titleAndStatusBarVisible: layoutContentHeight([Parts.TITLEBAR_PART, Parts.STATUSBAR_PART]),
@@ -480,27 +484,28 @@ suite('ActivitybarPart', () => {
 		};
 
 		assert.deepStrictEqual(actual, {
-			titleAndStatusBarVisible: 300 - margin,
-			titleBarHidden: 300 - margin * 2 - margin,
-			bannerInsteadOfTitleBar: 300 - margin,
-			statusBarHidden: 300 - margin * 2,
-			bothEdgesExposed: 300 - margin * 2 - margin * 2,
+			titleAndStatusBarVisible: 300 - margin - borders,
+			titleBarHidden: 300 - margin * 2 - margin - borders,
+			bannerInsteadOfTitleBar: 300 - margin - borders,
+			statusBarHidden: 300 - margin * 2 - borders,
+			bothEdgesExposed: 300 - margin * 2 - margin * 2 - borders,
 			floatingPanelsDisabled: 300,
 		});
 	});
 
 	test('compact density aligns the activity bar bottom gutter with the panel cluster', () => {
 		const outerMargin = COMPACT_FLOATING_PANEL_OUTER_MARGIN;
+		const borders = ActivitybarPart.FLOATING_BORDER * 2;
 		assert.deepStrictEqual({
 			titleAndStatusBarVisible: layoutContentHeight([Parts.TITLEBAR_PART, Parts.STATUSBAR_PART], true, true),
 			titleBarHidden: layoutContentHeight([Parts.STATUSBAR_PART], true, true),
 			statusBarHidden: layoutContentHeight([Parts.TITLEBAR_PART], true, true),
 			bothEdgesExposed: layoutContentHeight([], true, true),
 		}, {
-			titleAndStatusBarVisible: 300 - outerMargin,
-			titleBarHidden: 300 - outerMargin * 2,
-			statusBarHidden: 300 - outerMargin,
-			bothEdgesExposed: 300 - outerMargin * 2,
+			titleAndStatusBarVisible: 300 - outerMargin - borders,
+			titleBarHidden: 300 - outerMargin * 2 - borders,
+			statusBarHidden: 300 - outerMargin - borders,
+			bothEdgesExposed: 300 - outerMargin * 2 - borders,
 		});
 	});
 

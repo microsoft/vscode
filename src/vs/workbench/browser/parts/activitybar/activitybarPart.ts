@@ -64,6 +64,12 @@ export class ActivitybarPart extends Part {
 	 */
 	static readonly FLOATING_MARGIN = FLOATING_PANEL_MARGIN;
 
+	/**
+	 * The card border the activity bar draws on each edge under the floating panels
+	 * experiment. Must match the border width applied in `floatingPanels.css`.
+	 */
+	static readonly FLOATING_BORDER = 1;
+
 	static readonly pinnedViewContainersKey = 'workbench.activity.pinnedViewlets2';
 	static readonly placeholderViewContainersKey = 'workbench.activity.placeholderViewlets';
 	static readonly viewContainersWorkspaceStateKey = 'workbench.activity.viewletsWorkspaceState';
@@ -104,14 +110,23 @@ export class ActivitybarPart extends Part {
 			return 0;
 		}
 
-		if (this.layoutService.isModernUICompact()) {
-			// Reserve the cluster perimeter plus the rail's internal horizontal padding.
-			return getFloatingPanelOuterMargin(this.layoutService) * 2;
-		}
+		// Reserve the cluster perimeter on the window side plus the matching visual lane
+		// beside the rail, where the primary side bar meets it flush.
+		return getFloatingPanelOuterMargin(this.layoutService) * 2
+			+ (this.needsFloatingLeadingGap ? getFloatingPanelMargin(this.layoutService) : 0);
+	}
 
-		const margin = getFloatingPanelMargin(this.layoutService);
-		return margin * 2
-			+ (this.layoutService.getSideBarPosition() === Position.RIGHT ? margin : 0);
+	/**
+	 * Whether the rail has to supply the gap to the card before it. Under this system's
+	 * leading-margin convention each card owns the gap on its leading edge, so a rail that
+	 * follows the editor — on the right, with no side bar to connect to — reserves one more
+	 * margin than it does when it leads. Compact density keeps its cards joined, so it never
+	 * needs the gap. Mirrors `.nosidebar .part.activitybar.right` in `floatingPanels.css`.
+	 */
+	private get needsFloatingLeadingGap(): boolean {
+		return !this.layoutService.isModernUICompact()
+			&& this.layoutService.getSideBarPosition() === Position.RIGHT
+			&& !this.layoutService.isVisible(Parts.SIDEBAR_PART);
 	}
 
 	private readonly compositeBar = this._register(new MutableDisposable<PaneCompositeBar>());
@@ -156,6 +171,14 @@ export class ActivitybarPart extends Part {
 
 		this._register(this.hostService.onDidChangeFocus(focused => this.setInactive(!focused)));
 		this._register(this.hostService.onDidChangeActiveWindow(windowId => this.setInactive(windowId !== mainWindow.vscodeWindowId)));
+
+		// Showing or hiding the primary side bar decides whether the rail connects to it or
+		// stands alone, which can change the gutter it reserves (see `needsFloatingLeadingGap`).
+		this._register(this.layoutService.onDidChangePartVisibility(e => {
+			if (e.partId === Parts.SIDEBAR_PART && this.layoutService.isFloatingPanelsEnabled()) {
+				this._onDidChange.fire(undefined);
+			}
+		}));
 	}
 
 	private setInactive(inactive: boolean): void {
@@ -323,8 +346,10 @@ export class ActivitybarPart extends Part {
 	}
 
 	/**
-	 * Vertical gutters (in pixels) mirroring the margins in `floatingPanels.css`.
-	 * The top is flush with title/banner chrome and doubles only at an exposed window edge.
+	 * Vertical gutters (in pixels) mirroring the margins in `floatingPanels.css`, plus the
+	 * card's 1px border on each edge (drawn inside the box, as `.monaco-workbench .part` is
+	 * `box-sizing: border-box`). The top is flush with title/banner chrome and doubles only at
+	 * an exposed window edge.
 	 */
 	private getFloatingGutters(): { top: number; bottom: number } {
 		if (!this.layoutService.isFloatingPanelsEnabled()) {
@@ -333,11 +358,12 @@ export class ActivitybarPart extends Part {
 
 		const margin = getFloatingPanelMargin(this.layoutService);
 		const outerMargin = getFloatingPanelOuterMargin(this.layoutService);
+		const border = ActivitybarPart.FLOATING_BORDER;
 		return {
-			top: isFloatingTopEdgeExposed(this.layoutService, mainWindow) ? outerMargin : FLOATING_PANEL_INNER_MARGIN,
-			bottom: this.layoutService.isModernUICompact()
+			top: border + (isFloatingTopEdgeExposed(this.layoutService, mainWindow) ? outerMargin : FLOATING_PANEL_INNER_MARGIN),
+			bottom: border + (this.layoutService.isModernUICompact()
 				? outerMargin
-				: this.layoutService.isVisible(Parts.STATUSBAR_PART, mainWindow) ? margin : outerMargin
+				: this.layoutService.isVisible(Parts.STATUSBAR_PART, mainWindow) ? margin : outerMargin)
 		};
 	}
 

@@ -1058,6 +1058,7 @@
 		"--part-border-color",
 		"--pane-header-size",
 		"--model-hover-surface-background",
+		"--modern-ui-activitybar-lane",
 		"--modern-ui-editor-border-color",
 		"--modern-ui-editor-tab-action-active-background",
 		"--modern-ui-editor-tab-action-active-hover-background",

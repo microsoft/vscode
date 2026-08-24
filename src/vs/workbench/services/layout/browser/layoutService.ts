@@ -163,9 +163,9 @@ export function isFloatingTopEdgeExposed(layoutService: IWorkbenchLayoutService,
  * layout uses (mirrors `Layout.adjustPartPositions` in `src/vs/workbench/browser/layout.ts`): the activity bar and primary side bar sit
  * on `getSideBarPosition()`, the secondary side bar on the opposite side, the editor in
  * the middle, and a vertical (left/right) panel immediately next to the editor on its
- * placement side. The outermost *visible* part on each edge wins; the Activity Bar participates
- * only in compact density. A hidden editor is skipped, so a maximized side bar (which spans the
- * full content width) is correctly detected as the owner on both edges.
+ * placement side. The outermost *visible* part on each edge wins; a visible Activity Bar is the
+ * outermost card of the side bar cluster. A hidden editor is skipped, so a maximized side bar
+ * (which spans the full content width) is correctly detected as the owner on both edges.
  *
  * Consumed by `AbstractPaneCompositePart` (side bars and panel) and `EditorPart`
  * (main editor) so the outer-gutter decision stays in sync between them.
@@ -217,8 +217,8 @@ export function getFloatingOuterEdgeOwners(layoutService: IWorkbenchLayoutServic
 
 /**
  * Walks the given window order (outermost -> innermost) and returns the first visible card
- * owning the cluster edge. Compact density includes a visible default-position Activity Bar
- * as a cluster card; default density leaves its adjacent card without an outer owner.
+ * owning the cluster edge. A visible default-position Activity Bar is a cluster card in both
+ * densities: it is the outermost card of the side bar cluster and carries the outer gutter.
  */
 function resolveFloatingOuterOwner(layoutService: IWorkbenchLayoutService, orderedParts: Parts[]): Parts | undefined {
 	for (const part of orderedParts) {
@@ -229,13 +229,6 @@ function resolveFloatingOuterOwner(layoutService: IWorkbenchLayoutService, order
 			: layoutService.isVisible(part as SINGLE_WINDOW_PARTS);
 		if (!visible) {
 			continue;
-		}
-
-		if (part === Parts.ACTIVITYBAR_PART) {
-			if (layoutService.isModernUICompact()) {
-				return part;
-			}
-			return undefined;
 		}
 
 		return part;
@@ -277,8 +270,17 @@ export function getFloatingPaneCompositeHorizontalMargins(layoutService: IWorkbe
 	const outerGutter = getFloatingOuterGutterEdges(layoutService, partId);
 	const margin = getFloatingPanelMargin(layoutService);
 	const outerMargin = getFloatingPanelOuterMargin(layoutService);
+
+	// The primary side bar meets the activity bar rail flush so the two read as one connected
+	// surface. Only a left-positioned side bar needs this explicitly; on the right the seam is
+	// the side bar's trailing edge, which already uses the inner margin.
+	const meetsActivityBarRail = partId === Parts.SIDEBAR_PART
+		&& layoutService.getSideBarPosition() === Position.LEFT
+		&& layoutService.isVisible(Parts.ACTIVITYBAR_PART);
+	const leading = meetsActivityBarRail ? FLOATING_PANEL_INNER_MARGIN : margin;
+
 	return {
-		left: outerGutter.left ? outerMargin : margin,
+		left: outerGutter.left ? outerMargin : leading,
 		right: outerGutter.right ? outerMargin : FLOATING_PANEL_INNER_MARGIN,
 	};
 }
