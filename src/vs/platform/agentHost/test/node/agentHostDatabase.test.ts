@@ -53,6 +53,7 @@ function createProjection(
 		workspaceless: false,
 		isChatBacking: false,
 		ehcliAdoptable: true,
+		ehcliAdopted: false,
 		workingDirectoriesJson: '["file:///project","file:///project/packages/app"]',
 		chatsJson: `[{"kind":"default","order":0,"title":"Default","titleSource":"auto","uri":"${session}#default"},{"kind":"peer","order":1,"originJson":"{\\"type\\":\\"subagent\\"}","title":"Peer","titleSource":"agent","uri":"${session}#peer"}]`,
 		multiRootJson: '{"workspaceFile":"file:///project.code-workspace"}',
@@ -69,6 +70,80 @@ function createProjection(
 		verified: true,
 		...overrides,
 	};
+}
+
+async function createPublishedSessionsV2Database(path: string, version: 4 | 5 | 6): Promise<void> {
+	const database = await openDatabase(path);
+	try {
+		await exec(database, `
+			CREATE TABLE sessions (
+				session_uri TEXT PRIMARY KEY NOT NULL,
+				provider TEXT NOT NULL,
+				start_time INTEGER NOT NULL,
+				external INTEGER,
+				registration_source TEXT NOT NULL DEFAULT 'explicit'
+			);
+			CREATE TABLE metadata (key TEXT PRIMARY KEY NOT NULL, value TEXT NOT NULL);
+			CREATE TABLE sessions_v2 (
+				session_uri TEXT PRIMARY KEY NOT NULL REFERENCES sessions(session_uri) ON DELETE CASCADE,
+				provider TEXT NOT NULL,
+				start_time INTEGER NOT NULL,
+				external INTEGER,
+				registration_source TEXT NOT NULL,
+				modified_time INTEGER,
+				title TEXT,
+				title_source TEXT CHECK (title_source IN ('user', 'agent', 'auto')),
+				is_read INTEGER CHECK (is_read IN (0, 1)),
+				is_archived INTEGER CHECK (is_archived IN (0, 1)),
+				project_uri TEXT,
+				project_display_name TEXT,
+				workspaceless INTEGER CHECK (workspaceless IN (0, 1)),
+				ehcli_adoptable INTEGER CHECK (ehcli_adoptable IN (0, 1)),
+				working_directories_json TEXT,
+				chats_json TEXT,
+				multi_root_json TEXT,
+				folder_picker_json TEXT,
+				changes_summary_json TEXT,
+				github_summary_json TEXT,
+				git_summary_json TEXT,
+				source_control_summary_json TEXT,
+				artifacts_json TEXT,
+				orchestration_json TEXT,
+				session_generation TEXT,
+				source_revision INTEGER CHECK (source_revision >= 0),
+				projection_version INTEGER CHECK (projection_version >= 0),
+				source_hash TEXT,
+				verified INTEGER NOT NULL DEFAULT 0 CHECK (verified IN (0, 1))
+			);
+			INSERT INTO sessions VALUES ('session://published-${version}', 'copilot', ${version}, 1, 'discovery');
+		`);
+		if (version >= 5) {
+			await exec(database, 'ALTER TABLE sessions_v2 ADD COLUMN is_chat_backing INTEGER NOT NULL DEFAULT 0 CHECK (is_chat_backing IN (0, 1))');
+		}
+		if (version >= 6) {
+			await exec(database, 'ALTER TABLE sessions_v2 ADD COLUMN ehcli_adopted INTEGER CHECK (ehcli_adopted IN (0, 1))');
+		}
+		const laterColumns = version === 4 ? '' : version === 5 ? ', is_chat_backing' : ', is_chat_backing, ehcli_adopted';
+		const laterValues = version === 4 ? '' : version === 5 ? ', 1' : ', 1, 1';
+		await exec(database, `
+			INSERT INTO sessions_v2 (
+				session_uri, provider, start_time, external, registration_source, modified_time, title, title_source,
+				is_read, is_archived, project_uri, project_display_name, workspaceless, ehcli_adoptable,
+				working_directories_json, chats_json, multi_root_json, folder_picker_json, changes_summary_json,
+				github_summary_json, git_summary_json, source_control_summary_json, artifacts_json, orchestration_json,
+				session_generation, source_revision, projection_version, source_hash, verified${laterColumns}
+			) VALUES (
+				'session://published-${version}', 'copilot', ${version}, 1, 'discovery', 100, 'Published', 'user',
+				1, 0, 'file:///project', 'Project', 0, 1,
+				'["file:///project"]', '[]', '{}', '{}', '{}',
+				'{}', '{}', '{}', '[]', '{}',
+				'generation-${version}', 7, 4, 'published-hash', 1${laterValues}
+			);
+			PRAGMA user_version = ${version};
+		`);
+	} finally {
+		await close(database);
+	}
 }
 
 suite('AgentHostDatabase sessions_v2', () => {
@@ -94,29 +169,40 @@ suite('AgentHostDatabase sessions_v2', () => {
 	test('creates the single-table schema without changing the legacy registry', async () => {
 		const path = join(temporaryDirectory!, 'agent-host.db');
 		database = new AgentHostDatabase(path);
-		await database.registerSession('session://fresh', {
+		await database.registerSessionV2('session://fresh', {
 			provider: 'copilot',
 			startTime: 1,
 			source: 'explicit',
 		}, { checkTombstone: false });
+		assert.deepStrictEqual({
+			legacy: await database.getSession('session://fresh'),
+			current: await database.getSessionV2Registration('session://fresh'),
+			complete: await database.getSessionV2('session://fresh'),
+		}, {
+			legacy: undefined,
+			current: { session: 'session://fresh', provider: 'copilot', startTime: 1, external: false, source: 'explicit' },
+			complete: undefined,
+		});
 		await database.close();
 		database = undefined;
 
 		const rawDatabase = await openDatabase(path);
 		try {
-			const [version, tables, sessionColumns, sessionV2Columns] = await Promise.all([
+			const [version, tables, sessionColumns, sessionV2Columns, sessionV2ForeignKeys] = await Promise.all([
 				all(rawDatabase, 'PRAGMA user_version'),
 				all(rawDatabase, `SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name`),
 				all(rawDatabase, 'PRAGMA table_info(sessions)'),
 				all(rawDatabase, 'PRAGMA table_info(sessions_v2)'),
+				all(rawDatabase, 'PRAGMA foreign_key_list(sessions_v2)'),
 			]);
 			assert.deepStrictEqual({
 				version,
 				tables: tables.map(row => row.name),
 				sessionColumns: sessionColumns.map(row => row.name),
 				sessionV2Columns: sessionV2Columns.map(row => row.name),
+				sessionV2ForeignKeys,
 			}, {
-				version: [{ user_version: 5 }],
+				version: [{ user_version: 7 }],
 				tables: ['metadata', 'sessions', 'sessions_v2'],
 				sessionColumns: ['session_uri', 'provider', 'start_time', 'external', 'registration_source'],
 				sessionV2Columns: [
@@ -125,12 +211,92 @@ suite('AgentHostDatabase sessions_v2', () => {
 					'workspaceless', 'ehcli_adoptable', 'working_directories_json', 'chats_json', 'multi_root_json',
 					'folder_picker_json', 'changes_summary_json', 'github_summary_json', 'git_summary_json',
 					'source_control_summary_json', 'artifacts_json', 'orchestration_json', 'session_generation',
-					'source_revision', 'projection_version', 'source_hash', 'verified', 'is_chat_backing',
+					'source_revision', 'projection_version', 'source_hash', 'verified', 'is_chat_backing', 'ehcli_adopted',
 				],
+				sessionV2ForeignKeys: [],
 			});
+
 		} finally {
 			await close(rawDatabase);
 		}
+	});
+
+	test('upgrades published v4 through v6 rows through the independent v7 schema', async () => {
+		const results: object[] = [];
+		for (const version of [4, 5, 6] as const) {
+			const path = join(temporaryDirectory!, `agent-host-published-v${version}.db`);
+			await createPublishedSessionsV2Database(path, version);
+			const upgraded = new AgentHostDatabase(path);
+			try {
+				const session = `session://published-${version}`;
+				const direct = `session://direct-${version}`;
+				await upgraded.registerSessionV2(direct, { provider: 'claude', startTime: 200 + version, source: 'explicit' }, { checkTombstone: false });
+				await upgraded.unregisterSession(session);
+				const rawDatabase = await openDatabase(path);
+				const [schemaVersion, foreignKeys] = await Promise.all([
+					all(rawDatabase, 'PRAGMA user_version'),
+					all(rawDatabase, 'PRAGMA foreign_key_list(sessions_v2)'),
+				]);
+				await close(rawDatabase);
+				results.push({
+					version,
+					schemaVersion,
+					foreignKeys,
+					published: await upgraded.getSessionV2(session),
+					directLegacy: await upgraded.getSession(direct),
+					directCurrent: await upgraded.getSessionV2Registration(direct),
+				});
+			} finally {
+				await upgraded.close();
+			}
+		}
+
+		assert.deepStrictEqual(results, [4, 5, 6].map(version => ({
+			version,
+			schemaVersion: [{ user_version: 7 }],
+			foreignKeys: [],
+			published: {
+				session: `session://published-${version}`,
+				provider: 'copilot',
+				startTime: version,
+				external: true,
+				source: 'discovery',
+				sessionGeneration: `generation-${version}`,
+				modifiedTime: 100,
+				title: 'Published',
+				titleSource: 'user',
+				isRead: true,
+				isArchived: false,
+				projectUri: 'file:///project',
+				projectDisplayName: 'Project',
+				workspaceless: false,
+				isChatBacking: version >= 5,
+				ehcliAdoptable: true,
+				ehcliAdopted: version >= 6 ? true : undefined,
+				workingDirectoriesJson: '["file:///project"]',
+				chatsJson: '[]',
+				multiRootJson: '{}',
+				folderPickerJson: '{}',
+				changesSummaryJson: '{}',
+				githubSummaryJson: '{}',
+				gitSummaryJson: '{}',
+				sourceControlSummaryJson: '{}',
+				artifactsJson: '[]',
+				orchestrationJson: '{}',
+				sourceRevision: 7,
+				projectionVersion: 4,
+				sourceHash: 'published-hash',
+				verified: true,
+			},
+			directLegacy: undefined,
+			directCurrent: {
+				session: `session://direct-${version}`,
+				provider: 'claude',
+				startTime: 200 + version,
+				external: false,
+				source: 'explicit',
+			},
+		})));
 	});
 
 	test('upgrades published v1 through v3 schemas with incomplete v2 rows', async () => {
@@ -197,7 +363,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 	test('round trips one complete verified row', async () => {
 		database = new AgentHostDatabase(':memory:');
 		const session = 'session://round-trip';
-		await database.registerSession(session, {
+		await database.registerSessionV2(session, {
 			provider: 'copilot',
 			startTime: 42,
 			source: 'restore',
@@ -232,7 +398,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 	test('guards revisions and generation transitions', async () => {
 		database = new AgentHostDatabase(':memory:');
 		const session = 'session://ordering';
-		await database.registerSession(session, { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+		await database.registerSessionV2(session, { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
 		await database.upsertSessionV2(createProjection(session, 'generation-1', 2), undefined);
 
 		const results = {
@@ -270,14 +436,14 @@ suite('AgentHostDatabase sessions_v2', () => {
 		database = new AgentHostDatabase(':memory:');
 		const sessions = Array.from({ length: 20 }, (_, index) => `session://concurrent-${index}`);
 		for (const session of sessions) {
-			await database.registerSession(session, { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+			await database.registerSessionV2(session, { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
 		}
 
 		const upsertResults = await Promise.all(sessions.map(session => database!.upsertSessionV2(createProjection(session, 'generation-1', 1), undefined)));
 		const racingSession = sessions[0];
 		const [racingUpsert] = await Promise.all([
 			database.upsertSessionV2(createProjection(racingSession, 'generation-1', 2), 'generation-1'),
-			database.unregisterSession(racingSession),
+			database.unregisterSessionV2(racingSession),
 		]);
 
 		assert.deepStrictEqual({
@@ -293,16 +459,16 @@ suite('AgentHostDatabase sessions_v2', () => {
 		});
 	});
 
-	test('mirrors registration provenance changes without a catalog revision', async () => {
+	test('updates current registration provenance without a catalog revision', async () => {
 		database = new AgentHostDatabase(':memory:');
 		const session = 'session://provenance';
-		await database.registerSession(session, { provider: 'copilot', startTime: 1, source: 'discovery' }, { checkTombstone: true });
+		await database.registerSessionV2(session, { provider: 'copilot', startTime: 1, source: 'discovery' }, { checkTombstone: true });
 		await database.upsertSessionV2(createProjection(session, 'generation-1', 1), undefined);
 		const discovered = await database.getSessionV2(session);
 
-		await database.registerSession(session, { provider: 'ignored-provider', startTime: 2, source: 'restore' }, { checkTombstone: false });
+		await database.registerSessionV2(session, { provider: 'ignored-provider', startTime: 2, source: 'restore' }, { checkTombstone: false });
 		const restored = await database.getSessionV2(session);
-		await database.registerSession(session, { provider: 'claude', startTime: 3, source: 'explicit' }, { checkTombstone: false });
+		await database.registerSessionV2(session, { provider: 'claude', startTime: 3, source: 'explicit' }, { checkTombstone: false });
 		const explicit = await database.getSessionV2(session);
 
 		assert.deepStrictEqual({
@@ -316,22 +482,21 @@ suite('AgentHostDatabase sessions_v2', () => {
 		});
 	});
 
-	test('mirrors legacy external provenance backfill without a catalog revision', async () => {
+	test('updates incomplete current provenance without changing the projection revision', async () => {
 		const path = join(temporaryDirectory!, 'external-backfill.db');
 		const session = 'session://external-backfill';
 		database = new AgentHostDatabase(path);
-		await database.registerSession(session, { provider: 'copilot', startTime: 1, source: 'restore' }, { checkTombstone: false });
+		await database.registerSessionV2(session, { provider: 'copilot', startTime: 1, source: 'restore' }, { checkTombstone: false });
 		await database.upsertSessionV2(createProjection(session, 'generation-1', 1), undefined);
 		await database.close();
 		database = undefined;
 
 		const rawDatabase = await openDatabase(path);
-		await exec(rawDatabase, `UPDATE sessions SET external = NULL WHERE session_uri = '${session}';
-			UPDATE sessions_v2 SET external = NULL WHERE session_uri = '${session}'`);
+		await exec(rawDatabase, `UPDATE sessions_v2 SET external = NULL WHERE session_uri = '${session}'`);
 		await close(rawDatabase);
 
 		database = new AgentHostDatabase(path);
-		await database.updateSessionExternal([{ session, external: true }]);
+		await database.updateSessionV2External([{ session, external: true }]);
 		const row = await database.getSessionV2(session);
 
 		assert.deepStrictEqual(row && {
@@ -345,38 +510,162 @@ suite('AgentHostDatabase sessions_v2', () => {
 		});
 	});
 
-	test('legacy deletion cascades and legacy insertion needs no new columns', async () => {
+	test('runtime mutations atomically mirror current identity and provenance to legacy', async () => {
+		database = new AgentHostDatabase(':memory:');
+		const session = 'session://runtime-mirror';
+		await database.excludeSessionV2({
+			provider: 'copilot',
+			session,
+			reason: 'providerAbsent',
+			fingerprint: 'enumeration-v1',
+		});
+
+		await database.registerRuntimeSession(session, { provider: 'copilot', startTime: 10, source: 'restore' }, { checkTombstone: true });
+		await database.registerRuntimeSession(session, { provider: 'copilot', startTime: 20, source: 'discovery' }, { checkTombstone: true });
+
+		assert.deepStrictEqual({
+			legacy: await database.getSession(session),
+			current: await database.getSessionV2Registration(session),
+			exclusion: await database.getSessionsV2Exclusion('copilot', session),
+		}, {
+			legacy: { session, provider: 'copilot', startTime: 10, external: true, source: 'discovery' },
+			current: { session, provider: 'copilot', startTime: 10, external: true, source: 'discovery' },
+			exclusion: undefined,
+		});
+
+		await database.unregisterRuntimeSession(session);
+		assert.deepStrictEqual({
+			legacy: await database.getSession(session),
+			current: await database.getSessionV2Registration(session),
+		}, {
+			legacy: undefined,
+			current: undefined,
+		});
+	});
+
+	test('runtime registration seeds legacy identity before applying discovery conflicts', async () => {
+		database = new AgentHostDatabase(':memory:');
+		const session = 'session://legacy-first-runtime';
+		await database.registerSession(session, { provider: 'claude', startTime: 10, source: 'explicit' }, { checkTombstone: false });
+
+		await database.registerRuntimeSession(session, { provider: 'copilot', startTime: 20, source: 'discovery' }, { checkTombstone: true });
+
+		assert.deepStrictEqual({
+			legacy: await database.getSession(session),
+			current: await database.getSessionV2Registration(session),
+			keys: await database.listRuntimeCompatibleSessionKeys(),
+		}, {
+			legacy: { session, provider: 'claude', startTime: 10, external: false, source: 'explicit' },
+			current: { session, provider: 'claude', startTime: 10, external: false, source: 'explicit' },
+			keys: [session],
+		});
+	});
+
+	test('runtime provenance resolution mirrors both registries without changing catalog revision', async () => {
+		const path = join(temporaryDirectory!, 'runtime-provenance.db');
+		const session = 'session://runtime-provenance';
+		database = new AgentHostDatabase(path);
+		await database.registerRuntimeSession(session, { provider: 'copilot', startTime: 1, source: 'restore' }, { checkTombstone: false });
+		await database.upsertSessionV2(createProjection(session, 'generation-1', 3), undefined);
+		await database.close();
+		database = undefined;
+
+		const rawDatabase = await openDatabase(path);
+		await exec(rawDatabase, `UPDATE sessions_v2 SET external = NULL WHERE session_uri = '${session}';
+			UPDATE sessions SET external = NULL WHERE session_uri = '${session}'`);
+		await close(rawDatabase);
+
+		database = new AgentHostDatabase(path);
+		await database.updateRuntimeSessionExternal([{ session, external: true }]);
+		const current = await database.getSessionV2(session);
+		assert.deepStrictEqual({
+			legacy: await database.getSession(session),
+			current: current && {
+				session: current.session,
+				provider: current.provider,
+				startTime: current.startTime,
+				external: current.external,
+				source: current.source,
+			},
+			sourceRevision: current?.sourceRevision,
+		}, {
+			legacy: { session, provider: 'copilot', startTime: 1, external: true, source: 'discovery' },
+			current: { session, provider: 'copilot', startTime: 1, external: true, source: 'discovery' },
+			sourceRevision: 3,
+		});
+	});
+
+	test('runtime legacy mirror failure rolls back current registration', async () => {
+		const path = join(temporaryDirectory!, 'runtime-rollback.db');
+		database = new AgentHostDatabase(path);
+		await database.listSessions();
+		await database.close();
+		database = undefined;
+
+		const rawDatabase = await openDatabase(path);
+		await exec(rawDatabase, `CREATE TRIGGER fail_legacy_runtime_insert
+			BEFORE INSERT ON sessions
+			BEGIN
+				SELECT RAISE(ABORT, 'legacy mirror failed');
+			END`);
+		await close(rawDatabase);
+
+		database = new AgentHostDatabase(path);
+		const session = 'session://runtime-rollback';
+		await assert.rejects(
+			database.registerRuntimeSession(session, { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false }),
+			/legacy mirror failed/,
+		);
+		assert.deepStrictEqual({
+			legacy: await database.getSession(session),
+			current: await database.getSessionV2Registration(session),
+		}, {
+			legacy: undefined,
+			current: undefined,
+		});
+	});
+
+	test('legacy and current rows diverge independently', async () => {
 		const path = join(temporaryDirectory!, 'old-build.db');
 		database = new AgentHostDatabase(path);
-		await database.registerSession('session://deleted', { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
-		await database.upsertSessionV2(createProjection('session://deleted', 'generation-1', 1), undefined);
-		await database.unregisterSession('session://deleted');
+		const currentOnly = 'session://current-only';
+		await database.registerSessionV2(currentOnly, { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+		await database.upsertSessionV2(createProjection(currentOnly, 'generation-1', 1), undefined);
+		await database.registerSession(currentOnly, { provider: 'claude', startTime: 99, source: 'discovery' }, { checkTombstone: true });
+		await database.unregisterSession(currentOnly);
 		await database.close();
 		database = undefined;
 
 		const oldBuildDatabase = await openDatabase(path);
 		await exec(oldBuildDatabase, `INSERT INTO sessions (session_uri, provider, start_time, external, registration_source)
 			VALUES ('session://old-build', 'copilot', 2, 1, 'discovery')`);
-		const deletedRows = await all(oldBuildDatabase, `SELECT session_uri FROM sessions_v2 WHERE session_uri = 'session://deleted'`);
 		await close(oldBuildDatabase);
 
 		database = new AgentHostDatabase(path);
 		assert.deepStrictEqual({
-			deletedRows,
+			currentOnlyLegacy: await database.getSession(currentOnly),
+			currentOnlyV2: await database.getSessionV2(currentOnly),
 			oldBuildSession: await database.getSession('session://old-build'),
-			oldBuildSessionV2: await database.getSessionV2('session://old-build'),
+			oldBuildSessionV2: await database.getSessionV2Registration('session://old-build'),
 		}, {
-			deletedRows: [],
+			currentOnlyLegacy: undefined,
+			currentOnlyV2: {
+				...createProjection(currentOnly, 'generation-1', 1),
+				provider: 'copilot',
+				startTime: 1,
+				external: false,
+				source: 'explicit',
+			},
 			oldBuildSession: { session: 'session://old-build', provider: 'copilot', startTime: 2, external: true, source: 'discovery' },
 			oldBuildSessionV2: undefined,
 		});
 	});
 
-	test('does not surface v2 orphans deleted by an old connection with foreign keys disabled', async () => {
+	test('legacy row absence is not current deletion', async () => {
 		const path = join(temporaryDirectory!, 'old-build-orphan.db');
 		const session = 'session://old-build-orphan';
 		database = new AgentHostDatabase(path);
-		await database.registerSession(session, { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+		await database.registerSessionV2(session, { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
 		await database.upsertSessionV2(createProjection(session, 'generation-1', 1), undefined);
 		await database.close();
 		database = undefined;
@@ -393,24 +682,171 @@ suite('AgentHostDatabase sessions_v2', () => {
 			list: await database.listSessionsV2(),
 		}, {
 			orphanRows: [{ session_uri: session }],
-			get: undefined,
-			list: [],
+			get: {
+				...createProjection(session, 'generation-1', 1),
+				provider: 'copilot',
+				startTime: 1,
+				external: false,
+				source: 'explicit',
+			},
+			list: [{
+				...createProjection(session, 'generation-1', 1),
+				provider: 'copilot',
+				startTime: 1,
+				external: false,
+				source: 'explicit',
+			}],
 		});
 	});
 
-	test('does not surface a verified row while its legacy session is tombstoned', async () => {
+	test('tombstone prevents current import and explicit recreation clears it', async () => {
 		database = new AgentHostDatabase(':memory:');
 		const session = 'session://tombstoned-read';
-		await database.registerSession(session, { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+		await database.registerSessionV2(session, { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
 		await database.upsertSessionV2(createProjection(session, 'generation-1', 1), undefined);
-		await database.markSessionTombstoned(session);
+		await database.tombstoneAndUnregisterSession(session);
+		const imported = await database.registerSessionV2(session, { provider: 'copilot', startTime: 2, source: 'discovery' }, { checkTombstone: true });
+		const explicit = await database.registerSessionV2(session, { provider: 'claude', startTime: 3, source: 'explicit' }, { checkTombstone: false });
 
 		assert.deepStrictEqual({
-			get: await database.getSessionV2(session),
-			list: await database.listSessionsV2(),
+			imported,
+			explicit,
+			tombstoned: await database.isSessionTombstoned(session),
+			registration: await database.getSessionV2Registration(session),
+			complete: await database.getSessionV2(session),
 		}, {
-			get: undefined,
-			list: [],
+			imported: false,
+			explicit: true,
+			tombstoned: false,
+			registration: { session, provider: 'claude', startTime: 3, external: false, source: 'explicit' },
+			complete: undefined,
+		});
+	});
+
+	test('projection-versioned markers do not alter old marker semantics', async () => {
+		database = new AgentHostDatabase(':memory:');
+		await database.markSessionRegistryBackfilled();
+		await database.markProviderBackfilled('copilot');
+		await database.markSessionsV2Backfilled('copilot', 5);
+
+		assert.deepStrictEqual({
+			global: await database.isSessionRegistryBackfilled(),
+			provider: await database.isProviderBackfilled('copilot'),
+			currentV4: await database.isSessionsV2Backfilled('copilot', 4),
+			currentV5: await database.isSessionsV2Backfilled('copilot', 5),
+			claudeV5: await database.isSessionsV2Backfilled('claude', 5),
+		}, {
+			global: true,
+			provider: true,
+			currentV4: false,
+			currentV5: true,
+			claudeV5: false,
+		});
+	});
+
+	test('repeated current registration keeps one incomplete row', async () => {
+		database = new AgentHostDatabase(':memory:');
+		const session = 'session://incomplete';
+		await Promise.all(Array.from({ length: 20 }, () => database!.registerSessionV2(
+			session,
+			{ provider: 'copilot', startTime: 1, source: 'discovery' },
+			{ checkTombstone: true },
+		)));
+
+		assert.deepStrictEqual({
+			registrations: await database.listSessionV2Registrations(),
+			complete: await database.listSessionsV2(),
+		}, {
+			registrations: [{ session, provider: 'copilot', startTime: 1, external: true, source: 'discovery' }],
+			complete: [],
+		});
+	});
+
+	test('current-v2 exclusions are durable, hide rows, and clear on eligible registration', async () => {
+		database = new AgentHostDatabase(':memory:');
+		const session = 'copilot:/excluded';
+		await database.registerSessionV2(session, { provider: 'copilot', startTime: 1, source: 'discovery' }, { checkTombstone: true });
+		await database.upsertSessionV2(createProjection(session, 'generation-1', 1), undefined);
+		await database.excludeSessionV2({
+			provider: 'copilot',
+			session,
+			reason: 'staleExternal',
+			fingerprint: '123',
+		});
+
+		const excluded = {
+			single: await database.getSessionsV2Exclusion('copilot', session),
+			list: await database.listSessionsV2Exclusions('copilot'),
+			registration: await database.getSessionV2Registration(session),
+			projection: await database.getSessionV2(session),
+		};
+		await database.registerSessionV2(session, { provider: 'copilot', startTime: 2, source: 'discovery' }, { checkTombstone: true });
+
+		assert.deepStrictEqual({
+			excluded,
+			revivedExclusion: await database.getSessionsV2Exclusion('copilot', session),
+			revivedRegistration: await database.getSessionV2Registration(session),
+		}, {
+			excluded: {
+				single: { provider: 'copilot', session, reason: 'staleExternal', fingerprint: '123' },
+				list: [{ provider: 'copilot', session, reason: 'staleExternal', fingerprint: '123' }],
+				registration: undefined,
+				projection: undefined,
+			},
+			revivedExclusion: undefined,
+			revivedRegistration: { session, provider: 'copilot', startTime: 2, external: true, source: 'discovery' },
+		});
+	});
+
+	test('batches provider exclusions and lists only the indexed provider range', async () => {
+		database = new AgentHostDatabase(':memory:');
+		await database.markSessionsV2ExcludedBatch?.([
+			{ provider: 'copilot', session: 'copilot:/a', reason: 'staleExternal', fingerprint: '1' },
+			{ provider: 'copilot', session: 'copilot:/b', reason: 'backing', fingerprint: 'backing-v1' },
+			{ provider: 'claude', session: 'claude:/c', reason: 'subagent', fingerprint: 'uri-v1' },
+		]);
+
+		assert.deepStrictEqual(await database.listSessionsV2Exclusions('copilot'), [
+			{ provider: 'copilot', session: 'copilot:/a', reason: 'staleExternal', fingerprint: '1' },
+			{ provider: 'copilot', session: 'copilot:/b', reason: 'backing', fingerprint: 'backing-v1' },
+		]);
+	});
+
+	test('atomically excludes identities and ignores stale discovery exclusions after registration', async () => {
+		database = new AgentHostDatabase(':memory:');
+		const excluded = 'copilot:/atomic-exclusion';
+		const registered = 'copilot:/registered-before-batch';
+		await database.registerSessionV2(excluded, { provider: 'copilot', startTime: 1, source: 'discovery' }, { checkTombstone: true });
+		await database.upsertSessionV2(createProjection(excluded, 'generation-1', 1), undefined);
+
+		await database.excludeSessionV2({
+			provider: 'copilot',
+			session: excluded,
+			reason: 'staleExternal',
+			fingerprint: '1',
+		});
+		const excludedUpsert = await database.upsertSessionV2(createProjection(excluded, 'generation-1', 2), 'generation-1');
+
+		await database.registerSessionV2(registered, { provider: 'copilot', startTime: 2, source: 'discovery' }, { checkTombstone: true });
+		await database.markSessionsV2ExcludedBatch?.([{
+			provider: 'copilot',
+			session: registered,
+			reason: 'staleExternal',
+			fingerprint: '2',
+		}]);
+
+		assert.deepStrictEqual({
+			excludedRegistration: await database.getSessionV2Registration(excluded),
+			excludedMarker: await database.getSessionsV2Exclusion('copilot', excluded),
+			excludedUpsert,
+			registeredIdentity: await database.getSessionV2Registration(registered),
+			staleMarker: await database.getSessionsV2Exclusion('copilot', registered),
+		}, {
+			excludedRegistration: undefined,
+			excludedMarker: { provider: 'copilot', session: excluded, reason: 'staleExternal', fingerprint: '1' },
+			excludedUpsert: 'missingSession',
+			registeredIdentity: { session: registered, provider: 'copilot', startTime: 2, external: true, source: 'discovery' },
+			staleMarker: undefined,
 		});
 	});
 });

@@ -50,7 +50,7 @@ import { findDeepestContainingWorkingDirectory, isMultiRootSession } from '../co
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { createAgentChatContext } from './agentChatContext.js';
 import { AgentHostDebugLogsCollector, type IAgentHostDebugLogsEnvironment } from './agentHostDebugLogs.js';
-import { IAgentHostDatabase } from './agentHostDatabase.js';
+import { IAgentHostDatabase, IAgentHostDatabaseSessionOptions, type IAgentHostDatabaseSessionsV2Exclusion } from './agentHostDatabase.js';
 import { AgentSessionRegistry, IRegisteredSession, IStoredRegisteredSession } from './agentSessionRegistry.js';
 import { IAgentHostGitService } from '../common/agentHostGitService.js';
 import { AgentSideEffects, type IAgentSideEffectsOptions } from './agentSideEffects.js';
@@ -60,12 +60,13 @@ import { type IChatContextSnapshot, type IRenameTitleResult, type ISessionCreati
 import { AGENT_HOST_TITLE_SOURCE_AGENT, AGENT_HOST_TITLE_SOURCE_AUTO, type AgentHostTitleSource, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_ARTIFACTS_KEY, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from './shared/persistSessionMetadata.js';
 import { type IArtifactServerToolAccessor } from './shared/artifactServerTools.js';
 import { parseSessionArtifacts, readSessionArtifacts, stringifySessionArtifacts, withSessionArtifacts } from '../common/sessionArtifacts.js';
-import { AgentHostCatalogSyncService } from './agentHostCatalogSyncService.js';
-import { projectAgentHostCatalog, type AgentHostCatalogJsonValue, type IAgentHostCatalogSource } from './agentHostCatalogProjection.js';
+import { AgentHostCatalogSyncService, IAgentHostCatalogSyncRequest } from './agentHostCatalogSyncService.js';
+import { AGENT_HOST_CATALOG_PROJECTION_VERSION, projectAgentHostCatalog, type AgentHostCatalogJsonValue, type IAgentHostCatalogSource } from './agentHostCatalogProjection.js';
 import { AgentHostCatalogReconciliationService, AgentHostCatalogReconciliationSourceResult } from './agentHostCatalogReconciliationService.js';
 import { IAgentHostStorageService } from './agentHostStorageService.js';
 import { AgentHostCatalogShadowValidator, type AgentHostCatalogReadMode, type IAgentHostCatalogShadowValidationReporter } from './agentHostCatalogShadowValidator.js';
 import { AgentHostCatalogListReader } from './agentHostCatalogListReader.js';
+import { AgentHostSessionsV2CandidateResolution, AgentHostSessionsV2MigrationService, IAgentHostSessionsV2Candidate } from './agentHostSessionsV2MigrationService.js';
 
 import { buildWorktreeFailureNotification, WorktreeIsolation, WORKTREE_META_REPOSITORY_ROOT, worktreeProjectFromRepositoryRoot } from './shared/worktreeIsolation.js';
 import { IAgentHostCheckpointService } from '../common/agentHostCheckpointService.js';
@@ -489,6 +490,7 @@ export class AgentService extends Disposable implements IAgentService {
 	private readonly _catalogReconciliationService: AgentHostCatalogReconciliationService;
 	private readonly _catalogShadowValidator: AgentHostCatalogShadowValidator;
 	private readonly _catalogListReader: AgentHostCatalogListReader;
+	private readonly _sessionsV2MigrationService: AgentHostSessionsV2MigrationService<IAgentSessionMetadata>;
 	private readonly _catalogListRepair = this._register(new MutableDisposable<IDisposable>());
 	private readonly _catalogSyncSuppressedSessions = new Set<string>();
 	private readonly _deferredCatalogMetadataOverrides = new Map<string, Record<string, string>>();
@@ -688,6 +690,12 @@ export class AgentService extends Disposable implements IAgentService {
 		this._serverToolHost = collaborators.serverToolHost;
 		this._catalogReadMode = core.catalogReadMode ?? 'legacy';
 		this._catalogSyncService = new AgentHostCatalogSyncService(this._sessionDataService, this._orchestratorDatabase, this._logService);
+		this._sessionsV2MigrationService = new AgentHostSessionsV2MigrationService(
+			this._orchestratorDatabase,
+			this._sessionDataService,
+			this._catalogSyncService,
+			this._logService,
+		);
 		this._catalogListReader = new AgentHostCatalogListReader(this._orchestratorDatabase);
 		core.callbackBinder.bind({
 			canEvictChangeset: changeset => this._canEvictChangeset(changeset),
@@ -1131,7 +1139,7 @@ export class AgentService extends Disposable implements IAgentService {
 		this._providerSubscriptions.add(provider.onDidChangeChatData(e => this._onChatDataChanged(e)));
 		this._providerSubscriptions.add(provider.onDidSpawnChat(e => this._onChatSpawned(e)));
 		this._registerSkillCompletionProvider();
-		const initialMigration = this._ensureLegacyChatsMigrated(provider);
+		const initialMigration = this._ensureSessionsV2Imported(provider);
 		this._initialProviderMigrations.set(provider.id, initialMigration);
 		void initialMigration.catch(err =>
 			this._logService.warn(`[AgentService] registry migration: failed for late-registered provider ${provider.id}`, err));
@@ -1491,8 +1499,8 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 	}
 
-	private async _getSessionMetadata(session: URI): Promise<IAgentSessionMetadata | undefined> {
-		const registered = await this._sessionRegistry.get(session, entry => this._migrateRegisteredSession(entry));
+	private async _getSessionMetadata(session: URI, registeredOverride?: IRegisteredSession): Promise<IAgentSessionMetadata | undefined> {
+		const registered = registeredOverride ?? await this._sessionRegistry.get(session, entry => this._migrateRegisteredSession(entry));
 		if (!registered) {
 			return undefined;
 		}
@@ -2075,15 +2083,15 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	/**
-	 * Awaits legacy migration started at provider registration. Provider-owned
-	 * discovery is independent and surfaces unknown chats additively.
+	 * Awaits the direct v2 import started at provider registration.
+	 * Provider-owned discovery still surfaces later unknown chats additively.
 	 */
 	private async _awaitInitialProviderMigration(): Promise<void> {
 		await Promise.all([...this._providers.values()].map(provider => this._awaitInitialProviderMigrationForProvider(provider)));
 	}
 
 	/**
-	 * Awaits the registration-time legacy migration for a single provider,
+	 * Awaits the registration-time direct import for a single provider,
 	 * retrying once if that initial catalog pass was unavailable. Rejects only if
 	 * the retry also fails. Restore uses this to wait for its own provider's
 	 * catalog before reading per-session metadata, mirroring what
@@ -2108,7 +2116,7 @@ export class AgentService extends Disposable implements IAgentService {
 		if (current !== failed) {
 			return current ?? Promise.resolve();
 		}
-		const retry = this._ensureLegacyChatsMigrated(provider, true);
+		const retry = this._ensureSessionsV2Imported(provider, true);
 		this._initialProviderMigrations.set(provider.id, retry);
 		return retry;
 	}
@@ -2135,8 +2143,8 @@ export class AgentService extends Disposable implements IAgentService {
 	 * is likewise chained onto a further follow-up rather than being
 	 * coalesced away as a supposed duplicate.
 	 */
-	private _ensureLegacyChatsMigrated(provider: IAgent, force = false): Promise<void> {
-		return this._ensureProviderCatalog(provider, this._providerMigrations, force, runForce => this._migrateLegacyProviderChats(provider, runForce));
+	private _ensureSessionsV2Imported(provider: IAgent, force = false): Promise<void> {
+		return this._ensureProviderCatalog(provider, this._providerMigrations, force, runForce => this._importProviderSessionsV2(provider, runForce));
 	}
 
 	private _ensureProviderCatalog(
@@ -2207,7 +2215,21 @@ export class AgentService extends Disposable implements IAgentService {
 	private async _registerDiscoveredChats(provider: IAgent, chats: readonly IAgentDiscoveredChat[], awaitReconciliation = true): Promise<boolean> {
 		// Keys only: discovery arrives in batches, and the full listing re-runs the
 		// per-row provenance migration for every registered session each time.
-		const registeredKeys = new Set(await this._sessionRegistry.listSessionKeys());
+		const [runtimeCompatibleKeys, persistedExclusions] = await Promise.all([
+			this._sessionRegistry.listRuntimeCompatibleSessionKeys(),
+			this._sessionRegistry.listSessionsV2Exclusions(provider.id),
+		]);
+		const registeredKeys = new Set(runtimeCompatibleKeys);
+		const exclusions = new Map(persistedExclusions.map(exclusion => [exclusion.session, exclusion]));
+		const exclusionsToMark: IAgentHostDatabaseSessionsV2Exclusion[] = [];
+		const queueExclusion = (exclusion: IAgentHostDatabaseSessionsV2Exclusion): void => {
+			const existing = exclusions.get(exclusion.session);
+			if (existing?.reason === exclusion.reason && existing.fingerprint === exclusion.fingerprint) {
+				return;
+			}
+			exclusions.set(exclusion.session, exclusion);
+			exclusionsToMark.push(exclusion);
+		};
 		const discoveryLimiter = new Limiter<boolean>(4);
 		let suppressed = 0;
 		let skippedAsStale = 0;
@@ -2224,11 +2246,34 @@ export class AgentService extends Disposable implements IAgentService {
 					alreadyRegistered++;
 					return false;
 				}
-				if (isSubagentSession(session.toString()) || await this._isChatBacking(session)) {
+				if (isSubagentSession(session.toString())) {
+					queueExclusion({
+						provider: provider.id,
+						session: session.toString(),
+						reason: 'subagent',
+						fingerprint: 'uri-v1',
+					});
+					suppressed++;
+					return false;
+				}
+				const persistedExclusion = exclusions.get(session.toString());
+				if (persistedExclusion?.reason === 'backing' || await this._isChatBacking(session)) {
+					queueExclusion({
+						provider: provider.id,
+						session: session.toString(),
+						reason: 'backing',
+						fingerprint: 'backing-v1',
+					});
 					suppressed++;
 					return false;
 				}
 				if (external && !readSessionEhcliAdoptable(sessionMetadata._meta) && this._isExternalSessionOlderThanMaxAge(sessionMetadata.modifiedTime, Date.now())) {
+					queueExclusion({
+						provider: provider.id,
+						session: session.toString(),
+						reason: 'staleExternal',
+						fingerprint: String(sessionMetadata.modifiedTime),
+					});
 					skippedAsStale++;
 					return false;
 				}
@@ -2238,23 +2283,27 @@ export class AgentService extends Disposable implements IAgentService {
 					`discovery registration for ${session.toString()}`,
 				);
 				if (registered) {
+					const effectiveIdentity = await this._sessionRegistry.get(session, entry => this._migrateRegisteredSession(entry));
+					if (!effectiveIdentity) {
+						throw new Error(`Missing registered identity for discovered session ${session.toString()}`);
+					}
+					const effectiveExternal = effectiveIdentity.external;
 					registryChanged = true;
-					// Only reached for a session the registry did not already hold, so its
-					// external read state has never been seeded.
-					if (external) {
-						await this._initializeExternalSessionReadState({
-							...sessionMetadata,
-							_meta: withSessionMultiRootMetadata(sessionMetadata._meta, undefined),
-						});
+					const syncResult = await this._catalogSyncService.synchronize(
+						session,
+						await this._buildImportedCatalogSyncRequest(provider, sessionMetadata, effectiveExternal, true),
+					);
+					if (syncResult.status === 'pending') {
+						this._logService.warn(`[AgentService] Discovered session ${session.toString()} remains incomplete: ${syncResult.reason}`);
 					}
 					registeredKeys.add(session.toString());
-					if (external && !sessionMetadata.summary) {
+					if (effectiveExternal && !sessionMetadata.summary) {
 						untitledExternal.push(sessionMetadata);
 					}
-					if (external && !readSessionEhcliAdoptable(sessionMetadata._meta)) {
+					if (effectiveExternal && !readSessionEhcliAdoptable(sessionMetadata._meta)) {
 						registeredExternal = true;
 					} else {
-						await this._announceSurfacedSession({ ...sessionMetadata, _meta: withSessionExternal(sessionMetadata._meta, external) }, provider.id);
+						await this._announceSurfacedSession({ ...sessionMetadata, _meta: withSessionExternal(sessionMetadata._meta, effectiveExternal) }, provider.id);
 					}
 				} else {
 					this._logService.trace(`[AgentService] discovery: ${session.toString()} was not registered (tombstoned)`);
@@ -2265,9 +2314,15 @@ export class AgentService extends Disposable implements IAgentService {
 				return false;
 			}
 		})));
+		try {
+			await this._sessionRegistry.markSessionsV2ExcludedBatch(exclusionsToMark);
+		} catch (error) {
+			this._logService.warn(`[AgentService] Failed to persist ${exclusionsToMark.length} discovery exclusion(s) for provider ${provider.id}; retrying on the next discovery pass`, error);
+		}
 		const registered = results.filter(changed => changed).length;
 		if (registryChanged) {
 			this._invalidateSessionList();
+			this._catalogReconciliationService.schedule();
 		}
 		if (registeredExternal) {
 			this._queueSessionListReconciliation();
@@ -2282,88 +2337,124 @@ export class AgentService extends Disposable implements IAgentService {
 		return registered > 0;
 	}
 
-	private async _migrateLegacyProviderChats(provider: IAgent, force = false): Promise<void> {
-		if (!force) {
-			if (await this._sessionRegistry.isProviderBackfilled(provider.id)) {
-				return;
+	private async _importProviderSessionsV2(provider: IAgent, force = false): Promise<void> {
+		const report = await this._sessionsV2MigrationService.migrateProvider(
+			provider.id,
+			async () => {
+				const sessions = await this._enumerateLegacyProviderSessions(provider);
+				return sessions?.map(session => ({
+					session: session.session,
+					startTime: session.startTime,
+					fingerprint: String(session.modifiedTime),
+					value: session,
+				}));
+			},
+			candidate => isSubagentSession(candidate.session.toString())
+				? { reason: 'subagent', fingerprint: 'uri-v1' }
+				: candidate.catalog?.isChatBacking === true
+					? { reason: 'backing', fingerprint: candidate.catalog.sourceHash }
+					: undefined,
+			candidate => this._resolveSessionsV2ImportCandidate(provider, candidate),
+			force,
+		);
+		if (!report) {
+			if (!await this._sessionRegistry.isSessionsV2Backfilled(provider.id, AGENT_HOST_CATALOG_PROJECTION_VERSION)) {
+				throw new ProviderCatalogUnavailableError(provider.id);
 			}
-			if (await this._sessionRegistry.isBackfilled()) {
-				await this._sessionRegistry.markProviderBackfilled(provider.id);
-				return;
-			}
+			return;
 		}
-		const sessions = await this._enumerateLegacyProviderSessions(provider);
-		if (sessions === undefined) {
-			throw new ProviderCatalogUnavailableError(provider.id);
+		if (report.synchronized + report.excluded + report.incomplete + report.failed + report.skipped > 0) {
+			this._invalidateSessionList();
 		}
-		const existing = new Map((await this._listRegisteredSessions()).map(session => [session.session.toString(), session.external]));
-		const migrationLimiter = new Limiter<IRegisteredSession | undefined>(4);
-		const identities = await Promise.all(sessions.map(s => migrationLimiter.queue(async (): Promise<IRegisteredSession | undefined> => {
-			if (isSubagentSession(s.session.toString())) {
-				return undefined;
-			}
-			const facts = await this._readSessionRegistrationFacts(s.session);
-			if (facts.chatBacking) {
-				return undefined;
-			}
-			const external = !facts.hostCreated;
-			return { session: s.session, provider: provider.id, startTime: s.startTime, external, source: external ? 'discovery' : 'restore' };
-		})));
-		let registeredExternal = false;
+		if (report.incomplete + report.failed > 0) {
+			this._catalogReconciliationService.schedule();
+		}
 		const untitledExternal: IAgentSessionMetadata[] = [];
-		for (let index = 0; index < identities.length; index++) {
-			const identity = identities[index];
-			if (!identity) {
-				continue;
-			}
-			const metadata = sessions[index];
-			if (identity.external && !readSessionEhcliAdoptable(metadata._meta) && this._isExternalSessionOlderThanMaxAge(metadata.modifiedTime, Date.now())) {
-				continue;
-			}
-			const registered = await this._sessionRegistry.register(identity.session, identity, { checkTombstone: true });
-			if (registered) {
-				this._invalidateSessionList();
-				if (identity.external && existing.get(identity.session.toString()) !== true) {
-					await this._initializeExternalSessionReadState({
-						...metadata,
-						_meta: withSessionMultiRootMetadata(metadata._meta, undefined),
-					});
-				}
-				existing.set(identity.session.toString(), identity.external);
-				if (identity.external && !metadata.summary) {
+		let importedExternal = false;
+		for (const imported of report.imported) {
+			const metadata = { ...imported.value, _meta: withSessionExternal(imported.value._meta, imported.external) };
+			if (imported.external) {
+				importedExternal = true;
+				if (!metadata.summary) {
 					untitledExternal.push(metadata);
 				}
-				if (identity.external && !readSessionEhcliAdoptable(metadata._meta)) {
-					registeredExternal = true;
-				} else {
-					await this._announceSurfacedSession({ ...metadata, _meta: withSessionExternal(metadata._meta, identity.external) }, provider.id);
-				}
+			}
+			if (!imported.external || readSessionEhcliAdoptable(metadata._meta)) {
+				await this._announceSurfacedSession(metadata, provider.id);
 			}
 		}
-		await this._sessionRegistry.markProviderBackfilled(provider.id);
-		if (registeredExternal) {
+		if (importedExternal) {
 			this._queueSessionListReconciliation();
 		}
 		if (untitledExternal.length > 0) {
 			this._scheduleExternalSessionTitles(untitledExternal);
 		}
+		this._logService.info(`[AgentService] sessions_v2 import for provider ${provider.id}: ${report.synchronized} synchronized, ${report.skipped} current, ${report.excluded} excluded, ${report.incomplete} incomplete, ${report.failed} failed, marker ${report.marked ? 'set' : 'not set'}`);
 	}
 
-	private async _initializeExternalSessionReadState(metadata: IAgentSessionMetadata): Promise<void> {
-		await this._catalogSyncService.synchronizeWithFactory(metadata.session, () => this._buildCatalogSyncRequest(metadata.session, {
+	private async _resolveSessionsV2ImportCandidate(provider: IAgent, candidate: IAgentHostSessionsV2Candidate<IAgentSessionMetadata>): Promise<AgentHostSessionsV2CandidateResolution<IAgentSessionMetadata>> {
+		const session = candidate.session;
+		const facts = await this._readSessionRegistrationFacts(session);
+		if (facts.chatBacking) {
+			return { status: 'excluded', reason: 'backing', fingerprint: 'backing-v1' };
+		}
+		const storedIdentity = candidate.current ?? candidate.legacy;
+		const external = storedIdentity?.external ?? !facts.hostCreated;
+		const identity: IAgentHostDatabaseSessionOptions = storedIdentity
+			? {
+				provider: storedIdentity.provider,
+				startTime: storedIdentity.startTime,
+				source: storedIdentity.external === undefined ? (external ? 'discovery' : 'restore') : storedIdentity.source,
+			}
+			: {
+				provider: provider.id,
+				startTime: candidate.provider?.startTime ?? Date.now(),
+				source: external ? 'discovery' : 'restore',
+			};
+		const metadata = candidate.current
+			? await this._getSessionMetadata(session, { session, ...identity, external })
+			?? candidate.provider?.value
+			: candidate.provider?.value ?? await this._registeredSessionMetadata(provider, session, external);
+		if (!metadata) {
+			return { status: 'incomplete' };
+		}
+		const liveSummary = this._stateManager.getSessionSummary(session.toString());
+		const canonicalMetadata = !candidate.current && liveSummary ? this._withLiveSessionMetadata(metadata, liveSummary) : metadata;
+		if (external && !readSessionEhcliAdoptable(canonicalMetadata._meta) && this._isExternalSessionOlderThanMaxAge(canonicalMetadata.modifiedTime, Date.now())) {
+			return { status: 'excluded', reason: 'staleExternal', fingerprint: String(canonicalMetadata.modifiedTime) };
+		}
+		return {
+			status: 'ready',
+			identity,
+			external,
+			request: await this._buildImportedCatalogSyncRequest(provider, canonicalMetadata, external, !candidate.current && !candidate.legacy),
+			value: canonicalMetadata,
+		};
+	}
+
+	private async _buildImportedCatalogSyncRequest(provider: IAgent, metadata: IAgentSessionMetadata, external: boolean, seedExternalRead: boolean): Promise<IAgentHostCatalogSyncRequest> {
+		const peers = await this._readOrMigrateLegacyPeerChatCatalog(provider, metadata.session);
+		return this._buildCatalogSyncRequest(metadata.session, {
 			modifiedTime: metadata.modifiedTime,
 			title: metadata.summary,
-			status: (metadata.status ?? SessionStatus.Idle) | SessionStatus.IsRead,
+			status: external && seedExternalRead ? (metadata.status ?? SessionStatus.Idle) | SessionStatus.IsRead : metadata.status ?? SessionStatus.Idle,
 			project: metadata.project ? { uri: metadata.project.uri.toString(), displayName: metadata.project.displayName } : undefined,
 			workingDirectories: metadata.workingDirectories?.map(directory => directory.toString()) ?? [],
 			changes: metadata.changes,
-			meta: metadata._meta,
-			chats: [{
-				uri: buildDefaultChatUri(metadata.session),
-				kind: 'default',
-				title: metadata.summary,
-			}],
-		}, { [AH_META_IS_READ_DB_KEY]: 'true' }, true));
+			meta: external ? withSessionMultiRootMetadata(metadata._meta, undefined) : metadata._meta,
+			chats: [
+				{
+					uri: buildDefaultChatUri(metadata.session),
+					kind: 'default',
+					title: metadata.summary,
+				},
+				...peers.map(peer => ({
+					uri: peer.uri,
+					kind: 'peer' as const,
+					origin: this._toCatalogJsonValue(peer.origin),
+				})),
+			],
+		}, external && seedExternalRead ? { [AH_META_IS_READ_DB_KEY]: 'true' } : {}, true);
 	}
 
 	private async _isExternalProviderChat(session: URI): Promise<boolean> {

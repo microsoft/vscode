@@ -115,7 +115,7 @@ suite('AgentHostCatalogSyncService', () => {
 	async function createHarness(order?: string[]) {
 		const local = new RecordingSessionDatabase(order);
 		const central = store.add(new RecordingCatalogDatabase(order));
-		await central.registerSession(session.toString(), {
+		await central.registerSessionV2(session.toString(), {
 			provider: 'copilotcli',
 			startTime: 1,
 			source: 'explicit',
@@ -334,7 +334,7 @@ suite('AgentHostCatalogSyncService', () => {
 		const firstGeneration = (await local.getCatalogSyncSnapshot())?.sessionGeneration;
 		await central.tombstoneAndUnregisterSession(session.toString());
 		await central.clearSessionTombstone(session.toString());
-		await central.registerSession(session.toString(), {
+		await central.registerSessionV2(session.toString(), {
 			provider: 'copilotcli',
 			startTime: 2,
 			source: 'explicit',

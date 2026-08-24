@@ -46,7 +46,7 @@ import { ChatInteractivity, type MessageAttachment } from '../../common/state/pr
 import { isHostSnapshotAttachment, toHostSnapshotAttachmentMeta } from '../../common/meta/agentSnapshotAttachmentMeta.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { AgentService } from '../../node/agentService.js';
-import { AgentHostDatabase, AgentHostDatabaseSessionV2UpsertResult, IAgentHostDatabase, IAgentHostDatabaseRegisterOptions, IAgentHostDatabaseSession, IAgentHostDatabaseSessionOptions, IAgentHostDatabaseSessionV2, IAgentHostDatabaseSessionV2Projection } from '../../node/agentHostDatabase.js';
+import { AgentHostDatabase, AgentHostDatabaseSessionV2UpsertResult, IAgentHostDatabase, IAgentHostDatabaseRegisterOptions, IAgentHostDatabaseSession, IAgentHostDatabaseSessionsV2Exclusion, IAgentHostDatabaseSessionOptions, IAgentHostDatabaseSessionV2, IAgentHostDatabaseSessionV2Projection } from '../../node/agentHostDatabase.js';
 import type { AgentHostCatalogReconciliationSourceResult } from '../../node/agentHostCatalogReconciliationService.js';
 import type { AgentHostCatalogReadMode, IAgentHostCatalogShadowValidationReport, IAgentHostCatalogShadowValidationReporter } from '../../node/agentHostCatalogShadowValidator.js';
 import { AGENT_HOST_CATALOG_PROJECTION_VERSION, projectAgentHostCatalog, type IAgentHostCatalogSource } from '../../node/agentHostCatalogProjection.js';
@@ -125,8 +125,9 @@ function discoveredChat(session: URI, external = true, modifiedTime = Date.now()
 	};
 }
 
-function createPerSessionDataService(): { readonly service: ISessionDataService; readonly database: (session: URI) => TestSessionDatabase } {
+function createPerSessionDataService(): { readonly service: ISessionDataService; readonly database: (session: URI) => TestSessionDatabase; readonly databaseOpens: string[] } {
 	const databases = new Map<string, TestSessionDatabase>();
+	const databaseOpens: string[] = [];
 	const database = (session: URI): TestSessionDatabase => {
 		const key = session.toString();
 		let result = databases.get(key);
@@ -139,14 +140,62 @@ function createPerSessionDataService(): { readonly service: ISessionDataService;
 	return {
 		service: {
 			...createSessionDataService(),
-			openDatabase: session => ({ object: database(session), dispose: () => { } }),
+			openDatabase: session => {
+				databaseOpens.push(session.toString());
+				return { object: database(session), dispose: () => { } };
+			},
 			tryOpenDatabase: async session => {
+				databaseOpens.push(session.toString());
 				const result = databases.get(session.toString());
 				return result ? { object: result, dispose: () => { } } : undefined;
 			},
 		},
 		database,
+		databaseOpens,
 	};
+}
+
+async function seedVerifiedSessionV2(database: IAgentHostDatabase, sessionData: TestSessionDatabase, session: URI, external: boolean, isRead = true): Promise<void> {
+	const provider = AgentSession.provider(session);
+	assert.ok(provider);
+	const source: IAgentHostCatalogSource = {
+		modifiedTime: 1,
+		title: 'verified',
+		isRead,
+		isArchived: false,
+		workspaceless: false,
+		workingDirectories: [],
+		chats: [{ uri: buildDefaultChatUri(session), order: 0, kind: 'default' }],
+	};
+	const projection = projectAgentHostCatalog(source, {
+		session: session.toString(),
+		sessionGeneration: 'verified-generation',
+		sourceRevision: 0,
+	});
+	assert.strictEqual(projection.ok, true);
+	if (!projection.ok) {
+		return;
+	}
+	await database.registerSessionV2(session.toString(), {
+		provider,
+		startTime: 1,
+		source: external ? 'discovery' : 'restore',
+	}, { checkTombstone: true });
+	await sessionData.setMetadataValuesAndCatalogSyncSnapshot({}, {
+		sessionGeneration: projection.value.catalog.sessionGeneration,
+		sourceRevision: projection.value.catalog.sourceRevision,
+		projectionVersion: projection.value.catalog.projectionVersion,
+		payload: projection.value.sourcePayload,
+		payloadHash: projection.value.catalog.sourceHash,
+		state: 'pending',
+	});
+	assert.strictEqual(await database.upsertSessionV2(projection.value.catalog, undefined), 'applied');
+	assert.strictEqual(await sessionData.acknowledgeCatalogSyncSnapshot({
+		sessionGeneration: projection.value.catalog.sessionGeneration,
+		sourceRevision: projection.value.catalog.sourceRevision,
+		projectionVersion: projection.value.catalog.projectionVersion,
+		payloadHash: projection.value.catalog.sourceHash,
+	}), true);
 }
 
 function sessionConfigToChatOptions(config: IAgentCreateSessionConfig): IAgentCreateChatOptions {
@@ -230,20 +279,35 @@ class TestCopilotApiService implements ICopilotApiService {
 
 class TransientRegistryWriteDatabase implements IAgentHostDatabase {
 	private readonly _sessions = new Map<string, IAgentHostDatabaseSession>();
+	private readonly _sessionV2Registrations = new Map<string, IAgentHostDatabaseSession>();
 	private readonly _sessionsV2 = new Map<string, IAgentHostDatabaseSessionV2>();
 	private _backfilled = false;
 	private readonly _providerBackfilled = new Set<string>();
+	private readonly _sessionsV2Backfilled = new Set<string>();
+	private readonly _sessionsV2Exclusions = new Map<string, IAgentHostDatabaseSessionsV2Exclusion>();
 	private readonly _tombstones = new Set<string>();
 	private readonly _agentMergeEnabled = new Set<string>();
 	registryWriteAttempts = 0;
 	private _remainingRegistryWriteFailures = 0;
-	private readonly _sessionsWithoutExternal = new Set<string>();
 	readonly externalUpdates: { session: string; external: boolean }[] = [];
 	undefinedExternalListCalls = 0;
+	sessionV2UpsertAttempts = 0;
+	sessionV2ReconcileAttempts = 0;
 
 	addSessionWithoutExternal(session: IAgentHostDatabaseSession): void {
-		this._sessions.set(session.session, session);
-		this._sessionsWithoutExternal.add(session.session);
+		this._sessionV2Registrations.set(session.session, { ...session, external: undefined });
+	}
+
+	addLegacySessionWithoutExternal(session: IAgentHostDatabaseSession): void {
+		this._sessions.set(session.session, { ...session, external: undefined });
+	}
+
+	setSessionV2ProjectionVersion(session: URI, projectionVersion: number): void {
+		const catalog = this._sessionsV2.get(session.toString());
+		if (!catalog) {
+			throw new Error(`Missing test sessions_v2 row ${session.toString()}`);
+		}
+		this._sessionsV2.set(session.toString(), { ...catalog, projectionVersion });
 	}
 
 	failRegistryWrites(count: number): void {
@@ -273,7 +337,6 @@ class TransientRegistryWriteDatabase implements IAgentHostDatabase {
 	async unregisterSession(session: string): Promise<void> {
 		this._beforeWrite();
 		this._sessions.delete(session);
-		this._sessionsV2.delete(session);
 		this._agentMergeEnabled.delete(session);
 	}
 
@@ -281,6 +344,7 @@ class TransientRegistryWriteDatabase implements IAgentHostDatabase {
 		this._beforeWrite();
 		this._tombstones.add(session);
 		this._sessions.delete(session);
+		this._sessionV2Registrations.delete(session);
 		this._sessionsV2.delete(session);
 		this._agentMergeEnabled.delete(session);
 	}
@@ -289,7 +353,7 @@ class TransientRegistryWriteDatabase implements IAgentHostDatabase {
 		this.externalUpdates.push(...updates);
 		for (const update of updates) {
 			const session = this._sessions.get(update.session);
-			if (session && this._sessionsWithoutExternal.delete(update.session)) {
+			if (session && session.external === undefined) {
 				this._sessions.set(update.session, {
 					...session,
 					external: update.external,
@@ -301,14 +365,11 @@ class TransientRegistryWriteDatabase implements IAgentHostDatabase {
 
 	async listSessions(): Promise<readonly IAgentHostDatabaseSession[]> {
 		this.undefinedExternalListCalls++;
-		return [...this._sessions.values()].map(session => this._sessionsWithoutExternal.has(session.session)
-			? { ...session, external: undefined }
-			: session);
+		return [...this._sessions.values()];
 	}
 
 	async getSession(session: string): Promise<IAgentHostDatabaseSession | undefined> {
-		const value = this._sessions.get(session);
-		return value && this._sessionsWithoutExternal.has(session) ? { ...value, external: undefined } : value;
+		return this._sessions.get(session);
 	}
 
 	async isSessionRegistryEmpty(): Promise<boolean> {
@@ -333,6 +394,40 @@ class TransientRegistryWriteDatabase implements IAgentHostDatabase {
 		this._providerBackfilled.add(provider);
 	}
 
+	async isSessionsV2Backfilled(provider: string, projectionVersion: number): Promise<boolean> {
+		return this._sessionsV2Backfilled.has(`${provider}:${projectionVersion}`);
+	}
+
+	async markSessionsV2Backfilled(provider: string, projectionVersion: number): Promise<void> {
+		this._beforeWrite();
+		this._sessionsV2Backfilled.add(`${provider}:${projectionVersion}`);
+	}
+
+	async markSessionsV2Excluded(exclusion: IAgentHostDatabaseSessionsV2Exclusion): Promise<void> {
+		this._beforeWrite();
+		this._sessionsV2Exclusions.set(`${exclusion.provider}:${exclusion.session}`, exclusion);
+	}
+
+	async excludeSessionV2(exclusion: IAgentHostDatabaseSessionsV2Exclusion): Promise<void> {
+		this._beforeWrite();
+		this._sessionsV2Exclusions.set(`${exclusion.provider}:${exclusion.session}`, exclusion);
+		this._sessionV2Registrations.delete(exclusion.session);
+		this._sessionsV2.delete(exclusion.session);
+	}
+
+	async getSessionsV2Exclusion(provider: string, session: string): Promise<IAgentHostDatabaseSessionsV2Exclusion | undefined> {
+		return this._sessionsV2Exclusions.get(`${provider}:${session}`);
+	}
+
+	async listSessionsV2Exclusions(provider: string): Promise<readonly IAgentHostDatabaseSessionsV2Exclusion[]> {
+		return [...this._sessionsV2Exclusions.values()].filter(exclusion => exclusion.provider === provider);
+	}
+
+	async clearSessionsV2Exclusion(provider: string, session: string): Promise<void> {
+		this._beforeWrite();
+		this._sessionsV2Exclusions.delete(`${provider}:${session}`);
+	}
+
 	async isSessionTombstoned(session: string): Promise<boolean> {
 		return this._tombstones.has(session);
 	}
@@ -347,6 +442,61 @@ class TransientRegistryWriteDatabase implements IAgentHostDatabase {
 		this._tombstones.delete(session);
 	}
 
+	async registerRuntimeSession(session: string, sessionOptions: IAgentHostDatabaseSessionOptions, registerOptions: IAgentHostDatabaseRegisterOptions): Promise<boolean> {
+		this._beforeWrite();
+		if (registerOptions.checkTombstone && this._tombstones.has(session)) {
+			return false;
+		}
+		const { provider, startTime, source } = sessionOptions;
+		const existing = this._sessionV2Registrations.get(session) ?? this._sessions.get(session);
+		const inserted = { session, provider, startTime, external: source === 'discovery', source };
+		const registration = source === 'explicit'
+			? { ...inserted, startTime: existing?.startTime ?? startTime }
+			: existing && source === 'discovery'
+				? { ...existing, external: existing.source === 'explicit' ? existing.external : true, source: existing.source === 'explicit' ? 'explicit' as const : 'discovery' as const }
+				: existing && source === 'restore'
+					? { ...existing, external: false, source: existing.source === 'explicit' ? 'explicit' as const : 'restore' as const }
+					: existing ?? inserted;
+		this._sessionV2Registrations.set(session, registration);
+		this._sessions.set(session, registration);
+		this._sessionsV2Exclusions.delete(`${provider}:${session}`);
+		if (!registerOptions.checkTombstone) {
+			this._tombstones.delete(session);
+		}
+		return true;
+	}
+
+	async unregisterRuntimeSession(session: string): Promise<void> {
+		this._beforeWrite();
+		this._sessionV2Registrations.delete(session);
+		this._sessionsV2.delete(session);
+		this._sessions.delete(session);
+		this._agentMergeEnabled.delete(session);
+	}
+
+	async updateRuntimeSessionExternal(updates: readonly { readonly session: string; readonly external: boolean }[]): Promise<void> {
+		this._beforeWrite();
+		this.externalUpdates.push(...updates);
+		for (const update of updates) {
+			const registration = this._sessionV2Registrations.get(update.session);
+			if (registration && registration.external === undefined) {
+				const updated = {
+					...registration,
+					external: update.external,
+					source: update.external ? 'discovery' as const : registration.source === 'explicit' ? 'explicit' as const : 'restore' as const,
+				};
+				this._sessionV2Registrations.set(update.session, updated);
+				this._sessions.set(update.session, updated);
+			}
+		}
+	}
+
+	async listRuntimeCompatibleSessionKeys(): Promise<readonly string[]> {
+		return [...new Set([...this._sessionV2Registrations.values(), ...this._sessions.values()]
+			.filter(session => !this._sessionsV2Exclusions.has(`${session.provider}:${session.session}`))
+			.map(session => session.session))];
+	}
+
 	async setSessionAgentMergeEnabled(session: string, enabled: boolean): Promise<void> {
 		if (enabled) {
 			this._agentMergeEnabled.add(session);
@@ -359,10 +509,73 @@ class TransientRegistryWriteDatabase implements IAgentHostDatabase {
 		return [...this._agentMergeEnabled];
 	}
 
+	async registerSessionV2(session: string, sessionOptions: IAgentHostDatabaseSessionOptions, registerOptions: IAgentHostDatabaseRegisterOptions): Promise<boolean> {
+		this._beforeWrite();
+		if (registerOptions.checkTombstone && this._tombstones.has(session)) {
+			return false;
+		}
+		const { provider, startTime, source } = sessionOptions;
+		const existing = this._sessionV2Registrations.get(session);
+		this._sessionV2Registrations.set(session, existing ?? { session, provider, startTime, external: source === 'discovery', source });
+		this._sessionsV2Exclusions.delete(`${provider}:${session}`);
+		if (!registerOptions.checkTombstone) {
+			this._tombstones.delete(session);
+		}
+		return true;
+	}
+
+	async unregisterSessionV2(session: string): Promise<void> {
+		this._beforeWrite();
+		this._sessionV2Registrations.delete(session);
+		this._sessionsV2.delete(session);
+	}
+
+	async updateSessionV2External(updates: readonly { readonly session: string; readonly external: boolean }[]): Promise<void> {
+		this.externalUpdates.push(...updates);
+		for (const update of updates) {
+			const registration = this._sessionV2Registrations.get(update.session);
+			if (registration && registration.external === undefined) {
+				this._sessionV2Registrations.set(update.session, {
+					...registration,
+					external: update.external,
+					source: update.external ? 'discovery' : registration.source,
+				});
+			}
+		}
+	}
+
+	async reconcileSessionV2RegistrationFromLegacy(session: string, legacy: IAgentHostDatabaseSession): Promise<void> {
+		this._beforeWrite();
+		this.sessionV2ReconcileAttempts++;
+		this._sessionV2Registrations.set(session, legacy);
+		const projection = this._sessionsV2.get(session);
+		if (projection) {
+			this._sessionsV2.set(session, { ...projection, ...legacy });
+		}
+	}
+
+	async getSessionV2Registration(session: string): Promise<IAgentHostDatabaseSession | undefined> {
+		return this._sessionV2Registrations.get(session);
+	}
+
+	async listSessionV2Registrations(): Promise<readonly IAgentHostDatabaseSession[]> {
+		this.undefinedExternalListCalls++;
+		return [...this._sessionV2Registrations.values()];
+	}
+
+	listSessionV2RegistrationsForImport(): Promise<readonly IAgentHostDatabaseSession[]> {
+		return this.listSessionV2Registrations();
+	}
+
+	async isSessionV2RegistryEmpty(): Promise<boolean> {
+		return this._sessionV2Registrations.size === 0;
+	}
+
 	async getSessionV2(session: string): Promise<IAgentHostDatabaseSessionV2 | undefined> { return this._sessionsV2.get(session); }
 	async listSessionsV2(): Promise<readonly IAgentHostDatabaseSessionV2[]> { return [...this._sessionsV2.values()]; }
 	async upsertSessionV2(projection: IAgentHostDatabaseSessionV2Projection, expectedSessionGeneration: string | undefined): Promise<AgentHostDatabaseSessionV2UpsertResult> {
-		const session = this._sessions.get(projection.session);
+		this.sessionV2UpsertAttempts++;
+		const session = this._sessionV2Registrations.get(projection.session);
 		if (!session) {
 			return 'missingSession';
 		}
@@ -389,8 +602,11 @@ class TransientRegistryWriteDatabase implements IAgentHostDatabase {
 /** In-memory orchestrator database that two {@link AgentService} instances can share to simulate a host restart. */
 class TestAgentHostOrchestratorDatabase implements IAgentHostDatabase {
 	private readonly _sessions = new Map<string, IAgentHostDatabaseSession>();
+	private readonly _sessionV2Registrations = new Map<string, IAgentHostDatabaseSession>();
 	private readonly _sessionsV2 = new Map<string, IAgentHostDatabaseSessionV2>();
 	private readonly _providerBackfilled = new Set<string>();
+	private readonly _sessionsV2Backfilled = new Set<string>();
+	private readonly _sessionsV2Exclusions = new Map<string, IAgentHostDatabaseSessionsV2Exclusion>();
 	private readonly _tombstones = new Set<string>();
 	private readonly _agentMergeEnabled = new Set<string>();
 	private _backfilled = false;
@@ -411,13 +627,13 @@ class TestAgentHostOrchestratorDatabase implements IAgentHostDatabase {
 
 	async unregisterSession(session: string): Promise<void> {
 		this._sessions.delete(session);
-		this._sessionsV2.delete(session);
 		this._agentMergeEnabled.delete(session);
 	}
 
 	async tombstoneAndUnregisterSession(session: string): Promise<void> {
 		this._tombstones.add(session);
 		this._sessions.delete(session);
+		this._sessionV2Registrations.delete(session);
 		this._sessionsV2.delete(session);
 		this._agentMergeEnabled.delete(session);
 	}
@@ -452,6 +668,36 @@ class TestAgentHostOrchestratorDatabase implements IAgentHostDatabase {
 		this._providerBackfilled.add(provider);
 	}
 
+	async isSessionsV2Backfilled(provider: string, projectionVersion: number): Promise<boolean> {
+		return this._sessionsV2Backfilled.has(`${provider}:${projectionVersion}`);
+	}
+
+	async markSessionsV2Backfilled(provider: string, projectionVersion: number): Promise<void> {
+		this._sessionsV2Backfilled.add(`${provider}:${projectionVersion}`);
+	}
+
+	async markSessionsV2Excluded(exclusion: IAgentHostDatabaseSessionsV2Exclusion): Promise<void> {
+		this._sessionsV2Exclusions.set(`${exclusion.provider}:${exclusion.session}`, exclusion);
+	}
+
+	async excludeSessionV2(exclusion: IAgentHostDatabaseSessionsV2Exclusion): Promise<void> {
+		this._sessionsV2Exclusions.set(`${exclusion.provider}:${exclusion.session}`, exclusion);
+		this._sessionV2Registrations.delete(exclusion.session);
+		this._sessionsV2.delete(exclusion.session);
+	}
+
+	async getSessionsV2Exclusion(provider: string, session: string): Promise<IAgentHostDatabaseSessionsV2Exclusion | undefined> {
+		return this._sessionsV2Exclusions.get(`${provider}:${session}`);
+	}
+
+	async listSessionsV2Exclusions(provider: string): Promise<readonly IAgentHostDatabaseSessionsV2Exclusion[]> {
+		return [...this._sessionsV2Exclusions.values()].filter(exclusion => exclusion.provider === provider);
+	}
+
+	async clearSessionsV2Exclusion(provider: string, session: string): Promise<void> {
+		this._sessionsV2Exclusions.delete(`${provider}:${session}`);
+	}
+
 	async isSessionTombstoned(session: string): Promise<boolean> {
 		return this._tombstones.has(session);
 	}
@@ -462,6 +708,35 @@ class TestAgentHostOrchestratorDatabase implements IAgentHostDatabase {
 
 	async clearSessionTombstone(session: string): Promise<void> {
 		this._tombstones.delete(session);
+	}
+
+	async registerRuntimeSession(session: string, sessionOptions: IAgentHostDatabaseSessionOptions, registerOptions: IAgentHostDatabaseRegisterOptions): Promise<boolean> {
+		const registered = await this.registerSessionV2(session, sessionOptions, registerOptions);
+		if (registered) {
+			this._sessions.set(session, this._sessionV2Registrations.get(session)!);
+		}
+		return registered;
+	}
+
+	async unregisterRuntimeSession(session: string): Promise<void> {
+		await this.unregisterSessionV2(session);
+		await this.unregisterSession(session);
+	}
+
+	async updateRuntimeSessionExternal(updates: readonly { readonly session: string; readonly external: boolean }[]): Promise<void> {
+		await this.updateSessionV2External(updates);
+		for (const update of updates) {
+			const registration = this._sessionV2Registrations.get(update.session);
+			if (registration) {
+				this._sessions.set(update.session, registration);
+			}
+		}
+	}
+
+	async listRuntimeCompatibleSessionKeys(): Promise<readonly string[]> {
+		return [...new Set([...this._sessionV2Registrations.values(), ...this._sessions.values()]
+			.filter(session => !this._sessionsV2Exclusions.has(`${session.provider}:${session.session}`))
+			.map(session => session.session))];
 	}
 
 	async setSessionAgentMergeEnabled(session: string, enabled: boolean): Promise<void> {
@@ -476,6 +751,62 @@ class TestAgentHostOrchestratorDatabase implements IAgentHostDatabase {
 		return [...this._agentMergeEnabled];
 	}
 
+	async registerSessionV2(session: string, sessionOptions: IAgentHostDatabaseSessionOptions, registerOptions: IAgentHostDatabaseRegisterOptions): Promise<boolean> {
+		if (registerOptions.checkTombstone && this._tombstones.has(session)) {
+			return false;
+		}
+		const { provider, startTime, source } = sessionOptions;
+		const existing = this._sessionV2Registrations.get(session);
+		this._sessionV2Registrations.set(session, existing ?? { session, provider, startTime, external: source === 'discovery', source });
+		this._sessionsV2Exclusions.delete(`${provider}:${session}`);
+		if (!registerOptions.checkTombstone) {
+			this._tombstones.delete(session);
+		}
+		return true;
+	}
+
+	async unregisterSessionV2(session: string): Promise<void> {
+		this._sessionV2Registrations.delete(session);
+		this._sessionsV2.delete(session);
+	}
+
+	async updateSessionV2External(updates: readonly { readonly session: string; readonly external: boolean }[]): Promise<void> {
+		for (const update of updates) {
+			const registration = this._sessionV2Registrations.get(update.session);
+			if (registration) {
+				this._sessionV2Registrations.set(update.session, {
+					...registration,
+					external: update.external,
+					source: update.external ? 'discovery' : registration.source,
+				});
+			}
+		}
+	}
+
+	async reconcileSessionV2RegistrationFromLegacy(session: string, legacy: IAgentHostDatabaseSession): Promise<void> {
+		this._sessionV2Registrations.set(session, legacy);
+		const projection = this._sessionsV2.get(session);
+		if (projection) {
+			this._sessionsV2.set(session, { ...projection, ...legacy });
+		}
+	}
+
+	async getSessionV2Registration(session: string): Promise<IAgentHostDatabaseSession | undefined> {
+		return this._sessionV2Registrations.get(session);
+	}
+
+	async listSessionV2Registrations(): Promise<readonly IAgentHostDatabaseSession[]> {
+		return [...this._sessionV2Registrations.values()];
+	}
+
+	listSessionV2RegistrationsForImport(): Promise<readonly IAgentHostDatabaseSession[]> {
+		return this.listSessionV2Registrations();
+	}
+
+	async isSessionV2RegistryEmpty(): Promise<boolean> {
+		return this._sessionV2Registrations.size === 0;
+	}
+
 	async getSessionV2(session: string): Promise<IAgentHostDatabaseSessionV2 | undefined> {
 		this.catalogListCalls++;
 		return this._sessionsV2.get(session);
@@ -485,7 +816,7 @@ class TestAgentHostOrchestratorDatabase implements IAgentHostDatabase {
 		return [...this._sessionsV2.values()];
 	}
 	async upsertSessionV2(projection: IAgentHostDatabaseSessionV2Projection, expectedSessionGeneration: string | undefined): Promise<AgentHostDatabaseSessionV2UpsertResult> {
-		const session = this._sessions.get(projection.session);
+		const session = this._sessionV2Registrations.get(projection.session);
 		if (!session) {
 			return 'missingSession';
 		}
@@ -2970,7 +3301,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			override async getSessionV2(session: string): Promise<IAgentHostDatabaseSessionV2 | undefined> {
 				const catalog = this._catalogs.get(session);
-				const registered = await this.getSession(session);
+				const registered = await this.getSessionV2Registration(session);
 				return catalog && registered ? { ...registered, ...catalog } : undefined;
 			}
 		}
@@ -3125,14 +3456,14 @@ suite('AgentService (node dispatcher)', () => {
 		test('central list uses eligible catalogs and suppresses chat backing with zero legacy reads', async () => {
 			const orchestratorDatabase = new CentralCatalogDatabase();
 			const session = AgentSession.uri('copilot', 'central-only');
-			await orchestratorDatabase.registerSession(session.toString(), {
+			await orchestratorDatabase.registerSessionV2(session.toString(), {
 				provider: 'copilot',
 				startTime: 10,
 				source: 'explicit',
 			}, { checkTombstone: false });
 			orchestratorDatabase.setCatalog(session, centralSource(20, 'Central'));
 			const backingSession = AgentSession.uri('copilot', 'central-backing');
-			await orchestratorDatabase.registerSession(backingSession.toString(), {
+			await orchestratorDatabase.registerSessionV2(backingSession.toString(), {
 				provider: 'copilot',
 				startTime: 11,
 				source: 'explicit',
@@ -3173,7 +3504,7 @@ suite('AgentService (node dispatcher)', () => {
 			for (const readMode of ['centralWithFallback', 'central'] as const) {
 				const orchestratorDatabase = new CentralCatalogDatabase();
 				const session = AgentSession.uri('copilot', `central-adoptable-${readMode}`);
-				await orchestratorDatabase.registerSession(session.toString(), {
+				await orchestratorDatabase.registerSessionV2(session.toString(), {
 					provider: 'copilot',
 					startTime: 10,
 					source: 'explicit',
@@ -3240,7 +3571,7 @@ suite('AgentService (node dispatcher)', () => {
 			const centralSession = AgentSession.uri('copilot', 'eligible');
 			const fallbackSession = AgentSession.uri('copilot', 'fallback');
 			for (const session of [centralSession, fallbackSession]) {
-				await orchestratorDatabase.registerSession(session.toString(), {
+				await orchestratorDatabase.registerSessionV2(session.toString(), {
 					provider: 'copilot',
 					startTime: 10,
 					source: 'explicit',
@@ -3287,7 +3618,7 @@ suite('AgentService (node dispatcher)', () => {
 			const eligible = AgentSession.uri('copilot', 'provider-unavailable');
 			const ineligible = AgentSession.uri('copilot', 'missing-catalog');
 			for (const session of [eligible, ineligible]) {
-				await orchestratorDatabase.registerSession(session.toString(), {
+				await orchestratorDatabase.registerSessionV2(session.toString(), {
 					provider: 'copilot',
 					startTime: 10,
 					source: 'explicit',
@@ -3360,7 +3691,7 @@ suite('AgentService (node dispatcher)', () => {
 			for (let index = 0; index < 12; index++) {
 				const session = AgentSession.uri('copilot', `external-${index}`);
 				sessions.push(session);
-				await orchestratorDatabase.registerSession(session.toString(), {
+				await orchestratorDatabase.registerSessionV2(session.toString(), {
 					provider: 'copilot',
 					startTime: index,
 					source: 'discovery',
@@ -3383,7 +3714,7 @@ suite('AgentService (node dispatcher)', () => {
 		test('central fallback returns without waiting for scheduled reconciliation', async () => {
 			const orchestratorDatabase = new CentralCatalogDatabase();
 			const session = AgentSession.uri('copilot', 'repair-later');
-			await orchestratorDatabase.registerSession(session.toString(), {
+			await orchestratorDatabase.registerSessionV2(session.toString(), {
 				provider: 'copilot',
 				startTime: 10,
 				source: 'explicit',
@@ -3772,11 +4103,11 @@ suite('AgentService (node dispatcher)', () => {
 			const at = (hourOfDay: number) => now - (18 - hourOfDay) * hour;
 			const database = new TransientRegistryWriteDatabase();
 			for (const [id, startTime] of [['external-morning', at(10)], ['external-afternoon', at(16)]] as const) {
-				await database.registerSession(AgentSession.uri('copilot', id).toString(), { provider: 'copilot', startTime, source: 'discovery' }, { checkTombstone: true });
+				await database.registerSessionV2(AgentSession.uri('copilot', id).toString(), { provider: 'copilot', startTime, source: 'discovery' }, { checkTombstone: true });
 			}
 			// Registered under a provider that is never registered with the service.
 			for (const [id, startTime] of [['local-11am', at(11)], ['local-5pm', at(17)]] as const) {
-				await database.registerSession(AgentSession.uri('claude', id).toString(), { provider: 'claude', startTime, source: 'restore' }, { checkTombstone: true });
+				await database.registerSessionV2(AgentSession.uri('claude', id).toString(), { provider: 'claude', startTime, source: 'restore' }, { checkTombstone: true });
 			}
 			await database.markProviderBackfilled('copilot');
 
@@ -4028,7 +4359,7 @@ suite('AgentService (node dispatcher)', () => {
 			const second = AgentSession.uri('copilot', 'second');
 			const third = AgentSession.uri('copilot', 'third');
 			for (const [session, startTime] of [[first, now - 1], [second, now - 2], [third, now - 3]] as const) {
-				await database.registerSession(session.toString(), { provider: 'copilot', startTime, source: 'discovery' }, { checkTombstone: true });
+				await database.registerSessionV2(session.toString(), { provider: 'copilot', startTime, source: 'discovery' }, { checkTombstone: true });
 			}
 			await database.markProviderBackfilled('copilot');
 
@@ -4510,6 +4841,871 @@ suite('AgentService (node dispatcher)', () => {
 			);
 		});
 
+		suite('sessions_v2 direct importer', () => {
+			class DirectImportAgent extends MockAgent {
+				catalog: readonly IAgentChatMetadata[] | undefined = [];
+				catalogCalls = 0;
+				metadataCalls = 0;
+				adoptionCalls = 0;
+
+				override async listChatsToMigrate(): Promise<readonly IAgentChatMetadata[] | undefined> {
+					this.catalogCalls++;
+					return this.catalog;
+				}
+
+				override async getChatMetadata(chat: URI, context: URI | IAgentChatContext): Promise<IAgentChatMetadata | undefined> {
+					this.metadataCalls++;
+					return super.getChatMetadata(chat, context);
+				}
+
+				async ensureChatAdopted(): Promise<IAgentChatAdoptionResult> {
+					this.adoptionCalls++;
+					return { adopted: true, eligible: true };
+				}
+			}
+
+			function metadata(session: URI, meta?: IAgentSessionMetadata['_meta']): IAgentChatMetadata {
+				return {
+					chat: URI.parse(buildDefaultChatUri(session)),
+					startTime: 1,
+					modifiedTime: Date.now(),
+					summary: AgentSession.id(session),
+					_meta: meta,
+				};
+			}
+
+			function createService(database: IAgentHostDatabase, sessionData: ISessionDataService): AgentService {
+				return disposables.add(createTestAgentService(
+					new NullLogService(),
+					fileService,
+					sessionData,
+					{ _serviceBrand: undefined } as IProductService,
+					createNoopGitService(),
+					undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined,
+					database,
+				));
+			}
+
+			test('imports provider-only sessions directly without creating legacy rows', async () => {
+				const database = new TransientRegistryWriteDatabase();
+				const perSession = createPerSessionDataService();
+				const svc = createService(database, perSession.service);
+				const agent = disposables.add(new DirectImportAgent('copilot'));
+				const providerOnly = AgentSession.uri('copilot', 'provider-only-v2');
+				agent.catalog = [metadata(providerOnly)];
+				svc.registerProvider(agent);
+
+				await svc.listSessions();
+
+				assert.deepStrictEqual({
+					legacy: await database.listSessions(),
+					currentRegistrations: (await database.listSessionV2Registrations()).map(row => row.session),
+					currentCatalog: (await database.listSessionsV2()).map(row => row.session),
+					currentMarker: await database.isSessionsV2Backfilled('copilot', AGENT_HOST_CATALOG_PROJECTION_VERSION),
+					oldGlobalMarker: await database.isSessionRegistryBackfilled(),
+					oldProviderMarker: await database.isProviderBackfilled('copilot'),
+				}, {
+					legacy: [],
+					currentRegistrations: [providerOnly.toString()],
+					currentCatalog: [providerOnly.toString()],
+					currentMarker: true,
+					oldGlobalMarker: false,
+					oldProviderMarker: false,
+				});
+			});
+
+			test('runtime discovery after the current marker mirrors both registries', async () => {
+				const database = new TransientRegistryWriteDatabase();
+				const perSession = createPerSessionDataService();
+				await database.markSessionsV2Backfilled('copilot', AGENT_HOST_CATALOG_PROJECTION_VERSION);
+				const svc = createService(database, perSession.service);
+				const agent = disposables.add(new DirectImportAgent('copilot'));
+				const discovered = AgentSession.uri('copilot', 'runtime-after-marker');
+				const startTime = Date.now();
+
+				await (svc as unknown as { _registerDiscoveredChats(provider: IAgent, chats: readonly IAgentDiscoveredChat[]): Promise<boolean> })._registerDiscoveredChats(
+					agent,
+					[discoveredChat(discovered, true, startTime)],
+				);
+
+				assert.deepStrictEqual({
+					legacy: await database.getSession(discovered.toString()),
+					current: await database.getSessionV2Registration(discovered.toString()),
+				}, {
+					legacy: { session: discovered.toString(), provider: 'copilot', startTime, external: true, source: 'discovery' },
+					current: { session: discovered.toString(), provider: 'copilot', startTime, external: true, source: 'discovery' },
+				});
+			});
+
+			test('discovery exclusion persistence failure does not suppress successful registrations', async () => {
+				class FailingExclusionDatabase extends TransientRegistryWriteDatabase {
+					async markSessionsV2ExcludedBatch(): Promise<void> {
+						throw new Error('simulated exclusion write failure');
+					}
+				}
+				const database = new FailingExclusionDatabase();
+				const perSession = createPerSessionDataService();
+				const svc = createService(database, perSession.service);
+				const agent = disposables.add(new DirectImportAgent('copilot'));
+				const registered = AgentSession.uri('copilot', 'registered-despite-exclusion-failure');
+				const stale = AgentSession.uri('copilot', 'stale-exclusion-write-failure');
+
+				const changed = await (svc as unknown as { _registerDiscoveredChats(provider: IAgent, chats: readonly IAgentDiscoveredChat[]): Promise<boolean> })._registerDiscoveredChats(agent, [
+					{ ...metadata(registered), external: false },
+					{ ...metadata(stale), modifiedTime: Date.now() - 46 * 24 * 60 * 60 * 1000, external: true },
+				]);
+
+				assert.deepStrictEqual({
+					changed,
+					registered: await database.getSessionV2Registration(registered.toString()),
+					staleExclusion: await database.getSessionsV2Exclusion('copilot', stale.toString()),
+				}, {
+					changed: true,
+					registered: { session: registered.toString(), provider: 'copilot', startTime: 1, external: false, source: 'restore' },
+					staleExclusion: undefined,
+				});
+			});
+
+			test('discovery deduplicates legacy-only identities until the importer runs', async () => {
+				const database = new TransientRegistryWriteDatabase();
+				const perSession = createPerSessionDataService();
+				const session = AgentSession.uri('copilot', 'legacy-only-discovery-dedup');
+				await database.registerSession(session.toString(), { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+				const writesBeforeDiscovery = database.registryWriteAttempts;
+				const svc = createService(database, perSession.service);
+				const agent = disposables.add(new DirectImportAgent('copilot'));
+
+				await (svc as unknown as { _registerDiscoveredChats(provider: IAgent, chats: readonly IAgentDiscoveredChat[]): Promise<boolean> })._registerDiscoveredChats(agent, [discoveredChat(session)]);
+				await (svc as unknown as { _registerDiscoveredChats(provider: IAgent, chats: readonly IAgentDiscoveredChat[]): Promise<boolean> })._registerDiscoveredChats(agent, [discoveredChat(session)]);
+
+				assert.deepStrictEqual({
+					legacy: await database.getSession(session.toString()),
+					current: await database.getSessionV2Registration(session.toString()),
+					registryWriteAttempts: database.registryWriteAttempts,
+				}, {
+					legacy: { session: session.toString(), provider: 'copilot', startTime: 1, external: false, source: 'explicit' },
+					current: undefined,
+					registryWriteAttempts: writesBeforeDiscovery,
+				});
+			});
+
+			test('discovery racing import preserves effective legacy identity and importer remains idempotent', async () => {
+				const database = new TransientRegistryWriteDatabase();
+				const perSession = createPerSessionDataService();
+				const session = AgentSession.uri('copilot', 'legacy-first-discovery-race');
+				await database.registerSession(session.toString(), { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+				database.listRuntimeCompatibleSessionKeys = async () => [];
+				const svc = createService(database, perSession.service);
+				const agent = disposables.add(new DirectImportAgent('copilot'));
+				let externalReconciliations = 0;
+				let externalTitleSchedules = 0;
+				(svc as unknown as { _queueSessionListReconciliation(): void })._queueSessionListReconciliation = () => {
+					externalReconciliations++;
+				};
+				(svc as unknown as { _scheduleExternalSessionTitles(sessions: readonly IAgentSessionMetadata[]): void })._scheduleExternalSessionTitles = () => {
+					externalTitleSchedules++;
+				};
+
+				await (svc as unknown as { _registerDiscoveredChats(provider: IAgent, chats: readonly IAgentDiscoveredChat[]): Promise<boolean> })._registerDiscoveredChats(agent, [discoveredChat(session)]);
+				const revisionAfterDiscovery = (await database.getSessionV2(session.toString()))?.sourceRevision;
+				agent.catalog = [metadata(session)];
+				await (svc as unknown as { _ensureSessionsV2Imported(provider: IAgent, force: boolean): Promise<void> })._ensureSessionsV2Imported(agent, false);
+
+				assert.deepStrictEqual({
+					legacy: await database.getSession(session.toString()),
+					current: await database.getSessionV2Registration(session.toString()),
+					catalogRows: (await database.listSessionsV2()).map(row => row.session),
+					revisions: [revisionAfterDiscovery, (await database.getSessionV2(session.toString()))?.sourceRevision],
+					externalReconciliations,
+					externalTitleSchedules,
+				}, {
+					legacy: { session: session.toString(), provider: 'copilot', startTime: 1, external: false, source: 'explicit' },
+					current: { session: session.toString(), provider: 'copilot', startTime: 1, external: false, source: 'explicit' },
+					catalogRows: [session.toString()],
+					revisions: [0, 0],
+					externalReconciliations: 0,
+					externalTitleSchedules: 0,
+				});
+			});
+
+			test('unions legacy rows and provider-only metadata directly into verified v2 rows', async () => {
+				const database = new TransientRegistryWriteDatabase();
+				const perSession = createPerSessionDataService();
+				const legacy = AgentSession.uri('copilot', 'legacy-union');
+				const providerOnly = AgentSession.uri('copilot', 'provider-union');
+				await database.registerSession(legacy.toString(), { provider: 'copilot', startTime: 2, source: 'restore' }, { checkTombstone: true });
+				const svc = createService(database, perSession.service);
+				const agent = disposables.add(new DirectImportAgent('copilot'));
+				agent.catalog = [metadata(legacy), metadata(providerOnly)];
+				svc.registerProvider(agent);
+
+				await svc.listSessions();
+
+				assert.deepStrictEqual({
+					legacy: (await database.listSessions()).map(row => row.session),
+					current: (await database.listSessionsV2()).map(row => row.session).sort(),
+					registrations: (await database.listSessionV2Registrations()).map(row => ({
+						session: row.session,
+						source: row.source,
+						external: row.external,
+					})).sort((a, b) => a.session.localeCompare(b.session)),
+				}, {
+					legacy: [legacy.toString()],
+					current: [legacy.toString(), providerOnly.toString()].sort(),
+					registrations: [
+						{ session: legacy.toString(), source: 'restore', external: false },
+						{ session: providerOnly.toString(), source: 'discovery', external: true },
+					].sort((a, b) => a.session.localeCompare(b.session)),
+				});
+			});
+
+			test('legacy-only external import preserves unread state', async () => {
+				const database = new TransientRegistryWriteDatabase();
+				const perSession = createPerSessionDataService();
+				const session = AgentSession.uri('copilot', 'legacy-external-unread');
+				await database.registerSession(session.toString(), { provider: 'copilot', startTime: 1, source: 'discovery' }, { checkTombstone: true });
+				await perSession.database(session).setMetadata(AH_META_IS_READ_DB_KEY, '');
+				const svc = createService(database, perSession.service);
+				const agent = disposables.add(new DirectImportAgent('copilot'));
+				agent.catalog = [metadata(session)];
+
+				await (svc as unknown as { _ensureSessionsV2Imported(provider: IAgent, force: boolean): Promise<void> })._ensureSessionsV2Imported(agent, false);
+
+				assert.deepStrictEqual({
+					persistedRead: await perSession.database(session).getMetadata(AH_META_IS_READ_DB_KEY),
+					catalogRead: (await database.getSessionV2(session.toString()))?.isRead,
+				}, {
+					persistedRead: '',
+					catalogRead: false,
+				});
+			});
+
+			test('resolves legacy NULL provenance before its single v2 registration', async () => {
+				const database = new TransientRegistryWriteDatabase();
+				const perSession = createPerSessionDataService();
+				const legacy = AgentSession.uri('copilot', 'legacy-null-provenance');
+				database.addLegacySessionWithoutExternal({
+					session: legacy.toString(),
+					provider: 'copilot',
+					startTime: 2,
+					external: false,
+					source: 'explicit',
+				});
+				const svc = createService(database, perSession.service);
+				const agent = disposables.add(new DirectImportAgent('copilot'));
+				agent.catalog = [metadata(legacy)];
+				svc.registerProvider(agent);
+
+				await svc.listSessions();
+
+				const registration = await database.getSessionV2Registration(legacy.toString());
+				const projection = await database.getSessionV2(legacy.toString());
+				assert.deepStrictEqual({
+					registration: registration && { external: registration.external, source: registration.source },
+					projection: projection && { external: projection.external, source: projection.source },
+				}, {
+					registration: { external: true, source: 'discovery' },
+					projection: { external: true, source: 'discovery' },
+				});
+			});
+
+			test('resumes partial current migration and is idempotent', async () => {
+				const database = new TransientRegistryWriteDatabase();
+				const perSession = createPerSessionDataService();
+				const verified = AgentSession.uri('copilot', 'already-verified');
+				const incomplete = AgentSession.uri('copilot', 'incomplete-current');
+				const missing = AgentSession.uri('copilot', 'missing-current');
+				await seedVerifiedSessionV2(database, perSession.database(verified), verified, true);
+				await database.registerSessionV2(incomplete.toString(), { provider: 'copilot', startTime: 2, source: 'restore' }, { checkTombstone: true });
+				const svc = createService(database, perSession.service);
+				const agent = disposables.add(new DirectImportAgent('copilot'));
+				agent.catalog = [metadata(verified), metadata(incomplete), metadata(missing)];
+				svc.registerProvider(agent);
+
+				await svc.listSessions();
+				const missingRevisionAfterInitialImport = (await database.getSessionV2(missing.toString()))?.sourceRevision;
+				await (svc as unknown as { _ensureSessionsV2Imported(provider: IAgent, force: boolean): Promise<void> })._ensureSessionsV2Imported(agent, true);
+
+				assert.deepStrictEqual({
+					registrations: (await database.listSessionV2Registrations()).map(row => row.session).sort(),
+					catalog: (await database.listSessionsV2()).map(row => row.session).sort(),
+					verifiedGeneration: (await database.getSessionV2(verified.toString()))?.sessionGeneration,
+					missingRevisions: [missingRevisionAfterInitialImport, (await database.getSessionV2(missing.toString()))?.sourceRevision],
+					currentMarker: await database.isSessionsV2Backfilled('copilot', AGENT_HOST_CATALOG_PROJECTION_VERSION),
+					catalogCalls: agent.catalogCalls,
+				}, {
+					registrations: [verified.toString(), incomplete.toString(), missing.toString()].sort(),
+					catalog: [verified.toString(), incomplete.toString(), missing.toString()].sort(),
+					verifiedGeneration: 'verified-generation',
+					missingRevisions: [0, 0],
+					currentMarker: true,
+					catalogCalls: 2,
+				});
+			});
+
+			test('all-terminal repeated import keeps a stable revision without reconciliation writes', async () => {
+				const database = new TransientRegistryWriteDatabase();
+				const perSession = createPerSessionDataService();
+				const svc = createService(database, perSession.service);
+				const agent = disposables.add(new DirectImportAgent('copilot'));
+				const session = AgentSession.uri('copilot', 'stable-import-revision');
+				const stableMetadata = metadata(session);
+				agent.catalog = [stableMetadata];
+				let reconciliationSchedules = 0;
+				(svc as unknown as { _catalogReconciliationService: { schedule(): void } })._catalogReconciliationService.schedule = () => {
+					reconciliationSchedules++;
+				};
+
+				await (svc as unknown as { _ensureSessionsV2Imported(provider: IAgent, force: boolean): Promise<void> })._ensureSessionsV2Imported(agent, false);
+				const firstRevision = (await database.getSessionV2(session.toString()))?.sourceRevision;
+				const firstUpsertAttempts = database.sessionV2UpsertAttempts;
+				await (svc as unknown as { _ensureSessionsV2Imported(provider: IAgent, force: boolean): Promise<void> })._ensureSessionsV2Imported(agent, true);
+
+				assert.deepStrictEqual({
+					revisions: [firstRevision, (await database.getSessionV2(session.toString()))?.sourceRevision],
+					upsertAttempts: [firstUpsertAttempts, database.sessionV2UpsertAttempts],
+					reconciliationSchedules,
+				}, {
+					revisions: [0, 0],
+					upsertAttempts: [1, 1],
+					reconciliationSchedules: 0,
+				});
+			});
+
+			test('reconciles old to new to intermediate to new cycles without duplicates', async () => {
+				const database = new TransientRegistryWriteDatabase();
+				const perSession = createPerSessionDataService();
+				const svc = createService(database, perSession.service);
+				const agent = disposables.add(new DirectImportAgent('copilot'));
+				const original = AgentSession.uri('copilot', 'cycle-original');
+				const intermediate = AgentSession.uri('copilot', 'cycle-intermediate');
+				agent.catalog = [metadata(original)];
+				svc.registerProvider(agent);
+
+				await svc.listSessions();
+				const originalGeneration = (await database.getSessionV2(original.toString()))?.sessionGeneration;
+
+				// Simulate an intermediate build running its own migration and then
+				// creating another session in the legacy registry.
+				await database.registerSession(original.toString(), { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+				await database.registerSession(intermediate.toString(), { provider: 'copilot', startTime: 2, source: 'restore' }, { checkTombstone: false });
+				(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(intermediate), intermediate);
+
+				await (svc as unknown as { _ensureSessionsV2Imported(provider: IAgent, force: boolean): Promise<void> })._ensureSessionsV2Imported(agent, false);
+				await (svc as unknown as { _ensureSessionsV2Imported(provider: IAgent, force: boolean): Promise<void> })._ensureSessionsV2Imported(agent, false);
+
+				assert.deepStrictEqual({
+					legacy: (await database.listSessions()).map(row => ({ session: row.session, source: row.source })).sort((a, b) => a.session.localeCompare(b.session)),
+					current: (await database.listSessionV2Registrations()).map(row => ({ session: row.session, source: row.source })).sort((a, b) => a.session.localeCompare(b.session)),
+					catalog: (await database.listSessionsV2()).map(row => row.session).sort(),
+					originalGenerationStable: (await database.getSessionV2(original.toString()))?.sessionGeneration === originalGeneration,
+					currentMarker: await database.isSessionsV2Backfilled('copilot', AGENT_HOST_CATALOG_PROJECTION_VERSION),
+				}, {
+					legacy: [
+						{ session: intermediate.toString(), source: 'restore' },
+						{ session: original.toString(), source: 'explicit' },
+					].sort((a, b) => a.session.localeCompare(b.session)),
+					current: [
+						{ session: intermediate.toString(), source: 'restore' },
+						{ session: original.toString(), source: 'explicit' },
+					].sort((a, b) => a.session.localeCompare(b.session)),
+					catalog: [intermediate.toString(), original.toString()].sort(),
+					originalGenerationStable: true,
+					currentMarker: true,
+				});
+			});
+
+			test('current marker skips complete rows without enumeration or session DB opens but imports later legacy rows', async () => {
+				const database = new TransientRegistryWriteDatabase();
+				const perSession = createPerSessionDataService();
+				await database.markSessionRegistryBackfilled();
+				await database.markProviderBackfilled('copilot');
+				const imported = AgentSession.uri('copilot', 'old-markers-do-not-gate');
+				const first = createService(database, perSession.service);
+				const firstAgent = disposables.add(new DirectImportAgent('copilot'));
+				firstAgent.catalog = [metadata(imported)];
+				first.registerProvider(firstAgent);
+				await first.listSessions();
+
+				const second = createService(database, perSession.service);
+				const secondAgent = disposables.add(new DirectImportAgent('copilot'));
+				perSession.databaseOpens.length = 0;
+				await (second as unknown as { _ensureSessionsV2Imported(provider: IAgent, force: boolean): Promise<void> })._ensureSessionsV2Imported(secondAgent, false);
+				const completePassOpens = [...perSession.databaseOpens];
+				const intermediateLegacy = AgentSession.uri('copilot', 'intermediate-legacy-after-marker');
+				await database.registerSession(intermediateLegacy.toString(), { provider: 'copilot', startTime: 2, source: 'restore' }, { checkTombstone: true });
+				(secondAgent as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(intermediateLegacy), intermediateLegacy);
+				secondAgent.catalog = undefined;
+				await (second as unknown as { _ensureSessionsV2Imported(provider: IAgent, force: boolean): Promise<void> })._ensureSessionsV2Imported(secondAgent, false);
+
+				assert.deepStrictEqual({
+					imported: (await database.listSessionsV2()).map(row => row.session).sort(),
+					firstCatalogCalls: firstAgent.catalogCalls,
+					secondCatalogCalls: secondAgent.catalogCalls,
+					completePassOpens,
+					completeSessionOpens: perSession.databaseOpens.filter(session => session === imported.toString()),
+					oldGlobalMarker: await database.isSessionRegistryBackfilled(),
+					oldProviderMarker: await database.isProviderBackfilled('copilot'),
+					currentMarker: await database.isSessionsV2Backfilled('copilot', AGENT_HOST_CATALOG_PROJECTION_VERSION),
+				}, {
+					imported: [imported.toString(), intermediateLegacy.toString()].sort(),
+					firstCatalogCalls: 1,
+					secondCatalogCalls: 0,
+					completePassOpens: [],
+					completeSessionOpens: [],
+					oldGlobalMarker: true,
+					oldProviderMarker: true,
+					currentMarker: true,
+				});
+			});
+
+			test('marker-fast pass reconciles newer legacy provenance without changing the catalog revision', async () => {
+				const database = new TransientRegistryWriteDatabase();
+				const perSession = createPerSessionDataService();
+				const session = AgentSession.uri('copilot', 'intermediate-provenance-update');
+				await seedVerifiedSessionV2(database, perSession.database(session), session, false);
+				await database.markSessionsV2Backfilled('copilot', AGENT_HOST_CATALOG_PROJECTION_VERSION);
+				await database.registerSession(session.toString(), { provider: 'copilot', startTime: 1, source: 'discovery' }, { checkTombstone: true });
+				const svc = createService(database, perSession.service);
+				const agent = disposables.add(new DirectImportAgent('copilot'));
+				agent.catalog = undefined;
+
+				await (svc as unknown as { _ensureSessionsV2Imported(provider: IAgent, force: boolean): Promise<void> })._ensureSessionsV2Imported(agent, false);
+
+				const current = await database.getSessionV2(session.toString());
+				assert.deepStrictEqual({
+					identity: current && {
+						provider: current.provider,
+						startTime: current.startTime,
+						external: current.external,
+						source: current.source,
+					},
+					sourceRevision: current?.sourceRevision,
+					upsertAttempts: database.sessionV2UpsertAttempts,
+					catalogCalls: agent.catalogCalls,
+				}, {
+					identity: { provider: 'copilot', startTime: 1, external: true, source: 'discovery' },
+					sourceRevision: 0,
+					upsertAttempts: 1,
+					catalogCalls: 0,
+				});
+			});
+
+			test('marker-fast pass ignores unresolved legacy provenance across repeated starts', async () => {
+				const database = new TransientRegistryWriteDatabase();
+				const perSession = createPerSessionDataService();
+				const session = AgentSession.uri('copilot', 'legacy-null-current-resolved');
+				await seedVerifiedSessionV2(database, perSession.database(session), session, true);
+				database.addLegacySessionWithoutExternal({
+					session: session.toString(),
+					provider: 'copilot',
+					startTime: 1,
+					external: false,
+					source: 'explicit',
+				});
+				await database.markSessionsV2Backfilled('copilot', AGENT_HOST_CATALOG_PROJECTION_VERSION);
+				const svc = createService(database, perSession.service);
+				const agent = disposables.add(new DirectImportAgent('copilot'));
+				agent.catalog = undefined;
+				perSession.databaseOpens.length = 0;
+
+				await (svc as unknown as { _ensureSessionsV2Imported(provider: IAgent, force: boolean): Promise<void> })._ensureSessionsV2Imported(agent, false);
+				await (svc as unknown as { _ensureSessionsV2Imported(provider: IAgent, force: boolean): Promise<void> })._ensureSessionsV2Imported(agent, false);
+
+				const current = await database.getSessionV2(session.toString());
+				assert.deepStrictEqual({
+					current: current && { external: current.external, source: current.source, sourceRevision: current.sourceRevision },
+					legacy: await database.getSession(session.toString()),
+					reconcileAttempts: database.sessionV2ReconcileAttempts,
+					upsertAttempts: database.sessionV2UpsertAttempts,
+					externalUpdates: database.externalUpdates,
+					catalogCalls: agent.catalogCalls,
+					databaseOpens: perSession.databaseOpens,
+				}, {
+					current: { external: true, source: 'discovery', sourceRevision: 0 },
+					legacy: { session: session.toString(), provider: 'copilot', startTime: 1, external: undefined, source: 'explicit' },
+					reconcileAttempts: 0,
+					upsertAttempts: 1,
+					externalUpdates: [],
+					catalogCalls: 0,
+					databaseOpens: [],
+				});
+			});
+
+			test('marker-fast pass preserves a later explicit current incarnation with a matching receipt', async () => {
+				const database = new TransientRegistryWriteDatabase();
+				const perSession = createPerSessionDataService();
+				const session = AgentSession.uri('copilot', 'later-current-incarnation');
+				await seedVerifiedSessionV2(database, perSession.database(session), session, false);
+				await database.reconcileSessionV2RegistrationFromLegacy(session.toString(), {
+					session: session.toString(),
+					provider: 'copilot',
+					startTime: 5,
+					external: false,
+					source: 'explicit',
+				});
+				await database.registerSession(session.toString(), { provider: 'copilot', startTime: 1, source: 'restore' }, { checkTombstone: true });
+				await database.markSessionsV2Backfilled('copilot', AGENT_HOST_CATALOG_PROJECTION_VERSION);
+				const svc = createService(database, perSession.service);
+				const agent = disposables.add(new DirectImportAgent('copilot'));
+				agent.catalog = undefined;
+
+				await (svc as unknown as { _ensureSessionsV2Imported(provider: IAgent, force: boolean): Promise<void> })._ensureSessionsV2Imported(agent, false);
+
+				const current = await database.getSessionV2(session.toString());
+				assert.deepStrictEqual({
+					current: current && { startTime: current.startTime, external: current.external, source: current.source },
+					legacy: await database.getSession(session.toString()),
+					sourceRevision: current?.sourceRevision,
+					upsertAttempts: database.sessionV2UpsertAttempts,
+				}, {
+					current: { startTime: 5, external: false, source: 'explicit' },
+					legacy: { session: session.toString(), provider: 'copilot', startTime: 1, external: false, source: 'restore' },
+					sourceRevision: 0,
+					upsertAttempts: 1,
+				});
+			});
+
+			test('marker-fast pass keeps current rows when legacy is absent', async () => {
+				const database = new TransientRegistryWriteDatabase();
+				const perSession = createPerSessionDataService();
+				const session = AgentSession.uri('copilot', 'current-without-legacy');
+				await seedVerifiedSessionV2(database, perSession.database(session), session, false);
+				await database.markSessionsV2Backfilled('copilot', AGENT_HOST_CATALOG_PROJECTION_VERSION);
+				const svc = createService(database, perSession.service);
+				const agent = disposables.add(new DirectImportAgent('copilot'));
+				agent.catalog = undefined;
+
+				await (svc as unknown as { _ensureSessionsV2Imported(provider: IAgent, force: boolean): Promise<void> })._ensureSessionsV2Imported(agent, false);
+
+				assert.deepStrictEqual({
+					legacy: await database.getSession(session.toString()),
+					current: (await database.listSessionV2Registrations()).map(row => row.session),
+					catalog: (await database.listSessionsV2()).map(row => row.session),
+					catalogCalls: agent.catalogCalls,
+				}, {
+					legacy: undefined,
+					current: [session.toString()],
+					catalog: [session.toString()],
+					catalogCalls: 0,
+				});
+			});
+
+			test('intermediate explicit recreation after tombstone imports one new current incarnation', async () => {
+				const database = new TransientRegistryWriteDatabase();
+				const perSession = createPerSessionDataService();
+				const session = AgentSession.uri('copilot', 'intermediate-recreate');
+				await seedVerifiedSessionV2(database, perSession.database(session), session, false);
+				await database.markSessionsV2Backfilled('copilot', AGENT_HOST_CATALOG_PROJECTION_VERSION);
+				await database.tombstoneAndUnregisterSession(session.toString());
+				await database.registerSession(session.toString(), { provider: 'copilot', startTime: 2, source: 'explicit' }, { checkTombstone: false });
+				const svc = createService(database, perSession.service);
+				const agent = disposables.add(new DirectImportAgent('copilot'));
+				(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(session), session);
+				agent.catalog = undefined;
+
+				await (svc as unknown as { _ensureSessionsV2Imported(provider: IAgent, force: boolean): Promise<void> })._ensureSessionsV2Imported(agent, false);
+
+				assert.deepStrictEqual({
+					tombstoned: await database.isSessionTombstoned(session.toString()),
+					legacy: (await database.listSessions()).map(row => ({ session: row.session, startTime: row.startTime })),
+					current: (await database.listSessionV2Registrations()).map(row => ({ session: row.session, startTime: row.startTime })),
+					catalog: (await database.listSessionsV2()).map(row => row.session),
+				}, {
+					tombstoned: false,
+					legacy: [{ session: session.toString(), startTime: 2 }],
+					current: [{ session: session.toString(), startTime: 2 }],
+					catalog: [session.toString()],
+				});
+			});
+
+			test('marker rerun upgrades an outdated projection without forcing an existing external row read', async () => {
+				const database = new TransientRegistryWriteDatabase();
+				const perSession = createPerSessionDataService();
+				const session = AgentSession.uri('copilot', 'outdated-unread');
+				await seedVerifiedSessionV2(database, perSession.database(session), session, true, false);
+				await perSession.database(session).setMetadata(AH_META_IS_READ_DB_KEY, '');
+				database.setSessionV2ProjectionVersion(session, AGENT_HOST_CATALOG_PROJECTION_VERSION - 1);
+				await database.markSessionsV2Backfilled('copilot', AGENT_HOST_CATALOG_PROJECTION_VERSION);
+				const svc = createService(database, perSession.service);
+				const agent = disposables.add(new DirectImportAgent('copilot'));
+				(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(session), session);
+				(svc as unknown as { _providers: Map<string, IAgent> })._providers.set(agent.id, agent);
+				agent.catalog = undefined;
+
+				await (svc as unknown as { _ensureSessionsV2Imported(provider: IAgent, force: boolean): Promise<void> })._ensureSessionsV2Imported(agent, false);
+
+				const projection = await database.getSessionV2(session.toString());
+				assert.deepStrictEqual({
+					projectionVersion: projection?.projectionVersion,
+					isRead: projection?.isRead,
+					catalogCalls: agent.catalogCalls,
+				}, {
+					projectionVersion: AGENT_HOST_CATALOG_PROJECTION_VERSION,
+					isRead: false,
+					catalogCalls: 0,
+				});
+			});
+
+			test('restores side effects for newly imported external, host-created, and adoptable sessions', async () => {
+				const database = new TransientRegistryWriteDatabase();
+				const perSession = createPerSessionDataService();
+				const external = AgentSession.uri('copilot', 'untitled-external-import');
+				const hostCreated = AgentSession.uri('copilot', 'host-created-import');
+				const adoptable = AgentSession.uri('copilot', 'adoptable-side-effect-import');
+				await perSession.database(hostCreated).setMetadata(AH_META_WORKSPACELESS_DB_KEY, 'true');
+				const svc = createService(database, perSession.service);
+				getConfigurationService(svc).updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
+				const agent = disposables.add(new DirectImportAgent('copilot'));
+				agent.catalog = [
+					{ ...metadata(external), summary: undefined },
+					metadata(hostCreated),
+					metadata(adoptable, withSessionEhcliAdoptable(undefined)),
+				];
+				const scheduledTitles: string[] = [];
+				let reconciliationCalls = 0;
+				(svc as unknown as { _scheduleExternalSessionTitles(sessions: readonly IAgentSessionMetadata[]): void })._scheduleExternalSessionTitles = sessions => {
+					scheduledTitles.push(...sessions.map(session => session.session.toString()));
+				};
+				(svc as unknown as { _queueSessionListReconciliation(): void })._queueSessionListReconciliation = () => {
+					reconciliationCalls++;
+				};
+
+				await (svc as unknown as { _ensureSessionsV2Imported(provider: IAgent, force: boolean): Promise<void> })._ensureSessionsV2Imported(agent, false);
+
+				assert.deepStrictEqual({
+					scheduledTitles,
+					reconciliationCalls,
+					surfaced: [hostCreated, adoptable].map(session => getStateManager(svc).getSurfacedSessionSummary(session.toString())?.resource),
+					adoptionCalls: agent.adoptionCalls,
+				}, {
+					scheduledTitles: [external.toString()],
+					reconciliationCalls: 1,
+					surfaced: [hostCreated.toString(), adoptable.toString()],
+					adoptionCalls: 0,
+				});
+			});
+
+			test('keeps independent progress across provider and session failures before marking complete', async () => {
+				const database = new TransientRegistryWriteDatabase();
+				const perSession = createPerSessionDataService();
+				let failOneSession = true;
+				const failing = AgentSession.uri('copilot', 'transient-failure');
+				const sibling = AgentSession.uri('copilot', 'verified-sibling');
+				const sessionData: ISessionDataService = {
+					...perSession.service,
+					openDatabase: session => {
+						if (failOneSession && session.toString() === failing.toString()) {
+							throw new Error('transient per-session failure');
+						}
+						return perSession.service.openDatabase(session);
+					},
+				};
+				const svc = createService(database, sessionData);
+				const agent = disposables.add(new DirectImportAgent('copilot'));
+				agent.catalog = undefined;
+				svc.registerProvider(agent);
+				await assert.rejects(svc.listSessions(), /cannot enumerate its native session catalog yet/);
+				const markerWhileUnavailable = await database.isSessionsV2Backfilled('copilot', AGENT_HOST_CATALOG_PROJECTION_VERSION);
+
+				agent.catalog = [metadata(failing), metadata(sibling)];
+				await svc.listSessions();
+				const afterFailedPass = {
+					catalog: (await database.listSessionsV2()).map(row => row.session),
+					marker: await database.isSessionsV2Backfilled('copilot', AGENT_HOST_CATALOG_PROJECTION_VERSION),
+				};
+
+				failOneSession = false;
+				await (svc as unknown as { _ensureSessionsV2Imported(provider: IAgent, force: boolean): Promise<void> })._ensureSessionsV2Imported(agent, true);
+
+				assert.deepStrictEqual({
+					markerWhileUnavailable,
+					afterFailedPass,
+					finalCatalog: (await database.listSessionsV2()).map(row => row.session).sort(),
+					finalMarker: await database.isSessionsV2Backfilled('copilot', AGENT_HOST_CATALOG_PROJECTION_VERSION),
+				}, {
+					markerWhileUnavailable: false,
+					afterFailedPass: { catalog: [sibling.toString()], marker: false },
+					finalCatalog: [failing.toString(), sibling.toString()].sort(),
+					finalMarker: true,
+				});
+			});
+
+			test('provider-absent historical incomplete v2 rows are terminal, fast-skipped, and revived by discovery', async () => {
+				const database = new TransientRegistryWriteDatabase();
+				const perSession = createPerSessionDataService();
+				const absent = AgentSession.uri('copilot', 'provider-absent-legacy');
+				await database.registerSession(absent.toString(), { provider: 'copilot', startTime: 1, source: 'restore' }, { checkTombstone: true });
+				await database.registerSessionV2(absent.toString(), { provider: 'copilot', startTime: 1, source: 'restore' }, { checkTombstone: true });
+				const svc = createService(database, perSession.service);
+				const agent = disposables.add(new DirectImportAgent('copilot'));
+				agent.catalog = [];
+				svc.registerProvider(agent);
+
+				await svc.listSessions();
+				const exclusionAfterEnumeration = await database.getSessionsV2Exclusion('copilot', absent.toString());
+				const incompleteIdentityAfterEnumeration = await database.getSessionV2Registration(absent.toString());
+				perSession.databaseOpens.length = 0;
+				await (svc as unknown as { _ensureSessionsV2Imported(provider: IAgent, force: boolean): Promise<void> })._ensureSessionsV2Imported(agent, false);
+				const markerFastPass = {
+					catalogCalls: agent.catalogCalls,
+					metadataCalls: agent.metadataCalls,
+					databaseOpens: [...perSession.databaseOpens],
+				};
+
+				agent.fireDiscoveredChats([{ ...metadata(absent), external: true }]);
+				for (let i = 0; i < 50 && !await database.getSessionV2(absent.toString()); i++) {
+					await timeout(0);
+				}
+
+				assert.deepStrictEqual({
+					exclusionAfterEnumeration,
+					incompleteIdentityAfterEnumeration,
+					marker: await database.isSessionsV2Backfilled('copilot', AGENT_HOST_CATALOG_PROJECTION_VERSION),
+					markerFastPass,
+					revivedExclusion: await database.getSessionsV2Exclusion('copilot', absent.toString()),
+					revived: (await database.getSessionV2(absent.toString()))?.session,
+				}, {
+					exclusionAfterEnumeration: {
+						provider: 'copilot',
+						session: absent.toString(),
+						reason: 'providerAbsent',
+						fingerprint: 'enumeration-v1',
+					},
+					incompleteIdentityAfterEnumeration: undefined,
+					marker: true,
+					markerFastPass: { catalogCalls: 1, metadataCalls: 1, databaseOpens: [] },
+					revivedExclusion: undefined,
+					revived: absent.toString(),
+				});
+			});
+
+			test('verified current rows with matching receipts remain authoritative when enumeration omits them', async () => {
+				const database = new TransientRegistryWriteDatabase();
+				const perSession = createPerSessionDataService();
+				const verified = AgentSession.uri('copilot', 'verified-provider-absent');
+				await seedVerifiedSessionV2(database, perSession.database(verified), verified, true);
+				const svc = createService(database, perSession.service);
+				const agent = disposables.add(new DirectImportAgent('copilot'));
+				agent.catalog = [];
+
+				await (svc as unknown as { _ensureSessionsV2Imported(provider: IAgent, force: boolean): Promise<void> })._ensureSessionsV2Imported(agent, true);
+				perSession.databaseOpens.length = 0;
+				await (svc as unknown as { _ensureSessionsV2Imported(provider: IAgent, force: boolean): Promise<void> })._ensureSessionsV2Imported(agent, false);
+
+				assert.deepStrictEqual({
+					exclusion: await database.getSessionsV2Exclusion('copilot', verified.toString()),
+					registration: (await database.getSessionV2Registration(verified.toString()))?.session,
+					projection: (await database.getSessionV2(verified.toString()))?.session,
+					marker: await database.isSessionsV2Backfilled('copilot', AGENT_HOST_CATALOG_PROJECTION_VERSION),
+					catalogCalls: agent.catalogCalls,
+					metadataCalls: agent.metadataCalls,
+					markerFastDatabaseOpens: perSession.databaseOpens,
+				}, {
+					exclusion: undefined,
+					registration: verified.toString(),
+					projection: verified.toString(),
+					marker: true,
+					catalogCalls: 1,
+					metadataCalls: 0,
+					markerFastDatabaseOpens: [],
+				});
+			});
+
+			test('stale external exclusions are durable and revived by fresh discovery', async () => {
+				const database = new TransientRegistryWriteDatabase();
+				const perSession = createPerSessionDataService();
+				const stale = AgentSession.uri('copilot', 'stale-external');
+				const staleModifiedTime = Date.now() - 31 * 24 * 60 * 60 * 1000;
+				const svc = createService(database, perSession.service);
+				const agent = disposables.add(new DirectImportAgent('copilot'));
+				agent.catalog = [metadata(stale)];
+				agent.catalog = [{ ...agent.catalog[0], modifiedTime: staleModifiedTime }];
+				svc.registerProvider(agent);
+
+				await svc.listSessions();
+				const staleExclusion = await database.getSessionsV2Exclusion('copilot', stale.toString());
+				perSession.databaseOpens.length = 0;
+				await (svc as unknown as { _ensureSessionsV2Imported(provider: IAgent, force: boolean): Promise<void> })._ensureSessionsV2Imported(agent, false);
+				const markerFastDatabaseOpens = [...perSession.databaseOpens];
+				agent.fireDiscoveredChats([{ ...metadata(stale), external: true }]);
+				for (let i = 0; i < 50 && !(await database.getSessionV2(stale.toString())); i++) {
+					await timeout(0);
+				}
+
+				assert.deepStrictEqual({
+					staleExclusion,
+					markerFastCatalogCalls: agent.catalogCalls,
+					markerFastDatabaseOpens,
+					revivedExclusion: await database.getSessionsV2Exclusion('copilot', stale.toString()),
+					revived: (await database.getSessionV2(stale.toString()))?.session,
+				}, {
+					staleExclusion: {
+						provider: 'copilot',
+						session: stale.toString(),
+						reason: 'staleExternal',
+						fingerprint: String(staleModifiedTime),
+					},
+					markerFastCatalogCalls: 1,
+					markerFastDatabaseOpens: [],
+					revivedExclusion: undefined,
+					revived: stale.toString(),
+				});
+			});
+
+			test('permanently excludes tombstones, chat backings, and subagents without adopting lazy sessions', async () => {
+				const database = new TransientRegistryWriteDatabase();
+				const perSession = createPerSessionDataService();
+				const tombstoned = AgentSession.uri('copilot', 'tombstoned-import');
+				const backing = AgentSession.uri('copilot', 'backing-import');
+				const subagent = URI.parse(buildSubagentSessionUri(AgentSession.uri('copilot', 'parent-import'), 'tool-call'));
+				const adoptable = AgentSession.uri('copilot', 'adoptable-import');
+				await database.markSessionTombstoned(tombstoned.toString());
+				await database.registerSession(backing.toString(), { provider: 'copilot', startTime: 1, source: 'restore' }, { checkTombstone: true });
+				await perSession.database(backing).setMetadata('peerChatBacking', 'true');
+				const svc = createService(database, perSession.service);
+				const agent = disposables.add(new DirectImportAgent('copilot'));
+				agent.catalog = [
+					metadata(tombstoned),
+					metadata(backing),
+					metadata(subagent),
+					metadata(adoptable, withSessionEhcliAdoptable(undefined)),
+				];
+				svc.registerProvider(agent);
+
+				await svc.listSessions();
+				const exclusions = await database.listSessionsV2Exclusions('copilot');
+				perSession.databaseOpens.length = 0;
+				await (svc as unknown as { _ensureSessionsV2Imported(provider: IAgent, force: boolean): Promise<void> })._ensureSessionsV2Imported(agent, false);
+
+				const catalog = await database.listSessionsV2();
+				assert.deepStrictEqual({
+					registrations: (await database.listSessionV2Registrations()).map(row => row.session),
+					catalog: catalog.map(row => ({
+						session: row.session,
+						adoptable: row.ehcliAdoptable,
+						adopted: row.ehcliAdopted,
+					})),
+					adoptionCalls: agent.adoptionCalls,
+					exclusions: exclusions.map(exclusion => ({ session: exclusion.session, reason: exclusion.reason })).sort((a, b) => a.session.localeCompare(b.session)),
+					markerFastCatalogCalls: agent.catalogCalls,
+					markerFastDatabaseOpens: perSession.databaseOpens,
+					currentMarker: await database.isSessionsV2Backfilled('copilot', AGENT_HOST_CATALOG_PROJECTION_VERSION),
+				}, {
+					registrations: [adoptable.toString()],
+					catalog: [{ session: adoptable.toString(), adoptable: true, adopted: false }],
+					adoptionCalls: 0,
+					exclusions: [
+						{ session: backing.toString(), reason: 'backing' },
+						{ session: subagent.toString(), reason: 'subagent' },
+					].sort((a, b) => a.session.localeCompare(b.session)),
+					markerFastCatalogCalls: 1,
+					markerFastDatabaseOpens: [],
+					currentMarker: true,
+				});
+			});
+		});
+
 		test('legacy migration and external discovery use separate provider catalogs and signals', async () => {
 			class SeparateCatalogAgent extends MockAgent {
 				private readonly _onDidDiscoverChats = new Emitter<readonly IAgentDiscoveredChat[]>();
@@ -4882,7 +6078,7 @@ suite('AgentService (node dispatcher)', () => {
 			// The first discovery completes with no native chats.
 			await svc.listSessions();
 			assert.deepStrictEqual(await svc.getRegisteredSessions(), []);
-			assert.strictEqual(await svc.isProviderRegistryBackfilled('copilot'), true);
+			assert.strictEqual(await svc.isProviderRegistryBackfilled('copilot'), false);
 
 			// The provider's native catalog now has a session and reports the change.
 			const legacy = AgentSession.uri('copilot', 'legacy-became-enumerable');
@@ -4900,8 +6096,11 @@ suite('AgentService (node dispatcher)', () => {
 
 		test('surfaces registered adoptable legacy metadata directly from the provider catalog', async () => {
 			class AdoptableLegacyAgent extends MockAgent {
+				override readonly onDidDiscoverChats = Event.None;
+				catalog: readonly IAgentChatMetadata[] = [];
+
 				override async listChatsToMigrate(): Promise<IAgentChatMetadata[]> {
-					return this.listExternalChats();
+					return [...this.catalog];
 				}
 
 				override async getChatMetadata(): Promise<IAgentChatMetadata | undefined> {
@@ -4911,11 +6110,10 @@ suite('AgentService (node dispatcher)', () => {
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new AdoptableLegacyAgent('copilot'));
 			const legacy = AgentSession.uri('copilot', 'adoptable-legacy');
-			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(legacy), legacy);
-			agent.sessionMetadataOverrides = { _meta: withSessionEhcliAdoptable(undefined) };
-			svc.registerProvider(agent);
+			agent.catalog = [{ ...discoveredChat(legacy), _meta: withSessionEhcliAdoptable(undefined) }];
 			getConfigurationService(svc).updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
-			await svc.listSessions();
+			svc.registerProvider(agent);
+			await (svc as unknown as { _awaitInitialProviderMigrationForProvider(provider: IAgent): Promise<void> })._awaitInitialProviderMigrationForProvider(agent);
 
 			const surfaced = getStateManager(svc).getSurfacedSessionSummary(legacy.toString());
 			assert.deepStrictEqual({
@@ -5115,7 +6313,7 @@ suite('AgentService (node dispatcher)', () => {
 				shadowReports,
 			}, {
 				registryWrites: writesBeforeUnavailable,
-				registered: [existing.toString()],
+				registered: [],
 				shadowReports: 0,
 			});
 
@@ -5210,7 +6408,7 @@ suite('AgentService (node dispatcher)', () => {
 				}
 			}
 			const db = new TransientRegistryWriteDatabase();
-			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, db));
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createPerSessionDataService().service, { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, db));
 			getConfigurationService(svc).updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.Last30Days });
 			getConfigurationService(svc).updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
 			const copilot = disposables.add(new CatalogAgent('copilot'));
@@ -5232,8 +6430,8 @@ suite('AgentService (node dispatcher)', () => {
 				callsAfterFailure,
 				finalCalls: { copilot: copilot.catalogCalls, claude: claude.catalogCalls },
 				backfilled: {
-					copilot: await db.isProviderBackfilled('copilot'),
-					claude: await db.isProviderBackfilled('claude'),
+					copilot: await db.isSessionsV2Backfilled('copilot', AGENT_HOST_CATALOG_PROJECTION_VERSION),
+					claude: await db.isSessionsV2Backfilled('claude', AGENT_HOST_CATALOG_PROJECTION_VERSION),
 				},
 				first: first.map(session => session.session.toString()).sort(),
 				second: second.map(session => session.session.toString()).sort(),
@@ -5311,7 +6509,7 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual(registered.map(s => s.toString()), [legacy.toString()]);
 		});
 
-		test('the legacy global backfill marker is never auto-mirrored, even once every currently-registered provider is backfilled', async () => {
+		test('legacy migration markers are never written by current provider imports', async () => {
 			// The bug this guards: mirroring the legacy global marker once
 			// "every known provider" was backfilled was unsafe because a
 			// provider (e.g. Codex) can register later than that point — a
@@ -5322,7 +6520,7 @@ suite('AgentService (node dispatcher)', () => {
 			const early = disposables.add(new MockAgent('copilot'));
 			svc.registerProvider(early);
 			await svc.listSessions();
-			assert.strictEqual(await svc.isProviderRegistryBackfilled('copilot'), true);
+			assert.strictEqual(await svc.isProviderRegistryBackfilled('copilot'), false);
 			assert.strictEqual(await svc.isLegacyRegistryBackfilled(), false, 'the legacy global marker must never be written automatically');
 
 			// A late-registering provider (simulating Codex enabling after
@@ -5330,7 +6528,7 @@ suite('AgentService (node dispatcher)', () => {
 			const late = disposables.add(new MockAgent('claude'));
 			svc.registerProvider(late);
 			await svc.listSessions();
-			assert.strictEqual(await svc.isProviderRegistryBackfilled('claude'), true);
+			assert.strictEqual(await svc.isProviderRegistryBackfilled('claude'), false);
 
 			// Even with every currently-registered provider backfilled, the
 			// legacy global marker is still never mirrored — so a downgrade
@@ -5474,7 +6672,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			assert.deepStrictEqual((await svc.listSessions()).map(session => session.session.toString()), [legacy.toString()]);
 			assert.ok(agent.listExternalChatsCalls >= 1);
-			assert.strictEqual(await svc.isProviderRegistryBackfilled('copilot'), true);
+			assert.strictEqual(await svc.isProviderRegistryBackfilled('copilot'), false);
 			assert.deepStrictEqual((await svc.getRegisteredSessions()).map(session => session.toString()), [legacy.toString()]);
 		});
 
@@ -7675,16 +8873,16 @@ suite('AgentService (node dispatcher)', () => {
 			});
 
 			test('reports a known (registered) session whose provider is currently unavailable as internal error, not not-found', async () => {
-				// Reviewer scenario (#331721): on a backfilled restart the one-time
-				// migration short-circuits without contacting the provider, so a
+				// Reviewer scenario (#331721): on a backfilled restart the initial
+				// provider enumeration short-circuits, so a
 				// provider that cannot currently describe the session (e.g. Claude
 				// whose SDK is not downloaded yet) returns `undefined`. Because the
 				// session is known to the registry, that miss must be transient, not
 				// the sticky false not-found.
 				const db = new TransientRegistryWriteDatabase();
 				const session = AgentSession.uri('copilot', 'registered-but-unavailable');
-				await db.registerSession(session.toString(), { provider: 'copilot', startTime: 1, source: 'restore' }, { checkTombstone: false });
-				await db.markProviderBackfilled('copilot');
+				await db.registerSessionV2(session.toString(), { provider: 'copilot', startTime: 1, source: 'restore' }, { checkTombstone: false });
+				await db.markSessionsV2Backfilled('copilot', AGENT_HOST_CATALOG_PROJECTION_VERSION);
 				const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, db));
 				const agent = disposables.add(new StartupRaceAgent('copilot'));
 				agent.migrationGate.complete();
@@ -8016,7 +9214,8 @@ suite('AgentService (node dispatcher)', () => {
 			const git: ISessionGitState = { branchName: 'external', outgoingChanges: 2, githubOwner: 'owner', githubRepo: 'repo' };
 			const session = AgentSession.uri('copilot', 'external-git');
 			const internals = localService as unknown as {
-				_initializeExternalSessionReadState(metadata: IAgentSessionMetadata): Promise<void>;
+				_buildImportedCatalogSyncRequest(provider: IAgent, metadata: IAgentSessionMetadata, external: boolean, seedExternalRead: boolean): Promise<import('../../node/agentHostCatalogSyncService.js').IAgentHostCatalogSyncRequest>;
+				_catalogSyncService: import('../../node/agentHostCatalogSyncService.js').AgentHostCatalogSyncService;
 				_sessionRegistry: AgentSessionRegistry;
 			};
 			await internals._sessionRegistry.register(session, {
@@ -8025,13 +9224,14 @@ suite('AgentService (node dispatcher)', () => {
 				source: 'discovery',
 			}, { checkTombstone: false });
 
-			await internals._initializeExternalSessionReadState({
+			const metadata: IAgentSessionMetadata = {
 				session,
 				startTime: 1,
 				modifiedTime: 2,
 				summary: 'External',
 				_meta: withSessionGitState(undefined, git),
-			});
+			};
+			await internals._catalogSyncService.synchronize(session, await internals._buildImportedCatalogSyncRequest(copilotAgent, metadata, true, true));
 
 			const snapshot = await db.getCatalogSyncSnapshot();
 			const central = await (localService as unknown as { _orchestratorDatabase: IAgentHostDatabase })._orchestratorDatabase.getSessionV2(session.toString());
@@ -8048,12 +9248,12 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
-		test('catalog reconciliation replaces an orphaned projection v2 receipt with a fresh current generation', async () => {
+		test('catalog reconciliation replaces an orphaned projection v2 receipt without diverging from importer metadata', async () => {
 			const db = new TestSessionDatabase();
 			const catalogDatabase = new TransientRegistryWriteDatabase();
 			const session = AgentSession.uri('copilot', 'projection-v2');
 			await createAgentSession(copilotAgent, { session });
-			await catalogDatabase.registerSession(session.toString(), { provider: 'copilot', startTime: 1, source: 'restore' }, { checkTombstone: false });
+			await catalogDatabase.registerSessionV2(session.toString(), { provider: 'copilot', startTime: 1, source: 'restore' }, { checkTombstone: false });
 			const oldSnapshot: ISessionCatalogSyncPendingSnapshot = {
 				sessionGeneration: 'test-generation',
 				sourceRevision: 7,
@@ -8065,21 +9265,38 @@ suite('AgentService (node dispatcher)', () => {
 			await db.setMetadataValuesAndCatalogSyncSnapshot({}, oldSnapshot);
 			await db.acknowledgeCatalogSyncSnapshot(oldSnapshot);
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, catalogDatabase));
+			const reconciliation = (localService as unknown as {
+				_catalogReconciliationService: {
+					schedule(): void;
+					runPass(): Promise<unknown>;
+				};
+			})._catalogReconciliationService;
+			reconciliation.schedule = () => { };
 
 			localService.registerProvider(copilotAgent);
-			await localService.whenCatalogReconciliationIdle();
+			await (localService as unknown as {
+				_awaitInitialProviderMigrationForProvider(provider: IAgent): Promise<void>;
+			})._awaitInitialProviderMigrationForProvider(copilotAgent);
+			const imported = await catalogDatabase.getSessionV2(session.toString());
+			const writesAfterImport = catalogDatabase.sessionV2UpsertAttempts;
+			await reconciliation.runPass();
 
 			const upgraded = await db.getCatalogSyncSnapshot();
+			const reconciled = await catalogDatabase.getSessionV2(session.toString());
 			assert.deepStrictEqual({
 				projectionVersion: upgraded?.projectionVersion,
 				sourceRevision: upgraded?.sourceRevision,
 				generationChanged: upgraded?.sessionGeneration !== oldSnapshot.sessionGeneration,
 				state: upgraded?.state,
+				writes: [writesAfterImport, catalogDatabase.sessionV2UpsertAttempts],
+				hashStable: imported !== undefined && reconciled?.sourceHash === imported.sourceHash,
 			}, {
 				projectionVersion: AGENT_HOST_CATALOG_PROJECTION_VERSION,
 				sourceRevision: 0,
 				generationChanged: true,
 				state: 'acknowledged',
+				writes: [1, 1],
+				hashStable: true,
 			});
 		});
 

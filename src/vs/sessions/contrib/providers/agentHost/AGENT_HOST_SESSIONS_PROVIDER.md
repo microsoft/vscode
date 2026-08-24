@@ -124,10 +124,11 @@ retention when monitoring ends.
 
 ### Host session catalog
 
-The local Agent Host maintains a host-wide SQLite catalog beside its registry.
-The catalog stores only bounded list-visible session and chat metadata. Per-session
-databases continue to own turns, drafts, annotations, detailed changesets, and
-opaque provider backing required when a session or chat is opened.
+The local Agent Host maintains a host-wide `sessions_v2` SQLite registry and
+catalog. Each row contains current registry identity plus bounded list-visible
+session and chat metadata. Per-session databases continue to own turns, drafts,
+annotations, detailed changesets, and opaque provider backing required when a
+session or chat is opened.
 
 Catalog persistence is legacy-first during the compatibility window: one
 per-session transaction updates downgrade-compatible metadata and a durable
@@ -142,13 +143,26 @@ write is pending. Exact acknowledgement promotes its hash to the compact receipt
 and clears the pending payload/hash, so synchronized sessions do not permanently
 store a third copy of their list metadata.
 
-The central catalog stores one validated `sessions_v2` row per registered
-session. An upsert atomically replaces the complete row and is guarded by the
-session incarnation and source revision. Concurrent first writers converge on
-the winning incarnation through a serialized retry, while tombstones and the
-registry join prevent stale work or orphaned rows from resurfacing deleted
-sessions. Runtime rollback selects legacy read mode; no retained central
-generation is required.
+`sessions_v2` is independent of the predecessor `sessions` registry. The
+current-version importer unions existing v2 identities, optional predecessor
+registry rows, and provider discovery by session URI, then writes complete rows
+directly to v2. Projection-versioned per-provider markers record successful
+current enumeration without changing predecessor migration markers. Partial
+imports resume per session; durable exclusions make permanently ineligible
+candidates terminal and revivable by later discovery.
+
+Normal current-runtime mutations are authoritative in v2 and atomically mirror
+identity/provenance into `sessions` during the compatibility window so an
+intermediate build can see newly-created sessions. Direct migration remains
+v2-only. On returning from an intermediate build, the importer reconciles
+legacy-only additions and resolved legacy identity changes; legacy-row absence
+alone is never interpreted as deletion. Shared tombstones are the durable
+cross-version delete signal.
+
+An upsert atomically replaces the complete v2 row and is guarded by the session
+incarnation and source revision. Concurrent first writers converge on the
+winning incarnation through a serialized retry. Runtime rollback selects legacy
+read mode; no retained central generation is required.
 
 Each row also persists top-level eligibility. Chat-backing sessions therefore
 remain hidden after restart without opening their per-session database. For

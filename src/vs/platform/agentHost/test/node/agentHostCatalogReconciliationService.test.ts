@@ -98,7 +98,7 @@ suite('AgentHostCatalogReconciliationService', () => {
 		const central = store.add(new RecordingCatalogDatabase());
 		const sessions = names.map(registered);
 		for (const session of sessions) {
-			await central.registerSession(session.session.toString(), {
+			await central.registerSessionV2(session.session.toString(), {
 				provider: session.provider,
 				startTime: session.startTime,
 				source: session.source,
