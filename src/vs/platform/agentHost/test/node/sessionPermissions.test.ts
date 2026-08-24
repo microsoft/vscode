@@ -603,18 +603,23 @@ suite('SessionPermissionManager', () => {
 			assert.strictEqual(result, ToolCallConfirmationReason.NotNeeded);
 		});
 
-		test('auto-approves the target file even when it sits outside the working directory', async () => {
+		test('auto-approves reads and writes of the target file outside the working directory', async () => {
 			// Inline chat can be invoked on any open document, so consent follows
-			// the target rather than the workspace root.
+			// the target rather than the workspace root. The agent has to read the
+			// file before editing it, so both kinds must stay silent.
 			const target = join(outsideDir, 'detached.ts');
 			createInlineSession(URI.file(target).toString());
 
 			assert.deepStrictEqual({
-				inline: await permissions.getAutoApproval(inlineEvent(writeEvent(target)), inlineSessionUri),
-				unscoped: await permissions.getAutoApproval(writeEvent(target), sessionUri),
+				inlineWrite: await permissions.getAutoApproval(inlineEvent(writeEvent(target)), inlineSessionUri),
+				inlineRead: await permissions.getAutoApproval(inlineEvent(readEvent(target, inlineSessionUri)), inlineSessionUri),
+				unscopedWrite: await permissions.getAutoApproval(writeEvent(target), sessionUri),
+				unscopedRead: await permissions.getAutoApproval(readEvent(target), sessionUri),
 			}, {
-				inline: ToolCallConfirmationReason.NotNeeded,
-				unscoped: undefined,
+				inlineWrite: ToolCallConfirmationReason.NotNeeded,
+				inlineRead: ToolCallConfirmationReason.NotNeeded,
+				unscopedWrite: undefined,
+				unscopedRead: undefined,
 			});
 		});
 

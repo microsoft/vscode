@@ -274,12 +274,12 @@ export class SessionPermissionManager extends Disposable {
 		}
 
 		// 3.5 Surface edit scope. A session created by a file-bound surface
-		// (editor inline chat) is scoped to the one document it was invoked on:
-		// the user consented to editing that file by starting chat on it, and to
-		// nothing else. The target file therefore auto-approves, while every
+		// (editor inline chat) is scoped to the one document it was invoked on.
+		// The user opened chat *on* that file, so reading and writing it needs no
+		// further consent even when it sits outside the working directory. Every
 		// other write -- and every shell command, which can write anywhere and
 		// carries no inspectable destination -- falls through to a confirmation
-		// prompt. Reads deliberately keep the normal rules below so routine
+		// prompt. Reads of other files keep the normal rules below so routine
 		// context gathering stays silent.
 		//
 		// This runs after the explicit opt-ins above: a user who turned on
@@ -287,12 +287,12 @@ export class SessionPermissionManager extends Disposable {
 		// chat does not override it.
 		const surfaceScope = this._getSurfaceEditScope(sessionKey);
 		if (surfaceScope) {
-			if (e.permissionKind === 'write'
+			if ((e.permissionKind === 'write' || e.permissionKind === 'read')
 				&& e.permissionPath
 				&& surfaceScope.target
 				&& extUriBiasedIgnorePathCase.isEqual(URI.file(e.permissionPath), surfaceScope.target)
 			) {
-				this._logService.trace(`[SessionPermissionManager] Auto-approving in-scope surface write to ${e.permissionPath}`);
+				this._logService.trace(`[SessionPermissionManager] Auto-approving in-scope surface ${e.permissionKind} of ${e.permissionPath}`);
 				return ToolCallConfirmationReason.NotNeeded;
 			}
 			if (e.permissionKind === 'write' || e.permissionKind === 'shell') {
