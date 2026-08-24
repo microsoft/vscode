@@ -31,6 +31,13 @@ Use **Clear Policy Cache** when the runtime's fresh managed-settings cache
 prevents a network request. The live request log confirms whether the client
 reached the server.
 
+To test `forceRemoteSettingsRefresh` fail-closed behavior, apply the
+`customization-lockdown` managed-settings preset and sync once successfully.
+Then select `server-error`, `malformed-response`, `disconnect`, or `timeout` and
+sync again. The successful first response seeds the cached refresh requirement;
+the second response exercises HTTP, parse, immediate-network, or client-timeout
+failure without manually editing payloads.
+
 Other Copilot clients share the default cache. For deterministic testing, start
 both Code OSS and the mock server with the same isolated `COPILOT_CACHE_HOME`.
 

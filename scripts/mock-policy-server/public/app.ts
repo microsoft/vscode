@@ -12,6 +12,7 @@
  * `endpoints.ts` (loaded via an earlier `<script>` tag).
  */
 type EndpointDef = import('../endpoints').EndpointDef;
+type EndpointResponseMode = import('../endpoints').EndpointResponseMode;
 
 declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 
@@ -22,6 +23,7 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 		url?: string;
 		status?: number;
 		body?: unknown;
+		mode?: EndpointResponseMode;
 		active?: boolean;
 	}
 
@@ -80,6 +82,7 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 		endpoint: string;
 		status: number;
 		body: unknown;
+		mode: EndpointResponseMode;
 		active: boolean;
 		editorText: string;
 	}
@@ -90,6 +93,7 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 	const tabs = $('tabs');
 	const editor = $('editor') as HTMLTextAreaElement;
 	const responseStatusInput = $('response-status') as HTMLInputElement;
+	const responseModeSelect = $('response-mode') as HTMLSelectElement;
 	const responseStatusValidation = $('response-status-validation');
 	const presetSelect = $('preset') as HTMLSelectElement;
 	const endpointMeta = $('endpoint-meta');
@@ -402,6 +406,8 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 
 		endpointMeta.replaceChildren(routeSpan);
 		responseStatusInput.value = String(endpoint.status ?? 200);
+		responseModeSelect.value = endpoint.mode ?? 'json';
+		updateResponseModeInputs();
 		parseResponseStatus();
 		editor.value = drafts[id] ?? JSON.stringify(endpoint.body ?? {}, null, '\t');
 		renderTabs();
@@ -432,7 +438,10 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 			return;
 		}
 		endpoint.status = preset.status ?? 200;
+		endpoint.mode = preset.mode ?? 'json';
 		responseStatusInput.value = String(endpoint.status);
+		responseModeSelect.value = endpoint.mode;
+		updateResponseModeInputs();
 		// Applying a preset is an unambiguous "serve this", so switch mocking on
 		// rather than saving a body that is still being proxied past.
 		endpoint.active = true;
@@ -453,6 +462,13 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 		action.textContent = state.wired ? 'Restore Original' : 'Apply Overrides';
 		action.className = state.wired ? 'btn-secondary' : 'btn-primary';
 		updateReadiness();
+	}
+
+	function updateResponseModeInputs(): void {
+		const mode = responseModeSelect.value as EndpointResponseMode;
+		const noHttpResponse = mode === 'disconnect' || mode === 'timeout';
+		responseStatusInput.disabled = noHttpResponse;
+		editor.disabled = mode !== 'json';
 	}
 
 	function renderProxy(): void {
@@ -620,6 +636,7 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 			endpoint: endpoint.id,
 			status: responseStatus,
 			body: parsed,
+			mode: endpoint.mode ?? 'json',
 			active: endpoint.active === true,
 			editorText: editor.value
 		};
@@ -631,6 +648,7 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 				endpoint: snapshot.endpoint,
 				status: snapshot.status,
 				body: snapshot.body,
+				mode: snapshot.mode,
 				active: snapshot.active
 			});
 			applyState(state);
@@ -894,6 +912,15 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 			parseEditor();
 			debouncedSave();
 		});
+		responseModeSelect.addEventListener('change', () => {
+			const endpoint = activeEndpoint();
+			if (!endpoint) {
+				return;
+			}
+			endpoint.mode = responseModeSelect.value as EndpointResponseMode;
+			updateResponseModeInputs();
+			debouncedSave();
+		});
 		presetSelect.addEventListener('change', applyPreset);
 		$('overrides-action').addEventListener('click', () => wire(!overridesWired));
 		$('copy-map').addEventListener('click', e => {
@@ -964,7 +991,7 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 			selectSetupMethod('proxy');
 			// Fall back to the shared endpoint definitions so the GUI still shows
 			// what exists (read-only) rather than rendering a blank page.
-			endpoints = MOCK_POLICY_ENDPOINTS.map(def => ({ ...def, status: def.presets[0]?.status ?? 200, body: def.presets[0]?.body ?? {} }));
+			endpoints = MOCK_POLICY_ENDPOINTS.map(def => ({ ...def, status: def.presets[0]?.status ?? 200, body: def.presets[0]?.body ?? {}, mode: def.presets[0]?.mode ?? 'json' }));
 			renderTabs();
 			if (endpoints.length) {
 				selectEndpoint(endpoints[0].id);
