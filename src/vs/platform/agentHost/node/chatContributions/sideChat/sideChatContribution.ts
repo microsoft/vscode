@@ -4,11 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import type { IAgentHostChatContribution, IAgentHostChatContributionContext, IHydrationContext, IOutgoingTurn, ISendContribution } from '../../../common/agentHostChatContributionsService.js';
+import { createChatMementoKey, type IAgentHostChatContribution, type IAgentHostChatContributionContext, type IHydrationContext, type IOutgoingTurn, type ISendContribution, type ITurnEnd } from '../../../common/agentHostChatContributionsService.js';
 import { ChatOriginKind } from '../../../common/state/protocol/state.js';
-import type { Turn } from '../../../common/state/sessionState.js';
+import { TurnState, type Turn } from '../../../common/state/sessionState.js';
 import { IAgentHostStateManager, AgentHostStateManager } from '../../agentHostStateManager.js';
 import { buildBoundedSideChatSourceContext, getSideChatPartialResponse, injectSideChatContext, resolveSideChatBoundary, sliceSideChatTurns } from './sideChatContext.js';
+
+const sideChatSeededMemento = createChatMementoKey<boolean>('seeded', () => false);
 
 /**
  * Adds host-owned side-chat context to the first message and removes it from
@@ -28,7 +30,7 @@ export class SideChatContribution extends Disposable implements IAgentHostChatCo
 
 	onOutgoingTurn(turn: IOutgoingTurn): ISendContribution | undefined {
 		const origin = this._stateManager.getChatOrigin(turn.chat);
-		if (origin?.kind !== ChatOriginKind.SideChat || this._stateManager.getChatState(turn.chat)?.turns.length !== 0) {
+		if (origin?.kind !== ChatOriginKind.SideChat || this._context.memento(sideChatSeededMemento, turn.chat).get()) {
 			return undefined;
 		}
 
@@ -37,11 +39,15 @@ export class SideChatContribution extends Disposable implements IAgentHostChatCo
 		const sourceContext = buildBoundedSideChatSourceContext(sourceState?.turns ?? [], origin.turnId, activeTurn);
 		const partialResponse = getSideChatPartialResponse(activeTurn);
 		return {
-			message: {
-				...turn.message,
-				text: injectSideChatContext(turn.message.text, partialResponse, sourceContext, origin.selection?.text),
-			},
+			text: injectSideChatContext(turn.message.text, partialResponse, sourceContext, origin.selection?.text),
 		};
+	}
+
+	onTurnEnd(turn: ITurnEnd): void {
+		if (turn.reason.kind !== 'success' || this._stateManager.getChatOrigin(turn.channel)?.kind !== ChatOriginKind.SideChat) {
+			return;
+		}
+		this._context.memento(sideChatSeededMemento, turn.channel).set(true, undefined);
 	}
 
 	onHydrateTurns(context: IHydrationContext, turns: readonly Turn[]): readonly Turn[] {
@@ -56,7 +62,11 @@ export class SideChatContribution extends Disposable implements IAgentHostChatCo
 				? { inheritedTurnId }
 				: {}),
 		};
-		return resolveSideChatBoundary(turns, sideChatBoundary) === turns.length
+		const boundary = resolveSideChatBoundary(turns, sideChatBoundary);
+		if (turns.slice(boundary).some(turn => turn.state === TurnState.Complete)) {
+			this._context.memento(sideChatSeededMemento, context.chat).set(true, undefined);
+		}
+		return boundary === turns.length
 			? turns
 			: sliceSideChatTurns(turns, sideChatBoundary);
 	}

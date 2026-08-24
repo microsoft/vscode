@@ -386,7 +386,7 @@ class FirstMessageReplacementContribution extends TestContribution {
 
 	onOutgoingTurn(turn: IOutgoingTurn) {
 		return turn.turnId === 'message-threading'
-			? { message: { ...turn.message, text: 'first replacement' } }
+			? { text: 'first replacement' }
 			: undefined;
 	}
 }
@@ -397,7 +397,7 @@ class SecondMessageReplacementContribution extends TestContribution {
 
 	onOutgoingTurn(turn: IOutgoingTurn) {
 		return turn.turnId === 'message-threading'
-			? { message: { ...turn.message, text: `${turn.message.text} then second` } }
+			? { text: `${turn.message.text} then second` }
 			: undefined;
 	}
 }
@@ -1262,10 +1262,11 @@ suite('AgentHostChatContributions', () => {
 			duration: 1,
 		});
 
+		const firstMessage = { text: 'side question', origin: { kind: MessageKind.User } };
 		const first = await sideChat.service.outgoingTurn({
 			session: sideChat.session,
 			chat: sideChat.sideChat,
-			message: { text: 'side question', origin: { kind: MessageKind.User } },
+			message: firstMessage,
 			turnId: 'side-turn',
 		});
 
@@ -1273,12 +1274,18 @@ suite('AgentHostChatContributions', () => {
 			type: ActionType.ChatTurnStarted,
 			turnId: 'side-turn',
 			startedAt: '2025-01-01T00:00:00.000Z',
-			message: first.message,
+			message: firstMessage,
 		});
 		sideChat.stateManager.dispatchServerAction(sideChat.sideChat, {
 			type: ActionType.ChatTurnComplete,
 			turnId: 'side-turn',
 			duration: 1,
+		});
+		sideChat.service.turnEnd({
+			session: sideChat.session,
+			channel: sideChat.sideChat,
+			turnId: 'side-turn',
+			reason: { kind: 'success' },
 		});
 		const later = await sideChat.service.outgoingTurn({
 			session: sideChat.session,
@@ -1294,6 +1301,89 @@ suite('AgentHostChatContributions', () => {
 			firstMessage: injectSideChatContext('side question', undefined, 'User request:\nsource question'),
 			laterMessage: 'follow up',
 		});
+	});
+
+	test('injects context after failed or cancelled first side-chat attempts', async () => {
+		const reasons: readonly ITurnEnd['reason'][] = [
+			{ kind: 'error', error: { errorType: 'test', message: 'failed' } },
+			{ kind: 'cancelled' },
+		];
+		for (const reason of reasons) {
+			const sideChat = createSideChatContributions(disposables);
+			const firstMessage = { text: 'first attempt', origin: { kind: MessageKind.User } };
+			await sideChat.service.outgoingTurn({
+				session: sideChat.session,
+				chat: sideChat.sideChat,
+				message: firstMessage,
+				turnId: 'first-turn',
+			});
+			sideChat.stateManager.dispatchServerAction(sideChat.sideChat, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'first-turn',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: firstMessage,
+			});
+			if (reason.kind === 'error') {
+				sideChat.stateManager.dispatchServerAction(sideChat.sideChat, {
+					type: ActionType.ChatError,
+					turnId: 'first-turn',
+					duration: 1,
+					error: reason.error,
+				});
+			} else {
+				sideChat.stateManager.dispatchServerAction(sideChat.sideChat, {
+					type: ActionType.ChatTurnCancelled,
+					turnId: 'first-turn',
+					duration: 1,
+				});
+			}
+			sideChat.service.turnEnd({
+				session: sideChat.session,
+				channel: sideChat.sideChat,
+				turnId: 'first-turn',
+				reason,
+			});
+
+			const retry = await sideChat.service.outgoingTurn({
+				session: sideChat.session,
+				chat: sideChat.sideChat,
+				message: { text: 'retry', origin: { kind: MessageKind.User } },
+				turnId: 'retry-turn',
+			});
+
+			assert.strictEqual(retry.message.text, injectSideChatContext('retry'));
+		}
+	});
+
+	test('injects context after a host-only local command', async () => {
+		const sideChat = createSideChatContributions(disposables);
+		const localMessage = { text: '/rename Side Chat', origin: { kind: MessageKind.User } };
+		sideChat.stateManager.dispatchServerAction(sideChat.sideChat, {
+			type: ActionType.ChatTurnStarted,
+			turnId: 'local-turn',
+			startedAt: '2025-01-01T00:00:00.000Z',
+			message: localMessage,
+		});
+		sideChat.stateManager.dispatchServerAction(sideChat.sideChat, {
+			type: ActionType.ChatTurnComplete,
+			turnId: 'local-turn',
+			duration: 1,
+		});
+		sideChat.service.turnEnd({
+			session: sideChat.session,
+			channel: sideChat.sideChat,
+			turnId: 'local-turn',
+			reason: { kind: 'localCommand' },
+		});
+
+		const firstProviderMessage = await sideChat.service.outgoingTurn({
+			session: sideChat.session,
+			chat: sideChat.sideChat,
+			message: { text: 'side question', origin: { kind: MessageKind.User } },
+			turnId: 'provider-turn',
+		});
+
+		assert.strictEqual(firstProviderMessage.message.text, injectSideChatContext('side question'));
 	});
 
 	test('strips inherited turns and context while hydrating a side chat', async () => {
@@ -1321,6 +1411,26 @@ suite('AgentHostChatContributions', () => {
 		);
 
 		assert.deepStrictEqual(turns.map(turn => turn.id), ['side-turn']);
+	});
+
+	test('does not re-inject context after hydration finds a completed side-chat turn', async () => {
+		const sideChat = createSideChatContributions(disposables, 'inherited');
+		await sideChat.service.hydrateTurns(
+			{ session: sideChat.session, chat: sideChat.sideChat },
+			[
+				hydrationTurn('inherited'),
+				{ ...hydrationTurn('seed'), message: { text: injectSideChatContext('side question'), origin: { kind: MessageKind.User } } },
+			],
+		);
+
+		const later = await sideChat.service.outgoingTurn({
+			session: sideChat.session,
+			chat: sideChat.sideChat,
+			message: { text: 'follow up', origin: { kind: MessageKind.User } },
+			turnId: 'later-turn',
+		});
+
+		assert.strictEqual(later.message.text, 'follow up');
 	});
 
 	test('finds the side-chat boundary from its seed marker without a persisted inherited turn id', async () => {

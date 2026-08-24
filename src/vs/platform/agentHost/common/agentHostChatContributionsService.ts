@@ -53,17 +53,20 @@ export interface IOutgoingTurn {
 export interface ISendContribution {
 	readonly instructions?: readonly string[];
 	/**
-	 * Replaces the outgoing message. Ordered contributions receive the previous
-	 * contribution's replacement, and the dispatcher sends the final message.
+	 * Replaces the outgoing message text. Ordered contributions receive the
+	 * previous replacement, and the dispatcher sends the final text.
+	 *
+	 * The turn's attachments, model, agent, origin, and metadata are committed
+	 * before this hook runs and cannot be replaced here.
 	 */
-	readonly message?: Message;
+	readonly text?: string;
 }
 
 /** The combined output of all outgoing-turn contributions. */
 export interface IOutgoingTurnContributionResult {
 	/** Omitted when no contribution supplied an instruction. */
 	readonly instructions?: readonly string[];
-	/** The final message after ordered contributions have applied replacements. */
+	/** The final message after ordered contributions have applied text replacements. */
 	readonly message: Message;
 }
 
@@ -169,8 +172,8 @@ export interface IAgentHostChatContribution extends IDisposable {
 	onAction?(action: IObservedAction): void;
 	/**
 	 * Awaited before the turn is sent. Instructions are concatenated in `order`;
-	 * message replacements are threaded in `order`, so each contribution observes
-	 * the prior contribution's message. Failures are isolated and do not block the send.
+	 * text replacements are threaded in `order`, so each contribution observes
+	 * the prior contribution's text. Failures are isolated and do not block the send.
 	 */
 	onOutgoingTurn?(turn: IOutgoingTurn): ISendContribution | undefined | Promise<ISendContribution | undefined>;
 	/**

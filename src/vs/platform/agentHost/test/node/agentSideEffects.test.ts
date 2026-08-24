@@ -168,7 +168,10 @@ let customizationEnablementService = createNoopCustomizationEnablementService();
 function createTestSideEffects(
 	disposables: DisposableStore,
 	stateManager: AgentHostStateManager,
-	options: Omit<IAgentSideEffectsOptions, 'localTurns'> & { localTurns?: AgentHostLocalTurns; gitStateService?: IAgentHostGitStateService },
+	options: Omit<IAgentSideEffectsOptions, 'localTurns'> & {
+		localTurns?: AgentHostLocalTurns;
+		gitStateService?: IAgentHostGitStateService;
+	},
 	_gitService?: IAgentHostGitService,
 	telemetryService: ITelemetryService = NullTelemetryService,
 	changesets: IAgentHostChangesetService = new FakeChangesetService(),
@@ -197,7 +200,7 @@ function createTestSideEffects(
 	services.set(IAgentHostSessionTitleController, titleController);
 	services.set(IAgentHostProviderLocator, new AgentHostProviderLocator(session => options.getAgent(typeof session === 'string' ? session : session.toString())));
 	const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
-	const chatContributions = disposables.add(new AgentHostChatContributions(logService, instantiationService));
+	const chatContributions: IAgentHostChatContributions = disposables.add(new AgentHostChatContributions(logService, instantiationService));
 	services.set(IAgentHostChatContributions, chatContributions);
 	const telemetryReporter = new AgentHostTelemetryReporter(telemetryService);
 	services.set(IAgentHostTelemetryReporter, telemetryReporter);

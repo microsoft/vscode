@@ -173,8 +173,8 @@ export class AgentHostChatContributions extends Disposable implements IAgentHost
 				if (result?.instructions) {
 					instructions.push(...result.instructions);
 				}
-				if (result?.message) {
-					message = result.message;
+				if (result?.text !== undefined) {
+					message = { ...message, text: result.text };
 				}
 			} catch (err) {
 				this._logContributionFailure(registration, err);
