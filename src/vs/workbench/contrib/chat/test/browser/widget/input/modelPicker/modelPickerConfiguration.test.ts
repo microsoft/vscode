@@ -4,8 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { IAnchor } from '../../../../../../../../base/browser/ui/contextview/contextview.js';
-import { AnchorPosition } from '../../../../../../../../base/common/layout.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../../base/test/common/utils.js';
 import { ExtensionIdentifier } from '../../../../../../../../platform/extensions/common/extensions.js';
 import { ActionListItemKind, IActionListItem, IActionListOptions } from '../../../../../../../../platform/actionWidget/browser/actionList.js';
@@ -60,7 +58,7 @@ function createModel(options?: { readonly omitEffortDefault?: boolean; readonly 
 
 /**
  * Builds a model shaped like Copilot's Auto entry: a single navigation group
- * that names itself "Tier" instead of reusing the thinking-effort wording.
+ * that names itself "Optimize for" instead of reusing the thinking-effort wording.
  */
 function createTierModel(): ILanguageModelChatMetadataAndIdentifier {
 	return {
@@ -79,10 +77,10 @@ function createTierModel(): ILanguageModelChatMetadataAndIdentifier {
 				properties: {
 					tier: {
 						type: 'string',
-						title: 'Tier',
+						title: 'Optimize for',
 						group: 'navigation',
 						enum: ['eco', 'balanced', 'max'],
-						enumItemLabels: ['Eco', 'Balanced', 'Max'],
+						enumItemLabels: ['Efficiency', 'Balance', 'Intelligence'],
 						enumDescriptions: ['Cheaper models', 'Balances capability and cost', 'Most capable models'],
 						default: 'balanced',
 					},
@@ -174,73 +172,6 @@ suite('ModelPickerConfiguration', () => {
 		});
 	});
 
-	test('uses the host action widget placement and visibility lifecycle', () => {
-		const model = createModel();
-		const container = document.createElement('div');
-		const button = document.createElement('a');
-		const anchor: IAnchor = { x: 10, y: 20, width: 30, height: 1 };
-		const visibility: boolean[] = [];
-		let shownPlacement: { anchor: unknown; container: unknown; anchorPosition: AnchorPosition | undefined } | undefined;
-		let onHide: (() => void) | undefined;
-		const actionWidgetService = {
-			show: (
-				_id: string,
-				_supportsPreview: boolean,
-				_items: IActionListItem<IActionWidgetDropdownAction>[],
-				delegate: { onHide: () => void },
-				shownAnchor: unknown,
-				shownContainer: unknown,
-				_actions: unknown,
-				_accessibilityProvider: unknown,
-				options: IActionListOptions,
-			) => {
-				onHide = delegate.onHide;
-				shownPlacement = {
-					anchor: shownAnchor,
-					container: shownContainer,
-					anchorPosition: options.anchorPosition,
-				};
-			},
-			focusItemById: () => { },
-			updateItems: () => { },
-			hide: () => onHide?.(),
-		} as unknown as IActionWidgetService;
-		const access: IModelConfigurationAccess = {
-			getModelConfiguration: () => ({}),
-			setModelConfiguration: async () => { },
-			getModelConfigurationActions: () => [],
-		};
-		const controller = new ModelPickerConfiguration({
-			getSelectedModel: () => model,
-			getConfigurationAccess: () => access,
-			isDisabled: () => false,
-			shouldShowCacheBreakHint: () => false,
-			getCacheBreakLearnMoreLink: () => undefined,
-			dismissCacheBreakHint: () => { },
-			onDidChangeVisibility: visible => { visibility.push(visible); },
-			getActionWidgetContainer: () => container,
-			getActionWidgetAnchor: () => anchor,
-			getAnchorPosition: () => AnchorPosition.BELOW,
-		}, actionWidgetService, { publicLog2: () => { } } as unknown as ITelemetryService);
-
-		controller.show(button);
-		controller.show(button);
-		controller.show(button);
-		controller.dispose();
-
-		assert.deepStrictEqual({
-			shownPlacement,
-			visibility,
-		}, {
-			shownPlacement: {
-				anchor,
-				container,
-				anchorPosition: AnchorPosition.BELOW,
-			},
-			visibility: [true, false, true, false],
-		});
-	});
-
 	// A producer that cannot resolve a default leaves it `undefined`, which used
 	// to be stringified straight into the label as "undefined 272K". The group is
 	// dropped from the label instead, while its options stay selectable.
@@ -277,16 +208,16 @@ suite('ModelPickerConfiguration', () => {
 	// routing tier rather than thinking effort, and names it through `title`.
 	test('names the navigation group after the schema title when one is given', () => {
 		assert.deepStrictEqual(render(createTierModel(), { tier: 'max' }), {
-			label: 'Max',
-			ariaLabel: 'Tier: Max',
+			label: 'Intelligence',
+			ariaLabel: 'Optimize for: Intelligence',
 			listOptions: {
 				reserveSubmenuSpace: false,
 			},
 			sections: [
-				{ kind: ActionListItemKind.Header, label: 'Tier' },
-				{ className: 'chat-model-picker-config-option', label: 'Eco', checked: false, ariaDescription: 'Cheaper models' },
-				{ className: 'chat-model-picker-config-option', label: 'Balanced', checked: false, ariaDescription: 'Default, Balances capability and cost' },
-				{ className: 'chat-model-picker-config-option', label: 'Max', checked: true, ariaDescription: 'Most capable models' },
+				{ kind: ActionListItemKind.Header, label: 'Optimize for' },
+				{ className: 'chat-model-picker-config-option', label: 'Efficiency', checked: false, ariaDescription: 'Cheaper models' },
+				{ className: 'chat-model-picker-config-option', label: 'Balance', checked: false, ariaDescription: 'Default, Balances capability and cost' },
+				{ className: 'chat-model-picker-config-option', label: 'Intelligence', checked: true, ariaDescription: 'Most capable models' },
 			],
 		});
 	});

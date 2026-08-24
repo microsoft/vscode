@@ -6,11 +6,13 @@
 import assert from 'assert';
 import { autorun } from '../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { Emitter } from '../../../../base/common/event.js';
 import { AgentHostEnablementService } from '../../browser/agentHostEnablementService.js';
 import { AGENT_HOST_ENABLED_CONTEXT_KEY } from '../../common/agentHostEnablementService.js';
 import { ConfigurationTarget, IConfigurationChangeEvent, IConfigurationOverrides } from '../../../configuration/common/configuration.js';
 import { ChatAIDisabledSettingId } from '../../../chat/common/chatSettings.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
+import { COPILOT_SANDBOX_ENABLED_KEY, IManagedSettingsService, NullManagedSettingsService } from '../../../policy/common/copilotManagedSettings.js';
 import { MockContextKeyService } from '../../../keybinding/test/common/mockKeybindingService.js';
 
 class AgentHostTestConfigurationService extends TestConfigurationService {
@@ -41,7 +43,7 @@ class AgentHostTestConfigurationService extends TestConfigurationService {
 suite('AgentHostEnablementService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createService(aiDisabled = false, runtimeAvailable = true): {
+	function createService(aiDisabled = false, runtimeAvailable = true, managedSettingsService: IManagedSettingsService = new NullManagedSettingsService()): {
 		readonly service: AgentHostEnablementService;
 		readonly configurationService: AgentHostTestConfigurationService;
 		readonly contextKeyService: MockContextKeyService;
@@ -49,7 +51,12 @@ suite('AgentHostEnablementService', () => {
 		const configurationService = new AgentHostTestConfigurationService(aiDisabled);
 		disposables.add(configurationService.onDidChangeConfigurationEmitter);
 		const contextKeyService = disposables.add(new MockContextKeyService());
-		const service = disposables.add(new AgentHostEnablementService(runtimeAvailable, configurationService, contextKeyService));
+		const service = disposables.add(new AgentHostEnablementService(
+			runtimeAvailable,
+			configurationService,
+			contextKeyService,
+			managedSettingsService,
+		));
 		return { service, configurationService, contextKeyService };
 	}
 
@@ -102,6 +109,33 @@ suite('AgentHostEnablementService', () => {
 			enabled: true,
 			contextKey: true,
 			changes: [true, false, true],
+		});
+	});
+
+	test('tracks the effective managed sandbox floor', () => {
+		let sandboxEnabled = false;
+		const managedSettingsEmitter = disposables.add(new Emitter<void>());
+		const managedSettingsService: IManagedSettingsService = {
+			_serviceBrand: undefined,
+			onDidChangeManagedSettings: managedSettingsEmitter.event,
+			getManagedSettingValue: key => key === COPILOT_SANDBOX_ENABLED_KEY ? sandboxEnabled : undefined,
+		};
+
+		const { service } = createService(false, true, managedSettingsService);
+		const changes: boolean[] = [];
+		disposables.add(autorun(reader => changes.push(service.managedSandboxEnforced.read(reader))));
+
+		sandboxEnabled = true;
+		managedSettingsEmitter.fire();
+		sandboxEnabled = false;
+		managedSettingsEmitter.fire();
+
+		assert.deepStrictEqual({
+			enforced: service.managedSandboxEnforced.get(),
+			changes,
+		}, {
+			enforced: false,
+			changes: [false, true, false],
 		});
 	});
 

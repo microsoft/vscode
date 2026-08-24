@@ -39,6 +39,7 @@ import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
 import type * as http from 'http';
 import { DeferredPromise } from '../../../../base/common/async.js';
+import { Event } from '../../../../base/common/event.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -65,6 +66,7 @@ import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
 import { IAgentHostCustomizationEnablementService } from '../../node/agentHostCustomizationEnablementService.js';
 import { createNoopCustomizationEnablementService } from './testCustomizationEnablementService.js';
+import { IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
 import { ClaudeAgent } from '../../node/claude/claudeAgent.js';
 import { IClaudeAgentSdkService } from '../../node/claude/claudeAgentSdkService.js';
 import { IAgentPluginManager } from '../../common/agentPluginManager.js';
@@ -113,6 +115,14 @@ function claudeFileEnvServices(disposables: Pick<DisposableStore, 'add'>): [type
 		[IFileService, fileService],
 		[INativeEnvironmentService, env as INativeEnvironmentService],
 	];
+}
+
+function createTestAuthenticationService(): IAgentHostAuthenticationService {
+	return {
+		_serviceBrand: undefined,
+		onDidChangeAuthToken: Event.None,
+		getAuthToken: request => request.resource === GITHUB_COPILOT_PROTECTED_RESOURCE.resource ? 'gh-int-test-token' : undefined,
+	};
 }
 
 const ANTHROPIC_MODEL: CCAModel = {
@@ -395,7 +405,7 @@ class ProxyRoundTripSdkService implements IClaudeAgentSdkService {
 		return true;
 	}
 
-	async ensureAvailableForDiscovery(): Promise<void> { }
+	async ensureAvailable(): Promise<void> { }
 
 	async getSessionInfo(_sessionId: string): Promise<SDKSessionInfo | undefined> {
 		return undefined;
@@ -659,7 +669,7 @@ async function createSession(agent: ClaudeAgent, config: IAgentCreateSessionConf
 		workingDirectories: config.workingDirectories,
 		config: config.config,
 		activeClient: config.activeClient,
-		deferBacking: !config.fork && !config.importConversation,
+		deferBacking: !config.importConversation,
 		importConversation: config.importConversation,
 	});
 	if (!created?.backingSession) {
@@ -723,6 +733,7 @@ suite('ClaudeAgent integration (proxy-backed)', function () {
 			[IAgentHostGitService, createNoopGitService()],
 			[IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE],
 			[IAgentHostCustomizationEnablementService, createNoopCustomizationEnablementService()],
+			[IAgentHostAuthenticationService, createTestAuthenticationService()],
 			...claudeFileEnvServices(disposables),
 		);
 		const instantiationService = disposables.add(new InstantiationService(services));
@@ -861,6 +872,7 @@ suite('ClaudeAgent integration (proxy-backed)', function () {
 			[IAgentHostGitService, createNoopGitService()],
 			[IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE],
 			[IAgentHostCustomizationEnablementService, createNoopCustomizationEnablementService()],
+			[IAgentHostAuthenticationService, createTestAuthenticationService()],
 			...claudeFileEnvServices(disposables),
 		);
 		const instantiationService = disposables.add(new InstantiationService(services));
@@ -941,6 +953,7 @@ suite('ClaudeAgent integration (proxy-backed)', function () {
 			[IAgentHostGitService, createNoopGitService()],
 			[IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE],
 			[IAgentHostCustomizationEnablementService, createNoopCustomizationEnablementService()],
+			[IAgentHostAuthenticationService, createTestAuthenticationService()],
 			...claudeFileEnvServices(disposables),
 		);
 		const instantiationService = disposables.add(new InstantiationService(services));

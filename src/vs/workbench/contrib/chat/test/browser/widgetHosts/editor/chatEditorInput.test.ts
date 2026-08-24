@@ -6,15 +6,19 @@
 import assert from 'assert';
 import { Event } from '../../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../../../../base/common/network.js';
 import { constObservable } from '../../../../../../../base/common/observable.js';
+import { isEqual } from '../../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IDialogService } from '../../../../../../../platform/dialogs/common/dialogs.js';
+import { IAgentHostConnectionsService } from '../../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../../platform/log/common/log.js';
+import { NullTelemetryService } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IStorageService } from '../../../../../../../platform/storage/common/storage.js';
 import { IWorkspaceContextService } from '../../../../../../../platform/workspace/common/workspace.js';
 import { isResourceEditorInput } from '../../../../../../common/editor.js';
@@ -26,7 +30,7 @@ import { IChatService, IChatSessionStartOptions } from '../../../../common/chatS
 import { IChatSessionsService, localChatSessionType, SessionType } from '../../../../common/chatSessionsService.js';
 import { ChatAgentLocation } from '../../../../common/constants.js';
 import { IChatModel } from '../../../../common/model/chatModel.js';
-import { getChatSessionType, LocalChatSessionUri } from '../../../../common/model/chatUri.js';
+import { getChatSessionType, isUntitledChatSession, LocalChatSessionUri } from '../../../../common/model/chatUri.js';
 import { MockChatSessionsService } from '../../../common/mockChatSessionsService.js';
 import { TestContextService, TestStorageService } from '../../../../../../test/common/workbenchTestServices.js';
 
@@ -66,7 +70,9 @@ suite('ChatEditorInput', () => {
 			{} as IStorageService,
 			new NullLogService(),
 			new TestContextService(),
-			{ _serviceBrand: undefined, enabled: constObservable(false) },
+			{ _serviceBrand: undefined, enabled: constObservable(false), managedSandboxEnforced: constObservable(false) },
+			{ ambientConnection: undefined } as unknown as IAgentHostConnectionsService,
+			NullTelemetryService,
 		);
 
 		try {
@@ -121,7 +127,9 @@ suite('ChatEditorInput', () => {
 			{} as IStorageService,
 			new NullLogService(),
 			new TestContextService(),
-			{ _serviceBrand: undefined, enabled: constObservable(false) },
+			{ _serviceBrand: undefined, enabled: constObservable(false), managedSandboxEnforced: constObservable(false) },
+			{ ambientConnection: undefined } as unknown as IAgentHostConnectionsService,
+			NullTelemetryService,
 		);
 
 		try {
@@ -154,7 +162,7 @@ suite('ChatEditorInput', () => {
 		}]);
 		const storageService = store.add(new TestStorageService());
 		const workspaceContextService = new TestContextService();
-		const agentHostEnablementService = { _serviceBrand: undefined, enabled: constObservable(true) } satisfies IAgentHostEnablementService;
+		const agentHostEnablementService = { _serviceBrand: undefined, enabled: constObservable(true), managedSandboxEnforced: constObservable(false) } satisfies IAgentHostEnablementService;
 
 		instantiationService.stub(IChatService, {});
 		instantiationService.stub(IDialogService, {});
@@ -192,5 +200,74 @@ suite('ChatEditorInput', () => {
 		} finally {
 			store.dispose();
 		}
+	});
+
+	function createInputForCopy(store: DisposableStore, resource: URI, agentHostEnabled: boolean): ChatEditorInput {
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IChatService, {});
+		instantiationService.stub(IDialogService, {});
+		instantiationService.set(IConfigurationService, new TestConfigurationService());
+		instantiationService.set(IChatSessionsService, new MockChatSessionsService());
+		instantiationService.set(IStorageService, store.add(new TestStorageService()));
+		instantiationService.set(ILogService, new NullLogService());
+		instantiationService.set(IWorkspaceContextService, new TestContextService());
+		instantiationService.set(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: constObservable(agentHostEnabled), managedSandboxEnforced: constObservable(false) });
+		return store.add(instantiationService.createInstance(ChatEditorInput, resource, {}));
+	}
+
+	test('copy preserves an agent host session type as a new untitled session', () => {
+		const store = disposables.add(new DisposableStore());
+		const source = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/untitled-source' });
+		const input = createInputForCopy(store, source, true);
+
+		const copied = store.add(input.copy() as ChatEditorInput);
+
+		assert.deepStrictEqual({
+			copiedType: getChatSessionType(copied.resource),
+			copiedUntitled: isUntitledChatSession(copied.resource),
+			distinctFromSource: !isEqual(copied.resource, source),
+			sourceUnchanged: isEqual(input.resource, source),
+		}, {
+			copiedType: SessionType.AgentHostCopilot,
+			copiedUntitled: true,
+			distinctFromSource: true,
+			sourceUnchanged: true,
+		});
+	});
+
+	test('copy preserves a local session type as a new local session', () => {
+		const store = disposables.add(new DisposableStore());
+		const source = LocalChatSessionUri.getNewSessionUri();
+		const input = createInputForCopy(store, source, true);
+
+		const copied = store.add(input.copy() as ChatEditorInput);
+
+		assert.deepStrictEqual({
+			copiedType: getChatSessionType(copied.resource),
+			copiedScheme: copied.resource.scheme,
+			distinctFromSource: !isEqual(copied.resource, source),
+		}, {
+			copiedType: localChatSessionType,
+			copiedScheme: LocalChatSessionUri.scheme,
+			distinctFromSource: true,
+		});
+	});
+
+	test('copy falls back to a generic editor URI when the source type cannot start a new session', () => {
+		const store = disposables.add(new DisposableStore());
+		const source = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/untitled-source' });
+		const input = createInputForCopy(store, source, false);
+
+		const copied = store.add(input.copy() as ChatEditorInput);
+
+		assert.deepStrictEqual({
+			copiedScheme: copied.resource.scheme,
+			copiedSessionResource: copied.sessionResource,
+			copiedType: getChatSessionType(copied.resource),
+		}, {
+			copiedScheme: Schemas.vscodeChatEditor,
+			copiedSessionResource: undefined,
+			copiedType: localChatSessionType,
+		});
 	});
 });

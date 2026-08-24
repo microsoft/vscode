@@ -22,8 +22,8 @@ export interface IDockedAuxiliaryBarHost {
 	hideAuxiliaryBar(): void;
 	/** Reserves space on the right of the breadcrumbs and editor pane while tabs remain full-width. */
 	setEditorContentRightInset(px: number): void;
-	/** Extra top offset (px) below the tab bar, e.g. reserved by the full-width header. */
-	getHeaderHeight(): number;
+	/** Height of the full editor group title, including tabs and the optional header. */
+	getTitleHeight(): number;
 }
 
 /**
@@ -35,9 +35,6 @@ export interface IDockedAuxiliaryBarHost {
  */
 export class DockedAuxiliaryBarController extends Disposable {
 
-	static readonly TOP = 34;
-	/** Thickness (px) of the header/tab-bar bottom divider the aux bar starts below. */
-	static readonly DIVIDER = 1;
 	static readonly MIN_WIDTH = 220;
 	static readonly EDITOR_MIN_WIDTH = 300;
 	static readonly DEFAULT_WIDTH = 300;
@@ -87,7 +84,7 @@ export class DockedAuxiliaryBarController extends Disposable {
 		const editorRect = this.editorPartContainer.getBoundingClientRect();
 		const editorContentHidden = !this.host.isEditorVisible();
 		const auxWidth = editorContentHidden ? editorRect.width : DockedAuxiliaryBarController.getEffectiveWidth(this.host.getWidth(), editorRect.width);
-		const top = DockedAuxiliaryBarController.TOP + DockedAuxiliaryBarController.DIVIDER + this.host.getHeaderHeight();
+		const top = this._getTop();
 		const height = Math.max(0, editorRect.height - top);
 
 		auxiliaryBarContainer.style.display = '';
@@ -129,8 +126,8 @@ export class DockedAuxiliaryBarController extends Disposable {
 				const auxWidth = this.host.isEditorVisible() ? DockedAuxiliaryBarController.getEffectiveWidth(this.host.getWidth(), width) : width;
 				return Math.max(0, width - auxWidth);
 			},
-			getVerticalSashTop: () => DockedAuxiliaryBarController.TOP + DockedAuxiliaryBarController.DIVIDER + this.host.getHeaderHeight(),
-			getVerticalSashHeight: () => Math.max(0, editorPartContainer.clientHeight - DockedAuxiliaryBarController.TOP - DockedAuxiliaryBarController.DIVIDER - this.host.getHeaderHeight()),
+			getVerticalSashTop: () => this._getTop(),
+			getVerticalSashHeight: () => Math.max(0, editorPartContainer.clientHeight - this._getTop()),
 		};
 
 		const sash = this._register(new Sash(editorPartContainer, layoutProvider, { orientation: SashOrientation.VERTICAL }));
@@ -160,5 +157,9 @@ export class DockedAuxiliaryBarController extends Disposable {
 			this.host.setWidth(DockedAuxiliaryBarController.DEFAULT_WIDTH);
 			this.layout();
 		}));
+	}
+
+	private _getTop(): number {
+		return this.host.getTitleHeight();
 	}
 }

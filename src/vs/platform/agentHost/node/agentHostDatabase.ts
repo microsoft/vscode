@@ -51,6 +51,7 @@ export interface IAgentHostDatabase extends IDisposable {
 	/** Atomically tombstones and removes a session so concurrent backfill cannot re-register it. */
 	tombstoneAndUnregisterSession(session: string): Promise<void>;
 	updateSessionExternal(updates: readonly IAgentHostDatabaseExternalUpdate[]): Promise<void>;
+	getSession(session: string): Promise<IAgentHostDatabaseSession | undefined>;
 	listSessions(): Promise<readonly IAgentHostDatabaseSession[]>;
 	isSessionRegistryEmpty(): Promise<boolean>;
 	/**
@@ -71,6 +72,14 @@ export interface IAgentHostDatabase extends IDisposable {
 	markSessionTombstoned(session: string): Promise<void>;
 	/** Clears a session's deletion tombstone (used on explicit create/restore). */
 	clearSessionTombstone(session: string): Promise<void>;
+	/**
+	 * Records whether Agent Merge is enabled for `session`. This host-owned index
+	 * lets startup find the few monitored sessions without opening every session
+	 * database.
+	 */
+	setSessionAgentMergeEnabled(session: string, enabled: boolean): Promise<void>;
+	/** Session URIs currently marked Agent-Merge-enabled. */
+	listAgentMergeEnabledSessions(): Promise<readonly string[]>;
 	close(): Promise<void>;
 }
 
@@ -153,6 +162,13 @@ function tombstoneKey(session: string): string {
 	return `sessionTombstone:${session}`;
 }
 
+const agentMergeEnabledKeyPrefix = 'agentMergeEnabled:';
+
+/** Metadata key marking a session as Agent-Merge-enabled. */
+function agentMergeEnabledKey(session: string): string {
+	return `${agentMergeEnabledKeyPrefix}${session}`;
+}
+
 function quoteSqlString(value: string): string {
 	return `'${value.replaceAll('\'', '\'\'')}'`;
 }
@@ -196,8 +212,24 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 		return changes > 0;
 	}
 
-	unregisterSession(session: string): Promise<void> {
-		return this._run('DELETE FROM sessions WHERE session_uri = ?', [session]);
+	async unregisterSession(session: string): Promise<void> {
+		const database = await this._ensureDatabase();
+		try {
+			await exec(
+				database,
+				`BEGIN IMMEDIATE;
+				DELETE FROM sessions WHERE session_uri = ${quoteSqlString(session)};
+				DELETE FROM metadata WHERE key = ${quoteSqlString(agentMergeEnabledKey(session))};
+				COMMIT;`,
+			);
+		} catch (error) {
+			try {
+				await exec(database, 'ROLLBACK');
+			} catch (rollbackError) {
+				throw new AggregateError([error, rollbackError], `Failed to unregister session ${session}`);
+			}
+			throw error;
+		}
 	}
 
 	async tombstoneAndUnregisterSession(session: string): Promise<void> {
@@ -210,6 +242,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 				`BEGIN IMMEDIATE;
 				INSERT INTO metadata (key, value) VALUES (${tombstoneValue}, 'true')
 					ON CONFLICT(key) DO UPDATE SET value = excluded.value;
+				DELETE FROM metadata WHERE key = ${quoteSqlString(agentMergeEnabledKey(session))};
 				DELETE FROM sessions WHERE session_uri = ${sessionValue};
 				COMMIT;`,
 			);
@@ -258,6 +291,20 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 		}));
 	}
 
+	async getSession(session: string): Promise<IAgentHostDatabaseSession | undefined> {
+		const row = await get(await this._ensureDatabase(), 'SELECT session_uri, provider, start_time, external, registration_source FROM sessions WHERE session_uri = ?', [session]);
+		if (!row) {
+			return undefined;
+		}
+		return {
+			session: row.session_uri as string,
+			provider: row.provider as AgentProvider,
+			startTime: row.start_time as number,
+			external: row.external === null || row.external === undefined ? undefined : row.external === 1,
+			source: row.registration_source as AgentSessionRegistrationSource,
+		};
+	}
+
 	async isSessionRegistryEmpty(): Promise<boolean> {
 		const row = await get(await this._ensureDatabase(), 'SELECT 1 AS present FROM sessions LIMIT 1', []);
 		return row === undefined;
@@ -304,6 +351,25 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 
 	clearSessionTombstone(session: string): Promise<void> {
 		return this._run('DELETE FROM metadata WHERE key = ?', [tombstoneKey(session)]);
+	}
+
+	setSessionAgentMergeEnabled(session: string, enabled: boolean): Promise<void> {
+		return enabled
+			? this._run(
+				`INSERT INTO metadata (key, value) VALUES (?, 'true')
+					ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+				[agentMergeEnabledKey(session)],
+			)
+			: this._run('DELETE FROM metadata WHERE key = ?', [agentMergeEnabledKey(session)]);
+	}
+
+	async listAgentMergeEnabledSessions(): Promise<readonly string[]> {
+		const rows = await all(
+			await this._ensureDatabase(),
+			`SELECT key FROM metadata WHERE key LIKE ? || '%' AND value = 'true'`,
+			[agentMergeEnabledKeyPrefix],
+		);
+		return rows.map(row => (row.key as string).slice(agentMergeEnabledKeyPrefix.length));
 	}
 
 	private async _run(sql: string, parameters: readonly unknown[]): Promise<void> {

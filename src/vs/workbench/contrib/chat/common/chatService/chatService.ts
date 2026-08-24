@@ -1137,6 +1137,9 @@ export interface IChatSubagentToolInvocationData {
 	isActive?: boolean;
 	activity?: 'markdown' | 'reasoning';
 	description?: string;
+	/** Provider-supplied display name for the subagent type. */
+	agentDisplayName?: string;
+	/** Internal identifier for the subagent type. */
 	agentName?: string;
 	prompt?: string;
 	result?: string;
@@ -1761,7 +1764,6 @@ export type ChatSendResult =
 export interface ChatSendResultRejected {
 	readonly kind: 'rejected';
 	readonly reason: string;
-	readonly reasonCode?: 'cancelled' | 'providerRemoved';
 	/** Set when the session was replaced before the request was rejected (e.g. untitled -> read-only contributed session). */
 	readonly newSessionResource?: URI;
 }
@@ -1775,8 +1777,6 @@ export interface ChatSendResultSent {
 
 export interface ChatSendResultQueued {
 	readonly kind: 'queued';
-	/** The id of the request model created for this queued message. */
-	readonly requestId: string;
 	/**
 	 * Promise that resolves when the queued message is actually processed.
 	 * Will resolve to a 'sent' or 'rejected' result.
@@ -2074,6 +2074,11 @@ export interface IChatService {
 	activateDefaultAgent(location: ChatAgentLocation): Promise<void>;
 
 	readonly requestInProgressObs: IObservable<boolean>;
+
+	/**
+	 * Returns the contributed session types with a request that is materializing or in progress.
+	 */
+	getPendingRequestSessionTypes(): readonly string[];
 
 	/**
 	 * For tests only!
