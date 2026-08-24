@@ -1927,8 +1927,8 @@ export class AgentSideEffects extends Disposable {
 			failureStage = 'sendMessage';
 			this._turnTracker.setCurrentStage(turnChannel, turnId, failureStage);
 			const resolvedAttachments = await this._resolveChatAttachments(message.attachments);
-			const hostInstructions = await this._chatContributions.outgoingTurn({ session: sessionChannel, chat, message, turnId });
-			const sendContext = { ...clientOperationContext, ...(hostInstructions.length ? { hostInstructions } : {}) };
+			const contribution = await this._chatContributions.outgoingTurn({ session: sessionChannel, chat, message, turnId });
+			const sendContext = { ...clientOperationContext, ...(contribution.instructions?.length ? { hostInstructions: contribution.instructions } : {}) };
 			if (this._cancelledTurnIds.get(turnChannel)?.has(turnId)) { return; }
 			if (!this._stateManager.isEphemeralSession(sessionChannel)) {
 				await this._checkpointService.captureTurnStartCheckpoint(URI.parse(sessionChannel), chatUri, turnId, resolvedWorkingDirectories);
@@ -1938,7 +1938,7 @@ export class AgentSideEffects extends Disposable {
 				return;
 			}
 			this._turnTracker.setCurrentStage(turnChannel, turnId, 'provider');
-			await agent.chats.sendMessage(chatUri, message.text, resolvedWorkingDirectories, resolvedAttachments, turnId, senderClientId, clientContext.clientType, sendContext);
+			await agent.chats.sendMessage(chatUri, contribution.message.text, resolvedWorkingDirectories, resolvedAttachments, turnId, senderClientId, clientContext.clientType, sendContext);
 		} catch (err) {
 			const failure = buildTurnFailure(failureStage, err);
 			const error = failure.error;

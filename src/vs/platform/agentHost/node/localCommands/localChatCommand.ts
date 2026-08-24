@@ -11,7 +11,7 @@ import { IAgentHostChatContributions } from '../../common/agentHostChatContribut
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { ActionType, StateAction } from '../../common/state/sessionActions.js';
 import { isAhpChatChannel, parseRequiredSessionUriFromChatUri, ResponsePartKind, ToolCallStatus, ToolResultContentType, type ISessionWithDefaultChat, type Turn, type URI as ProtocolURI } from '../../common/state/sessionState.js';
-import { AgentHostLocalTurns } from '../agentHostLocalTurns.js';
+import { IAgentHostLocalTurns } from '../agentHostLocalTurns.js';
 import { IAgentHostSessionTitleController } from '../agentHostSessionTitleController.js';
 import { IAgentHostTerminalManager } from '../agentHostTerminalManager.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../agentHostStateManager.js';
@@ -139,7 +139,7 @@ export class AgentHostLocalCommands extends Disposable {
 	private readonly _commands: readonly ILocalChatCommand[];
 
 	constructor(
-		private readonly _localTurns: AgentHostLocalTurns,
+		@IAgentHostLocalTurns private readonly _localTurns: IAgentHostLocalTurns,
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
 		@IAgentHostChatContributions private readonly _chatContributions: IAgentHostChatContributions,
 		@IAgentHostSessionTitleController private readonly _titleController: IAgentHostSessionTitleController,

@@ -8964,10 +8964,12 @@ suite('AgentService (node dispatcher)', () => {
 
 		class SideChatAgent extends MockAgent {
 			lastCreateOptions: IAgentCreateChatOptions | undefined;
+			createChatResult: IAgentCreateChatResult | undefined;
 			readonly chatMessages = new Map<string, readonly Turn[]>();
 			materializeCalls = 0;
 			override async createChat(_session: URI, _chat: URI, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void> {
 				this.lastCreateOptions = options;
+				return this.createChatResult;
 			}
 			override async materializeChat(chat: URI): Promise<void> {
 				// The default chat is always offered to materializeChat on restore
@@ -9046,13 +9048,15 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual({
 				origin: state?.origin,
 				copiedTurns: state?.turns.length,
-				forkForwarded: agent.lastCreateOptions?.fork,
-				sideChatForwarded: agent.lastCreateOptions?.sideChat,
+				forkForwarded: agent.lastCreateOptions?.fork && {
+					source: agent.lastCreateOptions.fork.source.toString(),
+					turnId: agent.lastCreateOptions.fork.turnId,
+					independentQueue: agent.lastCreateOptions.fork.independentQueue,
+				},
 			}, {
 				origin: { kind: ChatOriginKind.SideChat, chat: defaultChatUri, turnId: 't1', selection },
 				copiedTurns: 0,
-				forkForwarded: undefined,
-				sideChatForwarded: { source: URI.parse(defaultChatUri), turnId: 't1', selection },
+				forkForwarded: { source: defaultChatUri, turnId: 't1', independentQueue: true },
 			});
 		});
 
@@ -9083,19 +9087,17 @@ suite('AgentService (node dispatcher)', () => {
 
 			assert.deepStrictEqual({
 				origin: getStateManager(localService).getChatState(chatUri.toString())?.origin,
-				sideChatForwarded: agent.lastCreateOptions?.sideChat && {
-					source: agent.lastCreateOptions.sideChat.source.toString(),
-					turnId: agent.lastCreateOptions.sideChat.turnId,
-					providerAnchorTurnId: agent.lastCreateOptions.sideChat.providerAnchorTurnId,
-					sourceContext: agent.lastCreateOptions.sideChat.sourceContext,
+				forkForwarded: agent.lastCreateOptions?.fork && {
+					source: agent.lastCreateOptions.fork.source.toString(),
+					turnId: agent.lastCreateOptions.fork.turnId,
+					independentQueue: agent.lastCreateOptions.fork.independentQueue,
 				},
 			}, {
 				origin: { kind: ChatOriginKind.SideChat, chat: defaultChatUri, turnId: 'local-1' },
-				sideChatForwarded: {
+				forkForwarded: {
 					source: defaultChatUri,
-					turnId: 'local-1',
-					providerAnchorTurnId: 'real-1',
-					sourceContext: 'User request:\nfirst question\n\nAgent response:\nfirst answer\n\n---\n\nUser request:\n!command',
+					turnId: 'real-1',
+					independentQueue: true,
 				},
 			});
 		});
@@ -9123,18 +9125,17 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual({
 				sourceActiveTurn: getStateManager(service).getChatState(sourceChat)?.activeTurn?.id,
 				origin: getStateManager(service).getChatState(chatUri.toString())?.origin,
-				sideChatForwarded: agent.lastCreateOptions?.sideChat
+				forkForwarded: agent.lastCreateOptions?.fork
 					? {
-						source: agent.lastCreateOptions.sideChat.source.toString(),
-						turnId: agent.lastCreateOptions.sideChat.turnId,
-						sourceContext: agent.lastCreateOptions.sideChat.sourceContext,
-						partialResponse: agent.lastCreateOptions.sideChat.partialResponse,
+						source: agent.lastCreateOptions.fork.source.toString(),
+						turnId: agent.lastCreateOptions.fork.turnId,
+						independentQueue: agent.lastCreateOptions.fork.independentQueue,
 					}
 					: undefined,
 			}, {
 				sourceActiveTurn: 'active-turn',
 				origin: { kind: ChatOriginKind.SideChat, chat: sourceChat, turnId: 'active-turn' },
-				sideChatForwarded: { source: sourceChat, turnId: 'active-turn', sourceContext: 'User request:\nstill running', partialResponse: 'partial answer' },
+				forkForwarded: { source: sourceChat, turnId: 'active-turn', independentQueue: true },
 			});
 		});
 
@@ -9159,16 +9160,14 @@ suite('AgentService (node dispatcher)', () => {
 
 			await service.createChat(session, chatUri, { sideChat: { source: URI.parse(sourceChat), turnId: 'active-turn' } });
 
-			assert.deepStrictEqual(agent.lastCreateOptions?.sideChat && {
-				source: agent.lastCreateOptions.sideChat.source.toString(),
-				turnId: agent.lastCreateOptions.sideChat.turnId,
-				sourceContext: agent.lastCreateOptions.sideChat.sourceContext,
-				partialResponse: agent.lastCreateOptions.sideChat.partialResponse,
+			assert.deepStrictEqual(agent.lastCreateOptions?.fork && {
+				source: agent.lastCreateOptions.fork.source.toString(),
+				turnId: agent.lastCreateOptions.fork.turnId,
+				independentQueue: agent.lastCreateOptions.fork.independentQueue,
 			}, {
 				source: sourceChat,
 				turnId: 'active-turn',
-				sourceContext: 'User request:\nfirst question\n\nAgent response:\nfirst answer\n\n---\n\nUser request:\nsecond question',
-				partialResponse: 'partial answer',
+				independentQueue: true,
 			});
 		});
 
@@ -9176,6 +9175,7 @@ suite('AgentService (node dispatcher)', () => {
 			const db = new TestSessionDatabase();
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new SideChatAgent('copilot'));
+			agent.createChatResult = { inheritedTurnId: 'provider-turn' };
 			localService.registerProvider(agent);
 			const session = await localService.createSession({ provider: 'copilot' });
 			getStateManager(localService).seedDefaultChatTurns(session.toString(), [completedTurn('t1')]);
@@ -9184,13 +9184,13 @@ suite('AgentService (node dispatcher)', () => {
 			const selection = { text: '  selected text  ', responsePartId: 'response-part-1' };
 			await localService.createChat(session, chatUri, { sideChat: { source: session, turnId: 't1', selection } });
 
-			let persistedOrigin: unknown;
+			let persistedEntry: { origin?: unknown; inheritedTurnId?: string } | undefined;
 			for (let i = 0; i < 50; i++) {
 				const raw = await db.getMetadata('peerChats');
 				if (raw !== undefined) {
 					const parsed = JSON.parse(raw) as { uri: string; origin?: unknown }[];
-					persistedOrigin = parsed.find(entry => entry.uri === chatUri.toString())?.origin;
-					if (persistedOrigin) {
+					persistedEntry = parsed.find(entry => entry.uri === chatUri.toString());
+					if (persistedEntry?.origin) {
 						break;
 					}
 				}
@@ -9201,12 +9201,16 @@ suite('AgentService (node dispatcher)', () => {
 			await localService.restoreSession(session);
 
 			assert.deepStrictEqual({
-				persistedOrigin,
+				persistedOrigin: persistedEntry?.origin,
+				persistedInheritedTurnId: persistedEntry?.inheritedTurnId,
 				restoredOrigin: getStateManager(localService).getSessionState(session.toString())?.chats.find(chat => chat.resource === chatUri.toString())?.origin,
+				restoredInheritedTurnId: getStateManager(localService).getChatInheritedTurnId(chatUri.toString()),
 				restoredChatState: getStateManager(localService).getChatState(chatUri.toString()),
 			}, {
 				persistedOrigin: { kind: ChatOriginKind.SideChat, chat: defaultChatUri, turnId: 't1', selection },
+				persistedInheritedTurnId: 'provider-turn',
 				restoredOrigin: { kind: ChatOriginKind.SideChat, chat: defaultChatUri, turnId: 't1', selection },
+				restoredInheritedTurnId: 'provider-turn',
 				restoredChatState: undefined,
 			});
 		});
@@ -9235,12 +9239,12 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual({
 				materializeCalls: agent.materializeCalls,
 				resolvedChats,
-				sideChatSource: agent.lastCreateOptions?.sideChat?.source.toString(),
+				forkSource: agent.lastCreateOptions?.fork?.source.toString(),
 				sourceResolved: !!getStateManager(localService).getChatState(source.toString()),
 			}, {
 				materializeCalls: 1,
 				resolvedChats: [source.toString()],
-				sideChatSource: source.toString(),
+				forkSource: source.toString(),
 				sourceResolved: true,
 			});
 		});

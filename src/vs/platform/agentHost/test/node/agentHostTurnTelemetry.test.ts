@@ -26,7 +26,7 @@ import { buildDefaultChatUri, buildSubagentChatUri, MessageKind, PendingMessageK
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
 import { IAgentHostChatContributions } from '../../common/agentHostChatContributionsService.js';
 import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
-import { AgentHostLocalTurns } from '../../node/agentHostLocalTurns.js';
+import { AgentHostLocalTurns, IAgentHostLocalTurns } from '../../node/agentHostLocalTurns.js';
 import { AgentHostLocalCommands, IAgentHostLocalCommands } from '../../node/localCommands/localChatCommand.js';
 import { AgentHostChatContributions } from '../../node/agentHostChatContributionsService.js';
 import { registerBuiltInChatContributions } from '../../node/chatContributions/builtInChatContributions.js';
@@ -232,14 +232,16 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		services.set(IAgentHostTelemetryReporter, telemetryReporter);
 		const turnTracker = disposables.add(instantiationService.createInstance(AgentHostTurnTracker));
 		services.set(IAgentHostTurnTracker, turnTracker);
-		const localCommands = disposables.add(instantiationService.createInstance(AgentHostLocalCommands, new AgentHostLocalTurns(sessionDataService, logService)));
+		const localTurns = new AgentHostLocalTurns(sessionDataService, logService);
+		services.set(IAgentHostLocalTurns, localTurns);
+		const localCommands = disposables.add(instantiationService.createInstance(AgentHostLocalCommands));
 		services.set(IAgentHostLocalCommands, localCommands);
 		disposables.add(registerBuiltInChatContributions(chatContributions));
 		sideEffects = disposables.add(instantiationService.createInstance(AgentSideEffects, stateManager, customizationEnablementService, {
 			getAgent: () => agent,
 			agents: agentList,
 			sessionDataService,
-			localTurns: new AgentHostLocalTurns(sessionDataService, logService),
+			localTurns,
 		}));
 		// Wire the agent's progress signals through side-effects (this is how
 		// progress actions reach the state manager in production).
