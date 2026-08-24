@@ -84,6 +84,7 @@ export async function askForPromptSourceFolder(
 	};
 
 	if (isMultiRoot) {
+		const mappedRoots = new Set<IResolvedFolder>();
 		for (const wsFolder of workspaceFolders) {
 			const wsResolvedFolders = resolvedFolders.filter(r =>
 				r.storage === PromptsStorage.local &&
@@ -92,8 +93,17 @@ export async function askForPromptSourceFolder(
 			if (wsResolvedFolders.length > 0) {
 				items.push({ type: 'separator', label: wsFolder.name });
 				for (const resolved of wsResolvedFolders) {
+					mappedRoots.add(resolved);
 					items.push(createFolderPickItem(resolved, true));
 				}
+			}
+		}
+
+		const otherLocalFolders = resolvedFolders.filter(r => r.storage === PromptsStorage.local && !mappedRoots.has(r));
+		if (otherLocalFolders.length > 0) {
+			items.push({ type: 'separator', label: localize('separator.otherWorkspace', "Other Locations") });
+			for (const resolved of otherLocalFolders) {
+				items.push(createFolderPickItem(resolved, false));
 			}
 		}
 

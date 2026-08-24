@@ -174,17 +174,32 @@ export class CustomizationLocationPicker {
 		let items: (IQuickPickItem & { uri: URI } | IQuickPickSeparator)[];
 		if (isMultiRoot) {
 			items = [];
+			const mappedFolders = new Set<ICustomizationSourceFolder>();
 			for (const wsFolder of workspaceFolders) {
 				const wsFolders = matchingFolders.filter(f => isEqual(this.workspaceContextService.getWorkspaceFolder(f.uri)?.uri, wsFolder.uri));
 				if (wsFolders.length > 0) {
 					items.push({ type: 'separator', label: wsFolder.name });
 					for (const folder of wsFolders) {
+						mappedFolders.add(folder);
 						items.push({
 							label: folder.label,
 							description: this.labelService.getUriLabel(folder.uri, { relative: true }),
 							uri: folder.uri,
 						});
 					}
+				}
+			}
+			const otherFolders = matchingFolders.filter(f => !mappedFolders.has(f));
+			if (otherFolders.length > 0) {
+				if (items.length > 0) {
+					items.push({ type: 'separator', label: localize('separator.otherWorkspace', "Other Locations") });
+				}
+				for (const folder of otherFolders) {
+					items.push({
+						label: folder.label,
+						description: this.labelService.getUriLabel(folder.uri, { relative: true }),
+						uri: folder.uri,
+					});
 				}
 			}
 		} else {
