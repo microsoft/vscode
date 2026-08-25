@@ -44,6 +44,7 @@ import { IThemeService } from '../../theme/common/themeService.js';
 import { asCssVariable } from '../../theme/common/colorUtils.js';
 import { IQuickPickItem, IQuickPickItemButtonEvent, IQuickPickSeparator, IQuickPickSeparatorButtonEvent, QuickPickFocus, QuickPickItem } from '../common/quickInput.js';
 import { IQuickInputStyles } from './quickInput.js';
+import { QUICK_INPUT_ITEM_HEIGHT, QUICK_INPUT_ITEM_WITH_DETAIL_HEIGHT, QUICK_INPUT_LIST_SCROLL_INDICATOR_HEIGHT } from './quickInputConstants.js';
 import { quickInputButtonsToActionArrays } from './quickInputUtils.js';
 
 const $ = dom.$;
@@ -278,7 +279,7 @@ class QuickInputItemDelegate implements IListVirtualDelegate<IQuickPickElement> 
 		if (element instanceof QuickPickSeparatorElement) {
 			return 30;
 		}
-		return element.saneDetail ? 44 : 22;
+		return element.saneDetail ? QUICK_INPUT_ITEM_WITH_DETAIL_HEIGHT : QUICK_INPUT_ITEM_HEIGHT;
 	}
 
 	getTemplateId(element: IQuickPickElement): string {
@@ -1406,13 +1407,29 @@ export class QuickInputList extends Disposable {
 	}
 
 	layout(maxHeight?: number): void {
-		this._tree.getHTMLElement().style.maxHeight = maxHeight ? `${
-			// Make sure height aligns with list item heights
-			Math.floor(maxHeight / 44) * 44
-			// Add some extra height so that it's clear there's more to scroll
-			+ 6
+		this._tree.getHTMLElement().style.maxHeight = maxHeight !== undefined ? `${
+			// Snap to the standard quick-input row-height grid. Detailed items and
+			// separators have variable heights, so this may not end at an item boundary.
+			Math.max(QUICK_INPUT_ITEM_HEIGHT, Math.floor(maxHeight / QUICK_INPUT_ITEM_HEIGHT) * QUICK_INPUT_ITEM_HEIGHT)
+			// Add some extra height so that it's clear there's more to scroll.
+			+ QUICK_INPUT_LIST_SCROLL_INDICATOR_HEIGHT
 			}px` : '';
 		this._tree.layout();
+	}
+
+	/** The total height of the list content in pixels. */
+	get contentHeight(): number {
+		return this._tree.contentHeight;
+	}
+
+	/** The rendered list height in pixels. */
+	get height(): number {
+		return this._tree.getHTMLElement().clientHeight;
+	}
+
+	/** An event that fires when the total list content height changes. */
+	get onDidChangeContentHeight(): Event<number> {
+		return this._tree.onDidChangeContentHeight;
 	}
 
 	filter(query: string): boolean {

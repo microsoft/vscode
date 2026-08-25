@@ -166,6 +166,14 @@ export class StandaloneQuickInputService implements IQuickInputService {
 		return this.activeService.setAlignment(alignment);
 	}
 
+	resize(widthChange: number, heightChange: number): void {
+		return this.activeService.resize(widthChange, heightChange);
+	}
+
+	resetSize(): void {
+		return this.activeService.resetSize();
+	}
+
 	toggleHover(): void {
 		return this.activeService.toggleHover();
 	}

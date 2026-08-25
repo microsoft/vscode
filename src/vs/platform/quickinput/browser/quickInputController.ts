@@ -40,6 +40,8 @@ import { QuickInputTreeController } from './tree/quickInputTreeController.js';
 import { QuickTree } from './tree/quickTree.js';
 import { AnchorAlignment, AnchorPosition, IRect, layout2d } from '../../../base/common/layout.js';
 import { getAnchorRect, IAnchor } from '../../../base/browser/ui/contextview/contextview.js';
+import { QUICK_INPUT_DEFAULT_HEIGHT_RATIO, QUICK_INPUT_ITEM_HEIGHT, QUICK_INPUT_LIST_SCROLL_INDICATOR_HEIGHT, QUICK_INPUT_MAX_DIMENSION_RATIO, QUICK_INPUT_MAX_WIDTH, QUICK_INPUT_MIN_WIDTH_RATIO } from './quickInputConstants.js';
+import { QuickInputResizeController } from './quickInputResize.js';
 
 const $ = dom.$;
 
@@ -52,6 +54,8 @@ const QUICK_INPUT_MOTION_ANCESTOR_CLASSES = ['modern-ui', 'monaco-enable-motion'
 type QuickInputViewState = {
 	readonly top?: number;
 	readonly left?: number;
+	readonly width?: number;
+	readonly height?: number;
 };
 
 type QuickInputOverlayLayoutCorrection = {
@@ -64,8 +68,6 @@ type QuickInputOverlayLayoutCorrection = {
 };
 
 export class QuickInputController extends Disposable {
-	private static readonly MAX_WIDTH = 600; // Max total width of quick input widget
-
 	private idPrefix: string;
 	private ui: QuickInputUI | undefined;
 	private dimension?: dom.IDimension;
@@ -95,6 +97,7 @@ export class QuickInputController extends Disposable {
 
 	private viewState: QuickInputViewState | undefined;
 	private dndController: QuickInputDragAndDropController | undefined;
+	private resizeController: QuickInputResizeController | undefined;
 	private readonly closeAnimation = this._register(new MutableDisposable<IDisposable>());
 
 	private readonly _alignment = observableValue<QuickInputAlignment>(this, 'top');
@@ -291,6 +294,7 @@ export class QuickInputController extends Disposable {
 				}
 			}, 0);
 		}));
+		this._register(list.onDidChangeContentHeight(() => this.updateLayout()));
 
 		// Tree
 		const tree = this._register(this.instantiationService.createInstance(
@@ -394,6 +398,8 @@ export class QuickInputController extends Disposable {
 			this.viewState
 		));
 
+		this.resizeController = this._register(new QuickInputResizeController(container));
+
 		// DnD update layout
 		this._register(autorun(reader => {
 			const dndViewState = this.dndController?.dndViewState.read(reader);
@@ -401,21 +407,40 @@ export class QuickInputController extends Disposable {
 				return;
 			}
 
-			if (dndViewState.top !== undefined && dndViewState.left !== undefined) {
+			if (dndViewState.reset) {
+				this.viewState = undefined;
+			} else if (dndViewState.top !== undefined && dndViewState.left !== undefined) {
 				this.viewState = {
 					...this.viewState,
 					top: dndViewState.top,
 					left: dndViewState.left
 				};
-			} else {
-				// Reset position/size
-				this.viewState = undefined;
 			}
 
 			this.updateLayout();
 
-			// Save position
 			if (dndViewState.done) {
+				this.saveViewState(this.viewState);
+			}
+		}));
+
+		// Resize update layout
+		this._register(autorun(reader => {
+			const resizeState = this.resizeController?.resizeState.read(reader);
+			if (!resizeState) {
+				return;
+			}
+
+			if (resizeState.width !== undefined || resizeState.height !== undefined) {
+				this.viewState = {
+					...this.viewState,
+					...(resizeState.width !== undefined ? { width: resizeState.width } : undefined),
+					...(resizeState.height !== undefined ? { height: resizeState.height } : undefined)
+				};
+				this.updateLayout();
+			}
+
+			if (resizeState.done) {
 				this.saveViewState(this.viewState);
 			}
 		}));
@@ -687,6 +712,27 @@ export class QuickInputController extends Disposable {
 		this.dndController?.setAlignment(alignment);
 	}
 
+	/** Resizes the visible unanchored quick input by the given pixel dimensions. */
+	resize(widthChange: number, heightChange: number): void {
+		if (!this.isVisible() || this.controller?.anchor) {
+			return;
+		}
+		this.resizeController?.resize(widthChange, heightChange);
+	}
+
+	/** Resets the visible unanchored quick input dimensions while preserving its position. */
+	resetSize(): void {
+		if (!this.isVisible() || this.controller?.anchor) {
+			return;
+		}
+
+		const top = this.viewState?.top;
+		const left = this.viewState?.left;
+		this.viewState = top !== undefined && left !== undefined ? { top, left } : undefined;
+		this.updateLayout();
+		this.saveViewState(this.viewState);
+	}
+
 	createQuickWidget(): IQuickWidget {
 		const ui = this.getUI(true);
 		return new QuickWidget(ui);
@@ -754,6 +800,7 @@ export class QuickInputController extends Disposable {
 		ui.container.style.display = '';
 		this.updateLayout();
 		this.dndController?.setEnabled(!controller.anchor);
+		this.resizeController?.setEnabled(!controller.anchor);
 		this.dndController?.layoutContainer();
 		if (controller.anchor) {
 			// Anchored quick inputs are positioned near a specific element, not
@@ -942,10 +989,14 @@ export class QuickInputController extends Disposable {
 	private updateLayout() {
 		if (this.ui && this.isVisible()) {
 			const style = this.ui.container.style;
-			let width = Math.min(this.dimension!.width * 0.62 /* golden cut */, QuickInputController.MAX_WIDTH);
+			const defaultWidth = Math.min(this.dimension!.width * 0.62 /* golden cut */, QUICK_INPUT_MAX_WIDTH);
+			const minWidth = Math.min(defaultWidth * QUICK_INPUT_MIN_WIDTH_RATIO, this.dimension!.width * QUICK_INPUT_MAX_DIMENSION_RATIO);
+			const maxWidth = this.dimension!.width * QUICK_INPUT_MAX_DIMENSION_RATIO;
+			let width = Math.max(minWidth, Math.min(maxWidth, this.viewState?.width ?? defaultWidth));
 			style.width = width + 'px';
 
-			let listHeight = this.dimension && this.dimension.height * 0.4;
+			let listHeight = this.dimension!.height * QUICK_INPUT_DEFAULT_HEIGHT_RATIO;
+			let maxListHeight = 0;
 			let overlayAnchor: IRect | undefined;
 
 			// Position
@@ -959,7 +1010,7 @@ export class QuickInputController extends Disposable {
 				let anchor = getAnchorRect(target);
 				let preferredAnchorPosition = AnchorPosition.ABOVE;
 				let listHeightRatio = 0.2;
-				let maxListHeight = 200;
+				let anchorMaxListHeight = 200;
 
 				if (this.controller.anchorPosition === 'overlay') {
 					overlayAnchor = anchor;
@@ -967,13 +1018,13 @@ export class QuickInputController extends Disposable {
 					width = anchor.width;
 					listHeightRatio = 0.4;
 					anchor = { ...anchor, height: 0 };
-					maxListHeight = Math.min(400, container.bottom - anchor.top - verticalPadding);
+					anchorMaxListHeight = Math.min(400, container.bottom - anchor.top - verticalPadding);
 					preferredAnchorPosition = AnchorPosition.BELOW;
 				} else {
 					width = 380;
 				}
 
-				listHeight = this.dimension ? Math.min(this.dimension.height * listHeightRatio, maxListHeight) : maxListHeight;
+				listHeight = this.dimension ? Math.min(this.dimension.height * listHeightRatio, anchorMaxListHeight) : anchorMaxListHeight;
 
 				// Beware:
 				// We need to add some extra pixels to the height to account for the input and padding.
@@ -1000,10 +1051,26 @@ export class QuickInputController extends Disposable {
 				style.height = '';
 			} else {
 				style.top = `${this.viewState?.top !== undefined ? Math.round(this.dimension!.height * this.viewState.top) : this.titleBarOffset}px`;
-				style.left = `${Math.round((this.dimension!.width * (this.viewState?.left ?? 0.5 /* center */)) - (width / 2))}px`;
+				const center = this.dimension!.width * (this.viewState?.left ?? 0.5);
+				style.left = `${Math.round(Math.max(0, Math.min(this.dimension!.width - width, center - (width / 2))))}px`;
 				style.right = '';
 				style.bottom = '';
 				style.height = '';
+
+				// First lay out at the requested height so that the non-list chrome
+				// can be measured without duplicating its CSS dimensions here.
+				this.ui.list.layout(listHeight);
+				this.ui.tree.layout(listHeight);
+				const contentHeight = this.ui.list.displayed
+					? this.ui.list.contentHeight
+					: this.ui.tree.displayed ? this.ui.tree.tree.contentHeight : 0;
+				const renderedListHeight = this.ui.list.displayed
+					? this.ui.list.height
+					: this.ui.tree.displayed ? this.ui.tree.tree.getHTMLElement().clientHeight : 0;
+				const chromeHeight = this.ui.container.clientHeight - renderedListHeight;
+				maxListHeight = Math.max(0, Math.min(contentHeight, this.dimension!.height * QUICK_INPUT_MAX_DIMENSION_RATIO - chromeHeight - QUICK_INPUT_LIST_SCROLL_INDICATOR_HEIGHT));
+				const minListHeight = Math.min(QUICK_INPUT_ITEM_HEIGHT, maxListHeight);
+				listHeight = Math.max(minListHeight, Math.min(maxListHeight, this.viewState?.height ?? listHeight));
 			}
 
 			if (overlayAnchor) {
@@ -1012,6 +1079,23 @@ export class QuickInputController extends Disposable {
 			this.ui.inputBox.layout();
 			this.ui.list.layout(listHeight);
 			this.ui.tree.layout(listHeight);
+
+			if (!this.controller?.anchor) {
+				// A restored position can become invalid after the window or the
+				// persisted size changes. Keep the complete widget reachable.
+				style.left = `${Math.max(0, Math.min(parseFloat(style.left), this.dimension!.width - this.ui.container.clientWidth))}px`;
+				style.top = `${Math.max(0, Math.min(parseFloat(style.top), this.dimension!.height - this.ui.container.clientHeight))}px`;
+			}
+
+			this.resizeController?.layout({
+				width,
+				height: listHeight,
+				requestedHeight: this.viewState?.height ?? (this.dimension!.height * QUICK_INPUT_DEFAULT_HEIGHT_RATIO),
+				minWidth,
+				maxWidth,
+				minHeight: Math.min(QUICK_INPUT_ITEM_HEIGHT, maxListHeight),
+				maxHeight: maxListHeight
+			});
 		}
 	}
 
@@ -1107,8 +1191,24 @@ export class QuickInputController extends Disposable {
 	private loadViewState(): QuickInputViewState | undefined {
 		try {
 			const data = JSON.parse(this.storageService.get(VIEWSTATE_STORAGE_KEY, StorageScope.APPLICATION, '{}'));
-			if (data.top !== undefined || data.left !== undefined) {
-				return data;
+			const viewState: {
+				top?: number;
+				left?: number;
+				width?: number;
+				height?: number;
+			} = {};
+			if (Number.isFinite(data.top) && Number.isFinite(data.left)) {
+				viewState.top = data.top;
+				viewState.left = data.left;
+			}
+			if (Number.isFinite(data.width) && data.width > 0) {
+				viewState.width = data.width;
+			}
+			if (Number.isFinite(data.height) && data.height > 0) {
+				viewState.height = data.height;
+			}
+			if (Object.keys(viewState).length) {
+				return viewState;
 			}
 		} catch { }
 
@@ -1132,7 +1232,7 @@ export class QuickInputController extends Disposable {
 export interface IQuickInputControllerHost extends ILayoutService { }
 
 class QuickInputDragAndDropController extends Disposable {
-	readonly dndViewState = observableValue<{ top?: number; left?: number; done: boolean } | undefined>(this, undefined);
+	readonly dndViewState = observableValue<{ top?: number; left?: number; done: boolean; reset?: boolean } | undefined>(this, undefined);
 
 	private _enabled = true;
 
@@ -1165,7 +1265,9 @@ class QuickInputDragAndDropController extends Disposable {
 		this._controlsOnRight = customWindowControls && (platform === Platform.Windows || platform === Platform.Linux);
 		this._registerLayoutListener();
 		this.registerMouseListeners();
-		this.dndViewState.set({ ...initialViewState, done: true }, undefined);
+		if (initialViewState?.top !== undefined && initialViewState.left !== undefined) {
+			this.dndViewState.set({ top: initialViewState.top, left: initialViewState.left, done: true }, undefined);
+		}
 		// Initialize alignment from restored state. The exact snap alignment will
 		// be refined in layoutContainer() once pixel dimensions are available.
 		if (initialViewState?.top !== undefined && initialViewState?.left !== undefined) {
@@ -1248,7 +1350,7 @@ class QuickInputDragAndDropController extends Disposable {
 				return;
 			}
 
-			this.dndViewState.set({ top: undefined, left: undefined, done: true }, undefined);
+			this.dndViewState.set({ top: undefined, left: undefined, done: true, reset: true }, undefined);
 			this._setAlignmentState('top');
 		}));
 
@@ -1260,6 +1362,9 @@ class QuickInputDragAndDropController extends Disposable {
 
 			const activeWindow = dom.getWindow(this._layoutService.activeContainer);
 			const originEvent = new StandardMouseEvent(activeWindow, e);
+			if (originEvent.detail === 2) {
+				return;
+			}
 
 			// Ignore event if the target is not the drag area
 			const area = this._quickInputDragAreas.find(({ node, includeChildren }) => includeChildren ? dom.isAncestor(originEvent.target, node) : originEvent.target === node);
