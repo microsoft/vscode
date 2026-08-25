@@ -1086,7 +1086,7 @@ suite('ChatQuestionCarouselPart', () => {
 				questionExpandable: question.hasAttribute('aria-expanded'),
 				answer: answerButton.textContent,
 				answerExpanded: answerButton.getAttribute('aria-expanded'),
-				answerIcon: answerButton.querySelector('.chat-question-summary-answer-icon')?.classList.contains('codicon-comment'),
+				answerIcon: answerButton.querySelector('.chat-question-summary-answer-icon')?.classList.contains('codicon-comment-compact'),
 				hasChevron: !!answerButton.querySelector('.chat-collapsible-hover-chevron'),
 				optionsTitle: widget.domNode.querySelector('.chat-question-summary-options-title')?.textContent,
 				options: Array.from(widget.domNode.querySelectorAll('.chat-question-summary-option')).map(option => ({

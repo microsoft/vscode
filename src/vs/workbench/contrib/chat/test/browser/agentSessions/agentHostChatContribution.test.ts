@@ -26,17 +26,17 @@ import { ILogService, NullLogService } from '../../../../../../platform/log/comm
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IAgentCreateSessionConfig, IAgentHostService, IAgentSessionMetadata, AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
 import type { ChatInputRequestWithPlanReview } from '../../../../../../platform/agentHost/common/agentHostPlanReview.js';
-import { createAgentHostResourceUriMapper, identityAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { createAgentHostResourceUriMapper, identityAgentHostResourceUriMapper, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { AgentFeedbackAttachmentDisplayKind, AgentFeedbackAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAttachments.js';
 import { VSCODE_EPHEMERAL_SESSION_META_KEY } from '../../../../../../platform/agentHost/common/meta/agentEphemeralSessionMeta.js';
 import { getElementAttachmentCorrelationId, toElementAttachmentMeta } from '../../../../../../platform/agentHost/common/meta/agentElementAttachments.js';
 import { BrowserViewAttachmentDisplayKind, BrowserViewAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/browserViewAttachments.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, toAgentSystemNotificationMeta } from '../../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
 import { ActionType, AuthRequiredReason, isSessionAction, isChatAction, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type ChatAction as AgentHostChatAction, type TerminalAction, type INotification, type IToolCallConfirmedAction, type ITurnStartedAction, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import { ProtocolError, type IStateSnapshot } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
+import { AHP_NOT_FOUND, ProtocolError, type IStateSnapshot } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { ChatInteractivity, ConfirmationOptionKind, CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, type AgentCustomization, type ClientPluginCustomization, type ProtectedResourceMetadata, type SessionActiveClient, type ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ChatOriginKind, SessionLifecycle, SessionStatus, TurnState, ToolCallStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, createSessionState, createChatState, createDefaultChatSummary, buildChatUri, buildDefaultChatUri, parseDefaultChatUri, isAhpChatChannel, createActiveTurn, isAhpRootChannel, PolicyState, ResponsePartKind, ROOT_STATE_URI, StateComponents, buildSubagentChatUri, ToolResultContentType, MessageAttachmentKind, MessageKind, PendingMessageKind, withSessionMultiRootMetadata, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_EHCLI_ADOPTED_KEY, type SessionState, type SessionSummary, type ChatState, type ISessionWithDefaultChat, RootState, type ToolCallState, type AgentInfo, type MessageAttachment, type MessageChatAttachment } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { CompletionItemKind as AhpCompletionItemKind, type CompletionsParams, type CompletionsResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
+import { CompletionItemKind as AhpCompletionItemKind, type CompletionsParams, type CompletionsResult, type InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { sessionReducer, chatReducer } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
@@ -164,7 +164,17 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		this._authenticationPending.set(pending, undefined);
 	}
 
-	override readonly initializeResult = constObservable(undefined);
+	private readonly _initializeResult = observableValue<InitializeResult | undefined>('initializeResult', undefined);
+	override readonly initializeResult: IObservable<InitializeResult | undefined> = this._initializeResult;
+
+	/** Declares what the host reported at `initialize`, for version- and scheme-gated behaviour. */
+	setInitializeResult(result: Partial<InitializeResult>): void {
+		this._initializeResult.set({ ...this._initializeResult.get(), ...result } as InitializeResult, undefined);
+	}
+
+	setHostProtocolVersion(protocolVersion: string): void {
+		this.setInitializeResult({ protocolVersion });
+	}
 
 	// Track live subscriptions so fireAction can route to them. A subscription
 	// may hold a SessionState (for session channels) or a ChatState (for the
@@ -177,6 +187,9 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	public createSessionCalls: IAgentCreateSessionConfig[] = [];
 	public disposedSessions: URI[] = [];
 	public failNextSubscriptionFor = new Set<string>();
+
+	/** Error to fail a subscription with, when the default generic error is not what is under test. */
+	public failNextSubscriptionError = new Map<string, Error>();
 	public agents = [{ provider: 'copilot' as const, displayName: 'Agent Host - Copilot', description: 'test', requiresAuth: true }];
 
 	// ---- Pending→error subscription support (repro for #5242) --------------
@@ -358,7 +371,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		const onDidApply = new Emitter<ActionEnvelope>();
 
 		if (this.failNextSubscriptionFor.delete(resourceStr)) {
-			const error = new Error(`Session not found on backend: ${resourceStr}`);
+			const error = this.failNextSubscriptionError.get(resourceStr) ?? new Error(`Session not found on backend: ${resourceStr}`);
 			return {
 				object: {
 					get value() { return error; },
@@ -791,7 +804,7 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 		},
 		onDidChangeWorkspaceFolders: Event.None
 	});
-	const trustController: { result: boolean | undefined; workspaceTrustCalls: number; resourcesTrustCalls: number; resourcesTrustUris: URI[]; trustedUris: Set<string> } = { result: true, workspaceTrustCalls: 0, resourcesTrustCalls: 0, resourcesTrustUris: [], trustedUris: new Set<string>() };
+	const trustController: { result: boolean | undefined; workspaceTrustCalls: number; resourcesTrustCalls: number; resourcesTrustUris: URI[]; trustedUris: Set<string>; setUrisTrustCalls: string[][] } = { result: true, workspaceTrustCalls: 0, resourcesTrustCalls: 0, resourcesTrustUris: [], trustedUris: new Set<string>(), setUrisTrustCalls: [] };
 	instantiationService.stub(IWorkspaceTrustRequestService, new class extends mock<IWorkspaceTrustRequestService>() {
 		override async requestWorkspaceTrust(): Promise<boolean | undefined> {
 			trustController.workspaceTrustCalls++;
@@ -806,6 +819,14 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 	instantiationService.stub(IWorkspaceTrustManagementService, new class extends mock<IWorkspaceTrustManagementService>() {
 		override async getUriTrustInfo(uri: URI) {
 			return { uri, trusted: trustController.trustedUris.has(uri.toString()) };
+		}
+		override async setUrisTrust(uris: URI[], trusted: boolean) {
+			trustController.setUrisTrustCalls.push(uris.map(uri => uri.toString()));
+			if (trusted) {
+				for (const uri of uris) {
+					trustController.trustedUris.add(uri.toString());
+				}
+			}
 		}
 	});
 	instantiationService.stub(IChatEditingService, {
@@ -4350,6 +4371,278 @@ suite('AgentHostChatContribution', () => {
 				workspaceTrustCalls: 0,
 			});
 		});
+
+		test('does not prompt for trust for an existing workspace-less quick chat', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService, trustController } = createContribution(disposables);
+			// Decline any prompt: a correct skip proceeds without ever prompting; a
+			// regression that gated the scratch dir would prompt and abort.
+			trustController.result = false;
+
+			// An existing workspace-less quick chat: its persisted working directory
+			// is the internal scratch dir and it carries the workspace-less marker.
+			const scratchDir = URI.file('/home/user/.copilot/chats/quick-1');
+			const backendSession = AgentSession.uri('copilot', 'quick-1');
+			agentHostService.sessionStates.set(backendSession.toString(), {
+				...createSessionState({
+					resource: backendSession.toString(),
+					provider: 'copilot',
+					title: 'Quick Chat',
+					status: SessionStatus.Idle,
+					createdAt: new Date().toISOString(),
+					modifiedAt: new Date().toISOString(),
+					workingDirectories: [scratchDir.toString()],
+					_meta: { workspaceless: true },
+				}),
+				lifecycle: SessionLifecycle.Ready,
+				activeClients: [],
+			});
+			agentHostService.addSession({ session: backendSession, startTime: 1000, modifiedTime: 2000, summary: 'Quick Chat', workingDirectories: [scratchDir] });
+
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/quick-1' });
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, { message: 'Hi', sessionResource });
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+			await turnPromise;
+
+			// The scratch dir is an internal implementation detail, not a user
+			// workspace: no trust prompt of any kind, and the turn still runs.
+			assert.deepStrictEqual({
+				resourcesTrustCalls: trustController.resourcesTrustCalls,
+				workspaceTrustCalls: trustController.workspaceTrustCalls,
+				turnStarted: turnId !== undefined,
+			}, {
+				resourcesTrustCalls: 0,
+				workspaceTrustCalls: 0,
+				turnStarted: true,
+			});
+		}));
+
+		test('inherits worktree trust from the trusted base repo without prompting', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService, trustController } = createContribution(disposables);
+			const repoRoot = URI.file('/repo');
+			const worktree = URI.file('/repo.worktrees/feature');
+			// The user trusts the base repo but not the worktree itself.
+			trustController.trustedUris.add(repoRoot.toString());
+
+			const backendSession = AgentSession.uri('copilot', 'wt-trusted');
+			agentHostService.sessionStates.set(backendSession.toString(), {
+				...createSessionState({
+					resource: backendSession.toString(),
+					provider: 'copilot',
+					title: 'Worktree',
+					status: SessionStatus.Idle,
+					createdAt: new Date().toISOString(),
+					modifiedAt: new Date().toISOString(),
+					workingDirectories: [worktree.toString()],
+					project: { uri: repoRoot.toString(), displayName: 'repo' },
+				}),
+				lifecycle: SessionLifecycle.Ready,
+				activeClients: [],
+				config: { schema: { type: 'object', properties: {} }, values: { isolation: 'worktree' } },
+			});
+			agentHostService.addSession({ session: backendSession, startTime: 1000, modifiedTime: 2000, summary: 'Worktree', workingDirectories: [worktree] });
+
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/wt-trusted' });
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, { message: 'Hi', sessionResource });
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+			await turnPromise;
+
+			// Worktree trust is inherited (granted) from the trusted base repo, so a
+			// follow-up turn's gate never prompts.
+			assert.deepStrictEqual({
+				prompts: trustController.resourcesTrustCalls + trustController.workspaceTrustCalls,
+				grantedWorktree: trustController.setUrisTrustCalls,
+				turnStarted: turnId !== undefined,
+			}, {
+				prompts: 0,
+				grantedWorktree: [[worktree.toString()]],
+				turnStarted: true,
+			});
+		}));
+
+		test('prompts for a worktree when the base repo is untrusted', async () => {
+			const { sessionHandler, agentHostService, chatAgentService, trustController } = createContribution(disposables);
+			trustController.result = false;
+			const repoRoot = URI.file('/repo-untrusted');
+			const worktree = URI.file('/repo-untrusted.worktrees/feature');
+
+			const backendSession = AgentSession.uri('copilot', 'wt-untrusted');
+			agentHostService.sessionStates.set(backendSession.toString(), {
+				...createSessionState({
+					resource: backendSession.toString(),
+					provider: 'copilot',
+					title: 'Worktree',
+					status: SessionStatus.Idle,
+					createdAt: new Date().toISOString(),
+					modifiedAt: new Date().toISOString(),
+					workingDirectories: [worktree.toString()],
+					project: { uri: repoRoot.toString(), displayName: 'repo' },
+				}),
+				lifecycle: SessionLifecycle.Ready,
+				activeClients: [],
+				config: { schema: { type: 'object', properties: {} }, values: { isolation: 'worktree' } },
+			});
+			agentHostService.addSession({ session: backendSession, startTime: 1000, modifiedTime: 2000, summary: 'Worktree', workingDirectories: [worktree] });
+
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/wt-untrusted' });
+			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => chatSession.dispose()));
+			const registered = chatAgentService.registeredAgents.get('agent-host-copilot')!;
+			const result = await registered.impl.invoke(
+				makeRequest({ message: 'Hello', sessionResource }),
+				() => { }, [], CancellationToken.None,
+			);
+
+			// No inheritance from an untrusted base repo: the worktree is prompted for
+			// (resource trust) and the declined send aborts without granting.
+			assert.deepStrictEqual({
+				result,
+				grantedWorktree: trustController.setUrisTrustCalls,
+				resourcesTrustUris: trustController.resourcesTrustUris.map(uri => uri.toString()),
+			}, {
+				result: {},
+				grantedWorktree: [],
+				resourcesTrustUris: [worktree.toString()],
+			});
+		});
+
+		test('does not inherit trust for a working directory outside the repo .worktrees sibling', async () => {
+			const { sessionHandler, agentHostService, chatAgentService, trustController } = createContribution(disposables);
+			trustController.result = false;
+			const repoRoot = URI.file('/repo');
+			const outside = URI.file('/elsewhere/checkout');
+			// The base repo is trusted, but the working directory is not a VS Code
+			// worktree (not under `<repo>.worktrees`), so trust must not be inherited.
+			trustController.trustedUris.add(repoRoot.toString());
+
+			const backendSession = AgentSession.uri('copilot', 'wt-outside');
+			agentHostService.sessionStates.set(backendSession.toString(), {
+				...createSessionState({
+					resource: backendSession.toString(),
+					provider: 'copilot',
+					title: 'Worktree',
+					status: SessionStatus.Idle,
+					createdAt: new Date().toISOString(),
+					modifiedAt: new Date().toISOString(),
+					workingDirectories: [outside.toString()],
+					project: { uri: repoRoot.toString(), displayName: 'repo' },
+				}),
+				lifecycle: SessionLifecycle.Ready,
+				activeClients: [],
+				config: { schema: { type: 'object', properties: {} }, values: { isolation: 'worktree' } },
+			});
+			agentHostService.addSession({ session: backendSession, startTime: 1000, modifiedTime: 2000, summary: 'Worktree', workingDirectories: [outside] });
+
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/wt-outside' });
+			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => chatSession.dispose()));
+			const registered = chatAgentService.registeredAgents.get('agent-host-copilot')!;
+			const result = await registered.impl.invoke(
+				makeRequest({ message: 'Hello', sessionResource }),
+				() => { }, [], CancellationToken.None,
+			);
+
+			assert.deepStrictEqual({
+				result,
+				grantedWorktree: trustController.setUrisTrustCalls,
+				resourcesTrustUris: trustController.resourcesTrustUris.map(uri => uri.toString()),
+			}, {
+				result: {},
+				grantedWorktree: [],
+				resourcesTrustUris: [outside.toString()],
+			});
+		});
+
+		test('does not inherit trust for the shared .worktrees container itself', async () => {
+			const { sessionHandler, agentHostService, chatAgentService, trustController } = createContribution(disposables);
+			trustController.result = false;
+			const repoRoot = URI.file('/repo');
+			// A malformed session whose working directory is exactly `<repo>.worktrees`
+			// (the shared container). Trusting it would cascade to every worktree
+			// underneath via workspace trust's descendant resolution, so the strict
+			// guard must exclude it — the container is prompted for, not granted.
+			const container = URI.file('/repo.worktrees');
+			trustController.trustedUris.add(repoRoot.toString());
+
+			const backendSession = AgentSession.uri('copilot', 'wt-container');
+			agentHostService.sessionStates.set(backendSession.toString(), {
+				...createSessionState({
+					resource: backendSession.toString(),
+					provider: 'copilot',
+					title: 'Worktree',
+					status: SessionStatus.Idle,
+					createdAt: new Date().toISOString(),
+					modifiedAt: new Date().toISOString(),
+					workingDirectories: [container.toString()],
+					project: { uri: repoRoot.toString(), displayName: 'repo' },
+				}),
+				lifecycle: SessionLifecycle.Ready,
+				activeClients: [],
+				config: { schema: { type: 'object', properties: {} }, values: { isolation: 'worktree' } },
+			});
+			agentHostService.addSession({ session: backendSession, startTime: 1000, modifiedTime: 2000, summary: 'Worktree', workingDirectories: [container] });
+
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/wt-container' });
+			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => chatSession.dispose()));
+			const registered = chatAgentService.registeredAgents.get('agent-host-copilot')!;
+			const result = await registered.impl.invoke(
+				makeRequest({ message: 'Hello', sessionResource }),
+				() => { }, [], CancellationToken.None,
+			);
+
+			assert.deepStrictEqual({
+				result,
+				grantedWorktree: trustController.setUrisTrustCalls,
+				resourcesTrustUris: trustController.resourcesTrustUris.map(uri => uri.toString()),
+			}, {
+				result: {},
+				grantedWorktree: [],
+				resourcesTrustUris: [container.toString()],
+			});
+		});
+
+		test('does not prompt or grant during the worktree-pending window', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService, trustController } = createContribution(disposables);
+			const repoRoot = URI.file('/repo');
+			// Worktree isolation is configured but the worktree has not materialized
+			// yet: the working directory is still the trusted base repo.
+			trustController.trustedUris.add(repoRoot.toString());
+
+			const backendSession = AgentSession.uri('copilot', 'wt-pending');
+			agentHostService.sessionStates.set(backendSession.toString(), {
+				...createSessionState({
+					resource: backendSession.toString(),
+					provider: 'copilot',
+					title: 'Worktree',
+					status: SessionStatus.Idle,
+					createdAt: new Date().toISOString(),
+					modifiedAt: new Date().toISOString(),
+					workingDirectories: [repoRoot.toString()],
+					project: { uri: repoRoot.toString(), displayName: 'repo' },
+				}),
+				lifecycle: SessionLifecycle.Ready,
+				activeClients: [],
+				config: { schema: { type: 'object', properties: {} }, values: { isolation: 'worktree' } },
+			});
+			agentHostService.addSession({ session: backendSession, startTime: 1000, modifiedTime: 2000, summary: 'Worktree', workingDirectories: [repoRoot] });
+
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/wt-pending' });
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, { message: 'Hi', sessionResource });
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+			await turnPromise;
+
+			// The base repo is trusted so no prompt, and nothing is granted because
+			// there is no worktree under `<repo>.worktrees` yet.
+			assert.deepStrictEqual({
+				prompts: trustController.resourcesTrustCalls + trustController.workspaceTrustCalls,
+				grantedWorktree: trustController.setUrisTrustCalls,
+				turnStarted: turnId !== undefined,
+			}, {
+				prompts: 0,
+				grantedWorktree: [],
+				turnStarted: true,
+			});
+		}));
 	});
 
 	// ---- "Preparing session…" migration status --------------------------
@@ -7301,7 +7594,7 @@ suite('AgentHostChatContribution', () => {
 			}
 		});
 
-		test('restores subagent pills from the chat catalog when tool metadata was lost', async () => {
+		test('restores failed subagent calls from the chat catalog when tool metadata was lost', async () => {
 			const byok = createByokLanguageModelTestData();
 			const { sessionHandler, agentHostService } = createContribution(disposables, byok);
 			const sessionUri = AgentSession.uri('copilot', 'subagent-history');
@@ -7333,7 +7626,8 @@ suite('AgentHostChatContribution', () => {
 							displayName: 'Delegating task',
 							invocationMessage: 'Delegating task',
 							confirmed: ToolCallConfirmationReason.NotNeeded,
-							success: true,
+							success: false,
+							error: { message: 'Subagent failed after producing a child chat' },
 							content: [],
 						},
 					}],
@@ -7435,6 +7729,45 @@ suite('AgentHostChatContribution', () => {
 				isActive: false,
 				activeToolState: IChatToolInvocation.StateKind.Completed,
 			});
+		});
+
+		test('does not subscribe to child chats for failed historical subagent calls', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const sessionUri = AgentSession.uri('copilot', 'failed-subagent-history');
+			const defaultChatUri = buildDefaultChatUri(sessionUri.toString());
+			const childChatUri = buildSubagentChatUri(sessionUri.toString(), 'tc-failed-subagent');
+			const summary = { resource: sessionUri.toString(), provider: 'copilot', title: 'Test', status: SessionStatus.Idle, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString() };
+			agentHostService.sessionStates.set(sessionUri.toString(), {
+				...createSessionState(summary),
+				lifecycle: SessionLifecycle.Ready,
+				defaultChat: defaultChatUri,
+				turns: [{
+					id: 'turn-1',
+					message: { text: 'delegate work', origin: { kind: MessageKind.User } },
+					state: TurnState.Complete,
+					responseParts: [{
+						kind: ResponsePartKind.ToolCall,
+						toolCall: {
+							status: ToolCallStatus.Completed,
+							toolCallId: 'tc-failed-subagent',
+							toolName: 'task',
+							displayName: 'Delegate Task',
+							invocationMessage: 'Delegating task',
+							confirmed: ToolCallConfirmationReason.NotNeeded,
+							success: false,
+							pastTenseMessage: 'Delegation failed',
+							error: { message: 'Maximum sub-agent depth reached' },
+							content: [],
+						},
+					}],
+					usage: undefined,
+				}],
+			} as SessionState);
+
+			const chatSession = await sessionHandler.provideChatSessionContent(URI.from({ scheme: 'agent-host-copilot', path: '/failed-subagent-history' }), CancellationToken.None);
+			disposables.add(toDisposable(() => chatSession.dispose()));
+
+			assert.strictEqual(agentHostService.hasLiveSubscription(childChatUri), false);
 		});
 
 		test('preserves reconstructed task descriptions over generic migrated subagent titles', async () => {
@@ -11313,6 +11646,207 @@ suite('AgentHostChatContribution', () => {
 			assert.ok(Array.isArray(createCall!.activeClient!.tools), 'activeClient.tools should be a defined array');
 			assert.strictEqual(createCall!.activeClient!.customizations?.length, 1);
 			assert.strictEqual(createCall!.activeClient!.customizations?.[0].uri, 'file:///plugin-a');
+		});
+
+		test('drops customizations for a host older than list-shaped enablement', async () => {
+			// A 0.7.0 host rejects the whole createSession with `missing field 'enabled'`.
+			const { instantiationService, agentHostService, chatAgentService, seedActiveClient } = createTestServices(disposables);
+			agentHostService.setHostProtocolVersion('0.7.0');
+
+			const customizations = observableValue<ClientPluginCustomization[]>('customizations', [
+				{ type: CustomizationType.Plugin, id: 'file:///plugin-a', uri: 'file:///plugin-a', name: 'Plugin A' },
+			]);
+			disposables.add(seedActiveClient('agent-host-copilot', { customizations }));
+
+			const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
+				provider: 'copilot' as const,
+				agentId: 'agent-host-copilot',
+				sessionType: 'agent-host-copilot',
+				fullName: 'Agent Host - Copilot',
+				description: 'test',
+				connection: agentHostService,
+				connectionAuthority: 'local',
+			}));
+
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+			await turnPromise;
+
+			const createCall = agentHostService.createSessionCalls.at(-1);
+			assert.deepStrictEqual(createCall?.activeClient?.customizations, []);
+		});
+
+		test('drops customizations from a reconciliation republish for an older host', async () => {
+			// Gating only createSession leaves this path sending the shape 0.7.0 rejects.
+			const { instantiationService, agentHostService, chatAgentService, seedActiveClient } = createTestServices(disposables);
+			agentHostService.setHostProtocolVersion('0.7.0');
+
+			const customizations = observableValue<readonly ClientPluginCustomization[]>('customizations', [
+				{ type: CustomizationType.Plugin, id: 'file:///plugin-a', uri: 'file:///plugin-a', name: 'Plugin A' },
+			]);
+			disposables.add(seedActiveClient('agent-host-copilot', { customizations }));
+
+			const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
+				provider: 'copilot' as const,
+				agentId: 'agent-host-copilot',
+				sessionType: 'agent-host-copilot',
+				fullName: 'Agent Host - Copilot',
+				description: 'test',
+				connection: agentHostService,
+				connectionAuthority: 'local',
+			}));
+
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+			await turnPromise;
+			agentHostService.dispatchedActions.length = 0;
+
+			customizations.set([
+				{ type: CustomizationType.Plugin, id: 'file:///plugin-b', uri: 'file:///plugin-b', name: 'Plugin B' },
+			], undefined);
+			await timeout(10);
+
+			assert.deepStrictEqual(
+				agentHostService.dispatchedActions
+					.filter(action => action.action.type === ActionType.SessionActiveClientSet)
+					.map(action => (action.action as { activeClient: SessionActiveClient }).activeClient.customizations),
+				[[]],
+			);
+		});
+
+		test('keeps customizations for a host that speaks list-shaped enablement', async () => {
+			const { instantiationService, agentHostService, chatAgentService, seedActiveClient } = createTestServices(disposables);
+			agentHostService.setHostProtocolVersion('0.8.0');
+
+			const customizations = observableValue<ClientPluginCustomization[]>('customizations', [
+				{ type: CustomizationType.Plugin, id: 'file:///plugin-a', uri: 'file:///plugin-a', name: 'Plugin A' },
+			]);
+			disposables.add(seedActiveClient('agent-host-copilot', { customizations }));
+
+			const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
+				provider: 'copilot' as const,
+				agentId: 'agent-host-copilot',
+				sessionType: 'agent-host-copilot',
+				fullName: 'Agent Host - Copilot',
+				description: 'test',
+				connection: agentHostService,
+				connectionAuthority: 'local',
+			}));
+
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+			await turnPromise;
+
+			const createCall = agentHostService.createSessionCalls.at(-1);
+			assert.strictEqual(createCall?.activeClient?.customizations?.length, 1);
+		});
+
+		test('does not render a load failure for a session the host has not created yet', async () => {
+			// A seeded id reports NotFound until `createSession` brings the session into being.
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/seeded-not-yet-created' });
+			const backendSession = AgentSession.uri('copilot', 'seeded-not-yet-created');
+			const { sessionHandler, agentHostService } = createContribution(disposables, {
+				provisionalServiceOverride: {
+					get: resource => resource.toString() === sessionResource.toString() ? backendSession : undefined,
+				},
+			});
+			agentHostService.failNextSubscriptionFor.add(backendSession.toString());
+			agentHostService.failNextSubscriptionError.set(backendSession.toString(), new ProtocolError(AHP_NOT_FOUND, `not found: ${backendSession.toString()}`));
+
+			const content = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+
+			assert.deepStrictEqual(content.history, []);
+		});
+
+		test('still renders a load failure when the session exists but cannot be opened', async () => {
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/existing-broken' });
+			const backendSession = AgentSession.uri('copilot', 'existing-broken');
+			const { sessionHandler, agentHostService } = createContribution(disposables, {
+				provisionalServiceOverride: {
+					get: resource => resource.toString() === sessionResource.toString() ? backendSession : undefined,
+				},
+			});
+			agentHostService.failNextSubscriptionFor.add(backendSession.toString());
+			agentHostService.failNextSubscriptionError.set(backendSession.toString(), new Error('worktree could not be recreated'));
+
+			const content = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+
+			assert.deepStrictEqual(content.history.map(item => item.type), ['request', 'response']);
+		});
+
+		test('drops a working directory the host cannot address, letting it choose its own', async () => {
+			// The workspace is the remote repo, but the agent runs against the local checkout.
+			const { instantiationService, agentHostService, chatAgentService } = createTestServices(disposables,
+				{ resolve: () => URI.parse('https://github.com/microsoft/vscode') });
+			agentHostService.setInitializeResult({ defaultDirectory: 'file:///workspaces/vscode' });
+
+			const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
+				provider: 'copilot' as const,
+				agentId: 'agent-host-copilot',
+				sessionType: 'agent-host-copilot',
+				fullName: 'Agent Host - Copilot',
+				description: 'test',
+				connection: agentHostService,
+				connectionAuthority: 'local',
+			}));
+
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+			await turnPromise;
+
+			assert.strictEqual(agentHostService.createSessionCalls.at(-1)?.workingDirectories, undefined);
+		});
+
+		test('keeps a remote working directory the host can address once unwrapped', async () => {
+			// createSession unwraps `vscode-agent-host:`, so judging the wrapper drops valid dirs.
+			const { instantiationService, agentHostService, chatAgentService } = createTestServices(disposables,
+				{ resolve: () => toAgentHostUri(URI.file('/workspaces/vscode'), 'remote-test') });
+			agentHostService.resourceUris = createAgentHostResourceUriMapper('remote-test');
+			agentHostService.setInitializeResult({ defaultDirectory: 'file:///workspaces/other' });
+
+			const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
+				provider: 'copilot' as const,
+				agentId: 'agent-host-copilot',
+				sessionType: 'agent-host-copilot',
+				fullName: 'Agent Host - Copilot',
+				description: 'test',
+				connection: agentHostService,
+				connectionAuthority: 'remote-test',
+			}));
+
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+			await turnPromise;
+
+			assert.deepStrictEqual(
+				agentHostService.createSessionCalls.at(-1)?.workingDirectories?.map(d => URI.revive(d).toString()),
+				[toAgentHostUri(URI.file('/workspaces/vscode'), 'remote-test').toString()],
+			);
+		});
+
+		test('keeps a working directory whose scheme the host addresses', async () => {
+			const { instantiationService, agentHostService, chatAgentService } = createTestServices(disposables,
+				{ resolve: () => URI.file('/workspaces/vscode') });
+			agentHostService.setInitializeResult({ defaultDirectory: 'file:///workspaces/other' });
+
+			const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
+				provider: 'copilot' as const,
+				agentId: 'agent-host-copilot',
+				sessionType: 'agent-host-copilot',
+				fullName: 'Agent Host - Copilot',
+				description: 'test',
+				connection: agentHostService,
+				connectionAuthority: 'local',
+			}));
+
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+			await turnPromise;
+
+			assert.deepStrictEqual(
+				agentHostService.createSessionCalls.at(-1)?.workingDirectories?.map(d => d.toString()),
+				[URI.file('/workspaces/vscode').toString()],
+			);
 		});
 
 		test('waits for initial scope resolution before creating a session', async () => {

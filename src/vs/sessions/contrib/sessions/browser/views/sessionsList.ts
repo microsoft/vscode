@@ -21,7 +21,6 @@ import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { IObservable, IReader, autorun, derived, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { Schemas } from '../../../../../base/common/network.js';
 import { fromNow } from '../../../../../base/common/date.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { localize } from '../../../../../nls.js';
@@ -87,7 +86,8 @@ import { DraggedSessionIdentifier, SessionsDataTransfers } from '../../../../bro
 import { IDragAndDropData } from '../../../../../base/browser/dnd.js';
 import { ElementsDragAndDropData, ListViewTargetSector } from '../../../../../base/browser/ui/list/listView.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { buildSessionHoverContent } from '../sessionHoverContent.js';
+import { getSessionSummaryHoverData } from '../sessionHoverContent.js';
+import { SessionSummaryHoverWidget } from '../../../../../workbench/contrib/chat/browser/agentSessions/sessionSummaryHover.js';
 import { SessionStatusIcon } from '../../../../browser/sessionStatusIcon.js';
 import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
@@ -398,19 +398,6 @@ export interface ISessionCIFixModel {
 	fixCI(session: ISession): void;
 }
 
-function createSessionHoverLink(target: string): string {
-	return URI.from({
-		scheme: Schemas.internal,
-		authority: 'session-hover',
-		query: encodeURIComponent(target),
-	}).toString();
-}
-
-function parseSessionHoverLink(link: string): string | undefined {
-	const uri = URI.parse(link);
-	return uri.scheme === Schemas.internal && uri.authority === 'session-hover' ? decodeURIComponent(uri.query) : undefined;
-}
-
 class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, ISessionItemTemplate> {
 	static readonly TEMPLATE_ID = 'session-item';
 	readonly templateId = SessionItemRenderer.TEMPLATE_ID;
@@ -452,7 +439,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 	) {
 	}
 
-	private getCreatorHoverLink(session: ISession): { readonly title: string; readonly href: string } | undefined {
+	private getCreatorHoverData(session: ISession): { readonly title: string; readonly onOpen: () => void } | undefined {
 		const creationReference = session.createdBySession?.get();
 		if (!creationReference) {
 			return undefined;
@@ -462,10 +449,8 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		if (!creator || !resolved) {
 			return undefined;
 		}
-		return {
-			title: creator.title.get(),
-			href: createSessionHoverLink(buildOpenSessionLinkUri(resolved.backendSession, creationReference.chat?.fragment, creationReference.turnId)),
-		};
+		const target = buildOpenSessionLinkUri(resolved.backendSession, creationReference.chat?.fragment, creationReference.turnId);
+		return { title: creator.title.get(), onOpen: () => this.openerService.open(target).catch(onUnexpectedError) };
 	}
 
 	renderTemplate(container: HTMLElement): ISessionItemTemplate {
@@ -584,15 +569,9 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		this.agentSessionsService.model.observeSession(element.resource);
 
 		if (this.options.showHover) {
-			// Rich hover on the row showing folder, branch, diff stats and provider.
+			// Rich hover on the row: the same widget session pills use in chat output.
 			template.elementDisposables.add(this.hoverService.setupDelayedHover(template.container, () => ({
-				content: buildSessionHoverContent(element, this.sessionsProvidersService, this.getCreatorHoverLink(element)),
-				linkHandler: href => {
-					const target = parseSessionHoverLink(href);
-					if (target) {
-						this.openerService.open(target).catch(onUnexpectedError);
-					}
-				},
+				content: new SessionSummaryHoverWidget(getSessionSummaryHoverData(element, this.sessionsProvidersService, this.getCreatorHoverData(element))).domNode,
 				appearance: { showPointer: true },
 				position: { hoverPosition: HoverPosition.RIGHT, forcePosition: true },
 				persistence: { hideOnHover: false },

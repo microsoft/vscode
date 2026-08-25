@@ -459,7 +459,7 @@ suite('ChatToolProgressSubPart', () => {
 			const shimmerText = part.domNode.querySelector<HTMLElement>('.chat-progress-shimmer-text');
 			return {
 				shimmer: !!part.domNode.querySelector('.shimmer-progress'),
-				spinner: !!part.domNode.querySelector('.codicon-loading'),
+				spinner: !!part.domNode.querySelector('.codicon-loading, .codicon-loading-compact'),
 				shimmerText: shimmerText?.textContent,
 				// A negative animation-delay keeps the sweep continuous across streaming rerenders.
 				shimmerPhaseSynced: (shimmerText?.style.animationDelay ?? '').endsWith('ms'),
@@ -547,7 +547,7 @@ suite('ChatToolProgressSubPart', () => {
 			new Set<string>()
 		));
 
-		assert.strictEqual(part.domNode.querySelector('.codicon-loading'), null);
+		assert.strictEqual(part.domNode.querySelector('.codicon-loading, .codicon-loading-compact'), null);
 	});
 
 	test('renders markdown file pills in regular tool messages', () => {

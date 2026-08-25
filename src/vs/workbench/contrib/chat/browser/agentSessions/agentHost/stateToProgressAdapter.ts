@@ -792,13 +792,15 @@ function mapAccountQuotaSnapshot(snapshot: AccountQuotaSnapshot): IQuotaSnapshot
 	}
 
 	const used = typeof snapshot.usedRequests === 'number' ? snapshot.usedRequests : undefined;
-	const resetAt = snapshot.resetDate ? Date.parse(snapshot.resetDate) : NaN;
+	// `IQuotaSnapshot.resetAt` is epoch *seconds* (matching CAPI's `quota_reset_at`), while the
+	// snapshot reports an ISO date string. Convert rather than passing milliseconds through.
+	const resetAtMs = snapshot.resetDate ? Date.parse(snapshot.resetDate) : NaN;
 	return {
 		percentRemaining: Math.min(100, Math.max(0, snapshot.remainingPercentage)),
 		unlimited,
 		entitlement: !unlimited && entitlement !== undefined && entitlement >= 0 ? entitlement : undefined,
 		quotaRemaining: !unlimited && entitlement !== undefined && used !== undefined ? Math.max(0, entitlement - used) : undefined,
-		resetAt: Number.isFinite(resetAt) ? resetAt : undefined,
+		resetAt: Number.isFinite(resetAtMs) ? Math.floor(resetAtMs / 1000) : undefined,
 	};
 }
 
@@ -966,7 +968,7 @@ export function messageToRequestOrigin(backendSession: URI, message: Message, pa
 	if (!delegation) {
 		return undefined;
 	}
-	if (hasKey(delegation, 'sourceSession')) {
+	if (hasKey(delegation, { sourceSession: true })) {
 		return {
 			kind: ChatRequestOriginKind.Delegation,
 			sourceSessionResource: URI.parse(buildOpenSessionLinkUri(

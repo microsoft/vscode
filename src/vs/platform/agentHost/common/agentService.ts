@@ -23,12 +23,12 @@ import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } f
 import type { ActionEnvelope, INotification, IRootConfigChangedAction, SessionAction, ChatAction, TerminalAction, ClientAnnotationsAction, ClientChangesetAction } from './state/sessionActions.js';
 import type { ContentEncoding, ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMkdirParams, ResourceMkdirResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWatchState, ResourceWriteParams, ResourceWriteResult, CreateResourceWatchParams, CreateResourceWatchResult, IStateSnapshot } from './state/sessionProtocol.js';
 import { ComponentToState, StateComponents, type RootState } from './state/sessionState.js';
-import { type AgentProvider, CLAUDE_AGENT_PROVIDER_ID, CODEX_AGENT_PROVIDER_ID, type AuthenticateParams, type AuthenticateResult, type IAgentCreateChatOptions, type IAgentCreateSessionConfig, type IAgentSessionMetadata, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IMcpNotification, type IAgentHostNetworkEndpoint, type IAgentHostManagedSettingsSnapshot } from './agent.js';
+import { type AgentProvider, CLAUDE_AGENT_PROVIDER_ID, CODEX_AGENT_PROVIDER_ID, type AuthenticateParams, type AuthenticateResult, type IAgentCreateChatRequestOptions, type IAgentCreateSessionConfig, type IAgentSessionMetadata, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IMcpNotification, type IAgentHostNetworkEndpoint, type IAgentHostManagedSettingsSnapshot } from './agent.js';
 
 // ---- Provider-model re-exports (compatibility) ------------------------------
 // New provider code imports these from agent.ts.
 export type {
-	IAgent, IAgentChats, IAgentChatContext, IAgentCreateChatOptions, IAgentCreateChatForkSource,
+	IAgent, IAgentChats, IAgentChatContext, IAgentCreateChatOptions, IAgentCreateChatRequestOptions, IAgentCreateChatForkSource,
 	IAgentCreateChatSideChatSelection, IAgentCreateChatSideChatSource, IAgentCreateChatResult,
 	IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentChatMetadata, IAgentSessionMetadata,
 	IAgentSessionProjectInfo, IAgentLegacyChat, IAgentChatAdoptionResult, IAgentSpawnedChatParent,
@@ -218,13 +218,11 @@ export const AgentHostClaudeAgentEnabledEnvVar = 'VSCODE_AGENT_HOST_CLAUDE_AGENT
  */
 export const AgentHostCodexAgentEnabledEnvVar = 'VSCODE_AGENT_HOST_CODEX_AGENT_ENABLED';
 
-/**
- * Overrides the grace period (in milliseconds) before an idle, fully
- * unsubscribed session is released from memory. Defaults to 30_000. Primarily a
- * test hook so real-SDK integration tests can force a prompt release without
- * waiting the full production grace; production does not set it.
- */
-export const AgentHostSessionReleaseGraceMsEnvVar = 'VSCODE_AGENT_HOST_SESSION_RELEASE_GRACE_MS';
+/** Overrides the soft cap on resident session roots. Primarily used by integration tests. */
+export const AgentHostSessionResidencyLimitEnvVar = 'VSCODE_AGENT_HOST_SESSION_RESIDENCY_LIMIT';
+
+/** Overrides the retry delay after a provider temporarily vetoes session release. Primarily used by integration tests. */
+export const AgentHostSessionReleaseRetryMsEnvVar = 'VSCODE_AGENT_HOST_SESSION_RELEASE_RETRY_MS';
 
 /**
  * Resolves the effective enable state for a Claude/Codex provider from the
@@ -774,7 +772,7 @@ export interface IAgentHostManagementService {
 	 * Local-only compatibility path for chat fields not yet represented by AHP
 	 * `createChat` (`title` and `model`).
 	 */
-	createChatWithExtensions(session: URI, chat: URI, options: IAgentCreateChatOptions): Promise<void>;
+	createChatWithExtensions(session: URI, chat: URI, options: IAgentCreateChatRequestOptions): Promise<void>;
 	shutdown(): Promise<void>;
 	getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo>;
 	getManagedSettingsDiagnostics(): Promise<readonly IAgentHostManagedSettingsDiagnostics[]>;
@@ -820,7 +818,7 @@ export interface IAgentService {
 	 * registers the chat in the session's catalog so subscribers observe a
 	 * `session/chatAdded` action. The `chat` URI is the client-chosen channel.
 	 */
-	createChat(session: URI, chat: URI, options?: IAgentCreateChatOptions): Promise<void>;
+	createChat(session: URI, chat: URI, options?: IAgentCreateChatRequestOptions): Promise<void>;
 
 	/** Dispose an additional chat created via {@link createChat}. */
 	disposeChat(session: URI, chat: URI): Promise<void>;
@@ -1160,7 +1158,7 @@ export interface IAgentConnection {
 	 * client-chosen chat URI (see {@link buildChatUri}). The host adds the
 	 * chat to the session's catalog and publishes `session/chatAdded`.
 	 */
-	createChat(session: URI, chat: URI, options?: IAgentCreateChatOptions): Promise<void>;
+	createChat(session: URI, chat: URI, options?: IAgentCreateChatRequestOptions): Promise<void>;
 	/** Dispose an additional chat created via {@link createChat}. */
 	disposeChat(chat: URI): Promise<void>;
 
