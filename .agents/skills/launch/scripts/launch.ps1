@@ -341,7 +341,9 @@ function Find-RootProperty([string]$masked, [string]$key) {
 	$expectValue = $false
 	# Full JSON number grammar, including exponents: a partial match (e.g. `1`
 	# out of `1e2`) would leave `truee2` behind.
-	$primitive = [regex]::new('^(true|false|null|"[^"\r\n]*"|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)')
+	# The string alternative must consume escapes, or a value such as `"a\"b"`
+	# would match only through `"a\"` and leave `trueb"` behind.
+	$primitive = [regex]::new('^(true|false|null|"(?:[^"\\\r\n]|\\.)*"|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)')
 
 	for ($i = 0; $i -lt $masked.Length; $i++) {
 		$c = $masked[$i]

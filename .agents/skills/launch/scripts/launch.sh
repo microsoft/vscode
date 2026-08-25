@@ -258,7 +258,9 @@ function findRootProperty(masked, key) {
 			// object or array value is skipped and the key is appended instead.
 			// Full JSON number grammar, including exponents: a partial match
 			// (e.g. `1` out of `1e2`) would leave `truee2` behind.
-			const m = /^(true|false|null|"[^"\n]*"|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)/.exec(masked.slice(i));
+			// The string alternative must consume escapes, or a value such as
+			// `"a\"b"` would match only through `"a\"` and leave `trueb"`.
+			const m = /^(true|false|null|"(?:[^"\\\n]|\\.)*"|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)/.exec(masked.slice(i));
 			if (m && pendingKey === key) {
 				found = { valueStart: i, valueLength: m[1].length };
 			}
