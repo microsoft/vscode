@@ -153,7 +153,7 @@ export class QueueDrainContribution extends Disposable implements IAgentHostChat
 		}
 
 		const state = this._stateManager.getSessionState(channel);
-		this._telemetryReporter.userMessageSent(agent.id, sender.clientId, sender.clientContext, channel, turnId, state, 'queued', message.attachments);
+		this._telemetryReporter.userMessageSent(agent.id, sender.clientId, sender.clientContext, channel, turnId, state, 'queued', message);
 		const { model, modelTelemetryKind, modelSelectionKind, permissionLevel, interactionMode } = getTurnTelemetryContext(agent, channel, createAgentChatContext(this._stateManager, sessionChannel, channel), state, message.model?.id);
 		this._turnTracker.turnStarted(agent, channel, turnId, model, modelTelemetryKind, modelSelectionKind, permissionLevel, interactionMode, sender.clientContext, sender.clientId);
 		host.sendTurnMessage({

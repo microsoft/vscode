@@ -13,7 +13,8 @@
 #
 # Usage:
 #   launch.sh [--agents] [--source-user-data-dir <path>] [--repo <vscode-repo-root>]
-#             [--clone-extensions] [--full] [--skip-prelaunch] [-- <extra code.sh args>]
+#             [--clone-extensions] [--full] [--skip-prelaunch]
+#             [--disable-workspace-trust] [-- <extra code.sh args>]
 #
 # Flags:
 #   --clone-extensions  Copy the source extensions/ into the new profile (~10s).
@@ -23,6 +24,9 @@
 #                       slim copy is missing something you need.
 #   --skip-prelaunch    Skip build/lib/preLaunch.ts after a successful prepared
 #                       launch while build outputs remain current.
+#   --disable-workspace-trust
+#                       Disable trust prompts for unattended automation. Only
+#                       use with content you trust.
 #
 # Defaults:
 #   --source-user-data-dir  $CODE_OSS_DEV_AUTHED_USER_DATA_DIR  (else ~/.vscode-oss-dev)
@@ -38,6 +42,7 @@ EXTRA_ARGS=()
 CLONE_EXTENSIONS=0
 FULL=0
 SKIP_PRELAUNCH=0
+DISABLE_WORKSPACE_TRUST=0
 
 while [[ $# -gt 0 ]]; do
 	case "$1" in
@@ -47,6 +52,7 @@ while [[ $# -gt 0 ]]; do
 		--clone-extensions|--copy-extensions) CLONE_EXTENSIONS=1; shift ;;
 		--full) FULL=1; shift ;;
 		--skip-prelaunch) SKIP_PRELAUNCH=1; shift ;;
+		--disable-workspace-trust) DISABLE_WORKSPACE_TRUST=1; shift ;;
 		--) shift; EXTRA_ARGS=("$@"); break ;;
 		*) echo "Unknown arg: $1" >&2; exit 2 ;;
 	esac
@@ -243,6 +249,9 @@ ARGS=(
 	"--inspect=$MAIN_PORT"
 	"--inspect-agenthost=$AGENTHOST_PORT"
 )
+if [[ "$DISABLE_WORKSPACE_TRUST" == "1" ]]; then
+	ARGS+=("--disable-workspace-trust")
+fi
 if [[ "$AGENTS" == "1" ]]; then
 	ARGS=("--agents" "${ARGS[@]}")
 fi

@@ -482,8 +482,8 @@ async function startAgentHost(): Promise<void> {
 	});
 
 	process.once('exit', () => {
-		logService.dispose();
 		disposables.dispose();
+		logService.dispose();
 	});
 }
 

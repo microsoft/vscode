@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from '../../../../base/common/event.js';
-import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IFileService } from '../../../files/common/files.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
+import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
@@ -26,19 +27,49 @@ import { AgentService } from '../../node/agentService.js';
 import { createAgentServiceComposition, type IAgentServiceComposition } from '../../node/agentServiceComposition.js';
 import { activateAgentHostContributions } from '../../node/agentHostContributions.js';
 import { createAgentServiceFoundation } from '../../node/agentServiceFoundation.js';
-import { AgentHostServiceCollection, instantiateAgentHostServices, registerAgentHostCoreServices } from '../../node/agentHostServices.js';
+import { registerAgentHostCoreServices } from '../../node/agentHostServices.js';
 import { ICopilotApiService } from '../../node/shared/copilotApiService.js';
 import { AgentHostClientConnectionService, IAgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostProviderLocator, IAgentHostProviderLocator } from '../../node/agentHostProviderLocator.js';
 import { AgentHostSessionTitleController, IAgentHostSessionTitleController } from '../../node/agentHostSessionTitleController.js';
-import { AgentHostLocalTurns } from '../../node/agentHostLocalTurns.js';
+import { AgentHostLocalTurns, IAgentHostLocalTurns } from '../../node/agentHostLocalTurns.js';
 import { AgentHostLocalCommands, IAgentHostLocalCommands } from '../../node/localCommands/localChatCommand.js';
 import { IAgentHostOctoKitService } from '../../node/shared/agentHostOctoKitService.js';
-import { IAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
-import { createNoopWorktreeIsolation } from './worktreeTestHelpers.js';
+import { IAgentHostWorktreeIsolation, NullAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
 
 const compositions = new WeakMap<AgentService, IAgentServiceComposition>();
+const worktreeIsolations = new WeakMap<AgentService, MutableTestAgentHostWorktreeIsolation>();
+
+class MutableTestAgentHostWorktreeIsolation extends Disposable {
+	private _delegate: IAgentHostWorktreeIsolation = new NullAgentHostWorktreeIsolation();
+	private readonly _onDidChangeWorkingDirectoryPending = this._register(new Emitter<string>());
+	private readonly _delegateListener = this._register(new MutableDisposable());
+	private delegateSet = false;
+	readonly service: IAgentHostWorktreeIsolation;
+
+	constructor() {
+		super();
+		this.service = new Proxy(this._delegate, {
+			get: (_target, property) => {
+				if (property === 'onDidChangeWorkingDirectoryPending') {
+					return this._onDidChangeWorkingDirectoryPending.event;
+				}
+				const value = Reflect.get(this._delegate, property, this._delegate);
+				return typeof value === 'function' ? value.bind(this._delegate) : value;
+			},
+		});
+	}
+
+	setDelegate(delegate: IAgentHostWorktreeIsolation): void {
+		if (this.delegateSet) {
+			throw new Error('Agent Host worktree isolation test delegate has already been set');
+		}
+		this.delegateSet = true;
+		this._delegate = delegate;
+		this._delegateListener.value = delegate.onDidChangeWorkingDirectoryPending(sessionId => this._onDidChangeWorkingDirectoryPending.fire(sessionId));
+	}
+}
 
 export function getTestAgentServiceComposition(agentService: AgentService): IAgentServiceComposition {
 	const composition = compositions.get(agentService);
@@ -50,6 +81,32 @@ export function getTestAgentServiceComposition(agentService: AgentService): IAge
 
 export function getTestAgentStateManager(agentService: AgentService): AgentHostStateManager {
 	return getTestAgentServiceComposition(agentService).stateManager;
+}
+
+export function getTestAgentHostWorktreeIsolation(agentService: AgentService): IAgentHostWorktreeIsolation {
+	const worktreeIsolation = worktreeIsolations.get(agentService);
+	if (!worktreeIsolation) {
+		throw new Error('AgentService was not created by createTestAgentService');
+	}
+	return worktreeIsolation.service;
+}
+
+export function setTestAgentHostWorktreeIsolation(agentService: AgentService, worktreeIsolation: IAgentHostWorktreeIsolation): void {
+	const mutableWorktreeIsolation = worktreeIsolations.get(agentService);
+	if (!mutableWorktreeIsolation) {
+		throw new Error('AgentService was not created by createTestAgentService');
+	}
+	mutableWorktreeIsolation.setDelegate(worktreeIsolation);
+}
+
+export function createTestAgentHostWorktreeIsolation(overrides: Partial<IAgentHostWorktreeIsolation>): IAgentHostWorktreeIsolation {
+	return new Proxy(new NullAgentHostWorktreeIsolation(), {
+		get: (target, property) => {
+			const source = Object.hasOwn(overrides, property) ? overrides : target;
+			const value = Reflect.get(source, property, source);
+			return typeof value === 'function' ? value.bind(source) : value;
+		},
+	});
 }
 
 export function createTestAgentHostProxyResolver(fetchFn: typeof globalThis.fetch = globalThis.fetch): IAgentHostProxyResolver {
@@ -85,7 +142,9 @@ export function createTestAgentService(
 	const effectiveFileMonitorService = fileMonitorService ?? new AgentHostFileMonitorService(fileService, logService);
 	const clientConnectionService = new AgentHostClientConnectionService();
 	const proxyResolver = createTestAgentHostProxyResolver(fetchFn);
-	const services = new AgentHostServiceCollection(
+	const foundationDisposables = new DisposableStore();
+	const worktreeIsolation = foundationDisposables.add(new MutableTestAgentHostWorktreeIsolation());
+	const services = new ServiceCollection(
 		[ILogService, logService],
 		[IFileService, fileService],
 		[ISessionDataService, sessionDataService],
@@ -95,7 +154,7 @@ export function createTestAgentService(
 		[IAgentHostFileMonitorService, effectiveFileMonitorService],
 		[IAgentEditAttributionService, new NullAgentEditAttributionService()],
 		[IAgentHostClientConnectionService, clientConnectionService],
-		[IAgentHostWorktreeIsolation, createNoopWorktreeIsolation()],
+		[IAgentHostWorktreeIsolation, worktreeIsolation.service],
 	);
 	const options = {
 		rootConfigResource,
@@ -107,7 +166,6 @@ export function createTestAgentService(
 		sessionResidencyLimit,
 		sessionReleaseRetryMs,
 	};
-	const foundationDisposables = new DisposableStore();
 	const foundation = createAgentServiceFoundation({
 		services,
 		owned: foundationDisposables,
@@ -119,14 +177,13 @@ export function createTestAgentService(
 		proxyResolver,
 		fetchFn,
 	});
-	const coreServiceIds = registerAgentHostCoreServices(services, {
+	registerAgentHostCoreServices(services, {
 		storageResource,
 		fetchFn,
 		gitHubServiceOptions: foundation.gitHubServiceOptions,
 		copilotApiService,
 	});
 	const instantiationService = new InstantiationService(services, /*strict*/ true);
-	instantiateAgentHostServices(instantiationService, coreServiceIds);
 	services.set(IAgentHostProviderLocator, new AgentHostProviderLocator(session => foundation.callbackAdapter.value.getAgent(typeof session === 'string' ? session : session.toString())));
 	const octoKitService = instantiationService.invokeFunction(accessor => accessor.get(IAgentHostOctoKitService));
 	const effectiveCopilotApiService = instantiationService.invokeFunction(accessor => accessor.get(ICopilotApiService));
@@ -146,7 +203,8 @@ export function createTestAgentService(
 		isActiveAgentTitleGenerationEnabled: () => foundation.configurationService.getRootValue(platformRootSchema, AgentHostActiveAgentTitleGenerationConfigKey) === true,
 	})));
 	const localTurns = new AgentHostLocalTurns(sessionDataService, logService);
-	services.set(IAgentHostLocalCommands, foundationDisposables.add(instantiationService.createInstance(AgentHostLocalCommands, localTurns)));
+	services.set(IAgentHostLocalTurns, localTurns);
+	services.set(IAgentHostLocalCommands, foundationDisposables.add(instantiationService.createInstance(AgentHostLocalCommands)));
 	const composition = instantiationService.invokeFunction(accessor => createAgentServiceComposition(
 		options,
 		accessor,
@@ -159,9 +217,14 @@ export function createTestAgentService(
 			? [clientConnectionService, instantiationService, foundationDisposables]
 			: [effectiveFileMonitorService, clientConnectionService, instantiationService, foundationDisposables],
 	));
-	services.set(IAgentService, composition.agentService);
-	services.seal();
-	composition.setContributions(instantiationService.invokeFunction(accessor => activateAgentHostContributions(accessor, instantiationService)));
-	compositions.set(composition.agentService, composition);
-	return composition.agentService;
+	try {
+		services.set(IAgentService, composition.agentService);
+		composition.setContributions(instantiationService.invokeFunction(accessor => activateAgentHostContributions(accessor, instantiationService)));
+		compositions.set(composition.agentService, composition);
+		worktreeIsolations.set(composition.agentService, worktreeIsolation);
+		return composition.agentService;
+	} catch (error) {
+		composition.agentService.dispose();
+		throw error;
+	}
 }

@@ -17,6 +17,7 @@ $repo = ''
 $cloneExtensions = $false
 $full = $false
 $skipPreLaunch = $false
+$disableWorkspaceTrust = $false
 if ($null -eq $cliArgs) {
 	$cliArgs = @()
 }
@@ -469,6 +470,10 @@ for ($index = 0; $index -lt $cliArgs.Count; $index++) {
 			$skipPreLaunch = $true
 			continue
 		}
+		'--disable-workspace-trust' {
+			$disableWorkspaceTrust = $true
+			continue
+		}
 		'--' {
 			for ($forwardIndex = $index + 1; $forwardIndex -lt $cliArgs.Count; $forwardIndex++) {
 				$extraArgs.Add($cliArgs[$forwardIndex])
@@ -582,6 +587,9 @@ try {
 	$launchArgs.Add("--inspect-extensions=$extHostPort")
 	$launchArgs.Add("--inspect=$mainPort")
 	$launchArgs.Add("--inspect-agenthost=$agentHostPort")
+	if ($disableWorkspaceTrust) {
+		$launchArgs.Add('--disable-workspace-trust')
+	}
 	foreach ($argument in $extraArgs) {
 		$launchArgs.Add($argument)
 	}
