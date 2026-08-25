@@ -37,6 +37,24 @@ const LOG_PREFIX = '[CloudSandboxAgentHost]';
 const MAX_WAKING_RETRIES = 20;
 
 /**
+ * Maximum number of `/connect` re-mints while the sealed GitHub token is still missing.
+ *
+ * Mission Control seals the token to a key the host generates at startup and advertises on
+ * `register` and every heartbeat, so a key it has not learned yet leaves nothing to seal to. A
+ * freshly provisioned environment can answer `/connect` before that has propagated, yielding
+ * credentials with no `encrypted_github_token` and a host that rejects every session request with
+ * `-32007 AuthRequired`.
+ *
+ * Sized against the daemon's own timings: `copilotd` heartbeats every 30s and backs off register
+ * attempts up to 60s, so this spans a full register backoff and two heartbeats. A warm environment
+ * seals on the first mint and never enters this loop.
+ */
+export const MAX_SEALED_TOKEN_RETRIES = 12;
+
+/** Delay between `/connect` re-mints while waiting for the host key to propagate. */
+const SEALED_TOKEN_RETRY_DELAY_MS = 5_000;
+
+/**
  * Renderer-side coordinator for Copilot cloud sandbox connections.
  *
  * Mirrors {@link WebTunnelAgentHostService}: establishes a connection
@@ -53,6 +71,9 @@ export class CloudSandboxAgentHostService extends Disposable implements ICloudSa
 
 	/** Current Web PubSub credentials per connection address, including the sealed GitHub token. */
 	private readonly _creds = new Map<string, ICloudSandboxCreds>();
+
+	/** Overridable so tests can exercise the re-mint loop without waiting on real delays. */
+	protected readonly sealedTokenRetryDelayMs: number = SEALED_TOKEN_RETRY_DELAY_MS;
 
 	constructor(
 		@IRemoteAgentHostService private readonly _remoteAgentHostService: IRemoteAgentHostService,
@@ -111,8 +132,10 @@ export class CloudSandboxAgentHostService extends Disposable implements ICloudSa
 	/**
 	 * Open the relay with an already-minted token, drive the AHP handshake, and register the
 	 * connection.
+	 *
+	 * Protected so tests can exercise credential minting without opening a real socket.
 	 */
-	private async _establish(options: ICloudSandboxConnectOptions, address: string, clientToken: ICloudSandboxClientToken, token: CancellationToken): Promise<string> {
+	protected async _establish(options: ICloudSandboxConnectOptions, address: string, clientToken: ICloudSandboxClientToken, token: CancellationToken): Promise<string> {
 		// Mutable holder read by the transport factory: the protocol client re-invokes the factory to
 		// soft-reconnect, picking up whatever credentials the refresh scheduler last wrote.
 		const creds: ICloudSandboxCreds = { token: clientToken };
@@ -172,6 +195,10 @@ export class CloudSandboxAgentHostService extends Disposable implements ICloudSa
 					this._logService.warn(`${LOG_PREFIX} Sealed-token authenticate failed for ${address}`, err);
 				}
 			}
+		} else if (!connectError) {
+			// Without an envelope every later request answers `-32007 AuthRequired`; say so here,
+			// where the cause is visible, rather than leaving only the downstream symptoms.
+			this._logService.error(`${LOG_PREFIX} Mission Control returned no sealed GitHub token for ${address}; the host cannot act as the user and session requests will fail with AuthRequired.`);
 		}
 
 		try {
@@ -217,12 +244,43 @@ export class CloudSandboxAgentHostService extends Disposable implements ICloudSa
 			}
 			const result = await this._apiService.connect({ environmentId: options.environmentId, sessionId: options.sessionId }, token);
 			if (result.kind === 'token') {
-				return result.token;
+				return await this._awaitSealedToken(options, result.token, token);
 			}
 			const delayMs = Math.min(result.waking.retryAfterSeconds * 1000, MAX_WAKING_DELAY_MS);
 			this._logService.info(`${LOG_PREFIX} Environment ${options.environmentId} waking; retrying in ${delayMs}ms (attempt ${attempt + 1}/${MAX_WAKING_RETRIES})`);
 			await timeout(delayMs, token);
 		}
 		throw new Error(`Timed out waiting for sandbox environment ${options.environmentId} to wake.`);
+	}
+
+	/**
+	 * Re-mint credentials until they carry a sealed GitHub token.
+	 *
+	 * A newly provisioned environment answers `/connect` as soon as the compute is up, which can be
+	 * before Mission Control has learned the host's sealing key. The credentials are valid, but
+	 * without the sealed envelope the client never sends `authenticate`, so the host answers every
+	 * session request with `-32007 AuthRequired`. Re-minting lets the key propagate.
+	 *
+	 * Returns the last credentials either way: an environment may legitimately never seal one, and a
+	 * session that cannot reach GitHub APIs beats refusing to connect. {@link _establish} logs that.
+	 */
+	private async _awaitSealedToken(options: ICloudSandboxConnectOptions, minted: ICloudSandboxClientToken, token: CancellationToken): Promise<ICloudSandboxClientToken> {
+		let clientToken = minted;
+		for (let attempt = 0; attempt < MAX_SEALED_TOKEN_RETRIES && !clientToken.encrypted_github_token; attempt++) {
+			if (token.isCancellationRequested) {
+				throw new CancellationError();
+			}
+			this._logService.info(`${LOG_PREFIX} Environment ${options.environmentId} has no sealed GitHub token yet; re-minting in ${this.sealedTokenRetryDelayMs}ms (attempt ${attempt + 1}/${MAX_SEALED_TOKEN_RETRIES})`);
+			await timeout(this.sealedTokenRetryDelayMs, token);
+
+			const result = await this._apiService.connect({ environmentId: options.environmentId, sessionId: options.sessionId }, token);
+			if (result.kind !== 'token') {
+				// The environment went back to waking mid-wait. Keep what we have rather than
+				// re-entering the wake loop; the handshake watchdog covers a host that is gone.
+				break;
+			}
+			clientToken = result.token;
+		}
+		return clientToken;
 	}
 }
