@@ -12,6 +12,7 @@ import { ITelemetryData, ITelemetryService } from '../../../telemetry/common/tel
 		"model_call_id": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "SDK identifier for the model call." },
 		"exp_assignment_context": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Experiment assignment context from the Copilot CLI runtime." },
 		"secondary_assignment_context": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Secondary experiment assignment context assigned by CAPI during model calls." },
+		"vscode_assignment_context": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "VS Code experiment assignment context forwarded to the Agent Host." },
 		"session_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Identifier for the Copilot CLI session." },
 		"sdk_session_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Identifier for the SDK session that forwarded the event." },
 		"copilot_tracking_id": { "classification": "EndUserPseudonymizedInformation", "purpose": "BusinessInsight", "comment": "Pseudonymous Copilot user identifier supplied by the runtime." },
@@ -241,6 +242,7 @@ export class CopilotGitHubTelemetryForwarder {
 		const assignmentContext = this._getVSCodeAssignmentContext();
 		if (assignmentContext) {
 			data['abexp.assignmentcontext'] = assignmentContext;
+			data.vscode_assignment_context = assignmentContext;
 		}
 
 		if (event.features) {

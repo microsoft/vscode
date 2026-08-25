@@ -25,14 +25,17 @@ class TestTelemetryService implements ITelemetryService {
 	readonly devDeviceId = 'devDeviceId';
 	readonly firstSessionDate = 'firstSessionDate';
 	readonly events: CapturedEvent[] = [];
+	readonly experimentProperties: ITelemetryData = {};
 
 	publicLog(eventName: string, data?: ITelemetryData): void {
-		this.events.push({ eventName, data });
+		this.events.push({ eventName, data: { ...data, ...this.experimentProperties } });
 	}
 	publicLogError(): void { }
 	publicLog2(): void { }
 	publicLogError2(): void { }
-	setExperimentProperty(): void { }
+	setExperimentProperty(name: string, value: string): void {
+		this.experimentProperties[name] = value;
+	}
 	setCommonProperty(): void { }
 }
 
@@ -150,8 +153,34 @@ suite('CopilotGitHubTelemetryForwarder', () => {
 				kind: 'response.success',
 				restricted: false,
 				'abexp.assignmentcontext': 'experiment:1;experiment:2',
+				vscode_assignment_context: 'experiment:1;experiment:2',
 			},
 		}]);
+	});
+
+	test('preserves VS Code assignment context when the runtime context overwrites the standard property', () => {
+		const telemetryService = new TestTelemetryService();
+		telemetryService.setExperimentProperty('abexp.assignmentcontext', 'runtime:1');
+		const forwarder = new CopilotGitHubTelemetryForwarder(() => false, () => 'vscode:1', telemetryService);
+
+		forwarder.forward({
+			sessionId: 'session',
+			restricted: false,
+			event: {
+				kind: 'response.success',
+				properties: {},
+				metrics: {},
+				exp_assignment_context: 'runtime:1',
+			},
+		});
+
+		assert.deepStrictEqual({
+			assignmentContext: telemetryService.events[0].data?.['abexp.assignmentcontext'],
+			vscodeAssignmentContext: telemetryService.events[0].data?.vscode_assignment_context,
+		}, {
+			assignmentContext: 'runtime:1',
+			vscodeAssignmentContext: 'vscode:1',
+		});
 	});
 
 	test('adds Agent Host turn correlation only to response events', () => {

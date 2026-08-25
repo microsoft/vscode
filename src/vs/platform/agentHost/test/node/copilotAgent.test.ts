@@ -1181,7 +1181,10 @@ suite('CopilotAgent', () => {
 				copilot_tracking_id: undefined,
 				kind: 'response.success',
 				restricted: false,
-				...(assignmentContext ? { 'abexp.assignmentcontext': assignmentContext } : {}),
+				...(assignmentContext ? {
+					'abexp.assignmentcontext': assignmentContext,
+					vscode_assignment_context: assignmentContext,
+				} : {}),
 			});
 			const events = telemetryService.events.map(event => {
 				if (event.eventName !== 'agentHost.copilotClientStartup') {
