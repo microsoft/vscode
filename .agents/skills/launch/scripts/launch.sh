@@ -232,22 +232,59 @@ function codeMask(src) {
 	return out.join('');
 }
 
+// Locate a root-level `"key": <primitive>` pair, tracking nesting and string
+// state so a nested occurrence (e.g. inside a `"[typescript]"` block) or one
+// embedded in a string value is never mistaken for the real setting. Returns
+// the LAST match, which is the one Code OSS honours when a profile contains
+// duplicate keys.
+// Locate root-level `"key": value` pairs. Returns the LAST occurrence, which
+// is the one Code OSS honours when a profile contains duplicates.
+function findRootProperty(masked, key) {
+	let depth = 0, inString = false, found = null;
+	let keyStart = -1, pendingKey = null, expectValue = false;
+	for (let i = 0; i < masked.length; i++) {
+		const c = masked[i];
+		if (inString) {
+			if (c === '\\') { i++; continue; }
+			if (c === '"') {
+				inString = false;
+				if (depth === 1) { pendingKey = { name: masked.slice(keyStart + 1, i), end: i }; }
+			}
+			continue;
+		}
+		if (c === '"') { inString = true; keyStart = i; continue; }
+		if (c === '{' || c === '[') { depth++; expectValue = false; continue; }
+		if (c === '}' || c === ']') { depth--; expectValue = false; continue; }
+		if (c === ':' && depth === 1 && pendingKey) { expectValue = true; continue; }
+		if (c === ',' && depth === 1) { pendingKey = null; expectValue = false; continue; }
+		if (expectValue && depth === 1 && !/\s/.test(c)) {
+			// Start of a root-level value. Only primitives are rewritable.
+			const rest = masked.slice(i);
+			const m = /^(true|false|null|"[^"\n]*"|-?\d+(?:\.\d+)?)/.exec(rest);
+			if (m && pendingKey && pendingKey.name === key) {
+				found = { valueStart: i, valueLength: m[1].length };
+			}
+			expectValue = false;
+			pendingKey = null;
+			if (m) { i += m[1].length - 1; }
+			continue;
+		}
+	}
+	return found;
+}
+
 for (const [key, value] of ENTRIES) {
 	const masked = codeMask(text);
 
-	// Key already present (with any value) -> rewrite its value slot only.
-	// Matching happens on the masked copy, but offsets line up with the
-	// original so comments are left untouched.
-	const keyValueRe = new RegExp('("' + key.replace(/\./g, '\\.') + '"\\s*:\\s*)(true|false|null|"[^"\\n]*"|-?\\d+(?:\\.\\d+)?)');
-	const m = keyValueRe.exec(masked);
-	if (m) {
-		const valueStart = m.index + m[1].length;
-		text = text.slice(0, valueStart) + value + text.slice(valueStart + m[2].length);
+	// Key already present at the root (with any primitive value) -> rewrite
+	// its value slot only. Offsets line up with the original, so comments
+	// are left untouched.
+	const hit = findRootProperty(masked, key);
+	if (hit) {
+		text = text.slice(0, hit.valueStart) + value + text.slice(hit.valueStart + hit.valueLength);
 		continue;
 	}
 
-	// Otherwise insert before the closing brace. We deliberately don't parse
-	// JSONC -- this preserves comments and anything else the profile had.
 	const lastBrace = masked.lastIndexOf('}');
 	if (lastBrace === -1) {
 		console.error('[launch.sh] settings.json has no closing brace - refusing to clobber it: ' + f);

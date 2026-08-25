@@ -327,6 +327,51 @@ function Get-JsoncCodeMask([string]$text) {
 	return (-join $masked)
 }
 
+function Find-RootProperty([string]$masked, [string]$key) {
+	# Locate a root-level `"key": <primitive>` pair, tracking nesting and string
+	# state so a nested occurrence (e.g. inside a `"[typescript]"` block) or one
+	# embedded in a string value is never mistaken for the real setting. Returns
+	# the LAST match, which is the one Code OSS honours when a profile contains
+	# duplicate keys.
+	$depth = 0
+	$inString = $false
+	$found = $null
+	$keyStart = -1
+	$pendingKey = $null
+	$expectValue = $false
+	$primitive = [regex]::new('^(true|false|null|"[^"\r\n]*"|-?\d+(?:\.\d+)?)')
+
+	for ($i = 0; $i -lt $masked.Length; $i++) {
+		$c = $masked[$i]
+		if ($inString) {
+			if ($c -eq '\') { $i++; continue }
+			if ($c -eq '"') {
+				$inString = $false
+				if ($depth -eq 1) { $pendingKey = $masked.Substring($keyStart + 1, $i - $keyStart - 1) }
+			}
+			continue
+		}
+		if ($c -eq '"') { $inString = $true; $keyStart = $i; continue }
+		if ($c -eq '{' -or $c -eq '[') { $depth++; $expectValue = $false; continue }
+		if ($c -eq '}' -or $c -eq ']') { $depth--; $expectValue = $false; continue }
+		if ($c -eq ':' -and $depth -eq 1 -and $null -ne $pendingKey) { $expectValue = $true; continue }
+		if ($c -eq ',' -and $depth -eq 1) { $pendingKey = $null; $expectValue = $false; continue }
+		if ($expectValue -and $depth -eq 1 -and -not [char]::IsWhiteSpace($c)) {
+			$match = $primitive.Match($masked.Substring($i))
+			if ($match.Success -and $pendingKey -eq $key) {
+				$found = @{ ValueStart = $i; ValueLength = $match.Groups[1].Length }
+			}
+			$expectValue = $false
+			$pendingKey = $null
+			if ($match.Success) { $i += $match.Groups[1].Length - 1 }
+			continue
+		}
+	}
+
+	return $found
+}
+
+
 function Ensure-AutomationSettings([string]$settingsFile) {
 	# Both keys are normalized on every launch because every instance launched
 	# under this skill is a throwaway used for automation.
@@ -357,17 +402,17 @@ function Ensure-AutomationSettings([string]$settingsFile) {
 	}
 
 	foreach ($key in $keys) {
-		# Match against a comment-masked copy so a commented-out occurrence such
-		# as `// "files.simpleDialog.enable": false` is not mistaken for the real
+		# Mask comments so a commented-out occurrence such as
+		# `// "files.simpleDialog.enable": false` is not mistaken for the real
 		# setting. Offsets line up with the original, so the value is rewritten
 		# in place without disturbing comments.
 		$maskedText = Get-JsoncCodeMask $text
-		$keyPattern = [regex]::Escape($key)
-		$keyValueRegex = [regex]::new("(`"$keyPattern`"\s*:\s*)(true|false|null|`"[^`"`r`n]*`"|-?\d+(?:\.\d+)?)")
-		$keyMatch = $keyValueRegex.Match($maskedText)
-		if ($keyMatch.Success) {
-			$valueGroup = $keyMatch.Groups[2]
-			$text = $text.Substring(0, $valueGroup.Index) + 'true' + $text.Substring($valueGroup.Index + $valueGroup.Length)
+
+		# Key already present at the root (with any primitive value) -> rewrite
+		# its value slot only.
+		$hit = Find-RootProperty $maskedText $key
+		if ($null -ne $hit) {
+			$text = $text.Substring(0, $hit.ValueStart) + 'true' + $text.Substring($hit.ValueStart + $hit.ValueLength)
 			continue
 		}
 
