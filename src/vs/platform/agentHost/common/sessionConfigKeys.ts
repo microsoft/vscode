@@ -39,6 +39,8 @@ export const enum SessionConfigKey {
 	AgentMerge = 'agentMerge',
 	/** `'agentMerge.controller'` — host-owned Agent Merge lifecycle state. */
 	AgentMergeController = 'agentMerge.controller',
+	/** `'shellInitSnippets'` — host-generated scripts sourced before built-in shell tool commands. */
+	ShellInitSnippets = 'shellInitSnippets',
 }
 
 /**

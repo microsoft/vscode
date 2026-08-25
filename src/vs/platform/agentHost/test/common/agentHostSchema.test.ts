@@ -343,6 +343,40 @@ suite('agentHostSchema', () => {
 			assert.strictEqual(platformSessionSchema.validate(SessionConfigKey.Mode, 'shell'), false);
 			assert.strictEqual(platformSessionSchema.validate(SessionConfigKey.Mode, 42), false);
 		});
+
+		test('validates the shellInitSnippets shape', () => {
+			assert.deepStrictEqual([
+				platformSessionSchema.validate(SessionConfigKey.ShellInitSnippets, []),
+				platformSessionSchema.validate(SessionConfigKey.ShellInitSnippets, [{ shell: 'bash', script: 'x', source: 'python-env' }]),
+				platformSessionSchema.validate(SessionConfigKey.ShellInitSnippets, [{ shell: 'zsh', script: 'x', source: 'a' }]),
+				platformSessionSchema.validate(SessionConfigKey.ShellInitSnippets, [{ shell: 'bash', source: 'a' }]),
+				platformSessionSchema.validate(SessionConfigKey.ShellInitSnippets, [{ shell: 'bash', script: 1, source: 'a' }]),
+				platformSessionSchema.validate(SessionConfigKey.ShellInitSnippets, 'nope'),
+			], [true, true, false, false, false, false]);
+		});
+
+		test('is marked read-only so it stays out of the session settings file', () => {
+			const property = platformSessionSchema.toProtocol().properties[SessionConfigKey.ShellInitSnippets];
+			assert.deepStrictEqual({ readOnly: property.readOnly, type: property.type }, { readOnly: true, type: 'array' });
+		});
+
+		test('keeps a pushed shellInitSnippets value and has no default of its own', () => {
+			const snippets = [{ shell: 'bash', script: 'x', source: 'python-env' }];
+			// Mirrors `resolveChatConfig`, which supplies defaults only for
+			// autoApprove and mode. An absent value must stay absent so it is
+			// distinguishable from an explicit empty array (clear).
+			const defaults = {
+				[SessionConfigKey.AutoApprove]: 'default' satisfies AutoApproveLevel,
+				[SessionConfigKey.Mode]: 'interactive' satisfies SessionMode,
+			};
+			assert.deepStrictEqual(platformSessionSchema.validateOrDefault({ [SessionConfigKey.ShellInitSnippets]: snippets }, defaults), {
+				...defaults,
+				[SessionConfigKey.ShellInitSnippets]: snippets,
+			});
+			assert.deepStrictEqual(platformSessionSchema.validateOrDefault({}, defaults), defaults);
+			// An invalid pushed value must not survive into the resolved config.
+			assert.deepStrictEqual(platformSessionSchema.validateOrDefault({ [SessionConfigKey.ShellInitSnippets]: 'nope' }, defaults), defaults);
+		});
 	});
 
 	// ---- legacy autopilot migration ----------------------------------------

@@ -11,6 +11,7 @@ import type { IMcpServerConfiguration } from '../../mcp/common/mcpPlatformTypes.
 import { TelemetryConfiguration, TelemetryLevel } from '../../telemetry/common/telemetry.js';
 import { telemetryLevelToAgentHostValue } from './agentHostTelemetry.js';
 import { SessionConfigKey } from './sessionConfigKeys.js';
+import type { IShellInitSnippet } from './shellInitSnippets.js';
 import type { SessionConfigPropertySchema, SessionConfigSchema } from './state/protocol/commands.js';
 import { JsonRpcErrorCodes, ProtocolError } from './state/sessionProtocol.js';
 
@@ -300,6 +301,44 @@ const permissionsProperty = schemaProperty<IPermissionsValue>({
 });
 
 /**
+ * Scripts the client generated for this session, sourced before every built-in
+ * shell tool command (see `common/shellInitSnippets.ts`). Written by the
+ * workbench and consumed by the Copilot provider; `readOnly` because no user
+ * edits it directly, `sessionMutable` because the selected Python environment
+ * can change while a session is live.
+ *
+ * Deliberately has no `default`: an absent value means "nothing to apply",
+ * which must stay distinguishable from an explicit empty array (clear).
+ */
+const shellInitSnippetsProperty = schemaProperty<readonly IShellInitSnippet[]>({
+	type: 'array',
+	title: localize('agentHost.sessionConfig.shellInitSnippets', "Shell Init Scripts"),
+	description: localize('agentHost.sessionConfig.shellInitSnippetsDescription', "Scripts sourced before each built-in shell tool command, such as Python environment activation."),
+	items: {
+		type: 'object',
+		title: localize('agentHost.sessionConfig.shellInitSnippets.item', "Shell Init Script"),
+		properties: {
+			shell: {
+				type: 'string',
+				title: localize('agentHost.sessionConfig.shellInitSnippets.shell', "Shell"),
+				enum: ['bash', 'powershell'],
+			},
+			script: {
+				type: 'string',
+				title: localize('agentHost.sessionConfig.shellInitSnippets.script', "Script"),
+			},
+			source: {
+				type: 'string',
+				title: localize('agentHost.sessionConfig.shellInitSnippets.source', "Source"),
+			},
+		},
+		required: ['shell', 'script', 'source'],
+	},
+	readOnly: true,
+	sessionMutable: true,
+});
+
+/**
  * Session-config properties owned by the platform itself — i.e. consumed
  * by the agent host rather than by any particular agent.
  *
@@ -345,6 +384,7 @@ export const platformSessionSchema = createSchema({
 		default: 'interactive',
 		sessionMutable: true,
 	}),
+	[SessionConfigKey.ShellInitSnippets]: shellInitSnippetsProperty,
 });
 
 /**
