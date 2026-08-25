@@ -21,10 +21,8 @@ export interface IAgentMessageSessionDelegationMeta {
 
 export type IAgentMessageDelegationMeta = IAgentMessageThreadDelegationMeta | IAgentMessageSessionDelegationMeta;
 
-/** Reads recognized Agent Host message-delegation metadata. */
-export function readAgentMessageDelegationMeta(source: IHasMessageDelegationMeta): IAgentMessageDelegationMeta | undefined {
-	// eslint-disable-next-line local/code-no-untyped-meta-access -- sanctioned first hop into the namespaced delegation slot; validated below.
-	const value = source._meta?.[MESSAGE_DELEGATION_META_KEY];
+/** Parses recognized Agent Host message-delegation metadata. */
+export function parseAgentMessageDelegationMeta(value: unknown): IAgentMessageDelegationMeta | undefined {
 	if (!value || typeof value !== 'object' || Array.isArray(value)) {
 		return undefined;
 	}
@@ -42,6 +40,12 @@ export function readAgentMessageDelegationMeta(source: IHasMessageDelegationMeta
 		...(typeof candidate['sourceChat'] === 'string' ? { sourceChat: candidate['sourceChat'] } : {}),
 		...(typeof candidate['sourceTurnId'] === 'string' ? { sourceTurnId: candidate['sourceTurnId'] } : {}),
 	};
+}
+
+/** Reads recognized Agent Host message-delegation metadata. */
+export function readAgentMessageDelegationMeta(source: IHasMessageDelegationMeta): IAgentMessageDelegationMeta | undefined {
+	// eslint-disable-next-line local/code-no-untyped-meta-access -- sanctioned first hop into the namespaced delegation slot; validated below.
+	return parseAgentMessageDelegationMeta(source._meta?.[MESSAGE_DELEGATION_META_KEY]);
 }
 
 /** Serializes Agent Host message-delegation metadata for the open protocol bag. */
