@@ -20,6 +20,7 @@ import { AgentHostAhpJsonlLoggingSettingId } from '../../../../../platform/agent
 import { AhpJsonlLogger } from '../../../../../platform/agentHost/common/ahpJsonlLogger.js';
 import { DEV_CONTAINER_AGENT_HOST_CHANNEL, IDevContainerAgentHostMainService } from '../../../../../platform/agentHost/common/devContainerAgentHost.js';
 import { RelayTransport } from '../../../../../platform/agentHost/common/relayTransport.js';
+import { RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { RemoteAgentHostProtocolClient } from '../../../../../platform/agentHost/browser/remoteAgentHostProtocolClient.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ISharedProcessService } from '../../../../../platform/ipc/electron-browser/services.js';
@@ -32,13 +33,21 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { Extensions, IOutputChannelRegistry, IOutputService } from '../../../../../workbench/services/output/common/output.js';
 import { IDevContainerAgentHostConnection, IDevContainerAgentHostConnector, IDevContainerAgentHostService } from '../../../../common/devContainerAgentHostService.js';
 
+/** Throws when remote Agent Host connections are disabled. */
+export function ensureRemoteAgentHostsEnabled(configurationService: IConfigurationService): void {
+	if (!configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId)) {
+		throw new Error(localize('devContainerAgentHost.remoteAgentHostsDisabled', "Remote Agent Host connections are not enabled."));
+	}
+}
+
 /** Returns whether a local workspace can be launched as a Dev Container. */
 export async function isDevContainerWorkspaceAvailable(
 	workspaceUri: URI,
 	fileService: IFileService,
 	mainService: IDevContainerAgentHostMainService,
+	configurationService: IConfigurationService,
 ): Promise<boolean> {
-	if (workspaceUri.scheme !== Schemas.file) {
+	if (!configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId) || workspaceUri.scheme !== Schemas.file) {
 		return false;
 	}
 	const hasConfiguration = await Promise.all([
@@ -103,10 +112,11 @@ class DevContainerAgentHostConnector implements IDevContainerAgentHostConnector 
 	}
 
 	async isAvailable(workspaceUri: URI): Promise<boolean> {
-		return isDevContainerWorkspaceAvailable(workspaceUri, this._fileService, this._mainService);
+		return isDevContainerWorkspaceAvailable(workspaceUri, this._fileService, this._mainService, this._configurationService);
 	}
 
 	async connect(workspaceUri: URI, token: CancellationToken): Promise<IDevContainerAgentHostConnection> {
+		ensureRemoteAgentHostsEnabled(this._configurationService);
 		if (workspaceUri.scheme !== Schemas.file) {
 			throw new Error(localize('devContainerAgentHost.localWorkspaceRequired', "Dev Container Agent Hosts require a local file workspace."));
 		}

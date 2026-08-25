@@ -8,15 +8,17 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IDevContainerAgentHostMainService } from '../../../../../../platform/agentHost/common/devContainerAgentHost.js';
+import { RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
-import { isDevContainerWorkspaceAvailable } from '../../electron-browser/devContainerAgentHostConnector.contribution.js';
+import { ensureRemoteAgentHostsEnabled, isDevContainerWorkspaceAvailable } from '../../electron-browser/devContainerAgentHostConnector.contribution.js';
 
 suite('Dev Container Agent Host Connector', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('requires Docker and a default Dev Container configuration', async () => {
 		const workspaceUri = URI.file('/workspace');
-		const check = (existingPaths: readonly string[], dockerAvailable: boolean, uri = workspaceUri) => {
+		const check = (existingPaths: readonly string[], dockerAvailable: boolean, remoteAgentHostsEnabled = true, uri = workspaceUri) => {
 			const fileService = new class extends mock<IFileService>() {
 				override async exists(resource: URI): Promise<boolean> {
 					return existingPaths.includes(resource.path);
@@ -27,7 +29,8 @@ suite('Dev Container Agent Host Connector', () => {
 					return dockerAvailable;
 				}
 			}();
-			return isDevContainerWorkspaceAvailable(uri, fileService, mainService);
+			const configurationService = new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: remoteAgentHostsEnabled });
+			return isDevContainerWorkspaceAvailable(uri, fileService, mainService, configurationService);
 		};
 
 		assert.deepStrictEqual({
@@ -35,13 +38,24 @@ suite('Dev Container Agent Host Connector', () => {
 			rootConfig: await check(['/workspace/.devcontainer.json'], true),
 			noDocker: await check(['/workspace/.devcontainer/devcontainer.json'], false),
 			noConfig: await check([], true),
-			nonFileWorkspace: await check(['/workspace/.devcontainer/devcontainer.json'], true, URI.parse('vscode-remote://host/workspace')),
+			remoteAgentHostsDisabled: await check(['/workspace/.devcontainer/devcontainer.json'], true, false),
+			nonFileWorkspace: await check(['/workspace/.devcontainer/devcontainer.json'], true, true, URI.parse('vscode-remote://host/workspace')),
 		}, {
 			nestedConfig: true,
 			rootConfig: true,
 			noDocker: false,
 			noConfig: false,
+			remoteAgentHostsDisabled: false,
 			nonFileWorkspace: false,
 		});
+	});
+
+	test('rejects connections when remote Agent Hosts are disabled', () => {
+		const configurationService = new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: false });
+
+		assert.throws(
+			() => ensureRemoteAgentHostsEnabled(configurationService),
+			/Remote Agent Host connections are not enabled/,
+		);
 	});
 });
