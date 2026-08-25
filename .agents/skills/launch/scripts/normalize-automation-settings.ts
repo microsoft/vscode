@@ -132,8 +132,14 @@ function assertSimpleDialogForWorkspaceArgs(args: string[]): void {
 		'--unresponsive-sample-interval', '--unresponsive-sample-period', '--vmodule',
 		'--waitMarkerFilePath', '--xdg-portal-required-version'
 	]);
+	const isValueToken = (value: string | undefined): value is string =>
+		value !== undefined && value !== '--' && (value === '-' || !value.startsWith('-'));
 	for (let i = 0; i < args.length; i++) {
 		const argument = args[i];
+		if (argument === '--') {
+			console.error('[normalize-automation-settings] a forwarded `--` would hide launcher safety flags; remove it');
+			process.exit(1);
+		}
 		const optionName = argument.split('=', 1)[0];
 		if (launcherOwnedOptions.has(optionName)) {
 			console.error('[normalize-automation-settings] forwarded ' + optionName +
@@ -148,8 +154,11 @@ function assertSimpleDialogForWorkspaceArgs(args: string[]): void {
 		}
 		if (argument === '--folder-uri' || argument === '--file-uri') {
 			const kind = argument;
-			const uri = args[++i] ?? '';
-			if (uri.startsWith('file:')) {
+			const next = args[i + 1];
+			if (isValueToken(next)) {
+				i++;
+				const uri = next;
+				if (!uri.startsWith('file:')) { continue; }
 				const localPath = fileURLToPath(uri);
 				if (kind === '--folder-uri' || localPath.endsWith('.code-workspace')) { candidates.add(localPath); }
 			}
@@ -165,8 +174,7 @@ function assertSimpleDialogForWorkspaceArgs(args: string[]): void {
 			continue;
 		}
 		if (optionsWithPathValue.has(argument)) {
-			const next = args[i + 1];
-			if (next !== undefined && next !== '--' && (next === '-' || !next.startsWith('-'))) { i++; }
+			if (isValueToken(args[i + 1])) { i++; }
 			continue;
 		}
 		if (argument.startsWith('-')) { continue; }

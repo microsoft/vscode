@@ -564,8 +564,16 @@ test('rejects both forms of every launcher-owned forwarded option', () => {
 	assert.deepStrictEqual(statuses, options.flatMap(() => [1, 1]));
 });
 
-test('does not let a missing option value swallow a protected option', () => {
-	assert.strictEqual(workspaceCheckStatus(['--locale', '--user-data-dir', '/outside']), 1);
+test('does not let missing option values swallow a protected option', () => {
+	assert.deepStrictEqual([
+		workspaceCheckStatus(['--locale', '--user-data-dir', '/outside']),
+		workspaceCheckStatus(['--folder-uri', '--user-data-dir', '/outside']),
+		workspaceCheckStatus(['--file-uri', '--user-data-dir', '/outside'])
+	], [1, 1, 1]);
+});
+
+test('rejects a forwarded option delimiter that would hide launcher safety flags', () => {
+	assert.strictEqual(workspaceCheckStatus(['--', '--sync=on']), 1);
 });
 
 // `rsync -a` preserves symlinked *directories* too, so a linked `User` or
