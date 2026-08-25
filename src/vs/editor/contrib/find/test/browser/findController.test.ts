@@ -543,6 +543,23 @@ suite('FindController', () => {
 			findController.dispose();
 		});
 	});
+
+	test('issue #238199, StartFindReplaceAction with empty cursor when seedSearchStringFromSelection is always', async () => {
+		await withAsyncTestCodeEditor([
+			'Hello World'
+		], { serviceCollection: serviceCollection, find: { seedSearchStringFromSelection: 'always' } }, async (editor, _, instantiationService) => {
+			const findController = editor.registerAndInstantiateContribution(TestFindController.ID, TestFindController);
+			editor.setSelection(new Selection(1, 3, 1, 3));
+
+			await executeAction(instantiationService, editor, StartFindReplaceAction);
+
+			const findState = findController.getState();
+			assert.strictEqual(findState.searchString, 'Hello');
+			assert.strictEqual(findState.isRevealed, true);
+
+			findController.dispose();
+		});
+	});
 });
 
 suite('FindController query options persistence', () => {

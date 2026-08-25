@@ -1030,11 +1030,11 @@ StartFindReplaceAction.addImplementation(0, (accessor: ServicesAccessor, editor:
 
 	const currentSelection = editor.getSelection();
 	const findInputFocused = controller.isFindInputFocused();
-	// we only seed search string from selection when the current selection is single line and not empty,
-	// + the find input is not focused
-	const seedSearchStringFromSelection = !currentSelection.isEmpty()
+	const seedSearchStringSetting = editor.getOption(EditorOption.find).seedSearchStringFromSelection;
+	const canSeedFromSelection = seedSearchStringSetting === 'always'
+		|| (seedSearchStringSetting === 'selection' && !currentSelection.isEmpty());
+	const seedSearchStringFromSelection = canSeedFromSelection
 		&& currentSelection.startLineNumber === currentSelection.endLineNumber
-		&& (editor.getOption(EditorOption.find).seedSearchStringFromSelection !== 'never')
 		&& !findInputFocused;
 	/*
 	* if the existing search string in find widget is empty and we don't seed search string from selection, it means the Find Input is still empty, so we should focus the Find Input instead of Replace Input.
