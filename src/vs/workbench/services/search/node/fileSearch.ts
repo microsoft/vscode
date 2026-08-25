@@ -220,8 +220,9 @@ export class FileWalker {
 		};
 
 		if (this.isCanceled) {
+			cmd.once('error', () => { });
+			cmd.once('close', () => done());
 			killCmd();
-			done();
 			return;
 		}
 		const noSiblingsClauses = !Object.keys(ripgrep.siblingClauses).length;

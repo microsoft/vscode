@@ -97,4 +97,26 @@ suite('FileWalker', () => {
 			}
 		}
 	});
+
+	test('cancelling while a missing ripgrep executable is resolving handles the spawn error', async () => {
+		const allowSpawn = new DeferredPromise<void>();
+		const completed = new DeferredPromise<void>();
+		const walker = new FileWalker(TEST_QUERY, async () => {
+			await allowSpawn.p;
+			const cmd = childProcess.spawn(path.join(TEST_FIXTURES, 'missing-ripgrep'));
+			return {
+				cmd,
+				rgDiskPath: process.execPath,
+				siblingClauses: {},
+				rgArgs: { args: [], siblingClauses: {} },
+				cwd: TEST_FIXTURES
+			};
+		});
+		walker.walk([TEST_FOLDER_QUERY], [], undefined, () => { }, () => { }, () => completed.complete());
+
+		walker.cancel();
+		allowSpawn.complete();
+
+		await completed.p;
+	});
 });
