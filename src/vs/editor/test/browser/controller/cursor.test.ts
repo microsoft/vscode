@@ -3282,7 +3282,7 @@ suite('Editor Controller', () => {
 		});
 	});
 
-	test('issue #5394: Tab inside mixed indentation preserves surrounding whitespace', () => {
+	test('issue #5394: Tab inside mixed indentation normalizes surrounding whitespace', () => {
 		const model = createTextModel('      work();', undefined, {
 			tabSize: 8,
 			indentSize: 3,
@@ -3292,7 +3292,7 @@ suite('Editor Controller', () => {
 		withTestCodeEditor(model, {}, (editor, viewModel) => {
 			CoreNavigationCommands.MoveTo.runCoreEditorCommand(viewModel, { position: new Position(1, 4) });
 			editor.runCommand(CoreEditingCommands.Tab, null);
-			assert.strictEqual(model.getLineContent(1), '         work();');
+			assert.strictEqual(model.getLineContent(1), '\t work();');
 		});
 	});
 
@@ -4067,6 +4067,31 @@ suite('Editor Controller', () => {
 				'\t if (true) {'
 			],
 			languageId: indentRulesLanguageId,
+			modelOpts: {
+				tabSize: 8,
+				indentSize: 3,
+				insertSpaces: InsertSpaces.Mixed,
+				detectIndentation: true
+			}
+		}, (editor, model, viewModel) => {
+			moveTo(editor, viewModel, 1, model.getLineMaxColumn(1), false);
+			viewModel.type('\n', 'keyboard');
+
+			assert.deepStrictEqual({
+				line: model.getLineContent(2),
+				cursor: viewModel.getCursorStates()[0].modelState.selection
+			}, {
+				line: '\t    ',
+				cursor: new Selection(2, 6, 2, 6)
+			});
+		});
+	});
+
+	test('issue #5394: Enter normalizes inherited spaces in mixed indentation', () => {
+		usingCursor({
+			text: [
+				'            work();'
+			],
 			modelOpts: {
 				tabSize: 8,
 				indentSize: 3,

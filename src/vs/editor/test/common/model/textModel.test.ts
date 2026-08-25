@@ -633,6 +633,27 @@ suite('Editor Model - TextModel', () => {
 		partialModel.dispose();
 	});
 
+	test('issue #5394: preserve configured mixed indentation for spaces-only content', () => {
+		const model = createTextModel([
+			'if (first) {',
+			'   if (second) {',
+			'      work();'
+		].join('\n'), undefined, {
+			tabSize: 8,
+			indentSize: 3,
+			insertSpaces: InsertSpaces.Mixed,
+			detectIndentation: true
+		});
+
+		const { tabSize, indentSize, insertSpaces } = model.getOptions();
+		assert.deepStrictEqual({ tabSize, indentSize, insertSpaces }, {
+			tabSize: 8,
+			indentSize: 3,
+			insertSpaces: InsertSpaces.Mixed
+		});
+		model.dispose();
+	});
+
 	test('issue #5394: does not detect alignment as mixed indentation', () => {
 		const model = createTextModel([
 			'if (first) {',

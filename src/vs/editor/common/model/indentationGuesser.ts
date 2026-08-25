@@ -254,7 +254,7 @@ export function guessIndentation(source: ITextBuffer, defaultTabSize: number, de
 	}
 
 	let insertSpaces: InsertSpaces = defaultInsertSpaces;
-	if ((defaultInsertSpaces === InsertSpaces.Mixed && linesIndentedWithCanonicalMixedWhitespaceCount > 0) ||
+	if (defaultInsertSpaces === InsertSpaces.Mixed ||
 		(linesIndentedWithCanonicalMixedWhitespaceCount > 1 && (
 			linesIndentedWithSpacesCount > 0
 			|| linesIndentedWithCanonicalMixedWhitespaceCount === linesIndentedWithTabsCount
