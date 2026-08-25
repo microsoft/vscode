@@ -362,8 +362,15 @@ function Find-RootProperty([string]$masked, [string]$key) {
 			# Only primitives are rewritable; an object or array value is skipped
 			# and the key is appended instead.
 			$match = $primitive.Match($masked.Substring($i))
-			if ($match.Success -and $pendingKey -eq $key) {
-				$found = @{ ValueStart = $i; ValueLength = $match.Groups[1].Length }
+			if ($pendingKey -eq $key) {
+				# Always reflect the LAST occurrence. If this one is not a
+				# primitive (an object or array value), drop any earlier hit:
+				# rewriting that one would leave the effective value unchanged.
+				if ($match.Success) {
+					$found = @{ ValueStart = $i; ValueLength = $match.Groups[1].Length }
+				} else {
+					$found = $null
+				}
 			}
 			$expectValue = $false
 			$pendingKey = $null

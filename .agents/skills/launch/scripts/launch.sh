@@ -261,8 +261,11 @@ function findRootProperty(masked, key) {
 			// The string alternative must consume escapes, or a value such as
 			// `"a\"b"` would match only through `"a\"` and leave `trueb"`.
 			const m = /^(true|false|null|"(?:[^"\\\n]|\\.)*"|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)/.exec(masked.slice(i));
-			if (m && pendingKey === key) {
-				found = { valueStart: i, valueLength: m[1].length };
+			if (pendingKey === key) {
+				// Always reflect the LAST occurrence. If this one is not a
+				// primitive (an object or array value), drop any earlier hit:
+				// rewriting that one would leave the effective value unchanged.
+				found = m ? { valueStart: i, valueLength: m[1].length } : null;
 			}
 			expectValue = false;
 			pendingKey = null;
