@@ -9,8 +9,8 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
-import { ActionType, isSessionAction, type ActionEnvelope, type INotification, type StateAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
+import { type AgentConnectionAction, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
+import { ActionType, isSessionAction, type ActionEnvelope, type INotification } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { CustomizationEnablementKind, CustomizationLoadStatus, CustomizationType, type AgentCustomization, type AgentInfo, type Customization, type RootState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { StateComponents, type ComponentToState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { sessionReducer } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
@@ -44,7 +44,7 @@ class MockAgentConnection extends mock<IAgentConnection>() {
 
 	private readonly _sessionStates = new Map<string, SessionState>();
 
-	readonly dispatchedActions: { channel: string; action: StateAction }[] = [];
+	readonly dispatchedActions: { channel: string; action: AgentConnectionAction }[] = [];
 
 	constructor() {
 		super();
@@ -62,7 +62,7 @@ class MockAgentConnection extends mock<IAgentConnection>() {
 		this._rootStateValue = rootState;
 	}
 
-	override dispatch(channel: string, action: StateAction): void {
+	override dispatch(channel: string, action: AgentConnectionAction): void {
 		this.dispatchedActions.push({ channel, action });
 	}
 

@@ -36,10 +36,16 @@ The generated protocol includes the Changesets model:
 
 1. Update the source files in the sibling `agent-host-protocol` repo.
 2. Run `npx tsx scripts/sync-agent-host-protocol.ts` from the VS Code repo.
-3. If VS Code consumers need short aliases or type guards, update the wrapper
+3. Review regenerated native URI projections. If a new application-facing
+   protocol surface contains URIs, enroll its boundary root as described in
+   [`URI_PROJECTION.md`](URI_PROJECTION.md).
+4. If VS Code consumers need short aliases or type guards, update the wrapper
    files in this directory after the sync.
-4. Compile. The generated registry catches missing action/notification version
+5. Compile. The generated registry catches missing action/notification version
    map entries.
+
+Application code consumes native URI projections, not protocol URI strings.
+Do not add manual parsing or `resourceUris` mapping in feature code.
 
 ## Adding optional fields to existing types
 

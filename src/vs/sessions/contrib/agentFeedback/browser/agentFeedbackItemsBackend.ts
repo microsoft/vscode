@@ -8,9 +8,10 @@ import { Disposable, DisposableMap, DisposableStore } from '../../../../base/com
 import { URI } from '../../../../base/common/uri.js';
 import { IRange } from '../../../../editor/common/core/range.js';
 import { IAgentConnection } from '../../../../platform/agentHost/common/agentService.js';
-import { IAgentSubscription } from '../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionType } from '../../../../platform/agentHost/common/state/protocol/common/actions.js';
-import { Annotation, AnnotationEntry, AnnotationsState, StateComponents, StringOrMarkdown } from '../../../../platform/agentHost/common/state/sessionState.js';
+import { AnnotationEntry, StringOrMarkdown } from '../../../../platform/agentHost/common/state/sessionState.js';
+import type { NativeAnnotation, NativeAnnotationsActionEnvelope, NativeAnnotationsState } from '../../../../platform/agentHost/common/state/agentHostUriProjection.generated.js';
+import { getAgentHostUriProjection, type IProjectedAgentSubscription } from '../../../../platform/agentHost/common/state/agentHostUriProjection.js';
 import { TextRange } from '../../../../platform/agentHost/common/state/protocol/common/state.js';
 import { authorForFeedbackKind, feedbackAnnotationEntryMeta, FEEDBACK_ANNOTATION_META_KEY, readFeedbackAnnotationMeta, resolveFeedbackEntryAuthor, type AgentFeedbackKindValue, type AgentFeedbackStateValue, type IFeedbackAnnotationMeta } from '../../../../platform/agentHost/common/meta/agentFeedbackAnnotations.js';
 import { ICodeReviewSuggestion } from '../../codeReview/browser/codeReviewService.js';
@@ -205,7 +206,7 @@ function asCodeReviewSuggestion(suggestion: unknown): ICodeReviewSuggestion | un
  * {@link IFeedbackMetaView}, returning `undefined` for annotations that aren't
  * feedback items.
  */
-function readFeedbackMeta(annotation: Annotation): IFeedbackMetaView | undefined {
+function readFeedbackMeta(annotation: NativeAnnotation): IFeedbackMetaView | undefined {
 	const base = readFeedbackAnnotationMeta(annotation);
 	if (!base) {
 		return undefined;
@@ -245,7 +246,7 @@ function entryText(text: StringOrMarkdown): string {
 	return typeof text === 'string' ? text : text.markdown;
 }
 
-function feedbackToAnnotation(feedback: IAgentFeedback, connection: IAgentConnection): Annotation {
+function feedbackToAnnotation(feedback: IAgentFeedback): NativeAnnotation {
 	const entries: AnnotationEntry[] = [{
 		id: `${feedback.id}:0`,
 		text: feedback.text,
@@ -267,8 +268,8 @@ function feedbackToAnnotation(feedback: IAgentFeedback, connection: IAgentConnec
 	};
 	return {
 		id: feedback.id,
-		origin: { session: feedback.sessionResource.toString() },
-		resource: connection.resourceUris.toAgentHost(feedback.resourceUri).toString(),
+		origin: { session: feedback.sessionResource },
+		resource: feedback.resourceUri,
 		range: toTextRange(feedback.range),
 		resolved: feedback.state === AgentFeedbackState.Resolved,
 		entries,
@@ -276,7 +277,7 @@ function feedbackToAnnotation(feedback: IAgentFeedback, connection: IAgentConnec
 	};
 }
 
-function annotationToFeedback(annotation: Annotation, sessionResource: URI, connection: IAgentConnection): IAgentFeedback | undefined {
+function annotationToFeedback(annotation: NativeAnnotation, sessionResource: URI): IAgentFeedback | undefined {
 	const entries = annotation.entries ?? [];
 	const meta = readFeedbackMeta(annotation);
 	// The annotations channel is generic and may carry annotations produced by
@@ -293,7 +294,7 @@ function annotationToFeedback(annotation: Annotation, sessionResource: URI, conn
 	return {
 		id: annotation.id,
 		text: entryText(entries[0].text),
-		resourceUri: connection.resourceUris.fromAgentHost(URI.parse(annotation.resource)),
+		resourceUri: annotation.resource,
 		range: fromTextRange(annotation.range),
 		sessionResource,
 		suggestion: meta?.suggestion,
@@ -310,7 +311,7 @@ function annotationToFeedback(annotation: Annotation, sessionResource: URI, conn
 interface ITrackedChannel {
 	readonly connection: IAgentConnection;
 	readonly annotationsUri: URI;
-	readonly subscription: IAgentSubscription<AnnotationsState>;
+	readonly subscription: IProjectedAgentSubscription<NativeAnnotationsState, NativeAnnotationsActionEnvelope>;
 }
 
 /**
@@ -389,7 +390,7 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 		}
 		channel.connection.dispatch(channel.annotationsUri.toString(), {
 			type: ActionType.AnnotationsSet,
-			annotation: feedbackToAnnotation(feedback, channel.connection),
+			annotation: feedbackToAnnotation(feedback),
 		});
 		if (!this._hasSnapshot(channel.subscription)) {
 			this._onDidChangeItems.fire(feedback.sessionResource);
@@ -447,7 +448,7 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 		return this._ensureChannel(sessionResource)?.annotationsUri;
 	}
 
-	private _hasSnapshot(subscription: IAgentSubscription<AnnotationsState>): boolean {
+	private _hasSnapshot(subscription: IProjectedAgentSubscription<NativeAnnotationsState, NativeAnnotationsActionEnvelope>): boolean {
 		const value = subscription.value;
 		return value !== undefined && !(value instanceof Error);
 	}
@@ -459,7 +460,7 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 		}
 		const items: IAgentFeedback[] = [];
 		for (const annotation of value.annotations) {
-			const feedback = annotationToFeedback(annotation, sessionResource, channel.connection);
+			const feedback = annotationToFeedback(annotation, sessionResource);
 			if (feedback) {
 				items.push(feedback);
 			}
@@ -502,7 +503,7 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 	 * without feedback metadata so unrelated annotation activity on the shared
 	 * channel is ignored.
 	 */
-	private _feedbackSignature(subscription: IAgentSubscription<AnnotationsState>): string {
+	private _feedbackSignature(subscription: IProjectedAgentSubscription<NativeAnnotationsState, NativeAnnotationsActionEnvelope>): string {
 		const value = subscription.value;
 		if (!value || value instanceof Error) {
 			return '';
@@ -580,7 +581,7 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 		}
 
 		const store = new DisposableStore();
-		const ref = store.add(resolved.connection.getSubscription(StateComponents.Annotations, resolved.annotationsUri, AnnotationsAgentFeedbackItemsBackend.OWNER));
+		const ref = store.add(getAgentHostUriProjection(resolved.connection).getAnnotationsSubscription(resolved.annotationsUri, AnnotationsAgentFeedbackItemsBackend.OWNER));
 		const channel: ITrackedChannel = {
 			connection: resolved.connection,
 			annotationsUri: resolved.annotationsUri,

@@ -175,7 +175,7 @@ export function resolveFeedbackEntryAuthor(entry: AnnotationEntry, index: number
  * `sessionResource` fields and returns `undefined` for annotations that aren't
  * feedback items. Read through this rather than casting the namespaced slot.
  */
-export function readFeedbackAnnotationMeta(annotation: Annotation): IFeedbackAnnotationMeta | undefined {
+export function readFeedbackAnnotationMeta(annotation: Pick<Annotation, '_meta'>): IFeedbackAnnotationMeta | undefined {
 	const meta = annotation._meta;
 	const slot = meta?.[FEEDBACK_ANNOTATION_META_KEY];
 	if (!slot || typeof slot !== 'object' || Array.isArray(slot)) {
