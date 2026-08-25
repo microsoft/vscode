@@ -185,15 +185,17 @@ fails with `Target page, context or browser has been closed`. Diff the page list
 
 ```js
 async function openBrowserTab(session, url) {
-    const ctx = session.browser.contexts()[0];
-    const seen = new Set(ctx.pages());
+    // Scan every context, like contentPage does, rather than assuming the new
+    // target lands in the workbench's own context.
+    const allPages = () => session.browser.contexts().flatMap(c => c.pages());
+    const seen = new Set(allPages());
     await session.workbench.quickaccess.runCommand('workbench.action.browser.open');
     await session.page.keyboard.type(url);
     await session.page.keyboard.press('Enter');
 
     const deadline = Date.now() + 30_000;
     while (Date.now() < deadline) {
-        const fresh = ctx.pages().filter(p =>
+        const fresh = allPages().filter(p =>
             !seen.has(p) && !p.isClosed() && p.url().startsWith(url));
         if (fresh.length) {
             const page = fresh[fresh.length - 1];

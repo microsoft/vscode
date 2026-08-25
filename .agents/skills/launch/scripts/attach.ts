@@ -196,6 +196,11 @@ export async function attach(cdpPort: number | string, options: IAttachOptions =
 	if (cdpPort === undefined || cdpPort === null || `${cdpPort}`.trim() === '') {
 		throw new Error('attach(cdpPort) requires the cdpPort printed by launch.sh.');
 	}
+	// NaN and Infinity are valid numbers but make every deadline comparison false,
+	// so a mistyped or unparsed option would hang instead of timing out.
+	if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
+		throw new Error(`attach(): timeoutMs must be a positive finite number, got ${timeoutMs}.`);
+	}
 	if (!Object.hasOwn(PAGE_URL_HINTS, windowKind)) {
 		throw new Error(`Unknown window kind "${windowKind}". Expected one of: ${Object.keys(PAGE_URL_HINTS).join(', ')}.`);
 	}
