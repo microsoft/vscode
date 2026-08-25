@@ -235,7 +235,7 @@ class SetChatBackgroundAction extends Action2 {
 		if (recentItems.length > 0) {
 			items.push({
 				type: 'separator',
-				label: localize('chat.agentSessions.backgroundType.recentlyUsed', "Recently Used"),
+				label: localize('chat.agentSessions.backgroundType.recentlyUsed', "recently used"),
 			}, ...recentItems);
 		}
 		const currentImage = backgroundService.getConfiguredBackgroundImage();
