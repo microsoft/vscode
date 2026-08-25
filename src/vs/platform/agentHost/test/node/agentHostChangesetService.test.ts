@@ -40,6 +40,19 @@ class TestAgentHostChangesetService extends AgentHostChangesetService {
 	}
 }
 
+class CountingTurnChangesetService extends TestAgentHostChangesetService {
+	readonly turnComputations: string[] = [];
+
+	protected override _createDiffComputeService(): TestDiffComputeService {
+		return new TestDiffComputeService();
+	}
+
+	override async computeTurnChangeset(session: string, turnId: string): Promise<string> {
+		this.turnComputations.push(turnId);
+		return buildTurnChangesetUri(session, turnId);
+	}
+}
+
 /**
  * Builds a test subscription service backed by a mutable set of subscribed
  * changeset URIs, so service tests can simulate subscribe / unsubscribe
@@ -96,6 +109,32 @@ class CapturingTelemetryService implements ITelemetryService {
 	setExperimentProperty(): void { }
 	setCommonProperty(): void { }
 }
+
+suite('AgentHostChangesetService subscription refresh', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('does not recompute completed turn changesets after repository changes', () => {
+		const session = AgentSession.uri('mock', 'session-1').toString();
+		const turnId = 'completed-turn';
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const service = disposables.add(new CountingTurnChangesetService(
+			stateManager,
+			new NullLogService(),
+			createNullSessionDataService(),
+			createNoopGitService(),
+			NULL_CHECKPOINT_SERVICE,
+			disposables.add(new AgentConfigurationService(stateManager, new NullLogService())),
+			createOperationService(),
+			createSubscriptionService(buildTurnChangesetUri(session, turnId)),
+			NULL_REVIEW_SERVICE,
+			NullTelemetryService,
+		));
+
+		service.recomputeSubscribedChangesets(session);
+
+		assert.deepStrictEqual(service.turnComputations, []);
+	});
+});
 
 suite.skip('AgentHostChangesetService', () => {
 

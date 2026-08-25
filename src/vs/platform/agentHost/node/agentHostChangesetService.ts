@@ -423,9 +423,9 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	}
 
 	/**
-	 * Recomputes every changeset currently subscribed for `session`. Each
-	 * subscribed changeset is dispatched to its kind-specific recompute; the
-	 * recomputes self-defer when the working directory is still unknown.
+	 * Recomputes every mutable changeset currently subscribed for `session`.
+	 * Completed turn changesets are immutable snapshots and are refreshed only
+	 * by their turn lifecycle.
 	 */
 	recomputeSubscribedChangesets(session: ProtocolURI): void {
 		const subscriptions = this._changesetSubscriptions.getSessionSubscriptions(session);
@@ -443,11 +443,6 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 					break;
 				case ChangesetKind.Uncommitted:
 					void this.computeUncommittedChangeset(session);
-					break;
-				case ChangesetKind.Turn:
-					if (parsed.turnId !== undefined) {
-						void this.computeTurnChangeset(session, parsed.turnId);
-					}
 					break;
 				default:
 					// A plain session URI subscription (Agents Window list /
