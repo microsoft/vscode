@@ -304,6 +304,27 @@ suite('CloudSandboxAgentHostContribution provisioning', () => {
 		});
 	});
 
+	test('publishes the seeded session when connecting fails, so it is not withheld forever', async () => {
+		// The task exists remotely once `createSession` returns. If a later failure leaves the seed
+		// withheld, nothing clears it: the caller never gets a provider to publish with, and a
+		// later discovery pass only backfills the entry already in the cache.
+		const harness = await createContribution(store, []);
+		harness.onConnect = async () => {
+			throw new Error('relay unavailable');
+		};
+
+		await assert.rejects(() => harness.contribution.provisionSession({ prompt: 'fix it' }, CancellationToken.None));
+
+		const provider = harness.contribution.stubProviders.get(cloudSandboxAddress('env-new'));
+		assert.deepStrictEqual({
+			withheld: [...(provider?.withheld ?? [])],
+			listed: provider?.getSessions().map(s => AgentSession.id(s.resource)),
+		}, {
+			withheld: [],
+			listed: ['sess-new'],
+		});
+	});
+
 	test('rejects when the feature is disabled while the sandbox is waking', async () => {
 		// Connecting waits out the VM boot, which is long enough for the setting to change.
 		// Returning a provider that teardown has already disposed would send into nothing.

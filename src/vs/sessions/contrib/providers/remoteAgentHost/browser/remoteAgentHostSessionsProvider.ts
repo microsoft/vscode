@@ -195,12 +195,16 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 	 * Raw id → deadline for locally provisioned sessions the host has not listed yet.
 	 * Mission Control creates the task before the host materializes the session, so the
 	 * first `listSessions` after connecting can legitimately omit it, and evicting it
-	 * there drops the row the user is looking at. The deadline stops a session the host
-	 * will never list from becoming a permanent row.
+	 * there drops the row the user is looking at.
+	 *
+	 * The value is the deadline after which eviction resumes, or `undefined` while the
+	 * clock has not started. It starts when a connected host first omits the session —
+	 * not at seed time, because waking a sandbox can take minutes and would otherwise
+	 * burn the whole grace period before the host has said anything at all.
 	 */
-	private readonly _provisionalSessions = new Map<string, number>();
+	private readonly _provisionalSessions = new Map<string, number | undefined>();
 
-	/** How long a provisional session resists eviction while the host has not listed it. */
+	/** How long a provisional session resists eviction after the host first omits it. */
 	static readonly PROVISIONAL_GRACE_MS = 2 * 60_000;
 
 	constructor(
@@ -404,7 +408,8 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 			this._sessionCache.set(rawId, adapter);
 			if (options?.provisional) {
 				this._withheldSessions.add(rawId);
-				this._provisionalSessions.set(rawId, Date.now() + RemoteAgentHostSessionsProvider.PROVISIONAL_GRACE_MS);
+				// No deadline yet: the clock starts when the host first omits it.
+				this._provisionalSessions.set(rawId, undefined);
 			} else {
 				added.push(adapter);
 			}
@@ -415,23 +420,30 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 	}
 
 	protected override _isSessionEvictable(rawId: string): boolean {
+		if (!this._provisionalSessions.has(rawId)) {
+			return true;
+		}
 		const deadline = this._provisionalSessions.get(rawId);
-		if (deadline === undefined) {
-			return true;
+		if (deadline === undefined || Date.now() < deadline) {
+			return false;
 		}
-		if (Date.now() >= deadline) {
-			this._provisionalSessions.delete(rawId);
-			return true;
-		}
-		return false;
+		this._provisionalSessions.delete(rawId);
+		return true;
 	}
 
 	protected override _onHostListedSessions(rawIds: ReadonlySet<string>): void {
 		if (this._provisionalSessions.size === 0) {
 			return;
 		}
-		for (const rawId of rawIds) {
-			this._provisionalSessions.delete(rawId);
+		for (const [rawId, deadline] of [...this._provisionalSessions]) {
+			if (rawIds.has(rawId)) {
+				// The host knows it, so it reconciles like any other session from here on.
+				this._provisionalSessions.delete(rawId);
+			} else if (deadline === undefined) {
+				// First time a connected host has omitted it: start the grace period now, so a
+				// slow sandbox wake does not consume it before the host has answered at all.
+				this._provisionalSessions.set(rawId, Date.now() + RemoteAgentHostSessionsProvider.PROVISIONAL_GRACE_MS);
+			}
 		}
 	}
 

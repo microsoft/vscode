@@ -335,6 +335,7 @@ export class CloudSandboxAgentHostContribution extends Disposable implements IWo
 			throw new CancellationError();
 		}
 		this._provisioning.add(address);
+		let seededProvider: RemoteAgentHostSessionsProvider | undefined;
 		try {
 			this._ensureProvider({ environmentId: created.environmentId, sessionId: created.sessionId, taskId: created.taskId, name });
 
@@ -359,6 +360,7 @@ export class CloudSandboxAgentHostContribution extends Disposable implements IWo
 				// answer before it has materialized the session.
 				provisional: true,
 			});
+			seededProvider = provider;
 
 			await this.connect({ environmentId: created.environmentId, sessionId: created.sessionId, name });
 
@@ -377,6 +379,15 @@ export class CloudSandboxAgentHostContribution extends Disposable implements IWo
 				throw new Error(`Provisioned sandbox session ${created.sessionId} did not surface on its provider`);
 			}
 			return { ...created, provider, session };
+		} catch (error) {
+			// The task exists remotely from `createSession` onward, so a failure after the seed
+			// must not leave it withheld: the caller never receives a provider to publish it with,
+			// and a later discovery pass only backfills the entry already in the cache. Withheld
+			// and unreachable is worse than listed early.
+			if (seededProvider && this._providerInstances.get(address) === seededProvider) {
+				seededProvider.publishWithheldSession(created.sessionId);
+			}
+			throw error;
 		} finally {
 			this._provisioning.delete(address);
 		}

@@ -1363,12 +1363,45 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		provider.publishWithheldSession('never-listed');
 		await timeout(0);
 
+		// The first listing that omits it starts the clock; it is still protected here.
+		await refreshViaTurnComplete(connection, 'other-1');
+		const afterFirstOmission = provider.getSessions().map(s => AgentSession.id(s.resource)).sort();
+
 		// The protection is bounded so a session the host will never list cannot become a
 		// permanent row that only a reload clears.
 		await timeout(RemoteAgentHostSessionsProvider.PROVISIONAL_GRACE_MS + 1);
 		await refreshViaTurnComplete(connection, 'other-1');
 
-		assert.deepStrictEqual(provider.getSessions().map(s => AgentSession.id(s.resource)), ['other-1']);
+		assert.deepStrictEqual({
+			afterFirstOmission,
+			afterGrace: provider.getSessions().map(s => AgentSession.id(s.resource)),
+		}, {
+			afterFirstOmission: ['never-listed', 'other-1'],
+			afterGrace: ['other-1'],
+		});
+	}));
+
+	test('a slow connection does not consume the grace period before the host answers', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		// Waking a sandbox can take minutes. If the clock ran from the seed, the first listing
+		// would meet an already-expired deadline and evict immediately — the disappearance this
+		// guard exists to prevent.
+		connection.addSession(createSession('other-1', { summary: 'Someone else' }));
+		// Seeded before connecting, exactly as provisioning does it: no listing can arrive until
+		// the sandbox is awake.
+		const provider = createProvider(disposables, connection, { noConnection: true, isWebPlatform: false, omitHostFromWorkspaceLabel: true });
+		provider.seedSessions([{
+			session: AgentSession.uri('copilotcli', 'slow-wake'),
+			startTime: 0,
+			modifiedTime: 0,
+			summary: 'Slow to wake',
+		}], { provisional: true });
+		provider.publishWithheldSession('slow-wake');
+
+		await timeout(RemoteAgentHostSessionsProvider.PROVISIONAL_GRACE_MS * 2);
+		provider.setConnection(connection);
+		await timeout(0);
+
+		assert.deepStrictEqual(provider.getSessions().map(s => AgentSession.id(s.resource)).sort(), ['other-1', 'slow-wake']);
 	}));
 
 	test('a withheld seed is cached and openable but stays out of the sessions list until published', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
