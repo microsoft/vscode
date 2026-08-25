@@ -37,9 +37,10 @@ import { ISessionsProvider } from '../../../../../services/sessions/common/sessi
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
 import { CloudSandboxAgentHostContribution } from '../../browser/cloudSandboxAgentHostContribution.js';
 import { IRemoteAgentHostConnectionCustomizationService } from '../../browser/remoteAgentHostConnectionCustomization.js';
-import { IRemoteAgentHostSessionsProviderConfig, RemoteAgentHostSessionsProvider, type ISeedSessionsOptions } from '../../browser/remoteAgentHostSessionsProvider.js';
+import { IRemoteAgentHostSessionsProviderConfig } from '../../browser/remoteAgentHostSessionsProvider.js';
+import { CloudSandboxSessionsProvider } from '../../browser/cloudSandboxSessionsProvider.js';
 
-class StubProvider extends mock<RemoteAgentHostSessionsProvider>() {
+class StubProvider extends mock<CloudSandboxSessionsProvider>() {
 	readonly seeded: IAgentSessionMetadata[] = [];
 	/** Raw ids seeded as provisional, mirroring the real provider's listing gate. */
 	readonly withheld = new Set<string>();
@@ -57,16 +58,20 @@ class StubProvider extends mock<RemoteAgentHostSessionsProvider>() {
 	 * the project backfill on an already-seeded session — that path is covered against the real
 	 * provider in `remoteAgentHostSessionsProvider.test.ts`.
 	 */
-	override seedSessions(metas: readonly IAgentSessionMetadata[], options?: ISeedSessionsOptions): void {
+	override seedSessions(metas: readonly IAgentSessionMetadata[]): void {
 		for (const meta of metas) {
-			if (this.seeded.some(seen => seen.session.toString() === meta.session.toString())) {
-				continue;
-			}
-			this.seeded.push(meta);
-			if (options?.provisional) {
-				this.withheld.add(AgentSession.id(meta.session));
+			if (!this.seeded.some(seen => seen.session.toString() === meta.session.toString())) {
+				this.seeded.push(meta);
 			}
 		}
+	}
+
+	override seedProvisionalSession(meta: IAgentSessionMetadata): void {
+		if (this.seeded.some(seen => seen.session.toString() === meta.session.toString())) {
+			return;
+		}
+		this.seeded.push(meta);
+		this.withheld.add(AgentSession.id(meta.session));
 	}
 
 	/** Surfaces each seed under the UI resource scheme, which is what keys the raw session id. */
@@ -104,10 +109,10 @@ class StubProvider extends mock<RemoteAgentHostSessionsProvider>() {
 class TestCloudSandboxContribution extends CloudSandboxAgentHostContribution {
 	readonly stubProviders = new Map<string, StubProvider>();
 
-	protected override _instantiateProvider(config: IRemoteAgentHostSessionsProviderConfig): RemoteAgentHostSessionsProvider {
+	protected override _instantiateProvider(config: IRemoteAgentHostSessionsProviderConfig): CloudSandboxSessionsProvider {
 		const stub = new StubProvider(config);
 		this.stubProviders.set(config.address, stub);
-		return stub as unknown as RemoteAgentHostSessionsProvider;
+		return stub as unknown as CloudSandboxSessionsProvider;
 	}
 }
 

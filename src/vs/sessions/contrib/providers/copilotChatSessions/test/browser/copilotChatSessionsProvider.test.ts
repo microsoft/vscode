@@ -39,7 +39,7 @@ import { ChatModelSource, GITHUB_REMOTE_FILE_SCHEME, IChat, ISession, SessionSta
 import { CloudSandboxEnabledSettingId, type ICloudSandboxCreateSessionRequest } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { CloudSandboxAgentHostContribution, type ICloudSandboxProvisionedSession } from '../../../remoteAgentHost/browser/cloudSandboxAgentHostContribution.js';
-import { RemoteAgentHostSessionsProvider } from '../../../remoteAgentHost/browser/remoteAgentHostSessionsProvider.js';
+import { CloudSandboxSessionsProvider } from '../../../remoteAgentHost/browser/cloudSandboxSessionsProvider.js';
 import { ChatConfiguration, ChatPermissionLevel } from '../../../../../../workbench/contrib/chat/common/constants.js';
 import { CopilotChatSessionsProvider, COPILOT_PROVIDER_ID, CopilotCloudSessionType, ICopilotChatSession } from '../../browser/copilotChatSessionsProvider.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
@@ -1874,10 +1874,10 @@ suite('CopilotChatSessionsProvider', () => {
 				environmentId: 'env-new',
 				session: sandboxSession,
 				published,
-				provider: upcastPartial<RemoteAgentHostSessionsProvider>({
+				provider: upcastPartial<CloudSandboxSessionsProvider>({
 					sendRequest: sendRequest ?? (async () => committed),
 					publishWithheldSession: (rawId: string) => { published.push(rawId); },
-				}) as RemoteAgentHostSessionsProvider,
+				}) as CloudSandboxSessionsProvider,
 			};
 		}
 

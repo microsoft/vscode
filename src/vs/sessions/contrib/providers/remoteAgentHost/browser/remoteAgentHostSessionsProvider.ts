@@ -94,16 +94,6 @@ export interface ISessionSchemeAlias {
 	readonly backend: string;
 }
 
-/** Options for {@link RemoteAgentHostSessionsProvider.seedSessions}. */
-export interface ISeedSessionsOptions {
-	/**
-	 * Mark the seeded session as freshly provisioned by this client, so it stays out of
-	 * {@link RemoteAgentHostSessionsProvider.getSessions} and resists eviction until the host
-	 * lists it. Only affects sessions the call creates.
-	 */
-	readonly provisional?: boolean;
-}
-
 /**
  * Sessions provider for a remote agent host connection. A thin subclass of
  * {@link BaseAgentHostSessionsProvider} that adds the connection-lifecycle
@@ -182,21 +172,6 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 	 */
 	private _unpublished = false;
 
-	/**
-	 * Seeded sessions kept out of {@link getSessions} because the caller is still showing a
-	 * placeholder row for them. They stay reachable by resource, so opening one still works.
-	 */
-	private readonly _withheldSessions = new Set<string>();
-
-	/**
-	 * Raw id → deadline after which eviction resumes, or `undefined` while the clock has not
-	 * started. It starts when a connected host first omits the session, not at seed time, because
-	 * waking a sandbox can take minutes.
-	 */
-	private readonly _provisionalSessions = new Map<string, number | undefined>();
-
-	/** How long a provisional session resists eviction after the host first omits it. */
-	static readonly PROVISIONAL_GRACE_MS = 2 * 60_000;
 
 	constructor(
 		config: IRemoteAgentHostSessionsProviderConfig,
@@ -289,13 +264,7 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 	}
 
 	override getSessions(): ISession[] {
-		if (this._unpublished) {
-			return [];
-		}
-		const sessions = super.getSessions();
-		return this._withheldSessions.size === 0
-			? sessions
-			: sessions.filter(session => !this._withheldSessions.has(AgentSession.id(session.resource)));
+		return this._unpublished ? [] : super.getSessions();
 	}
 
 	protected override mapWorkingDirectoryUri(uri: URI): URI {
@@ -380,7 +349,7 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 	 * filling it in on a later pass is what makes retrying worth anything. Opening a seeded session
 	 * triggers `connectOnDemand`, after which `_refreshSessions` reconciles against the host.
 	 */
-	seedSessions(metas: readonly IAgentSessionMetadata[], options?: ISeedSessionsOptions): void {
+	seedSessions(metas: readonly IAgentSessionMetadata[]): void {
 		const added: ISession[] = [];
 		const changed: ISession[] = [];
 		for (const rawMeta of metas) {
@@ -397,68 +366,10 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 			}
 			const adapter = this.createAdapter(meta);
 			this._sessionCache.set(rawId, adapter);
-			if (options?.provisional) {
-				this._withheldSessions.add(rawId);
-				// No deadline yet: the clock starts when the host first omits it.
-				this._provisionalSessions.set(rawId, undefined);
-			} else {
-				added.push(adapter);
-			}
+			added.push(adapter);
 		}
 		if (added.length > 0 || changed.length > 0) {
 			this._onDidChangeSessions.fire({ added, removed: [], changed });
-		}
-	}
-
-	protected override _isSessionEvictable(rawId: string): boolean {
-		if (!this._provisionalSessions.has(rawId)) {
-			return true;
-		}
-		const deadline = this._provisionalSessions.get(rawId);
-		if (deadline === undefined || Date.now() < deadline) {
-			return false;
-		}
-		this._provisionalSessions.delete(rawId);
-		return true;
-	}
-
-	protected override _onHostListedSessions(rawIds: ReadonlySet<string>): void {
-		if (this._provisionalSessions.size === 0) {
-			return;
-		}
-		for (const [rawId, deadline] of [...this._provisionalSessions]) {
-			if (rawIds.has(rawId)) {
-				// The host knows it, so it reconciles like any other session from here on.
-				this._provisionalSessions.delete(rawId);
-			} else if (deadline === undefined) {
-				// Start the grace period now, so a slow wake does not consume it beforehand.
-				this._provisionalSessions.set(rawId, Date.now() + RemoteAgentHostSessionsProvider.PROVISIONAL_GRACE_MS);
-			}
-		}
-	}
-
-	/**
-	 * Look up a cached session by raw id, **including** ones withheld from {@link getSessions},
-	 * which callers that seeded a session need before it is listed.
-	 */
-	getCachedSession(rawId: string): ISession | undefined {
-		return this._sessionCache.get(rawId);
-	}
-
-	/**
-	 * Reveal a session seeded as `provisional`, so {@link getSessions} starts returning it.
-	 *
-	 * Pass `announce: false` when the caller immediately fires its own change event covering
-	 * this session: the list re-reads {@link getSessions} on any change, so a single event can
-	 * both drop a placeholder row and reveal this one.
-	 */
-	publishWithheldSession(rawId: string, options?: { announce?: boolean }): void {
-		if (!this._withheldSessions.delete(rawId)) {
-			return;
-		}
-		const session = this._sessionCache.get(rawId);
-		if (session && options?.announce !== false) {
-			this._onDidChangeSessions.fire({ added: [session], removed: [], changed: [] });
 		}
 	}
 
