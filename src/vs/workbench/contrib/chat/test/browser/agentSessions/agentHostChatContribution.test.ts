@@ -984,27 +984,15 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 			dispose: () => { },
 		};
 	};
+	const syncProvider = {
+		onDidChange: Event.None,
+		isDisabled: () => false,
+		setDisabled: () => { },
+	};
 	const activeClientService: IAgentHostActiveClientService = {
 		_serviceBrand: undefined,
-		registerForAgent: (sessionType) => {
-			// Tests that exercise customization changes seed entries via
-			// `seedActiveClient` directly. This stub just records an empty
-			// entry so the contribution flow completes.
-			const inner = seedActiveClient(sessionType, {
-				customizations: constObservable<readonly ClientPluginCustomization[]>([]),
-			});
-			return {
-				syncProvider: {
-					onDidChange: Event.None,
-					isDisabled: () => false,
-					setDisabled: () => { },
-				},
-				acquireScope: roots => acquireScope(sessionType, roots),
-				getOrigin: () => undefined,
-				isBundledMcpServer: () => false,
-				dispose: () => inner.dispose(),
-			};
-		},
+		getSyncProvider: () => syncProvider,
+		getOrigin: () => undefined,
 		acquireScope,
 		areScopeRootsEqual: (first, second) => JSON.stringify(first) === JSON.stringify(second),
 		isBundledMcpServer: () => false,
