@@ -126,6 +126,9 @@ const CHAT_ACTIVITY_PROGRESS_ID = 'agentHost.chatActivity';
 /**
  * First protocol version whose customizations carry list-shaped `enablement` rather than a plain
  * `enabled` boolean. Hosts below it reject the newer shape outright.
+ *
+ * TODO@osortega: delete this and `_withVersionedCustomizations` once every reachable host speaks
+ * 0.8.0 — the cloud sandbox image was still on 0.7.0, and those hosts lose client customizations.
  */
 const CUSTOMIZATION_ENABLEMENT_PROTOCOL_VERSION = '0.8.0';
 
@@ -2147,7 +2150,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 	/**
 	 * Drop client-published customizations for a host older than list-shaped enablement, which
-	 * rejects the newer shape outright with `invalid params: missing field 'enabled'`.
+	 * rejects the newer shape outright with `invalid params: missing field 'enabled'`. Temporary;
+	 * see {@link CUSTOMIZATION_ENABLEMENT_PROTOCOL_VERSION}.
 	 */
 	private _withVersionedCustomizations(activeClient: SessionActiveClient): SessionActiveClient {
 		const hostVersion = this._config.connection.initializeResult.get()?.protocolVersion;
