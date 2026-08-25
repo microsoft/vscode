@@ -291,21 +291,49 @@ export function parseArgs<T>(args: string[], options: OptionDescriptions<T>, err
 		}
 	}
 
-	// Find the first non-option arg, which also isn't the value for a previous `--flag`
+	// Find the first non-option arg, which also isn't the value for a previous `--flag` or for an option that only the candidate subcommand itself understands
+	function subcommandTakesValue<C>(commandOptions: OptionDescriptions<C> | undefined, name: string): boolean {
+		if (!commandOptions) {
+			return false;
+		}
+		for (const optionId of Object.keys(commandOptions)) {
+			const o = commandOptions[optionId as keyof OptionDescriptions<C>];
+			if (o.type === 'subcommand') {
+				continue;
+			}
+			if ((o.type === 'string' || o.type === 'string[]') && (optionId === name || o.alias === name || o.deprecates?.includes(name))) {
+				return true;
+			}
+		}
+		return false;
+	}
+
 	let firstPossibleCommand: string | undefined = undefined;
+	let firstPossibleCommandIndex = -1;
 	let expectsValue = false;
-	for (const a of args) {
+	let pendingOptionName: string | undefined = undefined;
+	for (let index = 0; index < args.length; index++) {
+		const a = args[index];
 		if (expectsValue) {
 			expectsValue = false;
+			pendingOptionName = undefined;
 			continue;
 		}
 		if (a.length > 0 && a[0] !== '-') {
-			if (options.hasOwnProperty(a) && options[a as T].type === 'subcommand') {
+			const candidate = options.hasOwnProperty(a) ? options[a as T] : undefined;
+			if (candidate && candidate.type === 'subcommand' && pendingOptionName && subcommandTakesValue(candidate.options, pendingOptionName)) {
+				pendingOptionName = undefined;
+				continue;
+			}
+			pendingOptionName = undefined;
+			if (candidate && candidate.type === 'subcommand') {
 				firstPossibleCommand = a;
+				firstPossibleCommandIndex = index;
 				break;
 			}
 		} else {
 			const name = a.startsWith('--') ? a.slice(2) : a.slice(1);
+			pendingOptionName = name.includes('=') ? undefined : name;
 			if (name.includes('=')) {
 				continue;
 			}
@@ -353,7 +381,8 @@ export function parseArgs<T>(args: string[], options: OptionDescriptions<T>, err
 		for (const optionId in command.options) {
 			options[optionId] = command.options[optionId];
 		}
-		const newArgs = args.filter(a => a !== firstPossibleCommand);
+		const newArgs = args.slice();
+		newArgs.splice(firstPossibleCommandIndex, 1);
 		const reporter = errorReporter.getSubcommandReporter ? errorReporter.getSubcommandReporter(firstPossibleCommand) : undefined;
 		const subcommandOptions = parseArgs(newArgs, options as OptionDescriptions<Record<string, unknown>>, reporter);
 		// eslint-disable-next-line local/code-no-dangerous-type-assertions

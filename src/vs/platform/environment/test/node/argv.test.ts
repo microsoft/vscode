@@ -248,5 +248,65 @@ suite('parseArgs', () => {
 		);
 	});
 
+	test('repeated subcommand tokens and subcommand option values', () => {
+
+		interface TestArgs4 {
+			testcmd?: {
+				verbose?: boolean;
+				_: string[];
+			};
+			log?: string[];
+			verbose?: boolean;
+			_: string[];
+		}
+
+		const options4 = {
+			'testcmd': c('A test command', {
+				verbose: { type: 'boolean', global: true, description: '' },
+				_: { type: 'string[]' }
+			}),
+			log: { type: 'string[]', global: true, description: '' },
+			verbose: { type: 'boolean', global: true, description: '' },
+			_: { type: 'string[]' }
+		} as OptionDescriptions<TestArgs4>;
+
+		assertParse(
+			options4,
+			['--log', 'testcmd', 'testcmd'],
+			{ testcmd: { verbose: false, log: ['testcmd'], '_': [] }, '_': [] },
+			[]
+		);
+
+		assertParse(
+			options4,
+			['--log=testcmd', 'testcmd'],
+			{ testcmd: { verbose: false, log: ['testcmd'], '_': [] }, '_': [] },
+			[]
+		);
+
+		interface TestArgs5 {
+			testcmd?: {
+				testArg?: string;
+				_: string[];
+			};
+			_: string[];
+		}
+
+		const options5 = {
+			'testcmd': c('A test command', {
+				testArg: o('A test command option'),
+				_: { type: 'string[]' }
+			}),
+			_: { type: 'string[]' }
+		} as OptionDescriptions<TestArgs5>;
+
+		assertParse(
+			options5,
+			['--testArg', 'testcmd'],
+			{ '_': [] },
+			['onUnknownOption testArg']
+		);
+	});
+
 	ensureNoDisposablesAreLeakedInTestSuite();
 });
