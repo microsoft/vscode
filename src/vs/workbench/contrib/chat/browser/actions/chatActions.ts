@@ -210,8 +210,6 @@ export interface IChatViewOpenRequestEntry {
 	response: string;
 }
 
-export const CHAT_CONFIG_MENU_ID = new MenuId('workbench.chat.menu.config');
-
 const OPEN_CHAT_QUOTA_EXCEEDED_DIALOG = 'workbench.action.chat.openQuotaExceededDialog';
 
 abstract class OpenChatGlobalAction extends Action2 {
@@ -1522,12 +1520,6 @@ export function registerChatActions() {
 				f1: true,
 				precondition: ChatContextKeys.enabled,
 				menu: [{
-					id: CHAT_CONFIG_MENU_ID,
-					when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('view', ChatViewId)),
-					order: 15,
-					group: '3_configure'
-				},
-				{
 					id: MenuId.ChatWelcomeContext,
 					group: '2_settings',
 					order: 1
