@@ -187,6 +187,25 @@ class EntityEntry<TRef extends EntityRef, TValue extends EntityValue> {
 			: new IssueResourceImpl(this as EntityEntry<GitHubIssueRef, GitHubIssue>);
 	}
 
+	setLoading(attemptedAt: string): void {
+		this.state.set({
+			...this.state.get(),
+			status: 'loading',
+			complete: false,
+			attemptedAt,
+			error: undefined,
+		}, undefined);
+	}
+
+	setError(error: NonNullable<FragmentState<TValue>['error']>): void {
+		this.state.set({
+			...this.state.get(),
+			status: 'error',
+			complete: false,
+			error,
+		}, undefined);
+	}
+
 	ref: TRef;
 }
 
@@ -320,13 +339,7 @@ export class GitHubQueryService extends Disposable implements IGitHubQuery {
 		const attemptedAt = new Date(this._clock.now()).toISOString();
 		for (const { entry } of resources) {
 			this._scheduler.cancel(this._entityTaskKey(entry));
-			entry.state.set({
-				...entry.state.get(),
-				status: 'loading',
-				complete: false,
-				attemptedAt,
-				error: undefined,
-			}, undefined);
+			entry.setLoading(attemptedAt);
 		}
 
 		const definitions: string[] = [];
@@ -354,12 +367,7 @@ export class GitHubQueryService extends Disposable implements IGitHubQuery {
 				if (entry.disposed || entry.generation !== generation) {
 					continue;
 				}
-				entry.state.set({
-					...entry.state.get(),
-					status: 'error',
-					complete: false,
-					error: toFragmentError(error),
-				}, undefined);
+				entry.setError(toFragmentError(error));
 				if (entry.subscriptions.size > 0) {
 					this._scheduleEntity(entry, this._clock.now());
 				} else {

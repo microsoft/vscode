@@ -530,7 +530,7 @@ class SharedLinkPresentationEntry extends Disposable {
 				}
 				disposed = true;
 				this._references--;
-				if (this._references === 0) {
+				if (this._references === 0 && !this._store.isDisposed) {
 					this._releaseTimer.value = disposableTimeout(this._onDidBecomeUnused, watcherReleaseDelay);
 				}
 			},
