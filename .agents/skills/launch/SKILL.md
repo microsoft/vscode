@@ -100,9 +100,11 @@ Excluded (transient, regenerable, or known-not-needed):
 - `User/History/` - local file edit history
 - `CachedExtensionVSIXs` - backup VSIXs (hundreds of MB)
 - `logs`
-- Chromium caches: `Cache`, `Code Cache`, `CachedData`, `GPUCache`, `ShaderCache`, `Dawn*Cache`, `component_crx_cache`
+- Chromium caches at the profile root: `Cache`, `Code Cache`, `CachedData`, `GPUCache`, `ShaderCache`, `Dawn*Cache`, `component_crx_cache`; and under the persistent integrated-browser partition: `Cache`, `Code Cache`, `GPUCache`, `Dawn*Cache`
 - `Backups`, `blob_storage`, `BrowserMetrics`, `Crashpad`, `Session Storage`
 - `Singleton*`, `*.lock`, `*.sock` (would conflict with the source instance)
+
+The persistent integrated-browser partition keeps website state such as cookies, local and session storage, IndexedDB, WebStorage, service workers, and preferences; only its regenerable caches are excluded.
 
 `extensions/` defaults to a **fresh empty directory** - fastest and conflict-free, but the launched instance starts with no third-party extensions installed. Pass `--clone-extensions` to copy the source extensions dir into the temp profile so the new instance is independent of the source. Pass `--full` to skip all excludes if you suspect the slim copy is missing something you need.
 
