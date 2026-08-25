@@ -4566,9 +4566,8 @@ export class CodexAgent extends Disposable implements IAgent {
 	}
 
 	/**
-	 * Tear down the current codex thread and start a fresh one so the
-	 * session's current client tools are registered as `dynamicTools`.
-	 * Only safe before any turn has committed history on the thread.
+	 * Restarts the current codex thread with the latest launch configuration.
+	 * This preserves provisional state; the first send owns materialization publication.
 	 */
 	private async _restartThreadWithCurrentTools(session: ICodexSession, configResource: URI = session.configurationResource): Promise<void> {
 		const conn = this._connection;
@@ -4588,7 +4587,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		session.threadId = undefined;
 		this._applyMcpInventoryToSession(session);
 		session.materializePromise = undefined;
-		await this._materializeIfNeeded(session, configResource, true);
+		await this._materializeIfNeeded(session, configResource, false);
 	}
 
 	private _fireMaterialized(session: ICodexSession): void {

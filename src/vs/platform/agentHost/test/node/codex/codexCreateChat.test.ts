@@ -830,6 +830,62 @@ suite('CodexAgent createChat', () => {
 			peer.dispose();
 		}
 	});
+
+	test('prewarmed draft stays provisional while its launch config changes before first send', async () => {
+		const agent = await createAgent(disposables, { sdkResolvableWithoutDownload: true });
+		const peer = disposables.add(createTestPeer());
+		connectPeer(agent, peer);
+
+		try {
+			const sessionUri = AgentSession.uri('codex', 'session-prewarm-restart');
+			const chat = URI.parse(buildDefaultChatUri(sessionUri));
+			const folder = URI.file('/repo/prewarm-restart');
+			const context = { configurationResource: sessionUri, resource: chat };
+			const materialized: string[] = [];
+			disposables.add(agent.onDidMaterializeChat(e => materialized.push(e.chat.toString())));
+
+			await createSessionBackedChat(agent, chat, context, {
+				workingDirectories: [folder],
+				model: { id: COPILOT_TEST_MODEL },
+			});
+			const prewarmStart = await readNextRequest(peer.outbound);
+			peer.push({ id: prewarmStart.id, result: { thread: { id: 'prewarmed-thread', cwd: folder.fsPath } } });
+			await new Promise(resolve => setImmediate(resolve));
+
+			const changingAgent = agent.chats.changeAgent(chat, undefined, context);
+			const unsubscribe = await readNextRequest(peer.outbound);
+			peer.push({ id: unsubscribe.id, result: {} });
+			const restartedThread = await readNextRequest(peer.outbound);
+			peer.push({ id: restartedThread.id, result: { thread: { id: 'restarted-thread', cwd: folder.fsPath } } });
+			await changingAgent;
+			const beforeSend = [...materialized];
+
+			const sending = agent.chats.sendMessage(chat, 'hello', [folder], undefined, 'turn-1', undefined, undefined, context);
+			const turn = await readNextRequest(peer.outbound);
+			peer.push({ id: turn.id, result: {} });
+			await sending;
+
+			assert.deepStrictEqual({
+				beforeSend,
+				afterSend: materialized,
+				requests: [prewarmStart, unsubscribe, restartedThread, turn].map(request => ({
+					method: request.method,
+					threadId: request.params.threadId,
+				})),
+			}, {
+				beforeSend: [],
+				afterSend: [chat.toString()],
+				requests: [
+					{ method: 'thread/start', threadId: undefined },
+					{ method: 'thread/unsubscribe', threadId: 'prewarmed-thread' },
+					{ method: 'thread/start', threadId: undefined },
+					{ method: 'turn/start', threadId: 'restarted-thread' },
+				],
+			});
+		} finally {
+			peer.dispose();
+		}
+	});
 });
 
 suite('CodexAgent exact chat routing', () => {
