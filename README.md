@@ -1,77 +1,131 @@
-# Visual Studio Code - Open Source ("Code - OSS")
-[![Feature Requests](https://img.shields.io/github/issues/microsoft/vscode/feature-request.svg)](https://github.com/microsoft/vscode/issues?q=is%3Aopen+is%3Aissue+label%3Afeature-request+sort%3Areactions-%2B1-desc)
-[![Bugs](https://img.shields.io/github/issues/microsoft/vscode/bug.svg)](https://github.com/microsoft/vscode/issues?utf8=✓&q=is%3Aissue+is%3Aopen+label%3Abug)
-[![Gitter](https://img.shields.io/badge/chat-on%20gitter-yellow.svg)](https://gitter.im/Microsoft/vscode)
+# GitCortex Studio
 
-## The Repository
+[![Based on Code - OSS](https://img.shields.io/badge/based%20on-Code--OSS-007ACC.svg)](https://github.com/microsoft/vscode)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE.txt)
 
-This repository ("`Code - OSS`") is where we (Microsoft) develop the [Visual Studio Code](https://code.visualstudio.com) product together with the community. Not only do we work on code and issues here, but we also publish our [roadmap](https://github.com/microsoft/vscode/wiki/Roadmap), [monthly iteration plans](https://github.com/microsoft/vscode/wiki/Iteration-Plans), and our [endgame plans](https://github.com/microsoft/vscode/wiki/Running-the-Endgame). This source code is available to everyone under the standard [MIT license](https://github.com/microsoft/vscode/blob/main/LICENSE.txt).
+GitCortex Studio is a branded, open-source code editor based on the [Code - OSS](https://github.com/microsoft/vscode) source tree and the [Visual Studio Code](https://code.visualstudio.com) workbench. It preserves the editor, extension, terminal, source-control, debugging, and development foundations of VS Code while adding GitCortex-specific branding and an integrated virtual-machine development surface.
 
-## Visual Studio Code
+This repository is the GitCortex adaptation of the upstream VS Code codebase. It is not a claim that every feature of the commercial Visual Studio Code distribution is included here. Availability of extensions, services, operating-system integrations, and AI features depends on the build, the installed extensions, and the user's configuration.
 
-<p align="center">
-  <img alt="VS Code in action" src="https://github.com/user-attachments/assets/56af271c-949d-454c-a3ea-16188c063414">
-</p>
+## Project status
 
-[Visual Studio Code](https://code.visualstudio.com) is a distribution of the `Code - OSS` repository with Microsoft-specific customizations released under a traditional [Microsoft product license](https://code.visualstudio.com/License/).
+The project is actively being built and validated. The table below distinguishes functionality that is present in the current source tree from work that is still being validated or has not yet been implemented.
 
-[Visual Studio Code](https://code.visualstudio.com) combines the simplicity of a code editor with what developers need for their core edit-build-debug cycle. It provides comprehensive code editing, navigation, and understanding support along with lightweight debugging, a rich extensibility model, and lightweight integration with existing tools.
+| Area | Current status |
+| --- | --- |
+| Code editor foundation | Present. GitCortex uses the Code - OSS / VS Code workbench and its existing editing, navigation, terminal, source-control, debugging, extension, and configuration infrastructure. |
+| GitCortex branding | Integrated. Product names, application identifiers, URL protocol, data-folder names, icons, Windows identifiers, and related branding metadata are defined in `product.json` and the build resources. |
+| Virtual machines | Present in the source tree. The workbench exposes Ubuntu Developer and Ubuntu Sandbox machines with start, stop, restart, remove, environment checks, resource settings, and display opening. Running them requires a compatible QEMU installation and suitable host capabilities. |
+| VM remote desktop | Present in the source tree. The Remote Desktop surface uses the bundled noVNC runtime and connects through a token-authenticated WebSocket bridge to a private Unix VNC socket. It does not intentionally expose QEMU's VNC server as an unauthenticated TCP listener. |
+| Agent and AI integrations | The product configuration retains the VS Code extension-based agent/chat integration points, including GitHub Copilot-related configuration. GitCortex does not claim an independent built-in AI agent runtime beyond the extensions and services actually installed and enabled by the user. |
+| VM lifecycle and IPC hardening | Integrated. QMP-based shutdown, serialized VM lifecycle operations, daemon shutdown handling, signal handling, socket cleanup, and per-instance IPC disposal are implemented in the current VM service. |
+| Protocol file serving | Integrated. The Electron protocol implementation uses file-backed streaming and handles `HEAD`, byte ranges, partial responses, invalid ranges, and file errors without buffering an entire file unnecessarily. |
+| Packaging and licensing resources | Integrated in the current build configuration. The desktop and next-generation build paths include the required noVNC runtime resources and license, and the Debian removal script protects unrelated Microsoft resources. |
+| Production readiness | Still being validated. Cross-platform QEMU/KVM availability, installer and release workflows, and full build validation must be checked in the target CI or release environments before being described as complete. |
 
-Visual Studio Code is updated monthly with new features and bug fixes. You can download it for Windows, macOS, and Linux on the [Visual Studio Code website](https://code.visualstudio.com/Download). To get the latest releases every day, install the [Insiders build](https://code.visualstudio.com/insiders).
+## What GitCortex currently provides
 
-## Contributing
+### A familiar VS Code development environment
 
-There are many ways in which you can participate in this project, for example:
+GitCortex retains the core Code - OSS development experience: a workbench with multiple editor groups, syntax-aware editing, navigation and search, integrated terminals, source control, debugging infrastructure, an extension model, configurable keybindings and themes, and the standard VS Code contribution model. Built-in extensions and language support remain organized under the repository's existing `extensions` tree.
 
-* [Submit bugs and feature requests](https://github.com/microsoft/vscode/issues), and help us verify them as they are checked in
-* Review [source code changes](https://github.com/microsoft/vscode/pulls)
-* Review the [documentation](https://github.com/microsoft/vscode-docs) and make pull requests for anything from typos to new content.
+The editor can also consume the broader VS Code extension ecosystem where licensing, compatibility, and the selected build permit it. The presence of an extension integration point does not by itself guarantee that a particular extension or service is installed in a given distribution.
 
-If you are interested in fixing issues and contributing directly to the codebase, please see the document [How to Contribute](https://github.com/microsoft/vscode/wiki/How-to-Contribute), which covers the following:
+### Integrated virtual machines
 
-* [How to build and run from source](https://github.com/microsoft/vscode/wiki/How-to-Contribute)
-* [The development workflow, including debugging and running tests](https://github.com/microsoft/vscode/wiki/How-to-Contribute#debugging)
-* [Coding guidelines](https://github.com/microsoft/vscode/wiki/Coding-Guidelines)
-* [Submitting pull requests](https://github.com/microsoft/vscode/wiki/How-to-Contribute#pull-requests)
-* [Finding an issue to work on](https://github.com/microsoft/vscode/wiki/How-to-Contribute#where-to-contribute)
-* [Contributing to translations](https://aka.ms/vscodeloc)
+The current VM contribution defines two well-known guest profiles:
 
-## Feedback
+| Machine | Intended role | Default resources |
+| --- | --- | --- |
+| Ubuntu Developer | A development-oriented guest | 2 vCPUs, 4096 MB RAM, 32 GB disk |
+| Ubuntu Sandbox | An isolated guest for experiments and tests | 2 vCPUs, 2048 MB RAM, 16 GB disk |
 
-* Ask a question on [Stack Overflow](https://stackoverflow.com/questions/tagged/vscode)
-* [Request a new feature](CONTRIBUTING.md)
-* Upvote [popular feature requests](https://github.com/microsoft/vscode/issues?q=is%3Aopen+is%3Aissue+label%3Afeature-request+sort%3Areactions-%2B1-desc)
-* [File an issue](https://github.com/microsoft/vscode/issues)
-* Connect with the extension author community on [GitHub Discussions](https://github.com/microsoft/vscode-discussions/discussions) or [Slack](https://aka.ms/vscode-dev-community)
-* Follow [@code](https://x.com/code) and let us know what you think!
+The workbench provides commands and view actions to start, stop, restart, open, and remove a stopped machine. It also exposes an environment check and machine settings for QEMU binary selection, acceleration mode, data-root location, network mode, CPU count, memory, disk size, and optional installer ISO paths.
 
-See our [wiki](https://github.com/microsoft/vscode/wiki/Feedback-Channels) for a description of each of these channels and information on some other available community-driven channels.
+The implementation supports explicit `user`, `restricted`, and `none` network modes, together with KVM or TCG acceleration selection. Resource values are bounded by the VM service before they are passed to the launcher. These controls describe the implemented configuration surface; they do not guarantee that a host has QEMU, KVM, an installer ISO, sufficient disk space, or sufficient memory.
 
-## Related Projects
+### Remote Desktop through VNC and noVNC
 
-Many of the core components and extensions to VS Code live in their own repositories on GitHub. For example, the [node debug adapter](https://github.com/microsoft/vscode-node-debug) and the [mono debug adapter](https://github.com/microsoft/vscode-mono-debug) repositories are separate from each other. For a complete list, please visit the [Related Projects](https://github.com/microsoft/vscode/wiki/Related-Projects) page on our [wiki](https://github.com/microsoft/vscode/wiki).
+Opening a running VM's desktop uses the bundled noVNC client in a VS Code webview. The current connection path is:
 
-## Bundled Extensions
+```text
+Workbench Remote Desktop
+        │
+        ▼
+Token-authenticated WebSocket proxy
+        │
+        ▼
+Private Unix VNC socket
+        │
+        ▼
+QEMU virtual machine
+```
 
-VS Code includes a set of built-in extensions located in the [extensions](extensions) folder, including grammars and snippets for many languages. Extensions that provide rich language support (inline suggestions, Go to Definition) for a language have the suffix `language-features`. For example, the `json` extension provides coloring for `JSON` and the `json-language-features` extension provides rich language support for `JSON`.
+The proxy issues temporary single-use session tokens, bridges WebSocket traffic to the Unix socket, and disposes active connections during shutdown. The webview uses a nonce-based content-security policy, a local noVNC resource root, theme-aware styling, and keyboard interaction support. Enter or Space enters desktop interaction and Escape returns focus to the interaction control.
 
-## Development Container
+The source tree includes the noVNC JavaScript runtime and its license, and the build pipelines explicitly include the required resources. Actual desktop availability still depends on a successfully running VM and the host's QEMU environment.
 
-This repository includes a Visual Studio Code Dev Containers / GitHub Codespaces development container.
+### Agent and development workflows
 
-* For [Dev Containers](https://aka.ms/vscode-remote/download/containers), use the **Dev Containers: Clone Repository in Container Volume...** command, which creates a Docker volume for better disk I/O on macOS and Windows.
-  * If you already have VS Code and Docker installed, you can also click [here](https://vscode.dev/redirect?url=vscode://ms-vscode-remote.remote-containers/cloneInVolume?url=https://github.com/microsoft/vscode) to get started. This will cause VS Code to automatically install the Dev Containers extension if needed, clone the source code into a container volume, and spin up a dev container for use.
+GitCortex retains the agent and chat integration points supplied by the VS Code / Code - OSS architecture and the product configuration references used by extension-based providers such as GitHub Copilot. The editor also retains the surrounding development workflows for terminals, debugging, extensions, source control, workspaces, tasks, and configuration.
 
-* For Codespaces, install the [GitHub Codespaces](https://marketplace.visualstudio.com/items?itemName=GitHub.codespaces) extension in VS Code, and use the **Codespaces: Create New Codespace** command.
+These integrations are deliberately described as extension- and service-based. A user must install, authenticate, and configure the relevant provider where required. GitCortex does not currently claim a separate, always-available GitCortex agent model, hosted backend, autonomous execution service, or provider entitlement that is not present in the source or supplied by an installed extension.
 
-Docker / the Codespace should have at least **4 cores and 6 GB of RAM (8 GB recommended)** to run a full build. See the [development container README](.devcontainer/README.md) for more information.
+## Architecture and branding changes already integrated
 
-## Code of Conduct
+The GitCortex-specific work currently present in `main` includes the following architectural changes:
 
-This project has adopted the [Microsoft Open Source Code of Conduct](https://opensource.microsoft.com/codeofconduct/). For more information, see the [Code of Conduct FAQ](https://opensource.microsoft.com/codeofconduct/faq/) or contact [opencode@microsoft.com](mailto:opencode@microsoft.com) with any additional questions or comments.
+| Component | Integrated change |
+| --- | --- |
+| VM contract and daemon | Explicit daemon shutdown surface, VM state reporting, resource sanitization, environment checks, and settings for data-root, acceleration, networking, and installer images. |
+| QEMU launcher and QMP | Structured QEMU arguments, private Unix VNC and QMP sockets, explicit display/network configuration, graceful shutdown, and forced-termination cleanup. |
+| VM manager | Serialized start/stop/restart operations, start/stop race handling, per-VM endpoints, data-root recalculation, and process/socket cleanup. |
+| VNC bridge | Token-authenticated WebSocket upgrade, one-time token expiry, Unix-socket bridging, frame handling, first-packet preservation, and idempotent disposal. |
+| Electron protocol | File-backed streaming with explicit range and error handling rather than whole-file buffering. |
+| Workbench UI | VM cards, state and resource display, environment warnings, action buttons, Remote Desktop opening, theme variables, ARIA labels, keyboard focus handling, and webview CSP hardening. |
+| Build and packaging | noVNC runtime and license inclusion in both relevant desktop build paths, Debian `postrm` protection, and GitCortex-specific product identifiers. |
+| Branding | GitCortex Studio product naming, application and data-folder identifiers, protocol name, platform identifiers, icons, and distinct Windows packaging GUIDs. |
+
+The independent TypeScript mangler fix in `src/vs/sessions/contrib/changes/browser/sessionChangesEditor.ts` is also present in `main`. It explicitly preserves the `protected` visibility of two overrides; it is unrelated to the VM and VNC architecture.
+
+## What is complete, in progress, and planned
+
+### Complete in the current source tree
+
+The current source tree contains the GitCortex product branding, the VM service and workbench surface, the QEMU/QMP lifecycle implementation, the token-authenticated Unix-socket VNC bridge, the bundled noVNC runtime and license, the protocol streaming implementation, the IPC shutdown handling, the accessibility and CSP changes, and the packaging protections described above.
+
+The hardening work was merged through [PR #6](https://github.com/Frankenstein-dev197/vscode/pull/6). The later independent mangler correction is recorded in commit [`f889e98be4ed15a870e9cd7588d23fdc82fb9e0a`](https://github.com/Frankenstein-dev197/vscode/commit/f889e98be4ed15a870e9cd7588d23fdc82fb9e0a).
+
+### In progress
+
+Validation remains in progress for full production builds, especially in environments with enough memory for the complete TypeScript compilation and mangling pipeline. Host-dependent VM behavior also requires validation on the target operating systems, QEMU versions, KVM configurations, network modes, and packaging formats that GitCortex intends to support.
+
+The presence of source implementations and build resources should therefore not be read as a claim that every installer, release artifact, guest image, or host configuration has already been validated end to end.
+
+### Planned, but not yet claimed as implemented
+
+Future work may include additional guest profiles and images, a more complete VM provisioning and first-run experience, broader cross-platform release validation, CI coverage for QEMU and noVNC paths, and further operational documentation. These are roadmap items only; they are not presented as current product capabilities until their implementations and validations are added to the repository.
+
+## Building and contributing
+
+This repository follows the upstream VS Code development model. For the canonical build, debugging, testing, coding-guideline, and pull-request instructions, see the [VS Code contribution guide](https://github.com/microsoft/vscode/wiki/How-to-Contribute).
+
+The repository also includes a [development container](.devcontainer/README.md) suitable for Dev Containers and GitHub Codespaces. A full VS Code build is resource-intensive; use the requirements documented by the development container and the upstream contribution guide rather than assuming that every local machine can complete the full build.
+
+Contributions should explain whether they affect the Code - OSS foundation, GitCortex-specific branding, VM behavior, VNC/noVNC connectivity, packaging, or documentation. Changes to VM or remote-desktop behavior should include targeted tests or a precise explanation of the host-dependent validation that was performed.
+
+## Relationship to Code - OSS and Visual Studio Code
+
+Code - OSS is the open-source repository from which Visual Studio Code is distributed. The upstream repository is developed by Microsoft and the community under the MIT license. Visual Studio Code is a Microsoft distribution of Code - OSS with Microsoft-specific customizations and is released under the [Microsoft product license](https://code.visualstudio.com/License/).
+
+GitCortex Studio is a separate branded adaptation built from this open-source foundation. GitCortex branding and product metadata do not change the origin of the Code - OSS components, and they do not grant rights to Microsoft trademarks, services, extensions, or third-party providers beyond the applicable terms of those components and services.
+
+## Feedback and project resources
+
+For GitCortex-specific bugs and feature requests, use the repository's [issue tracker](https://github.com/Frankenstein-dev197/vscode/issues). For upstream Code - OSS architecture, contribution conventions, and related projects, consult the [upstream VS Code repository](https://github.com/microsoft/vscode), its [contribution guide](https://github.com/microsoft/vscode/wiki/How-to-Contribute), and the [VS Code documentation](https://code.visualstudio.com/docs).
 
 ## License
 
-Copyright (c) Microsoft Corporation. All rights reserved.
+The Code - OSS source in this repository is licensed under the [MIT License](LICENSE.txt). Copyright notices and third-party license obligations remain applicable to the components included in the build, including the bundled noVNC runtime. Review the relevant license files before redistributing a build.
 
-Licensed under the [MIT](LICENSE.txt) license.
+Copyright (c) Microsoft Corporation. All rights reserved.
