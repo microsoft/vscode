@@ -196,6 +196,13 @@ export async function attach(cdpPort: number | string, options: IAttachOptions =
 	if (cdpPort === undefined || cdpPort === null || `${cdpPort}`.trim() === '') {
 		throw new Error('attach(cdpPort) requires the cdpPort printed by launch.sh.');
 	}
+	// The port is interpolated into the endpoint URL, so anything other than a
+	// plain port number could rewrite the URL authority (`80@example.com:9222`)
+	// and send this loopback-only helper to another host.
+	const port = Number(`${cdpPort}`.trim());
+	if (!Number.isInteger(port) || port < 1 || port > 65535) {
+		throw new Error(`attach(): cdpPort must be an integer between 1 and 65535, got ${JSON.stringify(cdpPort)}.`);
+	}
 	// NaN and Infinity are valid numbers but make every deadline comparison false,
 	// so a mistyped or unparsed option would hang instead of timing out.
 	if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
@@ -209,7 +216,7 @@ export async function attach(cdpPort: number | string, options: IAttachOptions =
 	const { PlaywrightDriver, Code, Workbench } = loadAutomation(repoRoot);
 	const { chromium } = require(resolvePath(repoRoot, 'node_modules', 'playwright'));
 
-	const endpoint = `http://127.0.0.1:${cdpPort}`;
+	const endpoint = `http://127.0.0.1:${port}`;
 	let browser;
 	try {
 		browser = await chromium.connectOverCDP(endpoint);

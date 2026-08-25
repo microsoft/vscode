@@ -260,7 +260,9 @@ function findRootProperty(masked, key) {
 		if (expectValue && depth === 1 && !/\s/.test(c)) {
 			// Start of a root-level value. Only primitives are rewritable.
 			const rest = masked.slice(i);
-			const m = /^(true|false|null|"[^"\n]*"|-?\d+(?:\.\d+)?)/.exec(rest);
+			// Full JSON number grammar, including exponents: a partial match
+			// (e.g. `1` out of `1e2`) would leave `truee2` behind.
+			const m = /^(true|false|null|"[^"\n]*"|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)/.exec(rest);
 			if (m && pendingKey && pendingKey.name === key) {
 				found = { valueStart: i, valueLength: m[1].length };
 			}
