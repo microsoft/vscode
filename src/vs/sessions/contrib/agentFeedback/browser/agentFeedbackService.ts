@@ -6,9 +6,9 @@
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { createSingleCallFunction } from '../../../../base/common/functional.js';
-import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
-import { derived, IObservable, runOnChange } from '../../../../base/common/observable.js';
+import { derived, IObservable, keepObserved, runOnChange } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IRange } from '../../../../editor/common/core/range.js';
 import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -25,7 +25,7 @@ import { IEditorService } from '../../../../workbench/services/editor/common/edi
 import { IChatWidget, IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { ICodeReviewSuggestion } from '../../codeReview/browser/codeReviewService.js';
-import { ISession, ISessionFileChange, ISessionWorkspace, SessionStatus } from '../../../services/sessions/common/session.js';
+import { ISession, ISessionFile, ISessionFileChange, ISessionWorkspace, SessionStatus } from '../../../services/sessions/common/session.js';
 import { isAgentHostProviderId } from '../../../common/agentHostSessionsProvider.js';
 import { AnnotationsAgentFeedbackItemsBackend, IAgentFeedbackItemsBackend, InMemoryAgentFeedbackItemsBackend } from './agentFeedbackItemsBackend.js';
 import { ATTACHMENT_ID_PREFIX, createAgentFeedbackVariableEntry } from './agentFeedbackAttachmentEntry.js';
@@ -314,6 +314,24 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 
 	readonly activeFeedbackSessionResource: IObservable<URI>;
 
+	/**
+	 * Files the active session changed outside its workspace folders.
+	 *
+	 * `externalChanges` is subscription-backed: reading it while nothing
+	 * observes it recomputes the whole chain, which acquires and immediately
+	 * releases a state subscription for every chat in the session. Scope checks
+	 * run for every visible editor, so they read this view (kept observed, and
+	 * therefore cached) instead of recomputing the session's observable.
+	 */
+	private readonly _activeSessionExternalFiles: IObservable<readonly ISessionFile[]>;
+
+	/**
+	 * Keeps {@link _activeSessionExternalFiles} observed so its value is cached
+	 * between scope checks. Reset whenever the active session changes so the
+	 * session that is no longer active releases its subscriptions right away.
+	 */
+	private readonly _externalFilesObservation = this._register(new MutableDisposable());
+
 	/** sessionResource → recency sequence (set on every feedback change) */
 	private readonly _sessionUpdatedOrder = new Map<string, number>();
 	private _sessionUpdatedSequence = 0;
@@ -356,6 +374,14 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 				? AGENT_FEEDBACK_NEW_SESSION_RESOURCE
 				: activeSession.resource;
 		});
+
+		this._activeSessionExternalFiles = derived(this, reader => {
+			const activeSession = this._sessionsService.activeSession.read(reader);
+			return activeSession?.externalChanges?.read(reader) ?? [];
+		});
+		const activeSessionKey = derived(this, reader => this._sessionsService.activeSession.read(reader)?.resource.toString());
+		this._observeExternalFiles();
+		this._register(runOnChange(activeSessionKey, () => this._observeExternalFiles()));
 
 		// Deliberately keyed on the scope and its workspace folders only: the
 		// session's changes also feed `getFeedbackSessionResource`, but they churn
@@ -561,12 +587,9 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 			return false;
 		}
 
-		// Files that are part of the session's changes or external changes are
-		// always in scope, regardless of where they live on disk.
+		// Files that are part of the session's changes are always in scope,
+		// regardless of where they live on disk.
 		if (session.changes.get().some(change => changeMatchesResource(change, resourceUri))) {
-			return true;
-		}
-		if (session.externalChanges?.get().some(file => isEqual(file.uri, resourceUri))) {
 			return true;
 		}
 
@@ -577,8 +600,38 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		if (!workspace) {
 			return true;
 		}
-		return workspace.folders.some(folder =>
-			isEqualOrParent(resourceUri, folder.root) || isEqualOrParent(resourceUri, folder.workingDirectory));
+		if (workspace.folders.some(folder =>
+			isEqualOrParent(resourceUri, folder.root) || isEqualOrParent(resourceUri, folder.workingDirectory))) {
+			return true;
+		}
+
+		// Files the session changed outside those folders are in scope too. This
+		// is checked last because it is the only check that has to consult the
+		// session's external changes.
+		return this._isExternalSessionChange(session, resourceUri);
+	}
+
+	/**
+	 * Whether the file is one the session changed outside its workspace folders.
+	 * Providers only track external changes while their session is active, so
+	 * this reads the cached {@link _activeSessionExternalFiles} rather than the
+	 * session's own observable, which is expensive to recompute.
+	 */
+	private _isExternalSessionChange(session: ISession, resourceUri: URI): boolean {
+		if (!isEqual(this._sessionsService.activeSession.get()?.resource, session.resource)) {
+			return false;
+		}
+		return this._activeSessionExternalFiles.get().some(file => isEqual(file.uri, resourceUri));
+	}
+
+	/**
+	 * (Re-)starts observing {@link _activeSessionExternalFiles}. The previous
+	 * observation is dropped first so the derived clears its cache, releasing
+	 * the subscriptions of the session that is no longer active right away.
+	 */
+	private _observeExternalFiles(): void {
+		this._externalFilesObservation.clear();
+		this._externalFilesObservation.value = keepObserved(this._activeSessionExternalFiles);
 	}
 
 	addFeedback(sessionResource: URI, resourceUri: URI, range: IRange, text: string, suggestion?: ICodeReviewSuggestion, context?: IAgentFeedbackContext, sourcePRReviewCommentId?: string, kind: AgentFeedbackKind = AgentFeedbackKind.UserReview, state: AgentFeedbackState = AgentFeedbackState.Accepted): IAgentFeedback {

@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { URI } from '../../../../../base/common/uri.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
+import { derived, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -16,7 +16,7 @@ import { getSessionEditorComments } from '../../browser/sessionEditorComments.js
 import { IChatEditingService } from '../../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
 import { IChatWidget, IChatWidgetService, IChatAcceptInputOptions, IChatWidgetViewModelChangeEvent } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { IAgentFeedbackVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
@@ -24,7 +24,7 @@ import { IEditorService, IVisibleEditorsChangeEvent } from '../../../../../workb
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { whenChatWidgetForSession } from '../../../chat/browser/chatWidgetUtils.js';
-import { ISession, SessionFileOperation, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { ISession, ISessionFile, SessionFileOperation, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
@@ -653,6 +653,40 @@ suite('AgentFeedbackService - getSessionForFile', () => {
 		setActiveSession(wsSession);
 
 		assert.strictEqual(service.getSessionForFile(external)?.resource.toString(), sessionS1.toString());
+	});
+
+	test('computes the session external changes once for repeated scope checks', () => {
+		const external = URI.file('/home/user/.config/settings.json');
+		let computations = 0;
+		let releasedSubscriptions = 0;
+		// Mirrors the agent host provider, which holds a state subscription per
+		// chat for as long as its external changes are observed and releases
+		// them again once they are not.
+		const externalChanges = derived<readonly ISessionFile[]>(reader => {
+			computations++;
+			reader.store.add(toDisposable(() => releasedSubscriptions++));
+			return [{ uri: external, operation: SessionFileOperation.Modified }];
+		});
+		const wsSession: ISession = { ...makeSession(sessionS1, SessionStatus.InProgress, { folders: [URI.file('/workspace')] }), externalChanges };
+		sessions.set(sessionS1.toString(), wsSession);
+		setActiveSession(wsSession);
+
+		const scopes = [
+			service.getSessionForFile(external)?.resource.toString(),
+			service.getSessionForFile(URI.file('/elsewhere/other.ts'))?.resource.toString(),
+			service.getSessionForFile(external)?.resource.toString(),
+		];
+
+		assert.deepStrictEqual({ scopes, computations, releasedSubscriptions }, {
+			scopes: [sessionS1.toString(), undefined, sessionS1.toString()],
+			computations: 1,
+			releasedSubscriptions: 0,
+		});
+
+		// Activating another session releases the previous session's subscriptions.
+		setActiveSession(sessions.get(sessionS2.toString())!);
+
+		assert.deepStrictEqual({ computations, releasedSubscriptions }, { computations: 1, releasedSubscriptions: 1 });
 	});
 
 	test('does not return a session for output view resources', () => {
