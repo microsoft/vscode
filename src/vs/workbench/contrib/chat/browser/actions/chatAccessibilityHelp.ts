@@ -177,6 +177,7 @@ export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'qui
 	}
 	content.push(localize('chat.attachments.pastedText', "Long pasted text is stored as an attached text item and replaced in the input with a numbered inline reference."));
 	content.push(localize('chat.paste.asText', "To paste the clipboard as plain text, without converting it to Markdown or storing it as an attachment, invoke Paste as Text{0}.", '<keybinding:editor.action.pasteAsText>'));
+	content.push(localize('chat.readAloud', "A response can be read aloud with Read Aloud{0}, which is also the first button in the response toolbar. Reading stops with Stop Read Aloud{1}, or by starting to read another response.", '<keybinding:workbench.action.chat.readChatResponseAloud>', '<keybinding:workbench.action.chat.stopReadChatItemAloud>'));
 	content.push(localize('chat.signals', "Accessibility Signals can be changed via settings with a prefix of signals.chat. By default, if a request takes more than 4 seconds, you will hear a sound indicating that progress is still occurring."));
 	return content.join('\n');
 }

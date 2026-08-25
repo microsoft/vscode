@@ -107,19 +107,26 @@ export class MaiSpeechCredentialsService extends Disposable implements IMaiSpeec
 
 	private async refreshHasKey(): Promise<void> {
 		const wasConfigured = this.isConfigured;
-		this.hasKey = !!await this.readKey();
+		this.hasKey = !!await this.resolve();
 
 		if (this.isConfigured !== wasConfigured) {
 			this._onDidChangeConfigured.fire();
 		}
 	}
 
-	private async readKey(): Promise<string | undefined> {
+	/**
+	 * The stored key together with the endpoint it was given for, or `undefined`
+	 * when nothing is stored.
+	 */
+	private async readStoredKey(): Promise<IMaiSpeechCredentials | undefined> {
 		try {
-			return await this.secretStorageService.get(MAI_SPEECH_KEY_SECRET) || undefined;
+			const stored = await this.secretStorageService.get(MAI_SPEECH_KEY_SECRET);
+
+			return stored ? JSON.parse(stored) as IMaiSpeechCredentials : undefined;
 		} catch (error) {
-			// Secret storage is unavailable on some platforms; reading aloud then
-			// falls back to the speech synthesizer of the platform.
+			// Secret storage is unavailable on some platforms, and a value written
+			// by an older version is not in this shape; reading aloud then falls
+			// back to the speech synthesizer of the platform.
 			this.logService.warn(`[speech] could not read the MAI speech key: ${error}`);
 
 			return undefined;
@@ -128,14 +135,18 @@ export class MaiSpeechCredentialsService extends Disposable implements IMaiSpeec
 
 	async resolve(): Promise<IMaiSpeechCredentials | undefined> {
 		const endpoint = this.endpoint;
-		const key = await this.readKey();
+		const stored = await this.readStoredKey();
 
-		return endpoint && key ? { endpoint, key } : undefined;
+		// A key is only ever sent to the endpoint it was given for. Pointing the
+		// setting at another host therefore stops reading aloud until a key for
+		// that host is entered, instead of handing this one to it.
+		return endpoint && stored?.key && stored.endpoint === endpoint ? { endpoint, key: stored.key } : undefined;
 	}
 
 	async setKey(key: string | undefined): Promise<void> {
-		if (key?.trim()) {
-			await this.secretStorageService.set(MAI_SPEECH_KEY_SECRET, key.trim());
+		const endpoint = this.endpoint;
+		if (key?.trim() && endpoint) {
+			await this.secretStorageService.set(MAI_SPEECH_KEY_SECRET, JSON.stringify({ endpoint, key: key.trim() } satisfies IMaiSpeechCredentials));
 		} else {
 			await this.secretStorageService.delete(MAI_SPEECH_KEY_SECRET);
 		}

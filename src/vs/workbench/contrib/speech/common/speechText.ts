@@ -18,7 +18,7 @@
  * `\uFE0F`.
  */
 const TEXTUAL_SYMBOL = /[\u00A9\u00AE\u2122\u203C\u2049]/;
-const EMOJI = new RegExp(`(?!${TEXTUAL_SYMBOL.source}(?!\\uFE0F))(?:\\p{Extended_Pictographic}\\uFE0F?(?:[\\u{1F3FB}-\\u{1F3FF}]|\\u20E3)?(?:\\u200D\\p{Extended_Pictographic}\\uFE0F?(?:[\\u{1F3FB}-\\u{1F3FF}])?)*|\\p{RI}\\p{RI}|[0-9#*]\\uFE0F\\u20E3)`, 'gu');
+const EMOJI = new RegExp(`(?!${TEXTUAL_SYMBOL.source}(?!\\uFE0F))(?:\\p{Extended_Pictographic}\\uFE0F?(?:[\\u{1F3FB}-\\u{1F3FF}]|\\u20E3)?(?:\\u200D\\p{Extended_Pictographic}\\uFE0F?(?:[\\u{1F3FB}-\\u{1F3FF}])?)*|\\p{RI}\\p{RI}|[0-9#*]\\uFE0F?\\u20E3)`, 'gu');
 
 /**
  * Removes emoji from `text` so they are not read aloud. Emoji are decoration in

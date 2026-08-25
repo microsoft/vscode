@@ -37,12 +37,15 @@ suite('stripEmoji', () => {
 			skinTone: stripEmoji('Nice 👍🏽 work'),
 			flag: stripEmoji('Ships to 🇺🇸 only'),
 			keycap: stripEmoji('Step 1️⃣ first'),
+			// The variation selector is optional in the Unicode keycap grammar.
+			keycapWithoutVariationSelector: stripEmoji('Step 1\u20E3 first'),
 			variationSelector: stripEmoji('Warning ⚠️ ahead')
 		}, {
 			zwjSequence: 'Ask the team',
 			skinTone: 'Nice work',
 			flag: 'Ships to only',
 			keycap: 'Step first',
+			keycapWithoutVariationSelector: 'Step first',
 			variationSelector: 'Warning ahead'
 		});
 	});
