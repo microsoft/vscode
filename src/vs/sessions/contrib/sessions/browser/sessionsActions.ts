@@ -333,7 +333,9 @@ registerAction2(class FocusActiveSessionAction extends Action2 {
 			f1: true,
 			category: SessionsCategories.Sessions,
 			keybinding: {
-				// The normal open-chat actions do not work for new session views.
+				// Must outrank the workbench `workbench.action.chat.open` binding
+				// (WorkbenchContrib) so that in the sessions window the chord
+				// focuses the active session. Using the normal open chat action will not work for new session views.
 				weight: KeybindingWeight.SessionsContrib,
 				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyI,
 				secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyI],
