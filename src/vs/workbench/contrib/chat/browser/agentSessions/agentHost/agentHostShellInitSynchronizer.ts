@@ -103,9 +103,17 @@ export class AgentHostShellInitSynchronizer extends Disposable implements IAgent
 			return;
 		}
 
-		const desired = this._configurationService.getValue<boolean>(AgentHostShellToolInitScriptEnabledSettingId) === false
-			? []
-			: [createShellInitScript(TOOL_SHELL, this._readPythonActivation(state))];
+		const enabled = this._configurationService.getValue<boolean>(AgentHostShellToolInitScriptEnabledSettingId) !== false;
+		const folder = enabled ? this._resolveFolder(state) : undefined;
+		// Only the window that owns the session's workspace folder may publish.
+		// Other windows can subscribe to the same shared session state; publishing
+		// a profile-only script from them would fight the owning window forever.
+		if (enabled && !folder) {
+			return;
+		}
+		const desired = enabled && folder
+			? [createShellInitScript(TOOL_SHELL, this._readPythonActivation(folder))]
+			: [];
 		const current = state.config.values[SessionConfigKey.ShellInitSnippets] as readonly IShellInitScript[] | undefined;
 		if (structuralEquals(current, desired) || (!desired.length && current === undefined)) {
 			return;
@@ -117,11 +125,7 @@ export class AgentHostShellInitSynchronizer extends Disposable implements IAgent
 		});
 	}
 
-	private _readPythonActivation(state: SessionState): string | undefined {
-		const folder = this._resolveFolder(state);
-		if (!folder) {
-			return undefined;
-		}
+	private _readPythonActivation(folder: IWorkspaceFolder): string | undefined {
 		const variables = this._environmentVariableService.mergedCollection.getVariableMap({ workspaceFolder: folder });
 		for (const name of PYTHON_ACTIVATION_VARIABLES) {
 			const value = variables.get(name)?.find(mutator => mutator.extensionIdentifier === PYTHON_ENV_EXTENSION_ID)?.value;

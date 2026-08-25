@@ -184,6 +184,12 @@ suite('AgentHostShellInitSynchronizer', () => {
 		assert.strictEqual(dispatched.length, 1);
 	});
 
+	test('does not publish from a window that does not own the session folder', async () => {
+		const { synchronizer, dispatched } = create({ folders: [folderB] });
+		await register(synchronizer, state());
+		assert.deepStrictEqual(dispatched, []);
+	});
+
 	test('the single setting clears the script when disabled', async () => {
 		const { synchronizer, dispatched } = create({ enabled: false });
 		await register(synchronizer, state({

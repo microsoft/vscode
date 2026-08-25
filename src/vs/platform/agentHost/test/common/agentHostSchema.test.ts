@@ -366,7 +366,7 @@ suite('agentHostSchema', () => {
 			// Mirrors `resolveChatConfig`, which supplies defaults only for
 			// autoApprove and mode. An absent value must stay absent so it is
 			// distinguishable from an explicit empty array (clear).
-			const defaults: { [SessionConfigKey.AutoApprove]: AutoApproveLevel; [SessionConfigKey.Mode]: SessionMode; [SessionConfigKey.ShellInitSnippets]?: readonly IShellInitScript[] } = {
+			const defaults: { [SessionConfigKey.AutoApprove]: AutoApproveLevel;[SessionConfigKey.Mode]: SessionMode;[SessionConfigKey.ShellInitSnippets]?: readonly IShellInitScript[] } = {
 				[SessionConfigKey.AutoApprove]: 'default',
 				[SessionConfigKey.Mode]: 'interactive',
 			};
