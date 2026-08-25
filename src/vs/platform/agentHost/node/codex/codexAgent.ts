@@ -2522,6 +2522,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	}
 
 	private _persistTurnEventId(session: ICodexSession, hostTurnId: string, appTurnId: string): void {
+		// Copilot already records this bridge, while Claude reuses the host turn id as its transcript uuid.
 		const storage = session.chatChannel ? chatStorageUri(session.chatChannel) : undefined;
 		if (!storage) {
 			return;
