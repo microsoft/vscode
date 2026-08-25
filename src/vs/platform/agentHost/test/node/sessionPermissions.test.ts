@@ -171,6 +171,7 @@ suite('SessionPermissionManager', () => {
 	test('requires confirmation for protected files inside the working directory', async () => {
 		const files = [
 			'.env',
+			'.mcp.json',
 			'package.json',
 			'Cargo.toml',
 			'build.gradle',
