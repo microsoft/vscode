@@ -9,13 +9,13 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { localChatSessionType } from '../common/chatSessionsService.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../common/languageModels.js';
-import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotificationService } from './widget/input/chatInputNotificationService.js';
+import { ChatInputNotificationActionKind, ChatInputNotificationPlacement, ChatInputNotificationSeverity, IChatInputNotificationService } from './widget/input/chatInputNotificationService.js';
 
 const PROMO_NOTIFICATION_ID = 'copilot.promoNotification';
 const DISMISSED_PROMOS_STORAGE_KEY = 'chat.dismissedPromoIds';
 
 /**
- * Surfaces a model's promo as a chat input notification, scoped to the harness
+ * Surfaces a model's promo as a chat input notification below the input, scoped to the harness
  * (chat session type) of the model that carries it. Promos only render where a
  * model switch is still plausible: persistent chat surfaces whose session has
  * not started yet. Dismissals are persisted by promo id in application storage,
@@ -90,6 +90,10 @@ export class ChatPromoNotificationContribution extends Disposable implements IWo
 				id: notificationId,
 				telemetryId: promo.id,
 				severity: ChatInputNotificationSeverity.Info,
+				// An offer, not something the user has to deal with before typing:
+				// it docks under the input rather than pushing it down and taking
+				// the space quota and permission messages need.
+				placement: ChatInputNotificationPlacement.Below,
 				message: promo.message,
 				description: ILanguageModelChatMetadata.getPromoEndsAtLabel(promo.endsAt),
 				actions: [{

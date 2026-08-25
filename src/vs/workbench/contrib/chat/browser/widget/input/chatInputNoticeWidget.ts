@@ -36,6 +36,9 @@ export const enum ChatInputNoticeVariant {
 	Notification = 'notification',
 }
 
+/** Frame modifier for a notice rendered below its input. See `setBelowInput`. */
+const belowInputClass = 'chat-input-notice-below';
+
 export interface IChatInputNoticeWidgetOptions {
 	/**
 	 * The element the notice is appended to. Omit for producers whose owner
@@ -188,6 +191,17 @@ export class ChatInputNoticeWidget extends Disposable implements IChatInputNotic
 
 	focus(): void {
 		this.domNode.focus();
+	}
+
+	/**
+	 * Whether the notice sits below the input instead of above it.
+	 *
+	 * Either way the notice and the input read as one surface; the notice just
+	 * opens at the opposite edge. Above the input it opens at its bottom, below
+	 * it at its top, and the input squares whichever corners they share.
+	 */
+	setBelowInput(below: boolean): void {
+		this.domNode.classList.toggle(belowInputClass, below);
 	}
 
 	/**

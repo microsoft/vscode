@@ -34,12 +34,21 @@ export const enum ChatInputStackSlot {
 	 * run stops here. It can still join a run above it.
 	 */
 	Standalone,
+	/**
+	 * Content that joins the surface *above* it - a notice below the composer. The
+	 * mirror of {@link Docked}: it squares its own top corners and the surface it
+	 * docks to squares the bottom corners it now shares.
+	 */
+	DockedUp,
 }
 
 const dockedClass = 'chat-input-stack-docked';
 const standaloneClass = 'chat-input-stack-standalone';
+const dockedUpClass = 'chat-input-stack-docked-up';
 /** Set by the stack, not by slots: this slot continues the run above it. */
 const continuesClass = 'chat-input-stack-continues';
+/** Set by the stack, not by slots: the run continues below this member. */
+const continuedBelowClass = 'chat-input-stack-continued-below';
 /** Set from the input: what its frame is doing, for the run above to match. */
 const inputFocusedClass = 'chat-input-stack-input-focused';
 const inputWorkingClass = 'chat-input-stack-input-working';
@@ -57,13 +66,16 @@ export function setChatInputStackSlot(slot: HTMLElement | null | undefined, stat
 	}
 	slot.classList.toggle(dockedClass, state === ChatInputStackSlot.Docked);
 	slot.classList.toggle(standaloneClass, state === ChatInputStackSlot.Standalone);
+	slot.classList.toggle(dockedUpClass, state === ChatInputStackSlot.DockedUp);
 
 	refreshChatInputStack(slot.parentElement);
 }
 
 /** Whether a slot is showing anything. */
 export function isChatInputStackSlotShowing(slot: HTMLElement): boolean {
-	return slot.classList.contains(dockedClass) || slot.classList.contains(standaloneClass);
+	return slot.classList.contains(dockedClass)
+		|| slot.classList.contains(standaloneClass)
+		|| slot.classList.contains(dockedUpClass);
 }
 
 /**
@@ -106,17 +118,34 @@ export function refreshChatInputStack(stack: HTMLElement | null | undefined): vo
 function updateChatInputStack(stack: HTMLElement): void {
 	// Seeded from the stack's own state so nested stacks join the outer run.
 	let docked = stack.classList.contains(continuesClass);
+	// The last member taking up space, so a member docking upwards knows whose
+	// bottom corners it is about to share. Empty slots are skipped, so a hidden
+	// one between the two does not break the join.
+	let previous: HTMLElement | undefined;
 
 	for (const slot of stack.children) {
 		if (!isHTMLElement(slot)) {
 			continue;
 		}
 		slot.classList.toggle(continuesClass, docked);
+		// Cleared on the way past, so the only members carrying it are the ones
+		// this pass marks. `previous` is always already cleared by the time a
+		// docked-up member reaches back to it.
+		slot.classList.remove(continuedBelowClass);
+
+		if (slot.classList.contains(dockedUpClass)) {
+			previous?.classList.add(continuedBelowClass);
+		}
 
 		if (slot.classList.contains(dockedClass)) {
 			docked = true;
-		} else if (slot.classList.contains(standaloneClass)) {
+		} else if (slot.classList.contains(standaloneClass) || slot.classList.contains(dockedUpClass)) {
+			// A docked-up member closes its own bottom, so the run stops there too.
 			docked = false;
+		}
+
+		if (!slot.classList.contains(chatInputStackSlotClass) || isChatInputStackSlotShowing(slot)) {
+			previous = slot;
 		}
 
 		if (slot.classList.contains(chatInputStackClass)) {

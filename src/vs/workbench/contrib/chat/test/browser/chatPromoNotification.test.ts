@@ -10,7 +10,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { InMemoryStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { ChatPromoNotificationContribution } from '../../browser/chatPromoNotification.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../common/languageModels.js';
-import { ChatInputNotificationActionKind, IChatInputNotification, IChatInputNotificationService, isChatInputNotificationApplicableToSessionType } from '../../browser/widget/input/chatInputNotificationService.js';
+import { ChatInputNotificationActionKind, ChatInputNotificationPlacement, IChatInputNotification, IChatInputNotificationService, isChatInputNotificationApplicableToSessionType } from '../../browser/widget/input/chatInputNotificationService.js';
 
 function createMockNotificationService(disposables: Pick<DisposableStore, 'add'>) {
 	const notifications = new Map<string, IChatInputNotification>();
@@ -124,6 +124,23 @@ suite('ChatPromoNotificationContribution', () => {
 			kind: ChatInputNotificationActionKind.SwitchToModel,
 			modelIdentifier: 'copilot:gpt-5.5',
 		}]);
+	});
+
+	test('renders below the chat input', () => {
+		const notifService = createMockNotificationService(disposables);
+		const { service: lmService } = createMockLanguageModelsService([{
+			identifier: 'copilot:gpt-5.5',
+			metadata: { name: 'GPT-5.5', id: 'gpt-5.5', promo: { id: 'promo-1', discountPercent: 20, message: 'Get 20% off' } },
+		}], disposables);
+		const storageService = disposables.add(new InMemoryStorageService());
+
+		disposables.add(new ChatPromoNotificationContribution(
+			lmService,
+			notifService.service,
+			storageService,
+		));
+
+		assert.strictEqual(notifService.getNotification()?.placement, ChatInputNotificationPlacement.Below);
 	});
 
 	test('scopes promos to unstarted persistent chats', () => {

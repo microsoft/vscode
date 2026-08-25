@@ -46,6 +46,7 @@
  */
 .chat-input-stack > * {
 	--chat-input-stack-radius-top: var(--chat-input-stack-radius-outer);
+	--chat-input-stack-radius-bottom: var(--chat-input-stack-radius-outer);
 }
 
 /*
@@ -58,11 +59,20 @@
 }
 
 /*
+ * The mirror of the rule above: a member the run continues *below* meets the one
+ * under it, so it squares that shared edge. Set by the stack when it finds a
+ * member docking upwards - see `chatInputStack.ts`.
+ */
+.chat-input-stack > .chat-input-stack-continued-below {
+	--chat-input-stack-radius-bottom: 0px;
+}
+
+/*
  * A slot showing nothing takes up no space. Shared so each producer does not
  * repeat it, and so a new one cannot ship a permanently visible surface by
  * forgetting to. Applies only to marked slots, since members that are always
  * present - the input itself - never report a state.
  */
-.chat-input-stack-slot:not(.chat-input-stack-docked):not(.chat-input-stack-standalone) {
+.chat-input-stack-slot:not(.chat-input-stack-docked):not(.chat-input-stack-standalone):not(.chat-input-stack-docked-up) {
 	display: none;
 }

@@ -530,6 +530,9 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 
 		// Notification widget above the input area
 		const notificationContainer = dom.append(chatInputContainer, dom.$(`.chat-input-notification-container.${chatInputStackSlotClass}`));
+		// ...and the slot for a notification that asks to dock below it instead.
+		// Built detached: it is parented after the input area exists, further down.
+		const notificationBelowContainer = dom.$(`.chat-input-notification-below-container.${chatInputStackSlotClass}`);
 		// Declared up front: the visibility callback can fire while the widget is
 		// still being constructed, before the binding below is assigned.
 		const notificationWidget: ChatInputNotificationWidget = this._register(this.instantiationService.createInstance(
@@ -543,7 +546,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 				focusInput: () => this.focus(),
 			},
 		));
-		notificationWidget.attachTo(notificationContainer);
+		notificationWidget.attachTo(notificationContainer, notificationBelowContainer);
 
 		// First-run voice and dictation introductions, docked directly above the
 		// input area so they read as one stack with it.
@@ -610,6 +613,10 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			onDidChangePlatform: Event.None,
 		}, this.options.petHostPreferred, this.onDidFocus));
 		this._createInputToolbar(inputArea);
+
+		// Now that the input area is in place, park the below-input notification
+		// slot immediately after it - they meet, so nothing may come between them.
+		inputAreaWrapper.after(notificationBelowContainer);
 
 		const newChatBottomContainer = dom.append(parent, dom.$('.new-chat-bottom-container'));
 		const newChatControlsContainer = dom.append(newChatBottomContainer, dom.$('.new-chat-controls-container'));

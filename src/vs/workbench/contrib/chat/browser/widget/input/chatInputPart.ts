@@ -450,6 +450,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private chatPlanReviewContainer!: HTMLElement;
 	private chatToolConfirmationCarouselContainer!: HTMLElement;
 	private chatInputNotificationContainer!: HTMLElement;
+	/** Where a notification that asks to dock below the input is rendered. */
+	private chatInputNotificationBelowContainer!: HTMLElement;
 	private chatGoalBannerContainer!: HTMLElement;
 	private persistentContentContainer!: HTMLElement;
 	private readonly _chatPetHorizontalPlatformProviders = new Set<IChatPetHorizontalPlatformProvider>();
@@ -2820,7 +2822,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				onDidChangeVisibility: (visible, focusTarget) => this.noticeHost.setOccupied(ChatInputNoticeLane.Notification, visible, focusTarget),
 				focusInput: () => this.focus(),
 			});
-			this._notificationWidget.value.attachTo(this.chatInputNotificationContainer);
+			this._notificationWidget.value.attachTo(this.chatInputNotificationContainer, this.chatInputNotificationBelowContainer);
 		}
 	}
 
@@ -3075,6 +3077,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 								dom.h('.chat-input-toolbars@inputToolbars'),
 							]),
 						]),
+						dom.h(`.chat-input-notification-below-container.${chatInputStackSlotClass}@chatInputNotificationBelowContainer`),
 					]),
 					dom.h('.chat-secondary-toolbar@secondaryToolbar', [
 						dom.h('.chat-context-usage-container@contextUsageWidgetContainer'),
@@ -3111,6 +3114,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 							dom.h('.chat-input-toolbars@inputToolbars'),
 						]),
 					]),
+					dom.h(`.chat-input-notification-below-container.${chatInputStackSlotClass}@chatInputNotificationBelowContainer`),
 				]),
 				dom.h('.chat-secondary-toolbar@secondaryToolbar', [
 					dom.h('.chat-context-usage-container@contextUsageWidgetContainer'),
@@ -3152,6 +3156,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		dom.hide(this.chatToolConfirmationCarouselContainer);
 		this._register(this.chatInputNoticeHubService.registerHost(this.noticeHost, this.container));
 		this.chatInputNotificationContainer = elements.chatInputNotificationContainer;
+		this.chatInputNotificationBelowContainer = elements.chatInputNotificationBelowContainer;
 		this._register(registerChatInputOnboardingHosts(
 			this.noticeHost,
 			{ voice: elements.voiceModeOnboardingContainer, dictation: elements.dictationOnboardingContainer },

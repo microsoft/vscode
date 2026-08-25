@@ -23,7 +23,7 @@ import { defaultButtonStyles } from '../../../../../../platform/theme/browser/de
 import { IChatInputNoticeFocusTarget } from './chatInputNoticeHost.js';
 import { ChatInputNoticeVariant, ChatInputNoticeWidget } from './chatInputNoticeWidget.js';
 import { ChatInputStackSlot, setChatInputStackSlot } from './chatInputStack.js';
-import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotification, IChatInputNotificationAction, IChatInputNotificationCommandAction, IChatInputNotificationService, isChatInputNotificationApplicableToSession } from './chatInputNotificationService.js';
+import { ChatInputNotificationActionKind, ChatInputNotificationPlacement, ChatInputNotificationSeverity, IChatInputNotification, IChatInputNotificationAction, IChatInputNotificationCommandAction, IChatInputNotificationService, isChatInputNotificationApplicableToSession } from './chatInputNotificationService.js';
 import './media/chatInputNotificationWidget.css';
 
 const $ = dom.$;
@@ -89,7 +89,8 @@ export interface IChatInputNotificationDelegate {
 }
 
 /**
- * Widget that renders a single notification banner above the chat input area.
+ * Widget that renders a single notification banner for a chat input, above the
+ * input or - when the notification asks for it - below it.
  * Subscribes to {@link IChatInputNotificationService} and shows the highest-severity
  * active notification with severity-colored borders, action buttons, and a dismiss button.
  */
@@ -109,6 +110,10 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 	private _sessionStarted = false;
 	private _visible = false;
 	private _slot: HTMLElement | undefined;
+	private _belowSlot: HTMLElement | undefined;
+	private _placement = ChatInputNotificationPlacement.Above;
+	/** What the active notification asked for, before slots were taken into account. */
+	private _requestedPlacement = ChatInputNotificationPlacement.Above;
 
 	constructor(
 		private readonly _delegate: IChatInputNotificationDelegate | undefined,
@@ -150,12 +155,15 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 		this.domNode.classList.remove(...Object.values(severityToClass));
 
 		const notification = this._notificationService.getActiveNotification(n => this._matchesSession(n));
+		// Placement first: the slot the notice ends up in is the one that has to
+		// report what it is showing, and the notice moves between them.
+		this._setPlacement(notification?.placement ?? ChatInputNotificationPlacement.Above);
 		this._setVisible(!!notification);
 		// Announce what this chat input actually renders, so session-scoped
 		// notifications are only spoken in a matching session (de-duped by the service).
 		this._notificationService.announceRendered(notification);
 		if (!notification) {
-			setChatInputStackSlot(this._slot, ChatInputStackSlot.Empty);
+			this._updateSlots(false);
 			this._lastShownTelemetryData = undefined;
 			if (hadFocus) {
 				this._delegate?.focusInput?.();
@@ -163,7 +171,7 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 			return;
 		}
 
-		setChatInputStackSlot(this._slot, ChatInputStackSlot.Docked);
+		this._updateSlots(true);
 		this._renderNotification(notification);
 		this._logShownTelemetry(notification);
 		if (hadFocus) {
@@ -193,10 +201,55 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 	 * active notification has no slot to report to at that point. Owners add it
 	 * through here so the slot cannot end up marked empty while it has content.
 	 */
-	attachTo(slot: HTMLElement): void {
+	attachTo(slot: HTMLElement, belowSlot?: HTMLElement): void {
 		this._slot = slot;
-		slot.appendChild(this.domNode);
-		setChatInputStackSlot(slot, this._visible ? ChatInputStackSlot.Docked : ChatInputStackSlot.Empty);
+		this._belowSlot = belowSlot;
+		// Re-resolve: the widget renders in its constructor, so a notification
+		// asking to sit below the input arrived before there was a slot for it.
+		this._setPlacement(this._requestedPlacement);
+		this._mountInPlacementSlot();
+		this._updateSlots(this._visible);
+	}
+
+	/**
+	 * Move the notice into the slot its placement calls for.
+	 *
+	 * Owners that only lay out the space above the input pass no slot for below,
+	 * so a notification asking for it still renders - above - rather than
+	 * disappearing on a surface that has nowhere to put it.
+	 */
+	private _setPlacement(placement: ChatInputNotificationPlacement): void {
+		this._requestedPlacement = placement;
+		const resolved = placement === ChatInputNotificationPlacement.Below && this._belowSlot
+			? ChatInputNotificationPlacement.Below
+			: ChatInputNotificationPlacement.Above;
+		if (this._placement === resolved) {
+			return;
+		}
+
+		this._placement = resolved;
+		this._notice.setBelowInput(resolved === ChatInputNotificationPlacement.Below);
+		this._mountInPlacementSlot();
+	}
+
+	private _mountInPlacementSlot(): void {
+		const target = this._placement === ChatInputNotificationPlacement.Below ? this._belowSlot : this._slot;
+		if (target && this.domNode.parentElement !== target) {
+			target.appendChild(this.domNode);
+		}
+	}
+
+	/**
+	 * Report what each slot is showing. The slot the notice is not in is always
+	 * empty, so the one it left does not keep holding space - or keep squaring
+	 * the corners of whatever follows it.
+	 */
+	private _updateSlots(showing: boolean): void {
+		const below = this._placement === ChatInputNotificationPlacement.Below;
+		// Either way the notice docks to the input, so the two read as one
+		// surface - just from the other side.
+		setChatInputStackSlot(this._slot, showing && !below ? ChatInputStackSlot.Docked : ChatInputStackSlot.Empty);
+		setChatInputStackSlot(this._belowSlot, showing && below ? ChatInputStackSlot.DockedUp : ChatInputStackSlot.Empty);
 	}
 
 	focus(): void {

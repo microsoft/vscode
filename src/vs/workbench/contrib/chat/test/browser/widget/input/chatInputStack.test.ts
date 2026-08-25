@@ -6,7 +6,7 @@
 import assert from 'assert';
 import * as dom from '../../../../../../../base/browser/dom.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
-import { chatInputStackClass, ChatInputStackSlot, refreshChatInputStack, setChatInputStackInputFocused, setChatInputStackInputWorking, setChatInputStackSlot } from '../../../../browser/widget/input/chatInputStack.js';
+import { chatInputStackClass, chatInputStackSlotClass, ChatInputStackSlot, refreshChatInputStack, setChatInputStackInputFocused, setChatInputStackInputWorking, setChatInputStackSlot } from '../../../../browser/widget/input/chatInputStack.js';
 
 suite('chat input stack', () => {
 
@@ -16,7 +16,7 @@ suite('chat input stack', () => {
 	function stack(...states: readonly ChatInputStackSlot[]) {
 		const root = dom.$(`.${chatInputStackClass}`);
 		const slots = states.map(state => {
-			const slot = dom.append(root, dom.$('div'));
+			const slot = dom.append(root, dom.$(`.${chatInputStackSlotClass}`));
 			setChatInputStackSlot(slot, state);
 			return slot;
 		});
@@ -24,6 +24,7 @@ suite('chat input stack', () => {
 			root,
 			slots,
 			continues: () => slots.map(slot => slot.classList.contains('chat-input-stack-continues')),
+			continuedBelow: () => slots.map(slot => slot.classList.contains('chat-input-stack-continued-below')),
 			set: (index: number, state: ChatInputStackSlot) => setChatInputStackSlot(slots[index], state),
 		};
 	}
@@ -31,11 +32,40 @@ suite('chat input stack', () => {
 	const Empty = ChatInputStackSlot.Empty;
 	const Docked = ChatInputStackSlot.Docked;
 	const Standalone = ChatInputStackSlot.Standalone;
+	const DockedUp = ChatInputStackSlot.DockedUp;
 
 	test('a docked slot squares everything below it, and nothing above', () => {
 		const { continues } = stack(Empty, Docked, Empty, Empty);
 
 		assert.deepStrictEqual(continues(), [false, false, true, true]);
+	});
+
+	test('a docked-up slot squares the member above it, and nothing below', () => {
+		const { continuedBelow } = stack(Empty, Docked, DockedUp, Empty);
+
+		assert.deepStrictEqual(continuedBelow(), [false, true, false, false]);
+	});
+
+	test('an empty slot between them does not break the upward join', () => {
+		// The notice below the input is separated from it by whatever hidden slots
+		// happen to sit between; the join has to reach past them.
+		const { continuedBelow } = stack(Docked, Empty, DockedUp);
+
+		assert.deepStrictEqual(continuedBelow(), [true, false, false]);
+	});
+
+	test('a docked-up slot closes its own bottom, so the run stops there', () => {
+		const { continues } = stack(DockedUp, Empty, Empty);
+
+		assert.deepStrictEqual(continues(), [false, false, false]);
+	});
+
+	test('the upward join is dropped when the slot below stops showing', () => {
+		const s = stack(Docked, DockedUp);
+		assert.deepStrictEqual(s.continuedBelow(), [true, false]);
+
+		s.set(1, Empty);
+		assert.deepStrictEqual(s.continuedBelow(), [false, false]);
 	});
 
 	test('an empty slot is transparent, so hidden slots can sit anywhere in the order', () => {

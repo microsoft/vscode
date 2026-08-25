@@ -19,6 +19,18 @@ export const enum ChatInputNotificationSeverity {
 	Error = 2,
 }
 
+/** Where a notification sits relative to the chat input it belongs to. */
+export const enum ChatInputNotificationPlacement {
+	/** Docked to the top edge of the input, joining the run of notices above it. */
+	Above = 'above',
+	/**
+	 * Docked to the bottom edge of the input. For content that is an offer rather
+	 * than something the user has to act on - a model promo - so it does not push
+	 * the input down or take the space reserved for quota and permission messages.
+	 */
+	Below = 'below',
+}
+
 export const enum ChatInputNotificationActionKind {
 	Command = 'command',
 	OpenModelPicker = 'openModelPicker',
@@ -62,6 +74,11 @@ export interface IChatInputNotification {
 	readonly id: string;
 	readonly telemetryId?: string;
 	readonly severity: ChatInputNotificationSeverity;
+	/**
+	 * Where the notification renders. Defaults to
+	 * {@link ChatInputNotificationPlacement.Above}.
+	 */
+	readonly placement?: ChatInputNotificationPlacement;
 	readonly message: string | IMarkdownString;
 	readonly description: string | IMarkdownString | undefined;
 	readonly actions: readonly IChatInputNotificationAction[];

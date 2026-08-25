@@ -90,6 +90,27 @@
 	margin-bottom: var(--vscode-spacing-size40);
 }
 
+/* --- Placement: below the input --- */
+
+/*
+ * A notice below the input is the mirror of one above it: it opens at its *top*
+ * edge so the two read as one surface, and the input squares the bottom corners
+ * they now share - see `chat-input-stack-continued-below` in `chatInputStack.css`.
+ *
+ * Only the open edge and which corners round change here. The border width and
+ * colour still come from the frame and the severity, so a notice reads the same
+ * whichever side of the input it is on.
+ */
+.chat-input-notice.chat-input-notice-below {
+	border-top-style: none;
+	border-top-width: 0;
+	border-bottom-style: solid;
+	border-bottom-width: var(--vscode-strokeThickness);
+	border-radius: 0 0
+		var(--chat-input-stack-radius-outer, var(--vscode-cornerRadius-large))
+		var(--chat-input-stack-radius-outer, var(--vscode-cornerRadius-large));
+}
+
 /* --- Variant: notification --- */
 
 /*

@@ -9,12 +9,14 @@
 /* Match the chat input's focus ring. The input reports its frame state to the
 	stack - see `chatInputStack.ts` - so this selects that state directly rather
 	than inspecting the stack's subtree for it. */
-.interactive-session .chat-input-stack.chat-input-stack-input-focused > .chat-input-notification-container .chat-input-notification-widget.severity-info {
+.interactive-session .chat-input-stack.chat-input-stack-input-focused > .chat-input-notification-container .chat-input-notification-widget.severity-info,
+.interactive-session .chat-input-stack.chat-input-stack-input-focused > .chat-input-notification-below-container .chat-input-notification-widget.severity-info {
 	border-color: var(--vscode-focusBorder);
 }
 
 /* Working+focused: the chat input dims its focus border; match it here. */
-.interactive-session .chat-input-stack.chat-input-stack-input-focused.chat-input-stack-input-working > .chat-input-notification-container .chat-input-notification-widget.severity-info {
+.interactive-session .chat-input-stack.chat-input-stack-input-focused.chat-input-stack-input-working > .chat-input-notification-container .chat-input-notification-widget.severity-info,
+.interactive-session .chat-input-stack.chat-input-stack-input-focused.chat-input-stack-input-working > .chat-input-notification-below-container .chat-input-notification-widget.severity-info {
 	border-color: color-mix(in srgb, var(--vscode-focusBorder) 40%, transparent);
 }
 

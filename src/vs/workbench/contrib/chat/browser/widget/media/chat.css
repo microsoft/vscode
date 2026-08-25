@@ -1137,14 +1137,15 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	cursor: text;
 	background-color: var(--vscode-input-background);
 	border: var(--vscode-strokeThickness) solid var(--vscode-input-border, transparent);
-	/* Top corners follow the stack, so a docked widget can square them. The
-		fallback keeps an input rendered outside a chat input part rounded. */
+	/* Both edges follow the stack, so a widget docked above squares the top
+		corners and one docked below squares the bottom. The fallback keeps an
+		input rendered outside a chat input part rounded. */
 	--chat-input-own-radius: var(--chat-input-radius, var(--vscode-cornerRadius-large));
 	border-radius:
 		var(--chat-input-stack-radius-top, var(--chat-input-own-radius))
 		var(--chat-input-stack-radius-top, var(--chat-input-own-radius))
-		var(--chat-input-own-radius)
-		var(--chat-input-own-radius);
+		var(--chat-input-stack-radius-bottom, var(--chat-input-own-radius))
+		var(--chat-input-stack-radius-bottom, var(--chat-input-own-radius));
 	padding: 0 6px 6px 6px;
 	/* top padding is inside the editor widget */
 	width: 100%;
