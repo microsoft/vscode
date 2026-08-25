@@ -147,6 +147,14 @@ export function normalizeSettingsFile(f: string, root?: string): void {
 			else if (c === '/' && n === '/') { out[i] = ' '; inLine = true; }
 			else if (c === '/' && n === '*') { out[i] = ' '; out[i + 1] = ' '; i++; inBlock = true; }
 		}
+		// An unterminated `/* ...` is a scan error in VS Code's JSONC parser, but
+		// masking it to EOF makes the remaining text look fine to `JSON.parse`, so
+		// a broken file would be rewritten despite the fail-closed contract.
+		if (inBlock || inString) {
+			console.error('[normalize-automation-settings] settings.json is not valid JSONC (unterminated ' +
+				(inBlock ? 'block comment' : 'string') + ') - refusing to clobber it: ' + f);
+			process.exit(1);
+		}
 		return out.join('');
 	}
 

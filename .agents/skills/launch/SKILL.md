@@ -512,10 +512,21 @@ command -v pgrep >/dev/null || { echo "pgrep not found; cannot verify cleanup" >
 RUN_DIR=$(cd "$RUN_DIR" 2>/dev/null && pwd -P) || {
   echo "refusing to clean up: runDir does not exist" >&2; return 2>/dev/null || exit 1
 }
+# The basename alone does not prove ownership - a real directory such as
+# ~/code-oss-dev-important would pass it and then be handed to `rm -rf`. Also
+# require the canonical parent to be the launcher's own temp root: `$TMPDIR`,
+# or `/tmp` when launch.sh fell back to it because `$TMPDIR` was too long.
+run_parent=$(cd "$RUN_DIR/.." && pwd -P)
+tmp_root=$(cd "${TMPDIR:-/tmp}" 2>/dev/null && pwd -P)
+plain_tmp=$(cd /tmp 2>/dev/null && pwd -P)
 case "$(basename "$RUN_DIR")" in
   code-oss-dev-*) ;;
   *) echo "refusing to clean up: bad runDir '$RUN_DIR'" >&2; return 2>/dev/null || exit 1 ;;
 esac
+if [ "$run_parent" != "$tmp_root" ] && [ "$run_parent" != "$plain_tmp" ]; then
+  echo "refusing to clean up: '$RUN_DIR' is not under the launcher temp root" >&2
+  return 2>/dev/null || exit 1
+fi
 
 # pgrep -f takes a regex, not a literal: an unescaped '+' or '[' from a custom
 # TMPDIR can miss this run (deleting a profile whose processes are still alive)

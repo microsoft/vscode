@@ -222,6 +222,11 @@ const malformed: [name: string, content: string][] = [
 	['balanced but has an invalid escape', '{ "a": "bad \\x escape" }'],
 	['balanced but has an unquoted key', '{ a: 1 }'],
 	['mismatched closing delimiter', '{]'],
+	// Masking an unterminated comment or string to EOF leaves text that parses
+	// fine, so these have to be rejected by the scanner state, not by JSON.parse.
+	['unterminated block comment', '{ "a": 1 } /* unterminated'],
+	['unterminated block comment inside the root', '{ "a": 1, /* oops\n "b": 2 }'],
+	['unterminated string', '{ "a": "unterminated }'],
 	['mismatched nested delimiter', '{ "a": [1, 2} }'],
 	['content before the root object', 'junk { "a": 1 }'],
 	// Both keys already present means every entry takes the rewrite path, so the
