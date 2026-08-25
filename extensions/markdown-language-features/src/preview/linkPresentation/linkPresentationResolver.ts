@@ -7,11 +7,12 @@ import type { LinkPresentation as MarkdownLinkPresentation } from '@vscode/markd
 import { derived, observableValue, type IObservable, type ISettableObservable } from '@vscode/observables';
 import * as vscode from 'vscode';
 import type { ILogger } from '../../logging';
+import { buildLoadingPresentationFromCached } from './linkPresentationBuilders';
 
 const cacheLifetimeMs = 60_000;
 const persistentCacheLifetimeMs = 7 * 24 * 60 * 60 * 1_000;
 const persistentCacheEntryLimit = 100;
-const persistentCacheKey = 'markdown.linkPresentations.cache.v1';
+const persistentCacheKey = 'markdown.linkPresentations.cache.v2';
 
 export type LinkPresentation = MarkdownLinkPresentation & {
 	readonly isLoading?: boolean;
@@ -74,7 +75,7 @@ export class LinkPresentationCache {
 			this.#persist();
 			return undefined;
 		}
-		return { ...entry.presentation, isLoading: true };
+		return buildLoadingPresentationFromCached(entry.presentation);
 	}
 
 	get(

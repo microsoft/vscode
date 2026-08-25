@@ -146,6 +146,144 @@ suite('GitHubQueryService', () => {
 		return { account, ref, clock, credentials, service };
 	}
 
+	function graphQLRepository(): object {
+		return {
+			id: 'R1',
+			owner: { id: 'U1', login: 'octo' },
+			name: 'repo',
+			nameWithOwner: 'octo/repo',
+			primaryLanguage: { name: 'TypeScript' },
+			stargazerCount: 42,
+			defaultBranchRef: { name: 'main' },
+			isPrivate: false,
+			description: 'Repository',
+			url: 'https://example.test/octo/repo',
+			isArchived: false,
+			isFork: false,
+		};
+	}
+
+	function graphQLIssue(): object {
+		return {
+			id: 'I7',
+			number: 7,
+			title: 'Issue',
+			body: 'Body',
+			url: 'https://example.test/octo/repo/issues/7',
+			state: 'CLOSED',
+			stateReason: 'NOT_PLANNED',
+			author: null,
+			assignees: { nodes: [{ id: 'U3', login: 'assignee' }] },
+			labels: { nodes: [{ name: 'bug' }] },
+			createdAt: '2026-08-18T00:00:00Z',
+			updatedAt: '2026-08-18T01:00:00Z',
+			closedAt: '2026-08-18T02:00:00Z',
+		};
+	}
+
+	test('hydrates repository and issue resources in one GraphQL request', async () => {
+		await withServer(async server => {
+			server.enqueue(gitHubGraphQLStep({
+				queryIncludes: 'HydrateGitHubResources',
+				assert: request => assert.deepStrictEqual(request.graphQl?.variables, {
+					owner0: 'octo',
+					repo0: 'repo',
+					owner1: 'octo',
+					repo1: 'repo',
+					number1: 7,
+				}),
+				response: gitHubGraphQLResponse({
+					r0: graphQLRepository(),
+					r1: {
+						issue: graphQLIssue(),
+					},
+				}),
+			}));
+			const { account, service } = setup(server);
+			const repositoryRef = { ...account, owner: 'octo', repo: 'repo' };
+			const issueRef = { ...account, owner: 'octo', repo: 'repo', number: 7 };
+			const repository = service.subscribeRepository(repositoryRef, { priority: 'visible' });
+			const issue = service.subscribeIssue(issueRef, { priority: 'visible' });
+
+			await service.hydrateResources([
+				{ kind: 'repository', ref: repositoryRef },
+				{ kind: 'issue', ref: issueRef },
+			], signal());
+			await service.hydrateResources([
+				{ kind: 'repository', ref: repositoryRef },
+				{ kind: 'issue', ref: issueRef },
+			], signal());
+
+			assert.deepStrictEqual({
+				repository: repository.resource.state.get().value,
+				issue: issue.resource.state.get().value,
+			}, {
+				repository: {
+					id: 'R1',
+					owner: { id: 'U1', login: 'octo' },
+					name: 'repo',
+					nameWithOwner: 'octo/repo',
+					language: 'TypeScript',
+					stars: 42,
+					defaultBranch: 'main',
+					private: false,
+					description: 'Repository',
+					url: 'https://example.test/octo/repo',
+					archived: false,
+					fork: false,
+				},
+				issue: {
+					id: 'I7',
+					number: 7,
+					title: 'Issue',
+					body: 'Body',
+					url: 'https://example.test/octo/repo/issues/7',
+					state: 'closed',
+					stateReason: 'not_planned',
+					author: { login: 'ghost' },
+					assignees: [{ id: 'U3', login: 'assignee' }],
+					labels: ['bug'],
+					createdAt: '2026-08-18T00:00:00Z',
+					updatedAt: '2026-08-18T01:00:00Z',
+					closedAt: '2026-08-18T02:00:00Z',
+				},
+			});
+			server.assertSatisfied();
+		});
+	});
+
+	test('does not overwrite a newer REST refresh with stale hydration data', async () => {
+		await withServer(async server => {
+			const hydrationStarted = new DeferredPromise<void>();
+			const releaseHydration = new DeferredPromise<void>();
+			server.enqueue(
+				gitHubGraphQLStep({
+					queryIncludes: 'HydrateGitHubResources',
+					assert: async () => hydrationStarted.complete(),
+					waitFor: releaseHydration.p,
+					response: gitHubGraphQLResponse({ r0: graphQLRepository() }),
+				}),
+				gitHubRestStep({
+					method: 'GET',
+					path: '/repos/octo/repo',
+					response: gitHubJsonResponse(repositoryResponse('new-owner/new-repo')),
+				}),
+			);
+			const { account, service } = setup(server);
+			const ref = { ...account, owner: 'octo', repo: 'repo' };
+			const repository = service.subscribeRepository(ref, { priority: 'visible' });
+			const hydration = service.hydrateResources([{ kind: 'repository', ref }], signal());
+			await hydrationStarted.p;
+
+			await repository.refresh();
+			await releaseHydration.complete();
+			await hydration;
+
+			assert.strictEqual(repository.resource.state.get().value?.nameWithOwner, 'new-owner/new-repo');
+			server.assertSatisfied();
+		});
+	});
+
 	test('shares repository and issue resources, canonicalizes aliases, and stops terminal issue polling', async () => {
 		await withServer(async server => {
 			const repositoryPolled = new DeferredPromise<void>();

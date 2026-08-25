@@ -13,7 +13,15 @@ import { ImmutableLinkPresentationCache, LinkPresentationCache, type LinkPresent
 import { WorkspaceLinkPresentationResolver } from './workspaceLinkPresentationResolver';
 
 const refreshIntervalMs = 30_000;
-export const linkPresentationProviderId = 'markdown.linkPresentations';
+export const linkPresentationProviderIds = [
+	'markdown.gitCommitLinkPresentations',
+	'markdown.githubIssueLinkPresentations',
+	'markdown.githubPullRequestLinkPresentations',
+	'markdown.githubTreeLinkPresentations',
+	'markdown.githubFileLinkPresentations',
+	'markdown.githubRepositoryLinkPresentations',
+	'markdown.workspaceFileLinkPresentations',
+] as const;
 
 export interface LinkPresentationWatch extends vscode.Disposable {
 	readonly presentation: IObservable<LinkPresentation>;
@@ -147,19 +155,17 @@ export function createSharedLinkPresentationService(globalState: vscode.Memento,
 }
 
 export function registerLinkPresentationProvider(service: LinkPresentationService): vscode.Disposable {
-	return vscode.window.registerLinkPresentationProvider(
-		linkPresentationProviderId,
-		{
-			provideLinkPresentationWatcher: resource => {
-				const href = resource.toString(true);
-				const watch = service.watch(href);
-				if (!watch) {
-					throw new Error(`No link presentation resolver accepted ${href}.`);
-				}
-				return new ExtensionLinkPresentationWatcher(watch);
-			},
+	const provider: vscode.LinkPresentationProvider = {
+		provideLinkPresentationWatcher: resource => {
+			const href = resource.toString(true);
+			const watch = service.watch(href);
+			if (!watch) {
+				throw new Error(`No link presentation resolver accepted ${href}.`);
+			}
+			return new ExtensionLinkPresentationWatcher(watch);
 		},
-	);
+	};
+	return vscode.Disposable.from(...linkPresentationProviderIds.map(id => vscode.window.registerLinkPresentationProvider(id, provider)));
 }
 
 class ExtensionLinkPresentationWatcher extends Disposable implements vscode.LinkPresentationWatcher {

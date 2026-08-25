@@ -6,6 +6,7 @@
 import type { LinkPresentationStatus } from '@vscode/markdown-editor';
 import type { IObservable } from '@vscode/observables';
 import * as vscode from 'vscode';
+import { buildGitHubFilePresentation, buildGitHubIssuePresentation, buildGitHubLookupFailurePresentation, buildGitHubPullRequestPresentation, buildGitHubRepositoryPresentation, buildLoadingLinkPresentation, type GitHubChecksStatus, type GitHubIssueStatus, type GitHubPullRequestStatus } from './linkPresentationBuilders';
 import { createAsyncLinkPresentation, decodeUrlPathSegments, LinkPresentationCache, type LinkPresentation, type LinkPresentationResolver, type LinkPresentationResolverContext } from './linkPresentationResolver';
 
 const githubRepositoryScope = 'repo';
@@ -34,10 +35,7 @@ export class GitHubLinkPresentationResolver implements LinkPresentationResolver 
 			return undefined;
 		}
 		const persisted = this.#cache.getPersisted(href);
-		const loadingPresentation: LinkPresentation = {
-			kind: target.kind === 'tree' ? 'resource' : target.kind,
-			status: { kind: 'pending', label: 'Loading' },
-		};
+		const loadingPresentation = buildLoadingLinkPresentation(target.kind === 'tree' ? 'resource' : target.kind);
 		return createAsyncLinkPresentation(
 			href,
 			persisted ?? loadingPresentation,
@@ -60,14 +58,13 @@ export class GitHubLinkPresentationResolver implements LinkPresentationResolver 
 			case 'issue': {
 				const issue = await request.get(`/repos/${target.owner}/${target.repository}/issues/${target.number}`, readIssue);
 				const state = getGitHubIssueStatus(issue.state, issue.stateReason);
-				return {
-					kind: 'issue',
+				return buildGitHubIssuePresentation({
+					owner: target.owner,
+					repository: target.repository,
+					number: target.number,
 					title: issue.title,
-					reference: `#${target.number}`,
 					status: state,
-					tooltip: `${target.owner}/${target.repository}#${target.number} · ${state.label}`,
-					ariaLabel: `Issue ${target.owner} slash ${target.repository} number ${target.number}, ${state.label}: ${issue.title}`,
-				};
+				});
 			}
 			case 'pullRequest': {
 				const pullRequest = await request.get(`/repos/${target.owner}/${target.repository}/pulls/${target.number}`, readPullRequest);
@@ -78,28 +75,25 @@ export class GitHubLinkPresentationResolver implements LinkPresentationResolver 
 						readCheckRuns,
 					))
 					: undefined;
-				return {
-					kind: 'pullRequest',
+				const presentationData = {
+					owner: target.owner,
+					repository: target.repository,
+					number: target.number,
 					title: pullRequest.title,
-					reference: `#${target.number}`,
 					status: state,
-					...(checksStatus ? { secondaryStatus: checksStatus } : {}),
-					tooltip: [target.owner + '/' + target.repository + '#' + target.number, state.label, checksStatus?.label].filter(Boolean).join(' · '),
-					ariaLabel: `Pull request ${target.owner} slash ${target.repository} number ${target.number}, ${state.label}${checksStatus ? `, ${checksStatus.label}` : ''}: ${pullRequest.title}`,
 				};
+				return state.kind === 'open' || state.kind === 'draft'
+					? buildGitHubPullRequestPresentation({ ...presentationData, status: state, checksStatus })
+					: buildGitHubPullRequestPresentation({ ...presentationData, status: state });
 			}
 			case 'repository': {
 				const repository = await request.get(`/repos/${target.owner}/${target.repository}`, readRepository);
-				const details = [
-					repository.language,
-					repository.stars === undefined ? undefined : `${formatCount(repository.stars)} stars`,
-				].filter((value): value is string => !!value);
-				return {
-					kind: 'repository',
-					...(details.length ? { detail: details.join(' · ') } : {}),
-					tooltip: `${target.owner}/${target.repository}`,
-					ariaLabel: `GitHub repository ${target.owner} slash ${target.repository}`,
-				};
+				return buildGitHubRepositoryPresentation({
+					owner: target.owner,
+					repository: target.repository,
+					language: repository.language,
+					stars: repository.stars,
+				});
 			}
 			case 'tree': {
 				const refs = await request.get(
@@ -110,32 +104,21 @@ export class GitHubLinkPresentationResolver implements LinkPresentationResolver 
 				if (!tree) {
 					throw new GitHubLookupError('notFound', `GitHub did not find branch ${target.segments.join('/')}.`);
 				}
-				if (tree.path) {
-					return {
-						kind: 'folder',
-						detail: `${target.owner}/${target.repository} · ${tree.path}`,
-						tooltip: target.href,
-						ariaLabel: `Folder ${tree.path} in ${target.owner} slash ${target.repository}`,
-					};
-				}
-				const branch = await request.get(
-					`/repos/${target.owner}/${target.repository}/branches/${encodeURIComponent(tree.branch)}`,
-					readBranch,
-				);
+				const label = tree.path || tree.branch;
 				return {
-					kind: 'branch',
-					detail: branch.sha.slice(0, 7),
-					tooltip: `${target.owner}/${target.repository} · ${tree.branch}`,
-					ariaLabel: `Branch ${tree.branch} in ${target.owner} slash ${target.repository}`,
+					kind: 'resource',
+					detail: `${target.owner}/${target.repository} · ${label}`,
+					tooltip: target.href,
+					ariaLabel: `GitHub tree ${label} in ${target.owner} slash ${target.repository}`,
 				};
 			}
 			case 'file':
-				return {
-					kind: 'file',
-					detail: `${target.owner}/${target.repository} · ${target.path}`,
-					tooltip: target.href,
-					ariaLabel: `File ${target.path} in ${target.owner} slash ${target.repository}`,
-				};
+				return buildGitHubFilePresentation({
+					owner: target.owner,
+					repository: target.repository,
+					path: target.path,
+					href: target.href,
+				});
 		}
 	}
 
@@ -320,12 +303,12 @@ function getGitHubLookupFailurePresentationForTarget(
 		? githubLookupFailureDescription(error.kind)
 		: { label: 'Lookup failed', detail: 'The GitHub request could not be completed.' };
 	const kind = target.kind === 'tree' ? 'resource' : target.kind;
-	return {
+	return buildGitHubLookupFailurePresentation({
 		kind,
-		status: { kind: 'error', label: failure.label },
-		tooltip: `${failure.detail} ${error instanceof Error ? error.message : ''}`.trim(),
-		ariaLabel: `GitHub ${kind} lookup failed: ${failure.label}`,
-	};
+		label: failure.label,
+		detail: failure.detail,
+		errorMessage: error instanceof Error ? error.message : undefined,
+	});
 }
 
 function githubLookupFailureDescription(kind: GitHubLookupFailureKind): {
@@ -462,7 +445,7 @@ function readCheckRuns(value: unknown): readonly CheckRunData[] | undefined {
 export function getGitHubIssueStatus(
 	state: IssueData['state'],
 	stateReason: IssueData['stateReason'],
-): LinkPresentationStatus {
+): GitHubIssueStatus {
 	if (state === 'open') {
 		return { kind: 'open', label: 'Open' };
 	}
@@ -475,7 +458,7 @@ export function getGitHubPullRequestStatus(
 	state: PullRequestData['state'],
 	draft: boolean,
 	merged: boolean,
-): LinkPresentationStatus {
+): GitHubPullRequestStatus {
 	if (merged) {
 		return { kind: 'merged', label: 'Merged' };
 	}
@@ -491,7 +474,7 @@ export function shouldShowGitHubPullRequestChecks(status: LinkPresentationStatus
 	return status.kind === 'open' || status.kind === 'draft';
 }
 
-function checkRunStatus(checks: readonly CheckRunData[] | undefined): LinkPresentationStatus | undefined {
+function checkRunStatus(checks: readonly CheckRunData[] | undefined): GitHubChecksStatus | undefined {
 	if (!checks?.length) {
 		return undefined;
 	}
@@ -520,22 +503,6 @@ function readRepository(value: unknown): RepositoryData | undefined {
 		...(typeof value.language === 'string' ? { language: value.language } : {}),
 		...(typeof value.stargazers_count === 'number' ? { stars: value.stargazers_count } : {}),
 	};
-}
-
-interface BranchData {
-	readonly sha: string;
-}
-
-function readBranch(value: unknown): BranchData | undefined {
-	return isRecord(value)
-		&& isRecord(value.commit)
-		&& typeof value.commit.sha === 'string'
-		? { sha: value.commit.sha }
-		: undefined;
-}
-
-function formatCount(value: number): string {
-	return value >= 1000 ? `${(value / 1000).toFixed(value >= 10_000 ? 0 : 1)}k` : String(value);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

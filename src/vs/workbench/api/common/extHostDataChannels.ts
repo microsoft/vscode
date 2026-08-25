@@ -73,7 +73,7 @@ export class ExtHostDataChannels implements IExtHostDataChannels {
 		const cacheKey = `${providerId}\0${resourceString}`;
 		const cachedPresentation = this._getCachedLinkPresentation(cacheKey);
 		const initialPresentation: vscode.LinkPresentationData = {
-			...(cachedPresentation ?? { kind: rule.initialKind }),
+			...(cachedPresentation ?? { kind: rule.kind }),
 			isLoading: true,
 		};
 		const handle = ExtHostDataChannels._linkPresentationWatcherHandlePool++;
@@ -85,7 +85,7 @@ export class ExtHostDataChannels implements IExtHostDataChannels {
 			presentation => this._cacheLinkPresentation(cacheKey, presentation),
 		);
 		this._linkPresentationWatchers.set(handle, watcher);
-		this._proxy.$createLinkPresentationWatcher(handle, providerId, resource);
+		this._proxy.$createLinkPresentationWatcher(handle, providerId, rule.kind, resource);
 		return watcher;
 	}
 
@@ -118,11 +118,11 @@ export class ExtHostDataChannels implements IExtHostDataChannels {
 		this._channels.get(channelId)?._fireDidReceiveData(data);
 	}
 
-	$acceptLinkPresentationRules(rules: readonly { id: string; source: string; flags: string; initialKind: LinkPresentationKind }[]): void {
+	$acceptLinkPresentationRules(rules: readonly { id: string; source: string; flags: string; kind: LinkPresentationKind }[]): void {
 		this._linkPresentationRules = rules.map(rule => ({
 			id: rule.id,
 			uriPattern: new RegExp(rule.source, rule.flags),
-			initialKind: rule.initialKind,
+			kind: rule.kind,
 		}));
 		this._onDidChangeLinkPresentationRules.fire();
 	}
