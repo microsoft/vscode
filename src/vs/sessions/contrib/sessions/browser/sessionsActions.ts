@@ -48,7 +48,6 @@ import { asCssVariable } from '../../../../platform/theme/common/colorRegistry.j
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { markOnboardingTarget } from '../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { IWorkbenchAssignmentService } from '../../../../workbench/services/assignment/common/assignmentService.js';
-import { OPEN_CHAT_AGENT_KEYBINDING } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
 import { agentsNewSessionButtonBackground, agentsNewSessionButtonBorder, agentsNewSessionButtonForeground, agentsNewSessionButtonHoverBackground } from '../../../common/theme.js';
 import { logSessionsInteraction, SessionsInteractionSource } from '../../../common/sessionsTelemetry.js';
 import { NEW_SESSION_ACTION_ID } from '../../chat/common/constants.js';
@@ -337,14 +336,14 @@ registerAction2(class FocusActiveSessionAction extends Action2 {
 				// The normal open-chat actions do not work for new session views.
 				weight: KeybindingWeight.SessionsContrib,
 				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyI,
-				secondary: [OPEN_CHAT_AGENT_KEYBINDING.primary],
+				secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyI],
 				mac: {
 					primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KeyI,
-					secondary: [OPEN_CHAT_AGENT_KEYBINDING.primary]
+					secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyI]
 				},
 				linux: {
 					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyI,
-					secondary: [OPEN_CHAT_AGENT_KEYBINDING.linux.primary]
+					secondary: [KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.KeyI]
 				},
 			},
 		});

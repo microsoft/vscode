@@ -591,15 +591,6 @@ export abstract class ModeOpenChatGlobalAction extends OpenChatGlobalAction {
 	}
 }
 
-export const OPEN_CHAT_AGENT_KEYBINDING = {
-	when: ContextKeyExpr.has(`config.${ChatConfiguration.AgentEnabled}`),
-	weight: KeybindingWeight.WorkbenchContrib,
-	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyI,
-	linux: {
-		primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.KeyI
-	}
-} satisfies NonNullable<ICommandPaletteOptions['keybinding']>;
-
 export function registerChatActions() {
 	/**
 	 * Returns the session URI to use when opening a brand-new chat editor,
@@ -616,7 +607,14 @@ export function registerChatActions() {
 	});
 	registerAction2(class extends ModeOpenChatGlobalAction {
 		constructor() {
-			super(ChatMode.Agent, OPEN_CHAT_AGENT_KEYBINDING);
+			super(ChatMode.Agent, {
+				when: ContextKeyExpr.has(`config.${ChatConfiguration.AgentEnabled}`),
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyI,
+				linux: {
+					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.KeyI
+				}
+			},);
 		}
 	});
 	registerAction2(class extends ModeOpenChatGlobalAction {
