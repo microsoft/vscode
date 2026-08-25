@@ -10,7 +10,7 @@ import type { SectionOverride, SystemMessageConfig, SystemMessageSection } from 
  * inherit it via {@link withDefaultSections}, so it is defined in one place and
  * only a contributor that names `identity` replaces it.
  */
-export const COPILOT_AGENT_HOST_IDENTITY = 'You are an AI assistant using Copilot CLI runtime in VS Code. You help users with software engineering tasks. When asked about your identity, you must state that you are an AI assistant using Copilot CLI runtime in VS Code.';
+export const COPILOT_AGENT_HOST_IDENTITY = 'You are an AI assistant using Copilot SDK in VS Code. You help users with software engineering tasks. When asked about your identity, you must state that you are an AI assistant using Copilot SDK in VS Code.';
 
 /** Response-formatting contract for workspace links emitted by Agent Host models. */
 export const COPILOT_AGENT_HOST_FILE_LINK_INSTRUCTIONS = [
@@ -22,6 +22,7 @@ export const COPILOT_AGENT_HOST_FILE_LINK_INSTRUCTIONS = [
 	'- Use `/` path separators in link targets, including on Windows (`C:/path/to/foo.ts`).',
 	'- If a file path has spaces, wrap the target in angle brackets: [foo bar.ts](</path/to/foo bar.ts>).',
 	'- Use absolute filesystem paths rather than `file://` URIs.',
+	'- These rules are only for links in your responses. When writing a Markdown file, prefer paths relative to that Markdown file, for example [foo](./foo.md).',
 	'- Do not provide line ranges.',
 	'- Use a markdown link format every time you refer to a file, folder, or symbol, not just the first time.',
 	'</file_folder_and_symbol_links>',

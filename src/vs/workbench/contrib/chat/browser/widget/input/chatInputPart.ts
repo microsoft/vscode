@@ -3531,7 +3531,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		// model — matching the same icon set the CSS keys off — rather than
 		// querying the DOM.
 		const voiceInputActionIconClasses = new Set([
-			Codicon.mic, Codicon.micFilled, Codicon.micDownloadCompact,
+			Codicon.micCompact, Codicon.micFilled, Codicon.micDownloadCompact,
 			Codicon.voiceModeCompact, Codicon.loadingCompact, Codicon.debugDisconnectCompact,
 		].map(icon => ThemeIcon.asClassName(icon)));
 		const updateVoiceInputActionBorder = () => {
@@ -4302,10 +4302,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return key ? this._chatToolConfirmationCarousels.get(key) : undefined;
 	}
 
-	renderToolConfirmationCarousel(tool: IChatToolInvocation, factory: ToolInvocationPartFactory, subAgentInvocationId?: string, agentName?: string, revealSubagent?: RevealSubagentCallback, revealSubagentLabel?: string, toolPart?: ChatToolInvocationPart): ChatToolConfirmationCarouselPart {
+	renderToolConfirmationCarousel(tool: IChatToolInvocation, factory: ToolInvocationPartFactory, subAgentInvocationId?: string, subagentTitle?: string, revealSubagent?: RevealSubagentCallback, revealSubagentLabel?: string, toolPart?: ChatToolInvocationPart): ChatToolConfirmationCarouselPart {
 		const existing = this._currentToolConfirmationCarousel;
 		if (existing) {
-			existing.addToolInvocation(tool, subAgentInvocationId, agentName, revealSubagent, revealSubagentLabel, toolPart);
+			existing.addToolInvocation(tool, subAgentInvocationId, subagentTitle, revealSubagent, revealSubagentLabel, toolPart);
 			this.updateToolConfirmationCarouselMaxHeight();
 			return existing;
 		}
@@ -4315,8 +4315,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			throw new Error('Cannot render tool confirmation carousel without an active session');
 		}
 
-		const part = new ChatToolConfirmationCarouselPart(factory, [], revealSubagent, revealSubagentLabel, subAgentInvocationId, agentName);
-		part.addToolInvocation(tool, subAgentInvocationId, agentName, revealSubagent, revealSubagentLabel, toolPart);
+		const part = new ChatToolConfirmationCarouselPart(factory, [], revealSubagent, revealSubagentLabel, subAgentInvocationId, subagentTitle);
+		part.addToolInvocation(tool, subAgentInvocationId, subagentTitle, revealSubagent, revealSubagentLabel, toolPart);
 		this._chatToolConfirmationCarousels.set(key, part);
 		const capturedKey = key;
 		this._register(part.onDidChangeActiveSubagent(id => {
@@ -4343,13 +4343,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return part;
 	}
 
-	addToolToConfirmationCarousel(tool: IChatToolInvocation, factory: ToolInvocationPartFactory, subAgentInvocationId?: string, agentName?: string, revealSubagent?: RevealSubagentCallback, revealSubagentLabel?: string, toolPart?: ChatToolInvocationPart): void {
+	addToolToConfirmationCarousel(tool: IChatToolInvocation, factory: ToolInvocationPartFactory, subAgentInvocationId?: string, subagentTitle?: string, revealSubagent?: RevealSubagentCallback, revealSubagentLabel?: string, toolPart?: ChatToolInvocationPart): void {
 		const existing = this._currentToolConfirmationCarousel;
 		if (existing) {
-			existing.addToolInvocation(tool, subAgentInvocationId, agentName, revealSubagent, revealSubagentLabel, toolPart);
+			existing.addToolInvocation(tool, subAgentInvocationId, subagentTitle, revealSubagent, revealSubagentLabel, toolPart);
 			this.updateToolConfirmationCarouselMaxHeight();
 		} else {
-			this.renderToolConfirmationCarousel(tool, factory, subAgentInvocationId, agentName, revealSubagent, revealSubagentLabel, toolPart);
+			this.renderToolConfirmationCarousel(tool, factory, subAgentInvocationId, subagentTitle, revealSubagent, revealSubagentLabel, toolPart);
 		}
 	}
 

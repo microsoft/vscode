@@ -449,7 +449,7 @@ export class ChatStatusDashboard extends DomWidget {
 			disclosureHeader.appendChild($('span.collapsible-label', undefined, localize('inlineSuggestionsTab', "Inline Suggestions")));
 
 			chevron = disclosureHeader.appendChild($('span.collapsible-chevron'));
-			chevron.classList.add(...ThemeIcon.asClassNameArray(collapsed ? Codicon.chevronRight : Codicon.chevronDown));
+			chevron.classList.add(...ThemeIcon.asClassNameArray(collapsed ? Codicon.chevronRightCompact : Codicon.chevronDownCompact));
 
 			statusEl = disclosureHeader.appendChild($('span.collapsible-status', undefined, getStatusText()));
 		}
@@ -467,7 +467,7 @@ export class ChatStatusDashboard extends DomWidget {
 				collapsibleInner.inert = isCollapsed;
 				disclosureHeader!.setAttribute('aria-expanded', String(!isCollapsed));
 				chevron!.className = 'collapsible-chevron';
-				chevron!.classList.add(...ThemeIcon.asClassNameArray(isCollapsed ? Codicon.chevronRight : Codicon.chevronDown));
+				chevron!.classList.add(...ThemeIcon.asClassNameArray(isCollapsed ? Codicon.chevronRightCompact : Codicon.chevronDownCompact));
 				this.storageService.store(ChatStatusDashboard.QUICK_SETTINGS_COLLAPSED_KEY, isCollapsed, StorageScope.PROFILE, StorageTarget.USER);
 			};
 

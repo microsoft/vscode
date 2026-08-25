@@ -70,6 +70,7 @@ import { ForkConversationActionId } from '../actions/chatForkActions.js';
 import { MarkHelpfulActionId } from '../actions/chatTitleActions.js';
 import { focusChatModelFeedbackSurveyAction } from '../actions/chatModelFeedbackSurveyActions.js';
 import { ChatTreeItem, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidgetService } from '../chat.js';
+import { getCompactCodicon } from '../chatIcons.js';
 import { ChatModelFeedbackSurveyWidget } from '../feedbackSurvey/chatModelFeedbackSurveyWidget.js';
 import { AgentHostSnapshotController } from '../agentSessions/agentHost/agentHostSnapshotController.js';
 import { RestoreCheckpointActionId, StartOverActionId } from '../chatEditing/chatEditingActions.js';
@@ -625,6 +626,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	private readonly templateDataByRequestId = new Map<string, IChatListItemTemplate>();
 	private readonly responseTemplateDataByRequestId = new Map<string, IChatListItemTemplate>();
+	private readonly stickyScrollTemplateDataByRequestId = new Map<string, IChatListItemTemplate>();
+	private readonly hoveredRequestBubbleByRequestId = new Map<string, HTMLElement>();
+	private readonly stickyScrollSourceWidthRatioByRequestId = new Map<string, number>();
+	private readonly appliedStickyScrollWidthRatioByBubble = new WeakMap<HTMLElement, number>();
 	private readonly stickyScrollSourceRangesByRequestId = new Map<string, IStickyScrollNodeSourceRange | null>();
 	private readonly stickyScrollRequestContentById = new Map<string, { contentKey: string; hasContent: boolean }>();
 	private readonly pendingStickyScrollSourceRangeRefresh = this._register(new MutableDisposable<IDisposable>());
@@ -869,6 +874,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	refreshStickyScrollSourceRanges(invalidateRejected = false): void {
 		if (!this.delegate.isStickyScrollEnabled()) {
 			this.stickyScrollSourceRangesByRequestId.clear();
+			this.stickyScrollSourceWidthRatioByRequestId.clear();
 			return;
 		}
 
@@ -885,6 +891,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				this.updateStickyScrollSourceRange(templateData.currentElement, templateData);
 			}
 		}
+		for (const templateData of this.stickyScrollTemplateDataByRequestId.values()) {
+			if (isRequestVM(templateData.currentElement)) {
+				this.updateStickyScrollSourceRange(templateData.currentElement, templateData);
+			}
+		}
 	}
 
 	updateViewModel(viewModel: IChatViewModel | undefined): void {
@@ -897,6 +908,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		this.focusedFileTreesByResponseId.clear();
 		this.responseTemplateDataByRequestId.clear();
 		this.templateDataByRequestId.clear();
+		this.stickyScrollTemplateDataByRequestId.clear();
+		this.hoveredRequestBubbleByRequestId.clear();
+		this.stickyScrollSourceWidthRatioByRequestId.clear();
 		this.stickyScrollSourceRangesByRequestId.clear();
 		this.stickyScrollRequestContentById.clear();
 
@@ -961,6 +975,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			for (const diffEditor of this._diffEditorPool.inUse()) {
 				diffEditor.layout(newWidth);
 			}
+			this.stickyScrollSourceWidthRatioByRequestId.clear();
 			this.stickyScrollSourceRangesByRequestId.clear();
 			this.scheduleStickyScrollSourceRangeRefresh();
 		}
@@ -1669,7 +1684,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			avatarIcon.src = FileAccess.uriToBrowserUri(icon).toString(true);
 			templateData.avatarContainer.replaceChildren(dom.$('.avatar', undefined, avatarIcon));
 		} else {
-			const avatarIcon = dom.$(ThemeIcon.asCSSSelector(icon));
+			const avatarIcon = dom.$(ThemeIcon.asCSSSelector(templateData.rowContainer.classList.contains('interactive-item-compact') ? getCompactCodicon(icon) : icon));
 			templateData.avatarContainer.replaceChildren(dom.$('.avatar.codicon-avatar', undefined, avatarIcon));
 		}
 	}
@@ -2233,6 +2248,18 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			dispose(templateData.renderedParts);
 		}
 		templateData.renderedParts = parts;
+		if (isStickyScrollRow && this.stickyScrollTemplateDataByRequestId.get(element.id) !== templateData) {
+			this.stickyScrollTemplateDataByRequestId.set(element.id, templateData);
+			templateData.elementDisposables.add(toDisposable(() => {
+				if (this.stickyScrollTemplateDataByRequestId.get(element.id) === templateData) {
+					this.stickyScrollTemplateDataByRequestId.delete(element.id);
+				}
+			}));
+		}
+		const stickyScrollSourcePart = parts.find(part => part.domNode === templateData.stickyScrollSource);
+		if (stickyScrollSourcePart?.addDisposable && templateData.stickyScrollSource?.classList.contains('clickable')) {
+			stickyScrollSourcePart.addDisposable(this.registerSynchronizedRequestBubbleHover(element.id, templateData, templateData.stickyScrollSource));
+		}
 
 		if (!isStickyScrollRow && otherVariables.length) {
 			const newPart = this.renderAttachments(otherVariables, element.contentReferences, element.modelId, templateData);
@@ -2302,6 +2329,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		const hasContent = isEditing ? !!editingValue?.trim() : !!this.getRequestMarkdown(element)?.trim();
 		this.stickyScrollRequestContentById.set(element.id, { contentKey, hasContent });
+		this.stickyScrollSourceWidthRatioByRequestId.delete(element.id);
 		this.stickyScrollSourceRangesByRequestId.delete(element.id);
 		return hasContent;
 	}
@@ -2327,6 +2355,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			}));
 			return;
 		}
+		if (isStickyScrollRow) {
+			this.updateStickyScrollRequestWidth(element.id, requestBubble);
+		}
 
 		const requestBounds = requestBubble.getBoundingClientRect();
 		if (isStickyScrollRow) {
@@ -2351,6 +2382,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return;
 		}
 
+		this.updateStickyScrollSourceWidthRatio(element.id, requestBubble, requestBounds.width);
 		const rowBounds = templateData.rowContainer.getBoundingClientRect();
 		const start = Math.max(0, requestBounds.top - rowBounds.top - this.delegate.stickyScrollTopPadding);
 		const end = requestBounds.bottom - rowBounds.top;
@@ -2360,6 +2392,63 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		const stickyNodeHeight = this.stickyScrollSourceRangesByRequestId.get(element.id)?.stickyNodeHeight;
 		this.stickyScrollSourceRangesByRequestId.set(element.id, { start, end, stickyNodeHeight });
+	}
+
+	private updateStickyScrollRequestWidth(requestId: string, requestBubble: HTMLElement): void {
+		const widthRatio = this.stickyScrollSourceWidthRatioByRequestId.get(requestId);
+		if (widthRatio !== undefined) {
+			if (this.appliedStickyScrollWidthRatioByBubble.get(requestBubble) !== widthRatio) {
+				requestBubble.style.boxSizing = 'border-box';
+				requestBubble.style.width = `${widthRatio * 100}%`;
+				requestBubble.style.maxWidth = 'none';
+				this.appliedStickyScrollWidthRatioByBubble.set(requestBubble, widthRatio);
+			}
+		} else if (this.appliedStickyScrollWidthRatioByBubble.delete(requestBubble)) {
+			requestBubble.style.removeProperty('box-sizing');
+			requestBubble.style.removeProperty('width');
+			requestBubble.style.removeProperty('max-width');
+		}
+	}
+
+	private updateStickyScrollSourceWidthRatio(requestId: string, requestBubble: HTMLElement, requestWidth: number): void {
+		const requestParentWidth = requestBubble.parentElement?.getBoundingClientRect().width;
+		if (requestWidth > 0 && requestParentWidth && requestParentWidth > 0) {
+			this.stickyScrollSourceWidthRatioByRequestId.set(requestId, requestWidth / requestParentWidth);
+		} else {
+			this.stickyScrollSourceWidthRatioByRequestId.delete(requestId);
+		}
+	}
+
+	private registerSynchronizedRequestBubbleHover(requestId: string, templateData: IChatListItemTemplate, requestBubble: HTMLElement): IDisposable {
+		const disposables = new DisposableStore();
+		const setHovered = (hovered: boolean) => {
+			if (hovered) {
+				this.hoveredRequestBubbleByRequestId.set(requestId, requestBubble);
+			} else if (this.hoveredRequestBubbleByRequestId.get(requestId) === requestBubble) {
+				this.hoveredRequestBubbleByRequestId.delete(requestId);
+			} else {
+				return;
+			}
+			this.updateSynchronizedRequestBubbleHover(requestId);
+		};
+		disposables.add(dom.addDisposableListener(requestBubble, dom.EventType.MOUSE_ENTER, () => setHovered(true)));
+		disposables.add(dom.addDisposableListener(requestBubble, dom.EventType.MOUSE_LEAVE, () => setHovered(false)));
+		if (requestBubble.matches(':hover')) {
+			setHovered(true);
+		} else {
+			this.updateSynchronizedRequestBubbleHover(requestId);
+		}
+		disposables.add(toDisposable(() => {
+			setHovered(false);
+			templateData.rowContainer.classList.remove('request-bubble-hovered');
+		}));
+		return disposables;
+	}
+
+	private updateSynchronizedRequestBubbleHover(requestId: string): void {
+		const hovered = this.hoveredRequestBubbleByRequestId.has(requestId);
+		this.templateDataByRequestId.get(requestId)?.rowContainer.classList.toggle('request-bubble-hovered', hovered);
+		this.stickyScrollTemplateDataByRequestId.get(requestId)?.rowContainer.classList.toggle('request-bubble-hovered', hovered);
 	}
 
 	private rejectStickyScrollSourceRange(requestId: string, refreshStickyScroll: boolean): void {
@@ -3275,7 +3364,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		const subAgentInvocationId = subagentPart.subAgentInvocationId;
-		const agentName = subagentPart.getAgentLabel();
+		const subagentTitle = subagentPart.getSubagentTitle();
 
 		const revealSubagent = (targetSubAgentId: string) => {
 			const currentTemplateData = this.getTemplateDataForRequestId(context.element.id);
@@ -3288,7 +3377,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			}
 		};
 		const revealSubagentLabel = this.environmentService.isSessionsWindow
-			? localize('openSubagentChat', "Open {0} Chat", agentName)
+			? localize('openSubagentChat', "Open {0} Chat", subagentTitle)
 			: undefined;
 
 		const navigateToCarousel = (targetSubAgentId: string) => {
@@ -3304,7 +3393,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		);
 
 		const addToolToCarousel = (tool: IChatToolInvocation) => {
-			widget.inputPart.addToolToConfirmationCarousel(tool, factory, subAgentInvocationId, agentName, revealSubagent, revealSubagentLabel);
+			widget.inputPart.addToolToConfirmationCarousel(tool, factory, subAgentInvocationId, subagentTitle, revealSubagent, revealSubagentLabel);
 			const listener = this.createUpdateWorkingProgressOnConfirmationEnd(tool, templateData);
 			if (listener) {
 				templateData.elementDisposables.add(listener);

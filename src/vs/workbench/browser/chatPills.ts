@@ -18,6 +18,7 @@ import { URI } from '../../base/common/uri.js';
 import { localize } from '../../nls.js';
 import type { IActionListItemHover } from '../../platform/actionWidget/browser/actionList.js';
 import { IContextMenuService } from '../../platform/contextview/browser/contextView.js';
+import { asCssVariable, asCssVariableWithDefault, buttonSecondaryBackground } from '../../platform/theme/common/colorRegistry.js';
 import { defaultButtonStyles } from '../../platform/theme/browser/defaultStyles.js';
 import './media/chatPills.css';
 
@@ -149,6 +150,9 @@ export class ChatPillsWidget extends Disposable {
 	}
 }
 
+/** Opaque base so a pill never shows the content it floats over; `chatPills.css` tints it. */
+const chatPillBackground = asCssVariableWithDefault('chat.list.background', asCssVariable(buttonSecondaryBackground));
+
 /**
  * Shared plumbing for every chat pill: the button, click routing, enabled
  * state, and the roving-focus hooks the toolbar drives. Subclasses own only
@@ -179,7 +183,15 @@ export abstract class ChatPillActionViewItemBase extends BaseActionViewItem {
 			container.classList.add(this.itemModifierClass);
 		}
 
-		const button = this.button = this._register(new Button(container, { secondary: true, small: true, ...this.buttonOptions, ...defaultButtonStyles }));
+		// Hover uses the same opaque base; CSS layers the hover tint on top.
+		const button = this.button = this._register(new Button(container, {
+			secondary: true,
+			small: true,
+			...this.buttonOptions,
+			...defaultButtonStyles,
+			buttonSecondaryBackground: chatPillBackground,
+			buttonSecondaryHoverBackground: chatPillBackground,
+		}));
 		button.element.classList.add('monaco-text-button', 'chat-pill-button');
 		if (this.buttonModifierClass) {
 			button.element.classList.add(this.buttonModifierClass);

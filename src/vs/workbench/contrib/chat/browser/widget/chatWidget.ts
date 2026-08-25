@@ -293,6 +293,12 @@ const supportsAllAttachments: Required<Omit<IChatAgentAttachmentCapabilities, 't
 
 const DISCLAIMER = localize('chatDisclaimer', "AI responses may be inaccurate");
 
+/** Set on the container when {@link IChatWidgetViewOptions.persistentContentHeight} is, floating the persistent content. */
+export const chatFloatingPersistentContentClass = 'chat-floating-persistent-content';
+
+/** Carries {@link IChatWidgetViewOptions.persistentContentHeight} to `chat.css`. */
+export const chatPersistentContentHeightVariable = '--vscode-chat-persistent-content-height';
+
 export class ChatWidget extends Disposable implements IChatWidget {
 
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1002,6 +1008,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const renderInputToolbarBelowInput = this.viewOptions.renderInputToolbarBelowInput ?? false;
 
 		this.container = dom.append(parent, $('.interactive-session'));
+		if (this.viewOptions.persistentContentHeight) {
+			// The class floats the persistent content; the variable tells the
+			// surfaces the list now extends behind how far to keep clear.
+			this.container.classList.add(chatFloatingPersistentContentClass);
+			this.container.style.setProperty(chatPersistentContentHeightVariable, `${this.viewOptions.persistentContentHeight}px`);
+		}
 		this.editorOverflowWidgetsDomNode = this.viewOptions.editorOverflowWidgetsDomNode;
 		if (!this.editorOverflowWidgetsDomNode) {
 			const editorOverflowWidgetsDomNode = this.layoutService.getContainer(dom.getWindow(parent)).appendChild($('.chat-editor-overflow.monaco-editor'));
@@ -2027,6 +2039,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				getSelectedModelRequestOptions: () => this.getSelectedModelRequestOptions(),
 				getCurrentModeInfo: () => this.input.currentModeInfo,
 				getEditingValue: () => this.input.inputEditor.getValue(),
+				paddingBottom: this.viewOptions.persistentContentHeight,
 			}
 		));
 
