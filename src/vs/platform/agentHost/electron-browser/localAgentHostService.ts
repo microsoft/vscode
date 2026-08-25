@@ -28,6 +28,7 @@ import { AGENT_HOST_CLIENT_BYOK_LM_CHANNEL, AgentHostClientByokLmChannel, NullAg
 import { getAgentHostClientType } from '../common/agentHostClientInfo.js';
 import { AGENT_HOST_CLIENT_PROXY_CHANNEL, AgentHostClientProxyChannel } from '../common/agentHostClientProxyChannel.js';
 import { LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../common/agentHostResourceService.js';
+import { identityAgentHostResourceUriMapper } from '../common/agentHostUri.js';
 import { AgentHostStartupTelemetry } from '../common/agentHostStartupTelemetry.js';
 import { AgentHostClientConnectionKind } from '../common/agentHostTelemetry.js';
 import {
@@ -38,7 +39,7 @@ import {
 	AgentHostRestartIpcChannel,
 	AgentHostWillRestartIpcChannel,
 	AgentSession,
-	IAgentCreateChatOptions,
+	IAgentCreateChatRequestOptions,
 	IAgentCreateSessionConfig,
 	IAgentHostInspectInfo,
 	type IAgentHostDebugLogsArtifact,
@@ -143,6 +144,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 	declare readonly _serviceBrand: undefined;
 
 	readonly clientId = generateUuid();
+	get resourceUris() { return this._protocolClient?.resourceUris ?? identityAgentHostResourceUriMapper; }
 
 	private readonly _clientStore = this._register(new MutableDisposable<DisposableStore>());
 	private readonly _managementConnection = this._register(new LocalAgentHostManagementConnection());
@@ -439,7 +441,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._requireClient().disposeSession(session);
 	}
 
-	createChat(session: URI, chat: URI, options?: IAgentCreateChatOptions): Promise<void> {
+	createChat(session: URI, chat: URI, options?: IAgentCreateChatRequestOptions): Promise<void> {
 		if (options && hasChatExtensions(options)) {
 			return this._getManagementService().createChatWithExtensions(session, chat, options);
 		}
@@ -522,8 +524,8 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._getManagementService().getSessionStateFile(session);
 	}
 
-	collectDebugLogs(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind): Promise<IAgentHostDebugLogsArtifact> {
-		return this._getManagementService().collectDebugLogs(session, kind);
+	collectDebugLogs(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind, chat?: URI): Promise<IAgentHostDebugLogsArtifact> {
+		return this._getManagementService().collectDebugLogs(session, kind, chat);
 	}
 
 	readDebugLogsChunk(resource: URI, position: number): Promise<IAgentHostDebugLogsChunk> {
@@ -554,7 +556,7 @@ function hasSessionExtensions(config: IAgentCreateSessionConfig): boolean {
 	return config.model !== undefined || config.agent !== undefined || config.importConversation !== undefined;
 }
 
-function hasChatExtensions(options: IAgentCreateChatOptions): boolean {
+function hasChatExtensions(options: IAgentCreateChatRequestOptions): boolean {
 	return options.title !== undefined || options.model !== undefined;
 }
 

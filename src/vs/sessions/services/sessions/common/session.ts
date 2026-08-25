@@ -322,6 +322,16 @@ export interface IGitHubPullRequestRef {
 	readonly uri: URI;
 	/** Icon reflecting the last known PR state. */
 	readonly icon?: ThemeIcon;
+	/**
+	 * Pull request title, when the session recorded one. Absent for pull requests
+	 * discovered from git state, which carry no title until they are fetched live.
+	 */
+	readonly title?: string;
+	/**
+	 * Whether this pull request originated in the session, as opposed to being
+	 * inherited from the checkout it started from or merely referenced by the agent.
+	 */
+	readonly createdByThisSession?: boolean;
 }
 
 /** A GitHub issue referenced by a session. */
@@ -970,6 +980,8 @@ export function gitHubInfoEqual(a: IGitHubInfo | undefined, b: IGitHubInfo | und
 			x.repo === y.repo &&
 			x.number === y.number &&
 			isEqual(x.uri, y.uri) &&
+			x.title === y.title &&
+			x.createdByThisSession === y.createdByThisSession &&
 			(x.icon === y.icon || (!!x.icon && !!y.icon && ThemeIcon.isEqual(x.icon, y.icon)))) &&
 		a.pullRequest?.number === b.pullRequest?.number &&
 		isEqual(a.pullRequest?.uri, b.pullRequest?.uri) &&

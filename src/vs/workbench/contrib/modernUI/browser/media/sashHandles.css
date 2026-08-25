@@ -69,16 +69,24 @@
 	opacity: 0;
 }
 
+/* Compact cards meet edge-to-edge, so the persistent grips are unnecessary. */
+.modern-ui.modern-ui-compact .monaco-sash:not(.disabled)::after {
+	content: none;
+}
+
 /* Only mark boundaries between top-level parts. Sashes inside a part (editor
  * splits, tree/view resizers) live within `.part`, so suppress their grip. */
 .modern-ui .part .monaco-sash::after {
 	content: none;
 }
 
-/* Hide grips for collapsed parts. Their reveal sashes remain enabled at an
- * extent, and the panel grip can also be clipped by the status bar. */
+/* Hide grips for collapsed parts whose reveal sash has no inter-card gap to sit in. Their
+ * reveal sashes remain enabled at an extent, and the panel grip can also be clipped by the
+ * status bar. A collapsed primary side bar is the exception while the activity bar is
+ * visible: the rail then stands alone as its own card, so the reveal sash sits in the gap
+ * between it and the next card and the grip marks a real, grabbable boundary. */
 .modern-ui.nopanel .monaco-sash.horizontal::after,
-.modern-ui.nosidebar .monaco-sash.vertical.primary-sidebar-sash::after {
+.modern-ui.nosidebar.noactivitybar .monaco-sash.vertical.primary-sidebar-sash::after {
 	content: none;
 }
 

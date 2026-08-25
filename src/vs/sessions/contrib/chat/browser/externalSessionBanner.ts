@@ -66,7 +66,7 @@ export function getExternalSessionVisibilityConfirmation(mode: ChatExternalSessi
 		return {
 			type: 'warning',
 			message,
-			detail: localize('externalSessionBanner.confirm.recent.detail', "Only the 2 most recently updated external sessions from the last 7 days will be shown. Are you sure you want to save this change?"),
+			detail: localize('externalSessionBanner.confirm.recent.detail', "Only up to the 2 most recently updated external sessions from the last 7 days will be shown. Are you sure you want to save this change?"),
 			primaryButton,
 		};
 	}
@@ -229,7 +229,7 @@ export class ExternalSessionBanner extends Disposable {
 				mode: ChatExternalSessionsMode.Recent,
 				item: {
 					text: localize('externalSessionBanner.select.recent', "Recent"),
-					description: localize('externalSessionBanner.select.recent.description', "Show the 2 most recently updated external sessions from the last 7 days."),
+					description: localize('externalSessionBanner.select.recent.description', "Show up to the 2 most recently updated external sessions from the last 7 days."),
 				},
 			},
 			{

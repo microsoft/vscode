@@ -17,10 +17,10 @@ import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { AHPFileSystemProvider } from '../common/agentHostFileSystemProvider.js';
 import { getAgentHostClientType } from '../common/agentHostClientInfo.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, readClientConnectionKind, readClientDevDeviceId, readClientMachineId, readClientTelemetryLevel, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
-import { AgentSession, type IAgentCreateChatOptions, type IMcpNotification } from '../common/agent.js';
+import { AgentSession, type IAgentCreateChatRequestOptions, type IMcpNotification } from '../common/agent.js';
 import { isManagedSettingsPermissions } from '../common/agentHostManagedSettings.js';
 import { type IAgentService } from '../common/agentService.js';
-import { CollectAgentHostDebugLogsExtensionMethod, GetAgentHostSessionStateFileExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod } from '../common/agentHostExtensionProtocol.js';
+import { collectAgentHostDebugLogsParamsValidator, CollectAgentHostDebugLogsExtensionMethod, GetAgentHostSessionStateFileExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod } from '../common/agentHostExtensionProtocol.js';
 import { isActionEnvelopeRelevantToSubscriptionUris } from '../common/state/agentSubscription.js';
 import { ChatSourceKind } from '../common/state/protocol/channels-chat/commands.js';
 import type { CommandMap } from '../common/state/protocol/messages.js';
@@ -1413,7 +1413,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				return null;
 			}
 			const source = params.source;
-			let options: IAgentCreateChatOptions | undefined;
+			let options: IAgentCreateChatRequestOptions | undefined;
 			if (source) {
 				switch (source.kind) {
 					case ChatSourceKind.Fork:
@@ -1718,13 +1718,11 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				if (!this._agentService.collectDebugLogs) {
 					return undefined;
 				}
-				if (!isParamsObject(params)) {
-					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'params must be an object'));
+				const validated = collectAgentHostDebugLogsParamsValidator.validate(params);
+				if (validated.error) {
+					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, validated.error.message));
 				}
-				const sessionParam = params['session'];
-				if (sessionParam !== undefined && typeof sessionParam !== 'string') {
-					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'session must be a URI string'));
-				}
+				const { session: sessionParam, chat: chatParam, kind } = validated.content;
 				let session: URI | undefined;
 				if (sessionParam !== undefined) {
 					try {
@@ -1736,11 +1734,19 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 						return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'session must be an Agent Session URI'));
 					}
 				}
-				const kind = params['kind'];
-				if (kind !== 'archive' && kind !== 'directory') {
-					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'kind must be archive or directory'));
+				let chat: URI | undefined;
+				if (chatParam !== undefined) {
+					try {
+						chat = URI.parse(chatParam, true);
+					} catch {
+						return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'chat must be a valid URI string'));
+					}
+					const parsedChat = parseChatUri(chat);
+					if (!session || !parsedChat || parsedChat.session !== session.toString()) {
+						return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'chat must belong to the requested Agent Session'));
+					}
 				}
-				return this._agentService.collectDebugLogs(session, kind).then(result => ({
+				return this._agentService.collectDebugLogs(session, kind, chat).then(result => ({
 					kind: result.kind,
 					resource: result.resource.toString(),
 					providerLogsIncluded: result.providerLogsIncluded,

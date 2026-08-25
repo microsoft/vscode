@@ -5,7 +5,7 @@
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IWorkbenchLayoutService, LayoutSettings } from '../../../services/layout/browser/layoutService.js';
+import { IWorkbenchLayoutService, LayoutSettings, ModernUIDensity } from '../../../services/layout/browser/layoutService.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { DEFAULT_SCROLLBAR_SIZE, setGlobalDefaultScrollbarSize } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { COMPACT_NOTIFICATION_ROW_HEIGHT, DEFAULT_NOTIFICATION_ROW_HEIGHT, setNotificationRowHeight } from '../../../browser/parts/notifications/notificationsViewer.js';
@@ -49,6 +49,7 @@ interface IModernUIModule {
  * that can be reused independently also receive dedicated classes below.
  */
 const MODERN_UI_CLASS = 'modern-ui';
+const MODERN_UI_COMPACT_CLASS = 'modern-ui-compact';
 const MODERN_UI_TABS_CLASS = 'modern-ui-tabs';
 const MODERN_UI_NOTIFICATIONS_DIALOGS_CLASS = 'modern-ui-notifications-dialogs';
 const MODERN_UI_UPPERCASE_VIEW_HEADERS_CLASS = 'modern-ui-uppercase-view-headers';
@@ -89,8 +90,7 @@ export class ModernUIContribution extends Disposable implements IWorkbenchContri
 
 	private readonly hasLayoutAffectingModule = MODERN_UI_MODULES.some(m => m.layoutAffecting);
 
-	/** Whether a layout-affecting module was active at the last applied selection. */
-	private layoutAffectingActive = false;
+	private layoutAffectingState = 'disabled';
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -98,18 +98,18 @@ export class ModernUIContribution extends Disposable implements IWorkbenchContri
 	) {
 		super();
 
-		this.layoutAffectingActive = this.hasActiveLayoutAffectingModule();
+		this.layoutAffectingState = this.getLayoutAffectingState();
 
 		// A config change re-applies to every container (the global `update()`
 		// covers all windows, including auxiliary ones).
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(LayoutSettings.MODERN_UI) || e.affectsConfiguration(LayoutSettings.MODERN_UI_UPPERCASE_VIEW_HEADERS)) {
+			if (e.affectsConfiguration(LayoutSettings.MODERN_UI) || e.affectsConfiguration(LayoutSettings.MODERN_UI_DENSITY) || e.affectsConfiguration(LayoutSettings.MODERN_UI_UPPERCASE_VIEW_HEADERS)) {
 				this.update();
 				// Some modules change layout metrics, so a relayout is required once
 				// their classes and corresponding layout values are updated.
-				const layoutAffectingActive = this.hasActiveLayoutAffectingModule();
-				if (layoutAffectingActive !== this.layoutAffectingActive) {
-					this.layoutAffectingActive = layoutAffectingActive;
+				const layoutAffectingState = this.getLayoutAffectingState();
+				if (layoutAffectingState !== this.layoutAffectingState) {
+					this.layoutAffectingState = layoutAffectingState;
 					this.layoutService.layout();
 				}
 			}
@@ -119,7 +119,7 @@ export class ModernUIContribution extends Disposable implements IWorkbenchContri
 		// auxiliary windows). Subsequent config changes are handled by `update()`.
 		this._register(this.layoutService.onDidAddContainer(({ container }) => {
 			const enabled = this.isEnabled();
-			this.applyTo(container, enabled, enabled && this.useUppercaseViewHeaders());
+			this.applyTo(container, enabled, enabled && this.isCompact(), enabled && this.useUppercaseViewHeaders());
 		}));
 
 		this.update();
@@ -133,23 +133,33 @@ export class ModernUIContribution extends Disposable implements IWorkbenchContri
 		return this.configurationService.getValue<boolean>(LayoutSettings.MODERN_UI_UPPERCASE_VIEW_HEADERS) === true;
 	}
 
-	private hasActiveLayoutAffectingModule(): boolean {
-		return this.isEnabled() && this.hasLayoutAffectingModule;
+	private isCompact(): boolean {
+		return this.configurationService.getValue<ModernUIDensity>(LayoutSettings.MODERN_UI_DENSITY) === ModernUIDensity.Compact;
+	}
+
+	private getLayoutAffectingState(): string {
+		if (!this.isEnabled() || !this.hasLayoutAffectingModule) {
+			return 'disabled';
+		}
+
+		return this.isCompact() ? ModernUIDensity.Compact : ModernUIDensity.Default;
 	}
 
 	private update(): void {
 		const enabled = this.isEnabled();
+		const compact = enabled && this.isCompact();
 		const useUppercaseViewHeaders = enabled && this.useUppercaseViewHeaders();
 		this.applyPaneHeaderSize(enabled);
 		for (const container of this.layoutService.containers) {
-			this.applyTo(container, enabled, useUppercaseViewHeaders);
+			this.applyTo(container, enabled, compact, useUppercaseViewHeaders);
 		}
 		this.applyScrollbarSize(enabled);
 		this.applyNotificationRowHeight(enabled);
 	}
 
-	private applyTo(container: HTMLElement, enabled: boolean, useUppercaseViewHeaders: boolean): void {
+	private applyTo(container: HTMLElement, enabled: boolean, compact: boolean, useUppercaseViewHeaders: boolean): void {
 		container.classList.toggle(MODERN_UI_CLASS, enabled);
+		container.classList.toggle(MODERN_UI_COMPACT_CLASS, compact);
 		container.classList.toggle(MODERN_UI_TABS_CLASS, enabled);
 		container.classList.toggle(MODERN_UI_NOTIFICATIONS_DIALOGS_CLASS, enabled);
 		container.classList.toggle(MODERN_UI_UPPERCASE_VIEW_HEADERS_CLASS, useUppercaseViewHeaders);
@@ -164,13 +174,18 @@ export class ModernUIContribution extends Disposable implements IWorkbenchContri
 	}
 
 	private applyPaneHeaderSize(enabled: boolean): void {
-		setGlobalPaneHeaderSize(enabled ? MODERN_UI_PANE_HEADER_SIZE : DEFAULT_PANE_HEADER_SIZE);
+		let paneHeaderSize = DEFAULT_PANE_HEADER_SIZE;
+		if (enabled) {
+			paneHeaderSize = MODERN_UI_PANE_HEADER_SIZE;
+		}
+		setGlobalPaneHeaderSize(paneHeaderSize);
 	}
 
 	override dispose(): void {
 		// Remove the class this contribution added so it leaves no DOM state behind.
 		for (const container of this.layoutService.containers) {
 			container.classList.remove(MODERN_UI_CLASS);
+			container.classList.remove(MODERN_UI_COMPACT_CLASS);
 			container.classList.remove(MODERN_UI_TABS_CLASS);
 			container.classList.remove(MODERN_UI_NOTIFICATIONS_DIALOGS_CLASS);
 			container.classList.remove(MODERN_UI_UPPERCASE_VIEW_HEADERS_CLASS);

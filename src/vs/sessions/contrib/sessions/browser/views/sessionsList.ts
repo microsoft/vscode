@@ -83,7 +83,8 @@ import { DraggedSessionIdentifier, SessionsDataTransfers } from '../../../../bro
 import { IDragAndDropData } from '../../../../../base/browser/dnd.js';
 import { ElementsDragAndDropData, ListViewTargetSector } from '../../../../../base/browser/ui/list/listView.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { buildSessionHoverContent } from '../sessionHoverContent.js';
+import { getSessionSummaryHoverData } from '../sessionHoverContent.js';
+import { SessionSummaryHoverWidget } from '../../../../../workbench/contrib/chat/browser/agentSessions/sessionSummaryHover.js';
 import { SessionStatusIcon } from '../../../../browser/sessionStatusIcon.js';
 import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
@@ -548,9 +549,9 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		this.agentSessionsService.model.observeSession(element.resource);
 
 		if (this.options.showHover) {
-			// Rich hover on the row showing folder, branch, diff stats and provider.
+			// Rich hover on the row: the same widget session pills use in chat output.
 			template.elementDisposables.add(this.hoverService.setupDelayedHover(template.container, () => ({
-				content: buildSessionHoverContent(element, this.sessionsProvidersService),
+				content: new SessionSummaryHoverWidget(getSessionSummaryHoverData(element, this.sessionsProvidersService)).domNode,
 				appearance: { showPointer: true },
 				position: { hoverPosition: HoverPosition.RIGHT, forcePosition: true },
 				persistence: { hideOnHover: false },
@@ -1858,6 +1859,14 @@ export interface ISessionsListControlOptions {
 	readonly sorting: () => SessionsSorting;
 	readonly findWidgetContainer?: HTMLElement;
 	onSessionOpen(resource: URI, preserveFocus: boolean, sideBySide: boolean): void;
+
+	/**
+	 * Gate invoked before a session is opened (before mark-read, activation, and
+	 * folder mount). Return `false` to refuse the open — e.g. the session's folder
+	 * is not trusted — leaving the current session/empty slot untouched. When
+	 * omitted, opens are not gated.
+	 */
+	canOpenSession?(session: ISession): Promise<boolean>;
 }
 
 /**
@@ -2187,7 +2196,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			}
 		));
 
-		this._register(this.tree.onDidOpen(e => {
+		this._register(this.tree.onDidOpen(async e => {
 			const element = e.element;
 			if (!element) {
 				return;
@@ -2214,6 +2223,12 @@ export class SessionsList extends Disposable implements ISessionsList {
 				return;
 			}
 			if (!isSessionSection(element) && !isSessionGroupItem(element)) {
+				// Gate the open on workspace trust before any side effect (mark-read,
+				// activation, folder mount). A refused open leaves the current
+				// session (or empty new-session slot) untouched.
+				if (this.options.canOpenSession && !(await this.options.canOpenSession(element))) {
+					return;
+				}
 				this.markRead(element);
 				// A deliberate left mouse click on a session should move keyboard
 				// focus into the chat input so the user can start typing right
