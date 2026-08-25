@@ -157,16 +157,33 @@ $pid = $info.pid
 
 ## Drive the UI
 
-Two options, and they compose:
+**Start here: [use the repo's own automation library](./automation-library.md).**
+`test/automation` is what the smoke tests use. It already has page objects for
+chat, the Agents window, quick input, terminal, notebooks and more, including
+the retry and verification logic those surfaces need — so common flows are a few
+lines instead of a selector hunt. Launch with `-- --enable-smoke-test-driver`,
+and a full chat round-trip is:
 
-- **[The repo's own automation library](./automation-library.md) (recommended).**
-  `test/automation` is what the smoke tests use; it already has page objects for
-  chat, the Agents window, quick input, terminal, notebooks and more, with the
-  retry and verification logic those surfaces need. `scripts/attach.ts` connects
-  it to the instance you just launched.
-- **Raw `@playwright/cli`** (below) for exploration, screenshots, and surfaces the
-  library does not cover. `session.page` from `attach()` is a normal Playwright
-  `Page`, so you can mix the two.
+```js
+// Run from the repo root; Node executes the .ts directly, no build step.
+import { attach } from '<dir-of-this-SKILL.md>/scripts/attach.ts';
+
+const session = await attach(cdpPort, { window: 'workbench' });
+await session.workbench.quickaccess.runCommand('workbench.action.chat.open');
+await session.workbench.chat.waitForChatView();
+await session.workbench.chat.sendMessage('Reply with exactly PONG.');
+console.log(await session.workbench.chat.waitForResponseText(/PONG/i));
+await session.detach();
+```
+
+That handles focusing the input, Monaco's paste quirk, input read-back, and
+waiting for the response to settle — all of which you would otherwise wire up by
+hand. **Read [automation-library.md](./automation-library.md) before reaching for
+the CLI below.**
+
+Use raw `@playwright/cli` for exploration (`snapshot`), screenshots, and surfaces
+the library does not cover. The two compose: `session.page` is a normal
+Playwright `Page`.
 
 ### Raw `@playwright/cli`
 

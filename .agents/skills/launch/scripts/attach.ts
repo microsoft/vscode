@@ -151,14 +151,27 @@ async function findPage(context: PlaywrightContext, urlHint: RegExp | undefined,
 	}
 }
 
-async function assertSmokeTestDriver(page: PlaywrightPage): Promise<void> {
-	const hasDriver = await page.evaluate(() => typeof (globalThis as any).driver !== 'undefined');
-	if (!hasDriver) {
-		throw new Error(
-			'window.driver is not registered, so the automation page objects cannot work. ' +
-			'Relaunch with the smoke-test driver enabled, e.g. ' +
-			'`launch.sh -- --enable-smoke-test-driver`.'
-		);
+/**
+ * `launch.sh` treats the endpoint as ready as soon as `/json/version` responds,
+ * which can happen before the workbench has run `setupDriver()`. Poll rather
+ * than sampling once, so a correctly launched instance is not misreported as
+ * missing the flag purely because it was still starting up.
+ */
+async function waitForSmokeTestDriver(page: PlaywrightPage, timeoutMs: number): Promise<void> {
+	const deadline = Date.now() + timeoutMs;
+	for (;;) {
+		const hasDriver = await page.evaluate(() => typeof (globalThis as any).driver !== 'undefined');
+		if (hasDriver) {
+			return;
+		}
+		if (Date.now() >= deadline) {
+			throw new Error(
+				`window.driver was still not registered after ${timeoutMs}ms, so the automation page ` +
+				'objects cannot work. This usually means the window was launched without the ' +
+				'smoke-test driver: relaunch with `launch.sh -- --enable-smoke-test-driver`.'
+			);
+		}
+		await new Promise(resolve => setTimeout(resolve, 250));
 	}
 }
 
@@ -205,8 +218,9 @@ export async function attach(cdpPort: number | string, options: IAttachOptions =
 			throw new Error(`No browser context on ${endpoint}; the window may still be starting up.`);
 		}
 
+		const deadline = Date.now() + timeoutMs;
 		const page = await findPage(context, PAGE_URL_HINTS[windowKind], timeoutMs);
-		await assertSmokeTestDriver(page);
+		await waitForSmokeTestDriver(page, Math.max(deadline - Date.now(), 1_000));
 
 		const logger = { log: (...args) => { if (verbose) { console.error('[automation]', ...args); } } };
 		const launchOptions = {
@@ -222,6 +236,14 @@ export async function attach(cdpPort: number | string, options: IAttachOptions =
 		// caller kills the pid from its JSON output.
 		const driver = new PlaywrightDriver(browser, context, page, undefined, Promise.resolve(), launchOptions, undefined);
 		const code = new Code(driver, logger, undefined, undefined, Quality.Dev, launchOptions.version);
+
+		// `Code.exit()` shuts down a process this module never spawned, and would
+		// otherwise fail obscurely on `this.mainProcess.pid`. Replace it with an
+		// explanation of what to do instead.
+		code.exit = () => Promise.reject(new Error(
+			'Code.exit() is not available on an attached instance, because launch.sh owns the process. ' +
+			'Call detach() to disconnect, then kill the `pid` from the launch.sh JSON output.'
+		));
 
 		return {
 			browser,

@@ -31,6 +31,23 @@ console.log(await workbench.chat.waitForResponseText(/PONG/i));
 await session.detach();   // disconnects CDP; Code OSS keeps running
 ```
 
+### Pick the right window first
+
+`launch.sh` opens the regular workbench by default and the Agents window with
+`--agents`. They are different products with different surfaces, and a task
+aimed at one will quietly produce misleading results in the other:
+
+| | Regular workbench (default) | Agents window (`--agents`) |
+|---|---|---|
+| Page objects | `workbench.chat`, `quickaccess`, `editors`, `terminal`, ... | `workbench.agentsWindow` |
+| Chat surface | sidebar / editor chat | session-based homepage |
+| Session types | Copilot, Local, Cloud, Claude | Copilot, Claude — **no Local** |
+
+Pass `window: 'workbench'` or `window: 'agents'` to `attach()` so a mismatch
+fails immediately instead of after a confusing search. If a control you expect
+is missing, check which window you launched before concluding the control does
+not exist.
+
 `attach()` takes the `cdpPort` from the launch JSON and returns
 `{ workbench, code, page, browser, detach }`. Options: `window`
 (`'workbench' | 'agents' | 'any'`), `verbose` (stream the automation logger's
@@ -91,8 +108,18 @@ The two compose: attach the library for the flows it covers, and drop to
 
 - **Snapshot refs go stale** against virtualized lists. Re-query immediately
   before interacting.
+- **Do not over-scope a selector when enumerating a popup.** Menu rows are not
+  reliably nested under `.context-view`, so `.context-view .monaco-list-row`
+  can return an empty list for a popup that is plainly on screen. Query
+  `.monaco-list-row` and filter, or use a page object.
 - **Not every surface exists in every window.** The Agents window has no Local
   session type, for instance. `workbench.agentsWindow.isSessionTypeAvailable(label)`
   answers that question directly instead of leaving you to infer it from a
   failure.
+- **Some providers register asynchronously**, seconds after the window is
+  usable. An agent-host session type that is missing right after launch may
+  simply not have registered yet, so poll before concluding it is unavailable
+  (`isSessionTypeAvailable` already re-opens the picker on each attempt for
+  exactly this reason). This is *not* a symptom of a missing
+  `--clone-extensions`: the built-in providers are present without it.
 
