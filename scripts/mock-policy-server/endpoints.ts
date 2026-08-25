@@ -108,15 +108,32 @@ declare var MOCK_POLICY_ENDPOINTS: EndpointDef[];
 				{
 					id: 'deny-dangerous-commands',
 					label: 'Deny dangerous shell/file operations',
-					description: 'Blocks specific shell commands, file writes, and a domain outright. Deny always wins and is unioned across every managed source.',
+					description: 'Blocks specific shell commands, workspace-scoped file writes, and a domain outright. A single leading slash means the workspace root in the managed permission syntax.',
 					status: 200,
 					body: {
 						permissions: {
 							deny: [
 								'Shell(rm -rf *)',
 								'Shell(curl *)',
-								'Write(/etc/**)',
+								'Write(/.github/workflows/**)',
 								'Domain(evil.example.com)'
+							]
+						}
+					}
+				},
+				{
+					id: 'workspace-scoped-paths',
+					label: 'Workspace-scoped paths',
+					description: 'Demonstrates paths relative to the workspace root: /src/** and /test/** match only inside the workspace, while /package.json targets that workspace file.',
+					status: 200,
+					body: {
+						permissions: {
+							ask: [
+								'Write(/src/**)',
+								'Write(/test/**)'
+							],
+							deny: [
+								'Write(/package.json)'
 							]
 						}
 					}
@@ -152,7 +169,7 @@ declare var MOCK_POLICY_ENDPOINTS: EndpointDef[];
 								'Domain(*.githubusercontent.com)'
 							],
 							deny: [
-								'Write(/etc/**)',
+								'Write(/.github/workflows/**)',
 								'Write(~/.ssh/**)'
 							]
 						}
