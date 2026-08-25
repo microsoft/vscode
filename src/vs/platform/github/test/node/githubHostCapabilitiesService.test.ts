@@ -256,6 +256,49 @@ suite('GitHubHostCapabilitiesService', () => {
 		});
 	});
 
+	test('re-probes a degraded host as soon as a new credential arrives', async () => {
+		await withServer(async server => {
+			server.enqueue(
+				gitHubGraphQLStep({
+					// A refusal that belongs to the credential, not the host.
+					response: gitHubGraphQLResponse(undefined, [{ message: 'Resource protected by organization SAML enforcement', type: 'FORBIDDEN' }]),
+				}),
+				gitHubGraphQLStep({
+					response: gitHubGraphQLResponse({
+						pullRequest: { fields: [{ name: 'reviewThreads' }] },
+						repository: { fields: [] },
+						requirableByPullRequest: null,
+					}),
+				}),
+			);
+			const scheduler = disposables.add(new FakeGitHubScheduler({ now: 0 }));
+			const transport = disposables.add(new GitHubTransport(nodeFetch));
+			const service = disposables.add(new GitHubHostCapabilitiesService(scheduler, undefined, transport, server.createEndpointService()));
+			const signal = new AbortController().signal;
+			const account = { host: new URL(server.apiBaseUrl).host, accountId: '101' };
+
+			const refused = await service.getCapabilities({ account, token: 'stale', generation: 1, signal }, undefined, signal);
+			// Authorizing the credential must not leave the user pinned to the
+			// REST fallbacks the refusal produced for the rest of the window.
+			const reauthenticated = await service.getCapabilities({ account, token: 'fresh', generation: 2, signal }, undefined, signal);
+
+			assert.deepStrictEqual({
+				refusedGraphql: refused.graphql,
+				reauthenticatedGraphql: reauthenticated.graphql,
+				reauthenticatedReviewThreads: reauthenticated.reviewThreads,
+				elapsed: scheduler.now(),
+				requestCount: server.requests.length,
+			}, {
+				refusedGraphql: false,
+				reauthenticatedGraphql: true,
+				reauthenticatedReviewThreads: true,
+				elapsed: 0,
+				requestCount: 2,
+			});
+			server.assertSatisfied();
+		});
+	});
+
 	test('cancelling one capability waiter does not cancel another', async () => {
 		await withServer(async server => {
 			const requestSeen = new DeferredPromise<void>();

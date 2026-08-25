@@ -60,7 +60,8 @@ export class GitHubRateLimitCoordinator extends Disposable {
 		const retryAfter = parseSeconds(response.headers.get('retry-after'), now);
 		const resetSeconds = parseNumber(response.headers.get('x-ratelimit-reset'));
 		const remaining = parseNumber(response.headers.get('x-ratelimit-remaining'));
-		const secondaryLimited = isSecondaryRateLimit(response.status, responseBody);
+		const rateLimited = isRateLimited(response.status, responseBody);
+		const secondaryLimited = rateLimited && isSecondaryRateLimit(responseBody);
 		// GitHub's documented order: honour `retry-after`; otherwise wait for the
 		// reset only once the quota is actually spent. A secondary limit reports
 		// the primary window, so obeying its reset would park the account for up
@@ -71,9 +72,13 @@ export class GitHubRateLimitCoordinator extends Disposable {
 		// A refusal must always park the caller, including when the only hint
 		// GitHub gave has already elapsed and would otherwise retry at once.
 		const refusedUntil = hinted !== undefined && hinted > now ? hinted : now + unhintedRateLimitCooldown;
+		// Every rate-limited refusal parks its resource, notably the primary form
+		// GitHub reports as 403 with spent quota headers rather than as 429. Only
+		// the body separates that from an authorization failure, which must stay
+		// unparked so a credential problem still surfaces immediately.
 		const blockedUntil = secondaryLimited
 			? undefined
-			: response.status === 429
+			: rateLimited
 				? refusedUntil
 				: retryAfter !== undefined ? now + retryAfter * 1000 : undefined;
 		if (secondaryLimited) {
@@ -162,9 +167,18 @@ function parseSeconds(value: string | null, now: number): number | undefined {
 	return Number.isFinite(date) ? Math.max(0, Math.ceil((date - now) / 1000)) : undefined;
 }
 
-function isSecondaryRateLimit(status: number, body: string | undefined): boolean {
-	if (status !== 403 && status !== 429) {
-		return false;
+/**
+ * Whether GitHub refused the request for rate limiting. Primary exhaustion is
+ * reported as 403 with the quota headers rather than as 429, and only the body
+ * tells it apart from an authorization failure.
+ */
+function isRateLimited(status: number, body: string | undefined): boolean {
+	if (status === 429) {
+		return true;
 	}
+	return status === 403 && (body?.toLowerCase().includes('rate limit') ?? false);
+}
+
+function isSecondaryRateLimit(body: string | undefined): boolean {
 	return body?.toLowerCase().includes('secondary rate limit') ?? false;
 }
