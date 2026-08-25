@@ -99,6 +99,7 @@ export function createAgentServiceComposition(
 		const agentMergeController = owned.add(instantiationService.createInstance(AgentMergeController, {
 			startTurn: (session, turnId, prompt) => callbackAdapter.value.startAgentMergeTurn(session, turnId, prompt),
 			cancelTurn: (session, turnId) => callbackAdapter.value.cancelAgentMergeTurn(session, turnId),
+			postNotice: (session, kind, content) => callbackAdapter.value.postAgentMergeNotice(session, kind, content),
 			getAutonomousSessionConfig: (session, config) => callbackAdapter.value.getAutonomousSessionConfig(session, config),
 		}));
 		// Resolve this even before first use so its session-data deletion listener

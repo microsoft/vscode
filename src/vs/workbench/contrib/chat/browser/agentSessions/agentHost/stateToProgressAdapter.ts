@@ -477,9 +477,20 @@ export function systemNotificationToChatPart(content: StringOrMarkdown | undefin
 	const value = stringOrMarkdownToString(content, connectionAuthority);
 	const markdown = typeof value === 'string' ? new MarkdownString(value) : value;
 	const meta = readAgentSystemNotificationMeta({ _meta });
-	return meta.kind === AgentSystemNotificationKind.WorktreeCreationFailure && meta.severity === AgentSystemNotificationSeverity.Warning
-		? { kind: 'warning', content: markdown }
-		: { kind: 'systemNotification', content: markdown };
+	switch (meta.kind) {
+		case AgentSystemNotificationKind.WorktreeCreationFailure:
+			return meta.severity === AgentSystemNotificationSeverity.Warning
+				? { kind: 'warning', content: markdown }
+				: { kind: 'systemNotification', content: markdown };
+		// Agent Merge reports a state change rather than a completed step, so the
+		// default check would misdescribe both of these.
+		case AgentSystemNotificationKind.AgentMergeEnabled:
+			return { kind: 'systemNotification', content: markdown, icon: Codicon.gitMerge };
+		case AgentSystemNotificationKind.AgentMergeDisabled:
+			return { kind: 'systemNotification', content: markdown, icon: Codicon.circleSlash };
+		default:
+			return { kind: 'systemNotification', content: markdown };
+	}
 }
 
 /**
