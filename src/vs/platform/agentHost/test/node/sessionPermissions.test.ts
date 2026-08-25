@@ -195,6 +195,19 @@ suite('SessionPermissionManager', () => {
 			const results = await Promise.all(files.map(file => permissions.getAutoApproval(writeEvent(join(workDir, file)), sessionUri)));
 			assert.deepStrictEqual(results, files.map(() => undefined));
 		});
+
+		test('requires confirmation for lifecycle configuration files with non-canonical casing', async () => {
+			const files = [
+				join('.GITHUB', 'agents', 'dev-helper.md'),
+				join('.GITHUB', 'hooks', 'say-hi.json'),
+				join('.CLAUDE', 'agents', 'dev-helper.md'),
+				join('.CLAUDE', 'settings.json'),
+				join('.CLAUDE', 'settings.local.json'),
+				join('.claude', 'SETTINGS.LOCAL.JSON'),
+			];
+			const results = await Promise.all(files.map(file => permissions.getAutoApproval(writeEvent(join(workDir, file)), sessionUri)));
+			assert.deepStrictEqual(results, files.map(() => undefined));
+		});
 	}
 
 	test('respects forwarded edit auto-approve patterns', async () => {
