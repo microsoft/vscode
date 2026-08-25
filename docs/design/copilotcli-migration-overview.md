@@ -1,7 +1,4 @@
-# Copilot CLI → Agent‑Host Migration — Review Brief
-
-*15‑minute read. Companion to the full design doc
-([copilotcli-legacy-session-migration.md](copilotcli-legacy-session-migration.md)).*
+# Copilot CLI → Agent‑Host Migration
 
 ---
 
@@ -33,7 +30,30 @@ On adoption, a chat **hands off**: its EH row drops and its AH row takes its pla
 
 ---
 
-## 2. The primary scenario & symptom
+## 2. Why migration is inherently tricky
+
+Several properties make it involved:
+
+- **Two independent lists must stay in sync.** The old (EH) and new (AH) providers each
+  refresh on their own schedule; a chat must appear in exactly one and never fall out of
+  *both*.
+- **It's one‑way and effectively irreversible.** Adoption writes ownership; there is no
+  rollback. So it must be idempotent, provenance‑checked, and safe to retry.
+- **Data is reused in place.** The conversation log is never copied — ownership moves while
+  `events.jsonl` stays put — so history must stay intact and editable throughout.
+- **Adoption is lazy (on open).** "Shown as adoptable", "adopting", and "owned" are
+  decoupled states, which opens timing gaps the UI can fall into.
+- **Large catalogs amplify everything.** Thousands of sessions make list‑building expensive
+  and widen every race between discovery, adoption, and list refresh.
+- **It must be invisible.** Users have no concept of "legacy" vs "agent‑host". They must
+  never see a session vanish, a duplicate, or a read‑only fallback — migration has to feel
+  like nothing happened.
+- **Two surfaces, one model.** The chat editor and the Agents window share the same session
+  model, so every fix has to hold for both.
+
+---
+
+## 3. The primary scenario & symptom
 
 The scenario we care about: **the user opens VS Code (or the Agents window), then turns on
 the migration flag.** Turning it on kicks off discovery + adoption across the whole
@@ -43,12 +63,12 @@ the new list.
 
 ---
 
-## 3. Why it happens
+## 4. Why it happens
 
 Two things combine: one **removes** the sessions, the other makes the removal **last
 minutes**.
 
-### 3a. What removes the sessions (the correctness bug)
+### 4a. What removes the sessions (the correctness bug)
 
 With the flag on, the agent host starts **adopting** legacy chats (writing the small
 `session.db` that turns each one into a first‑class agent‑host session). Adoption is a
@@ -82,42 +102,49 @@ sequenceDiagram
     Note over User: 💥 migrated sessions vanish<br/>(in neither list)
 ```
 
-### 3b. What makes it last for minutes — and did the diagnosis change?
+### 4b. What makes it last for minutes?
 
-**Yes — the diagnosis was refined, and this is worth being explicit about.**
-
-*Originally* the vanish was attributed to the **host‑side cost of building the agent‑host
-list**: `listSessions` re‑derives every row from per‑session databases (plus git) on each
-pass — **`O(catalog)`, 37–87 s per pass in user logs** — and any migration write restarts
-the pass. The proposed fix was to make that list fast (a durable index/projection).
-
-Deeper analysis showed that cost is **not what removes the sessions** — it's what makes the
+The `O(catalog)` cost is **not what removes the sessions** — it's what makes the
 removal *last*:
 
-- The **correctness bug (3a)** *ejects* migrated sessions from a list that was already
+- The **correctness bug (4a)** *ejects* migrated sessions from a list that was already
   showing them.
 - The **`O(catalog)` cost** makes them *slow to come back*: once ejected, they only
   reappear on the next agent‑host list pass, which takes tens of seconds and keeps
   restarting under migration churn.
 
-The decisive tell: **making the list fast would only make the vanish _shorter_ — a
+**making the list fast would only make the vanish _shorter_ — a
 sub‑second flicker instead of minutes — by repopulating quickly. It would _mask_ the bug,
 not fix it**, because the sessions would still be ejected on every rebuild. Fixing the merge
-(3a) removes the ejection at the source, so migrated sessions are never dropped and never
+(4a) removes the ejection at the source, so migrated sessions are never dropped and never
 need repopulating.
 
-So `O(catalog)` is **not unimportant** — it's a real, separately‑valid list *latency*
-concern — but in the **causal chain of the disappearance** it is the **amplifier
-(duration)**, not the **trigger**.
+So `O(catalog)` is the **amplifier**, not the **trigger** — it doesn't remove sessions, but
+it stretches the unsettled window, which is itself a reliability problem (slow settle plus
+on‑open timeouts), not merely cosmetic latency. Both parts are worth fixing.
 
-| | Trigger: merge bug (3a) | Amplifier: `O(catalog)` (3b) |
+| | Trigger: merge bug (4a) | Amplifier: `O(catalog)` (4b) |
 | --- | --- | --- |
 | Alone | Migrated sessions blink out and back — a **brief flicker** | Sessions appear **late**, but don't vanish after appearing |
 | **Together** | **The minutes‑long mass disappearance users reported** | |
 
+> **Field‑validated at scale (user registry snapshot).** A real bundle showed 878 sessions
+> on disk / 753 registered, **635** of them registered by the one‑time **backfill**. That
+> backfill invalidates the list **once per session** (its loop calls
+> `_invalidateSessionList()` per row, unlike the discovery path which invalidates once per
+> batch) — so first enable fired ~635 invalidations, each discarding an in‑flight list pass,
+> and the list keeps restarting and takes far longer to settle. **This is a reliability
+> issue, not just speed:** the longer the list churns, the more likely an on‑open adoption
+> exceeds its budget and falls back — so cutting the churn makes large‑catalog migration
+> **settle faster *and* avoid timeouts**. **Fix:** batch the backfill invalidation (once
+> after the loop). It registers provider‑native chats for copilotcli, codex *and* claude,
+> so it's an agent‑host‑layer change that hardens migration for any large catalog. (The same
+> bundle showed the list cache healthy and the registry clean, confirming the vanish itself
+> is the client‑side merge bug (4a).)
+
 ---
 
-## 4. How our solution mitigates it
+## 5. How our solution mitigates it
 
 One core fix + four supporting fixes.
 
@@ -140,9 +167,8 @@ flowchart TB
 | --- | --- |
 | Surface‑before‑retract | Announce the adopted agent‑host row **before** the slow restore, so the twin exists before the EH row drops. |
 | Title scaffolding strip | Remove injected `<system-reminder>` / context blocks from migrated titles. |
-| Open budget 10 s → 30 s | Don't drop a row that's about to surface during a slow warm. |
+| Seamless open | Open the user's session under a subtle progress hint instead of ever showing a read‑only copy (see §6). |
 | Never‑drop fallback label | Show a cwd/generic label instead of hiding a session whose title can't resolve. |
-| Trace diagnostic | Logs when preservation saved rows the old code would have dropped (support‑bundle signal). |
 
 **Before → after, in one line:** each time the old list shrank during adoption, the rebuild
 used to *purge* the migrated sessions; now it *keeps* them — so sessions stay put instead of
@@ -150,19 +176,15 @@ blinking out.
 
 ---
 
-## 5. Why this over the alternative
+## 6. Seamless open (the user never sees "migration")
 
-The original plan was the host‑side **durable list projection** (index the list so building
-it is fast regardless of catalog size). We **did not** pursue it *for this bug*, because —
-per §3b — a fast list would only make the vanish *shorter*, not *gone*: the migrated rows
-would still be ejected on every rebuild, just repopulated quickly. That **masks** the
-symptom rather than fixing it.
+The user has no concept of "legacy" vs "agent‑host" — they just open **their chat**. So
+clicking a session must never swap in a different (read‑only) view while the backend
+catches up.
 
-The merge fix removes the ejection at the source, in a few lines, with **no schema change**.
-The projection remains a genuinely useful **performance** option — worth doing on its own
-merits if list *latency* on huge catalogs becomes a goal — but it is a separate concern
-from the disappearance.
-
-**Validation:** the vanish is a timing‑sensitive race → the authoritative proof is a unit
-test that deterministically reproduces the shrinking‑list rebuild and asserts the migrated
-rows survive. An end‑to‑end run confirmed catalog safety and list stability.
+- **What the user does:** clicks a session in the list.
+- **What happens:** behind the scenes the session is adopted; the user sees only a subtle
+  status‑bar "Opening chat…" hint, then their chat opens — fully editable.
+- **On a still‑warming large catalog:** the open waits for the session to   be ready, rather than briefly showing an older read‑only copy. A session that genuinely
+  can't be adopted (e.g. an external/non‑owned one) resolves quickly and just opens as‑is —
+  no long wait.

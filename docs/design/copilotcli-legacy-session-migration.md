@@ -272,9 +272,19 @@ What users hit on a large legacy catalog, and why. Details in **Appendix A**.
 
 - **Sessions disappear for minutes, then come back.** Enabling the setting makes the
   agent host claim ~all legacy sessions at once, but building the list is `O(catalog)`
-  (opens every `session.db` + per‑session git) — **37–87 s per pass in the logs** — and
-  any migration side‑effect invalidates and restarts that pass. During the gap sessions
-  fall out of *both* the extension‑host and agent‑host lists.
+  (opens every `session.db` + per‑session git) — **37–87 s per pass in the logs**. On top
+  of that, **every migration write invalidates the in‑flight pass and makes it start
+  over.** The "side‑effects" are the registry mutations migration produces continuously:
+  discovery registering a newly‑found adoptable session, adoption writing a `session.db`
+  and registering the owned twin, external‑session reconciliation (restored → external),
+  deletes/tombstones, and read/archive/title updates. Each of these calls
+  `_invalidateSessionList()`, which bumps a monotonic `_registryEpoch` counter. A
+  `listSessions`/`_computeSessions` pass captures the epoch when it starts and re‑checks it
+  after each async step; on a mismatch it **discards all work done so far and re‑invokes
+  `listSessions` from scratch** (`if (epoch !== this._registryEpoch) return
+  this.listSessions(mode)`). During the migrate storm those writes arrive back‑to‑back, so
+  the minute‑long pass keeps getting a newer epoch and **never settles** — and in that gap
+  sessions fall out of *both* the extension‑host and agent‑host lists.
 - **Opening a session spins, drops, then opens late.** Adoption clears the row before the
   migrated twin has surfaced (the slow list), so the ~10 s open probe times out; it opens
   minutes later when the catalog finally settles.
@@ -329,12 +339,19 @@ plan (retained in **Appendix B** as *considered‑and‑rejected*):
    `<system-reminder>` / reminder / attachments / context / `<userRequest>` wrappers from
    the SDK message, so a migrated title never leaks injected context (implemented as a
    sanitizer in the mapper rather than a `content` vs `transformedContent` choice).
-4. **Longer interactive open budget.** The on‑open adoption probe timeout is raised
-   `10 s → 30 s` (`LEGACY_MIGRATION_TIMEOUT_MS`) so a slow warm doesn't drop a row that is
-   about to surface.
-5. **Never‑drop fallback label.** `copilotcliSessionService._getAllSessions` gives a
-   session that passed `shouldShowSession` a cwd/generic label instead of hiding it when
-   the title can't be resolved.
+4. **Seamless interactive open.** Migration is invisible to the user, so an explicit open
+   runs adoption under a subtle status‑bar progress hint with a longer budget
+   (`LEGACY_MIGRATION_OPEN_TIMEOUT_MS = 60 s`, replacing the old 10 s/30 s cutoff): the
+   *same* session opens in place once adopted, rather than briefly falling back to the
+   pre‑migration read‑only view. A declined/external session still resolves fast, so only a
+   genuinely still‑warming host waits; the fallback is a rare last resort and carries no
+   internal‑concept labelling. (`resolveMigratedSessionForOpen` in `agentSessionsOpener.ts`;
+   the startup restore path keeps its 60 s `LEGACY_MIGRATION_RESTORE_TIMEOUT_MS`.)
+5. **Never‑drop fallback label.** `copilotcliSessionService._getAllSessions` gives an
+   *on‑disk* session that passed `shouldShowSession` a cwd/generic label instead of hiding
+   it when the title can't be resolved. A freshly‑created, still‑empty session is a live
+   wrapper (handled by the in‑progress path), so the fallback is gated to non‑live sessions
+   and never surfaces an empty new session.
 
 Plus a **trace diagnostic**: `doResolveProvider` logs `preserved N live-registered
 session(s) …` when the preservation branch saves rows the old code would have dropped —
@@ -407,6 +424,36 @@ made two effects explicit:
 - **One minor, separate edge** (not the list issue): a rare deleted‑worktree restore
   failure — `subscribe failed … working directory no longer exists: …\vscode.worktrees\…`
   (1 occurrence). Worth separate hardening (recover/clarify), not part of the list fix.
+
+### Registry‑state bundle: the backfill invalidates the list *per session*
+
+A later user shared a **registry snapshot** (not just logs): `agent-host.db` plus the
+workspace list caches. It pinned a concrete, previously‑unnamed churn source and cleared
+two hypotheses.
+
+- **878 sessions on disk, 753 registered** (746 copilotcli, 7 claude), of which **635 are
+  `registration_source = 'restore'`** — i.e. registered by the one‑time **backfill**
+  (`_migrateLegacyProviderChats`), not adopted on open (99 `explicit`) or discovered (19).
+- **The backfill invalidates the session list *once per session*.** Its loop calls
+  `_invalidateSessionList()` on every registered row (unlike the discovery path
+  `_registerDiscoveredChats`, which invalidates once *per batch*). So her first enable
+  fired on the order of **~635 invalidations**, each able to discard an in‑flight
+  `O(catalog)` `listSessions` pass — the clearest concrete driver of the epoch‑restart
+  storm.
+- **This is general agent‑host infrastructure, not the migration feature.** The backfill
+  registers *provider‑native* chats for **all** providers (her bundle shows
+  `sessionRegistryBackfilled` = true for copilotcli, codex, **and** claude) and was
+  introduced in #330665 ("agentHost: discover provider‑native chats"), independent of the
+  Copilot CLI EH→AH migration. Any large provider‑native catalog hits it — flag or not.
+- **Two hypotheses cleared.** The list cache is **healthy, not depleted**
+  (`agentSessions.model.cache` ≈ 785 KB in her main workspace), and the registry is clean
+  (82 tombstones, **none** still registered). Both reinforce that the user‑visible vanish
+  is the **client‑side merge bug** (§6/§7); this backfill churn is purely the host‑side
+  *duration* amplifier.
+- **Simple targeted fix:** batch the backfill's invalidation — invalidate **once after the
+  loop**, matching `_registerDiscoveredChats`. Turns ~N first‑run invalidations into ~1
+  with no schema change. It's a general agent‑host perf fix, best filed against the
+  session‑listing area rather than the migration PR.
 
 ### How to recognize it in a log bundle
 
