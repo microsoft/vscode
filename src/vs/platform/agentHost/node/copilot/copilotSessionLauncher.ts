@@ -37,6 +37,8 @@ import './prompts/allPrompts.js';
 import { agentHostPromptRegistry, type IAgentHostPromptContext } from './prompts/promptRegistry.js';
 import { describeSystemMessageConfig } from './prompts/systemMessage.js';
 import { buildSandboxConfigForSdk, type SandboxConfig } from './sandboxConfigForSdk.js';
+import { shellInitScriptDirectory } from './shellInitScriptMaterializer.js';
+import { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, agentHostModelSupportsToolSearch } from './toolSearchDeferral.js';
 
 export const ThinkingLevelConfigKey = 'thinkingLevel';
@@ -542,11 +544,12 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		@IByokLmProxyService private readonly _byokLmProxyService: IByokLmProxyService,
 		@IByokLmBridgeRegistry private readonly _byokLmBridgeRegistry: IByokLmBridgeRegistry,
 		@IAgentHostOTelService private readonly _otelService: IAgentHostOTelService,
+		@INativeEnvironmentService private readonly _environmentService: INativeEnvironmentService,
 	) { }
 
 	async launch(plan: CopilotSessionLaunchPlan, runtime: ICopilotSessionRuntime): Promise<CopilotSessionWrapper> {
 		const config = await this._buildSessionConfig(plan, runtime);
-		const sandboxConfig = this._computeSandboxConfig();
+		const sandboxConfig = this._computeSandboxConfig(plan.sessionId);
 		if (plan.kind === 'create') {
 			return this._createSession(plan, config, sandboxConfig);
 		}
@@ -666,13 +669,21 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 	 * host's `sandbox` config bag (forwarded from the workbench's
 	 * `chat.agent.sandbox.*` settings), mirroring what
 	 * `buildSandboxConfigForCLI` does for the Copilot extension's CLI path.
+	 *
+	 * Grants read access to the session's shell init script directory, matching
+	 * {@link CopilotAgentSession}, which re-pushes `sandboxConfig` on every turn
+	 * and would otherwise drop the grant.
 	 */
-	private _computeSandboxConfig(): SandboxConfig | undefined {
+	private _computeSandboxConfig(sessionId: string): SandboxConfig | undefined {
 		const enableCustomTerminalTool = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.EnableCustomTerminalTool) === true;
 		if (enableCustomTerminalTool) {
 			return undefined;
 		}
-		return buildSandboxConfigForSdk(process.platform, this._configurationService.getRootValue(sandboxConfigSchema, AgentHostSandboxConfigKey.Sandbox));
+		return buildSandboxConfigForSdk(
+			process.platform,
+			this._configurationService.getRootValue(sandboxConfigSchema, AgentHostSandboxConfigKey.Sandbox),
+			[shellInitScriptDirectory(this._environmentService.userDataPath, sessionId).fsPath],
+		);
 	}
 
 	/**

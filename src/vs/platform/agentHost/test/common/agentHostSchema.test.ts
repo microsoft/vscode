@@ -8,6 +8,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import type { IConfigurationValue } from '../../../configuration/common/configuration.js';
 import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostMarkdownPlanRichLinksEnabledConfigKey, createSchema, migrateLegacyAutopilotConfig, normalizeAgentHostTerminalAutoApproveRulesConfig, platformRootSchema, platformSessionSchema, schemaProperty, type AgentHostTerminalAutoApproveRules, type AutoApproveLevel, type IPermissionsValue, type SessionMode } from '../../common/agentHostSchema.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
+import type { IShellInitSnippet } from '../../common/shellInitSnippets.js';
 import { JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
 
 /**
@@ -365,9 +366,9 @@ suite('agentHostSchema', () => {
 			// Mirrors `resolveChatConfig`, which supplies defaults only for
 			// autoApprove and mode. An absent value must stay absent so it is
 			// distinguishable from an explicit empty array (clear).
-			const defaults = {
-				[SessionConfigKey.AutoApprove]: 'default' satisfies AutoApproveLevel,
-				[SessionConfigKey.Mode]: 'interactive' satisfies SessionMode,
+			const defaults: { [SessionConfigKey.AutoApprove]: AutoApproveLevel; [SessionConfigKey.Mode]: SessionMode; [SessionConfigKey.ShellInitSnippets]?: readonly IShellInitSnippet[] } = {
+				[SessionConfigKey.AutoApprove]: 'default',
+				[SessionConfigKey.Mode]: 'interactive',
 			};
 			assert.deepStrictEqual(platformSessionSchema.validateOrDefault({ [SessionConfigKey.ShellInitSnippets]: snippets }, defaults), {
 				...defaults,

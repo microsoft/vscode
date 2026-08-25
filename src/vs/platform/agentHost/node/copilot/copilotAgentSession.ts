@@ -42,6 +42,8 @@ import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { toToolCallMeta, type IToolCallMeta, type IToolCallUiMeta, type IToolSearchCandidate } from '../../common/meta/agentToolCallMeta.js';
 import { OtelData, type OtelAttributeValue } from '../../common/otlp/otlpLogEmitter.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
+import { isShellInitSnippetArray } from '../../common/shellInitSnippets.js';
+import type { IShellInitScriptMaterializer } from './shellInitScriptMaterializer.js';
 import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
 import { resolveCopilotConfigSlashCommandOnSend } from '../../common/copilotConfigSlashCommands.js';
 import { STREAMING_TOOL_DISPLAY_INTERVAL_MS, streamingToolDisplayText } from '../../common/streamingToolCallDisplay.js';
@@ -399,6 +401,8 @@ export interface ICopilotAgentSessionOptions {
 	readonly rawSessionId: string;
 	readonly onDidSessionProgress: Emitter<AgentSignal>;
 	readonly sessionLauncher: ICopilotSessionLauncher;
+	/** Writes this session's shell init scripts to disk for the SDK's built-in shell tool. */
+	readonly shellInitScriptMaterializer: IShellInitScriptMaterializer;
 	readonly launchPlan: CopilotSessionLaunchPlan;
 	readonly shellManager: ShellManager | undefined;
 	/** Working directory associated with the session, used to strip redundant `cd` prefixes from shell commands. */
@@ -978,6 +982,9 @@ export class CopilotAgentSession extends Disposable {
 
 	private readonly _onDidSessionProgress: Emitter<AgentSignal>;
 	private readonly _sessionLauncher: ICopilotSessionLauncher;
+	private readonly _shellInitScriptMaterializer: IShellInitScriptMaterializer;
+	/** Paths last pushed as `shell.initScripts`, so an unchanged list skips the RPC. */
+	private _lastAppliedInitScriptPaths: string | undefined;
 	private readonly _launchPlan: CopilotSessionLaunchPlan;
 	private readonly _isLaunchTokenStillCurrent: () => boolean;
 	/** Notifies the agent that this chat's turn ended. See {@link ICopilotAgentSessionOptions.onTurnEnded}. */
@@ -1062,6 +1069,7 @@ export class CopilotAgentSession extends Disposable {
 		this._storageUri = this.resourceUri;
 		this._onDidSessionProgress = options.onDidSessionProgress;
 		this._sessionLauncher = options.sessionLauncher;
+		this._shellInitScriptMaterializer = options.shellInitScriptMaterializer;
 		this._launchPlan = options.launchPlan;
 		this._isLaunchTokenStillCurrent = options.isLaunchTokenCurrent ?? (() => true);
 		this._onTurnEnded = options.onTurnEnded ?? (() => { });
@@ -2037,6 +2045,9 @@ export class CopilotAgentSession extends Disposable {
 		this._subscribeForMemoInvalidation();
 		this._subscribeForInstructionsCollectedTelemetry();
 		this._subscribeToPermissionConfigChanges();
+		// Re-establishes shell init scripts on a cold resume: the runtime does
+		// not persist its init-script list, but the host's session config does.
+		await this._applyEffectiveShellInitScripts();
 		this._promptCacheState = this._promptCache.read(this.resourceUri);
 		if (this._launchPlan.kind === 'resume') {
 			await this._refreshSessionUsageMetrics();
@@ -2503,6 +2514,7 @@ export class CopilotAgentSession extends Disposable {
 		await this.applyMode(mode);
 		await this.syncPermissionMode('turn-start');
 		await this._applyEffectiveSandboxConfig();
+		await this._applyEffectiveShellInitScripts();
 		await this._reconcileMcpServerEnablement();
 	}
 
@@ -3439,7 +3451,20 @@ export class CopilotAgentSession extends Disposable {
 			return undefined;
 		}
 		const sandbox = this._configurationService.getRootValue(sandboxConfigSchema, AgentHostSandboxConfigKey.Sandbox);
-		return buildSandboxConfigForSdk(this._platform, sandbox);
+		return buildSandboxConfigForSdk(this._platform, sandbox, this._sandboxExtraReadonlyPaths());
+	}
+
+	/**
+	 * Paths the sandboxed shell must be able to read beyond the user's own
+	 * policy. Currently just this session's shell init script directory: the
+	 * SDK requires each init script to be readable and fails silently when it
+	 * is not.
+	 *
+	 * Every producer of this session's `sandboxConfig` must include these, so
+	 * the list lives here rather than at a single call site.
+	 */
+	private _sandboxExtraReadonlyPaths(): readonly string[] {
+		return [this._shellInitScriptMaterializer.directoryFor(this.sessionId).fsPath];
 	}
 
 	/**
@@ -3476,8 +3501,16 @@ export class CopilotAgentSession extends Disposable {
 			void this._syncPermissionModeAfterConfigChange();
 		}));
 		this._register(this._configurationService.onDidSessionConfigChange(event => {
-			if (event.session === this._ownerSessionUri.toString() && Object.hasOwn(event.config, SessionConfigKey.AutoApprove)) {
+			if (event.session !== this._ownerSessionUri.toString()) {
+				return;
+			}
+			if (Object.hasOwn(event.config, SessionConfigKey.AutoApprove)) {
 				void this._syncPermissionModeAfterConfigChange();
+			}
+			// The selected Python environment can change while a session is
+			// live, so apply new scripts without waiting for the next turn.
+			if (Object.hasOwn(event.config, SessionConfigKey.ShellInitSnippets)) {
+				void this._applyEffectiveShellInitScripts();
 			}
 		}));
 	}
@@ -3552,7 +3585,7 @@ export class CopilotAgentSession extends Disposable {
 			return;
 		}
 		const sandbox = this._configurationService.getRootValue(sandboxConfigSchema, AgentHostSandboxConfigKey.Sandbox);
-		const base = buildSandboxConfigForSdk(this._platform, sandbox);
+		const base = buildSandboxConfigForSdk(this._platform, sandbox, this._sandboxExtraReadonlyPaths());
 		const sandboxConfig: SandboxConfig = base ?? { enabled: false };
 		try {
 			const result = await this._wrapper.session.rpc.options.update({ sandboxConfig });
@@ -3564,6 +3597,56 @@ export class CopilotAgentSession extends Disposable {
 				throw err;
 			}
 			this._logService.warn(`[Copilot:${this.sessionId}] Failed to update sandbox config for request`, err);
+		}
+	}
+
+	/**
+	 * Materialize this session's shell init snippets and register them with the
+	 * SDK so they are sourced before every built-in shell tool command.
+	 *
+	 * Snippets are generated by the client (Python activation, user profile
+	 * loading) and arrive as session config, so this reads the validated
+	 * effective value rather than any host setting.
+	 *
+	 * Re-applied on every turn as well as at initialization. Cheap in the
+	 * steady state: the file paths are derived from the snippet shape, so an
+	 * unchanged list skips the RPC entirely, and rewritten *content* takes
+	 * effect without one because the runtime re-reads each script from disk
+	 * before every command.
+	 *
+	 * Also what restores scripts on a cold resume: the runtime does not persist
+	 * its init-script list across a restart, but the host's session config
+	 * values are persisted, so re-applying here re-establishes them.
+	 *
+	 * Best-effort — a failure here must never abort the turn.
+	 */
+	private async _applyEffectiveShellInitScripts(): Promise<void> {
+		if (this._isCustomTerminalToolEnabled()) {
+			return;
+		}
+		try {
+			const configured = this._configurationService.getEffectiveValue(this._ownerSessionUri.toString(), platformSessionSchema, SessionConfigKey.ShellInitSnippets);
+			const snippets = isShellInitSnippetArray(configured) ? configured : [];
+			const refs = await this._shellInitScriptMaterializer.materialize(this.sessionId, snippets);
+			const paths = JSON.stringify(refs);
+			if (this._lastAppliedInitScriptPaths === paths) {
+				return;
+			}
+			if (!refs.length && this._lastAppliedInitScriptPaths === undefined) {
+				// Nothing configured and nothing registered yet: skip the RPC that
+				// would clear an already-empty list. Most sessions never configure
+				// snippets, so this keeps the common path free of an extra call.
+				this._lastAppliedInitScriptPaths = paths;
+				return;
+			}
+			const result = await this._wrapper.session.rpc.options.update({ shell: { initScripts: refs } });
+			if (!result.success) {
+				throw new Error('Copilot SDK rejected shell init script update');
+			}
+			this._lastAppliedInitScriptPaths = paths;
+			this._logService.trace(`[Copilot:${this.sessionId}] Applied ${refs.length} shell init script(s)`);
+		} catch (err) {
+			this._logService.warn(`[Copilot:${this.sessionId}] Failed to update shell init scripts`, err);
 		}
 	}
 

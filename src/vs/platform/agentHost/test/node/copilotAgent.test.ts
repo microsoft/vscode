@@ -917,6 +917,7 @@ function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, optio
 			_serviceBrand: undefined,
 			userHome: options?.userHome ?? URI.from({ scheme: Schemas.inMemory, path: '/mock-home' }),
 			tmpDir: URI.from({ scheme: Schemas.inMemory, path: '/mock-tmp' }),
+			userDataPath: '/mock-userdata',
 		} as INativeEnvironmentService;
 		services.set(INativeEnvironmentService, environmentService);
 	}

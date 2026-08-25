@@ -7,7 +7,7 @@ import assert from 'assert';
 import { execFile } from 'child_process';
 import { mkdtemp, rm, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
-import { join } from 'path';
+import { join } from '../../../../base/common/path.js';
 import { promisify } from 'util';
 import { createPythonActivationSnippets, createUserProfileSnippets, isShellInitSnippetArray, sanitizeSnippetSource } from '../../common/shellInitSnippets.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
