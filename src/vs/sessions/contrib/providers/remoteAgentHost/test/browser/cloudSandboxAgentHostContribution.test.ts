@@ -37,10 +37,12 @@ import { ISessionsProvider } from '../../../../../services/sessions/common/sessi
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
 import { CloudSandboxAgentHostContribution } from '../../browser/cloudSandboxAgentHostContribution.js';
 import { IRemoteAgentHostConnectionCustomizationService } from '../../browser/remoteAgentHostConnectionCustomization.js';
-import { IRemoteAgentHostSessionsProviderConfig, RemoteAgentHostSessionsProvider } from '../../browser/remoteAgentHostSessionsProvider.js';
+import { IRemoteAgentHostSessionsProviderConfig, RemoteAgentHostSessionsProvider, type ISeedSessionsOptions } from '../../browser/remoteAgentHostSessionsProvider.js';
 
 class StubProvider extends mock<RemoteAgentHostSessionsProvider>() {
 	readonly seeded: IAgentSessionMetadata[] = [];
+	/** Raw ids seeded as provisional, mirroring the real provider's listing gate. */
+	readonly withheld = new Set<string>();
 	disposed = false;
 
 	override readonly id: string;
@@ -55,19 +57,39 @@ class StubProvider extends mock<RemoteAgentHostSessionsProvider>() {
 	 * the project backfill on an already-seeded session — that path is covered against the real
 	 * provider in `remoteAgentHostSessionsProvider.test.ts`.
 	 */
-	override seedSessions(metas: readonly IAgentSessionMetadata[]): void {
+	override seedSessions(metas: readonly IAgentSessionMetadata[], options?: ISeedSessionsOptions): void {
 		for (const meta of metas) {
-			if (!this.seeded.some(seen => seen.session.toString() === meta.session.toString())) {
-				this.seeded.push(meta);
+			if (this.seeded.some(seen => seen.session.toString() === meta.session.toString())) {
+				continue;
+			}
+			this.seeded.push(meta);
+			if (options?.provisional) {
+				this.withheld.add(AgentSession.id(meta.session));
 			}
 		}
 	}
 
 	/** Surfaces each seed under the UI resource scheme, which is what keys the raw session id. */
 	override getSessions(): ISession[] {
-		return this.seeded.map(meta => upcastPartial<ISession>({
+		return this.seeded
+			.filter(meta => !this.withheld.has(AgentSession.id(meta.session)))
+			.map(meta => this._toSession(meta));
+	}
+
+	/** Reaches withheld seeds too, which is the whole point of the cache accessor. */
+	override getCachedSession(rawId: string): ISession | undefined {
+		const meta = this.seeded.find(seen => AgentSession.id(seen.session) === rawId);
+		return meta ? this._toSession(meta) : undefined;
+	}
+
+	override publishWithheldSession(rawId: string): void {
+		this.withheld.delete(rawId);
+	}
+
+	private _toSession(meta: IAgentSessionMetadata): ISession {
+		return upcastPartial<ISession>({
 			resource: URI.from({ scheme: 'agent-host-copilot', path: `/${AgentSession.id(meta.session)}` }),
-		}));
+		});
 	}
 
 	override setConnectionStatus(): void { }

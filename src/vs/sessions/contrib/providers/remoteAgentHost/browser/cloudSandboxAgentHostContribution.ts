@@ -352,7 +352,13 @@ export class CloudSandboxAgentHostContribution extends Disposable implements IWo
 				modifiedTime: now,
 				summary: name,
 				...(project ? { project } : {}),
-			}]);
+			}], {
+				// The caller shows a placeholder row for this session until it sends the first
+				// turn, so listing the seed now would duplicate that row. This also protects the
+				// session from the first `listSessions` after connecting, which the host can
+				// answer before it has materialized the session.
+				provisional: true,
+			});
 
 			await this.connect({ environmentId: created.environmentId, sessionId: created.sessionId, name });
 
@@ -364,8 +370,9 @@ export class CloudSandboxAgentHostContribution extends Disposable implements IWo
 			}
 
 			// The adapter `seedSessions` created addresses the session by its raw id, which is the
-			// session id Mission Control just returned.
-			const session = provider.getSessions().find(candidate => AgentSession.id(candidate.resource) === created.sessionId);
+			// session id Mission Control just returned. Look it up through the cache rather than
+			// `getSessions`, which withholds it from listings until the caller publishes it.
+			const session = provider.getCachedSession(created.sessionId);
 			if (!session) {
 				throw new Error(`Provisioned sandbox session ${created.sessionId} did not surface on its provider`);
 			}

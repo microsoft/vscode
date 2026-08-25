@@ -1312,6 +1312,122 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		});
 	}));
 
+	/** Force a session refresh the way the host does: a turn-complete action on a known session. */
+	async function refreshViaTurnComplete(connection: MockAgentConnection, rawId: string): Promise<void> {
+		connection.fireAction({
+			channel: buildDefaultChatUri(AgentSession.uri('copilotcli', rawId).toString()),
+			action: { type: ActionType.ChatTurnComplete, turnId: 'turn-refresh', duration: 1 },
+			serverSeq: 1,
+			origin: undefined,
+		} as ActionEnvelope);
+		await timeout(0);
+	}
+
+	test('a provisional session survives a host listing that does not know it yet', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		// Mission Control creates the sandbox task before the host materializes the session, so the
+		// first listing after connecting can legitimately omit it. Evicting it there drops the row
+		// the user is looking at and bounces the view to the new-session screen.
+		connection.addSession(createSession('other-1', { summary: 'Someone else' }));
+		const provider = createProvider(disposables, connection, { isWebPlatform: false, omitHostFromWorkspaceLabel: true });
+		provider.seedSessions([{
+			session: AgentSession.uri('copilotcli', 'provisional-1'),
+			startTime: 0,
+			modifiedTime: 0,
+			summary: 'Just provisioned',
+		}], { provisional: true });
+		provider.publishWithheldSession('provisional-1');
+
+		await timeout(0);
+		const survivedUnknown = provider.getSessions().map(s => AgentSession.id(s.resource)).sort();
+
+		// Once the host knows it, it reconciles like any other session.
+		connection.addSession(createSession('provisional-1', { summary: 'Just provisioned' }));
+		await refreshViaTurnComplete(connection, 'other-1');
+		const afterHostKnows = provider.getSessions().map(s => AgentSession.id(s.resource)).sort();
+
+		assert.deepStrictEqual({ survivedUnknown, afterHostKnows }, {
+			survivedUnknown: ['other-1', 'provisional-1'],
+			afterHostKnows: ['other-1', 'provisional-1'],
+		});
+	}));
+
+	test('a provisional session the host never lists is evicted once its grace period ends', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		connection.addSession(createSession('other-1', { summary: 'Someone else' }));
+		const provider = createProvider(disposables, connection, { isWebPlatform: false, omitHostFromWorkspaceLabel: true });
+		provider.seedSessions([{
+			session: AgentSession.uri('copilotcli', 'never-listed'),
+			startTime: 0,
+			modifiedTime: 0,
+			summary: 'Never materialized',
+		}], { provisional: true });
+		provider.publishWithheldSession('never-listed');
+		await timeout(0);
+
+		// The protection is bounded so a session the host will never list cannot become a
+		// permanent row that only a reload clears.
+		await timeout(RemoteAgentHostSessionsProvider.PROVISIONAL_GRACE_MS + 1);
+		await refreshViaTurnComplete(connection, 'other-1');
+
+		assert.deepStrictEqual(provider.getSessions().map(s => AgentSession.id(s.resource)), ['other-1']);
+	}));
+
+	test('a withheld seed is cached and openable but stays out of the sessions list until published', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const provider = createProvider(disposables, new MockAgentConnection(), { noConnection: true, isWebPlatform: false, omitHostFromWorkspaceLabel: true });
+		const announced: string[][] = [];
+		disposables.add(provider.onDidChangeSessions(e => announced.push(e.added.map(s => s.sessionId))));
+
+		provider.seedSessions([{
+			session: AgentSession.uri('copilotcli', 'withheld-1'),
+			startTime: 0,
+			modifiedTime: 0,
+			summary: 'Withheld Session',
+		}], { provisional: true });
+
+		const whileWithheld = {
+			listed: provider.getSessions().map(s => AgentSession.id(s.resource)),
+			// Reachable by id so the caller that seeded it can still act on it, and openable by
+			// resource so a swap into it does not land on a session the UI cannot resolve.
+			cached: AgentSession.id(provider.getCachedSession('withheld-1')!.resource),
+			announced: announced.length,
+		};
+
+		provider.publishWithheldSession('withheld-1');
+
+		assert.deepStrictEqual({
+			whileWithheld,
+			listedAfterPublish: provider.getSessions().map(s => AgentSession.id(s.resource)),
+			announcedAfterPublish: announced,
+		}, {
+			whileWithheld: { listed: [], cached: 'withheld-1', announced: 0 },
+			listedAfterPublish: ['withheld-1'],
+			announcedAfterPublish: [['agenthost-localhost__4321:remote-localhost__4321-copilotcli:/withheld-1']],
+		});
+	}));
+
+	test('publishing with announce:false lists the session without firing its own event', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const provider = createProvider(disposables, new MockAgentConnection(), { noConnection: true, isWebPlatform: false, omitHostFromWorkspaceLabel: true });
+		provider.seedSessions([{
+			session: AgentSession.uri('copilotcli', 'withheld-2'),
+			startTime: 0,
+			modifiedTime: 0,
+			summary: 'Withheld Session',
+		}], { provisional: true });
+
+		const announced: string[][] = [];
+		disposables.add(provider.onDidChangeSessions(e => announced.push(e.added.map(s => s.sessionId))));
+		// The caller fires its own replace event covering this session, so a second event here
+		// would list the new row a frame before the placeholder row disappears.
+		provider.publishWithheldSession('withheld-2', { announce: false });
+
+		assert.deepStrictEqual({
+			listed: provider.getSessions().map(s => AgentSession.id(s.resource)),
+			announced,
+		}, {
+			listed: ['withheld-2'],
+			announced: [],
+		});
+	}));
+
 	test('seedSessions never overwrites a project the host already reported', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		connection.addSession(createSession('authoritative-1', {
 			summary: 'Authoritative',

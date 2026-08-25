@@ -1857,19 +1857,26 @@ suite('CopilotChatSessionsProvider', () => {
 		}
 
 		/** A provisioned session whose provider immediately commits the send. */
-		function provisionedSession(): ICloudSandboxProvisionedSession {
-			const committed = upcastPartial<ISession>({ sessionId: 'agenthost:sess-new' });
+		function provisionedSession(sendRequest?: () => Promise<ISession>): ICloudSandboxProvisionedSession & { published: string[] } {
+			const committed = upcastPartial<ISession>({
+				sessionId: 'agenthost:sess-new',
+				resource: URI.parse('agent-host-copilot:/sess-new'),
+			});
 			const sandboxSession = upcastPartial<ISession>({
 				sessionId: 'agenthost:sess-new',
+				resource: URI.parse('agent-host-copilot:/sess-new'),
 				mainChat: constObservable(upcastPartial<IChat>({ resource: URI.parse('agent-host-copilot:/sess-new') })),
 			});
+			const published: string[] = [];
 			return {
 				taskId: 'task-new',
 				sessionId: 'sess-new',
 				environmentId: 'env-new',
 				session: sandboxSession,
+				published,
 				provider: upcastPartial<RemoteAgentHostSessionsProvider>({
-					sendRequest: async () => committed,
+					sendRequest: sendRequest ?? (async () => committed),
+					publishWithheldSession: (rawId: string) => { published.push(rawId); },
 				}) as RemoteAgentHostSessionsProvider,
 			};
 		}
@@ -1887,7 +1894,7 @@ suite('CopilotChatSessionsProvider', () => {
 
 			assert.deepStrictEqual({
 				committed: committed.sessionId,
-				// The repo comes from the workspace root; no baseRef, so MC picks the default branch.
+				// The repo comes from the workspace root; no baseRef, matching the Copilot app.
 				provisionRequests,
 				// The prompt must not also go through the server-run cloud agent.
 				cloudSends,
@@ -1911,6 +1918,35 @@ suite('CopilotChatSessionsProvider', () => {
 			await timeout(0);
 
 			assert.deepStrictEqual({ provisionRequests, cloudSends }, { provisionRequests: [], cloudSends: ['fix it'] });
+		});
+
+		test('reveals the withheld sandbox session as it retires the placeholder', async () => {
+			const provisioned = provisionedSession();
+			const { provider } = createSandboxProvider({ provision: async () => provisioned });
+			const sessionInfo = provider.createNewSession(repoWorkspace, CopilotCloudSessionType.id);
+			const session = provider.getSession(sessionInfo.sessionId)!;
+			session.setUseSandbox(true);
+
+			// The sandbox session is seeded before connecting so a discovery pass reconciles
+			// against it, but it must stay out of the list until the placeholder goes away —
+			// otherwise both rows show for as long as the sandbox takes to wake.
+			await provider.sendRequest(sessionInfo.sessionId, session.mainChat.get().resource, { query: 'fix it' });
+
+			assert.deepStrictEqual(provisioned.published, ['sess-new']);
+		});
+
+		test('a failed send still reveals the sandbox session it already provisioned', async () => {
+			const provisioned = provisionedSession(async () => { throw new Error('send failed'); });
+			const { provider } = createSandboxProvider({ provision: async () => provisioned });
+			const sessionInfo = provider.createNewSession(repoWorkspace, CopilotCloudSessionType.id);
+			const session = provider.getSession(sessionInfo.sessionId)!;
+			session.setUseSandbox(true);
+
+			await assert.rejects(() => provider.sendRequest(sessionInfo.sessionId, session.mainChat.get().resource, { query: 'fix it' }));
+
+			// The sandbox outlives the failed turn, so leaving it withheld would hide a session
+			// that really exists.
+			assert.deepStrictEqual(provisioned.published, ['sess-new']);
 		});
 
 		test('a failed provision removes the placeholder instead of stranding it in the list', async () => {
