@@ -460,6 +460,46 @@ rm -rf "$(dirname "$LOG")"
 
 Code OSS is a full Electron app and easily eats 1-4 GB. Always clean up.
 
+### Verify the cleanup actually worked
+
+**Do not treat a completed `kill` as proof the instance is gone.** `$PID` is the
+`code.sh` wrapper, and killing it does not reliably reap the Electron process
+group it spawned; helper processes are frequently re-parented and survive. In a
+run of seven subagent sessions, every one reported that it had cleaned up, yet
+nine instances (13.7 GB RSS) and 341 MB of temp profiles were still alive
+afterwards.
+
+Always finish with an explicit check, and only then remove the profile:
+
+```bash
+kill "$PID" 2>/dev/null || true
+sleep 3
+
+# Anything still alive for THIS run? (match on the runDir, so other agents'
+# concurrent instances are left untouched)
+RUN_DIR=$(jq -r .runDir <<<"$INFO")
+leftover=$(pgrep -f "$RUN_DIR" || true)
+if [ -n "$leftover" ]; then
+  echo "$leftover" | xargs kill 2>/dev/null || true
+  sleep 2
+  pgrep -f "$RUN_DIR" >/dev/null && echo "STILL RUNNING: $(pgrep -f "$RUN_DIR" | tr '\n' ' ')"
+fi
+
+rm -rf "$RUN_DIR"
+```
+
+To audit the whole machine after a batch of runs — total resident memory and
+leaked profiles across every launch:
+
+```bash
+ps aux | grep "[M]acOS/Code - OSS" | awk '{s+=$6} END {printf "Code OSS RSS: %.1f GB\n", s/1024/1024}'
+du -shc /tmp/code-oss-dev-* 2>/dev/null | tail -1
+```
+
+Both should be empty/zero once every instance you own has exited. If you are
+running concurrently with other agents, scope by `runDir` rather than killing
+every `Code - OSS` process, and prune only your own `/tmp/code-oss-dev-*` dirs.
+
 ## Troubleshooting
 
 - **`Daemon pid=...: listen EINVAL` from `@playwright/cli`** - the daemon's socket path (`TMPDIR` + a fixed ~33-char prefix + the `-s=` session name) exceeded the ~103-byte unix socket limit. macOS's default `TMPDIR` leaves only ~16 characters for the session name, so shorten `-s=` first. If you need a longer name, scope the override to the single command (`TMPDIR=/tmp npx @playwright/cli ...`) rather than `export`ing it, so the launcher keeps using your private per-user temp dir.

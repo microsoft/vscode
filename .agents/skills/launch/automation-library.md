@@ -48,14 +48,28 @@ fails immediately instead of after a confusing search. If a control you expect
 is missing, check which window you launched before concluding the control does
 not exist.
 
+> **Do not pick the window by name-matching the task.** "Agent", "harness", and
+> "session target" all appear in *both* products, so a task phrased around
+> agents is not automatically an Agents-window task. Choose by the *control*
+> you need. In particular, anything involving the **Local** harness is a
+> regular-workbench task: the Agents window genuinely has no Local session
+> type, so `agentsWindow.selectSessionType('Local')` there fails with
+> `Available: ` (an empty list) — which looks like a broken selector but is the
+> API correctly reporting the wrong window. In one subagent run this cost the
+> whole session. The workbench control is a toolbar button labelled
+> `Set Session Target - <current>`, reachable with
+> `code.waitAndClick('[aria-label^="Set Session Target"]')`.
+
 `attach()` takes the `cdpPort` from the launch JSON and returns
 `{ workbench, code, page, browser, detach }`. Options: `window`
 (`'workbench' | 'agents' | 'any'`), `verbose` (stream the automation logger's
 per-retry output to stderr — the fastest way to see *why* a step is failing),
 `repoRoot`, `logsPath`, and `timeoutMs`.
 
-`detach()` only closes the CDP connection. Kill the instance with the `pid`
-from the launch JSON as usual.
+`detach()` only closes the CDP connection; the Code OSS process keeps running.
+Kill it with the `pid` from the launch JSON and then **verify it actually
+died** — see "Verify the cleanup actually worked" in SKILL.md. Killing `pid`
+alone routinely leaves the Electron process group alive.
 
 ### What you get
 
