@@ -11,7 +11,8 @@ import { IProtocolTransport } from '../../../../../platform/agentHost/common/sta
 import { AgentHostProtocolClient } from '../../../../../platform/agentHost/browser/agentHostProtocolClient.js';
 import { editorWindowAgentHostClientInfo } from '../../../../../platform/agentHost/common/agentHostClientInfo.js';
 import { WebPubSubRelayTransport } from '../../../../../platform/agentHost/browser/webPubSubRelayTransport.js';
-import { GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../../../../platform/agentHost/common/agentService.js';
+import { AhpJsonlLogger } from '../../../../../platform/agentHost/common/ahpJsonlLogger.js';
+import { GITHUB_COPILOT_PROTECTED_RESOURCE, AgentHostAhpJsonlLoggingSettingId } from '../../../../../platform/agentHost/common/agentService.js';
 import {
 	buildWpsUrl,
 	cloudSandboxAddress,
@@ -25,6 +26,7 @@ import {
 import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { PROTOCOL_VERSION } from '../../../../../platform/agentHost/common/state/protocol/version/registry.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { CloudSandboxCredentialRefresher, MAX_WAKING_DELAY_MS, type ICloudSandboxCreds } from './cloudSandboxCredentialRefresh.js';
@@ -57,6 +59,7 @@ export class CloudSandboxAgentHostService extends Disposable implements ICloudSa
 		@ICloudSandboxApiService private readonly _apiService: ICloudSandboxApiService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
@@ -116,11 +119,20 @@ export class CloudSandboxAgentHostService extends Disposable implements ICloudSa
 		// Three per-client relay lanes: publish to `to_host`; receive replies on `to_client` and
 		// unsolicited session state on `broadcast`. `groupValidation` drops inbound frames whose
 		// group name doesn't carry our own client id.
+		// Each soft reconnect gets a transport-owned logger keyed by connection id.
+		const ahpLoggingEnabled = !!this._configurationService.getValue<boolean>(AgentHostAhpJsonlLoggingSettingId);
 		const transportFactory = (): IProtocolTransport => new WebPubSubRelayTransport({
 			url: buildWpsUrl(creds.token),
 			toHostGroup: creds.token.groups.to_host,
 			joinGroups: [creds.token.groups.broadcast, creds.token.groups.to_client],
 			groupValidation: { expected: { cid: creds.token.client_id } },
+			ahpLogger: ahpLoggingEnabled
+				? this._instantiationService.createInstance(AhpJsonlLogger, {
+					logsHome: this._environmentService.logsHome,
+					connectionId: clientToken.client_id,
+					transport: 'webpubsub',
+				})
+				: undefined,
 		});
 
 		// Mission Control mints the client id and binds the relay lane to it, so the AHP identity
