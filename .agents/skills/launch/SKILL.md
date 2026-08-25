@@ -620,10 +620,16 @@ leaked profiles across every launch:
 # Match the launcher's run-dir argument, so this works on Linux too rather than
 # only matching the macOS app-bundle path.
 ps aux | grep "[c]ode-oss-dev-" | awk '{s+=$6} END {printf "Code OSS RSS: %.1f GB\n", s/1024/1024}'
-# Profiles live under the launcher's temp base, which is $TMPDIR unless it was
-# too long for unix sockets. Globbing only /tmp can report a clean machine while
-# leaked profiles remain, so check both.
-du -shc "${TMPDIR:-/tmp}"/code-oss-dev-* /tmp/code-oss-dev-* 2>/dev/null | tail -1
+# Profiles live under the launcher's temp base, or /tmp when that base was too
+# long for unix sockets. Canonicalize first so an unset TMPDIR (or one resolving
+# to /tmp) does not count every profile twice.
+tmp_root=$(cd "${TMPDIR:-/tmp}" 2>/dev/null && pwd -P)
+plain_tmp=$(cd /tmp 2>/dev/null && pwd -P)
+if [ "$tmp_root" = "$plain_tmp" ]; then
+  du -shc "$tmp_root"/code-oss-dev-* 2>/dev/null
+else
+  du -shc "$tmp_root"/code-oss-dev-* "$plain_tmp"/code-oss-dev-* 2>/dev/null
+fi | tail -1
 ```
 
 Both should be empty/zero once every instance you own has exited. If you are

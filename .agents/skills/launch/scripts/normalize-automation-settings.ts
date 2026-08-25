@@ -105,11 +105,12 @@ function parseJsonc(text: string, source: string): unknown {
 function assertSimpleDialogForWorkspaceArgs(args: string[]): void {
 	const candidates = new Set<string>();
 	const launcherOwnedOptions = new Set([
-		'--extensions-dir', '--inspect', '--inspect-agenthost', '--inspect-extensions',
+		'--extensions-dir', '--inspect', '--inspect-agenthost', '--inspect-brk',
+		'--inspect-brk-agenthost', '--inspect-brk-extensions', '--inspect-extensions',
 		'--remote-debugging-port', '--shared-data-dir', '--user-data-dir'
 	]);
 	const optionsWithPathValue = new Set([
-		'--extensionDevelopmentPath', '--extensionTestsPath', '--inspect-brk', '--locale', '--log'
+		'--extensionDevelopmentPath', '--extensionTestsPath', '--locale', '--log'
 	]);
 	for (let i = 0; i < args.length; i++) {
 		const argument = args[i];

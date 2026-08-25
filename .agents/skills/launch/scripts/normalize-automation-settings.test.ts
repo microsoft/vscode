@@ -22,13 +22,24 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import process from 'node:process';
-import { test } from 'node:test';
+import { after, test } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const script = path.join(scriptDir, 'normalize-automation-settings.ts');
 const KEYS = ['files.simpleDialog.enable', 'editor.editContext'];
 const OVERRIDABLE_KEYS = ['editor.editContext'];
+
+const fixtureRoots: string[] = [];
+function fixtureRoot(prefix: string): string {
+	const root = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
+	fixtureRoots.push(root);
+	return root;
+}
+
+after(() => {
+	for (const root of fixtureRoots) { fs.rmSync(root, { recursive: true, force: true }); }
+});
 
 function isJsoncLineBreak(c: string): boolean {
 	return c === '\n' || c === '\r' || c === '\u2028' || c === '\u2029';
@@ -67,7 +78,7 @@ function parseJsonc(text: string): Record<string, unknown> {
 
 /** `undefined` content means "no settings.json at all", exercising the ENOENT path. */
 function normalize(content: string | undefined): { status: number; text: string } {
-	const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'nas-')), 'settings.json');
+	const file = path.join(fixtureRoot('nas-'), 'settings.json');
 	if (content !== undefined) {
 		fs.writeFileSync(file, content);
 	}
@@ -289,7 +300,7 @@ test('rewrites language overrides', () => {
 // `rsync -a` preserves symlinks, so a profile whose settings.json points at a
 // dotfiles checkout would otherwise be written through to the user's real file.
 test('never writes through a symlink', posixOnly, () => {
-	const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'nas-link-'));
+	const dir = fixtureRoot('nas-link-');
 	const real = path.join(dir, 'real.json');
 	const link = path.join(dir, 'settings.json');
 	fs.writeFileSync(real, '{ "a": 1 }\n');
@@ -314,7 +325,7 @@ test('recognizes a unicode-escaped override key', () => {
 // A dangling link must be replaced rather than written through, or the write
 // would create its target outside the throwaway profile.
 test('replaces a dangling symlink instead of creating its target', posixOnly, () => {
-	const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'nas-dangling-'));
+	const dir = fixtureRoot('nas-dangling-');
 	const target = path.join(dir, 'missing.json');
 	const link = path.join(dir, 'settings.json');
 	fs.symlinkSync(target, link);
@@ -332,7 +343,7 @@ test('replaces a dangling symlink instead of creating its target', posixOnly, ()
 // to prevent. Exercise the discovery both launchers perform, against a real
 // profile layout, so the multi-file contract cannot regress silently.
 test('normalizes independent profiles and skips only inheriting ones', () => {
-	const root = fs.mkdtempSync(path.join(os.tmpdir(), 'nas-profiles-'));
+	const root = fixtureRoot('nas-profiles-');
 	const userDir = path.join(root, 'User');
 	const named = path.join(userDir, 'profiles', 'autotest');
 	// An independent profile that simply has nothing saved yet: `createProfile`
@@ -376,7 +387,7 @@ test('normalizes independent profiles and skips only inheriting ones', () => {
 });
 
 test('remaps a legacy URI profile location into the cloned profile', () => {
-	const root = fs.mkdtempSync(path.join(os.tmpdir(), 'nas-uri-profile-'));
+	const root = fixtureRoot('nas-uri-profile-');
 	const userDir = path.join(root, 'User');
 	const named = path.join(userDir, 'profiles', 'legacy');
 	const storageFile = path.join(userDir, 'globalStorage', 'storage.json');
@@ -409,7 +420,7 @@ test('remaps a legacy URI profile location into the cloned profile', () => {
 
 
 test('materializes linked profile state before remapping a legacy URI', posixOnly, () => {
-	const root = fs.mkdtempSync(path.join(os.tmpdir(), 'nas-uri-state-link-'));
+	const root = fixtureRoot('nas-uri-state-link-');
 	const userDir = path.join(root, 'User');
 	const named = path.join(userDir, 'profiles', 'legacy');
 	const storageDir = path.join(userDir, 'globalStorage');
@@ -434,7 +445,7 @@ test('materializes linked profile state before remapping a legacy URI', posixOnl
 });
 
 test('rejects a linked profile-state ancestor before remapping', posixOnly, () => {
-	const root = fs.mkdtempSync(path.join(os.tmpdir(), 'nas-uri-state-dir-'));
+	const root = fixtureRoot('nas-uri-state-dir-');
 	const userDir = path.join(root, 'User');
 	const named = path.join(userDir, 'profiles', 'legacy');
 	const outside = path.join(root, 'outside-globalStorage');
@@ -453,7 +464,7 @@ test('rejects a linked profile-state ancestor before remapping', posixOnly, () =
 	assert.deepStrictEqual({ status, outside: fs.readFileSync(storageFile, 'utf8') }, { status: 1, outside: original });
 });
 test('accepts the nested built-in Agents profile without treating builtin as a profile', () => {
-	const root = fs.mkdtempSync(path.join(os.tmpdir(), 'nas-agents-profile-'));
+	const root = fixtureRoot('nas-agents-profile-');
 	const userDir = path.join(root, 'User');
 	const agentsDir = path.join(userDir, 'profiles', 'builtin', 'agents');
 	const storageFile = path.join(userDir, 'globalStorage', 'storage.json');
@@ -478,7 +489,7 @@ test('accepts the nested built-in Agents profile without treating builtin as a p
 });
 
 test('rejects a folder workspace that disables the simple dialog', () => {
-	const root = fs.mkdtempSync(path.join(os.tmpdir(), 'nas-workspace-folder-'));
+	const root = fixtureRoot('nas-workspace-folder-');
 	const settingsFile = path.join(root, '.vscode', 'settings.json');
 	fs.mkdirSync(path.dirname(settingsFile), { recursive: true });
 	const original = '{ "files.simpleDialog.enable": false }\n';
@@ -491,7 +502,7 @@ test('rejects a folder workspace that disables the simple dialog', () => {
 });
 
 test('rejects a code-workspace path or file URI that disables the simple dialog', () => {
-	const root = fs.mkdtempSync(path.join(os.tmpdir(), 'nas-code-workspace-'));
+	const root = fixtureRoot('nas-code-workspace-');
 	const workspaceFile = path.join(root, 'automation.code-workspace');
 	fs.writeFileSync(workspaceFile, '{\n // keep\n "folders": [],\n "settings": { "files.simpleDialog.enable": false, },\n}\n');
 
@@ -502,7 +513,7 @@ test('rejects a code-workspace path or file URI that disables the simple dialog'
 });
 
 test('accepts an enabled simple dialog through a folder URI', () => {
-	const root = fs.mkdtempSync(path.join(os.tmpdir(), 'nas-workspace-uri-'));
+	const root = fixtureRoot('nas-workspace-uri-');
 	const settingsFile = path.join(root, '.vscode', 'settings.json');
 	fs.mkdirSync(path.dirname(settingsFile), { recursive: true });
 	fs.writeFileSync(settingsFile, '{ "files.simpleDialog.enable": true }\n');
@@ -511,7 +522,7 @@ test('accepts an enabled simple dialog through a folder URI', () => {
 });
 
 test('does not mistake an extension development path for the opened workspace', () => {
-	const root = fs.mkdtempSync(path.join(os.tmpdir(), 'nas-extension-dev-'));
+	const root = fixtureRoot('nas-extension-dev-');
 	const settingsFile = path.join(root, '.vscode', 'settings.json');
 	fs.mkdirSync(path.dirname(settingsFile), { recursive: true });
 	fs.writeFileSync(settingsFile, '{ "files.simpleDialog.enable": false }\n');
@@ -529,7 +540,8 @@ test('rejects forwarded profile creation after normalization', () => {
 
 test('rejects both forms of every launcher-owned forwarded option', () => {
 	const options = [
-		'--extensions-dir', '--inspect', '--inspect-agenthost', '--inspect-extensions',
+		'--extensions-dir', '--inspect', '--inspect-agenthost', '--inspect-brk',
+		'--inspect-brk-agenthost', '--inspect-brk-extensions', '--inspect-extensions',
 		'--remote-debugging-port', '--shared-data-dir', '--user-data-dir'
 	];
 	const statuses = options.flatMap(option => [
@@ -544,7 +556,7 @@ test('rejects both forms of every launcher-owned forwarded option', () => {
 // still resolves outside the throwaway profile. Writing there would edit the
 // user's real settings, which is the isolation this launcher promises.
 test('refuses to write through a symlinked profile directory', posixOnly, () => {
-	const root = fs.mkdtempSync(path.join(os.tmpdir(), 'nas-linkdir-'));
+	const root = fixtureRoot('nas-linkdir-');
 	const real = path.join(root, 'real');
 	const udd = path.join(root, 'udd');
 	fs.mkdirSync(real, { recursive: true });
@@ -589,7 +601,7 @@ for (const [name, linkPath, setUp] of [
 	}]
 ] as [string, string, (udd: string, outside: string) => void][]) {
 	test(`refuses a symlinked profiles directory: ${name}`, posixOnly, () => {
-		const root = fs.mkdtempSync(path.join(os.tmpdir(), 'nas-linkprof-'));
+		const root = fixtureRoot('nas-linkprof-');
 		const udd = path.join(root, 'udd');
 		fs.mkdirSync(path.join(udd, 'User'), { recursive: true });
 		fs.writeFileSync(path.join(udd, 'User', 'settings.json'), '{}\n');
@@ -612,7 +624,7 @@ for (const [name, linkPath, setUp] of [
 // A stray file sitting in `User/profiles` is not a profile, so it must not be
 // turned into a settings.json.
 test('ignores non-directory entries under profiles', () => {
-	const root = fs.mkdtempSync(path.join(os.tmpdir(), 'nas-strayfile-'));
+	const root = fixtureRoot('nas-strayfile-');
 	fs.mkdirSync(path.join(root, 'User', 'profiles'), { recursive: true });
 	fs.writeFileSync(path.join(root, 'User', 'settings.json'), '{}\n');
 	fs.writeFileSync(path.join(root, 'User', 'profiles', 'notes.txt'), 'hi\n');
@@ -630,7 +642,7 @@ test('ignores non-directory entries under profiles', () => {
 // would be skipped as an inheriting profile - leaving the link in the clone for
 // VS Code to write through later, outside the throwaway profile.
 test('discovers a named profile whose settings.json is a dangling symlink', posixOnly, () => {
-	const root = fs.mkdtempSync(path.join(os.tmpdir(), 'nas-dangling-'));
+	const root = fixtureRoot('nas-dangling-');
 	const named = path.join(root, 'User', 'profiles', 'p1');
 	fs.mkdirSync(named, { recursive: true });
 	fs.writeFileSync(path.join(root, 'User', 'settings.json'), '{}\n');
@@ -655,7 +667,7 @@ test('discovers a named profile whose settings.json is a dangling symlink', posi
 // Only ENOENT proves a link is dangling. An unreadable target still has
 // settings behind it, so replacing it with an empty file would discard them.
 test('fails closed when a symlinked settings file cannot be read', posixOnly, () => {
-	const root = fs.mkdtempSync(path.join(os.tmpdir(), 'nas-unreadable-'));
+	const root = fixtureRoot('nas-unreadable-');
 	fs.mkdirSync(path.join(root, 'User'), { recursive: true });
 	const target = path.join(root, 'target');
 	fs.mkdirSync(target);
