@@ -43,6 +43,11 @@ Archived
 - A valid custom-group membership places an unpinned, unarchived session in that group, including a quick chat.
 - Remaining unpinned quick chats appear in the dedicated chats section.
 - Remaining sessions follow the selected workspace or date grouping.
+- A regular session created by another regular session is initially placed
+  immediately after its creator. While it has neither custom-group membership
+  nor an explicit ungrouped preference, it inherits the creator's custom group
+  when one becomes available. Subsequent user grouping, ungrouping, and
+  reordering are ordinary persisted list state.
 
 The active session remains visible even when a filter would otherwise exclude it.
 

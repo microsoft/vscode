@@ -64,6 +64,11 @@ export interface ISessionSummaryHoverData {
 	 * "Claude · Local Agent Host".
 	 */
 	readonly providerLabels?: readonly string[];
+	/** Session that created this session, when available. */
+	readonly createdBy?: {
+		readonly title: string;
+		readonly onOpen: () => void;
+	};
 }
 
 /**
@@ -82,6 +87,7 @@ export class SessionSummaryHoverWidget {
 	private readonly _title: HTMLElement;
 	private readonly _location: HTMLElement;
 	private readonly _pullRequests: HTMLElement;
+	private readonly _createdBy: HTMLElement;
 	private readonly _provider: HTMLElement;
 
 	constructor(data?: ISessionSummaryHoverData) {
@@ -89,6 +95,7 @@ export class SessionSummaryHoverWidget {
 		this._title = dom.append(this.domNode, dom.$('.session-summary-hover-title'));
 		this._location = dom.append(this.domNode, dom.$('.session-summary-hover-section.session-summary-hover-location'));
 		this._pullRequests = dom.append(this.domNode, dom.$('.session-summary-hover-section.session-summary-hover-pull-requests'));
+		this._createdBy = dom.append(this.domNode, dom.$('.session-summary-hover-section.session-summary-hover-created-by'));
 		this._provider = dom.append(this.domNode, dom.$('.session-summary-hover-section.session-summary-hover-provider'));
 		if (data) {
 			this.update(data);
@@ -107,6 +114,15 @@ export class SessionSummaryHoverWidget {
 			this._appendRow(this._pullRequests, pullRequest.icon ?? Codicon.gitPullRequest, pullRequest.title);
 		}
 		this._pullRequests.classList.toggle('hidden', !this._pullRequests.hasChildNodes());
+
+		dom.clearNode(this._createdBy);
+		if (data.createdBy) {
+			const button = dom.append(this._createdBy, dom.$<HTMLButtonElement>('button.session-summary-hover-row.session-summary-hover-link'));
+			button.type = 'button';
+			button.onclick = data.createdBy.onOpen;
+			this._appendRowContent(button, Codicon.reply, localize('sessionSummaryHover.createdBy', "Created by"), data.createdBy.title);
+		}
+		this._createdBy.classList.toggle('hidden', !this._createdBy.hasChildNodes());
 
 		dom.clearNode(this._provider);
 		if (data.providerLabels?.length) {
@@ -156,6 +172,10 @@ export class SessionSummaryHoverWidget {
 	 */
 	private _appendRow(parent: HTMLElement, icon: ThemeIcon, label?: string, detail?: string): HTMLElement {
 		const row = dom.append(parent, dom.$('.session-summary-hover-row'));
+		return this._appendRowContent(row, icon, label, detail);
+	}
+
+	private _appendRowContent(row: HTMLElement, icon: ThemeIcon, label?: string, detail?: string): HTMLElement {
 		const iconElement = dom.append(row, renderIcon(icon));
 		iconElement.classList.add('session-summary-hover-icon');
 		if (icon.color) {

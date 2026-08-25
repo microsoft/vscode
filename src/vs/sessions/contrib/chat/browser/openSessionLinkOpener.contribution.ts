@@ -79,7 +79,8 @@ export class OpenSessionLinkOpenerContribution extends Disposable implements IWo
 		}
 		const chatId = parseOpenSessionLinkChatId(resource);
 		if (chatId) {
-			await this._sessionsService.openChat(session, session.resource.with({ fragment: chatId }));
+			const chatResource = session.resource.with({ fragment: chatId });
+			await this._sessionsService.openChat(session, chatResource);
 			return true;
 		}
 		await this._sessionsService.openSession(session.resource);
