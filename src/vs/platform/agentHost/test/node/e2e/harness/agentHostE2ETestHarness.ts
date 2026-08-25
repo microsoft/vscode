@@ -30,7 +30,7 @@ import {
 	type ChatErrorAction, type ChatToolCallCompleteAction, type ChatToolCallStartAction,
 } from '../../../../common/state/sessionActions.js';
 import { CopilotCliConfigKey } from '../../../../common/copilotCliConfig.js';
-import { AgentHostSessionReleaseGraceMsEnvVar } from '../../../../common/agentService.js';
+import { AgentHostSessionResidencyLimitEnvVar } from '../../../../common/agentService.js';
 import { CapiReplayMode, type ICapiReplayResponse } from './capiReplayProxy.js';
 import {
 	fetchSessionWithChat, getActionEnvelope, getAgentHostE2ETestTimeout, isActionNotification, IServerHandle, stopServer, TestProtocolClient,
@@ -521,7 +521,7 @@ export async function driveChatTurnToCompletion(c: TestProtocolClient, chat: str
 		action: {
 			type: ActionType.ChatTurnStarted,
 			turnId,
-			startedAt: '2025-01-01T00:00:00.000Z',
+			startedAt: new Date().toISOString(),
 			message: { text, origin: { kind: MessageKind.User } },
 		},
 	}));
@@ -538,7 +538,7 @@ export async function driveTurnWithModelToCompletion(c: TestProtocolClient, sess
 		action: {
 			type: ActionType.ChatTurnStarted,
 			turnId,
-			startedAt: '2025-01-01T00:00:00.000Z',
+			startedAt: new Date().toISOString(),
 			message: { text, origin: { kind: MessageKind.User }, model: { id: model } },
 		},
 	}));
@@ -879,7 +879,7 @@ export class AgentHostE2EServerLease {
 			codexHomeDir,
 			homeDir: dataDir,
 			userDataDir: join(dataDir, 'user-data'),
-			env: { [AgentHostSessionReleaseGraceMsEnvVar]: '0' },
+			env: { [AgentHostSessionResidencyLimitEnvVar]: '0' },
 		};
 		// Server reuse is a replay-only optimization: recording writes one fixture
 		// per proxy and so needs a fresh proxy (hence a fresh server) per test.

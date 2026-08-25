@@ -106,12 +106,7 @@ export class DockedAuxiliaryBarController extends Disposable {
 	/** Returns the detail width that fits beside the editor content. */
 	static getEffectiveWidth(hostWidth: number, editorWidth: number): number {
 		const maxWidth = editorWidth - DockedAuxiliaryBarController.EDITOR_MIN_WIDTH;
-		// When the editor is too narrow, the detail panel yields instead of enforcing its minimum.
-		if (maxWidth < DockedAuxiliaryBarController.MIN_WIDTH) {
-			return Math.max(0, maxWidth);
-		}
-
-		return Math.max(DockedAuxiliaryBarController.MIN_WIDTH, Math.min(hostWidth, maxWidth));
+		return Math.min(editorWidth, Math.max(DockedAuxiliaryBarController.MIN_WIDTH, Math.min(hostWidth, maxWidth)));
 	}
 
 	private _ensureSash(): void {

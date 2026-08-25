@@ -7,10 +7,10 @@ import { spawn, type ChildProcessWithoutNullStreams } from 'child_process';
 import * as fs from 'fs';
 import * as os from 'os';
 import { CancellationError } from '../../../../base/common/errors.js';
-import { Limiter, raceTimeout, retry, Sequencer } from '../../../../base/common/async.js';
+import { disposableTimeout, Limiter, raceTimeout, retry, Sequencer } from '../../../../base/common/async.js';
 import { fetchResourceMetadata } from '../../../../base/common/oauth.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { type IObservable, observableValue } from '../../../../base/common/observable.js';
 import { basename, dirname, isAbsolute, join, normalize, resolve, sep } from '../../../../base/common/path.js';
 import { extUriBiasedIgnorePathCase, isEqual } from '../../../../base/common/resources.js';
@@ -25,6 +25,7 @@ import { createSchema, platformRootSchema, platformSessionSchema, schemaProperty
 import { createPricingMetaFromBilling, normalizeCAPIBilling } from '../../common/agentModelPricing.js';
 import { CHATGPT_SUBSCRIPTION_MODEL_SOURCE_ID, createAgentModelSourceMeta } from '../../common/agentModelSource.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema } from '../../common/agentHostCustomizationConfig.js';
+import { AgentSdkSetupChannel } from '../agentSdkSetupChannel.js';
 import { CODEX_ACCOUNT_META_KEY, CODEX_ACCOUNT_SIGN_IN_REQUEST_KEY, CODEX_ACCOUNT_SIGN_OUT_REQUEST_KEY, type ICodexAccountInfo } from '../../common/codexAccount.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel, resolveDefaultReasoningEffort } from '../../common/reasoningEffort.js';
 import { AgentSession, AgentSignal, CODEX_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChatConfigCompletionsParams, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentCreateChatForkSource, IAgentCreateChatResult, IAgentCreateChatOptions, IAgentDescriptor, IAgentDiscoveredChat, IAgentMaterializeChatEvent, IAgentModelInfo, IAgentResolveChatConfigParams, IAgentSpawnChatEvent, IMcpNotification, resolveAgentChatContext, resolveAgentHostInstructions, type AgentProvider, type AuthenticateParams } from '../../common/agent.js';
@@ -59,9 +60,12 @@ import { parsePlugin } from '../../../agentPlugins/common/pluginParsers.js';
 import { SessionMcpDiscovery } from '../shared/sessionMcpDiscovery.js';
 import { IAgentHostGitHubEndpointService } from '../agentHostGitHubEndpointService.js';
 import { IAgentHostSessionTitleSignal } from '../agentHostSessionTitleSignal.js';
+import { IAgentHostProxyResolver } from '../agentHostProxyResolver.js';
+import { MODEL_REFRESH_BASE_DELAY_MS, MODEL_REFRESH_MAX_ATTEMPTS, MODEL_REFRESH_MAX_DELAY_MS, modelRefreshBackoff } from '../shared/modelRefreshRetry.js';
 import { IAgentHostCheckpointService } from '../../common/agentHostCheckpointService.js';
 import { ICopilotApiService } from '../shared/copilotApiService.js';
 import { extractForwardedErrorInfo } from '../shared/proxyChatError.js';
+import { IAgentHostWorktreeIsolation, type IAgentHostWorktreePendingState } from '../shared/worktreeIsolation.js';
 import { getServerToolDisplay } from '../shared/serverToolGroups.js';
 import { IAgentSdkDownloader, IAgentSdkPackage } from '../agentSdkDownloader.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
@@ -83,6 +87,7 @@ import { codexDelegationDisplayText } from './codexDelegation.js';
 import { THREAD_LIST_MAX_PAGES, collectThreadListPages } from './codexThreadList.js';
 import { ICodexRolloutMetadata, ICodexRolloutModel, readCodexRolloutMetadata } from './codexRolloutMetadata.js';
 import { codexAccountRateLimitFromResponse, codexAccountStateFromResponse, type ICodexAccountState } from './codexAccountState.js';
+import { CodexProfileImageStore, fetchCodexProfileImage } from './codexProfileImage.js';
 import { CodexSessionConfigKey, CODEX_DEFAULT_PERMISSIONS_PRESET, CODEX_PERMISSIONS_PRESETS, collaborationModeKind, getCodexAutonomousSessionConfig, migrateCodexPermissionValues, narrowAdditionalDirectories, narrowBoolean, narrowPersonality, narrowReasoningEffort, narrowReasoningSummary, narrowWebSearchMode, resolveCodexPermissions, type CodexApprovalPolicy, type CodexPermissionsPreset, type ICodexResolvedPermissions } from './codexSessionConfigKeys.js';
 import type { ReasoningEffort } from './protocol/generated/ReasoningEffort.js';
 import type { ReasoningSummary } from './protocol/generated/ReasoningSummary.js';
@@ -109,6 +114,7 @@ import type { ToolRequestUserInputResponse } from './protocol/generated/v2/ToolR
 import type { JsonValue } from './protocol/generated/serde_json/JsonValue.js';
 import type { GetAccountResponse } from './protocol/generated/v2/GetAccountResponse.js';
 import type { GetAccountRateLimitsResponse } from './protocol/generated/v2/GetAccountRateLimitsResponse.js';
+import type { GetAuthStatusResponse } from './protocol/generated/GetAuthStatusResponse.js';
 import type { LoginAccountResponse } from './protocol/generated/v2/LoginAccountResponse.js';
 import type { ModelListResponse } from './protocol/generated/v2/ModelListResponse.js';
 import type { Thread } from './protocol/generated/v2/Thread.js';
@@ -138,7 +144,6 @@ import type { ConfigReadResponse } from './protocol/generated/v2/ConfigReadRespo
 import type { ConfigWriteResponse } from './protocol/generated/v2/ConfigWriteResponse.js';
 import { formatGuardianDenialNotification, summarizeGuardianReviewAction, toGuardianAssessmentEventJson } from './codexGuardianReview.js';
 import { CODEX_COMPACT_SLASH_COMMAND } from '../codexCompactCommand.js';
-import { detectExistingCodexChatGPTSetup } from './codexLocalAuth.js';
 
 const CLIENT_INFO = {
 	name: 'vscode_agent_host',
@@ -174,6 +179,16 @@ const CODEX_THINKING_LEVEL_KEY = 'thinkingLevel';
  * and `oaiLanguageModelServer.ts`.
  */
 const USER_AGENT_PREFIX = 'vscode_codex';
+
+/** Where a user finishes setting Codex up outside the app; the workbench labels the link. */
+const CODEX_SETUP_DOCS_URL = 'https://learn.chatgpt.com/codex/auth';
+
+/**
+ * The account the in-app sign-in signs into. A proper noun rather than a
+ * translatable string, so publishing it keeps user-facing text out of the host —
+ * the workbench interpolates it into its own localized sentence.
+ */
+const CODEX_SIGN_IN_PROVIDER_NAME = 'ChatGPT';
 
 const CODEX_REASONING_EFFORTS: readonly ReasoningEffort[] = ['minimal', 'low', 'medium', 'high'];
 
@@ -978,6 +993,9 @@ export class CodexAgent extends Disposable implements IAgent {
 	private readonly _coldSessionReadLimiter = this._register(new Limiter<ICodexSessionRead | undefined>(CODEX_COLD_SESSION_READ_CONCURRENCY));
 	private _openAIAccountState: ICodexAccountState = { usageSource: 'openai', status: 'unknown' };
 	private _openAIAccountRateLimit: ICodexAccountInfo['rateLimit'];
+	private _openAIAccountProfileImage: ICodexAccountInfo['profileImage'];
+	private _openAIAccountProfileImageRequest = 0;
+	private _profileImageStore: CodexProfileImageStore | undefined;
 	private _providerConfigurationValues: Record<string, unknown> = {};
 	private _providerConfigurationWrite = Promise.resolve();
 	private _providerConfigurationReady = false;
@@ -1057,11 +1075,23 @@ export class CodexAgent extends Disposable implements IAgent {
 	readonly onDidDiscoverChats = this._onDidDiscoverChats.event;
 	private _codexChatDiscovery: Promise<void> | undefined;
 	private _modelsRefreshPromise: Promise<void> | undefined;
+	/**
+	 * Bounded retry for transient Copilot catalog failures. Without this, a
+	 * failed request triggered by sign-in leaves the picker stale until another
+	 * external refresh trigger or a full restart.
+	 */
+	protected readonly _modelRefreshMaxAttempts = MODEL_REFRESH_MAX_ATTEMPTS;
+	protected readonly _modelRefreshBaseDelayMs = MODEL_REFRESH_BASE_DELAY_MS;
+	protected readonly _modelRefreshMaxDelayMs = MODEL_REFRESH_MAX_DELAY_MS;
+	private readonly _modelRefreshRetry = this._register(new MutableDisposable());
+	/** Invalidates retries that belong to an older Copilot token or endpoint. */
+	private _modelCatalogGeneration = 0;
 	private _copilotModels: readonly IAgentModelInfo[] = [];
 	private _codexModels: readonly IAgentModelInfo[] = [];
 	private readonly _metadataStore: CodexSessionMetadataStore;
 	private _lastSignInRequest: string | undefined;
 	private _lastSignOutRequest: string | undefined;
+	private readonly _worktree: IAgentHostWorktreePendingState;
 
 	/**
 	 * The agent host's server-tool host (feedback "comments" today, more in the
@@ -1084,12 +1114,15 @@ export class CodexAgent extends Disposable implements IAgent {
 		@IAgentPluginManager private readonly _pluginManager: IAgentPluginManager,
 		@IFileService private readonly _fileService: IFileService,
 		@INativeEnvironmentService private readonly _environmentService: INativeEnvironmentService,
+		@IAgentHostProxyResolver private readonly _proxyResolver: IAgentHostProxyResolver,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IAgentHostOTelService private readonly _otelService: IAgentHostOTelService,
 		@IAgentHostCustomizationEnablementService private readonly _customizationEnablementService: IAgentHostCustomizationEnablementService,
 		@IAgentHostSessionTitleSignal sessionTitleSignal: IAgentHostSessionTitleSignal,
+		@IAgentHostWorktreeIsolation worktree: IAgentHostWorktreeIsolation,
 	) {
 		super();
+		this._worktree = worktree;
 		this._metadataStore = this._instantiationService.createInstance(CodexSessionMetadataStore);
 		this._githubMcpServerEnabled = this._isGitHubMcpServerEnabled();
 		this._publishAccountInfo({ status: 'unknown' });
@@ -1146,17 +1179,49 @@ export class CodexAgent extends Disposable implements IAgent {
 				this._configurationService.updateRootConfig({ [CODEX_ACCOUNT_SIGN_OUT_REQUEST_KEY]: undefined });
 				void this._signOutOfChatGPT();
 			}
-			this._startModelRefreshForExistingChatGPTSetup();
+			this._startModelRefreshWhenSdkIsLocal();
 			this._queueProviderConfigurationWrite();
 		}));
 		void this._refreshProviderConfiguration();
-		this._startModelRefreshForExistingChatGPTSetup();
+		this._startModelRefreshWhenSdkIsLocal();
+		this._sdkSetupChannel = this._register(new AgentSdkSetupChannel({
+			id: this.id,
+			sdkPackage: CodexSdkPackage,
+			setupInfo: {
+				setupDocsUrl: CODEX_SETUP_DOCS_URL,
+				// ChatGPT sign-in is a control request the app server answers, so the
+				// banner can start it in-window. An API key still has to be established
+				// outside — hence the docs link alongside it.
+				signInProviderName: CODEX_SIGN_IN_PROVIDER_NAME,
+			},
+			isSdkLocal: () => this._isSdkResolvableWithoutDownload(),
+			downloadSdk: async () => { await this._resolveSdkRoot(); },
+			restartChatDiscovery: () => this._restartChatDiscovery(),
+			refreshModels: () => this.refreshModels(),
+		}, this._configurationService, this._agentSdkDownloader, this._logService));
 	}
 
+	/**
+	 * Publishes whether the SDK is on disk — and nothing about the account, which
+	 * the workbench derives from the model list already flowing over AHP (`ready`
+	 * + zero models → no account). Distinct from {@link _publishAccountInfo}'s
+	 * `vscode.codexAccount` channel, which drives the ChatGPT account menu.
+	 */
+	private readonly _sdkSetupChannel: AgentSdkSetupChannel;
+
 	private _setOpenAIAccountState(state: ICodexAccountState, _publish = true): void {
+		const previousState = this._openAIAccountState;
 		this._openAIAccountState = state;
-		if (state.status !== 'signedIn' || state.authType !== 'chatgpt') {
+		const sameChatGPTAccount = previousState.status === 'signedIn'
+			&& previousState.authType === 'chatgpt'
+			&& state.status === 'signedIn'
+			&& state.authType === 'chatgpt'
+			&& previousState.email === state.email;
+		if (!sameChatGPTAccount) {
 			this._openAIAccountRateLimit = undefined;
+			this._openAIAccountProfileImage = undefined;
+			void this._profileImageStore?.clear();
+			this._openAIAccountProfileImageRequest++;
 		}
 		if (_publish) {
 			this._publishAccountInfo(this._toAccountInfo(state));
@@ -1207,6 +1272,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			status: state.status,
 			email: state.authType === 'chatgpt' ? state.email : undefined,
 			planType: state.authType === 'chatgpt' ? state.planType : undefined,
+			profileImage: state.authType === 'chatgpt' ? this._openAIAccountProfileImage : undefined,
 			requiresOpenaiAuth: state.requiresOpenaiAuth,
 			rateLimit: state.authType === 'chatgpt' ? this._openAIAccountRateLimit : undefined,
 		};
@@ -1234,13 +1300,14 @@ export class CodexAgent extends Disposable implements IAgent {
 	// #region Auth
 
 	getProtectedResources(): ProtectedResourceMetadata[] {
-		// Keep the Copilot resource advertised even when optional so an existing
-		// token is still forwarded and Copilot-backed models remain additive.
-		// Without a usable ChatGPT setup, however, Copilot is the only available
-		// transport and must stay required so the workbench shows its auth gate.
+		// Always listed, always optional — matching Claude. Listing it is what lets
+		// the host forward a token to an already-signed-in user (matching ignores
+		// `required`); the unconditional `required: false` is what stops
+		// `resolveSignedOutWindowGate` walling off the whole Agents window before
+		// the user reaches a surface that could explain itself.
 		const copilotResource = this._gitHubEndpointService.getCopilotResource();
 		return [
-			this._hasExistingChatGPTSetup() ? { ...copilotResource, required: false } : copilotResource,
+			{ ...copilotResource, required: false },
 			this._gitHubEndpointService.getRepoResource(),
 		];
 	}
@@ -1263,6 +1330,9 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 		this._githubToken = normalizedToken;
 		this._gitHubMcpServerConfiguration = gitHubMcpServerConfiguration;
+		if (changed) {
+			this._modelCatalogGeneration++;
+		}
 		if (changed && this._connection.kind === 'ready' && this._connection.proxyHandle) {
 			// The app-server stays running. The proxy reads the new token from its
 			// own cell, while MCP-backed threads reconcile their per-thread config.
@@ -1297,6 +1367,7 @@ export class CodexAgent extends Disposable implements IAgent {
 
 	private _handleGitHubEndpointChange(): void {
 		this._githubAuthenticationGeneration++;
+		this._modelCatalogGeneration++;
 		this._githubToken = undefined;
 		this._gitHubMcpServerConfiguration = undefined;
 		if (this._connection.kind === 'ready' && this._connection.proxyHandle) {
@@ -1404,8 +1475,8 @@ export class CodexAgent extends Disposable implements IAgent {
 		return this._modelsRefreshPromise ?? this._queueModelRefresh();
 	}
 
-	private _queueModelRefresh(): Promise<void> {
-		const refreshPromise = this._refreshModels().finally(() => {
+	private _queueModelRefresh(attempt = 0, generation = this._modelCatalogGeneration): Promise<void> {
+		const refreshPromise = this._refreshModels(attempt, generation).finally(() => {
 			if (this._modelsRefreshPromise === refreshPromise) {
 				this._modelsRefreshPromise = undefined;
 			}
@@ -1701,56 +1772,66 @@ export class CodexAgent extends Disposable implements IAgent {
 		return { plugins, candidates, resolution };
 	}
 
-	private async _refreshModels(): Promise<void> {
-		await Promise.all([this._refreshCopilotModels(), this._refreshCodexModels()]);
+	private async _refreshModels(attempt = 0, generation = this._modelCatalogGeneration): Promise<void> {
+		// A fresh refresh or the retry itself supersedes the pending timer.
+		this._modelRefreshRetry.clear();
+		const [copilotError, sdkReady] = await Promise.all([this._refreshCopilotModels(), this._refreshCodexModels()]);
 		this._models.set([...this._copilotModels, ...this._codexModels], undefined);
-	}
+		// Last, never first: also the freshest answer to "is the SDK here" (a
+		// download that landed elsewhere surfaces here), but announcing `ready`
+		// before the catalog lands is how the window renders "no account found".
+		this._sdkSetupChannel.publishWith(sdkReady);
 
-	private _hasExistingChatGPTSetup(): boolean {
-		const allowSignedOutWhenUsable = this._configurationService.getRootValue(agentHostCustomizationConfigSchema, AgentHostConfigKey.AllowSignedOutWhenUsable) === true;
-		if (!allowSignedOutWhenUsable) {
-			return false;
+		if (!copilotError || generation !== this._modelCatalogGeneration || this._store.isDisposed) {
+			return;
 		}
-		if (this._openAIAccountState.status === 'signedIn') {
-			return this._openAIAccountState.authType === 'chatgpt';
+		if (attempt + 1 < this._modelRefreshMaxAttempts) {
+			const delay = modelRefreshBackoff(attempt, this._modelRefreshBaseDelayMs, this._modelRefreshMaxDelayMs);
+			this._logService.warn(`[Codex] Failed to refresh models (attempt ${attempt + 1}), retrying in ${delay}ms: ${copilotError.message}`);
+			this._modelRefreshRetry.value = disposableTimeout(() => {
+				if (generation === this._modelCatalogGeneration && !this._store.isDisposed) {
+					void this._queueModelRefresh(attempt + 1, generation);
+				}
+			}, delay);
+			return;
 		}
-		if (this._openAIAccountState.status === 'unavailable') {
-			return this._openAIAccountState.requiresOpenaiAuth === false;
-		}
-		if (this._openAIAccountState.status === 'signedOut' || this._openAIAccountState.status === 'error') {
-			return false;
-		}
-		return detectExistingCodexChatGPTSetup(
-			this._environmentService.userHome.fsPath,
-			process.env,
-			process.env[AgentHostCodexAgentCodexHomeEnvVar],
-		);
+		this._logService.warn(`[Codex] Failed to refresh models after ${attempt + 1} attempts: ${copilotError.message}`);
 	}
 
 	/**
-	 * Match Claude native mode: once persisted credentials make the provider
-	 * usable without GitHub, eagerly materialize the SDK and publish only the
-	 * authoritative app-server model catalog. Until that finishes the provider
-	 * remains present but unusable; no cached or synthetic model is advertised.
+	 * Ask the app server for the authoritative catalog at startup, but only when
+	 * asking is free — i.e. the SDK is already on disk.
+	 *
+	 * Replaces a `~/.codex/auth.json` sniff that was wrong in both directions: it
+	 * missed API-key setups established through the environment, and claimed a
+	 * setup from a stale token file. Only the app server can answer whether this
+	 * user can run Codex without GitHub. Behind the flag, so a Copilot-only user
+	 * still spawns nothing at startup.
 	 */
-	private _startModelRefreshForExistingChatGPTSetup(): void {
-		if (!this._hasExistingChatGPTSetup() || this._codexModels.length > 0) {
+	private _startModelRefreshWhenSdkIsLocal(): void {
+		const allowSignedOutWhenUsable = this._configurationService.getRootValue(agentHostCustomizationConfigSchema, AgentHostConfigKey.AllowSignedOutWhenUsable) === true;
+		if (!allowSignedOutWhenUsable || this._codexModels.length > 0) {
 			return;
 		}
-		queueMicrotask(() => { void this.refreshModels(); });
+		queueMicrotask(async () => {
+			if (this._store.isDisposed || !(await this._isSdkResolvableWithoutDownload())) {
+				return;
+			}
+			await this.refreshModels();
+		});
 	}
 
-	private async _refreshCopilotModels(): Promise<void> {
+	private async _refreshCopilotModels(): Promise<Error | undefined> {
 		const token = this._githubToken;
 		if (!token) {
 			this._copilotModels = [];
-			return;
+			return undefined;
 		}
 		try {
 			const userAgent = `${USER_AGENT_PREFIX}/${this._productService.version}`;
 			const all = await this._copilotApiService.models(token, { headers: { 'User-Agent': userAgent }, suppressIntegrationId: true });
 			if (this._githubToken !== token) {
-				return;
+				return undefined;
 			}
 			// Codex talks to every model through the `vscode-proxy` custom model
 			// provider with `wire_api="responses"` (see CodexProxyService), so it
@@ -1785,24 +1866,36 @@ export class CodexAgent extends Disposable implements IAgent {
 					),
 				}));
 			this._copilotModels = models;
+			return undefined;
 		} catch (err) {
-			this._logService.warn(`[Codex] Failed to refresh models: ${err instanceof Error ? err.message : String(err)}`);
 			// Keep the last known-good catalog; a transient periodic failure must
 			// not make every model disappear.
+			if (this._githubToken !== token) {
+				return undefined;
+			}
+			return err instanceof Error ? err : new Error(String(err));
 		}
 	}
 
-	private async _refreshCodexModels(): Promise<void> {
+	private async _refreshCodexModels(): Promise<boolean> {
+		// Outside the `try` so a throw still reports what we had established about
+		// the SDK, rather than a `false` the caller would publish as "not downloaded".
+		let sdkReady = false;
 		try {
-			if (this._connection.kind === 'idle' && !(await this._isSdkResolvableWithoutDownload()) && !this._hasExistingChatGPTSetup()) {
+			// A refresh must never be what pulls the SDK down — the download is an
+			// explicit gesture now — so with no local SDK this reports the honest
+			// empty catalog and the banner offers it. A live connection already
+			// proves the SDK is on disk, so it short-circuits the stat.
+			sdkReady = this._connection.kind !== 'idle' || await this._isSdkResolvableWithoutDownload();
+			if (!sdkReady) {
 				this._codexModels = [];
-				return;
+				return sdkReady;
 			}
 			const connection = await this._ensureConnection();
 			const account = await this._refreshAccount(connection.client, false);
 			if (account.status === 'signedOut' || account.status === 'error') {
 				this._codexModels = [];
-				return;
+				return sdkReady;
 			}
 			const configResponse = await connection.client.request<'config/read', ConfigReadResponse>('config/read', { includeLayers: false });
 			const modelProvider = configResponse.config.model_provider ?? CODEX_OPENAI_MODEL_PROVIDER;
@@ -1831,6 +1924,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			// Keep the last known-good catalog; a transient periodic failure must
 			// not make every model disappear.
 		}
+		return sdkReady;
 	}
 
 	// #endregion
@@ -2199,7 +2293,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * {@link _handleDynamicToolCallRpc} by name.
 	 */
 	private _buildDynamicTools(session: ICodexSession): DynamicToolSpec[] | undefined {
-		const serverTools = this._serverToolHost?.definitions ?? [];
+		const serverTools = this._serverToolHost?.getDefinitionsForSession(session.configurationResource.toString()) ?? [];
 		const clientTools = session.clientToolSet.merged();
 		// Server tools first; a server tool name shadows a colliding client tool
 		// (the agent host owns those names) and matches the routing order below.
@@ -2576,6 +2670,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			this._setOpenAIAccountState(state, publish);
 			if (publish && state.status === 'signedIn' && state.authType === 'chatgpt') {
 				void this._refreshAccountRateLimits(client, state.email);
+				void this._refreshAccountProfileImage(client, state.email);
 			}
 			this._logService.info(`[Codex] account/read accountType=${response.account?.type ?? 'none'} requiresOpenaiAuth=${response.requiresOpenaiAuth}${state.planType ? ` planType=${state.planType}` : ''}`);
 			return state;
@@ -2586,6 +2681,39 @@ export class CodexAgent extends Disposable implements IAgent {
 			this._setOpenAIAccountState(state, publish);
 			return state;
 		}
+	}
+
+	private async _refreshAccountProfileImage(client: ICodexAppServerClient, accountEmail = this._openAIAccountState.email): Promise<void> {
+		const request = ++this._openAIAccountProfileImageRequest;
+		try {
+			const response = await client.request<'getAuthStatus', GetAuthStatusResponse>('getAuthStatus', { includeToken: true, refreshToken: false });
+			const profileImage = response.authToken
+				? await fetchCodexProfileImage(response.authToken, (input, init) => this._proxyResolver.fetch(input, init))
+				: undefined;
+			if (request !== this._openAIAccountProfileImageRequest || this._connection.kind !== 'ready' || this._connection.client !== client || this._openAIAccountState.status !== 'signedIn' || this._openAIAccountState.authType !== 'chatgpt' || this._openAIAccountState.email !== accountEmail) {
+				return;
+			}
+			const profileImageReference = profileImage
+				? await this._getProfileImageStore().update(profileImage)
+				: undefined;
+			if (!profileImage) {
+				await this._profileImageStore?.clear();
+			}
+			if (request !== this._openAIAccountProfileImageRequest || this._connection.kind !== 'ready' || this._connection.client !== client || this._openAIAccountState.status !== 'signedIn' || this._openAIAccountState.authType !== 'chatgpt' || this._openAIAccountState.email !== accountEmail) {
+				return;
+			}
+			if (profileImageReference?.nonce === this._openAIAccountProfileImage?.nonce) {
+				return;
+			}
+			this._openAIAccountProfileImage = profileImageReference;
+			this._publishAccountInfo(this._toAccountInfo(this._openAIAccountState));
+		} catch (error) {
+			this._logService.warn(`[Codex] ChatGPT profile image refresh failed: ${error instanceof Error ? error.message : String(error)}`);
+		}
+	}
+
+	private _getProfileImageStore(): CodexProfileImageStore {
+		return this._profileImageStore ??= this._register(new CodexProfileImageStore(this._fileService));
 	}
 
 	private async _refreshAccountRateLimits(client: ICodexAppServerClient, accountEmail = this._openAIAccountState.email): Promise<void> {
@@ -4438,9 +4566,8 @@ export class CodexAgent extends Disposable implements IAgent {
 	}
 
 	/**
-	 * Tear down the current codex thread and start a fresh one so the
-	 * session's current client tools are registered as `dynamicTools`.
-	 * Only safe before any turn has committed history on the thread.
+	 * Restarts a pre-turn Codex thread so current `dynamicTools`, MCP servers, and customizations are applied at `thread/start`.
+	 * Only safe before history exists; the first send remains responsible for publishing materialization.
 	 */
 	private async _restartThreadWithCurrentTools(session: ICodexSession, configResource: URI = session.configurationResource): Promise<void> {
 		const conn = this._connection;
@@ -4460,7 +4587,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		session.threadId = undefined;
 		this._applyMcpInventoryToSession(session);
 		session.materializePromise = undefined;
-		await this._materializeIfNeeded(session, configResource, true);
+		await this._materializeIfNeeded(session, configResource, false);
 	}
 
 	private _fireMaterialized(session: ICodexSession): void {
@@ -4502,7 +4629,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		// (a fresh worktree session whose worktree is created on the first send).
 		// Prewarming would otherwise materialize a thread in the picked folder
 		// before the worktree exists.
-		if (this._configurationService.isWorkingDirectoryPending(session.sessionUri.toString())) {
+		if (this._worktree.isWorkingDirectoryPending(AgentSession.id(session.sessionUri))) {
 			return;
 		}
 		void (async () => {
@@ -4547,7 +4674,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	}
 
 	private _persistMaterializedSession(session: ICodexSession): void {
-		if (session.disposed || !session.threadId) {
+		if (session.disposed || !session.threadId || !session.prewarmClaimed) {
 			return;
 		}
 		// Persist only once the prewarmed thread is claimed by a turn. This
@@ -5607,10 +5734,11 @@ export class CodexAgent extends Disposable implements IAgent {
 	}
 
 	async listChatsToMigrate(): Promise<IAgentChatMetadata[] | undefined> {
-		try {
-			await this._resolveSdkRoot();
-		} catch (err) {
-			this._logService.warn(`[Codex] SDK unavailable while listing chats to migrate: ${err instanceof Error ? err.message : String(err)}`);
+		// `undefined` is "can't enumerate yet", which is the honest answer while the
+		// SDK is absent: the catalog lives inside it, but fetching one is the user's
+		// call. {@link _restartChatDiscovery} revisits this once they make it.
+		if (!(await this._isSdkResolvableWithoutDownload())) {
+			this._logService.info('[Codex] SDK not downloaded yet; deferring the migratable chat list');
 			return undefined;
 		}
 		const chats = await this._listCodexChats();
@@ -5627,7 +5755,13 @@ export class CodexAgent extends Disposable implements IAgent {
 	private _startCodexChatDiscovery(): Promise<void> {
 		if (!this._codexChatDiscovery) {
 			this._codexChatDiscovery = retry(async () => {
-				await this._resolveSdkRoot();
+				// Waits for the SDK rather than pulling it down — see
+				// {@link listChatsToMigrate}. Returning leaves the retry loop happy,
+				// since no amount of retrying will make the user press Download.
+				if (!(await this._isSdkResolvableWithoutDownload())) {
+					this._logService.info('[Codex] SDK not downloaded yet; deferring chat discovery');
+					return;
+				}
 				if (!(await this._emitCodexChats())) {
 					throw new Error('Codex chat catalog is not available');
 				}
@@ -5635,6 +5769,14 @@ export class CodexAgent extends Disposable implements IAgent {
 				.catch(err => this._logService.warn(`[Codex] Chat discovery failed: ${err instanceof Error ? err.message : String(err)}`));
 		}
 		return this._codexChatDiscovery;
+	}
+
+	/** Runs discovery again for whoever is still subscribed, after it deferred for want of an SDK. */
+	private _restartChatDiscovery(): void {
+		if (this._codexChatDiscovery) {
+			this._codexChatDiscovery = undefined;
+			void this._startCodexChatDiscovery();
+		}
 	}
 
 	private async _emitCodexChats(): Promise<boolean> {
@@ -6549,6 +6691,8 @@ export class CodexAgent extends Disposable implements IAgent {
 	}
 
 	async shutdown(): Promise<void> {
+		this._modelCatalogGeneration++;
+		this._modelRefreshRetry.clear();
 		this._disposeConnection();
 		this._clearRuntimeState();
 	}

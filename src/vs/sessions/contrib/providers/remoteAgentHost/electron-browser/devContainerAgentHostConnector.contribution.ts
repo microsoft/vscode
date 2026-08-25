@@ -21,7 +21,7 @@ import { AhpJsonlLogger } from '../../../../../platform/agentHost/common/ahpJson
 import { DEV_CONTAINER_AGENT_HOST_CHANNEL, IDevContainerAgentHostMainService } from '../../../../../platform/agentHost/common/devContainerAgentHost.js';
 import { RelayTransport } from '../../../../../platform/agentHost/common/relayTransport.js';
 import { RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
-import { RemoteAgentHostProtocolClient } from '../../../../../platform/agentHost/browser/remoteAgentHostProtocolClient.js';
+import { AgentHostProtocolClient } from '../../../../../platform/agentHost/browser/agentHostProtocolClient.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ISharedProcessService } from '../../../../../platform/ipc/electron-browser/services.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -127,7 +127,7 @@ class DevContainerAgentHostConnector implements IDevContainerAgentHostConnector 
 				this._logService.warn('[DevContainerAgentHostConnector] Failed to cancel connection', error);
 			});
 		});
-		let protocolClient: RemoteAgentHostProtocolClient | undefined;
+		let protocolClient: AgentHostProtocolClient | undefined;
 		try {
 			const result = await this._mainService.connect({
 				connectionId,
@@ -155,7 +155,7 @@ class DevContainerAgentHostConnector implements IDevContainerAgentHostConnector 
 				AgentHostClientConnectionKind.DevContainer,
 			);
 			protocolClient = this._instantiationService.createInstance(
-				RemoteAgentHostProtocolClient,
+				AgentHostProtocolClient,
 				result.address,
 				transport,
 				undefined,

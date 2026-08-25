@@ -10,6 +10,9 @@
 
 # Multi-Chat Architecture
 
+> Node runtime service construction is documented separately in
+> [`node/serviceBootstrapping.md`](node/serviceBootstrapping.md).
+
 > **Status: COMPLETE** (2026-07-01)
 > All waves A–D and gates G-B1, G-C1, G-C2, G-D1 are done. Codex, Claude, and
 > Copilot all use the unified orchestrator path.
@@ -221,7 +224,7 @@ If a provider cannot enumerate yet, its initial discovery attempt emits nothing;
 
 `listSessions()` coalesces concurrent computations per external-sessions mode, so the burst of calls a multi-window restore produces shares one registry traversal instead of one per window. The shared entry records the registry epoch it started at and is invalidated by every registry mutation. A computation whose epoch changes restarts against the new registry, so both existing and later callers receive a complete post-mutation snapshot; each caller receives its own array.
 
-Legacy registry migration uses the `listChatsToMigrate()` contract. An array is authoritative even when empty, while `undefined` means the catalog is unavailable and must not advance migration markers. Agent Service retries an unavailable registration-time catalog once before listing; persistent unavailability rejects the aggregate `listSessions()` call with a typed provider-catalog error so clients preserve their last successful snapshots and retry with their existing backoff. Replacement retry ownership is compare-and-swap single-flight: overlapping list computations that observed the same failed attempt await the first caller's installed retry rather than queueing another provider enumeration. Successful providers retain their completed migration state when a sibling provider is unavailable.
+Legacy registry migration uses the `listChatsToMigrate()` contract. An array is authoritative even when empty, while `undefined` means the catalog is unavailable and must not advance migration markers. Agent Service retries an unavailable registration-time catalog once before listing; persistent unavailability rejects the aggregate `listSessions()` call with a typed provider-catalog error so clients preserve their last successful snapshots. `BaseAgentHostSessionsProvider` retries failures with exponential backoff; `AgentHostSessionListStore` leaves its cache invalid and retries on the next controller, lifecycle, or workspace refresh trigger. Replacement retry ownership is compare-and-swap single-flight: overlapping list computations that observed the same failed attempt await the first caller's installed retry rather than queueing another provider enumeration. Successful providers retain their completed migration state when a sibling provider is unavailable.
 
 Session-list clients treat only a successful return as authoritative. `BaseAgentHostSessionsProvider` and `AgentHostSessionListStore` retain their last successful snapshots when `listSessions()` rejects; a successful empty array still clears the snapshot. This separation prevents transport, authentication, or catalog failures from becoming deletion deltas.
 
@@ -700,9 +703,9 @@ resource. `AgentSideEffects` does not enumerate chats or fan config values
 through provider hooks.
 
 Both `IAgentHostPromptCache` and `IAgentHostSessionTitleSignal` are constructed
-by `AgentService`, exposed as `agentService.promptCache` /
-`agentService.sessionTitleSignal`, and registered in the `agentHostMain` /
-`agentHostServerMain` DI containers next to `IAgentHostStateManager`.
+and registered by `createAgentServiceComposition`. Consumers resolve their
+service identifiers through constructor injection; `AgentService` neither owns
+nor exposes them.
 
 ### 8g. Seam → provider read it replaces
 

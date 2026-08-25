@@ -23,7 +23,7 @@ import {
 	BrowserPermissionStore,
 	IPermissionCategoryState,
 } from '../../../../platform/browserView/common/browserPermissions.js';
-import type { BrowserEditorInput } from './browserEditorInput.js';
+import type { BrowserEditorInput, IBrowserEditorInputData } from './browserEditorInput.js';
 import type { PreferredGroup } from '../../../services/editor/common/editorService.js';
 import {
 	IBrowserViewBounds,
@@ -46,7 +46,9 @@ import {
 	IBrowserElementCommentsUpdate,
 	IBrowserElementSelectionOptions,
 	IBrowserViewOwner,
-	IBrowserViewOpenOptions,
+	IBrowserViewEditorOpenOptions,
+	BrowserViewSessionSelector,
+	IBrowserViewAudience,
 	IBrowserViewRect,
 	browserZoomDefaultIndex,
 	browserZoomFactors,
@@ -60,6 +62,7 @@ import { isLocalhostAuthority } from '../../../../platform/url/common/trustedDom
 import { IAgentNetworkFilterService } from '../../../../platform/networkFilter/common/networkFilterService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IBrowserZoomService } from './browserZoomService.js';
+import type { IntegratedBrowserOpenSource } from '../../../../platform/browserView/common/browserViewTelemetry.js';
 
 export const enum BrowserViewSharingState {
 	/** Tools are available and the page is shared with the agent. */
@@ -169,14 +172,6 @@ export interface IBrowserEditorViewState {
 	readonly url?: string;
 	readonly title?: string;
 	readonly favicon?: string;
-
-	/**
-	 * When true, indicates that this browser tab was opened via the localhost
-	 * link opener while the user has not explicitly configured the setting
-	 * (i.e. the default value was used). This is a transient flag and is not
-	 * serialized.
-	 */
-	readonly isDefaultLinkOpen?: boolean;
 }
 
 export const IBrowserViewWorkbenchService = createDecorator<IBrowserViewWorkbenchService>('browserViewWorkbenchService');
@@ -206,7 +201,7 @@ export interface IBrowserViewFilterContext {
 	/**
 	 * The session *resource* URI string (`session.resource.toString()`) of the
 	 * relevant session, if any. This is the same value stored in
-	 * {@link IBrowserViewOwner.sessionId} — not the composite
+	 * an agent {@link IBrowserViewOwner} — not the composite
 	 * `ISession.sessionId` (`providerId:resource`).
 	 */
 	activeSessionId?: string;
@@ -223,7 +218,16 @@ export interface IBrowserViewOpenHandler {
 	 * Return `false` to prevent the editor from being opened. A view is opened
 	 * only when every registered handler allows it.
 	 */
-	shouldOpenEditor(input: BrowserEditorInput, owner: IBrowserViewOwner, openOptions: IBrowserViewOpenOptions): boolean;
+	shouldOpenEditor(input: BrowserEditorInput, owner: IBrowserViewOwner, editorOptions: IBrowserViewEditorOpenOptions): boolean;
+}
+
+export interface IBrowserViewWorkbenchCreateOptions {
+	readonly owner: IBrowserViewOwner;
+	readonly session: BrowserViewSessionSelector;
+	readonly initialAudiences?: readonly IBrowserViewAudience[];
+	readonly initialUrl?: string;
+	readonly associatedResource?: URI;
+	readonly openSource?: IntegratedBrowserOpenSource;
 }
 
 /**
@@ -300,11 +304,14 @@ export interface IBrowserViewWorkbenchService {
 	 */
 	registerOpenHandler(handler: IBrowserViewOpenHandler): IDisposable;
 
+	/** Creates and resolves a browser view, optionally requesting editor presentation. */
+	createBrowserView(options: IBrowserViewWorkbenchCreateOptions, editorOpenOptions?: IBrowserViewEditorOpenOptions): Promise<BrowserEditorInput>;
+
 	/**
 	 * Get an existing browser view for the given ID, or create a new one if it doesn't exist.
 	 * The underlying browser view is not created until the editor is opened or the model is resolved.
 	 */
-	getOrCreateLazy(id: string, initialState?: IBrowserEditorViewState, associatedResource?: URI): BrowserEditorInput;
+	getOrCreateLazy(data: IBrowserEditorInputData): BrowserEditorInput;
 
 	/**
 	 * Clear all storage data for the global browser session

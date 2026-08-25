@@ -14,13 +14,14 @@ import { AgentHostAutoReplyAnswer } from '../../../../../../platform/agentHost/c
 import { toAgentMessageDelegationMeta } from '../../../../../../platform/agentHost/common/meta/agentMessageDelegationMeta.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, toAgentSystemNotificationMeta } from '../../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
 import { McpAuthRequiredReason } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { fromAgentHostUri, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { createAgentHostResourceUriMapper, fromAgentHostUri, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { buildSubagentChatUri, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, MessageAttachmentKind, MessageKind, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolCallConfirmationReason, ToolResultContentType, TurnState, ResponsePartKind, readUsageInfoMeta, withMessageHiddenFromTranscript, type ActiveTurn, type ICompletedToolCall, type ToolCallPendingConfirmationState, type ToolCallRunningState, type Turn, type ToolCallResponsePart, ToolCallCancellationReason, type Message, type ToolResultContent } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ChatTranscriptContextAttachmentDisplayKind, IChatRequestTranscriptContextVariableEntry, toChatTranscriptContextAttachmentMeta } from '../../../common/attachments/chatVariableEntries.js';
 import { ChatRequestOriginKind } from '../../../common/chatRequestOrigin.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind, type IChatMarkdownContent, type IChatTerminalToolInvocationData, type IChatThinkingPart, type IChatUsage } from '../../../common/chatService/chatService.js';
 import { isToolResultInputOutputDetails, type IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, completedToolCallToSerialized, containsAutomaticReplyAnswer, createInputRequestCarousel, messageAttachmentsToVariableData, shouldObserveSubagentChat, toolCallStateToInvocation as rawToolCallStateToInvocation, toolCallStateToPreparedInvocation as rawToolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, formatTurnResponseDetails, rewriteAgentHostLinkTarget, rewriteMarkdownLinks, type TurnModelLookup } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
+import { getQuotaReset } from '../../../../../services/chat/common/chatEntitlementService.js';
 
 // ---- Helper factories -------------------------------------------------------
 
@@ -113,8 +114,8 @@ function makeLookup(prefix: string, displayNames: Record<string, string>, fallba
 	};
 }
 
-function activeTurnToProgress(sessionResource: Parameters<typeof rawActiveTurnToProgress>[0], activeTurn: Parameters<typeof rawActiveTurnToProgress>[1], connectionAuthority?: Parameters<typeof rawActiveTurnToProgress>[2], options?: Parameters<typeof rawActiveTurnToProgress>[4]) {
-	return rawActiveTurnToProgress(sessionResource, activeTurn, connectionAuthority || 'local', undefined, options);
+function activeTurnToProgress(sessionResource: Parameters<typeof rawActiveTurnToProgress>[0], activeTurn: Parameters<typeof rawActiveTurnToProgress>[1], connectionAuthority?: Parameters<typeof rawActiveTurnToProgress>[2], options?: Parameters<typeof rawActiveTurnToProgress>[4], resourceUris?: Parameters<typeof rawActiveTurnToProgress>[6]) {
+	return rawActiveTurnToProgress(sessionResource, activeTurn, connectionAuthority || 'local', undefined, options, undefined, resourceUris);
 }
 
 function updateRunningToolSpecificData(existing: Parameters<typeof rawUpdateRunningToolSpecificData>[0], tc: Parameters<typeof rawUpdateRunningToolSpecificData>[1]) {
@@ -965,6 +966,7 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(serialized.toolSpecificData.kind, 'subagent');
 			assert.strictEqual(serialized.resultDetails, undefined);
 			if (serialized.toolSpecificData.kind === 'subagent') {
+				assert.strictEqual(serialized.toolSpecificData.agentDisplayName, 'Explore');
 				assert.strictEqual(serialized.toolSpecificData.agentName, 'explore');
 				// description is the TASK description from _meta, not the agent description
 				assert.strictEqual(serialized.toolSpecificData.description, 'Find related files');
@@ -1552,6 +1554,7 @@ suite('stateToProgressAdapter', () => {
 			const invocation = toolCallStateToInvocation(tc);
 			assert.strictEqual(invocation.toolSpecificData?.kind, 'subagent');
 			if (invocation.toolSpecificData?.kind === 'subagent') {
+				assert.strictEqual(invocation.toolSpecificData.agentDisplayName, 'Explore');
 				assert.strictEqual(invocation.toolSpecificData.chatResource, 'ahp-chat://subagent/stamped/tc-1');
 			}
 		});
@@ -1593,6 +1596,15 @@ suite('stateToProgressAdapter', () => {
 					isTrusted: { enabledCommands: ['_agentFeedbackReview.revealAt'] },
 				},
 			);
+		});
+
+		test('maps the reveal command resource through the Agent Host connection', () => {
+			const tc = createToolCallState({ toolName: 'addComment', invocationMessage: 'Adding comment', toolInput: addCommentInput('Remote note') });
+			const resourceUris = createAgentHostResourceUriMapper('remote-test');
+			const message = markdown(rawToolCallStateToInvocation(tc, undefined, URI.file('/'), 'local', undefined, undefined, resourceUris).invocationMessage);
+			const mappedResource = resourceUris.fromAgentHost(URI.parse('file:///workspace/a.ts')).toString();
+
+			assert.ok(message.value.includes(encodeURIComponent(JSON.stringify([mappedResource, commentRange]))), message.value);
 		});
 
 		test('does not truncate a short comment', () => {
@@ -2234,6 +2246,7 @@ suite('stateToProgressAdapter', () => {
 
 			assert.strictEqual(invocation.toolSpecificData?.kind, 'subagent');
 			if (invocation.toolSpecificData?.kind === 'subagent') {
+				assert.strictEqual(invocation.toolSpecificData.agentDisplayName, 'Explore');
 				assert.deepStrictEqual({
 					credits: invocation.toolSpecificData.credits,
 					isActive: invocation.toolSpecificData.isActive,
@@ -2956,6 +2969,7 @@ suite('stateToProgressAdapter', () => {
 			assert.notStrictEqual(invocation.toolSpecificData, before, 'toolSpecificData should be replaced');
 			assert.strictEqual(invocation.toolSpecificData?.kind, 'subagent');
 			if (invocation.toolSpecificData?.kind === 'subagent') {
+				assert.strictEqual(invocation.toolSpecificData.agentDisplayName, 'Explore');
 				assert.strictEqual(invocation.toolSpecificData.agentName, 'explore');
 				// description is the TASK description from _meta, not the agent description
 				assert.strictEqual(invocation.toolSpecificData.description, 'Find related files');
@@ -3195,7 +3209,8 @@ suite('stateToProgressAdapter', () => {
 					unlimited: false,
 					entitlement: 300,
 					quotaRemaining: 225,
-					resetAt: Date.parse('2026-07-01T00:00:00.000Z'),
+					// `resetAt` is epoch seconds, not milliseconds.
+					resetAt: Date.parse('2026-07-01T00:00:00.000Z') / 1000,
 				},
 				chat: {
 					percentRemaining: 100,
@@ -3248,6 +3263,29 @@ suite('stateToProgressAdapter', () => {
 			});
 
 			assert.strictEqual(result, undefined);
+		});
+
+		test('produces a resetAt the entitlement service resolves back to the reported date', () => {
+			// `getQuotaReset` treats `resetAt` as epoch seconds, so a snapshot mapped from an ISO
+			// date must round-trip to that same instant rather than a far-future one.
+			const result = usageInfoToQuotas({
+				_meta: {
+					quotaSnapshots: {
+						premium_interactions: {
+							isUnlimitedEntitlement: false,
+							entitlementRequests: 300,
+							usedRequests: 75,
+							remainingPercentage: 75,
+							resetDate: '2026-07-01T00:00:00.000Z',
+						},
+					},
+				},
+			});
+
+			assert.deepStrictEqual(getQuotaReset(result?.premiumChat, { resetDate: result?.resetDate }), {
+				date: new Date('2026-07-01T00:00:00.000Z'),
+				hasTime: true,
+			});
 		});
 	});
 

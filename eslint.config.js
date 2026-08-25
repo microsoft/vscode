@@ -2330,9 +2330,21 @@ export default defineConfig(
 					]
 				},
 				{
+					'target': 'test/scenario/**',
+					'restrictions': [
+						'test/automation',
+						'test/scenario/**',
+						'@vscode/*',
+						'@parcel/*',
+						'@playwright/*',
+						'*' // node modules
+					]
+				},
+				{
 					'target': 'test/mcp/**',
 					'restrictions': [
 						'test/automation',
+						'test/scenario',
 						'test/mcp/**',
 						'@vscode/*',
 						'@parcel/*',

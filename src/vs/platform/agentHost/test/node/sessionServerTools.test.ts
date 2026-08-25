@@ -14,6 +14,7 @@ import { SessionStatus } from '../../common/state/protocol/channels-session/stat
 import { buildChatUri, buildDefaultChatUri, MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, TurnState, withSessionGitState, withSessionGitHubState, withSessionOrchestration, type ISessionOrchestration, type ModelSelection, type ResponsePart, type ToolCallState, type Turn } from '../../common/state/sessionState.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { SessionServerToolName } from '../../common/serverToolNames.js';
+import { withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
 import { AgentServerToolHost } from '../../node/shared/agentServerToolHost.js';
 import {
 	applyCreateChatTool,
@@ -78,6 +79,8 @@ suite('SessionServerTools', () => {
 
 	test('definitions and confirmation', () => {
 		assert.deepStrictEqual(sessionServerToolDefinitions.map(d => d.name), [SessionServerToolName.ListSessions, SessionServerToolName.GetCurrentSession, SessionServerToolName.CreateSession, SessionServerToolName.CreateChat, SessionServerToolName.RenameChat, SessionServerToolName.SendMessage, SessionServerToolName.GetSessionContext, SessionServerToolName.DeleteSession]);
+		assert.match(sessionServerToolDefinitions.find(definition => definition.name === SessionServerToolName.ListSessions)?.description ?? '', /`openLink` for clickable Markdown links/);
+		assert.deepStrictEqual(sessionServerToolDefinitions.filter(definition => definition.enabledForEphemeralSessions).map(definition => definition.name), []);
 		assert.strictEqual(sessionToolRequiresConfirmation(SessionServerToolName.CreateSession), true);
 		assert.strictEqual(sessionToolRequiresConfirmation(SessionServerToolName.CreateChat), true);
 		assert.strictEqual(sessionToolRequiresConfirmation(SessionServerToolName.SendMessage), true);
@@ -93,6 +96,31 @@ suite('SessionServerTools', () => {
 		assert.deepStrictEqual(sessionServerToolDefinitions.slice(4, 5).map(def => def.inputSchema?.properties?.title), [
 			{ type: 'string', maxLength: 200, description: 'Short, descriptive chat title, ideally 1-4 words.' },
 		]);
+		const renameDescription = sessionServerToolDefinitions.find(def => def.name === SessionServerToolName.RenameChat)?.description;
+		assert.ok(renameDescription?.includes('Renaming the default chat also names its owning session'));
+		assert.ok(renameDescription?.includes('peer-chat titles remain independent'));
+	});
+
+	test('ephemeral sessions advertise no default session-management tools', () => {
+		const stateManager = new AgentHostStateManager(new NullLogService());
+		const session = 'copilot:/ephemeral';
+		stateManager.createSession({
+			resource: session,
+			provider: 'copilot',
+			title: 'Ephemeral',
+			status: SessionStatus.Idle,
+			createdAt: new Date(0).toISOString(),
+			modifiedAt: new Date(0).toISOString(),
+			_meta: withEphemeralSessionMeta(undefined, true),
+		});
+		const host = new AgentServerToolHost(stateManager, [
+			createSessionServerToolGroup(createAccessor()),
+		]);
+
+		host.advertise(session);
+
+		assert.deepStrictEqual(stateManager.getSessionState(session)?.serverTools, []);
+		stateManager.dispose();
 	});
 
 	test('new sessions use the current setting while materialized sessions keep their advertised tools', async () => {
@@ -182,6 +210,7 @@ suite('SessionServerTools', () => {
 		assert.deepStrictEqual(JSON.parse(text), {
 			sessions: [{
 				session: 'copilot:/s1',
+				openLink: 'agent-host-session://copilot/s1',
 				status: 'inputNeeded',
 				workingDirectory: workspace.toString(),
 				title: 'title-s1',
@@ -207,6 +236,7 @@ suite('SessionServerTools', () => {
 		assert.deepStrictEqual(JSON.parse(serializeSessions([rich])), {
 			sessions: [{
 				session: 'copilot:/rich',
+				openLink: 'agent-host-session://copilot/rich',
 				title: 'Rich session',
 				status: 'inProgress',
 				activity: 'Running tests',
@@ -242,6 +272,7 @@ suite('SessionServerTools', () => {
 			}, {
 				serialized: {
 					session: 'copilot:/child',
+					openLink: 'agent-host-session://copilot/child',
 					title: 'title-child',
 					status: 'idle',
 					workingDirectory: workspace.toString(),
@@ -274,6 +305,7 @@ suite('SessionServerTools', () => {
 			}, {
 				child: {
 					session: 'copilot:/child',
+					openLink: 'agent-host-session://copilot/child',
 					title: 'title-child',
 					status: 'idle',
 					workingDirectory: workspace.toString(),
@@ -281,6 +313,7 @@ suite('SessionServerTools', () => {
 				},
 				parent: {
 					session: 'copilot:/child',
+					openLink: 'agent-host-session://copilot/child',
 					title: 'title-child',
 					status: 'idle',
 					workingDirectory: workspace.toString(),
@@ -305,6 +338,7 @@ suite('SessionServerTools', () => {
 
 		assert.deepStrictEqual(JSON.parse(serializeSessions([remote])).sessions[0], {
 			session: 'copilot:/remote',
+			openLink: 'agent-host-session://copilot/remote',
 			title: 'title-remote',
 			status: 'idle',
 			workingDirectory: primary.toString(),
@@ -539,7 +573,13 @@ suite('SessionServerTools', () => {
 		const stateManager = store.add(new AgentHostStateManager(new NullLogService()));
 		const group = createSessionServerToolGroup(createAccessor());
 		const text = await group.execute(stateManager, executionContext('copilot:/caller'), SessionServerToolName.ListSessions, {});
-		assert.deepStrictEqual(JSON.parse(text).sessions.map((s: { session: string }) => s.session), ['copilot:/s1']);
+		assert.deepStrictEqual(JSON.parse(text).sessions.map((session: { session: string; openLink: string }) => ({
+			session: session.session,
+			openLink: session.openLink,
+		})), [{
+			session: 'copilot:/s1',
+			openLink: 'agent-host-session://copilot/s1',
+		}]);
 		store.dispose();
 	});
 

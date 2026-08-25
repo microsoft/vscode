@@ -818,7 +818,14 @@ export const platformRootSchema = createSchema({
 		type: 'string',
 		title: localize('agentHost.config.showExternalSessions.title', "Show External Agent Sessions"),
 		description: localize('agentHost.config.showExternalSessions.description', "Controls whether sessions created outside the Agent Host are included in the session catalog."),
-		enum: [ChatExternalSessionsMode.None, ChatExternalSessionsMode.Recent, ChatExternalSessionsMode.Last24Hours, ChatExternalSessionsMode.Last7Days, ChatExternalSessionsMode.All],
+		enum: [ChatExternalSessionsMode.None, ChatExternalSessionsMode.Recent, ChatExternalSessionsMode.Last24Hours, ChatExternalSessionsMode.Last7Days, ChatExternalSessionsMode.Last30Days],
+		enumDescriptions: [
+			localize('agentHost.config.showExternalSessions.none', "Do not show external sessions."),
+			localize('agentHost.config.showExternalSessions.recent', "Show up to the 2 most recent external sessions updated in the last 7 days. Once at least 2 local sessions exist, external sessions older than the second-newest local session are hidden."),
+			localize('agentHost.config.showExternalSessions.last24Hours', "Show external sessions updated in the last 24 hours."),
+			localize('agentHost.config.showExternalSessions.last7Days', "Show external sessions updated in the last 7 days."),
+			localize('agentHost.config.showExternalSessions.last30Days', "Show external sessions updated in the last 30 days."),
+		],
 		default: ChatExternalSessionsMode.None,
 	}),
 	[AgentHostCopilotMultiRootEnabledConfigKey]: schemaProperty<boolean>({
@@ -859,3 +866,23 @@ export const platformRootSchema = createSchema({
 		default: {},
 	}),
 });
+
+/**
+ * Root config keys the connected client re-pushes on every connect and
+ * reconnect, and which gate permission prompts or policy restrictions.
+ *
+ * These must NOT be restored from `agent-host-config.json` on startup. Their
+ * persisted value is a snapshot of one client's settings, so reviving it would
+ * re-grant approvals that a user, workspace, or policy tightened while the host
+ * was stopped. Falling back to the schema default until the client republishes
+ * is the fail-safe direction.
+ */
+export const clientOwnedApprovalRootConfigKeys: ReadonlySet<string> = new Set([
+	SessionConfigKey.Permissions,
+	AgentHostGlobalAutoApproveEnabledConfigKey,
+	AgentHostAutoApprovePolicyRestrictedConfigKey,
+	AgentHostTerminalAutoApproveEnabledConfigKey,
+	AgentHostTerminalAutoApproveRulesConfigKey,
+	AgentHostEditAutoApprovePatternsConfigKey,
+	AgentHostAutoReplyEnabledConfigKey,
+]);

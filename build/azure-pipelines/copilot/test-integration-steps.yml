@@ -3,6 +3,19 @@ parameters:
     type: string # linux, darwin, win32
 
 steps:
+  - script: git lfs install --local
+    displayName: Initialize Git LFS
+
+  - script: git lfs pull --include="extensions/copilot/test/simulation/cache/**"
+    condition: and(succeeded(), eq(variables['Build.Repository.Provider'], 'GitHub'))
+    displayName: Pull Copilot test cache from GitHub
+
+  - script: git --config-env=http.extraheader=GIT_AUTH_HEADER lfs pull --include="extensions/copilot/test/simulation/cache/**"
+    condition: and(succeeded(), eq(variables['Build.Repository.Provider'], 'TfsGit'))
+    displayName: Pull Copilot test cache from Azure Repos
+    env:
+      GIT_AUTH_HEADER: "AUTHORIZATION: bearer $(System.AccessToken)"
+
   # Setup copilot test environment (tokens, env vars)
   - task: AzureCLI@2
     inputs:

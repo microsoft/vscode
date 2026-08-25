@@ -59,7 +59,7 @@
 }
 
 .chat-input-picker-item .action-label.model-picker-split .model-picker-section .codicon {
-	font-size: 12px;
+	font-size: var(--vscode-codiconFontSize-compact);
 }
 
 .chat-input-picker-item .action-label.model-picker-split .model-picker-section .codicon + .chat-input-picker-label {
@@ -148,6 +148,12 @@
 	border: var(--vscode-strokeThickness) solid var(--vscode-editorWidget-border, var(--vscode-contrastBorder, transparent));
 	border-radius: 4px;
 	padding: 6px 8px;
+}
+
+.chat-model-hover-warning-text > .codicon,
+.chat-model-hover-info-text > .codicon,
+.chat-model-hover-promo-text > .codicon {
+	font-size: var(--vscode-codiconFontSize-compact);
 }
 
 .chat-model-hover-warning-text > .codicon {

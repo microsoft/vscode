@@ -193,7 +193,7 @@ suite('RemoteAgentHostService', () => {
 
 		// Mock the instantiation service to capture created protocol clients.
 		// `_connectTo` calls `createInstance` for `WebSocketClientTransport`
-		// and `RemoteAgentHostProtocolClient`. We only care about tracking
+		// and `AgentHostProtocolClient`. We only care about tracking
 		// the protocol client; for the transport we return a no-op
 		// disposable so the test can keep asserting on `createdClients.length`.
 		const mockInstantiationService: Partial<IInstantiationService> = {
