@@ -1840,7 +1840,6 @@ export class ChatTerminalThinkingCollapsibleWrapper extends ChatCollapsibleConte
 	private _isRunningInBackground: boolean;
 	private readonly _onFocusTerminal: (() => void) | undefined;
 	private readonly _inThinking: boolean;
-	private readonly _configurationService: IConfigurationService;
 	private readonly _showLinkDisposables = this._register(new MutableDisposable<DisposableStore>());
 	private _showLinkElement: HTMLElement | undefined;
 
@@ -1858,7 +1857,7 @@ export class ChatTerminalThinkingCollapsibleWrapper extends ChatCollapsibleConte
 		inThinking: boolean,
 		@IHoverService hoverService: IHoverService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@ITelemetryService telemetryService: ITelemetryService,
 	) {
 		// When the model supplied an intention (why it's running the command),
 		// use it as the descriptive text instead of the generic verb. Skipped
@@ -1878,7 +1877,7 @@ export class ChatTerminalThinkingCollapsibleWrapper extends ChatCollapsibleConte
 				? `${intentionText} ${commandText}${localize('chat.terminal.backgroundSuffix', " in background")}`
 				: `${intentionText} ${commandText}`
 			: stateTitle;
-		super(title, context, undefined, hoverService, configurationService);
+		super(title, context, undefined, hoverService, configurationService, telemetryService);
 
 		this._terminalContentElement = contentElement;
 		this._commandText = commandText;
@@ -1889,7 +1888,6 @@ export class ChatTerminalThinkingCollapsibleWrapper extends ChatCollapsibleConte
 		this._isRunningInBackground = isRunningInBackground;
 		this._onFocusTerminal = onFocusTerminal;
 		this._inThinking = inThinking;
-		this._configurationService = configurationService;
 
 		this.domNode.classList.add('chat-terminal-thinking-collapsible');
 
@@ -1902,30 +1900,16 @@ export class ChatTerminalThinkingCollapsibleWrapper extends ChatCollapsibleConte
 		this.setExpanded(initialExpanded);
 	}
 
-	protected override shouldAnimateContent(): boolean {
-		return true;
+	protected override get collapsibleKind(): string {
+		return 'terminal';
 	}
 
-	protected override toggleExpanded(): void {
-		type ChatTerminalThinkingBlockToggleEvent = {
-			previousExpanded: boolean;
-			inThinking: boolean;
-			thinkingStyle: string;
-		};
-		type ChatTerminalThinkingBlockToggleClassification = {
-			owner: 'anthonykim1';
-			comment: 'Track when a user expands or collapses a terminal command block in chat thinking.';
-			previousExpanded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the terminal block was expanded before the toggle.' };
-			inThinking: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the terminal block is rendered inside a thinking container.' };
-			thinkingStyle: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Configured thinking display mode when the block was toggled.' };
-		};
-		const thinkingStyle = this._configurationService.getValue<string>(ChatConfiguration.ThinkingStyle);
-		this._telemetryService.publicLog2<ChatTerminalThinkingBlockToggleEvent, ChatTerminalThinkingBlockToggleClassification>('terminal/chatThinkingBlockToggle', {
-			previousExpanded: this.isExpanded(),
-			inThinking: this._inThinking,
-			thinkingStyle: thinkingStyle ?? 'unknown',
-		});
-		super.toggleExpanded();
+	protected override get collapsibleInThinking(): boolean {
+		return this._inThinking;
+	}
+
+	protected override shouldAnimateContent(): boolean {
+		return true;
 	}
 
 	private _setCodeFormattedTitle(): void {

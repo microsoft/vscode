@@ -390,7 +390,9 @@ suite('ChatTerminalToolProgressPart Auto-Expand Logic', () => {
 			button.click();
 
 			assert.deepStrictEqual(telemetryService.events, [
+				{ name: 'chat.collapsibleToggle', data: { kind: 'terminal', previousExpanded: true, thinkingStyle, inThinking: true } },
 				{ name: 'terminal/chatThinkingBlockToggle', data: { previousExpanded: true, inThinking: true, thinkingStyle } },
+				{ name: 'chat.collapsibleToggle', data: { kind: 'terminal', previousExpanded: false, thinkingStyle, inThinking: true } },
 				{ name: 'terminal/chatThinkingBlockToggle', data: { previousExpanded: false, inThinking: true, thinkingStyle } },
 			]);
 		});
