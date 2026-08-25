@@ -1059,6 +1059,46 @@ suite('ConfigurationChangeEvent', () => {
 		assert.ok(!testObject.affectsConfiguration('editor'));
 	});
 
+	test('changeEvent affects a section when a key that only extends the section name is checked first', () => {
+		const configuration = new TestConfiguration(ConfigurationModel.createEmptyModel(new NullLogService()), ConfigurationModel.createEmptyModel(new NullLogService()), ConfigurationModel.createEmptyModel(new NullLogService()), ConfigurationModel.createEmptyModel(new NullLogService()));
+		const change = configuration.compareAndUpdateLocalUserConfiguration(toConfigurationModel({
+			'workbench.editorAssociations': { '*.txt': 'default' },
+			'workbench.editor.showTabs': false,
+		}));
+		const testObject = new ConfigurationChangeEvent(change, undefined, configuration, undefined, new NullLogService());
+
+		assert.deepStrictEqual([...testObject.affectedKeys], ['workbench.editorAssociations', 'workbench.editor.showTabs']);
+
+		assert.ok(testObject.affectsConfiguration('workbench.editor'));
+	});
+
+	test('changeEvent affects a section regardless of the order of the changed keys', () => {
+		const configuration = new TestConfiguration(ConfigurationModel.createEmptyModel(new NullLogService()), ConfigurationModel.createEmptyModel(new NullLogService()), ConfigurationModel.createEmptyModel(new NullLogService()), ConfigurationModel.createEmptyModel(new NullLogService()));
+		const change = configuration.compareAndUpdateLocalUserConfiguration(toConfigurationModel({
+			'workbench.editor.showTabs': false,
+			'workbench.editorAssociations': { '*.txt': 'default' },
+		}));
+		const testObject = new ConfigurationChangeEvent(change, undefined, configuration, undefined, new NullLogService());
+
+		assert.deepStrictEqual([...testObject.affectedKeys], ['workbench.editor.showTabs', 'workbench.editorAssociations']);
+
+		assert.ok(testObject.affectsConfiguration('workbench.editor'));
+	});
+
+	test('changeEvent does not affect a section when a key only extends the section name', () => {
+		const configuration = new TestConfiguration(ConfigurationModel.createEmptyModel(new NullLogService()), ConfigurationModel.createEmptyModel(new NullLogService()), ConfigurationModel.createEmptyModel(new NullLogService()), ConfigurationModel.createEmptyModel(new NullLogService()));
+		const change = configuration.compareAndUpdateLocalUserConfiguration(toConfigurationModel({
+			'workbench.editorAssociations': { '*.txt': 'default' },
+		}));
+		const testObject = new ConfigurationChangeEvent(change, undefined, configuration, undefined, new NullLogService());
+
+		assert.deepStrictEqual([...testObject.affectedKeys], ['workbench.editorAssociations']);
+
+		assert.ok(!testObject.affectsConfiguration('workbench.editor'));
+		assert.ok(testObject.affectsConfiguration('workbench.editorAssociations'));
+		assert.ok(testObject.affectsConfiguration('workbench'));
+	});
+
 	test('changeEvent affecting overrides with new configuration', () => {
 		const configuration = new TestConfiguration(ConfigurationModel.createEmptyModel(new NullLogService()), ConfigurationModel.createEmptyModel(new NullLogService()), ConfigurationModel.createEmptyModel(new NullLogService()), ConfigurationModel.createEmptyModel(new NullLogService()));
 		const change = configuration.compareAndUpdateLocalUserConfiguration(toConfigurationModel({
