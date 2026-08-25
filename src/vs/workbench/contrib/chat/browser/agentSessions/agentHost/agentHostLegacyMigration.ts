@@ -19,13 +19,13 @@ import { COPILOT_CLI_AGENT_PROVIDER, getCopilotCliSessionRawId, migratedCopilotC
 /**
  * How long an adoption probe may take before falling back to the legacy resource.
  *
- * Interactive opens happen against a warm host and answer immediately, so a short
- * bound keeps a wedged host from looking like a hang. Restore is the cold case:
- * the host is still working through its initial catalogue, and a measured restore
- * took ~28s on a large one — giving up early there is what makes a restored
- * session silently stay on the legacy provider.
+ * Right after migration is enabled on a large catalogue the host is still busy
+ * discovering thousands of sessions, so even an interactive open can hit a cold
+ * host; a too-short bound makes it fall back to the read-only legacy session
+ * instead of the migrated one. Restore is the fully-cold case (startup), so it
+ * gets the larger budget.
  */
-export const LEGACY_MIGRATION_TIMEOUT_MS = 10_000;
+export const LEGACY_MIGRATION_TIMEOUT_MS = 30_000;
 export const LEGACY_MIGRATION_RESTORE_TIMEOUT_MS = 60_000;
 
 /** Where a probe was triggered from, so outcomes can be attributed per entry point. */

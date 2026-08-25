@@ -286,32 +286,66 @@ What users hit on a large legacy catalog, and why. Details in **Appendix A**.
   (`CAPI proxy configuration changed ((none) -> (none))`) — seen in the logs — is fixed
   by #332306 / #332256, but does **not** address the list‑cost or title issues above.
 
-**One root cause behind the first two:** the session list is re‑derived from per‑session
-databases on every pass and restarts on every mutation — it is `O(catalog)`, not indexed.
+**Two distinct root causes (updated after further investigation).**
+
+1. **The mass‑vanish is a *client‑side* list‑merge bug.** The renderer's
+   `AgentSessionsModel.doResolveProvider` rebuilds its session map whenever *any* provider
+   refreshes, and it only preserves *other* providers' rows if that provider is built‑in
+   or a static contribution. `agent-host-copilotcli` is **neither** (it registers
+   dynamically), so a partial refresh of the sibling extension‑host `copilotcli` provider
+   **purged every agent‑host row** — that is the mass‑vanish. It is a correctness bug in
+   the merge, independent of how fast the host builds its list.
+2. **The host‑side list build is `O(catalog)`.** `listSessions` re‑derives display data
+   from per‑session databases every pass and restarts on every mutation. This makes the
+   list **slow to warm** on a large catalog, but — because migration is a one‑time event —
+   a one‑time warm is acceptable; it is *not* what makes sessions absent from both lists.
+
+The originally‑proposed durable projection (Appendix B) targeted (2). The **shipped fix
+targets (1)** — a few lines in the client merge — and accepts (2) as by‑design. See §7.
 
 ---
 
-## 7. Proposed solution at a glance (summary)
+## 7. Solution at a glance (implemented)
 
-Proposed fix, Details in **Appendix B**.
+> **Principle (revised):** fix the mass‑vanish **client‑side**, where it actually happens —
+> the renderer's session‑list merge must preserve a *live‑registered* provider's rows
+> across a sibling provider's refresh. The host‑side `O(catalog)` list cost is accepted as
+> a one‑time warm (migration is a one‑off), **not** re‑architected.
 
-> **Principle:** the session list must be answerable from **one durable, indexed
-> projection** (extend `agent-host.db`) — with **no per‑session `session.db` opens and no
-> git** on the list path. Per‑session data and git become *open‑time* concerns only.
+Five targeted, independently‑shippable changes replaced the earlier durable‑projection
+plan (retained in **Appendix B** as *considered‑and‑rejected*):
 
-- **Extend the registry row into a list projection** (title, read/archived, external,
-  modifiedTime, resolved project) — written through at the mutation sites that already
-  compute them.
-- **`listSessions` becomes a single indexed query** — milliseconds regardless of catalog
-  size; the `session.db` opens + per‑session git leave the hot path.
-- **Incremental per‑row deltas** replace full‑recompute + epoch‑restart, removing the
-  churn.
-- **Surface‑before‑retract** on the extension‑host → agent‑host handoff, so a session is
-  never absent from both lists.
-- **Title:** use `customTitle`, else `content` — never `transformedContent`.
+1. **Provider‑preservation — the core fix.** `AgentSessionsModel.doResolveProvider`
+   (renderer) now preserves a session across a sibling provider's partial refresh when its
+   provider is **live‑registered** (`getRegisteredChatSessionItemProviders()`), not only
+   when it is built‑in or a static contribution. Because `agent-host-copilotcli` registers
+   dynamically, the old condition dropped all of its rows whenever the extension‑host
+   `copilotcli` provider refreshed mid‑migration. *This is what stops sessions
+   disappearing.*
+2. **Surface‑before‑retract.** On adoption (`AgentService._doRestoreSession`), the adopted
+   agent‑host row is announced **before** the slow `_restoreSessionState`, so the twin is
+   visible before the extension‑host row drops.
+3. **Title scaffolding strip.** `mapSessionEvents.stripPromptScaffolding` removes
+   `<system-reminder>` / reminder / attachments / context / `<userRequest>` wrappers from
+   the SDK message, so a migrated title never leaks injected context (implemented as a
+   sanitizer in the mapper rather than a `content` vs `transformedContent` choice).
+4. **Longer interactive open budget.** The on‑open adoption probe timeout is raised
+   `10 s → 30 s` (`LEGACY_MIGRATION_TIMEOUT_MS`) so a slow warm doesn't drop a row that is
+   about to surface.
+5. **Never‑drop fallback label.** `copilotcliSessionService._getAllSessions` gives a
+   session that passed `shouldShowSession` a cwd/generic label instead of hiding it when
+   the title can't be resolved.
 
-**Rollout (each independently shippable):** 1) title fix → 2) surface‑before‑retract →
-3) registry projection + query‑only `listSessions` → 4) incremental deltas.
+Plus a **trace diagnostic**: `doResolveProvider` logs `preserved N live-registered
+session(s) …` when the preservation branch saves rows the old code would have dropped —
+the support‑bundle signal that the fix engaged (trace level; lands in the "Agent
+Sessions" output channel, which is file‑backed and included in exported debug logs).
+
+**Why not the projection?** The `O(catalog)` warm only makes the list *slow*, not *empty
+on both sides*, and migration is one‑time — so a one‑time warm is acceptable. The vanish
+was a correctness bug in the client merge, fixable in a few lines with no schema change.
+The projection (Appendix B) remains a valid *performance* option if list latency later
+becomes a goal in its own right.
 
 ---
 
@@ -427,11 +461,22 @@ point patches.
 
 ---
 
-## Appendix B. Proposed fix — details: a durable list projection
+## Appendix B. Considered‑and‑rejected: a durable list projection
 
-### The root cause, stated once
+> **Status: not implemented.** This was the original plan when the mass‑vanish was
+> attributed to the host‑side `O(catalog)` list build. Further investigation showed the
+> vanish is a *client‑side* merge bug (see §6 / §7), which the shipped fix addresses in a
+> few lines with no schema change. The projection below is a genuine **performance**
+> redesign — it would make the list warm instantly on huge catalogs — but it was **not
+> pursued**, because migration is a one‑time event and the `O(catalog)` warm is an
+> accepted one‑time cost, not the cause of sessions disappearing. It is kept here as the
+> reference design should list *latency* become a goal in its own right. All scaffolding
+> for it (a `list_metadata` projection column, registry threading) was reverted.
 
-`listSessions` is slow **because it re‑derives display data on every pass**. Today
+### The performance cost, stated once
+
+`listSessions` is slow **because it re‑derives display data on every pass** (a latency
+concern, not the vanish). Today
 `_computeSessions` reads the registry for identity, then for **every** registered session
 **opens that session's `session.db`** to overlay title / read / archived / git metadata
 (and resolves project/git), throttled 4 at a time. That makes listing
@@ -516,6 +561,15 @@ verify.
 
 ### Why this is clean
 
+> **Reader's note (post‑hoc):** this table reflects the *projection proposal's* reasoning
+> at the time, when the vanish was still attributed to host latency. It frames
+> "client‑side" handling as merely *papering over* the cost. That framing turned out to be
+> wrong for the vanish specifically: the shipped client‑side **provider‑preservation** fix
+> is not "keep the last snapshot longer" — it corrects a real bug where the renderer's
+> merge *discards* a live provider's rows on a sibling refresh. It is a correctness fix at
+> the true source, not latency masking. The rows below about `O(catalog)` *latency* still
+> stand as the (unbuilt) performance case.
+
 | Problem (grounded in log/code) | Workaround fix | This proposal |
 | --- | --- | --- |
 | 37–87 s list passes opening 706 `session.db` + git | Cache reads / defer git (still `O(catalog)`) | List is one indexed query on the projection; per‑session I/O leaves the hot path entirely |
@@ -524,13 +578,18 @@ verify.
 | First list on a big catalog blocks for a minute | Longer client timeouts | Serve from existing projection rows; backfill fills in the rest incrementally |
 | Injected context in title | Strip markers from the title string | Use `customTitle` / `content` at the source |
 
-### Rollout order (each independently shippable)
+### Rollout order (had this alternative been pursued)
 
-1. **Title fix** — smallest, isolated, immediate user win.
+> For the plan that **shipped**, see §7. The order below applied only to the
+> projection redesign, which was not implemented.
+
+1. **Title fix** — smallest, isolated, immediate user win. *(Shipped — see §7, as a
+   scaffolding strip in the mapper.)*
 2. **Surface‑before‑retract** — closes the worst "disappears from both lists" window.
+   *(Shipped — see §7.)*
 3. **Registry projection + query‑only `listSessions`** — removes the `O(catalog)` cost;
-   the structural core.
+   the structural core. *(Not implemented — accepted as a by‑design one‑time warm.)*
 4. **Incremental deltas** — retires the epoch‑restart model once the projection is
-   authoritative.
+   authoritative. *(Not implemented.)*
 
 

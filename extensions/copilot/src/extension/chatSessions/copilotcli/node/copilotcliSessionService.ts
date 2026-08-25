@@ -474,10 +474,11 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 					const id = metadata.sessionId;
 					const startTime = metadata.startTime.getTime();
 					const endTime = metadata.modifiedTime.getTime();
-					const label = await this.getSessionTitleImpl(metadata.sessionId, metadata, token);
-					if (!label) {
-						return;
-					}
+					// Never drop a session that passed `shouldShowSession` just because its
+					// title could not be resolved; fall back to its folder name / a generic label.
+					const label = await this.getSessionTitleImpl(metadata.sessionId, metadata, token)
+						|| metadata.context?.cwd?.split(/[\\/]/).filter(Boolean).pop()
+						|| l10n.t("Copilot CLI session");
 					return {
 						id,
 						label,

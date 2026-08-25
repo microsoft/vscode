@@ -7545,6 +7545,40 @@ suite('AgentService (node dispatcher)', () => {
 			);
 		});
 
+		test('surfaces an adopted legacy session on open so it is never absent from both lists', async () => {
+			// Surface-before-retract: adoption writes `session.db` (the extension host
+			// stops listing the chat), so the agent host must list the adopted row even
+			// for a session discovery never surfaced (migrate enabled after startup).
+			class AdoptOnOpenAgent extends MockAgent {
+				private _adopted = false;
+				constructor() { super('copilot'); }
+				async ensureChatAdopted(_chat: URI, _context: URI | IAgentChatContext): Promise<IAgentChatAdoptionResult> {
+					this._adopted = true;
+					return { adopted: true, eligible: true };
+				}
+				override async getChatMetadata(chat: URI, _context: URI | IAgentChatContext): Promise<IAgentChatMetadata | undefined> {
+					return this._adopted ? { chat, startTime: Date.now(), modifiedTime: Date.now(), summary: 'Adopted' } : undefined;
+				}
+			}
+
+			const db = new TestSessionDatabase();
+			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new AdoptOnOpenAgent());
+			localService.registerProvider(agent);
+			getConfigurationService(localService).updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
+
+			// Never surfaced by discovery; opened directly (the migrate-after-startup path).
+			const session = AgentSession.uri('copilot', 'adopt-on-open-unsurfaced');
+			const sessionStr = session.toString();
+			await localService.restoreSession(session);
+
+			const listed = (await localService.listSessions()).some(s => s.session.toString() === sessionStr);
+			assert.deepStrictEqual(
+				{ restored: !!getStateManager(localService).getSessionState(sessionStr), listed },
+				{ restored: true, listed: true },
+			);
+		});
+
 		test('an adopted chat whose restore fails is still registered, not lost from every list', async () => {
 			// Adoption claims the chat on disk, which stops the extension host listing
 			// it. If restore then fails (e.g. a worktree whose branch is gone) and the
