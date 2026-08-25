@@ -322,10 +322,10 @@ suite('CodexAgent createChat', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('advertises chat fork support without side-chat support', async () => {
+	test('advertises chat fork and side-chat support', async () => {
 		const agent = await createAgent(disposables);
 
-		assert.deepStrictEqual(agent.getDescriptor().capabilities?.multipleChats, { fork: true });
+		assert.deepStrictEqual(agent.getDescriptor().capabilities?.multipleChats, { fork: true, sideChat: true });
 	});
 
 	test('fresh: binds the exact target chat during creation, never leaving the runtime unbound', async () => {

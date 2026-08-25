@@ -899,7 +899,7 @@ A test that checks only its final dispatch can miss an earlier action that was e
 |---|---|---|---|
 | Model-backed multiple chats | `supportsMultipleChatsE2E` | Codex | Capability and conformance scenarios run; provider/model peer turns skip until focused Codex captures can be recorded. |
 | Provider-backed fork parity | `supportsChatForkE2E` | Claude, Codex | Fork capability remains advertised; model-backed fork-context assertions skip. |
-| Side chats | `supportsSideChats` | Codex | Provider-owned hidden-context and restore scenarios skip; ordinary peer chats and chat forks still run. |
+| Side-chat context parity | `supportsSideChatsE2E` | Codex | Side-chat capability remains advertised; model-backed hidden-context assertions skip pending focused Codex captures. |
 | Subagents | `supportsSubagents` | Codex | Subagent routing and reopen scenarios skip. |
 | Streaming file creation | `streamingFileCreateToolName` | Codex | Argument-delta coverage requires a native file-creation tool; shell-backed file behavior is covered separately. |
 | Plan mode | `supportsPlanMode` | Codex | The plan-mode scenario skips. Claude's use of the same gate is the prompt limitation above. |

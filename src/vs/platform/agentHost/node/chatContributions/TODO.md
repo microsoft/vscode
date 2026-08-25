@@ -57,6 +57,11 @@ Each contribution has its own subfolder so its implementation, helpers, and test
 - Add disposable-value semantics only when a contribution needs to store disposables. Memento eviction currently drops observables without disposing their values.
 - Consider a `chatDisposable` helper only when a real contribution needs it; do not add it speculatively.
 
+## Side-chat follow-ups
+
+- Prefer `IAgentHostStateManager.getChatInheritedTurnId()` in `SideChatContribution.onOutgoingTurn`: it is the provider's ground-truth inherited boundary, handles dropped forks and Claude's fresh fallback, and avoids recomputing the requested anchor. Codex must first report `inheritedTurnId`; it currently computes `keepThroughIndex` without exposing it, and resolving its host-versus-thread turn IDs is the same id-space problem behind active-turn side chats.
+- The source turn can complete between `createChat` and the first side-chat `onOutgoingTurn`. The fork was anchored before that turn, but the contribution then sees no active turn and injects no context, so the source turn is absent from both. This pre-existing race also occurs on main.
+
 ## Payoff
 
 - Migrate btw/sideChat to one contribution (`onOutgoingTurn` plus `onHydrateTurns`), deleting the six per-harness wiring sites (`copilot/copilotAgent.ts:3651`, `:3755`, `:3900`; `claude/claudeAgent.ts:1414`, `:1987`, `:2359`) and the `sideChat` field from both `IPersistedChat` blobs. Codex gains btw support by deletion rather than addition.
