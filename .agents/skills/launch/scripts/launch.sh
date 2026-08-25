@@ -196,45 +196,90 @@ catch (e) {
 	else { console.error('[launch.sh] cannot read ' + f + ': ' + e.message); process.exit(1); }
 }
 
-// Empty file → write a fresh object with every key.
+// Empty file -> write a fresh object with every key.
 if (text.trim() === '') {
 	const body = ENTRIES.map(([k, v]) => '  "' + k + '": ' + v).join(',\n');
 	fs.writeFileSync(f, '{\n' + body + '\n}\n');
 	process.exit(0);
 }
 
+// Blank out comments while preserving offsets, so a commented-out occurrence
+// such as `// "editor.editContext": false` is never mistaken for the real
+// setting and `//` inside a string (e.g. a proxy URL) is not treated as one.
+function codeMask(src) {
+	const out = src.split('');
+	let inString = false, inLine = false, inBlock = false;
+	for (let i = 0; i < src.length; i++) {
+		const c = src[i], n = src[i + 1];
+		if (inLine) {
+			if (c === '\n') { inLine = false; } else { out[i] = ' '; }
+			continue;
+		}
+		if (inBlock) {
+			if (c === '*' && n === '/') { out[i] = ' '; out[i + 1] = ' '; i++; inBlock = false; }
+			else if (c !== '\n') { out[i] = ' '; }
+			continue;
+		}
+		if (inString) {
+			if (c === '\\') { i++; }
+			else if (c === '"') { inString = false; }
+			continue;
+		}
+		if (c === '"') { inString = true; }
+		else if (c === '/' && n === '/') { out[i] = ' '; inLine = true; }
+		else if (c === '/' && n === '*') { out[i] = ' '; out[i + 1] = ' '; i++; inBlock = true; }
+	}
+	return out.join('');
+}
+
 for (const [key, value] of ENTRIES) {
-	// Key already present (with any value) → update its value slot only.
-	const keyValueRe = new RegExp('("' + key.replace(/\./g, '\\.') + '"\\s*:\\s*)(true|false|null|"[^"\\n]*"|-?\\d+(?:\\.\\d+)?)', 'g');
-	if (keyValueRe.test(text)) {
-		text = text.replace(keyValueRe, '$1' + value);
+	const masked = codeMask(text);
+
+	// Key already present (with any value) -> rewrite its value slot only.
+	// Matching happens on the masked copy, but offsets line up with the
+	// original so comments are left untouched.
+	const keyValueRe = new RegExp('("' + key.replace(/\./g, '\\.') + '"\\s*:\\s*)(true|false|null|"[^"\\n]*"|-?\\d+(?:\\.\\d+)?)');
+	const m = keyValueRe.exec(masked);
+	if (m) {
+		const valueStart = m.index + m[1].length;
+		text = text.slice(0, valueStart) + value + text.slice(valueStart + m[2].length);
 		continue;
 	}
 
-	// Otherwise: find the LAST `}` and insert the new key before it.
-	// We deliberately don't parse JSONC — this preserves comments and
-	// any other content the source profile had.
-	const lastBrace = text.lastIndexOf('}');
+	// Otherwise insert before the closing brace. We deliberately don't parse
+	// JSONC -- this preserves comments and anything else the profile had.
+	const lastBrace = masked.lastIndexOf('}');
 	if (lastBrace === -1) {
-		console.error('[launch.sh] settings.json has no closing brace — refusing to clobber it: ' + f);
+		console.error('[launch.sh] settings.json has no closing brace - refusing to clobber it: ' + f);
+		process.exit(1);
+	}
+	const firstBrace = masked.indexOf('{');
+	if (firstBrace === -1 || firstBrace >= lastBrace) {
+		console.error('[launch.sh] settings.json has no opening brace - refusing to clobber it: ' + f);
 		process.exit(1);
 	}
 
-	// Decide whether to add a leading comma. If the only thing between the
-	// first `{` and the last `}` is whitespace and comments, the object is
-	// empty for our purposes and no comma is needed.
-	const firstBrace = text.indexOf('{');
-	if (firstBrace === -1 || firstBrace >= lastBrace) {
-		console.error('[launch.sh] settings.json has no opening brace — refusing to clobber it: ' + f);
-		process.exit(1);
+	// Decide the separator from real content only.
+	const between = masked.slice(firstBrace + 1, lastBrace);
+	const trimmed = between.trim();
+	const needsComma = trimmed.length !== 0 && !trimmed.endsWith(',');
+
+	// The comma must attach to the last real token, not to whatever happens to
+	// sit just before `}`. Appending it at the brace would land it inside a
+	// trailing line comment, where JSONC ignores it and the file becomes
+	// invalid. So split at the end of the last non-comment character instead.
+	let insertAt = lastBrace;
+	if (needsComma) {
+		insertAt = firstBrace + 1 + between.replace(/\s+$/, '').length;
 	}
-	const between = text.slice(firstBrace + 1, lastBrace)
-		.replace(/\/\*[\s\S]*?\*\//g, '')
-		.replace(/\/\/[^\n]*/g, '')
-		.trim();
-	const separator = between.length === 0 || between.endsWith(',') ? '' : ',';
-	const head = text.slice(0, lastBrace).replace(/\s+$/, '');
-	text = head + separator + '\n  "' + key + '": ' + value + '\n' + text.slice(lastBrace);
+
+	const comma = needsComma ? ',' : '';
+	// Keep the new key on its own line even when the object was written on
+	// a single line (e.g. `{}`).
+	const tail = text.slice(insertAt, lastBrace);
+	const preceding = text.slice(0, insertAt) + comma + tail;
+	const lead = preceding.endsWith('\n') ? '' : '\n';
+	text = preceding + lead + '  "' + key + '": ' + value + '\n' + text.slice(lastBrace);
 }
 
 fs.writeFileSync(f, text);

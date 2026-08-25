@@ -382,10 +382,26 @@ function Ensure-AutomationSettings([string]$settingsFile) {
 
 		# Whether a leading comma is needed depends only on real content, so
 		# decide it from the masked copy too.
-		$between = $maskedText.Substring($firstBrace + 1, $lastBrace - $firstBrace - 1).Trim()
-		$separator = if ($between.Length -eq 0 -or $between.EndsWith(',')) { '' } else { ',' }
-		$head = $text.Substring(0, $lastBrace).TrimEnd()
-		$text = $head + "$separator`n  `"$key`": true`n" + $text.Substring($lastBrace)
+		$between = $maskedText.Substring($firstBrace + 1, $lastBrace - $firstBrace - 1)
+		$trimmed = $between.Trim()
+		$needsComma = ($trimmed.Length -ne 0) -and (-not $trimmed.EndsWith(','))
+
+		# The comma must attach to the last real token, not to whatever happens
+		# to sit just before `}`. Appending it at the brace would land it inside
+		# a trailing line comment, where JSONC ignores it and the file becomes
+		# invalid. So split at the end of the last non-comment character.
+		$insertAt = $lastBrace
+		if ($needsComma) {
+			$insertAt = $firstBrace + 1 + $between.TrimEnd().Length
+		}
+
+		$comma = if ($needsComma) { ',' } else { '' }
+		# Keep the new key on its own line even when the object was written on
+		# a single line (e.g. `{}`).
+		$tail = $text.Substring($insertAt, $lastBrace - $insertAt)
+		$preceding = $text.Substring(0, $insertAt) + $comma + $tail
+		$lead = if ($preceding.EndsWith("`n")) { '' } else { "`n" }
+		$text = $preceding + $lead + "  `"$key`": true`n" + $text.Substring($lastBrace)
 	}
 
 	[IO.File]::WriteAllText($settingsFile, $text, [Text.UTF8Encoding]::new($false))
