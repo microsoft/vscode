@@ -1200,7 +1200,7 @@ export class ChatPetWidget extends Disposable {
 		onRequest: () => this._transientScheduler.schedule(HOP_IDLE_DEBOUNCE),
 	}));
 	private readonly _contextMenuActions = this._register(new MutableDisposable<DisposableStore>());
-	private readonly _shakeClickSuppression = this._register(new MutableDisposable());
+	private readonly _shakeClickSuppression = this._register(new MutableDisposable<DisposableStore>());
 	private _cursorPosition: readonly [number, number] | undefined;
 	private _activeSprite: ChatPetSpriteElement | undefined;
 	private _activeSource: ChatPetSpriteSource | undefined;
@@ -1704,6 +1704,7 @@ export class ChatPetWidget extends Disposable {
 		dom.EventHelper.stop(event);
 		this._button.element.focus();
 		const targetWindow = dom.getWindow(this._button.element);
+		const pointerId = event.pointerId;
 		const startX = event.clientX;
 		const startY = event.clientY;
 		const pointerSamples: ChatPetPointerSample[] = [{ x: startX, y: startY, time: targetWindow.performance.now() }];
@@ -1715,7 +1716,7 @@ export class ChatPetWidget extends Disposable {
 		let shaken = false;
 		this._shakeController.reset();
 
-		this._dragMonitor.startMonitoring(this._button.element, event.pointerId, event.buttons, moveEvent => {
+		this._dragMonitor.startMonitoring(this._button.element, pointerId, event.buttons, moveEvent => {
 			const deltaX = moveEvent.clientX - startX;
 			const deltaY = moveEvent.clientY - startY;
 			const sampleTime = targetWindow.performance.now();
@@ -1761,11 +1762,22 @@ export class ChatPetWidget extends Disposable {
 			}
 
 			// A shake ends the drag while the pointer is still down, so the click has to stay
-			// suppressed until the pointer is actually released.
-			this._shakeClickSuppression.value = dom.addDisposableListener(targetWindow, dom.EventType.POINTER_UP, () => {
+			// suppressed until that same pointer is released or its gesture is interrupted.
+			// Another pointer must not release the suppression early, and an interrupted
+			// gesture must not leave it set and swallow the next real click.
+			const releaseSuppression = (releaseEvent: PointerEvent) => {
+				if (releaseEvent.pointerId !== pointerId) {
+					return;
+				}
 				this._shakeClickSuppression.clear();
 				this._clickSuppressionScheduler.schedule();
-			});
+			};
+			const suppression = new DisposableStore();
+			suppression.add(dom.addDisposableListener(targetWindow, dom.EventType.POINTER_UP, releaseSuppression));
+			// `pointercancel` is not part of the workbench `EventType` enum, so it is registered
+			// with the raw literal.
+			suppression.add(dom.addDisposableListener(targetWindow, 'pointercancel', releaseSuppression));
+			this._shakeClickSuppression.value = suppression;
 			this._shakenLoose = true;
 			this._beginFall('dizzy');
 		});
