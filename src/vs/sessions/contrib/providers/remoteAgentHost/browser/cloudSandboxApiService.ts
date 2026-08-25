@@ -298,6 +298,12 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 				'Accept': 'application/json',
 				'Copilot-Integration-Id': COPILOT_INTEGRATION_ID,
 			}, CancellationToken.None, REQUEST_TIMEOUT_MS, undefined, 'DELETE');
+			// A rejected delete resolves rather than throwing, so the status decides: reporting a
+			// failed cleanup as success would hide an orphan that is still there.
+			if (!isSuccess(context)) {
+				this._logService.warn(`${LOG_PREFIX} Could not clean up sandbox task ${taskId}: HTTP ${context.res.statusCode ?? 'none'}. It remains and can only be removed server-side.`);
+				return;
+			}
 			this._logService.info(`${LOG_PREFIX} Cleaned up unusable sandbox task ${taskId}: HTTP ${context.res.statusCode ?? 'none'}`);
 		} catch (error) {
 			this._logService.warn(`${LOG_PREFIX} Could not clean up sandbox task ${taskId}: ${toErrorMessage(error)}`);
