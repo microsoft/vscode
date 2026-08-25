@@ -819,6 +819,13 @@ export const platformRootSchema = createSchema({
 		title: localize('agentHost.config.showExternalSessions.title', "Show External Agent Sessions"),
 		description: localize('agentHost.config.showExternalSessions.description', "Controls whether sessions created outside the Agent Host are included in the session catalog."),
 		enum: [ChatExternalSessionsMode.None, ChatExternalSessionsMode.Recent, ChatExternalSessionsMode.Last24Hours, ChatExternalSessionsMode.Last7Days, ChatExternalSessionsMode.Last30Days],
+		enumDescriptions: [
+			localize('agentHost.config.showExternalSessions.none', "Do not show external sessions."),
+			localize('agentHost.config.showExternalSessions.recent', "Show the 2 most recent external sessions by update time from the last 7 days."),
+			localize('agentHost.config.showExternalSessions.last24Hours', "Show external sessions updated in the last 24 hours."),
+			localize('agentHost.config.showExternalSessions.last7Days', "Show external sessions updated in the last 7 days."),
+			localize('agentHost.config.showExternalSessions.last30Days', "Show external sessions updated in the last 30 days."),
+		],
 		default: ChatExternalSessionsMode.None,
 	}),
 	[AgentHostCopilotMultiRootEnabledConfigKey]: schemaProperty<boolean>({

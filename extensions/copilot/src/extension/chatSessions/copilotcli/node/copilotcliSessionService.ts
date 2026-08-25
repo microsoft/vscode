@@ -159,7 +159,6 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 	private _bridgeProcessor: CopilotCliBridgeSpanProcessor | undefined;
 	/** Whether we've attempted to install the bridge (only try once). */
 	private _bridgeInstalled = false;
-	private showExternalSessions: boolean;
 	private _customAgentLookupChanged: boolean = false;
 	private _customAgentLookupRebuild: Promise<void> | undefined;
 	private readonly _customAgentLookup = new Map<string, [ChatCustomAgent, Lazy<Promise<string>>]>();
@@ -188,12 +187,6 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		@IVSCodeExtensionContext private readonly _vscodeExtensionContext?: IVSCodeExtensionContext,
 	) {
 		super();
-		this.showExternalSessions = this.configurationService.getConfig(ConfigKey.Advanced.CLIShowExternalSessions);
-		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(ConfigKey.Advanced.CLIShowExternalSessions.fullyQualifiedId)) {
-				this.showExternalSessions = this.configurationService.getConfig(ConfigKey.Advanced.CLIShowExternalSessions);
-			}
-		}));
 		this._register(this._promptsService.onDidChangeCustomAgents(() => {
 			this._customAgentLookupChanged = true;
 			if (this._cachedSessionItems.size > 0) {
@@ -679,12 +672,6 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 			return true;
 		}
 
-		if (!this.showExternalSessions) {
-			const sessionOrigin = await this._chatSessionMetadataStore.getSessionOrigin(sessionId);
-			if (sessionOrigin !== 'vscode') {
-				return false;
-			}
-		}
 		// If we're in an empty workspace then show all sessions.
 		if (this.workspaceService.getWorkspaceFolders().length === 0) {
 			return true;
