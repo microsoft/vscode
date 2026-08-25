@@ -1838,7 +1838,7 @@ interface INewSessionConstructionContext {
 	 * takes over ownership of the same `sessionId` key.
 	 */
 	readonly onSessionState?: (sessionId: string, state: SessionState | undefined) => void;
-	readonly activeClientScope?: IAgentCustomizationScope;
+	readonly activeClientScope: IAgentCustomizationScope;
 }
 
 /**
@@ -1904,7 +1904,7 @@ class NewSession extends Disposable {
 	}
 
 	getClientCustomAgents(): readonly AgentCustomization[] {
-		return this._activeClientScope?.customAgents.get() ?? [];
+		return this._activeClientScope.customAgents.get();
 	}
 
 	/**
@@ -1950,7 +1950,7 @@ class NewSession extends Disposable {
 	private readonly _stateListener = this._register(new MutableDisposable());
 	private readonly _onSessionState: ((sessionId: string, state: SessionState | undefined) => void) | undefined;
 
-	private readonly _activeClientScope: IAgentCustomizationScope | undefined;
+	private readonly _activeClientScope: IAgentCustomizationScope;
 	private readonly _initialMetadata: Record<string, unknown> | undefined;
 
 	private readonly _logService: ILogService;
@@ -1975,9 +1975,7 @@ class NewSession extends Disposable {
 		this._logService = ctx.logService;
 		this._onSessionState = ctx.onSessionState;
 		this._activeClientScope = ctx.activeClientScope;
-		if (this._activeClientScope) {
-			this._register(this._activeClientScope);
-		}
+		this._register(this._activeClientScope);
 		this._initialMetadata = ctx.initialMetadata;
 
 		const resource = URI.from({ scheme: ctx.resourceScheme, path: `/${generateUuid()}` });
@@ -2301,11 +2299,11 @@ class NewSession extends Disposable {
 			this._connection = connection;
 
 			try {
-				await this._activeClientScope?.whenResolved();
+				await this._activeClientScope.whenResolved();
 				if (this._backendUri?.toString() !== backendUri.toString()) {
 					return;
 				}
-				const activeClient = this._activeClientScope?.activeClient(connection.clientId).get();
+				const activeClient = this._activeClientScope.activeClient(connection.clientId).get();
 				await connection.createSession({
 					provider: this.agentProvider,
 					session: backendUri,
@@ -2319,7 +2317,7 @@ class NewSession extends Disposable {
 					// `progress` frame so `_handleProgress` can correlate it.
 					progressToken: generateUuid(),
 					...(this._selectedAgent ? { agent: { uri: this._selectedAgent.uri } } : {}),
-					...(activeClient ? { activeClient } : {}),
+					activeClient,
 				});
 			} catch (err) {
 				this._logService.warn(`[${this._providerId}] Eager createSession failed for ${backendUri.toString()}: ${err}`);
@@ -2986,11 +2984,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (!scope || this._activeSessionScopeSessionType !== sessionType || !this._activeClientService.areScopeRootsEqual(this._activeSessionScopeRoots, cached.workingDirectories)) {
 			scope = this._activeClientService.acquireScope(sessionType, cached.workingDirectories);
 			this._activeSessionScope.value = scope;
-			this._activeSessionScopeSessionType = scope ? sessionType : undefined;
-			this._activeSessionScopeRoots = scope ? [...cached.workingDirectories] : undefined;
-		}
-		if (!scope) {
-			return;
+			this._activeSessionScopeSessionType = sessionType;
+			this._activeSessionScopeRoots = [...cached.workingDirectories];
 		}
 
 		void this._dispatchActiveClientWhenResolved(cancellation.token, activeSession.sessionId, rawId, cached, connection, scope);
@@ -3189,11 +3184,11 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				...this._adapterOptions(),
 			} satisfies IAgentHostAdapterOptions);
 		} catch (err) {
-			activeClientScope?.dispose();
+			activeClientScope.dispose();
 			throw err;
 		}
 		this._newSessions.set(newSession.sessionId, newSession);
-		newSession.observeClientCustomAgents(activeClientScope?.customAgents ?? constObservable([]), () => {
+		newSession.observeClientCustomAgents(activeClientScope.customAgents, () => {
 			this._onDidChangeCustomAgents.fire();
 			this._onDidChangeCustomizations.fire();
 		});

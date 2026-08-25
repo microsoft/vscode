@@ -2165,26 +2165,19 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		return { ...activeClient, customizations: [] };
 	}
 
-	private _ensureActiveClient(sessionResource: URI, backendSession: URI): ActiveClientEntry | undefined {
+	private _ensureActiveClient(sessionResource: URI, backendSession: URI): ActiveClientEntry {
 		const entry = this._ensureActiveClientEntry(sessionResource);
-		if (!entry) {
-			return undefined;
-		}
 		entry.claim(backendSession);
 		return entry;
 	}
 
-	private _ensureActiveClientEntry(sessionResource: URI): ActiveClientEntry | undefined {
+	private _ensureActiveClientEntry(sessionResource: URI): ActiveClientEntry {
 		const existing = this._activeClientEntries.get(sessionResource);
 		if (existing) {
 			return existing;
 		}
 
 		const scope = this._activeClientService.acquireScope(this._config.sessionType, this._resolveCustomizationScopeRoots(sessionResource));
-		if (!scope) {
-			return undefined;
-		}
-
 		const entry = new ActiveClientEntry(
 			scope,
 			this._config.connection.clientId,
@@ -2201,9 +2194,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 	private _configureActiveClientReconciliation(sessionResource: URI, backendSession: URI, sessionSubscription: IAgentSubscription<SessionState> | undefined): void {
 		const entry = this._ensureActiveClientEntry(sessionResource);
-		if (!entry) {
-			return;
-		}
 		entry.attach(backendSession, sessionSubscription);
 	}
 
@@ -5116,9 +5106,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const protectedResources = await this._ensureRequiredAuthentication(model);
 
 		const activeClientEntry = this._ensureActiveClientEntry(sessionResource);
-		if (activeClientEntry) {
-			await activeClientEntry.whenSettled();
-		}
+		await activeClientEntry.whenSettled();
 		const activeClient = this._getCurrentActiveClient(sessionResource);
 
 		// Opt in to bring-up progress (chiefly the lazy first-use SDK download)
