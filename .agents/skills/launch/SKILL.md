@@ -164,13 +164,16 @@ launch time** — it cannot be added to an already-running instance:
 
 ```bash
 INFO=$("$LAUNCH" -- --enable-smoke-test-driver | tail -n1)
+CDP=$(jq -r .cdpPort <<<"$INFO")
+node /tmp/drive.ts "$CDP"          # the script below
 ```
 
 ```js
-// Run from the repo root; Node executes the .ts directly, no build step.
+// /tmp/drive.ts - run from the repo root; Node executes the .ts directly,
+// no build step. Takes the cdpPort as its first argument.
 import { attach } from '<dir-of-this-SKILL.md>/scripts/attach.ts';
 
-const session = await attach(cdpPort, { window: 'workbench' });
+const session = await attach(process.argv[2], { window: 'workbench' });
 await session.workbench.quickaccess.runCommand('workbench.action.chat.open');
 await session.workbench.chat.waitForChatView();
 await session.workbench.chat.sendMessage('Reply with exactly PONG.');

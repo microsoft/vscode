@@ -353,23 +353,27 @@ function Find-RootProperty([string]$masked, [string]$key) {
 			}
 			continue
 		}
-		if ($c -eq '"') { $inString = $true; $keyStart = $i; continue }
-		if ($c -eq '{' -or $c -eq '[') { $depth++; $expectValue = $false; continue }
-		if ($c -eq '}' -or $c -eq ']') { $depth--; $expectValue = $false; continue }
-		if ($c -eq ':' -and $depth -eq 1 -and $null -ne $pendingKey) { $expectValue = $true; continue }
-		if ($c -eq ',' -and $depth -eq 1) { $pendingKey = $null; $expectValue = $false; continue }
+		# The value check must come before the generic string branch below, or a
+		# quoted value such as `"editor.editContext": "false"` would be consumed
+		# as a string and never recognised as the property's value.
 		if ($expectValue -and $depth -eq 1 -and -not [char]::IsWhiteSpace($c)) {
+			# Only primitives are rewritable; an object or array value is skipped
+			# and the key is appended instead.
 			$match = $primitive.Match($masked.Substring($i))
 			if ($match.Success -and $pendingKey -eq $key) {
 				$found = @{ ValueStart = $i; ValueLength = $match.Groups[1].Length }
 			}
 			$expectValue = $false
 			$pendingKey = $null
-			if ($match.Success) { $i += $match.Groups[1].Length - 1 }
-			continue
+			if ($match.Success) { $i += $match.Groups[1].Length - 1; continue }
+			# Not a primitive: fall through so `{`/`[`/`"` is handled below.
 		}
+		if ($c -eq '"') { $inString = $true; $keyStart = $i; continue }
+		if ($c -eq '{' -or $c -eq '[') { $depth++; $expectValue = $false; continue }
+		if ($c -eq '}' -or $c -eq ']') { $depth--; $expectValue = $false; continue }
+		if ($c -eq ':' -and $depth -eq 1 -and $null -ne $pendingKey) { $expectValue = $true; continue }
+		if ($c -eq ',' -and $depth -eq 1) { $pendingKey = $null; $expectValue = $false; continue }
 	}
-
 	return $found
 }
 

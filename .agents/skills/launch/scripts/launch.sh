@@ -237,8 +237,6 @@ function codeMask(src) {
 // embedded in a string value is never mistaken for the real setting. Returns
 // the LAST match, which is the one Code OSS honours when a profile contains
 // duplicate keys.
-// Locate root-level `"key": value` pairs. Returns the LAST occurrence, which
-// is the one Code OSS honours when a profile contains duplicates.
 function findRootProperty(masked, key) {
 	let depth = 0, inString = false, found = null;
 	let keyStart = -1, pendingKey = null, expectValue = false;
@@ -248,29 +246,32 @@ function findRootProperty(masked, key) {
 			if (c === '\\') { i++; continue; }
 			if (c === '"') {
 				inString = false;
-				if (depth === 1) { pendingKey = { name: masked.slice(keyStart + 1, i), end: i }; }
+				if (depth === 1) { pendingKey = masked.slice(keyStart + 1, i); }
 			}
 			continue;
 		}
-		if (c === '"') { inString = true; keyStart = i; continue; }
-		if (c === '{' || c === '[') { depth++; expectValue = false; continue; }
-		if (c === '}' || c === ']') { depth--; expectValue = false; continue; }
-		if (c === ':' && depth === 1 && pendingKey) { expectValue = true; continue; }
-		if (c === ',' && depth === 1) { pendingKey = null; expectValue = false; continue; }
+		// The value check must come before the generic string branch below, or a
+		// quoted value such as `"editor.editContext": "false"` would be consumed
+		// as a string and never recognised as the property's value.
 		if (expectValue && depth === 1 && !/\s/.test(c)) {
-			// Start of a root-level value. Only primitives are rewritable.
-			const rest = masked.slice(i);
+			// Start of a root-level value. Only primitives are rewritable; an
+			// object or array value is skipped and the key is appended instead.
 			// Full JSON number grammar, including exponents: a partial match
 			// (e.g. `1` out of `1e2`) would leave `truee2` behind.
-			const m = /^(true|false|null|"[^"\n]*"|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)/.exec(rest);
-			if (m && pendingKey && pendingKey.name === key) {
+			const m = /^(true|false|null|"[^"\n]*"|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)/.exec(masked.slice(i));
+			if (m && pendingKey === key) {
 				found = { valueStart: i, valueLength: m[1].length };
 			}
 			expectValue = false;
 			pendingKey = null;
-			if (m) { i += m[1].length - 1; }
-			continue;
+			if (m) { i += m[1].length - 1; continue; }
+			// Not a primitive: fall through so `{`/`[`/`"` is handled below.
 		}
+		if (c === '"') { inString = true; keyStart = i; continue; }
+		if (c === '{' || c === '[') { depth++; expectValue = false; continue; }
+		if (c === '}' || c === ']') { depth--; expectValue = false; continue; }
+		if (c === ':' && depth === 1 && pendingKey !== null) { expectValue = true; continue; }
+		if (c === ',' && depth === 1) { pendingKey = null; expectValue = false; continue; }
 	}
 	return found;
 }
