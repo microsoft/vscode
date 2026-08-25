@@ -119,10 +119,10 @@ jobs:
       - script: node build/azure-pipelines/distro/mixin-quality.ts
         displayName: Mixin distro quality
 
+      - template: ../common/install-builtin-extensions.yml@self
+
       - script: node build/npm/electronTypes.ts
         displayName: Prepare Electron types
-
-      - template: ../common/install-builtin-extensions.yml@self
 
       - script: npx deemon --detach --wait -- node build/azure-pipelines/common/downloadCopilotVsix.ts
         env:
