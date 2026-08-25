@@ -600,8 +600,8 @@ suite('Editor Model - TextModel', () => {
 			'\t if (fourth) {',
 			'\t    work();'
 		].join('\n'), undefined, {
-			tabSize: 8,
-			indentSize: 3,
+			tabSize: 4,
+			indentSize: 4,
 			insertSpaces: true,
 			detectIndentation: true
 		});
@@ -615,9 +615,9 @@ suite('Editor Model - TextModel', () => {
 		model.dispose();
 
 		const partialModel = createTextModel('\t if (third) {\n\t    work();', undefined, {
-			tabSize: 8,
-			indentSize: 3,
-			insertSpaces: 'mixed',
+			tabSize: 4,
+			indentSize: 4,
+			insertSpaces: true,
 			detectIndentation: true
 		});
 		const partialOptions = partialModel.getOptions();
@@ -631,6 +631,28 @@ suite('Editor Model - TextModel', () => {
 			insertSpaces: 'mixed'
 		});
 		partialModel.dispose();
+	});
+
+	test('issue #5394: does not detect alignment as mixed indentation', () => {
+		const model = createTextModel([
+			'if (first) {',
+			'\tif (second) {',
+			'\t\twork(',
+			'\t    firstArgument,',
+			'    secondArgument);'
+		].join('\n'), undefined, {
+			tabSize: 8,
+			indentSize: 4,
+			insertSpaces: true,
+			detectIndentation: true
+		});
+
+		const { tabSize, insertSpaces } = model.getOptions();
+		assert.deepStrictEqual({ tabSize, insertSpaces }, {
+			tabSize: 8,
+			insertSpaces: false
+		});
+		model.dispose();
 	});
 
 	test('issue #44991: Wrong indentation size auto-detection', () => {

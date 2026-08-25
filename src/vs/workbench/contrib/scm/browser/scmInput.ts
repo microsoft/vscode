@@ -431,7 +431,7 @@ export class SCMInputWidget {
 		// Adaptive indentation rules
 		const opts = this.modelService.getCreationOptions(textModel.getLanguageId(), textModel.uri, textModel.isForSimpleWidget);
 		const onEnter = Event.filter(this.inputEditor.onKeyDown, e => e.keyCode === KeyCode.Enter, this.repositoryDisposables);
-		this.repositoryDisposables.add(onEnter(() => textModel.detectIndentation(opts.insertSpaces, opts.tabSize)));
+		this.repositoryDisposables.add(onEnter(() => textModel.detectIndentation(opts.insertSpaces, opts.tabSize, opts.indentSize === 'tabSize' ? opts.tabSize : opts.indentSize)));
 
 		// Keep model in sync with API
 		textModel.setValue(input.value);

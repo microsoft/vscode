@@ -19,7 +19,7 @@ import { Disposable, MutableDisposable, DisposableStore } from '../../../../base
 import { IEditorAction } from '../../../../editor/common/editorCommon.js';
 import { EndOfLineSequence } from '../../../../editor/common/model.js';
 import { TrimTrailingWhitespaceAction } from '../../../../editor/contrib/linesOperations/browser/linesOperations.js';
-import { IndentUsingMixed, IndentUsingSpaces, IndentUsingTabs, ChangeTabDisplaySize, DetectIndentation, IndentationToSpacesAction, IndentationToTabsAction } from '../../../../editor/contrib/indentation/browser/indentation.js';
+import { IndentUsingMixed, IndentUsingSpaces, IndentUsingTabs, ChangeTabDisplaySize, DetectIndentation, IndentationToMixedAction, IndentationToSpacesAction, IndentationToTabsAction } from '../../../../editor/contrib/indentation/browser/indentation.js';
 import { BaseBinaryResourceEditor } from './binaryEditor.js';
 import { BinaryResourceDiffEditor } from './binaryDiffEditor.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
@@ -420,6 +420,7 @@ class EditorStatus extends Disposable {
 			assertReturnsDefined(activeTextEditorControl.getAction(DetectIndentation.ID)),
 			assertReturnsDefined(activeTextEditorControl.getAction(IndentationToSpacesAction.ID)),
 			assertReturnsDefined(activeTextEditorControl.getAction(IndentationToTabsAction.ID)),
+			assertReturnsDefined(activeTextEditorControl.getAction(IndentationToMixedAction.ID)),
 			assertReturnsDefined(activeTextEditorControl.getAction(TrimTrailingWhitespaceAction.ID))
 		].map((a: IEditorAction) => {
 			return {

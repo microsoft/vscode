@@ -102,6 +102,7 @@ suite('MainThreadEditors', () => {
 		const notificationService = new TestNotificationService();
 		const undoRedoService = new UndoRedoService(dialogService, notificationService);
 		const themeService = new TestThemeService();
+		const clipboardService = new TestClipboardService();
 
 		const services = new ServiceCollection();
 		services.set(IBulkEditService, new SyncDescriptor(BulkEditService));
@@ -124,7 +125,7 @@ suite('MainThreadEditors', () => {
 		services.set(ILifecycleService, new TestLifecycleService());
 		services.set(IWorkingCopyService, new TestWorkingCopyService());
 		services.set(IEditorGroupsService, new TestEditorGroupsService());
-		services.set(IClipboardService, new TestClipboardService());
+		services.set(IClipboardService, clipboardService);
 		services.set(ITextFileService, new class extends mock<ITextFileService>() {
 			override isDirty() { return false; }
 			// eslint-disable-next-line local/code-no-any-casts
@@ -220,13 +221,14 @@ suite('MainThreadEditors', () => {
 		const model = modelService.createModel('Hello world!', null, existingResource);
 		const testCodeEditor = disposables.add(createTestCodeEditor(model));
 
-		testEditor = disposables.add(instaService.createInstance(
-			MainThreadTextEditor,
+		testEditor = disposables.add(new MainThreadTextEditor(
 			editorId,
 			model,
 			testCodeEditor,
 			{ onGainedFocus() { }, onLostFocus() { } },
-			documents
+			documents,
+			modelService,
+			clipboardService
 		));
 	});
 
@@ -254,6 +256,24 @@ suite('MainThreadEditors', () => {
 
 		return bulkEdits.$tryApplyWorkspaceEdit(new SerializableObjectWithBuffers({ edits: [workspaceResourceEdit] })).then((result) => {
 			assert.strictEqual(result, false);
+		});
+	});
+
+	test('indentation auto-detection honors an explicit indentation size', () => {
+		const model = modelService.getModel(existingResource)!;
+		model.applyEdits([EditOperation.replace(model.getFullModelRange(), '\t first\n\t second')]);
+
+		testEditor.setConfiguration({
+			tabSize: 8,
+			indentSize: 3,
+			insertSpaces: 'auto'
+		});
+
+		const { tabSize, indentSize, insertSpaces } = model.getOptions();
+		assert.deepStrictEqual({ tabSize, indentSize, insertSpaces }, {
+			tabSize: 8,
+			indentSize: 3,
+			insertSpaces: 'mixed'
 		});
 	});
 

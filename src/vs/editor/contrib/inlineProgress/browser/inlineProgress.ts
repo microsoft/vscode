@@ -27,7 +27,6 @@ const inlineProgressDecoration = ModelDecorationOptions.register({
 		content: noBreakWhitespace,
 		inlineClassName: 'inline-editor-progress-decoration',
 		inlineClassNameAffectsLetterSpacing: true,
-		widthInEm: 1,
 	}
 });
 

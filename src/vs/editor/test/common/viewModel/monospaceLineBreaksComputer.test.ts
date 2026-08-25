@@ -7,7 +7,6 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { EditorOptions, WrappingIndent } from '../../../common/config/editorOptions.js';
 import { FontInfo } from '../../../common/config/fontInfo.js';
 import { ILineBreaksComputerContext, ILineBreaksComputerFactory, ModelLineProjectionData } from '../../../common/modelLineProjectionData.js';
-import { LineInjectedText } from '../../../common/textModelEvents.js';
 import { MonospaceLineBreaksComputerFactory } from '../../../common/viewModel/monospaceLineBreaksComputer.js';
 
 function parseAnnotatedText(annotatedText: string): { text: string; indices: number[] } {
@@ -45,7 +44,7 @@ function toAnnotatedText(text: string, lineBreakData: ModelLineProjectionData | 
 	return actualAnnotatedText;
 }
 
-function getLineBreakData(factory: ILineBreaksComputerFactory, tabSize: number, breakAfter: number, columnsForFullWidthChar: number, wrappingIndent: WrappingIndent, wordBreak: 'normal' | 'keepAll', wrapOnEscapedLineFeeds: boolean, text: string, previousLineBreakData: ModelLineProjectionData | null, injectedText: LineInjectedText[] | null = null): ModelLineProjectionData | null {
+function getLineBreakData(factory: ILineBreaksComputerFactory, tabSize: number, breakAfter: number, columnsForFullWidthChar: number, wrappingIndent: WrappingIndent, wordBreak: 'normal' | 'keepAll', wrapOnEscapedLineFeeds: boolean, text: string, previousLineBreakData: ModelLineProjectionData | null): ModelLineProjectionData | null {
 	const fontInfo = new FontInfo({
 		pixelRatio: 1,
 		fontFamily: 'testFontFamily',
@@ -69,7 +68,7 @@ function getLineBreakData(factory: ILineBreaksComputerFactory, tabSize: number, 
 			return text;
 		},
 		getLineInjectedText(lineNumber) {
-			return injectedText;
+			return null;
 		}
 	};
 	const lineBreaksComputer = factory.createLineBreaksComputer(context, fontInfo, tabSize, breakAfter, wrappingIndent, wordBreak, wrapOnEscapedLineFeeds);
@@ -133,37 +132,6 @@ suite('Editor ViewModel - MonospaceLineBreaksComputer', () => {
 		assertLineBreaks(factory, 4, 5, 'aaa|(().|aaa');
 		assertLineBreaks(factory, 4, 5, 'aa.|(().|aaa');
 		assertLineBreaks(factory, 4, 5, 'aa.|(.).|aaa');
-	});
-
-	test('injected text width in em', () => {
-		const factory = new MonospaceLineBreaksComputerFactory('', '');
-		const text = 'abcdef';
-		const defaultWidth = getLineBreakData(factory, 4, 5, 2, WrappingIndent.None, 'normal', false, text, null, [
-			new LineInjectedText(0, 1, 5, { content: '\xa0' }, 0)
-		]);
-		const overriddenWidth = getLineBreakData(factory, 4, 5, 2, WrappingIndent.None, 'normal', false, text, null, [
-			new LineInjectedText(0, 1, 5, { content: '\xa0', widthInEm: 1 }, 0)
-		]);
-
-		assert.deepStrictEqual({
-			defaultWidth: {
-				breakOffsets: defaultWidth?.breakOffsets,
-				breakOffsetsVisibleColumn: defaultWidth?.breakOffsetsVisibleColumn
-			},
-			overriddenWidth: {
-				breakOffsets: overriddenWidth?.breakOffsets,
-				breakOffsetsVisibleColumn: overriddenWidth?.breakOffsetsVisibleColumn
-			}
-		}, {
-			defaultWidth: {
-				breakOffsets: [5, 7],
-				breakOffsetsVisibleColumn: [5, 7]
-			},
-			overriddenWidth: {
-				breakOffsets: [4, 7],
-				breakOffsetsVisibleColumn: [4, 8]
-			}
-		});
 	});
 
 	function assertLineBreakDataEqual(a: ModelLineProjectionData | null, b: ModelLineProjectionData | null): void {

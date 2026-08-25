@@ -12,6 +12,57 @@ class SpacesDiffResult {
 	public looksLikeAlignment: boolean = false;
 }
 
+interface IndentationSample {
+	readonly tabsCount: number;
+	readonly spacesCount: number;
+	readonly hasTabAfterSpace: boolean;
+}
+
+function scoreMixedTabSize(samples: readonly IndentationSample[], tabSize: number, indentSize: number): number {
+	let score = 0;
+	let previousVisibleColumn: number | undefined;
+
+	for (const sample of samples) {
+		if (sample.hasTabAfterSpace) {
+			previousVisibleColumn = undefined;
+			continue;
+		}
+		if (sample.tabsCount > 0 && sample.spacesCount >= tabSize) {
+			return -1;
+		}
+
+		const visibleColumn = sample.tabsCount * tabSize + sample.spacesCount;
+		if (visibleColumn > 0 && visibleColumn % indentSize === 0) {
+			score++;
+		}
+		if (previousVisibleColumn !== undefined && Math.abs(visibleColumn - previousVisibleColumn) === indentSize) {
+			score += samples.length + 1;
+		}
+		previousVisibleColumn = visibleColumn;
+	}
+
+	return score;
+}
+
+function guessMixedTabSize(samples: readonly IndentationSample[], defaultTabSize: number, indentSize: number, candidates: readonly number[]): number {
+	if (samples.filter(sample => !sample.hasTabAfterSpace && (sample.tabsCount > 0 || sample.spacesCount > 0)).length < 2) {
+		return defaultTabSize;
+	}
+
+	let tabSize = defaultTabSize;
+	let bestScore = scoreMixedTabSize(samples, defaultTabSize, indentSize);
+
+	for (const candidate of candidates) {
+		const candidateScore = scoreMixedTabSize(samples, candidate, indentSize);
+		if (candidateScore > bestScore) {
+			tabSize = candidate;
+			bestScore = candidateScore;
+		}
+	}
+
+	return tabSize;
+}
+
 /**
  * Compute the diff in spaces between two line's indentation.
  */
@@ -113,7 +164,8 @@ export function guessIndentation(source: ITextBuffer, defaultTabSize: number, de
 
 	let linesIndentedWithTabsCount = 0;				// number of lines that contain at least one tab in indentation
 	let linesIndentedWithSpacesCount = 0;			// number of lines that contain only spaces in indentation
-	let linesIndentedWithMixedWhitespaceCount = 0;	// number of lines that contain both tabs and spaces in indentation
+	let linesIndentedWithCanonicalMixedWhitespaceCount = 0;
+	const indentationSamples: IndentationSample[] = [];
 
 	let previousLineText = '';						// content of latest line that contained non-whitespace chars
 	let previousLineIndentation = 0;				// index at which latest line contained the first non-whitespace char
@@ -136,10 +188,12 @@ export function guessIndentation(source: ITextBuffer, defaultTabSize: number, de
 		let currentLineIndentation = 0;				// index at which `currentLineText` contains the first non-whitespace char
 		let currentLineSpacesCount = 0;				// count of spaces found in `currentLineText` indentation
 		let currentLineTabsCount = 0;				// count of tabs found in `currentLineText` indentation
+		let currentLineHasTabAfterSpace = false;
 		for (let j = 0, lenJ = currentLineLength; j < lenJ; j++) {
 			const charCode = (useCurrentLineText ? currentLineText.charCodeAt(j) : source.getLineCharCode(lineNumber, j));
 
 			if (charCode === CharCode.Tab) {
+				currentLineHasTabAfterSpace = currentLineHasTabAfterSpace || currentLineSpacesCount > 0;
 				currentLineTabsCount++;
 			} else if (charCode === CharCode.Space) {
 				currentLineSpacesCount++;
@@ -159,11 +213,18 @@ export function guessIndentation(source: ITextBuffer, defaultTabSize: number, de
 		if (currentLineTabsCount > 0) {
 			linesIndentedWithTabsCount++;
 			if (currentLineSpacesCount > 0) {
-				linesIndentedWithMixedWhitespaceCount++;
+				if (!currentLineHasTabAfterSpace) {
+					linesIndentedWithCanonicalMixedWhitespaceCount++;
+				}
 			}
 		} else if (currentLineSpacesCount > 1) {
 			linesIndentedWithSpacesCount++;
 		}
+		indentationSamples.push({
+			tabsCount: currentLineTabsCount,
+			spacesCount: currentLineSpacesCount,
+			hasTabAfterSpace: currentLineHasTabAfterSpace
+		});
 
 		spacesDiff(previousLineText, previousLineIndentation, currentLineText, currentLineIndentation, tmp);
 
@@ -193,7 +254,19 @@ export function guessIndentation(source: ITextBuffer, defaultTabSize: number, de
 	}
 
 	let insertSpaces: InsertSpaces = defaultInsertSpaces;
-	if (linesIndentedWithMixedWhitespaceCount > 0 && (linesIndentedWithSpacesCount > 0 || defaultInsertSpaces === 'mixed')) {
+	if (
+		(
+			defaultInsertSpaces === 'mixed'
+			&& linesIndentedWithCanonicalMixedWhitespaceCount > 0
+		)
+		|| (
+			linesIndentedWithCanonicalMixedWhitespaceCount > 1
+			&& (
+				linesIndentedWithSpacesCount > 0
+				|| linesIndentedWithCanonicalMixedWhitespaceCount === linesIndentedWithTabsCount
+			)
+		)
+	) {
 		insertSpaces = 'mixed';
 	} else if (linesIndentedWithTabsCount !== linesIndentedWithSpacesCount) {
 		insertSpaces = (linesIndentedWithTabsCount < linesIndentedWithSpacesCount);
@@ -221,6 +294,8 @@ export function guessIndentation(source: ITextBuffer, defaultTabSize: number, de
 
 		if (insertSpaces === true) {
 			tabSize = indentSize;
+		} else {
+			tabSize = guessMixedTabSize(indentationSamples, defaultTabSize, indentSize, ALLOWED_TAB_SIZE_GUESSES);
 		}
 	}
 

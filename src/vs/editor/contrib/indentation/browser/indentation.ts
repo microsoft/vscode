@@ -12,7 +12,7 @@ import { EditorAction, EditorContributionInstantiation, IActionOptions, register
 import { ShiftCommand } from '../../../common/commands/shiftCommand.js';
 import { EditorAutoIndentStrategy, EditorOption } from '../../../common/config/editorOptions.js';
 import { ISingleEditOperation } from '../../../common/core/editOperation.js';
-import { InsertSpaces } from '../../../common/core/misc/indentation.js';
+import { InsertSpaces, normalizeIndentation } from '../../../common/core/misc/indentation.js';
 import { Position } from '../../../common/core/position.js';
 import { IRange, Range } from '../../../common/core/range.js';
 import { Selection } from '../../../common/core/selection.js';
@@ -97,6 +97,42 @@ export class IndentationToTabsAction extends EditorAction {
 
 		model.updateOptions({
 			insertSpaces: false
+		});
+	}
+}
+
+export class IndentationToMixedAction extends EditorAction {
+	public static readonly ID = 'editor.action.indentationToMixed';
+
+	constructor() {
+		super({
+			id: IndentationToMixedAction.ID,
+			label: nls.localize2('indentationToMixed', "Convert Indentation to Tabs and Spaces"),
+			precondition: EditorContextKeys.writable,
+			metadata: {
+				description: nls.localize2('indentationToMixedDescription', "Convert indentation to use as many tabs as possible followed by spaces."),
+			}
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+		const model = editor.getModel();
+		if (!model) {
+			return;
+		}
+		const modelOpts = model.getOptions();
+		const selection = editor.getSelection();
+		if (!selection) {
+			return;
+		}
+		const command = new IndentationToMixedCommand(selection, modelOpts.tabSize);
+
+		editor.pushUndoStop();
+		editor.executeCommands(this.id, [command]);
+		editor.pushUndoStop();
+
+		model.updateOptions({
+			insertSpaces: 'mixed'
 		});
 	}
 }
@@ -600,17 +636,13 @@ function isStartOrEndInString(model: ITextModel, range: Range): boolean {
 	return isPositionInString(range.getStartPosition()) || isPositionInString(range.getEndPosition());
 }
 
-function getIndentationEditOperations(model: ITextModel, builder: IEditOperationBuilder, tabSize: number, tabsToSpaces: boolean): void {
+function getIndentationEditOperations(model: ITextModel, builder: IEditOperationBuilder, tabSize: number, insertSpaces: InsertSpaces): void {
 	if (model.getLineCount() === 1 && model.getLineMaxColumn(1) === 1) {
 		// Model is empty
 		return;
 	}
 
-	let spaces = '';
-	for (let i = 0; i < tabSize; i++) {
-		spaces += ' ';
-	}
-
+	const spaces = ' '.repeat(tabSize);
 	const spacesRegExp = new RegExp(spaces, 'gi');
 
 	for (let lineNumber = 1, lineCount = model.getLineCount(); lineNumber <= lineCount; lineNumber++) {
@@ -625,11 +657,11 @@ function getIndentationEditOperations(model: ITextModel, builder: IEditOperation
 
 		const originalIndentationRange = new Range(lineNumber, 1, lineNumber, lastIndentationColumn);
 		const originalIndentation = model.getValueInRange(originalIndentationRange);
-		const newIndentation = (
-			tabsToSpaces
+		const newIndentation = insertSpaces === 'mixed'
+			? normalizeIndentation(originalIndentation, tabSize, insertSpaces, tabSize)
+			: insertSpaces
 				? originalIndentation.replace(/\t/ig, spaces)
-				: originalIndentation.replace(spacesRegExp, '\t')
-		);
+				: originalIndentation.replace(spacesRegExp, '\t');
 
 		builder.addEditOperation(originalIndentationRange, newIndentation);
 	}
@@ -667,9 +699,26 @@ export class IndentationToTabsCommand implements ICommand {
 	}
 }
 
+export class IndentationToMixedCommand implements ICommand {
+
+	private selectionId: string | null = null;
+
+	constructor(private readonly selection: Selection, private tabSize: number) { }
+
+	public getEditOperations(model: ITextModel, builder: IEditOperationBuilder): void {
+		this.selectionId = builder.trackSelection(this.selection);
+		getIndentationEditOperations(model, builder, this.tabSize, 'mixed');
+	}
+
+	public computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
+		return helper.getTrackedSelection(this.selectionId!);
+	}
+}
+
 registerEditorContribution(AutoIndentOnPaste.ID, AutoIndentOnPaste, EditorContributionInstantiation.BeforeFirstInteraction);
 registerEditorAction(IndentationToSpacesAction);
 registerEditorAction(IndentationToTabsAction);
+registerEditorAction(IndentationToMixedAction);
 registerEditorAction(IndentUsingTabs);
 registerEditorAction(IndentUsingSpaces);
 registerEditorAction(IndentUsingMixed);

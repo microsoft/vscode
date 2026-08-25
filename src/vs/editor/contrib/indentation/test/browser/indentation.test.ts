@@ -15,7 +15,7 @@ import { MetadataConsts, StandardTokenType } from '../../../../common/encodedTok
 import { EncodedTokenizationResult, IState, ITokenizationSupport, TokenizationRegistry } from '../../../../common/languages.js';
 import { ILanguageService } from '../../../../common/languages/language.js';
 import { NullState } from '../../../../common/languages/nullTokenize.js';
-import { AutoIndentOnPaste, IndentationToSpacesCommand, IndentationToTabsCommand } from '../../browser/indentation.js';
+import { AutoIndentOnPaste, IndentationToMixedCommand, IndentationToSpacesCommand, IndentationToTabsCommand } from '../../browser/indentation.js';
 import { withTestCodeEditor } from '../../../../test/browser/testCodeEditor.js';
 import { testCommand } from '../../../../test/browser/testCommand.js';
 import { goIndentationRules, htmlIndentationRules, javascriptIndentationRules, latexIndentationRules, luaIndentationRules, phpIndentationRules, rubyIndentationRules, vbIndentationRules } from '../../../../test/common/modes/supports/indentationRules.js';
@@ -45,6 +45,10 @@ function testIndentationToSpacesCommand(lines: string[], selection: Selection, t
 
 function testIndentationToTabsCommand(lines: string[], selection: Selection, tabSize: number, expectedLines: string[], expectedSelection: Selection): void {
 	testCommand(lines, null, selection, (accessor, sel) => new IndentationToTabsCommand(sel, tabSize), expectedLines, expectedSelection);
+}
+
+function testIndentationToMixedCommand(lines: string[], selection: Selection, tabSize: number, expectedLines: string[], expectedSelection: Selection): void {
+	testCommand(lines, null, selection, (accessor, sel) => new IndentationToMixedCommand(sel, tabSize), expectedLines, expectedSelection);
 }
 
 export function registerLanguage(languageService: ILanguageService, language: Language): IDisposable {
@@ -310,6 +314,33 @@ suite('Change Indentation to Tabs -  TypeScript/Javascript', () => {
 				'    abc',
 			],
 			new Selection(1, 6, 1, 6)
+		);
+	});
+});
+
+suite('Change Indentation to Tabs and Spaces - TypeScript/Javascript', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('preserves visible indentation', () => {
+		testIndentationToMixedCommand(
+			[
+				'   first',
+				'      second',
+				'         third',
+				'            fourth',
+				'                fifth'
+			],
+			new Selection(1, 1, 1, 1),
+			8,
+			[
+				'   first',
+				'      second',
+				'\t third',
+				'\t    fourth',
+				'\t\tfifth'
+			],
+			new Selection(1, 1, 1, 1)
 		);
 	});
 });

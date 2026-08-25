@@ -254,23 +254,6 @@ export class LineInjectedText {
 		return result;
 	}
 
-	public static getInjectedTextWidthsInEm(injectedTexts: LineInjectedText[] | null): (number | undefined)[] {
-		const result: (number | undefined)[] = [];
-		let injectedTextLength = 0;
-		for (const injectedText of injectedTexts ?? []) {
-			const startOffset = injectedText.column - 1 + injectedTextLength;
-			const endOffset = startOffset + injectedText.options.content.length;
-			if (injectedText.options.widthInEm !== undefined) {
-				const widthPerCodeUnit = injectedText.options.widthInEm / injectedText.options.content.length;
-				for (let offset = startOffset; offset < endOffset; offset++) {
-					result[offset] = widthPerCodeUnit;
-				}
-			}
-			injectedTextLength += injectedText.options.content.length;
-		}
-		return result;
-	}
-
 	public static fromDecorations(decorations: IModelDecoration[]): LineInjectedText[] {
 		const result: LineInjectedText[] = [];
 		for (const decoration of decorations) {

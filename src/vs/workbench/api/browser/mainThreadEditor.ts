@@ -369,7 +369,12 @@ export class MainThreadTextEditor {
 				tabSize = newConfiguration.tabSize;
 			}
 
-			this._model.detectIndentation(insertSpaces, tabSize);
+			let indentSize = creationOpts.indentSize === 'tabSize' ? tabSize : creationOpts.indentSize;
+			if (typeof newConfiguration.indentSize !== 'undefined') {
+				indentSize = newConfiguration.indentSize === 'tabSize' ? tabSize : newConfiguration.indentSize;
+			}
+
+			this._model.detectIndentation(insertSpaces, tabSize, indentSize);
 			return;
 		}
 
