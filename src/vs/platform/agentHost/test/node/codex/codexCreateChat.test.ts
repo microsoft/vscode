@@ -833,7 +833,8 @@ suite('CodexAgent createChat', () => {
 	});
 
 	test('prewarmed draft stays provisional while its launch config changes before first send', async () => {
-		const agent = await createAgent(disposables, { sdkResolvableWithoutDownload: true });
+		const sessionStore = createTestSessionStore();
+		const agent = await createAgent(disposables, { sdkResolvableWithoutDownload: true, sessionStore });
 		const peer = disposables.add(createTestPeer());
 		connectPeer(agent, peer);
 
@@ -861,16 +862,22 @@ suite('CodexAgent createChat', () => {
 			const restartedThread = await readNextRequest(peer.outbound);
 			peer.push({ id: restartedThread.id, result: { thread: { id: 'restarted-thread', cwd: folder.fsPath } } });
 			await changingAgent;
+			await new Promise(resolve => setImmediate(resolve));
 			const beforeSend = [...materialized];
+			const persistedBeforeSend = await agent['_metadataStore'].read(sessionUri);
 
 			const sending = agent.chats.sendMessage(chat, 'hello', [folder], undefined, 'turn-1', undefined, undefined, context);
 			const turn = await readNextRequest(peer.outbound);
 			peer.push({ id: turn.id, result: {} });
 			await sending;
+			await new Promise(resolve => setImmediate(resolve));
+			const persistedAfterSend = await agent['_metadataStore'].read(sessionUri);
 
 			assert.deepStrictEqual({
 				beforeSend,
 				afterSend: materialized,
+				persistedThreadBeforeSend: persistedBeforeSend.threadId,
+				persistedThreadAfterSend: persistedAfterSend.threadId,
 				restartedDynamicTools: restartedThread.params.dynamicTools?.map(tool => tool.name),
 				requests: [prewarmStart, unsubscribe, restartedThread, turn].map(request => ({
 					method: request.method,
@@ -879,6 +886,8 @@ suite('CodexAgent createChat', () => {
 			}, {
 				beforeSend: [],
 				afterSend: [chat.toString()],
+				persistedThreadBeforeSend: undefined,
+				persistedThreadAfterSend: 'restarted-thread',
 				restartedDynamicTools: ['client_tool'],
 				requests: [
 					{ method: 'thread/start', threadId: undefined },

@@ -4674,7 +4674,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	}
 
 	private _persistMaterializedSession(session: ICodexSession): void {
-		if (session.disposed || !session.threadId) {
+		if (session.disposed || !session.threadId || !session.prewarmClaimed) {
 			return;
 		}
 		// Persist only once the prewarmed thread is claimed by a turn. This
