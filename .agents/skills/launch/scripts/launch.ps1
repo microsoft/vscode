@@ -279,192 +279,17 @@ function Test-SourceHasGitHubAuthenticationSecret([string]$node, [string]$source
 	return $false
 }
 
-function Get-JsoncCodeMask([string]$text) {
-	# Returns a same-length copy of $text with every comment span blanked out.
-	# Offsets are preserved so a match found in the mask can be applied to the
-	# original. String contents are respected, so a `//` inside a value (a URL,
-	# say) is not mistaken for a comment.
-	$chars = $text.ToCharArray()
-	$masked = [char[]]::new($chars.Length)
-	[Array]::Copy($chars, $masked, $chars.Length)
-
-	$inString = $false
-	$inLineComment = $false
-	$inBlockComment = $false
-	$escaped = $false
-
-	for ($i = 0; $i -lt $chars.Length; $i++) {
-		$current = $chars[$i]
-		$next = if ($i + 1 -lt $chars.Length) { $chars[$i + 1] } else { [char]0 }
-
-		if ($inLineComment) {
-			if ($current -eq "`n") { $inLineComment = $false } else { $masked[$i] = ' ' }
-			continue
-		}
-		if ($inBlockComment) {
-			if ($current -eq '*' -and $next -eq '/') {
-				$masked[$i] = ' '
-				$masked[$i + 1] = ' '
-				$i++
-				$inBlockComment = $false
-			} elseif ($current -ne "`n") {
-				$masked[$i] = ' '
-			}
-			continue
-		}
-		if ($inString) {
-			if ($escaped) { $escaped = $false }
-			elseif ($current -eq '\') { $escaped = $true }
-			elseif ($current -eq '"') { $inString = $false }
-			continue
-		}
-
-		if ($current -eq '"') { $inString = $true }
-		elseif ($current -eq '/' -and $next -eq '/') { $masked[$i] = ' '; $inLineComment = $true }
-		elseif ($current -eq '/' -and $next -eq '*') { $masked[$i] = ' '; $masked[$i + 1] = ' '; $i++; $inBlockComment = $true }
-	}
-
-	return (-join $masked)
-}
-
-function Find-RootProperty([string]$masked, [string]$key) {
-	# Locate a root-level `"key": <primitive>` pair, tracking nesting and string
-	# state so a nested occurrence (e.g. inside a `"[typescript]"` block) or one
-	# embedded in a string value is never mistaken for the real setting. Returns
-	# the LAST match, which is the one Code OSS honours when a profile contains
-	# duplicate keys.
-	$depth = 0
-	$inString = $false
-	$found = $null
-	$keyStart = -1
-	$pendingKey = $null
-	$expectValue = $false
-	# Full JSON number grammar, including exponents: a partial match (e.g. `1`
-	# out of `1e2`) would leave `truee2` behind.
-	# The string alternative must consume escapes, or a value such as `"a\"b"`
-	# would match only through `"a\"` and leave `trueb"` behind.
-	$primitive = [regex]::new('^(true|false|null|"(?:[^"\\\r\n]|\\.)*"|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)')
-
-	for ($i = 0; $i -lt $masked.Length; $i++) {
-		$c = $masked[$i]
-		if ($inString) {
-			if ($c -eq '\') { $i++; continue }
-			if ($c -eq '"') {
-				$inString = $false
-				if ($depth -eq 1) { $pendingKey = $masked.Substring($keyStart + 1, $i - $keyStart - 1) }
-			}
-			continue
-		}
-		# The value check must come before the generic string branch below, or a
-		# quoted value such as `"editor.editContext": "false"` would be consumed
-		# as a string and never recognised as the property's value.
-		if ($expectValue -and $depth -eq 1 -and -not [char]::IsWhiteSpace($c)) {
-			# Only primitives are rewritable; an object or array value is skipped
-			# and the key is appended instead.
-			$match = $primitive.Match($masked.Substring($i))
-			if ($pendingKey -eq $key) {
-				# Always reflect the LAST occurrence. If this one is not a
-				# primitive (an object or array value), drop any earlier hit:
-				# rewriting that one would leave the effective value unchanged.
-				if ($match.Success) {
-					$found = @{ ValueStart = $i; ValueLength = $match.Groups[1].Length }
-				} else {
-					$found = $null
-				}
-			}
-			$expectValue = $false
-			$pendingKey = $null
-			if ($match.Success) { $i += $match.Groups[1].Length - 1; continue }
-			# Not a primitive: fall through so `{`/`[`/`"` is handled below.
-		}
-		if ($c -eq '"') { $inString = $true; $keyStart = $i; continue }
-		if ($c -eq '{' -or $c -eq '[') { $depth++; $expectValue = $false; continue }
-		if ($c -eq '}' -or $c -eq ']') { $depth--; $expectValue = $false; continue }
-		if ($c -eq ':' -and $depth -eq 1 -and $null -ne $pendingKey) { $expectValue = $true; continue }
-		if ($c -eq ',' -and $depth -eq 1) { $pendingKey = $null; $expectValue = $false; continue }
-	}
-	return $found
-}
-
-
-function Ensure-AutomationSettings([string]$settingsFile) {
-	# Both keys are normalized on every launch because every instance launched
-	# under this skill is a throwaway used for automation.
-	#
-	#   files.simpleDialog.enable  Forces the simple (quick-input) file dialog
-	#     so automation can drive "Open Folder" / workspace pickers; the native
-	#     OS dialog cannot be controlled by @playwright/cli over CDP.
-	#
-	#   editor.editContext  Forces the EditContext input mode. test/automation's
-	#     page objects pick `.native-edit-context` vs `textarea` from
-	#     Code.editContextEnabled, which is unconditionally true for a dev
-	#     build. A profile that disabled this setting renders a `textarea`, so
-	#     every text-input helper waits on the wrong selector and times out.
-	$keys = @('files.simpleDialog.enable', 'editor.editContext')
+function Ensure-AutomationSettings([string]$node, [string]$settingsFile) {
+	# The JSONC merge itself lives in `normalize-automation-settings.ts` so that
+	# `launch.sh` and `launch.ps1` share a single implementation.
 	$settingsDirectory = Split-Path -Parent $settingsFile
 	New-Item -ItemType Directory -Force -Path $settingsDirectory | Out-Null
 
-	if (Test-Path -LiteralPath $settingsFile -PathType Leaf) {
-		$text = [IO.File]::ReadAllText($settingsFile)
-	} else {
-		$text = ''
+	$normalize = Join-Path $PSScriptRoot 'normalize-automation-settings.ts'
+	& $node $normalize $settingsFile
+	if ($LASTEXITCODE -ne 0) {
+		throw "failed to normalize automation settings in $settingsFile"
 	}
-
-	if ([string]::IsNullOrWhiteSpace($text)) {
-		$body = ($keys | ForEach-Object { "  `"$_`": true" }) -join ",`n"
-		[IO.File]::WriteAllText($settingsFile, "{`n$body`n}`n", [Text.UTF8Encoding]::new($false))
-		return
-	}
-
-	foreach ($key in $keys) {
-		# Mask comments so a commented-out occurrence such as
-		# `// "files.simpleDialog.enable": false` is not mistaken for the real
-		# setting. Offsets line up with the original, so the value is rewritten
-		# in place without disturbing comments.
-		$maskedText = Get-JsoncCodeMask $text
-
-		# Key already present at the root (with any primitive value) -> rewrite
-		# its value slot only.
-		$hit = Find-RootProperty $maskedText $key
-		if ($null -ne $hit) {
-			$text = $text.Substring(0, $hit.ValueStart) + 'true' + $text.Substring($hit.ValueStart + $hit.ValueLength)
-			continue
-		}
-
-		$lastBrace = $maskedText.LastIndexOf('}')
-		if ($lastBrace -eq -1) {
-			throw "settings.json has no closing brace - refusing to clobber it: $settingsFile"
-		}
-		$firstBrace = $maskedText.IndexOf('{')
-		if ($firstBrace -eq -1 -or $firstBrace -ge $lastBrace) {
-			throw "settings.json has no opening brace - refusing to clobber it: $settingsFile"
-		}
-
-		# Whether a leading comma is needed depends only on real content, so
-		# decide it from the masked copy too.
-		$between = $maskedText.Substring($firstBrace + 1, $lastBrace - $firstBrace - 1)
-		$trimmed = $between.Trim()
-		$needsComma = ($trimmed.Length -ne 0) -and (-not $trimmed.EndsWith(','))
-
-		# The comma must attach to the last real token, not to whatever happens
-		# to sit just before `}`. Appending it at the brace would land it inside
-		# a trailing line comment, where JSONC ignores it and the file becomes
-		# invalid. So split at the end of the last non-comment character.
-		$insertAt = $lastBrace
-		if ($needsComma) {
-			$insertAt = $firstBrace + 1 + $between.TrimEnd().Length
-		}
-
-		$comma = if ($needsComma) { ',' } else { '' }
-		# Keep the new key on its own line even when the object was written on
-		# a single line (e.g. `{}`).
-		$tail = $text.Substring($insertAt, $lastBrace - $insertAt)
-		$preceding = $text.Substring(0, $insertAt) + $comma + $tail
-		$lead = if ($preceding.EndsWith("`n")) { '' } else { "`n" }
-		$text = $preceding + $lead + "  `"$key`": true`n" + $text.Substring($lastBrace)
-	}
-
-	[IO.File]::WriteAllText($settingsFile, $text, [Text.UTF8Encoding]::new($false))
 }
 
 function Write-LogTail([string]$logFile) {
@@ -665,7 +490,7 @@ try {
 	}
 
 	$settingsFile = Join-Path $destinationUdd 'User\settings.json'
-	Ensure-AutomationSettings $settingsFile
+	Ensure-AutomationSettings $node $settingsFile
 	Write-LaunchError "[launch.ps1] ensured files.simpleDialog.enable=true and editor.editContext=true in $settingsFile"
 	$profileReadyMs = $launchStopwatch.ElapsedMilliseconds
 
