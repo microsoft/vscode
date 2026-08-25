@@ -215,6 +215,18 @@ suite('AICustomizationItemsModel', () => {
 			assert.strictEqual(providerA_callCount, before + 1);
 		});
 
+		test('unrelated harness changes do not refetch observed sections', async () => {
+			const model = disposables.add(instaService.createInstance(AICustomizationItemsModel));
+			model.getItems(AICustomizationManagementSection.Agents);
+			await timeout(0);
+			const before = providerA_callCount;
+
+			availableHarnesses.set([...availableHarnesses.get(), createDescriptor('C', descriptorA.itemProvider)], undefined);
+			await timeout(0);
+
+			assert.strictEqual(providerA_callCount, before);
+		});
+
 		test('switching harness re-binds and refetches observed sections', async () => {
 			const model = disposables.add(instaService.createInstance(AICustomizationItemsModel));
 			model.getItems(AICustomizationManagementSection.Agents);

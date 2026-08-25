@@ -173,11 +173,16 @@ export class AICustomizationItemsModel extends Disposable implements IAICustomiz
 		// harnesses changes (a new external provider may have registered for the already-
 		// active id), prune the source cache, and refetch any observed sections.
 		const sourceChangeListener = this._register(new MutableDisposable());
+		let currentSource: IAICustomizationItemSource | undefined;
 		this._register(autorun(reader => {
 			const activeSessionResource = this.harnessService.activeSessionResource.read(reader);
 			const availableHarnesses = this.harnessService.availableHarnesses.read(reader);
 			const descriptor = availableHarnesses.find(harness => harness.id === getChatSessionType(activeSessionResource));
 			const source = this.getOrCreateSource(activeSessionResource, descriptor);
+			if (source === currentSource) {
+				return;
+			}
+			currentSource = source;
 			sourceChangeListener.value = source.onDidAICustomizationItemsChange(() => {
 				this.scheduleRefetchObserved(source);
 			});
