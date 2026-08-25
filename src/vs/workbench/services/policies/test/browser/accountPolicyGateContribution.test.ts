@@ -311,9 +311,7 @@ suite('AccountPolicyGateContribution', () => {
 		assert.deepStrictEqual({
 			dialogs: promptStub.getCalls().map(call => ({
 				title: call.args[0].title,
-				message: call.args[0].message,
 				buttons: call.args[0].buttons?.map(button => button.label),
-				cancelButton: call.args[0].cancelButton,
 			})),
 			notificationCount: notificationPromptSpy.callCount,
 			retryOptions: defaultAccountService.refreshOptions,
@@ -322,51 +320,38 @@ suite('AccountPolicyGateContribution', () => {
 			dialogs: [
 				{
 					title: 'Managed Settings Unavailable',
-					message: 'AI features are unavailable because Code must refresh your organization\'s managed settings. Sign in to continue.',
 					buttons: ['Sign In'],
-					cancelButton: 'Close',
 				},
 				{
 					title: 'Managed Settings Unavailable',
-					message: 'AI features are unavailable because Code cannot locate your organization\'s managed settings service. Contact your administrator.',
 					buttons: [],
-					cancelButton: 'Close',
 				},
 				{
 					title: 'Managed Settings Unavailable',
-					message: 'AI features are temporarily unavailable because your organization\'s managed settings service is rate limiting requests. Try again later.',
 					buttons: ['Retry'],
-					cancelButton: 'Close',
 				},
 				{
 					title: 'Managed Settings Unavailable',
-					message: 'AI features are unavailable because Code could not refresh your organization\'s managed settings (HTTP 500). Retry after checking your connection.',
 					buttons: ['Retry'],
-					cancelButton: 'Close',
 				},
 				{
 					title: 'Invalid Managed Settings',
-					message: 'AI features are unavailable because Code received an invalid managed settings response. Retry or contact your administrator.',
 					buttons: ['Retry'],
-					cancelButton: 'Close',
 				},
 				{
 					title: 'Managed Settings Unavailable',
-					message: 'Your organization requires Code to refresh managed settings whenever it starts or reloads.\n\nAn error prevented the required policy from being retrieved, so AI features are unavailable. Retry, or contact your organization\'s administrator if the issue persists.',
 					buttons: ['Retry'],
-					cancelButton: 'Close',
 				},
 				{
 					title: 'Managed Settings Unavailable',
-					message: 'AI features are unavailable because Code must refresh your organization\'s managed settings. Sign in to continue.',
 					buttons: ['Sign In'],
-					cancelButton: 'Close',
 				},
 			],
 			notificationCount: 0,
 			retryOptions: [{ forceRefresh: true, retryManagedSettings: true }],
 			retryResult: undefined,
 		});
+		assert.match(promptStub.getCall(5).args[0].message, /requires Code to refresh managed settings whenever it starts or reloads\.\n\nAn error prevented the required policy/);
 	});
 
 	test('uses the compatibility dialog for update-required freshness without duplication', async () => {

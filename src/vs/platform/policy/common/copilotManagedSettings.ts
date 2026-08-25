@@ -150,17 +150,9 @@ export function managedSettingValue(key: string): (policyData: IPolicyData) => M
 	return callback;
 }
 
-/**
- * How the `forceRemoteSettingsRefresh` control resolved across the delivery channels.
- *
- * `effective` and `source` are reported separately because an explicit managed `false` is not the
- * same as an absent value: an administrator who sets `false` at a higher-precedence channel is
- * actively lifting the requirement, whereas an absent value simply leaves it unset. Consumers that
- * persist the requirement need that distinction to know when they may clear it.
- */
 export type IForceRemoteSettingsRefreshResolution =
 	| { readonly effective: true; readonly source: ManagedSettingsChannel }
-	| { readonly effective: false; readonly source: ManagedSettingsSource };
+	| { readonly effective: false };
 
 /**
  * Resolve the fail-closed startup refresh control across every delivery channel, reusing
@@ -171,9 +163,11 @@ export function resolveForceRemoteSettingsRefresh(nativeMdm: ManagedSettingsData
 	const resolution = pickManagedSettings(nativeMdm, server, file).resolutions.get(COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY);
 	const contribution = resolution?.contributions.find(candidate => typeof candidate.value === 'boolean');
 	if (!contribution) {
-		return { effective: false, source: 'none' };
+		return { effective: false };
 	}
-	return { effective: contribution.value === true, source: contribution.channel };
+	return contribution.value === true
+		? { effective: true, source: contribution.channel }
+		: { effective: false };
 }
 
 export const IManagedSettingsService = createDecorator<IManagedSettingsService>('managedSettingsService');

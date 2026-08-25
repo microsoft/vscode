@@ -119,14 +119,13 @@ suite('Copilot managed settings projection', () => {
 		}, {
 			serverTrue: { effective: true, source: 'server' },
 			nativeTrue: { effective: true, source: 'nativeMdm' },
-			// An explicit managed `false` lifts the requirement, and is distinguishable from unset.
-			nativeFalse: { effective: false, source: 'nativeMdm' },
+			nativeFalse: { effective: false },
 			// A malformed value is treated as absent so it cannot mask a lower-precedence channel.
 			malformedNative: { effective: true, source: 'server' },
 			// The file channel participates; a native/server-only resolver ignored it.
 			fileTrue: { effective: true, source: 'file' },
-			serverBeatsFile: { effective: false, source: 'server' },
-			unset: { effective: false, source: 'none' },
+			serverBeatsFile: { effective: false },
+			unset: { effective: false },
 		});
 	});
 

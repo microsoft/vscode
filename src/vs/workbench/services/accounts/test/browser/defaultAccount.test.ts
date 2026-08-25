@@ -699,11 +699,11 @@ suite('DefaultAccountProvider managed settings', () => {
 		const freshlyCached = createCachedPolicy(false);
 		const staleFetchedAt = Date.now() - 2 * 60 * 60 * 1000; // twice the one-hour poll interval
 
-		const whileFresh = await provider['getManagedSettings'](sessions, freshlyCached, { forceRefresh: true, retryManagedSettings: true });
+		const whileFresh = await provider['getManagedSettings'](sessions, freshlyCached, { forceRefresh: true });
 		const onceStale = await provider['getManagedSettings'](
 			sessions,
 			{ ...freshlyCached, managedSettingsFetchedAt: staleFetchedAt },
-			{ forceRefresh: true, retryManagedSettings: true }
+			{ forceRefresh: true }
 		);
 
 		assert.deepStrictEqual({
@@ -732,7 +732,7 @@ suite('DefaultAccountProvider managed settings', () => {
 		const cachedPolicy = createCachedPolicy(false);
 
 		await provider['getManagedSettings'](sessions, cachedPolicy);
-		const result = await provider['getManagedSettings'](sessions, cachedPolicy, { forceRefresh: true, retryManagedSettings: true });
+		const result = await provider['getManagedSettings'](sessions, cachedPolicy, { forceRefresh: true });
 
 		assert.deepStrictEqual({
 			status: provider.managedSettingsFetchStatus,

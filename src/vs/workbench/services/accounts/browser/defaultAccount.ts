@@ -23,7 +23,7 @@ import { IContextKey, IContextKeyService, RawContextKey } from '../../../../plat
 import { IDefaultAccountProvider, IDefaultAccountRefreshOptions, IDefaultAccountService, IManagedSettingsCompatibilityError, MANAGED_SETTINGS_UPDATE_REQUIRED_ERROR_CODE, ManagedSettingsFetchStatus } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { IFileManagedSettingsService, INativeManagedSettingsService, ManagedSettingsData, resolveForceRemoteSettingsRefresh } from '../../../../platform/policy/common/copilotManagedSettings.js';
+import { IFileManagedSettingsService, INativeManagedSettingsService, ManagedSettingsChannel, ManagedSettingsData, resolveForceRemoteSettingsRefresh } from '../../../../platform/policy/common/copilotManagedSettings.js';
 import { IManagedSettingsFreshness, IManagedSettingsFreshnessScope, isManagedSettingsFreshnessBlocking, isManagedSettingsFreshnessSatisfiedFor, MANAGED_SETTINGS_FRESHNESS_NOT_REQUIRED, ManagedSettingsFreshnessFailure, ManagedSettingsFreshnessState } from '../../../../platform/policy/common/managedSettingsFreshness.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { asJson, asText, IRequestService, isClientError, isSuccess, readHeader, retryAfterFromHeaders } from '../../../../platform/request/common/request.js';
@@ -567,15 +567,7 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 			this.scheduleAccountDataPoll();
 		} catch (error) {
 			this.logService.error('[DefaultAccount] Error while updating default account', getErrorMessage(error));
-			if (this._managedSettingsFreshness.state === ManagedSettingsFreshnessState.Pending) {
-				this.setManagedSettingsFreshness({
-					state: ManagedSettingsFreshnessState.Blocked,
-					source: this._managedSettingsFreshness.source,
-					scope: this._managedSettingsFreshness.scope,
-					lastAttemptAt: this._managedSettingsFreshness.lastAttemptAt,
-					failure: ManagedSettingsFreshnessFailure.Network,
-				});
-			}
+			this.blockPendingManagedSettingsFreshness();
 		}
 	}
 
@@ -666,6 +658,16 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 		}
 		this._managedSettingsFreshness = freshness;
 		this._onDidChangeManagedSettingsFreshness.fire(freshness);
+	}
+
+	private blockPendingManagedSettingsFreshness(): void {
+		if (this._managedSettingsFreshness.state === ManagedSettingsFreshnessState.Pending) {
+			this.setManagedSettingsFreshness({
+				...this._managedSettingsFreshness,
+				state: ManagedSettingsFreshnessState.Blocked,
+				failure: ManagedSettingsFreshnessFailure.Network,
+			});
+		}
 	}
 
 	private updateManagedSettingsFreshnessRequirement(nativeMdm: ManagedSettingsData, server: ManagedSettingsData | undefined, file: ManagedSettingsData): void {
@@ -889,15 +891,7 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 			};
 		} catch (error) {
 			this.logService.error('[DefaultAccount] Failed to create default account for provider:', authenticationProvider.id, getErrorMessage(error));
-			if (this._managedSettingsFreshness.state === ManagedSettingsFreshnessState.Pending) {
-				this.setManagedSettingsFreshness({
-					state: ManagedSettingsFreshnessState.Blocked,
-					source: this._managedSettingsFreshness.source,
-					scope: this._managedSettingsFreshness.scope,
-					lastAttemptAt: this._managedSettingsFreshness.lastAttemptAt,
-					failure: ManagedSettingsFreshnessFailure.Network,
-				});
-			}
+			this.blockPendingManagedSettingsFreshness();
 			return null;
 		}
 	}
@@ -1261,7 +1255,7 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 	}
 
 	private toBlockedManagedSettingsFreshness(
-		source: Exclude<ReturnType<typeof resolveForceRemoteSettingsRefresh>['source'], 'none'>,
+		source: ManagedSettingsChannel,
 		result: Extract<ManagedSettingsRequestResult, { kind: 'network' | 'rateLimited' | 'httpError' | 'malformed' }>,
 		lastAttemptAt: number,
 		scope?: IManagedSettingsFreshnessScope
@@ -1341,7 +1335,7 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 
 	private updateFailedManagedSettingsFreshness(
 		scope: IManagedSettingsFreshnessScope,
-		source: Exclude<ReturnType<typeof resolveForceRemoteSettingsRefresh>['source'], 'none'>,
+		source: ManagedSettingsChannel,
 		result: ManagedSettingsRequestResult,
 		lastAttemptAt: number
 	): void {

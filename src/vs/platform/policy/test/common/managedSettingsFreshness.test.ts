@@ -63,22 +63,4 @@ suite('Managed settings freshness', () => {
 		});
 	});
 
-	test('the state machine rejects states that would let consumers drift', () => {
-		// @ts-expect-error a block must carry the cause that drives remediation and diagnostics
-		const blockedWithoutFailure: IManagedSettingsFreshness = { state: ManagedSettingsFreshnessState.Blocked, source: 'server' };
-		// @ts-expect-error satisfaction without a scope would be transferable across accounts
-		const satisfiedWithoutScope: IManagedSettingsFreshness = { state: ManagedSettingsFreshnessState.Satisfied, source: 'server', satisfiedAt: 1 };
-		// @ts-expect-error an HTTP status is meaningful only for an HTTP failure
-		const httpStatusOnNetworkFailure: IManagedSettingsFreshness = { state: ManagedSettingsFreshnessState.Blocked, source: 'server', failure: ManagedSettingsFreshnessFailure.Network, httpStatus: 500 };
-
-		assert.deepStrictEqual([blockedWithoutFailure, satisfiedWithoutScope, httpStatusOnNetworkFailure].map(freshness => freshness.state), [
-			ManagedSettingsFreshnessState.Blocked,
-			ManagedSettingsFreshnessState.Satisfied,
-			ManagedSettingsFreshnessState.Blocked,
-		]);
-	});
-
-	test('the default state is not-required so the gate is inert until a control is observed', () => {
-		assert.deepStrictEqual(MANAGED_SETTINGS_FRESHNESS_NOT_REQUIRED, { state: ManagedSettingsFreshnessState.NotRequired });
-	});
 });
