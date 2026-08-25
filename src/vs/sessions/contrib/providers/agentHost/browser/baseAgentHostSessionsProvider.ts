@@ -1867,8 +1867,8 @@ class NewSession extends Disposable {
 	readonly session: ISession;
 	readonly sessionId: string;
 	readonly agentProvider: string;
-	/** This draft's URI as the host's registry would key it. See {@link AgentHostSessionAdapter.backendUri}. */
-	private readonly _backendSessionUri: URI;
+	/** This draft's URI as the host's registry is keyed by it. */
+	readonly backendUri: URI;
 	readonly workspaceUri: URI | undefined;
 	readonly requiresWorkspaceTrust: boolean;
 	/** `true` when this is a workspace-less quick chat. */
@@ -1988,7 +1988,7 @@ class NewSession extends Disposable {
 		this._isActiveSessionObs = derived(this, reader => isEqual(sessionsService.activeSession.read(reader)?.resource, resource));
 		// Defaults to scheme == provider; only hosts that address sessions under a different
 		// scheme (cloud sandbox: provider `copilot`, scheme `ahp-session`) override it.
-		this._backendSessionUri = AgentSession.uri(ctx.backendSessionScheme ?? this.agentProvider, AgentSession.id(resource));
+		this.backendUri = AgentSession.uri(ctx.backendSessionScheme ?? this.agentProvider, AgentSession.id(resource));
 		this._status = observableValue<SessionStatus>(this, SessionStatus.Untitled);
 		this._title = observableValue<string>(this, '');
 		const title = this._title;
@@ -2281,7 +2281,7 @@ class NewSession extends Disposable {
 	 * no session state exists at send time.
 	 */
 	eagerCreate(connection: IAgentConnection, canCreate?: () => Promise<boolean>): void {
-		const backendUri = this._backendSessionUri;
+		const backendUri = this.backendUri;
 		if (this._eagerCreateTask || this._backendUri?.toString() === backendUri.toString() || this._subscription) {
 			return;
 		}
@@ -2414,7 +2414,7 @@ class NewSession extends Disposable {
 			return;
 		}
 
-		const changesets = createChangesets(this._backendSessionUri, this._options, this._isActiveSessionObs, changesetsMetadata);
+		const changesets = createChangesets(this.backendUri, this._options, this._isActiveSessionObs, changesetsMetadata);
 
 		this._changesets.set(changesets, undefined);
 	}
@@ -2627,6 +2627,14 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	/** The in-flight new session with the given id, if any. */
 	protected _getNewSession(sessionId: string): NewSession | undefined {
 		return this._newSessions.get(sessionId);
+	}
+
+	private _getBackendSessionUri(sessionId: string): URI | undefined {
+		const rawId = this._rawIdFromChatId(sessionId);
+		if (!rawId) {
+			return undefined;
+		}
+		return this._sessionCache.get(rawId)?.backendUri ?? this._newSessions.get(sessionId)?.backendUri;
 	}
 
 	/**
@@ -4040,12 +4048,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (!sessionState) {
 			return [];
 		}
-		const rawId = this._rawIdFromChatId(sessionId);
-		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
-		if (!cached || !rawId) {
+		const sessionUri = this._getBackendSessionUri(sessionId);
+		if (!sessionUri) {
 			return [];
 		}
-		const sessionUri = cached.backendUri;
 		return (sessionState.customizations ?? [])
 			.flatMap(customization => customization.type === CustomizationType.McpServer
 				? [{ server: customization, plugin: undefined }]
@@ -4098,13 +4104,12 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	}
 
 	setCustomizationEnablement(sessionId: string, customizationId: string, enablement: readonly CustomizationEnablement[]): void {
-		const rawId = this._rawIdFromChatId(sessionId);
-		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
+		const sessionUri = this._getBackendSessionUri(sessionId);
 		const connection = this.connection;
-		if (!cached || !connection) {
+		if (!sessionUri || !connection) {
 			return;
 		}
-		connection.dispatch(cached.backendUri.toString(), {
+		connection.dispatch(sessionUri.toString(), {
 			type: ActionType.SessionCustomizationToggled,
 			id: customizationId,
 			enablement: [...enablement],
