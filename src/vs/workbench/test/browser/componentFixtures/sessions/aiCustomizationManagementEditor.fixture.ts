@@ -32,6 +32,8 @@ import { IWorkspace, IWorkspaceContextService, WorkbenchState } from '../../../.
 import { IEditorGroup, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
+import { IExtensionManifestPropertiesService } from '../../../../services/extensions/common/extensionManifestPropertiesService.js';
+import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { IChatWidgetService } from '../../../../contrib/chat/browser/chat.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
@@ -50,6 +52,9 @@ import { IResolvedPromptSourceFolder } from '../../../../contrib/chat/common/pro
 import { ParsedPromptFile, PromptFileParser } from '../../../../contrib/chat/common/promptSyntax/promptFileParser.js';
 import { PromptFileSource, PromptsType } from '../../../../contrib/chat/common/promptSyntax/promptTypes.js';
 import { IAgentPluginService, IAgentPlugin } from '../../../../contrib/chat/common/plugins/agentPluginService.js';
+import { ILanguageModelToolsService, IToolData, IToolSet, ToolDataSource } from '../../../../contrib/chat/common/tools/languageModelToolsService.js';
+import { IAgentHostToolSetEnablementService, IToolEnablementState } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostToolSetEnablementService.js';
+import { ExtensionState, IExtension, IExtensionsWorkbenchService } from '../../../../contrib/extensions/common/extensions.js';
 import { IPluginMarketplaceService, IMarketplacePlugin, MarketplaceType, PluginSourceKind } from '../../../../contrib/chat/common/plugins/pluginMarketplaceService.js';
 import { MarketplaceReferenceKind } from '../../../../contrib/chat/common/plugins/marketplaceReference.js';
 import { IPluginInstallService } from '../../../../contrib/chat/common/plugins/pluginInstallService.js';
@@ -170,6 +175,7 @@ function createFixtureAgentHostItemProvider(files: readonly IFixtureFile[]): ICu
 				name: file.name ?? '',
 				description: file.description,
 				source: file.storage as AICustomizationSource,
+				groupKey: 'remote-host',
 				extensionId: file.extensionId,
 				pluginUri: undefined,
 			}));
@@ -606,6 +612,53 @@ const activeSessionMcpServers: FixtureAgentHostMcpServer[] = [
 	{ id: 'mcp-top-level:fixture:session:Remote Search', name: 'Remote Search', enabled: true, status: McpServerStatus.Error, state: { kind: McpServerStatus.Error, error: { errorType: 'fixture', message: 'Fixture error' } }, logOutputChannelId: 'fixture-agent-host', start: mcpLifecycleNoop, stop: mcpLifecycleNoop, setEnabled() { } },
 ];
 
+function makeFixtureTool(id: string, displayName: string, description: string, source: ToolDataSource): IToolData {
+	return {
+		id,
+		displayName,
+		modelDescription: description,
+		userDescription: description,
+		source,
+	};
+}
+
+const fixtureToolExtension = new class extends mock<IExtension>() {
+	override readonly identifier = { id: 'acme.agent-tools', uuid: undefined };
+	override readonly displayName = 'Acme Agent Tools';
+	override readonly publisherDisplayName = 'Acme';
+	override readonly description = 'Issue tracking and deployment tools for agents.';
+	override readonly state = ExtensionState.Installed;
+	override readonly local = undefined;
+}();
+
+const fixtureToolSets: readonly IToolSet[] = [
+	{
+		id: 'vscode-core-tools',
+		referenceName: 'vscode',
+		description: 'VS Code',
+		detail: 'Built-in editor and workspace tools.',
+		icon: Codicon.tools,
+		source: ToolDataSource.Internal,
+		getTools: () => [
+			makeFixtureTool('vscode.readFile', 'Read File', 'Read files from the active workspace.', ToolDataSource.Internal),
+			makeFixtureTool('vscode.search', 'Search Workspace', 'Search text and symbols in the workspace.', ToolDataSource.Internal),
+			makeFixtureTool('vscode.terminal', 'Run in Terminal', 'Run commands in the integrated terminal.', ToolDataSource.Internal),
+		],
+	},
+	{
+		id: 'acme-agent-tools',
+		referenceName: 'acme',
+		description: 'Acme Agent Tools',
+		detail: 'Tools contributed by the Acme extension.',
+		icon: Codicon.extensions,
+		source: { type: 'extension', label: 'Acme Agent Tools', extensionId: new ExtensionIdentifier('acme.agent-tools') },
+		getTools: () => [
+			makeFixtureTool('acme.issues', 'Find Issues', 'Find and summarize open issues.', { type: 'extension', label: 'Acme Agent Tools', extensionId: new ExtensionIdentifier('acme.agent-tools') }),
+			makeFixtureTool('acme.deploy', 'Create Deployment', 'Create a deployment for the current project.', { type: 'extension', label: 'Acme Agent Tools', extensionId: new ExtensionIdentifier('acme.agent-tools') }),
+		],
+	},
+];
+
 interface IRenderEditorOptions {
 	readonly sessionResource: URI;
 	readonly isSessionsWindow?: boolean;
@@ -614,8 +667,12 @@ interface IRenderEditorOptions {
 	readonly selectedSection?: AICustomizationManagementSection;
 	readonly customizationSearchQuery?: string;
 	readonly mcpSearchQuery?: string;
+	readonly toolsSearchQuery?: string;
+	readonly migrationPartialSelection?: boolean;
+	readonly emptyMigrationUserSection?: boolean;
 	readonly emptyWorkspaceSection?: boolean;
 	readonly emptyUserSection?: boolean;
+	readonly emptyToolExtensions?: boolean;
 	readonly scrollToBottom?: boolean;
 	readonly width?: number;
 	readonly height?: number;
@@ -690,19 +747,20 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 	const isSessionsWindow = options.isSessionsWindow ?? false;
 	const skillUIIntegrations = options.skillUIIntegrations ?? new Map();
 	const managementSections = options.managementSections ?? [
-		AICustomizationManagementSection.Agents,
+		AICustomizationManagementSection.Plugins,
+		AICustomizationManagementSection.McpServers,
 		AICustomizationManagementSection.Skills,
+		AICustomizationManagementSection.Agents,
 		AICustomizationManagementSection.Instructions,
 		AICustomizationManagementSection.Hooks,
+		AICustomizationManagementSection.Tools,
 		AICustomizationManagementSection.Prompts,
-		AICustomizationManagementSection.McpServers,
-		AICustomizationManagementSection.Plugins,
 	];
 	const availableHarnesses = options.availableHarnesses ?? [
 		createVSCodeHarnessDescriptor(),
 		{
 			id: 'agent-host-copilotcli',
-			label: 'Copilot [Agent Host]',
+			label: 'Copilot',
 			icon: ThemeIcon.fromId(Codicon.server.id),
 			hiddenSections: [AICustomizationManagementSection.Prompts],
 			hideGenerateButton: true,
@@ -720,6 +778,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 	const fixtureFiles = allFiles
 		.filter(file => !(file.type === selectedPromptType && options.emptyWorkspaceSection && file.storage === PromptsStorage.local))
 		.filter(file => !(file.type === selectedPromptType && options.emptyUserSection && file.storage === PromptsStorage.user))
+		.filter(file => !(options.emptyMigrationUserSection && file.type === PromptsType.prompt && file.storage === PromptsStorage.user))
 		.map(file => ({ ...file }));
 	const fileContents = createFixtureContentMap(fixtureFiles, agentInstructions);
 	const promptFilesDidChangeEmitter = ctx.disposableStore.add(new Emitter<void>());
@@ -912,6 +971,26 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				override isDirty(_resource: URI) { return false; }
 			}());
 			reg.defineInstance(IExtensionService, new class extends mock<IExtensionService>() { }());
+			reg.defineInstance(ILanguageModelToolsService, new class extends mock<ILanguageModelToolsService>() {
+				override readonly toolSets = constObservable(options.emptyToolExtensions ? fixtureToolSets.filter(toolSet => toolSet.source.type !== 'extension') : fixtureToolSets);
+			}());
+			const fixtureToolState: IToolEnablementState = { toolSets: new Map(), tools: new Map() };
+			reg.defineInstance(IAgentHostToolSetEnablementService, new class extends mock<IAgentHostToolSetEnablementService>() {
+				override observe() { return constObservable(fixtureToolState); }
+				override getState() { return fixtureToolState; }
+				override setToolSetEnabled() { }
+				override setToolEnabled() { }
+			}());
+			reg.defineInstance(IExtensionsWorkbenchService, new class extends mock<IExtensionsWorkbenchService>() {
+				override readonly local = options.emptyToolExtensions ? [] : [fixtureToolExtension];
+				override readonly onChange = Event.None;
+			}());
+			reg.defineInstance(IExtensionManifestPropertiesService, new class extends mock<IExtensionManifestPropertiesService>() {
+				override canExecuteOnSessionsWindow() { return true; }
+			}());
+			reg.defineInstance(IWorkbenchEnvironmentService, new class extends mock<IWorkbenchEnvironmentService>() {
+				override readonly isSessionsWindow = false;
+			}());
 			reg.defineInstance(IQuickInputService, new class extends mock<IQuickInputService>() { }());
 			reg.defineInstance(IViewsService, new class extends mock<IViewsService>() {
 				override async openView<T extends {}>(_id: string, _focus?: boolean) { return null as T | null; }
@@ -1036,6 +1115,28 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		}
 	} else if (options.selectedSection === AICustomizationManagementSection.McpServers) {
 		await new Promise(resolve => setTimeout(resolve, 100));
+	}
+
+	if (options.toolsSearchQuery) {
+		const input = ctx.container.querySelector('.tools-content-container input') as HTMLInputElement | null;
+		if (input) {
+			input.value = options.toolsSearchQuery;
+			input.dispatchEvent(new InputEvent('input', { bubbles: true, data: options.toolsSearchQuery, inputType: 'insertText' }));
+			input.blur();
+			await new Promise(resolve => setTimeout(resolve, 300));
+		}
+	}
+
+	if (options.migrationPartialSelection) {
+		let firstMigrationCheckbox: HTMLElement | null = null;
+		for (let attempt = 0; attempt < 20 && !firstMigrationCheckbox; attempt++) {
+			firstMigrationCheckbox = ctx.container.querySelector<HTMLElement>('.prompt-migration-checkbox [role="checkbox"]');
+			if (!firstMigrationCheckbox) {
+				await new Promise(resolve => setTimeout(resolve, 50));
+			}
+		}
+		firstMigrationCheckbox?.click();
+		await new Promise(resolve => setTimeout(resolve, 50));
 	}
 
 	if (options.scrollToBottom) {
@@ -1600,8 +1701,13 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	// Welcome page — default state with no section selected
 	WelcomePage: defineComponentFixture({
-		labels: { kind: 'screenshot' },
+		labels: { kind: 'screenshot', blocksCi: true },
 		render: ctx => renderEditor(ctx, { sessionResource: localSessionResource }),
+	}),
+
+	WelcomePageNarrow: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderEditor(ctx, { sessionResource: localSessionResource, width: 550, height: 500 }),
 	}),
 
 	// Full editor with Local (VS Code) harness — all sections visible, harness dropdown,
@@ -1632,13 +1738,14 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 				createVSCodeHarnessDescriptor(),
 			],
 			managementSections: [
-				AICustomizationManagementSection.Agents,
-				AICustomizationManagementSection.Skills,
-				AICustomizationManagementSection.Instructions,
-				AICustomizationManagementSection.Prompts,
-				AICustomizationManagementSection.Hooks,
-				AICustomizationManagementSection.McpServers,
 				AICustomizationManagementSection.Plugins,
+				AICustomizationManagementSection.McpServers,
+				AICustomizationManagementSection.Skills,
+				AICustomizationManagementSection.Agents,
+				AICustomizationManagementSection.Instructions,
+				AICustomizationManagementSection.Hooks,
+				AICustomizationManagementSection.Tools,
+				AICustomizationManagementSection.Prompts,
 			],
 		}),
 	}),
@@ -1654,13 +1761,14 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 				createVSCodeHarnessDescriptor(),
 			],
 			managementSections: [
-				AICustomizationManagementSection.Agents,
-				AICustomizationManagementSection.Skills,
-				AICustomizationManagementSection.Instructions,
-				AICustomizationManagementSection.Prompts,
-				AICustomizationManagementSection.Hooks,
-				AICustomizationManagementSection.McpServers,
 				AICustomizationManagementSection.Plugins,
+				AICustomizationManagementSection.McpServers,
+				AICustomizationManagementSection.Skills,
+				AICustomizationManagementSection.Agents,
+				AICustomizationManagementSection.Instructions,
+				AICustomizationManagementSection.Hooks,
+				AICustomizationManagementSection.Tools,
+				AICustomizationManagementSection.Prompts,
 			],
 			skillUIIntegrations: new Map([
 				['act-on-feedback', 'Used by the Submit Feedback button in the Changes toolbar'],
@@ -1733,6 +1841,14 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		}),
 	}),
 
+	RemoteSkillsTab: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderEditor(ctx, {
+			sessionResource: agentHostCopilotSessionResource,
+			selectedSection: AICustomizationManagementSection.Skills,
+		}),
+	}),
+
 	// Instructions tab — many instructions with applyTo patterns, scrollable
 	InstructionsTab: defineComponentFixture({
 		labels: { kind: 'screenshot' },
@@ -1770,10 +1886,94 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	}),
 
 	PromptMigration: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		render: ctx => renderEditor(ctx, {
+			sessionResource: agentHostCopilotSessionResource,
+			migrationCategory: CustomizationMigrationCategoryId.PromptFiles,
+		}),
+	}),
+
+	PromptMigrationNarrow: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
 			sessionResource: agentHostCopilotSessionResource,
 			migrationCategory: CustomizationMigrationCategoryId.PromptFiles,
+			width: 550,
+			height: 500,
+		}),
+	}),
+
+	PromptMigrationPartialSelection: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderEditor(ctx, {
+			sessionResource: agentHostCopilotSessionResource,
+			migrationCategory: CustomizationMigrationCategoryId.PromptFiles,
+			migrationPartialSelection: true,
+		}),
+	}),
+
+	PromptMigrationEmptyUser: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderEditor(ctx, {
+			sessionResource: agentHostCopilotSessionResource,
+			migrationCategory: CustomizationMigrationCategoryId.PromptFiles,
+			emptyMigrationUserSection: true,
+		}),
+	}),
+
+	ToolsTab: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			selectedSection: AICustomizationManagementSection.Tools,
+			availableHarnesses: [{ ...createVSCodeHarnessDescriptor(), hiddenSections: [] }],
+			managementSections: [
+				AICustomizationManagementSection.Agents,
+				AICustomizationManagementSection.Tools,
+			],
+		}),
+	}),
+
+	ToolsTabNarrow: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			selectedSection: AICustomizationManagementSection.Tools,
+			availableHarnesses: [{ ...createVSCodeHarnessDescriptor(), hiddenSections: [] }],
+			managementSections: [
+				AICustomizationManagementSection.Agents,
+				AICustomizationManagementSection.Tools,
+			],
+			width: 550,
+			height: 500,
+		}),
+	}),
+
+	ToolsSearchEmpty: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			selectedSection: AICustomizationManagementSection.Tools,
+			availableHarnesses: [{ ...createVSCodeHarnessDescriptor(), hiddenSections: [] }],
+			managementSections: [
+				AICustomizationManagementSection.Agents,
+				AICustomizationManagementSection.Tools,
+			],
+			toolsSearchQuery: 'no such tool',
+		}),
+	}),
+
+	ToolsEmptyExtensions: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			selectedSection: AICustomizationManagementSection.Tools,
+			availableHarnesses: [{ ...createVSCodeHarnessDescriptor(), hiddenSections: [] }],
+			managementSections: [
+				AICustomizationManagementSection.Agents,
+				AICustomizationManagementSection.Tools,
+			],
+			emptyToolExtensions: true,
 		}),
 	}),
 
@@ -1968,7 +2168,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		}),
 	}),
 
-	// MCP server detail view — same alignment check for the detail back button.
+	// MCP definition editor — matches the standard customization file editor layout.
 	McpServerDetail: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
@@ -1978,10 +2178,9 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		}),
 	}),
 
-	// MCP server detail view in a narrow viewport — catches embedded header overflow
-	// and the single-tab configuration layout used by local workspace servers.
+	// Narrow MCP editor — catches header overflow and editor framing regressions.
 	McpServerDetailNarrow: defineComponentFixture({
-		labels: { kind: 'screenshot' },
+		labels: { kind: 'screenshot', blocksCi: true },
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.McpServers,
@@ -1993,7 +2192,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	// Plugin detail view — same alignment check for the detail back button.
 	PluginDetail: defineComponentFixture({
-		labels: { kind: 'screenshot' },
+		labels: { kind: 'screenshot', blocksCi: true },
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Plugins,
@@ -2012,17 +2211,23 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		}),
 	}),
 
-	// Standalone embedded MCP detail widget (compact split-pane component).
-	// Workspace-scope server with a description.
+	// Standalone embedded MCP detail widget with a workspace stdio definition.
 	EmbeddedMcpDetailWorkspace: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		render: ctx => renderEmbeddedMcpDetail(ctx, makeLocalMcpServer('mcp-postgres', 'PostgreSQL', LocalMcpServerScope.Workspace, 'Database access for the active workspace')),
+		render: ctx => renderEmbeddedMcpDetail(ctx, makeLocalMcpServer('mcp-postgres', 'PostgreSQL', LocalMcpServerScope.Workspace, 'Database access for the active workspace', {
+			type: McpServerType.LOCAL,
+			command: 'npx',
+			args: ['-y', '@modelcontextprotocol/server-postgres'],
+		})),
 	}),
 
-	// Standalone embedded MCP detail widget — user-scope server.
+	// Standalone embedded MCP detail widget with a user HTTP definition.
 	EmbeddedMcpDetailUser: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		render: ctx => renderEmbeddedMcpDetail(ctx, makeLocalMcpServer('mcp-web-search', 'Web Search', LocalMcpServerScope.User, 'Search the web from any session')),
+		render: ctx => renderEmbeddedMcpDetail(ctx, makeLocalMcpServer('mcp-web-search', 'Web Search', LocalMcpServerScope.User, 'Search the web from any session', {
+			type: McpServerType.REMOTE,
+			url: 'https://mcp.example.com/search',
+		})),
 	}),
 
 	// Standalone embedded MCP detail widget — empty / no input state.

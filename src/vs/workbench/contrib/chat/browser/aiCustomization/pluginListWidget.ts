@@ -1047,7 +1047,7 @@ export class PluginListWidget extends Disposable {
 			...this.pluginActions,
 			{
 				id: 'plugin.installFromSource',
-				label: this.narrowLayout ? localize('installFromSourceNarrow', "Install from Source") : localize('installFromSource', "Install Plugin from Source"),
+				label: localize('installFromSourceShort', "Install from Source"),
 				tooltip: localize('installFromSource', "Install Plugin from Source"),
 				icon: Codicon.add,
 				run: async () => {
@@ -1243,7 +1243,8 @@ export class PluginListWidget extends Disposable {
 
 	private renderAvailableSectionActions(header: HTMLElement): void {
 		const actions = DOM.append(header, $('.plugin-card-section-actions'));
-		const installLabel = localize('installFromSource', "Install Plugin from Source");
+		const installLabel = localize('installFromSourceShort', "Install from Source");
+		const installTooltip = localize('installFromSource', "Install Plugin from Source");
 		if (this.pluginActions.length > 0) {
 			const install = this.cardDisposables.add(new ButtonWithDropdown(actions, {
 				...defaultButtonStyles,
@@ -1257,14 +1258,14 @@ export class PluginListWidget extends Disposable {
 						return this.pluginActions.map((action, index) => this.addDropdownActions.add(new Action(`plugin_provider_add_${index}`, this.formatActionLabel(action), undefined, action.enabled !== false, () => this.runPluginAction(action))));
 					}
 				},
-				title: installLabel,
-				ariaLabel: installLabel,
+				title: installTooltip,
+				ariaLabel: installTooltip,
 			}));
 			install.element.classList.add('plugin-available-action');
 			install.label = `$(${Codicon.add.id}) ${installLabel}`;
 			this.cardDisposables.add(install.onDidClick(() => this.runInstallFromSourceAction()));
 		} else {
-			const install = this.cardDisposables.add(new Button(actions, { ...defaultButtonStyles, secondary: true, supportIcons: true, ariaLabel: installLabel }));
+			const install = this.cardDisposables.add(new Button(actions, { ...defaultButtonStyles, secondary: true, supportIcons: true, title: installTooltip, ariaLabel: installTooltip }));
 			install.element.classList.add('plugin-available-action');
 			install.label = `$(${Codicon.add.id}) ${installLabel}`;
 			this.cardDisposables.add(install.onDidClick(() => this.runInstallFromSourceAction()));

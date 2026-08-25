@@ -4,21 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from '../../../../../base/browser/dom.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { Disposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { basename } from '../../../../../base/common/resources.js';
+import { CodeEditorWidget } from '../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
+import { ILanguageService } from '../../../../../editor/common/languages/language.js';
+import { ITextModel } from '../../../../../editor/common/model.js';
+import { IModelService } from '../../../../../editor/common/services/model.js';
 import { localize } from '../../../../../nls.js';
-import { LocalMcpServerScope } from '../../../../services/mcp/common/mcpWorkbenchManagementService.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { getSimpleEditorOptions } from '../../../codeEditor/browser/simpleEditorOptions.js';
 import { IMcpWorkbenchService, IWorkbenchMcpServer } from '../../../mcp/common/mcpTypes.js';
-import { userIcon, workspaceIcon } from './aiCustomizationIcons.js';
 
 const $ = DOM.$;
 
 /**
- * Compact detail view for an MCP server inside the AI Customizations management editor's
- * split-pane host. Renders identity (icon + name + scope) and description.
- *
- * Advanced actions (enable / disable / uninstall / configure) remain accessible via the
- * row's existing context menu, so this component intentionally stays small.
+ * Detail view for an MCP server inside the AI Customizations management editor.
  */
 export class EmbeddedMcpServerDetail extends Disposable {
 
@@ -26,30 +27,57 @@ export class EmbeddedMcpServerDetail extends Disposable {
 	private readonly headerEl: HTMLElement;
 	private readonly leadingSlotEl: HTMLElement;
 	private readonly nameEl: HTMLElement;
-	private readonly scopeEl: HTMLElement;
-	private readonly descriptionEl: HTMLElement;
+	private readonly pathEl: HTMLElement;
+	private readonly definitionEditorContainer: HTMLElement;
+	private readonly definitionEmptyEl: HTMLElement;
+	private readonly definitionEditor: CodeEditorWidget;
+	private readonly definitionModel = this._register(new MutableDisposable<ITextModel>());
 	private readonly emptyEl: HTMLElement;
 
 	private current: IWorkbenchMcpServer | undefined;
+	private currentDefinition: string | undefined;
 
 	constructor(
 		parent: HTMLElement,
 		@IMcpWorkbenchService private readonly mcpWorkbenchService: IMcpWorkbenchService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IModelService private readonly modelService: IModelService,
+		@ILanguageService private readonly languageService: ILanguageService,
 	) {
 		super();
 
-		this.root = DOM.append(parent, $('.ai-customization-embedded-detail.embedded-mcp-detail'));
+		this.root = DOM.append(parent, $('.editor-content-container.ai-customization-embedded-detail.embedded-mcp-detail'));
 
-		this.headerEl = DOM.append(this.root, $('.embedded-detail-header'));
-		// Slot at the start of the header for callers to append leading chrome
-		// (e.g. a back button) without reaching into private DOM structure.
+		this.headerEl = DOM.append(this.root, $('.editor-header.mcp-detail-header'));
 		this.leadingSlotEl = DOM.append(this.headerEl, $('.embedded-detail-leading-slot'));
-		const headerText = DOM.append(this.headerEl, $('.embedded-detail-header-text'));
-		this.nameEl = DOM.append(headerText, $('h2.embedded-detail-name'));
-		this.nameEl.setAttribute('role', 'heading');
-		this.scopeEl = DOM.append(headerText, $('.embedded-detail-scope'));
+		const headerText = DOM.append(this.headerEl, $('.editor-item-info'));
+		this.nameEl = DOM.append(headerText, $('.editor-item-name'));
+		this.pathEl = DOM.append(headerText, $('.editor-item-path'));
 
-		this.descriptionEl = DOM.append(this.root, $('.embedded-detail-description'));
+		this.definitionEditorContainer = DOM.append(this.root, $('.embedded-editor-container.mcp-detail-definition-editor'));
+		this.definitionEmptyEl = DOM.append(this.root, $('.embedded-detail-empty.mcp-detail-definition-empty'));
+		this.definitionEmptyEl.textContent = localize('mcpDefinitionUnavailable', "No definition is available for this MCP server.");
+
+		this.definitionEditor = this._register(instantiationService.createInstance(
+			CodeEditorWidget,
+			this.definitionEditorContainer,
+			{
+				...getSimpleEditorOptions(configurationService),
+				readOnly: true,
+				domReadOnly: true,
+				minimap: { enabled: false },
+				lineNumbers: 'on',
+				wordWrap: 'on',
+				scrollBeyondLastLine: false,
+				automaticLayout: true,
+				folding: true,
+				renderLineHighlight: 'all',
+				scrollbar: { vertical: 'auto', horizontal: 'auto' },
+				ariaLabel: localize('mcpDefinitionEditorAriaLabel', "MCP server definition"),
+			},
+			{ isSimpleWidget: false }
+		));
 
 		this.emptyEl = DOM.append(this.root, $('.embedded-detail-empty'));
 		this.emptyEl.textContent = localize('mcpDetailEmpty', "No MCP server selected.");
@@ -91,6 +119,10 @@ export class EmbeddedMcpServerDetail extends Disposable {
 		this.renderItem();
 	}
 
+	focus(): void {
+		this.definitionEditor.focus();
+	}
+
 	private renderItem(): void {
 		const server = this.current;
 		const hasItem = !!server;
@@ -98,39 +130,39 @@ export class EmbeddedMcpServerDetail extends Disposable {
 		this.root.classList.toggle('is-empty', !hasItem);
 		if (!server) {
 			this.nameEl.textContent = '';
-			this.scopeEl.textContent = '';
-			this.descriptionEl.textContent = '';
+			this.pathEl.textContent = '';
+			this.setDefinition(undefined);
+			this.definitionEmptyEl.style.display = 'none';
 			return;
 		}
 
 		this.nameEl.textContent = server.label || server.name;
+		this.pathEl.textContent = server.local?.mcpResource ? basename(server.local.mcpResource) : 'mcp.json';
+		this.definitionEditor.updateOptions({
+			ariaLabel: localize('mcpDefinitionEditorAriaLabelWithName', "MCP server definition for {0}", server.label || server.name),
+		});
+		this.setDefinition(server.config ? `${JSON.stringify({ servers: { [server.name]: server.config } }, null, '\t')}\n` : undefined);
+	}
 
-		// Scope label
-		const scope = server.local?.scope;
-		const scopeInfo = describeMcpScope(scope);
-		if (scopeInfo) {
-			this.scopeEl.textContent = scopeInfo.label;
-			this.scopeEl.style.display = '';
-		} else {
-			this.scopeEl.replaceChildren();
-			this.scopeEl.style.display = 'none';
+	private setDefinition(definition: string | undefined): void {
+		const hasDefinition = definition !== undefined;
+		this.definitionEditorContainer.style.display = hasDefinition ? '' : 'none';
+		this.definitionEmptyEl.style.display = hasDefinition ? 'none' : '';
+
+		if (this.currentDefinition === definition) {
+			return;
 		}
 
-		// Description (single line, but allow wrapping in CSS)
-		const description = (server.description || '').trim();
-		this.descriptionEl.textContent = description;
-		this.descriptionEl.style.display = description ? '' : 'none';
-	}
-}
+		this.currentDefinition = definition;
 
-function describeMcpScope(scope: LocalMcpServerScope | undefined): { label: string; icon: ThemeIcon } | undefined {
-	switch (scope) {
-		case LocalMcpServerScope.Workspace:
-			return { label: localize('mcpScopeWorkspace', "Workspace"), icon: workspaceIcon };
-		case LocalMcpServerScope.User:
-		case LocalMcpServerScope.RemoteUser:
-			return { label: localize('mcpScopeUser', "User"), icon: userIcon };
-		default:
-			return undefined;
+		if (!hasDefinition) {
+			this.definitionEditor.setModel(null);
+			this.definitionModel.clear();
+			return;
+		}
+
+		const model = this.modelService.createModel(definition, this.languageService.createById('jsonc'), undefined, true);
+		this.definitionEditor.setModel(model);
+		this.definitionModel.value = model;
 	}
 }

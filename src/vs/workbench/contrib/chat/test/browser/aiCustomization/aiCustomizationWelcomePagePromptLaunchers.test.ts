@@ -11,6 +11,7 @@ import { PromptLaunchersAICustomizationWelcomePage } from '../../../browser/aiCu
 import { ICustomizationMigrationCategorySummary, IWelcomePageCallbacks } from '../../../browser/aiCustomization/aiCustomizationWelcomePage.js';
 import { CustomizationMigrationCategoryId } from '../../../browser/aiCustomization/customizationMigrationCategories.js';
 import { IAICustomizationWorkspaceService } from '../../../common/aiCustomizationWorkspaceService.js';
+import { AICustomizationManagementSection } from '../../../browser/aiCustomization/aiCustomizationManagement.js';
 
 suite('aiCustomizationWelcomePagePromptLaunchers', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -33,7 +34,7 @@ suite('aiCustomizationWelcomePagePromptLaunchers', () => {
 			{} as ICommandService,
 			{ isSessionsWindow: true } as IAICustomizationWorkspaceService,
 			{} as IHoverService,
-			'Copilot [Agent Host]',
+			'Copilot',
 		));
 		const category: ICustomizationMigrationCategorySummary = {
 			id: CustomizationMigrationCategoryId.UserData,
@@ -46,26 +47,58 @@ suite('aiCustomizationWelcomePagePromptLaunchers', () => {
 
 		try {
 			page.setMigrationCategories([category]);
-			const card = parent.querySelector<HTMLElement>('.welcome-prompts-migration-card');
-			const action = card?.querySelector<HTMLButtonElement>('.welcome-prompts-card-action');
-			card?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
-			action?.click();
+			const card = parent.querySelector<HTMLButtonElement>('.welcome-prompts-migration-card');
+			card?.click();
 			page.focus();
 
 			assert.deepStrictEqual({
-				cardRole: card?.getAttribute('role'),
-				cardTabIndex: card?.getAttribute('tabindex'),
+				cardTagName: card?.tagName,
 				buttonCount: card?.querySelectorAll('button').length,
-				actionTagName: action?.tagName,
-				focusedAction: document.activeElement === action,
+				focusedCard: document.activeElement === card,
 				migratedCategories,
 			}, {
-				cardRole: null,
-				cardTabIndex: null,
-				buttonCount: 1,
-				actionTagName: 'BUTTON',
-				focusedAction: true,
+				cardTagName: 'BUTTON',
+				buttonCount: 0,
+				focusedCard: true,
 				migratedCategories: [CustomizationMigrationCategoryId.UserData],
+			});
+		} finally {
+			parent.remove();
+		}
+	});
+
+	test('category cards are single native navigation targets', () => {
+		const parent = document.createElement('div');
+		document.body.appendChild(parent);
+		const selectedSections: AICustomizationManagementSection[] = [];
+		const page = store.add(new PromptLaunchersAICustomizationWelcomePage(
+			parent,
+			{ showGettingStartedBanner: false },
+			{
+				selectSection: section => selectedSections.push(section),
+				selectSectionWithMarketplace() { },
+				closeEditor() { },
+				migrateCustomizations() { },
+				prefillChat() { },
+			},
+			{} as ICommandService,
+			{ isSessionsWindow: true } as IAICustomizationWorkspaceService,
+			{} as IHoverService,
+			'Copilot',
+		));
+
+		try {
+			page.rebuildCards(new Set([AICustomizationManagementSection.Agents]));
+			const card = parent.querySelector<HTMLButtonElement>('.welcome-prompts-navigation-card');
+			card?.click();
+			assert.deepStrictEqual({
+				tagName: card?.tagName,
+				nestedButtons: card?.querySelectorAll('button').length,
+				selectedSections,
+			}, {
+				tagName: 'BUTTON',
+				nestedButtons: 0,
+				selectedSections: [AICustomizationManagementSection.Agents],
 			});
 		} finally {
 			parent.remove();

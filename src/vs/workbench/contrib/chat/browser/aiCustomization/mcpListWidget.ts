@@ -113,7 +113,6 @@ type IMcpInstalledEntry = IMcpServerItemEntry | IMcpSessionServerItemEntry | IMc
 
 interface IMcpInstalledPresentation {
 	readonly entry: IMcpInstalledEntry;
-	readonly source: string;
 }
 
 export type McpStatusKind = McpConnectionState.Kind | McpServerStatus | 'disabled';
@@ -1379,11 +1378,14 @@ export class McpListWidget extends Disposable {
 		const name = DOM.append(nameRow, $('.plugin-list-item-name'));
 		name.textContent = formatDisplayName(label);
 		name.title = label;
+		const statusPresentation = getMcpStatusPresentation(getMcpStatusKind(entry, this.workspaceService.isSessionsWindow), getMcpDisabledReason(entry));
+		if (statusPresentation) {
+			const statusBadge = DOM.append(nameRow, $('.plugin-list-item-status.mcp-runtime-status-badge'));
+			statusBadge.classList.add(statusPresentation.className);
+			statusBadge.textContent = statusPresentation.label;
+		}
 		const description = DOM.append(details, $('.plugin-list-item-description'));
 		description.textContent = this.getInstalledEntryDescription(entry);
-		const metadata = DOM.append(details, $('.plugin-list-item-metadata'));
-		const statusPresentation = getMcpStatusPresentation(getMcpStatusKind(entry, this.workspaceService.isSessionsWindow), getMcpDisabledReason(entry));
-		metadata.textContent = [presentation.source, statusPresentation?.label].filter(Boolean).join(' • ');
 
 		const actions = DOM.append(row, $('.plugin-list-item-action'));
 		this.isolateSurfaceActions(actions);
@@ -1438,10 +1440,6 @@ export class McpListWidget extends Disposable {
 		name.title = server.label;
 		const description = DOM.append(details, $('.plugin-list-item-description'));
 		description.textContent = truncateToFirstLine(server.description || localize('mcpNoDescription', "No description provided."));
-		const metadata = DOM.append(details, $('.plugin-list-item-metadata'));
-		metadata.textContent = server.publisherDisplayName
-			? localize('mcpAvailableFromPublisher', "Available from {0}", server.publisherDisplayName)
-			: localize('mcpAvailableFromMarketplace', "Available from the MCP marketplace");
 		const actions = DOM.append(row, $('.plugin-list-item-action'));
 		this.isolateSurfaceActions(actions);
 		const install = this.cardDisposables.add(new Button(actions, { ...defaultButtonStyles, secondary: true, supportIcons: true, ariaLabel: localize('installMcpServerAria', "Install {0}", server.label) }));
@@ -1610,9 +1608,9 @@ export class McpListWidget extends Disposable {
 			.filter(s => isMcpServerCollectionVisible(s.collection.id, hiddenCollectionIds))
 			.filter(s => !query || s.definition.label.toLowerCase().includes(query));
 
-		const groups: { scope: LocalMcpServerScope; label: string; entries: Array<IMcpServerItemEntry | IMcpSessionServerItemEntry> }[] = [
-			{ scope: LocalMcpServerScope.Workspace, label: localize('workspaceGroup', "Workspace"), entries: [] },
-			{ scope: LocalMcpServerScope.User, label: localize('userGroup', "User"), entries: [] },
+		const groups: { entries: Array<IMcpServerItemEntry | IMcpSessionServerItemEntry> }[] = [
+			{ entries: [] },
+			{ entries: [] },
 		];
 
 		for (const server of this.filteredServers) {
@@ -1652,23 +1650,11 @@ export class McpListWidget extends Disposable {
 		const activeSessionOnlyServers = activeSessionMatcher.unmatched(query);
 		const activeSessionBuiltinEntries = createBuiltinActiveSessionMcpEntries(activeSessionOnlyServers);
 		this.installedEntries = [
-			...groups.flatMap(group => group.entries.map(entry => ({ entry, source: group.label }))),
-			...pluginServers.map(({ server, activeSessionServer }) => ({
-				entry: createBuiltinEntry(server, activeSessionServer),
-				source: localize('pluginMcpSource', "Plugin"),
-			})),
-			...extensionServers.map(({ server, activeSessionServer }) => ({
-				entry: createBuiltinEntry(server, activeSessionServer),
-				source: localize('extensionMcpSource', "Extension"),
-			})),
-			...otherBuiltinServers.map(({ server, activeSessionServer }) => ({
-				entry: createBuiltinEntry(server, activeSessionServer),
-				source: localize('builtInMcpSource', "Built-in"),
-			})),
-			...activeSessionBuiltinEntries.map(entry => ({
-				entry,
-				source: localize('activeSessionMcpSource', "Active session"),
-			})),
+			...groups.flatMap(group => group.entries.map(entry => ({ entry }))),
+			...pluginServers.map(({ server, activeSessionServer }) => ({ entry: createBuiltinEntry(server, activeSessionServer) })),
+			...extensionServers.map(({ server, activeSessionServer }) => ({ entry: createBuiltinEntry(server, activeSessionServer) })),
+			...otherBuiltinServers.map(({ server, activeSessionServer }) => ({ entry: createBuiltinEntry(server, activeSessionServer) })),
+			...activeSessionBuiltinEntries.map(entry => ({ entry })),
 		];
 
 		// Compute sidebar badge directly from the data arrays (same source as group headers)

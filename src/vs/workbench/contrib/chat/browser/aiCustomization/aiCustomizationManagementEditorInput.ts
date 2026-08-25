@@ -23,6 +23,7 @@ export class AICustomizationManagementEditorInput extends EditorInput implements
 
 	private _isDirty = false;
 	private _saveHandler?: () => Promise<boolean>;
+	private _targetLabel: string | undefined;
 
 	override get capabilities(): EditorInputCapabilities {
 		return super.capabilities | EditorInputCapabilities.Singleton | EditorInputCapabilities.RequiresModal;
@@ -53,6 +54,9 @@ export class AICustomizationManagementEditorInput extends EditorInput implements
 	}
 
 	override getName(): string {
+		if (this._targetLabel) {
+			return localize('aiCustomizationManagementEditorNameWithTarget', "Agent Customizations – {0}", this._targetLabel);
+		}
 		return localize('aiCustomizationManagementEditorName', "Agent Customizations");
 	}
 
@@ -96,5 +100,13 @@ export class AICustomizationManagementEditorInput extends EditorInput implements
 
 	setSaveHandler(handler: (() => Promise<boolean>) | undefined): void {
 		this._saveHandler = handler;
+	}
+
+	setTargetLabel(label: string | undefined): void {
+		if (this._targetLabel === label) {
+			return;
+		}
+		this._targetLabel = label;
+		this._onDidChangeLabel.fire();
 	}
 }

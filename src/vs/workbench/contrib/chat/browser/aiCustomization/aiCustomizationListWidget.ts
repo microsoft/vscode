@@ -1209,30 +1209,26 @@ export class AICustomizationListWidget extends Disposable {
 		// Hooks have a simplified action set
 		if (promptType === PromptsType.hook) {
 			if (!this.workspaceService.isSessionsWindow && !descriptor.hideGenerateButton) {
-				// Core Local: Generate is primary, configure hooks in dropdown
 				actions.push({
 					label: `$(${Codicon.sparkle.id}) Generate ${typeLabel}`,
 					enabled: true,
 					run: () => { this._onDidRequestCreate.fire(promptType); },
 				});
-				if (hasWorkspace) {
-					actions.push({
-						label: `$(${Codicon.add.id}) ${localize('configureHooks', "Configure Hooks")}`,
-						enabled: true,
-						target: 'workspace',
-						run: () => { this._onDidRequestCreateManual.fire({ type: promptType, target: 'local' }); },
-					});
-				}
-			} else if (!override?.commandId) {
-				// Sessions / non-local: configure hooks (view + create)
+			}
+			if (hasWorkspace) {
 				actions.push({
-					label: `$(${Codicon.add.id}) ${localize('configureHooks', "Configure Hooks")}`,
-					enabled: hasWorkspace,
-					tooltip: hasWorkspace ? undefined : localize('configureHooksDisabled', "Open a workspace folder to configure hooks."),
+					label: `$(${Codicon.add.id}) ${localize('newHooks', "New Hooks")}`,
+					enabled: true,
 					target: 'workspace',
 					run: () => { this._onDidRequestCreateManual.fire({ type: promptType, target: 'local' }); },
 				});
 			}
+			actions.push({
+				label: `$(${Codicon.add.id}) ${localize('newHooks', "New Hooks")}`,
+				enabled: true,
+				target: 'user',
+				run: () => { this._onDidRequestCreateManual.fire({ type: promptType, target: 'user' }); },
+			});
 			return actions;
 		}
 
@@ -1498,9 +1494,17 @@ export class AICustomizationListWidget extends Disposable {
 			if (!group) {
 				// Dynamically create a group for unknown groupKeys from providers
 				let label: string;
+				let description = '';
 				switch (key) {
 					case 'remote-host':
 						label = localize('remoteHostGroupShort', "Remote");
+						if (this.currentSection === AICustomizationManagementSection.Skills) {
+							description = localize(
+								'remoteSkillsGroupDescription',
+								"Skills available from {0}, the active remote agent environment.",
+								this.harnessService.getActiveDescriptor().label,
+							);
+						}
 						break;
 					case 'remote-client':
 						label = localize('remoteClientGroupShort', "Local");
@@ -1508,7 +1512,7 @@ export class AICustomizationListWidget extends Disposable {
 					default:
 						label = formatDisplayName(key);
 				}
-				group = { groupKey: key, label, icon: Codicon.folder, description: '', items: [] };
+				group = { groupKey: key, label, icon: Codicon.folder, description, items: [] };
 				// Insert dynamic groups before the built-in group so it always stays last.
 				const builtinIdx = groups.findIndex(g => g.groupKey === PromptsStorage.builtIn);
 				if (builtinIdx >= 0) {
@@ -1610,7 +1614,8 @@ export class AICustomizationListWidget extends Disposable {
 	private usesTargetedCreateActions(): boolean {
 		return this.currentSection === AICustomizationManagementSection.Agents
 			|| this.currentSection === AICustomizationManagementSection.Skills
-			|| this.currentSection === AICustomizationManagementSection.Instructions;
+			|| this.currentSection === AICustomizationManagementSection.Instructions
+			|| this.currentSection === AICustomizationManagementSection.Hooks;
 	}
 
 	private getCreateActionGroupKey(): string | undefined {
@@ -1698,7 +1703,7 @@ export class AICustomizationListWidget extends Disposable {
 			case AICustomizationManagementSection.Hooks:
 				return workspace ? localize('noWorkspaceHooks', "No workspace hooks yet.") : localize('noUserHooks', "No user hooks yet.");
 			default:
-				return localize('noCustomizationsInSection', "Nothing to see here yet.");
+				return localize('noCustomizationsInSection', "No customizations are available.");
 		}
 	}
 
@@ -1748,9 +1753,11 @@ export class AICustomizationListWidget extends Disposable {
 		row.classList.toggle('disabled', item.disabled);
 		const displayName = item.displayName ?? formatDisplayName(item.name);
 		const secondaryText = getCustomizationSecondaryText(item.description, item.filename, item.promptType);
+		const statusLabel = this.getItemStatusLabel(item);
+		const accessibleSecondaryText = [secondaryText, statusLabel].filter(Boolean).join('. ');
 		const accessibleLabel = item.disabled
-			? localize('customizationCardAriaLabelDisabled', "{0}. {1}. Disabled", displayName, secondaryText ?? groupLabel)
-			: localize('customizationCardAriaLabel', "{0}. {1}", displayName, secondaryText ?? groupLabel);
+			? localize('customizationCardAriaLabelDisabled', "{0}. {1}. Disabled", displayName, accessibleSecondaryText || groupLabel)
+			: localize('customizationCardAriaLabel', "{0}. {1}", displayName, accessibleSecondaryText || groupLabel);
 		const primary = DOM.append(row, $('.customization-row-primary'));
 		primary.tabIndex = 0;
 		primary.setAttribute('role', 'button');
@@ -1779,19 +1786,13 @@ export class AICustomizationListWidget extends Disposable {
 		const nameRow = DOM.append(details, $('.plugin-list-item-name-row'));
 		const name = DOM.append(nameRow, $('.plugin-list-item-name'));
 		name.textContent = displayName;
-		if (item.badge) {
+		if (item.badge && item.promptType !== PromptsType.instructions) {
 			const badge = DOM.append(nameRow, $('.inline-badge.item-badge'));
 			badge.textContent = item.badge;
 			badge.title = item.badgeTooltip ?? item.badge;
 		}
 		const description = DOM.append(details, $('.plugin-list-item-description'));
 		description.textContent = secondaryText ?? localize('customizationNoDescription', "No description provided.");
-		const metadata = DOM.append(details, $('.plugin-list-item-metadata'));
-		metadata.textContent = [
-			groupLabel,
-			item.disabled ? localize('disabled', "Disabled") : undefined,
-			this.getItemStatusLabel(item),
-		].filter(Boolean).join(' • ');
 
 		const actionContainer = DOM.append(row, $('.plugin-list-item-action'));
 		this.cardDisposables.add(DOM.addDisposableGenericMouseDownListener(actionContainer, e => e.stopPropagation()));

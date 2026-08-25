@@ -10,8 +10,9 @@ import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { RunOnceScheduler, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
-import { onUnexpectedError } from '../../../../../base/common/errors.js';
+import { getErrorMessage, onUnexpectedError } from '../../../../../base/common/errors.js';
 import { DisposableStore, IReference, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Action } from '../../../../../base/common/actions.js';
 import { Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
@@ -76,7 +77,7 @@ import { AICustomizationSources, IAICustomizationWorkspaceService } from '../../
 import { CodeEditorWidget } from '../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { InputBox } from '../../../../../base/browser/ui/inputbox/inputBox.js';
-import { Checkbox } from '../../../../../base/browser/ui/toggle/toggle.js';
+import { Checkbox, TriStateCheckbox } from '../../../../../base/browser/ui/toggle/toggle.js';
 import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { createTextBufferFactoryFromSnapshot } from '../../../../../editor/common/model/textModel.js';
@@ -86,7 +87,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { getSimpleEditorOptions } from '../../../codeEditor/browser/simpleEditorOptions.js';
 import { IWorkingCopyService } from '../../../../services/workingCopy/common/workingCopyService.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
-import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
+import { IContextMenuService, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { FileSystemProviderCapabilities, IFileService } from '../../../../../platform/files/common/files.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
@@ -338,11 +339,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private migrationSearchInput: InputBox | undefined;
 	private migrationTitleElement: HTMLElement | undefined;
 	private migrationDescriptionElement: HTMLElement | undefined;
+	private migrationDescriptionTextElement: HTMLElement | undefined;
 	private migrationBannerContainer: HTMLElement | undefined;
 	private migrationLinkElement: HTMLAnchorElement | undefined;
+	private migrationSelectedCountElement: HTMLElement | undefined;
 	private migrationSearchQuery = '';
 	private activeMigrationCategoryId: CustomizationMigrationCategoryId | undefined;
-	private readonly collapsedCustomizationMigrationGroups = new Set<string>();
 	private selectedCustomizationMigrationItems = new ResourceMap<Set<PromptsStorage>>();
 	private readonly migrationPageDisposables = this._register(new DisposableStore());
 
@@ -373,6 +375,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private customizationsByMigrationCategory = new Map<CustomizationMigrationCategoryId, readonly IPromptPath[]>();
 	private customizationMigrationTargetFoldersByType = new Map<PromptsType, readonly ICustomizationSourceFolder[]>();
 	private customizationMigrationRefreshSequence = 0;
+	private customizationMigrationLoading = false;
+	private customizationMigrationLoadError: string | undefined;
 
 	private readonly editorDisposables = this._register(new DisposableStore());
 	private _editorContentChanged = false;
@@ -407,6 +411,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
 		@IModelService private readonly modelService: IModelService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
@@ -544,8 +549,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 							});
 						}
 					}
-					// Embedded MCP/plugin detail panes use a plain DOM widget that flows with
-					// the container; no explicit layout call is needed here.
+					// The MCP detail editor uses automatic layout; plugin details flow with
+					// their container, so neither requires an explicit layout call here.
 				}
 			},
 		}, Sizing.Distribute, undefined, true);
@@ -572,6 +577,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private updateHarnessLabelPresentation(): void {
 		const harnessLabel = this.getActiveHarnessLabel();
 		this.welcomePage?.setHarnessLabel(harnessLabel);
+		if (this.input instanceof AICustomizationManagementEditorInput) {
+			this.input.setTargetLabel(harnessLabel);
+		}
 	}
 
 	/**
@@ -859,41 +867,28 @@ export class AICustomizationManagementEditor extends EditorPane {
 		const titleRow = DOM.append(header, $('.section-title-row'));
 		this.migrationTitleElement = DOM.append(titleRow, $('h2.section-title'));
 		this.migrationDescriptionElement = DOM.append(header, $('p.section-title-description'));
-
-		this.migrationBannerContainer = DOM.append(this.migrationContentContainer, $('.customization-migration-banner'));
-		this.migrationBannerContainer.style.display = 'none';
-
-		const sectionLink = this.migrationLinkElement = DOM.append(this.migrationContentContainer, $('a.section-title-link.migration-learn-more-link')) as HTMLAnchorElement;
+		this.migrationDescriptionTextElement = DOM.append(this.migrationDescriptionElement, $('span.section-title-description-text'));
+		this.migrationDescriptionElement.appendChild(document.createTextNode(' '));
+		const sectionLink = this.migrationLinkElement = DOM.append(this.migrationDescriptionElement, $('a.section-title-link')) as HTMLAnchorElement;
 		this.editorDisposables.add(DOM.addDisposableListener(sectionLink, 'click', e => {
 			e.preventDefault();
 			this.openerService.open(URI.parse(sectionLink.href));
 		}));
+
+		this.migrationBannerContainer = DOM.append(this.migrationContentContainer, $('.customization-migration-banner'));
+		this.migrationBannerContainer.style.display = 'none';
 
 		const actions = DOM.append(this.migrationContentContainer, $('.list-search-and-button-container.prompt-migration-actions'));
 		const searchContainer = DOM.append(actions, $('.list-search-container'));
 		this.migrationSearchInput = this.editorDisposables.add(new InputBox(searchContainer, this.contextViewService, {
 			placeholder: localize('customizationMigrationSearchPlaceholder', "Type to search..."),
 			inputBoxStyles: defaultInputBoxStyles,
+			ariaLabel: localize('customizationMigrationSearchAriaLabel', "Search customizations to migrate"),
 		}));
 		this.editorDisposables.add(this.migrationSearchInput.onDidChange(() => {
 			this.migrationSearchQuery = this.migrationSearchInput?.value ?? '';
 			this.renderCustomizationMigrationPage();
 		}));
-		const actionButtonContainer = DOM.append(actions, $('.list-add-button-container'));
-		this.migrationMigrateButton = this.editorDisposables.add(new Button(actionButtonContainer, defaultButtonStyles));
-		this.migrationMigrateButton.element.classList.add('list-add-button', 'prompt-migration-button');
-		this.migrationMigrateButton.label = localize('customizationMigrationPageButton', "Migrate");
-		this.editorDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), this.migrationMigrateButton.element, () => this.getActiveMigrationCategory()?.migrateButtonTooltip ?? ''));
-		this.editorDisposables.add(this.migrationMigrateButton.onDidClick(() => {
-			const category = this.getActiveMigrationCategory();
-			if (!category) {
-				return;
-			}
-			const selectedCustomizations = this.getMigrationCandidates(category)
-				.filter(customization => this.isCustomizationSelectedForMigration(customization));
-			void this.migrateSelectedCustomizations(category, selectedCustomizations);
-		}));
-
 		this.migrationListContainer = $('.prompt-migration-list.list-container');
 		this.migrationListScrollable = this.editorDisposables.add(new DomScrollableElement(this.migrationListContainer, {
 			horizontal: ScrollbarVisibility.Hidden,
@@ -910,6 +905,23 @@ export class AICustomizationManagementEditor extends EditorPane {
 			targetWindow,
 		));
 		this.editorDisposables.add(migrationResizeObserver.observe(migrationListScrollableNode));
+
+		const footer = DOM.append(this.migrationContentContainer, $('.prompt-migration-footer'));
+		this.migrationSelectedCountElement = DOM.append(footer, $('span.prompt-migration-selected-count'));
+		this.migrationSelectedCountElement.setAttribute('aria-live', 'polite');
+		const actionButtonContainer = DOM.append(footer, $('.list-add-button-container'));
+		this.migrationMigrateButton = this.editorDisposables.add(new Button(actionButtonContainer, defaultButtonStyles));
+		this.migrationMigrateButton.element.classList.add('list-add-button', 'prompt-migration-button');
+		this.editorDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), this.migrationMigrateButton.element, () => this.getActiveMigrationCategory()?.migrateButtonTooltip ?? ''));
+		this.editorDisposables.add(this.migrationMigrateButton.onDidClick(() => {
+			const category = this.getActiveMigrationCategory();
+			if (!category) {
+				return;
+			}
+			const selectedCustomizations = this.getMigrationCandidates(category)
+				.filter(customization => this.isCustomizationSelectedForMigration(customization));
+			void this.migrateSelectedCustomizations(category, selectedCustomizations);
+		}));
 		this.renderCustomizationMigrationPage();
 	}
 
@@ -1104,8 +1116,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private async refreshCustomizationMigrationInfo(): Promise<void> {
 		const activeHarnessId = this.harnessService.activeHarness.get();
 		const refreshSequence = ++this.customizationMigrationRefreshSequence;
+		this.customizationMigrationLoading = true;
+		this.customizationMigrationLoadError = undefined;
+		this.renderCustomizationMigrationPage();
 
 		if (!isAgentHostTarget(activeHarnessId)) {
+			this.customizationMigrationLoading = false;
 			this.setCustomizationsToMigrate(new Map(), new Map());
 			return;
 		}
@@ -1113,6 +1129,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		try {
 			const enabledCategories = this.getEnabledMigrationCategories();
 			if (enabledCategories.length === 0) {
+				this.customizationMigrationLoading = false;
 				this.setCustomizationsToMigrate(new Map(), new Map());
 				return;
 			}
@@ -1144,10 +1161,13 @@ export class AICustomizationManagementEditor extends EditorPane {
 			for (const [categoryId, candidates] of unfilteredCandidatesByCategory) {
 				candidatesByCategory.set(categoryId, this.filterCustomizationMigrationCandidatesByTargetFolders(candidates, targetFoldersByType));
 			}
+			this.customizationMigrationLoading = false;
 			this.setCustomizationsToMigrate(candidatesByCategory, targetFoldersByType);
 		} catch (error) {
 			if (refreshSequence === this.customizationMigrationRefreshSequence) {
-				this.setCustomizationsToMigrate(new Map(), new Map());
+				this.customizationMigrationLoading = false;
+				this.customizationMigrationLoadError = getErrorMessage(error);
+				this.renderCustomizationMigrationPage();
 			}
 			onUnexpectedError(error);
 		}
@@ -1361,6 +1381,25 @@ export class AICustomizationManagementEditor extends EditorPane {
 		const candidates = this.getMigrationCandidates(category);
 		this.updateCustomizationMigrationPageHeader(category, candidates);
 
+		if (this.customizationMigrationLoading) {
+			this.renderCustomizationMigrationState(
+				localize('customizationMigrationLoading', "Loading customizations..."),
+				localize('customizationMigrationLoadingDescription', "Checking the active harness and available destinations."),
+			);
+			this.migrationMigrateButton.enabled = false;
+			return;
+		}
+
+		if (this.customizationMigrationLoadError) {
+			this.renderCustomizationMigrationState(
+				localize('customizationMigrationLoadError', "Customizations could not be loaded"),
+				localize('customizationMigrationLoadErrorDescription', "Check the active agent connection, then try again."),
+				() => void this.refreshCustomizationMigrationInfo(),
+			);
+			this.migrationMigrateButton.enabled = false;
+			return;
+		}
+
 		if (candidates.length === 0) {
 			const emptyMessage = DOM.append(this.migrationListContainer, $('p.prompt-migration-empty'));
 			emptyMessage.textContent = category.pageEmptyMessage;
@@ -1432,76 +1471,81 @@ export class AICustomizationManagementEditor extends EditorPane {
 			pathLabel.textContent = relativePath;
 
 			const itemRight = DOM.append(row, $('span.item-right'));
-			const deleteButton = DOM.append(itemRight, $('button.icon-button', {
+			const moreButton = DOM.append(itemRight, $('button.icon-button.prompt-migration-more-action', {
 				type: 'button',
-				'aria-label': localize('deleteCustomizationFile', "Delete {0}", customization.name ?? basename(customization.uri)),
+				'aria-label': localize('customizationMigrationMoreActions', "More actions for {0}", customization.name ?? basename(customization.uri)),
 			})) as HTMLButtonElement;
-			deleteButton.classList.add(...ThemeIcon.asClassNameArray(Codicon.trash));
-			this.migrationPageDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), deleteButton, localize('deleteCustomizationFileTooltip', "Delete")));
-			this.migrationPageDisposables.add(DOM.addDisposableListener(deleteButton, 'click', event => {
+			moreButton.classList.add(...ThemeIcon.asClassNameArray(Codicon.ellipsis));
+			this.migrationPageDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), moreButton, localize('moreActions', "More Actions")));
+			this.migrationPageDisposables.add(DOM.addDisposableListener(moreButton, 'click', event => {
 				event.stopPropagation();
-				void this.deleteCustomizationFile(customization);
+				const actions = new DisposableStore();
+				const deleteAction = actions.add(new Action(
+					'customizationMigration.delete',
+					localize('delete', "Delete"),
+					ThemeIcon.asClassName(Codicon.trash),
+					true,
+					() => this.deleteCustomizationFile(customization),
+				));
+				this.contextMenuService.showContextMenu({
+					getAnchor: () => moreButton,
+					getActions: () => [deleteAction],
+					onHide: () => actions.dispose(),
+				});
 			}));
 			return checkbox;
 		};
 
 		const renderGroup = (groupKey: string, groupLabel: string, customizations: readonly IPromptPath[]): void => {
+			const group = DOM.append(this.migrationListContainer!, $('.prompt-migration-group'));
+			const groupHeader = DOM.append(group, $('.prompt-migration-group-header'));
+			const groupHeading = DOM.append(groupHeader, $('.prompt-migration-group-heading'));
+			const label = DOM.append(groupHeading, $('h3.prompt-migration-group-title'));
+			label.textContent = groupLabel;
 			if (customizations.length === 0) {
+				const count = DOM.append(groupHeading, $('span.prompt-migration-group-count'));
+				count.textContent = '0';
+				const emptyItems = DOM.append(group, $('.prompt-migration-group-items'));
+				DOM.append(emptyItems, $('.plugin-inventory-empty.prompt-migration-group-empty')).textContent = localize(
+					'customizationMigrationGroupEmpty',
+					"No customizations are available to migrate from {0}.",
+					groupLabel,
+				);
 				return;
 			}
-
-			const group = DOM.append(this.migrationListContainer!, $('.prompt-migration-group'));
-			const groupHeader = DOM.append(group, $('.ai-customization-group-header.prompt-migration-group-header'));
-			const groupCheckboxContainer = DOM.append(groupHeader, $('.item-sync-checkbox.prompt-migration-group-checkbox'));
-			const allInGroupSelected = customizations.every(customization => this.isCustomizationSelectedForMigration(customization));
+			const selectedInGroup = customizations.filter(customization => this.isCustomizationSelectedForMigration(customization)).length;
+			const initialGroupState: boolean | 'mixed' = selectedInGroup === customizations.length ? true : selectedInGroup === 0 ? false : 'mixed';
 			const groupCheckboxAriaLabel = localize('customizationMigrationSelectGroupAriaLabel', "Select all customizations in {0}", groupLabel);
-			const groupCheckbox = this.migrationPageDisposables.add(new Checkbox(groupCheckboxAriaLabel, allInGroupSelected, defaultCheckboxStyles));
+			const groupCheckbox = this.migrationPageDisposables.add(new TriStateCheckbox(groupCheckboxAriaLabel, initialGroupState, defaultCheckboxStyles));
+			const count = DOM.append(groupHeading, $('span.prompt-migration-group-count'));
+			count.textContent = String(customizations.length);
+			const groupControls = DOM.append(groupHeader, $('.prompt-migration-group-controls'));
+			const groupCheckboxContainer = DOM.append(groupControls, $('.item-sync-checkbox.prompt-migration-group-checkbox'));
 			groupCheckboxContainer.replaceChildren(groupCheckbox.domNode);
+			DOM.append(groupControls, $('span.prompt-migration-select-all-label')).textContent = localize('customizationMigrationSelectAll', "Select all");
+			const setGroupCheckboxState = (state: boolean | 'mixed'): void => {
+				groupCheckbox.checked = state;
+				groupCheckbox.domNode.setAttribute('aria-checked', String(state));
+			};
+			setGroupCheckboxState(initialGroupState);
 			const itemCheckboxes: Checkbox[] = [];
 			this.migrationPageDisposables.add(groupCheckbox.onChange(() => {
+				const selected = groupCheckbox.checked === true;
 				for (const customization of customizations) {
-					this.setCustomizationSelectedForMigration(customization, groupCheckbox.checked);
+					this.setCustomizationSelectedForMigration(customization, selected);
 				}
 				for (const itemCheckbox of itemCheckboxes) {
-					itemCheckbox.checked = groupCheckbox.checked;
+					itemCheckbox.checked = selected;
 				}
 				this.updateCustomizationMigrationActionState();
 			}));
 			const updateGroupCheckboxState = (): void => {
-				groupCheckbox.checked = customizations.every(customization => this.isCustomizationSelectedForMigration(customization));
+				const selectedCount = customizations.filter(customization => this.isCustomizationSelectedForMigration(customization)).length;
+				setGroupCheckboxState(selectedCount === customizations.length ? true : selectedCount === 0 ? false : 'mixed');
 			};
-			const groupToggle = DOM.append(groupHeader, $('button.prompt-migration-group-toggle')) as HTMLButtonElement;
-			groupToggle.type = 'button';
 			const groupId = `prompt-migration-group-${category.id}-${groupKey}`;
-			const collapsed = this.collapsedCustomizationMigrationGroups.has(groupId);
-			groupToggle.setAttribute('aria-controls', `${groupId}-items`);
-			groupToggle.setAttribute('aria-expanded', String(!collapsed));
-			const chevron = DOM.append(groupToggle, $('span.group-chevron'));
-			chevron.setAttribute('aria-hidden', 'true');
-			const groupLabelGroup = DOM.append(groupToggle, $('.group-label-group'));
-			const label = DOM.append(groupLabelGroup, $('span.group-label'));
-			label.textContent = groupLabel;
-			const count = DOM.append(groupToggle, $('span.group-count'));
-			count.textContent = String(customizations.length);
 			const groupItems = DOM.append(group, $('.prompt-migration-group-items'));
 			groupItems.id = `${groupId}-items`;
-			const setGroupCollapsed = (collapsed: boolean): void => {
-				groupItems.style.display = collapsed ? 'none' : '';
-				chevron.className = 'group-chevron';
-				chevron.classList.add(...ThemeIcon.asClassNameArray(collapsed ? Codicon.chevronRightCompact : Codicon.chevronDownCompact));
-				groupToggle.setAttribute('aria-expanded', String(!collapsed));
-				this.migrationListScrollable?.scanDomNode();
-			};
-			setGroupCollapsed(collapsed);
-			this.migrationPageDisposables.add(DOM.addDisposableListener(groupToggle, 'click', () => {
-				if (this.collapsedCustomizationMigrationGroups.has(groupId)) {
-					this.collapsedCustomizationMigrationGroups.delete(groupId);
-					setGroupCollapsed(false);
-				} else {
-					this.collapsedCustomizationMigrationGroups.add(groupId);
-					setGroupCollapsed(true);
-				}
-			}));
 
 			for (const customization of customizations) {
 				itemCheckboxes.push(renderItem(groupItems, customization, updateGroupCheckboxState));
@@ -1511,6 +1555,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 		const groups = category.group(filteredCustomizations);
 		const groupedUris = new ResourceSet();
 		for (const group of groups) {
+			if (query && group.customizations.length === 0) {
+				continue;
+			}
 			for (const customization of group.customizations) {
 				groupedUris.add(customization.uri);
 			}
@@ -1522,6 +1569,18 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}
 
 		this.updateCustomizationMigrationActionState();
+		this.migrationListScrollable?.scanDomNode();
+	}
+
+	private renderCustomizationMigrationState(title: string, description: string, retry?: () => void): void {
+		const state = DOM.append(this.migrationListContainer!, $('.plugin-inventory-empty.prompt-migration-state'));
+		DOM.append(state, $('strong.prompt-migration-state-title')).textContent = title;
+		DOM.append(state, $('span.prompt-migration-state-description')).textContent = description;
+		if (retry) {
+			const retryButton = this.migrationPageDisposables.add(new Button(state, { ...defaultButtonStyles, secondary: true, ariaLabel: localize('retryCustomizationMigration', "Retry loading customizations") }));
+			retryButton.label = localize('retry', "Retry");
+			this.migrationPageDisposables.add(retryButton.onDidClick(retry));
+		}
 		this.migrationListScrollable?.scanDomNode();
 	}
 
@@ -1545,7 +1604,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 			: undefined;
 		this.renderCustomizationMigrationBanner(banner);
 		if (this.migrationDescriptionElement) {
-			this.migrationDescriptionElement.textContent = banner ? '' : category.getPageDescription(candidates, this.getActiveHarnessLabel());
+			const description = banner ? '' : category.getPageDescription(candidates, this.getActiveHarnessLabel());
+			if (this.migrationDescriptionTextElement) {
+				this.migrationDescriptionTextElement.textContent = description;
+			} else {
+				this.migrationDescriptionElement.textContent = description;
+			}
 			this.migrationDescriptionElement.style.display = banner ? 'none' : '';
 		}
 
@@ -1590,9 +1654,20 @@ export class AICustomizationManagementEditor extends EditorPane {
 		const category = this.getActiveMigrationCategory() ?? CUSTOMIZATION_MIGRATION_CATEGORIES[0];
 		const selectedCount = this.getMigrationCandidates(category).filter(customization => this.isCustomizationSelectedForMigration(customization)).length;
 		this.migrationMigrateButton.enabled = selectedCount > 0;
-		this.migrationMigrateButton.label = selectedCount > 0
-			? localize('customizationMigrationPageButtonWithCount', "Migrate ({0})", selectedCount)
-			: localize('customizationMigrationPageButton', "Migrate");
+		if (this.migrationSelectedCountElement) {
+			this.migrationSelectedCountElement.textContent = selectedCount === 1
+				? localize('customizationMigrationOneSelected', "1 selected")
+				: localize('customizationMigrationSelectedCount', "{0} selected", selectedCount);
+		}
+		if (category.id === CustomizationMigrationCategoryId.PromptFiles) {
+			this.migrationMigrateButton.label = selectedCount > 0
+				? localize('customizationMigrationConvertWithCount', "Convert {0} to Skills", selectedCount)
+				: localize('customizationMigrationConvert', "Convert to Skills");
+		} else {
+			this.migrationMigrateButton.label = selectedCount > 0
+				? localize('customizationMigrationPageButtonWithCount', "Migrate {0}", selectedCount)
+				: localize('customizationMigrationPageButton', "Migrate");
+		}
 	}
 
 	private async deleteCustomizationFile(customization: IPromptPath): Promise<void> {
@@ -2098,22 +2173,25 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}
 
 		if (type === PromptsType.hook) {
+			const preferredStorage = target === 'user' ? PromptsStorage.user : PromptsStorage.local;
 			if (this.workspaceService.isSessionsWindow) {
 				// Sessions: show hooks filtered to Copilot CLI (GitHub Copilot) hook types
 				await this.instantiationService.invokeFunction(showConfigureHooksQuickPick, {
 					openEditor: async (resource) => {
-						await this.showEmbeddedEditor(resource, basename(resource), PromptsType.hook, PromptsStorage.local, true);
+						await this.showEmbeddedEditor(resource, basename(resource), PromptsType.hook, preferredStorage, preferredStorage === PromptsStorage.local);
 						return;
 					},
 					target: Target.GitHubCopilot,
+					preferredStorage,
 				});
 			} else {
 				// Core: use the default core behaviour
 				await this.instantiationService.invokeFunction(showConfigureHooksQuickPick, {
 					openEditor: async (resource) => {
-						await this.showEmbeddedEditor(resource, basename(resource), PromptsType.hook, PromptsStorage.local, true);
+						await this.showEmbeddedEditor(resource, basename(resource), PromptsType.hook, preferredStorage, preferredStorage === PromptsStorage.local);
 						return;
-					}
+					},
+					preferredStorage,
 				});
 			}
 			return;
@@ -2185,6 +2263,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		});
 
 		await super.setInput(input, options, context, token);
+		input.setTargetLabel(this.getActiveHarnessLabel());
 
 		if (this.dimension) {
 			this.layout(this.dimension);
@@ -2356,6 +2435,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.updateContentVisibility();
 		if (this.dimension) {
 			this.layout(this.dimension);
+		}
+		if (this.migrationContentContainer) {
+			DOM.getWindow(this.migrationContentContainer).requestAnimationFrame(() => this.migrationSearchInput?.focus());
 		}
 	}
 
@@ -3193,7 +3275,6 @@ export class AICustomizationManagementEditor extends EditorPane {
 			return;
 		}
 
-		// Container for the compact MCP detail component
 		const detailBody = DOM.append(this.mcpDetailContainer, $('.mcp-detail-editor-container'));
 
 		this.embeddedMcpDetail = this.editorDisposables.add(this.instantiationService.createInstance(EmbeddedMcpServerDetail, detailBody));
@@ -3203,7 +3284,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		backButton.setAttribute('type', 'button');
 		backButton.setAttribute('aria-label', localize('backToMcpList', "Back to MCP servers"));
 		this.editorDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), backButton, localize('backToMcpListTooltip', "Back to MCP servers")));
-		const backIconEl = DOM.append(backButton, $(`.codicon.codicon-${Codicon.arrowLeft.id}`));
+		const backIconEl = DOM.append(backButton, $(`.codicon.codicon-${Codicon.arrowLeft.id}.editor-action-button-icon`));
 		backIconEl.setAttribute('aria-hidden', 'true');
 		this.editorDisposables.add(DOM.addDisposableListener(backButton, 'click', () => {
 			this.goBackFromMcpDetail();
@@ -3224,6 +3305,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		if (this.dimension) {
 			this.layout(this.dimension);
 		}
+		this.embeddedMcpDetail.focus();
 	}
 
 	private goBackFromMcpDetail(): void {
