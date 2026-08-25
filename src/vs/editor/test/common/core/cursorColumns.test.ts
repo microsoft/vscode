@@ -202,8 +202,8 @@ suite('CursorColumns', () => {
 	});
 
 	for (const [name, fn] of [
-		['nextRenderTabStop', CursorColumns.nextIndentTabStop],
-		['nextIndentTabStop', CursorColumns.nextIndentTabStop],
+		['nextRenderTabStop', CursorColumns.nextRenderTabStop],
+		['nextIndentTabStop', CursorColumns.nextRenderTabStop],
 	] as const) {
 		test(name, () => {
 			assert.strictEqual(fn(0, 4), 4);

@@ -69,16 +69,16 @@ export class ShiftCommand implements ICommand {
 
 		if (insertSpaces === InsertSpaces.Spaces) {
 			const indent = cachedStringRepeat(' ', indentSize);
-			const desiredTabStop = CursorColumns.nextIndentTabStop(contentStartVisibleColumn, indentSize);
+			const desiredTabStop = CursorColumns.nextRenderTabStop(contentStartVisibleColumn, indentSize);
 			const indentCount = desiredTabStop / indentSize; // will be an integer
 			return cachedStringRepeat(indent, indentCount);
 		} else if (insertSpaces === InsertSpaces.Tabs) {
 			const indent = '\t';
-			const desiredTabStop = CursorColumns.nextIndentTabStop(contentStartVisibleColumn, tabSize);
+			const desiredTabStop = CursorColumns.nextRenderTabStop(contentStartVisibleColumn, tabSize);
 			const indentCount = desiredTabStop / tabSize; // will be an integer
 			return cachedStringRepeat(indent, indentCount);
 		} else {
-			const desiredTabStop = CursorColumns.nextIndentTabStop(contentStartVisibleColumn, indentSize);
+			const desiredTabStop = CursorColumns.nextRenderTabStop(contentStartVisibleColumn, indentSize);
 			const tabsCount = Math.floor(desiredTabStop / tabSize);
 			const spacesCount = desiredTabStop % tabSize;
 			return cachedStringRepeat('\t', tabsCount) + cachedStringRepeat(' ', spacesCount);

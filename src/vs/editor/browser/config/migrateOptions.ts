@@ -80,11 +80,6 @@ export function migrateOptions(options: IEditorOptions): void {
 }
 
 registerSimpleEditorSettingMigration('wordWrap', [[true, 'on'], [false, 'off']]);
-registerEditorSettingMigration('insertSpaces', (value, _read, write) => {
-	if (typeof value === 'boolean') {
-		write('insertSpaces', value ? InsertSpaces.Spaces : InsertSpaces.Tabs);
-	}
-});
 registerSimpleEditorSettingMigration('lineNumbers', [[true, 'on'], [false, 'off']]);
 registerSimpleEditorSettingMigration('cursorBlinking', [['visible', 'solid']]);
 registerSimpleEditorSettingMigration('renderWhitespace', [[true, 'boundary'], [false, 'none']]);
@@ -101,6 +96,12 @@ registerSimpleEditorSettingMigration('occurrencesHighlight', [[true, 'singleFile
 registerSimpleEditorSettingMigration('wordBasedSuggestions', [[true, 'matchingDocuments'], [false, 'off']]);
 registerSimpleEditorSettingMigration('defaultColorDecorators', [[true, 'auto'], [false, 'never']]);
 registerSimpleEditorSettingMigration('minimap.autohide', [[true, 'mouseover'], [false, 'none']]);
+
+registerEditorSettingMigration('insertSpaces', (value, _read, write) => {
+	if (typeof value === 'boolean') {
+		write('insertSpaces', value ? InsertSpaces.Spaces : InsertSpaces.Tabs);
+	}
+});
 
 registerEditorSettingMigration('autoClosingBrackets', (value, read, write) => {
 	if (value === false) {

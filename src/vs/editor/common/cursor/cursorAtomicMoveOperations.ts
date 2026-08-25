@@ -39,7 +39,7 @@ export class AtomicTabMoveOperations {
 					break;
 				case CharCode.Tab:
 					// Skip to the next multiple of tabSize.
-					visibleColumn = CursorColumns.nextIndentTabStop(visibleColumn, tabSize);
+					visibleColumn = CursorColumns.nextRenderTabStop(visibleColumn, tabSize);
 					break;
 				default:
 					return [-1, -1, -1];
@@ -116,7 +116,7 @@ export class AtomicTabMoveOperations {
 						currentVisibleColumn += 1;
 						break;
 					case CharCode.Tab:
-						currentVisibleColumn = CursorColumns.nextIndentTabStop(currentVisibleColumn, tabSize);
+						currentVisibleColumn = CursorColumns.nextRenderTabStop(currentVisibleColumn, tabSize);
 						break;
 					default:
 						return -1;
@@ -130,7 +130,7 @@ export class AtomicTabMoveOperations {
 		}
 
 		// We are going right.
-		const targetVisibleColumn = CursorColumns.nextIndentTabStop(visibleColumn, tabSize);
+		const targetVisibleColumn = CursorColumns.nextRenderTabStop(visibleColumn, tabSize);
 
 		// We can just continue from where whitespaceVisibleColumn got to.
 		let currentVisibleColumn = visibleColumn;
@@ -145,7 +145,7 @@ export class AtomicTabMoveOperations {
 					currentVisibleColumn += 1;
 					break;
 				case CharCode.Tab:
-					currentVisibleColumn = CursorColumns.nextIndentTabStop(currentVisibleColumn, tabSize);
+					currentVisibleColumn = CursorColumns.nextRenderTabStop(currentVisibleColumn, tabSize);
 					break;
 				default:
 					return -1;

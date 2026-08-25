@@ -17,7 +17,7 @@ function _normalizeIndentationFromWhitespace(str: string, indentSize: number, ta
 	const renderTabSize = insertSpaces === InsertSpaces.Mixed ? tabSize : indentSize;
 	for (let i = 0; i < str.length; i++) {
 		if (str.charAt(i) === '\t') {
-			spacesCnt = CursorColumns.nextIndentTabStop(spacesCnt, renderTabSize);
+			spacesCnt = CursorColumns.nextRenderTabStop(spacesCnt, renderTabSize);
 		} else {
 			spacesCnt++;
 		}
