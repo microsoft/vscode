@@ -179,7 +179,10 @@ await session.detach();
 `statusbar`, `problems`, `task`, `localization`, `activitybar`, `editor`,
 `keybindingsEditor` — each with the retries that surface needs. If your task
 names one of those surfaces, `ls test/automation/out/*.d.ts` and read its API
-first. Skipping this step is the single most expensive mistake with this skill:
+first, then reach it through `attach()` above — **not** `new Application(...)`,
+which spawns a second Electron and will not talk to your running window, and not
+`ts-node`, since `node` runs these `.ts` files directly. Skipping this step is
+the single most expensive mistake with this skill:
 in a user study, finding an extension's publisher took **7m40s and 40 raw CLI
 calls** hand-rolling DOM queries, when `workbench.extensions.searchForExtension()`
 already did it.
