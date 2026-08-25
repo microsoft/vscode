@@ -117,7 +117,8 @@ function loadAutomation(repoRoot: string) {
 	if (!existsSync(resolvePath(outDir, 'workbench.js'))) {
 		throw new Error(
 			`test/automation is not compiled at ${outDir}. ` +
-			`Run \`npm run compile\` in the repo root (or \`npm run compile\` inside test/automation).`
+			`Run \`npm --prefix test/automation run compile\`. The root \`npm run compile\` does ` +
+			`not build this package - it only covers the client and the Copilot extension.`
 		);
 	}
 	return {
@@ -246,6 +247,13 @@ export async function attach(cdpPort: number | string, options: IAttachOptions =
 			'Code.exit() is not available on an attached instance, because launch.sh owns the process. ' +
 			'Call detach() to disconnect, then kill the `pid` from the launch.sh JSON output.'
 		));
+
+		// `window.driver` is registered by `setupDriver()`, which runs before the
+		// workbench has restored. Mirror `Application#checkWindowReady` so the first
+		// page-object call cannot race startup: commands and providers are still
+		// registering at the point the driver appears.
+		await code.waitForElement('.monaco-workbench');
+		await code.whenWorkbenchRestored();
 
 		return {
 			browser,

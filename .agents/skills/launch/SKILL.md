@@ -159,7 +159,12 @@ $pid = $info.pid
 
 **Start here: [use the repo's own automation library](./automation-library.md)**
 — the page objects the smoke tests use, with the retry and verification logic
-each surface needs. Launch with `-- --enable-smoke-test-driver`, then:
+each surface needs. It requires the smoke-test driver, so pass the flag **at
+launch time** — it cannot be added to an already-running instance:
+
+```bash
+INFO=$("$LAUNCH" -- --enable-smoke-test-driver | tail -n1)
+```
 
 ```js
 // Run from the repo root; Node executes the .ts directly, no build step.
@@ -184,8 +189,11 @@ which spawns a second Electron and will not talk to your running window, and not
 `ts-node`, since `node` runs these `.ts` files directly. Skipping this step is
 the single most expensive mistake with this skill:
 in a user study, finding an extension's publisher took **7m40s and 40 raw CLI
-calls** hand-rolling DOM queries, when `workbench.extensions.searchForExtension()`
-already did it.
+calls** hand-rolling DOM queries, when
+`workbench.extensions.searchForExtension('ms-toolsai.datawrangler')` already did
+it. Read the signature before deciding a page object does not fit: that one
+takes an extension **id**, and passing the display name fails with
+`Extension ... is not found`, which reads like the surface is unsupported.
 
 **Then read [automation-library.md](./automation-library.md)** — window choice,
 controls with no page object, the integrated browser, and the gotchas (several
@@ -490,10 +498,16 @@ leftover=$(pgrep -f "$RUN_DIR" || true)
 if [ -n "$leftover" ]; then
   echo "$leftover" | xargs kill 2>/dev/null || true
   sleep 2
-  pgrep -f "$RUN_DIR" >/dev/null && echo "STILL RUNNING: $(pgrep -f "$RUN_DIR" | tr '\n' ' ')"
 fi
 
-rm -rf "$RUN_DIR"
+# Only discard the profile once nothing is left: a survivor still has the run's
+# logs open, and deleting them removes the evidence you need to diagnose it.
+if pgrep -f "$RUN_DIR" >/dev/null; then
+  echo "STILL RUNNING: $(pgrep -f "$RUN_DIR" | tr '\n' ' ')"
+  echo "keeping $RUN_DIR for diagnosis"
+else
+  rm -rf "$RUN_DIR"
+fi
 ```
 
 To audit the whole machine after a batch of runs — total resident memory and
