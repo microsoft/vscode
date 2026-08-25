@@ -189,9 +189,15 @@ async function openBrowserTab(session, url) {
     // target lands in the workbench's own context.
     const allPages = () => session.browser.contexts().flatMap(c => c.pages());
     const seen = new Set(allPages());
-    await session.workbench.quickaccess.runCommand('workbench.action.browser.open');
-    await session.page.keyboard.type(url);
-    await session.page.keyboard.press('Enter');
+    // keepOpen: the command swaps the Command Palette for the URL picker, so
+    // the default "wait for quick input to close" never settles. Then target
+    // that picker's input directly instead of typing blind - this is what
+    // test/smoke's own browserView test does.
+    await session.workbench.quickaccess.runCommand('workbench.action.browser.open', { keepOpen: true });
+    const addressInput = session.page.locator('.quick-input-widget:visible input[placeholder*="enter URL"]');
+    await addressInput.waitFor();
+    await addressInput.fill(url);
+    await addressInput.press('Enter');
 
     const deadline = Date.now() + 30_000;
     while (Date.now() < deadline) {
