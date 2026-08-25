@@ -331,13 +331,25 @@ function toGitHubIssueRefs(issueUrls: readonly string[] | undefined): readonly I
 	return refs.length > 0 ? refs : undefined;
 }
 
-/** Maps session pull request URLs to references, preserving recency order. */
-function toGitHubPullRequestRefs(pullRequestUrls: readonly string[] | undefined): readonly IGitHubPullRequestRef[] | undefined {
+/**
+ * Maps session pull request URLs to references, preserving recency order.
+ *
+ * `titles` and `createdLinks` are keyed by {@link linkKey}; a URL missing from
+ * either simply carries no title / is not marked as created by the session.
+ */
+function toGitHubPullRequestRefs(pullRequestUrls: readonly string[] | undefined, titles: ReadonlyMap<string, string>, createdLinks: ReadonlySet<string>): readonly IGitHubPullRequestRef[] | undefined {
 	const refs: IGitHubPullRequestRef[] = [];
 	for (const url of pullRequestUrls ?? []) {
 		const reference = parseGitHubPullRequestUrl(url);
 		if (reference) {
-			refs.push({ ...reference, uri: URI.parse(url) });
+			const key = linkKey(url);
+			const title = titles.get(key);
+			refs.push({
+				...reference,
+				uri: URI.parse(url),
+				...(title ? { title } : {}),
+				...(createdLinks.has(key) ? { createdByThisSession: true } : {}),
+			});
 		}
 	}
 	return refs.length > 0 ? refs : undefined;
@@ -355,12 +367,13 @@ interface IGitHubPromotion {
 function toGitHubPromotion(meta: SessionMeta | undefined): IGitHubPromotion {
 	const state = readSessionGitHubState(meta);
 	const gitState = readSessionGitState(meta);
-	const { createdPullRequestUrls, referencedPullRequestUrls, issueUrls } = partitionSessionArtifacts(meta);
+	const { createdPullRequestUrls, referencedPullRequestUrls, pullRequestTitles, issueUrls } = partitionSessionArtifacts(meta);
 
 	// Pull requests this session created outrank discovered ones for the main
 	// slot; referenced ones are listed and polled but never become main.
 	const mainEligibleUrls = dedupeLinks(createdPullRequestUrls, getSessionRelatedPullRequestUrls(state));
-	const allPullRequests = toGitHubPullRequestRefs(dedupeLinks(mainEligibleUrls, referencedPullRequestUrls));
+	const mainEligible = new Set(mainEligibleUrls.map(linkKey));
+	const allPullRequests = toGitHubPullRequestRefs(dedupeLinks(mainEligibleUrls, referencedPullRequestUrls), pullRequestTitles, mainEligible);
 	const repository = state?.owner && state.repo
 		? { owner: state.owner, repo: state.repo }
 		: gitState?.githubOwner && gitState.githubRepo
@@ -377,7 +390,6 @@ function toGitHubPromotion(meta: SessionMeta | undefined): IGitHubPromotion {
 		ref.owner.toLowerCase() === repository.owner.toLowerCase() && ref.repo.toLowerCase() === repository.repo.toLowerCase();
 
 	const pullRequests = allPullRequests?.filter(belongsToRepository);
-	const mainEligible = new Set(mainEligibleUrls.map(linkKey));
 	const pullRequest = pullRequests?.find(ref => mainEligible.has(linkKey(ref.uri.toString())));
 	const issues = toGitHubIssueRefs(dedupeLinks(state?.issueUrls, issueUrls))?.filter(belongsToRepository);
 
@@ -944,10 +956,15 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			const icon = computeSessionPullRequestIcon(reader, this._gitHubService, this._pullRequestIconCache, baseGitHubInfo);
 			return {
 				...baseGitHubInfo,
+				// Only the main pull request is polled live; the rest fall back to
+				// their last-known icon so the hover can still show their state.
 				pullRequests: baseGitHubInfo.pullRequests?.map((pullRequest, index) => index === 0 ? {
 					...pullRequest,
 					icon
-				} : pullRequest),
+				} : {
+					...pullRequest,
+					icon: this._pullRequestIconCache.get(pullRequest.uri.toString()) ?? pullRequest.icon
+				}),
 				pullRequest: {
 					...baseGitHubInfo.pullRequest,
 					icon
@@ -4045,33 +4062,30 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	// -- Session actions ------------------------------------------------------
 
 	async archiveSession(sessionId: string): Promise<void> {
-		const rawId = this._rawIdFromChatId(sessionId);
-		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
-		if (cached && rawId) {
-			cached.isArchived.set(true, undefined);
-			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [cached] });
-			const connection = this.connection;
-			if (connection) {
-				const sessionUri = cached.backendUri;
-				const action = { type: ActionType.SessionIsArchivedChanged as const, isArchived: true };
-				connection.dispatch(sessionUri.toString(), action);
-			}
-		}
+		this._setSessionArchived(sessionId, true);
 	}
 
 	async unarchiveSession(sessionId: string): Promise<void> {
+		this._setSessionArchived(sessionId, false);
+	}
+
+	/**
+	 * Flips a session's archived state locally and dispatches the owning action
+	 * so the host persists it and fans it out to other windows.
+	 *
+	 * Skips the local flip when disconnected: showing a session as archived when
+	 * the change can never be recorded is worse than appearing not to archive.
+	 */
+	private _setSessionArchived(sessionId: string, isArchived: boolean): void {
 		const rawId = this._rawIdFromChatId(sessionId);
 		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
-		if (cached && rawId) {
-			cached.isArchived.set(false, undefined);
-			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [cached] });
-			const connection = this.connection;
-			if (connection) {
-				const sessionUri = cached.backendUri;
-				const action = { type: ActionType.SessionIsArchivedChanged as const, isArchived: false };
-				connection.dispatch(sessionUri.toString(), action);
-			}
+		const connection = this.connection;
+		if (!cached || !rawId || !connection) {
+			return;
 		}
+		cached.isArchived.set(isArchived, undefined);
+		this._onDidChangeSessions.fire({ added: [], removed: [], changed: [cached] });
+		connection.dispatch(cached.backendUri.toString(), { type: ActionType.SessionIsArchivedChanged as const, isArchived });
 	}
 
 	async setSessionReadState(sessionId: string, isRead: boolean): Promise<void> {
@@ -5256,6 +5270,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			}
 
 			const removed: ISession[] = [];
+			this._onHostListedSessions(currentKeys);
 			// Some hosts briefly omit the just-sent eager session from listSessions.
 			// Keep the pending session visible until sendRequest graduates it.
 			const pendingRawId = this._pendingSession?.resource.path.replace(/^\//, '');
@@ -5273,6 +5288,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			for (const [key, cached] of this._sessionCache) {
 				if (!currentKeys.has(key)) {
 					if (key === pendingRawId) {
+						continue;
+					}
+					if (!this._isSessionEvictable(key)) {
 						continue;
 					}
 					if (!evictUnlistedAgents && !listedAgentProviders.has(cached.agentProvider)) {
@@ -5306,6 +5324,17 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			this._sessionRefreshInFlight = false;
 		}
 	}
+
+	/**
+	 * Whether a cached session the host did not list may be evicted. Subclasses override this to
+	 * protect a session that exists but that the host has not materialized yet.
+	 */
+	protected _isSessionEvictable(_rawId: string): boolean {
+		return true;
+	}
+
+	/** Raw ids the host listed, reported before eviction runs so subclasses can retire protections. */
+	protected _onHostListedSessions(_rawIds: ReadonlySet<string>): void { }
 
 	/**
 	 * Arm a backoff retry of {@link _refreshSessions}. Used after a failed
@@ -5424,6 +5453,12 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}));
 
 		store.add(connection.onDidAction(e => {
+			// A rejected action never reached host state, so it must not be applied
+			// here. This does not roll back the dispatcher's own optimistic write:
+			// the echo carries the value it already set.
+			if (e.rejectionReason) {
+				return;
+			}
 			if (e.action.type === ActionType.ChatTurnComplete && isChatAction(e.action)) {
 				this._refreshSessions();
 			} else if (e.action.type === ActionType.SessionTitleChanged && isSessionAction(e.action)) {

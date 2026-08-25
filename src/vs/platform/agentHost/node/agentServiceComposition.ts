@@ -21,7 +21,7 @@ import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { IAgentHostAuthenticationService } from './agentHostAuthenticationService.js';
 import { AgentHostChangesetCoordinator } from './agentHostChangesetCoordinator.js';
 import { IAgentHostCompletions } from './agentHostCompletions.js';
-import { IAgentHostCustomizationEnablementService, supportsCustomizationEnablementWorktreeBinding } from './agentHostCustomizationEnablementService.js';
+import { IAgentHostCustomizationEnablementService } from './agentHostCustomizationEnablementService.js';
 import { AgentHostDebugLogsCollector } from './agentHostDebugLogs.js';
 import { AgentHostDatabase } from './agentHostDatabase.js';
 import { AgentHostLocalTurns } from './agentHostLocalTurns.js';
@@ -96,17 +96,18 @@ export function createAgentServiceComposition(
 		};
 		// AgentService subscribes after this graph is complete, so collaborator constructors must not emit state-manager events.
 		const customizationEnablementService = accessor.get(IAgentHostCustomizationEnablementService);
-		if (!supportsCustomizationEnablementWorktreeBinding(customizationEnablementService)) {
-			throw new Error('AgentService requires customization enablement worktree binding support');
-		}
 		const gitStateService = accessor.get(IAgentHostGitStateService);
 		const agentMergeController = owned.add(instantiationService.createInstance(AgentMergeController, {
 			startTurn: (session, turnId, prompt) => callbackAdapter.value.startAgentMergeTurn(session, turnId, prompt),
 			cancelTurn: (session, turnId) => callbackAdapter.value.cancelAgentMergeTurn(session, turnId),
 			getAutonomousSessionConfig: (session, config) => callbackAdapter.value.getAutonomousSessionConfig(session, config),
 		}));
+		// Resolve this even before first use so its session-data deletion listener
+		// always removes checkpoint refs before the database disappears.
 		const checkpointService = accessor.get(IAgentHostCheckpointService);
 		const changesetOperationService = accessor.get(IAgentHostChangesetOperationService);
+		// Resolve this even before first use so its session-data deletion listener
+		// always removes reviewed refs before the database disappears.
 		const reviewService = accessor.get(IAgentHostReviewService);
 		const changesets = accessor.get(IAgentHostChangesetService);
 		const changesetCoordinator = owned.add(instantiationService.createInstance(AgentHostChangesetCoordinator));
@@ -151,7 +152,6 @@ export function createAgentServiceComposition(
 
 		const collaborators: IAgentServiceCollaborators = {
 			gitHubEndpointService,
-			customizationEnablementService,
 			gitStateService,
 			agentMergeController,
 			checkpointService,
@@ -166,7 +166,7 @@ export function createAgentServiceComposition(
 			sessionCoordination,
 			serverToolHost,
 		};
-		agentService = instantiationService.createInstance(AgentService, core, collaborators);
+		agentService = instantiationService.createInstance(AgentService, core, collaborators, options);
 		for (const disposable of additionalDisposables) {
 			owned.add(disposable);
 		}
