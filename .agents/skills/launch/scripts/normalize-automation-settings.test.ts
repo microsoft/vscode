@@ -130,7 +130,54 @@ for (const [name, content] of valid) {
 			assert.strictEqual(parsed[key], true, `${key} did not resolve to true in:\n${text}`);
 		}
 		assertNoContradictingOverride(parsed);
+
+		// Asserting only the two injected keys would also pass an implementation
+		// that threw the file away and wrote `{ ...KEYS }`, which is the one thing
+		// this script must never do. Everything the input had, other than the keys
+		// being normalized, must survive untouched.
+		const before = (content ?? '').trim() === '' ? {} : parseJsonc(content);
+		for (const [key, value] of Object.entries(before)) {
+			if (KEYS.includes(key)) {
+				continue;
+			}
+			assert.deepStrictEqual(stripKeys(parsed[key]), stripKeys(value),
+				`${key} was not preserved in:\n${text}`);
+		}
+		// Comments are data too, and a reparse-and-rewrite would silently drop them.
+		// Only count `//` that actually starts a comment - a URL inside a string
+		// value is not one, and neither is a key that merely looks like one.
+		const comments = (stripStrings(content ?? '').match(/\/\/[^\n]*/g) ?? []).filter(c => !c.includes('editContext'));
+		const survivingComments = stripStrings(text).match(/\/\/[^\n]*/g) ?? [];
+		for (const comment of comments) {
+			assert.ok(survivingComments.includes(comment), `comment ${comment} was dropped from:\n${text}`);
+		}
 	});
+}
+
+// Blank out string contents so `//` inside a value is not mistaken for the start
+// of a comment.
+function stripStrings(text: string): string {
+	return text.replace(/"(?:[^"\\\n]|\\.)*"/g, '""');
+}
+
+// Creating file symlinks on Windows needs elevation, so the cases that depend on
+// them are skipped there rather than failing the suite for the Windows launcher.
+// This mirrors what the repository's own watcher tests do.
+const posixOnly = { skip: process.platform === 'win32' ? 'symlinks require elevation on Windows' : false };
+
+// Values nested under a language override legitimately change (that is the
+// point), so compare everything else structurally with those keys removed.
+function stripKeys(value: unknown): unknown {
+	if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+		return value;
+	}
+	const out: Record<string, unknown> = {};
+	for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+		if (!KEYS.includes(k)) {
+			out[k] = stripKeys(v);
+		}
+	}
+	return out;
 }
 
 const malformed: [name: string, content: string][] = [
@@ -181,7 +228,7 @@ test('rewrites language overrides', () => {
 
 // `rsync -a` preserves symlinks, so a profile whose settings.json points at a
 // dotfiles checkout would otherwise be written through to the user's real file.
-test('never writes through a symlink', () => {
+test('never writes through a symlink', posixOnly, () => {
 	const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'nas-link-'));
 	const real = path.join(dir, 'real.json');
 	const link = path.join(dir, 'settings.json');
@@ -206,7 +253,7 @@ test('recognizes a unicode-escaped override key', () => {
 
 // A dangling link must be replaced rather than written through, or the write
 // would create its target outside the throwaway profile.
-test('replaces a dangling symlink instead of creating its target', () => {
+test('replaces a dangling symlink instead of creating its target', posixOnly, () => {
 	const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'nas-dangling-'));
 	const target = path.join(dir, 'missing.json');
 	const link = path.join(dir, 'settings.json');
@@ -234,24 +281,47 @@ test('normalizes every existing named profile, leaving inheriting profiles alone
 	fs.writeFileSync(path.join(userDir, 'settings.json'), '{}\n');
 	fs.writeFileSync(path.join(named, 'settings.json'), '{ "editor.editContext": false }\n');
 
-	const found = execFileSync('bash', ['-c',
-		`shopt -s nullglob; files=("$1"/User/settings.json); ` +
-		`for p in "$1"/User/profiles/*/settings.json; do [ -f "$p" ] && files+=("$p"); done; ` +
-		`printf '%s\\n' "\${files[@]}"`, 'bash', root], { encoding: 'utf8' }).trim().split('\n');
-
-	for (const file of found) {
-		execFileSync(process.execPath, [script, file]);
-	}
+	// Drive the real entry point both launchers use, rather than reimplementing
+	// the discovery here - otherwise the launchers could change and this would
+	// stay green. It also keeps the suite runnable without a POSIX shell.
+	const count = execFileSync(process.execPath, [script, '--user-data-dir', root], { encoding: 'utf8' }).trim();
 
 	assert.deepStrictEqual({
-		discovered: found.length,
-		namedEnabled: KEYS.map(k => [k, parseJsonc(fs.readFileSync(path.join(named, 'settings.json'), 'utf8'))[k]]),
-		defaultEnabled: KEYS.map(k => [k, parseJsonc(fs.readFileSync(path.join(userDir, 'settings.json'), 'utf8'))[k]]),
+		discovered: Number(count),
+		named: KEYS.map(k => [k, parseJsonc(fs.readFileSync(path.join(named, 'settings.json'), 'utf8'))[k]]),
+		default: KEYS.map(k => [k, parseJsonc(fs.readFileSync(path.join(userDir, 'settings.json'), 'utf8'))[k]]),
 		inheritingUntouched: fs.existsSync(path.join(inheriting, 'settings.json'))
 	}, {
 		discovered: 2,
-		namedEnabled: KEYS.map(k => [k, true]),
-		defaultEnabled: KEYS.map(k => [k, true]),
+		named: KEYS.map(k => [k, true]),
+		default: KEYS.map(k => [k, true]),
 		inheritingUntouched: false
 	});
+});
+
+// `rsync -a` preserves symlinked *directories* too, so a linked `User` or
+// `User/profiles/<id>` reaches the merge with an ordinary-looking file path that
+// still resolves outside the throwaway profile. Writing there would edit the
+// user's real settings, which is the isolation this launcher promises.
+test('refuses to write through a symlinked profile directory', posixOnly, () => {
+	const root = fs.mkdtempSync(path.join(os.tmpdir(), 'nas-linkdir-'));
+	const real = path.join(root, 'real');
+	const udd = path.join(root, 'udd');
+	fs.mkdirSync(real, { recursive: true });
+	fs.mkdirSync(udd, { recursive: true });
+	const original = '{ "editor.editContext": false }\n';
+	fs.writeFileSync(path.join(real, 'settings.json'), original);
+	fs.symlinkSync(real, path.join(udd, 'User'), 'dir');
+
+	let status = 0;
+	try {
+		execFileSync(process.execPath, [script, '--user-data-dir', udd], { stdio: 'pipe' });
+	} catch (error) {
+		status = (error as { status?: number }).status ?? 1;
+	}
+
+	assert.deepStrictEqual({
+		status,
+		realFile: fs.readFileSync(path.join(real, 'settings.json'), 'utf8')
+	}, { status: 1, realFile: original });
 });

@@ -40,7 +40,8 @@
 
 import { createRequire } from 'module';
 import { fileURLToPath } from 'url';
-import { dirname, resolve as resolvePath } from 'path';
+import { dirname, join as joinPath, resolve as resolvePath } from 'path';
+import { tmpdir } from 'os';
 import { existsSync } from 'fs';
 
 const require = createRequire(import.meta.url);
@@ -237,7 +238,7 @@ export async function attach(cdpPort: number | string, options: IAttachOptions =
 		window: windowKind = 'any',
 		verbose = false,
 		repoRoot: explicitRepoRoot,
-		logsPath = '/tmp/vscode-attach-logs',
+		logsPath = joinPath(tmpdir(), 'vscode-attach-logs'),
 		timeoutMs = DEFAULT_PAGE_TIMEOUT_MS
 	} = options;
 
