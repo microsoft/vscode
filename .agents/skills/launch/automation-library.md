@@ -212,6 +212,55 @@ Workbench windows use the `vscode-file://` scheme, so excluding it narrows the
 list to browser content — but with two tabs open that still leaves two
 candidates, which is exactly the case the uniqueness check catches.
 
+`http://localhost:...` works exactly like any other URL here — nothing about the
+scheme or the loopback host is special, and a dev server's pages are ordinary CDP
+targets. What *does* bite is that URL matching stops discriminating when several
+tabs share a URL, which is the normal state of affairs for a dev server: open
+`http://localhost:3000/` twice and `contentPage` correctly refuses, but no
+substring can separate them. Titles do not rescue you either — same URL usually
+means same `<title>`.
+
+When you control the opening, capture the page as you open it and keep the
+handle. The handle is stable across in-tab navigation and reloads, so it stays
+valid while the dev server hot-reloads.
+
+Do **not** reach for `ctx.waitForEvent('page')` here. Opening a second tab first
+emits a transient blank page that is closed again a moment later, so
+`waitForEvent` hands you a dead target and the next call fails with
+`Target page, context or browser has been closed`. Diff the page list instead and
+require the URL to match:
+
+```js
+const ctx = session.browser.contexts()[0];
+
+async function openBrowserTab(url) {
+    const seen = new Set(ctx.pages());
+    await session.workbench.quickaccess.runCommand(
+        'workbench.action.openInIntegratedBrowser', { exactLabelMatch: false });
+    await session.page.keyboard.type(url);
+    await session.page.keyboard.press('Enter');
+
+    const deadline = Date.now() + 30_000;
+    while (Date.now() < deadline) {
+        const fresh = ctx.pages().filter(p =>
+            !seen.has(p) && !p.isClosed() && p.url().startsWith(url));
+        if (fresh.length) {
+            const page = fresh[fresh.length - 1];
+            await page.waitForLoadState('domcontentloaded').catch(() => { });
+            if (!page.isClosed()) { return page; }
+        }
+        await new Promise(r => setTimeout(r, 250));
+    }
+    throw new Error(`No new integrated-browser page for ${url}`);
+}
+
+const tab1 = await openBrowserTab('http://localhost:3000/');
+const tab2 = await openBrowserTab('http://localhost:3000/');   // distinct handles
+```
+
+Use `contentPage` when the URLs are genuinely distinct, and `openBrowserTab`
+when they are not.
+
 This is what makes *Add Element to Chat* automatable end to end: enable the
 picker from the workbench toolbar, then click the element **in the content
 page**. The picker turns itself off once an element is chosen, and the
