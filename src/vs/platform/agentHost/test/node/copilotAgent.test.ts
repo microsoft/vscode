@@ -1118,6 +1118,35 @@ suite('CopilotAgent', () => {
 		}
 	});
 
+	test('promotes forwarded runtime assignment contexts to telemetry-wide properties', async () => {
+		const client = new TestCopilotClient([]);
+		const telemetryService = new RecordingTelemetryService();
+		const agent = createTestAgent(disposables, { copilotClient: client, telemetryService }) as TestableCopilotAgent;
+		try {
+			await agent.listChatsToMigrate();
+			const forward = getCreatedClientOptions(agent).at(-1)?.onGitHubTelemetry;
+			assert.ok(forward);
+
+			await forward({
+				sessionId: 'session',
+				restricted: false,
+				event: {
+					kind: 'response.success',
+					properties: { secondary_assignment_context: 'secondary:1' },
+					metrics: {},
+					exp_assignment_context: 'primary:1',
+				},
+			});
+
+			assert.deepStrictEqual(telemetryService.experimentProperties, {
+				'abexp.assignmentcontext': 'primary:1',
+				secondary_assignment_context: 'secondary:1',
+			});
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
 	test('threads the assignment context from root config into forwarded CLI telemetry, sticky across a wipe', async () => {
 		const client = new TestCopilotClient([]);
 		const telemetryService = new class extends RecordingTelemetryService {
