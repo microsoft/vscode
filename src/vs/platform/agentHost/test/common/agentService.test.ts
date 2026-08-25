@@ -98,6 +98,18 @@ suite('shouldSurfaceLocalAgentHostProvider', () => {
 		});
 	});
 
+	test('surfaces Claude when the setting is absent, matching its default', () => {
+		const configurationService = new TestConfigurationService();
+
+		assert.deepStrictEqual({
+			agentsClaude: shouldSurfaceLocalAgentHostProvider('claude', configurationService, true),
+			editorClaude: shouldSurfaceLocalAgentHostProvider('claude', configurationService, false),
+		}, {
+			agentsClaude: true,
+			editorClaude: true,
+		});
+	});
+
 	test('hides disabled providers in their governed windows', () => {
 		const configurationService = new TestConfigurationService({
 			[AgentHostClaudeAgentEnabledSettingId]: false,
