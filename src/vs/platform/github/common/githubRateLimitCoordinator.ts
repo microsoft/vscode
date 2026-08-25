@@ -16,6 +16,9 @@ export interface GitHubRateLimitState {
 	readonly blockedUntil?: number;
 }
 
+/** GitHub's documented floor for retrying a rate limit it gave no reset hint for. */
+const unhintedRateLimitCooldown = 60_000;
+
 export class GitHubRateLimitCoordinator extends Disposable {
 
 	private readonly _states = new Map<string, GitHubRateLimitState>();
@@ -53,26 +56,36 @@ export class GitHubRateLimitCoordinator extends Disposable {
 		const resource = response.headers.get('x-ratelimit-resource') ?? 'core';
 		const key = this._key(account, resource);
 		const previous = this._states.get(key);
-		const retryAfter = parseSeconds(response.headers.get('retry-after'), this._scheduler.now());
+		const now = this._scheduler.now();
+		const retryAfter = parseSeconds(response.headers.get('retry-after'), now);
 		const resetSeconds = parseNumber(response.headers.get('x-ratelimit-reset'));
+		const remaining = parseNumber(response.headers.get('x-ratelimit-remaining'));
 		const secondaryLimited = isSecondaryRateLimit(response.status, responseBody);
-		const blockedUntil = !secondaryLimited && retryAfter !== undefined
-			? this._scheduler.now() + retryAfter * 1000
-			: !secondaryLimited && response.status === 429
-				? resetSeconds !== undefined ? resetSeconds * 1000 : previous?.blockedUntil
-				: undefined;
+		// GitHub's documented order: honour `retry-after`; otherwise wait for the
+		// reset only once the quota is actually spent. A secondary limit reports
+		// the primary window, so obeying its reset would park the account for up
+		// to an hour over a refusal that needs a minute.
+		const hinted = retryAfter !== undefined
+			? now + retryAfter * 1000
+			: remaining === 0 && resetSeconds !== undefined ? resetSeconds * 1000 : undefined;
+		// A refusal must always park the caller, including when the only hint
+		// GitHub gave has already elapsed and would otherwise retry at once.
+		const refusedUntil = hinted !== undefined && hinted > now ? hinted : now + unhintedRateLimitCooldown;
+		const blockedUntil = secondaryLimited
+			? undefined
+			: response.status === 429
+				? refusedUntil
+				: retryAfter !== undefined ? now + retryAfter * 1000 : undefined;
 		if (secondaryLimited) {
 			const accountKey = GitHubRequestQueue.accountKey(account);
-			const accountBlockedUntil = retryAfter !== undefined
-				? this._scheduler.now() + retryAfter * 1000
-				: resetSeconds !== undefined ? resetSeconds * 1000 : this._accountBlockedUntil.get(accountKey);
-			if (accountBlockedUntil !== undefined) {
-				this._accountBlockedUntil.set(accountKey, accountBlockedUntil);
-			}
+			// GitHub asks clients that hit a secondary limit to wait at least a
+			// minute when it gives no usable hint, and the refusal parks the
+			// whole account rather than only the resource that observed it.
+			this._accountBlockedUntil.set(accountKey, Math.max(refusedUntil, this._accountBlockedUntil.get(accountKey) ?? 0));
 		}
 		this._states.set(key, {
 			limit: parseNumber(response.headers.get('x-ratelimit-limit')) ?? previous?.limit,
-			remaining: parseNumber(response.headers.get('x-ratelimit-remaining')) ?? previous?.remaining,
+			remaining: remaining ?? previous?.remaining,
 			used: parseNumber(response.headers.get('x-ratelimit-used')) ?? previous?.used,
 			resetAt: resetSeconds !== undefined ? resetSeconds * 1000 : previous?.resetAt,
 			blockedUntil,
@@ -95,10 +108,15 @@ export class GitHubRateLimitCoordinator extends Disposable {
 	markGraphQLRateLimited(account: GitHubAccountHandle): void {
 		const key = this._key(account, 'graphql');
 		const previous = this._states.get(key);
+		const now = this._scheduler.now();
 		this._states.set(key, {
 			...previous,
 			remaining: 0,
-			blockedUntil: previous?.resetAt ?? this._scheduler.now() + 60_000,
+			// The retained reset can belong to a window that has already closed,
+			// and a refusal must park the caller rather than retry at once.
+			blockedUntil: previous?.resetAt !== undefined && previous.resetAt > now
+				? previous.resetAt
+				: now + unhintedRateLimitCooldown,
 		});
 	}
 
