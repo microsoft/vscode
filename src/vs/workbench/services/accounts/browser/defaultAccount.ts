@@ -266,6 +266,8 @@ type ManagedSettingsRequestResult =
 	| { readonly kind: 'httpError'; readonly status: number }
 	| { readonly kind: 'malformed' };
 
+type ManagedSettingsBlockedFreshness = Extract<IManagedSettingsFreshness, { state: ManagedSettingsFreshnessState.Blocked }>;
+
 interface IManagedSettingsSources {
 	readonly nativeMdm: ManagedSettingsData;
 	readonly file: ManagedSettingsData;
@@ -340,7 +342,7 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 	private readonly updateThrottler = this._register(new ThrottledDelayer(100));
 	private readonly accountDataPollScheduler = this._register(new RunOnceScheduler(() => this.refetchDefaultAccount(), ACCOUNT_DATA_POLL_INTERVAL_MS));
 	private readonly managedSettingsFetchAttemptedAccounts = new Set<string>();
-	private readonly failedManagedSettingsScopes = new Set<string>();
+	private readonly failedManagedSettingsFreshness = new Map<string, ManagedSettingsBlockedFreshness>();
 
 	constructor(
 		private readonly defaultAccountConfig: IDefaultAccountConfig,
@@ -569,6 +571,7 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 				this.setManagedSettingsFreshness({
 					state: ManagedSettingsFreshnessState.Blocked,
 					source: this._managedSettingsFreshness.source,
+					scope: this._managedSettingsFreshness.scope,
 					lastAttemptAt: this._managedSettingsFreshness.lastAttemptAt,
 					failure: ManagedSettingsFreshnessFailure.Network,
 				});
@@ -716,9 +719,8 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 		const scope = accountPolicyData.managedSettingsScope;
 		const managedSettingsUrl = this.getManagedSettingsUrl();
 		if (scope && (scope.accountId !== accountId
-			|| !managedSettingsUrl
 			|| scope.authenticationProviderId !== authenticationProvider.id
-			|| scope.endpointOrigin !== this.createManagedSettingsFreshnessScope(scope.accountId, authenticationProvider.id, managedSettingsUrl).endpointOrigin)) {
+			|| (managedSettingsUrl ? scope.endpointOrigin !== this.createManagedSettingsFreshnessScope(scope.accountId, authenticationProvider.id, managedSettingsUrl).endpointOrigin : false))) {
 			return undefined;
 		}
 		return accountPolicyData.policyData.managedSettings;
@@ -813,6 +815,7 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 				this.setManagedSettingsFreshness({
 					state: ManagedSettingsFreshnessState.Pending,
 					source: requirement.source,
+					scope,
 				});
 			}
 
@@ -890,6 +893,7 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 				this.setManagedSettingsFreshness({
 					state: ManagedSettingsFreshnessState.Blocked,
 					source: this._managedSettingsFreshness.source,
+					scope: this._managedSettingsFreshness.scope,
 					lastAttemptAt: this._managedSettingsFreshness.lastAttemptAt,
 					failure: ManagedSettingsFreshnessFailure.Network,
 				});
@@ -1134,6 +1138,10 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 		const scope = this.createManagedSettingsFreshnessScope(accountId, authenticationProvider.id, managedSettingsUrl);
 		if (requirement.effective && !this.canRequestManagedSettings(options, scope)) {
 			this.logService.debug('[DefaultAccount] Skipping automatic managed settings retry after a prior failure');
+			const failedFreshness = this.failedManagedSettingsFreshness.get(this.getManagedSettingsScopeKey(scope));
+			if (failedFreshness) {
+				this.setManagedSettingsFreshness({ ...failedFreshness, source: requirement.source });
+			}
 			return {
 				data: { managedSettings: accountPolicyData?.policyData.managedSettings },
 				fetchedAt: accountPolicyData?.managedSettingsFetchedAt,
@@ -1154,6 +1162,7 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 			this.setManagedSettingsFreshness({
 				state: ManagedSettingsFreshnessState.Pending,
 				source: requirement.source,
+				scope,
 				lastAttemptAt,
 			});
 		}
@@ -1161,7 +1170,7 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 		const sharedBackoffActive = Date.now() < this._rateLimitBackoffUntil;
 		const result = await this.requestManagedSettings(requirement.effective ? [sessions[0]] : sessions, managedSettingsUrl);
 		if (requirement.effective && !sharedBackoffActive) {
-			this.updateFailedManagedSettingsScopes(scope, result);
+			this.updateFailedManagedSettingsFreshness(scope, requirement.source, result, lastAttemptAt);
 		}
 		switch (result.kind) {
 			case 'success': {
@@ -1179,6 +1188,7 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 					this.setManagedSettingsFreshness({
 						state: ManagedSettingsFreshnessState.Blocked,
 						source: requirement.source,
+						scope,
 						lastAttemptAt,
 						failure: ManagedSettingsFreshnessFailure.UpdateRequired,
 					});
@@ -1194,7 +1204,7 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 			case 'httpError':
 			case 'malformed': {
 				if (requirement.effective) {
-					this.setManagedSettingsFreshness(this.toBlockedManagedSettingsFreshness(requirement.source, result, lastAttemptAt));
+					this.setManagedSettingsFreshness(this.toBlockedManagedSettingsFreshness(requirement.source, result, lastAttemptAt, scope));
 					return {
 						data: { managedSettings: accountPolicyData?.policyData.managedSettings },
 						fetchedAt: accountPolicyData?.managedSettingsFetchedAt,
@@ -1253,17 +1263,18 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 	private toBlockedManagedSettingsFreshness(
 		source: Exclude<ReturnType<typeof resolveForceRemoteSettingsRefresh>['source'], 'none'>,
 		result: Extract<ManagedSettingsRequestResult, { kind: 'network' | 'rateLimited' | 'httpError' | 'malformed' }>,
-		lastAttemptAt: number
-	): IManagedSettingsFreshness {
+		lastAttemptAt: number,
+		scope?: IManagedSettingsFreshnessScope
+	): ManagedSettingsBlockedFreshness {
 		switch (result.kind) {
 			case 'network':
-				return { state: ManagedSettingsFreshnessState.Blocked, source, lastAttemptAt, failure: ManagedSettingsFreshnessFailure.Network };
+				return { state: ManagedSettingsFreshnessState.Blocked, source, scope, lastAttemptAt, failure: ManagedSettingsFreshnessFailure.Network };
 			case 'rateLimited':
-				return { state: ManagedSettingsFreshnessState.Blocked, source, lastAttemptAt, failure: ManagedSettingsFreshnessFailure.RateLimited };
+				return { state: ManagedSettingsFreshnessState.Blocked, source, scope, lastAttemptAt, failure: ManagedSettingsFreshnessFailure.RateLimited };
 			case 'httpError':
-				return { state: ManagedSettingsFreshnessState.Blocked, source, lastAttemptAt, failure: ManagedSettingsFreshnessFailure.HttpError, httpStatus: result.status };
+				return { state: ManagedSettingsFreshnessState.Blocked, source, scope, lastAttemptAt, failure: ManagedSettingsFreshnessFailure.HttpError, httpStatus: result.status };
 			case 'malformed':
-				return { state: ManagedSettingsFreshnessState.Blocked, source, lastAttemptAt, failure: ManagedSettingsFreshnessFailure.Malformed };
+				return { state: ManagedSettingsFreshnessState.Blocked, source, scope, lastAttemptAt, failure: ManagedSettingsFreshnessFailure.Malformed };
 		}
 	}
 
@@ -1325,23 +1336,38 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 	private canRequestManagedSettings(options?: IDefaultAccountRefreshOptions, scope?: IManagedSettingsFreshnessScope): boolean {
 		return options?.retryManagedSettings === true
 			|| scope === undefined
-			|| !this.failedManagedSettingsScopes.has(this.getManagedSettingsScopeKey(scope));
+			|| !this.failedManagedSettingsFreshness.has(this.getManagedSettingsScopeKey(scope));
 	}
 
-	private updateFailedManagedSettingsScopes(scope: IManagedSettingsFreshnessScope, result: ManagedSettingsRequestResult): void {
+	private updateFailedManagedSettingsFreshness(
+		scope: IManagedSettingsFreshnessScope,
+		source: Exclude<ReturnType<typeof resolveForceRemoteSettingsRefresh>['source'], 'none'>,
+		result: ManagedSettingsRequestResult,
+		lastAttemptAt: number
+	): void {
 		const scopeKey = this.getManagedSettingsScopeKey(scope);
 		switch (result.kind) {
 			case 'success':
 			case 'noSettings':
-				this.failedManagedSettingsScopes.delete(scopeKey);
+				this.failedManagedSettingsFreshness.delete(scopeKey);
 				break;
-			case 'updateRequired':
+			case 'updateRequired': {
+				this.failedManagedSettingsFreshness.set(scopeKey, {
+					state: ManagedSettingsFreshnessState.Blocked,
+					source,
+					scope,
+					lastAttemptAt,
+					failure: ManagedSettingsFreshnessFailure.UpdateRequired,
+				});
+				break;
+			}
 			case 'network':
 			case 'rateLimited':
 			case 'httpError':
-			case 'malformed':
-				this.failedManagedSettingsScopes.add(scopeKey);
+			case 'malformed': {
+				this.failedManagedSettingsFreshness.set(scopeKey, this.toBlockedManagedSettingsFreshness(source, result, lastAttemptAt, scope));
 				break;
+			}
 		}
 	}
 

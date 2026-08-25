@@ -118,6 +118,8 @@ interface IManagedSettingsFreshnessEffective {
 	 * supplies the control.
 	 */
 	readonly source: ManagedSettingsChannel;
+	/** Account, provider, and endpoint for an attempted refresh, when known. */
+	readonly scope?: IManagedSettingsFreshnessScope;
 	/** When a refresh was last attempted, for diagnostics. */
 	readonly lastAttemptAt?: number;
 }

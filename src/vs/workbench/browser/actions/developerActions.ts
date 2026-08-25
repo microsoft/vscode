@@ -47,6 +47,7 @@ import { CommandsRegistry, ICommandService } from '../../../platform/commands/co
 import { IEnvironmentService } from '../../../platform/environment/common/environment.js';
 import { IProductService } from '../../../platform/product/common/productService.js';
 import { IDefaultAccountService } from '../../../platform/defaultAccount/common/defaultAccount.js';
+import { isManagedSettingsFreshnessBlocking } from '../../../platform/policy/common/managedSettingsFreshness.js';
 import { IAuthenticationService } from '../../services/authentication/common/authentication.js';
 import { IAuthenticationAccessService } from '../../services/authentication/browser/authenticationAccessService.js';
 import { IPolicyService, PolicyValueSource } from '../../../platform/policy/common/policy.js';
@@ -1073,6 +1074,7 @@ class PolicyDiagnosticsAction extends Action2 {
 			const clientIdentity = appendManagedSettingsClientIdentity('https://api.github.com/copilot_internal/managed_settings', productService);
 			const compatibilityError = defaultAccountService.managedSettingsCompatibilityError;
 			const freshness = defaultAccountService.managedSettingsFreshness;
+			const freshnessScope = freshness.state === 'notRequired' ? undefined : freshness.scope;
 			const freshnessFailure = freshness.state === 'blocked'
 				? freshness.failure === 'httpError'
 					? `${freshness.failure} (${freshness.httpStatus})`
@@ -1088,7 +1090,7 @@ class PolicyDiagnosticsAction extends Action2 {
 					['Freshness source', freshness.state === 'notRequired' ? 'none' : freshness.source],
 					['Last freshness attempt', freshness.state !== 'notRequired' && freshness.lastAttemptAt ? new Date(freshness.lastAttemptAt).toLocaleString() : 'never'],
 					['Freshness failure', freshnessFailure],
-					['Satisfied scope', freshness.state === 'satisfied' ? `${freshness.scope.authenticationProviderId} at ${freshness.scope.endpointOrigin}` : 'none'],
+					['Freshness scope', freshnessScope ? `${freshnessScope.authenticationProviderId} at ${freshnessScope.endpointOrigin}` : 'none'],
 					['Client identity', new URL(clientIdentity).search.replace(/^\?/, '')],
 					['Compatibility', compatibilityError ? `update required (${compatibilityError.clientVersion ?? '?'} → ${compatibilityError.minimumClientVersion ?? '?'})` : 'compatible or not evaluated'],
 					['Contributes winning keys', channelContributes('server') ? 'yes' : 'no']
@@ -1390,6 +1392,11 @@ class SyncAccountPolicyAction extends Action2 {
 		try {
 			logService.info('[DefaultAccount] Manually syncing account policy');
 			await defaultAccountService.refresh({ forceRefresh: true, retryManagedSettings: true });
+			if (isManagedSettingsFreshnessBlocking(defaultAccountService.managedSettingsFreshness)) {
+				logService.warn('[DefaultAccount] Account policy sync completed without satisfying managed settings freshness');
+				await dialogService.error(localize('syncAccountPolicy.blocked', "Failed to sync account policy."), localize('syncAccountPolicy.blocked.detail', "The required managed settings could not be refreshed."));
+				return;
+			}
 			await dialogService.info(localize('syncAccountPolicy.success', "Account policy has been synced."));
 		} catch (error) {
 			logService.error('[DefaultAccount] Failed to sync account policy', error);

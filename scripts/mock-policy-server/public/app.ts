@@ -470,7 +470,16 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 		const previousMode = endpoint.mode ?? 'json';
 		endpoint.mode = mode;
 		updateResponseConfigurationVisibility();
+		const snapshot = captureSaveSnapshot();
 		clearPendingSave(endpoint.id);
+		if (snapshot) {
+			if (!await saveSnapshot(snapshot)) {
+				endpoint.mode = previousMode;
+				responseModeSelect.value = previousMode;
+				updateResponseConfigurationVisibility();
+			}
+			return;
+		}
 		try {
 			applyState(await updateState({ endpoint: endpoint.id, mode }));
 		} catch (error) {
@@ -999,7 +1008,7 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 			selectSetupMethod('proxy');
 			// Fall back to the shared endpoint definitions so the GUI still shows
 			// what exists (read-only) rather than rendering a blank page.
-			endpoints = MOCK_POLICY_ENDPOINTS.map(def => ({ ...def, status: def.presets[0]?.status ?? 200, body: def.presets[0]?.body ?? {}, mode: def.presets[0]?.mode ?? 'json' }));
+			endpoints = MOCK_POLICY_ENDPOINTS.map(def => ({ ...def, status: def.presets[0]?.status ?? 200, body: def.presets[0]?.body ?? {}, mode: 'json' }));
 			renderTabs();
 			if (endpoints.length) {
 				selectEndpoint(endpoints[0].id);

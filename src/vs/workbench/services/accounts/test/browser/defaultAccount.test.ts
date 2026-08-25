@@ -205,6 +205,7 @@ suite('DefaultAccountProvider managed settings', () => {
 				source: 'server',
 				failure: ManagedSettingsFreshnessFailure.UpdateRequired,
 				hasLastAttempt: true,
+				hasScope: true,
 			},
 			data: cachedPolicy.policyData,
 		});
@@ -253,6 +254,7 @@ suite('DefaultAccountProvider managed settings', () => {
 				source: 'server',
 				failure: ManagedSettingsFreshnessFailure.Network,
 				hasLastAttempt: true,
+				hasScope: true,
 			},
 			data: cachedPolicy.policyData,
 			fetchedAt: cachedPolicy.managedSettingsFetchedAt,
@@ -284,6 +286,7 @@ suite('DefaultAccountProvider managed settings', () => {
 				source: 'server',
 				failure: ManagedSettingsFreshnessFailure.Network,
 				hasLastAttempt: true,
+				hasScope: true,
 			},
 		});
 	});
@@ -309,6 +312,7 @@ suite('DefaultAccountProvider managed settings', () => {
 				source: 'server',
 				failure: ManagedSettingsFreshnessFailure.Network,
 				hasLastAttempt: true,
+				hasScope: true,
 			},
 		});
 	});
@@ -351,6 +355,7 @@ suite('DefaultAccountProvider managed settings', () => {
 				source: 'nativeMdm',
 				failure: ManagedSettingsFreshnessFailure.Network,
 				hasLastAttempt: true,
+				hasScope: true,
 			},
 		});
 	});
@@ -431,6 +436,7 @@ suite('DefaultAccountProvider managed settings', () => {
 			state: ManagedSettingsFreshnessState.Pending,
 			source: 'server',
 			hasLastAttempt: true,
+			hasScope: true,
 		});
 
 		resolveRequest(jsonResponse({ forceRemoteSettingsRefresh: true }));
@@ -525,6 +531,7 @@ suite('DefaultAccountProvider managed settings', () => {
 			failure: ManagedSettingsFreshnessFailure.HttpError,
 			httpStatus: 503,
 			hasLastAttempt: true,
+			hasScope: true,
 		});
 	});
 
@@ -548,6 +555,7 @@ suite('DefaultAccountProvider managed settings', () => {
 			failure: ManagedSettingsFreshnessFailure.HttpError,
 			httpStatus: 503,
 			hasLastAttempt: true,
+			hasScope: true,
 		});
 	});
 
@@ -570,6 +578,7 @@ suite('DefaultAccountProvider managed settings', () => {
 				source: 'nativeMdm',
 				failure: ManagedSettingsFreshnessFailure.RateLimited,
 				hasLastAttempt: true,
+				hasScope: true,
 			},
 		});
 	});
@@ -607,6 +616,7 @@ suite('DefaultAccountProvider managed settings', () => {
 			source: 'nativeMdm',
 			failure: ManagedSettingsFreshnessFailure.Malformed,
 			hasLastAttempt: true,
+			hasScope: true,
 		});
 	});
 
@@ -620,6 +630,52 @@ suite('DefaultAccountProvider managed settings', () => {
 			source: 'nativeMdm',
 			failure: ManagedSettingsFreshnessFailure.NoUrl,
 			hasLastAttempt: false,
+		});
+	});
+
+	test('scoped cached server requirement fails closed when the endpoint is missing', async () => {
+		const provider = await createProvider(new TestRequestService(async () => jsonResponse({})), {}, {}, '');
+		const cachedPolicy = {
+			...createCachedPolicy(true),
+			managedSettingsScope: {
+				accountId,
+				authenticationProviderId: 'github',
+				endpointOrigin: 'https://api.github.com',
+			},
+		};
+
+		await provider['getManagedSettings'](sessions, cachedPolicy);
+
+		assert.deepStrictEqual(describeFreshness(provider.managedSettingsFreshness), {
+			state: ManagedSettingsFreshnessState.Blocked,
+			source: 'server',
+			failure: ManagedSettingsFreshnessFailure.NoUrl,
+			hasLastAttempt: false,
+		});
+	});
+
+	test('re-enabled refresh requirement restores the prior blocked state', async () => {
+		const requestService = new TestRequestService(async () => {
+			throw new Error('managed settings unavailable');
+		});
+		const provider = await createProvider(requestService, { [COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: true });
+
+		await provider['getManagedSettings'](sessions, undefined);
+		provider['setManagedSettingsFreshness']({ state: ManagedSettingsFreshnessState.NotRequired });
+		await provider['getManagedSettings'](sessions, undefined, { forceRefresh: true });
+
+		assert.deepStrictEqual({
+			requestCount: requestService.requestCount,
+			freshness: describeFreshness(provider.managedSettingsFreshness),
+		}, {
+			requestCount: 1,
+			freshness: {
+				state: ManagedSettingsFreshnessState.Blocked,
+				source: 'nativeMdm',
+				failure: ManagedSettingsFreshnessFailure.Network,
+				hasLastAttempt: true,
+				hasScope: true,
+			},
 		});
 	});
 
@@ -814,12 +870,12 @@ suite('DefaultAccountProvider managed settings', () => {
 			return { ...rest, hasLastAttempt: lastAttemptAt !== undefined, hasSatisfiedAt: satisfiedAt !== undefined };
 		}
 		if (freshness.state === ManagedSettingsFreshnessState.Pending) {
-			const { lastAttemptAt, ...rest } = freshness;
-			return { ...rest, hasLastAttempt: lastAttemptAt !== undefined };
+			const { lastAttemptAt, scope, ...rest } = freshness;
+			return { ...rest, hasLastAttempt: lastAttemptAt !== undefined, ...(scope ? { hasScope: true } : {}) };
 		}
 		if (freshness.state === ManagedSettingsFreshnessState.Blocked) {
-			const { lastAttemptAt, ...rest } = freshness;
-			return { ...rest, hasLastAttempt: lastAttemptAt !== undefined };
+			const { lastAttemptAt, scope, ...rest } = freshness;
+			return { ...rest, hasLastAttempt: lastAttemptAt !== undefined, ...(scope ? { hasScope: true } : {}) };
 		}
 		return freshness;
 	}
