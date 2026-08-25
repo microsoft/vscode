@@ -76,8 +76,8 @@ class TerminalLinkContribution extends DisposableStore implements ITerminalContr
 			linkManager.add(this._terminalLinkProviderService.onDidAddLinkProvider(e => {
 				linkManager.externalProvideLinksCb = e.provideLinks.bind(e, this._ctx.instance as ITerminalInstance);
 			}));
+			linkManager.add(this._terminalLinkProviderService.onDidRemoveLinkProvider(() => linkManager.externalProvideLinksCb = undefined));
 		}
-		linkManager.add(this._terminalLinkProviderService.onDidRemoveLinkProvider(() => linkManager.externalProvideLinksCb = undefined));
 	}
 
 	async showLinkQuickpick(extended?: boolean): Promise<void> {
