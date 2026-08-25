@@ -25,7 +25,7 @@ import { readAgentMessageDelegationMeta, toAgentMessageDelegationMeta } from '..
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { ChatOriginKind } from '../../common/state/protocol/state.js';
-import { buildChatUri, buildDefaultChatUri, MessageKind, PendingMessageKind, SessionStatus, TurnState, type ISessionGitHubState, type Message, type PendingMessage, type Turn } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, MessageKind, PendingMessageKind, ResponsePartKind, SessionStatus, TurnState, type ISessionGitHubState, type Message, type PendingMessage, type Turn } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostClientConnectionService, IAgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
 import { AgentHostChatContributions } from '../../node/agentHostChatContributionsService.js';
@@ -967,7 +967,7 @@ suite('AgentHostChatContributions', () => {
 				actions.push(envelope.action.type);
 			}
 			if (envelope.action.type === ActionType.ChatError) {
-				errorTypes.push(envelope.action.error.errorType);
+				errorTypes.push(envelope.action.part.error.errorType);
 			}
 		}));
 		queue.clearAgent();
@@ -1452,7 +1452,7 @@ suite('AgentHostChatContributions', () => {
 					type: ActionType.ChatError,
 					turnId: 'first-turn',
 					duration: 1,
-					error: reason.error,
+					part: { kind: ResponsePartKind.Error, error: reason.error },
 				});
 			} else {
 				sideChat.stateManager.dispatchServerAction(sideChat.sideChat, {
