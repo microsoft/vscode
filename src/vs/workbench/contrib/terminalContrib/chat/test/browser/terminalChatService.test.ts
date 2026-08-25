@@ -17,7 +17,7 @@ import { ILogService, NullLogService } from '../../../../../../platform/log/comm
 import { ITreeSitterLibraryService } from '../../../../../../editor/common/services/treeSitter/treeSitterLibraryService.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { IChatService } from '../../../../chat/common/chatService/chatService.js';
-import { IAhpTerminalCommandSource, ITerminalInstance, ITerminalService } from '../../../../terminal/browser/terminal.js';
+import { IAhpTerminalCommandSource, IChatTerminalToolProgressPart, ITerminalInstance, ITerminalService } from '../../../../terminal/browser/terminal.js';
 import { TerminalChatService } from '../../browser/terminalChatService.js';
 
 /**
@@ -104,6 +104,34 @@ suite('TerminalChatService', () => {
 
 		assert.strictEqual(listenersAfterSecond, listenersAfterFirst, 're-registering the same (instance, id) pair should not add a new listener');
 		assert.strictEqual(service.getToolSessionIdForInstance(instance), 'tool-session-a');
+	});
+
+	test('continueInBackground notifies matching progress parts without per-part event listeners', () => {
+		const markedSessionIds: string[] = [];
+		for (let index = 0; index < 50; index++) {
+			const sessionId = `tool-session-${index}`;
+			store.add(service.registerProgressPart(new class extends mock<IChatTerminalToolProgressPart>() {
+				override readonly elementIndex = index;
+				override readonly contentIndex = 0;
+				override readonly terminalToolSessionId = sessionId;
+
+				override markContinuedInBackground(): void {
+					markedSessionIds.push(sessionId);
+				}
+			}()));
+		}
+		const eventSessionIds: string[] = [];
+		store.add(service.onDidContinueInBackground(sessionId => eventSessionIds.push(sessionId)));
+
+		service.continueInBackground('tool-session-25');
+
+		assert.deepStrictEqual({
+			markedSessionIds,
+			eventSessionIds,
+		}, {
+			markedSessionIds: ['tool-session-25'],
+			eventSessionIds: ['tool-session-25'],
+		});
 	});
 
 	test('getTerminalInstanceByToolSessionId waits for pending AHP terminal creation', async () => {
