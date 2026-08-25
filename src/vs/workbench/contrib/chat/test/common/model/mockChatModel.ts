@@ -28,6 +28,7 @@ export class MockChatModel extends Disposable implements IChatModel {
 	readonly requestInProgress = observableValue('requestInProgress', false);
 	readonly hasActiveRequest = observableValue('hasActiveRequest', false);
 	readonly requestNeedsInput = observableValue<IChatRequestNeedsInputInfo | undefined>('requestNeedsInput', undefined);
+	readonly isReadOnly = observableValue(this, false);
 	readonly inputPlaceholder = undefined;
 	readonly editingSession = undefined;
 	readonly checkpoint = undefined;
@@ -35,6 +36,8 @@ export class MockChatModel extends Disposable implements IChatModel {
 	readonly responderUsername: string = 'agent';
 	readonly inputModel: IInputModel = {
 		state: observableValue('inputModelState', undefined),
+		intendedModel: undefined,
+		setIntendedModel: () => { },
 		setState: () => { },
 		clearState: () => { },
 		toJSON: () => undefined
@@ -56,6 +59,7 @@ export class MockChatModel extends Disposable implements IChatModel {
 
 	readonly hasRequests = false;
 	readonly lastRequest: IChatRequestModel | undefined;
+	readonly sessionCost: number = 0;
 
 	override dispose() {
 		this.isDisposed = true;

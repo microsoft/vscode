@@ -9,8 +9,7 @@
 	flex-direction: column;
 	flex-shrink: 0;
 	box-sizing: border-box;
-	overflow: hidden;
-	font-size: 12px;
+	font-size: var(--vscode-agents-fontSize-label1, 12px);
 }
 
 /* Header */
@@ -19,21 +18,31 @@
 	display: flex;
 	align-items: center;
 	padding: 4px;
-	margin-top: 4px;
-	border-radius: 4px;
-	min-height: 22px;
-	font-weight: 500;
+	margin-top: 6px;
+	border-radius: var(--vscode-cornerRadius-medium);
+	min-height: 20px;
+	font-weight: var(--vscode-agents-fontWeight-semiBold, 600);
 	cursor: pointer;
 	user-select: none;
 }
 
 .ci-status-widget-header:hover {
-	background-color: var(--vscode-list-hoverBackground);
-	padding-right: 22px;
+	padding-right: 32px;
 }
 
-.ci-status-widget-header:focus {
-	padding-right: 22px;
+.ci-status-widget-header:focus-visible {
+	padding-right: 32px;
+}
+
+.ci-status-widget-header.collapsed {
+	padding-right: 32px;
+}
+
+/* Hover/keyboard focus promote the title to the strong foreground instead of
+	painting a row background — matches the sessions list section labels. */
+.ci-status-widget-header:hover .ci-status-widget-title,
+.ci-status-widget-header:focus-visible .ci-status-widget-title {
+	color: var(--vscode-strongForeground);
 }
 
 .ci-status-widget-header:focus-visible {
@@ -41,26 +50,37 @@
 	outline-offset: -1px;
 }
 
-/* Chevron — right-aligned, visible on hover only */
+/* Suppress the outline for mouse-driven focus — keyboard navigation only */
+.ci-status-widget-header:focus:not(:focus-visible) {
+	outline: none !important;
+}
+
+/* Chevron — right-aligned, visible on hover, keyboard focus, or when collapsed */
 .ci-status-widget-header .group-chevron {
 	position: absolute;
 	right: 4px;
 	top: 50%;
 	transform: translateY(-50%);
-	width: 16px;
-	height: 16px;
+	width: 22px;
+	height: 22px;
+	border-radius: var(--vscode-cornerRadius-small);
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	font-size: 12px;
+	font-size: var(--vscode-codiconFontSize-compact, 12px);
 	visibility: hidden;
 	opacity: 0;
 }
 
 .ci-status-widget-header:hover .group-chevron,
-.ci-status-widget-header:focus-within .group-chevron {
+.ci-status-widget-header:focus-visible .group-chevron,
+.ci-status-widget-header.collapsed .group-chevron {
 	visibility: visible;
 	opacity: 0.7;
+}
+
+.ci-status-widget-header .group-chevron:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
 /* Title - single line, overflow ellipsis */
@@ -89,20 +109,26 @@
 	padding-right: 8px;
 }
 
-.ci-status-widget-header:hover .ci-status-widget-counts, .ci-status-widget-header:focus .ci-status-widget-counts {
+.ci-status-widget-header:hover .ci-status-widget-counts,
+.ci-status-widget-header:focus-visible .ci-status-widget-counts,
+.ci-status-widget-header.collapsed .ci-status-widget-counts {
 	visibility: hidden;
 }
 
 .ci-status-widget-count-badge {
 	display: inline-flex;
 	align-items: center;
-	gap: 2px;
-	font-size: 11px;
+	gap: 4px;
+	font-size: var(--vscode-agents-fontSize-body2);
 	line-height: 1;
 }
 
-.ci-status-widget-count-badge .codicon {
-	font-size: 14px;
+.monaco-workbench .ci-status-widget-count-badge .codicon[class*='codicon-'] {
+	font-size: var(--vscode-codiconFontSize-compact, 12px);
+}
+
+.ci-status-widget-count-badge span:not(.codicon) {
+	opacity: 0.7;
 }
 
 .ci-status-widget-count-badge.ci-status-success .codicon {
@@ -119,22 +145,6 @@
 
 .ci-status-widget-count-badge.ci-status-pending .codicon {
 	color: var(--vscode-descriptionForeground);
-}
-
-.ci-status-widget-header-actions {
-	flex-shrink: 0;
-	display: flex;
-	align-items: center;
-}
-
-.ci-status-widget-header-actions .monaco-action-bar {
-	display: flex;
-	align-items: center;
-}
-
-.ci-status-widget-header-actions .action-item .action-label {
-	width: 16px;
-	height: 16px;
 }
 
 /* Body - check list */
@@ -156,14 +166,14 @@
 
 /* Individual check row */
 .ci-status-widget .ci-status-widget-list .monaco-list-row {
-	border-radius: 4px;
+	border-radius: var(--vscode-cornerRadius-small);
 }
 
 .ci-status-widget-check {
 	display: flex;
 	align-items: center;
 	gap: 6px;
-	padding: 4px 0;
+	padding: 6px 0 6px 6px;
 	height: 100%;
 	width: 100%;
 	box-sizing: border-box;
@@ -185,9 +195,9 @@
 }
 
 .ci-status-widget-check-label .monaco-icon-label::before {
-	font-size: 14px;
-	width: 14px;
-	height: 14px;
+	font-size: var(--vscode-codiconFontSize-compact, 12px);
+	width: 12px;
+	height: 12px;
 }
 
 .ci-status-widget-check-label .monaco-icon-label-container,
@@ -230,7 +240,7 @@
 	display: none;
 	flex: 0 0 auto;
 	flex-shrink: 0;
-	padding-right: 12px;
+	padding-right: 4px;
 	margin-left: auto;
 }
 
@@ -249,4 +259,5 @@
 .ci-status-widget-check-actions .action-bar .action-item .action-label {
 	width: 16px;
 	height: 16px;
+	font-size: var(--vscode-codiconFontSize-compact, 12px);
 }

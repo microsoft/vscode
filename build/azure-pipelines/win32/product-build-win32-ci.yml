@@ -27,7 +27,7 @@ jobs:
           artifactName: node-modules-windows-$(VSCODE_ARCH)-${{ lower(parameters.VSCODE_TEST_SUITE) }}-$(System.JobAttempt)
           displayName: Publish Node Modules
           sbomEnabled: false
-          isProduction: false
+          isProduction: true
           condition: failed()
         - output: pipelineArtifact
           targetPath: $(Build.SourcesDirectory)/.build/logs

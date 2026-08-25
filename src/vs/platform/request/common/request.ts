@@ -10,7 +10,7 @@ import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { IHeaders, IRequestContext, IRequestOptions } from '../../../base/parts/request/common/request.js';
 import { localize } from '../../../nls.js';
-import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationRegistry } from '../../configuration/common/configurationRegistry.js';
+import { AgentHostConfigurationSyncScope, ConfigurationScope, Extensions, IConfigurationNode, IConfigurationRegistry } from '../../configuration/common/configurationRegistry.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import { Registry } from '../../registry/common/platform.js';
@@ -134,6 +134,34 @@ export function isServerError(context: IRequestContext): boolean {
 	return !!context.res.statusCode && context.res.statusCode >= 500 && context.res.statusCode < 600;
 }
 
+/**
+ * Reads a header value from an {@link IHeaders} map, tolerating array-shaped
+ * values and case-insensitive lookups.
+ */
+export function readHeader(headers: IHeaders | undefined, name: string): string | undefined {
+	if (!headers) {
+		return undefined;
+	}
+	const value = headers[name] ?? headers[name.toLowerCase()];
+	if (Array.isArray(value)) {
+		return value[0];
+	}
+	return value;
+}
+
+/**
+ * Parses the `Retry-After` header as a number of seconds. Returns `undefined`
+ * if absent or not a finite positive number. The HTTP-date form is not parsed.
+ */
+export function retryAfterFromHeaders(headers: IHeaders | undefined): number | undefined {
+	const value = readHeader(headers, 'retry-after');
+	if (!value) {
+		return undefined;
+	}
+	const parsed = parseInt(value, 10);
+	return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+}
+
 export function hasNoContent(context: IRequestContext): boolean {
 	return context.res.statusCode === 204;
 }
@@ -245,7 +273,8 @@ function registerProxyConfigurations(useHostProxy = true, useHostProxyDefault = 
 					type: 'string',
 					pattern: '^(https?|socks|socks4a?|socks5h?)://([^:]*(:[^@]*)?@)?([^:]+|\\[[:0-9a-fA-F]+\\])(:\\d+)?/?$|^$',
 					markdownDescription: localize('proxy', "The proxy setting to use. If not set, will be inherited from the `http_proxy` and `https_proxy` environment variables. When during [remote development](https://aka.ms/vscode-remote) the {0} setting is disabled this setting can be configured in the local and the remote settings separately.", '`#http.useLocalProxyConfiguration#`'),
-					restricted: true
+					restricted: true,
+					agentHost: { key: 'http.proxy', scope: AgentHostConfigurationSyncScope.Ambient, transform: value => typeof value === 'string' ? value : '' },
 				},
 				'http.proxyStrictSSL': {
 					type: 'boolean',
@@ -256,13 +285,15 @@ function registerProxyConfigurations(useHostProxy = true, useHostProxyDefault = 
 				'http.proxyKerberosServicePrincipal': {
 					type: 'string',
 					markdownDescription: localize('proxyKerberosServicePrincipal', "Overrides the principal service name for Kerberos authentication with the HTTP proxy. A default based on the proxy hostname is used when this is not set. When during [remote development](https://aka.ms/vscode-remote) the {0} setting is disabled this setting can be configured in the local and the remote settings separately.", '`#http.useLocalProxyConfiguration#`'),
-					restricted: true
+					restricted: true,
+					agentHost: { key: 'http.proxyKerberosServicePrincipal', scope: AgentHostConfigurationSyncScope.Ambient, transform: value => typeof value === 'string' ? value : '' },
 				},
 				'http.noProxy': {
 					type: 'array',
 					items: { type: 'string' },
 					markdownDescription: localize('noProxy', "Specifies domain names for which proxy settings should be ignored for HTTP/HTTPS requests. When during [remote development](https://aka.ms/vscode-remote) the {0} setting is disabled this setting can be configured in the local and the remote settings separately.", '`#http.useLocalProxyConfiguration#`'),
-					restricted: true
+					restricted: true,
+					agentHost: { key: 'http.noProxy', scope: AgentHostConfigurationSyncScope.Ambient, transform: value => Array.isArray(value) ? value : [] },
 				},
 				'http.proxyAuthorization': {
 					type: ['null', 'string'],

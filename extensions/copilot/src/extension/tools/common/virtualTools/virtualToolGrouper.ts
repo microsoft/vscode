@@ -16,6 +16,7 @@ import { groupBy } from '../../../../util/vs/base/common/collections';
 import { StopWatch } from '../../../../util/vs/base/common/stopwatch';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { LanguageModelToolExtensionSource, LanguageModelToolMCPSource } from '../../../../vscodeTypes';
+import { ToolName } from '../toolNames';
 import { BuiltInToolGroupHandler } from './builtInToolGroupHandler';
 import { EMBEDDING_TYPE_FOR_TOOL_GROUPING } from './preComputedToolEmbeddingsCache';
 import { IToolEmbeddingsComputer } from './toolEmbeddingsComputer';
@@ -58,9 +59,14 @@ export class VirtualToolGrouper implements IToolCategorization {
 	async addGroups(query: string, root: VirtualTool, tools: LanguageModelToolInformation[], token: CancellationToken): Promise<void> {
 		// If there's no need to group tools, just add them all directly;
 
+		// Don't group built-in tools when tool search is active, otherwise non-deferred tools can be hidden
+		// behind virtual groups that tool search never surfaces. Checked against the full `tools` list since
+		// `tool_search` has an extension source and is bucketed out of `builtinTools` below.
+		const toolSearchActive = tools.some(t => t.name === ToolName.ToolSearch);
+
 		// if there are more than START_BUILTIN_GROUPING_AFTER_TOOL_COUNT tools, we should group built-in tools
 		// otherwise, follow the existing logic of grouping all tools together
-		const shouldGroup = this.shouldTriggerBuiltInGrouping(tools);
+		const shouldGroup = !toolSearchActive && this.shouldTriggerBuiltInGrouping(tools);
 
 		if (!shouldGroup && tools.length < Constant.START_GROUPING_AFTER_TOOL_COUNT) {
 			root.contents = tools;
@@ -98,7 +104,7 @@ export class VirtualToolGrouper implements IToolCategorization {
 		const groupedResults: (VirtualTool | LanguageModelToolInformation)[] = [];
 
 		// Handle built-in tools - apply grouping logic if needed
-		const shouldGroupBuiltin = this.shouldTriggerBuiltInGrouping(builtinTools);
+		const shouldGroupBuiltin = !toolSearchActive && this.shouldTriggerBuiltInGrouping(builtinTools);
 		if (shouldGroupBuiltin) {
 			const builtinGroups = this.builtInToolGroupHandler.createBuiltInToolGroups(builtinTools);
 			groupedResults.push(...builtinGroups);
@@ -322,6 +328,11 @@ export class VirtualToolGrouper implements IToolCategorization {
 			return tools;
 		}
 
+		if (!await this._toolEmbeddingsComputer.isEmbeddingModelAvailable()) {
+			this._logService.trace('[virtual-tools] Falling back to deterministic grouping because no embedding model is available');
+			return this._createFallbackTools(tools, allocatedSlots);
+		}
+
 		// If only one slot allocated, return all tools in a single group with LLM-generated summary
 		if (allocatedSlots === 1) {
 			const groupDescriptions = await this._generateBulkGroupDescriptions([tools], token);
@@ -388,6 +399,12 @@ export class VirtualToolGrouper implements IToolCategorization {
 			throw e;
 		}
 
+		const groupedToolNames = new Set(embeddingGroups.flatMap(group => group.map(tool => tool.name)));
+		if (tools.some(tool => !groupedToolNames.has(tool.name))) {
+			this._logService.trace('[virtual-tools] Falling back to deterministic grouping because embeddings did not cover every tool');
+			return this._createFallbackTools(tools, limit);
+		}
+
 		const singles = embeddingGroups.filter(g => g.length === 1).map(g => g[0]);
 		const grouped = embeddingGroups.filter(g => g.length > 1);
 
@@ -399,6 +416,47 @@ export class VirtualToolGrouper implements IToolCategorization {
 		return groupDescriptions.groups
 			.map((v): VirtualTool | LanguageModelToolInformation => new VirtualTool(VIRTUAL_TOOL_NAME_PREFIX + v.name, SUMMARY_PREFIX + v.summary + SUMMARY_SUFFIX, 0, {}, v.tools))
 			.concat(singles);
+	}
+
+	private _createFallbackTools(tools: LanguageModelToolInformation[], allocatedSlots: number): (VirtualTool | LanguageModelToolInformation)[] {
+		const directTools = tools.slice(0, allocatedSlots - 1);
+		const groupedTools = tools.slice(directTools.length);
+		const group = this._createFallbackTree(groupedTools);
+		return [...directTools, group];
+	}
+
+	private _createFallbackTree(tools: LanguageModelToolInformation[]): VirtualTool {
+		let depth = 0;
+		while (tools.length > (Constant.FALLBACK_TREE_FRONTIER_LIMIT - depth) * 2 ** depth) {
+			depth++;
+		}
+
+		const namespace = tools[0].name;
+		const createNode = (nodeTools: LanguageModelToolInformation[], remainingDepth: number, index: number): VirtualTool => {
+			if (remainingDepth === 0) {
+				return new VirtualTool(
+					`${VIRTUAL_TOOL_NAME_PREFIX}fallback_${namespace}_${index}`,
+					`${SUMMARY_PREFIX}Contains the tools: ${nodeTools.map(tool => tool.name).join(', ')}${SUMMARY_SUFFIX}`,
+					0,
+					{},
+					nodeTools,
+				);
+			}
+
+			const split = Math.ceil(nodeTools.length / 2);
+			return new VirtualTool(
+				`${VIRTUAL_TOOL_NAME_PREFIX}fallback_${namespace}_${index}`,
+				`${SUMMARY_PREFIX}Contains additional tools from this toolset.${SUMMARY_SUFFIX}`,
+				0,
+				{},
+				[
+					createNode(nodeTools.slice(0, split), remainingDepth - 1, index * 2),
+					createNode(nodeTools.slice(split), remainingDepth - 1, index * 2 + 1),
+				],
+			);
+		};
+
+		return createNode(tools, depth, 1);
 	}
 
 	/**

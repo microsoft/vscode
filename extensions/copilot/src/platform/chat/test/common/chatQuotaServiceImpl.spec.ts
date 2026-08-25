@@ -21,7 +21,7 @@ function createMockAuthService(): IAuthenticationService {
 	return {
 		_serviceBrand: undefined,
 		copilotToken: undefined,
-		onDidAuthenticationChange: new Emitter().event,
+		onDidCopilotTokenChange: new Emitter().event,
 	} as unknown as IAuthenticationService;
 }
 
@@ -30,7 +30,7 @@ function createMockAuthServiceWithEmitter(opts?: { isFreeUser?: boolean }) {
 	const authService = {
 		_serviceBrand: undefined,
 		copilotToken: undefined as { isFreeUser: boolean; quotaInfo: ReturnType<typeof makeQuotaInfo> } | undefined,
-		onDidAuthenticationChange: emitter.event,
+		onDidCopilotTokenChange: emitter.event,
 	} as unknown as IAuthenticationService;
 	return {
 		authService, emitter, setToken: (quotaInfo: ReturnType<typeof makeQuotaInfo>) => {
@@ -92,10 +92,10 @@ describe('ChatQuotaService', () => {
 			expect(svc.getCreditsForTurn(TURN_A)).toBeCloseTo(50.45);
 		});
 
-		test('ignores zero nano-AIU values', () => {
+		test('records zero nano-AIU values as zero credits', () => {
 			const svc = create();
 			svc.setLastCopilotUsage(0, TURN_A);
-			expect(svc.getCreditsForTurn(TURN_A)).toBeUndefined();
+			expect(svc.getCreditsForTurn(TURN_A)).toBe(0);
 		});
 
 		test('ignores negative nano-AIU values', () => {

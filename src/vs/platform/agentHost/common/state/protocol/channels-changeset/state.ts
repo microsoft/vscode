@@ -21,7 +21,7 @@ import type { StringOrMarkdown, FileEdit, ErrorInfo } from '../common/state.js';
  *
  * @category Changesets
  */
-export interface ChangesetSummary {
+export interface Changeset {
 	/** Human-readable label, e.g. `"Uncommitted Changes"`. */
 	label: string;
 	/**
@@ -44,12 +44,58 @@ export interface ChangesetSummary {
 	uriTemplate: string;
 	/** Optional longer description. */
 	description?: string;
-	/** Aggregate line additions across the changeset, when known. */
-	additions?: number;
-	/** Aggregate line deletions across the changeset, when known. */
-	deletions?: number;
-	/** Number of files in the changeset, when known. */
-	files?: number;
+	/**
+	 * Advisory hint describing what kind of changeset this is, so clients can
+	 * group, sort, or render an appropriate icon without parsing
+	 * {@link uriTemplate}. Recognized values include:
+	 *
+	 * - `'session'`: a static, session-wide changeset covering all changes the
+	 *   agent has produced in this session.
+	 * - `'branch'`: changes relative to a base branch (e.g. a feature branch
+	 *   diffed against `main`).
+	 * - `'uncommitted'`: the workspace's current uncommitted changes.
+	 * - `'turn'`: changes produced by a single turn. Typically paired with a
+	 *   `{turnId}` variable in {@link uriTemplate}.
+	 * - `'compare-turns'`: a diff between two turns. Typically paired with
+	 *   `{originalTurnId}` and `{modifiedTurnId}` variables in
+	 *   {@link uriTemplate}.
+	 *
+	 * Implementations MAY provide additional values; clients SHOULD fall back
+	 * to a reasonable default when an unknown value is encountered.
+	 */
+	changeKind: string;
+	/**
+	 * Optional capability declarations for this changeset. Absent (or an empty
+	 * object) means the changeset advertises no optional capabilities.
+	 *
+	 * Because the catalogue entry is delivered up-front on
+	 * {@link ChangesetState | the session's changeset list}, clients can decide
+	 * whether to surface capability-gated UI (such as review checkboxes) without
+	 * first subscribing to the changeset URI. Mirrors the presence-flag
+	 * convention of `ClientCapabilities`.
+	 */
+	capabilities?: ChangesetCapabilities;
+}
+
+/**
+ * Optional capabilities a changeset advertises on its catalogue
+ * {@link Changeset} entry.
+ *
+ * Each field is a presence flag: an empty object `{}` means "supported",
+ * absence means "not supported". Sub-fields on individual capabilities are
+ * reserved for future per-capability options.
+ *
+ * @category Changesets
+ */
+export interface ChangesetCapabilities {
+	/**
+	 * The changeset supports the per-file **review** workflow. When declared,
+	 * clients MAY surface a GitHub-style "Viewed" toggle per file and dispatch
+	 * {@link ChangesetFilesReviewChangedAction | `changeset/filesReviewChanged`} to
+	 * set each file's {@link ChangesetFile.reviewed} flag. Clients that omit
+	 * handling MUST treat the changeset as non-reviewable.
+	 */
+	review?: Record<string, never>;
 }
 
 /**
@@ -111,10 +157,58 @@ export interface ChangesetFile {
 	 */
 	edit: FileEdit;
 	/**
+	 * Whether a reviewer has marked this file as reviewed (the GitHub-style
+	 * "Viewed" checkbox). Absent is equivalent to `false` — clients MUST treat
+	 * a missing value as not-yet-reviewed.
+	 *
+	 * Requires the changeset to advertise {@link ChangesetCapabilities.review}.
+	 * Clients toggle it by dispatching
+	 * {@link ChangesetFilesReviewChangedAction | `changeset/filesReviewChanged`};
+	 * the server MAY also originate it (e.g. an agent self-reviewing its own
+	 * output).
+	 *
+	 * There is no content version in the protocol, so review is **not** reset
+	 * automatically when a file's contents change under a stable id. The server,
+	 * which is the authority on what changed, resets review explicitly — either
+	 * by re-emitting the file (via {@link ChangesetFileSetAction} or
+	 * {@link ChangesetContentChangedAction}) without `reviewed: true`, or by
+	 * dispatching `changeset/filesReviewChanged` with `reviewed: false`.
+	 */
+	reviewed?: boolean;
+	/**
 	 * Server-defined opaque metadata, surfaced to operations and tooling
 	 * but not interpreted by the protocol.
 	 */
 	_meta?: Record<string, unknown>;
+}
+
+/**
+ * Execution lifecycle of a {@link ChangesetOperation}.
+ *
+ * An operation is invoked imperatively via `invokeChangesetOperation`, but
+ * its progress and outcome are reflected back into changeset state so that
+ * every subscriber observes a consistent view (e.g. a spinner on a "Create
+ * Pull Request" button, or an inline error after a failed "revert").
+ *
+ * @category Changesets
+ */
+export const enum ChangesetOperationStatus {
+	/**
+	 * The operation is ready to be invoked. This is the default when
+	 * {@link ChangesetOperation.status} is omitted.
+	 */
+	Idle = 'idle',
+	/** An invocation of this operation is currently in flight. */
+	Running = 'running',
+	/**
+	 * The most recent invocation failed. The cause is described by
+	 * {@link ChangesetOperation.error}.
+	 */
+	Error = 'error',
+	/**
+	 * The operation is currently disabled and cannot be invoked.
+	 */
+	Disabled = 'disabled',
 }
 
 /**
@@ -161,4 +255,23 @@ export interface ChangesetOperation {
 	confirmation?: StringOrMarkdown;
 	/** Optional generic icon hint, e.g. `"check"`, `"trash"`. */
 	icon?: string;
+	/** Optional group identifier, used to group related operations together. */
+	group?: string;
+	/**
+	 * Current execution status. The server sets
+	 * {@link ChangesetOperationStatus.Running | Running} while an invocation
+	 * is in flight, {@link ChangesetOperationStatus.Error | Error} when the
+	 * most recent invocation failed, and
+	 * {@link ChangesetOperationStatus.Idle | Idle} otherwise.
+	 *
+	 * Clients SHOULD reflect this state in the UI — e.g. disabling the
+	 * control or showing a spinner while `Running`, and surfacing
+	 * {@link error} while `Error`.
+	 */
+	status: ChangesetOperationStatus;
+	/**
+	 * Cause of failure. Present iff
+	 * `status === ChangesetOperationStatus.Error`; otherwise omitted.
+	 */
+	error?: ErrorInfo;
 }

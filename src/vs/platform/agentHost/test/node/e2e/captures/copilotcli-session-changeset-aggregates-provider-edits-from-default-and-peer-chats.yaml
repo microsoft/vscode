@@ -1,0 +1,75 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Create default-provider.txt containing exactly DEFAULT_PROVIDER using your file creation tool; do not run a shell command. Then reply exactly "created".
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: create
+          input:
+            path: ${workdir}/default-provider.txt
+            file_text: DEFAULT_PROVIDER
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Create default-provider.txt containing exactly DEFAULT_PROVIDER using your file creation tool; do not run a shell command. Then reply exactly "created".
+        - role: assistant
+          content:
+            - type: tool_use
+              name: create
+              input:
+                path: ${workdir}/default-provider.txt
+                file_text: DEFAULT_PROVIDER
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: Created file ${workdir}/default-provider.txt with 16 characters
+    response:
+      content: created
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Create peer-provider.txt containing exactly PEER_PROVIDER using your file creation tool; do not run a shell command. Then reply exactly "created".
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_1
+          name: create
+          input:
+            path: ${workdir}/peer-provider.txt
+            file_text: PEER_PROVIDER
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Create peer-provider.txt containing exactly PEER_PROVIDER using your file creation tool; do not run a shell command. Then reply exactly "created".
+        - role: assistant
+          content:
+            - type: tool_use
+              name: create
+              input:
+                path: ${workdir}/peer-provider.txt
+                file_text: PEER_PROVIDER
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: Created file ${workdir}/peer-provider.txt with 13 characters
+    response:
+      content: created
+      stopReason: end_turn

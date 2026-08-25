@@ -43,6 +43,12 @@ export class StaticGitHubAuthenticationService extends BaseAuthenticationService
 		} : undefined;
 	}
 
+	override get hasCopilotTokenSource(): boolean {
+		// Static auth always represents a non-OAuth token pathway (proxy/HMAC, eval harness, ...),
+		// so a Copilot token is obtainable even when no GitHub session is cached.
+		return true;
+	}
+
 	override async getGitHubSession(kind: 'permissive' | 'any', options: AuthenticationGetSessionOptions & { createIfNone: StrictAuthenticationPresentationOptions }): Promise<AuthenticationSession>;
 	override async getGitHubSession(kind: 'permissive' | 'any', options: AuthenticationGetSessionOptions & { forceNewSession: StrictAuthenticationPresentationOptions }): Promise<AuthenticationSession>;
 	override async getGitHubSession(kind: 'permissive' | 'any', options: AuthenticationGetSessionOptions): Promise<AuthenticationSession | undefined>;
@@ -66,7 +72,7 @@ export class StaticGitHubAuthenticationService extends BaseAuthenticationService
 
 	setCopilotToken(token: CopilotToken): void {
 		this._tokenStore.copilotToken = token;
-		this.fireAuthenticationChange('setCopilotToken');
+		this.fireCopilotTokenChange('setCopilotToken');
 	}
 
 

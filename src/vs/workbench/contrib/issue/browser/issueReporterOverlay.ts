@@ -7,7 +7,7 @@ import { KeybindingLabel } from '../../../../base/browser/ui/keybindingLabel/key
 import { ResolvedKeybinding } from '../../../../base/common/keybindings.js';
 import { OS } from '../../../../base/common/platform.js';
 import './media/issueReporterOverlay.css';
-import { $, addDisposableListener, append, EventType, getWindow } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, append, disposableWindowInterval, EventType, getWindow } from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { IContextMenuProvider } from '../../../../base/browser/contextmenu.js';
@@ -76,6 +76,9 @@ export class IssueReporterOverlay {
 	readonly onDidRequestOpenRecording: Event<string> = this._onDidRequestOpenRecording.event;
 	private readonly _onDidRequestOpenScreenshot = new Emitter<IScreenshot>();
 	readonly onDidRequestOpenScreenshot: Event<IScreenshot> = this._onDidRequestOpenScreenshot.event;
+	private readonly _onDidChangeAttachments = new Emitter<void>();
+	/** Fires whenever the screenshot/recording collection changes so the host can persist it. */
+	readonly onDidChangeAttachments: Event<void> = this._onDidChangeAttachments.event;
 
 	private wizardPanel!: HTMLElement;
 	private updateBanner!: HTMLElement;
@@ -125,6 +128,7 @@ export class IssueReporterOverlay {
 	private reviewThumbCards: HTMLElement[] = [];
 	private readonly reviewRenderDisposables = new DisposableStore();
 	private readonly similarIssuesDisposables = new DisposableStore();
+	private readonly descriptionGuidanceDisposables = new DisposableStore();
 	private uploading = false;
 	private includeSystemInfo = true;
 	private includeProcessInfo = true;
@@ -132,10 +136,7 @@ export class IssueReporterOverlay {
 	private includeExtensions = true;
 	private includeExperiments = true;
 	private includeExtensionData = false;
-	private includeSettings = true;
-	private settingsContent: string | undefined;
-	private diagnosticBulkToggleButton: Button | undefined;
-	private diagnosticSectionStates: (() => boolean)[] = [];
+	private diagnosticsCollapsed = false;
 	private performanceInfoLoaded = false;
 	private performanceInfoRefreshing = false;
 
@@ -174,16 +175,19 @@ export class IssueReporterOverlay {
 		private readonly resolveKeybinding?: (commandId: string) => ResolvedKeybinding | undefined,
 	) {
 		this._hideToolbarInScreenshots = initialHideToolbar;
+		const hasStandaloneExtensionData = !!data.data && !data.extensionId;
+		this.includeExtensionData = hasStandaloneExtensionData;
 		this.model = new IssueReporterModel({
 			...data,
 			issueType: data.issueType || IssueType.Bug,
 			allExtensions: data.enabledExtensions,
+			extensionData: hasStandaloneExtensionData ? data.data : undefined,
 			includeSystemInfo: true,
 			includeWorkspaceInfo: true,
 			includeProcessInfo: true,
 			includeExtensions: true,
 			includeExperiments: true,
-			includeExtensionData: false,
+			includeExtensionData: hasStandaloneExtensionData,
 		});
 		this.selectedIssueType = data.issueType;
 		this.selectedIssueSource = data.issueSource ?? (data.extensionId ? IssueSource.Extension : undefined);
@@ -197,7 +201,9 @@ export class IssueReporterOverlay {
 		this.wizardPanel.setAttribute('aria-label', localize('reportIssue', "Report Issue"));
 		this.wizardPanel.setAttribute('tabindex', '-1');
 
-		// Toolbar (drag region + step indicator + discard)
+		// Toolbar with progress indicator and navigation buttons. The nav buttons
+		// sit in their own row directly beneath the step indicator, aligned to the
+		// start, so they read as part of the step UI.
 		const toolbar = append(this.wizardPanel, $('div.wizard-toolbar'));
 
 		// Progress indicator area
@@ -211,7 +217,19 @@ export class IssueReporterOverlay {
 		append(progressArea, $('span.wizard-step-separator'));
 		this.stepLabel = append(progressArea, $('span.wizard-step-label'));
 
-		append(toolbar, $('div.wizard-toolbar-spacer'));
+		// Navigation buttons placed in their own row directly under the step
+		// indicator, aligned to the start.
+		const nav = append(toolbar, $('div.wizard-nav'));
+
+		this.backButton = this.disposables.add(new Button(nav, { ...defaultButtonStyles, secondary: true }));
+		this.backButton.label = localize('back', "Back");
+		this.backButton.element.classList.add('wizard-back');
+		this.backButton.element.title = localize('back', "Back");
+
+		this.nextButton = this.disposables.add(new Button(nav, { ...defaultButtonStyles, supportIcons: true }));
+		this.nextButton.label = localize('next', "Next");
+		this.nextButton.element.classList.add('wizard-next');
+		this.nextButton.element.title = localize('next', "Next");
 
 		this.updateBanner = append(this.wizardPanel, $('div.wizard-update-banner'));
 		this.updateBanner.setAttribute('role', 'status');
@@ -224,19 +242,6 @@ export class IssueReporterOverlay {
 		this.createStep0Attachments();
 		this.createStep1Describe();
 		this.createStep2Review();
-
-		// Bottom navigation
-		const nav = append(this.wizardPanel, $('div.wizard-nav'));
-
-		this.backButton = this.disposables.add(new Button(nav, { ...defaultButtonStyles, secondary: true }));
-		this.backButton.label = localize('back', "Back");
-		this.backButton.element.classList.add('wizard-back');
-		this.backButton.element.title = localize('back', "Back");
-
-		this.nextButton = this.disposables.add(new Button(nav, { ...defaultButtonStyles, supportIcons: true }));
-		this.nextButton.label = localize('next', "Next");
-		this.nextButton.element.classList.add('wizard-next');
-		this.nextButton.element.title = localize('next', "Next");
 
 		this.registerEventHandlers();
 		if (this.data.extensionId) {
@@ -387,12 +392,12 @@ export class IssueReporterOverlay {
 				let remaining = this.screenshotDelay;
 				captureBtn.label = `${remaining}...`;
 				const targetWindow = getWindow(this.container);
-				const interval = targetWindow.setInterval(() => {
+				const intervalDisposable = this.disposables.add(disposableWindowInterval(targetWindow, () => {
 					remaining--;
 					if (remaining > 0) {
 						captureBtn.label = `${remaining}...`;
 					} else {
-						targetWindow.clearInterval(interval);
+						this.disposables.delete(intervalDisposable);
 						captureBtn.label = `$(device-camera) ${localize('screenshot', "Screenshot")}`;
 						captureBtn.element.style.minWidth = '';
 						captureBtn.enabled = true;
@@ -401,7 +406,7 @@ export class IssueReporterOverlay {
 						this.updateAttachmentButtons();
 						this._onDidRequestScreenshot.fire();
 					}
-				}, 1000);
+				}, 1000));
 			} else {
 				this._onDidRequestScreenshot.fire();
 			}
@@ -522,13 +527,37 @@ export class IssueReporterOverlay {
 		const heading = append(page, $('h2.wizard-heading'));
 		heading.textContent = localize('describeHeading', "Describe your feedback");
 
+		// Issue guidance link — keep the same wording as the classic reporter.
+		if (this.markdownRendererService) {
+			const guidanceContainer = append(page, $('div.wizard-issue-guidance'));
+			const guidanceMd = new MarkdownString(localize(
+				{
+					key: 'reviewGuidanceLabelWizard',
+					comment: ['{Locked="https://github.com/microsoft/vscode/wiki/Submitting-Bugs-and-Suggestions"}']
+				},
+				'Before you report an issue here please [review the guidance we provide](https://github.com/microsoft/vscode/wiki/Submitting-Bugs-and-Suggestions). Please complete the form in English.'
+			), { isTrusted: true });
+			const rendered = this.markdownRendererService.render(guidanceMd, {
+				actionHandler: async (link: string) => {
+					await this.openExternalLink?.(link);
+					return true;
+				},
+			});
+			guidanceContainer.appendChild(rendered.element);
+			this.disposables.add(rendered);
+		}
+
 		// Issue source selection + extension dropdown share a row when both are visible
 		const targetRow = append(page, $('div.wizard-target-row'));
 		const sourceField = append(targetRow, $('div.wizard-field.wizard-source-field'));
 		const sourceLabel = append(sourceField, $('label.wizard-field-label'));
 		sourceLabel.textContent = localize('target', "Target");
+		this.appendRequiredMarker(sourceLabel);
 		this.sourceButtonGroup = append(sourceField, $('div.wizard-type-buttons.wizard-source-buttons'));
-		for (const option of this.getSourceOptions()) {
+		// Create a button for every source up front so async-loaded extensions can
+		// reveal the Extension target later; updateIssueSourceButtons() controls
+		// which buttons are visible.
+		for (const option of this.getAllSourceOptions()) {
 			const btn = this.disposables.add(new Button(this.sourceButtonGroup, { ...defaultButtonStyles, secondary: true }));
 			btn.element.classList.add('wizard-type-btn', 'wizard-source-btn');
 			btn.element.setAttribute('data-source', option.value);
@@ -548,6 +577,7 @@ export class IssueReporterOverlay {
 		this.extensionField = append(targetRow, $('div.wizard-field.wizard-extension-field'));
 		const extensionLabel = append(this.extensionField, $('label.wizard-field-label'));
 		extensionLabel.textContent = localize('extension', "Extension");
+		this.appendRequiredMarker(extensionLabel);
 		const extensionSelectContainer = append(this.extensionField, $('div.wizard-extension-select'));
 		this.extensionOptions = this.getExtensionOptions();
 		this.extensionSelect = this.disposables.add(new SelectBox(
@@ -565,18 +595,29 @@ export class IssueReporterOverlay {
 		this.extensionStatus = append(this.extensionField, $('div.wizard-extension-status'));
 		this.updateExtensionOptions();
 		this.updateExtensionFieldVisibility();
+
+		// Default the target to the most likely option when the reporter opens.
+		// In the Agents Window we preselect Agents Window; otherwise default to
+		// VS Code (the most common target). Extension is preselected only when an
+		// extension id was already provided. The user can always override.
+		if (!this.selectedIssueSource) {
+			if (this.data.extensionId) {
+				this.selectedIssueSource = IssueSource.Extension;
+			} else if (this.data.isSessionsWindow) {
+				this.selectedIssueSource = IssueSource.AgentsWindow;
+			} else {
+				this.selectedIssueSource = IssueSource.VSCode;
+			}
+			this.updateIssueSourceFlags();
+		}
 		this.updateIssueSourceButtons();
 
 		// Category selection
 		const catLabel = append(page, $('label.wizard-field-label'));
 		catLabel.textContent = localize('feedbackCategory', "Category");
+		this.appendRequiredMarker(catLabel);
 
 		this.typeButtonGroup = append(page, $('div.wizard-type-buttons'));
-		const types = [
-			{ type: IssueType.Bug, label: localize('bug', "Bug"), icon: Codicon.bug },
-			{ type: IssueType.FeatureRequest, label: localize('featureRequest', "Feature Request"), icon: Codicon.lightbulb },
-			{ type: IssueType.PerformanceIssue, label: localize('performanceIssue', "Performance Issue"), icon: Codicon.dashboard },
-		];
 
 		const selectType = (type: IssueType) => {
 			this.selectedIssueType = type;
@@ -595,7 +636,7 @@ export class IssueReporterOverlay {
 			this.searchSimilarIssues();
 		};
 
-		for (const { type, label, icon } of types) {
+		for (const { type, label, icon } of this.getIssueTypeOptions()) {
 			const btn = this.disposables.add(new Button(this.typeButtonGroup, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
 			btn.element.classList.add('wizard-type-btn');
 			btn.element.setAttribute('data-type', String(type));
@@ -611,6 +652,7 @@ export class IssueReporterOverlay {
 		const titleLabelRow = append(titleGroup, $('div.wizard-title-label-row'));
 		const titleLabel = append(titleLabelRow, $('label.wizard-field-label'));
 		titleLabel.textContent = localize('issueTitle', "Title");
+		this.appendRequiredMarker(titleLabel);
 
 		const aiBtn = this.disposables.add(new Button(titleLabelRow, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
 		aiBtn.label = `$(sparkle) ${localize('generateTitleBtn', "Generate from description")}`;
@@ -650,6 +692,7 @@ export class IssueReporterOverlay {
 		const descriptionGroup = append(page, $('div.wizard-field'));
 		const descLabel = append(descriptionGroup, $('label.wizard-field-label'));
 		descLabel.textContent = localize('description', "Description");
+		this.appendRequiredMarker(descLabel);
 
 		this.descriptionGuidance = append(descriptionGroup, $('p.wizard-subtitle.wizard-description-guidance'));
 		this.updateDescriptionGuidance();
@@ -678,15 +721,60 @@ export class IssueReporterOverlay {
 
 		this.updateIssueSourceFlags();
 		this.updateTargetStatus();
+
+		// Default the category to Bug (most common). Must run after
+		// descriptionGuidance is initialized because selectType ->
+		// updateDescriptionGuidance touches it.
+		if (this.selectedIssueType === undefined) {
+			selectType(IssueType.Bug);
+		} else {
+			selectType(this.selectedIssueType);
+		}
 	}
 
-	private getSourceOptions(): { label: string; value: IssueSource }[] {
-		const options: { label: string; value: IssueSource }[] = [
+	private appendRequiredMarker(label: HTMLElement): void {
+		const marker = append(label, $('span.wizard-required-marker'));
+		marker.textContent = '*';
+		marker.setAttribute('aria-hidden', 'true');
+	}
+
+	private getIssueTypeOptions(): { type: IssueType; label: string; icon: { id: string } }[] {
+		const options = [
+			{ type: IssueType.Bug, label: localize('bug', "Bug"), icon: Codicon.bug },
+			{ type: IssueType.FeatureRequest, label: localize('featureRequest', "Feature Request"), icon: Codicon.lightbulb },
+			{ type: IssueType.PerformanceIssue, label: localize('performanceIssue', "Performance Issue"), icon: Codicon.dashboard },
+		];
+		// The Marketplace target is for issues with the marketplace site/service
+		// itself, where performance metrics from a single VS Code instance aren't useful.
+		if (this.selectedIssueSource === IssueSource.Marketplace) {
+			return options.filter(o => o.type !== IssueType.PerformanceIssue);
+		}
+		return options;
+	}
+
+	private getAllSourceOptions(): { label: string; value: IssueSource }[] {
+		return [
 			{ label: product.nameLong || localize('vscode', "Visual Studio Code"), value: IssueSource.VSCode },
+			{ label: localize('agentsWindow', "Agents Window"), value: IssueSource.AgentsWindow },
 			{ label: localize('extensionSource', "A VS Code extension"), value: IssueSource.Extension },
 			{ label: localize('marketplace', "Extensions Marketplace"), value: IssueSource.Marketplace },
 		];
+	}
+
+	private getSourceOptions(): { label: string; value: IssueSource }[] {
+		const options = this.getAllSourceOptions();
+		// The Extension target only applies when there are non-builtin, non-theme
+		// extensions to report against, which never happens in the Agents Window.
+		if (this.data.isSessionsWindow || !this.hasReportableExtensions()) {
+			return options.filter(o => o.value !== IssueSource.Extension);
+		}
 		return options;
+	}
+
+	private hasReportableExtensions(): boolean {
+		const modelData = this.model.getData();
+		const sourceExtensions = modelData.enabledNonThemeExtesions ?? modelData.allExtensions ?? [];
+		return sourceExtensions.some(extension => !extension.isTheme && !extension.isBuiltin);
 	}
 
 	private updateIssueSourceButtons(): void {
@@ -714,25 +802,61 @@ export class IssueReporterOverlay {
 		this.setFieldError(this.sourceButtonGroup, this.sourceError, this.didAttemptDescribeSubmit && !source);
 		this.updateIssueSourceFlags();
 		this.updateIssueSourceButtons();
+		this.updateIssueTypeButtons();
 		this.updateExtensionValidation();
 		this.updateTitlePlaceholder();
 		this.updateTargetStatus();
+		this.updateDescriptionGuidance();
 		this.searchSimilarIssues();
+	}
+
+	/**
+	 * Hide or restore issue type buttons based on the current source. The Marketplace
+	 * source does not support reporting performance issues, so the button is hidden
+	 * and the selection falls back to Bug when it was the Performance option.
+	 */
+	private updateIssueTypeButtons(): void {
+		if (!this.issueTypeButtons.length) {
+			return;
+		}
+		const allowedTypes = new Set(this.getIssueTypeOptions().map(option => String(option.type)));
+		for (const button of this.issueTypeButtons) {
+			const buttonType = button.element.getAttribute('data-type');
+			const isAvailable = !!buttonType && allowedTypes.has(buttonType);
+			button.element.classList.toggle('hidden', !isAvailable);
+		}
+		if (this.selectedIssueType !== undefined && !allowedTypes.has(String(this.selectedIssueType))) {
+			this.selectedIssueType = IssueType.Bug;
+			this.model.update({ issueType: IssueType.Bug });
+			for (const b of this.issueTypeButtons) {
+				const isSelected = b.element.getAttribute('data-type') === String(IssueType.Bug);
+				b.element.classList.toggle('selected', isSelected);
+				b.element.setAttribute('aria-pressed', String(isSelected));
+			}
+		}
 	}
 
 	private updateIssueSourceFlags(): void {
 		const fileOnExtension = this.selectedIssueSource === IssueSource.Extension;
 		const fileOnMarketplace = this.selectedIssueSource === IssueSource.Marketplace;
-		const fileOnProduct = this.selectedIssueSource === IssueSource.VSCode || this.selectedIssueSource === IssueSource.Unknown;
+		const fileOnProduct = this.selectedIssueSource === IssueSource.VSCode || this.selectedIssueSource === IssueSource.AgentsWindow || this.selectedIssueSource === IssueSource.Unknown;
+		const fileOnAgentsWindow = this.selectedIssueSource === IssueSource.AgentsWindow;
 		this.model.update({
 			issueSource: this.selectedIssueSource,
 			fileOnExtension,
 			fileOnMarketplace,
 			fileOnProduct,
+			isSessionsWindow: fileOnAgentsWindow ? true : this.data.isSessionsWindow,
 			selectedExtension: this.selectedExtension,
 		});
 		this.data.issueSource = this.selectedIssueSource;
-		this.data.extensionId = fileOnExtension ? this.selectedExtension?.id : undefined;
+		// Preserve a preset `extensionId` while the extension list is still loading:
+		// `selectedExtension` may be undefined here even though the caller asked
+		// for a specific extension, and overwriting with `undefined` would prevent
+		// the catch-up retry in `updateExtensionOptions` from re-resolving it.
+		this.data.extensionId = fileOnExtension
+			? (this.selectedExtension?.id ?? this.data.extensionId)
+			: undefined;
 	}
 
 	private updateTitlePlaceholder(): void {
@@ -742,6 +866,9 @@ export class IssueReporterOverlay {
 				break;
 			case IssueSource.Marketplace:
 				this.titleInput.setPlaceHolder(localize('marketplacePlaceholder', "E.g. Cannot disable installed extension"));
+				break;
+			case IssueSource.AgentsWindow:
+				this.titleInput.setPlaceHolder(localize('agentsWindowPlaceholder', "E.g. Sessions list does not refresh after creating a new session"));
 				break;
 			case IssueSource.VSCode:
 				this.titleInput.setPlaceHolder(localize('vscodePlaceholder', "E.g. Workbench is missing problems panel"));
@@ -795,7 +922,15 @@ export class IssueReporterOverlay {
 			? this.model.getData().allExtensions.find(candidate => candidate.id.toLowerCase() === extensionId.toLowerCase())
 			: undefined;
 		this.selectedExtension = extension;
-		this.data.extensionId = extension?.id;
+		// Preserve the requested extensionId even when the extension list hasn't
+		// been populated yet (typical wizard flow: the constructor runs before
+		// `populateReporterDataAsync` finishes filling `allExtensions`). Without
+		// this preservation, the later catch-up retry in `updateExtensionOptions`
+		// sees `this.data.extensionId === undefined` and never re-resolves,
+		// dropping any preset extension data with it.
+		if (extensionId === undefined || extension) {
+			this.data.extensionId = extension?.id;
+		}
 		this.extensionSelect.select(this.getSelectedExtensionIndex());
 		this.updateExtensionValidation();
 		this.updateIssueSourceFlags();
@@ -804,6 +939,25 @@ export class IssueReporterOverlay {
 			this.updateTargetStatus();
 			this.searchSimilarIssues();
 			return;
+		}
+
+		// Apply any preset extension data BEFORE the built-in source-switch below.
+		// When the reporter is opened programmatically (e.g. via the
+		// `workbench.action.openIssueReporter` command) with a preset `extensionId`
+		// plus extension `data`/`uri`, propagate that data onto the selected
+		// extension and the model so it shows up in the issue body. Doing this
+		// before the built-in early-return is important: extensions bundled with
+		// the dev build (Copilot, etc.) are flagged `isBuiltin`, which triggers
+		// the source switch to VSCode and returns — otherwise the preset data
+		// would be silently lost for every built-in caller. We guard on
+		// `!this.includeExtensionData` (rather than `!extension.data`) because
+		// `issueService` pre-populates `extension.data` on every enabled
+		// extension, so that field is not a reliable "already applied" signal —
+		// `includeExtensionData` is only flipped to `true` by
+		// `applyExtensionIssueData`.
+		const hasPresetData = !this.includeExtensionData && (this.data.data !== undefined || this.data.uri !== undefined || this.data.privateUri !== undefined);
+		if (!loadExtensionData && hasPresetData) {
+			this.applyExtensionIssueData(extension, this.data);
 		}
 
 		if (extension.isBuiltin && this.selectedIssueSource === IssueSource.Extension && !this.data.issueSource) {
@@ -909,6 +1063,8 @@ export class IssueReporterOverlay {
 		switch (this.selectedIssueSource) {
 			case IssueSource.VSCode:
 				return product.nameLong || localize('vscode', "Visual Studio Code");
+			case IssueSource.AgentsWindow:
+				return localize('agentsWindow', "Agents Window");
 			case IssueSource.Extension:
 				return this.selectedExtension?.displayName || this.selectedExtension?.name || localize('extensionSource', "A VS Code extension");
 			case IssueSource.Marketplace:
@@ -1064,22 +1220,41 @@ export class IssueReporterOverlay {
 	/** Update the guidance text above the description based on selected category */
 	private updateDescriptionGuidance(): void {
 		const markdownHint = localize('markdownSupported', "Markdown formatting is supported.");
+		const perfWikiUrl = 'https://github.com/microsoft/vscode/wiki/Performance-Issues';
+
+		// Reset before updating
+		this.descriptionGuidanceDisposables.clear();
+		this.descriptionGuidance.textContent = '';
+		this.descriptionGuidance.classList.remove('wizard-description-guidance-with-link');
+
+		const appendText = (text: string) => {
+			const targetDocument = getWindow(this.container).document;
+			this.descriptionGuidance.appendChild(targetDocument.createTextNode(text));
+		};
+
 		switch (this.selectedIssueType) {
 			case IssueType.Bug:
-				this.descriptionGuidance.textContent = `${localize('bugGuidance',
-					"Describe what happened, the steps to reproduce, what you expected, and what you observed instead.")}\n${markdownHint}`;
+				appendText(`${localize('bugGuidance', "Describe what happened, the steps to reproduce, what you expected, and what you observed instead.")}\n${markdownHint}`);
 				break;
 			case IssueType.FeatureRequest:
-				this.descriptionGuidance.textContent = `${localize('featureGuidance',
-					"Describe the feature you'd like to see, what problem it would solve, and any alternatives you've considered.")}\n${markdownHint}`;
+				appendText(`${localize('featureGuidance', "Describe the feature you'd like to see, what problem it would solve, and any alternatives you've considered.")}\n${markdownHint}`);
 				break;
-			case IssueType.PerformanceIssue:
-				this.descriptionGuidance.textContent = `${localize('perfGuidance',
-					"Describe what is slow, when it happens, whether it's consistent or intermittent, and any patterns you've noticed.")}\n${markdownHint}`;
+			case IssueType.PerformanceIssue: {
+				appendText(`${localize('perfGuidance', "Describe what is slow, when it happens, whether it's consistent or intermittent, and any patterns you've noticed.")} `);
+				const link = $('a.wizard-description-guidance-link') as HTMLAnchorElement;
+				link.href = perfWikiUrl;
+				link.textContent = localize('perfWikiLink', "See the performance issue reporting guide.");
+				this.descriptionGuidanceDisposables.add(addDisposableListener(link, EventType.CLICK, e => {
+					e.preventDefault();
+					this.openExternalLink?.(perfWikiUrl);
+				}));
+				this.descriptionGuidance.appendChild(link);
+				appendText(`\n${markdownHint}`);
+				this.descriptionGuidance.classList.add('wizard-description-guidance-with-link');
 				break;
+			}
 			default:
-				this.descriptionGuidance.textContent = `${localize('defaultGuidance',
-					"Select a category above, then describe your feedback in detail.")}\n${markdownHint}`;
+				appendText(`${localize('defaultGuidance', "Select a category above, then describe your feedback in detail.")}\n${markdownHint}`);
 				break;
 		}
 	}
@@ -1376,14 +1551,10 @@ export class IssueReporterOverlay {
 
 		const modelData = this.model.getData();
 		let diagnosticSectionCount = 0;
-		const diagnosticSectionStates: (() => boolean)[] = [];
-		this.diagnosticBulkToggleButton = undefined;
-		this.diagnosticSectionStates = diagnosticSectionStates;
 
 		// System Info
 		if (modelData.versionInfo || modelData.systemInfo) {
 			diagnosticSectionCount++;
-			diagnosticSectionStates.push(() => this.includeSystemInfo);
 			this.createDiagSection(diagContainer, {
 				id: 'system-info',
 				label: localize('systemInformation', "System Information"),
@@ -1416,9 +1587,13 @@ export class IssueReporterOverlay {
 			loading.textContent = localize('loadingSystemInfo', "Loading system information...");
 		}
 
-		if (modelData.fileOnExtension && modelData.extensionData) {
+		if (modelData.extensionData) {
+			// Match `buildIssueBody`, which only gates on `extensionData`. Gating
+			// here on `fileOnExtension` as well would hide the section in the
+			// review UI whenever the issue source was auto-switched away from
+			// Extension (e.g. built-in extensions are filed against VS Code),
+			// even though the extension data still ends up in the submitted body.
 			diagnosticSectionCount++;
-			diagnosticSectionStates.push(() => this.includeExtensionData);
 			this.createDiagSection(diagContainer, {
 				id: 'extension-data',
 				label: localize('extensionData', "Extension Data"),
@@ -1438,7 +1613,6 @@ export class IssueReporterOverlay {
 		const nonThemeExtensions = (modelData.allExtensions ?? []).filter(e => !e.isTheme && !e.isBuiltin);
 		if (!modelData.fileOnExtension && !modelData.fileOnMarketplace && nonThemeExtensions.length > 0) {
 			diagnosticSectionCount++;
-			diagnosticSectionStates.push(() => this.includeExtensions);
 			this.createDiagSection(diagContainer, {
 				id: 'extensions',
 				label: localize('extensions', "Extensions ({0})", nonThemeExtensions.length),
@@ -1468,7 +1642,6 @@ export class IssueReporterOverlay {
 		// Experiments
 		if (modelData.experimentInfo) {
 			diagnosticSectionCount++;
-			diagnosticSectionStates.push(() => this.includeExperiments);
 			this.createDiagSection(diagContainer, {
 				id: 'experiments',
 				label: localize('abExperiments', "A/B Experiments"),
@@ -1480,26 +1653,6 @@ export class IssueReporterOverlay {
 				renderContent: (container) => {
 					const pre = append(container, $('pre.review-diag-pre'));
 					pre.textContent = modelData.experimentInfo!;
-				},
-			});
-		}
-
-		// Settings
-		if (this.settingsContent) {
-			diagnosticSectionCount++;
-			diagnosticSectionStates.push(() => this.includeSettings);
-			this.createDiagSection(diagContainer, {
-				id: 'settings',
-				label: localize('settings', "Settings"),
-				checked: this.includeSettings,
-				onToggle: (checked) => {
-					this.includeSettings = checked;
-				},
-				renderContent: (container) => {
-					const userLabel = append(container, $('div.review-diag-sublabel'));
-					userLabel.textContent = localize('userSettings', "User Settings");
-					const userPre = append(container, $('pre.review-diag-pre'));
-					userPre.textContent = this.settingsContent!;
 				},
 			});
 		}
@@ -1547,7 +1700,6 @@ export class IssueReporterOverlay {
 
 			if (modelData.processInfo) {
 				diagnosticSectionCount++;
-				diagnosticSectionStates.push(() => this.includeProcessInfo);
 				this.createDiagSection(performanceContainer, {
 					id: 'process-info',
 					label: localize('runningProcesses', "Running Processes"),
@@ -1568,7 +1720,6 @@ export class IssueReporterOverlay {
 
 			if (modelData.workspaceInfo) {
 				diagnosticSectionCount++;
-				diagnosticSectionStates.push(() => this.includeWorkspaceInfo);
 				this.createDiagSection(performanceContainer, {
 					id: 'workspace-info',
 					label: localize('workspaceMetadata', "Workspace Metadata"),
@@ -1591,22 +1742,29 @@ export class IssueReporterOverlay {
 		if (diagnosticSectionCount > 0) {
 			const heading = document.createElement('div');
 			heading.className = 'review-diag-heading';
-			const title = append(heading, $('h3.review-diag-heading-title'));
+
+			// Master checkbox before "Additional Information" shows/hides and
+			// includes/excludes the whole block. It is an explicit toggle
+			// controlled only by the user: clicking a per-section checkbox affects
+			// that section alone and never changes the master or hides the others.
+			const masterWrap = append(heading, $('div.review-diag-master-wrap'));
+			const masterCheckbox = this.disposables.add(new Checkbox(localize('additionalInformation', "Additional Information"), !this.diagnosticsCollapsed, defaultCheckboxStyles));
+			masterCheckbox.domNode.classList.add('review-diag-master-checkbox');
+			masterWrap.appendChild(masterCheckbox.domNode);
+			const title = append(masterWrap, $('h3.review-diag-heading-title'));
 			title.textContent = localize('additionalInformation', "Additional Information");
-			if (diagnosticSectionCount > 1) {
-				const bulkActions = append(heading, $('div.review-diag-bulk-actions'));
-				const toggleAllButton = this.disposables.add(new Button(bulkActions, { ...defaultButtonStyles, secondary: true }));
-				toggleAllButton.element.classList.add('review-diag-toggle-all');
-				this.diagnosticBulkToggleButton = toggleAllButton;
-				this.updateDiagnosticBulkToggleButton();
-				this.disposables.add(toggleAllButton.onDidClick(() => {
-					this.setAllDiagnosticSectionsIncluded(!this.areAllVisibleDiagnosticSectionsIncluded());
-				}));
-			}
+			this.disposables.add(masterCheckbox.onChange(() => {
+				this.diagnosticsCollapsed = !masterCheckbox.checked;
+				this.setAllDiagnosticSectionsIncluded(masterCheckbox.checked);
+			}));
+
+			// Hide all sections only when the user turns the master off.
+			diagContainer.classList.toggle('all-excluded', this.diagnosticsCollapsed);
+
 			diagContainer.prepend(heading);
 		}
 
-		// Align all title widths dynamically to the widest title
+		// Align all title widths dynamically to the widest title so chevron columns line up.
 		// eslint-disable-next-line no-restricted-syntax
 		const titles = diagContainer.querySelectorAll('.review-diag-title');
 		let maxWidth = 0;
@@ -1621,39 +1779,6 @@ export class IssueReporterOverlay {
 				(t as HTMLElement).style.minWidth = `${maxWidth}px`;
 			}
 		}
-
-		// Align all toggle button widths to the widest
-		// eslint-disable-next-line no-restricted-syntax
-		const toggles = diagContainer.querySelectorAll('.review-diag-toggle');
-		let maxToggleWidth = 0;
-		for (const t of toggles) {
-			(t as HTMLElement).style.minWidth = '';
-		}
-		for (const t of toggles) {
-			maxToggleWidth = Math.max(maxToggleWidth, (t as HTMLElement).offsetWidth);
-		}
-		if (maxToggleWidth > 0) {
-			for (const t of toggles) {
-				(t as HTMLElement).style.minWidth = `${maxToggleWidth}px`;
-			}
-		}
-	}
-
-	private areAllVisibleDiagnosticSectionsIncluded(): boolean {
-		return this.diagnosticSectionStates.length > 0 && this.diagnosticSectionStates.every(getState => getState());
-	}
-
-	private updateDiagnosticBulkToggleButton(): void {
-		if (!this.diagnosticBulkToggleButton) {
-			return;
-		}
-		const allChecked = this.areAllVisibleDiagnosticSectionsIncluded();
-		this.diagnosticBulkToggleButton.label = allChecked
-			? localize('excludeAllExtraAttachments', "Exclude All")
-			: localize('includeAllExtraAttachments', "Include All");
-		this.diagnosticBulkToggleButton.element.setAttribute('aria-label', allChecked
-			? localize('excludeAllExtraAttachmentsAria', "Exclude all additional issue data from this issue")
-			: localize('includeAllExtraAttachmentsAria', "Include all additional issue data in this issue"));
 	}
 
 	private setAllDiagnosticSectionsIncluded(included: boolean): void {
@@ -1661,7 +1786,6 @@ export class IssueReporterOverlay {
 		this.includeExtensionData = included;
 		this.includeExtensions = included;
 		this.includeExperiments = included;
-		this.includeSettings = included;
 		this.includeProcessInfo = included;
 		this.includeWorkspaceInfo = included;
 		this.model.update({
@@ -1683,39 +1807,53 @@ export class IssueReporterOverlay {
 		renderContent: (container: HTMLElement) => void;
 	}): void {
 		const group = append(parent, $('div.review-diag-group'));
+		group.classList.toggle('excluded', !opts.checked);
 
-		// Header: title | "Include in issue" checkbox | Minimize/Expand button
+		// Header layout: [Checkbox] [Chevron + Title (toggle area)]. The whole
+		// title area is clickable to expand/collapse.
 		const header = append(group, $('div.review-diag-header'));
 
-		const title = append(header, $('span.review-diag-title'));
+		const checkWrap = append(header, $('div.review-diag-check-wrap'));
+		const checkbox = this.disposables.add(new Checkbox(opts.label, opts.checked, defaultCheckboxStyles));
+		checkbox.domNode.classList.add('review-diag-checkbox');
+		checkWrap.appendChild(checkbox.domNode);
+
+		const toggleArea = append(header, $('div.review-diag-toggle-area'));
+		toggleArea.setAttribute('role', 'button');
+		toggleArea.setAttribute('tabindex', '0');
+		toggleArea.setAttribute('aria-expanded', 'true');
+
+		const chevron = append(toggleArea, $('span.review-diag-chevron'));
+		chevron.appendChild(renderIcon(Codicon.chevronDown));
+
+		const title = append(toggleArea, $('span.review-diag-title'));
 		title.textContent = opts.label;
 
-		const checkWrap = append(header, $('div.review-diag-check-wrap'));
-		const checkbox = this.disposables.add(new Checkbox(localize('includeInIssue', "Include in issue"), opts.checked, defaultCheckboxStyles));
-		checkWrap.appendChild(checkbox.domNode);
-		const checkLabel = append(checkWrap, $('label.review-diag-check-label'));
-		checkLabel.textContent = localize('includeInIssue', "Include in issue");
-		this.disposables.add(checkbox.onChange(() => {
-			opts.onToggle(checkbox.checked);
-			this.updateDiagnosticBulkToggleButton();
-			this.updateStepUI();
-		}));
-
-		const toggleBtn = this.disposables.add(new Button(header, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
-		toggleBtn.label = `$(chevron-up) ${localize('minimize', "Minimize")}`;
-		toggleBtn.element.classList.add('review-diag-toggle');
-
-		// Content
 		const content = append(group, $('div.review-diag-content'));
 		opts.renderContent(content);
 
 		let expanded = true;
-		this.disposables.add(toggleBtn.onDidClick(() => {
-			expanded = !expanded;
+		const setExpanded = (next: boolean) => {
+			expanded = next;
 			content.style.display = expanded ? '' : 'none';
-			toggleBtn.label = expanded
-				? `$(chevron-up) ${localize('minimize', "Minimize")}`
-				: `$(chevron-down) ${localize('expand', "Expand")}`;
+			toggleArea.setAttribute('aria-expanded', String(expanded));
+			chevron.textContent = '';
+			chevron.appendChild(renderIcon(expanded ? Codicon.chevronDown : Codicon.chevronRight));
+		};
+
+		this.disposables.add(addDisposableListener(toggleArea, EventType.CLICK, () => setExpanded(!expanded)));
+		this.disposables.add(addDisposableListener(toggleArea, EventType.KEY_DOWN, e => {
+			const event = new StandardKeyboardEvent(e);
+			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
+				e.preventDefault();
+				setExpanded(!expanded);
+			}
+		}));
+
+		this.disposables.add(checkbox.onChange(() => {
+			opts.onToggle(checkbox.checked);
+			group.classList.toggle('excluded', !checkbox.checked);
+			this.updateStepUI();
 		}));
 	}
 
@@ -1824,9 +1962,15 @@ export class IssueReporterOverlay {
 			return;
 		}
 		this.screenshots.push(screenshot);
+		// Navigate to the Attachments step so the user sees where the screenshot
+		// was saved instead of staying on whatever step they were composing on.
+		if (this.currentStep !== WizardStep.Attachments) {
+			this.setStep(WizardStep.Attachments);
+		}
 		this.updateAttachmentViews();
 		this.updateAttachmentButtons();
 		this.updateStepUI();
+		this._onDidChangeAttachments.fire();
 
 		// Immediately open the annotation editor for the new screenshot
 		this.openAnnotationEditor(this.screenshots.length - 1);
@@ -1927,6 +2071,7 @@ export class IssueReporterOverlay {
 				this.updateScreenshotThumbnails();
 				this.updateAttachmentButtons();
 				this.updateStepUI();
+				this._onDidChangeAttachments.fire();
 			}));
 		}
 
@@ -1950,6 +2095,7 @@ export class IssueReporterOverlay {
 				this.updateScreenshotThumbnails();
 				this.updateAttachmentButtons();
 				this.updateStepUI();
+				this._onDidChangeAttachments.fire();
 			}));
 		}
 
@@ -1990,6 +2136,7 @@ export class IssueReporterOverlay {
 			screenshot.annotatedDataUrl = dataUrl;
 			screenshot.annotationState = state;
 			this.updateAttachmentViews();
+			this._onDidChangeAttachments.fire();
 		}));
 
 		this.disposables.add(editor.onDidCancel(() => {
@@ -2003,6 +2150,23 @@ export class IssueReporterOverlay {
 
 	getRecordings(): readonly { filePath: string; durationMs: number; thumbnailDataUrl?: string }[] {
 		return this.recordings;
+	}
+
+	/**
+	 * Replace the current attachments with a previously-captured set. Used when the
+	 * issue reporter editor is moved between the main editor area and a modal editor
+	 * part in the Agents Window, which rebuilds the wizard and would otherwise drop
+	 * the in-memory screenshots and recordings. Does not fire
+	 * `onDidChangeAttachments` since the host is the source of this state.
+	 */
+	restoreAttachments(screenshots: readonly IScreenshot[], recordings: readonly { filePath: string; durationMs: number; thumbnailDataUrl?: string }[]): void {
+		this.screenshots.length = 0;
+		this.screenshots.push(...screenshots.slice(0, MAX_ATTACHMENTS));
+		this.recordings.length = 0;
+		this.recordings.push(...recordings.slice(0, Math.max(0, MAX_ATTACHMENTS - this.screenshots.length)));
+		this.updateAttachmentViews();
+		this.updateAttachmentButtons();
+		this.updateStepUI();
 	}
 
 	private buildIssueBody(): string {
@@ -2025,7 +2189,7 @@ export class IssueReporterOverlay {
 		];
 
 		if (this.includeExtensionData && modelData.extensionData) {
-			sections.push(this.createDetails('Extension Data', this.createCodeBlock(modelData.extensionData)));
+			sections.push(this.createDetails('Extension Data', modelData.extensionData));
 		}
 
 		if (this.includeSystemInfo && (modelData.versionInfo || modelData.systemInfo || modelData.systemInfoWeb)) {
@@ -2038,10 +2202,6 @@ export class IssueReporterOverlay {
 
 		if (this.includeExperiments && modelData.experimentInfo) {
 			sections.push(this.createDetails('A/B Experiments', this.createCodeBlock(modelData.experimentInfo)));
-		}
-
-		if (this.includeSettings && this.settingsContent) {
-			sections.push(this.generateSettingsMd());
 		}
 
 		if (this.selectedIssueType === IssueType.PerformanceIssue && !modelData.fileOnMarketplace) {
@@ -2160,11 +2320,6 @@ export class IssueReporterOverlay {
 		return this.createDetails(`Extensions (${nonThemeExtensions.length})`, details.join('\n\n'));
 	}
 
-	private generateSettingsMd(): string {
-		const details = [`#### User Settings\n\n${this.createCodeBlock(this.settingsContent ?? '', 'json')}`];
-		return this.createDetails('Settings', details.join('\n\n'));
-	}
-
 	private getIssueTypeTitle(issueType: IssueType): string {
 		switch (issueType) {
 			case IssueType.Bug:
@@ -2263,6 +2418,7 @@ ${rows.map(row => row.map(value => this.escapeMarkdownTableCell(value ?? '')).jo
 			this.data.enabledExtensions = newData.allExtensions as IssueReporterExtensionData[];
 			this.updateExtensionOptions();
 			this.updateIssueSourceFlags();
+			this.updateIssueSourceButtons();
 		}
 		// Refresh review details if we're on the review step (async data may have arrived)
 		if (this.currentStep === WizardStep.Review) {
@@ -2277,13 +2433,6 @@ ${rows.map(row => row.map(value => this.escapeMarkdownTableCell(value ?? '')).jo
 			this.updateReviewDetails();
 			// Re-enable the Preview button now that diagnostics are ready.
 			this.updateStepUI();
-		}
-	}
-
-	setSettingsContent(userSettings: string): void {
-		this.settingsContent = userSettings;
-		if (this.currentStep === WizardStep.Review) {
-			this.updateReviewDetails();
 		}
 	}
 
@@ -2323,8 +2472,6 @@ ${rows.map(row => row.map(value => this.escapeMarkdownTableCell(value ?? '')).jo
 			includeExtensions: this.includeExtensions,
 			includeExperiments: this.includeExperiments,
 			includeExtensionData: this.includeExtensionData,
-			includeSettings: this.includeSettings,
-			settingsContent: this.settingsContent,
 			screenshots: this.screenshots.map(screenshot => screenshot.annotatedDataUrl ?? screenshot.dataUrl),
 			recordings: this.recordings.map(recording => recording.filePath),
 		});
@@ -2409,9 +2556,14 @@ ${rows.map(row => row.map(value => this.escapeMarkdownTableCell(value ?? '')).jo
 
 	addRecording(filePath: string, durationMs: number, thumbnailDataUrl?: string): void {
 		this.recordings.push({ filePath, durationMs, thumbnailDataUrl });
+		// Navigate to the Attachments step so the user sees the saved recording.
+		if (this.currentStep !== WizardStep.Attachments) {
+			this.setStep(WizardStep.Attachments);
+		}
 		this.updateAttachmentViews();
 		this.updateAttachmentButtons();
 		this.updateStepUI();
+		this._onDidChangeAttachments.fire();
 	}
 
 	private updateAttachmentViews(): void {
@@ -2465,8 +2617,13 @@ ${rows.map(row => row.map(value => this.escapeMarkdownTableCell(value ?? '')).jo
 		if (this.recordingElapsedTimer !== undefined) {
 			getWindow(this.container).clearInterval(this.recordingElapsedTimer);
 		}
+		if (this.similarIssuesHandle !== undefined) {
+			clearTimeout(this.similarIssuesHandle);
+		}
+		this.similarIssuesRequest++;
 		this.reviewRenderDisposables.dispose();
 		this.similarIssuesDisposables.dispose();
+		this.descriptionGuidanceDisposables.dispose();
 		this.disposables.dispose();
 		this._onDidClose.dispose();
 		this._onDidSubmit.dispose();
@@ -2475,6 +2632,7 @@ ${rows.map(row => row.map(value => this.escapeMarkdownTableCell(value ?? '')).jo
 		this._onDidRequestStopRecording.dispose();
 		this._onDidRequestOpenRecording.dispose();
 		this._onDidRequestOpenScreenshot.dispose();
+		this._onDidChangeAttachments.dispose();
 		this._onDidRequestGenerateTitle.dispose();
 	}
 }
