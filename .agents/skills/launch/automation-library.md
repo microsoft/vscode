@@ -91,7 +91,23 @@ Two habits worth forming:
   clickable, which handles the animating-overlay case that makes a one-shot
   click silently do nothing.
 
-### Finding a control that has no page object
+### Driving a control the page objects do not wrap
+
+"Page object" here is the test-automation pattern — a class wrapping one UI
+area (`workbench.chat`, `workbench.terminal`) — not a web page. There are only
+about two dozen of them, so **most controls are not covered**; the chat harness
+picker, for example, appears nowhere in `test/automation/src`. A missing page
+object does not mean the control is unreachable, only that you drive it through
+`session.code` / `session.page` yourself.
+
+> **Almost everything lives in one page.** The whole workbench renderer — 
+> activity bar, sidebar, editors, panel, chat, quick input, context menus — is
+> plain DOM in a single document, so `session.page` can see it all. The
+> exceptions are genuinely separate frames: notebook outputs, webviews
+> contributed by extensions, Markdown preview, and the integrated browser. If a
+> `querySelectorAll` on the main page comes back empty for something you can
+> clearly see, check whether it is inside an `iframe.webview` before assuming
+> the selector is wrong.
 
 Do not guess selectors. Ask the running window what is on screen, then work
 from the real labels. Toolbar buttons in chat are `.action-label` elements and
