@@ -79,6 +79,7 @@ suite('SessionServerTools', () => {
 
 	test('definitions and confirmation', () => {
 		assert.deepStrictEqual(sessionServerToolDefinitions.map(d => d.name), [SessionServerToolName.ListSessions, SessionServerToolName.GetCurrentSession, SessionServerToolName.CreateSession, SessionServerToolName.CreateChat, SessionServerToolName.RenameChat, SessionServerToolName.SendMessage, SessionServerToolName.GetSessionContext, SessionServerToolName.DeleteSession]);
+		assert.match(sessionServerToolDefinitions.find(definition => definition.name === SessionServerToolName.ListSessions)?.description ?? '', /`openLink` for clickable Markdown links/);
 		assert.deepStrictEqual(sessionServerToolDefinitions.filter(definition => definition.enabledForEphemeralSessions).map(definition => definition.name), []);
 		assert.strictEqual(sessionToolRequiresConfirmation(SessionServerToolName.CreateSession), true);
 		assert.strictEqual(sessionToolRequiresConfirmation(SessionServerToolName.CreateChat), true);
@@ -209,6 +210,7 @@ suite('SessionServerTools', () => {
 		assert.deepStrictEqual(JSON.parse(text), {
 			sessions: [{
 				session: 'copilot:/s1',
+				openLink: 'agent-host-session://copilot/s1',
 				status: 'inputNeeded',
 				workingDirectory: workspace.toString(),
 				title: 'title-s1',
@@ -234,6 +236,7 @@ suite('SessionServerTools', () => {
 		assert.deepStrictEqual(JSON.parse(serializeSessions([rich])), {
 			sessions: [{
 				session: 'copilot:/rich',
+				openLink: 'agent-host-session://copilot/rich',
 				title: 'Rich session',
 				status: 'inProgress',
 				activity: 'Running tests',
@@ -269,6 +272,7 @@ suite('SessionServerTools', () => {
 			}, {
 				serialized: {
 					session: 'copilot:/child',
+					openLink: 'agent-host-session://copilot/child',
 					title: 'title-child',
 					status: 'idle',
 					workingDirectory: workspace.toString(),
@@ -301,6 +305,7 @@ suite('SessionServerTools', () => {
 			}, {
 				child: {
 					session: 'copilot:/child',
+					openLink: 'agent-host-session://copilot/child',
 					title: 'title-child',
 					status: 'idle',
 					workingDirectory: workspace.toString(),
@@ -308,6 +313,7 @@ suite('SessionServerTools', () => {
 				},
 				parent: {
 					session: 'copilot:/child',
+					openLink: 'agent-host-session://copilot/child',
 					title: 'title-child',
 					status: 'idle',
 					workingDirectory: workspace.toString(),
@@ -332,6 +338,7 @@ suite('SessionServerTools', () => {
 
 		assert.deepStrictEqual(JSON.parse(serializeSessions([remote])).sessions[0], {
 			session: 'copilot:/remote',
+			openLink: 'agent-host-session://copilot/remote',
 			title: 'title-remote',
 			status: 'idle',
 			workingDirectory: primary.toString(),
@@ -566,7 +573,13 @@ suite('SessionServerTools', () => {
 		const stateManager = store.add(new AgentHostStateManager(new NullLogService()));
 		const group = createSessionServerToolGroup(createAccessor());
 		const text = await group.execute(stateManager, executionContext('copilot:/caller'), SessionServerToolName.ListSessions, {});
-		assert.deepStrictEqual(JSON.parse(text).sessions.map((s: { session: string }) => s.session), ['copilot:/s1']);
+		assert.deepStrictEqual(JSON.parse(text).sessions.map((session: { session: string; openLink: string }) => ({
+			session: session.session,
+			openLink: session.openLink,
+		})), [{
+			session: 'copilot:/s1',
+			openLink: 'agent-host-session://copilot/s1',
+		}]);
 		store.dispose();
 	});
 

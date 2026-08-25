@@ -881,7 +881,7 @@ suite('AgentHostStateManager', () => {
 	});
 
 	test('removeSession flushes pending status=Idle notification before eviction', () => {
-		// Regression: when _maybeEvictIdleSession calls removeSession within the
+		// Regression: when residency eviction calls removeSession within the
 		// 100 ms scheduler window after a turn completes, the client must still
 		// receive a SessionSummaryChanged with status=Idle so the spinner clears.
 		//
@@ -961,7 +961,7 @@ suite('AgentHostStateManager', () => {
 	});
 
 	test('removeSession does NOT dispose per-session changesets (LRU eviction must not clear list-view chip)', () => {
-		// Regression: _maybeEvictIdleSession calls removeSession to drop an
+		// Regression: residency eviction calls removeSession to drop an
 		// idle session from the in-memory cache. The Agents Window list view
 		// keeps a per-row changeset subscription open to render the diff
 		// chip, so cascading disposeSessionChangesets here would emit a

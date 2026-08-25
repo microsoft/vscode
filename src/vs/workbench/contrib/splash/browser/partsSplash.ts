@@ -90,6 +90,7 @@ export class PartsSplash {
 				panelBackground: theme.getColor(themes.PANEL_BACKGROUND)?.toString(),
 				editorGroupBorder: theme.getColor(themes.EDITOR_GROUP_BORDER)?.toString(),
 				editorBorder: theme.getColor(themes.EDITOR_BORDER)?.toString(),
+				surfaceBackground: theme.getColor(themes.SURFACE_BACKGROUND)?.toString(),
 				surfaceBorder: theme.getColor(themes.SURFACE_BORDER)?.toString(),
 				agentsPanelBackground: theme.getColor('agentsPanel.background')?.toString(),
 				agentsPanelBorder: theme.getColor('agentsPanel.border')?.toString(),
