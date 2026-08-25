@@ -885,7 +885,6 @@ export interface ComponentFixtureOptions {
 	labels?: ThemedFixtureGroupLabels;
 	virtualTime?: { enabled?: boolean; durationMs?: number; teardownDrainMs?: number };
 	additionalThemes?: readonly ComponentFixtureAdditionalTheme[];
-	expectedVisualDescriptions?: readonly string[];
 }
 
 type ThemedFixtures = ReturnType<typeof defineFixtureVariants>;
@@ -917,7 +916,6 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 		isolation: 'none',
 		displayMode: { type: 'component' },
 		background: themeVariant.background,
-		expectedVisualDescriptions: options.expectedVisualDescriptions,
 		inputSchema: fixtureInputSchema,
 		inputControls: {
 			reverseStylesheets: { placement: 'toolbar', label: 'Reverse Stylesheets' },
