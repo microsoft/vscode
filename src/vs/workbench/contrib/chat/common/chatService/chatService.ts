@@ -1302,6 +1302,18 @@ export interface IChatAgentFeedbackReviewComment {
 }
 
 /**
+ * Links a pull request review thread to the reviewable comment that mirrors it,
+ * so a renderer showing GitHub threads can reveal the local comment. Produced by
+ * {@link AgentFeedbackReviewCommandId.GetPullRequestThreadLinks}.
+ */
+export interface IChatAgentFeedbackPullRequestThreadLink {
+	/** GitHub review thread id the comment mirrors. */
+	readonly pullRequestThreadId: string;
+	/** Comment id to pass to {@link AgentFeedbackReviewCommandId.Reveal}. */
+	readonly commentId: string;
+}
+
+/**
  * Command ids the agent feedback review confirmation renderer (workbench/chat)
  * uses to fetch unreviewed comments and apply the user's selection. They are
  * implemented by the agent feedback feature in `vs/sessions`, keeping the chat
@@ -1314,6 +1326,8 @@ export interface IChatAgentFeedbackReviewComment {
 export const enum AgentFeedbackReviewCommandId {
 	/** `(sessionOrChatResource)` -> `IChatAgentFeedbackReviewComment[]` (the `created` reviewable comments). */
 	GetComments = '_agentFeedbackReview.getComments',
+	/** `(sessionOrChatResource)` -> `IChatAgentFeedbackPullRequestThreadLink[]` for comments mirrored from a pull request review thread. */
+	GetPullRequestThreadLinks = '_agentFeedbackReview.getPullRequestThreadLinks',
 	/** `(sessionOrChatResource, commentId)` -> opens the file and reveals the comment. */
 	Reveal = '_agentFeedbackReview.reveal',
 	/** `(resourceUri, range)` -> resolves the owning session and reveals the comment at that file range. */
