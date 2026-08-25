@@ -33,6 +33,8 @@ await session.detach();   // closes CDP only; Code OSS keeps running
 Options: `window` (`'workbench' | 'agents' | 'any'`), `verbose` (stream the
 retry logger to stderr — fastest way to see *why* a step fails), `repoRoot`,
 `logsPath`, `timeoutMs`.
+The default private `logsPath` is removed by `detach()`; pass one explicitly to
+retain artifacts (caller-supplied paths are never removed).
 
 After `detach()`, kill the `pid` from the launch JSON and **verify it died** —
 see "Verify the cleanup actually worked" in SKILL.md. Killing `pid` alone

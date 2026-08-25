@@ -136,7 +136,8 @@ function assertSimpleDialogForWorkspaceArgs(args: string[]): void {
 	const candidates = new Set<string>();
 	const positional: string[] = [];
 	const launcherOwnedOptions = new Set([
-		'--extensions-dir', '--inspect', '--inspect-agenthost', '--inspect-brk',
+		'--debugBrkPluginHost', '--debugPluginHost', '--extensionHomePath', '--extensions-dir',
+		'--inspect', '--inspect-agenthost', '--inspect-brk',
 		'--inspect-brk-agenthost', '--inspect-brk-extensions', '--inspect-extensions',
 		'--remote-debugging-port', '--shared-data-dir', '--transient', '--user-data-dir'
 	]);
@@ -211,8 +212,8 @@ function assertSimpleDialogForWorkspaceArgs(args: string[]): void {
 		positional.push(argument);
 	}
 	const forceOpenWorkspaceAsFile =
-		args.includes('--diff') && positional.length === 2 ||
-		args.includes('--merge') && positional.length === 4;
+		(args.includes('--diff') || args.includes('-d')) && positional.length === 2 ||
+		(args.includes('--merge') || args.includes('-m')) && positional.length === 4;
 	for (const argument of positional) {
 		let isDirectory = false;
 		try { isDirectory = fs.statSync(argument).isDirectory(); } catch { }

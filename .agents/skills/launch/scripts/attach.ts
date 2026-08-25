@@ -42,7 +42,7 @@ import { createRequire } from 'module';
 import { fileURLToPath } from 'url';
 import { dirname, join as joinPath, resolve as resolvePath } from 'path';
 import { tmpdir } from 'os';
-import { existsSync, mkdtempSync } from 'fs';
+import { existsSync, mkdtempSync, rmSync } from 'fs';
 
 const require = createRequire(import.meta.url);
 
@@ -79,10 +79,11 @@ export interface IAttachOptions {
 	/** Repo root, if it cannot be inferred from this file's location. */
 	readonly repoRoot?: string;
 	/**
-	 * Where page objects may write logs. Defaults to a fresh private directory,
-	 * because `PlaywrightDriver` names traces and screenshots from per-process
-	 * counters that both start at 1 - a shared directory would let concurrent
-	 * agents overwrite each other's artifacts.
+	 * Where page objects may write logs. Defaults to a fresh private directory
+	 * removed by `detach()`, because `PlaywrightDriver` names traces and screenshots
+	 * from per-process counters that both start at 1 - a shared directory would let
+	 * concurrent agents overwrite each other's artifacts. Caller-supplied paths are
+	 * never removed.
 	 */
 	readonly logsPath?: string;
 	/** Budget for finding the window. */
@@ -243,7 +244,7 @@ export async function attach(cdpPort: number | string, options: IAttachOptions =
 		window: windowKind = 'any',
 		verbose = false,
 		repoRoot: explicitRepoRoot,
-		logsPath = mkdtempSync(joinPath(tmpdir(), 'vscode-attach-logs-')),
+		logsPath: explicitLogsPath,
 		timeoutMs = DEFAULT_PAGE_TIMEOUT_MS
 	} = options;
 
@@ -271,6 +272,7 @@ export async function attach(cdpPort: number | string, options: IAttachOptions =
 	const { chromium } = require(resolvePath(repoRoot, 'node_modules', 'playwright'));
 
 	const endpoint = `http://127.0.0.1:${port}`;
+	let ownedLogsPath: string | undefined;
 	let browser;
 	try {
 		browser = await chromium.connectOverCDP(endpoint);
@@ -290,6 +292,8 @@ export async function attach(cdpPort: number | string, options: IAttachOptions =
 		const deadline = Date.now() + timeoutMs;
 		const page = await findPage(context, PAGE_URL_HINTS[windowKind], timeoutMs);
 		await waitForSmokeTestDriver(page, Math.max(deadline - Date.now(), 1_000));
+
+		const logsPath = explicitLogsPath ?? (ownedLogsPath = mkdtempSync(joinPath(tmpdir(), 'vscode-attach-logs-')));
 
 		const logger = { log: (...args: unknown[]) => { if (verbose) { console.error('[automation]', ...args); } } };
 		const launchOptions = {
@@ -331,10 +335,16 @@ export async function attach(cdpPort: number | string, options: IAttachOptions =
 			page,
 			code,
 			workbench: new Workbench(code),
-			detach: () => browser.close()
+			detach: async () => {
+				try { await browser.close(); }
+				finally {
+					if (ownedLogsPath) { rmSync(ownedLogsPath, { recursive: true, force: true }); }
+				}
+			}
 		};
 	} catch (error) {
 		await browser.close().catch(() => { });
+		if (ownedLogsPath) { rmSync(ownedLogsPath, { recursive: true, force: true }); }
 		throw error;
 	}
 }

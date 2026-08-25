@@ -539,8 +539,10 @@ test('checks opened workspaces but not code-workspace diff or merge inputs', () 
 		workspaceCheckStatus(['--new-window', workspaceFile]),
 		workspaceCheckStatus(['--file-uri=' + pathToFileURL(workspaceFile).href]),
 		workspaceCheckStatus(['--diff', workspaceFile, workspaceFile]),
-		workspaceCheckStatus(['--merge', workspaceFile, workspaceFile, workspaceFile, workspaceFile])
-	], [1, 1, 0, 0]);
+		workspaceCheckStatus(['-d', workspaceFile, workspaceFile]),
+		workspaceCheckStatus(['--merge', workspaceFile, workspaceFile, workspaceFile, workspaceFile]),
+		workspaceCheckStatus(['-m', workspaceFile, workspaceFile, workspaceFile, workspaceFile])
+	], [1, 1, 0, 0, 0, 0]);
 });
 
 test('accepts an enabled simple dialog through a folder URI', () => {
@@ -575,7 +577,8 @@ test('rejects forwarded profile creation after normalization', () => {
 
 test('rejects both forms of every launcher-owned forwarded option', () => {
 	const options = [
-		'--extensions-dir', '--inspect', '--inspect-agenthost', '--inspect-brk',
+		'--debugBrkPluginHost', '--debugPluginHost', '--extensionHomePath', '--extensions-dir',
+		'--inspect', '--inspect-agenthost', '--inspect-brk',
 		'--inspect-brk-agenthost', '--inspect-brk-extensions', '--inspect-extensions',
 		'--remote-debugging-port', '--shared-data-dir', '--transient', '--user-data-dir'
 	];
