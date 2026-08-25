@@ -54,6 +54,7 @@ interface ITestWireRequest {
 		readonly numTurns?: number;
 		readonly input?: readonly { readonly type: string; readonly text?: string; readonly text_elements?: readonly object[] }[];
 		readonly additionalContext?: Readonly<Record<string, { readonly kind: string; readonly value: string }>>;
+		readonly dynamicTools?: readonly { readonly name: string }[];
 	};
 }
 
@@ -826,6 +827,75 @@ suite('CodexAgent createChat', () => {
 			});
 			peer.push({ id: turn.id, result: {} });
 			await sending;
+		} finally {
+			peer.dispose();
+		}
+	});
+
+	test('prewarmed draft stays provisional while its launch config changes before first send', async () => {
+		const sessionStore = createTestSessionStore();
+		const agent = await createAgent(disposables, { sdkResolvableWithoutDownload: true, sessionStore });
+		const peer = disposables.add(createTestPeer());
+		connectPeer(agent, peer);
+
+		try {
+			const sessionUri = AgentSession.uri('codex', 'session-prewarm-restart');
+			const chat = URI.parse(buildDefaultChatUri(sessionUri));
+			const folder = URI.file('/repo/prewarm-restart');
+			const context = { configurationResource: sessionUri, resource: chat };
+			const materialized: string[] = [];
+			disposables.add(agent.onDidMaterializeChat(e => materialized.push(e.chat.toString())));
+
+			await createSessionBackedChat(agent, chat, context, {
+				workingDirectories: [folder],
+				model: { id: COPILOT_TEST_MODEL },
+			});
+			const prewarmStart = await readNextRequest(peer.outbound);
+			peer.push({ id: prewarmStart.id, result: { thread: { id: 'prewarmed-thread', cwd: folder.fsPath } } });
+			await new Promise(resolve => setImmediate(resolve));
+
+			const activeClient = agent.getOrCreateActiveClient(chat, context, { clientId: 'client-1' });
+			activeClient.tools = [{ name: 'client_tool', description: 'client tool', inputSchema: { type: 'object' } }];
+			const changingAgent = agent.chats.changeAgent(chat, undefined, context);
+			const unsubscribe = await readNextRequest(peer.outbound);
+			peer.push({ id: unsubscribe.id, result: {} });
+			const restartedThread = await readNextRequest(peer.outbound);
+			peer.push({ id: restartedThread.id, result: { thread: { id: 'restarted-thread', cwd: folder.fsPath } } });
+			await changingAgent;
+			await new Promise(resolve => setImmediate(resolve));
+			const beforeSend = [...materialized];
+			const persistedBeforeSend = await agent['_metadataStore'].read(sessionUri);
+
+			const sending = agent.chats.sendMessage(chat, 'hello', [folder], undefined, 'turn-1', undefined, undefined, context);
+			const turn = await readNextRequest(peer.outbound);
+			peer.push({ id: turn.id, result: {} });
+			await sending;
+			await new Promise(resolve => setImmediate(resolve));
+			const persistedAfterSend = await agent['_metadataStore'].read(sessionUri);
+
+			assert.deepStrictEqual({
+				beforeSend,
+				afterSend: materialized,
+				persistedThreadBeforeSend: persistedBeforeSend.threadId,
+				persistedThreadAfterSend: persistedAfterSend.threadId,
+				restartedDynamicTools: restartedThread.params.dynamicTools?.map(tool => tool.name),
+				requests: [prewarmStart, unsubscribe, restartedThread, turn].map(request => ({
+					method: request.method,
+					threadId: request.params.threadId,
+				})),
+			}, {
+				beforeSend: [],
+				afterSend: [chat.toString()],
+				persistedThreadBeforeSend: undefined,
+				persistedThreadAfterSend: 'restarted-thread',
+				restartedDynamicTools: ['client_tool'],
+				requests: [
+					{ method: 'thread/start', threadId: undefined },
+					{ method: 'thread/unsubscribe', threadId: 'prewarmed-thread' },
+					{ method: 'thread/start', threadId: undefined },
+					{ method: 'turn/start', threadId: 'restarted-thread' },
+				],
+			});
 		} finally {
 			peer.dispose();
 		}
