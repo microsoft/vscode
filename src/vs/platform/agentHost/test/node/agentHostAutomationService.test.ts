@@ -224,7 +224,7 @@ suite('AgentHostAutomationService', () => {
 		});
 
 		await service.runAutomation({
-			channel: 'ahp-automations://',
+			channel: 'ahp-automations://catalog',
 			automation: 'ahp-automation:/legacy-model',
 			requestId: 'legacy-model-run',
 		});
@@ -277,7 +277,7 @@ suite('AgentHostAutomationService', () => {
 			/1 expected automation resources are missing/,
 		);
 		await assert.rejects(service.runAutomation({
-			channel: 'ahp-automations://',
+			channel: 'ahp-automations://catalog',
 			automation: 'ahp-automation:/review-changes',
 			requestId: 'blocked-request',
 		}), /migration must complete/);
@@ -335,7 +335,7 @@ suite('AgentHostAutomationService', () => {
 		await service.handleConfigurationChanged();
 
 		await assert.rejects(service.runAutomation({
-			channel: 'ahp-automations://',
+			channel: 'ahp-automations://catalog',
 			automation: 'ahp-automation:/review-changes',
 			requestId: 'disabled-request',
 		}), /Automations are disabled/);
@@ -389,7 +389,7 @@ suite('AgentHostAutomationService', () => {
 		await enableAndCreate(service);
 
 		const params = {
-			channel: 'ahp-automations://' as const,
+			channel: 'ahp-automations://catalog' as const,
 			automation: 'ahp-automation:/review-changes',
 			requestId: 'manual-request',
 		};
@@ -457,7 +457,7 @@ suite('AgentHostAutomationService', () => {
 		writeFailures = 1;
 
 		await assert.rejects(service.runAutomation({
-			channel: 'ahp-automations://',
+			channel: 'ahp-automations://catalog',
 			automation: 'ahp-automation:/review-changes',
 			requestId: 'failed-request',
 		}), /storage unavailable/);
@@ -497,7 +497,7 @@ suite('AgentHostAutomationService', () => {
 		await enableAndCreate(service);
 
 		const result = await service.runAutomation({
-			channel: 'ahp-automations://',
+			channel: 'ahp-automations://catalog',
 			automation: 'ahp-automation:/review-changes',
 			requestId: 'deferred-request',
 		});
@@ -554,7 +554,7 @@ suite('AgentHostAutomationService', () => {
 		));
 
 		const result = await service.runAutomation({
-			channel: 'ahp-automations://',
+			channel: 'ahp-automations://catalog',
 			automation: 'ahp-automation:/review-changes',
 			requestId: 'hung-request',
 		});
@@ -603,7 +603,7 @@ suite('AgentHostAutomationService', () => {
 		});
 		await enableAndCreate(service);
 		const result = await service.runAutomation({
-			channel: 'ahp-automations://',
+			channel: 'ahp-automations://catalog',
 			automation: 'ahp-automation:/review-changes',
 			requestId: 'cancel-request',
 		});
@@ -656,7 +656,7 @@ suite('AgentHostAutomationService', () => {
 		});
 		await enableAndCreate(service);
 		const result = await service.runAutomation({
-			channel: 'ahp-automations://',
+			channel: 'ahp-automations://catalog',
 			automation: 'ahp-automation:/review-changes',
 			requestId: 'cancel-failure',
 		});
@@ -956,7 +956,7 @@ suite('AgentHostAutomationService', () => {
 		});
 
 		await service.fetchAutomationRuns({
-			channel: 'ahp-automations://',
+			channel: 'ahp-automations://catalog',
 			automation: automationResource,
 			cursor: '50',
 		});
@@ -983,7 +983,7 @@ suite('AgentHostAutomationService', () => {
 		});
 
 		await assert.rejects(service.runAutomation({
-			channel: 'ahp-automations://',
+			channel: 'ahp-automations://catalog',
 			automation: 'ahp-automation:/pending-import',
 			requestId: 'pending-request',
 		}), /not available/i);

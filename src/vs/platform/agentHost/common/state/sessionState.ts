@@ -165,8 +165,16 @@ export interface UsageInfoMeta {
 	[key: string]: unknown;
 }
 
-/** Singleton channel containing the host-owned automation catalogue. */
-export const AUTOMATION_CATALOG_URI = 'ahp-automations://';
+/**
+ * Singleton channel containing the host-owned automation catalogue.
+ *
+ * The `catalog` authority is appended so the URI round-trips through
+ * `.toString()`. Without an authority, `ahp-automations://` serializes back to
+ * `ahp-automations:` and no longer matches. Comparing catalogue channels as
+ * URIs everywhere (ResourceMap/isEqual) is the intended followup. See
+ * https://github.com/microsoft/vscode/pull/331796#discussion_r3857160917.
+ */
+export const AUTOMATION_CATALOG_URI = 'ahp-automations://catalog';
 
 /** Returns whether `uri` identifies the singleton automation catalogue channel. */
 export function isAhpAutomationCatalogChannel(uri: string): boolean {

@@ -316,7 +316,7 @@ export interface AutomationState {
 }
 
 /**
- * Authoritative automation catalogue exposed on the `ahp-automations://`
+ * Authoritative automation catalogue exposed on the `ahp-automations://catalog`
  * channel.
  *
  * A subscription snapshot contains every automation visible to the client.
