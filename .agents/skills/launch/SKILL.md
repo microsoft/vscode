@@ -157,12 +157,9 @@ $pid = $info.pid
 
 ## Drive the UI
 
-**Start here: [use the repo's own automation library](./automation-library.md).**
-`test/automation` is what the smoke tests use. It already has page objects for
-chat, the Agents window, quick input, terminal, notebooks and more, including
-the retry and verification logic those surfaces need — so common flows are a few
-lines instead of a selector hunt. Launch with `-- --enable-smoke-test-driver`,
-and a full chat round-trip is:
+**Start here: [use the repo's own automation library](./automation-library.md)**
+— the page objects the smoke tests use, with the retry and verification logic
+each surface needs. Launch with `-- --enable-smoke-test-driver`, then:
 
 ```js
 // Run from the repo root; Node executes the .ts directly, no build step.
@@ -176,14 +173,11 @@ console.log(await session.workbench.chat.waitForResponseText(/PONG/i));
 await session.detach();
 ```
 
-That handles focusing the input, Monaco's paste quirk, input read-back, and
-waiting for the response to settle — all of which you would otherwise wire up by
-hand. **Read [automation-library.md](./automation-library.md) before reaching for
-the CLI below.**
-
-Use raw `@playwright/cli` for exploration (`snapshot`), screenshots, and surfaces
-the library does not cover. The two compose: `session.page` is a normal
-Playwright `Page`.
+**Read [automation-library.md](./automation-library.md) first** — it covers
+picking the right window, driving controls with no page object, the integrated
+browser, and the gotchas. Fall back to raw `@playwright/cli` below for
+exploration (`snapshot`), screenshots, and anything the library misses;
+`session.page` is a normal Playwright `Page`, so the two compose.
 
 ### Raw `@playwright/cli`
 
