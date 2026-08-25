@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { DeferredPromise } from '../../../../../base/common/async.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { MAX_CODEX_PROFILE_IMAGE_BYTES } from '../../../common/codexAccount.js';
@@ -182,6 +183,29 @@ suite('Codex profile image', () => {
 		await assertFileNotFound(fileService, URI.parse(reference!.uri));
 		await store.clear();
 		await assertFileNotFound(fileService, URI.parse(replacement!.uri));
+	});
+
+	test('serializes clearing after an in-flight update', async () => {
+		const fileService = disposables.add(new FileService(new NullLogService()));
+		const store = disposables.add(new CodexProfileImageStore(fileService));
+		const provider = store['_provider'];
+		const originalWriteFile = provider.writeFile.bind(provider);
+		const writeStarted = new DeferredPromise<void>();
+		const resumeWrite = new DeferredPromise<void>();
+		provider.writeFile = async (resource, content, opts) => {
+			await writeStarted.complete();
+			await resumeWrite.p;
+			return originalWriteFile(resource, content, opts);
+		};
+
+		const update = store.update({ mediaType: 'image/png', bytes: Uint8Array.from([1, 2, 3]) });
+		await writeStarted.p;
+		const clear = store.clear();
+		await resumeWrite.complete();
+		const reference = await update;
+		await clear;
+
+		await assertFileNotFound(fileService, URI.parse(reference!.uri));
 	});
 });
 

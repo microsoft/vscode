@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createHash } from 'crypto';
+import { Sequencer } from '../../../../base/common/async.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import type { IFileService } from '../../../files/common/files.js';
@@ -48,6 +49,7 @@ export interface ICodexProfileImage {
 export class CodexProfileImageStore extends Disposable {
 
 	private readonly _provider = this._register(new InMemoryFileSystemProvider());
+	private readonly _mutationSequencer = new Sequencer();
 	private _reference: ICodexProfileImageReference | undefined;
 
 	constructor(fileService: IFileService) {
@@ -56,7 +58,15 @@ export class CodexProfileImageStore extends Disposable {
 		this._register(fileService.registerProvider(CODEX_PROFILE_IMAGE_SCHEME, this._provider));
 	}
 
-	async clear(): Promise<void> {
+	clear(): Promise<void> {
+		return this._mutationSequencer.queue(() => this._clear());
+	}
+
+	update(image: ICodexProfileImage | undefined): Promise<ICodexProfileImageReference | undefined> {
+		return this._mutationSequencer.queue(() => this._update(image));
+	}
+
+	private async _clear(): Promise<void> {
 		const reference = this._reference;
 		this._reference = undefined;
 		if (reference) {
@@ -64,9 +74,9 @@ export class CodexProfileImageStore extends Disposable {
 		}
 	}
 
-	async update(image: ICodexProfileImage | undefined): Promise<ICodexProfileImageReference | undefined> {
+	private async _update(image: ICodexProfileImage | undefined): Promise<ICodexProfileImageReference | undefined> {
 		if (!image) {
-			await this.clear();
+			await this._clear();
 			return undefined;
 		}
 
