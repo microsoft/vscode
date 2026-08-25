@@ -94,6 +94,7 @@ export class Gesture extends Disposable {
 		this._register(EventUtils.runAndSubscribe(DomUtils.onDidRegisterWindow, ({ window, disposables }) => {
 			disposables.add(DomUtils.addDisposableListener(window.document, 'touchstart', (e: TouchEvent) => this.onTouchStart(e), { passive: false }));
 			disposables.add(DomUtils.addDisposableListener(window.document, 'touchend', (e: TouchEvent) => this.onTouchEnd(window, e)));
+			disposables.add(DomUtils.addDisposableListener(window.document, 'touchcancel', (e: TouchEvent) => this.onTouchCancel(e)));
 			disposables.add(DomUtils.addDisposableListener(window.document, 'touchmove', (e: TouchEvent) => this.onTouchMove(e), { passive: false }));
 		}, { window: mainWindow, disposables: this._store }));
 	}
@@ -249,6 +250,20 @@ export class Gesture extends Disposable {
 			e.preventDefault();
 			e.stopPropagation();
 			this.dispatched = false;
+		}
+	}
+
+	private onTouchCancel(e: TouchEvent): void {
+		// The gesture was interrupted by the UA (e.g. native scroll takeover), so it ends silently:
+		// forget the touch without dispatching tap, contextmenu or inertia.
+		for (let i = 0, len = e.changedTouches.length; i < len; i++) {
+			const touch = e.changedTouches.item(i);
+
+			if (!this.activeTouches.hasOwnProperty(String(touch.identifier))) {
+				continue;
+			}
+
+			delete this.activeTouches[touch.identifier];
 		}
 	}
 
