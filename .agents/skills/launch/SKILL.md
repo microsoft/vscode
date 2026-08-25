@@ -469,12 +469,12 @@ npx @playwright/cli -s=$PW_SESSION close
 kill "$PID" 2>/dev/null || true
 # Or by port if you've lost the pid:
 pids=$(lsof -t -i :$CDP); [ -n "$pids" ] && kill $pids
-
-# Remove the throwaway profile
-rm -rf "$(dirname "$LOG")"
 ```
 
-Code OSS is a full Electron app and easily eats 1-4 GB. Always clean up.
+Code OSS is a full Electron app and easily eats 1-4 GB. Always clean up — but
+**do not delete the profile yet**: removing it before the check below throws away
+the logs of anything that survived the kill. The next section is the sequence to
+actually finish with.
 
 ### Verify the cleanup actually worked
 
@@ -514,7 +514,9 @@ To audit the whole machine after a batch of runs — total resident memory and
 leaked profiles across every launch:
 
 ```bash
-ps aux | grep "[M]acOS/Code - OSS" | awk '{s+=$6} END {printf "Code OSS RSS: %.1f GB\n", s/1024/1024}'
+# Match the launcher's run-dir argument, so this works on Linux too rather than
+# only matching the macOS app-bundle path.
+ps aux | grep "[c]ode-oss-dev-" | awk '{s+=$6} END {printf "Code OSS RSS: %.1f GB\n", s/1024/1024}'
 du -shc /tmp/code-oss-dev-* 2>/dev/null | tail -1
 ```
 

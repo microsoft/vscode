@@ -117,8 +117,8 @@ function loadAutomation(repoRoot: string) {
 	if (!existsSync(resolvePath(outDir, 'workbench.js'))) {
 		throw new Error(
 			`test/automation is not compiled at ${outDir}. ` +
-			`Run \`npm --prefix test/automation run compile\`. The root \`npm run compile\` does ` +
-			`not build this package - it only covers the client and the Copilot extension.`
+			`Run \`npm --prefix test/automation run compile\`. The root \`npm run compile\` ` +
+			`does not build this package.`
 		);
 	}
 	return {

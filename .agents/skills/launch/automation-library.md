@@ -107,7 +107,7 @@ They compose: `session.page` is a normal Playwright `Page`.
   never registered (`setupDriver` in `src/vs/workbench/browser/window.ts`) and
   every page object fails. `attach()` checks and tells you.
 - **`test/automation` must be compiled** — `npm --prefix test/automation run
-  compile`. The root `npm run compile` does *not* cover it. `attach()` reports
+  compile`. The root `npm run compile` does not build this package. `attach()` reports
   a missing `out/`.
 - **Toolbar toggles must be read, not blindly clicked.** Controls like the
   integrated browser's *Add Element to Chat* carry `checked` in `className` when
