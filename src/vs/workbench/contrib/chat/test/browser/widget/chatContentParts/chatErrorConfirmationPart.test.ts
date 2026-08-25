@@ -28,6 +28,7 @@ suite('ChatErrorConfirmationContentPart', () => {
 		const sessionResource = URI.parse('test://session');
 		const request = upcastPartial<IChatRequestModel>({ id: 'turn-1' });
 		const resend = new DeferredPromise<void>();
+		let resendCallCount = 0;
 		let resendCall: { requestId: string; options: IChatSendRequestOptions | undefined; preserveRequestId: boolean | undefined } | undefined;
 		let acceptedSession: URI | undefined;
 		const chatService = new class extends mock<IChatService>() {
@@ -36,6 +37,7 @@ suite('ChatErrorConfirmationContentPart', () => {
 			}
 
 			override async resendRequest(request: IChatRequestModel, options?: IChatSendRequestOptions, preserveRequestId?: boolean): Promise<void> {
+				resendCallCount++;
 				resendCall = { requestId: request.id, options, preserveRequestId };
 				resend.complete();
 			}
@@ -80,6 +82,11 @@ suite('ChatErrorConfirmationContentPart', () => {
 				data: { agentHostResumeTurn: true },
 				resend: true,
 				preserveRequestId: true,
+			}, {
+				label: 'Try Another Way',
+				data: { agentHostResumeTurn: true },
+				resend: true,
+				preserveRequestId: true,
 			}],
 			renderer,
 			upcastPartial<IChatContentPartRenderContext>({ element }),
@@ -87,20 +94,24 @@ suite('ChatErrorConfirmationContentPart', () => {
 		mainWindow.document.body.appendChild(part.domNode);
 		store.add(toDisposable(() => part.domNode.remove()));
 
-		const button = part.domNode.querySelector<HTMLElement>('.monaco-button');
-		assert.ok(button);
-		button.click();
+		const buttons = [...part.domNode.querySelectorAll<HTMLElement>('.monaco-button')];
+		assert.strictEqual(buttons.length, 2);
+		buttons[0].click();
+		buttons[0].click();
+		buttons[1].click();
 		await resend.p;
 
 		assert.deepStrictEqual({
-			label: button.textContent,
-			role: button.getAttribute('role'),
+			labels: buttons.map(button => button.textContent),
+			roles: buttons.map(button => button.getAttribute('role')),
 			acceptedSession: acceptedSession?.toString(),
+			resendCallCount,
 			resendCall,
 		}, {
-			label: 'Try Again',
-			role: 'button',
+			labels: ['Try Again', 'Try Another Way'],
+			roles: ['button', 'button'],
 			acceptedSession: sessionResource.toString(),
+			resendCallCount: 1,
 			resendCall: {
 				requestId: request.id,
 				options: {

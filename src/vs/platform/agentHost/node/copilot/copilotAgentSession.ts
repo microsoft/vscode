@@ -822,6 +822,7 @@ export class CopilotAgentSession extends Disposable {
 	 */
 	private readonly _currentTurn = this._register(new MutableDisposable<CopilotTurn>());
 	private _resumingTurnAwaitingProviderStart: CopilotTurn | undefined;
+	private _developmentRecoverableError: { readonly turnId: string; remainingFailures: number; readonly totalFailures: number } | undefined;
 	private _dropLateRootTurnEvents = false;
 	/** Monotonic 0-based ordinal assigned to each turn as it starts, for numeric `turnIndex` telemetry parity. */
 	private _nextTurnOrdinal = 0;
@@ -2315,6 +2316,9 @@ export class CopilotAgentSession extends Disposable {
 		const turn = this._currentTurn.value;
 		this._hostInstructions = hostInstructions;
 		this._pendingSnapshotReminder = this._snapshotReadonlyReminder(attachments);
+		if (this._tryStartDevelopmentRecoverableError(prompt)) {
+			return;
+		}
 		try {
 			await this._send(prompt, attachments, mode);
 		} catch (err) {
@@ -2543,6 +2547,9 @@ export class CopilotAgentSession extends Disposable {
 	async resume(turnId: string, mode?: CopilotSdkMode, senderClientId?: string, clientType = AgentHostClientType.Unknown, clientContext = createUnknownAgentHostClientTelemetryContext(clientType)): Promise<void> {
 		this._resetAbortToken();
 		this.resetTurnState(turnId, senderClientId, clientType, clientContext);
+		if (this._tryContinueDevelopmentRecoverableError(turnId)) {
+			return;
+		}
 		const turn = this._currentTurn.value;
 		this._resumingTurnAwaitingProviderStart = turn;
 		turn?.markProviderCallPending();
@@ -2562,6 +2569,58 @@ export class CopilotAgentSession extends Disposable {
 			}
 			throw error;
 		}
+	}
+
+	private _tryStartDevelopmentRecoverableError(prompt: string): boolean {
+		if (this._environmentService.isBuilt) {
+			return false;
+		}
+		const match = /^\$error-ui(?::(?<count>[1-9]))?$/.exec(prompt);
+		const turn = this._currentTurn.value;
+		if (!match || !turn) {
+			return false;
+		}
+		const totalFailures = match.groups?.count ? Number(match.groups.count) : 1;
+		this._developmentRecoverableError = {
+			turnId: turn.id,
+			remainingFailures: totalFailures - 1,
+			totalFailures,
+		};
+		this._hostInstructions = undefined;
+		this._pendingSnapshotReminder = undefined;
+		this._emitDevelopmentRecoverableError(turn, 1, totalFailures);
+		return true;
+	}
+
+	private _tryContinueDevelopmentRecoverableError(turnId: string): boolean {
+		const state = this._developmentRecoverableError;
+		const turn = this._currentTurn.value;
+		if (!state || state.turnId !== turnId || !turn) {
+			return false;
+		}
+		if (state.remainingFailures > 0) {
+			const attempt = state.totalFailures - state.remainingFailures + 1;
+			state.remainingFailures--;
+			this._emitDevelopmentRecoverableError(turn, attempt, state.totalFailures);
+			return true;
+		}
+		this._developmentRecoverableError = undefined;
+		this._emitMarkdownDelta(localize('copilotAgent.developmentRecoverableErrorRecovered', "Recovered after {0} injected failure(s).", state.totalFailures), undefined, true);
+		this._completeActiveTurn(true);
+		return true;
+	}
+
+	private _emitDevelopmentRecoverableError(turn: CopilotTurn, attempt: number, totalFailures: number): void {
+		this._emitAction({
+			type: ActionType.ChatError,
+			turnId: turn.id,
+			duration: turn.duration,
+			part: createErrorResponsePart({
+				errorType: 'developmentRecoverableError',
+				message: localize('copilotAgent.developmentRecoverableError', "Injected recoverable development error ({0}/{1}).", attempt, totalFailures),
+			}, true),
+		});
+		this._clearActiveTurn();
 	}
 
 	/**
