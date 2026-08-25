@@ -79,7 +79,7 @@ import { resolveLastNonLocalTurnId } from '../common/agentHostConversationContex
 import { AgentHostLaunchKind, createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
 import { IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
 import { AgentMergeController, type IAgentMergeControllerOptions } from './agentMergeController.js';
-import { AgentMergeConfigKey, agentMergeRootConfigSchema, readAgentMergeSessionState } from '../common/agentMerge.js';
+import { AgentMergeConfigKey, agentMergeRootConfigSchema, getNonMergeSessionConfigValues, readAgentMergeSessionState } from '../common/agentMerge.js';
 import { AgentSystemNotificationKind, toAgentSystemNotificationMeta } from '../common/meta/agentSystemNotificationMeta.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { AgentHostAuthenticationService } from './agentHostAuthenticationService.js';
@@ -1151,7 +1151,7 @@ export class AgentService extends Disposable implements IAgentService {
 			: session.draft
 				? session.draft.model
 				: session.turns.at(-1)?.message.model;
-		const config = this._providers.get(session.provider)?.getInheritedChatConfig(session.config?.values ?? {});
+		const config = this._providers.get(session.provider)?.getInheritedChatConfig(getNonMergeSessionConfigValues(session.config?.values));
 		return {
 			provider: session.provider,
 			...(model !== undefined ? { model } : {}),
