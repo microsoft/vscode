@@ -38,6 +38,7 @@ import { GitHubCredential, GitHubCredentialInvalidation, IGitHubCredentials } fr
 import { IGitHubCapabilities } from './githubHostCapabilitiesService.js';
 import { IGitHubScheduler, systemGitHubScheduler } from './githubScheduler.js';
 import { GitHubGraphQLError, GitHubRequestError, IGitHubTransport } from './githubTransport.js';
+import { GitHubBackoffPolicy, gitHubBackoffDelay } from './githubBackoff.js';
 import { IGitHubEndpointProvider } from './githubTypes.js';
 import { PullRequestScheduler } from './pullRequestScheduler.js';
 
@@ -50,6 +51,7 @@ export interface GitHubEntityPollingPolicy {
 	readonly maximumDormantEntries: number;
 	readonly visible: number;
 	readonly background: number;
+	readonly failureBackoff: GitHubBackoffPolicy;
 	readonly jitter: number;
 }
 
@@ -58,6 +60,7 @@ const defaultPollingPolicy: GitHubEntityPollingPolicy = {
 	maximumDormantEntries: 50,
 	visible: 60_000,
 	background: 300_000,
+	failureBackoff: { immediateRetries: 0, base: 60_000, maximum: 900_000, jitter: 5_000 },
 	jitter: 5_000,
 };
 
@@ -136,6 +139,8 @@ class EntityEntry<TRef extends EntityRef, TValue extends EntityValue> {
 	readonly keys = new Set<string>();
 	operation: IEntityOperation | undefined;
 	dormantAt: number | undefined;
+	/** Consecutive refresh failures, so repeated trouble is retried further apart. */
+	failureCount = 0;
 	disposed = false;
 
 	constructor(
@@ -637,6 +642,7 @@ export class GitHubQueryService extends Disposable implements IGitHubQuery {
 				this._canonicalizeRepository(entry as EntityEntry<GitHubRepositoryRef, GitHubRepository>, value as GitHubRepository);
 			}
 			this._logService.trace(`[GitHubQueryService] Refreshed ${entry.kind} ${formatEntityRef(entry.ref)} in ${this._clock.now() - startedAt}ms (entry ${entry.id})`);
+			entry.failureCount = 0;
 			if (this._shouldPollEntity(entry)) {
 				this._scheduleEntity(entry, this._clock.now() + this._pollDelay(entry) + this._clock.jitter(this._policy.jitter));
 			}
@@ -657,7 +663,7 @@ export class GitHubQueryService extends Disposable implements IGitHubQuery {
 					error: toFragmentError(error),
 				}, undefined);
 				if (!(error instanceof GitHubRequestError) || error.kind !== 'authentication') {
-					this._scheduleEntity(entry, this._clock.now() + this._pollDelay(entry) + this._clock.jitter(this._policy.jitter));
+					this._scheduleAfterFailure(entry);
 				}
 			}
 			this._logService.debug(`[GitHubQueryService] Refresh ${entry.kind} ${formatEntityRef(entry.ref)} ${controller.signal.aborted ? 'cancelled' : 'failed'} after ${this._clock.now() - startedAt}ms (${queryErrorKind(error)})`);
@@ -863,6 +869,17 @@ export class GitHubQueryService extends Disposable implements IGitHubQuery {
 
 	private _pollDelay(entry: EntityEntry<EntityRef, EntityValue>): number {
 		return this._effectivePriority(entry) === 'background' ? this._policy.background : this._policy.visible;
+	}
+
+	/**
+	 * Retries a failed refresh no sooner than its poll cadence and further apart
+	 * the longer the trouble lasts, so a GitHub outage is not met with the same
+	 * request rate from every subscriber for its whole duration.
+	 */
+	private _scheduleAfterFailure(entry: EntityEntry<EntityRef, EntityValue>): void {
+		entry.failureCount++;
+		const delay = gitHubBackoffDelay(this._policy.failureBackoff, this._clock, entry.failureCount, this._pollDelay(entry));
+		this._scheduleEntity(entry, this._clock.now() + delay);
 	}
 
 	private _shouldPollEntity(entry: EntityEntry<EntityRef, EntityValue>): boolean {
