@@ -1208,7 +1208,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		if (!sameChatGPTAccount) {
 			this._openAIAccountRateLimit = undefined;
 			this._openAIAccountProfileImage = undefined;
-			this._profileImageStore?.clear();
+			void this._profileImageStore?.clear();
 			this._openAIAccountProfileImageRequest++;
 		}
 		if (_publish) {
@@ -2660,7 +2660,7 @@ export class CodexAgent extends Disposable implements IAgent {
 				? await this._getProfileImageStore().update(profileImage)
 				: undefined;
 			if (!profileImage) {
-				this._profileImageStore?.clear();
+				await this._profileImageStore?.clear();
 			}
 			if (request !== this._openAIAccountProfileImageRequest || this._connection.kind !== 'ready' || this._connection.client !== client || this._openAIAccountState.status !== 'signedIn' || this._openAIAccountState.authType !== 'chatgpt' || this._openAIAccountState.email !== accountEmail) {
 				return;
