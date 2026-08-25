@@ -234,7 +234,7 @@ export class ExternalSessionBanner extends Disposable {
 				mode: ChatExternalSessionsMode.Recent,
 				item: {
 					text: localize('externalSessionBanner.select.recent', "Recent"),
-					description: localize('externalSessionBanner.select.recent.description', "Show the 2 most recent external sessions by update time from the last 7 days."),
+					description: localize('externalSessionBanner.select.recent.description', "Show up to the 2 most recent external sessions updated in the last 7 days. Once at least 2 local sessions exist, external sessions older than the second-newest local session are hidden."),
 				},
 			},
 			{
