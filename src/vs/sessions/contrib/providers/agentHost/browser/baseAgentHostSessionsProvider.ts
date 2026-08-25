@@ -50,7 +50,7 @@ import { getRegisteredLanguageModels, resolveConfiguredModel, resolveModelIdenti
 import { buildMutableConfigSchema, IAgentHostMcpServer, IAgentHostSessionsProvider, resolvedConfigsEqual } from '../../../../common/agentHostSessionsProvider.js';
 import { agentHostSessionWorkspaceKey } from '../../../../common/agentHostSessionWorkspace.js';
 import { isSessionConfigComplete } from '../../../../common/sessionConfig.js';
-import { ChatInteractivity, ChatModelSource, ChatOriginKind, DEFAULT_CHAT_CAPABILITIES, effectiveChatInteractivity, IChat, IChatCapabilities, IGitHubInfo, IGitHubIssueRef, IGitHubPullRequestRef, ISession, ISessionAgentRef, ISessionArtifact, ISessionCapabilities, ISessionChangeset, ISessionChangesSummary, ISessionChatCustomization, ISessionFile, ISessionFileChange, ISessionTurnFileChange, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection, sessionFileChangesEqual, sessionWorkspaceEqual, SessionStatus, SessionTypeAuthRequirement, toSessionId, TURN_CHANGES_CHANGESET_ID } from '../../../../services/sessions/common/session.js';
+import { ChatInteractivity, ChatModelSource, ChatOriginKind, DEFAULT_CHAT_CAPABILITIES, effectiveChatInteractivity, IChat, IChatCapabilities, IGitHubInfo, IGitHubIssueRef, IGitHubPullRequestRef, ISession, ISessionAgentRef, ISessionArtifact, ISessionCapabilities, ISessionChangeset, ISessionChangesSummary, ISessionChatCustomization, ISessionFileChange, ISessionTurnFileChange, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection, sessionFileChangesEqual, sessionWorkspaceEqual, SessionStatus, SessionTypeAuthRequirement, toSessionId, TURN_CHANGES_CHANGESET_ID } from '../../../../services/sessions/common/session.js';
 import { dedupeLinks, getPresentedArtifacts, linkKey, partitionSessionArtifacts } from './agentHostSessionArtifacts.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IDeleteChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration } from '../../../../services/sessions/common/sessionsProvider.js';
@@ -726,7 +726,6 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	readonly completedStateIcon: IObservable<ThemeIcon | undefined>;
 	readonly changes: IObservable<readonly (IChatSessionFileChange | IChatSessionFileChange2)[]>;
 	readonly changesets: ISettableObservable<readonly ISessionChangeset[] | undefined>;
-	readonly externalChanges: IObservable<readonly ISessionFile[]>;
 	readonly modelId: ISettableObservable<string | undefined>;
 	readonly modelSource: ISettableObservable<ChatModelSource | undefined>;
 	modelSelection: ModelSelection | undefined;
@@ -762,8 +761,8 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	 */
 	private readonly _defaultChat: IChat;
 	/**
-	 * The session's live output observables (external files + per-chat last-turn
-	 * changes), parsed once from the active-session subscriptions and shared by
+	 * The session's live output observables (per-chat last-turn changes and
+	 * customizations), parsed from the active-session subscriptions and shared by
 	 * the default chat and every peer chat so each chat's status pills reflect
 	 * that chat's own last turn.
 	 */
@@ -1030,9 +1029,9 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		// changeset.
 		this.changes = this._createChangesObs();
 
-		// Files created/edited/deleted outside the workspace, plus the last turn's
-		// changes, parsed from the chat-state turns. Computed lazily from the same
-		// active-session subscriptions used for changes.
+		// The last turn's changes and the chat customizations, parsed from the
+		// chat-state turns. Computed lazily from the same active-session
+		// subscriptions used for changes.
 		const sessionOutput = createSessionOutputObs(
 			this.backendUri,
 			this._options,
@@ -1043,7 +1042,6 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		);
 		this._sessionOutput = sessionOutput;
 		this._currentTurnChanges = this._createCurrentTurnChangesObservable();
-		this.externalChanges = sessionOutput.externalFiles;
 
 		const mainChat: IChat = {
 			resource: this.resource,
