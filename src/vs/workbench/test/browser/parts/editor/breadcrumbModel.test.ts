@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IWorkspaceFoldersChangeEvent, WorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
 import { BreadcrumbsModel, FileElement } from '../../../../browser/parts/editor/breadcrumbsModel.js';
@@ -192,5 +193,20 @@ suite('Breadcrumb Model', function () {
 			{ uri: 'foo:/worktrees/project-feature', kind: FileKind.ROOT_FOLDER, label: 'project-feature' },
 			{ uri: 'foo:/worktrees/project-feature/file.ts', kind: FileKind.FILE, label: undefined }
 		]);
+	});
+
+	test('does not produce file elements for session and chat resources', function () {
+		const schemes = [
+			Schemas.vscodeChatResponseResource,
+			Schemas.vscodeLocalChatSession,
+			Schemas.vscodeChatCodeBlock,
+			Schemas.vscodeChatCodeCompareBlock
+		];
+
+		for (const scheme of schemes) {
+			model = new BreadcrumbsModel(URI.from({ scheme, path: '/020a5975-adba-4bfd-986a-7bcf9509df65/trip-plan.md' }), undefined, configService, workspaceService, workspaceFolderLabelService, new class extends mock<IOutlineService>() { });
+			assert.strictEqual(model.getElements().length, 0, `Expected 0 elements for scheme ${scheme}`);
+			model.dispose();
+		}
 	});
 });

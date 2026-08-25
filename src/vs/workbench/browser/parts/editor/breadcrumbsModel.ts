@@ -122,7 +122,7 @@ export class BreadcrumbsModel {
 
 	private _initFilePathInfo(uri: URI): FileInfo {
 
-		if (matchesSomeScheme(uri, Schemas.untitled, Schemas.data)) {
+		if (matchesSomeScheme(uri, Schemas.untitled, Schemas.data, Schemas.vscodeChatResponseResource, Schemas.vscodeLocalChatSession, Schemas.vscodeChatCodeBlock, Schemas.vscodeChatCodeCompareBlock)) {
 			return {
 				folder: undefined,
 				path: []
