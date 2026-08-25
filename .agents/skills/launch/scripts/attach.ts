@@ -193,11 +193,21 @@ async function waitForSmokeTestDriver(page: PlaywrightPage, timeoutMs: number): 
  * answer the question, so this is a no-op when none is open yet - it converts a
  * mystery timeout into an actionable message whenever it can, and never blocks
  * an otherwise healthy attach.
+ *
+ * Some editors opt out of `EditContext` on their own for speed, independent of
+ * configuration - the inline-edit previews pass `editContext: false` directly.
+ * Those are always a subset, whereas a disabling setting applies to every editor
+ * in the window, so require *all* of them to be textarea-backed before blaming
+ * configuration. Otherwise a visible inline-edit preview would fail an
+ * out-of-the-box window.
  */
 async function assertEditContextMode(page: PlaywrightPage): Promise<void> {
 	const mismatched = await page.evaluate(() => {
 		const editors = Array.from(document.querySelectorAll('.monaco-editor'));
-		return editors.some(editor =>
+		if (editors.length === 0) {
+			return false;
+		}
+		return editors.every(editor =>
 			editor.querySelector('textarea.inputarea') !== null &&
 			editor.querySelector('.native-edit-context') === null);
 	});

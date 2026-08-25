@@ -489,9 +489,27 @@ try {
 		Copy-ProfileDirectory $sourceExtensions $extensionsDir $false
 	}
 
-	$settingsFile = Join-Path $destinationUdd 'User\settings.json'
-	Ensure-AutomationSettings $node $settingsFile
-	Write-LaunchError "[launch.ps1] ensured files.simpleDialog.enable=true and editor.editContext=true in $settingsFile"
+	# The default profile is not necessarily the one the window opens with. The
+	# clone preserves `userDataProfiles` and `profileAssociations` in application
+	# state, and `WindowsMainService.resolveProfileForBrowserWindow` hands an
+	# associated workspace its named profile, which reads
+	# `User/profiles/<id>/settings.json`. Normalize every *existing* profile
+	# settings file; absent ones are left alone, because a profile that inherits
+	# settings (`useDefaultFlags.settings`) points back at the default resource.
+	$settingsFiles = [System.Collections.Generic.List[string]]::new()
+	$settingsFiles.Add((Join-Path $destinationUdd 'User\settings.json'))
+	$profilesDir = Join-Path $destinationUdd 'User\profiles'
+	if (Test-Path -LiteralPath $profilesDir) {
+		foreach ($profileSettings in (Get-ChildItem -LiteralPath $profilesDir -Directory -ErrorAction SilentlyContinue | ForEach-Object { Join-Path $_.FullName 'settings.json' })) {
+			if (Test-Path -LiteralPath $profileSettings -PathType Leaf) {
+				$settingsFiles.Add($profileSettings)
+			}
+		}
+	}
+	foreach ($settingsFile in $settingsFiles) {
+		Ensure-AutomationSettings $node $settingsFile
+	}
+	Write-LaunchError "[launch.ps1] ensured files.simpleDialog.enable=true and editor.editContext=true in $($settingsFiles.Count) profile settings file(s)"
 	$profileReadyMs = $launchStopwatch.ElapsedMilliseconds
 
 	$launchArgs = [System.Collections.Generic.List[string]]::new()

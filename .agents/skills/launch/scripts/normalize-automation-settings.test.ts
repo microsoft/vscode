@@ -212,3 +212,40 @@ test('replaces a dangling symlink instead of creating its target', () => {
 	assert.strictEqual(fs.lstatSync(link).isSymbolicLink(), false, 'the link must be materialized');
 	assert.strictEqual(parseJsonc(fs.readFileSync(link, 'utf8'))['editor.editContext'], true);
 });
+
+// The launchers must normalize named profiles too, not just the default one:
+// an associated workspace opens with `User/profiles/<id>/settings.json`, and
+// leaving that file alone reintroduces exactly the failure this script exists
+// to prevent. Exercise the discovery both launchers perform, against a real
+// profile layout, so the multi-file contract cannot regress silently.
+test('normalizes every existing named profile, leaving inheriting profiles alone', () => {
+	const root = fs.mkdtempSync(path.join(os.tmpdir(), 'nas-profiles-'));
+	const userDir = path.join(root, 'User');
+	const named = path.join(userDir, 'profiles', 'autotest');
+	const inheriting = path.join(userDir, 'profiles', 'inherits');
+	fs.mkdirSync(named, { recursive: true });
+	fs.mkdirSync(inheriting, { recursive: true });
+	fs.writeFileSync(path.join(userDir, 'settings.json'), '{}\n');
+	fs.writeFileSync(path.join(named, 'settings.json'), '{ "editor.editContext": false }\n');
+
+	const found = execFileSync('bash', ['-c',
+		`shopt -s nullglob; files=("$1"/User/settings.json); ` +
+		`for p in "$1"/User/profiles/*/settings.json; do [ -f "$p" ] && files+=("$p"); done; ` +
+		`printf '%s\\n' "\${files[@]}"`, 'bash', root], { encoding: 'utf8' }).trim().split('\n');
+
+	for (const file of found) {
+		execFileSync(process.execPath, [script, file]);
+	}
+
+	assert.deepStrictEqual({
+		discovered: found.length,
+		namedEnabled: KEYS.map(k => [k, parseJsonc(fs.readFileSync(path.join(named, 'settings.json'), 'utf8'))[k]]),
+		defaultEnabled: KEYS.map(k => [k, parseJsonc(fs.readFileSync(path.join(userDir, 'settings.json'), 'utf8'))[k]]),
+		inheritingUntouched: fs.existsSync(path.join(inheriting, 'settings.json'))
+	}, {
+		discovered: 2,
+		namedEnabled: KEYS.map(k => [k, true]),
+		defaultEnabled: KEYS.map(k => [k, true]),
+		inheritingUntouched: false
+	});
+});

@@ -178,11 +178,28 @@ fi
 SETTINGS_FILE="$DEST_UDD/User/settings.json"
 mkdir -p "$(dirname "$SETTINGS_FILE")"
 NORMALIZE_SETTINGS="$(cd "$(dirname "$0")" && pwd)/normalize-automation-settings.ts"
-if ! node "$NORMALIZE_SETTINGS" "$SETTINGS_FILE"; then
-	echo "[launch.sh] failed to normalize automation settings in $SETTINGS_FILE — automation may need to fall back to per-key input" >&2
-	exit 1
-fi
-echo "[launch.sh] ensured files.simpleDialog.enable=true and editor.editContext=true in $SETTINGS_FILE" >&2
+
+# The default profile is not necessarily the one the window opens with. The
+# clone preserves `userDataProfiles` and `profileAssociations` in application
+# state, and `WindowsMainService.resolveProfileForBrowserWindow` hands an
+# associated workspace its named profile, which reads
+# `User/profiles/<id>/settings.json`. Normalizing only the default profile
+# therefore leaves that path unguarded. Every *existing* profile settings file
+# is normalized; absent ones are left alone, because a profile that inherits
+# settings (`useDefaultFlags.settings`) points back at the default resource and
+# creating a file for it would introduce an override that did not exist.
+SETTINGS_FILES=("$SETTINGS_FILE")
+for profile_settings in "$DEST_UDD"/User/profiles/*/settings.json; do
+	[ -f "$profile_settings" ] && SETTINGS_FILES+=("$profile_settings")
+done
+
+for settings_file in "${SETTINGS_FILES[@]}"; do
+	if ! node "$NORMALIZE_SETTINGS" "$settings_file"; then
+		echo "[launch.sh] failed to normalize automation settings in $settings_file — automation may need to fall back to per-key input" >&2
+		exit 1
+	fi
+done
+echo "[launch.sh] ensured files.simpleDialog.enable=true and editor.editContext=true in ${#SETTINGS_FILES[@]} profile settings file(s)" >&2
 PROFILE_READY_MS=$(monotonic_ms)
 
 # Strip ELECTRON_RUN_AS_NODE, commonly inherited from VS Code's integrated
