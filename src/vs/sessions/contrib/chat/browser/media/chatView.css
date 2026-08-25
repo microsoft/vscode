@@ -23,9 +23,7 @@
 }
 
 .monaco-workbench.agent-sessions-workbench .part.sessionspart .chat-view.has-chat-background-image .interactive-item-container.interactive-response {
-	background: color-mix(in srgb, var(--session-view-background) 86%, transparent);
-	-webkit-backdrop-filter: blur(var(--vscode-spacing-size160)) saturate(1.08);
-	backdrop-filter: blur(var(--vscode-spacing-size160)) saturate(1.08);
+	background: color-mix(in srgb, var(--session-view-background) 96%, transparent);
 	border: var(--vscode-strokeThickness) solid color-mix(in srgb, var(--vscode-editorWidget-border, var(--vscode-widget-border)) 70%, transparent);
 	border-radius: var(--vscode-cornerRadius-medium);
 	box-shadow: 0 var(--vscode-spacing-size80) var(--vscode-spacing-size240) color-mix(in srgb, var(--vscode-widget-shadow) 18%, transparent);
@@ -94,6 +92,10 @@
 
 	> .monaco-tree-sticky-row.request {
 		background-color: transparent;
+
+		.interactive-item-container.interactive-request {
+			background-color: var(--session-view-background);
+		}
 	}
 }
 

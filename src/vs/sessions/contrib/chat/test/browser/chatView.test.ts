@@ -129,7 +129,7 @@ suite('Sessions - Chat View', () => {
 		});
 	});
 
-	test('applies the chat background treatment to the complete assistant response', () => {
+	test('applies a lightly translucent treatment without backdrop blur to the complete assistant response', () => {
 		const workbench = dom.$('.monaco-workbench.agent-sessions-workbench');
 		workbench.style.setProperty('--session-view-background', '#ffffff');
 		workbench.style.setProperty('--vscode-cornerRadius-medium', '6px');
@@ -149,6 +149,8 @@ suite('Sessions - Chat View', () => {
 		const responseStyle = dom.getWindow(response).getComputedStyle(response);
 		assert.deepStrictEqual({
 			responseBackgroundColor: responseStyle.backgroundColor,
+			responseBackdropFilter: responseStyle.getPropertyValue('backdrop-filter'),
+			responseWebkitBackdropFilter: responseStyle.getPropertyValue('-webkit-backdrop-filter'),
 			responseBorderRadius: responseStyle.borderRadius,
 			responseOverflow: responseStyle.overflow,
 			responsePaddingBottom: responseStyle.paddingBottom,
@@ -158,7 +160,9 @@ suite('Sessions - Chat View', () => {
 			plainResponseBorderStyle: dom.getWindow(plainResponse).getComputedStyle(plainResponse).borderStyle,
 			plainResponsePaddingBottom: dom.getWindow(plainResponse).getComputedStyle(plainResponse).paddingBottom,
 		}, {
-			responseBackgroundColor: 'color(srgb 1 1 1 / 0.86)',
+			responseBackgroundColor: 'color(srgb 1 1 1 / 0.96)',
+			responseBackdropFilter: 'none',
+			responseWebkitBackdropFilter: '',
 			responseBorderRadius: '6px',
 			responseOverflow: 'hidden',
 			responsePaddingBottom: '16px',
@@ -285,7 +289,7 @@ suite('Sessions - Chat View', () => {
 		});
 	});
 
-	test('keeps the sticky request surface transparent over chat backgrounds', () => {
+	test('keeps sticky request gutters transparent over chat backgrounds', () => {
 		const workbench = dom.$('.monaco-workbench.vs-dark.agent-sessions-workbench');
 		workbench.style.setProperty('--vscode-sideBar-background', '#ff0000');
 		workbench.style.setProperty('--vscode-chat-list-background', '#ff0000');
@@ -305,7 +309,7 @@ suite('Sessions - Chat View', () => {
 			const request = dom.append(treeContents, dom.$('.interactive-item-container.editing-session.interactive-request.show-verbose-details'));
 			const value = dom.append(request, dom.$('.value'));
 			const bubble = dom.append(value, dom.$('.rendered-markdown'));
-			return { stickyContainer, stickyRow, treeContents, bubble };
+			return { stickyContainer, stickyRow, treeContents, request, bubble };
 		};
 		const background = createStickyRequest('.chat-view.has-chat-background-image');
 		const plain = createStickyRequest('.chat-view');
@@ -317,17 +321,21 @@ suite('Sessions - Chat View', () => {
 			row: dom.getWindow(background.stickyRow).getComputedStyle(background.stickyRow).backgroundColor,
 			contents: dom.getWindow(background.treeContents).getComputedStyle(background.treeContents).backgroundColor,
 			hoverBackground: dom.getWindow(background.stickyRow).getComputedStyle(background.stickyRow).getPropertyValue('--vscode-chat-list-background'),
+			request: dom.getWindow(background.request).getComputedStyle(background.request).backgroundColor,
 			bubble: dom.getWindow(background.bubble).getComputedStyle(background.bubble).backgroundColor,
 			plainContainer: dom.getWindow(plain.stickyContainer).getComputedStyle(plain.stickyContainer).backgroundColor,
 			plainRow: dom.getWindow(plain.stickyRow).getComputedStyle(plain.stickyRow).backgroundColor,
+			plainRequest: dom.getWindow(plain.request).getComputedStyle(plain.request).backgroundColor,
 		}, {
 			container: 'rgba(0, 0, 0, 0)',
 			row: 'rgba(0, 0, 0, 0)',
 			contents: 'rgba(0, 0, 0, 0)',
 			hoverBackground: 'transparent',
+			request: 'rgb(32, 32, 32)',
 			bubble: 'rgb(32, 32, 32)',
 			plainContainer: 'rgb(255, 0, 0)',
 			plainRow: 'rgb(255, 0, 0)',
+			plainRequest: 'rgba(0, 0, 0, 0)',
 		});
 	});
 
