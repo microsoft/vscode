@@ -25,9 +25,6 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 
 export const ColorDecorationInjectedTextMarker = Object.create({});
 
-const colorDecorationWidthInEm = 0.8;
-const colorDecorationTopMarginInEm = 0.1;
-const colorDecorationHorizontalMarginInEm = 0.2;
 
 export class ColorDetector extends Disposable implements IEditorContribution {
 
@@ -207,7 +204,6 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 		this._colorDecorationClassRefs.clear();
 
 		const decorations: IModelDeltaDecoration[] = [];
-		const widthInEm = colorDecorationWidthInEm + 2 * colorDecorationHorizontalMarginInEm;
 
 		const limit = this._editor.getOption(EditorOption.colorDecoratorsLimit);
 
@@ -218,9 +214,7 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 
 			const ref = this._colorDecorationClassRefs.add(
 				this._ruleFactory.createClassNameRef({
-					backgroundColor: color,
-					margin: `${colorDecorationTopMarginInEm}em ${colorDecorationHorizontalMarginInEm}em 0`,
-					width: `${colorDecorationWidthInEm}em`
+					backgroundColor: color
 				})
 			);
 
@@ -237,7 +231,6 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 						content: noBreakWhitespace,
 						inlineClassName: `${ref.className} colorpicker-color-decoration`,
 						inlineClassNameAffectsLetterSpacing: true,
-						widthInEm,
 						attachedData: ColorDecorationInjectedTextMarker
 					}
 				}
