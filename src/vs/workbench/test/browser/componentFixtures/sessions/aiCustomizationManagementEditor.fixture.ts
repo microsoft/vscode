@@ -750,8 +750,8 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		AICustomizationManagementSection.Plugins,
 		AICustomizationManagementSection.McpServers,
 		AICustomizationManagementSection.Skills,
-		AICustomizationManagementSection.Agents,
 		AICustomizationManagementSection.Instructions,
+		AICustomizationManagementSection.Agents,
 		AICustomizationManagementSection.Hooks,
 		AICustomizationManagementSection.Tools,
 		AICustomizationManagementSection.Prompts,
@@ -1741,8 +1741,8 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 				AICustomizationManagementSection.Plugins,
 				AICustomizationManagementSection.McpServers,
 				AICustomizationManagementSection.Skills,
-				AICustomizationManagementSection.Agents,
 				AICustomizationManagementSection.Instructions,
+				AICustomizationManagementSection.Agents,
 				AICustomizationManagementSection.Hooks,
 				AICustomizationManagementSection.Tools,
 				AICustomizationManagementSection.Prompts,
@@ -1764,8 +1764,8 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 				AICustomizationManagementSection.Plugins,
 				AICustomizationManagementSection.McpServers,
 				AICustomizationManagementSection.Skills,
-				AICustomizationManagementSection.Agents,
 				AICustomizationManagementSection.Instructions,
+				AICustomizationManagementSection.Agents,
 				AICustomizationManagementSection.Hooks,
 				AICustomizationManagementSection.Tools,
 				AICustomizationManagementSection.Prompts,
@@ -1882,6 +1882,16 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Prompts,
+		}),
+	}),
+
+	PromptsTabNarrow: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			selectedSection: AICustomizationManagementSection.Prompts,
+			width: 550,
+			height: 500,
 		}),
 	}),
 

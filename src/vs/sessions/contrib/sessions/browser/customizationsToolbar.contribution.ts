@@ -89,18 +89,18 @@ export const CUSTOMIZATION_ITEMS: ICustomizationItemConfig[] = [
 		modelSection: AICustomizationManagementSection.Skills,
 	},
 	{
-		id: 'sessions.customization.agents',
-		label: localize('agents', "Agents"),
-		icon: agentIcon,
-		section: AICustomizationManagementSection.Agents,
-		modelSection: AICustomizationManagementSection.Agents,
-	},
-	{
 		id: 'sessions.customization.instructions',
 		label: localize('instructions', "Instructions"),
 		icon: instructionsIcon,
 		section: AICustomizationManagementSection.Instructions,
 		modelSection: AICustomizationManagementSection.Instructions,
+	},
+	{
+		id: 'sessions.customization.agents',
+		label: localize('agents', "Agents"),
+		icon: agentIcon,
+		section: AICustomizationManagementSection.Agents,
+		modelSection: AICustomizationManagementSection.Agents,
 	},
 	{
 		id: 'sessions.customization.hooks',

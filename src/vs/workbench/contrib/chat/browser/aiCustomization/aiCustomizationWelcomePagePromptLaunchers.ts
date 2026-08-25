@@ -276,8 +276,9 @@ export class PromptLaunchersAICustomizationWelcomePage extends Disposable implem
 			localize('overviewExploreCustomizationsDescription', "Manage what the active agent knows and can do."),
 			'welcome-prompts-explore-section',
 		);
-		for (const category of this.categoryDescriptions) {
-			if (!visibleSectionIds.has(category.id)) {
+		for (const section of this.workspaceService.managementSections) {
+			const category = this.categoryDescriptions.find(candidate => candidate.id === section);
+			if (!category || !visibleSectionIds.has(category.id)) {
 				continue;
 			}
 

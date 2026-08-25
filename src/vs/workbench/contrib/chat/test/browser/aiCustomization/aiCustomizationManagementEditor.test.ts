@@ -64,7 +64,6 @@ suite('aiCustomizationManagementEditor', () => {
 		migrationDescriptionElement: HTMLElement | undefined;
 		migrationBannerContainer: HTMLElement | undefined;
 		migrationLinkElement: HTMLAnchorElement | undefined;
-		migrationSearchQuery: string;
 		selectedCustomizationMigrationItems: ResourceMap<Set<PromptsStorage>>;
 		migrationPageDisposables: DisposableStore;
 		labelService: { getUriLabel(uri: URI, options?: { relative?: boolean }): string };
@@ -131,7 +130,6 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.migrationDescriptionElement = undefined;
 		editor.migrationBannerContainer = undefined;
 		editor.migrationLinkElement = undefined;
-		editor.migrationSearchQuery = '';
 		editor.selectedCustomizationMigrationItems = new ResourceMap();
 		editor.migrationPageDisposables = editor.editorPreviewDisposables.add(new DisposableStore());
 		editor.labelService = {
@@ -407,7 +405,7 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.editorPreviewDisposables.dispose();
 	});
 
-	test('user data migration banner states the Settings Sync trade-off and replaces the description', () => {
+	test('migration banners contain only the message and learn more link', () => {
 		const editor = createTestEditor(undefined, createConfigurationServiceStub({
 			[ChatConfiguration.ChatCustomizationsUserDataMigrationEnabled]: true,
 			[ChatConfiguration.ChatCustomizationsPromptMigrationEnabled]: true,
@@ -455,12 +453,11 @@ suite('aiCustomizationManagementEditor', () => {
 		document.body.appendChild(editor.migrationListContainer);
 
 		const readBanner = () => ({
-			title: editor.migrationBannerContainer!.querySelector('.customization-migration-banner-title')?.textContent ?? '',
 			message: editor.migrationBannerContainer!.querySelector('.customization-migration-banner-message')?.textContent ?? '',
-			consequence: editor.migrationBannerContainer!.querySelector('.customization-migration-banner-consequence')?.textContent ?? '',
-			consequenceMentionsSync: (editor.migrationBannerContainer!.querySelector('.customization-migration-banner-consequence')?.textContent ?? '').includes('Settings Sync'),
+			hasExtraContent: !!editor.migrationBannerContainer!.querySelector('.customization-migration-banner-title, .customization-migration-banner-icon, .customization-migration-banner-consequence'),
 			bannerHidden: editor.migrationBannerContainer!.style.display === 'none',
 			descriptionHidden: editor.migrationDescriptionElement!.style.display === 'none',
+			linkInBanner: editor.migrationLinkElement!.closest('.customization-migration-banner-content') !== null,
 		});
 
 		try {
@@ -468,27 +465,24 @@ suite('aiCustomizationManagementEditor', () => {
 			editor.renderCustomizationMigrationPage();
 			const userData = readBanner();
 
-			// The prompt-file migration keeps its plain description, with no banner.
 			editor.activeMigrationCategoryId = CustomizationMigrationCategoryId.PromptFiles;
 			editor.renderCustomizationMigrationPage();
 			const prompts = readBanner();
 
 			assert.deepStrictEqual({ userData, prompts }, {
 				userData: {
-					title: '2 customizations are not available to Copilot',
 					message: 'They are stored in user data, which only VS Code reads. Move them to \'~/.copilot\' so both VS Code and this harness can use them, keeping their name, type, and content.',
-					consequence: 'Migrated files aren\'t currently included in Settings Sync.',
-					consequenceMentionsSync: true,
+					hasExtraContent: false,
 					bannerHidden: false,
 					descriptionHidden: true,
+					linkInBanner: true,
 				},
 				prompts: {
-					title: '',
-					message: '',
-					consequence: '',
-					consequenceMentionsSync: false,
-					bannerHidden: true,
-					descriptionHidden: false,
+					message: 'Prompts are no longer supported by Copilot. Convert them to skills to keep them available in both VS Code and this harness.',
+					hasExtraContent: false,
+					bannerHidden: false,
+					descriptionHidden: true,
+					linkInBanner: true,
 				},
 			});
 		} finally {

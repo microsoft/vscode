@@ -32,7 +32,7 @@ suite('aiCustomizationWelcomePagePromptLaunchers', () => {
 			{ showGettingStartedBanner: false },
 			callbacks,
 			{} as ICommandService,
-			{ isSessionsWindow: true } as IAICustomizationWorkspaceService,
+			{ isSessionsWindow: true, managementSections: [] } as unknown as IAICustomizationWorkspaceService,
 			{} as IHoverService,
 			'Copilot',
 		));
@@ -82,20 +82,42 @@ suite('aiCustomizationWelcomePagePromptLaunchers', () => {
 				prefillChat() { },
 			},
 			{} as ICommandService,
-			{ isSessionsWindow: true } as IAICustomizationWorkspaceService,
+			{
+				isSessionsWindow: true,
+				managementSections: [
+					AICustomizationManagementSection.Plugins,
+					AICustomizationManagementSection.McpServers,
+					AICustomizationManagementSection.Skills,
+					AICustomizationManagementSection.Instructions,
+					AICustomizationManagementSection.Agents,
+					AICustomizationManagementSection.Hooks,
+					AICustomizationManagementSection.Tools,
+				],
+			} as unknown as IAICustomizationWorkspaceService,
 			{} as IHoverService,
 			'Copilot',
 		));
 
 		try {
-			page.rebuildCards(new Set([AICustomizationManagementSection.Agents]));
-			const card = parent.querySelector<HTMLButtonElement>('.welcome-prompts-navigation-card');
+			page.rebuildCards(new Set([
+				AICustomizationManagementSection.Agents,
+				AICustomizationManagementSection.Skills,
+				AICustomizationManagementSection.Instructions,
+				AICustomizationManagementSection.Hooks,
+				AICustomizationManagementSection.McpServers,
+				AICustomizationManagementSection.Plugins,
+				AICustomizationManagementSection.Tools,
+			]));
+			const cards = [...parent.querySelectorAll<HTMLButtonElement>('.welcome-prompts-navigation-card')];
+			const card = cards.find(candidate => candidate.getAttribute('aria-label') === 'Open Agents');
 			card?.click();
 			assert.deepStrictEqual({
+				cardLabels: cards.map(candidate => candidate.querySelector('.welcome-prompts-card-label')?.textContent),
 				tagName: card?.tagName,
 				nestedButtons: card?.querySelectorAll('button').length,
 				selectedSections,
 			}, {
+				cardLabels: ['Plugins', 'MCP Servers', 'Skills', 'Instructions', 'Agents', 'Hooks', 'Tools'],
 				tagName: 'BUTTON',
 				nestedButtons: 0,
 				selectedSections: [AICustomizationManagementSection.Agents],

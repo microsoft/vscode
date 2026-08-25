@@ -952,11 +952,6 @@ per-word capitalization does not survive translation. */
 	min-height: 0;
 }
 
-.ai-customization-management-editor .prompt-migration-actions {
-	padding-bottom: 0;
-	margin-bottom: var(--vscode-spacing-size160);
-}
-
 .ai-customization-management-editor .prompt-migration-footer {
 	flex-shrink: 0;
 	display: flex;
@@ -1008,37 +1003,25 @@ per-word capitalization does not survive translation. */
 	margin-bottom: 0;
 }
 
-/*
- * Migration banner — an Inner-tier callout that states the trade-off before the
- * user commits to a migration that deletes the originals by default.
- */
+/* Migration banner — an Inner-tier callout for customizations needing attention. */
 .ai-customization-management-editor .customization-migration-banner {
 	flex-shrink: 0;
-	display: flex;
-	align-items: flex-start;
-	gap: var(--vscode-spacing-size100);
 	margin: 0 0 var(--vscode-spacing-size120) 0;
 	padding: var(--vscode-spacing-size120);
-	background-color: var(--vscode-textBlockQuote-background, transparent);
-	border: var(--vscode-strokeThickness) solid var(--vscode-widget-border, transparent);
+	background: color-mix(in srgb, var(--vscode-inputValidation-warningBackground) 35%, var(--vscode-agentsPanel-background));
+	border: var(--vscode-strokeThickness) solid color-mix(in srgb, var(--vscode-inputValidation-warningBorder) 70%, var(--vscode-widget-border));
 	border-radius: var(--vscode-cornerRadius-medium);
 	box-sizing: border-box;
 }
 
-.ai-customization-management-editor .customization-migration-banner-icon {
-	flex-shrink: 0;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	width: 16px;
-	height: 16px;
-	color: var(--vscode-list-warningForeground, var(--vscode-editorWarning-foreground, var(--vscode-descriptionForeground)));
+.vscode-high-contrast .ai-customization-management-editor .customization-migration-banner {
+	border-color: var(--vscode-contrastBorder);
 }
 
 .ai-customization-management-editor .customization-migration-banner-content {
 	display: flex;
 	flex-direction: column;
-	gap: var(--vscode-spacing-size60);
+	gap: var(--vscode-spacing-size80);
 	min-width: 0;
 }
 
@@ -1077,7 +1060,7 @@ per-word capitalization does not survive translation. */
 
 .ai-customization-management-editor .migration-learn-more-link {
 	align-self: flex-start;
-	margin-top: var(--vscode-spacing-size80);
+	margin-top: 0;
 }
 
 .ai-customization-management-editor .prompt-migration-list {
@@ -1132,7 +1115,7 @@ per-word capitalization does not survive translation. */
 .ai-customization-management-editor .prompt-migration-group-controls {
 	display: flex;
 	align-items: center;
-	gap: var(--vscode-spacing-size60);
+	gap: var(--vscode-spacing-size40);
 	flex: 0 0 auto;
 }
 
@@ -2729,15 +2712,6 @@ per-word capitalization does not survive translation. */
 	outline-offset: -1px;
 }
 
-.plugin-list-widget .plugin-list-item-install-button .codicon {
-	display: inline-flex;
-	flex: 0 0 var(--vscode-codiconFontSize-compact);
-	width: var(--vscode-codiconFontSize-compact);
-	height: var(--vscode-codiconFontSize-compact);
-	font-size: var(--vscode-codiconFontSize-compact);
-	line-height: var(--vscode-codiconFontSize-compact);
-}
-
 .plugin-list-widget .plugin-card-container {
 	flex: 1;
 	min-height: 0;
@@ -2812,7 +2786,8 @@ per-word capitalization does not survive translation. */
 .plugin-list-widget.narrow-layout .available-plugins-section .plugin-available-action,
 .plugin-list-widget.narrow-layout .installed-plugins-section .plugin-installed-action,
 .plugin-list-widget.narrow-layout .installed-mcp-servers-section .plugin-installed-action,
-.plugin-list-widget.narrow-layout .customization-card-section .customization-create-action {
+.plugin-list-widget.narrow-layout .customization-card-section .customization-create-action,
+.plugin-list-widget.narrow-layout .customization-card-section .customization-generate-action {
 	flex: 1 1 auto;
 	min-width: 0;
 }
@@ -3060,10 +3035,6 @@ per-word capitalization does not survive translation. */
 .plugin-list-widget .plugin-home-empty-card .plugin-card-actions {
 	justify-content: center;
 	flex-wrap: wrap;
-}
-
-.plugin-list-widget .plugin-install-from-source-button .codicon-add::before {
-	font-size: var(--vscode-codiconFontSize-compact);
 }
 
 .plugin-list-widget .plugin-browse-all-button.monaco-button {

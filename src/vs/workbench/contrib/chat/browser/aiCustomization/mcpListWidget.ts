@@ -1295,9 +1295,9 @@ export class McpListWidget extends Disposable {
 	private renderInstalledSectionActions(header: HTMLElement): void {
 		const actions = DOM.append(header, $('.plugin-card-section-actions'));
 		const addLabel = localize('addServer', "Add Server");
-		const add = this.installedAddButton = this.cardDisposables.add(new Button(actions, { ...defaultButtonStyles, secondary: true, supportIcons: true, ariaLabel: addLabel }));
+		const add = this.installedAddButton = this.cardDisposables.add(new Button(actions, { ...defaultButtonStyles, secondary: true, ariaLabel: addLabel }));
 		add.element.classList.add('plugin-installed-action');
-		add.label = `$(${Codicon.add.id}) ${this.narrowLayout ? localize('addServerNarrow', "Add") : addLabel}`;
+		add.label = this.narrowLayout ? localize('addServerNarrow', "Add") : addLabel;
 		this.firstCardFocusElement ??= add.element;
 		this.cardDisposables.add(add.onDidClick(() => this.commandService.executeCommand(McpCommandIds.AddConfiguration)));
 	}
@@ -1389,11 +1389,11 @@ export class McpListWidget extends Disposable {
 
 		const actions = DOM.append(row, $('.plugin-list-item-action'));
 		this.isolateSurfaceActions(actions);
+		this.appendInstalledServerToggle(actions, entry);
 		const more = this.cardDisposables.add(new Button(actions, { ...getButtonStyles({ buttonSecondaryBackground: undefined, buttonSecondaryBorder: undefined }), secondary: true, supportIcons: true, ariaLabel: localize('mcpMoreActionsAria', "More actions for {0}", label) }));
 		more.element.classList.add('plugin-card-icon-button');
 		more.label = `$(${Codicon.ellipsis.id})`;
 		this.cardDisposables.add(more.onDidClick(() => this.showMcpServerActions(entry, more.element)));
-		this.appendInstalledServerToggle(actions, entry);
 	}
 
 	private appendInstalledServerToggle(parent: HTMLElement, entry: IMcpInstalledEntry): void {
@@ -1442,9 +1442,9 @@ export class McpListWidget extends Disposable {
 		description.textContent = truncateToFirstLine(server.description || localize('mcpNoDescription', "No description provided."));
 		const actions = DOM.append(row, $('.plugin-list-item-action'));
 		this.isolateSurfaceActions(actions);
-		const install = this.cardDisposables.add(new Button(actions, { ...defaultButtonStyles, secondary: true, supportIcons: true, ariaLabel: localize('installMcpServerAria', "Install {0}", server.label) }));
+		const install = this.cardDisposables.add(new Button(actions, { ...defaultButtonStyles, ariaLabel: localize('installMcpServerAria', "Install {0}", server.label) }));
 		install.element.classList.add('plugin-list-item-install-button');
-		install.label = `$(${Codicon.add.id}) ${localize('install', "Install")}`;
+		install.label = localize('install', "Install");
 		this.cardDisposables.add(install.onDidClick(() => this.installMarketplaceServer(server, install)));
 	}
 
@@ -1460,7 +1460,7 @@ export class McpListWidget extends Disposable {
 		description.textContent = truncateToFirstLine(server.description || localize('mcpNoDescription', "No description provided."));
 		const actions = DOM.append(header, $('.plugin-card-actions'));
 		this.isolateSurfaceActions(actions);
-		const install = this.cardDisposables.add(new Button(actions, { ...defaultButtonStyles, supportIcons: true, ariaLabel: localize('installMcpServerAria', "Install {0}", server.label) }));
+		const install = this.cardDisposables.add(new Button(actions, { ...defaultButtonStyles, ariaLabel: localize('installMcpServerAria', "Install {0}", server.label) }));
 		install.label = localize('install', "Install");
 		this.cardDisposables.add(install.onDidClick(() => this.installMarketplaceServer(server, install)));
 	}
@@ -1761,7 +1761,7 @@ export class McpListWidget extends Disposable {
 		this.element.classList.toggle('narrow-layout', narrow);
 		this.element.classList.toggle('wide-layout', wide);
 		if (this.installedAddButton) {
-			this.installedAddButton.label = `$(${Codicon.add.id}) ${narrow ? localize('addServerNarrow', "Add") : localize('addServer', "Add Server")}`;
+			this.installedAddButton.label = narrow ? localize('addServerNarrow', "Add") : localize('addServer', "Add Server");
 		}
 	}
 

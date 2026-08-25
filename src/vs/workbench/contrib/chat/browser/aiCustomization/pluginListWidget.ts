@@ -367,7 +367,7 @@ class PluginMarketplaceItemRenderer implements IListRenderer<IPluginMarketplaceI
 		const publisher = DOM.append(details, $('.plugin-list-item-source'));
 		const metadata = DOM.append(details, $('.plugin-list-item-metadata'));
 		const actionContainer = DOM.append(container, $('.plugin-list-item-action'));
-		const installButton = new Button(actionContainer, { ...defaultButtonStyles, supportIcons: true });
+		const installButton = new Button(actionContainer, defaultButtonStyles);
 		installButton.element.classList.add('plugin-list-item-install-button');
 
 		const templateDisposables = new DisposableStore();
@@ -738,14 +738,13 @@ export class PluginListWidget extends Disposable {
 
 		this.addButtonContainer = DOM.append(this.buttonContainer, $('.list-add-button-container'));
 		const addPluginLabel = localize('addPlugin', "Add Plugin");
-		this.addButtonSimple = this._register(new Button(this.addButtonContainer, { ...defaultButtonStyles, secondary: true, supportIcons: true, title: addPluginLabel, ariaLabel: addPluginLabel }));
+		this.addButtonSimple = this._register(new Button(this.addButtonContainer, { ...defaultButtonStyles, secondary: true, title: addPluginLabel, ariaLabel: addPluginLabel }));
 		this.addButtonSimple.element.classList.add('list-add-button');
 		this._register(this.addButtonSimple.onDidClick(() => this.runPrimaryAddAction()));
 
 		this.addButton = this._register(new ButtonWithDropdown(this.addButtonContainer, {
 			...defaultButtonStyles,
 			secondary: true,
-			supportIcons: true,
 			contextMenuProvider: this.contextMenuService,
 			addPrimaryActionToDropdown: false,
 			actions: { getActions: () => this.getAddDropdownActions() },
@@ -1016,8 +1015,8 @@ export class PluginListWidget extends Disposable {
 	private updateInstalledCreateButtonLabel(): void {
 		if (this.installedCreateButton) {
 			this.installedCreateButton.label = this.narrowLayout
-				? `$(${Codicon.newFile.id}) ${localize('createPluginNarrow', "Create")}`
-				: `$(${Codicon.newFile.id}) ${localize('createPlugin', "Create Plugin")}`;
+				? localize('createPluginNarrow', "Create")
+				: localize('createPlugin', "Create Plugin");
 		}
 	}
 
@@ -1049,7 +1048,6 @@ export class PluginListWidget extends Disposable {
 				id: 'plugin.installFromSource',
 				label: localize('installFromSourceShort', "Install from Source"),
 				tooltip: localize('installFromSource', "Install Plugin from Source"),
-				icon: Codicon.add,
 				run: async () => {
 					const installed = await this.commandService.executeCommand<boolean>('workbench.action.chat.installPluginFromSource', { skipReveal: true });
 					// Return to the installed list so the newly installed plugin is
@@ -1208,7 +1206,7 @@ export class PluginListWidget extends Disposable {
 	private renderInstalledSectionActions(header: HTMLElement): void {
 		const actions = DOM.append(header, $('.plugin-card-section-actions'));
 		const createLabel = localize('createPlugin', "Create Plugin");
-		const create = this.installedCreateButton = this.cardDisposables.add(new Button(actions, { ...defaultButtonStyles, secondary: true, supportIcons: true, ariaLabel: createLabel }));
+		const create = this.installedCreateButton = this.cardDisposables.add(new Button(actions, { ...defaultButtonStyles, secondary: true, ariaLabel: createLabel }));
 		create.element.classList.add('plugin-installed-action');
 		this.updateInstalledCreateButtonLabel();
 		this.rememberCardFocusElement(create.element);
@@ -1249,7 +1247,6 @@ export class PluginListWidget extends Disposable {
 			const install = this.cardDisposables.add(new ButtonWithDropdown(actions, {
 				...defaultButtonStyles,
 				secondary: true,
-				supportIcons: true,
 				contextMenuProvider: this.contextMenuService,
 				addPrimaryActionToDropdown: false,
 				actions: {
@@ -1262,12 +1259,12 @@ export class PluginListWidget extends Disposable {
 				ariaLabel: installTooltip,
 			}));
 			install.element.classList.add('plugin-available-action');
-			install.label = `$(${Codicon.add.id}) ${installLabel}`;
+			install.label = installLabel;
 			this.cardDisposables.add(install.onDidClick(() => this.runInstallFromSourceAction()));
 		} else {
-			const install = this.cardDisposables.add(new Button(actions, { ...defaultButtonStyles, secondary: true, supportIcons: true, title: installTooltip, ariaLabel: installTooltip }));
+			const install = this.cardDisposables.add(new Button(actions, { ...defaultButtonStyles, secondary: true, title: installTooltip, ariaLabel: installTooltip }));
 			install.element.classList.add('plugin-available-action');
-			install.label = `$(${Codicon.add.id}) ${installLabel}`;
+			install.label = installLabel;
 			this.cardDisposables.add(install.onDidClick(() => this.runInstallFromSourceAction()));
 		}
 
@@ -1302,11 +1299,11 @@ export class PluginListWidget extends Disposable {
 
 		const actions = DOM.append(row, $('.plugin-list-item-action'));
 		this.isolateSurfaceActions(actions);
+		this.appendInstalledPluginToggle(actions, item);
 		const more = this.cardDisposables.add(new Button(actions, { ...getButtonStyles({ buttonSecondaryBackground: undefined, buttonSecondaryBorder: undefined }), secondary: true, supportIcons: true, ariaLabel: localize('pluginMoreActionsAria', "More actions for {0}", item.name) }));
 		more.element.classList.add('plugin-card-icon-button');
 		more.label = `$(${Codicon.ellipsis.id})`;
 		this.cardDisposables.add(more.onDidClick(() => this.showInstalledPluginActions(item, more.element)));
-		this.appendInstalledPluginToggle(actions, item);
 	}
 
 	private appendInstalledPluginToggle(parent: HTMLElement, item: IInstalledPluginItem): void {
@@ -1385,9 +1382,9 @@ export class PluginListWidget extends Disposable {
 
 		const actions = DOM.append(row, $('.plugin-list-item-action'));
 		this.isolateSurfaceActions(actions);
-		const install = this.cardDisposables.add(new Button(actions, { ...defaultButtonStyles, secondary: true, supportIcons: true, ariaLabel: localize('installPluginAria', "Install {0}", item.name) }));
+		const install = this.cardDisposables.add(new Button(actions, { ...defaultButtonStyles, ariaLabel: localize('installPluginAria', "Install {0}", item.name) }));
 		install.element.classList.add('plugin-list-item-install-button');
-		install.label = `$(${Codicon.add.id}) ${localize('install', "Install")}`;
+		install.label = localize('install', "Install");
 		this.cardDisposables.add(install.onDidClick(() => this.installMarketplacePlugin(item, install)));
 	}
 
@@ -1403,7 +1400,7 @@ export class PluginListWidget extends Disposable {
 		descriptionLine.textContent = truncateToFirstLine(item.description || localize('pluginNoDescription', "No description provided."));
 		const actions = DOM.append(header, $('.plugin-card-actions'));
 		this.isolateSurfaceActions(actions);
-		const install = this.cardDisposables.add(new Button(actions, { ...defaultButtonStyles, supportIcons: true, ariaLabel: localize('installPluginAria', "Install {0}", item.name) }));
+		const install = this.cardDisposables.add(new Button(actions, { ...defaultButtonStyles, ariaLabel: localize('installPluginAria', "Install {0}", item.name) }));
 		install.label = localize('install', "Install");
 		this.cardDisposables.add(install.onDidClick(() => this.installMarketplacePlugin(item, install)));
 		if (showRecommendedBadge && this.pluginMarketplaceService.recommendedPlugins.get().has(getMarketplaceRecommendationKey(item))) {

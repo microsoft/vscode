@@ -29,7 +29,7 @@ import { ResourceSet } from '../../../../../../base/common/map.js';
 suite('aiCustomizationListWidget', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('uses the inventory card layout for the redesigned sections only', () => {
+	test('uses the inventory card layout for all file customization sections', () => {
 		assert.deepStrictEqual({
 			agents: usesCustomizationCardLayout(AICustomizationManagementSection.Agents),
 			skills: usesCustomizationCardLayout(AICustomizationManagementSection.Skills),
@@ -41,7 +41,7 @@ suite('aiCustomizationListWidget', () => {
 			skills: true,
 			instructions: true,
 			hooks: true,
-			prompts: false,
+			prompts: true,
 		});
 	});
 
@@ -59,7 +59,7 @@ suite('aiCustomizationListWidget', () => {
 			instructions: [PromptsStorage.local, PromptsStorage.user],
 			hooks: [PromptsStorage.local, PromptsStorage.user],
 			filtered: [],
-			prompts: [],
+			prompts: [PromptsStorage.local, PromptsStorage.user],
 		});
 	});
 

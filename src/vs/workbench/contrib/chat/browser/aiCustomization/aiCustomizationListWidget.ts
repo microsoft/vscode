@@ -503,7 +503,8 @@ export function usesCustomizationCardLayout(section: AICustomizationManagementSe
 	return section === AICustomizationManagementSection.Agents
 		|| section === AICustomizationManagementSection.Skills
 		|| section === AICustomizationManagementSection.Instructions
-		|| section === AICustomizationManagementSection.Hooks;
+		|| section === AICustomizationManagementSection.Hooks
+		|| section === AICustomizationManagementSection.Prompts;
 }
 
 export function getAlwaysVisibleCustomizationGroupKeys(section: AICustomizationManagementSection, isFiltering: boolean): readonly string[] {
@@ -574,6 +575,7 @@ interface ICreateAction {
 	readonly label: string;
 	readonly enabled: boolean;
 	readonly tooltip?: string;
+	readonly kind?: 'generate';
 	readonly target?: 'workspace' | 'user';
 	run(): void;
 }
@@ -758,7 +760,6 @@ export class AICustomizationListWidget extends Disposable {
 		// Simple button (for single-action case, no dropdown)
 		this.addButtonSimple = this._register(new Button(this.addButtonContainer, {
 			...defaultButtonStyles,
-			supportIcons: true,
 		}));
 		this.addButtonSimple.element.classList.add('list-add-button');
 		this._register(this.addButtonSimple.onDidClick(() => this.executePrimaryCreateAction()));
@@ -766,7 +767,6 @@ export class AICustomizationListWidget extends Disposable {
 		// Button with dropdown (for multi-action case)
 		this.addButton = this._register(new ButtonWithDropdown(this.addButtonContainer, {
 			...defaultButtonStyles,
-			supportIcons: true,
 			contextMenuProvider: this.contextMenuService,
 			addPrimaryActionToDropdown: false,
 			actions: { getActions: () => this.getDropdownActions() },
@@ -1155,7 +1155,7 @@ export class AICustomizationListWidget extends Disposable {
 		// Full command override (e.g. Claude hooks) — single action, no dropdown
 		if (override?.commandId) {
 			return [{
-				label: `$(${Codicon.add.id}) ${override.label}`,
+				label: override.label ?? localize('newCustomization', "New {0}", typeLabel),
 				enabled: true,
 				run: () => { this.commandService.executeCommand(override.commandId!); },
 			}];
@@ -1176,9 +1176,8 @@ export class AICustomizationListWidget extends Disposable {
 		for (const [, group] of menuActions) {
 			for (const menuItem of group) {
 				if (menuItem instanceof MenuItemAction) {
-					const icon = ThemeIcon.isThemeIcon(menuItem.item.icon) ? menuItem.item.icon.id : Codicon.add.id;
 					extensionCreateActions.push({
-						label: `$(${icon}) ${typeof menuItem.item.title === 'string' ? menuItem.item.title : menuItem.item.title.value}`,
+						label: typeof menuItem.item.title === 'string' ? menuItem.item.title : menuItem.item.title.value,
 						enabled: menuItem.enabled,
 						run: () => { menuItem.run(); },
 					});
@@ -1198,7 +1197,7 @@ export class AICustomizationListWidget extends Disposable {
 		// Without a workspace, user creation becomes primary and rootFile goes to dropdown.
 		if (override?.rootFile && hasWorkspace) {
 			actions.push({
-				label: `$(${Codicon.add.id}) ${override.label}`,
+				label: override.label ?? localize('newCustomization', "New {0}", typeLabel),
 				enabled: true,
 				target: 'workspace',
 				run: () => { this._onDidRequestCreateManual.fire({ type: promptType, target: 'workspace-root' }); },
@@ -1210,21 +1209,23 @@ export class AICustomizationListWidget extends Disposable {
 		if (promptType === PromptsType.hook) {
 			if (!this.workspaceService.isSessionsWindow && !descriptor.hideGenerateButton) {
 				actions.push({
-					label: `$(${Codicon.sparkle.id}) Generate ${typeLabel}`,
+					label: localize('generateWithAI', "Generate with AI"),
+					tooltip: localize('generateCustomizationWithAI', "Generate {0} with AI", typeLabel),
 					enabled: true,
+					kind: 'generate',
 					run: () => { this._onDidRequestCreate.fire(promptType); },
 				});
 			}
 			if (hasWorkspace) {
 				actions.push({
-					label: `$(${Codicon.add.id}) ${localize('newHooks', "New Hooks")}`,
+					label: localize('newHook', "New Hook"),
 					enabled: true,
 					target: 'workspace',
 					run: () => { this._onDidRequestCreateManual.fire({ type: promptType, target: 'local' }); },
 				});
 			}
 			actions.push({
-				label: `$(${Codicon.add.id}) ${localize('newHooks', "New Hooks")}`,
+				label: localize('newHook', "New Hook"),
 				enabled: true,
 				target: 'user',
 				run: () => { this._onDidRequestCreateManual.fire({ type: promptType, target: 'user' }); },
@@ -1237,16 +1238,18 @@ export class AICustomizationListWidget extends Disposable {
 		if (!override?.rootFile) {
 			// Determine the primary action (first in list)
 			if (!this.workspaceService.isSessionsWindow && !descriptor.hideGenerateButton) {
-				// Core Local: Generate is primary
+				// Local exposes one non-storage-scoped AI generation action.
 				actions.push({
-					label: `$(${Codicon.sparkle.id}) Generate ${typeLabel}`,
+					label: localize('generateWithAI', "Generate with AI"),
+					tooltip: localize('generateCustomizationWithAI', "Generate {0} with AI", typeLabel),
 					enabled: true,
+					kind: 'generate',
 					run: () => { this._onDidRequestCreate.fire(promptType); },
 				});
 			} else if (hasWorkspace) {
 				// Sessions or non-local harness with workspace: workspace is primary
 				actions.push({
-					label: `$(${Codicon.add.id}) New ${createTypeLabel} (Workspace)`,
+					label: localize('newWorkspaceCustomization', "New {0} (Workspace)", createTypeLabel),
 					enabled: true,
 					target: 'workspace',
 					run: () => { this._onDidRequestCreateManual.fire({ type: promptType, target: 'local' }); },
@@ -1255,7 +1258,7 @@ export class AICustomizationListWidget extends Disposable {
 			} else {
 				// No workspace: user is primary
 				actions.push({
-					label: `$(${Codicon.add.id}) New ${createTypeLabel} (User)`,
+					label: localize('newUserCustomization', "New {0} (User)", createTypeLabel),
 					enabled: true,
 					target: 'user',
 					run: () => { this._onDidRequestCreateManual.fire({ type: promptType, target: 'user' }); },
@@ -1267,7 +1270,7 @@ export class AICustomizationListWidget extends Disposable {
 		// Secondary actions (dropdown) — only add if not already present
 		if (hasWorkspace && !addedTargets.has('workspace')) {
 			actions.push({
-				label: `$(${Codicon.folder.id}) New ${createTypeLabel} (Workspace)`,
+				label: localize('newWorkspaceCustomization', "New {0} (Workspace)", createTypeLabel),
 				enabled: true,
 				target: 'workspace',
 				run: () => { this._onDidRequestCreateManual.fire({ type: promptType, target: 'local' }); },
@@ -1276,7 +1279,7 @@ export class AICustomizationListWidget extends Disposable {
 
 		if (!addedTargets.has('user')) {
 			actions.push({
-				label: `$(${Codicon.account.id}) New ${createTypeLabel} (User)`,
+				label: localize('newUserCustomization', "New {0} (User)", createTypeLabel),
 				enabled: true,
 				target: 'user',
 				run: () => { this._onDidRequestCreateManual.fire({ type: promptType, target: 'user' }); },
@@ -1287,7 +1290,7 @@ export class AICustomizationListWidget extends Disposable {
 		if (hasWorkspace && override?.rootFileShortcuts && !addedTargets.has('workspace-root')) {
 			for (const fileName of override.rootFileShortcuts) {
 				actions.push({
-					label: `$(${Codicon.file.id}) New ${fileName}`,
+					label: localize('newCustomizationFile', "New {0}", fileName),
 					enabled: true,
 					target: 'workspace',
 					run: () => { this._onDidRequestCreateManual.fire({ type: promptType, target: 'workspace-root', rootFileName: fileName }); },
@@ -1338,7 +1341,7 @@ export class AICustomizationListWidget extends Disposable {
 			case AICustomizationManagementSection.Skills:
 				return localize('skill', "Skill");
 			case AICustomizationManagementSection.Instructions:
-				return localize('instructions', "Instructions");
+				return localize('instruction', "Instruction");
 			case AICustomizationManagementSection.Hooks:
 				return localize('hook', "Hook");
 			case AICustomizationManagementSection.Prompts:
@@ -1615,7 +1618,8 @@ export class AICustomizationListWidget extends Disposable {
 		return this.currentSection === AICustomizationManagementSection.Agents
 			|| this.currentSection === AICustomizationManagementSection.Skills
 			|| this.currentSection === AICustomizationManagementSection.Instructions
-			|| this.currentSection === AICustomizationManagementSection.Hooks;
+			|| this.currentSection === AICustomizationManagementSection.Hooks
+			|| this.currentSection === AICustomizationManagementSection.Prompts;
 	}
 
 	private getCreateActionGroupKey(): string | undefined {
@@ -1642,9 +1646,8 @@ export class AICustomizationListWidget extends Disposable {
 		const button = this.cardDisposables.add(new Button(container, {
 			...defaultButtonStyles,
 			secondary: true,
-			supportIcons: true,
-			title: primary.tooltip ?? label.replace(/\$\([^)]+\)\s*/g, ''),
-			ariaLabel: primary.tooltip ?? label.replace(/\$\([^)]+\)\s*/g, ''),
+			title: primary.tooltip ?? label,
+			ariaLabel: primary.tooltip ?? label,
 		}));
 		button.element.classList.add('customization-create-action');
 		button.label = label;
@@ -1652,7 +1655,21 @@ export class AICustomizationListWidget extends Disposable {
 		this.firstCardFocusElement ??= button.element;
 		this.cardDisposables.add(button.onDidClick(() => primary.run()));
 
-		const secondaryActions = actions.filter(action => action !== primary);
+		const generateAction = actions.find(action => action.kind === 'generate');
+		if (generateAction && generateAction !== primary) {
+			const generateButton = this.cardDisposables.add(new Button(container, {
+				...defaultButtonStyles,
+				secondary: true,
+				title: generateAction.tooltip ?? generateAction.label,
+				ariaLabel: generateAction.tooltip ?? generateAction.label,
+			}));
+			generateButton.element.classList.add('customization-generate-action');
+			generateButton.label = generateAction.label;
+			generateButton.enabled = generateAction.enabled;
+			this.cardDisposables.add(generateButton.onDidClick(() => generateAction.run()));
+		}
+
+		const secondaryActions = actions.filter(action => action !== primary && action !== generateAction);
 		if (secondaryActions.length > 0) {
 			const moreLabel = localize('moreCreateActions', "More creation actions for {0}", groupKey === PromptsStorage.local ? localize('workspace', "Workspace") : localize('user', "User"));
 			const more = this.cardDisposables.add(new Button(container, {
@@ -1669,10 +1686,9 @@ export class AICustomizationListWidget extends Disposable {
 	}
 
 	private formatTargetedCreateActionLabel(action: ICreateAction): string {
-		const label = action.label
+		return action.label
 			.replace(/^\$\([^)]+\)\s*/, '')
 			.replace(/\s+\((?:Workspace|User)\)$/, '');
-		return `$(${Codicon.add.id}) ${label}`;
 	}
 
 	private showCreateActionsMenu(createActions: readonly ICreateAction[], anchor: HTMLElement): void {
@@ -1702,6 +1718,8 @@ export class AICustomizationListWidget extends Disposable {
 				return workspace ? localize('noWorkspaceInstructions', "No workspace instructions yet.") : localize('noUserInstructions', "No user instructions yet.");
 			case AICustomizationManagementSection.Hooks:
 				return workspace ? localize('noWorkspaceHooks', "No workspace hooks yet.") : localize('noUserHooks', "No user hooks yet.");
+			case AICustomizationManagementSection.Prompts:
+				return workspace ? localize('noWorkspacePrompts', "No workspace prompts yet.") : localize('noUserPrompts', "No user prompts yet.");
 			default:
 				return localize('noCustomizationsInSection', "No customizations are available.");
 		}
@@ -1719,7 +1737,6 @@ export class AICustomizationListWidget extends Disposable {
 			const button = this.cardDisposables.add(new ButtonWithDropdown(container, {
 				...defaultButtonStyles,
 				secondary: true,
-				supportIcons: true,
 				contextMenuProvider: this.contextMenuService,
 				addPrimaryActionToDropdown: false,
 				actions: { getActions: () => this.getDropdownActions() },
@@ -1737,7 +1754,6 @@ export class AICustomizationListWidget extends Disposable {
 		const button = this.cardDisposables.add(new Button(container, {
 			...defaultButtonStyles,
 			secondary: true,
-			supportIcons: true,
 			title: accessibleLabel,
 			ariaLabel: accessibleLabel,
 		}));

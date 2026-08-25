@@ -29,7 +29,7 @@ import { createPolicyBlockedEnableAction, createUninstallPluginAction, isPluginP
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { basename, dirname, joinPath } from '../../../../../base/common/resources.js';
-import { AICustomizationManagementSection } from '../../common/aiCustomizationWorkspaceService.js';
+import { AICustomizationManagementSection, IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
@@ -39,7 +39,6 @@ import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import type { IContextMenuProvider } from '../../../../../base/browser/contextmenu.js';
 import { AnchorAlignment } from '../../../../../base/browser/ui/contextview/contextview.js';
 import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
-import { IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
 import { getActiveCustomizationTargetLabel, getPluginInclusionLabel, getPluginScopeLabel, getPluginStateSummary } from './aiCustomizationPresentation.js';
 import { getErrorMessage } from '../../../../../base/common/errors.js';
 import { autorun } from '../../../../../base/common/observable.js';
@@ -280,7 +279,7 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 
 	private renderTitleActions(item: IAgentPluginItem): void {
 		if (item.kind === AgentPluginItemKind.Marketplace) {
-			const installButton = this.renderDisposables.add(new Button(this.titleActionsEl, { ...defaultButtonStyles, supportIcons: true, ariaLabel: localize('installPluginAria', "Install {0}", item.name) }));
+			const installButton = this.renderDisposables.add(new Button(this.titleActionsEl, { ...defaultButtonStyles, ariaLabel: localize('installPluginAria', "Install {0}", item.name) }));
 			installButton.label = localize('install', "Install");
 			this.renderDisposables.add(installButton.onDidClick(async () => {
 				installButton.label = localize('installing', "Installing...");
