@@ -28,7 +28,7 @@
 	white-space: nowrap;
 }
 
-.interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.model-picker-split.compact:not(:has(.chat-input-picker-label)) .model-picker-section {
+.interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.model-picker-split.icon-only .model-picker-section {
 	width: 100%;
 	height: 100%;
 	padding: 0;
