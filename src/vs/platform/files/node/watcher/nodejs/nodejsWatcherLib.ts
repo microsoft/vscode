@@ -9,7 +9,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../../base/
 import { isEqual, isEqualOrParent } from '../../../../../base/common/extpath.js';
 import { Disposable, DisposableStore, IDisposable, thenRegisterOrDispose, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { normalizeNFC } from '../../../../../base/common/normalization.js';
-import { basename, dirname, join } from '../../../../../base/common/path.js';
+import { basename, dirname, isAbsolute, join } from '../../../../../base/common/path.js';
 import { isLinux, isMacintosh } from '../../../../../base/common/platform.js';
 import { joinPath } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -283,8 +283,16 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 					// Folder child added/deleted
 					if (type === 'rename') {
 
+						// Windows repeatedly reports the full watched path when a folder is deleted.
+						const isAbsoluteWatchedPathChange = isAbsolute(changedFileName)
+							&& isEqual(basename(changedFileName), pathBasename, !isLinux);
+
 						// Cancel any previous stats for this file if existing
-						mapPathToStatDisposable.get(changedFileName)?.dispose();
+						const pendingStat = mapPathToStatDisposable.get(changedFileName);
+						if (isAbsoluteWatchedPathChange && pendingStat) {
+							return;
+						}
+						pendingStat?.dispose();
 
 						// Wait a bit and try see if the file still exists on disk
 						// to decide on the resulting event
@@ -302,15 +310,26 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 							// -   Linux: "rename" event is reported with the
 							//            name of the folder and events stop
 							//            working
-							// - Windows: an EPERM error is thrown that we
-							//            handle from the `on('error')` event
+							// - Windows: repeated "rename" events report the
+							//            full watched path
 							//
-							// We do not re-attach the watcher after timeout
-							// though as we do for file watches because for
-							// file watching specifically we want to handle
-							// the atomic-write cases where the file is being
-							// deleted and recreated with different contents.
+							if (isAbsoluteWatchedPathChange) {
+								watcherDisposables.clear();
+								const watchedPathExists = await Promises.exists(realPath);
+								if (cts.token.isCancellationRequested) {
+									return;
+								}
+								if (watchedPathExists) {
+									await thenRegisterOrDispose(this.doWatch(true), watcherDisposables);
+								} else {
+									this.onWatchedPathDeleted(requestResource);
+								}
+
+								return;
+							}
+
 							if (isEqual(changedFileName, pathBasename, !isLinux) && !await Promises.exists(realPath)) {
+								watcherDisposables.clear();
 								this.onWatchedPathDeleted(requestResource);
 
 								return;
