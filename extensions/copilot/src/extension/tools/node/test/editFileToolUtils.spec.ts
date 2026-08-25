@@ -752,9 +752,16 @@ describe('makeUriConfirmationChecker', async () => {
 		const workspaceFolder = URI.file('/workspace');
 		workspaceService = new TestWorkspaceService([workspaceFolder], []);
 
+		await configService.setNonExtensionConfig('chat.tools.edits.autoApprove', {
+			'**/.mcp.json': true,
+			'**/.npmrc': true,
+		});
+
 		const checker = makeUriConfirmationChecker(configService, workspaceService.getWorkspaceFolder.bind(workspaceService), customInstructionsService);
 		const files = [
 			URI.file('/workspace/.mcp.json'),
+			URI.file('/workspace/.npmrc'),
+			URI.file('/workspace/packages/nested/.npmrc'),
 			URI.file('/workspace/.vscode/settings.json'),
 		];
 		const results = await Promise.all(files.map(file => checker(file)));
