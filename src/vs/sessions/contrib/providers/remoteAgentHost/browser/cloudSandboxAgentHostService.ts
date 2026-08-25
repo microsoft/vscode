@@ -119,8 +119,7 @@ export class CloudSandboxAgentHostService extends Disposable implements ICloudSa
 		// Three per-client relay lanes: publish to `to_host`; receive replies on `to_client` and
 		// unsolicited session state on `broadcast`. `groupValidation` drops inbound frames whose
 		// group name doesn't carry our own client id.
-		// Every soft-reconnect builds a fresh transport, so each gets its own logger keyed on the
-		// connection id; disabled by default, since this records full frame contents.
+		// Each soft reconnect gets a transport-owned logger keyed by connection id.
 		const ahpLoggingEnabled = !!this._configurationService.getValue<boolean>(AgentHostAhpJsonlLoggingSettingId);
 		const transportFactory = (): IProtocolTransport => new WebPubSubRelayTransport({
 			url: buildWpsUrl(creds.token),
