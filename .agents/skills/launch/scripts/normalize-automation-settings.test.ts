@@ -35,7 +35,7 @@ function parseJsonc(text: string): Record<string, unknown> {
 	let inString = false, inLine = false, inBlock = false;
 	for (let i = 0; i < text.length; i++) {
 		const c = text[i], n = text[i + 1];
-		if (inLine) { if (c === '\n') { inLine = false; out += c; } continue; }
+		if (inLine) { if (c === '\n' || c === '\r') { inLine = false; out += c; } continue; }
 		if (inBlock) { if (c === '*' && n === '/') { inBlock = false; i++; } continue; }
 		if (inString) {
 			out += c;
@@ -119,6 +119,9 @@ const valid: [name: string, content: string | undefined][] = [
 	['array value at the root', '{ "a": [1, 2] }'],
 	['unicode-escaped override key', '{ "\\u005btypescript\\u005d": { "editor.editContext": false } }'],
 	['BOM before the root object', '\uFEFF{ "a": 1 }'],
+	// A bare CR ends a line comment for VS Code's scanner, so this file is valid
+	// and must not be masked away as one giant comment.
+	['CR-only line endings with a comment', '{\r // note\r "a": 1\r}'],
 ];
 
 for (const [name, content] of valid) {
@@ -140,14 +143,15 @@ for (const [name, content] of valid) {
 			if (KEYS.includes(key)) {
 				continue;
 			}
-			assert.deepStrictEqual(stripKeys(parsed[key]), stripKeys(value),
+			const isOverride = OVERRIDE_KEY.test(key);
+			assert.deepStrictEqual(stripKeys(parsed[key], isOverride), stripKeys(value, isOverride),
 				`${key} was not preserved in:\n${text}`);
 		}
 		// Comments are data too, and a reparse-and-rewrite would silently drop them.
 		// Only count `//` that actually starts a comment - a URL inside a string
 		// value is not one, and neither is a key that merely looks like one.
-		const comments = (stripStrings(content ?? '').match(/\/\/[^\n]*/g) ?? []).filter(c => !c.includes('editContext'));
-		const survivingComments = stripStrings(text).match(/\/\/[^\n]*/g) ?? [];
+		const comments = (stripStrings(content ?? '').match(/\/\/[^\n\r]*/g) ?? []).filter(c => !c.includes('editContext'));
+		const survivingComments = stripStrings(text).match(/\/\/[^\n\r]*/g) ?? [];
 		for (const comment of comments) {
 			assert.ok(survivingComments.includes(comment), `comment ${comment} was dropped from:\n${text}`);
 		}
@@ -167,18 +171,24 @@ const posixOnly = { skip: process.platform === 'win32' ? 'symlinks require eleva
 
 // Values nested under a language override legitimately change (that is the
 // point), so compare everything else structurally with those keys removed.
-function stripKeys(value: unknown): unknown {
+function stripKeys(value: unknown, isOverrideBlock: boolean): unknown {
+	// Only direct children of a top-level `[language]` block are rewritten, so
+	// only those may be stripped. Recursing everywhere would also hide a deeply
+	// nested `editor.editContext` being corrupted - exactly what this guards.
 	if (value === null || typeof value !== 'object' || Array.isArray(value)) {
 		return value;
 	}
 	const out: Record<string, unknown> = {};
 	for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
-		if (!KEYS.includes(k)) {
-			out[k] = stripKeys(v);
+		if (isOverrideBlock && KEYS.includes(k)) {
+			continue;
 		}
+		out[k] = stripKeys(v, false);
 	}
 	return out;
 }
+
+const OVERRIDE_KEY = /^(\[[^\]]+\])+$/;
 
 const malformed: [name: string, content: string][] = [
 	['truncated after a nested object', '{ "a": 1,\n "b": { "c": 2 }\n'],
@@ -350,4 +360,24 @@ test('discovers a named profile whose settings.json is a dangling symlink', posi
 		targetCreated: false,
 		enabled: KEYS.map(k => [k, true])
 	});
+});
+
+// Only ENOENT proves a link is dangling. An unreadable target still has
+// settings behind it, so replacing it with an empty file would discard them.
+test('fails closed when a symlinked settings file cannot be read', posixOnly, () => {
+	const root = fs.mkdtempSync(path.join(os.tmpdir(), 'nas-unreadable-'));
+	fs.mkdirSync(path.join(root, 'User'), { recursive: true });
+	const target = path.join(root, 'target');
+	fs.mkdirSync(target);
+	fs.symlinkSync(target, path.join(root, 'User', 'settings.json'));
+
+	let status = 0;
+	try {
+		execFileSync(process.execPath, [script, '--user-data-dir', root], { stdio: 'pipe' });
+	} catch (error) {
+		status = (error as { status?: number }).status ?? 1;
+	}
+
+	assert.deepStrictEqual({ status, targetStillADirectory: fs.statSync(target).isDirectory() },
+		{ status: 1, targetStillADirectory: true });
 });

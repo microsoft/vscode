@@ -58,8 +58,17 @@ export function normalizeSettingsFile(f: string, root?: string): void {
 			// A dangling link has no contents to preserve, but it must still be
 			// replaced: writing through it would create the target *outside* the
 			// throwaway profile.
+			// Only ENOENT proves the link is dangling. Any other read failure
+			// (EACCES, EIO, a directory target) means there *are* settings we just
+			// cannot see, and treating that as empty would silently discard them.
 			let contents = '';
-			try { contents = fs.readFileSync(f, 'utf8'); } catch { contents = ''; }
+			try {
+				contents = fs.readFileSync(f, 'utf8');
+			} catch (e) {
+				if ((e as NodeJS.ErrnoException).code !== 'ENOENT') {
+					throw e;
+				}
+			}
 			fs.unlinkSync(f);
 			fs.writeFileSync(f, contents);
 		}
@@ -99,7 +108,10 @@ export function normalizeSettingsFile(f: string, root?: string): void {
 		for (let i = 0; i < src.length; i++) {
 			const c = src[i], n = src[i + 1];
 			if (inLine) {
-				if (c === '\n') { inLine = false; } else { out[i] = ' '; }
+				// A bare `\r` ends a line comment too - VS Code's scanner treats it as
+				// LineBreakTrivia - so masking to the next `\n` would blank the whole
+				// file and get a valid CR-only settings.json rejected as malformed.
+				if (c === '\n' || c === '\r') { inLine = false; } else { out[i] = ' '; }
 				continue;
 			}
 			if (inBlock) {

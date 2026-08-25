@@ -143,7 +143,7 @@ $ext = $info.extHostPort
 $main = $info.mainPort
 $agent = $info.agentHostPort
 $log = $info.logFile
-$pid = $info.pid
+$codePid = $info.pid   # not `$pid`: that is PowerShell's own read-only PID
 ```
 
 ### What each port is for
@@ -536,6 +536,39 @@ if pgrep -f "$RUN_RE" >/dev/null; then
 else
   rm -rf "$RUN_DIR"
 fi
+```
+
+On Windows, where neither Bash nor `pgrep` is available:
+
+```powershell
+Stop-Process -Id $codePid -ErrorAction SilentlyContinue
+Start-Sleep -Seconds 3
+
+# Resolve first: only a real launcher run directory may be removed.
+$resolved = Resolve-Path -LiteralPath $info.runDir -ErrorAction SilentlyContinue
+$runDir = if ($resolved) { $resolved.ProviderPath } else { $null }
+if (-not $runDir -or (Split-Path -Leaf $runDir) -notlike 'code-oss-dev-*') {
+	throw "refusing to clean up: bad runDir '$($info.runDir)'"
+}
+
+# Match on the command line, so other agents' concurrent instances are left
+# alone. `-like` takes a wildcard pattern, not a regex, so the path needs no
+# escaping - but it does need the wildcards.
+$survivors = { Get-CimInstance Win32_Process |
+	Where-Object { $_.CommandLine -like "*$runDir*" } }
+
+& $survivors | ForEach-Object { Stop-Process -Id $_.ProcessId -ErrorAction SilentlyContinue }
+Start-Sleep -Seconds 2
+
+# Only discard the profile once nothing is left: a survivor still holds the
+# run's logs open, and deleting them removes the evidence you need.
+$left = & $survivors
+if ($left) {
+	Write-Host "STILL RUNNING: $($left.ProcessId -join ' ')"
+	Write-Host "keeping $runDir for diagnosis"
+} else {
+	Remove-Item -LiteralPath $runDir -Recurse -Force -ErrorAction SilentlyContinue
+}
 ```
 
 To audit the whole machine after a batch of runs — total resident memory and
