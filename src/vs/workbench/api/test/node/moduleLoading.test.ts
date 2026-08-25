@@ -8,14 +8,24 @@ import { mkdtempSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { pathToFileURL } from 'url';
-import { tryRequireSync } from '../../node/moduleLoading.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
-suite('tryRequireSync', () => {
+// The module under test imports `node:module`, which the Electron renderer that also picks up
+// these files cannot resolve, so it is loaded dynamically and only where it can load.
+type TryRequireSync = typeof import('../../node/moduleLoading.js').tryRequireSync;
+
+const isNodeProcess = typeof process !== 'undefined' && !process.type;
+
+(isNodeProcess ? suite : suite.skip)('tryRequireSync', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	let dir: string;
+	let tryRequireSync: TryRequireSync;
+
+	suiteSetup(async () => {
+		tryRequireSync = (await import('../../node/moduleLoading.js')).tryRequireSync;
+	});
 
 	setup(() => {
 		dir = mkdtempSync(join(tmpdir(), 'vscode-module-loading-'));
