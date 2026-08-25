@@ -86,6 +86,10 @@ services, and pre-register a mutable worktree seam whose default delegate is
 | registers non-chat providers, handlers, listeners, or other disposable behavior after construction | `agentHostContributions.ts` | create and immediately register in its returned store |
 | starts transports, providers, recurring schedulers, or process listeners | entry point | activation after runtime creation |
 
+`IAgentHostProviderService` is the core service that owns provider registration,
+routing, and lifetime. A successful `registerProvider` call transfers disposal
+ownership to that service.
+
 Place an object based on construction requirements and lifetime, not on which
 existing file first needs it.
 
@@ -164,8 +168,8 @@ Production and targeted graph tests still resolve the real implementations.
 ### `AgentServiceCallbackAdapter`
 
 **Why it exists:** callback-dependent services are constructed before
-`AgentService`, while provider lookup, session restore, server-tool operations,
-and changeset liveness are still owned by `AgentService`.
+`AgentService`, while session restore, server-tool operations, and changeset
+liveness are still owned by `AgentService`.
 
 Cross-cutting turn behavior now belongs in `IAgentHostChatContributions`; do not
 add callbacks for behavior expressible through its lifecycle hooks.
@@ -173,26 +177,26 @@ add callbacks for behavior expressible through its lifecycle hooks.
 **Do not extend it by default:** a new callback usually means another
 responsibility should move to a narrower owning service.
 
-**Exit condition:** extract provider registry, session operations/restoration,
-server-tool ownership, turn dispatch, and subscription liveness so consumers
-inject those owners directly. Contributions reduce the cross-cutting behavior
-that those services must own, but the remaining callback queries and commands
-need service owners rather than contribution hooks. Then delete the adapter and
-binder contract.
+**Exit condition:** extract session operations/restoration, server-tool
+ownership, turn dispatch, and subscription liveness so consumers inject those
+owners directly. Contributions reduce the cross-cutting behavior that those
+services must own, but the remaining callback queries and commands need service
+owners rather than contribution hooks. Then delete the adapter and binder
+contract.
 
 ### Post-DI service registrations
 
-`IAgentHostProviderLocator`, `IAgentHostSessionTitleController`,
-`IAgentHostLocalCommands`, and `IAgentService` are currently registered after
-the primary `InstantiationService` is created because they depend on
-composition-owned callbacks or objects.
+`IAgentHostSessionTitleController`, `IAgentHostLocalCommands`, and
+`IAgentService` are currently registered after the primary
+`InstantiationService` is created because they depend on composition-owned
+callbacks or objects.
 
 **Do not add another post-DI registration.** Ordinary services belong in the
 descriptor lists or the pre-DI foundation.
 
-**Exit condition:** the provider, server-tool, session, and turn-dispatch
-extractions remove the callback cycles. Register the remaining services before
-constructing `InstantiationService`, with `IAgentService` as a descriptor.
+**Exit condition:** the server-tool, session, and turn-dispatch extractions
+remove the callback cycles. Register the remaining services before constructing
+`InstantiationService`, with `IAgentService` as a descriptor.
 
 ### Chat contribution host bridge
 

@@ -31,7 +31,7 @@ import { registerAgentHostCoreServices } from '../../node/agentHostServices.js';
 import { ICopilotApiService } from '../../node/shared/copilotApiService.js';
 import { AgentHostClientConnectionService, IAgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
-import { AgentHostProviderLocator, IAgentHostProviderLocator } from '../../node/agentHostProviderLocator.js';
+import { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
 import { AgentHostSessionTitleController, IAgentHostSessionTitleController } from '../../node/agentHostSessionTitleController.js';
 import { AgentHostLocalTurns, IAgentHostLocalTurns } from '../../node/agentHostLocalTurns.js';
 import { AgentHostLocalCommands, IAgentHostLocalCommands } from '../../node/localCommands/localChatCommand.js';
@@ -81,6 +81,14 @@ export function getTestAgentServiceComposition(agentService: AgentService): IAge
 
 export function getTestAgentStateManager(agentService: AgentService): AgentHostStateManager {
 	return getTestAgentServiceComposition(agentService).stateManager;
+}
+
+export function getTestAgentHostProviderService(agentService: AgentService): IAgentHostProviderService {
+	return getTestAgentServiceComposition(agentService).providerService;
+}
+
+export function registerTestAgentProvider(agentService: AgentService, provider: import('../../common/agent.js').IAgent): void {
+	getTestAgentHostProviderService(agentService).registerProvider(provider);
 }
 
 export function getTestAgentHostWorktreeIsolation(agentService: AgentService): IAgentHostWorktreeIsolation {
@@ -180,7 +188,6 @@ export function createTestAgentService(
 		copilotApiService,
 	});
 	const instantiationService = new InstantiationService(services, /*strict*/ true);
-	services.set(IAgentHostProviderLocator, new AgentHostProviderLocator(session => foundation.callbackAdapter.value.getAgent(typeof session === 'string' ? session : session.toString())));
 	const octoKitService = instantiationService.invokeFunction(accessor => accessor.get(IAgentHostOctoKitService));
 	const effectiveCopilotApiService = instantiationService.invokeFunction(accessor => accessor.get(ICopilotApiService));
 	services.set(IAgentHostSessionTitleController, foundationDisposables.add(instantiationService.createInstance(AgentHostSessionTitleController, foundation.stateManager, {

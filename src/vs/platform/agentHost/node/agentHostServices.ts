@@ -53,6 +53,7 @@ import { AgentHostStorageService, IAgentHostStorageService } from './agentHostSt
 import { AgentHostTerminalManager, IAgentHostTerminalManager } from './agentHostTerminalManager.js';
 import { AgentHostTelemetryReporter, IAgentHostTelemetryReporter } from './agentHostTelemetryReporter.js';
 import { AgentHostTurnTracker, IAgentHostTurnTracker } from './agentHostTurnTracker.js';
+import { AgentHostProviderService, IAgentHostProviderService } from './agentHostProviderService.js';
 import { AgentEditAttributionService } from './shared/agentEditAttributionService.js';
 import { AgentHostOctoKitService, IAgentHostOctoKitService } from './shared/agentHostOctoKitService.js';
 import { EditArcReporterService, IEditArcReporterService } from './shared/editArcReporter.js';
@@ -104,6 +105,7 @@ export function registerAgentHostCoreServices(services: ServiceCollection, input
 	registerService(services, IAgentHostChatContributions, new SyncDescriptor(AgentHostChatContributions));
 	registerService(services, IAgentHostTelemetryReporter, new SyncDescriptor(AgentHostTelemetryReporter));
 	registerService(services, IAgentHostTurnTracker, new SyncDescriptor(AgentHostTurnTracker));
+	registerService(services, IAgentHostProviderService, new SyncDescriptor(AgentHostProviderService));
 	registerService(services, IAgentBranchNameGenerator, new SyncDescriptor(AgentBranchNameGenerator));
 	registerService(services, IAgentHostWorktreeIsolation, new SyncDescriptor(WorktreeIsolation));
 }

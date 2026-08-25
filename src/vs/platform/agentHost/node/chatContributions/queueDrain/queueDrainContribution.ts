@@ -15,7 +15,7 @@ import { ActionType } from '../../../common/state/sessionActions.js';
 import { isAhpChatChannel, parseRequiredSessionUriFromChatUri, PendingMessageKind, type Message, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../agentHostStateManager.js';
 import { createAgentChatContext } from '../../agentChatContext.js';
-import { IAgentHostProviderLocator } from '../../agentHostProviderLocator.js';
+import { IAgentHostProviderService } from '../../agentHostProviderService.js';
 import { IAgentHostSessionTitleController } from '../../agentHostSessionTitleController.js';
 import { AgentHostTelemetryReporter, IAgentHostTelemetryReporter } from '../../agentHostTelemetryReporter.js';
 import { getTurnTelemetryContext } from '../../agentHostTurnTelemetryContext.js';
@@ -35,7 +35,7 @@ export class QueueDrainContribution extends Disposable implements IAgentHostChat
 		@IAgentHostChatContributions private readonly _chatContributions: IAgentHostChatContributions,
 		@ILogService private readonly _logService: ILogService,
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
-		@IAgentHostProviderLocator private readonly _providerLocator: IAgentHostProviderLocator,
+		@IAgentHostProviderService private readonly _providerService: IAgentHostProviderService,
 		@IAgentHostSessionTitleController private readonly _titleController: IAgentHostSessionTitleController,
 		@IAgentHostTelemetryReporter private readonly _telemetryReporter: AgentHostTelemetryReporter,
 		@IAgentHostTurnTracker private readonly _turnTracker: AgentHostTurnTracker,
@@ -91,7 +91,7 @@ export class QueueDrainContribution extends Disposable implements IAgentHostChat
 			return;
 		}
 		const session = parseRequiredSessionUriFromChatUri(channel);
-		this._providerLocator.getAgent(session)?.setPendingMessages?.(URI.parse(channel), state.steeringMessage, []);
+		this._providerService.getProviderForSession(session)?.setPendingMessages?.(URI.parse(channel), state.steeringMessage, []);
 		this._tryConsumeNextQueuedMessage(channel);
 	}
 
@@ -141,7 +141,7 @@ export class QueueDrainContribution extends Disposable implements IAgentHostChat
 		}
 
 		this._titleController.seedTitleFromFirstMessage(sessionChannel, message.text, channel);
-		const agent = this._providerLocator.getAgent(sessionChannel);
+		const agent = this._providerService.getProviderForSession(sessionChannel);
 		if (!agent) {
 			this._stateManager.dispatchServerAction(channel, {
 				type: ActionType.ChatError,

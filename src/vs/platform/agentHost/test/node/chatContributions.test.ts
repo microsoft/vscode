@@ -28,7 +28,8 @@ import { buildChatUri, buildDefaultChatUri, MessageKind, PendingMessageKind, Ses
 import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostClientConnectionService, IAgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
 import { AgentHostChatContributions } from '../../node/agentHostChatContributionsService.js';
-import { IAgentHostProviderLocator } from '../../node/agentHostProviderLocator.js';
+import { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
+import { createTestAgentHostProviderService } from './testAgentHostProviderService.js';
 import { IAgentHostSessionTitleController } from '../../node/agentHostSessionTitleController.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
@@ -642,10 +643,7 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 	);
 	services.set(IAgentHostSessionTitleController, new RecordingTitleController(observed, enableSendInstructions ? 'rename instruction' : undefined));
 	const queueAgent = new MockAgent();
-	services.set(IAgentHostProviderLocator, {
-		_serviceBrand: undefined,
-		getAgent: () => queueAgent,
-	});
+	services.set(IAgentHostProviderService, createTestAgentHostProviderService(() => queueAgent));
 	services.set(IAgentHostLocalTurns, new AgentHostLocalTurns(sessionDataService, logService));
 	const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
 	const service = disposables.add(new AgentHostChatContributions(logService, instantiationService));
@@ -689,10 +687,7 @@ function createQueueDrainContributions(disposables: ReturnType<typeof ensureNoDi
 	let agent: MockAgent | undefined = mockAgent;
 	const pendingMessages: (PendingMessage | undefined)[] = [];
 	mockAgent.setPendingMessages = (_chat, steeringMessage) => pendingMessages.push(steeringMessage);
-	services.set(IAgentHostProviderLocator, {
-		_serviceBrand: undefined,
-		getAgent: () => agent,
-	});
+	services.set(IAgentHostProviderService, createTestAgentHostProviderService(() => agent));
 	services.set(IAgentHostLocalTurns, new AgentHostLocalTurns(sessionDataService, logService));
 	const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
 	const service = disposables.add(new AgentHostChatContributions(logService, instantiationService));

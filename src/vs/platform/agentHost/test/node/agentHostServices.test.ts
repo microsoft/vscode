@@ -23,7 +23,7 @@ import { IAgentEditAttributionService, NullAgentEditAttributionService } from '.
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
-import { IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
+import { IAgentHostAuthenticationController, IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
 import { IAgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
 import { IAgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
 import { IAgentHostProxyResolver } from '../../node/agentHostProxyResolver.js';
@@ -186,6 +186,7 @@ suite('Agent Host service registrations', () => {
 			IAgentHostStateManager,
 			IAgentConfigurationService,
 			IAgentHostAuthenticationService,
+			IAgentHostAuthenticationController,
 			IAgentHostGitHubEndpointService,
 			IAgentHostProxyResolver,
 			IAgentHostClientConnectionService,
@@ -209,6 +210,7 @@ suite('Agent Host service registrations', () => {
 			IAgentHostStateManager,
 			IAgentConfigurationService,
 			IAgentHostAuthenticationService,
+			IAgentHostAuthenticationController,
 			IAgentHostGitHubEndpointService,
 			IAgentHostProxyResolver,
 			IAgentHostClientConnectionService,
