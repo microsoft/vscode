@@ -24,7 +24,7 @@ import { assertType } from '../../../base/common/types.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { BidirectionalMap } from '../../../base/common/map.js';
 import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
-import { ESMLoadQueue } from './esmLoadQueue.js';
+import { tryRequireSync } from './moduleLoading.js';
 const require = nodeModule.createRequire(import.meta.url);
 
 class NodeModuleRequireInterceptor extends RequireInterceptor {
@@ -148,8 +148,6 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 
 	readonly extensionRuntime = ExtensionRuntime.Node;
 
-	private readonly _esmLoadQueue = new ESMLoadQueue();
-
 	protected async _beforeAlmostReadyToRunExtensions(): Promise<void> {
 		// make sure console.log calls make it to the render
 		this._instaService.createInstance(ExtHostConsoleForwarder);
@@ -204,20 +202,32 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 		if (extensionId) {
 			performance.mark(`code/extHost/willLoadExtensionCode/${extensionId}`);
 		}
-		const load = async (): Promise<T> => {
-			activationTimesBuilder.codeLoadingStart();
-			return mode === 'esm'
-				? <T>await import(module.toString(true))
-				: <T>require(module.fsPath);
-		};
-		const stopTimer = () => activationTimesBuilder.codeLoadingStop();
 		try {
-			// For ESM the timer stops when the queue slot ends rather than when the import
-			// settles. A module using top-level await stays pending while later extensions
-			// load, and their code shouldn't land in this extension's number.
-			return mode === 'esm'
-				? await this._esmLoadQueue.run(load, stopTimer)
-				: await load().finally(stopTimer);
+			// Load synchronously when we can. Nothing else runs during a synchronous load, so
+			// the time below is this extension's own work and nothing else. Extensions that
+			// activate at the same time no longer end up counted against each other.
+			activationTimesBuilder.codeLoadingStart();
+			let loaded: { readonly module: T } | undefined;
+			try {
+				loaded = mode === 'esm'
+					? tryRequireSync<T>(module.fsPath)
+					: { module: <T>require(module.fsPath) };
+			} finally {
+				activationTimesBuilder.codeLoadingStop();
+			}
+			if (loaded) {
+				return loaded.module;
+			}
+
+			// Only ESM modules using top-level await get here. They have to be loaded
+			// asynchronously and other extensions run while they are suspended, so this is how
+			// long the load took rather than what it cost.
+			activationTimesBuilder.codeLoadingStart();
+			try {
+				return <T>await import(module.toString(true));
+			} finally {
+				activationTimesBuilder.codeLoadingStop();
+			}
 		} finally {
 			if (extensionId) {
 				performance.mark(`code/extHost/didLoadExtensionCode/${extensionId}`);
