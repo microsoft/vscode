@@ -5590,6 +5590,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 * agent runs against a checkout on the sandbox's disk, so sending the remote URI fails
 	 * `createSession` with `unsupported scheme 'https'; expected 'file'`. The host's own default
 	 * names the scheme it can address, so this adapts rather than hardcoding one.
+	 *
+	 * Schemes are compared as the host will receive them: a remote folder travels as a
+	 * `vscode-agent-host:` wrapper that `createSession` unwraps, so judging the wrapper would drop
+	 * directories the host addresses perfectly well.
 	 */
 	private _hostAddressableWorkingDirectories(directories: readonly URI[] | undefined): readonly URI[] | undefined {
 		const defaultDirectory = this._config.connection.initializeResult.get()?.defaultDirectory;
@@ -5597,7 +5601,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			return directories;
 		}
 		const hostScheme = URI.isUri(defaultDirectory) ? URI.revive(defaultDirectory).scheme : URI.parse(defaultDirectory).scheme;
-		const addressable = directories.filter(directory => directory.scheme === hostScheme);
+		const addressable = directories.filter(directory => this._config.connection.resourceUris.toAgentHost(directory).scheme === hostScheme);
 		if (addressable.length === directories.length) {
 			return directories;
 		}

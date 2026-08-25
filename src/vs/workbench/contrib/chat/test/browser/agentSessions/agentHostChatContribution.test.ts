@@ -26,7 +26,7 @@ import { ILogService, NullLogService } from '../../../../../../platform/log/comm
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IAgentCreateSessionConfig, IAgentHostService, IAgentSessionMetadata, AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
 import type { ChatInputRequestWithPlanReview } from '../../../../../../platform/agentHost/common/agentHostPlanReview.js';
-import { createAgentHostResourceUriMapper, identityAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { createAgentHostResourceUriMapper, identityAgentHostResourceUriMapper, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { AgentFeedbackAttachmentDisplayKind, AgentFeedbackAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAttachments.js';
 import { VSCODE_EPHEMERAL_SESSION_META_KEY } from '../../../../../../platform/agentHost/common/meta/agentEphemeralSessionMeta.js';
 import { getElementAttachmentCorrelationId, toElementAttachmentMeta } from '../../../../../../platform/agentHost/common/meta/agentElementAttachments.js';
@@ -11679,6 +11679,45 @@ suite('AgentHostChatContribution', () => {
 			assert.deepStrictEqual(createCall?.activeClient?.customizations, []);
 		});
 
+		test('drops customizations from a reconciliation republish for an older host', async () => {
+			// Reconciliation republishes the active client after creation, so gating only
+			// createSession leaves this path sending the shape a 0.7.0 host rejects.
+			const { instantiationService, agentHostService, chatAgentService, seedActiveClient } = createTestServices(disposables);
+			agentHostService.setHostProtocolVersion('0.7.0');
+
+			const customizations = observableValue<readonly ClientPluginCustomization[]>('customizations', [
+				{ type: CustomizationType.Plugin, id: 'file:///plugin-a', uri: 'file:///plugin-a', name: 'Plugin A' },
+			]);
+			disposables.add(seedActiveClient('agent-host-copilot', { customizations }));
+
+			const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
+				provider: 'copilot' as const,
+				agentId: 'agent-host-copilot',
+				sessionType: 'agent-host-copilot',
+				fullName: 'Agent Host - Copilot',
+				description: 'test',
+				connection: agentHostService,
+				connectionAuthority: 'local',
+			}));
+
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+			await turnPromise;
+			agentHostService.dispatchedActions.length = 0;
+
+			customizations.set([
+				{ type: CustomizationType.Plugin, id: 'file:///plugin-b', uri: 'file:///plugin-b', name: 'Plugin B' },
+			], undefined);
+			await timeout(10);
+
+			assert.deepStrictEqual(
+				agentHostService.dispatchedActions
+					.filter(action => action.action.type === ActionType.SessionActiveClientSet)
+					.map(action => (action.action as { activeClient: SessionActiveClient }).activeClient.customizations),
+				[[]],
+			);
+		});
+
 		test('keeps customizations for a host that speaks list-shaped enablement', async () => {
 			const { instantiationService, agentHostService, chatAgentService, seedActiveClient } = createTestServices(disposables);
 			agentHostService.setHostProtocolVersion('0.8.0');
@@ -11763,6 +11802,35 @@ suite('AgentHostChatContribution', () => {
 			await turnPromise;
 
 			assert.strictEqual(agentHostService.createSessionCalls.at(-1)?.workingDirectories, undefined);
+		});
+
+		test('keeps a remote working directory the host can address once unwrapped', async () => {
+			// A remote (SSH/tunnel) folder is wrapped as `vscode-agent-host:` on the client, but
+			// createSession unwraps it before sending. Judging the wrapper scheme would drop a
+			// directory the host addresses perfectly well.
+			const { instantiationService, agentHostService, chatAgentService } = createTestServices(disposables,
+				{ resolve: () => toAgentHostUri(URI.file('/workspaces/vscode'), 'remote-test') });
+			agentHostService.resourceUris = createAgentHostResourceUriMapper('remote-test');
+			agentHostService.setInitializeResult({ defaultDirectory: 'file:///workspaces/other' });
+
+			const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
+				provider: 'copilot' as const,
+				agentId: 'agent-host-copilot',
+				sessionType: 'agent-host-copilot',
+				fullName: 'Agent Host - Copilot',
+				description: 'test',
+				connection: agentHostService,
+				connectionAuthority: 'remote-test',
+			}));
+
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+			await turnPromise;
+
+			assert.deepStrictEqual(
+				agentHostService.createSessionCalls.at(-1)?.workingDirectories?.map(d => URI.revive(d).toString()),
+				[toAgentHostUri(URI.file('/workspaces/vscode'), 'remote-test').toString()],
+			);
 		});
 
 		test('keeps a working directory whose scheme the host addresses', async () => {
