@@ -521,13 +521,17 @@ test('accepts an enabled simple dialog through a folder URI', () => {
 	assert.strictEqual(workspaceCheckStatus(['--folder-uri', pathToFileURL(root).href]), 0);
 });
 
-test('does not mistake an extension development path for the opened workspace', () => {
+test('does not mistake separated directory-valued options for the opened workspace', () => {
 	const root = fixtureRoot('nas-extension-dev-');
 	const settingsFile = path.join(root, '.vscode', 'settings.json');
 	fs.mkdirSync(path.dirname(settingsFile), { recursive: true });
 	fs.writeFileSync(settingsFile, '{ "files.simpleDialog.enable": false }\n');
 
-	assert.strictEqual(workspaceCheckStatus(['--extensionDevelopmentPath', root]), 0);
+	const options = [
+		'--extensionDevelopmentPath', '--crash-reporter-directory',
+		'--builtin-extensions-dir', '--agent-plugins-dir'
+	];
+	assert.deepStrictEqual(options.map(option => workspaceCheckStatus([option, root])), [0, 0, 0, 0]);
 });
 
 test('rejects forwarded profile creation after normalization', () => {

@@ -224,6 +224,10 @@ fi
 if (( ${#EXTRA_ARGS[@]} )); then
 	ARGS+=("${EXTRA_ARGS[@]}")
 fi
+# --new-window: without an explicit path VS Code otherwise restores the previous
+# workspace from cloned application state. That workspace can override the simple
+# dialog setting, so force an empty window instead.
+#
 # --sync=off: the cloned profile keeps application storage, which is where
 # settings-sync enablement lives, so a source profile with sync on would treat
 # this run's automation-only overrides as local edits and upload them to the
@@ -231,7 +235,7 @@ fi
 #
 # Appended *after* EXTRA_ARGS deliberately: for string options VS Code keeps the
 # last occurrence, so a forwarded `-- --sync=on` would otherwise win.
-ARGS+=("--sync=off")
+ARGS+=("--new-window" "--sync=off")
 
 LOG_FILE="$RUN_DIR/code.log"
 echo "[launch.sh] launching: $CODE_SH ${ARGS[*]}" >&2

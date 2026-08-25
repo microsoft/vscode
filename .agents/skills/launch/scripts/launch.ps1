@@ -520,6 +520,9 @@ try {
 	foreach ($argument in $extraArgs) {
 		$launchArgs.Add($argument)
 	}
+	# --new-window: without an explicit path VS Code otherwise restores the previous
+	# workspace from cloned application state, which can override the simple dialog.
+	#
 	# --sync=off: the cloned profile keeps application storage, which is where
 	# settings-sync enablement lives, so a source profile with sync on would
 	# treat this run's automation-only overrides as local edits and upload them
@@ -527,6 +530,7 @@ try {
 	#
 	# Added *after* $extraArgs deliberately: for string options VS Code keeps
 	# the last occurrence, so a forwarded `--sync=on` would otherwise win.
+	$launchArgs.Add('--new-window')
 	$launchArgs.Add('--sync=off')
 
 	Write-LaunchError "[launch.ps1] launching: $codeBat $($launchArgs -join ' ')"

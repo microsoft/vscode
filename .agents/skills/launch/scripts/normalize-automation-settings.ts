@@ -109,8 +109,27 @@ function assertSimpleDialogForWorkspaceArgs(args: string[]): void {
 		'--inspect-brk-agenthost', '--inspect-brk-extensions', '--inspect-extensions',
 		'--remote-debugging-port', '--shared-data-dir', '--user-data-dir'
 	]);
+	// Keep this aligned with string/string[] entries in
+	// `src/vs/platform/environment/node/argv.ts`. Their separated values are not
+	// positional workspaces even when they happen to name an existing directory.
 	const optionsWithPathValue = new Set([
-		'--extensionDevelopmentPath', '--extensionTestsPath', '--locale', '--log'
+		'--add-mcp', '--agent-plugins-dir', '--agents-extensions-dir', '--agents-user-data-dir',
+		'--builtin-extensions-dir', '--category', '--continueOn', '--crash-reporter-directory',
+		'--crash-reporter-id', '--debugId', '--disable-extension', '--editSessionId',
+		'--enable-proposed-api', '--enable-tracing', '--export-default-configuration',
+		'--export-default-keybindings', '--export-policy-data', '--extensionDevelopmentKind',
+		'--extensionDevelopmentPath', '--extensionEnvironment', '--extensions-download-dir',
+		'--extensionTestsPath', '--force-device-scale-factor', '--install-builtin-extension',
+		'--install-extension', '--install-source', '--inspect-brk-ptyhost',
+		'--inspect-brk-sharedprocess', '--inspect-ptyhost', '--inspect-sharedprocess',
+		'--js-flags', '--locate-extension', '--locate-shell-integration-path', '--locale', '--log',
+		'--log-net-log', '--logsPath', '--ozone-platform', '--password-store',
+		'--prof-append-timers', '--prof-duration-markers', '--prof-duration-markers-file',
+		'--prof-startup-prefix', '--proxy-bypass-list', '--proxy-pac-url', '--proxy-server', '--remote',
+		'--sync', '--telemetry-level', '--trace-category-filter', '--trace-options',
+		'--trace-startup-duration', '--trace-startup-file', '--trace-startup-format',
+		'--unresponsive-sample-interval', '--unresponsive-sample-period', '--vmodule',
+		'--waitMarkerFilePath', '--xdg-portal-required-version'
 	]);
 	for (let i = 0; i < args.length; i++) {
 		const argument = args[i];
