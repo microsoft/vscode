@@ -95,6 +95,26 @@ await session.page.evaluate(() =>
 That yields a stable hook — `.action-label[aria-label^="Set Session Target"]` —
 which reads like the UI instead of encoding DOM structure.
 
+## Editor find widget
+
+There is no page object for it, and it is the one surface where `fill` works —
+the find input is a plain `<textarea>`, not Monaco. Whole flow:
+
+```js
+const FIND = '.editor-widget.find-widget.visible';
+await page.keyboard.press('Meta+f');              // Control+f off macOS
+await page.waitForSelector(FIND);
+await page.fill(`${FIND} .monaco-findInput textarea`, 'vscode');
+// Options are toggles: read `aria-checked` before clicking, never click blind.
+await page.click(`${FIND} .monaco-custom-toggle[aria-label^="Match Case"]`);
+// '1 of 81' | 'No results'. Updates synchronously with the input.
+await page.textContent(`${FIND} .matchesCount`);
+```
+
+`aria-label` prefixes for the other toggles: `Match Whole Word`, `Use Regular
+Expression`, `Find in Selection`, `Preserve Case`. Assert on `.matchesCount`
+rather than on the highlight decorations.
+
 ## When to use raw @playwright/cli
 
 The library is the better default; reach for the CLI to explore (`snapshot`),
