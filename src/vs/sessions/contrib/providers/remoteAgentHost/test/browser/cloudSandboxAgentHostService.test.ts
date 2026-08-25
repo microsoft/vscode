@@ -93,7 +93,7 @@ suite('CloudSandboxAgentHostService sealed token', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('re-mints credentials until the sealed GitHub token arrives', async () => {
-		// A fresh environment answers `/connect` before `copilotd` registers its sealing key.
+		// A fresh environment can answer `/connect` before its credentials are complete.
 		const { service, connectCalls } = createService(store, [
 			{ kind: 'token', token: clientToken(undefined) },
 			{ kind: 'token', token: clientToken(undefined) },

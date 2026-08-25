@@ -38,12 +38,12 @@ const LOG_PREFIX = '[CloudSandboxAgentHost]';
 const MAX_WAKING_RETRIES = 20;
 
 /**
- * Maximum number of `/connect` re-mints while the sealed GitHub token is still missing. Spans a
- * full `copilotd` register backoff (60s) and two heartbeats (30s each).
+ * Maximum number of `/connect` re-mints while the sealed token is missing, sized to cover the
+ * backend's own registration retry cycle.
  */
 export const MAX_SEALED_TOKEN_RETRIES = 12;
 
-/** Delay between `/connect` re-mints while waiting for the host key to propagate. */
+/** Delay between `/connect` re-mints while waiting for complete credentials. */
 const SEALED_TOKEN_RETRY_DELAY_MS = 5_000;
 
 /**
@@ -187,7 +187,7 @@ export class CloudSandboxAgentHostService extends Disposable implements ICloudSa
 			}
 		} else if (!connectError) {
 			// Without an envelope every later request answers `-32007 AuthRequired`.
-			this._logService.error(`${LOG_PREFIX} Mission Control returned no sealed GitHub token for ${address}; the host cannot act as the user and session requests will fail with AuthRequired.`);
+			this._logService.error(`${LOG_PREFIX} Mission Control returned no sealed token for ${address}; this session will not be able to make authenticated requests.`);
 		}
 
 		try {
@@ -243,9 +243,9 @@ export class CloudSandboxAgentHostService extends Disposable implements ICloudSa
 	}
 
 	/**
-	 * Re-mint credentials until they carry a sealed GitHub token, which a freshly provisioned
-	 * environment can omit until Mission Control learns the host's sealing key. Returns the last
-	 * credentials either way, since an environment may legitimately never seal one.
+	 * Re-mint credentials until they carry a sealed token, which a freshly provisioned environment
+	 * can omit for a short window after it comes up. Returns the last credentials either way, since
+	 * an environment may legitimately never seal one.
 	 */
 	private async _awaitSealedToken(options: ICloudSandboxConnectOptions, minted: ICloudSandboxClientToken, token: CancellationToken): Promise<ICloudSandboxClientToken> {
 		let clientToken = minted;
