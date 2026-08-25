@@ -333,7 +333,7 @@ export class AccountPolicyGateContribution extends Disposable implements IWorkbe
 			case ManagedSettingsFreshnessFailure.Malformed:
 				return localize('managedSettingsRefresh.dialog.malformed', "AI features are unavailable because {0} received an invalid managed settings response. Retry or contact your administrator.", this.productService.nameShort);
 			case ManagedSettingsFreshnessFailure.Network:
-				return localize('managedSettingsRefresh.dialog.network', "Your organization requires {0} to refresh managed settings whenever it starts or reloads. An error prevented the required policy from being retrieved, so AI features are unavailable. Retry, or contact your organization's administrator if the issue persists.", this.productService.nameShort);
+				return localize('managedSettingsRefresh.dialog.network', "Your organization requires {0} to refresh managed settings whenever it starts or reloads.\n\nAn error prevented the required policy from being retrieved, so AI features are unavailable. Retry, or contact your organization's administrator if the issue persists.", this.productService.nameShort);
 		}
 	}
 

@@ -352,7 +352,7 @@ suite('AccountPolicyGateContribution', () => {
 				},
 				{
 					title: 'Managed Settings Unavailable',
-					message: 'Your organization requires Code to refresh managed settings whenever it starts or reloads. An error prevented the required policy from being retrieved, so AI features are unavailable. Retry, or contact your organization\'s administrator if the issue persists.',
+					message: 'Your organization requires Code to refresh managed settings whenever it starts or reloads.\n\nAn error prevented the required policy from being retrieved, so AI features are unavailable. Retry, or contact your organization\'s administrator if the issue persists.',
 					buttons: ['Retry'],
 					cancelButton: 'Close',
 				},
