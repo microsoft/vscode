@@ -72,6 +72,10 @@ export class FixtureChatPetService extends Disposable implements IChatPetService
 		this.scaleValue.set(scale, undefined);
 	}
 
+	resetScale(): void {
+		this.scaleValue.set(1, undefined);
+	}
+
 	setHorizontalPosition(position: number): void {
 		this.horizontalPositionValue.set(position, undefined);
 	}

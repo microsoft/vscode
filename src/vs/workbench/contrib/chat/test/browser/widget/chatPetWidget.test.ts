@@ -752,6 +752,30 @@ suite('ChatPetWidget', () => {
 		});
 	});
 
+	test('resets pet size to the default without changing the position', () => {
+		const storageService = disposables.add(new TestStorageService());
+		const firstWindow = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService()));
+		const secondWindow = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService()));
+		firstWindow.setScale(1.4);
+		firstWindow.setHorizontalPosition(0.3);
+		firstWindow.resetScale();
+		const restartedWindow = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService()));
+
+		assert.deepStrictEqual({
+			firstWindow: firstWindow.scale.get(),
+			secondWindow: secondWindow.scale.get(),
+			restartedWindow: restartedWindow.scale.get(),
+			storedScale: storageService.get('chat.vscodePet.scale', StorageScope.APPLICATION),
+			restartedWindowPosition: restartedWindow.horizontalPosition.get(),
+		}, {
+			firstWindow: 1,
+			secondWindow: 1,
+			restartedWindow: 1,
+			storedScale: undefined,
+			restartedWindowPosition: 0.3,
+		});
+	});
+
 	test('persists idempotent achievements and synchronizes the selected accessory', () => {
 		const storageService = disposables.add(new TestStorageService());
 		const firstService = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService()));

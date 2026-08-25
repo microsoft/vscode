@@ -17,7 +17,7 @@ import { ILogService, NullLogService } from '../../../../../../platform/log/comm
 import { ITreeSitterLibraryService } from '../../../../../../editor/common/services/treeSitter/treeSitterLibraryService.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { IChatService } from '../../../../chat/common/chatService/chatService.js';
-import { IAhpTerminalCommandSource, ITerminalInstance, ITerminalService } from '../../../../terminal/browser/terminal.js';
+import { IAhpTerminalCommandSource, IChatTerminalToolProgressPart, ITerminalInstance, ITerminalService } from '../../../../terminal/browser/terminal.js';
 import { TerminalChatService } from '../../browser/terminalChatService.js';
 
 /**
@@ -104,6 +104,35 @@ suite('TerminalChatService', () => {
 
 		assert.strictEqual(listenersAfterSecond, listenersAfterFirst, 're-registering the same (instance, id) pair should not add a new listener');
 		assert.strictEqual(service.getToolSessionIdForInstance(instance), 'tool-session-a');
+	});
+
+	test('continueInBackground notifies every matching progress part', () => {
+		const markedPartIndices: number[] = [];
+		const targetSessionId = 'tool-session-target';
+		for (let index = 0; index < 50; index++) {
+			const sessionId = index === 25 || index === 26 ? targetSessionId : `tool-session-${index}`;
+			store.add(service.registerProgressPart(new class extends mock<IChatTerminalToolProgressPart>() {
+				override readonly elementIndex = index;
+				override readonly contentIndex = 0;
+				override readonly terminalToolSessionId = sessionId;
+
+				override markContinuedInBackground(): void {
+					markedPartIndices.push(index);
+				}
+			}()));
+		}
+		const eventSessionIds: string[] = [];
+		store.add(service.onDidContinueInBackground(sessionId => eventSessionIds.push(sessionId)));
+
+		service.continueInBackground(targetSessionId);
+
+		assert.deepStrictEqual({
+			markedPartIndices,
+			eventSessionIds,
+		}, {
+			markedPartIndices: [25, 26],
+			eventSessionIds: [targetSessionId],
+		});
 	});
 
 	test('getTerminalInstanceByToolSessionId waits for pending AHP terminal creation', async () => {

@@ -15,6 +15,7 @@ import { PersistedTurnUsageContribution } from './persistedTurnUsage/persistedTu
 import { QueueDrainContribution } from './queueDrain/queueDrainContribution.js';
 import { SessionTitleContribution } from './sessionTitle/sessionTitleContribution.js';
 import { SideChatContribution } from './sideChat/sideChatContribution.js';
+import { TurnDelegationContribution } from './turnDelegation/turnDelegationContribution.js';
 import { WorktreeAnnouncementContribution } from './worktreeAnnouncement/worktreeAnnouncementContribution.js';
 
 /** Registers all built-in chat contribution constructors. */
@@ -22,6 +23,7 @@ export function registerBuiltInChatContributions(
 	contributions: IAgentHostChatContributions,
 ): IDisposable {
 	const registrations = new DisposableStore();
+	registrations.add(contributions.registerContribution(TurnDelegationContribution));
 	registrations.add(contributions.registerContribution(PersistedTurnUsageContribution));
 	registrations.add(contributions.registerContribution(WorktreeAnnouncementContribution));
 	registrations.add(contributions.registerContribution(CheckpointAndChangesetContribution));
