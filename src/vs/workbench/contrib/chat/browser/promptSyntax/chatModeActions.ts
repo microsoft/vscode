@@ -41,7 +41,7 @@ function createPickerConfigureAgentsActionConfig(disabled: boolean) {
 	return config;
 }
 
-class PickerConfigAgentAction extends ConfigAgentActionImpl { constructor() { super(createPickerConfigureAgentsActionConfig(false)); } }
+export class PickerConfigAgentAction extends ConfigAgentActionImpl { constructor() { super(createPickerConfigureAgentsActionConfig(false)); } }
 class PickerConfigAgentActionDisabled extends ConfigAgentActionImpl { constructor() { super(createPickerConfigureAgentsActionConfig(true)); } }
 
 /**
