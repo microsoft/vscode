@@ -493,7 +493,16 @@ sleep 3
 
 # Anything still alive for THIS run? (match on the runDir, so other agents'
 # concurrent instances are left untouched)
-RUN_DIR=$(jq -r .runDir <<<"$INFO")
+RUN_DIR=$(jq -r '.runDir // empty' <<<"$INFO")
+
+# Fail closed: an empty or malformed RUN_DIR would turn the pgrep below into a
+# match-everything pattern (`pgrep -f ""` matches every process on Linux), and
+# the kill that follows would hit unrelated processes.
+case "$RUN_DIR" in
+  */code-oss-dev-*) ;;
+  *) echo "refusing to clean up: bad runDir '$RUN_DIR'" >&2; return 2>/dev/null || exit 1 ;;
+esac
+
 leftover=$(pgrep -f "$RUN_DIR" || true)
 if [ -n "$leftover" ]; then
   echo "$leftover" | xargs kill 2>/dev/null || true
