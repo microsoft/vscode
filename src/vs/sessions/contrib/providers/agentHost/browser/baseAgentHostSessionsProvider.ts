@@ -5253,6 +5253,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			}
 
 			const removed: ISession[] = [];
+			this._onHostListedSessions(currentKeys);
 			// Some hosts briefly omit the just-sent eager session from listSessions.
 			// Keep the pending session visible until sendRequest graduates it.
 			const pendingRawId = this._pendingSession?.resource.path.replace(/^\//, '');
@@ -5270,6 +5271,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			for (const [key, cached] of this._sessionCache) {
 				if (!currentKeys.has(key)) {
 					if (key === pendingRawId) {
+						continue;
+					}
+					if (!this._isSessionEvictable(key)) {
 						continue;
 					}
 					if (!evictUnlistedAgents && !listedAgentProviders.has(cached.agentProvider)) {
@@ -5303,6 +5307,17 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			this._sessionRefreshInFlight = false;
 		}
 	}
+
+	/**
+	 * Whether a cached session the host did not list may be evicted. Subclasses override this to
+	 * protect a session that exists but that the host has not materialized yet.
+	 */
+	protected _isSessionEvictable(_rawId: string): boolean {
+		return true;
+	}
+
+	/** Raw ids the host listed, reported before eviction runs so subclasses can retire protections. */
+	protected _onHostListedSessions(_rawIds: ReadonlySet<string>): void { }
 
 	/**
 	 * Arm a backoff retry of {@link _refreshSessions}. Used after a failed
