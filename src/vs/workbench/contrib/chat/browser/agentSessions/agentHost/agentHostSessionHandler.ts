@@ -99,6 +99,7 @@ import { IAgentCustomizationScope, IAgentHostActiveClientService } from './agent
 import { IAgentHostCustomizationService } from './agentHostCustomizationService.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from './agentHostSessionWorkingDirectoryResolver.js';
 import { IAgentHostSessionWorkingDirectorySynchronizer } from './agentHostSessionWorkingDirectorySynchronizer.js';
+import { IAgentHostShellInitSynchronizer } from './agentHostShellInitSynchronizer.js';
 import { IAgentHostNewSessionFolderService, computeWorkingDirectories } from './agentHostNewSessionFolderService.js';
 import { AgentHostSnapshotController } from './agentHostSnapshotController.js';
 import { AgentHostResponseFileChangesProvider } from './agentHostResponseFileChanges.js';
@@ -1049,6 +1050,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 * lives exactly as long as that session's {@link _sessionSubscriptions} entry.
 	 */
 	private readonly _workingDirectoryRegistrations = this._register(new DisposableMap<string>());
+	private readonly _shellInitRegistrations = this._register(new DisposableMap<string>());
 
 	/**
 	 * Active default-chat subscriptions, keyed by backend session URI string.
@@ -1096,6 +1098,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		@IAgentHostTerminalService private readonly _agentHostTerminalService: IAgentHostTerminalService,
 		@IAgentHostSessionWorkingDirectoryResolver private readonly _workingDirectoryResolver: IAgentHostSessionWorkingDirectoryResolver,
 		@IAgentHostSessionWorkingDirectorySynchronizer private readonly _workingDirectorySynchronizer: IAgentHostSessionWorkingDirectorySynchronizer,
+		@IAgentHostShellInitSynchronizer private readonly _shellInitSynchronizer: IAgentHostShellInitSynchronizer,
 		@IAgentHostNewSessionFolderService private readonly _newSessionFolderService: IAgentHostNewSessionFolderService,
 		@IAgentHostUntitledProvisionalSessionService private readonly _provisionalService: IAgentHostUntitledProvisionalSessionService,
 		@IAgentHostImportConversationStore private readonly _importConversationStore: IAgentHostImportConversationStore,
@@ -6341,6 +6344,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			this._sessionSubscriptions.delete(sessionUri);
 			ref.dispose();
 			this._workingDirectoryRegistrations.deleteAndDispose(sessionUri);
+			this._shellInitRegistrations.deleteAndDispose(sessionUri);
 			ref = undefined;
 		}
 		if (!ref) {
@@ -6350,6 +6354,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				session: URI.parse(sessionUri),
 				provider: this._config.provider,
 				connection: this._config.connection,
+				subscription: ref.object,
+			}));
+			this._shellInitRegistrations.set(sessionUri, this._shellInitSynchronizer.register({
+				session: URI.parse(sessionUri),
 				subscription: ref.object,
 			}));
 		}
@@ -6414,6 +6422,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			this._sessionSubscriptions.delete(sessionUri);
 			ref.dispose();
 			this._workingDirectoryRegistrations.deleteAndDispose(sessionUri);
+			this._shellInitRegistrations.deleteAndDispose(sessionUri);
 		}
 		const chatRef = this._defaultChatSubscriptions.get(sessionUri);
 		if (chatRef) {
