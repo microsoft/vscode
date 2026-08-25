@@ -30,6 +30,10 @@ import { workbenchInstantiationService } from '../../../../../test/browser/workb
 suite('ChatTurnPills', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('uses the package icon for artifacts', () => {
+		assert.strictEqual(chatArtifactPillOptions.icon, Codicon.package);
+	});
+
 	test('renders an observable set of generic chat pills', () => {
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		const action = disposables.add(new Action('test.chatPill', 'Session Changes'));

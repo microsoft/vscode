@@ -67,8 +67,6 @@ import { getChangesEditorLabels } from './changesEditorLabels.js';
 import { ISessionChangesService } from './sessionChangesService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { CIStatusWidget } from './checksWidget.js';
-import { SessionFilesWidget } from './sessionFilesWidget.js';
-import { SessionFilesViewModel } from './sessionFilesViewModel.js';
 import { GITHUB_REMOTE_FILE_SCHEME, ISessionChangesetOperation, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionStatus } from '../../../services/sessions/common/session.js';
 import { isAgentHostProviderId } from '../../../common/agentHostSessionsProvider.js';
 import { Orientation } from '../../../../base/browser/ui/sash/sash.js';
@@ -541,7 +539,6 @@ export class ChangesViewPane extends ViewPane {
 	private renderedTreeState: { readonly sessionResource: URI; readonly viewMode: ChangesViewMode } | undefined;
 	private detailsViewStateTransfer: IChangesDetailsViewStateTransfer | undefined;
 	private ciStatusWidget: CIStatusWidget | undefined;
-	private sessionFilesWidget: SessionFilesWidget | undefined;
 	private splitView: SplitView | undefined;
 	private splitViewContainer: HTMLElement | undefined;
 	private readonly treePaneSizeChange = this._register(new Emitter<number | undefined>());
@@ -699,9 +696,6 @@ export class ChangesViewPane extends ViewPane {
 		const welcomeMessage = dom.append(this.welcomeContainer, $('.changes-welcome-message'));
 		welcomeMessage.textContent = localize('changesView.noChanges', "Changed files and other session artifacts will appear here.");
 
-		// Other Files widget - middle pane (files edited outside the workspace)
-		this.sessionFilesWidget = this._register(this.scopedInstantiationService.createInstance(SessionFilesWidget, this.splitViewContainer));
-
 		// CI Status widget — bottom pane
 		this.ciStatusWidget = this._register(this.scopedInstantiationService.createInstance(CIStatusWidget, this.splitViewContainer));
 
@@ -712,30 +706,20 @@ export class ChangesViewPane extends ViewPane {
 		}));
 
 		// Shared constants for pane sizing
-		const sessionFilesWidget = this.sessionFilesWidget;
 		const ciWidget = this.ciStatusWidget;
 		const ciMinHeight = CIStatusWidget.HEADER_HEIGHT + CIStatusWidget.MIN_BODY_HEIGHT;
-		const sessionFilesMinHeight = SessionFilesWidget.HEADER_HEIGHT + SessionFilesWidget.MIN_BODY_HEIGHT;
-		const getSessionFilesContentHeight = () => Math.max(SessionFilesWidget.HEADER_HEIGHT, sessionFilesWidget.desiredHeight);
-		const getSessionFilesMinimumHeight = () => sessionFilesWidget.collapsed ? SessionFilesWidget.HEADER_HEIGHT : Math.min(sessionFilesMinHeight, getSessionFilesContentHeight());
-		const getSessionFilesPreferredHeight = () => Math.max(
-			getSessionFilesMinimumHeight(),
-			Math.min(getSessionFilesContentHeight(), SessionFilesWidget.HEADER_HEIGHT + SessionFilesWidget.PREFERRED_BODY_HEIGHT)
-		);
 		const getCIContentHeight = () => Math.max(CIStatusWidget.HEADER_HEIGHT, ciWidget.desiredHeight);
 		const getCIMinimumHeight = () => ciWidget.collapsed ? CIStatusWidget.HEADER_HEIGHT : Math.min(ciMinHeight, getCIContentHeight());
 		const getCIPreferredHeight = () => Math.max(
 			getCIMinimumHeight(),
 			Math.min(getCIContentHeight(), CIStatusWidget.HEADER_HEIGHT + CIStatusWidget.PREFERRED_BODY_HEIGHT)
 		);
-		const getReservedSectionHeight = () =>
-			(sessionFilesWidget.visible ? getSessionFilesMinimumHeight() : 0) +
-			(ciWidget.visible ? getCIMinimumHeight() : 0);
+		const getReservedSectionHeight = () => ciWidget.visible ? getCIMinimumHeight() : 0;
 		this.rebalanceSectionPanes = () => {
 			if (!this.splitView || this.sectionPanesUserResized || !ciWidget.visible || ciWidget.collapsed) {
 				return;
 			}
-			this.splitView.resizeView(2, getCIMinimumHeight());
+			this.splitView.resizeView(1, getCIMinimumHeight());
 		};
 		const thisView = this;
 
@@ -748,21 +732,6 @@ export class ChangesViewPane extends ViewPane {
 			layout: (height) => {
 				this.contentContainer!.style.height = `${height}px`;
 				this._layoutTreeInPane(height);
-			},
-		};
-
-		// Middle pane: other files
-		const sessionFilesElement = this.sessionFilesWidget.element;
-		const sessionFilesPane: IView = {
-			element: sessionFilesElement,
-			get minimumSize() { return getSessionFilesMinimumHeight(); },
-			get maximumSize() { return sessionFilesWidget.collapsed ? SessionFilesWidget.HEADER_HEIGHT : getSessionFilesContentHeight(); },
-			priority: LayoutPriority.High,
-			onDidChange: Event.map(this.sessionFilesWidget.onDidChangeHeight, () => undefined),
-			layout: (height) => {
-				sessionFilesElement.style.height = `${height}px`;
-				const bodyHeight = Math.max(0, height - SessionFilesWidget.HEADER_HEIGHT);
-				sessionFilesWidget.layout(bodyHeight);
 			},
 		};
 
@@ -782,8 +751,7 @@ export class ChangesViewPane extends ViewPane {
 		};
 
 		this.splitView.addView(treePane, Sizing.Distribute, 0, true);
-		this.splitView.addView(sessionFilesPane, SessionFilesWidget.HEADER_HEIGHT + SessionFilesWidget.PREFERRED_BODY_HEIGHT, 1, true);
-		this.splitView.addView(ciPane, CIStatusWidget.HEADER_HEIGHT + CIStatusWidget.PREFERRED_BODY_HEIGHT, 2, true);
+		this.splitView.addView(ciPane, CIStatusWidget.HEADER_HEIGHT + CIStatusWidget.PREFERRED_BODY_HEIGHT, 1, true);
 
 		// Style the sash as a visible separator between sections
 		const updateSplitViewStyles = () => {
@@ -794,23 +762,16 @@ export class ChangesViewPane extends ViewPane {
 		this._register(this.themeService.onDidColorThemeChange(updateSplitViewStyles));
 		this._register(this.splitView.onDidSashChange(() => this.sectionPanesUserResized = true));
 
-		// Initially hide the other files and CI panes until content arrives
+		// Initially hide the CI pane until content arrives
 		this.splitView.setViewVisible(1, false);
-		this.splitView.setViewVisible(2, false);
 
-		// Other files pane (index 1)
-		this._wireSectionPane(this.sessionFilesWidget, 1, SessionFilesWidget.HEADER_HEIGHT, getSessionFilesPreferredHeight);
-		this._register(this.sessionFilesWidget.onDidChangeHeight(() => this.fireTreePaneSizeChange()));
-
-		// CI checks pane (index 2)
-		this._wireSectionPane(this.ciStatusWidget, 2, CIStatusWidget.HEADER_HEIGHT, getCIPreferredHeight);
+		// CI checks pane (index 1)
+		this._wireSectionPane(this.ciStatusWidget, 1, CIStatusWidget.HEADER_HEIGHT, getCIPreferredHeight);
 		this._register(this.ciStatusWidget.onDidChangeHeight(() => this.fireTreePaneSizeChange()));
 		this._register(autorun(reader => {
 			const state = this.changesViewService.activeSessionSectionCollapseStateObs.read(reader);
-			sessionFilesWidget.setCollapsed(state.otherFiles);
 			ciWidget.setCollapsed(state.checks);
 		}));
-		this._register(sessionFilesWidget.onDidToggleCollapsed(collapsed => this.setActiveSectionCollapsed('otherFiles', collapsed)));
 		this._register(ciWidget.onDidToggleCollapsed(collapsed => this.setActiveSectionCollapsed('checks', collapsed)));
 
 		this._register(this.onDidChangeBodyVisibility(visible => {
@@ -972,14 +933,6 @@ export class ChangesViewPane extends ViewPane {
 			this.renderDisposables.add(checksViewModel);
 
 			this.renderDisposables.add(this.ciStatusWidget.setInput(checksViewModel));
-		}
-
-		// Other files (files edited outside the workspace during the session)
-		if (this.sessionFilesWidget) {
-			const sessionFilesViewModel = this.scopedInstantiationService.createInstance(SessionFilesViewModel);
-			this.renderDisposables.add(sessionFilesViewModel);
-
-			this.renderDisposables.add(this.sessionFilesWidget.setInput(sessionFilesViewModel));
 		}
 
 		// Update tree data with combined entries
@@ -1213,10 +1166,9 @@ export class ChangesViewPane extends ViewPane {
 	}
 
 	/**
-	 * Wires a collapsible section widget (CI checks / other files) to its
-	 * SplitView pane: toggling its header collapses/restores the pane, and
-	 * changes to its content show/hide the pane and re-layout. Both section
-	 * widgets share the same structural contract so this logic is reused.
+	 * Wires the collapsible CI checks section widget to its SplitView pane:
+	 * toggling its header collapses/restores the pane, and changes to its
+	 * content show/hide the pane and re-layout.
 	 */
 	private _wireSectionPane(
 		widget: { readonly collapsed: boolean; readonly visible: boolean; readonly onDidToggleCollapsed: Event<boolean>; readonly onDidChangeHeight: Event<void> },
