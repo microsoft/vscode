@@ -237,6 +237,7 @@ export interface IPartsSplash {
 		panelBackground: string | undefined;
 		editorGroupBorder: string | undefined;
 		editorBorder: string | undefined;
+		surfaceBackground: string | undefined;
 		surfaceBorder: string | undefined;
 		agentsPanelBackground: string | undefined;
 		agentsPanelBorder: string | undefined;

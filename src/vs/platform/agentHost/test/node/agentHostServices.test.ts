@@ -14,6 +14,7 @@ import { SyncDescriptor } from '../../../instantiation/common/descriptors.js';
 import { createDecorator, IInstantiationService, ServiceIdentifier, _util } from '../../../instantiation/common/instantiation.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
+import { StrictServiceCollection } from '../../../instantiation/common/strictServiceCollection.js';
 import { ILogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { IRequestService } from '../../../request/common/request.js';
@@ -61,7 +62,7 @@ class DisposableTestService extends Disposable implements ITestService {
 	}
 }
 
-class RecordingServiceCollection extends ServiceCollection {
+class RecordingServiceCollection extends StrictServiceCollection {
 	private readonly _descriptorIds = new Set<ServiceIdentifier<unknown>>();
 
 	constructor(...entries: ConstructorParameters<typeof ServiceCollection>) {
@@ -148,7 +149,7 @@ suite('Agent Host service registrations', () => {
 
 	test('resolves descriptors lazily and caches the instance', () => {
 		let createCount = 0;
-		const services = new ServiceCollection(
+		const services = new StrictServiceCollection(
 			[ITestService, new SyncDescriptor(CountingTestService, [() => createCount++])],
 		);
 		const instantiationService = disposables.add(new InstantiationService(services, true));
@@ -217,7 +218,7 @@ suite('Agent Host service registrations', () => {
 	});
 
 	test('preserves typed overrides', () => {
-		const services = new ServiceCollection();
+		const services = new StrictServiceCollection();
 		const override = new NullAgentEditAttributionService();
 		services.set(IAgentEditAttributionService, override);
 
@@ -227,13 +228,13 @@ suite('Agent Host service registrations', () => {
 	});
 
 	test('selects the core worktree isolation implementation', () => {
-		const coreServices = new ServiceCollection();
+		const coreServices = new StrictServiceCollection();
 		registerCoreServices(coreServices);
-		const nullServices = new ServiceCollection(
+		const nullServices = new StrictServiceCollection(
 			[IAgentHostWorktreeIsolation, new NullAgentHostWorktreeIsolation()],
 		);
 		registerCoreServices(nullServices);
-		const hostServices = new ServiceCollection();
+		const hostServices = new StrictServiceCollection();
 		registerHostServices(hostServices);
 		const nullInstantiationService = disposables.add(new InstantiationService(nullServices, true));
 		const nullWorktreeIsolation = nullInstantiationService.invokeFunction(accessor => accessor.get(IAgentHostWorktreeIsolation));
@@ -250,7 +251,7 @@ suite('Agent Host service registrations', () => {
 	});
 
 	test('descriptor-created services have one disposal owner', () => {
-		const services = new ServiceCollection();
+		const services = new StrictServiceCollection();
 		let disposeCount = 0;
 		services.set(ITestService, new SyncDescriptor(DisposableTestService, [() => disposeCount++]));
 		const instantiationService = disposables.add(new InstantiationService(services, true));

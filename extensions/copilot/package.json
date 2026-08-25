@@ -3890,7 +3890,8 @@
             "agentsWindow": {
               "default": false
             }
-          },          "github.copilot.chat.languageContext.typescript.items": {
+          },
+          "github.copilot.chat.languageContext.typescript.items": {
             "type": "string",
             "enum": [
               "minimal",
@@ -5048,17 +5049,6 @@
             ],
             "agentsWindow": {
               "default": true
-            }
-          },
-          "github.copilot.chat.cli.showExternalSessions": {
-            "type": "boolean",
-            "default": true,
-            "markdownDescription": "%github.copilot.config.cli.showExternalSessions%",
-            "tags": [
-              "advanced"
-            ],
-            "agentsWindow": {
-              "default": false
             }
           },
           "github.copilot.chat.cli.planExitMode.enabled": {
@@ -7008,7 +6998,7 @@
     "@typescript-eslint/eslint-plugin": "^8.35.0",
     "@typescript-eslint/parser": "^8.32.0",
     "@typescript-eslint/typescript-estree": "^8.26.1",
-    "@typescript/native": "npm:typescript@^7.0.2",
+    "@typescript/native": "npm:typescript@7.1.0-dev.20260818.1",
     "@vitest/coverage-v8": "^4.1.8",
     "@vitest/snapshot": "^1.5.0",
     "@vscode/debugadapter": "^1.68.0",

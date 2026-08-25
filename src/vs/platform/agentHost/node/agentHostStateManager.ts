@@ -1297,8 +1297,8 @@ export class AgentHostStateManager extends Disposable {
 	 * be emitted as a side-effect of this call.
 	 *
 	 * Per-session changesets are intentionally NOT torn down here: this method
-	 * is also used as an idle-eviction (LRU) hook (see
-	 * `AgentService._maybeEvictIdleSession`) and the session list view keeps a
+	 * is also used by `AgentSessionResidency` for residency eviction, and
+	 * the session list view keeps a
 	 * changeset subscription open per visible row to render the diff chip.
 	 * Tearing down on eviction would clear the chip on the list while the row
 	 * is still on screen. Permanent-delete paths (`deleteSession`,
