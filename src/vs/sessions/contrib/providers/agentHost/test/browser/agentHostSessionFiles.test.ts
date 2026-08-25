@@ -14,13 +14,10 @@ import {
 	ToolResultContentType,
 	type ResponsePart,
 } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { SessionFileOperation } from '../../../../../services/sessions/common/session.js';
 import {
 	createIncrementalChatFileEditsParser,
-	IFileEditChatState,
 	IParsedFileEdit,
 	parseResponseParts,
-	reduceSessionFiles,
 	reduceTurnChanges,
 } from '../../browser/agentHostSessionFiles.js';
 
@@ -97,7 +94,7 @@ suite('agentHostSessionFiles', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('incremental parser parses each completed turn once and re-parses only the active turn', () => {
+	test('incremental parser parses only the last turn and re-parses only the active turn', () => {
 		// Count how many times each distinct responseParts array is parsed.
 		const parseCounts = new Map<ResponsePart[], number>();
 		const countingParseTurn = (parts: ResponsePart[]): readonly IParsedFileEdit[] => {
@@ -108,47 +105,51 @@ suite('agentHostSessionFiles', () => {
 		const parse = createIncrementalChatFileEditsParser(undefined, countingParseTurn);
 
 		// Each turn / active-turn snapshot gets a uniquely-identifiable array.
+		const t0Parts: ResponsePart[] = [];
 		const t1Parts: ResponsePart[] = [];
 		const t2Parts: ResponsePart[] = [];
 		const active1Parts: ResponsePart[] = [];
 		const active2Parts: ResponsePart[] = [];
 		const active3Parts: ResponsePart[] = [];
 
-		// 1) First completed turn arrives.
-		parse({ turns: [{ id: 't1', responseParts: t1Parts }] });
-		// 2) A turn starts streaming (active).
+		// 1) A chat with history arrives; only its last turn is of interest.
+		parse({ turns: [{ id: 't0', responseParts: t0Parts }, { id: 't1', responseParts: t1Parts }] });
+		// 2) The same completed last turn is seen again.
+		parse({ turns: [{ id: 't0', responseParts: t0Parts }, { id: 't1', responseParts: t1Parts }] });
+		// 3) A turn starts streaming (active).
 		parse({ turns: [{ id: 't1', responseParts: t1Parts }], activeTurn: { responseParts: active1Parts } });
-		// 3) Same active turn streams another delta.
+		// 4) Same active turn streams another delta.
 		parse({ turns: [{ id: 't1', responseParts: t1Parts }], activeTurn: { responseParts: active2Parts } });
-		// 4) Active turn finalizes into t2.
+		// 5) Active turn finalizes into t2.
 		parse({ turns: [{ id: 't1', responseParts: t1Parts }, { id: 't2', responseParts: t2Parts }] });
-		// 5) A new turn starts streaming.
+		// 6) A new turn starts streaming.
 		parse({
 			turns: [{ id: 't1', responseParts: t1Parts }, { id: 't2', responseParts: t2Parts }],
 			activeTurn: { responseParts: active3Parts },
 		});
 
-		// Completed turns are parsed exactly once regardless of how many deltas
-		// followed; each active-turn snapshot is parsed exactly once.
+		// Turns that were never the last turn are never parsed; a completed last
+		// turn is parsed once no matter how often it is seen; each active-turn
+		// snapshot is parsed exactly once.
 		assert.deepStrictEqual(
 			{
+				t0: parseCounts.get(t0Parts),
 				t1: parseCounts.get(t1Parts),
 				t2: parseCounts.get(t2Parts),
 				active1: parseCounts.get(active1Parts),
 				active2: parseCounts.get(active2Parts),
 				active3: parseCounts.get(active3Parts),
 			},
-			{ t1: 1, t2: 1, active1: 1, active2: 1, active3: 1 },
+			{ t0: undefined, t1: 1, t2: 1, active1: 1, active2: 1, active3: 1 },
 		);
 	});
 
-	test('incremental parser keeps completed-turn edits while a new turn streams and tracks the last turn', () => {
+	test('incremental parser reports the active turn while streaming and the last completed turn when idle', () => {
 		const parse = createIncrementalChatFileEditsParser();
 
 		const t1Parts = [completedToolCallPart([createEdit('file:///a.txt')])];
-		const completed: IFileEditChatState = { turns: [{ id: 't1', responseParts: t1Parts }] };
 
-		const first = parse(completed);
+		const idle = parse({ turns: [{ id: 't1', responseParts: t1Parts }] });
 		const streaming = parse({
 			turns: [{ id: 't1', responseParts: t1Parts }],
 			activeTurn: { responseParts: [completedToolCallPart([createEdit('file:///b.txt')])] },
@@ -156,19 +157,12 @@ suite('agentHostSessionFiles', () => {
 
 		assert.deepStrictEqual(
 			{
-				firstAll: first.allEdits.map(e => e.afterUri?.toString()),
-				firstLastTurn: first.lastTurnEdits.map(e => e.afterUri?.toString()),
-				streamingAll: streaming.allEdits.map(e => e.afterUri?.toString()),
-				streamingLastTurn: streaming.lastTurnEdits.map(e => e.afterUri?.toString()),
+				idle: idle.map(e => e.afterUri?.toString()),
+				streaming: streaming.map(e => e.afterUri?.toString()),
 			},
 			{
-				// When idle, the last turn is the most recently completed turn.
-				firstAll: ['file:///a.txt'],
-				firstLastTurn: ['file:///a.txt'],
-				// While streaming, `allEdits` unions every turn but `lastTurnEdits`
-				// reflects only the in-progress turn.
-				streamingAll: ['file:///a.txt', 'file:///b.txt'],
-				streamingLastTurn: ['file:///b.txt'],
+				idle: ['file:///a.txt'],
+				streaming: ['file:///b.txt'],
 			},
 		);
 	});
@@ -190,56 +184,6 @@ suite('agentHostSessionFiles', () => {
 				{ kind: FileEditKind.Delete, uri: 'file:///deleted.txt' },
 			],
 		);
-	});
-
-	test('reduceSessionFiles classifies operations and filters workspace files', () => {
-		const edits: IParsedFileEdit[] = [
-			// created-then-edited outside workspace → Created
-			parsedEdit(FileEditKind.Create, { after: '/home/user/.config/app.json' }),
-			parsedEdit(FileEditKind.Edit, { after: '/home/user/.config/app.json', beforeContent: '/home/user/.config/app.json.before' }),
-			// edited outside workspace → Modified (keeps original for diff)
-			parsedEdit(FileEditKind.Edit, { after: '/home/user/.bashrc', beforeContent: '/home/user/.bashrc.before' }),
-			// deleted outside workspace → removed from the list entirely
-			parsedEdit(FileEditKind.Delete, { before: '/tmp/scratch.log', beforeContent: '/tmp/scratch.log.before' }),
-			// inside workspace → excluded
-			parsedEdit(FileEditKind.Create, { after: '/repo/src/index.ts' }),
-		];
-
-		const files = reduceSessionFiles(edits, [URI.file('/repo')]);
-
-		assert.deepStrictEqual(
-			files.map(f => ({ uri: f.uri.path, operation: f.operation, original: f.originalUri?.path })),
-			[
-				{ uri: '/home/user/.bashrc', operation: SessionFileOperation.Modified, original: '/home/user/.bashrc.before' },
-				{ uri: '/home/user/.config/app.json', operation: SessionFileOperation.Created, original: undefined },
-			],
-		);
-	});
-
-	test('reduceSessionFiles reports a rename as a create of the target and drops the source', () => {
-		const edits: IParsedFileEdit[] = [
-			parsedEdit(FileEditKind.Rename, { before: '/home/user/old.txt', after: '/home/user/new.txt', beforeContent: '/home/user/old.txt.before' }),
-		];
-
-		const files = reduceSessionFiles(edits, [URI.file('/repo')]);
-
-		assert.deepStrictEqual(
-			files.map(f => ({ uri: f.uri.path, operation: f.operation })),
-			[
-				{ uri: '/home/user/new.txt', operation: SessionFileOperation.Created },
-			],
-		);
-	});
-
-	test('reduceSessionFiles drops a file that is created and then deleted', () => {
-		const edits: IParsedFileEdit[] = [
-			parsedEdit(FileEditKind.Create, { after: '/home/user/scratch.tmp' }),
-			parsedEdit(FileEditKind.Delete, { before: '/home/user/scratch.tmp' }),
-		];
-
-		const files = reduceSessionFiles(edits, [URI.file('/repo')]);
-
-		assert.deepStrictEqual(files, []);
 	});
 
 	test('reduceTurnChanges collapses repeated edits per file and aggregates diff stats', () => {

@@ -24,7 +24,7 @@ suite('OverlayWebview', () => {
 		};
 	}
 
-	test('keeps outer edge classes synchronized with the current anchor part', async () => {
+	test('keeps overlay classes synchronized with the current anchor part', async () => {
 		const root = document.createElement('div');
 		const firstPart = document.createElement('div');
 		firstPart.className = 'part floating-editor-outer-left floating-editor-outer-top';
@@ -37,6 +37,12 @@ suite('OverlayWebview', () => {
 		const secondAnchor = document.createElement('div');
 		secondPart.appendChild(secondAnchor);
 		root.appendChild(secondPart);
+
+		const modalPart = document.createElement('div');
+		modalPart.className = 'part modal-editor-part';
+		const modalAnchor = document.createElement('div');
+		modalPart.appendChild(modalAnchor);
+		root.appendChild(modalPart);
 
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IWorkbenchLayoutService, { getContainer: () => root });
@@ -65,19 +71,35 @@ suite('OverlayWebview', () => {
 
 		secondPart.className = 'part floating-part-outer-right floating-part-outer-top';
 		await timeout(0);
+		const updatedSecondEdges = getOuterEdges(overlay.container);
+
+		overlay.setAnchorElement(modalAnchor);
+		const modalOverlay = {
+			outerEdges: getOuterEdges(overlay.container),
+			modal: overlay.container.classList.contains('webview-overlay-modal'),
+		};
+
+		overlay.setAnchorElement(firstAnchor);
 
 		assert.deepStrictEqual({
 			initialEdges,
 			updatedFirstEdges,
 			reanchoredEdges,
 			afterOldPartChanged,
-			updatedSecondEdges: getOuterEdges(overlay.container),
+			updatedSecondEdges,
+			modalOverlay,
+			modalRemovedAfterReanchor: !overlay.container.classList.contains('webview-overlay-modal'),
 		}, {
 			initialEdges: { left: true, right: false, top: true, bottom: false },
 			updatedFirstEdges: { left: false, right: true, top: false, bottom: true },
 			reanchoredEdges: { left: true, right: false, top: false, bottom: true },
 			afterOldPartChanged: { left: true, right: false, top: false, bottom: true },
 			updatedSecondEdges: { left: false, right: true, top: true, bottom: false },
+			modalOverlay: {
+				outerEdges: { left: false, right: false, top: false, bottom: false },
+				modal: true,
+			},
+			modalRemovedAfterReanchor: true,
 		});
 	});
 });
