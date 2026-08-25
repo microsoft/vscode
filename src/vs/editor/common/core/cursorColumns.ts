@@ -127,7 +127,7 @@ export class CursorColumns {
 	 * ATTENTION: This works with 0-based columns (as opposed to the regular 1-based columns)
 	 * @see {@link CursorColumns}
 	 */
-	public static nextRenderTabStop(visibleColumn: number, indentSize: number): number {
+	public static nextIndentTabStop(visibleColumn: number, indentSize: number): number {
 		return CursorColumns.nextRenderTabStop(visibleColumn, indentSize);
 	}
 
