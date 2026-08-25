@@ -164,6 +164,14 @@ They compose: `session.page` is a normal Playwright `Page`.
       document.querySelector('.monaco-list-row.focused')?.textContent?.trim());
   ```
 
+- **`keyboard.type` works on Monaco; `fill` does not.** `fill` sets a value
+  directly and times out against `native-edit-context`, but `keyboard.type` and
+  `locator.type` dispatch real key events and land text in editors and the chat
+  input alike. It is one round-trip per character — fine for a short string, use
+  `scripts/monaco-paste.sh` for a prompt. Focus first via a command
+  (`workbench.action.chat.open`); clicking `.interactive-input-editor
+  .native-edit-context` times out, and a failed focus makes typing look broken
+  when it is not.
 - **Snapshot refs go stale** against virtualized lists. Re-query before acting.
 - **Some providers register seconds after the window is usable.** A missing
   session type may just not have registered yet, so poll

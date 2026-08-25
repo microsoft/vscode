@@ -274,7 +274,10 @@ before retrying.
 
 ### Typing into Monaco (chat input, editors)
 
-`fill` and `type` **silently fail** on Code OSS — Monaco's `native-edit-context` element doesn't react to Playwright's default input pipeline. Use one of these alternatives:
+`fill` **silently fails** on Code OSS — it sets a value directly, and Monaco's
+`native-edit-context` element only reacts to real input events. `page.keyboard.type()`
+*does* work (it dispatches genuine per-key events), but it is one round-trip per
+character, so prefer it only for short strings. For anything longer use:
 
 - **`scripts/monaco-paste.sh` helper** (recommended — fast, no system clipboard, parallel-safe). Reads text from a positional arg or stdin and dispatches a `ClipboardEvent('paste')` with a `DataTransfer` payload into the focused chat-input Monaco editor. Honors `--session NAME` or `$PW_SESSION` env so it stays inside the same `-s=` session as everything else.
 
@@ -306,7 +309,7 @@ before retrying.
   The helper prints a single JSON line on stdout: `{ok, actualLength, expectedLength, viewLineCount, firstViewLine, error?}`. Exit 0 on success, 1 on verify failure, 2 on argument errors. Tested reliable across 20+ sequential pastes including unicode (中文), emoji (🎉), backticks, ampersands, embedded quotes, and newlines.
 
   **Why a helper script and not just docs:** the inline recipe involves a multi-line `node -e` heredoc with embedded JS template literals, which is exactly the kind of code that gets miscopied. There are also three non-obvious correctness traps the helper handles internally:
-  1. Monaco's `native-edit-context` doesn't react to `fill` or `type`, only to actual paste events (or per-key `press`).
+  1. Monaco's `native-edit-context` ignores `fill` entirely; it only reacts to real input — paste events, per-key `press`, or `keyboard.type`.
   2. Monaco renders ASCII spaces as U+00A0 (NBSP) in the view-line DOM, so verification has to normalize before comparing.
   3. Monaco updates its DOM **asynchronously** after a paste event — a synchronous read-back inside the same `eval` returns stale state. The helper polls rendered view lines across paint cycles until the pasted prefix appears or verification times out.
 
