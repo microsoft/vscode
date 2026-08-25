@@ -137,6 +137,24 @@ export class LocalGitService implements ILocalGitService {
 		await this._exec(operationId, args, repoPath);
 	}
 
+	async checkoutCommit(operationId: string, repoPath: string, commit: string): Promise<void> {
+		const expectedCommit = commit.trim().toLowerCase();
+		if (!/^[0-9a-f]{40}$/.test(expectedCommit)) {
+			throw new Error(`Pinned plugin commit '${commit}' is not a full SHA-1 hash.`);
+		}
+
+		const resolvedCommit = (await this._exec(operationId, ['rev-parse', `${expectedCommit}^{commit}`], repoPath)).trim().toLowerCase();
+		if (resolvedCommit !== expectedCommit) {
+			throw new Error(`Pinned plugin commit '${commit}' resolved to a different commit '${resolvedCommit}'.`);
+		}
+
+		await this._exec(operationId, ['checkout', '--detach', resolvedCommit], repoPath);
+		const checkedOutCommit = (await this._exec(operationId, ['rev-parse', 'HEAD'], repoPath)).trim().toLowerCase();
+		if (checkedOutCommit !== expectedCommit) {
+			throw new Error(`Pinned plugin commit '${commit}' was not checked out. The repository is at commit '${checkedOutCommit}'.`);
+		}
+	}
+
 	async revParse(repoPath: string, ref: string): Promise<string> {
 		return (await this._exec(generateUuid(), ['rev-parse', ref], repoPath)).trim();
 	}
