@@ -253,10 +253,39 @@ function findRootObject(masked: string): { open: number; close: number } {
 	process.exit(1);
 }
 
-// Validate the root object up front. Doing it lazily - only when a key has to
-// be appended - meant a malformed file that already contained both keys took
-// the rewrite path for both and was written back out despite being malformed.
-findRootObject(codeMask(text));
+// Validate up front. Doing it lazily - only when a key has to be appended -
+// meant a malformed file that already contained both keys took the rewrite path
+// for both and was written back out despite being malformed.
+//
+// Delimiter balance alone is not enough: `{ "a": 1 "b": 2 }` is balanced but
+// invalid, and used to be rewritten and reported as success. Actually parse the
+// file the same way VS Code does (`src/vs/base/common/jsonc.ts`: strip comments,
+// then tolerate trailing commas) so any syntax error fails closed instead. The
+// masked text is reused because it already blanks comments while preserving
+// offsets, which is exactly the input `JSON.parse` needs.
+function assertParses(maskedText: string): void {
+	// A leading BOM is accepted elsewhere in this script (and by VS Code), but
+	// `JSON.parse` rejects it, so drop it for validation only.
+	const masked = maskedText.replace(/^\uFEFF/, '');
+	try {
+		JSON.parse(masked);
+		return;
+	} catch {
+		// Trailing commas are valid JSONC but not JSON, so retry as VS Code does
+		// before concluding the file is actually broken.
+	}
+	try {
+		JSON.parse(masked.replace(/,(\s*[}\]])/g, '$1'));
+	} catch (e) {
+		console.error('[normalize-automation-settings] settings.json is not valid JSONC (' +
+			(e as Error).message + ') - refusing to clobber it: ' + f);
+		process.exit(1);
+	}
+}
+
+const maskedForValidation = codeMask(text);
+assertParses(maskedForValidation);
+findRootObject(maskedForValidation);
 
 for (const [key, value] of ENTRIES) {
 	let masked = codeMask(text);

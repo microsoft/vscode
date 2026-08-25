@@ -190,26 +190,30 @@ async function waitForSmokeTestDriver(page: PlaywrightPage, timeoutMs: number): 
  * appears.
  *
  * Detect that here, where the cause is still obvious. Only a rendered editor can
- * answer the question, so this is a no-op when none is open yet - it converts a
- * mystery timeout into an actionable message whenever it can, and never blocks
- * an otherwise healthy attach.
+ * answer the question, so this runs after `whenWorkbenchRestored()`, once the
+ * workspace's editors are actually back - the smoke-test driver is registered
+ * well before that, and checking earlier usually finds no editor at all. It is
+ * still a no-op for a window that restores none, so it converts a mystery
+ * timeout into an actionable message whenever it can without ever blocking an
+ * otherwise healthy attach.
  *
  * Some editors opt out of `EditContext` on their own for speed, independent of
  * configuration - the inline-edit previews pass `editContext: false` directly.
- * Those are always a subset, whereas a disabling setting applies to every editor
- * in the window, so require *all* of them to be textarea-backed before blaming
- * configuration. Otherwise a visible inline-edit preview would fail an
- * out-of-the-box window.
+ * Those are always a subset, so configuration is only blamed when *no* editor in
+ * the window uses EditContext. Otherwise a visible inline-edit preview would
+ * fail an out-of-the-box window.
  */
 async function assertEditContextMode(page: PlaywrightPage): Promise<void> {
 	const mismatched = await page.evaluate(() => {
 		const editors = Array.from(document.querySelectorAll('.monaco-editor'));
-		if (editors.length === 0) {
-			return false;
-		}
-		return editors.every(editor =>
-			editor.querySelector('textarea.inputarea') !== null &&
-			editor.querySelector('.native-edit-context') === null);
+		const textareaBacked = editors.filter(editor => editor.querySelector('textarea.inputarea') !== null).length;
+		const nativeBacked = editors.filter(editor => editor.querySelector('.native-edit-context') !== null).length;
+		// Not every `.monaco-editor` owns an input at all (some are rendered
+		// read-only), so requiring *all* of them to be textarea-backed misses the
+		// real thing. What separates the two cases is whether anything in the
+		// window still uses EditContext: the editors that opt out for speed are
+		// always a subset, whereas a disabling setting leaves none at all.
+		return textareaBacked > 0 && nativeBacked === 0;
 	});
 	if (mismatched) {
 		throw new Error(
@@ -280,7 +284,6 @@ export async function attach(cdpPort: number | string, options: IAttachOptions =
 		const deadline = Date.now() + timeoutMs;
 		const page = await findPage(context, PAGE_URL_HINTS[windowKind], timeoutMs);
 		await waitForSmokeTestDriver(page, Math.max(deadline - Date.now(), 1_000));
-		await assertEditContextMode(page);
 
 		const logger = { log: (...args: unknown[]) => { if (verbose) { console.error('[automation]', ...args); } } };
 		const launchOptions = {
@@ -311,6 +314,11 @@ export async function attach(cdpPort: number | string, options: IAttachOptions =
 		// registering at the point the driver appears.
 		await code.waitForElement('.monaco-workbench');
 		await code.whenWorkbenchRestored();
+
+		// Only now, once restoration has reopened the workspace's editors, is there
+		// anything to inspect: the driver is registered before that, so checking any
+		// earlier usually finds no editor at all and silently proves nothing.
+		await assertEditContextMode(page);
 
 		return {
 			browser,

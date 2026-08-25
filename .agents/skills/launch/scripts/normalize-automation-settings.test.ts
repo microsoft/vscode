@@ -139,6 +139,12 @@ const malformed: [name: string, content: string][] = [
 	['trailing content after the root', '{ "a": 1 } junk'],
 	['two root objects', '{ "a": 1 } { "b": 2 }'],
 	['no braces at all', 'no braces at all'],
+	// Balanced delimiters are not enough - these all pass a bracket count but
+	// are not parseable, and used to be rewritten and reported as success.
+	['balanced but missing a comma', '{ "a": 1 "b": 2 }'],
+	['balanced but missing a colon', '{ "a" 1 }'],
+	['balanced but has an invalid escape', '{ "a": "bad \\x escape" }'],
+	['balanced but has an unquoted key', '{ a: 1 }'],
 	['mismatched closing delimiter', '{]'],
 	['mismatched nested delimiter', '{ "a": [1, 2} }'],
 	['content before the root object', 'junk { "a": 1 }'],
