@@ -11,6 +11,7 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import {
 	CloudSandboxEnabledSettingId,
+	cloudSandboxAddress,
 	ICloudSandboxApiService,
 	type CloudSandboxConnectResult,
 	type ICloudSandboxClientToken,
@@ -49,7 +50,9 @@ class TestCloudSandboxAgentHostService extends CloudSandboxAgentHostService {
 	}
 }
 
-function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T }, 'add'>, results: readonly CloudSandboxConnectResult[]): { service: TestCloudSandboxAgentHostService; connectCalls: () => number } {
+type ScriptedConnectResult = CloudSandboxConnectResult | Error;
+
+function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T }, 'add'>, results: readonly ScriptedConnectResult[]): { service: TestCloudSandboxAgentHostService; connectCalls: () => number } {
 	let calls = 0;
 	const instantiationService = store.add(new TestInstantiationService());
 
@@ -63,6 +66,9 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 			// Hold the last result so a caller can keep re-minting past the scripted responses.
 			const result = results[Math.min(calls, results.length - 1)];
 			calls++;
+			if (result instanceof Error) {
+				throw result;
+			}
 			return result;
 		}
 	}());
@@ -87,8 +93,7 @@ suite('CloudSandboxAgentHostService sealed token', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('re-mints credentials until the sealed GitHub token arrives', async () => {
-		// A freshly provisioned environment answers `/connect` before `copilotd` has registered the
-		// host key Mission Control seals to, so the first credentials carry no sealed token.
+		// A fresh environment answers `/connect` before `copilotd` registers its sealing key.
 		const { service, connectCalls } = createService(store, [
 			{ kind: 'token', token: clientToken(undefined) },
 			{ kind: 'token', token: clientToken(undefined) },
@@ -111,8 +116,7 @@ suite('CloudSandboxAgentHostService sealed token', () => {
 
 		await service.connect({ environmentId: 'env-1', name: 'Sandbox' }, CancellationToken.None);
 
-		// Bounded rather than an unbounded loop, and the connection still proceeds without a
-		// sealed token. The initial mint plus one re-mint per retry.
+		// Bounded, and the connection still proceeds unsealed. Initial mint plus one per retry.
 		assert.deepStrictEqual({ calls: connectCalls(), sealed: service.sealedTokenAtEstablish }, {
 			calls: MAX_SEALED_TOKEN_RETRIES + 1,
 			sealed: undefined,
@@ -127,5 +131,50 @@ suite('CloudSandboxAgentHostService sealed token', () => {
 		await service.connect({ environmentId: 'env-1', name: 'Sandbox' }, CancellationToken.None);
 
 		assert.strictEqual(connectCalls(), 1);
+	});
+
+	test('keeps re-minting when the value is present but not a sealed envelope', async () => {
+		// A plaintext bearer is refused when forwarding, so accepting it here would skip re-minting.
+		const { service, connectCalls } = createService(store, [
+			{ kind: 'token', token: clientToken('ghu_plaintext') },
+			{ kind: 'token', token: clientToken('copilot-sealed.v1.key.payload') },
+		]);
+
+		await service.connect({ environmentId: 'env-1', name: 'Sandbox' }, CancellationToken.None);
+
+		assert.deepStrictEqual({ calls: connectCalls(), sealed: service.sealedTokenAtEstablish }, {
+			calls: 2,
+			sealed: 'copilot-sealed.v1.key.payload',
+		});
+	});
+
+	test('connects with the initial credentials when a re-mint fails', async () => {
+		// A transient failure while chasing the seal must not discard credentials that work.
+		const { service } = createService(store, [
+			{ kind: 'token', token: clientToken(undefined) },
+			new Error('network blip'),
+		]);
+
+		const address = await service.connect({ environmentId: 'env-1', name: 'Sandbox' }, CancellationToken.None);
+
+		assert.deepStrictEqual({ address, sealed: service.sealedTokenAtEstablish }, {
+			address: cloudSandboxAddress('env-1'),
+			sealed: undefined,
+		});
+	});
+
+	test('stops re-minting when the environment goes back to waking', async () => {
+		// Re-entering the wake loop would stack two waits; the handshake watchdog covers this.
+		const { service, connectCalls } = createService(store, [
+			{ kind: 'token', token: clientToken(undefined) },
+			{ kind: 'waking', waking: { retryAfterSeconds: 5 } as never },
+		]);
+
+		await service.connect({ environmentId: 'env-1', name: 'Sandbox' }, CancellationToken.None);
+
+		assert.deepStrictEqual({ calls: connectCalls(), sealed: service.sealedTokenAtEstablish }, {
+			calls: 2,
+			sealed: undefined,
+		});
 	});
 });

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationError } from '../../../../../base/common/errors.js';
+import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { timeout } from '../../../../../base/common/async.js';
@@ -21,6 +21,7 @@ import {
 	ICloudSandboxConnectOptions,
 	ICloudSandboxApiService,
 	isCloudSandboxSealedToken,
+	type CloudSandboxConnectResult,
 	type ICloudSandboxClientToken,
 } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
@@ -37,17 +38,8 @@ const LOG_PREFIX = '[CloudSandboxAgentHost]';
 const MAX_WAKING_RETRIES = 20;
 
 /**
- * Maximum number of `/connect` re-mints while the sealed GitHub token is still missing.
- *
- * Mission Control seals the token to a key the host generates at startup and advertises on
- * `register` and every heartbeat, so a key it has not learned yet leaves nothing to seal to. A
- * freshly provisioned environment can answer `/connect` before that has propagated, yielding
- * credentials with no `encrypted_github_token` and a host that rejects every session request with
- * `-32007 AuthRequired`.
- *
- * Sized against the daemon's own timings: `copilotd` heartbeats every 30s and backs off register
- * attempts up to 60s, so this spans a full register backoff and two heartbeats. A warm environment
- * seals on the first mint and never enters this loop.
+ * Maximum number of `/connect` re-mints while the sealed GitHub token is still missing. Spans a
+ * full `copilotd` register backoff (60s) and two heartbeats (30s each).
  */
 export const MAX_SEALED_TOKEN_RETRIES = 12;
 
@@ -132,8 +124,6 @@ export class CloudSandboxAgentHostService extends Disposable implements ICloudSa
 	/**
 	 * Open the relay with an already-minted token, drive the AHP handshake, and register the
 	 * connection.
-	 *
-	 * Protected so tests can exercise credential minting without opening a real socket.
 	 */
 	protected async _establish(options: ICloudSandboxConnectOptions, address: string, clientToken: ICloudSandboxClientToken, token: CancellationToken): Promise<string> {
 		// Mutable holder read by the transport factory: the protocol client re-invokes the factory to
@@ -196,8 +186,7 @@ export class CloudSandboxAgentHostService extends Disposable implements ICloudSa
 				}
 			}
 		} else if (!connectError) {
-			// Without an envelope every later request answers `-32007 AuthRequired`; say so here,
-			// where the cause is visible, rather than leaving only the downstream symptoms.
+			// Without an envelope every later request answers `-32007 AuthRequired`.
 			this._logService.error(`${LOG_PREFIX} Mission Control returned no sealed GitHub token for ${address}; the host cannot act as the user and session requests will fail with AuthRequired.`);
 		}
 
@@ -254,29 +243,33 @@ export class CloudSandboxAgentHostService extends Disposable implements ICloudSa
 	}
 
 	/**
-	 * Re-mint credentials until they carry a sealed GitHub token.
-	 *
-	 * A newly provisioned environment answers `/connect` as soon as the compute is up, which can be
-	 * before Mission Control has learned the host's sealing key. The credentials are valid, but
-	 * without the sealed envelope the client never sends `authenticate`, so the host answers every
-	 * session request with `-32007 AuthRequired`. Re-minting lets the key propagate.
-	 *
-	 * Returns the last credentials either way: an environment may legitimately never seal one, and a
-	 * session that cannot reach GitHub APIs beats refusing to connect. {@link _establish} logs that.
+	 * Re-mint credentials until they carry a sealed GitHub token, which a freshly provisioned
+	 * environment can omit until Mission Control learns the host's sealing key. Returns the last
+	 * credentials either way, since an environment may legitimately never seal one.
 	 */
 	private async _awaitSealedToken(options: ICloudSandboxConnectOptions, minted: ICloudSandboxClientToken, token: CancellationToken): Promise<ICloudSandboxClientToken> {
 		let clientToken = minted;
-		for (let attempt = 0; attempt < MAX_SEALED_TOKEN_RETRIES && !clientToken.encrypted_github_token; attempt++) {
+		// Match what `_establish` accepts: an unsealed value would wrongly end the loop.
+		for (let attempt = 0; attempt < MAX_SEALED_TOKEN_RETRIES && !isCloudSandboxSealedToken(clientToken.encrypted_github_token); attempt++) {
 			if (token.isCancellationRequested) {
 				throw new CancellationError();
 			}
 			this._logService.info(`${LOG_PREFIX} Environment ${options.environmentId} has no sealed GitHub token yet; re-minting in ${this.sealedTokenRetryDelayMs}ms (attempt ${attempt + 1}/${MAX_SEALED_TOKEN_RETRIES})`);
 			await timeout(this.sealedTokenRetryDelayMs, token);
 
-			const result = await this._apiService.connect({ environmentId: options.environmentId, sessionId: options.sessionId }, token);
+			let result: CloudSandboxConnectResult;
+			try {
+				result = await this._apiService.connect({ environmentId: options.environmentId, sessionId: options.sessionId }, token);
+			} catch (err) {
+				if (isCancellationError(err) || token.isCancellationRequested) {
+					throw err;
+				}
+				// The initial mint still works, so degrade rather than discard it.
+				this._logService.warn(`${LOG_PREFIX} Re-mint for ${options.environmentId} failed; continuing without a sealed token`, err);
+				break;
+			}
 			if (result.kind !== 'token') {
-				// The environment went back to waking mid-wait. Keep what we have rather than
-				// re-entering the wake loop; the handshake watchdog covers a host that is gone.
+				// Went back to waking mid-wait; the handshake watchdog covers a host that is gone.
 				break;
 			}
 			clientToken = result.token;
