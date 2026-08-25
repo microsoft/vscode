@@ -62,14 +62,20 @@ function normalize(content: string): { status: number; text: string } {
 	return { status, text: fs.readFileSync(file, 'utf8') };
 }
 
-/** Asserts no nested override contradicts the automation values. */
-function assertNoContradictingOverride(value: unknown, keyPath: string): void {
-	if (!value || typeof value !== 'object') { return; }
-	for (const [key, nested] of Object.entries(value)) {
-		if (KEYS.includes(key)) {
-			assert.strictEqual(nested, true, `${keyPath}.${key} still overrides the automation value`);
-		} else {
-			assertNoContradictingOverride(nested, `${keyPath}.${key}`);
+/**
+ * Asserts that no `[language]` override contradicts the automation values.
+ *
+ * Only top-level override keys are checked, because those are the only nested
+ * objects VS Code treats as overrides (`OVERRIDE_PROPERTY_REGEX`). A matching
+ * key anywhere else is unrelated data and must be preserved, not rewritten.
+ */
+function assertNoContradictingOverride(root: Record<string, unknown>): void {
+	for (const [key, value] of Object.entries(root)) {
+		if (!/^(\[[^\]]+\])+$/.test(key) || !value || typeof value !== 'object') { continue; }
+		for (const [nestedKey, nestedValue] of Object.entries(value)) {
+			if (KEYS.includes(nestedKey)) {
+				assert.strictEqual(nestedValue, true, `${key}.${nestedKey} still overrides the automation value`);
+			}
 		}
 	}
 }
@@ -105,6 +111,8 @@ const valid: [name: string, content: string][] = [
 	['override alongside another setting', '{ "[md]": { "editor.editContext": "no", "editor.tabSize": 2 } }'],
 	['deeply nested occurrence', '{ "a": { "b": { "editor.editContext": false } } }'],
 	['occurrence inside an array', '{ "a": [1, 2, { "editor.editContext": false }] }'],
+	['multi-language override key', '{ "[typescript][javascript]": { "editor.editContext": false } }'],
+	['array value at the root', '{ "a": [1, 2] }'],
 ];
 
 for (const [name, content] of valid) {
@@ -115,7 +123,7 @@ for (const [name, content] of valid) {
 		for (const key of KEYS) {
 			assert.strictEqual(parsed[key], true, `${key} did not resolve to true in:\n${text}`);
 		}
-		assertNoContradictingOverride(parsed, 'root');
+		assertNoContradictingOverride(parsed);
 	});
 }
 
@@ -125,6 +133,11 @@ const malformed: [name: string, content: string][] = [
 	['trailing content after the root', '{ "a": 1 } junk'],
 	['two root objects', '{ "a": 1 } { "b": 2 }'],
 	['no braces at all', 'no braces at all'],
+	['mismatched closing delimiter', '{]'],
+	['mismatched nested delimiter', '{ "a": [1, 2} }'],
+	// Both keys already present means every entry takes the rewrite path, so the
+	// structural check has to run before any of them rather than lazily.
+	['malformed but both keys already present', '{ "files.simpleDialog.enable": false, "editor.editContext": false, "b": { "c": 2 }\n'],
 ];
 
 for (const [name, content] of malformed) {
@@ -134,3 +147,37 @@ for (const [name, content] of malformed) {
 		assert.strictEqual(text, content, 'the file must be left unmodified');
 	});
 }
+
+// A same-named key that is *not* inside a top-level `[language]` block belongs
+// to some other consumer. VS Code only treats direct children of an override
+// key as overrides, so rewriting anything else would corrupt unrelated data.
+test('leaves non-override nested objects alone', () => {
+	const { status, text } = normalize('{ "some.extension": { "editor.editContext": false } }');
+	assert.strictEqual(status, 0);
+	const parsed = parseJsonc(text) as Record<string, unknown> & { 'some.extension': Record<string, unknown> };
+	assert.strictEqual(parsed['some.extension']['editor.editContext'], false);
+	assert.strictEqual(parsed['editor.editContext'], true);
+});
+
+test('rewrites language overrides', () => {
+	const { status, text } = normalize('{ "[typescript]": { "editor.editContext": false } }');
+	assert.strictEqual(status, 0);
+	const parsed = parseJsonc(text) as { '[typescript]': Record<string, unknown> };
+	assert.strictEqual(parsed['[typescript]']['editor.editContext'], true);
+});
+
+// `rsync -a` preserves symlinks, so a profile whose settings.json points at a
+// dotfiles checkout would otherwise be written through to the user's real file.
+test('never writes through a symlink', () => {
+	const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'nas-link-'));
+	const real = path.join(dir, 'real.json');
+	const link = path.join(dir, 'settings.json');
+	fs.writeFileSync(real, '{ "a": 1 }\n');
+	fs.symlinkSync(real, link);
+
+	execFileSync(process.execPath, [script, link], { stdio: 'pipe' });
+
+	assert.strictEqual(fs.readFileSync(real, 'utf8'), '{ "a": 1 }\n', 'the link target must be untouched');
+	assert.strictEqual(fs.lstatSync(link).isSymbolicLink(), false, 'the link must be materialized');
+	assert.strictEqual(parseJsonc(fs.readFileSync(link, 'utf8'))['editor.editContext'], true);
+});

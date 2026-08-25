@@ -30,6 +30,25 @@ const ENTRIES: [string, string][] = [
 	['editor.editContext', 'true'],
 ];
 
+// The profile is cloned with `rsync -a`, which preserves symlinks. If
+// `User/settings.json` points at a dotfiles checkout or at the source profile,
+// writing through it would edit the user's real file instead of the throwaway
+// copy - the exact isolation this launcher promises. Replace the link with a
+// regular file holding its current contents before writing anything.
+try {
+	if (fs.lstatSync(f).isSymbolicLink()) {
+		const contents = fs.readFileSync(f, 'utf8');
+		fs.unlinkSync(f);
+		fs.writeFileSync(f, contents);
+	}
+} catch (e) {
+	const error = e as NodeJS.ErrnoException;
+	if (error.code !== 'ENOENT') {
+		console.error('[normalize-automation-settings] cannot materialize ' + f + ': ' + error.message);
+		process.exit(1);
+	}
+}
+
 let text: string;
 try { text = fs.readFileSync(f, 'utf8'); }
 catch (e) {
@@ -81,12 +100,17 @@ function codeMask(src: string): string {
 // Locate `"key": <primitive>` pairs, tracking nesting and string state so an
 // occurrence embedded in a string value is never mistaken for the real setting.
 //
-// Root-level and nested occurrences are both reported, because a nested one is
+// Language overrides are reported alongside the root value, because they are
 // not inert: every `editor.*` setting is LANGUAGE_OVERRIDABLE, so a
 // `"[typescript]": { "editor.editContext": false }` block still renders a
 // `textarea` in TypeScript editors while the page objects wait on
-// `.native-edit-context`. In a throwaway automation profile the only safe
-// reading is that no override may contradict the automation value.
+// `.native-edit-context`.
+//
+// Only *direct* properties of a top-level `[language]` block count, matching
+// what VS Code itself recognizes (`OVERRIDE_PROPERTY_REGEX`, applied to
+// top-level keys in `ConfigurationModelParser.toOverrides`). A same-named key
+// anywhere else - `"some.extension": { "editor.editContext": false }` - is
+// ordinary data belonging to another consumer and must not be touched.
 //
 // For the root level the LAST occurrence is the effective one, which is what
 // Code OSS honours when a profile contains duplicate keys.
@@ -100,6 +124,11 @@ function findProperties(masked: string, key: string): { root: Span | null; neste
 	// One pending key per nesting level, so a nested object does not clobber the
 	// enclosing object's pending key.
 	const pendingKey: (string | null)[] = [];
+	// The top-level key whose object we are currently inside, so depth 2 can
+	// tell a `[language]` override from any other nested object.
+	let rootKeyOfCurrentObject: string | null = null;
+	let enteringKey: string | null = null;
+	const isOverrideKey = (k: string | null) => k !== null && /^(\[[^\]]+\])+$/.test(k);
 	for (let i = 0; i < masked.length; i++) {
 		const c = masked[i];
 		if (inString) {
@@ -127,18 +156,34 @@ function findProperties(masked: string, key: string): { root: Span | null; neste
 					// primitive (an object or array value), drop any earlier hit:
 					// rewriting that one would leave the effective value unchanged.
 					root = m ? { valueStart: i, valueLength: m[1].length } : null;
-				} else if (m) {
+				} else if (m && depth === 2 && isOverrideKey(rootKeyOfCurrentObject)) {
 					nested.push({ valueStart: i, valueLength: m[1].length });
 				}
 			}
 			expectValue = false;
+			// Remember which key this non-primitive value belongs to before
+			// clearing it, so the `{` handler below can tell whether we are
+			// entering a `[language]` override block.
+			if (!m && depth === 1) { enteringKey = pendingKey[1]; }
 			pendingKey[depth] = null;
 			if (m) { i += m[1].length - 1; continue; }
 			// Not a primitive: fall through so `{`/`[`/`"` is handled below.
 		}
 		if (c === '"') { inString = true; keyStart = i; continue; }
-		if (c === '{' || c === '[') { depth++; pendingKey[depth] = null; expectValue = false; continue; }
-		if (c === '}' || c === ']') { depth--; expectValue = false; continue; }
+		if (c === '{' || c === '[') {
+			if (depth === 1) { rootKeyOfCurrentObject = enteringKey; }
+			enteringKey = null;
+			depth++;
+			pendingKey[depth] = null;
+			expectValue = false;
+			continue;
+		}
+		if (c === '}' || c === ']') {
+			depth--;
+			if (depth <= 1) { rootKeyOfCurrentObject = null; }
+			expectValue = false;
+			continue;
+		}
 		if (c === ':' && depth >= 1 && pendingKey[depth] !== null) { expectValue = true; continue; }
 		if (c === ',' && depth >= 1) { pendingKey[depth] = null; expectValue = false; continue; }
 	}
@@ -155,7 +200,10 @@ function findRootObject(masked: string): { open: number; close: number } {
 		console.error('[normalize-automation-settings] settings.json has no opening brace - refusing to clobber it: ' + f);
 		process.exit(1);
 	}
-	let depth = 0, inString = false;
+	// Track the delimiter *types*, not just the nesting depth: counting alone
+	// would accept `{]` as a balanced root object.
+	const stack: string[] = [];
+	let inString = false;
 	for (let i = open; i < masked.length; i++) {
 		const c = masked[i];
 		if (inString) {
@@ -163,10 +211,14 @@ function findRootObject(masked: string): { open: number; close: number } {
 			continue;
 		}
 		if (c === '"') { inString = true; continue; }
-		if (c === '{' || c === '[') { depth++; continue; }
+		if (c === '{' || c === '[') { stack.push(c); continue; }
 		if (c === '}' || c === ']') {
-			depth--;
-			if (depth === 0) {
+			const expected = c === '}' ? '{' : '[';
+			if (stack.pop() !== expected) {
+				console.error('[normalize-automation-settings] settings.json has mismatched brackets - refusing to clobber it: ' + f);
+				process.exit(1);
+			}
+			if (stack.length === 0) {
 				// Nothing but trivia may follow the root object.
 				const rest = masked.slice(i + 1).trim();
 				if (rest !== '') {
@@ -180,6 +232,11 @@ function findRootObject(masked: string): { open: number; close: number } {
 	console.error('[normalize-automation-settings] settings.json root object is not closed - refusing to clobber it: ' + f);
 	process.exit(1);
 }
+
+// Validate the root object up front. Doing it lazily - only when a key has to
+// be appended - meant a malformed file that already contained both keys took
+// the rewrite path for both and was written back out despite being malformed.
+findRootObject(codeMask(text));
 
 for (const [key, value] of ENTRIES) {
 	let masked = codeMask(text);
