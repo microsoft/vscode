@@ -14,6 +14,7 @@ const CHATGPT_ACCOUNTS_URL = 'https://chatgpt.com/backend-api/wham/accounts/chec
 const CHATGPT_PROFILE_URL = 'https://chatgpt.com/backend-api/wham/profiles/me';
 const CHATGPT_ORIGIN = 'https://chatgpt.com';
 const PROFILE_IMAGE_REQUEST_TIMEOUT_MS = 10_000;
+const PROFILE_IMAGE_MAX_REDIRECTS = 5;
 const SUPPORTED_PROFILE_IMAGE_MEDIA_TYPES = new Set([
 	'image/avif',
 	'image/gif',
@@ -55,13 +56,17 @@ export class CodexProfileImageStore extends Disposable {
 		this._register(fileService.registerProvider(CODEX_PROFILE_IMAGE_SCHEME, this._provider));
 	}
 
-	clear(): void {
+	async clear(): Promise<void> {
+		const reference = this._reference;
 		this._reference = undefined;
+		if (reference) {
+			await this._deleteResource(reference);
+		}
 	}
 
 	async update(image: ICodexProfileImage | undefined): Promise<ICodexProfileImageReference | undefined> {
 		if (!image) {
-			this.clear();
+			await this.clear();
 			return undefined;
 		}
 
@@ -73,7 +78,12 @@ export class CodexProfileImageStore extends Disposable {
 			return this._reference;
 		}
 
-		const resource = URI.from({ scheme: CODEX_PROFILE_IMAGE_SCHEME, path: `/profile.${getProfileImageExtension(image.mediaType)}` });
+		const resource = URI.from({ scheme: CODEX_PROFILE_IMAGE_SCHEME, path: `/profile-${nonce}.${getProfileImageExtension(image.mediaType)}` });
+		if (this._reference) {
+			const previousReference = this._reference;
+			this._reference = undefined;
+			await this._deleteResource(previousReference);
+		}
 		await this._provider.writeFile(resource, image.bytes, { create: true, overwrite: true, append: false, unlock: false, atomic: false });
 		this._reference = {
 			uri: resource.toString(),
@@ -82,6 +92,10 @@ export class CodexProfileImageStore extends Disposable {
 			nonce,
 		};
 		return this._reference;
+	}
+
+	private _deleteResource(reference: ICodexProfileImageReference): Promise<void> {
+		return this._provider.delete(URI.parse(reference.uri), { recursive: false, useTrash: false, atomic: false });
 	}
 }
 
@@ -114,38 +128,29 @@ export async function fetchCodexProfileImage(accessToken: string, fetchFn: Fetch
 		return undefined;
 	}
 
-	let imageResponse: Response;
-	try {
-		imageResponse = await fetchFn(resolvedImageUrl, {
-			headers: isAuthenticatedImageHost(resolvedImageUrl)
-				? { ...getAuthenticatedHeaders(accessToken, accountId), Accept: 'image/*' }
-				: { Accept: 'image/*' },
-			signal: AbortSignal.timeout(PROFILE_IMAGE_REQUEST_TIMEOUT_MS),
-		});
-	} catch {
+	const imageResponse = await fetchProfileImageResponse(resolvedImageUrl, accessToken, accountId, fetchFn);
+	if (!imageResponse) {
 		return undefined;
 	}
 	if (!imageResponse.ok) {
+		await cancelResponseBody(imageResponse);
 		return undefined;
 	}
 
 	const mediaType = imageResponse.headers.get('content-type')?.split(';', 1)[0].trim().toLowerCase();
 	if (!mediaType || !SUPPORTED_PROFILE_IMAGE_MEDIA_TYPES.has(mediaType)) {
+		await cancelResponseBody(imageResponse);
 		return undefined;
 	}
 
 	const contentLength = Number(imageResponse.headers.get('content-length'));
 	if (Number.isFinite(contentLength) && contentLength > MAX_CODEX_PROFILE_IMAGE_BYTES) {
+		await cancelResponseBody(imageResponse);
 		return undefined;
 	}
 
-	let bytes: Buffer;
-	try {
-		bytes = Buffer.from(await imageResponse.arrayBuffer());
-	} catch {
-		return undefined;
-	}
-	if (bytes.byteLength === 0 || bytes.byteLength > MAX_CODEX_PROFILE_IMAGE_BYTES) {
+	const bytes = await readProfileImageBytes(imageResponse);
+	if (!bytes) {
 		return undefined;
 	}
 
@@ -223,6 +228,94 @@ function isAuthenticatedImageHost(url: URL): boolean {
 		|| (host.endsWith('.chatgpt.com') && host !== 'ab.chatgpt.com')
 		|| host === 'openai.com'
 		|| host.endsWith('.openai.com');
+}
+
+async function fetchProfileImageResponse(initialUrl: URL, accessToken: string, accountId: string | undefined, fetchFn: FetchFunction): Promise<Response | undefined> {
+	let url = initialUrl;
+	const signal = AbortSignal.timeout(PROFILE_IMAGE_REQUEST_TIMEOUT_MS);
+	for (let redirectCount = 0; redirectCount <= PROFILE_IMAGE_MAX_REDIRECTS; redirectCount++) {
+		if (url.protocol !== 'https:') {
+			return undefined;
+		}
+
+		let response: Response;
+		try {
+			response = await fetchFn(url, {
+				headers: isAuthenticatedImageHost(url)
+					? { ...getAuthenticatedHeaders(accessToken, accountId), Accept: 'image/*' }
+					: { Accept: 'image/*' },
+				redirect: 'manual',
+				signal,
+			});
+		} catch {
+			return undefined;
+		}
+
+		if (!isRedirectStatus(response.status)) {
+			return response;
+		}
+		const location = response.headers.get('location');
+		if (!location || redirectCount === PROFILE_IMAGE_MAX_REDIRECTS) {
+			await cancelResponseBody(response);
+			return undefined;
+		}
+
+		let redirectedUrl: URL;
+		try {
+			redirectedUrl = new URL(location, url);
+		} catch {
+			await cancelResponseBody(response);
+			return undefined;
+		}
+		await cancelResponseBody(response);
+		url = redirectedUrl;
+	}
+	return undefined;
+}
+
+function isRedirectStatus(status: number): boolean {
+	return status === 301 || status === 302 || status === 303 || status === 307 || status === 308;
+}
+
+async function cancelResponseBody(response: Response): Promise<void> {
+	try {
+		await response.body?.cancel();
+	} catch {
+		// Best effort: the stream may already be closed or errored.
+	}
+}
+
+async function readProfileImageBytes(response: Response): Promise<Buffer | undefined> {
+	if (!response.body) {
+		return undefined;
+	}
+
+	const reader = response.body.getReader();
+	const chunks: Uint8Array[] = [];
+	let size = 0;
+	try {
+		while (true) {
+			const { done, value } = await reader.read();
+			if (done) {
+				break;
+			}
+			size += value.byteLength;
+			if (size > MAX_CODEX_PROFILE_IMAGE_BYTES) {
+				await reader.cancel();
+				return undefined;
+			}
+			chunks.push(value);
+		}
+	} catch {
+		return undefined;
+	} finally {
+		reader.releaseLock();
+	}
+
+	if (size === 0) {
+		return undefined;
+	}
+	return chunks.length === 1 ? Buffer.from(chunks[0]) : Buffer.concat(chunks, size);
 }
 
 async function fetchJson(url: string, headers: Record<string, string>, fetchFn: FetchFunction): Promise<unknown> {

@@ -6,7 +6,9 @@
 import * as assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { MAX_CODEX_PROFILE_IMAGE_BYTES } from '../../../common/codexAccount.js';
 import { FileService } from '../../../../files/common/fileService.js';
+import { FileOperationResult, toFileOperationResult } from '../../../../files/common/files.js';
 import { NullLogService } from '../../../../log/common/log.js';
 import { CodexProfileImageStore, fetchCodexProfileImage, getChatGPTAccountId, getCodexProfileImageUrl, type ICodexProfileImage } from '../../../node/codex/codexProfileImage.js';
 
@@ -66,6 +68,46 @@ suite('Codex profile image', () => {
 		assert.strictEqual(requests[1].has('chatgpt-account-id'), false);
 	});
 
+	test('rebuilds profile-image headers across redirects', async () => {
+		const accessToken = createAccessToken('account-1');
+		const requests: { readonly url: string; readonly headers: Headers; readonly redirect: RequestRedirect | undefined }[] = [];
+		const fetchFn: typeof globalThis.fetch = async (input, init) => {
+			requests.push({ url: getRequestUrl(input), headers: new Headers(init?.headers), redirect: init?.redirect });
+			switch (requests.length) {
+				case 1:
+					return Response.json({ profile: { profile_picture_url: 'https://chatgpt.com/avatar.png' } });
+				case 2:
+					return new Response(null, { status: 302, headers: { location: 'https://images.example.test/avatar.png' } });
+				default:
+					return new Response(Uint8Array.from([1, 2, 3]), { headers: { 'content-type': 'image/png' } });
+			}
+		};
+
+		assert.deepStrictEqual(asComparable(await fetchCodexProfileImage(accessToken, fetchFn)), { mediaType: 'image/png', bytes: [1, 2, 3] });
+		assert.deepStrictEqual(requests.slice(1).map(request => ({
+			url: request.url,
+			authorization: request.headers.get('authorization'),
+			accountId: request.headers.get('chatgpt-account-id'),
+			originator: request.headers.get('originator'),
+			redirect: request.redirect,
+		})), [
+			{
+				url: 'https://chatgpt.com/avatar.png',
+				authorization: `Bearer ${accessToken}`,
+				accountId: 'account-1',
+				originator: 'vscode_codex',
+				redirect: 'manual',
+			},
+			{
+				url: 'https://images.example.test/avatar.png',
+				authorization: null,
+				accountId: null,
+				originator: null,
+				redirect: 'manual',
+			},
+		]);
+	});
+
 	test('falls back to the current account image', async () => {
 		let request = 0;
 		const fetchFn: typeof globalThis.fetch = async () => ++request === 1
@@ -85,6 +127,26 @@ suite('Codex profile image', () => {
 			? Response.json({ profile: { profile_picture_url: 'https://chatgpt.com/avatar.svg' } })
 			: new Response('<svg/>', { headers: { 'content-type': 'image/svg+xml' } });
 		assert.strictEqual(await fetchCodexProfileImage(createAccessToken('account-1'), fetchFn), undefined);
+	});
+
+	test('cancels oversized streamed profile images', async () => {
+		let request = 0;
+		let cancelled = false;
+		const body = new ReadableStream<Uint8Array>({
+			start(controller) {
+				controller.enqueue(new Uint8Array(MAX_CODEX_PROFILE_IMAGE_BYTES));
+				controller.enqueue(Uint8Array.of(1));
+			},
+			cancel() {
+				cancelled = true;
+			},
+		});
+		const fetchFn: typeof globalThis.fetch = async () => ++request === 1
+			? Response.json({ profile: { profile_picture_url: 'https://chatgpt.com/avatar.png' } })
+			: new Response(body, { headers: { 'content-type': 'image/png' } });
+
+		assert.strictEqual(await fetchCodexProfileImage(createAccessToken('account-1'), fetchFn), undefined);
+		assert.strictEqual(cancelled, true);
 	});
 
 	test('falls back when the profile image cannot be downloaded', async () => {
@@ -109,14 +171,23 @@ suite('Codex profile image', () => {
 			sizeHint: reference.sizeHint,
 			nonceLength: reference.nonce.length,
 		}, {
-			uri: 'vscode-codex-profile-image:/profile.png',
+			uri: `vscode-codex-profile-image:/profile-${reference!.nonce}.png`,
 			contentType: 'image/png',
 			sizeHint: 3,
 			nonceLength: 64,
 		});
 		assert.deepStrictEqual([...((await fileService.readFile(URI.parse(reference!.uri))).value.buffer)], [1, 2, 3]);
+
+		const replacement = await store.update({ mediaType: 'image/png', bytes: Uint8Array.from([4, 5, 6]) });
+		await assertFileNotFound(fileService, URI.parse(reference!.uri));
+		await store.clear();
+		await assertFileNotFound(fileService, URI.parse(replacement!.uri));
 	});
 });
+
+async function assertFileNotFound(fileService: FileService, resource: URI): Promise<void> {
+	await assert.rejects(fileService.readFile(resource), (error: Error) => toFileOperationResult(error) === FileOperationResult.FILE_NOT_FOUND);
+}
 
 function asComparable(image: ICodexProfileImage | undefined): { readonly mediaType: string; readonly bytes: number[] } | undefined {
 	return image ? { mediaType: image.mediaType, bytes: [...image.bytes] } : undefined;
