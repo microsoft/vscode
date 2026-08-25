@@ -180,7 +180,16 @@ export class SessionsChatBackgroundService extends Disposable implements ISessio
 			this._onDidChangeBackground.fire();
 		}
 		if (persist) {
-			await this.configurationService.updateValue(AGENT_SESSIONS_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING, layout, ConfigurationTarget.APPLICATION);
+			try {
+				await this.configurationService.updateValue(AGENT_SESSIONS_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING, layout, ConfigurationTarget.APPLICATION);
+			} catch (error) {
+				const configuredLayout = this.readConfiguredBackgroundImageLayout();
+				if (configuredLayout !== this.backgroundImageLayout) {
+					this.backgroundImageLayout = configuredLayout;
+					this._onDidChangeBackground.fire();
+				}
+				throw error;
+			}
 		}
 	}
 

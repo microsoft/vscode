@@ -18,6 +18,7 @@ import { AGENT_SESSIONS_CHAT_BACKGROUND_CODICONS_PRESET, AGENT_SESSIONS_CHAT_BAC
 
 class CapturingConfigurationService extends TestConfigurationService {
 	readonly updates: { key: string; value: unknown; target: ConfigurationTarget | undefined }[] = [];
+	updateError: Error | undefined;
 
 	override updateValue(key: string, value: unknown): Promise<void>;
 	override updateValue(key: string, value: unknown, target: ConfigurationTarget): Promise<void>;
@@ -25,7 +26,7 @@ class CapturingConfigurationService extends TestConfigurationService {
 	override updateValue(key: string, value: unknown, overrides: IConfigurationOverrides | IConfigurationUpdateOverrides, target: ConfigurationTarget, options?: IConfigurationUpdateOptions): Promise<void>;
 	override updateValue(key: string, value: unknown, arg3?: ConfigurationTarget | IConfigurationOverrides | IConfigurationUpdateOverrides, target?: ConfigurationTarget): Promise<void> {
 		this.updates.push({ key, value, target: typeof arg3 === 'number' ? arg3 : target });
-		return Promise.resolve();
+		return this.updateError ? Promise.reject(this.updateError) : Promise.resolve();
 	}
 }
 
@@ -213,6 +214,25 @@ suite('Sessions Chat Background Service', () => {
 			persistedDuringPreview: 'center',
 			restoredPosition: 'center center',
 			persistedLayout: 'center',
+			changes: 2,
+		});
+	});
+
+	test('restores the configured image layout when persistence fails', async () => {
+		const configurationService = new CapturingConfigurationService();
+		const service = disposables.add(new SessionsChatBackgroundService(configurationService, new TestThemeService(), disposables.add(new MockContextKeyService()), disposables.add(new InMemoryStorageService())));
+		let changes = 0;
+		disposables.add(service.onDidChangeBackground(() => changes++));
+		await service.setBackgroundImageLayout('bottom-right', false);
+		configurationService.updateError = new Error('Unable to save layout');
+
+		await assert.rejects(service.setBackgroundImageLayout('bottom-right', true), /Unable to save layout/);
+
+		assert.deepStrictEqual({
+			layout: service.getBackgroundImageLayout(),
+			changes,
+		}, {
+			layout: 'repeat',
 			changes: 2,
 		});
 	});
