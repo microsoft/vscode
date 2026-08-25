@@ -106,31 +106,32 @@ suite('TerminalChatService', () => {
 		assert.strictEqual(service.getToolSessionIdForInstance(instance), 'tool-session-a');
 	});
 
-	test('continueInBackground notifies matching progress parts without per-part event listeners', () => {
-		const markedSessionIds: string[] = [];
+	test('continueInBackground notifies every matching progress part', () => {
+		const markedPartIndices: number[] = [];
+		const targetSessionId = 'tool-session-target';
 		for (let index = 0; index < 50; index++) {
-			const sessionId = `tool-session-${index}`;
+			const sessionId = index === 25 || index === 26 ? targetSessionId : `tool-session-${index}`;
 			store.add(service.registerProgressPart(new class extends mock<IChatTerminalToolProgressPart>() {
 				override readonly elementIndex = index;
 				override readonly contentIndex = 0;
 				override readonly terminalToolSessionId = sessionId;
 
 				override markContinuedInBackground(): void {
-					markedSessionIds.push(sessionId);
+					markedPartIndices.push(index);
 				}
 			}()));
 		}
 		const eventSessionIds: string[] = [];
 		store.add(service.onDidContinueInBackground(sessionId => eventSessionIds.push(sessionId)));
 
-		service.continueInBackground('tool-session-25');
+		service.continueInBackground(targetSessionId);
 
 		assert.deepStrictEqual({
-			markedSessionIds,
+			markedPartIndices,
 			eventSessionIds,
 		}, {
-			markedSessionIds: ['tool-session-25'],
-			eventSessionIds: ['tool-session-25'],
+			markedPartIndices: [25, 26],
+			eventSessionIds: [targetSessionId],
 		});
 	});
 
