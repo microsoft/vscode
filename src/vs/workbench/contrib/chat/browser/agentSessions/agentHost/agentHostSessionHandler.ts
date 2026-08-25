@@ -325,10 +325,8 @@ function userOriginMessage(text: string, attachments: readonly MessageAttachment
 }
 
 /**
- * Whether `err` reports that the host has no such resource (AHP `NotFound`).
- *
- * A client can legitimately address a session before the host knows it: the cloud sandbox seeds
- * the id Mission Control minted, and `createSession` is what brings it into being.
+ * Whether `err` reports that the host has no such resource (AHP `NotFound`), which a client can
+ * legitimately provoke by addressing a session `createSession` has yet to bring into being.
  */
 export function isNotFoundError(err: unknown): boolean {
 	return err instanceof ProtocolError && err.code === AHP_NOT_FOUND;
@@ -1501,9 +1499,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					// underlying error message (e.g. the git worktree-recreation
 					// failure) so the user sees the actual cause, falling back to a
 					// generic message.
-					// A session the host has never heard of is excluded: a provider can seed an id
-					// the host only learns at `createSession`, so the first turn brings it into
-					// being and "Couldn't open session" would report a failure that step resolves.
+					// Excluded: an id the host learns at `createSession` is not a load failure.
 					if (history.length === 0 && !isNotFoundError(err)) {
 						history.push({
 							type: 'request',
@@ -2150,12 +2146,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	}
 
 	/**
-	 * Drop client-published customizations when the host is older than the protocol version that
-	 * introduced list-shaped enablement.
-	 *
-	 * Such a host expects the superseded `enabled` boolean and rejects the whole request with
-	 * `invalid params: missing field 'enabled'`, failing `createSession`. Sending nothing degrades
-	 * to a session without client customizations, which beats no session at all.
+	 * Drop client-published customizations for a host older than list-shaped enablement, which
+	 * rejects the newer shape outright with `invalid params: missing field 'enabled'`.
 	 */
 	private _withVersionedCustomizations(activeClient: SessionActiveClient): SessionActiveClient {
 		const hostVersion = this._config.connection.initializeResult.get()?.protocolVersion;
@@ -2193,8 +2185,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			this._config.connection.clientId,
 			AgentHostSessionHandler.ACTIVE_CLIENT_RECONCILIATION_DEBOUNCE_MS,
 			backendSession => this._getSessionState(backendSession.toString()),
-			// Reconciliation republishes the active client, so it carries customizations too and
-			// needs the same version gate `createSession` applies.
+			// Reconciliation republishes customizations, so it needs the same gate.
 			(backendSession, action) => this._dispatchAction(backendSession, action.type === ActionType.SessionActiveClientSet
 				? { ...action, activeClient: this._withVersionedCustomizations(action.activeClient) }
 				: action),
@@ -5583,17 +5574,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	}
 
 	/**
-	 * Drop working directories the host cannot address, falling back to `undefined` so it picks
-	 * its own.
-	 *
-	 * A cloud sandbox workspace is the remote repository (`https://github.com/owner/repo`), but the
-	 * agent runs against a checkout on the sandbox's disk, so sending the remote URI fails
-	 * `createSession` with `unsupported scheme 'https'; expected 'file'`. The host's own default
-	 * names the scheme it can address, so this adapts rather than hardcoding one.
-	 *
-	 * Schemes are compared as the host will receive them: a remote folder travels as a
-	 * `vscode-agent-host:` wrapper that `createSession` unwraps, so judging the wrapper would drop
-	 * directories the host addresses perfectly well.
+	 * Drop working directories whose scheme the host cannot address, falling back to `undefined` so
+	 * it picks its own. Schemes are compared as the host receives them, after unwrapping.
 	 */
 	private _hostAddressableWorkingDirectories(directories: readonly URI[] | undefined): readonly URI[] | undefined {
 		const defaultDirectory = this._config.connection.initializeResult.get()?.defaultDirectory;

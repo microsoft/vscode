@@ -11649,10 +11649,7 @@ suite('AgentHostChatContribution', () => {
 		});
 
 		test('drops customizations for a host older than list-shaped enablement', async () => {
-			// A plugin carries `enablement`/`childEnablement` from 0.8.0 on. A 0.7.0 host still
-			// expects the superseded `enabled` boolean and rejects the whole `createSession` with
-			// `invalid params: missing field 'enabled'`, leaving the session uncreated — so send
-			// none rather than lose the session.
+			// A 0.7.0 host rejects the whole createSession with `missing field 'enabled'`.
 			const { instantiationService, agentHostService, chatAgentService, seedActiveClient } = createTestServices(disposables);
 			agentHostService.setHostProtocolVersion('0.7.0');
 
@@ -11680,8 +11677,7 @@ suite('AgentHostChatContribution', () => {
 		});
 
 		test('drops customizations from a reconciliation republish for an older host', async () => {
-			// Reconciliation republishes the active client after creation, so gating only
-			// createSession leaves this path sending the shape a 0.7.0 host rejects.
+			// Gating only createSession leaves this path sending the shape 0.7.0 rejects.
 			const { instantiationService, agentHostService, chatAgentService, seedActiveClient } = createTestServices(disposables);
 			agentHostService.setHostProtocolVersion('0.7.0');
 
@@ -11746,9 +11742,7 @@ suite('AgentHostChatContribution', () => {
 		});
 
 		test('does not render a load failure for a session the host has not created yet', async () => {
-			// The cloud sandbox seeds the id Mission Control minted, so the first subscribe
-			// legitimately reports NotFound and `createSession` brings the session into being.
-			// Reporting "Couldn't open session" there names a failure the next step resolves.
+			// A seeded id reports NotFound until `createSession` brings the session into being.
 			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/seeded-not-yet-created' });
 			const backendSession = AgentSession.uri('copilot', 'seeded-not-yet-created');
 			const { sessionHandler, agentHostService } = createContribution(disposables, {
@@ -11781,8 +11775,7 @@ suite('AgentHostChatContribution', () => {
 		});
 
 		test('drops a working directory the host cannot address, letting it choose its own', async () => {
-			// A cloud sandbox workspace is the remote repository, but the agent runs against the
-			// sandbox's own checkout. Sending the remote URI fails createSession outright.
+			// The workspace is the remote repo, but the agent runs against the local checkout.
 			const { instantiationService, agentHostService, chatAgentService } = createTestServices(disposables,
 				{ resolve: () => URI.parse('https://github.com/microsoft/vscode') });
 			agentHostService.setInitializeResult({ defaultDirectory: 'file:///workspaces/vscode' });
@@ -11805,9 +11798,7 @@ suite('AgentHostChatContribution', () => {
 		});
 
 		test('keeps a remote working directory the host can address once unwrapped', async () => {
-			// A remote (SSH/tunnel) folder is wrapped as `vscode-agent-host:` on the client, but
-			// createSession unwraps it before sending. Judging the wrapper scheme would drop a
-			// directory the host addresses perfectly well.
+			// createSession unwraps `vscode-agent-host:`, so judging the wrapper drops valid dirs.
 			const { instantiationService, agentHostService, chatAgentService } = createTestServices(disposables,
 				{ resolve: () => toAgentHostUri(URI.file('/workspaces/vscode'), 'remote-test') });
 			agentHostService.resourceUris = createAgentHostResourceUriMapper('remote-test');
