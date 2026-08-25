@@ -208,7 +208,6 @@ class WebSocketUpstreamConnection extends Disposable implements IUpstreamConnect
 		const url = this._buildUrl();
 		const wsOptions = await this._buildWsOptions();
 
-		this._logService.info(`[AgentHostChannel] Opening upstream to ${this._endpoint.socketPath ?? url}`);
 		const socket = new ws.WebSocket(url, wsOptions);
 		this._ws = socket;
 
@@ -362,8 +361,8 @@ export class AgentHostChannel<TContext> extends Disposable implements IServerCha
 		let conn = this._perCtx.get(ctx);
 		if (!conn) {
 			conn = typeof this._endpoint === 'function'
-				? new LazyUpstreamConnection(() => this._resolveEndpoint(), this._upstreamFactory, this._logService)
-				: this._upstreamFactory(this._endpoint);
+				? new LazyUpstreamConnection(() => this._resolveEndpoint(), endpoint => this._createUpstream(endpoint), this._logService)
+				: this._createUpstream(this._endpoint);
 			this._perCtx.set(ctx, conn);
 			// If the upstream closes on its own (e.g. agent host restart or
 			// connection drop), evict it from the cache so the next
@@ -377,6 +376,12 @@ export class AgentHostChannel<TContext> extends Disposable implements IServerCha
 			});
 		}
 		return conn;
+	}
+
+	private _createUpstream(endpoint: IAgentHostUpstreamEndpoint): IUpstreamConnection {
+		const logTarget = endpoint.socketPath ?? `${endpoint.host ?? 'localhost'}:${endpoint.port ?? '0'}`;
+		this._logService.info(`[AgentHostChannel] Opening upstream to ${logTarget}`);
+		return this._upstreamFactory(endpoint);
 	}
 
 	private async _resolveEndpoint(): Promise<IAgentHostUpstreamEndpoint> {
