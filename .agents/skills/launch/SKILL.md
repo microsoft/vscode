@@ -495,6 +495,11 @@ sleep 3
 # concurrent instances are left untouched)
 RUN_DIR=$(jq -r '.runDir // empty' <<<"$INFO")
 
+# pgrep is what makes this check meaningful. Without it the lookups below fail
+# with status 127, which is indistinguishable from "nothing matched", and the
+# profile would be deleted without ever verifying the processes exited.
+command -v pgrep >/dev/null || { echo "pgrep not found; cannot verify cleanup" >&2; return 2>/dev/null || exit 1; }
+
 # Fail closed: an empty or malformed RUN_DIR would turn the pgrep below into a
 # match-everything pattern (`pgrep -f ""` matches every process on Linux), and
 # the kill that follows would hit unrelated processes.
