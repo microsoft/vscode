@@ -586,12 +586,7 @@ export class AutomationCatalogSubscription extends BaseAgentSubscription<Automat
 	}
 
 	protected override _isRelevantEnvelope(envelope: ActionEnvelope): boolean {
-		return isAhpAutomationCatalogChannel(envelope.channel) && (
-			envelope.action.type === ActionType.AutomationCreateRequested
-			|| envelope.action.type === ActionType.AutomationUpdateRequested
-			|| envelope.action.type === ActionType.AutomationSet
-			|| envelope.action.type === ActionType.AutomationRemoved
-		);
+		return isAhpAutomationCatalogChannel(envelope.channel);
 	}
 
 	protected override _reconcile(envelope: ActionEnvelope, isOwnAction: boolean): void {
@@ -616,13 +611,7 @@ export class AutomationRunSubscription extends BaseAgentSubscription<AutomationR
 	}
 
 	protected override _isRelevantEnvelope(envelope: ActionEnvelope): boolean {
-		return isAhpAutomationRunChannel(envelope.channel) && envelope.channel === this._resource && (
-			envelope.action.type === ActionType.AutomationRunLifecycleChanged
-			|| envelope.action.type === ActionType.AutomationRunSessionSet
-			|| envelope.action.type === ActionType.AutomationRunSessionRemoved
-			|| envelope.action.type === ActionType.AutomationRunPrimarySessionChanged
-			|| envelope.action.type === ActionType.AutomationRunCancelRequested
-		);
+		return isAhpAutomationRunChannel(envelope.channel) && envelope.channel === this._resource;
 	}
 
 	protected override _reconcile(envelope: ActionEnvelope, isOwnAction: boolean): void {
