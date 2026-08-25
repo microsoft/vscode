@@ -9,8 +9,8 @@
 //
 // Each valid fixture is normalized and then re-parsed as JSONC to assert what
 // actually matters: both automation keys resolve to `true` at the root, and no
-// override at any depth contradicts them. Textual presence is not enough -
-// duplicate keys mean the last one wins, and `editor.*` settings are
+// language override contradicts `editor.editContext`. Textual presence is not
+// enough - duplicate keys mean the last one wins, and `editor.*` settings are
 // LANGUAGE_OVERRIDABLE, so a `"[typescript]"` block outranks the root value.
 //
 // Malformed fixtures must fail closed: non-zero exit and the file left byte
@@ -28,6 +28,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const script = path.join(scriptDir, 'normalize-automation-settings.ts');
 const KEYS = ['files.simpleDialog.enable', 'editor.editContext'];
+const OVERRIDABLE_KEYS = ['editor.editContext'];
 
 function isJsoncLineBreak(c: string): boolean {
 	return c === '\n' || c === '\r' || c === '\u2028' || c === '\u2029';
@@ -100,7 +101,7 @@ function assertNoContradictingOverride(root: Record<string, unknown>): void {
 	for (const [key, value] of Object.entries(root)) {
 		if (!/^(\[[^\]]+\])+$/.test(key) || !value || typeof value !== 'object') { continue; }
 		for (const [nestedKey, nestedValue] of Object.entries(value)) {
-			if (KEYS.includes(nestedKey)) {
+			if (OVERRIDABLE_KEYS.includes(nestedKey)) {
 				assert.strictEqual(nestedValue, true, `${key}.${nestedKey} still overrides the automation value`);
 			}
 		}
@@ -138,6 +139,7 @@ const valid: [name: string, content: string | undefined][] = [
 	['duplicate key, object last', '{ "editor.editContext": false, "editor.editContext": { "x": 1 } }'],
 	['duplicate key, primitive last', '{ "editor.editContext": { "x": 1 }, "editor.editContext": false }'],
 	['language override only', '{ "[typescript]": { "editor.editContext": false } }'],
+	['window setting inside a language block is inert', '{ "[typescript]": { "files.simpleDialog.enable": false } }'],
 	['language override and root', '{ "[typescript]": { "editor.editContext": false }, "editor.editContext": false }'],
 	['two language overrides', '{ "[typescript]": { "editor.editContext": false }, "[python]": { "editor.editContext": 0 } }'],
 	['override alongside another setting', '{ "[md]": { "editor.editContext": "no", "editor.tabSize": 2 } }'],
@@ -223,7 +225,7 @@ function stripKeys(value: unknown, isOverrideBlock: boolean): unknown {
 	}
 	const out: Record<string, unknown> = {};
 	for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
-		if (isOverrideBlock && KEYS.includes(k)) {
+		if (isOverrideBlock && OVERRIDABLE_KEYS.includes(k)) {
 			continue;
 		}
 		out[k] = stripKeys(v, false);
@@ -523,6 +525,18 @@ test('rejects forwarded profile creation after normalization', () => {
 		workspaceCheckStatus(['--profile=new-profile']),
 		workspaceCheckStatus(['--profile-temp'])
 	], [1, 1, 1]);
+});
+
+test('rejects both forms of every launcher-owned forwarded option', () => {
+	const options = [
+		'--extensions-dir', '--inspect', '--inspect-agenthost', '--inspect-extensions',
+		'--remote-debugging-port', '--shared-data-dir', '--user-data-dir'
+	];
+	const statuses = options.flatMap(option => [
+		workspaceCheckStatus([option, 'override']),
+		workspaceCheckStatus([option + '=override'])
+	]);
+	assert.deepStrictEqual(statuses, options.flatMap(() => [1, 1]));
 });
 
 // `rsync -a` preserves symlinked *directories* too, so a linked `User` or

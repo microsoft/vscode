@@ -23,9 +23,9 @@ import * as path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
-const ENTRIES: [string, string][] = [
-	['files.simpleDialog.enable', 'true'],
-	['editor.editContext', 'true'],
+const ENTRIES: [key: string, value: string, rewriteLanguageOverrides: boolean][] = [
+	['files.simpleDialog.enable', 'true', false],
+	['editor.editContext', 'true', true],
 ];
 
 function isJsoncLineBreak(c: string): boolean {
@@ -104,13 +104,21 @@ function parseJsonc(text: string, source: string): unknown {
 
 function assertSimpleDialogForWorkspaceArgs(args: string[]): void {
 	const candidates = new Set<string>();
+	const launcherOwnedOptions = new Set([
+		'--extensions-dir', '--inspect', '--inspect-agenthost', '--inspect-extensions',
+		'--remote-debugging-port', '--shared-data-dir', '--user-data-dir'
+	]);
 	const optionsWithPathValue = new Set([
-		'--extensionDevelopmentPath', '--extensionTestsPath', '--extensions-dir',
-		'--inspect', '--inspect-agenthost', '--inspect-brk', '--inspect-extensions', '--locale',
-		'--log', '--remote-debugging-port', '--shared-data-dir', '--user-data-dir'
+		'--extensionDevelopmentPath', '--extensionTestsPath', '--inspect-brk', '--locale', '--log'
 	]);
 	for (let i = 0; i < args.length; i++) {
 		const argument = args[i];
+		const optionName = argument.split('=', 1)[0];
+		if (launcherOwnedOptions.has(optionName)) {
+			console.error('[normalize-automation-settings] forwarded ' + optionName +
+				' would override launcher isolation or debug ports; remove it');
+			process.exit(1);
+		}
 		if (argument === '--profile' || argument.startsWith('--profile=') ||
 			argument === '--profile-temp' || argument.startsWith('--profile-temp=')) {
 			console.error('[normalize-automation-settings] forwarded profile creation is not supported: ' + argument +
@@ -383,7 +391,7 @@ export function normalizeSettingsFile(f: string, root?: string): void {
 	//
 	// Delimiter balance alone is not enough: `{ "a": 1 "b": 2 }` is balanced but
 	// invalid, and used to be rewritten and reported as success. Actually parse the
-	// file the same way VS Code does (`src/vs/base/common/jsonc.ts`: strip comments,
+	// file the same way VS Code does (`src/vs/base/common/json.ts`: strip comments,
 	// then tolerate trailing commas) so any syntax error fails closed instead. The
 	// masked text is reused because it already blanks comments while preserving
 	// offsets, which is exactly the input `JSON.parse` needs.
@@ -409,7 +417,7 @@ export function normalizeSettingsFile(f: string, root?: string): void {
 
 	const maskedForValidation = codeMask(text, f);
 	if (maskedForValidation.replace(/^\uFEFF/, '').trim() === '') {
-		const body = ENTRIES.map(([k, v]) => '  "' + k + '": ' + v).join(',\n');
+		const body = ENTRIES.map(([key, value]) => '  "' + key + '": ' + value).join(',\n');
 		const separator = text === '' || isJsoncLineBreak(text.at(-1) ?? '') ? '' : '\n';
 		fs.writeFileSync(f, text + separator + '{\n' + body + '\n}\n');
 		return;
@@ -417,24 +425,24 @@ export function normalizeSettingsFile(f: string, root?: string): void {
 	assertParses(maskedForValidation);
 	findRootObject(maskedForValidation);
 
-	for (const [key, value] of ENTRIES) {
+	for (const [key, value, rewriteLanguageOverrides] of ENTRIES) {
 		let masked = codeMask(text, f);
 
 		const { root, nested } = findProperties(masked, key);
 
-		// Rewrite every nested override (e.g. a `"[typescript]"` block) as well as
-		// the root value, since a language override outranks the root one. Apply
-		// them last-first so earlier offsets stay valid. Offsets line up with the
-		// original, so comments are left untouched.
-		const spans = root ? [...nested, root] : nested;
+		// Rewrite language overrides only for settings that support them, plus the
+		// root value. Apply spans last-first so earlier offsets stay valid; offsets
+		// line up with the original, so comments are left untouched.
+		const overrides = rewriteLanguageOverrides ? nested : [];
+		const spans = root ? [...overrides, root] : overrides;
 		for (const span of spans.sort((a, b) => b.valueStart - a.valueStart)) {
 			text = text.slice(0, span.valueStart) + value + text.slice(span.valueStart + span.valueLength);
 		}
 		if (root) {
 			continue;
 		}
-		// No root-level occurrence: append one. Any nested overrides were already
-		// normalized above, so they cannot contradict it.
+		// No root-level occurrence: append one. Any effective language overrides
+		// were already normalized above, so they cannot contradict it.
 		masked = codeMask(text, f);
 
 		const { open: firstBrace, close: lastBrace } = findRootObject(masked);
