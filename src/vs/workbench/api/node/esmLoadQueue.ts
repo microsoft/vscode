@@ -3,6 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+interface ISlot<T> {
+	readonly pending: Promise<T>;
+	readonly turnBoundary: Promise<void>;
+}
+
 /**
  * Runs ESM module loads one at a time.
  *
@@ -19,15 +24,32 @@ export class ESMLoadQueue {
 
 	private _chain: Promise<void> = Promise.resolve();
 
-	run<T>(load: () => Promise<T>): Promise<T> {
-		const slot = this._chain.then(() => ({
+	/**
+	 * @param load runs while this slot holds the queue.
+	 * @param onSlotEnd runs once, when the slot is handed on, and always before the returned
+	 * promise settles. Stop timing the load here rather than when it finishes: a load that
+	 * suspends stays pending while later loads run, and their work shouldn't be counted
+	 * against it.
+	 */
+	run<T>(load: () => Promise<T>, onSlotEnd: () => void): Promise<T> {
+		const slot = this._chain.then<ISlot<T>>(() => ({
 			pending: load(),
 			turnBoundary: new Promise<void>(resolve => setImmediate(resolve))
 		}));
-		this._chain = slot.then(
-			s => Promise.race([s.pending.then(() => { }, () => { }), s.turnBoundary]),
-			() => { }
-		);
-		return slot.then(s => s.pending);
+		const held = this._holdSlot(slot, onSlotEnd);
+		this._chain = held;
+		// wait on `held` first so `onSlotEnd` has already run once the caller continues
+		return held.then(() => slot).then(s => s.pending);
+	}
+
+	private async _holdSlot<T>(slot: Promise<ISlot<T>>, onSlotEnd: () => void): Promise<void> {
+		try {
+			const { pending, turnBoundary } = await slot;
+			await Promise.race([pending.then(() => { }, () => { }), turnBoundary]);
+		} catch {
+			// a load that never started still has to hand the queue on
+		} finally {
+			onSlotEnd();
+		}
 	}
 }

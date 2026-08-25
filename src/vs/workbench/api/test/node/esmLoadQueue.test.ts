@@ -22,17 +22,25 @@ suite('ESMLoadQueue', () => {
 		};
 	}
 
+	function run(queue: ESMLoadQueue, log: string[], name: string, load: () => Promise<void>): Promise<void> {
+		return queue.run(load, () => log.push(`${name}:slotEnd`));
+	}
+
 	test('loads do not overlap, so each one is timed on its own work', async () => {
 		const log: string[] = [];
 		const queue = new ESMLoadQueue();
 
 		await Promise.all([
-			queue.run(microtaskLoad(log, 'a')),
-			queue.run(microtaskLoad(log, 'b')),
-			queue.run(microtaskLoad(log, 'c')),
+			run(queue, log, 'a', microtaskLoad(log, 'a')),
+			run(queue, log, 'b', microtaskLoad(log, 'b')),
+			run(queue, log, 'c', microtaskLoad(log, 'c')),
 		]);
 
-		assert.deepStrictEqual(log, ['a:start', 'a:end', 'b:start', 'b:end', 'c:start', 'c:end']);
+		assert.deepStrictEqual(log, [
+			'a:start', 'a:end', 'a:slotEnd',
+			'b:start', 'b:end', 'b:slotEnd',
+			'c:start', 'c:end', 'c:slotEnd',
+		]);
 	});
 
 	test('without the queue those same loads interleave', async () => {
@@ -47,24 +55,33 @@ suite('ESMLoadQueue', () => {
 		assert.deepStrictEqual(log, ['a:start', 'b:start', 'c:start', 'a:end', 'b:end', 'c:end']);
 	});
 
-	test('a load using top-level await does not hold up the ones behind it', async () => {
+	test('a load using top-level await stops being timed before the next loads run', async () => {
 		const log: string[] = [];
 		const queue = new ESMLoadQueue();
+		let resume!: () => void;
+		const suspended = new Promise<void>(resolve => { resume = resolve; });
 
-		const suspending = queue.run(async () => {
+		const suspending = run(queue, log, 'suspending', async () => {
 			log.push('suspending:start');
-			await new Promise<void>(resolve => setTimeout(resolve, 20));
+			await suspended;
 			log.push('suspending:end');
 		});
-
-		await Promise.all([
-			suspending,
-			queue.run(microtaskLoad(log, 'a')),
-			queue.run(microtaskLoad(log, 'b')),
+		const behind = Promise.all([
+			run(queue, log, 'a', microtaskLoad(log, 'a')),
+			run(queue, log, 'b', microtaskLoad(log, 'b')),
 		]);
 
+		// the loads behind it get to run while it is still suspended
+		await behind;
+		resume();
+		await suspending;
+
+		// `suspending:slotEnd` lands before a and b, so their work is not counted against it
 		assert.deepStrictEqual(log, [
-			'suspending:start', 'a:start', 'a:end', 'b:start', 'b:end', 'suspending:end'
+			'suspending:start', 'suspending:slotEnd',
+			'a:start', 'a:end', 'a:slotEnd',
+			'b:start', 'b:end', 'b:slotEnd',
+			'suspending:end',
 		]);
 	});
 
@@ -72,15 +89,17 @@ suite('ESMLoadQueue', () => {
 		const log: string[] = [];
 		const queue = new ESMLoadQueue();
 
-		const failing = queue.run(async () => {
+		const failing = run(queue, log, 'failing', async () => {
 			log.push('failing:start');
 			throw new Error('boom');
 		});
-		const after = queue.run(microtaskLoad(log, 'a'));
+		const after = run(queue, log, 'a', microtaskLoad(log, 'a'));
 
 		await assert.rejects(failing, /boom/);
 		await after;
 
-		assert.deepStrictEqual(log, ['failing:start', 'a:start', 'a:end']);
+		assert.deepStrictEqual(log, [
+			'failing:start', 'failing:slotEnd', 'a:start', 'a:end', 'a:slotEnd',
+		]);
 	});
 });

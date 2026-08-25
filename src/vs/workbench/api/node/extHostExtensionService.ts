@@ -206,16 +206,18 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 		}
 		const load = async (): Promise<T> => {
 			activationTimesBuilder.codeLoadingStart();
-			try {
-				return mode === 'esm'
-					? <T>await import(module.toString(true))
-					: <T>require(module.fsPath);
-			} finally {
-				activationTimesBuilder.codeLoadingStop();
-			}
+			return mode === 'esm'
+				? <T>await import(module.toString(true))
+				: <T>require(module.fsPath);
 		};
+		const stopTimer = () => activationTimesBuilder.codeLoadingStop();
 		try {
-			return await (mode === 'esm' ? this._esmLoadQueue.run(load) : load());
+			// For ESM the timer stops when the queue slot ends rather than when the import
+			// settles. A module using top-level await stays pending while later extensions
+			// load, and their code shouldn't land in this extension's number.
+			return mode === 'esm'
+				? await this._esmLoadQueue.run(load, stopTimer)
+				: await load().finally(stopTimer);
 		} finally {
 			if (extensionId) {
 				performance.mark(`code/extHost/didLoadExtensionCode/${extensionId}`);
