@@ -5,6 +5,7 @@
 
 import type { CopilotSession, CurrentToolMetadata, ElicitationContext, ElicitationFieldValue, ElicitationResult, ElicitationSchema, ElicitationSchemaField, ExitPlanModeCompletedData, ExitPlanModeRequest, ExitPlanModeResult, JsonValue, McpServersLoadedServer, MessageOptions, PermissionAllowAllMode, PermissionAutoApproval, PermissionRequest, PermissionRequestResult, PermissionResult, SessionConfig, SessionHooks, SessionMode as CopilotSdkMode, Tool, ToolResultObject, McpServerStatus as SdkMcpServerStatus } from '@github/copilot-sdk';
 import { cp, rm } from 'fs/promises';
+import * as inspector from 'inspector';
 import { DeferredPromise, raceCancellation, RunOnceScheduler, Sequencer, SequencerByKey, Throttler, timeout } from '../../../../base/common/async.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
@@ -27,6 +28,7 @@ import { INativeEnvironmentService } from '../../../environment/common/environme
 import { IFileService } from '../../../files/common/files.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILogService, LogLevel } from '../../../log/common/log.js';
+import product from '../../../product/common/product.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { getCopilotHomePath } from '../../common/copilotHome.js';
 import { CopilotCliConfigKey, copilotCliConfigSchema } from '../../common/copilotCliConfig.js';
@@ -429,6 +431,8 @@ export interface ICopilotAgentSessionOptions {
 	readonly serverToolHost?: IAgentServerToolHost;
 	/** Returns whether the token that launched this session is still the active account token. */
 	readonly isLaunchTokenCurrent?: () => boolean;
+	/** Overrides source-launch detection for deterministic tests. */
+	readonly enableDevelopmentErrorInjection?: boolean;
 
 	/**
 	 * Invoked whenever this chat's in-flight turn ends — normal completion,
@@ -823,6 +827,7 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _currentTurn = this._register(new MutableDisposable<CopilotTurn>());
 	private _resumingTurnAwaitingProviderStart: CopilotTurn | undefined;
 	private _developmentRecoverableError: { readonly turnId: string; remainingFailures: number; readonly totalFailures: number } | undefined;
+	private readonly _developmentErrorInjectionEnabled: boolean;
 	private _dropLateRootTurnEvents = false;
 	/** Monotonic 0-based ordinal assigned to each turn as it starts, for numeric `turnIndex` telemetry parity. */
 	private _nextTurnOrdinal = 0;
@@ -1058,6 +1063,7 @@ export class CopilotAgentSession extends Disposable {
 	) {
 		super();
 		this._abortCts.value = new CancellationTokenSource();
+		this._developmentErrorInjectionEnabled = options.enableDevelopmentErrorInjection ?? (!product.commit && inspector.url() !== undefined);
 		this.sessionId = options.rawSessionId;
 		this._ownerSessionUri = options.sessionUri;
 		this.resourceUri = options.resource ?? options.sessionUri;
@@ -2572,10 +2578,10 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	private _tryStartDevelopmentRecoverableError(prompt: string): boolean {
-		if (this._environmentService.isBuilt) {
+		if (!this._developmentErrorInjectionEnabled) {
 			return false;
 		}
-		const match = /^\$error-ui(?::(?<count>[1-9]))?$/.exec(prompt);
+		const match = /^\$error-ui(?<tool>-tool)?(?::(?<count>[1-9]))?$/.exec(prompt);
 		const turn = this._currentTurn.value;
 		if (!match || !turn) {
 			return false;
@@ -2588,6 +2594,9 @@ export class CopilotAgentSession extends Disposable {
 		};
 		this._hostInstructions = undefined;
 		this._pendingSnapshotReminder = undefined;
+		if (match.groups?.tool) {
+			this._emitDevelopmentCompletedToolCall(turn);
+		}
 		this._emitDevelopmentRecoverableError(turn, 1, totalFailures);
 		return true;
 	}
@@ -2621,6 +2630,36 @@ export class CopilotAgentSession extends Disposable {
 			}, true),
 		});
 		this._clearActiveTurn();
+	}
+
+	private _emitDevelopmentCompletedToolCall(turn: CopilotTurn): void {
+		const toolCallId = `${turn.id}-development-tool`;
+		this._emitAction({
+			type: ActionType.ChatToolCallStart,
+			turnId: turn.id,
+			toolCallId,
+			toolName: 'view',
+			displayName: 'Read',
+			intention: 'Read README.md before the injected failure',
+		});
+		this._emitAction({
+			type: ActionType.ChatToolCallReady,
+			turnId: turn.id,
+			toolCallId,
+			invocationMessage: 'Reading README.md',
+			toolInput: '{"path":"README.md"}',
+			confirmed: ToolCallConfirmationReason.NotNeeded,
+		});
+		this._emitAction({
+			type: ActionType.ChatToolCallComplete,
+			turnId: turn.id,
+			toolCallId,
+			result: {
+				success: true,
+				pastTenseMessage: 'Read README.md',
+				content: [{ type: ToolResultContentType.Text, text: 'Captured tool output before the injected failure.' }],
+			},
+		});
 	}
 
 	/**

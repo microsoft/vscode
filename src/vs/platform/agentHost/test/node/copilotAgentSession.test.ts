@@ -712,6 +712,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	isLaunchTokenCurrent?: () => boolean;
 	onTurnEnded?: () => void;
 	modelId?: string;
+	enableDevelopmentErrorInjection?: boolean;
 	resume?: boolean;
 	initializeEnablementSession?: (session: string) => Promise<void>;
 	beforeLaunch?: () => void;
@@ -969,6 +970,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			platform: options?.platform ?? 'linux',
 			isLaunchTokenCurrent: options?.isLaunchTokenCurrent,
 			onTurnEnded: options?.onTurnEnded,
+			enableDevelopmentErrorInjection: options?.enableDevelopmentErrorInjection ?? true,
 		},
 	));
 
@@ -5541,7 +5543,7 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual({
 				sendRequests: mockSession.sendRequests,
 				sendMessagesRequests: mockSession.sendMessagesRequests,
-				actions: getActions(signals),
+				actions: getActions(signals).map(action => action.type === ActionType.ChatError ? { ...action, duration: 0 } : action),
 			}, {
 				sendRequests: [],
 				sendMessagesRequests: [],
@@ -5586,6 +5588,51 @@ suite('CopilotAgentSession', () => {
 					{ type: ActionType.ChatResponsePart, turnId: 'turn-error', error: undefined, content: 'Recovered after 2 injected failure(s).' },
 					{ type: ActionType.ChatTurnComplete, turnId: 'turn-error', error: undefined, content: undefined },
 				],
+			});
+		});
+
+		test('the development $error-ui-tool path preserves a completed tool call across failure and resume', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+
+			await session.send('$error-ui-tool', undefined, 'turn-error');
+			await session.resume('turn-error');
+
+			assert.deepStrictEqual({
+				sendRequests: mockSession.sendRequests,
+				sendMessagesRequests: mockSession.sendMessagesRequests,
+				actions: getActions(signals).map(action => ({
+					type: action.type,
+					toolCallId: action.type === ActionType.ChatToolCallStart || action.type === ActionType.ChatToolCallReady || action.type === ActionType.ChatToolCallComplete ? action.toolCallId : undefined,
+					error: action.type === ActionType.ChatError ? action.part.error.message : undefined,
+					content: action.type === ActionType.ChatResponsePart && action.part.kind === ResponsePartKind.Markdown ? action.part.content : undefined,
+				})),
+			}, {
+				sendRequests: [],
+				sendMessagesRequests: [],
+				actions: [
+					{ type: ActionType.ChatToolCallStart, toolCallId: 'turn-error-development-tool', error: undefined, content: undefined },
+					{ type: ActionType.ChatToolCallReady, toolCallId: 'turn-error-development-tool', error: undefined, content: undefined },
+					{ type: ActionType.ChatToolCallComplete, toolCallId: 'turn-error-development-tool', error: undefined, content: undefined },
+					{ type: ActionType.ChatError, toolCallId: undefined, error: 'Injected recoverable development error (1/1).', content: undefined },
+					{ type: ActionType.ChatResponsePart, toolCallId: undefined, error: undefined, content: 'Recovered after 1 injected failure(s).' },
+					{ type: ActionType.ChatTurnComplete, toolCallId: undefined, error: undefined, content: undefined },
+				],
+			});
+		});
+
+		test('development error helpers can be disabled for product builds', async () => {
+			const disabled = await createAgentSession(disposables, { enableDevelopmentErrorInjection: false });
+
+			await disabled.session.send('$error-ui-tool', undefined, 'turn-error');
+
+			assert.deepStrictEqual({
+				actions: getActions(disabled.signals),
+				sendRequests: disabled.mockSession.sendRequests,
+				sendMessagesRequests: disabled.mockSession.sendMessagesRequests,
+			}, {
+				actions: [],
+				sendRequests: [{ prompt: '$error-ui-tool', attachments: undefined }],
+				sendMessagesRequests: [],
 			});
 		});
 
