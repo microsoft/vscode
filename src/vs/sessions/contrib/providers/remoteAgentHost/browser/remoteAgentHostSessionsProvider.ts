@@ -97,11 +97,9 @@ export interface ISessionSchemeAlias {
 /** Options for {@link RemoteAgentHostSessionsProvider.seedSessions}. */
 export interface ISeedSessionsOptions {
 	/**
-	 * Mark the seeded session as freshly provisioned by this client, meaning the host
-	 * may not have materialized it yet. It stays out of
-	 * {@link RemoteAgentHostSessionsProvider.getSessions} until
-	 * {@link RemoteAgentHostSessionsProvider.publishWithheldSession}, and resists
-	 * eviction until the host lists it. Only affects sessions the call creates.
+	 * Mark the seeded session as freshly provisioned by this client, so it stays out of
+	 * {@link RemoteAgentHostSessionsProvider.getSessions} and resists eviction until the host
+	 * lists it. Only affects sessions the call creates.
 	 */
 	readonly provisional?: boolean;
 }
@@ -185,22 +183,15 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 	private _unpublished = false;
 
 	/**
-	 * Seeded sessions kept out of {@link getSessions} because the caller is still showing
-	 * a placeholder row for them; listing both would show the session twice until the
-	 * sandbox wakes. They stay reachable by resource, so opening one still works.
+	 * Seeded sessions kept out of {@link getSessions} because the caller is still showing a
+	 * placeholder row for them. They stay reachable by resource, so opening one still works.
 	 */
 	private readonly _withheldSessions = new Set<string>();
 
 	/**
-	 * Raw id → deadline for locally provisioned sessions the host has not listed yet.
-	 * Mission Control creates the task before the host materializes the session, so the
-	 * first `listSessions` after connecting can legitimately omit it, and evicting it
-	 * there drops the row the user is looking at.
-	 *
-	 * The value is the deadline after which eviction resumes, or `undefined` while the
-	 * clock has not started. It starts when a connected host first omits the session —
-	 * not at seed time, because waking a sandbox can take minutes and would otherwise
-	 * burn the whole grace period before the host has said anything at all.
+	 * Raw id → deadline after which eviction resumes, or `undefined` while the clock has not
+	 * started. It starts when a connected host first omits the session, not at seed time, because
+	 * waking a sandbox can take minutes.
 	 */
 	private readonly _provisionalSessions = new Map<string, number | undefined>();
 
@@ -440,17 +431,15 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 				// The host knows it, so it reconciles like any other session from here on.
 				this._provisionalSessions.delete(rawId);
 			} else if (deadline === undefined) {
-				// First time a connected host has omitted it: start the grace period now, so a
-				// slow sandbox wake does not consume it before the host has answered at all.
+				// Start the grace period now, so a slow wake does not consume it beforehand.
 				this._provisionalSessions.set(rawId, Date.now() + RemoteAgentHostSessionsProvider.PROVISIONAL_GRACE_MS);
 			}
 		}
 	}
 
 	/**
-	 * Look up a cached session by raw id, **including** ones withheld from
-	 * {@link getSessions}. Callers that seeded a session and need to act on it before
-	 * it is listed should use this rather than scanning {@link getSessions}.
+	 * Look up a cached session by raw id, **including** ones withheld from {@link getSessions},
+	 * which callers that seeded a session need before it is listed.
 	 */
 	getCachedSession(rawId: string): ISession | undefined {
 		return this._sessionCache.get(rawId);

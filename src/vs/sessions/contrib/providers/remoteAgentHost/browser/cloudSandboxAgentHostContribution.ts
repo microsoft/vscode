@@ -354,10 +354,8 @@ export class CloudSandboxAgentHostContribution extends Disposable implements IWo
 				summary: name,
 				...(project ? { project } : {}),
 			}], {
-				// The caller shows a placeholder row for this session until it sends the first
-				// turn, so listing the seed now would duplicate that row. This also protects the
-				// session from the first `listSessions` after connecting, which the host can
-				// answer before it has materialized the session.
+				// The caller still shows a placeholder row for this session, and the host may not
+				// have materialized it yet.
 				provisional: true,
 			});
 			seededProvider = provider;
@@ -372,18 +370,15 @@ export class CloudSandboxAgentHostContribution extends Disposable implements IWo
 			}
 
 			// The adapter `seedSessions` created addresses the session by its raw id, which is the
-			// session id Mission Control just returned. Look it up through the cache rather than
-			// `getSessions`, which withholds it from listings until the caller publishes it.
+			// session id Mission Control just returned, and `getSessions` withholds it until
+			// the caller publishes it.
 			const session = provider.getCachedSession(created.sessionId);
 			if (!session) {
 				throw new Error(`Provisioned sandbox session ${created.sessionId} did not surface on its provider`);
 			}
 			return { ...created, provider, session };
 		} catch (error) {
-			// The task exists remotely from `createSession` onward, so a failure after the seed
-			// must not leave it withheld: the caller never receives a provider to publish it with,
-			// and a later discovery pass only backfills the entry already in the cache. Withheld
-			// and unreachable is worse than listed early.
+			// The task exists remotely, and nothing else clears a withheld seed.
 			if (seededProvider && this._providerInstances.get(address) === seededProvider) {
 				seededProvider.publishWithheldSession(created.sessionId);
 			}

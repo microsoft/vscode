@@ -5309,10 +5309,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	}
 
 	/**
-	 * Whether a cached session the host did not list may be evicted. Subclasses
-	 * override this to protect a session that exists but that the host has not
-	 * materialized yet — evicting one drops the row the user may be looking at,
-	 * sending the view back to the new-session screen.
+	 * Whether a cached session the host did not list may be evicted. Subclasses override this to
+	 * protect a session that exists but that the host has not materialized yet.
 	 */
 	protected _isSessionEvictable(_rawId: string): boolean {
 		return true;

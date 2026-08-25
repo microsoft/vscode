@@ -305,9 +305,8 @@ suite('CloudSandboxAgentHostContribution provisioning', () => {
 	});
 
 	test('publishes the seeded session when connecting fails, so it is not withheld forever', async () => {
-		// The task exists remotely once `createSession` returns. If a later failure leaves the seed
-		// withheld, nothing clears it: the caller never gets a provider to publish with, and a
-		// later discovery pass only backfills the entry already in the cache.
+		// The task exists remotely once `createSession` returns, and nothing else clears a
+		// withheld seed.
 		const harness = await createContribution(store, []);
 		harness.onConnect = async () => {
 			throw new Error('relay unavailable');

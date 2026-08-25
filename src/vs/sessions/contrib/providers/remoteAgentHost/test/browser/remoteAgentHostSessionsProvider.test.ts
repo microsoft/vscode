@@ -1324,9 +1324,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 	}
 
 	test('a provisional session survives a host listing that does not know it yet', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		// Mission Control creates the sandbox task before the host materializes the session, so the
-		// first listing after connecting can legitimately omit it. Evicting it there drops the row
-		// the user is looking at and bounces the view to the new-session screen.
+		// The first listing after connecting can legitimately omit a just-minted session.
 		connection.addSession(createSession('other-1', { summary: 'Someone else' }));
 		const provider = createProvider(disposables, connection, { isWebPlatform: false, omitHostFromWorkspaceLabel: true });
 		provider.seedSessions([{

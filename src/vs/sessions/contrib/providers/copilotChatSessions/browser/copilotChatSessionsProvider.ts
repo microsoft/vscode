@@ -2108,8 +2108,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		try {
 			provisioned = await this._getCloudSandboxContribution().provisionSession({
 				repoNwo,
-				// No `baseRef`: cloud sessions have no branch picker, and the Copilot app and CLI
-				// create sandbox tasks without one too, leaving the branch to Mission Control.
+				// No `baseRef`: cloud sessions have no branch picker; Mission Control chooses.
 				prompt: options.query,
 			}, CancellationToken.None);
 
@@ -2118,10 +2117,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			const chat = provisioned.session.mainChat.get();
 			const committed = await provisioned.provider.sendRequest(provisioned.session.sessionId, chat.resource, options);
 
-			// Retire the placeholder only once the turn is dispatched. Swapping earlier — when the
-			// session merely exists — hands the UI a session it cannot open yet, and the view falls
-			// back to the new-session screen. Revealing without announcing lets the replace event
-			// swap the two rows in one pass, rather than listing both for a frame.
+			// Retire only once the turn is dispatched; swapping earlier bounces the view home.
 			this._publishSandboxSession(provisioned, { announce: false });
 			this._retirePlaceholder(session, placeholder, committed);
 			return committed;
