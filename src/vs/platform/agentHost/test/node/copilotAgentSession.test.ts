@@ -833,11 +833,15 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			storedFileContents.set(resource.toString(), content.toString());
 			return { resource } as Awaited<ReturnType<IFileService['writeFile']>>;
 		},
-		del: async (resource: URI) => {
-			for (const key of storedFileContents.keys()) {
-				if (key.startsWith(resource.toString()) || key.startsWith(resource.fsPath)) {
-					storedFileContents.delete(key);
-				}
+		del: async (resource: URI, delOptions?: { recursive?: boolean }) => {
+			const matches = [...storedFileContents.keys()].filter(key => key.startsWith(resource.toString()) || key.startsWith(resource.fsPath));
+			// Like the disk provider, a non-recursive delete removes only an
+			// empty directory and fails while descendants remain.
+			if (!delOptions?.recursive && matches.some(key => key !== resource.toString() && key !== resource.fsPath)) {
+				throw new Error('ENOTEMPTY: directory not empty');
+			}
+			for (const key of matches) {
+				storedFileContents.delete(key);
 			}
 		},
 	} as unknown as IFileService);
@@ -11723,15 +11727,20 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual(mockSession.shellInitScriptUpdates, []);
 		});
 
-		test('removes the SDK-session-scoped script on dispose', async () => {
-			const { session, storedFileContents, setConfigValue } = await createAgentSession(disposables);
+		test('removes its own script on dispose and leaves a successor instance script intact', async () => {
+			const successorScript = '/mock-userdata/agentHost/shellInit/test-session-1/successor-instance/init.sh';
+			const { session, storedFileContents, setConfigValue } = await createAgentSession(disposables, {
+				fileContents: { [successorScript]: 'successor' },
+			});
 			setConfigValue(SessionConfigKey.ShellInitSnippets, [initScript]);
 			await session.send('go', undefined, 'turn-1', 'interactive');
-			assert.ok([...storedFileContents.keys()].some(key => key.includes('/test-session-1/') && key.endsWith('init.sh')));
+			assert.strictEqual([...storedFileContents.keys()].filter(key => key.includes('/test-session-1/') && key.endsWith('init.sh')).length, 2);
 
+			// The session-directory prune must not take the successor's script
+			// with it; only this instance's directory may be removed.
 			session.dispose();
 			await timeout(0);
-			assert.ok(![...storedFileContents.keys()].some(key => key.includes('/test-session-1/') && key.endsWith('init.sh')));
+			assert.deepStrictEqual([...storedFileContents.keys()].filter(key => key.includes('/test-session-1/')), [successorScript]);
 		});
 
 		test('grants the shell init directory read access in the sandbox policy', async () => {

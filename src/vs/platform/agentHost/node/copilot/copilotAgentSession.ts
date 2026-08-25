@@ -3701,6 +3701,14 @@ export class CopilotAgentSession extends Disposable {
 				this._logService.warn(`[Copilot:${this.sessionId}] Failed to remove shell init script: ${getErrorMessage(error)}`);
 			}
 		}
+		try {
+			// Non-recursive, so the session directory is only pruned once empty;
+			// while a successor instance still occupies it this fails, keeping
+			// that instance's script intact.
+			await this._fileService.del(this._shellInitScriptDirectory());
+		} catch {
+			// Occupied by a successor or already gone — both expected.
+		}
 	}
 
 	/**
