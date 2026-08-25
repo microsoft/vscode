@@ -201,8 +201,12 @@ async function openBrowserTab(session, url) {
 
     const deadline = Date.now() + 30_000;
     while (Date.now() < deadline) {
+        // Match on "created by this action", not on the requested URL: the
+        // tab may already have redirected (http->https, an auth hop) by the
+        // time it is first observed. Only the transient blank target is
+        // filtered out.
         const fresh = allPages().filter(p =>
-            !seen.has(p) && !p.isClosed() && p.url().startsWith(url));
+            !seen.has(p) && !p.isClosed() && p.url() !== 'about:blank');
         if (fresh.length) {
             const page = fresh[fresh.length - 1];
             await page.waitForLoadState('domcontentloaded').catch(() => { });
