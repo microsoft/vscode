@@ -360,9 +360,7 @@ export class AgentHostChannel<TContext> extends Disposable implements IServerCha
 	private _getOrCreate(ctx: TContext): IUpstreamConnection {
 		let conn = this._perCtx.get(ctx);
 		if (!conn) {
-			conn = typeof this._endpoint === 'function'
-				? new LazyUpstreamConnection(() => this._resolveEndpoint(), endpoint => this._createUpstream(endpoint), this._logService)
-				: this._createUpstream(this._endpoint);
+			conn = new LazyUpstreamConnection(() => this._resolveEndpoint(), endpoint => this._createUpstream(endpoint), this._logService);
 			this._perCtx.set(ctx, conn);
 			// If the upstream closes on its own (e.g. agent host restart or
 			// connection drop), evict it from the cache so the next

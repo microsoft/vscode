@@ -166,11 +166,14 @@ suite('AgentHostChannel', () => {
 			() => ds.add(new FakeUpstream()),
 		));
 
+		channel.listen('renderer', 'frame');
+		assert.deepStrictEqual(logService.infos, []);
+
 		await channel.call('renderer', 'connect');
 
 		assert.deepStrictEqual(logService.infos, [
-			'[AgentHostChannel] Opening upstream to localhost:12345',
 			'[AgentHostChannel] Renderer ctx=renderer requested connect to upstream',
+			'[AgentHostChannel] Opening upstream to localhost:12345',
 		]);
 	});
 
