@@ -5,7 +5,6 @@
 
 import fs from 'fs';
 import path from 'path';
-import { ensureElectronTypes } from '../../npm/electronTypes.ts';
 
 if (process.argv.length !== 3) {
 	console.error('Usage: node listNodeModules.ts OUTPUT_FILE');
@@ -41,7 +40,5 @@ function findNodeModulesFiles(location: string, inNodeModules: boolean, result: 
 }
 
 const result: string[] = [];
-await ensureElectronTypes();
 findNodeModulesFiles('', false, result);
-result.push('.build/typings/electron.d.ts');
 fs.writeFileSync(process.argv[2], result.join('\n') + '\n');

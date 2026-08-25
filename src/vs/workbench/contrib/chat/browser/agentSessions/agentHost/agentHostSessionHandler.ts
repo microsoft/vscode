@@ -1424,6 +1424,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 							this._chatErrorContext(),
 							this._config.connection.initializeResult.get()?.terminalCommandPrefix,
 							this._config.connection.resourceUris,
+							this._config.provider,
 						));
 						this._logService.trace(`[AgentHost] provideChatSessionContent: converted ${sessionState.turns.length} turn(s) into ${history.length} history item(s) for ${resolvedSession.toString()}`);
 
@@ -1459,7 +1460,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 								timestamp: parseTimestamp(sessionState.activeTurn.startedAt),
 								variableData: messageToVariableData(sessionState.activeTurn.message, this._config.connectionAuthority),
 								isSystemInitiated: sessionState.activeTurn.message.origin.kind === MessageKind.SystemNotification,
-								origin: messageToRequestOrigin(resolvedSession, sessionState.activeTurn.message, this._config.agentId),
+								origin: messageToRequestOrigin(resolvedSession, sessionState.activeTurn.message, this._config.agentId, this._config.provider),
 							});
 							history.push({
 								type: 'response',
@@ -2312,7 +2313,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					isHidden: isMessageHiddenFromTranscript(activeTurn.message),
 					timestamp: parseTimestamp(activeTurn.startedAt),
 					isTerminalRequest: isTerminalCommandPrompt(activeTurn.message.text, this._config.connection.initializeResult.get()?.terminalCommandPrefix),
-					origin: messageToRequestOrigin(backendSession, activeTurn.message, this._config.agentId),
+					origin: messageToRequestOrigin(backendSession, activeTurn.message, this._config.agentId, this._config.provider),
 				},
 			);
 
