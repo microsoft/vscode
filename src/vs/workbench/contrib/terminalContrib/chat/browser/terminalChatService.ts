@@ -467,6 +467,11 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 
 	continueInBackground(terminalToolSessionId: string): void {
 		this._onDidContinueInBackground.fire(terminalToolSessionId);
+		for (const part of this._activeProgressParts) {
+			if (part.terminalToolSessionId === terminalToolSessionId) {
+				part.markContinuedInBackground();
+			}
+		}
 	}
 
 	registerAhpCommandSource(terminalToolSessionId: string, source: IAhpTerminalCommandSource, promisedTerminal: Promise<ITerminalInstance>): IDisposable {

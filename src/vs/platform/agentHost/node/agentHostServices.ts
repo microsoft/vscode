@@ -24,6 +24,7 @@ import { IAgentHostChatContributions } from '../common/agentHostChatContribution
 import { IAgentHostCheckpointService } from '../common/agentHostCheckpointService.js';
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
 import { IAgentHostReviewService } from '../common/agentHostReviewService.js';
+import { IAgentHostSubscriptionService } from '../common/agentHostSubscriptionService.js';
 import { CopilotApiService, ICopilotApiService } from './shared/copilotApiService.js';
 import { AgentHostFileMonitorService, IAgentHostFileMonitorService } from './agentHostFileMonitorService.js';
 import { AgentHostGitService } from './agentHostGitService.js';
@@ -48,6 +49,7 @@ import { AgentHostGitStateService } from './agentHostGitStateService.js';
 import { AgentHostManagedSettingsService, IAgentHostManagedSettingsService } from './agentHostManagedSettingsService.js';
 import { AgentHostPromptCache, IAgentHostPromptCache } from './agentHostPromptCache.js';
 import { AgentHostReviewService } from './agentHostReviewService.js';
+import { AgentHostSubscriptionService } from './agentHostSubscriptionService.js';
 import { AgentHostSessionTitleSignal, IAgentHostSessionTitleSignal } from './agentHostSessionTitleSignal.js';
 import { AgentHostStorageService, IAgentHostStorageService } from './agentHostStorageService.js';
 import { AgentHostTerminalManager, IAgentHostTerminalManager } from './agentHostTerminalManager.js';
@@ -96,6 +98,7 @@ export function registerAgentHostCoreServices(services: ServiceCollection, input
 	registerService(services, IAgentHostPromptCache, new SyncDescriptor(AgentHostPromptCache));
 	registerService(services, IAgentHostSessionTitleSignal, new SyncDescriptor(AgentHostSessionTitleSignal));
 	registerService(services, IAgentHostChangesetSubscriptionService, new SyncDescriptor(AgentHostChangesetSubscriptionService));
+	registerService(services, IAgentHostSubscriptionService, new SyncDescriptor(AgentHostSubscriptionService));
 	registerService(services, IAgentHostChangesetOperationService, new SyncDescriptor(AgentHostChangesetOperationService));
 	registerService(services, IAgentHostReviewService, new SyncDescriptor(AgentHostReviewService));
 	registerService(services, IAgentHostChangesetService, new SyncDescriptor(AgentHostChangesetService));

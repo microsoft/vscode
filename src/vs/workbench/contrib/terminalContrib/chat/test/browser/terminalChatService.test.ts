@@ -114,6 +114,7 @@ suite('TerminalChatService', () => {
 			store.add(service.registerProgressPart(new class extends mock<IChatTerminalToolProgressPart>() {
 				override readonly elementIndex = index;
 				override readonly contentIndex = 0;
+				override readonly terminalToolSessionId = partSessionId;
 
 				override didRegisterOutputSource(terminalToolSessionId: string): void {
 					if (terminalToolSessionId === partSessionId) {
@@ -137,6 +138,35 @@ suite('TerminalChatService', () => {
 		}, {
 			notifiedPartIndices: [25, 26],
 			registeredSource: source,
+		});
+	});
+
+	test('continueInBackground notifies every matching progress part', () => {
+		const markedPartIndices: number[] = [];
+		const targetSessionId = 'tool-session-target';
+		for (let index = 0; index < 50; index++) {
+			const sessionId = index === 25 || index === 26 ? targetSessionId : `tool-session-${index}`;
+			store.add(service.registerProgressPart(new class extends mock<IChatTerminalToolProgressPart>() {
+				override readonly elementIndex = index;
+				override readonly contentIndex = 0;
+				override readonly terminalToolSessionId = sessionId;
+
+				override markContinuedInBackground(): void {
+					markedPartIndices.push(index);
+				}
+			}()));
+		}
+		const eventSessionIds: string[] = [];
+		store.add(service.onDidContinueInBackground(sessionId => eventSessionIds.push(sessionId)));
+
+		service.continueInBackground(targetSessionId);
+
+		assert.deepStrictEqual({
+			markedPartIndices,
+			eventSessionIds,
+		}, {
+			markedPartIndices: [25, 26],
+			eventSessionIds: [targetSessionId],
 		});
 	});
 

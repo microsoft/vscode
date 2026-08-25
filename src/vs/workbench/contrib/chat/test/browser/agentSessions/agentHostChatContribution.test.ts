@@ -26,17 +26,17 @@ import { ILogService, NullLogService } from '../../../../../../platform/log/comm
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IAgentCreateSessionConfig, IAgentHostService, IAgentSessionMetadata, AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
 import type { ChatInputRequestWithPlanReview } from '../../../../../../platform/agentHost/common/agentHostPlanReview.js';
-import { createAgentHostResourceUriMapper, identityAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { createAgentHostResourceUriMapper, identityAgentHostResourceUriMapper, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { AgentFeedbackAttachmentDisplayKind, AgentFeedbackAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAttachments.js';
 import { VSCODE_EPHEMERAL_SESSION_META_KEY } from '../../../../../../platform/agentHost/common/meta/agentEphemeralSessionMeta.js';
 import { getElementAttachmentCorrelationId, toElementAttachmentMeta } from '../../../../../../platform/agentHost/common/meta/agentElementAttachments.js';
 import { BrowserViewAttachmentDisplayKind, BrowserViewAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/browserViewAttachments.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, toAgentSystemNotificationMeta } from '../../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
 import { ActionType, AuthRequiredReason, isSessionAction, isChatAction, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type ChatAction as AgentHostChatAction, type TerminalAction, type INotification, type IToolCallConfirmedAction, type ITurnStartedAction, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import { ProtocolError, type IStateSnapshot } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
+import { AHP_NOT_FOUND, ProtocolError, type IStateSnapshot } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { ChatInteractivity, ConfirmationOptionKind, CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, type AgentCustomization, type ClientPluginCustomization, type ProtectedResourceMetadata, type SessionActiveClient, type ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ChatOriginKind, SessionLifecycle, SessionStatus, TurnState, ToolCallStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, createSessionState, createChatState, createDefaultChatSummary, buildChatUri, buildDefaultChatUri, parseDefaultChatUri, isAhpChatChannel, createActiveTurn, isAhpRootChannel, PolicyState, ResponsePartKind, ROOT_STATE_URI, StateComponents, buildSubagentChatUri, ToolResultContentType, MessageAttachmentKind, MessageKind, PendingMessageKind, withSessionMultiRootMetadata, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_EHCLI_ADOPTED_KEY, type SessionState, type SessionSummary, type ChatState, type ISessionWithDefaultChat, RootState, type ToolCallState, type AgentInfo, type MessageAttachment, type MessageChatAttachment } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { CompletionItemKind as AhpCompletionItemKind, type CompletionsParams, type CompletionsResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
+import { CompletionItemKind as AhpCompletionItemKind, type CompletionsParams, type CompletionsResult, type InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { sessionReducer, chatReducer } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
@@ -164,7 +164,17 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		this._authenticationPending.set(pending, undefined);
 	}
 
-	override readonly initializeResult = constObservable(undefined);
+	private readonly _initializeResult = observableValue<InitializeResult | undefined>('initializeResult', undefined);
+	override readonly initializeResult: IObservable<InitializeResult | undefined> = this._initializeResult;
+
+	/** Declares what the host reported at `initialize`, for version- and scheme-gated behaviour. */
+	setInitializeResult(result: Partial<InitializeResult>): void {
+		this._initializeResult.set({ ...this._initializeResult.get(), ...result } as InitializeResult, undefined);
+	}
+
+	setHostProtocolVersion(protocolVersion: string): void {
+		this.setInitializeResult({ protocolVersion });
+	}
 
 	// Track live subscriptions so fireAction can route to them. A subscription
 	// may hold a SessionState (for session channels) or a ChatState (for the
@@ -177,6 +187,9 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	public createSessionCalls: IAgentCreateSessionConfig[] = [];
 	public disposedSessions: URI[] = [];
 	public failNextSubscriptionFor = new Set<string>();
+
+	/** Error to fail a subscription with, when the default generic error is not what is under test. */
+	public failNextSubscriptionError = new Map<string, Error>();
 	public agents = [{ provider: 'copilot' as const, displayName: 'Agent Host - Copilot', description: 'test', requiresAuth: true }];
 
 	// ---- Pending→error subscription support (repro for #5242) --------------
@@ -358,7 +371,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		const onDidApply = new Emitter<ActionEnvelope>();
 
 		if (this.failNextSubscriptionFor.delete(resourceStr)) {
-			const error = new Error(`Session not found on backend: ${resourceStr}`);
+			const error = this.failNextSubscriptionError.get(resourceStr) ?? new Error(`Session not found on backend: ${resourceStr}`);
 			return {
 				object: {
 					get value() { return error; },
@@ -11633,6 +11646,207 @@ suite('AgentHostChatContribution', () => {
 			assert.ok(Array.isArray(createCall!.activeClient!.tools), 'activeClient.tools should be a defined array');
 			assert.strictEqual(createCall!.activeClient!.customizations?.length, 1);
 			assert.strictEqual(createCall!.activeClient!.customizations?.[0].uri, 'file:///plugin-a');
+		});
+
+		test('drops customizations for a host older than list-shaped enablement', async () => {
+			// A 0.7.0 host rejects the whole createSession with `missing field 'enabled'`.
+			const { instantiationService, agentHostService, chatAgentService, seedActiveClient } = createTestServices(disposables);
+			agentHostService.setHostProtocolVersion('0.7.0');
+
+			const customizations = observableValue<ClientPluginCustomization[]>('customizations', [
+				{ type: CustomizationType.Plugin, id: 'file:///plugin-a', uri: 'file:///plugin-a', name: 'Plugin A' },
+			]);
+			disposables.add(seedActiveClient('agent-host-copilot', { customizations }));
+
+			const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
+				provider: 'copilot' as const,
+				agentId: 'agent-host-copilot',
+				sessionType: 'agent-host-copilot',
+				fullName: 'Agent Host - Copilot',
+				description: 'test',
+				connection: agentHostService,
+				connectionAuthority: 'local',
+			}));
+
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+			await turnPromise;
+
+			const createCall = agentHostService.createSessionCalls.at(-1);
+			assert.deepStrictEqual(createCall?.activeClient?.customizations, []);
+		});
+
+		test('drops customizations from a reconciliation republish for an older host', async () => {
+			// Gating only createSession leaves this path sending the shape 0.7.0 rejects.
+			const { instantiationService, agentHostService, chatAgentService, seedActiveClient } = createTestServices(disposables);
+			agentHostService.setHostProtocolVersion('0.7.0');
+
+			const customizations = observableValue<readonly ClientPluginCustomization[]>('customizations', [
+				{ type: CustomizationType.Plugin, id: 'file:///plugin-a', uri: 'file:///plugin-a', name: 'Plugin A' },
+			]);
+			disposables.add(seedActiveClient('agent-host-copilot', { customizations }));
+
+			const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
+				provider: 'copilot' as const,
+				agentId: 'agent-host-copilot',
+				sessionType: 'agent-host-copilot',
+				fullName: 'Agent Host - Copilot',
+				description: 'test',
+				connection: agentHostService,
+				connectionAuthority: 'local',
+			}));
+
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+			await turnPromise;
+			agentHostService.dispatchedActions.length = 0;
+
+			customizations.set([
+				{ type: CustomizationType.Plugin, id: 'file:///plugin-b', uri: 'file:///plugin-b', name: 'Plugin B' },
+			], undefined);
+			await timeout(10);
+
+			assert.deepStrictEqual(
+				agentHostService.dispatchedActions
+					.filter(action => action.action.type === ActionType.SessionActiveClientSet)
+					.map(action => (action.action as { activeClient: SessionActiveClient }).activeClient.customizations),
+				[[]],
+			);
+		});
+
+		test('keeps customizations for a host that speaks list-shaped enablement', async () => {
+			const { instantiationService, agentHostService, chatAgentService, seedActiveClient } = createTestServices(disposables);
+			agentHostService.setHostProtocolVersion('0.8.0');
+
+			const customizations = observableValue<ClientPluginCustomization[]>('customizations', [
+				{ type: CustomizationType.Plugin, id: 'file:///plugin-a', uri: 'file:///plugin-a', name: 'Plugin A' },
+			]);
+			disposables.add(seedActiveClient('agent-host-copilot', { customizations }));
+
+			const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
+				provider: 'copilot' as const,
+				agentId: 'agent-host-copilot',
+				sessionType: 'agent-host-copilot',
+				fullName: 'Agent Host - Copilot',
+				description: 'test',
+				connection: agentHostService,
+				connectionAuthority: 'local',
+			}));
+
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+			await turnPromise;
+
+			const createCall = agentHostService.createSessionCalls.at(-1);
+			assert.strictEqual(createCall?.activeClient?.customizations?.length, 1);
+		});
+
+		test('does not render a load failure for a session the host has not created yet', async () => {
+			// A seeded id reports NotFound until `createSession` brings the session into being.
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/seeded-not-yet-created' });
+			const backendSession = AgentSession.uri('copilot', 'seeded-not-yet-created');
+			const { sessionHandler, agentHostService } = createContribution(disposables, {
+				provisionalServiceOverride: {
+					get: resource => resource.toString() === sessionResource.toString() ? backendSession : undefined,
+				},
+			});
+			agentHostService.failNextSubscriptionFor.add(backendSession.toString());
+			agentHostService.failNextSubscriptionError.set(backendSession.toString(), new ProtocolError(AHP_NOT_FOUND, `not found: ${backendSession.toString()}`));
+
+			const content = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+
+			assert.deepStrictEqual(content.history, []);
+		});
+
+		test('still renders a load failure when the session exists but cannot be opened', async () => {
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/existing-broken' });
+			const backendSession = AgentSession.uri('copilot', 'existing-broken');
+			const { sessionHandler, agentHostService } = createContribution(disposables, {
+				provisionalServiceOverride: {
+					get: resource => resource.toString() === sessionResource.toString() ? backendSession : undefined,
+				},
+			});
+			agentHostService.failNextSubscriptionFor.add(backendSession.toString());
+			agentHostService.failNextSubscriptionError.set(backendSession.toString(), new Error('worktree could not be recreated'));
+
+			const content = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+
+			assert.deepStrictEqual(content.history.map(item => item.type), ['request', 'response']);
+		});
+
+		test('drops a working directory the host cannot address, letting it choose its own', async () => {
+			// The workspace is the remote repo, but the agent runs against the local checkout.
+			const { instantiationService, agentHostService, chatAgentService } = createTestServices(disposables,
+				{ resolve: () => URI.parse('https://github.com/microsoft/vscode') });
+			agentHostService.setInitializeResult({ defaultDirectory: 'file:///workspaces/vscode' });
+
+			const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
+				provider: 'copilot' as const,
+				agentId: 'agent-host-copilot',
+				sessionType: 'agent-host-copilot',
+				fullName: 'Agent Host - Copilot',
+				description: 'test',
+				connection: agentHostService,
+				connectionAuthority: 'local',
+			}));
+
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+			await turnPromise;
+
+			assert.strictEqual(agentHostService.createSessionCalls.at(-1)?.workingDirectories, undefined);
+		});
+
+		test('keeps a remote working directory the host can address once unwrapped', async () => {
+			// createSession unwraps `vscode-agent-host:`, so judging the wrapper drops valid dirs.
+			const { instantiationService, agentHostService, chatAgentService } = createTestServices(disposables,
+				{ resolve: () => toAgentHostUri(URI.file('/workspaces/vscode'), 'remote-test') });
+			agentHostService.resourceUris = createAgentHostResourceUriMapper('remote-test');
+			agentHostService.setInitializeResult({ defaultDirectory: 'file:///workspaces/other' });
+
+			const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
+				provider: 'copilot' as const,
+				agentId: 'agent-host-copilot',
+				sessionType: 'agent-host-copilot',
+				fullName: 'Agent Host - Copilot',
+				description: 'test',
+				connection: agentHostService,
+				connectionAuthority: 'remote-test',
+			}));
+
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+			await turnPromise;
+
+			assert.deepStrictEqual(
+				agentHostService.createSessionCalls.at(-1)?.workingDirectories?.map(d => URI.revive(d).toString()),
+				[toAgentHostUri(URI.file('/workspaces/vscode'), 'remote-test').toString()],
+			);
+		});
+
+		test('keeps a working directory whose scheme the host addresses', async () => {
+			const { instantiationService, agentHostService, chatAgentService } = createTestServices(disposables,
+				{ resolve: () => URI.file('/workspaces/vscode') });
+			agentHostService.setInitializeResult({ defaultDirectory: 'file:///workspaces/other' });
+
+			const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
+				provider: 'copilot' as const,
+				agentId: 'agent-host-copilot',
+				sessionType: 'agent-host-copilot',
+				fullName: 'Agent Host - Copilot',
+				description: 'test',
+				connection: agentHostService,
+				connectionAuthority: 'local',
+			}));
+
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+			await turnPromise;
+
+			assert.deepStrictEqual(
+				agentHostService.createSessionCalls.at(-1)?.workingDirectories?.map(d => d.toString()),
+				[URI.file('/workspaces/vscode').toString()],
+			);
 		});
 
 		test('waits for initial scope resolution before creating a session', async () => {

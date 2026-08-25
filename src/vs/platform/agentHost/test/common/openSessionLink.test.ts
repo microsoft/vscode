@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { buildOpenSessionLinkForChatResource, buildOpenSessionLinkUri, createAgentSessionLinkPresentation, isCreateChatTool, isCreateSessionTool, isSendMessageTool, parseOpenSessionLinkChatId, parseOpenSessionLinkUri } from '../../common/openSessionLink.js';
+import { buildOpenSessionLinkForChatResource, buildOpenSessionLinkUri, createAgentSessionLinkPresentation, isCreateChatTool, isCreateSessionTool, isSendMessageTool, parseOpenSessionLinkChatId, parseOpenSessionLinkTurnId, parseOpenSessionLinkUri } from '../../common/openSessionLink.js';
 import { buildChatUri, buildDefaultChatUri } from '../../common/state/sessionState.js';
 
 suite('openSessionLink', () => {
@@ -47,6 +47,13 @@ suite('openSessionLink', () => {
 		assert.strictEqual(parseOpenSessionLinkUri(link)?.toString(), URI.parse('copilotcli:/abc-123').toString());
 		assert.strictEqual(parseOpenSessionLinkChatId(link), 'chat-9');
 		assert.strictEqual(parseOpenSessionLinkChatId(buildOpenSessionLinkUri('copilotcli:/abc-123')), undefined);
+	});
+
+	test('carries an optional chat and turn id', () => {
+		const link = buildOpenSessionLinkUri('copilotcli:/abc-123', 'chat-9', 'turn-7');
+		assert.strictEqual(link, 'agent-host-session://copilotcli/abc-123?chat=chat-9&turn=turn-7');
+		assert.strictEqual(parseOpenSessionLinkChatId(link), 'chat-9');
+		assert.strictEqual(parseOpenSessionLinkTurnId(link), 'turn-7');
 	});
 
 	test('normalizes the default chat id to a session-only link', () => {
