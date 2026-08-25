@@ -68,10 +68,10 @@ suite('Managed settings freshness', () => {
 		const blockedWithoutFailure: IManagedSettingsFreshness = { state: ManagedSettingsFreshnessState.Blocked, source: 'server' };
 		// @ts-expect-error satisfaction without a scope would be transferable across accounts
 		const satisfiedWithoutScope: IManagedSettingsFreshness = { state: ManagedSettingsFreshnessState.Satisfied, source: 'server', satisfiedAt: 1 };
-		// @ts-expect-error a retry deadline is meaningful only while rate limited
-		const retryAfterOnNetworkFailure: IManagedSettingsFreshness = { state: ManagedSettingsFreshnessState.Blocked, source: 'server', failure: ManagedSettingsFreshnessFailure.Network, retryAfter: 1 };
+		// @ts-expect-error an HTTP status is meaningful only for an HTTP failure
+		const httpStatusOnNetworkFailure: IManagedSettingsFreshness = { state: ManagedSettingsFreshnessState.Blocked, source: 'server', failure: ManagedSettingsFreshnessFailure.Network, httpStatus: 500 };
 
-		assert.deepStrictEqual([blockedWithoutFailure, satisfiedWithoutScope, retryAfterOnNetworkFailure].map(freshness => freshness.state), [
+		assert.deepStrictEqual([blockedWithoutFailure, satisfiedWithoutScope, httpStatusOnNetworkFailure].map(freshness => freshness.state), [
 			ManagedSettingsFreshnessState.Blocked,
 			ManagedSettingsFreshnessState.Satisfied,
 			ManagedSettingsFreshnessState.Blocked,

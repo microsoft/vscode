@@ -29,7 +29,6 @@ export interface EndpointPreset {
 	label: string;
 	description: string;
 	status?: number;
-	mode?: EndpointResponseMode;
 	body: unknown;
 }
 
@@ -249,28 +248,6 @@ declare var MOCK_POLICY_ENDPOINTS: EndpointDef[];
 					description: 'Returns an HTTP 500 response to exercise the fail-closed HTTP error path.',
 					status: 500,
 					body: { error: 'mock_managed_settings_failure' }
-				},
-				{
-					id: 'malformed-response',
-					label: 'Malformed JSON (200)',
-					description: 'Returns an unterminated JSON response to exercise the malformed-response path.',
-					status: 200,
-					mode: 'malformed-json',
-					body: {}
-				},
-				{
-					id: 'disconnect',
-					label: 'Disconnect without response',
-					description: 'Closes the connection before sending response headers to exercise an immediate network failure.',
-					mode: 'disconnect',
-					body: {}
-				},
-				{
-					id: 'timeout',
-					label: 'No response (timeout)',
-					description: 'Leaves the request unanswered until the client times out, then closes the connection.',
-					mode: 'timeout',
-					body: {}
 				}
 			]
 		},

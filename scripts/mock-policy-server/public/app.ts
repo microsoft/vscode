@@ -94,6 +94,7 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 	const editor = $('editor') as HTMLTextAreaElement;
 	const responseStatusInput = $('response-status') as HTMLInputElement;
 	const responseModeSelect = $('response-mode') as HTMLSelectElement;
+	const responseConfiguration = $('response-configuration');
 	const responseStatusValidation = $('response-status-validation');
 	const presetSelect = $('preset') as HTMLSelectElement;
 	const endpointMeta = $('endpoint-meta');
@@ -407,7 +408,7 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 		endpointMeta.replaceChildren(routeSpan);
 		responseStatusInput.value = String(endpoint.status ?? 200);
 		responseModeSelect.value = endpoint.mode ?? 'json';
-		updateResponseModeInputs();
+		updateResponseConfigurationVisibility();
 		parseResponseStatus();
 		editor.value = drafts[id] ?? JSON.stringify(endpoint.body ?? {}, null, '\t');
 		renderTabs();
@@ -438,10 +439,7 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 			return;
 		}
 		endpoint.status = preset.status ?? 200;
-		endpoint.mode = preset.mode ?? 'json';
 		responseStatusInput.value = String(endpoint.status);
-		responseModeSelect.value = endpoint.mode;
-		updateResponseModeInputs();
 		// Applying a preset is an unambiguous "serve this", so switch mocking on
 		// rather than saving a body that is still being proxied past.
 		endpoint.active = true;
@@ -464,11 +462,23 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 		updateReadiness();
 	}
 
-	function updateResponseModeInputs(): void {
-		const mode = responseModeSelect.value as EndpointResponseMode;
-		const noHttpResponse = mode === 'disconnect' || mode === 'timeout';
-		responseStatusInput.disabled = noHttpResponse;
-		editor.disabled = mode !== 'json';
+	function updateResponseConfigurationVisibility(): void {
+		responseConfiguration.hidden = responseModeSelect.value !== 'json';
+	}
+
+	async function setResponseMode(endpoint: Endpoint, mode: EndpointResponseMode): Promise<void> {
+		const previousMode = endpoint.mode ?? 'json';
+		endpoint.mode = mode;
+		updateResponseConfigurationVisibility();
+		clearPendingSave(endpoint.id);
+		try {
+			applyState(await updateState({ endpoint: endpoint.id, mode }));
+		} catch (error) {
+			endpoint.mode = previousMode;
+			responseModeSelect.value = previousMode;
+			updateResponseConfigurationVisibility();
+			toast(`Save failed: ${error instanceof Error ? error.message : String(error)}`, true);
+		}
 	}
 
 	function renderProxy(): void {
@@ -917,9 +927,7 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 			if (!endpoint) {
 				return;
 			}
-			endpoint.mode = responseModeSelect.value as EndpointResponseMode;
-			updateResponseModeInputs();
-			debouncedSave();
+			void setResponseMode(endpoint, responseModeSelect.value as EndpointResponseMode);
 		});
 		presetSelect.addEventListener('change', applyPreset);
 		$('overrides-action').addEventListener('click', () => wire(!overridesWired));

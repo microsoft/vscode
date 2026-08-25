@@ -169,11 +169,6 @@
 						<p id="endpoint-meta" class="endpoint-meta"></p>
 
 						<div class="form-group">
-							<label for="preset">Preset</label>
-							<select id="preset"></select>
-						</div>
-
-						<div class="form-group">
 							<label for="response-mode">Response behavior</label>
 							<select id="response-mode">
 								<option value="json">JSON response</option>
@@ -183,38 +178,45 @@
 							</select>
 						</div>
 
-						<div class="form-group">
-							<label for="response-status">HTTP status code</label>
-							<input id="response-status" class="status-code-input" type="number" min="200" max="599" step="1"
-								inputmode="numeric" aria-describedby="response-status-validation">
-							<p id="response-status-validation" class="status" aria-live="polite"></p>
-						</div>
-
-						<div id="schema-section" class="section-block" hidden>
-							<h2 class="schema-heading">
-								<button type="button" class="section-header section-header-toggle" id="schema-toggle"
-									aria-expanded="false" aria-controls="schema-details">
-									<span class="chevron" id="schema-chevron" aria-hidden="true">&#9654;</span>
-									<span>Schema</span>
-									<span id="schema-badge" class="schema-badge" data-tooltip="">&hellip;</span>
-								</button>
-							</h2>
-							<div id="schema-details" class="schema-details" hidden>
-								<span class="label-small">Schema source</span>
-								<code id="schema-source" class="block"></code>
-								<button id="hydrate-schema" type="button" class="btn-secondary">Generate Example</button>
+						<div id="response-configuration" class="response-configuration">
+							<div class="form-group">
+								<label for="preset">Preset</label>
+								<select id="preset"></select>
 							</div>
-						</div>
 
-						<div class="form-group">
-							<div class="label-row">
-								<label for="editor">Response body (JSON)</label>
-								<span id="save-state" class="save-state" aria-live="polite"></span>
+							<div class="form-group">
+								<label for="response-status">HTTP status code</label>
+								<input id="response-status" class="status-code-input" type="number" min="200" max="599" step="1"
+									inputmode="numeric" aria-describedby="response-status-validation">
+								<p id="response-status-validation" class="status" aria-live="polite"></p>
 							</div>
-							<textarea id="editor" spellcheck="false" autocomplete="off"
-								aria-describedby="editor-status"></textarea>
-							<p id="editor-status" class="status" aria-live="polite"></p>
-							<div id="validation-results" hidden></div>
+
+							<div id="schema-section" class="section-block" hidden>
+								<h2 class="schema-heading">
+									<button type="button" class="section-header section-header-toggle" id="schema-toggle"
+										aria-expanded="false" aria-controls="schema-details">
+										<span class="chevron" id="schema-chevron" aria-hidden="true">&#9654;</span>
+										<span>Schema</span>
+										<span id="schema-badge" class="schema-badge" data-tooltip="">&hellip;</span>
+									</button>
+								</h2>
+								<div id="schema-details" class="schema-details" hidden>
+									<span class="label-small">Schema source</span>
+									<code id="schema-source" class="block"></code>
+									<button id="hydrate-schema" type="button" class="btn-secondary">Generate Example</button>
+								</div>
+							</div>
+
+							<div class="form-group">
+								<div class="label-row">
+									<label for="editor">Response body (JSON)</label>
+									<span id="save-state" class="save-state" aria-live="polite"></span>
+								</div>
+								<textarea id="editor" spellcheck="false" autocomplete="off"
+									aria-describedby="editor-status"></textarea>
+								<p id="editor-status" class="status" aria-live="polite"></p>
+								<div id="validation-results" hidden></div>
+							</div>
 						</div>
 					</div>
 				</section>

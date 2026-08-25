@@ -67,6 +67,42 @@ suite('DefaultAccountProvider managed settings', () => {
 		});
 	});
 
+	test('settings without a refresh requirement use the cache after one process fetch', async () => {
+		const requestService = new TestRequestService(async () => jsonResponse({
+			permissions: { disableBypassPermissionsMode: 'disable' },
+		}));
+		const provider = await createProvider(requestService);
+		const cachedPolicy = createCachedPolicy(false);
+
+		const first = await provider['getManagedSettings'](sessions, cachedPolicy);
+		const second = await provider['getManagedSettings'](sessions, cachedPolicy);
+
+		assert.deepStrictEqual({
+			requestCount: requestService.requestCount,
+			first: first.data,
+			second: second.data,
+		}, {
+			requestCount: 1,
+			first: { managedSettings: { 'permissions.disableBypassPermissionsMode': 'disable' } },
+			second: cachedPolicy.policyData,
+		});
+	});
+
+	test('settings without a refresh requirement refetch only after the cache becomes stale', async () => {
+		const requestService = new TestRequestService(async () => jsonResponse({}));
+		const provider = await createProvider(requestService);
+		const cachedPolicy = createCachedPolicy(false);
+
+		await provider['getManagedSettings'](sessions, cachedPolicy);
+		await provider['getManagedSettings'](sessions, cachedPolicy);
+		await provider['getManagedSettings'](sessions, {
+			...cachedPolicy,
+			managedSettingsFetchedAt: Date.now() - 60 * 60 * 1000,
+		});
+
+		assert.strictEqual(requestService.requestCount, 2);
+	});
+
 	test('fresh 404 clears a cached server requirement', async () => {
 		const requestService = new TestRequestService(async () => jsonResponse({}, 404));
 		const provider = await createProvider(requestService);
@@ -236,7 +272,7 @@ suite('DefaultAccountProvider managed settings', () => {
 			policyData: first.data ?? {},
 			managedSettingsFetchedAt: first.fetchedAt,
 		};
-		await provider['getManagedSettings'](sessions, retryPolicy, { forceRefresh: true });
+		await provider['getManagedSettings'](sessions, retryPolicy, { forceRefresh: true, retryManagedSettings: true });
 
 		assert.deepStrictEqual({
 			requestCount: requestService.requestCount,
@@ -250,6 +286,117 @@ suite('DefaultAccountProvider managed settings', () => {
 				hasLastAttempt: true,
 			},
 		});
+	});
+
+	test('automatic refreshes stop after failure while explicit retry bypasses the guard', async () => {
+		const requestService = new TestRequestService(async () => {
+			throw new Error('managed settings unavailable');
+		});
+		const provider = await createProvider(requestService);
+		const cachedPolicy = createCachedPolicy(true);
+
+		await provider['getManagedSettings'](sessions, cachedPolicy);
+		await provider['getManagedSettings'](sessions, cachedPolicy, { forceRefresh: true });
+		await provider['getManagedSettings'](sessions, cachedPolicy, { forceRefresh: true, retryManagedSettings: true });
+
+		assert.deepStrictEqual({
+			requestCount: requestService.requestCount,
+			freshness: describeFreshness(provider.managedSettingsFreshness),
+		}, {
+			requestCount: 2,
+			freshness: {
+				state: ManagedSettingsFreshnessState.Blocked,
+				source: 'server',
+				failure: ManagedSettingsFreshnessFailure.Network,
+				hasLastAttempt: true,
+			},
+		});
+	});
+
+	test('settings without a refresh requirement do not latch failures', async () => {
+		const requestService = new TestRequestService(async () => {
+			throw new Error('managed settings unavailable');
+		});
+		const provider = await createProvider(requestService);
+		const cachedPolicy = createCachedPolicy(false);
+
+		await provider['getManagedSettings'](sessions, cachedPolicy);
+		await provider['getManagedSettings'](sessions, cachedPolicy, { forceRefresh: true });
+
+		assert.strictEqual(requestService.requestCount, 2);
+	});
+
+	test('managed settings source change preserves a prior blocked state', async () => {
+		const requestService = new TestRequestService(async () => {
+			throw new Error('managed settings unavailable');
+		});
+		const provider = await createProvider(requestService, { [COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: true });
+
+		await provider['getManagedSettings'](sessions, undefined);
+		provider['initialized'] = false;
+		provider['onManagedSettingsSourceChanged']();
+		await provider['getDefaultAccountFromAuthenticatedSessions'](
+			{ id: 'github', name: 'GitHub', enterprise: false },
+			sessions,
+			{ forceRefresh: true }
+		);
+
+		assert.deepStrictEqual({
+			managedSettingsRequestCount: requestService.requests.filter(request => request.url?.includes('/copilot_internal/managed_settings')).length,
+			freshness: describeFreshness(provider.managedSettingsFreshness),
+		}, {
+			managedSettingsRequestCount: 1,
+			freshness: {
+				state: ManagedSettingsFreshnessState.Blocked,
+				source: 'nativeMdm',
+				failure: ManagedSettingsFreshnessFailure.Network,
+				hasLastAttempt: true,
+			},
+		});
+	});
+
+	test('managed-settings failure guard is scoped to the account', async () => {
+		const requestService = new TestRequestService(async () => {
+			throw new Error('managed settings unavailable');
+		});
+		const provider = await createProvider(requestService, { [COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: true });
+
+		await provider['getManagedSettings'](sessions, undefined);
+		await provider['getManagedSettings']([
+			{ ...sessions[0], account: { id: 'second-account', label: 'hubot' } },
+		], undefined);
+
+		assert.strictEqual(requestService.requestCount, 2);
+	});
+
+	test('forced managed-settings attempt uses only the selected authentication session', async () => {
+		const requestService = new TestRequestService(async () => {
+			throw new Error('managed settings unavailable');
+		});
+		const provider = await createProvider(requestService, { [COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: true });
+
+		await provider['getManagedSettings']([
+			sessions[0],
+			{ ...sessions[0], id: 'second-session' },
+		], undefined);
+
+		assert.strictEqual(requestService.requestCount, 1);
+	});
+
+	test('settings without a refresh requirement retain session fallback', async () => {
+		let requestCount = 0;
+		const requestService = new TestRequestService(async () => {
+			requestCount++;
+			return requestCount === 1 ? jsonResponse({}, 401) : jsonResponse({});
+		});
+		const provider = await createProvider(requestService);
+
+		await provider['getManagedSettings']([
+			sessions[0],
+			{ ...sessions[0], id: 'second-session' },
+		], undefined);
+
+		assert.strictEqual(requestService.requestCount, 2);
 	});
 
 	test('first server response can establish and satisfy a refresh requirement', async () => {
@@ -308,7 +455,7 @@ suite('DefaultAccountProvider managed settings', () => {
 			...cachedPolicy,
 			policyData: failed.data ?? {},
 			managedSettingsFetchedAt: failed.fetchedAt,
-		}, { forceRefresh: true });
+		}, { forceRefresh: true, retryManagedSettings: true });
 
 		assert.deepStrictEqual({
 			requestCount,
@@ -404,38 +551,46 @@ suite('DefaultAccountProvider managed settings', () => {
 		});
 	});
 
-	test('rate-limited forced refresh records retry timing', async () => {
+	test('rate-limited forced refresh blocks automatic retries', async () => {
 		const requestService = new TestRequestService(async () => jsonResponse({}, 429, { 'retry-after': '60' }));
 		const provider = await createProvider(requestService, { [COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: true });
 
 		await provider['getManagedSettings'](sessions, undefined);
+		await provider['getManagedSettings'](sessions, undefined, { forceRefresh: true });
+		provider['_rateLimitBackoffUntil'] = 0;
+		await provider['getManagedSettings'](sessions, undefined, { forceRefresh: true, retryManagedSettings: true });
 
-		const freshness = provider.managedSettingsFreshness;
 		assert.deepStrictEqual({
-			...describeFreshness(freshness),
-			hasFutureRetry: freshness.state === ManagedSettingsFreshnessState.Blocked
-				&& freshness.failure === ManagedSettingsFreshnessFailure.RateLimited
-				&& freshness.retryAfter > Date.now(),
+			requestCount: requestService.requestCount,
+			freshness: describeFreshness(provider.managedSettingsFreshness),
 		}, {
-			state: ManagedSettingsFreshnessState.Blocked,
-			source: 'nativeMdm',
-			failure: ManagedSettingsFreshnessFailure.RateLimited,
-			hasLastAttempt: true,
-			hasRetryAfter: true,
-			hasFutureRetry: true,
+			requestCount: 2,
+			freshness: {
+				state: ManagedSettingsFreshnessState.Blocked,
+				source: 'nativeMdm',
+				failure: ManagedSettingsFreshnessFailure.RateLimited,
+				hasLastAttempt: true,
+			},
 		});
 	});
 
-	test('expired rate-limit deadline falls back to the normal poll interval', async () => {
-		const provider = await createProvider(new TestRequestService(async () => jsonResponse({})));
-		provider['_managedSettingsFreshness'] = {
-			state: ManagedSettingsFreshnessState.Blocked,
-			source: 'server',
-			failure: ManagedSettingsFreshnessFailure.RateLimited,
-			retryAfter: Date.now() - 1,
-		};
+	test('shared backoff does not permanently latch managed settings without an attempted request', async () => {
+		const requestService = new TestRequestService(async () => jsonResponse({}));
+		const provider = await createProvider(requestService);
+		const cachedPolicy = createCachedPolicy(true);
 
-		assert.strictEqual(provider['getAccountDataPollDelay'](), 60 * 60 * 1000);
+		provider['_rateLimitBackoffUntil'] = Date.now() + 60_000;
+		await provider['getManagedSettings'](sessions, cachedPolicy);
+		provider['_rateLimitBackoffUntil'] = 0;
+		await provider['getManagedSettings'](sessions, cachedPolicy);
+
+		assert.deepStrictEqual({
+			requestCount: requestService.requestCount,
+			freshness: provider.managedSettingsFreshness,
+		}, {
+			requestCount: 1,
+			freshness: { state: ManagedSettingsFreshnessState.NotRequired },
+		});
 	});
 
 	test('malformed forced refresh response fails closed', async () => {
@@ -488,11 +643,11 @@ suite('DefaultAccountProvider managed settings', () => {
 		const freshlyCached = createCachedPolicy(false);
 		const staleFetchedAt = Date.now() - 2 * 60 * 60 * 1000; // twice the one-hour poll interval
 
-		const whileFresh = await provider['getManagedSettings'](sessions, freshlyCached, { forceRefresh: true });
+		const whileFresh = await provider['getManagedSettings'](sessions, freshlyCached, { forceRefresh: true, retryManagedSettings: true });
 		const onceStale = await provider['getManagedSettings'](
 			sessions,
 			{ ...freshlyCached, managedSettingsFetchedAt: staleFetchedAt },
-			{ forceRefresh: true }
+			{ forceRefresh: true, retryManagedSettings: true }
 		);
 
 		assert.deepStrictEqual({
@@ -521,7 +676,7 @@ suite('DefaultAccountProvider managed settings', () => {
 		const cachedPolicy = createCachedPolicy(false);
 
 		await provider['getManagedSettings'](sessions, cachedPolicy);
-		const result = await provider['getManagedSettings'](sessions, cachedPolicy, { forceRefresh: true });
+		const result = await provider['getManagedSettings'](sessions, cachedPolicy, { forceRefresh: true, retryManagedSettings: true });
 
 		assert.deepStrictEqual({
 			status: provider.managedSettingsFetchStatus,
@@ -664,10 +819,6 @@ suite('DefaultAccountProvider managed settings', () => {
 		}
 		if (freshness.state === ManagedSettingsFreshnessState.Blocked) {
 			const { lastAttemptAt, ...rest } = freshness;
-			if (rest.failure === ManagedSettingsFreshnessFailure.RateLimited) {
-				const { retryAfter, ...withoutRetryAfter } = rest;
-				return { ...withoutRetryAfter, hasLastAttempt: lastAttemptAt !== undefined, hasRetryAfter: retryAfter !== undefined };
-			}
 			return { ...rest, hasLastAttempt: lastAttemptAt !== undefined };
 		}
 		return freshness;

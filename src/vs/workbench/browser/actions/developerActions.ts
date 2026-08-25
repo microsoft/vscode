@@ -1076,9 +1076,7 @@ class PolicyDiagnosticsAction extends Action2 {
 			const freshnessFailure = freshness.state === 'blocked'
 				? freshness.failure === 'httpError'
 					? `${freshness.failure} (${freshness.httpStatus})`
-					: freshness.failure === 'rateLimited'
-						? `${freshness.failure} (retry after ${new Date(freshness.retryAfter).toLocaleString()})`
-						: freshness.failure
+					: freshness.failure
 				: 'none';
 			content += '#### GitHub Server API\n\n';
 			content += markdownTable(
@@ -1391,7 +1389,7 @@ class SyncAccountPolicyAction extends Action2 {
 
 		try {
 			logService.info('[DefaultAccount] Manually syncing account policy');
-			await defaultAccountService.refresh({ forceRefresh: true });
+			await defaultAccountService.refresh({ forceRefresh: true, retryManagedSettings: true });
 			await dialogService.info(localize('syncAccountPolicy.success', "Account policy has been synced."));
 		} catch (error) {
 			logService.error('[DefaultAccount] Failed to sync account policy', error);

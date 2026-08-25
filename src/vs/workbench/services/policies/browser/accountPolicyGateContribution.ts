@@ -10,7 +10,7 @@ import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IDefaultAccountService, IManagedSettingsCompatibilityError } from '../../../../platform/defaultAccount/common/defaultAccount.js';
-import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IDialogService, IPromptButton } from '../../../../platform/dialogs/common/dialogs.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
@@ -39,6 +39,15 @@ type AccountPolicyGateStateClassification = {
 	reasonNotSatisfied: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bucketed reason the gate is unsatisfied: noAccount, wrongProvider, orgNotApproved, policyNotResolved, or managedSettingsRefresh.' };
 };
 
+type ManagedSettingsBlockedFreshness = Extract<IManagedSettingsFreshness, { state: ManagedSettingsFreshnessState.Blocked }>;
+type ManagedSettingsBlockedDialogFreshness = ManagedSettingsBlockedFreshness & {
+	readonly failure: Exclude<ManagedSettingsFreshnessFailure, ManagedSettingsFreshnessFailure.UpdateRequired>;
+};
+
+function isManagedSettingsBlockedDialogFreshness(freshness: ManagedSettingsBlockedFreshness): freshness is ManagedSettingsBlockedDialogFreshness {
+	return freshness.failure !== ManagedSettingsFreshnessFailure.UpdateRequired;
+}
+
 /**
  * UX/observability adapter for the Account Policy gate. Mirrors gate state into
  * a context key, shows a sign-in notification when restricted, and emits telemetry.
@@ -52,8 +61,9 @@ export class AccountPolicyGateContribution extends Disposable implements IWorkbe
 	private lastInfo: IAccountPolicyGateInfo;
 
 	private readonly notificationHandle = this._register(new MutableDisposable());
-	private readonly managedSettingsRefreshNotificationHandle = this._register(new MutableDisposable());
-	private compatibilityDialogVisible = false;
+	private readonly managedSettingsPendingNotificationHandle = this._register(new MutableDisposable());
+	private managedSettingsDialogVisibleKey: string | undefined;
+	private managedSettingsDialogDismissedKey: string | undefined;
 	private dismissedKey: string | undefined;
 
 	private initialised = false;
@@ -75,7 +85,7 @@ export class AccountPolicyGateContribution extends Disposable implements IWorkbe
 		super();
 		this.contextKey = ChatAccountPolicyGateActiveContext.bindTo(contextKeyService);
 		this.lastInfo = this.gateService.gateInfo;
-		this.updateManagedSettingsCompatibilityState(this.defaultAccountService.managedSettingsCompatibilityError);
+		this.updateManagedSettingsCompatibilityState();
 
 		// Apply context key + setForceHidden immediately (fail-closed), but defer the
 		// notification until either the first onDidChangeGateInfo or a 5s timeout —
@@ -86,7 +96,7 @@ export class AccountPolicyGateContribution extends Disposable implements IWorkbe
 			this.initialised = true;
 			this.apply(info, /*forceTelemetry*/ false, /*showNotification*/ true);
 		}));
-		this._register(this.defaultAccountService.onDidChangeManagedSettingsCompatibilityError(error => this.updateManagedSettingsCompatibilityState(error)));
+		this._register(this.defaultAccountService.onDidChangeManagedSettingsCompatibilityError(() => this.updateManagedSettingsCompatibilityState()));
 
 		this._register(disposableTimeout(() => {
 			if (!this.initialised) {
@@ -117,12 +127,16 @@ export class AccountPolicyGateContribution extends Disposable implements IWorkbe
 		if (info.reason === AccountPolicyGateUnsatisfiedReason.ManagedSettingsRefresh) {
 			this.notificationHandle.clear();
 			this.dismissedKey = undefined;
+			this.updateManagedSettingsPendingNotification(info.managedSettingsFreshness);
 			if (showNotification) {
-				this.updateManagedSettingsRefreshNotification(info.managedSettingsFreshness);
+				this.maybeShowManagedSettingsDialog();
 			}
 			return;
 		}
-		this.managedSettingsRefreshNotificationHandle.clear();
+		this.managedSettingsPendingNotificationHandle.clear();
+		if (showNotification) {
+			this.maybeShowManagedSettingsDialog();
+		}
 
 		if (info.state !== AccountPolicyGateState.Restricted) {
 			this.notificationHandle.clear();
@@ -230,65 +244,127 @@ export class AccountPolicyGateContribution extends Disposable implements IWorkbe
 		this.chatEntitlementService.setForceHidden(blocked);
 	}
 
-	private updateManagedSettingsCompatibilityState(error: IManagedSettingsCompatibilityError | null): void {
+	private updateManagedSettingsCompatibilityState(): void {
 		this.updatePolicyGateState();
-		if (!error || this.compatibilityDialogVisible) {
+		this.maybeShowManagedSettingsDialog();
+	}
+
+	private updateManagedSettingsPendingNotification(freshness: IManagedSettingsFreshness | undefined): void {
+		if (freshness?.state !== ManagedSettingsFreshnessState.Pending) {
+			this.managedSettingsPendingNotificationHandle.clear();
+			return;
+		}
+		if (this.managedSettingsPendingNotificationHandle.value) {
 			return;
 		}
 
-		this.compatibilityDialogVisible = true;
-		void this.showManagedSettingsCompatibilityDialog(error).finally(() => this.compatibilityDialogVisible = false);
+		const store = new DisposableStore();
+		this.managedSettingsPendingNotificationHandle.value = store;
+		store.add(disposableTimeout(() => {
+			const handle = this.notificationService.prompt(
+				Severity.Info,
+				localize('managedSettingsRefresh.notification.pending', "{0} is resolving your organization's policy. AI features will remain unavailable until this completes.", this.productService.nameShort),
+				[],
+				{ sticky: true }
+			);
+			store.add(toDisposable(() => handle.close()));
+		}, 5000));
 	}
 
-	private updateManagedSettingsRefreshNotification(freshness: IManagedSettingsFreshness | undefined): void {
-		if (!freshness || freshness.state !== ManagedSettingsFreshnessState.Blocked) {
-			this.managedSettingsRefreshNotificationHandle.clear();
+	private maybeShowManagedSettingsDialog(): void {
+		const key = this.getManagedSettingsDialogKey();
+		if (!key) {
+			const freshness = this.lastInfo.reason === AccountPolicyGateUnsatisfiedReason.ManagedSettingsRefresh
+				? this.lastInfo.managedSettingsFreshness
+				: undefined;
+			if (!this.managedSettingsDialogVisibleKey && freshness?.state !== ManagedSettingsFreshnessState.Pending) {
+				this.managedSettingsDialogDismissedKey = undefined;
+			}
+			return;
+		}
+		if (this.managedSettingsDialogVisibleKey || this.managedSettingsDialogDismissedKey === key) {
 			return;
 		}
 
-		this.managedSettingsRefreshNotificationHandle.clear();
-		const actions = freshness.failure === ManagedSettingsFreshnessFailure.NoToken
-			? [{
-				label: localize('managedSettingsRefresh.notification.signIn', "Sign In"),
-				run: () => this.commandService.executeCommand(DEFAULT_ACCOUNT_SIGN_IN_COMMAND),
-			}]
-			: freshness.failure === ManagedSettingsFreshnessFailure.RateLimited
-				|| freshness.failure === ManagedSettingsFreshnessFailure.NoUrl
-				|| freshness.failure === ManagedSettingsFreshnessFailure.UpdateRequired
-				? []
-				: [{
-					label: localize('managedSettingsRefresh.notification.retry', "Retry"),
-					run: () => this.defaultAccountService.refresh({ forceRefresh: true }),
-				}];
-		const handle = this.notificationService.prompt(
-			Severity.Warning,
-			this.getManagedSettingsRefreshMessage(freshness),
-			actions,
-			{ sticky: true }
-		);
-		this.managedSettingsRefreshNotificationHandle.value = toDisposable(() => handle.close());
+		this.managedSettingsDialogVisibleKey = key;
+		void this.showManagedSettingsDialog().finally(() => {
+			this.managedSettingsDialogVisibleKey = undefined;
+			this.managedSettingsDialogDismissedKey = key;
+			this.maybeShowManagedSettingsDialog();
+		});
 	}
 
-	private getManagedSettingsRefreshMessage(freshness: Extract<IManagedSettingsFreshness, { state: ManagedSettingsFreshnessState.Blocked }>): string {
+	private getManagedSettingsDialogKey(): string | undefined {
+		if (this.defaultAccountService.managedSettingsCompatibilityError) {
+			return ManagedSettingsFreshnessFailure.UpdateRequired;
+		}
+		const freshness = this.getBlockedManagedSettingsFreshness();
+		return freshness?.failure === ManagedSettingsFreshnessFailure.UpdateRequired ? undefined : freshness?.failure;
+	}
+
+	private getBlockedManagedSettingsFreshness(): ManagedSettingsBlockedFreshness | undefined {
+		const freshness = this.lastInfo.reason === AccountPolicyGateUnsatisfiedReason.ManagedSettingsRefresh
+			? this.lastInfo.managedSettingsFreshness
+			: undefined;
+		return freshness?.state === ManagedSettingsFreshnessState.Blocked ? freshness : undefined;
+	}
+
+	private showManagedSettingsDialog(): Promise<unknown> {
+		const compatibilityError = this.defaultAccountService.managedSettingsCompatibilityError;
+		if (compatibilityError) {
+			return this.showManagedSettingsCompatibilityDialog(compatibilityError);
+		}
+		const freshness = this.getBlockedManagedSettingsFreshness();
+		return freshness && isManagedSettingsBlockedDialogFreshness(freshness)
+			? this.showManagedSettingsBlockedDialog(freshness)
+			: Promise.resolve();
+	}
+
+	private getManagedSettingsBlockedMessage(freshness: ManagedSettingsBlockedDialogFreshness): string {
 		switch (freshness.failure) {
 			case ManagedSettingsFreshnessFailure.NoToken:
-				return localize('managedSettingsRefresh.notification.noToken', "AI features are unavailable because {0} must refresh your organization's managed settings. Sign in to continue.", this.productService.nameShort);
+				return localize('managedSettingsRefresh.dialog.noToken', "AI features are unavailable because {0} must refresh your organization's managed settings. Sign in to continue.", this.productService.nameShort);
 			case ManagedSettingsFreshnessFailure.NoUrl:
-				return localize('managedSettingsRefresh.notification.noUrl', "AI features are unavailable because {0} cannot locate your organization's managed settings service. Contact your administrator.", this.productService.nameShort);
+				return localize('managedSettingsRefresh.dialog.noUrl', "AI features are unavailable because {0} cannot locate your organization's managed settings service. Contact your administrator.", this.productService.nameShort);
 			case ManagedSettingsFreshnessFailure.RateLimited:
-				return localize('managedSettingsRefresh.notification.rateLimited', "AI features are temporarily unavailable because your organization's managed settings service is rate limiting requests. {0} will retry automatically.", this.productService.nameShort);
+				return localize('managedSettingsRefresh.dialog.rateLimited', "AI features are temporarily unavailable because your organization's managed settings service is rate limiting requests. Try again later.");
 			case ManagedSettingsFreshnessFailure.HttpError:
-				return localize('managedSettingsRefresh.notification.httpError', "AI features are unavailable because {0} could not refresh your organization's managed settings (HTTP {1}). Retry after checking your connection.", this.productService.nameShort, freshness.httpStatus);
+				return localize('managedSettingsRefresh.dialog.httpError', "AI features are unavailable because {0} could not refresh your organization's managed settings (HTTP {1}). Retry after checking your connection.", this.productService.nameShort, freshness.httpStatus);
 			case ManagedSettingsFreshnessFailure.Malformed:
-				return localize('managedSettingsRefresh.notification.malformed', "AI features are unavailable because {0} received an invalid managed settings response. Retry or contact your administrator.", this.productService.nameShort);
+				return localize('managedSettingsRefresh.dialog.malformed', "AI features are unavailable because {0} received an invalid managed settings response. Retry or contact your administrator.", this.productService.nameShort);
 			case ManagedSettingsFreshnessFailure.Network:
-				return localize('managedSettingsRefresh.notification.network', "AI features are unavailable because {0} could not refresh your organization's managed settings. Check your connection, then retry.", this.productService.nameShort);
-			case ManagedSettingsFreshnessFailure.UpdateRequired:
-				return localize('managedSettingsRefresh.notification.updateRequired', "AI features are unavailable until {0} is updated to support your organization's managed settings.", this.productService.nameShort);
+				return localize('managedSettingsRefresh.dialog.network', "Your organization requires {0} to refresh managed settings whenever it starts or reloads. An error prevented the required policy from being retrieved, so AI features are unavailable. Retry, or contact your organization's administrator if the issue persists.", this.productService.nameShort);
 		}
 	}
 
-	private async showManagedSettingsCompatibilityDialog(error: IManagedSettingsCompatibilityError): Promise<void> {
+	private showManagedSettingsBlockedDialog(freshness: ManagedSettingsBlockedDialogFreshness): Promise<unknown> {
+		const buttons: IPromptButton<unknown>[] = [];
+		if (freshness.failure === ManagedSettingsFreshnessFailure.NoToken) {
+			buttons.push({
+				label: localize('managedSettingsRefresh.dialog.signIn', "Sign In"),
+				run: () => this.commandService.executeCommand(DEFAULT_ACCOUNT_SIGN_IN_COMMAND),
+			});
+		} else if (freshness.failure !== ManagedSettingsFreshnessFailure.NoUrl) {
+			buttons.push({
+				label: localize('managedSettingsRefresh.dialog.retry', "Retry"),
+				run: () => this.defaultAccountService.refresh({ forceRefresh: true, retryManagedSettings: true }),
+			});
+		}
+
+		const title = freshness.failure === ManagedSettingsFreshnessFailure.Malformed
+			? localize('managedSettingsRefresh.dialog.invalidTitle', "Invalid Managed Settings")
+			: localize('managedSettingsRefresh.dialog.title', "Managed Settings Unavailable");
+		return this.dialogService.prompt({
+			type: Severity.Warning,
+			title,
+			message: this.getManagedSettingsBlockedMessage(freshness),
+			custom: true,
+			buttons,
+			cancelButton: localize('managedSettingsRefresh.dialog.close', "Close"),
+		});
+	}
+
+	private showManagedSettingsCompatibilityDialog(error: IManagedSettingsCompatibilityError): Promise<unknown> {
 		const message = error.minimumClientVersion
 			? localize(
 				'managedSettingsUpdate.notificationWithMinimumVersion',
@@ -301,7 +377,7 @@ export class AccountPolicyGateContribution extends Disposable implements IWorkbe
 				"Your version of {0} cannot enforce your organization's managed settings. Update {0} to continue using AI features.",
 				this.productService.nameShort
 			);
-		await this.dialogService.prompt({
+		return this.dialogService.prompt({
 			type: Severity.Warning,
 			title: localize('managedSettingsUpdate.dialog.title', "Update Required"),
 			message,

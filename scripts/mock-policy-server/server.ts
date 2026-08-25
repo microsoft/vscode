@@ -349,7 +349,6 @@ function applyEndpointUpdates(payload: unknown): { ok: true } | { ok: false; err
 			const preset = def.presets.find(candidate => candidate.id === update.preset)!;
 			entry.status = preset.status ?? 200;
 			entry.body = clone(preset.body);
-			entry.mode = preset.mode ?? 'json';
 			entry.active = true;
 		}
 		if (update.status !== undefined) {
@@ -379,7 +378,7 @@ function resetEndpointState(): void {
 		state.set(endpoint.id, {
 			status: preset?.status ?? 200,
 			body: preset ? clone(preset.body) : {},
-			mode: preset?.mode ?? 'json',
+			mode: 'json',
 			active: endpoint.mockedByDefault === true
 		});
 	}

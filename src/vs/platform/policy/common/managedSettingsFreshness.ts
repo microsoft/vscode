@@ -69,8 +69,8 @@ export const enum ManagedSettingsFreshnessFailure {
 
 	/**
 	 * A shared rate-limit backoff is active, so the request was short-circuited before reaching the
-	 * network. Distinct from {@link Network} because retrying is futile until the backoff elapses,
-	 * and the UX must surface the remaining time rather than offer a retry that silently no-ops.
+	 * network. Distinct from {@link Network} because an immediate retry would add pressure while the
+	 * service is throttling requests.
 	 */
 	RateLimited = 'rateLimited',
 
@@ -130,8 +130,7 @@ type ManagedSettingsFreshnessBlocked = IManagedSettingsFreshnessEffective
 	& { readonly state: ManagedSettingsFreshnessState.Blocked }
 	& (
 		| { readonly failure: ManagedSettingsFreshnessFailure.HttpError; readonly httpStatus: number }
-		| { readonly failure: ManagedSettingsFreshnessFailure.RateLimited; readonly retryAfter: number }
-		| { readonly failure: Exclude<ManagedSettingsFreshnessFailure, ManagedSettingsFreshnessFailure.HttpError | ManagedSettingsFreshnessFailure.RateLimited> }
+		| { readonly failure: Exclude<ManagedSettingsFreshnessFailure, ManagedSettingsFreshnessFailure.HttpError> }
 	);
 
 /**

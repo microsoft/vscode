@@ -36,6 +36,12 @@ export interface IManagedSettingsCompatibilityError {
 	readonly minimumClientVersion?: string;
 }
 
+export interface IDefaultAccountRefreshOptions {
+	readonly forceRefresh?: boolean;
+	/** Allows an explicit user action to retry managed settings after a failed attempt. */
+	readonly retryManagedSettings?: boolean;
+}
+
 export interface IDefaultAccountProvider {
 	readonly defaultAccount: IDefaultAccount | null;
 	readonly onDidChangeDefaultAccount: Event<IDefaultAccount | null>;
@@ -63,7 +69,7 @@ export interface IDefaultAccountProvider {
 	 */
 	resolveGitHubUrl(path: string): string;
 
-	refresh(options?: { forceRefresh?: boolean }): Promise<IDefaultAccount | null>;
+	refresh(options?: IDefaultAccountRefreshOptions): Promise<IDefaultAccount | null>;
 	signIn(options?: { additionalScopes?: readonly string[];[key: string]: unknown }): Promise<IDefaultAccount | null>;
 	signOut(): Promise<void>;
 }
@@ -90,7 +96,7 @@ export interface IDefaultAccountService {
 	getDefaultAccount(): Promise<IDefaultAccount | null>;
 	getDefaultAccountAuthenticationProvider(): IDefaultAccountAuthenticationProvider;
 	setDefaultAccountProvider(provider: IDefaultAccountProvider): void;
-	refresh(options?: { forceRefresh?: boolean }): Promise<IDefaultAccount | null>;
+	refresh(options?: IDefaultAccountRefreshOptions): Promise<IDefaultAccount | null>;
 	signIn(options?: { additionalScopes?: readonly string[];[key: string]: unknown }): Promise<IDefaultAccount | null>;
 	signOut(): Promise<void>;
 

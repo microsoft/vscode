@@ -9,13 +9,14 @@ import { Emitter } from '../../../../../base/common/event.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { IDefaultAccountService, IManagedSettingsCompatibilityError } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { IDefaultAccountRefreshOptions, IDefaultAccountService, IManagedSettingsCompatibilityError } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { TestDialogService } from '../../../../../platform/dialogs/test/common/testDialogService.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { Severity } from '../../../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
-import { ManagedSettingsFreshnessFailure, ManagedSettingsFreshnessState } from '../../../../../platform/policy/common/managedSettingsFreshness.js';
+import { IManagedSettingsFreshness, ManagedSettingsFreshnessFailure, ManagedSettingsFreshnessState } from '../../../../../platform/policy/common/managedSettingsFreshness.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
@@ -49,6 +50,7 @@ class TestAccountPolicyGateService extends mock<IAccountPolicyGateService>() {
 
 class TestDefaultAccountService extends mock<IDefaultAccountService>() {
 	override readonly currentDefaultAccount = null;
+	readonly refreshOptions: (IDefaultAccountRefreshOptions | undefined)[] = [];
 
 	private _managedSettingsCompatibilityError: IManagedSettingsCompatibilityError | null = null;
 	override get managedSettingsCompatibilityError(): IManagedSettingsCompatibilityError | null { return this._managedSettingsCompatibilityError; }
@@ -59,6 +61,11 @@ class TestDefaultAccountService extends mock<IDefaultAccountService>() {
 	setManagedSettingsCompatibilityError(error: IManagedSettingsCompatibilityError | null): void {
 		this._managedSettingsCompatibilityError = error;
 		this._onDidChangeManagedSettingsCompatibilityError.fire(error);
+	}
+
+	override async refresh(options?: IDefaultAccountRefreshOptions): Promise<null> {
+		this.refreshOptions.push(options);
+		return null;
 	}
 
 	dispose(): void {
@@ -90,8 +97,6 @@ suite('AccountPolicyGateContribution', () => {
 		const storageService = disposables.add(new InMemoryStorageService());
 		const dialogService = new TestDialogService();
 		const promptStub = sinon.stub(dialogService, 'prompt').resolves({});
-		const notificationService = new TestNotificationService();
-		const notificationPromptSpy = sinon.spy(notificationService, 'prompt');
 		const productService = new class extends mock<IProductService>() {
 			override readonly nameShort = 'Code';
 		}();
@@ -102,7 +107,7 @@ suite('AccountPolicyGateContribution', () => {
 			chatEntitlementService,
 			defaultAccountService,
 			new NullLogService(),
-			notificationService,
+			new TestNotificationService(),
 			dialogService,
 			new class extends mock<ICommandService>() { }(),
 			new class extends mock<IOpenerService>() { }(),
@@ -140,41 +145,6 @@ suite('AccountPolicyGateContribution', () => {
 		captureState();
 		defaultAccountService.setManagedSettingsCompatibilityError(null);
 		captureState();
-		gateService.setGateInfo({
-			state: AccountPolicyGateState.Restricted,
-			reason: AccountPolicyGateUnsatisfiedReason.ManagedSettingsRefresh,
-			managedSettingsFreshness: {
-				state: ManagedSettingsFreshnessState.Blocked,
-				source: 'server',
-				failure: ManagedSettingsFreshnessFailure.Network,
-				lastAttemptAt: 42,
-			},
-		});
-		captureState();
-		const refreshNotification = notificationPromptSpy.lastCall;
-		gateService.setGateInfo({
-			state: AccountPolicyGateState.Restricted,
-			reason: AccountPolicyGateUnsatisfiedReason.ManagedSettingsRefresh,
-			managedSettingsFreshness: {
-				state: ManagedSettingsFreshnessState.Blocked,
-				source: 'nativeMdm',
-				failure: ManagedSettingsFreshnessFailure.NoToken,
-			},
-		});
-		captureState();
-		const signInNotification = notificationPromptSpy.lastCall;
-		gateService.setGateInfo({
-			state: AccountPolicyGateState.Restricted,
-			reason: AccountPolicyGateUnsatisfiedReason.ManagedSettingsRefresh,
-			managedSettingsFreshness: {
-				state: ManagedSettingsFreshnessState.Blocked,
-				source: 'server',
-				failure: ManagedSettingsFreshnessFailure.UpdateRequired,
-			},
-		});
-		const updateRequiredNotification = notificationPromptSpy.lastCall;
-		gateService.setGateInfo({ state: AccountPolicyGateState.Inactive });
-		captureState();
 
 		const compatibilityDialog = promptStub.firstCall.args[0];
 		const fallbackCompatibilityDialog = promptStub.secondCall.args[0];
@@ -189,18 +159,6 @@ suite('AccountPolicyGateContribution', () => {
 				cancelButton: compatibilityDialog.cancelButton,
 			},
 			fallbackCompatibilityMessage: fallbackCompatibilityDialog.message,
-			refreshNotification: {
-				message: refreshNotification.args[1],
-				actions: refreshNotification.args[2].map(action => action.label),
-			},
-			signInNotification: {
-				message: signInNotification.args[1],
-				actions: signInNotification.args[2].map(action => action.label),
-			},
-			updateRequiredNotification: {
-				message: updateRequiredNotification.args[1],
-				actions: updateRequiredNotification.args[2].map(action => action.label),
-			},
 		}, {
 			states: [
 				{ context: false, hidden: false },
@@ -210,11 +168,8 @@ suite('AccountPolicyGateContribution', () => {
 				{ context: true, hidden: true },
 				{ context: true, hidden: true },
 				{ context: false, hidden: false },
-				{ context: true, hidden: true },
-				{ context: true, hidden: true },
-				{ context: false, hidden: false },
 			],
-			forceHiddenValues: [false, true, false, true, false, true, false],
+			forceHiddenValues: [false, true, false, true, false],
 			compatibilityDialog: {
 				title: 'Update Required',
 				message: 'Your version of Code cannot enforce your organization\'s managed settings. Update Code to version 1.135.0 or later to continue using AI features.',
@@ -223,30 +178,17 @@ suite('AccountPolicyGateContribution', () => {
 				cancelButton: 'Close',
 			},
 			fallbackCompatibilityMessage: 'Your version of Code cannot enforce your organization\'s managed settings. Update Code to continue using AI features.',
-			refreshNotification: {
-				message: 'AI features are unavailable because Code could not refresh your organization\'s managed settings. Check your connection, then retry.',
-				actions: ['Retry'],
-			},
-			signInNotification: {
-				message: 'AI features are unavailable because Code must refresh your organization\'s managed settings. Sign in to continue.',
-				actions: ['Sign In'],
-			},
-			updateRequiredNotification: {
-				message: 'AI features are unavailable until Code is updated to support your organization\'s managed settings.',
-				actions: [],
-			},
 		});
 	});
 
-	test('defers an initial managed settings notification until startup settles', async () => {
+	test('shows policy resolution notification only after freshness remains pending for five seconds', async () => {
 		const clock = sinon.useFakeTimers();
 		const gateService = disposables.add(new TestAccountPolicyGateService({
 			state: AccountPolicyGateState.Restricted,
 			reason: AccountPolicyGateUnsatisfiedReason.ManagedSettingsRefresh,
 			managedSettingsFreshness: {
-				state: ManagedSettingsFreshnessState.Blocked,
+				state: ManagedSettingsFreshnessState.Pending,
 				source: 'server',
-				failure: ManagedSettingsFreshnessFailure.Network,
 			},
 		}));
 		const notificationService = new TestNotificationService();
@@ -268,7 +210,221 @@ suite('AccountPolicyGateContribution', () => {
 		));
 
 		assert.strictEqual(notificationPromptSpy.callCount, 0);
-		await clock.tickAsync(5000);
-		assert.strictEqual(notificationPromptSpy.callCount, 1);
+		await clock.tickAsync(4999);
+		assert.strictEqual(notificationPromptSpy.callCount, 0);
+		await clock.tickAsync(1);
+		const pendingNotification = notificationPromptSpy.firstCall;
+
+		gateService.setGateInfo({ state: AccountPolicyGateState.Satisfied });
+		gateService.setGateInfo({
+			state: AccountPolicyGateState.Restricted,
+			reason: AccountPolicyGateUnsatisfiedReason.ManagedSettingsRefresh,
+			managedSettingsFreshness: {
+				state: ManagedSettingsFreshnessState.Pending,
+				source: 'server',
+			},
+		});
+		await clock.tickAsync(4999);
+		gateService.setGateInfo({ state: AccountPolicyGateState.Satisfied });
+		await clock.tickAsync(1);
+
+		assert.deepStrictEqual({
+			callCount: notificationPromptSpy.callCount,
+			severity: pendingNotification.args[0],
+			message: pendingNotification.args[1],
+			actions: pendingNotification.args[2],
+			options: pendingNotification.args[3],
+		}, {
+			callCount: 1,
+			severity: Severity.Info,
+			message: 'Code is resolving your organization\'s policy. AI features will remain unavailable until this completes.',
+			actions: [],
+			options: { sticky: true },
+		});
+	});
+
+	test('shows one failure-specific dialog for each blocked freshness episode', async () => {
+		const gateService = disposables.add(new TestAccountPolicyGateService());
+		const defaultAccountService = disposables.add(new TestDefaultAccountService());
+		const dialogService = new TestDialogService();
+		const promptStub = sinon.stub(dialogService, 'prompt').resolves({});
+		const notificationService = new TestNotificationService();
+		const notificationPromptSpy = sinon.spy(notificationService, 'prompt');
+
+		disposables.add(new AccountPolicyGateContribution(
+			gateService,
+			new MockContextKeyService(),
+			new TestChatEntitlementService(),
+			defaultAccountService,
+			new NullLogService(),
+			notificationService,
+			dialogService,
+			new class extends mock<ICommandService>() { }(),
+			new class extends mock<IOpenerService>() { }(),
+			new class extends mock<IProductService>() { override readonly nameShort = 'Code'; }(),
+			disposables.add(new InMemoryStorageService()),
+			NullTelemetryService,
+		));
+
+		const blockedStates = [
+			{ state: ManagedSettingsFreshnessState.Blocked, source: 'server', failure: ManagedSettingsFreshnessFailure.NoToken },
+			{ state: ManagedSettingsFreshnessState.Blocked, source: 'server', failure: ManagedSettingsFreshnessFailure.NoUrl },
+			{ state: ManagedSettingsFreshnessState.Blocked, source: 'server', failure: ManagedSettingsFreshnessFailure.RateLimited },
+			{ state: ManagedSettingsFreshnessState.Blocked, source: 'server', failure: ManagedSettingsFreshnessFailure.HttpError, httpStatus: 500 },
+			{ state: ManagedSettingsFreshnessState.Blocked, source: 'server', failure: ManagedSettingsFreshnessFailure.Malformed },
+			{ state: ManagedSettingsFreshnessState.Blocked, source: 'server', failure: ManagedSettingsFreshnessFailure.Network },
+		] satisfies readonly Extract<IManagedSettingsFreshness, { state: ManagedSettingsFreshnessState.Blocked }>[];
+
+		for (const managedSettingsFreshness of blockedStates) {
+			const info: IAccountPolicyGateInfo = {
+				state: AccountPolicyGateState.Restricted,
+				reason: AccountPolicyGateUnsatisfiedReason.ManagedSettingsRefresh,
+				managedSettingsFreshness,
+			};
+			gateService.setGateInfo(info);
+			gateService.setGateInfo(info);
+			await Promise.resolve();
+			await Promise.resolve();
+			gateService.setGateInfo({
+				state: AccountPolicyGateState.Restricted,
+				reason: AccountPolicyGateUnsatisfiedReason.ManagedSettingsRefresh,
+				managedSettingsFreshness: {
+					state: ManagedSettingsFreshnessState.Pending,
+					source: 'server',
+				},
+			});
+			gateService.setGateInfo(info);
+			await Promise.resolve();
+			await Promise.resolve();
+		}
+
+		await promptStub.getCall(5).args[0].buttons?.[0].run({});
+		gateService.setGateInfo({ state: AccountPolicyGateState.Satisfied });
+		gateService.setGateInfo({
+			state: AccountPolicyGateState.Restricted,
+			reason: AccountPolicyGateUnsatisfiedReason.ManagedSettingsRefresh,
+			managedSettingsFreshness: blockedStates[0],
+		});
+		await Promise.resolve();
+		await Promise.resolve();
+
+		assert.deepStrictEqual({
+			dialogs: promptStub.getCalls().map(call => ({
+				title: call.args[0].title,
+				message: call.args[0].message,
+				buttons: call.args[0].buttons?.map(button => button.label),
+				cancelButton: call.args[0].cancelButton,
+			})),
+			notificationCount: notificationPromptSpy.callCount,
+			retryOptions: defaultAccountService.refreshOptions,
+		}, {
+			dialogs: [
+				{
+					title: 'Managed Settings Unavailable',
+					message: 'AI features are unavailable because Code must refresh your organization\'s managed settings. Sign in to continue.',
+					buttons: ['Sign In'],
+					cancelButton: 'Close',
+				},
+				{
+					title: 'Managed Settings Unavailable',
+					message: 'AI features are unavailable because Code cannot locate your organization\'s managed settings service. Contact your administrator.',
+					buttons: [],
+					cancelButton: 'Close',
+				},
+				{
+					title: 'Managed Settings Unavailable',
+					message: 'AI features are temporarily unavailable because your organization\'s managed settings service is rate limiting requests. Try again later.',
+					buttons: ['Retry'],
+					cancelButton: 'Close',
+				},
+				{
+					title: 'Managed Settings Unavailable',
+					message: 'AI features are unavailable because Code could not refresh your organization\'s managed settings (HTTP 500). Retry after checking your connection.',
+					buttons: ['Retry'],
+					cancelButton: 'Close',
+				},
+				{
+					title: 'Invalid Managed Settings',
+					message: 'AI features are unavailable because Code received an invalid managed settings response. Retry or contact your administrator.',
+					buttons: ['Retry'],
+					cancelButton: 'Close',
+				},
+				{
+					title: 'Managed Settings Unavailable',
+					message: 'Your organization requires Code to refresh managed settings whenever it starts or reloads. An error prevented the required policy from being retrieved, so AI features are unavailable. Retry, or contact your organization\'s administrator if the issue persists.',
+					buttons: ['Retry'],
+					cancelButton: 'Close',
+				},
+				{
+					title: 'Managed Settings Unavailable',
+					message: 'AI features are unavailable because Code must refresh your organization\'s managed settings. Sign in to continue.',
+					buttons: ['Sign In'],
+					cancelButton: 'Close',
+				},
+			],
+			notificationCount: 0,
+			retryOptions: [{ forceRefresh: true, retryManagedSettings: true }],
+		});
+	});
+
+	test('uses the compatibility dialog for update-required freshness without duplication', async () => {
+		const gateService = disposables.add(new TestAccountPolicyGateService());
+		const defaultAccountService = disposables.add(new TestDefaultAccountService());
+		const dialogService = new TestDialogService();
+		const promptStub = sinon.stub(dialogService, 'prompt').resolves({});
+
+		disposables.add(new AccountPolicyGateContribution(
+			gateService,
+			new MockContextKeyService(),
+			new TestChatEntitlementService(),
+			defaultAccountService,
+			new NullLogService(),
+			new TestNotificationService(),
+			dialogService,
+			new class extends mock<ICommandService>() { }(),
+			new class extends mock<IOpenerService>() { }(),
+			new class extends mock<IProductService>() { override readonly nameShort = 'Code'; }(),
+			disposables.add(new InMemoryStorageService()),
+			NullTelemetryService,
+		));
+
+		const updateRequiredInfo: IAccountPolicyGateInfo = {
+			state: AccountPolicyGateState.Restricted,
+			reason: AccountPolicyGateUnsatisfiedReason.ManagedSettingsRefresh,
+			managedSettingsFreshness: {
+				state: ManagedSettingsFreshnessState.Blocked,
+				source: 'server',
+				failure: ManagedSettingsFreshnessFailure.UpdateRequired,
+			},
+		};
+		gateService.setGateInfo(updateRequiredInfo);
+		gateService.setGateInfo(updateRequiredInfo);
+		assert.strictEqual(promptStub.callCount, 0);
+
+		defaultAccountService.setManagedSettingsCompatibilityError({
+			errorCode: 'client_update_required',
+			minimumClientVersion: '1.135.0',
+		});
+		defaultAccountService.setManagedSettingsCompatibilityError({
+			errorCode: 'client_update_required',
+			minimumClientVersion: '1.135.0',
+		});
+		await Promise.resolve();
+		await Promise.resolve();
+
+		const dialog = promptStub.firstCall.args[0];
+		assert.deepStrictEqual({
+			callCount: promptStub.callCount,
+			title: dialog.title,
+			message: dialog.message,
+			buttons: dialog.buttons?.map(button => button.label),
+			cancelButton: dialog.cancelButton,
+		}, {
+			callCount: 1,
+			title: 'Update Required',
+			message: 'Your version of Code cannot enforce your organization\'s managed settings. Update Code to version 1.135.0 or later to continue using AI features.',
+			buttons: ['Check for Updates', 'Learn More'],
+			cancelButton: 'Close',
+		});
 	});
 });
