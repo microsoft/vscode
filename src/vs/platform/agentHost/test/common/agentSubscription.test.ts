@@ -774,9 +774,9 @@ suite('AgentSubscriptionManager', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createManager(subscribe: (channel: string) => Promise<{ resource: string; state: SessionState | TerminalState | ChangesetState | AnnotationsState | AutomationCatalogState; fromSeq: number }> = async channel => {
-		subscribedResources.push(channel);
-		const key = channel;
+	function createManager(subscribe: (resource: URI) => Promise<{ resource: string; state: SessionState | TerminalState | ChangesetState | AnnotationsState | AutomationCatalogState; fromSeq: number }> = async resource => {
+		const key = resource.toString();
+		subscribedResources.push(key);
 		if (key.endsWith('/annotations')) {
 			return { resource: key, state: { annotations: [] }, fromSeq: 0 };
 		}
@@ -790,8 +790,8 @@ suite('AgentSubscriptionManager', () => {
 			() => ++seq,
 			noop,
 			subscribe,
-			channel => {
-				unsubscribedResources.push(channel);
+			resource => {
+				unsubscribedResources.push(resource.toString());
 			},
 		));
 	}
@@ -926,9 +926,9 @@ suite('AgentSubscriptionManager', () => {
 	});
 
 	test('preserves the exact authority-less automation catalogue channel', async () => {
-		const mgr = createManager(async channel => {
-			subscribedResources.push(channel);
-			return { resource: channel, state: { automations: [] }, fromSeq: 0 };
+		const mgr = createManager(async resource => {
+			subscribedResources.push(resource.toString());
+			return { resource: resource.toString(), state: { automations: [] }, fromSeq: 0 };
 		});
 		const ref = mgr.getSubscriptionByChannel<AutomationCatalogState>(StateComponents.AutomationCatalog, AUTOMATION_CATALOG_URI, 'AutomationHolder');
 		await Event.toPromise(ref.object.onDidChange);
@@ -1192,8 +1192,8 @@ suite('AgentSubscriptionManager', () => {
 		});
 
 		test('markSubscriptionsMissing preserves exact protocol channels', async () => {
-			const mgr = createManager(async channel => ({
-				resource: channel,
+			const mgr = createManager(async resource => ({
+				resource: resource.toString(),
 				state: { automations: [] },
 				fromSeq: 0,
 			}));

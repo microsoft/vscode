@@ -340,8 +340,8 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			this._clientId,
 			() => this.nextClientSeq(),
 			msg => this._logService.warn(`[AgentHostProtocolClient] ${msg}`),
-			channel => this._subscribeChannel(channel),
-			channel => this._unsubscribeChannel(channel),
+			resource => this.subscribe(resource),
+			resource => this.unsubscribe(resource),
 		));
 
 		// Forward action envelopes from the transport to the subscription manager

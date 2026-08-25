@@ -878,15 +878,15 @@ export class AgentSubscriptionManager extends Disposable {
 	private readonly _clientId: string;
 	private readonly _seqAllocator: () => number;
 	private readonly _log: (msg: string) => void;
-	private readonly _subscribe: (channel: string) => Promise<IStateSnapshot>;
-	private readonly _unsubscribe: (channel: string) => void;
+	private readonly _subscribe: (resource: URI) => Promise<IStateSnapshot>;
+	private readonly _unsubscribe: (resource: URI) => void;
 
 	constructor(
 		clientId: string,
 		seqAllocator: () => number,
 		log: (msg: string) => void,
-		subscribe: (channel: string) => Promise<IStateSnapshot>,
-		unsubscribe: (channel: string) => void,
+		subscribe: (resource: URI) => Promise<IStateSnapshot>,
+		unsubscribe: (resource: URI) => void,
 	) {
 		super();
 		this._clientId = clientId;
@@ -1000,7 +1000,7 @@ export class AgentSubscriptionManager extends Disposable {
 				}
 			}
 			try {
-				const snapshot = await this._subscribe(resolved.channel);
+				const snapshot = await this._subscribe(resolved.resource);
 				if (this._subscriptions.get(resolved.resource) === entry) {
 					sub.handleSnapshot(snapshot.state as never, snapshot.fromSeq);
 				}
@@ -1039,19 +1039,19 @@ export class AgentSubscriptionManager extends Disposable {
 	}
 
 	private _disposeSubscriptionEntry(entry: ManagedSubscriptionEntry): void {
-		this._tryUnsubscribe(entry.channel);
+		this._tryUnsubscribe(entry.resource);
 		if (entry.sub instanceof SessionStateSubscription || entry.sub instanceof ChatStateSubscription || entry.sub instanceof AnnotationsStateSubscription) {
 			entry.sub.clearPending();
 		}
 		entry.sub.dispose();
 	}
 
-	private _tryUnsubscribe(channel: string): void {
+	private _tryUnsubscribe(resource: URI): void {
 		try {
-			this._unsubscribe(channel);
+			this._unsubscribe(resource);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
-			this._log(`Failed to unsubscribe ${channel}: ${message}`);
+			this._log(`Failed to unsubscribe ${resource.toString()}: ${message}`);
 		}
 	}
 
@@ -1248,7 +1248,7 @@ export class AgentSubscriptionManager extends Disposable {
 
 	override dispose(): void {
 		for (const entry of this._subscriptions.values()) {
-			this._tryUnsubscribe(entry.channel);
+			this._tryUnsubscribe(entry.resource);
 			entry.sub.dispose();
 		}
 		this._subscriptions.clear();
