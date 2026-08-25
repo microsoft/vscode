@@ -141,7 +141,7 @@ declare var MOCK_POLICY_ENDPOINTS: EndpointDef[];
 				{
 					id: 'ask-before-publish',
 					label: 'Ask before publishing or deploying',
-					description: 'Requires human approval for package publish/deploy commands and any write outside the workspace, without blocking them entirely. Ask wins over allow but loses to deny.',
+					description: 'Requires human approval for package publish/deploy commands and writes anywhere under the user home directory, including workspaces located there. It does not cover paths outside the home directory.',
 					status: 200,
 					body: {
 						permissions: {
