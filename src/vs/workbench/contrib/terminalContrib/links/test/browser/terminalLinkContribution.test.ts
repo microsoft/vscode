@@ -5,18 +5,18 @@
 
 import assert from 'assert';
 import type { Terminal as RawXtermTerminal } from '@xterm/xterm';
-import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { Emitter } from '../../../../../../base/common/event.js';
 import { DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { TerminalCapabilityStore } from '../../../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
 import { IDetachedTerminalInstance, ITerminalExternalLinkProvider, ITerminalInstance, IXtermTerminal } from '../../../../terminal/browser/terminal.js';
-import { IDetachedCompatibleTerminalContributionContext, ITerminalContributionContext, TerminalExtensionsRegistry } from '../../../../terminal/browser/terminalExtensions.js';
+import { IDetachedCompatibleTerminalContributionContext, ITerminalContributionContext } from '../../../../terminal/browser/terminalExtensions.js';
 import { TerminalWidgetManager } from '../../../../terminal/browser/widgets/widgetManager.js';
 import { ITerminalProcessInfo, ITerminalProcessManager } from '../../../../terminal/common/terminal.js';
-import '../../browser/terminal.links.contribution.js';
 import { ITerminalLinkProviderService } from '../../browser/links.js';
+import { TerminalLinkContribution } from '../../browser/terminalLinkContribution.js';
 import { TerminalLinkManager } from '../../browser/terminalLinkManager.js';
 import { TerminalLinkResolver } from '../../browser/terminalLinkResolver.js';
 
@@ -55,11 +55,6 @@ suite('TerminalLinkContribution', () => {
 	});
 
 	function createContribution(detached: boolean) {
-		const description = TerminalExtensionsRegistry.getTerminalContributions().find(description => description.id === 'terminal.link');
-		if (!description?.canRunInDetachedTerminals) {
-			throw new Error('Expected detached-compatible terminal link contribution');
-		}
-
 		const capabilities = store.add(new TerminalCapabilityStore());
 		const widgetManager = Object.create(TerminalWidgetManager.prototype) as TerminalWidgetManager;
 		const context: IDetachedCompatibleTerminalContributionContext | ITerminalContributionContext = detached
@@ -73,7 +68,7 @@ suite('TerminalLinkContribution', () => {
 				processManager: Object.create(null) as ITerminalProcessManager,
 				widgetManager,
 			};
-		const contribution = store.add(instantiationService.createInstance(description.ctor, context));
+		const contribution = store.add(instantiationService.createInstance(TerminalLinkContribution, context));
 		contribution.xtermReady?.(xterm);
 		return contribution;
 	}
