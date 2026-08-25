@@ -913,6 +913,7 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 	} as Partial<IAgentHostSessionWorkingDirectorySynchronizer> as IAgentHostSessionWorkingDirectorySynchronizer);
 	instantiationService.stub(IAgentHostShellInitSynchronizer, {
 		register: () => toDisposable(() => { }),
+		reconcile: () => { },
 	});
 	instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow } as Partial<IWorkbenchEnvironmentService>);
 	instantiationService.stub(IWorkbenchAssignmentService, new NullWorkbenchAssignmentService());

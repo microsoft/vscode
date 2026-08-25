@@ -33,6 +33,7 @@ export const IAgentHostShellInitSynchronizer = createDecorator<IAgentHostShellIn
 export interface IAgentHostShellInitSynchronizer {
 	readonly _serviceBrand: undefined;
 	register(session: URI, subscription: IAgentSubscription<SessionState>): IDisposable;
+	reconcile(session: URI): void;
 }
 
 interface IRegistration {
@@ -89,6 +90,13 @@ export class AgentHostShellInitSynchronizer extends Disposable implements IAgent
 		}));
 		scheduler.schedule();
 		return store;
+	}
+
+	reconcile(session: URI): void {
+		const key = session.toString();
+		const registration = this._registrations.get(key);
+		registration?.scheduler.cancel();
+		this._publish(key);
 	}
 
 	private _scheduleAll(): void {

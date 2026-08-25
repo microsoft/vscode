@@ -149,6 +149,16 @@ suite('AgentHostShellInitSynchronizer', () => {
 		assert.ok(scripts(dispatched)[0].script.indexOf('.bashrc') < scripts(dispatched)[0].script.indexOf('activate-a'));
 	});
 
+	test('reconcile publishes synchronously before the first turn', () => {
+		const { synchronizer, dispatched } = create();
+		const subscription = disposables.add(new TestSubscription(state()));
+		disposables.add(synchronizer.register(session, subscription));
+
+		synchronizer.reconcile(session);
+
+		assert.strictEqual(dispatched.length, 1);
+	});
+
 	test('uses the session folder in a multi-root workspace and project for worktrees', async () => {
 		const { synchronizer, dispatched } = create({
 			folders: [folderA, folderB],

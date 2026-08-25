@@ -2843,6 +2843,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// This waits only for local trust checks and ordered optimistic dispatch;
 		// working-directory action envelopes are not a turn-start barrier.
 		await this._workingDirectorySynchronizer.reconcile(session, cancellationToken);
+		this._shellInitSynchronizer.reconcile(session);
 		if (cancellationToken.isCancellationRequested) {
 			return;
 		}

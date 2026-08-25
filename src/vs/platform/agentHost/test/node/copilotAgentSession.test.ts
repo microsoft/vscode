@@ -11655,6 +11655,18 @@ suite('CopilotAgentSession', () => {
 
 		const initScript = { shell: 'bash', script: 'activate' } satisfies IShellInitScript;
 
+		test('grants sandbox access before initial SDK registration', async () => {
+			const { mockSession } = await createAgentSession(disposables, {
+				rootValues: { [AgentHostSandboxConfigKey.Sandbox]: { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On } },
+				configValues: { [SessionConfigKey.ShellInitSnippets]: [initScript] },
+			});
+
+			assert.ok(
+				mockSession.operationLog.indexOf('options.update:sandbox') < mockSession.operationLog.indexOf('options.update:shell'),
+				JSON.stringify(mockSession.operationLog),
+			);
+		});
+
 		test('materializes, registers, avoids duplicate RPCs, and clears', async () => {
 			const { session, mockSession, setConfigValue, fireSessionConfigChange } = await createAgentSession(disposables);
 			setConfigValue(SessionConfigKey.ShellInitSnippets, [initScript]);
