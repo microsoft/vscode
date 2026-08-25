@@ -14,27 +14,11 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ColorScheme, isDark, isHighContrast } from '../../../../platform/theme/common/theme.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { SessionsChatBackgroundAvailableContext } from '../../../common/contextkeys.js';
+import { SessionsChatBackgroundAvailableContext, SessionsChatBackgroundImageConfiguredContext } from '../../../common/contextkeys.js';
 
 export const AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_SETTING = 'chat.agentSessions.preferredDarkBackgroundImage';
 export const AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_SETTING = 'chat.agentSessions.preferredLightBackgroundImage';
 export const AGENT_SESSIONS_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING = 'chat.agentSessions.backgroundImageLayout';
-
-export const chatBackgroundImageLayoutValues = [
-	'repeat',
-	'stretch',
-	'center',
-	'top',
-	'top-right',
-	'top-left',
-	'bottom',
-	'bottom-right',
-	'bottom-left',
-	'left',
-	'right',
-] as const;
-
-export type ChatBackgroundImageLayout = typeof chatBackgroundImageLayoutValues[number];
 
 export interface ISessionsChatBackground {
 	readonly backgroundImage: string;
@@ -43,7 +27,7 @@ export interface ISessionsChatBackground {
 	readonly backgroundPosition: string;
 }
 
-const backgroundImageStyles: Record<ChatBackgroundImageLayout, Omit<ISessionsChatBackground, 'backgroundImage'>> = {
+const backgroundImageStyles = {
 	repeat: { backgroundRepeat: 'repeat', backgroundSize: 'auto', backgroundPosition: 'left top' },
 	stretch: { backgroundRepeat: 'no-repeat', backgroundSize: '100% 100%', backgroundPosition: 'center center' },
 	center: { backgroundRepeat: 'no-repeat', backgroundSize: 'auto', backgroundPosition: 'center center' },
@@ -55,7 +39,11 @@ const backgroundImageStyles: Record<ChatBackgroundImageLayout, Omit<ISessionsCha
 	'bottom-left': { backgroundRepeat: 'no-repeat', backgroundSize: 'auto', backgroundPosition: 'left bottom' },
 	left: { backgroundRepeat: 'no-repeat', backgroundSize: 'auto', backgroundPosition: 'left center' },
 	right: { backgroundRepeat: 'no-repeat', backgroundSize: 'auto', backgroundPosition: 'right center' },
-};
+} as const satisfies Record<string, Omit<ISessionsChatBackground, 'backgroundImage'>>;
+
+export type ChatBackgroundImageLayout = keyof typeof backgroundImageStyles;
+
+export const chatBackgroundImageLayoutValues = Object.keys(backgroundImageStyles) as ChatBackgroundImageLayout[];
 
 export const ISessionsChatBackgroundService = createDecorator<ISessionsChatBackgroundService>('sessionsChatBackgroundService');
 
@@ -65,7 +53,10 @@ export interface ISessionsChatBackgroundService {
 	readonly onDidChangeBackground: Event<void>;
 	getBackground(): ISessionsChatBackground | undefined;
 	getConfiguredBackgroundImage(): URI | undefined;
+	getBackgroundImageLayout(): ChatBackgroundImageLayout;
 	setBackgroundImage(image: URI): Promise<void>;
+	clearBackgroundImage(): Promise<void>;
+	setBackgroundImageLayout(layout: ChatBackgroundImageLayout): Promise<void>;
 }
 
 export class SessionsChatBackgroundService extends Disposable implements ISessionsChatBackgroundService {
@@ -82,18 +73,27 @@ export class SessionsChatBackgroundService extends Disposable implements ISessio
 		super();
 
 		const backgroundAvailableContext = SessionsChatBackgroundAvailableContext.bindTo(contextKeyService);
-		backgroundAvailableContext.set(!isHighContrast(this.themeService.getColorTheme().type));
+		const backgroundImageConfiguredContext = SessionsChatBackgroundImageConfiguredContext.bindTo(contextKeyService);
+		const updateContextKeys = () => {
+			backgroundAvailableContext.set(!isHighContrast(this.themeService.getColorTheme().type));
+			backgroundImageConfiguredContext.set(!!this.getConfiguredBackgroundImage());
+		};
+		updateContextKeys();
 		this._register(this.configurationService.onDidChangeConfiguration(event => {
+			const backgroundImageChanged = event.affectsConfiguration(AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_SETTING)
+				|| event.affectsConfiguration(AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_SETTING);
 			if (
-				event.affectsConfiguration(AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_SETTING)
-				|| event.affectsConfiguration(AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_SETTING)
+				backgroundImageChanged
 				|| event.affectsConfiguration(AGENT_SESSIONS_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING)
 			) {
+				if (backgroundImageChanged) {
+					updateContextKeys();
+				}
 				this._onDidChangeBackground.fire();
 			}
 		}));
-		this._register(this.themeService.onDidColorThemeChange(theme => {
-			backgroundAvailableContext.set(!isHighContrast(theme.type));
+		this._register(this.themeService.onDidColorThemeChange(() => {
+			updateContextKeys();
 			this._onDidChangeBackground.fire();
 		}));
 	}
@@ -119,17 +119,26 @@ export class SessionsChatBackgroundService extends Disposable implements ISessio
 		await this.configurationService.updateValue(setting, image.toString(), ConfigurationTarget.USER);
 	}
 
-	private getBackgroundImageSetting(colorScheme: ColorScheme): string {
-		return isDark(colorScheme)
-			? AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_SETTING
-			: AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_SETTING;
+	async clearBackgroundImage(): Promise<void> {
+		const setting = this.getBackgroundImageSetting(this.themeService.getColorTheme().type);
+		await this.configurationService.updateValue(setting, undefined, ConfigurationTarget.USER);
 	}
 
-	private getBackgroundImageLayout(): ChatBackgroundImageLayout {
+	getBackgroundImageLayout(): ChatBackgroundImageLayout {
 		const value = this.configurationService.getValue<string>(AGENT_SESSIONS_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING);
 		return chatBackgroundImageLayoutValues.includes(value as ChatBackgroundImageLayout)
 			? value as ChatBackgroundImageLayout
 			: 'repeat';
+	}
+
+	async setBackgroundImageLayout(layout: ChatBackgroundImageLayout): Promise<void> {
+		await this.configurationService.updateValue(AGENT_SESSIONS_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING, layout, ConfigurationTarget.APPLICATION);
+	}
+
+	private getBackgroundImageSetting(colorScheme: ColorScheme): string {
+		return isDark(colorScheme)
+			? AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_SETTING
+			: AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_SETTING;
 	}
 
 	private resolveBackgroundImage(value: string | undefined): URI | undefined {

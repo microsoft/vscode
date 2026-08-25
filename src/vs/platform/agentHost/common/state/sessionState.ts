@@ -1827,60 +1827,47 @@ export function withSessionSpawnDepth(meta: SessionSummaryMeta | undefined, dept
 	return { ...meta, [SESSION_META_SPAWN_DEPTH_KEY]: depth };
 }
 
-export type SessionIdleNotification = 'once' | 'always';
-export type SessionCreatorNotificationState = 'waitingForCompletion' | 'notified';
+export const SESSION_META_CREATED_BY_SESSION_KEY = 'agentHost/createdBySession';
+export const AH_META_CREATED_BY_SESSION_DB_KEY = 'agentHost.createdBySession';
 
-export interface ISessionOrchestration {
-	readonly parentSession: string;
-	readonly creatorSession: string;
-	readonly label?: string;
-	readonly coordinateWithCreator: boolean;
-	readonly notifyOnIdle?: SessionIdleNotification;
-	/** Durable delivery state used to wait for a work outcome and deduplicate replayed statuses. */
-	readonly creatorNotificationState?: SessionCreatorNotificationState;
+export interface ISessionCreationReference {
+	readonly session: string;
+	readonly chat?: string;
+	readonly turnId?: string;
 }
 
-export const SESSION_META_ORCHESTRATION_KEY = 'agentHost/orchestration';
-export const AH_META_ORCHESTRATION_DB_KEY = 'agentHost.orchestration';
+export function readSessionCreationReference(meta: SessionSummaryMeta | undefined): ISessionCreationReference | undefined {
+	return parseSessionCreationReferenceValue(meta?.[SESSION_META_CREATED_BY_SESSION_KEY]);
+}
 
-export function readSessionOrchestration(meta: SessionSummaryMeta | undefined): ISessionOrchestration | undefined {
-	const value = meta?.[SESSION_META_ORCHESTRATION_KEY];
+function parseSessionCreationReferenceValue(value: unknown): ISessionCreationReference | undefined {
 	if (!value || typeof value !== 'object') {
 		return undefined;
 	}
 	const candidate = value as { [key: string]: unknown };
-	if (typeof candidate.parentSession !== 'string' || typeof candidate.coordinateWithCreator !== 'boolean') {
+	if (typeof candidate.session !== 'string') {
 		return undefined;
 	}
-	const creatorSession = typeof candidate.creatorSession === 'string' ? candidate.creatorSession : candidate.parentSession;
-	const label = typeof candidate.label === 'string' ? candidate.label : undefined;
-	const notifyOnIdle = candidate.notifyOnIdle === 'once' || candidate.notifyOnIdle === 'always' ? candidate.notifyOnIdle : undefined;
-	const creatorNotificationState = candidate.creatorNotificationState === 'waitingForCompletion' || candidate.creatorNotificationState === 'notified'
-		? candidate.creatorNotificationState
-		: undefined;
 	return {
-		parentSession: candidate.parentSession,
-		creatorSession,
-		coordinateWithCreator: candidate.coordinateWithCreator,
-		...(label !== undefined ? { label } : {}),
-		...(notifyOnIdle !== undefined ? { notifyOnIdle } : {}),
-		...(creatorNotificationState !== undefined ? { creatorNotificationState } : {}),
+		session: candidate.session,
+		...(typeof candidate.chat === 'string' ? { chat: candidate.chat } : {}),
+		...(typeof candidate.turnId === 'string' ? { turnId: candidate.turnId } : {}),
 	};
 }
 
-export function parseSessionOrchestration(value: string | undefined): ISessionOrchestration | undefined {
-	if (value === undefined) {
+export function parseSessionCreationReference(value: string | undefined): ISessionCreationReference | undefined {
+	if (!value) {
 		return undefined;
 	}
 	try {
-		return readSessionOrchestration({ [SESSION_META_ORCHESTRATION_KEY]: JSON.parse(value) });
+		return readSessionCreationReference({ [SESSION_META_CREATED_BY_SESSION_KEY]: JSON.parse(value) });
 	} catch {
 		return undefined;
 	}
 }
 
-export function withSessionOrchestration(meta: SessionSummaryMeta | undefined, orchestration: ISessionOrchestration): SessionSummaryMeta {
-	return { ...meta, [SESSION_META_ORCHESTRATION_KEY]: orchestration };
+export function withSessionCreationReference(meta: SessionSummaryMeta | undefined, creationReference: ISessionCreationReference): SessionSummaryMeta {
+	return { ...meta, [SESSION_META_CREATED_BY_SESSION_KEY]: creationReference };
 }
 
 /**
