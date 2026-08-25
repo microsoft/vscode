@@ -32,9 +32,13 @@ class TestRelay implements IDevContainerRelay {
 
 class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainService {
 	readonly relay = new TestRelay();
+	readonly execCommands: string[] = [];
 	relayCommand: string | undefined;
 
-	constructor() {
+	constructor(
+		private readonly _libc = '',
+		private readonly _forceCliInstall = false,
+	) {
 		super(
 			new NullLogService(),
 			new class extends mock<IProductService>() {
@@ -66,11 +70,18 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 
 	protected override _createExec(): ISshExec {
 		return async command => {
+			this.execCommands.push(command);
 			if (command === 'uname -s') {
 				return { stdout: 'Linux\n', stderr: '', code: 0 };
 			}
 			if (command === 'uname -m') {
 				return { stdout: 'x86_64\n', stderr: '', code: 0 };
+			}
+			if (command.includes('/etc/alpine-release')) {
+				return { stdout: this._libc, stderr: '', code: 0 };
+			}
+			if (this._forceCliInstall && command.includes('--version &&')) {
+				return { stdout: '', stderr: '', code: 1 };
 			}
 			if (command.includes('agent endpoints')) {
 				return {
@@ -167,5 +178,19 @@ suite('Dev Container Agent Host Main Service', () => {
 			disposed: true,
 			output: ['connection:Starting Dev Container\n'],
 		});
+	});
+
+	test('installs the Alpine CLI artifact in a musl container', async () => {
+		const service = store.add(new TestDevContainerAgentHostMainService('musl', true));
+		await service.connect({
+			connectionId: 'connection',
+			workspaceFolder: '/workspace',
+			name: 'Project Dev Container',
+		});
+		await service.disconnect('connection');
+
+		assert.ok(service.execCommands.some(command =>
+			command.includes('https://update.code.visualstudio.com/latest/cli-alpine-x64/insider')
+		));
 	});
 });

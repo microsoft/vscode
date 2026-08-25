@@ -39,6 +39,7 @@ import {
 import { ensureRemoteAgentHostCliInstalled } from './remoteAgentHostCliInstaller.js';
 
 const LOG_PREFIX = '[DevContainerAgentHost]';
+const DETECT_MUSL_COMMAND = 'if [ -e /etc/alpine-release ]; then printf musl; elif command -v ldd >/dev/null 2>&1; then case "$(ldd --version 2>&1)" in *musl*) printf musl;; esac; fi';
 
 interface IDevContainerUpResult {
 	readonly containerId: string;
@@ -131,11 +132,12 @@ export class DevContainerAgentHostMainService extends Disposable implements IDev
 			}
 
 			const exec = this._createExec(config.connectionId, config.workspaceFolder, tokenSource.token);
-			const [{ stdout: unameS }, { stdout: unameM }] = await Promise.all([
+			const [{ stdout: unameS }, { stdout: unameM }, { stdout: libc }] = await Promise.all([
 				exec('uname -s'),
 				exec('uname -m'),
+				exec(DETECT_MUSL_COMMAND),
 			]);
-			const platform = resolveRemotePlatform(unameS, unameM);
+			const platform = resolveRemotePlatform(unameS, unameM, libc);
 			if (!platform) {
 				throw new Error(localize('devContainerAgentHost.unsupportedPlatform', "Unsupported Dev Container platform: {0} {1}", unameS.trim(), unameM.trim()));
 			}
