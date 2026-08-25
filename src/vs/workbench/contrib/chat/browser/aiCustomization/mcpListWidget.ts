@@ -115,6 +115,10 @@ export function createBuiltinActiveSessionMcpEntries(servers: readonly AgentHost
 	return servers.map(server => ({ type: 'session-server-item', server }));
 }
 
+export function isMcpServerCollectionVisible(collectionId: string, hiddenCollectionIds: readonly string[] | undefined): boolean {
+	return !hiddenCollectionIds?.includes(collectionId);
+}
+
 type IMcpListEntry = IMcpGroupHeaderEntry | IMcpServerItemEntry | IMcpSessionServerItemEntry | IMcpBuiltinItemEntry;
 
 export type McpStatusKind = McpConnectionState.Kind | McpServerStatus | 'disabled';
@@ -1403,8 +1407,10 @@ export class McpListWidget extends Disposable {
 
 		// Find extension-provided servers not in the local list (e.g. GitHub MCP)
 		const localIds = new Set(this.filteredServers.map(s => s.id));
+		const hiddenCollectionIds = this.customizationHarnessService.getActiveDescriptor().hiddenMcpServerCollectionIds;
 		const builtinServers = this.mcpService.servers.get()
 			.filter(s => !localIds.has(s.definition.id))
+			.filter(s => isMcpServerCollectionVisible(s.collection.id, hiddenCollectionIds))
 			.filter(s => !query || s.definition.label.toLowerCase().includes(query));
 
 		const groups: { scope: LocalMcpServerScope; label: string; icon: ThemeIcon; description: string; entries: Array<IMcpServerItemEntry | IMcpSessionServerItemEntry> }[] = [

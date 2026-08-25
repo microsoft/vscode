@@ -8,6 +8,7 @@ import { isEqual } from '../../../../base/common/resources.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import {
 	SessionHasChangesContext,
+	SessionHasCachedChangesContext,
 	SessionHasPullRequestContext,
 	SessionHasIssuesContext,
 	SessionHasWorkspaceContext,
@@ -35,6 +36,7 @@ import {
 	SessionHasGitRepositoryContext,
 } from '../../../common/contextkeys.js';
 import { ChatOriginKind, getChatCapabilities, isActiveSessionStatus, ISession, SessionStatus } from './session.js';
+import { ISessionChangesStatsCache, readSessionChangesStats } from './sessionChangesStatsCache.js';
 import { IActiveSession } from './sessionsManagement.js';
 
 /**
@@ -55,6 +57,7 @@ interface ISessionContextKeys {
 	readonly workspaceIsVirtual: IContextKey<boolean>;
 	readonly hasGitRepository: IContextKey<boolean>;
 	readonly hasChanges: IContextKey<boolean>;
+	readonly hasCachedChanges: IContextKey<boolean>;
 	readonly hasPullRequest: IContextKey<boolean>;
 	readonly hasIssues: IContextKey<boolean>;
 	readonly hasWorkspace: IContextKey<boolean>;
@@ -97,6 +100,7 @@ function getBoundKeys(contextKeyService: IContextKeyService): ISessionContextKey
 			workspaceIsVirtual: SessionWorkspaceIsVirtualContext.bindTo(contextKeyService),
 			hasGitRepository: SessionHasGitRepositoryContext.bindTo(contextKeyService),
 			hasChanges: SessionHasChangesContext.bindTo(contextKeyService),
+			hasCachedChanges: SessionHasCachedChangesContext.bindTo(contextKeyService),
 			hasPullRequest: SessionHasPullRequestContext.bindTo(contextKeyService),
 			hasIssues: SessionHasIssuesContext.bindTo(contextKeyService),
 			hasWorkspace: SessionHasWorkspaceContext.bindTo(contextKeyService),
@@ -128,8 +132,11 @@ function getBoundKeys(contextKeyService: IContextKeyService): ISessionContextKey
  *
  * Passing `undefined` for `session` resets the keys to their defaults (e.g. for
  * the empty new-session slot).
+ *
+ * Pass the `changesStatsCache` on surfaces that render the changes pill so it can
+ * be shown optimistically while the session's own changes are still loading.
  */
-export function setSessionContextKeys(session: ISession | undefined, contextKeyService: IContextKeyService, reader: IReader | undefined): void {
+export function setSessionContextKeys(session: ISession | undefined, contextKeyService: IContextKeyService, reader: IReader | undefined, changesStatsCache?: ISessionChangesStatsCache): void {
 	const keys = getBoundKeys(contextKeyService);
 	keys.sessionId.set(session?.sessionId ?? '');
 	keys.providerId.set(session?.providerId ?? '');
@@ -158,6 +165,13 @@ export function setSessionContextKeys(session: ISession | undefined, contextKeyS
 	}
 	keys.hasChanges.set(!worktreePending && (insertions > 0 || deletions > 0));
 
+	// A session reports its changes late, so until it does the pill it last showed
+	// is rendered from the cache. The remembered pill is dropped as soon as the
+	// session reports its own changes, even when it reports none.
+	const changesReported = session ? readSessionChangesStats(session, reader) !== undefined : true;
+	const cachedFiles = !changesReported && session ? changesStatsCache?.get(session.sessionId, reader)?.files ?? 0 : 0;
+	keys.hasCachedChanges.set(!worktreePending && cachedFiles > 0);
+
 	const pullRequest = session?.workspace.read(reader)?.folders[0]?.gitRepository?.gitHubInfo.read(reader)?.pullRequest;
 	keys.hasPullRequest.set(!!pullRequest);
 
@@ -181,8 +195,8 @@ export function setSessionContextKeys(session: ISession | undefined, contextKeyS
  *
  * See {@link setSessionContextKeys} for the `reader` and `undefined` semantics.
  */
-export function setActiveSessionContextKeys(session: IActiveSession | undefined, contextKeyService: IContextKeyService, reader: IReader | undefined): void {
-	setSessionContextKeys(session, contextKeyService, reader);
+export function setActiveSessionContextKeys(session: IActiveSession | undefined, contextKeyService: IContextKeyService, reader: IReader | undefined, changesStatsCache?: ISessionChangesStatsCache): void {
+	setSessionContextKeys(session, contextKeyService, reader, changesStatsCache);
 	const keys = getBoundKeys(contextKeyService);
 	keys.isCreated.set(session?.isCreated.read(reader) ?? false);
 	keys.sticky.set(session?.sticky.read(reader) ?? false);
@@ -196,8 +210,7 @@ export function setActiveSessionContextKeys(session: IActiveSession | undefined,
 	keys.hasMultipleCommittedChats.set(committedChatCount > 1);
 
 	// The tab strip is shown when the session has more than one chat (counting
-	// closed chats) or its single remaining chat's title diverged from the
-	// session title; the header then hides its own New Chat button.
+	// closed chats) or its single remaining chat's title diverged from the session title.
 	keys.shouldShowChatTabs.set(session?.shouldShowChatTabs.read(reader) ?? false);
 
 	// More than one open chat tab (incl. drafts): scopes chat-to-chat navigation

@@ -9,6 +9,7 @@ import { hasKey } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
+import { AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES } from '../../../../../platform/agentHost/common/agentService.js';
 import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { INativeEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
@@ -45,7 +46,7 @@ class NativeAgentHostDebugLogsExportService implements IAgentHostDebugLogsExport
 		const zipFiles: INativeZipFile[] = files.map(file => {
 			return hasKey(file, { contents: true })
 				? file
-				: { path: file.path, source: file.resource, size: file.size };
+				: { path: file.path, source: file.resource.scheme === Schemas.vscodeUserData ? file.resource.with({ scheme: Schemas.file }) : file.resource, size: file.size, skipSourceErrors: true };
 		});
 		let temporaryHostArchive: URI | undefined;
 		try {
@@ -63,7 +64,9 @@ class NativeAgentHostDebugLogsExportService implements IAgentHostDebugLogsExport
 				await this.fileService.writeFile(localHostArchive, createHostArtifactStream(artifact, position => readChunk(artifact.resource, position)));
 			}
 			zipFiles.push({ sourceArchive: localHostArchive });
-			await this.nativeHostService.createZipFile(saveUri, zipFiles);
+			await this.nativeHostService.createZipFile(saveUri, zipFiles, {
+				maxEntries: AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES,
+			});
 		} finally {
 			if (temporaryHostArchive) {
 				// Best-effort: the download may have failed before the file was

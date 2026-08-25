@@ -9,6 +9,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { IObservable, constObservable, derived, observableValue } from '../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
+import { Context } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -30,6 +31,7 @@ import { ICodeReviewService, CodeReviewService, PRReviewStateKind } from '../../
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession, ISendRequestOptions, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
+import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
 import '../../browser/codeReview.contributions.js';
 
@@ -311,50 +313,37 @@ suite('Code Review Contributions', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('Run Code Review is right-inline when visible and first in overflow when collapsed', () => {
-		const primaryItem = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderPrimary)
+	test('Run Code Review is contributed to the editor title bar', () => {
+		const titleItem = MenuRegistry.getMenuItems(Menus.SessionsEditorTitle)
 			.filter(isIMenuItem)
 			.find(item => item.command.id === 'sessions.codeReview.run');
-		const rightItems = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderSecondary)
-			.filter(isIMenuItem)
-			.filter(item => item.command.id === 'sessions.codeReview.run');
-		const inlineItem = rightItems.find(item => item.group === '0_codeReview');
-		const overflowItem = rightItems.find(item => item.group === 'secondary/1_codeReview');
 
-		assert.strictEqual(primaryItem, undefined, 'Run Code Review should not render inline in the primary header');
-		assert.ok(inlineItem, 'expected Run Code Review inline on the right while the editor is visible');
-		assert.ok(overflowItem, 'expected Run Code Review in overflow while the editor is collapsed');
-		const inlineWhen = inlineItem.when?.serialize() ?? '';
-		const overflowWhen = overflowItem.when?.serialize() ?? '';
+		assert.ok(titleItem, 'expected Run Code Review in the editor title bar');
+		const when = titleItem.when?.serialize() ?? '';
+		const enablementContext = new Context(1, null);
+		enablementContext.setValue(ChatContextKeys.hasAgentSessionChanges.key, false);
+		enablementContext.setValue(SessionHasChangesContext.key, true);
+		const enabledFromSessionChanges = titleItem.command.precondition?.evaluate(enablementContext);
+		enablementContext.setValue(ChatContextKeys.hasAgentSessionChanges.key, true);
+		enablementContext.setValue(SessionHasChangesContext.key, false);
 		assert.deepStrictEqual({
-			inline: {
-				group: inlineItem.group,
-				order: inlineItem.order,
-				editorAreaGate: inlineWhen.includes(MainEditorAreaVisibleContext.key),
-			},
-			overflow: {
-				group: overflowItem.group,
-				order: overflowItem.order,
-				editorAreaGate: overflowWhen.includes(`!${MainEditorAreaVisibleContext.key}`),
-			},
-			hasSessionsWindowGate: inlineWhen.includes(IsSessionsWindowContext.key),
-			hasActiveEditorGate: inlineWhen.includes(ActiveEditorContext.key) && inlineWhen.includes(SessionChangesEditorInput.EDITOR_ID),
-			hasSinglePaneLayoutGate: inlineWhen.includes(SinglePaneLayoutEnabledContext.key),
-			hasAuxiliaryWindowGate: inlineWhen.includes(IsAuxiliaryWindowContext.key),
-			hasTopRightEditorGroupGate: inlineWhen.includes(IsTopRightEditorGroupContext.key),
-			hasChangesGate: inlineWhen.includes(SessionHasChangesContext.key),
-			hasCreatedGate: inlineWhen.includes(SessionIsCreatedContext.key),
+			group: titleItem.group,
+			order: titleItem.order,
+			enabledFromSessionChanges,
+			enabledFromChatChanges: titleItem.command.precondition?.evaluate(enablementContext),
+			hasSessionsWindowGate: when.includes(IsSessionsWindowContext.key),
+			hasActiveEditorGate: when.includes(ActiveEditorContext.key) && when.includes(SessionChangesEditorInput.EDITOR_ID),
+			hasSinglePaneLayoutGate: when.includes(SinglePaneLayoutEnabledContext.key),
+			hasAuxiliaryWindowGate: when.includes(IsAuxiliaryWindowContext.key),
+			hasTopRightEditorGroupGate: when.includes(IsTopRightEditorGroupContext.key),
+			hasChangesGate: when.includes(SessionHasChangesContext.key),
+			hasCreatedGate: when.includes(SessionIsCreatedContext.key),
+			hasEditorAreaVisibleGate: when.includes(MainEditorAreaVisibleContext.key),
 		}, {
-			inline: {
-				group: '0_codeReview',
-				order: 10,
-				editorAreaGate: true,
-			},
-			overflow: {
-				group: 'secondary/1_codeReview',
-				order: 10,
-				editorAreaGate: true,
-			},
+			group: 'navigation',
+			order: 10,
+			enabledFromSessionChanges: true,
+			enabledFromChatChanges: true,
 			hasSessionsWindowGate: true,
 			hasActiveEditorGate: true,
 			hasSinglePaneLayoutGate: true,
@@ -362,6 +351,7 @@ suite('Code Review Contributions', () => {
 			hasTopRightEditorGroupGate: true,
 			hasChangesGate: true,
 			hasCreatedGate: true,
+			hasEditorAreaVisibleGate: false,
 		});
 	});
 

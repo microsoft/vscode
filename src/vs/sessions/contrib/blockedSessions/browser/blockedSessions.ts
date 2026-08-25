@@ -6,10 +6,13 @@
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { derivedOpts, IObservable, IReaderWithStore, observableFromEvent } from '../../../../base/common/observable.js';
 import { equals } from '../../../../base/common/arrays.js';
+import { ILogService, LogLevel } from '../../../../platform/log/common/log.js';
 import { ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { IGitHubService } from '../../github/browser/githubService.js';
 import { GitHubCIOverallStatus, GitHubPullRequestState } from '../../github/common/types.js';
+
+const LOG_PREFIX = '[BlockedSessions]';
 
 /**
  * Why a session is surfaced as "blocked" (i.e. needs the user's attention).
@@ -51,6 +54,7 @@ export class BlockedSessions extends Disposable {
 	constructor(
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@IGitHubService private readonly _gitHubService: IGitHubService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
 
@@ -67,15 +71,25 @@ export class BlockedSessions extends Disposable {
 			owner: this,
 			equalsFn: (a, b) => equals(a, b, (x, y) => x.session.sessionId === y.session.sessionId && x.reason === y.reason && x.occurrenceId === y.occurrenceId),
 		}, reader => {
+			const sessions = this._allSessions.read(reader);
 			const blocked: IBlockedSession[] = [];
-			for (const session of this._allSessions.read(reader)) {
+			for (const session of sessions) {
 				// `derivedOpts` under-types the store-backed reader as `IReader`; it is an `IDerivedReader` at runtime.
 				const blockedSession = this._getBlockedSession(reader as IReaderWithStore, session);
 				if (blockedSession !== undefined) {
 					blocked.push(blockedSession);
 				}
 			}
-			return blocked.sort((a, b) => b.session.updatedAt.read(reader).getTime() - a.session.updatedAt.read(reader).getTime());
+			blocked.sort((a, b) => b.session.updatedAt.read(reader).getTime() - a.session.updatedAt.read(reader).getTime());
+			// Traced on every recompute (not only when the result changes) so a
+			// session that briefly drops out — e.g. while its pull request or CI data
+			// is (re)loading — is visible in the log; such a gap is what makes an
+			// acknowledged block look like it came back on its own. The recompute runs
+			// on every session change, hence the explicit level check.
+			if (this._logService.getLevel() === LogLevel.Trace) {
+				this._logService.trace(`${LOG_PREFIX} computed blocked sessions (${blocked.length} of ${sessions.length}): ${describeBlockedSessions(blocked)}`);
+			}
+			return blocked;
 		});
 
 		this.blockedSessions = derivedOpts({
@@ -108,7 +122,13 @@ export class BlockedSessions extends Disposable {
 			return undefined;
 		}
 
-		const prRef = reader.store.add(this._gitHubService.createPullRequestModelReference(gitHubInfo.owner, gitHubInfo.repo, gitHubInfo.pullRequest.number));
+		// `delayedStore` (released *after* the recompute) rather than `store`
+		// (released *before* it): these are ref-counted, shared models that are
+		// disposed once the last reference goes away. Releasing first would drop the
+		// last reference on every recompute, so each recompute would tear the loaded
+		// models down and re-create empty ones — reporting the session as unblocked
+		// until the data is fetched again.
+		const prRef = reader.delayedStore.add(this._gitHubService.createPullRequestModelReference(gitHubInfo.owner, gitHubInfo.repo, gitHubInfo.pullRequest.number));
 		const livePR = prRef.object.pullRequest.read(reader);
 		if (!livePR) {
 			return undefined;
@@ -118,7 +138,7 @@ export class BlockedSessions extends Disposable {
 			return undefined;
 		}
 
-		const ciRef = reader.store.add(this._gitHubService.createPullRequestCIModelReference(gitHubInfo.owner, gitHubInfo.repo, livePR.number, livePR.headSha));
+		const ciRef = reader.delayedStore.add(this._gitHubService.createPullRequestCIModelReference(gitHubInfo.owner, gitHubInfo.repo, livePR.number, livePR.headSha));
 		if (ciRef.object.overallStatus.read(reader) === GitHubCIOverallStatus.Failure) {
 			return {
 				session,
@@ -128,4 +148,9 @@ export class BlockedSessions extends Disposable {
 		}
 		return undefined;
 	}
+}
+
+/** Compact, log-friendly rendering of blocked sessions: `sessionId=occurrenceId`. */
+export function describeBlockedSessions(blocked: readonly IBlockedSession[]): string {
+	return `[${blocked.map(entry => `${entry.session.sessionId}=${entry.occurrenceId}`).join(', ')}]`;
 }

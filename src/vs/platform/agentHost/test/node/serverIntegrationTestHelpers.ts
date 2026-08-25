@@ -48,9 +48,11 @@ import { MessageKind, buildDefaultChatUri, mergeSessionWithDefaultChat, parseDef
 import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
 import { AgentHostCodexAgentBinaryArgsEnvVar, AgentHostCodexAgentCodexHomeEnvVar, AgentHostCodexAgentEnabledEnvVar } from '../../common/agentService.js';
 import {
+	AhpErrorCodes,
 	isJsonRpcNotification,
 	isJsonRpcRequest,
 	isJsonRpcResponse,
+	JsonRpcErrorCodes,
 	ProtocolError,
 	type AhpNotification,
 	type JsonRpcNotification,
@@ -206,16 +208,41 @@ export class TestProtocolClient {
 			this._ahpSnapshot.record('c2s', response);
 			this._ws.send(JSON.stringify(response));
 		} catch (error) {
+			const protocolError = this._toReverseRequestProtocolError(error);
 			const response: JsonRpcErrorResponse = {
 				jsonrpc: '2.0',
 				id: msg.id,
 				error: {
-					code: -32603,
-					message: error instanceof Error ? error.message : String(error),
+					code: protocolError.code,
+					message: protocolError.message,
+					data: protocolError.data,
 				},
 			};
 			this._ahpSnapshot.record('c2s', response);
 			this._ws.send(JSON.stringify(response));
+		}
+	}
+
+	private _toReverseRequestProtocolError(error: unknown): ProtocolError {
+		if (error instanceof ProtocolError) {
+			return error;
+		}
+		const errorCodeValue: unknown = error instanceof Error ? Object.getOwnPropertyDescriptor(error, 'code')?.value : undefined;
+		const errorCode = typeof errorCodeValue === 'string' ? errorCodeValue : undefined;
+		const message = error instanceof Error ? error.message : String(error);
+		switch (errorCode) {
+			case 'ENOENT':
+			case 'ENOTDIR':
+				return new ProtocolError(AhpErrorCodes.NotFound, message);
+			case 'EACCES':
+			case 'EPERM':
+				return new ProtocolError(AhpErrorCodes.PermissionDenied, message);
+			case 'EEXIST':
+				return new ProtocolError(AhpErrorCodes.AlreadyExists, message);
+			case 'ENOTEMPTY':
+				return new ProtocolError(AhpErrorCodes.Conflict, message);
+			default:
+				return new ProtocolError(JsonRpcErrorCodes.InternalError, message);
 		}
 	}
 
@@ -361,11 +388,7 @@ export class TestProtocolClient {
 		const createOnly = params.createOnly ?? false;
 
 		await mkdir(dirname(filePath), { recursive: true });
-		const exists = await this._pathExists(filePath);
-		if (createOnly && exists) {
-			throw new Error(`File already exists: ${filePath}`);
-		}
-		const existing = exists ? await readFile(filePath) : Buffer.alloc(0);
+		const existing = !createOnly && await this._pathExists(filePath) ? await readFile(filePath) : Buffer.alloc(0);
 		const clampedStart = Math.min(position, existing.length);
 		let next: Buffer;
 		switch (mode) {
@@ -382,7 +405,7 @@ export class TestProtocolClient {
 				next = Buffer.concat([existing.subarray(0, clampedStart), incoming]);
 				break;
 		}
-		await writeFile(filePath, next);
+		await writeFile(filePath, next, createOnly ? { flag: 'wx' } : undefined);
 		return {};
 	}
 
@@ -405,7 +428,7 @@ export class TestProtocolClient {
 		const destination = this._assertFileUri(this._coerceUri(params.destination));
 		const failIfExists = params.failIfExists ?? false;
 		if (failIfExists && await this._pathExists(destination)) {
-			throw new Error(`Destination already exists: ${destination}`);
+			throw new ProtocolError(AhpErrorCodes.AlreadyExists, `Destination already exists: ${destination}`);
 		}
 		await mkdir(dirname(destination), { recursive: true });
 		await rename(source, destination);
@@ -417,7 +440,7 @@ export class TestProtocolClient {
 		const destination = this._assertFileUri(this._coerceUri(params.destination));
 		const failIfExists = params.failIfExists ?? false;
 		if (failIfExists && await this._pathExists(destination)) {
-			throw new Error(`Destination already exists: ${destination}`);
+			throw new ProtocolError(AhpErrorCodes.AlreadyExists, `Destination already exists: ${destination}`);
 		}
 		await mkdir(dirname(destination), { recursive: true });
 		await cp(source, destination, { recursive: true, force: !failIfExists, errorOnExist: failIfExists });
@@ -988,7 +1011,10 @@ export function dispatchTurnStarted(c: TestProtocolClient, session: string, turn
 		action: {
 			type: ActionType.ChatTurnStarted,
 			turnId,
-			startedAt: '2025-01-01T00:00:00.000Z',
+			// A real timestamp, because the chat reducer derives `modifiedAt`
+			// from the turn: a fixed past `startedAt` would make a completed
+			// turn look older than the session it belongs to.
+			startedAt: new Date().toISOString(),
 			message: { text, origin: { kind: MessageKind.User } },
 		},
 	});

@@ -50,7 +50,7 @@
 
 import { SequencerByKey } from '../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { Disposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../../../base/common/map.js';
 import { equals } from '../../../../../../base/common/objects.js';
 import { autorun } from '../../../../../../base/common/observable.js';
@@ -112,8 +112,14 @@ export interface IAgentHostUntitledProvisionalSessionService {
 	 */
 	getInitialSessionConfig(): Record<string, unknown> | undefined;
 
-	/** Initial session metadata contributed by the current Editor workspace. */
-	getInitialSessionMetadata(): Record<string, unknown> | undefined;
+	/** Initial session metadata, including any metadata registered for the resource. */
+	getInitialSessionMetadata(sessionResource?: URI): Record<string, unknown> | undefined;
+
+	/** Associates creation metadata with a real chat resource until the backend session is created. */
+	setSessionCreationMetadata(sessionResource: URI, metadata: Record<string, unknown>): void;
+
+	/** Drops creation metadata after the backend session has been created or abandoned. */
+	clearSessionCreationMetadata(sessionResource: URI): void;
 
 	/**
 	 * Ensure a backend provisional exists for an untitled chat UI resource.
@@ -261,6 +267,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 	private readonly _pending = new ResourceMap<Promise<ProvisionalOperationResult>>();
 	private readonly _resolvedConfigs = new ResourceMap<ResolveSessionConfigResult>();
 	private readonly _resolvedConfigRequestSeq = new ResourceMap<number>();
+	private readonly _sessionCreationMetadata = new ResourceMap<Record<string, unknown>>();
 	private readonly _pendingBackendDisposals = new ResourceSet();
 	// URIs that were the source of a successful `tryRebind`. The chat widget
 	// briefly reattaches to the old untitled URI before its viewModel switches
@@ -298,6 +305,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 				}
 				this._resolvedConfigs.delete(sessionResource);
 				this._resolvedConfigRequestSeq.delete(sessionResource);
+				this._sessionCreationMetadata.delete(sessionResource);
 				// Drop any tombstone for the abandoned untitled URI so the
 				// set doesn't grow unbounded across the workbench lifetime.
 				this._rebound.delete(sessionResource);
@@ -337,15 +345,25 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 					void this._changeWorkingDirectory(sessionResource, this._newSessionFolderService.resolveNewSessionPrimary(sessionResource));
 					continue;
 				}
-				if (!entry.usesWorkspaceRootSet && (this._computeWorkingDirectories(entry.workingDirectory, entry.provider)?.length ?? 0) > 1) {
-					entry.usesWorkspaceRootSet = true;
-				}
-				this._updateActiveClientScope(entry);
-				if (entry.usesWorkspaceRootSet && !this._generationMatchingDesiredState(entry)) {
-					void this._queue(sessionResource, () => this._reconcileGeneration(sessionResource, entry));
-				}
+				this._reconcileWorkspaceRootSet(sessionResource, entry);
 			}
 		}));
+		// The advertised `multipleWorkingDirectories` capability can flip at
+		// runtime: the hidden `multiRootEnabled` setting is mirrored to the host,
+		// which re-advertises it, so `rootState` changes without a reload. Re-scope
+		// open not-yet-started drafts when it does. The host starts lazily and
+		// restarts behind a fresh root state (until it starts, the desktop
+		// `rootState` is a noop whose event never fires), so re-bind on each start
+		// rather than holding one subscription for the window's lifetime,
+		// reconciling once per (re)bind to pick up an already-advertised capability.
+		const rootStateListeners = this._register(new DisposableStore());
+		const bindRootState = () => {
+			rootStateListeners.clear();
+			rootStateListeners.add(this._agentHostService.rootState.onDidChange(() => this._reconcileUntitledDraftsForRootSet()));
+			this._reconcileUntitledDraftsForRootSet();
+		};
+		bindRootState();
+		this._register(this._agentHostService.onAgentHostStart(bindRootState));
 		this._register(this._agentHostService.onAgentHostStart(() => this._retryPendingBackendDisposals()));
 	}
 
@@ -384,16 +402,62 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		entry.activeClientBinding.value = new ActiveClientBinding(roots, scope, this._agentHostService.clientId, () => this._publishActiveClient(entry));
 	}
 
-	getInitialSessionMetadata(): Record<string, unknown> | undefined {
-		const workspace = this._workspaceContextService.getWorkspace();
-		if (this._environmentService.isSessionsWindow
-			|| this._workspaceContextService.getWorkbenchState() !== WorkbenchState.WORKSPACE
-			|| !URI.isUri(workspace.configuration)) {
-			return undefined;
+	/**
+	 * Re-run {@link _reconcileWorkspaceRootSet} for every open not-yet-started
+	 * (untitled) draft. Started/rebound sessions are skipped: their working
+	 * directories are the agent's fixed process root once the session has
+	 * started, so recreating the backend would tear down the live conversation.
+	 */
+	private _reconcileUntitledDraftsForRootSet(): void {
+		for (const [sessionResource, entry] of this._entries) {
+			if (entry.disposed || !isUntitledChatSession(sessionResource)) {
+				continue;
+			}
+			this._reconcileWorkspaceRootSet(sessionResource, entry);
 		}
-		return withSessionMultiRootMetadata(undefined, {
-			workspaceFile: workspace.configuration.toString(),
-		});
+	}
+
+	/**
+	 * Escalate a draft to the workspace root set when its desired directory set
+	 * has grown beyond its primary, refresh its active-client scope, and recreate
+	 * its backend generation when the published one no longer matches the desired
+	 * set. Shared by the workspace-folder and root-state (capability) change
+	 * reactions. Escalation is one-way (never back to single-root); a later
+	 * capability-off or folder shrink is still honored because
+	 * {@link _computeEntryWorkingDirectories} recomputes the desired set live.
+	 */
+	private _reconcileWorkspaceRootSet(sessionResource: URI, entry: IEntry): void {
+		if (!entry.usesWorkspaceRootSet && (this._computeWorkingDirectories(entry.workingDirectory, entry.provider)?.length ?? 0) > 1) {
+			entry.usesWorkspaceRootSet = true;
+		}
+		this._updateActiveClientScope(entry);
+		if (entry.usesWorkspaceRootSet && !this._generationMatchingDesiredState(entry)) {
+			void this._queue(sessionResource, () => this._reconcileGeneration(sessionResource, entry));
+		}
+	}
+
+	getInitialSessionMetadata(sessionResource?: URI): Record<string, unknown> | undefined {
+		const workspace = this._workspaceContextService.getWorkspace();
+		const workspaceMetadata = this._environmentService.isSessionsWindow
+			|| this._workspaceContextService.getWorkbenchState() !== WorkbenchState.WORKSPACE
+			|| !URI.isUri(workspace.configuration)
+			? undefined
+			: withSessionMultiRootMetadata(undefined, {
+				workspaceFile: workspace.configuration.toString(),
+			});
+		const sessionMetadata = sessionResource ? this._sessionCreationMetadata.get(sessionResource) : undefined;
+		if (!sessionMetadata) {
+			return workspaceMetadata;
+		}
+		return { ...(workspaceMetadata ?? {}), ...sessionMetadata };
+	}
+
+	setSessionCreationMetadata(sessionResource: URI, metadata: Record<string, unknown>): void {
+		this._sessionCreationMetadata.set(sessionResource, metadata);
+	}
+
+	clearSessionCreationMetadata(sessionResource: URI): void {
+		this._sessionCreationMetadata.delete(sessionResource);
 	}
 
 	getInitialSessionConfig(): Record<string, unknown> | undefined {
@@ -823,6 +887,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		const entry = this._entries.get(sessionResource);
 		this._resolvedConfigs.delete(sessionResource);
 		this._resolvedConfigRequestSeq.delete(sessionResource);
+		this._sessionCreationMetadata.delete(sessionResource);
 		if (!entry) {
 			return Promise.resolve();
 		}
@@ -856,6 +921,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		this._pendingBackendDisposals.clear();
 		this._resolvedConfigs.clear();
 		this._resolvedConfigRequestSeq.clear();
+		this._sessionCreationMetadata.clear();
 		this._rebound.clear();
 		super.dispose();
 	}

@@ -74,27 +74,38 @@
 	z-index: 2;
 }
 
+.agent-sessions-workbench .sessions-account-titlebar-widget-codex-avatar:not(.visible),
 .agent-sessions-workbench .sessions-account-titlebar-widget-codex-icon:not(.visible) {
 	display: none;
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-widget-codex-avatar,
+.agent-sessions-workbench .sessions-account-titlebar-widget-codex-icon {
+	width: 18px;
+	height: 18px;
+	border: 1px solid var(--vscode-titleBar-activeBackground);
+	border-radius: 50%;
+	box-sizing: border-box;
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-widget-codex-avatar.visible {
+	display: block;
+	object-fit: cover;
 }
 
 .agent-sessions-workbench .sessions-account-titlebar-widget-codex-icon {
 	align-items: center;
 	justify-content: center;
-	width: 18px;
-	height: 18px;
 	font-size: 15px;
-	border: 1px solid var(--vscode-titleBar-activeBackground);
-	border-radius: 50%;
 	background: var(--vscode-titleBar-activeBackground);
 	color: var(--vscode-foreground);
-	box-sizing: border-box;
 }
 
 .agent-sessions-workbench .sessions-account-titlebar-widget-codex-icon.visible {
 	display: flex;
 }
 
+.agent-sessions-workbench .sessions-account-titlebar-widget.has-chatgpt-account .sessions-account-titlebar-widget-codex-avatar,
 .agent-sessions-workbench .sessions-account-titlebar-widget.has-chatgpt-account .sessions-account-titlebar-widget-codex-icon {
 	position: absolute;
 	right: 0;
@@ -103,6 +114,10 @@
 
 .monaco-workbench .part.titlebar.inactive .sessions-account-titlebar-widget-avatar {
 	border-color: var(--vscode-commandCenter-inactiveBorder, var(--vscode-commandCenter-border, transparent));
+}
+
+.monaco-workbench .part.titlebar.inactive .sessions-account-titlebar-widget-codex-avatar {
+	border-color: var(--vscode-titleBar-inactiveBackground);
 }
 
 .agent-sessions-workbench .sessions-account-titlebar-widget-label {
@@ -313,6 +328,11 @@
 	border: var(--vscode-strokeThickness) solid var(--vscode-descriptionForeground);
 	border-radius: 50%;
 	color: var(--vscode-foreground);
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-panel-provider-avatar.hidden,
+.agent-sessions-workbench .sessions-account-titlebar-panel-provider-icon.hidden {
+	display: none;
 }
 
 .agent-sessions-workbench .sessions-account-titlebar-panel-provider-details {

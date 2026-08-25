@@ -17,6 +17,7 @@ import type { ActionEnvelope, INotification, IRootConfigChangedAction, SessionAc
 import type { IRemoteWatchHandle } from '../common/agentHostFileSystemProvider.js';
 import type { CreateResourceWatchParams, CreateResourceWatchResult, ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMkdirParams, ResourceMkdirResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWriteParams, ResourceWriteResult } from '../common/state/sessionProtocol.js';
 import type { ComponentToState, RootState, StateComponents } from '../common/state/sessionState.js';
+import { identityAgentHostResourceUriMapper } from '../common/agentHostUri.js';
 
 const notSupported = () => { throw new Error('Local agent host is not supported in the browser.'); };
 
@@ -28,6 +29,7 @@ export class NullAgentHostService implements IAgentHostService {
 	declare readonly _serviceBrand: undefined;
 
 	readonly clientId = '';
+	readonly resourceUris = identityAgentHostResourceUriMapper;
 	readonly onAgentHostExit = Event.None;
 	readonly onAgentHostStart = Event.None;
 	readonly onDidNotification: Event<INotification> = Event.None;
@@ -53,7 +55,8 @@ export class NullAgentHostService implements IAgentHostService {
 	async getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo> { return notSupported(); }
 	async getManagedSettingsDiagnostics(): Promise<readonly IAgentHostManagedSettingsDiagnostics[]> { return []; }
 	async diagnosticsFetch(_url: string): Promise<IAgentHostNetworkFetchResult> { return notSupported(); }
-	async collectDebugLogs(_session: URI | undefined, _kind: AgentHostDebugLogsArtifactKind): Promise<IAgentHostDebugLogsArtifact> { return notSupported(); }
+	async getSessionStateFile(_session: URI): Promise<URI | undefined> { return notSupported(); }
+	async collectDebugLogs(_session: URI | undefined, _kind: AgentHostDebugLogsArtifactKind, _chat?: URI): Promise<IAgentHostDebugLogsArtifact> { return notSupported(); }
 	async readDebugLogsChunk(_resource: URI, _position: number): Promise<IAgentHostDebugLogsChunk> { return notSupported(); }
 	async listSessions(): Promise<IAgentSessionMetadata[]> { return []; }
 	async createSession(_config?: IAgentCreateSessionConfig): Promise<URI> { return notSupported(); }

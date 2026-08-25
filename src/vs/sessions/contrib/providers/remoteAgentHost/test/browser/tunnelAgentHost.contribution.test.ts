@@ -81,6 +81,7 @@ class StubTunnelService extends Disposable implements ITunnelAgentHostService {
 	private _cached: ICachedTunnel[] = [];
 	private _listed: ITunnelInfo[] | undefined;
 	private readonly _suppressed = new Set<string>();
+	autoConnectMode: 'background' | 'prompt' = 'background';
 
 	/** Records every `connect()` call for assertions on the `userInitiated` threading. */
 	readonly connectCalls: Array<{ tunnel: ITunnelInfo; authProvider: string | undefined; options: { readonly userInitiated?: boolean } | undefined }> = [];
@@ -93,6 +94,7 @@ class StubTunnelService extends Disposable implements ITunnelAgentHostService {
 	getCachedTunnels(): ICachedTunnel[] { return this._cached; }
 	setListed(tunnels: ITunnelInfo[] | undefined): void { this._listed = tunnels; }
 	async listTunnels(): Promise<ITunnelInfo[]> { return this._listed ?? []; }
+	getAutoConnectMode(): 'background' | 'prompt' { return this.autoConnectMode; }
 	readonly canDeleteTunnels = true;
 	async deleteTunnel(tunnel: ITunnelInfo): Promise<void> { this.removeCachedTunnel(tunnel.tunnelId); }
 	cacheTunnel(tunnel: ITunnelInfo, authProvider?: 'github' | 'microsoft'): void {
@@ -292,8 +294,8 @@ suite('TunnelAgentHostContribution', () => {
 	test('background auto-connect threads userInitiated: false through to tunnelService.connect, while explicit connects thread userInitiated: true', async () => {
 		// Focused regression test for the userInitiated/silent policy:
 		// background/auto-connect must never be treated as user-initiated
-		// (so a v6 gateway selection never prompts or picks an editor
-		// entry), while an explicit connect must retain userInitiated: true.
+		// (so it can reuse, but never prompt for, a saved location), while an
+		// explicit connect must retain userInitiated: true.
 		const tunnelService = store.add(new StubTunnelService());
 		const remoteService = store.add(new StubRemoteAgentHostService());
 		const providersService = store.add(new StubSessionsProvidersService());
@@ -334,6 +336,41 @@ suite('TunnelAgentHostContribution', () => {
 		await testable._connectTunnel(address, { userInitiated: true });
 		assert.strictEqual(tunnelService.connectCalls.length, 2);
 		assert.strictEqual(tunnelService.connectCalls[1].options?.userInitiated, true, 'explicit/user-initiated connect must pass userInitiated: true');
+	});
+
+	test('auto-connect prompts once for an initial location, then reconnects silently', async () => {
+		const tunnelService = store.add(new StubTunnelService());
+		tunnelService.autoConnectMode = 'prompt';
+		const remoteService = store.add(new StubRemoteAgentHostService());
+		const providersService = store.add(new StubSessionsProvidersService());
+		const configurationService = new TestConfigurationService({
+			[RemoteAgentHostsEnabledSettingId]: true,
+			[RemoteAgentHostAutoConnectSettingId]: true,
+		});
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(ITunnelAgentHostService, tunnelService);
+		instantiationService.stub(IRemoteAgentHostService, remoteService as unknown as IRemoteAgentHostService);
+		instantiationService.stub(ISessionsProvidersService, providersService as unknown as ISessionsProvidersService);
+		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(INotificationService, { notify: () => ({ close() { } }) } as unknown as INotificationService);
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IAuthenticationService, { onDidChangeSessions: Event.None } as unknown as IAuthenticationService);
+		instantiationService.stub(ITelemetryService, { publicLog2: () => { } } as unknown as ITelemetryService);
+		instantiationService.stub(IHostService, new StubHostService());
+		instantiationService.stub(ITunnelHostService, store.add(new StubTunnelHostService()));
+		instantiationService.stub(IAgentHostFilterService, new StubFilterService() as unknown as IAgentHostFilterService);
+
+		const contribution = store.add(instantiationService.createInstance(TestTunnelContribution));
+		const tunnel: ITunnelInfo = { tunnelId: 'tunnel-needs-choice', clusterId: 'use', name: 'Needs Choice', tags: ['protocolv6'], protocolVersion: 6, hostConnectionCount: 1 };
+		tunnelService.setListed([tunnel]);
+		const testable = contribution as unknown as { _silentStatusCheck(): Promise<void> };
+
+		await testable._silentStatusCheck();
+		assert.deepStrictEqual(tunnelService.connectCalls.map(call => call.options?.userInitiated), [true]);
+
+		tunnelService.autoConnectMode = 'background';
+		await testable._silentStatusCheck();
+		assert.deepStrictEqual(tunnelService.connectCalls.map(call => call.options?.userInitiated), [true, false]);
 	});
 
 	test('does not auto-connect the locally hosted tunnel and reconnects it after sharing stops', async () => {

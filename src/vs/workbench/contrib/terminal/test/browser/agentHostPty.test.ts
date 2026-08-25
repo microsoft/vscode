@@ -4,29 +4,35 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, IReference } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { constObservable, IObservable } from '../../../../../base/common/observable.js';
 import { AgentHostDebugLogsArtifactKind, IAgentConnection, IAgentCreateSessionConfig, IAgentHostDebugLogsArtifact, IAgentHostDebugLogsChunk, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult } from '../../../../../platform/agentHost/common/agentService.js';
 import { ActionType, StateAction } from '../../../../../platform/agentHost/common/state/protocol/actions.js';
-import { RootState, TerminalClaimKind, type TerminalState } from '../../../../../platform/agentHost/common/state/protocol/state.js';
+import { RootState, TerminalClaimKind, TerminalLifecycleStatus, type TerminalState } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import type { ActionEnvelope, IRootConfigChangedAction, SessionAction, TerminalAction, INotification, ClientAnnotationsAction } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import type { ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWriteParams, ResourceWriteResult, CreateResourceWatchParams, CreateResourceWatchResult, ResourceMkdirParams, ResourceMkdirResult } from '../../../../../platform/agentHost/common/state/sessionProtocol.js';
 
+import { NullLogService } from '../../../../../platform/log/common/log.js';
+import type { ITerminalLogService } from '../../../../../platform/terminal/common/terminal.js';
 import { AgentHostPty } from '../../browser/agentHostPty.js';
 import { AgentHostOutputChannel } from '../../browser/agentHostOutputChannel.js';
 import { IActiveSubscriptionInfo, IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { StateComponents } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { terminalReducer } from '../../../../../platform/agentHost/common/state/protocol/reducers.js';
 import type { IRemoteWatchHandle } from '../../../../../platform/agentHost/common/agentHostFileSystemProvider.js';
+import { identityAgentHostResourceUriMapper } from '../../../../../platform/agentHost/common/agentHostUri.js';
 // ---- Mock IAgentConnection --------------------------------------------------
 
 class MockAgentConnection implements IAgentConnection {
 
 	readonly clientId = 'test-client';
+	readonly resourceUris = identityAgentHostResourceUriMapper;
 
 	private _seq = 0;
 	private readonly _onDidAction = new Emitter<ActionEnvelope>();
@@ -40,9 +46,11 @@ class MockAgentConnection implements IAgentConnection {
 	readonly createdTerminals: CreateTerminalParams[] = [];
 	readonly disposedTerminals: URI[] = [];
 	readonly subscribedResources: URI[] = [];
+	disposedSubscriptions = 0;
 
 	private _terminalState: TerminalState = {
 		title: 'Test Terminal', content: [], claim: { kind: TerminalClaimKind.Client, clientId: 'test-client' },
+		lifecycle: { status: TerminalLifecycleStatus.Running },
 	};
 
 	constructor(initialState?: Partial<TerminalState>) {
@@ -76,6 +84,7 @@ class MockAgentConnection implements IAgentConnection {
 	async getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo> { return { version: 'test', os: 'test', arch: 'test', proxySettings: {}, proxyEnv: {}, endpoints: [] }; }
 	async getManagedSettingsDiagnostics(): Promise<readonly IAgentHostManagedSettingsDiagnostics[]> { return []; }
 	async diagnosticsFetch(url: string): Promise<IAgentHostNetworkFetchResult> { return { url }; }
+	async getSessionStateFile(_session: URI): Promise<URI | undefined> { throw new Error('Not implemented'); }
 	async collectDebugLogs(_session: URI | undefined, _kind: AgentHostDebugLogsArtifactKind): Promise<IAgentHostDebugLogsArtifact> { throw new Error('Not implemented'); }
 	async readDebugLogsChunk(_resource: URI, _position: number): Promise<IAgentHostDebugLogsChunk> { throw new Error('Not implemented'); }
 	async listSessions(): Promise<IAgentSessionMetadata[]> { return []; }
@@ -123,7 +132,13 @@ class MockAgentConnection implements IAgentConnection {
 			}
 		});
 		return {
-			object: sub as IAgentSubscription<T>, dispose: () => { listener.dispose(); onDidChange.dispose(); onWillApplyAction.dispose(); onDidApplyAction.dispose(); },
+			object: sub as IAgentSubscription<T>, dispose: () => {
+				this.disposedSubscriptions++;
+				listener.dispose();
+				onDidChange.dispose();
+				onWillApplyAction.dispose();
+				onDidApplyAction.dispose();
+			},
 		};
 	}
 	getSubscriptionUnmanaged<T>(_kind: StateComponents, _resource: URI): IAgentSubscription<T> | undefined {
@@ -145,12 +160,26 @@ class MockAgentConnection implements IAgentConnection {
 	}
 }
 
+class TestAgentHostPty extends AgentHostPty {
+	disposeCount = 0;
+
+	override dispose(): void {
+		this.disposeCount++;
+		super.dispose();
+	}
+}
+
+function createLogService(): ITerminalLogService {
+	return new class extends NullLogService { readonly _logBrand = undefined; };
+}
+
 // ---- Tests ------------------------------------------------------------------
 
 suite('AgentHostPty', () => {
 
 	const disposables = new DisposableStore();
 	const terminalUri = URI.parse('agenthost-terminal:///test-term-1');
+	const logService = createLogService();
 
 	setup(() => {
 		disposables.clear();
@@ -165,7 +194,7 @@ suite('AgentHostPty', () => {
 	test('start() creates terminal and subscribes', async () => {
 		const conn = new MockAgentConnection();
 		disposables.add(conn);
-		const pty = disposables.add(new AgentHostPty(1, conn, terminalUri, { name: 'test' }));
+		const pty = disposables.add(new AgentHostPty(1, conn, terminalUri, { name: 'test' }, logService));
 
 		const result = await pty.start();
 
@@ -179,7 +208,7 @@ suite('AgentHostPty', () => {
 	test('start() fires onProcessReady', async () => {
 		const conn = new MockAgentConnection();
 		disposables.add(conn);
-		const pty = disposables.add(new AgentHostPty(1, conn, terminalUri));
+		const pty = disposables.add(new AgentHostPty(1, conn, terminalUri, undefined, logService));
 
 		let ready = false;
 		disposables.add(pty.onProcessReady!(() => { ready = true; }));
@@ -191,7 +220,7 @@ suite('AgentHostPty', () => {
 	test('replays existing content from snapshot', async () => {
 		const conn = new MockAgentConnection({ content: [{ type: 'unclassified', value: 'existing output\n' }] });
 		disposables.add(conn);
-		const pty = disposables.add(new AgentHostPty(1, conn, terminalUri));
+		const pty = disposables.add(new AgentHostPty(1, conn, terminalUri, undefined, logService));
 
 		const dataReceived: string[] = [];
 		disposables.add(pty.onProcessData!(e => {
@@ -220,7 +249,7 @@ suite('AgentHostPty', () => {
 	test('input() dispatches terminal/input action', async () => {
 		const conn = new MockAgentConnection();
 		disposables.add(conn);
-		const pty = disposables.add(new AgentHostPty(1, conn, terminalUri));
+		const pty = disposables.add(new AgentHostPty(1, conn, terminalUri, undefined, logService));
 
 		await pty.start();
 		pty.input('hello');
@@ -236,7 +265,7 @@ suite('AgentHostPty', () => {
 	test('resize() dispatches terminal/resized action', async () => {
 		const conn = new MockAgentConnection();
 		disposables.add(conn);
-		const pty = disposables.add(new AgentHostPty(1, conn, terminalUri));
+		const pty = disposables.add(new AgentHostPty(1, conn, terminalUri, undefined, logService));
 
 		await pty.start();
 		pty.resize(120, 40);
@@ -252,7 +281,7 @@ suite('AgentHostPty', () => {
 	test('resize() skips duplicate dimensions', async () => {
 		const conn = new MockAgentConnection();
 		disposables.add(conn);
-		const pty = disposables.add(new AgentHostPty(1, conn, terminalUri));
+		const pty = disposables.add(new AgentHostPty(1, conn, terminalUri, undefined, logService));
 
 		await pty.start();
 		pty.resize(80, 24);
@@ -267,7 +296,7 @@ suite('AgentHostPty', () => {
 	test('terminal/data action fires onProcessData', async () => {
 		const conn = new MockAgentConnection();
 		disposables.add(conn);
-		const pty = disposables.add(new AgentHostPty(1, conn, terminalUri));
+		const pty = disposables.add(new AgentHostPty(1, conn, terminalUri, undefined, logService));
 
 		const dataReceived: string[] = [];
 		disposables.add(pty.onProcessData!(e => {
@@ -282,24 +311,42 @@ suite('AgentHostPty', () => {
 		assert.deepStrictEqual(dataReceived, ['hello world\r\n']);
 	});
 
-	test('terminal/exited action fires onProcessExit', async () => {
+	test('terminal/exited action finalizes the local PTY exactly once', async () => {
 		const conn = new MockAgentConnection();
 		disposables.add(conn);
-		const pty = disposables.add(new AgentHostPty(1, conn, terminalUri));
+		const pty = new TestAgentHostPty(1, conn, terminalUri, undefined, logService);
 
-		let exitCode: number | undefined;
-		disposables.add(pty.onProcessExit!(e => { exitCode = e; }));
+		const exitCodes: (number | undefined)[] = [];
+		disposables.add(pty.onProcessExit!(e => exitCodes.push(e)));
 
 		await pty.start();
 		conn.fireAction(terminalUri, { type: ActionType.TerminalExited, exitCode: 42 });
+		conn.fireAction(terminalUri, { type: ActionType.TerminalExited, exitCode: 42 });
+		pty.shutdown(false);
+		pty.input('ignored');
+		pty.resize(120, 40);
+		await pty.clearBuffer();
+		await Promise.resolve();
 
-		assert.strictEqual(exitCode, 42);
+		assert.deepStrictEqual({
+			exitCodes,
+			disposeCount: pty.disposeCount,
+			disposedSubscriptions: conn.disposedSubscriptions,
+			disposedTerminals: conn.disposedTerminals,
+			dispatchedActions: conn.dispatchedActions,
+		}, {
+			exitCodes: [42],
+			disposeCount: 1,
+			disposedSubscriptions: 1,
+			disposedTerminals: [],
+			dispatchedActions: [],
+		});
 	});
 
 	test('terminal/cwdChanged updates cwd property', async () => {
 		const conn = new MockAgentConnection();
 		disposables.add(conn);
-		const pty = disposables.add(new AgentHostPty(1, conn, terminalUri));
+		const pty = disposables.add(new AgentHostPty(1, conn, terminalUri, undefined, logService));
 
 		await pty.start();
 		conn.fireAction(terminalUri, { type: ActionType.TerminalCwdChanged, cwd: '/home/user/project' });
@@ -311,7 +358,7 @@ suite('AgentHostPty', () => {
 	test('terminal/titleChanged updates title property', async () => {
 		const conn = new MockAgentConnection();
 		disposables.add(conn);
-		const pty = disposables.add(new AgentHostPty(1, conn, terminalUri));
+		const pty = disposables.add(new AgentHostPty(1, conn, terminalUri, undefined, logService));
 
 		let changedTitle = '';
 		disposables.add(pty.onDidChangeProperty!(e => {
@@ -329,7 +376,7 @@ suite('AgentHostPty', () => {
 	test('ignores actions for other terminals', async () => {
 		const conn = new MockAgentConnection();
 		disposables.add(conn);
-		const pty = disposables.add(new AgentHostPty(1, conn, terminalUri));
+		const pty = disposables.add(new AgentHostPty(1, conn, terminalUri, undefined, logService));
 
 		const dataReceived: string[] = [];
 		disposables.add(pty.onProcessData!(e => {
@@ -345,32 +392,215 @@ suite('AgentHostPty', () => {
 	test('shutdown() disposes terminal and unsubscribes', async () => {
 		const conn = new MockAgentConnection();
 		disposables.add(conn);
-		const pty = disposables.add(new AgentHostPty(1, conn, terminalUri));
+		const pty = new TestAgentHostPty(1, conn, terminalUri, undefined, logService);
 
 		let exitFired = false;
 		disposables.add(pty.onProcessExit!(() => { exitFired = true; }));
 
 		await pty.start();
 		pty.shutdown(false);
+		assert.strictEqual(exitFired, false, 'shutdown should not emit exit synchronously');
+		assert.deepStrictEqual(conn.disposedTerminals.map(uri => uri.toString()), [terminalUri.toString()], 'shutdown should dispose the host terminal synchronously');
 
-		await new Promise(resolve => setTimeout(resolve, 10));
+		await timeout(0);
 
-		assert.strictEqual(conn.disposedTerminals.length, 1);
-		assert.strictEqual(conn.disposedTerminals[0].toString(), terminalUri.toString());
-		assert.ok(exitFired);
+		assert.deepStrictEqual({
+			disposedTerminals: conn.disposedTerminals.map(uri => uri.toString()),
+			disposedSubscriptions: conn.disposedSubscriptions,
+			exitFired,
+			disposeCount: pty.disposeCount,
+		}, {
+			disposedTerminals: [terminalUri.toString()],
+			disposedSubscriptions: 1,
+			exitFired: true,
+			disposeCount: 1,
+		});
+	});
+
+	test('shutdown() disposes while initial subscription hydration is pending', async () => {
+		const conn = new MockAgentConnection();
+		disposables.add(conn);
+		conn.getSubscription = <T>(_kind: StateComponents, _resource: URI): IReference<IAgentSubscription<T>> => {
+			const onDidChange = new Emitter<TerminalState>();
+			disposables.add(onDidChange);
+			return {
+				object: {
+					value: undefined,
+					verifiedValue: undefined,
+					onDidChange: onDidChange.event,
+					onWillApplyAction: Event.None,
+					onDidApplyAction: Event.None,
+				} as IAgentSubscription<T>,
+				dispose: () => onDidChange.dispose(),
+			};
+		};
+		const pty = new TestAgentHostPty(1, conn, terminalUri, undefined, logService);
+
+		const start = pty.start();
+		await timeout(0);
+		pty.shutdown(false);
+		await start;
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			disposedTerminals: conn.disposedTerminals.map(uri => uri.toString()),
+			disposeCount: pty.disposeCount,
+		}, {
+			disposedTerminals: [terminalUri.toString()],
+			disposeCount: 1,
+		});
+	});
+
+	test('shutdown() retries host disposal after pending terminal creation settles', async () => {
+		const conn = new MockAgentConnection();
+		disposables.add(conn);
+		const creationBarrier = new DeferredPromise<void>();
+		conn.createTerminal = async params => {
+			conn.createdTerminals.push(params);
+			await creationBarrier.p;
+		};
+		const pty = new TestAgentHostPty(1, conn, terminalUri, undefined, logService);
+
+		const start = pty.start();
+		await timeout(0);
+		pty.shutdown(false);
+		await Promise.resolve();
+		assert.deepStrictEqual({
+			disposeCount: pty.disposeCount,
+			disposedTerminals: conn.disposedTerminals.map(uri => uri.toString()),
+		}, {
+			disposeCount: 1,
+			disposedTerminals: [terminalUri.toString()],
+		});
+
+		await creationBarrier.complete();
+		await start;
+		await timeout(0);
+
+		assert.deepStrictEqual(conn.disposedTerminals.map(uri => uri.toString()), [terminalUri.toString(), terminalUri.toString()]);
+	});
+
+	test('shutdown() attempts host disposal when terminal creation rejects', async () => {
+		const conn = new MockAgentConnection();
+		disposables.add(conn);
+		const creationBarrier = new DeferredPromise<void>();
+		conn.createTerminal = async params => {
+			conn.createdTerminals.push(params);
+			await creationBarrier.p;
+			throw new Error('transport disconnected');
+		};
+		const pty = new AgentHostPty(1, conn, terminalUri, undefined, logService);
+
+		const start = pty.start();
+		await timeout(0);
+		pty.shutdown(false);
+		await creationBarrier.complete();
+		const result = await start;
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			error: result,
+			disposedTerminals: conn.disposedTerminals.map(uri => uri.toString()),
+		}, {
+			error: undefined,
+			disposedTerminals: [terminalUri.toString(), terminalUri.toString()],
+		});
+	});
+
+	test('start() returns a launch error when terminal creation fails', async () => {
+		const conn = new MockAgentConnection();
+		disposables.add(conn);
+		conn.createTerminal = async () => { throw new Error('transport disconnected'); };
+		const pty = new TestAgentHostPty(1, conn, terminalUri, undefined, logService);
+
+		const result = await pty.start();
+		pty.shutdown(false);
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			result,
+			disposeCount: pty.disposeCount,
+			disposedTerminals: conn.disposedTerminals.map(uri => uri.toString()),
+		}, {
+			result: { message: 'transport disconnected' },
+			disposeCount: 1,
+			disposedTerminals: [terminalUri.toString()],
+		});
+	});
+
+	test('shutdown() does not dispose an attach-only terminal on the host', async () => {
+		const conn = new MockAgentConnection();
+		disposables.add(conn);
+		const pty = new TestAgentHostPty(1, conn, terminalUri, { attachOnly: true }, logService);
+
+		await pty.start();
+		pty.shutdown(false);
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			disposeCount: pty.disposeCount,
+			disposedTerminals: conn.disposedTerminals,
+		}, {
+			disposeCount: 1,
+			disposedTerminals: [],
+		});
+	});
+
+	test('shutdown() finalizes locally when host disposal throws synchronously', async () => {
+		const conn = new MockAgentConnection();
+		disposables.add(conn);
+		conn.disposeTerminal = () => { throw new Error('client unavailable'); };
+		const warnings: string[] = [];
+		const pty = new TestAgentHostPty(1, conn, terminalUri, undefined, new class extends NullLogService {
+			readonly _logBrand = undefined;
+			override warn(message: string): void { warnings.push(message); }
+		});
+		await pty.start();
+		pty.shutdown(false);
+		await Promise.resolve();
+
+		assert.deepStrictEqual({
+			disposeCount: pty.disposeCount,
+			warnings,
+		}, {
+			disposeCount: 1,
+			warnings: ['[AgentHostPty] Failed to dispose host terminal: client unavailable'],
+		});
+	});
+
+	test('natural exit finalizes an attach-only PTY without disposing the host terminal', async () => {
+		const conn = new MockAgentConnection();
+		disposables.add(conn);
+		const pty = new TestAgentHostPty(1, conn, terminalUri, { attachOnly: true }, logService);
+		const exitCodes: (number | undefined)[] = [];
+		disposables.add(pty.onProcessExit!(exitCode => exitCodes.push(exitCode)));
+
+		await pty.start();
+		conn.fireAction(terminalUri, { type: ActionType.TerminalExited, exitCode: 0 });
+		await Promise.resolve();
+
+		assert.deepStrictEqual({
+			exitCodes,
+			disposeCount: pty.disposeCount,
+			disposedTerminals: conn.disposedTerminals,
+		}, {
+			exitCodes: [0],
+			disposeCount: 1,
+			disposedTerminals: [],
+		});
 	});
 
 	test('shouldPersist is false', () => {
 		const conn = new MockAgentConnection();
 		disposables.add(conn);
-		const pty = disposables.add(new AgentHostPty(1, conn, terminalUri));
+		const pty = disposables.add(new AgentHostPty(1, conn, terminalUri, undefined, logService));
 		assert.strictEqual(pty.shouldPersist, false);
 	});
 
 	test('getInitialCwd returns cwd from snapshot', async () => {
 		const conn = new MockAgentConnection({ cwd: '/home/user' });
 		disposables.add(conn);
-		const pty = disposables.add(new AgentHostPty(1, conn, terminalUri));
+		const pty = disposables.add(new AgentHostPty(1, conn, terminalUri, undefined, logService));
 
 		await pty.start();
 		const cwd = await pty.getInitialCwd();
@@ -380,7 +610,7 @@ suite('AgentHostPty', () => {
 	test('reconnect() re-subscribes with new connection and replays content', async () => {
 		const conn1 = new MockAgentConnection({ content: [{ type: 'unclassified', value: 'old output\n' }] });
 		disposables.add(conn1);
-		const pty = disposables.add(new AgentHostPty(1, conn1, terminalUri));
+		const pty = disposables.add(new AgentHostPty(1, conn1, terminalUri, undefined, logService));
 
 		await pty.start();
 
@@ -409,7 +639,7 @@ suite('AgentHostPty', () => {
 	test('reconnect() streams new actions from new connection', async () => {
 		const conn1 = new MockAgentConnection();
 		disposables.add(conn1);
-		const pty = disposables.add(new AgentHostPty(1, conn1, terminalUri));
+		const pty = disposables.add(new AgentHostPty(1, conn1, terminalUri, undefined, logService));
 		await pty.start();
 
 		const conn2 = new MockAgentConnection();
@@ -433,10 +663,269 @@ suite('AgentHostPty', () => {
 		assert.deepStrictEqual(dataReceived, ['post-reconnect data']);
 	});
 
-	test('reconnect() times out when subscription never hydrates', async () => {
+	test('reconnect() settles initial hydration from the replaced subscription generation', async () => {
 		const conn1 = new MockAgentConnection();
 		disposables.add(conn1);
-		const pty = disposables.add(new AgentHostPty(1, conn1, terminalUri));
+		const initialOnDidChange = disposables.add(new Emitter<TerminalState>());
+		conn1.getSubscription = <T>(_kind: StateComponents, _resource: URI): IReference<IAgentSubscription<T>> => ({
+			object: {
+				value: undefined,
+				verifiedValue: undefined,
+				onDidChange: initialOnDidChange.event,
+				onWillApplyAction: Event.None,
+				onDidApplyAction: Event.None,
+			} as IAgentSubscription<T>,
+			dispose: () => initialOnDidChange.dispose(),
+		});
+		const pty = disposables.add(new AgentHostPty(1, conn1, terminalUri, undefined, logService));
+		let readyCount = 0;
+		disposables.add(pty.onProcessReady!(() => readyCount++));
+		const start = pty.start();
+		await timeout(0);
+
+		const conn2 = new MockAgentConnection({ title: 'Reconnected' });
+		disposables.add(conn2);
+		const reconnect = pty.reconnect(conn2);
+		await Promise.all([start, reconnect]);
+		pty.input('after reconnect');
+		await Promise.resolve();
+
+		assert.deepStrictEqual({
+			readyCount,
+			dispatchedActions: conn2.dispatchedActions,
+		}, {
+			readyCount: 1,
+			dispatchedActions: [{
+				channel: terminalUri.toString(),
+				action: { type: ActionType.TerminalInput, data: 'after reconnect' },
+			}],
+		});
+	});
+
+	test('reconnect() during pending terminal creation supersedes start()', async () => {
+		const conn1 = new MockAgentConnection();
+		disposables.add(conn1);
+		const creationBarrier = new DeferredPromise<void>();
+		conn1.createTerminal = async params => {
+			conn1.createdTerminals.push(params);
+			await creationBarrier.p;
+		};
+		const pty = disposables.add(new TestAgentHostPty(1, conn1, terminalUri, undefined, logService));
+		let readyCount = 0;
+		disposables.add(pty.onProcessReady!(() => readyCount++));
+		const dataReceived: string[] = [];
+		disposables.add(pty.onProcessData!(e => dataReceived.push(typeof e === 'string' ? e : e.data)));
+
+		const start = pty.start();
+		await timeout(0);
+
+		const conn2 = new MockAgentConnection({ content: [{ type: 'unclassified', value: 'recovered output\n' }] });
+		disposables.add(conn2);
+		const reconnected = await pty.reconnect(conn2);
+		dataReceived.length = 0; // drop the reconnect replay
+
+		await creationBarrier.complete();
+		const startResult = await start;
+		conn2.fireAction(terminalUri, { type: ActionType.TerminalData, data: 'streamed' });
+
+		assert.deepStrictEqual({
+			reconnected,
+			startResult,
+			readyCount,
+			dataReceived,
+			disposedSubscriptions: conn2.disposedSubscriptions,
+		}, {
+			reconnected: true,
+			startResult: undefined,
+			readyCount: 1,
+			dataReceived: ['streamed'],
+			disposedSubscriptions: 0,
+		});
+	});
+
+	test('a stale creation failure does not tear down a reconnected PTY', async () => {
+		const conn1 = new MockAgentConnection();
+		disposables.add(conn1);
+		const creationBarrier = new DeferredPromise<void>();
+		conn1.createTerminal = async params => {
+			conn1.createdTerminals.push(params);
+			await creationBarrier.p;
+			throw new Error('transport disconnected');
+		};
+		const pty = disposables.add(new TestAgentHostPty(1, conn1, terminalUri, undefined, logService));
+		const exitCodes: (number | undefined)[] = [];
+		disposables.add(pty.onProcessExit!(exitCode => exitCodes.push(exitCode)));
+
+		const start = pty.start();
+		await timeout(0);
+
+		const conn2 = new MockAgentConnection();
+		disposables.add(conn2);
+		const reconnected = await pty.reconnect(conn2);
+
+		await creationBarrier.complete();
+		const startResult = await start;
+		await Promise.resolve();
+
+		assert.deepStrictEqual({
+			reconnected,
+			startResult,
+			exitCodes,
+			disposeCount: pty.disposeCount,
+		}, {
+			reconnected: true,
+			startResult: undefined,
+			exitCodes: [],
+			disposeCount: 0,
+		});
+	});
+
+	test('failed reconnect finalizes a PTY whose initial hydration was replaced', async () => {
+		const conn1 = new MockAgentConnection();
+		disposables.add(conn1);
+		const initialOnDidChange = disposables.add(new Emitter<TerminalState>());
+		conn1.getSubscription = <T>(_kind: StateComponents, _resource: URI): IReference<IAgentSubscription<T>> => ({
+			object: {
+				value: undefined,
+				verifiedValue: undefined,
+				onDidChange: initialOnDidChange.event,
+				onWillApplyAction: Event.None,
+				onDidApplyAction: Event.None,
+			} as IAgentSubscription<T>,
+			dispose: () => initialOnDidChange.dispose(),
+		});
+		const pty = new TestAgentHostPty(1, conn1, terminalUri, undefined, logService);
+		const exitCodes: (number | undefined)[] = [];
+		disposables.add(pty.onProcessExit!(exitCode => exitCodes.push(exitCode)));
+		const start = pty.start();
+		await timeout(0);
+
+		const conn2 = new MockAgentConnection();
+		disposables.add(conn2);
+		conn2.getSubscription = () => { throw new Error('reconnect failed'); };
+		const reconnect = await pty.reconnect(conn2);
+		await start;
+		await Promise.resolve();
+
+		assert.deepStrictEqual({
+			reconnect,
+			exitCodes,
+			disposeCount: pty.disposeCount,
+			disposedTerminals: conn2.disposedTerminals.map(uri => uri.toString()),
+		}, {
+			reconnect: false,
+			exitCodes: [undefined],
+			disposeCount: 1,
+			disposedTerminals: [terminalUri.toString()],
+		});
+	});
+
+	test('a stale hydration timeout does not affect a successfully reconnected PTY', () => runWithFakedTimers({}, async () => {
+		const conn1 = new MockAgentConnection();
+		disposables.add(conn1);
+		const warnings: string[] = [];
+		const pty = disposables.add(new TestAgentHostPty(1, conn1, terminalUri, undefined, new class extends NullLogService {
+			readonly _logBrand = undefined;
+			override warn(message: string): void { warnings.push(message); }
+		}));
+		const exitCodes: (number | undefined)[] = [];
+		disposables.add(pty.onProcessExit!(exitCode => exitCodes.push(exitCode)));
+		const dataReceived: string[] = [];
+		disposables.add(pty.onProcessData!(e => dataReceived.push(typeof e === 'string' ? e : e.data)));
+		await pty.start();
+
+		const conn2 = new MockAgentConnection();
+		disposables.add(conn2);
+		const hydration: { state: TerminalState | undefined } = { state: undefined };
+		const onDidChange = disposables.add(new Emitter<TerminalState>());
+		const onDidApplyAction = disposables.add(new Emitter<ActionEnvelope>());
+		conn2.getSubscription = <T>(_kind: StateComponents, _resource: URI): IReference<IAgentSubscription<T>> => ({
+			object: {
+				get value() { return hydration.state; },
+				get verifiedValue() { return hydration.state; },
+				onDidChange: onDidChange.event,
+				onWillApplyAction: Event.None,
+				onDidApplyAction: onDidApplyAction.event,
+			} as IAgentSubscription<T>,
+			dispose: () => { },
+		});
+
+		const reconnect = pty.reconnect(conn2);
+		hydration.state = { title: 'Reconnected', content: [], claim: { kind: TerminalClaimKind.Client, clientId: 'test-client' }, lifecycle: { status: TerminalLifecycleStatus.Running } };
+		onDidChange.fire(hydration.state);
+		assert.strictEqual(await reconnect, true);
+		dataReceived.length = 0; // drop the replayed clear sequence
+
+		// Advance virtual time past the hydration deadline — the stale timeout
+		// must not finalize, warn on, or deafen the live PTY.
+		await timeout(11_000);
+		onDidApplyAction.fire({ channel: terminalUri.toString(), action: { type: ActionType.TerminalData, data: 'post-timeout data' }, serverSeq: 1, origin: undefined });
+
+		assert.deepStrictEqual({
+			exitCodes,
+			warnings,
+			disposeCount: pty.disposeCount,
+			dataReceived,
+		}, {
+			exitCodes: [],
+			warnings: [],
+			disposeCount: 0,
+			dataReceived: ['post-timeout data'],
+		});
+	}));
+
+	test('shutdown() cancels pending reconnect hydration', async () => {
+		const conn1 = new MockAgentConnection();
+		disposables.add(conn1);
+		const pty = new TestAgentHostPty(1, conn1, terminalUri, undefined, logService);
+		const dataReceived: string[] = [];
+		disposables.add(pty.onProcessData!(event => dataReceived.push(typeof event === 'string' ? event : event.data)));
+		await pty.start();
+
+		const conn2 = new MockAgentConnection();
+		disposables.add(conn2);
+		const onDidChange = disposables.add(new Emitter<TerminalState>());
+		const onDidApplyAction = disposables.add(new Emitter<ActionEnvelope>());
+		conn2.getSubscription = <T>(_kind: StateComponents, _resource: URI): IReference<IAgentSubscription<T>> => ({
+			object: {
+				value: undefined,
+				verifiedValue: undefined,
+				onDidChange: onDidChange.event,
+				onWillApplyAction: Event.None,
+				onDidApplyAction: onDidApplyAction.event,
+			} as IAgentSubscription<T>,
+			dispose: () => {
+				onDidChange.dispose();
+				onDidApplyAction.dispose();
+			},
+		});
+
+		const reconnect = pty.reconnect(conn2);
+		pty.shutdown(false);
+		const result = await reconnect;
+		onDidChange.fire({ title: 'Late', content: [{ type: 'unclassified', value: 'late data' }], claim: { kind: TerminalClaimKind.Client, clientId: 'test-client' }, lifecycle: { status: TerminalLifecycleStatus.Running } });
+		onDidApplyAction.fire({ channel: terminalUri.toString(), action: { type: ActionType.TerminalData, data: 'late action' }, serverSeq: 1, origin: undefined });
+		await Promise.resolve();
+
+		assert.deepStrictEqual({
+			result,
+			disposeCount: pty.disposeCount,
+			dataReceived,
+			dispatchedActions: conn2.dispatchedActions,
+		}, {
+			result: false,
+			disposeCount: 1,
+			dataReceived: [],
+			dispatchedActions: [],
+		});
+	});
+
+	test('reconnect() times out when subscription never hydrates', () => runWithFakedTimers({}, async () => {
+		const conn1 = new MockAgentConnection();
+		disposables.add(conn1);
+		const pty = disposables.add(new TestAgentHostPty(1, conn1, terminalUri, undefined, logService));
+		const exitCodes: (number | undefined)[] = [];
+		disposables.add(pty.onProcessExit!(exitCode => exitCodes.push(exitCode)));
 		await pty.start();
 
 		// Create a connection whose subscription never fires onDidChange
@@ -457,21 +946,28 @@ suite('AgentHostPty', () => {
 			};
 		};
 
-		// Suppress the expected console.warn from reconnect failure
-		const origWarn = console.warn;
-		console.warn = () => { };
-		try {
-			const result = await pty.reconnect(conn2);
-			assert.strictEqual(result, false, 'reconnect() should fail on timeout');
-		} finally {
-			console.warn = origWarn;
-		}
-	}).timeout(15000); // Allow for the 10s hydration timeout
+		const result = await pty.reconnect(conn2);
+		await Promise.resolve();
+
+		// The PTY was ready before the reconnect attempt — a failed reconnect
+		// must leave the live terminal and its host terminal untouched.
+		assert.deepStrictEqual({
+			result,
+			exitCodes,
+			disposeCount: pty.disposeCount,
+			disposedTerminals: conn2.disposedTerminals,
+		}, {
+			result: false,
+			exitCodes: [],
+			disposeCount: 0,
+			disposedTerminals: [],
+		});
+	}));
 
 	test('reconnect() dispatches input to new connection', async () => {
 		const conn1 = new MockAgentConnection();
 		disposables.add(conn1);
-		const pty = disposables.add(new AgentHostPty(1, conn1, terminalUri));
+		const pty = disposables.add(new AgentHostPty(1, conn1, terminalUri, undefined, logService));
 		await pty.start();
 
 		const conn2 = new MockAgentConnection();
