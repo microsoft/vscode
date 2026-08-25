@@ -438,13 +438,38 @@ function inheritingProfileLocations(userDataDir: string): Set<string> {
 	return inheriting;
 }
 
+// A linked directory is rejected outright rather than skipped. The per-file
+// ancestor walk in `normalizeSettingsFile` only sees paths that made it into the
+// returned list, so a linked `User/profiles` that happens to be empty - or a
+// linked profile that metadata marks as inheriting - would never be walked and
+// the clone would keep a directory pointing outside the throwaway profile, where
+// Code OSS is free to write later. The link has to be refused before the
+// inheritance skip, not after it.
+function refuseLinkedDir(dir: string): void {
+	let isLink = false;
+	try { isLink = fs.lstatSync(dir).isSymbolicLink(); } catch { return; }
+	if (isLink) {
+		console.error('[normalize-automation-settings] refusing to use symlinked directory ' +
+			dir + ' - the cloned profile is not self-contained');
+		process.exit(1);
+	}
+}
+
 export function findSettingsFiles(userDataDir: string): string[] {
 	const files = [path.join(userDataDir, 'User', 'settings.json')];
 	const profilesDir = path.join(userDataDir, 'User', 'profiles');
 	let entries: fs.Dirent[] = [];
 	try { entries = fs.readdirSync(profilesDir, { withFileTypes: true }); } catch { entries = []; }
+	refuseLinkedDir(profilesDir);
 	const inheriting = inheritingProfileLocations(userDataDir);
 	for (const entry of entries) {
+		if (entry.isSymbolicLink()) {
+			refuseLinkedDir(path.join(profilesDir, entry.name));
+			continue;
+		}
+		if (!entry.isDirectory()) {
+			continue;
+		}
 		if (inheriting.has(entry.name)) {
 			continue;
 		}

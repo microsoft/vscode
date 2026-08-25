@@ -169,12 +169,21 @@ for (const [name, content] of valid) {
 		// Comments are data too, and a reparse-and-rewrite would silently drop them.
 		// Only count `//` that actually starts a comment - a URL inside a string
 		// value is not one, and neither is a key that merely looks like one.
-		const comments = (stripStrings(content ?? '').match(/\/\/[^\n\r\u2028\u2029]*/g) ?? []).filter(c => !c.includes('editContext'));
-		const survivingComments = stripStrings(text).match(/\/\/[^\n\r\u2028\u2029]*/g) ?? [];
+		// Block comments count too: dropping `/* ... */` is just as lossy as
+		// dropping `//`, and only checking one of them lets the other regress.
+		const comments = collectComments(content ?? '');
+		const survivingComments = collectComments(text);
 		for (const comment of comments) {
 			assert.ok(survivingComments.includes(comment), `comment ${comment} was dropped from:\n${text}`);
 		}
 	});
+}
+
+// Collect both comment forms. `//` runs to the end of the line (VS Code's scanner
+// treats CR, LF and the Unicode line separators as terminators) and `/* */` runs
+// to its closing delimiter.
+function collectComments(text: string): string[] {
+	return stripStrings(text).match(/\/\/[^\n\r\u2028\u2029]*|\/\*[\s\S]*?\*\//g) ?? [];
 }
 
 // Blank out string contents so `//` inside a value is not mistaken for the start
@@ -374,6 +383,66 @@ test('refuses to write through a symlinked profile directory', posixOnly, () => 
 		status,
 		realFile: fs.readFileSync(path.join(real, 'settings.json'), 'utf8')
 	}, { status: 1, realFile: original });
+});
+
+// A linked `User/profiles` that resolves to an empty (or missing) directory
+// yields no entries to walk, and a linked profile marked as inheriting would be
+// skipped - in both cases the clone keeps a directory pointing outside the
+// throwaway profile for Code OSS to write through later. The link must be
+// refused before either shortcut applies.
+for (const [name, linkPath, setUp] of [
+	['empty target', 'profiles', (udd: string, outside: string) => {
+		fs.mkdirSync(outside, { recursive: true });
+		fs.symlinkSync(outside, path.join(udd, 'User', 'profiles'), 'dir');
+	}],
+	['dangling target', 'profiles', (udd: string, outside: string) => {
+		fs.symlinkSync(outside, path.join(udd, 'User', 'profiles'), 'dir');
+	}],
+	['inheriting child', 'profiles/p1', (udd: string, outside: string) => {
+		fs.mkdirSync(outside, { recursive: true });
+		fs.mkdirSync(path.join(udd, 'User', 'profiles'), { recursive: true });
+		fs.symlinkSync(outside, path.join(udd, 'User', 'profiles', 'p1'), 'dir');
+		fs.mkdirSync(path.join(udd, 'User', 'globalStorage'), { recursive: true });
+		fs.writeFileSync(path.join(udd, 'User', 'globalStorage', 'storage.json'),
+			JSON.stringify({ userDataProfiles: [{ location: 'p1', useDefaultFlags: { settings: true } }] }));
+	}]
+] as [string, string, (udd: string, outside: string) => void][]) {
+	test(`refuses a symlinked profiles directory: ${name}`, posixOnly, () => {
+		const root = fs.mkdtempSync(path.join(os.tmpdir(), 'nas-linkprof-'));
+		const udd = path.join(root, 'udd');
+		fs.mkdirSync(path.join(udd, 'User'), { recursive: true });
+		fs.writeFileSync(path.join(udd, 'User', 'settings.json'), '{}\n');
+		setUp(udd, path.join(root, 'outside'));
+
+		let status = 0;
+		try {
+			execFileSync(process.execPath, [script, '--user-data-dir', udd], { stdio: 'pipe' });
+		} catch (error) {
+			status = (error as { status?: number }).status ?? 1;
+		}
+
+		assert.deepStrictEqual({
+			status,
+			stillLinked: fs.lstatSync(path.join(udd, 'User', ...linkPath.split('/'))).isSymbolicLink()
+		}, { status: 1, stillLinked: true });
+	});
+}
+
+// A stray file sitting in `User/profiles` is not a profile, so it must not be
+// turned into a settings.json.
+test('ignores non-directory entries under profiles', () => {
+	const root = fs.mkdtempSync(path.join(os.tmpdir(), 'nas-strayfile-'));
+	fs.mkdirSync(path.join(root, 'User', 'profiles'), { recursive: true });
+	fs.writeFileSync(path.join(root, 'User', 'settings.json'), '{}\n');
+	fs.writeFileSync(path.join(root, 'User', 'profiles', 'notes.txt'), 'hi\n');
+
+	const count = execFileSync(process.execPath, [script, '--user-data-dir', root], { encoding: 'utf8' }).trim();
+
+	assert.deepStrictEqual({
+		count,
+		strayUntouched: fs.readFileSync(path.join(root, 'User', 'profiles', 'notes.txt'), 'utf8'),
+		noSettingsCreated: fs.existsSync(path.join(root, 'User', 'profiles', 'notes.txt', 'settings.json'))
+	}, { count: '1', strayUntouched: 'hi\n', noSettingsCreated: false });
 });
 
 // `existsSync` follows links, so a *dangling* settings symlink looks absent and
