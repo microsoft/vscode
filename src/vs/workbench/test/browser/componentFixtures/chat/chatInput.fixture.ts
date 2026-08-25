@@ -135,4 +135,10 @@ export default defineThemedFixtureGroup({ path: 'chat/input/' }, {
 	VoiceModeListening: defineComponentFixture({ render: context => renderChatInput(context, { voiceControl: 'voiceListening' }) }),
 	VoiceModeSpeaking: defineComponentFixture({ render: context => renderChatInput(context, { voiceControl: 'voiceSpeaking' }) }),
 	VoiceModeDisconnect: defineComponentFixture({ render: context => renderChatInput(context, { voiceControl: 'voiceDisconnect' }) }),
+
+	// Where the pet lands, with and without a notice docked above the input (#332570).
+	WithPet: defineComponentFixture({ render: context => renderChatInput(context, { pet: true }) }),
+	WithPetAndNotification: defineComponentFixture({
+		render: context => renderChatInput(context, { pet: true, notification: sampleNotification })
+	}),
 });

@@ -113,3 +113,16 @@ export function configureChatPetFixtureFileRoot(disposableStore: DisposableStore
 	globalThis._VSCODE_FILE_ROOT = `${mainWindow.location.origin}/src/`;
 	disposableStore.add(toDisposable(() => globalThis._VSCODE_FILE_ROOT = previousFileRoot));
 }
+
+/** Fails loudly when the pet is missing or cropped, which the screenshot alone would bake in as correct. */
+export function assertChatPetInScreenshot(container: HTMLElement): void {
+	const pet = container.querySelector('.chat-pet-button');
+	if (!pet) {
+		throw new Error('Chat pet fixture: the pet did not render.');
+	}
+	const petBounds = pet.getBoundingClientRect();
+	const bounds = container.getBoundingClientRect();
+	if (petBounds.top < bounds.top || petBounds.bottom > bounds.bottom || petBounds.left < bounds.left || petBounds.right > bounds.right) {
+		throw new Error(`Chat pet fixture: the pet falls outside the screenshot. Pet ${JSON.stringify(petBounds)}, container ${JSON.stringify(bounds)}.`);
+	}
+}
