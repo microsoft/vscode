@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { execSync } from 'child_process';
-import { mkdtempSync } from 'fs';
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
@@ -17,6 +17,7 @@ import { buildDefaultChatUri, ROOT_STATE_URI, type SessionState, type TerminalSt
 import { CopilotCliConfigKey } from '../../../../common/copilotCliConfig.js';
 import {
 	dispatchTurn,
+	driveTurnToCompletion,
 	resolveGitHubToken,
 	startBackgroundApprovalLoop,
 	terminalResourceFromContent,
@@ -59,21 +60,67 @@ export function defineWorkspaceTests(context: IAgentHostE2ETestContext): void {
 			`subscribe snapshot summary should carry the requested working directory`);
 	});
 
+	(context.runKnownIssueTests && config.supportsWorktreeIncludeFilesE2E ? test : test.skip)('worktree materialization copies configured ignored files', async function () {
+		this.timeout(180_000);
+		const repository = mkdtempSync(`${tmpdir()}/ahp-wt-include-`);
+		tempDirs.push(repository, `${repository}.worktrees`);
+		initTestGitRepo(repository);
+		writeFileSync(`${repository}/tracked.txt`, 'tracked');
+		writeFileSync(`${repository}/.gitignore`, '.env\nignored-dir/\n');
+		writeFileSync(`${repository}/.env`, 'SECRET=worktree-value\n');
+		mkdirSync(`${repository}/ignored-dir`);
+		writeFileSync(`${repository}/ignored-dir/config.json`, '{"included":true}\n');
+		execSync('git add tracked.txt .gitignore', { cwd: repository });
+		execSync('git commit -m "init"', { cwd: repository });
+		const branch = execSync('git branch --show-current', { cwd: repository, encoding: 'utf8' }).trim();
+		context.client.setWorkingDirectory(repository);
+		await context.client.call('initialize', {
+			channel: ROOT_STATE_URI,
+			protocolVersions: [PROTOCOL_VERSION],
+			clientId: `worktree-include-${config.provider}`,
+		});
+		await context.client.call('authenticate', {
+			channel: ROOT_STATE_URI,
+			resource: 'https://api.github.com',
+			token: resolveGitHubToken(),
+		});
+		const sessionUri = URI.from({ scheme: config.scheme, path: `/${generateUuid()}` }).toString();
+		await context.client.call('createSession', {
+			channel: sessionUri,
+			provider: config.provider,
+			workingDirectories: [URI.file(repository).toString()],
+			config: {
+				isolation: 'worktree',
+				branch,
+				worktreeIncludeFiles: ['.env', 'ignored-dir/**'],
+			},
+		});
+		createdSessions.push(sessionUri);
+		await context.client.call<SubscribeResult>('subscribe', { channel: sessionUri });
+		await context.client.call<SubscribeResult>('subscribe', { channel: buildDefaultChatUri(sessionUri) });
+		await driveTurnToCompletion(context.client, sessionUri, 'turn-worktree-include', 'Reply exactly "materialized".', 1);
+		const state = (await context.client.call<SubscribeResult>('subscribe', { channel: sessionUri })).snapshot!.state as SessionState;
+		const worktree = URI.parse(state.workingDirectories![0]).fsPath;
+
+		assert.deepStrictEqual({
+			env: readFileSync(`${worktree}/.env`, 'utf8'),
+			config: readFileSync(`${worktree}/ignored-dir/config.json`, 'utf8'),
+		}, {
+			env: 'SECRET=worktree-value\n',
+			config: '{"included":true}\n',
+		});
+	});
+
 	// Skipped on Windows. The command and the tool name are portable now, but the
-	// two output assertions are not, for reasons CI surfaced that are specific to
-	// this test rather than to command portability:
+	// host terminal assertion is not, for a reason CI surfaced that is specific
+	// to this test rather than to command portability:
 	//
-	//  - The expected path comes from `os.tmpdir()`, which on Windows CI returns
-	//    an 8.3 short form (`C:\Users\CLOUDT~1\...`), while the shell reports the
-	//    long form. `includes()` therefore never matches. This is the same class
-	//    of mismatch as `/var` versus `/private/var` on macOS.
 	//  - The host terminal tool surfaces no `chat/toolCallContentChanged` on
 	//    Windows, so the terminal resource this test subscribes to never appears,
 	//    even though the tool call itself completes.
 	//
-	// Re-enabling on Windows needs both output assertions reworked against
-	// real-path normalization, and the missing terminal resource understood.
-	(config.supportsWorktreeIsolation && !isWindows && portableShellToolReplayEnabled ? test : test.skip)('worktree session uses the resolved worktree as working directory', async function () {
+	// Re-enabling on Windows needs the missing terminal resource understood.
+	(config.supportsWorktreeIsolation && !isWindows && portableShellToolReplayEnabled && !config.shellToolResultTextUnreliable ? test : test.skip)('worktree session uses the resolved worktree as working directory', async function () {
 		this.timeout(120_000);
 
 		const tempDir = mkdtempSync(`${tmpdir()}/ahp-wt-test-`);
@@ -103,6 +150,10 @@ export function defineWorkspaceTests(context: IAgentHostE2ETestContext): void {
 			});
 		}
 
+		const addedNotification = context.client.waitForNotification(n =>
+			n.method === NotificationType.SessionAdded,
+			60_000,
+		);
 		const sessionUri = URI.from({ scheme: config.scheme, path: `/${generateUuid()}` }).toString();
 		await context.client.call('createSession', {
 			channel: sessionUri, provider: config.provider, workingDirectories: [workingDirUri],
@@ -137,10 +188,7 @@ export function defineWorkspaceTests(context: IAgentHostE2ETestContext): void {
 		dispatchTurn(context.client, sessionUri, 'turn-wt',
 			'What is your current working directory? Reply with just the absolute path and nothing else.', 2);
 
-		const addedNotif = await context.client.waitForNotification(n =>
-			n.method === NotificationType.SessionAdded,
-			60_000,
-		);
+		const addedNotif = await addedNotification;
 		const addedSummary = (addedNotif.params as SessionAddedParams).summary;
 
 		const addedWorkingDirectory = addedSummary.workingDirectories?.[0];
@@ -148,6 +196,9 @@ export function defineWorkspaceTests(context: IAgentHostE2ETestContext): void {
 		assert.ok(addedWorkingDirectory.includes('.worktrees'),
 			`workingDirectory should be under the .worktrees folder, got: ${addedWorkingDirectory}`);
 		const resolvedWorkingDirectoryPath = URI.parse(addedWorkingDirectory).fsPath;
+		const canonicalWorkingDirectoryPath = realpathSync(resolvedWorkingDirectoryPath);
+		const includesWorkingDirectoryPath = (text: string): boolean =>
+			text.includes(resolvedWorkingDirectoryPath) || text.includes(canonicalWorkingDirectoryPath);
 
 		await context.client.waitForNotification(
 			n => isActionNotification(n, 'chat/turnComplete') || isActionNotification(n, 'chat/error'),
@@ -192,19 +243,19 @@ export function defineWorkspaceTests(context: IAgentHostE2ETestContext): void {
 				const pwdNotif = await context.client.waitForNotification(n => {
 					if (isActionNotification(n, 'chat/toolCallContentChanged')) {
 						const action = getActionEnvelope(n).action as { content: readonly ToolResultContent[] };
-						return textFromContent(action.content).includes(resolvedWorkingDirectoryPath);
+						return includesWorkingDirectoryPath(textFromContent(action.content));
 					}
 					if (isActionNotification(n, 'chat/toolCallComplete')) {
 						const action = getActionEnvelope(n).action as { result: { content?: readonly ToolResultContent[] } };
-						return textFromContent(action.result.content ?? []).includes(resolvedWorkingDirectoryPath);
+						return includesWorkingDirectoryPath(textFromContent(action.result.content ?? []));
 					}
 					return false;
 				}, 90_000);
 				const pwdText = isActionNotification(pwdNotif, 'chat/toolCallComplete')
 					? textFromContent((getActionEnvelope(pwdNotif).action as { result: { content?: readonly ToolResultContent[] } }).result.content ?? [])
 					: textFromContent((getActionEnvelope(pwdNotif).action as { content: readonly ToolResultContent[] }).content);
-				assert.ok(pwdText.includes(resolvedWorkingDirectoryPath),
-					`pwd output should include the resolved worktree path ${resolvedWorkingDirectoryPath}`);
+				assert.ok(includesWorkingDirectoryPath(pwdText),
+					`pwd output should include the resolved worktree path ${resolvedWorkingDirectoryPath} (${canonicalWorkingDirectoryPath})`);
 			} finally {
 				await approvalLoop.stop();
 			}
@@ -245,13 +296,14 @@ export function defineWorkspaceTests(context: IAgentHostE2ETestContext): void {
 
 			const terminalSubscribeResult = await context.client.call<SubscribeResult>('subscribe', { channel: terminalUri });
 			const initialTerminalState = terminalSubscribeResult.snapshot!.state as TerminalState;
-			assert.strictEqual(initialTerminalState.cwd, resolvedWorkingDirectoryPath, 'terminal should be created in the resolved worktree directory');
+			assert.ok(initialTerminalState.cwd, 'terminal should report its working directory');
+			assert.strictEqual(realpathSync(initialTerminalState.cwd), canonicalWorkingDirectoryPath, 'terminal should be created in the resolved worktree directory');
 
 			await context.client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'), 90_000);
 			const terminalSnapshot = await context.client.call<SubscribeResult>('subscribe', { channel: terminalUri });
 			const terminalState = terminalSnapshot.snapshot!.state as TerminalState;
-			assert.ok(terminalText(terminalState).includes(resolvedWorkingDirectoryPath),
-				`working directory output should include the resolved worktree path ${resolvedWorkingDirectoryPath}`);
+			assert.ok(includesWorkingDirectoryPath(terminalText(terminalState)),
+				`working directory output should include the resolved worktree path ${resolvedWorkingDirectoryPath} (${canonicalWorkingDirectoryPath})`);
 		} finally {
 			await approvalLoop.stop();
 		}

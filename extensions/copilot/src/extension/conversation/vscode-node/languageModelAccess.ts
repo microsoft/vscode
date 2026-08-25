@@ -10,15 +10,16 @@ import { IAuthenticationService } from '../../../platform/authentication/common/
 import { CopilotToken } from '../../../platform/authentication/common/copilotToken';
 import { IBlockedExtensionService } from '../../../platform/chat/common/blockedExtensionService';
 import { ChatFetchResponseType, ChatLocation, getErrorDetailsFromChatFetchError } from '../../../platform/chat/common/commonTypes';
-import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { getTextPart } from '../../../platform/chat/common/globalStringUtils';
 import { EmbeddingType, getWellKnownEmbeddingTypeInfo, IEmbeddingsComputer } from '../../../platform/embeddings/common/embeddingsComputer';
+import { AUTO_MODE_TIER_PROPERTY, defaultAutoModeTier, selectableAutoModeTiers } from '../../../platform/endpoint/common/autoModeTiers';
 import { ChatEndpointFamily, IEndpointProvider } from '../../../platform/endpoint/common/endpointProvider';
 import { CustomDataPartMimeTypes } from '../../../platform/endpoint/common/endpointTypes';
 import { encodeStatefulMarker } from '../../../platform/endpoint/common/statefulMarkerContainer';
 import { AutoChatEndpoint } from '../../../platform/endpoint/node/autoChatEndpoint';
 import { IAutomodeService, type IAutoModeRoutingRequest } from '../../../platform/endpoint/node/automodeService';
 import { CopilotChatEndpoint } from '../../../platform/endpoint/node/copilotChatEndpoint';
+import type { ExtensionLanguageModelRequestOptions } from '../../../platform/endpoint/vscode-node/extChatEndpoint';
 import { IEnvService, isScenarioAutomation } from '../../../platform/env/common/envService';
 import { IVSCodeExtensionContext } from '../../../platform/extContext/common/extensionContext';
 import { IOctoKitService } from '../../../platform/github/common/githubService';
@@ -26,7 +27,7 @@ import { ILogService } from '../../../platform/log/common/logService';
 import { FinishedCallback, OpenAiFunctionTool, OptionalChatRequestParams } from '../../../platform/networking/common/fetch';
 import { IChatEndpoint, IEndpoint } from '../../../platform/networking/common/networking';
 import { APIUsage } from '../../../platform/networking/common/openai';
-import { IOTelService, type OTelModelOptions } from '../../../platform/otel/common/otelService';
+import { IOTelService } from '../../../platform/otel/common/otelService';
 import { retrieveCapturingTokenByCorrelation, runWithCapturingToken } from '../../../platform/requestLogger/node/requestLogger';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
@@ -44,19 +45,13 @@ import { IExtensionContribution } from '../../common/contributions';
 import { PromptRenderer } from '../../prompts/node/base/promptRenderer';
 import { isImageDataPart } from '../common/languageModelChatMessageHelpers';
 import { LanguageModelAccessPrompt } from './languageModelAccessPrompt';
-import { formatPricingLabel, formatTokenCount, getAutoModelDescription, getAutoModelDiscountLabel, getModelCapabilitiesDescription, buildReasoningEffortSchemaProperty } from '../common/languageModelAccess';
-
-/**
- * Markers in the autoModelHint experiment variable that indicate the auto model
- * is routing to an experimental or evaluation model.
- */
-const experimentalAutoModelHintMarkers = ['minimax', 'mp3yn0h7', 'yaqq2gxh'];
+import { formatPricingLabel, formatTokenCount, getAutoModelDescription, getAutoModelDiscountLabel, getModelCapabilitiesDescription, resolveModelWarnings, buildReasoningEffortSchemaProperty, buildAutoModeTierSchemaProperty } from '../common/languageModelAccess';
 
 /**
  * Builds a configurationSchema for the model picker based on the endpoint's supported capabilities.
  * Models that support reasoning_effort get a "Thinking Effort" dropdown in the model picker UI.
  */
-function getContextSizeOptions(endpoint: IChatEndpoint, preferLongContext: boolean): { value: number; description: string; isDefault: boolean }[] | undefined {
+function getContextSizeOptions(endpoint: IChatEndpoint): { value: number; description: string; isDefault: boolean }[] | undefined {
 	const pricing = endpoint.tokenPricing;
 
 	// Only offer a selector when CAPI provides a default context max,
@@ -73,21 +68,15 @@ function getContextSizeOptions(endpoint: IChatEndpoint, preferLongContext: boole
 		return undefined;
 	}
 
-	const hasLongContextSurcharge = !!pricing.longContext;
-
-	// When both tiers cost the same and the user prefers long context, show only the full window as a non-switchable indicator. See microsoft/vscode#322950, microsoft/vscode#323116.
-	if (preferLongContext && !hasLongContextSurcharge) {
-		return [
-			{ value: fullMax, description: vscode.l10n.t('Longer sessions'), isDefault: true },
-		];
-	}
+	// Offer both sizes; default to the full window when long context is free, else the smaller tier.
+	const fullIsDefault = !pricing.longContext;
 
 	return [
-		{ value: defaultMax, description: vscode.l10n.t('Default recommended context size'), isDefault: true },
+		{ value: defaultMax, description: vscode.l10n.t('Default recommended context size'), isDefault: !fullIsDefault },
 		{
 			value: fullMax,
 			description: vscode.l10n.t('Longer sessions'),
-			isDefault: false,
+			isDefault: fullIsDefault,
 		},
 	];
 }
@@ -125,13 +114,16 @@ function buildAutoRoutingContext(
 	// Key by the calling extension. Like a panel conversation, the first prompt
 	// picks the model and later ones reuse it, which bounds the cache at one
 	// entry per extension.
-	return { prompt, sessionId: `vscode.lm:${options.requestInitiator ?? 'unknown'}`, references };
+	return { prompt, sessionId: `vscode.lm:${options.requestInitiator ?? 'unknown'}`, references, modelConfiguration: options.modelConfiguration };
 }
 
-// Auto model delegates to different backends, so don't expose config pickers
-function buildConfigurationSchema(endpoint: IChatEndpoint, preferLongContext: boolean): { configurationSchema?: vscode.LanguageModelConfigurationSchema } {
+// Auto model delegates to different backends, so the only picker it exposes is
+// the routing tier; per-model options belong to the model it routes to.
+function buildConfigurationSchema(endpoint: IChatEndpoint, autoTiersEnabled: boolean): { configurationSchema?: vscode.LanguageModelConfigurationSchema } {
 	if (endpoint instanceof AutoChatEndpoint) {
-		return {};
+		return autoTiersEnabled
+			? { configurationSchema: { properties: { [AUTO_MODE_TIER_PROPERTY]: buildAutoModeTierSchemaProperty(selectableAutoModeTiers, defaultAutoModeTier) } } }
+			: {};
 	}
 
 	const properties: Record<string, NonNullable<vscode.LanguageModelConfigurationSchema['properties']>[string]> = {};
@@ -143,7 +135,7 @@ function buildConfigurationSchema(endpoint: IChatEndpoint, preferLongContext: bo
 	}
 
 	// Context size config
-	const contextSizeOptions = getContextSizeOptions(endpoint, preferLongContext);
+	const contextSizeOptions = getContextSizeOptions(endpoint);
 	if (contextSizeOptions) {
 		const defaultOption = contextSizeOptions.find(o => o.isDefault);
 		properties.contextSize = {
@@ -164,7 +156,8 @@ function buildConfigurationSchema(endpoint: IChatEndpoint, preferLongContext: bo
 	return { configurationSchema: { properties } };
 }
 
-const utilityAliasFamilies: readonly ChatEndpointFamily[] = ['copilot-utility-small', 'copilot-utility'];
+const DICTATION_CLEANUP_LUNA_ALIAS = 'copilot-dictation-cleanup-luna';
+const utilityAliasFamilies: readonly ChatEndpointFamily[] = ['copilot-utility-small', 'copilot-utility', DICTATION_CLEANUP_LUNA_ALIAS];
 
 /**
  * Builds the {@link vscode.LanguageModelChatInformation} entry that publishes a
@@ -250,7 +243,6 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 		@IVSCodeExtensionContext private readonly _vsCodeExtensionContext: IVSCodeExtensionContext,
 		@IAutomodeService private readonly _automodeService: IAutomodeService,
 		@IExperimentationService private readonly _expService: IExperimentationService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -299,6 +291,14 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 			void this._refreshUtilityOverrides();
 			this._onDidChange.fire();
 		}));
+		this._register(this._automodeService.onDidChangeAutoModeTierSupport(() => {
+			// Withdraws (or restores) the Auto model's tier picker, which is only
+			// honored while routing goes through `POST /auto`.
+			this._onDidChange.fire();
+		}));
+		void this._refreshUtilityOverrides().catch(err => {
+			this._logService.warn(`[LanguageModelAccess] Failed to pre-resolve internal model aliases: ${err}`);
+		});
 	}
 
 	private async _provideLanguageModelChatInfo(options: { silent: boolean }, token: vscode.CancellationToken): Promise<vscode.LanguageModelChatInformation[]> {
@@ -328,7 +328,7 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 		}
 
 		const seenFamilies = new Set<string>();
-		const preferLongContext = this._configurationService.getConfig(ConfigKey.PreferLongContext);
+		const autoTiersEnabled = this._automodeService.areAutoModeTiersSupported();
 
 		for (const endpoint of chatEndpoints) {
 			if (seenFamilies.has(endpoint.family) && !endpoint.showInModelPicker) {
@@ -339,17 +339,15 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 			const sanitizedModelName = endpoint.name
 				.replace(/\([^)]*\bcontext\)/gi, '')
 				.trim();
+
+			// Auto wraps another endpoint, so it must not inherit that model's warnings.
+			const warnings = endpoint instanceof AutoChatEndpoint ? undefined : resolveModelWarnings(endpoint);
+
 			let modelTooltip: string | undefined;
-			if (endpoint.degradationReason) {
-				modelTooltip = endpoint.degradationReason;
+			if (warnings?.rowWarning) {
+				modelTooltip = warnings.rowWarning;
 			} else if (endpoint instanceof AutoChatEndpoint) {
 				modelTooltip = getAutoModelDescription(endpoint.discountRange);
-				const isOrgManaged = !!this._authenticationService.copilotToken?.isManagedPlan;
-				const autoModeHint = this._expService.getTreatmentVariable<string>('copilotchat.autoModelHint');
-				const showExperimentalHint = !isOrgManaged && !!autoModeHint && experimentalAutoModelHintMarkers.some(marker => autoModeHint.includes(marker));
-				if (showExperimentalHint) {
-					modelTooltip = `${modelTooltip} ${vscode.l10n.t('This model may be experimental or in evaluation.')}`;
-				}
 			} else {
 				modelTooltip = getModelCapabilitiesDescription(endpoint);
 			}
@@ -390,7 +388,7 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 				priceCategory: endpoint instanceof AutoChatEndpoint ? undefined : endpoint.priceCategory,
 				category: endpoint instanceof AutoChatEndpoint ? undefined : endpoint.modelPickerCategory,
 				detail: modelDetail,
-				statusIcon: endpoint.degradationReason ? new vscode.ThemeIcon('warning') : undefined,
+				statusIcon: warnings?.rowWarning ? new vscode.ThemeIcon('warning') : undefined,
 				version: endpoint.version,
 				maxInputTokens: endpoint.modelMaxPromptTokens - baseCount - BaseTokensPerCompletion,
 				maxOutputTokens: endpoint.maxOutputTokens,
@@ -402,19 +400,14 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 					[ApiChatLocation.Editor]: endpoint instanceof AutoChatEndpoint, // inline chat gets 'Auto' by default
 				},
 				isUserSelectable: endpoint.showInModelPicker,
-				warningText: endpoint instanceof AutoChatEndpoint ? undefined : (() => {
-					const texts: Record<string, string> = { ...endpoint.warningText };
-					if (endpoint.degradationReason) {
-						texts['degradation'] = endpoint.degradationReason;
-					}
-					return Object.keys(texts).length > 0 ? texts : undefined;
-				})(),
+				warningText: warnings?.texts,
+				infoText: endpoint instanceof AutoChatEndpoint ? undefined : endpoint.infoText,
 				promo: endpoint instanceof AutoChatEndpoint ? undefined : endpoint.promo,
 				capabilities: {
 					imageInput: endpoint instanceof AutoChatEndpoint ? true : endpoint.supportsVision,
 					toolCalling: endpoint.supportsToolCalls,
 				},
-				...buildConfigurationSchema(endpoint, preferLongContext),
+				...buildConfigurationSchema(endpoint, autoTiersEnabled),
 			};
 
 			models.push(model);
@@ -532,8 +525,9 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 			if (!allEndpoints.length) {
 				return undefined;
 			}
-			// Without routing context (no user text) auto mode falls back to
-			// prompt-free model selection.
+			// The `vscode.lm` API has no slash commands, so a request whose last
+			// user message carries no text cannot be routed and the rejection
+			// surfaces to the calling extension.
 			return await this._automodeService.resolveAutoModeEndpoint(autoRoutingContext, allEndpoints);
 		}
 		const aliasEndpoint = this._utilityAliasEndpoints.get(model.id);
@@ -550,6 +544,9 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 		progress: vscode.Progress<vscode.LanguageModelResponsePart2>,
 		token: vscode.CancellationToken
 	): Promise<void> {
+		if (model.id === DICTATION_CLEANUP_LUNA_ALIAS && options.requestInitiator !== 'core') {
+			throw new Error(`Model ${model.id} is only available to VS Code core.`);
+		}
 		let endpoint = await this._getEndpointForModel(model, buildAutoRoutingContext(messages, options));
 		if (!endpoint) {
 			throw new Error(`Endpoint not found for model ${model.id}`);
@@ -774,6 +771,7 @@ export class CopilotLanguageModelWrapper extends Disposable {
 		});
 
 
+		const internalModelOptions = (_options as { modelOptions?: ExtensionLanguageModelRequestOptions }).modelOptions;
 		const options: OptionalChatRequestParams = LanguageModelOptions.Default.convert(_options.modelOptions ?? {});
 		const telemetryProperties = { messageSource: `api.${extensionId}` };
 
@@ -798,12 +796,12 @@ export class CopilotLanguageModelWrapper extends Disposable {
 		// Restore CapturingToken context if correlation ID was passed through modelOptions.
 		// This handles BYOK providers where the original AsyncLocalStorage context was lost
 		// when crossing the VS Code IPC boundary.
-		const correlationId = (_options as { modelOptions?: OTelModelOptions }).modelOptions?._capturingTokenCorrelationId;
+		const correlationId = internalModelOptions?._capturingTokenCorrelationId;
 		const capturingToken = correlationId ? retrieveCapturingTokenByCorrelation(correlationId) : undefined;
 
 		// Restore OTel trace context if passed through modelOptions.
 		// This links the wrapper's chat span back to the original invoke_agent trace.
-		const parentTraceContext = (_options as { modelOptions?: OTelModelOptions }).modelOptions?._otelTraceContext ?? undefined;
+		const parentTraceContext = internalModelOptions?._otelTraceContext ?? undefined;
 
 		const makeRequest = () => endpoint.makeChatRequest2({
 			debugName: 'copilotLanguageModelWrapper',
@@ -813,8 +811,10 @@ export class CopilotLanguageModelWrapper extends Disposable {
 			source: { extensionId },
 			requestOptions: options,
 			userInitiatedRequest: !!extensionId,
+			conversationId: internalModelOptions?._conversationId,
 			telemetryProperties,
 			modelCapabilities: {
+				enableThinking: internalModelOptions?._enableThinking,
 				reasoningEffort: typeof _options.modelConfiguration?.reasoningEffort === 'string' ? _options.modelConfiguration.reasoningEffort : undefined,
 			},
 		}, token);

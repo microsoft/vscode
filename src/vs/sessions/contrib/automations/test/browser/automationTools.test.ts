@@ -16,7 +16,7 @@ import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { AutomationRunTrigger, AutomationTarget, IAutomation, IAutomationRun, IAutomationSchedule } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
+import { AutomationRunTrigger, AutomationTarget, IAutomationDescriptor, IAutomationRun, IAutomationSchedule } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationRunDispatch, IAutomationRunner, IAutomationRunOperation } from '../../../../../workbench/contrib/chat/common/automations/automationRunner.js';
 import { IAutomationService, ICreateAutomationOptions, IGuardedAutomationUpdateResult, IUpdateAutomationOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ChatAutomationsEnabledContext, CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
@@ -33,7 +33,7 @@ const CHAT_RESOURCE = URI.parse('agent-chat://local/chat');
 const NOW = '2026-01-01T00:00:00.000Z';
 const progress: ToolProgress = { report: () => { } };
 
-function createAutomation(overrides?: Partial<IAutomation>): IAutomation {
+function createAutomation(overrides?: Partial<IAutomationDescriptor>): IAutomationDescriptor {
 	return {
 		id: 'automation-1',
 		name: 'Daily review',
@@ -58,18 +58,18 @@ function createAutomation(overrides?: Partial<IAutomation>): IAutomation {
 }
 
 class FakeAutomationService extends mock<IAutomationService>() {
-	override readonly automations = observableValue<readonly IAutomation[]>(this, []);
+	override readonly automations = observableValue<readonly IAutomationDescriptor[]>(this, []);
 	override readonly runs = observableValue<readonly IAutomationRun[]>(this, []);
 	readonly created: ICreateAutomationOptions[] = [];
 	readonly updated: Array<{ readonly id: string; readonly patch: IUpdateAutomationOptions }> = [];
 	readonly deleted: string[] = [];
 
-	constructor(automations: readonly IAutomation[] = []) {
+	constructor(automations: readonly IAutomationDescriptor[] = []) {
 		super();
 		this.automations.set(automations, undefined);
 	}
 
-	override getAutomation(id: string): IAutomation | undefined {
+	override getAutomation(id: string): IAutomationDescriptor | undefined {
 		return this.automations.get().find(automation => automation.id === id);
 	}
 
@@ -85,7 +85,7 @@ class FakeAutomationService extends mock<IAutomationService>() {
 		this.runs.set([run, ...this.runs.get()], undefined);
 	}
 
-	override async createAutomation(options: ICreateAutomationOptions): Promise<IAutomation> {
+	override async createAutomation(options: ICreateAutomationOptions): Promise<IAutomationDescriptor> {
 		this.created.push(options);
 		return {
 			...options,
@@ -96,7 +96,7 @@ class FakeAutomationService extends mock<IAutomationService>() {
 		};
 	}
 
-	override async updateAutomation(id: string, patch: IUpdateAutomationOptions): Promise<IAutomation> {
+	override async updateAutomation(id: string, patch: IUpdateAutomationOptions): Promise<IAutomationDescriptor> {
 		this.updated.push({ id, patch });
 		const existing = this.getAutomation(id);
 		assert.ok(existing);
@@ -114,7 +114,7 @@ class FakeAutomationService extends mock<IAutomationService>() {
 		};
 	}
 
-	override async updateAutomationIfUnchanged(id: string, patch: IUpdateAutomationOptions, expected: IAutomation): Promise<IGuardedAutomationUpdateResult> {
+	override async updateAutomationIfUnchanged(id: string, patch: IUpdateAutomationOptions, expected: IAutomationDescriptor): Promise<IGuardedAutomationUpdateResult> {
 		const current = this.getAutomation(id);
 		if (!current || editableAutomationKey(current) !== editableAutomationKey(expected)) {
 			return { kind: 'conflict', current };
@@ -146,7 +146,7 @@ class RecordingAutomationRunner extends mock<IAutomationRunner>() {
 		super();
 	}
 
-	override runOnce(automation: IAutomation, trigger: AutomationRunTrigger, leaderWindowId: number, token: CancellationToken = CancellationToken.None): IAutomationRunOperation {
+	override runOnce(automation: IAutomationDescriptor, trigger: AutomationRunTrigger, leaderWindowId: number, token: CancellationToken = CancellationToken.None): IAutomationRunOperation {
 		this.calls.push({
 			automationId: automation.id,
 			trigger,
@@ -163,7 +163,7 @@ class RecordingAutomationRunner extends mock<IAutomationRunner>() {
 			if (this.notStarted) {
 				return this.notStarted;
 			}
-			const sessionResource = SESSION_RESOURCE.toString();
+			const sessionResource = SESSION_RESOURCE;
 			const run: IAutomationRun = {
 				id: 'run-1',
 				automationId: automation.id,
@@ -199,13 +199,13 @@ class ControllableAutomationStorageService implements IAutomationStorageService 
 		return this.currentValue;
 	}
 
-	async read(): Promise<string | undefined> {
+	async read(_key: string): Promise<string | undefined> {
 		await this.readStarted.complete();
 		await this.readBarrier?.p;
 		return this.currentValue;
 	}
 
-	async compareAndSwap(expectedValue: string | undefined, newValue: string): Promise<IAutomationStorageCompareAndSwapResult> {
+	async compareAndSwap(_key: string, expectedValue: string | undefined, newValue: string): Promise<IAutomationStorageCompareAndSwapResult> {
 		this.compareAndSwapCalls++;
 		this.beforeCompareAndSwap?.();
 		if (this.nextConflictValue !== undefined) {
@@ -222,7 +222,7 @@ class ControllableAutomationStorageService implements IAutomationStorageService 
 	}
 }
 
-function editableAutomationKey(automation: IAutomation): string {
+function editableAutomationKey(automation: IAutomationDescriptor): string {
 	return JSON.stringify({
 		name: automation.name,
 		prompt: automation.prompt,
@@ -237,7 +237,7 @@ function editableAutomationKey(automation: IAutomation): string {
 	});
 }
 
-function serializeAutomationLedger(automations: readonly IAutomation[], revision = 1): string {
+function serializeAutomationLedger(automations: readonly IAutomationDescriptor[], revision = 1): string {
 	return JSON.stringify({
 		schemaVersion: 3,
 		revision,
@@ -480,7 +480,7 @@ suite('AutomationTools', () => {
 			automationId: automation.id,
 			status: 'running',
 			trigger: 'manual',
-			sessionResource: SESSION_RESOURCE.toString(),
+			sessionResource: SESSION_RESOURCE,
 			startedAt: NOW,
 			leaderWindowId: 0,
 		});

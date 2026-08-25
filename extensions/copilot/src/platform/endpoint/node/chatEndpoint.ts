@@ -19,7 +19,7 @@ import { ILogService } from '../../log/common/logService';
 import { isAnthropicContextEditingEnabled, isExtendedCacheTtlEnabled } from '../../networking/common/anthropic';
 import { FinishedCallback, getRequestId, ICopilotToolCall, OptionalChatRequestParams } from '../../networking/common/fetch';
 import { IFetcherService, Response } from '../../networking/common/fetcherService';
-import { createCapiRequestBody, IChatEndpoint, IChatEndpointTokenPricing, ICreateEndpointBodyOptions, IEndpointBody, IMakeChatRequestOptions, InteractionTypeOverride } from '../../networking/common/networking';
+import { createCapiRequestBody, IChatEndpoint, IChatEndpointTokenPricing, ICreateEndpointBodyOptions, IEndpointBody, IMakeChatRequestOptions, InteractionTypeOverride, PENDING_DEPRECATION_CODE } from '../../networking/common/networking';
 import { CAPIChatMessage, ChatCompletion, FinishedCompletionReason, RawMessageConversionCallback } from '../../networking/common/openai';
 import { prepareChatCompletionForReturn } from '../../networking/node/chatStream';
 import { IChatWebSocketManager } from '../../networking/node/chatWebSocketManager';
@@ -152,6 +152,23 @@ export async function defaultNonStreamChatResponseProcessor(response: Response, 
 	return AsyncIterableObject.fromArray(completions);
 }
 
+/** Splits CAPI `info_messages` into warning and info banners keyed by their code. */
+function splitInfoMessages(infoMessages: { code: string; message: string }[] | undefined): { warningText: Record<string, string>; infoText: Record<string, string> } {
+	const warningText: Record<string, string> = {};
+	const infoText: Record<string, string> = {};
+	for (const { code, message } of infoMessages ?? []) {
+		if (message) {
+			const target = code === PENDING_DEPRECATION_CODE ? warningText : infoText;
+			target[code || 'info'] = message;
+		}
+	}
+	return { warningText, infoText };
+}
+
+function undefinedIfEmpty(record: Record<string, string>): Record<string, string> | undefined {
+	return Object.keys(record).length > 0 ? record : undefined;
+}
+
 export class ChatEndpoint implements IChatEndpoint {
 	private readonly _maxTokens: number;
 	private readonly _maxOutputTokens: number;
@@ -175,12 +192,14 @@ export class ChatEndpoint implements IChatEndpoint {
 	public readonly isPremium?: boolean | undefined;
 	public readonly multiplier?: number | undefined;
 	public readonly restrictedToSkus?: string[] | undefined;
+	public readonly autoDiscount?: number | undefined;
 	public readonly tokenPricing?: IChatEndpointTokenPricing | undefined;
 	public readonly priceCategory?: string | undefined;
 	public readonly modelPickerCategory?: string | undefined;
 	public readonly customModel?: CustomModel | undefined;
 	public readonly maxPromptImages?: number | undefined;
 	public readonly warningText?: Record<string, string> | undefined;
+	public readonly infoText?: Record<string, string> | undefined;
 	public readonly promo?: { id: string; discountPercent: number; endsAt?: string; message: string } | undefined;
 
 	private readonly _supportsStreaming: boolean;
@@ -211,6 +230,7 @@ export class ChatEndpoint implements IChatEndpoint {
 		this.isPremium = modelMetadata.billing?.is_premium;
 		this.multiplier = modelMetadata.billing?.multiplier;
 		this.restrictedToSkus = modelMetadata.billing?.restricted_to;
+		this.autoDiscount = modelMetadata.billing?.auto_discount;
 		const normalized = normalizeTokenPrices(modelMetadata.billing?.token_prices);
 		this.tokenPricing = normalized ? {
 			default: { inputPrice: normalized.default.inputPrice, outputPrice: normalized.default.outputPrice, cacheReadTokenPrice: normalized.default.cachePrice, cacheWriteTokenPrice: normalized.default.cacheWritePrice, contextMax: normalized.default.contextMax },
@@ -231,7 +251,9 @@ export class ChatEndpoint implements IChatEndpoint {
 		this._supportsStreaming = !!modelMetadata.capabilities.supports.streaming;
 		this.customModel = modelMetadata.custom_model;
 		this.maxPromptImages = modelMetadata.capabilities.limits?.vision?.max_prompt_images;
-		this.warningText = modelMetadata.warning_text;
+		const infoMessages = splitInfoMessages(modelMetadata.info_messages);
+		this.warningText = undefinedIfEmpty({ ...modelMetadata.warning_text, ...infoMessages.warningText });
+		this.infoText = undefinedIfEmpty(infoMessages.infoText);
 		this.promo = modelMetadata.billing?.promo ? {
 			id: modelMetadata.billing.promo.id,
 			discountPercent: modelMetadata.billing.promo.discount_percent,
@@ -322,7 +344,7 @@ export class ChatEndpoint implements IChatEndpoint {
 		return this.modelMetadata.warning_messages?.at(0)?.message;
 	}
 
-	public get apiType(): string {
+	public get apiType(): 'responses' | 'messages' | 'chatCompletions' {
 		return this.useResponsesApi ? 'responses' :
 			this.useMessagesApi ? 'messages' : 'chatCompletions';
 	}
@@ -337,6 +359,18 @@ export class ChatEndpoint implements IChatEndpoint {
 		// If the model doesn't support streaming, don't ask for a streamed request
 		if (body && !this._supportsStreaming) {
 			body.stream = false;
+		}
+
+		if (body && this.customModel && this.apiType === 'chatCompletions') {
+			// Server-provided custom-model metadata does not reliably identify the underlying OpenAI-compatible provider.
+			const tokenParameter = this._configurationService.getExperimentBasedConfig(ConfigKey.Advanced.ChatCompletionsTokenParameter, this._expService);
+			if (tokenParameter === 'max_tokens' && body.max_completion_tokens !== undefined) {
+				body.max_tokens = body.max_completion_tokens;
+				delete body.max_completion_tokens;
+			} else if (tokenParameter === 'max_completion_tokens' && body.max_tokens !== undefined) {
+				body.max_completion_tokens = body.max_tokens;
+				delete body.max_tokens;
+			}
 		}
 
 		// If it's o1 we must modify the body significantly as the request is very different

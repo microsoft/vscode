@@ -237,7 +237,7 @@
  * without extra padding. The toolbar action-item override below applies in the title bar. */
 .changes-actions-bar .monaco-button,
 .changes-actions-bar .monaco-button-dropdown {
-	height: 24px;
+	height: 22px;
 	box-sizing: border-box;
 }
 
@@ -257,7 +257,7 @@
 .monaco-action-bar .action-item.changes-actions-bar .monaco-button-dropdown {
 	height: 22px;
 	min-height: 22px;
-	padding-top: 0;
+	padding-block: 0;
 }
 
 .monaco-action-bar .action-item.changes-actions-bar .monaco-button-dropdown {

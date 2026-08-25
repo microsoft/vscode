@@ -71,6 +71,10 @@ export function isAutomationDialogPopupTarget(relatedTarget: HTMLElement): boole
 	);
 }
 
+export function isAutomationDialogEditCommand(commandId: string, target: HTMLElement): boolean {
+	return (commandId === 'undo' || commandId === 'redo') && DOM.isEditableElement(target);
+}
+
 export async function canSelectAutomationWorkspace(
 	folderUri: URI,
 	preferredProviderId: string | undefined,
@@ -930,6 +934,7 @@ export function renderForm(
 	// automation always matches the chip the picker displays.
 
 	const workspacePicker = disposables.add(instantiationService.createInstance(MobileAutomationsWorkspacePicker, {
+		restoreFromSessions: false,
 		canSelectWorkspace: (folderUri, preferredProviderId) =>
 			canSelectAutomationWorkspace(folderUri, preferredProviderId, sessionsManagementService, workspaceTrustRequestService),
 	}));
@@ -1010,6 +1015,8 @@ export function renderForm(
 			telemetrySource: 'automations.dialog',
 		},
 		widgetViewKindTag: 'automations-dialog',
+		// A scheduling form, not a chat about to be sent: keep promos out.
+		isTransientChat: true,
 		inputEditorMinLines: 3,
 		// The dialog renders the composer flush with its form column (the
 		// `.interactive-input-part` margin is zeroed in CSS), so there is no

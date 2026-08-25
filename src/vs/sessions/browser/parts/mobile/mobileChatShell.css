@@ -640,7 +640,7 @@
 }
 
 /* Also hide the sessions-chat-widget's DnD overlay on phone */
-.agent-sessions-workbench.phone-layout .sessions-chat-dnd-overlay {
+.agent-sessions-workbench.phone-layout .chat-dnd-overlay {
 	display: none;
 }
 

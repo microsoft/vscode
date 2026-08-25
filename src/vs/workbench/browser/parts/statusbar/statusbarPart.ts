@@ -126,12 +126,16 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 	 * experiment so its items remain centered. The part grows by this amount and
 	 * the matching padding is applied in `floatingPanels.css`.
 	 */
-	static readonly FLOATING_BOTTOM_PADDING = 10;
+	static readonly FLOATING_BOTTOM_PADDING = 6;
+	static readonly COMPACT_DENSITY_FLOATING_BOTTOM_PADDING = 4;
 
 	//#region IView
 
 	private get floatingBottomPadding(): number {
-		return this.getId() === Parts.STATUSBAR_PART && this.layoutService.isFloatingPanelsEnabled() ? StatusbarPart.FLOATING_BOTTOM_PADDING : 0;
+		if (this.getId() !== Parts.STATUSBAR_PART || !this.layoutService.isFloatingPanelsEnabled()) {
+			return 0;
+		}
+		return this.layoutService.isModernUICompact() ? StatusbarPart.COMPACT_DENSITY_FLOATING_BOTTOM_PADDING : StatusbarPart.FLOATING_BOTTOM_PADDING;
 	}
 
 	readonly minimumWidth: number = 0;
@@ -223,8 +227,11 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 		// part height) for the main status bar only: signal the grid that the size
 		// constraint changed.
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (this.getId() === Parts.STATUSBAR_PART && e.affectsConfiguration(LayoutSettings.MODERN_UI)) {
+			if (this.getId() === Parts.STATUSBAR_PART && (e.affectsConfiguration(LayoutSettings.MODERN_UI) || e.affectsConfiguration(LayoutSettings.MODERN_UI_DENSITY))) {
 				this._onDidChange.fire(undefined);
+				if (this.element) {
+					this.updateStyles();
+				}
 			}
 		}));
 	}
@@ -699,17 +706,15 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 		// Background / foreground colors
 		const backgroundColor = this.getColor(styleOverride?.background ?? (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? STATUS_BAR_BACKGROUND : STATUS_BAR_NO_FOLDER_BACKGROUND)) || '';
 		container.style.backgroundColor = backgroundColor;
+		container.style.boxShadow = this.getId() === Parts.STATUSBAR_PART && this.layoutService.isFloatingPanelsEnabled() && !isHighContrast(this.theme.type) && backgroundColor
+			? `0 1px 0 ${backgroundColor}`
+			: '';
 		const foregroundColor = this.getColor(styleOverride?.foreground ?? (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? STATUS_BAR_FOREGROUND : STATUS_BAR_NO_FOLDER_FOREGROUND)) || '';
 		container.style.color = foregroundColor;
 		const itemBorderColor = this.getColor(STATUS_BAR_ITEM_FOCUS_BORDER);
 
 		// Update compact entries to refresh hover colors based on current theme
 		this.updateCompactEntries();
-
-		// Mark the bar when a style override is active (currently only the debugging
-		// color) so Modern UI can restore the recolor, which floating mode otherwise
-		// paints transparent.
-		container.classList.toggle('has-style-override', !!styleOverride?.background);
 
 		// Border color
 		const borderColor = this.getColor(styleOverride?.border ?? (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? STATUS_BAR_BORDER : STATUS_BAR_NO_FOLDER_BORDER)) || this.getColor(contrastBorder);

@@ -8,6 +8,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { DEFAULT_LOCAL_TRANSCRIPTION_MODEL } from '../../../../../platform/localTranscription/common/localTranscription.js';
 import { DICTATION_MAI_MODEL_ID, DICTATION_MODEL_SETTING } from '../../browser/speechToText/chatSpeechToTextService.js';
+import { getDictationDownloadHoverMarkdown } from '../../browser/speechToText/dictationDownloadRing.js';
 import { getDictationHoverMarkdown } from '../../browser/speechToText/micButtonHovers.js';
 
 suite('MicButtonHovers', () => {
@@ -25,5 +26,9 @@ suite('MicButtonHovers', () => {
 			onDevice: '**Dictate**\n\nTypes what you say into the input. Transcribes on-device with the Nemotron 3.5 ASR multilingual model.',
 			cloud: '**Dictate**\n\nTypes what you say into the input. Transcribes in the cloud with the MAI speech model.',
 		});
+	});
+
+	test('describes the model download while dictation is preparing', () => {
+		assert.strictEqual(getDictationDownloadHoverMarkdown({ currentBackend: 'nemo' }).value, '**Downloading local model**\n\nThis happens only the first time you dictate. Click to cancel.');
 	});
 });

@@ -23,7 +23,9 @@ import { IScmRepoAdapter, ScmAdapter } from './scmAdapter.js';
 import { IRandomService } from '../randomService.js';
 import { AgentHostEditAttributionDeferredError, AgentHostEditAttributionUnknownOutcomeError, IAgentHostEditMarkerService, IPreparedAgentHostEditAttributionFlush } from './agentHostEditMarkerService.js';
 
-export type EditTelemetryCategory = 'nes' | 'inlineCompletionsCopilot' | 'inlineCompletionsNES' | 'inlineCompletionsOther' | 'otherAI' | 'user' | 'ide' | 'external' | 'unknown';
+const FOCUS_CORRELATION_DRAIN_TIMEOUT = 1_000;
+
+export type EditTelemetryCategory = 'nes' | 'inlineCompletionsCopilot' | 'inlineCompletionsNES' | 'inlineCompletionsOther' | 'otherAI' | 'agentHost' | 'user' | 'ide' | 'external' | 'unknown';
 
 export function getEditTelemetryCategory(source: EditSource): EditTelemetryCategory {
 	if (source.category === 'ai' && source.kind === 'nes') { return 'nes'; }
@@ -34,6 +36,7 @@ export function getEditTelemetryCategory(source: EditSource): EditTelemetryCateg
 	if (source.category === 'ai' && source.kind === 'completion') { return 'inlineCompletionsOther'; }
 
 	if (source.category === 'ai') { return 'otherAI'; }
+	if (source.category === 'agentHost') { return 'agentHost'; }
 	if (source.category === 'user') { return 'user'; }
 	if (source.category === 'ide') { return 'ide'; }
 	if (source.category === 'external') { return 'external'; }
@@ -95,13 +98,13 @@ class TrackedDocumentInfo extends Disposable {
 			if (!this._statsEnabled.read(reader)) { return undefined; }
 			longtermResetSignal.read(reader);
 
-			const t = reader.store.add(new DocumentEditSourceTracker(docWithJustReason, undefined, externalEditCorrelation));
+			const t = new DocumentEditSourceTracker(docWithJustReason, undefined, externalEditCorrelation);
 			const startFocusTime = this._userAttentionService.totalFocusTimeMs;
 			const startTime = Date.now();
 			reader.store.add(toDisposable(() => {
 				// send long term document telemetry
+				t.stopTracking();
 				this._sendTelemetryAndLog('longterm', longtermReason, t, this._userAttentionService.totalFocusTimeMs - startFocusTime, Date.now() - startTime);
-				t.dispose();
 			}));
 			return t;
 		}).recomputeInitiallyAndOnChange(this._store);
@@ -150,13 +153,13 @@ class TrackedDocumentInfo extends Disposable {
 				resetSignal.trigger(undefined);
 			}));
 
-			const t = reader.store.add(new DocumentEditSourceTracker(docWithJustReason, undefined));
+			const t = new DocumentEditSourceTracker(docWithJustReason, undefined, externalEditCorrelation, 'reattribute');
 			const startFocusTime = this._userAttentionService.totalFocusTimeMs;
 			const startTime = Date.now();
-			reader.store.add(toDisposable(async () => {
+			reader.store.add(toDisposable(() => {
 				// send windowed document telemetry
+				t.stopTracking();
 				this._sendTelemetryAndLog('10minFocusWindow', 'time', t, this._userAttentionService.totalFocusTimeMs - startFocusTime, Date.now() - startTime);
-				t.dispose();
 			}));
 
 			return t;
@@ -178,13 +181,13 @@ class TrackedDocumentInfo extends Disposable {
 				focusResetSignal.trigger(undefined);
 			}));
 
-			const t = reader.store.add(new DocumentEditSourceTracker(docWithJustReason, undefined));
+			const t = new DocumentEditSourceTracker(docWithJustReason, undefined, externalEditCorrelation, 'reattribute');
 			const startFocusTime = this._userAttentionService.totalFocusTimeMs;
 			const startTime = Date.now();
-			reader.store.add(toDisposable(async () => {
+			reader.store.add(toDisposable(() => {
 				// send focus-windowed document telemetry
+				t.stopTracking();
 				this._sendTelemetryAndLog('20minFocusWindow', 'time', t, this._userAttentionService.totalFocusTimeMs - startFocusTime, Date.now() - startTime);
-				t.dispose();
 			}));
 
 			return t;
@@ -197,10 +200,14 @@ class TrackedDocumentInfo extends Disposable {
 			this._logService.error(`[EditSourceTrackingImpl] Failed to send ${mode} edit telemetry: ${error}`);
 		}).finally(() => {
 			tracker.releaseExternalEditCorrelations();
+			tracker.dispose();
 		});
 	}
 
 	async sendTelemetry(mode: EditTelemetryMode, trigger: EditTelemetryTrigger, t: DocumentEditSourceTracker, focusTime: number, actualTime: number) {
+		if (mode !== 'longterm') {
+			await t.waitForExternalEditCorrelations(FOCUS_CORRELATION_DRAIN_TIMEOUT);
+		}
 		t.applyPendingExternalEdits();
 		let ranges = t.getTrackedRanges();
 		let internalKeys = t.getAllKeys();
@@ -247,11 +254,11 @@ class TrackedDocumentInfo extends Disposable {
 		const coverageGap = mode === 'longterm' && !isDirty && !deferSuppressedExternal && !preparedAgentFlush?.deferCoverageGap
 			? this._agentHostEditMarkerService?.takeCoverageGap?.(this._doc.document.uri, preparedAgentFlush?.coverageGapThroughSequence ?? preparedAgentFlush?.lastSequence)
 			: undefined;
-		const agentModifiedCount = preparedAgentFlush?.agentModifiedCount ?? 0;
+		const agentModifiedCount = mode === 'longterm' ? preparedAgentFlush?.agentModifiedCount ?? 0 : data.agentHostModifiedCount;
 		if (internalKeys.length === 0 && agentModifiedCount === 0 && !coverageGap) {
 			return;
 		}
-		const totalModifiedCount = data.totalModifiedCharactersInFinalState + agentModifiedCount;
+		const totalModifiedCount = data.totalModifiedCharactersInFinalState + (preparedAgentFlush?.agentModifiedCount ?? 0);
 
 		const telemetryKeys = new Map<string, {
 			readonly representative: TextModelEditSource;
@@ -299,8 +306,8 @@ class TrackedDocumentInfo extends Disposable {
 				statsUuid: statsUuid,
 				conversationId: repr.props.$$sessionId,
 				requestId: repr.props.$$requestId,
-				origin: undefined,
-				harness: undefined,
+				origin: repr.props.$origin,
+				harness: repr.props.$harness,
 				modifiedCount: value,
 				deltaModifiedCount: deltaModifiedCount,
 				totalModifiedCount,
@@ -345,6 +352,7 @@ class TrackedDocumentInfo extends Disposable {
 			inlineCompletionsCopilotModifiedCount: sums.inlineCompletionsCopilot ?? 0,
 			inlineCompletionsNESModifiedCount: sums.inlineCompletionsNES ?? 0,
 			otherAIModifiedCount: sums.otherAI ?? 0,
+			agentHostModifiedCount: sums.agentHost ?? 0,
 			userModifiedCount: sums.user ?? 0,
 			ideModifiedCount: sums.ide ?? 0,
 			unknownModifiedCount: sums.unknown ?? 0,

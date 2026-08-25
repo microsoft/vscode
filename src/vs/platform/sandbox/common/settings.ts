@@ -23,7 +23,6 @@ export const enum AgentSandboxSettingId {
 export const enum AgentSandboxEnabledValue {
 	Off = 'off',
 	On = 'on',
-	AllowNetwork = 'allowNetwork',
 }
 
 export type AgentSandboxEnabledSettingValue = AgentSandboxEnabledValue | boolean;

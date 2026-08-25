@@ -32,7 +32,7 @@ import { ExtensionsRegistry } from '../../../../services/extensions/common/exten
 import { ChatEditorInput } from '../widgetHosts/editor/chatEditorInput.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentData, IChatAgentService } from '../../common/participants/chatAgents.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { ChatSessionOptionsMap, ChatSessionStatus, ChatSessionsExtensions, IAsyncChatSessionActivationRegistry, IChatNewSessionRequest, IChatSession, IChatSessionCommitEvent, IChatSessionContentProvider, IChatSessionCustomizationItemGroup, IChatSessionCustomizationsProvider, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionOptionsChangeEvent, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionRequestHistoryItem, IChatSessionsExtensionPoint, IChatSessionsService, IChatInputCompletionsParams, IChatInputCompletionsResult, isSessionInProgressStatus, localChatSessionType, ReadonlyChatSessionOptionsMap, ResolvedChatSessionsExtensionPoint, SessionType } from '../../common/chatSessionsService.js';
+import { ChatSessionOptionsMap, ChatSessionStatus, ChatSessionsExtensions, IAsyncChatSessionActivationRegistry, IChatNewSessionRequest, IChatSession, IChatSessionCommitEvent, IChatSessionContentProvider, IChatSessionCustomizationItemGroup, IChatSessionCustomizationsProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionOptionsChangeEvent, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionRequestHistoryItem, IChatSessionsExtensionPoint, IChatSessionsService, IChatInputCompletionsParams, IChatInputCompletionsResult, isSessionInProgressStatus, localChatSessionType, ReadonlyChatSessionOptionsMap, ResolvedChatSessionsExtensionPoint, SessionType } from '../../common/chatSessionsService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { IChatEditorOptions } from '../widgetHosts/editor/chatEditor.js';
@@ -477,10 +477,18 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	}
 
 	private async updateInProgressStatus(chatSessionType: string): Promise<void> {
+		const controller = this._itemControllers.get(chatSessionType)?.controller;
+		if (!controller) {
+			return;
+		}
+
 		try {
 			const items: IChatSessionItem[] = [];
 			for await (const result of this.getChatSessionItems([chatSessionType], CancellationToken.None)) {
 				items.push(...result.items);
+			}
+			if (this._itemControllers.get(chatSessionType)?.controller !== controller) {
+				return;
 			}
 			const inProgress = items.filter(item => !item.archived && item.status && isSessionInProgressStatus(item.status));
 			this.reportInProgress(chatSessionType, inProgress.length);
@@ -839,7 +847,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			isCore: false,
 			isDynamic: true,
 			slashCommands: contribution.commands ?? [],
-			locations: [ChatAgentLocation.Chat],
+			locations: contribution.locations ?? [ChatAgentLocation.Chat],
 			modes: [ChatModeKind.Agent, ChatModeKind.Ask],
 			disambiguation: [],
 			metadata: {
@@ -925,6 +933,11 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		}
 
 		this._contributions.set(contribution.type, { contribution, extension: undefined });
+		if (contribution.alternativeIds) {
+			for (const alternativeId of contribution.alternativeIds) {
+				this._alternativeIdMap.set(alternativeId, contribution.type);
+			}
+		}
 		// Programmatically-registered contributions are always considered
 		// available; mark them as such so the autorun in the constructor
 		// registers the in-place "New {0} Session" action for them. Without
@@ -944,6 +957,13 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 		return toDisposable(() => {
 			this._contributions.delete(contribution.type);
+			if (contribution.alternativeIds) {
+				for (const alternativeId of contribution.alternativeIds) {
+					if (this._alternativeIdMap.get(alternativeId) === contribution.type) {
+						this._alternativeIdMap.delete(alternativeId);
+					}
+				}
+			}
 			this._contributionDisposables.deleteAndDispose(contribution.type);
 			this._updateHasCanDelegateProvidersContextKey();
 			this._onDidChangeAvailability.fire();
@@ -1024,6 +1044,17 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		const sessionType = getChatSessionType(sessionResource);
 		const resolvedType = this._resolveToPrimaryType(sessionType) || sessionType;
 		return this._contentProviders.get(resolvedType)?.resolveChatResponseUri?.(sessionResource, href, kind) ?? href;
+	}
+
+	public updateChatSessionMetadata(sessionResource: URI, metadata: Record<string, unknown>): boolean {
+		const sessionType = getChatSessionType(sessionResource);
+		const resolvedType = this._resolveToPrimaryType(sessionType) || sessionType;
+		const provider = this._contentProviders.get(resolvedType);
+		if (!provider?.updateChatSessionMetadata) {
+			return false;
+		}
+		provider.updateChatSessionMetadata(sessionResource, metadata);
+		return true;
 	}
 
 	async getChatInputCompletionTriggerCharacters(sessionType: string): Promise<readonly string[] | undefined> {
@@ -1133,14 +1164,15 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 				initialRefreshCts.cancel();
 				disposables.dispose();
 
-				const controller = this._itemControllers.get(chatSessionType);
-				if (controller) {
+				const registeredController = this._itemControllers.get(chatSessionType)?.controller;
+				if (registeredController === controller) {
 					this._itemControllers.delete(chatSessionType);
 					this._onDidChangeItemsProviders.fire({ chatSessionType });
-				}
 
-				// Remove any in-progress tracking for this provider since it's no longer available
-				this.updateInProgressStatus(chatSessionType);
+					if (this.inProgressMap.delete(chatSessionType)) {
+						this._onDidChangeInProgress.fire();
+					}
+				}
 			}
 		};
 	}
@@ -1205,6 +1237,10 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		return controllerData.controller.newChatSessionItem?.(request, token);
 	}
 
+	notifySessionMaterialized(sessionResource: URI): void {
+		this._getChatSessionItemController(sessionResource)?.controller.notifySessionMaterialized?.(sessionResource);
+	}
+
 	async deleteChatSessionItem(sessionResource: URI, token: CancellationToken): Promise<void> {
 		const controllerData = this._getChatSessionItemController(sessionResource);
 		if (!controllerData?.controller.deleteChatSessionItem) {
@@ -1225,6 +1261,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		{
 			const existingSessionData = this._sessions.get(sessionResource);
 			if (existingSessionData) {
+				this._logService.trace(`[ChatSessionsService] getOrCreateChatSession: cache hit for ${sessionResource.toString()}`);
 				return existingSessionData.session;
 			}
 		}
@@ -1266,7 +1303,9 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 				dispose: () => { }
 			};
 		} else {
+			this._logService.trace(`[ChatSessionsService] getOrCreateChatSession: resolving content from provider '${resolvedType}' for ${sessionResource.toString()}`);
 			session = await raceCancellationError(provider.provideChatSessionContent(sessionResource, token), token);
+			this._logService.trace(`[ChatSessionsService] getOrCreateChatSession: provider returned ${session.history.length} history item(s) for ${sessionResource.toString()}`);
 		}
 
 		if (session.options) {
@@ -1296,6 +1335,34 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		}
 
 		return session;
+	}
+
+	public async getChatSessionHistory(sessionResource: URI, token: CancellationToken): Promise<readonly IChatSessionHistoryItem[]> {
+		const existing = this._sessions.get(this._resolveResource(sessionResource));
+		if (existing) {
+			return [...existing.session.history];
+		}
+
+		if (isUntitledChatSession(sessionResource)) {
+			return [];
+		}
+
+		const sessionType = getChatSessionType(sessionResource);
+		const resolvedType = this._resolveToPrimaryType(sessionType) || sessionType;
+		if (!(await raceCancellationError(this.canResolveChatSession(resolvedType), token))) {
+			throw Error(`Cannot find provider '${resolvedType}'`);
+		}
+		const provider = this._contentProviders.get(resolvedType);
+		if (!provider) {
+			throw Error(`Cannot find provider '${resolvedType}'`);
+		}
+
+		const session = await raceCancellationError(provider.provideChatSessionContent(sessionResource, token), token);
+		try {
+			return [...session.history];
+		} finally {
+			session.dispose();
+		}
 	}
 
 	public hasAnySessionOptions(sessionResource: URI): boolean {
@@ -1642,7 +1709,7 @@ export async function openChatSession(accessor: ServicesAccessor, openOptions: N
 				if (openOptions.type === AgentSessionProviders.Local) {
 					await view.startNewLocalSession();
 				} else {
-					await view.loadSession(sessionResource);
+					await view.loadSession(sessionResource, 'explicitOverride');
 				}
 				view.focus();
 				break;
@@ -1651,6 +1718,7 @@ export async function openChatSession(accessor: ServicesAccessor, openOptions: N
 				const options: IChatEditorOptions = {
 					override: ChatEditorInput.EditorID,
 					pinned: true,
+					sessionTypeSelectionReason: 'explicitOverride',
 					...(openOptions.type === AgentSessionProviders.Local ? { explicitSessionType: localChatSessionType } : {}),
 					title: {
 						fallback: localize('chatEditorContributionName', "{0}", openOptions.displayName),

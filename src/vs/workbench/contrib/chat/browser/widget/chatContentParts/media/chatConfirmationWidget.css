@@ -16,12 +16,6 @@
 	margin-bottom: 16px;
 }
 
-.chat-confirmation-widget + .chat-tool-approval-message {
-	margin: -12px 6px 16px;
-	color: var(--vscode-descriptionForeground);
-	font-size: var(--vscode-chat-font-size-body-s);
-}
-
 .chat-confirmation-widget-message {
 	-webkit-user-select: text;
 	user-select: text;
@@ -78,13 +72,8 @@
 	margin: 0 !important;
 }
 
-.chat-confirmation-widget .chat-confirmation-widget-title .codicon-error {
+.chat-confirmation-widget .chat-confirmation-widget-title .codicon-error-compact {
 	color: var(--vscode-errorForeground) !important;
-}
-
-.chat-confirmation-widget .chat-confirmation-widget-title .chat-confirmation-widget-expando {
-	display: flex;
-	align-items: center;
 }
 
 .chat-confirmation-widget .chat-confirmation-widget-title.monaco-button {
@@ -524,6 +513,8 @@
 }
 
 .chat-tool-invocation-part {
+	line-height: 1.5em;
+
 	.chat-confirmation-widget {
 		border: none;
 		font-size: var(--vscode-chat-font-size-body-s);
@@ -541,10 +532,18 @@
 		padding: 2px 6px 2px 0px;
 
 		&.monaco-button {
-
 			width: fit-content;
 			outline: none;
 			gap: 4px;
+		}
+
+		&.monaco-text-button {
+			font-size: inherit;
+			font-family: inherit;
+			line-height: inherit;
+			padding-bottom: 0;
+			font-variant-numeric: tabular-nums;
+			font-feature-settings: "tnum";
 		}
 
 		.codicon {

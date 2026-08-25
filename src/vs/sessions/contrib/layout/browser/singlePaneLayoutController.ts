@@ -4,16 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { IEditorWorkingSet } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { LifecyclePhase } from '../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { BaseLayoutController } from './baseSessionLayoutController.js';
-import { SinglePaneDetailPanelStrategy } from './singlePane/singlePaneDetailPanelStrategy.js';
-import { SinglePaneEditorAreaCollapseStrategy } from './singlePane/singlePaneEditorAreaCollapseStrategy.js';
-import { ISinglePaneLayoutContext, SinglePaneDockedTabsCoordinator } from './singlePane/singlePaneLayoutStrategy.js';
-import { SinglePaneManagedTabsStrategy } from './singlePane/singlePaneManagedTabsStrategy.js';
-import { SinglePaneDetailsStrategy } from './singlePane/singlePaneDetailsStrategy.js';
-import { SinglePaneSidePaneVisibilityStrategy } from './singlePane/singlePaneSidePaneVisibilityStrategy.js';
+import { ISinglePaneLayoutContext } from './singlePane/singlePaneLayoutStrategy.js';
+import { SinglePaneDetailPanelCoordinator } from './singlePane/singlePaneDetailPanelCoordinator.js';
+import { SinglePaneDockedTabsCoordinator } from './singlePane/singlePaneDockedTabsCoordinator.js';
+import { SinglePaneNewSessionStrategy } from './singlePane/singlePaneNewSessionStrategy.js';
+import { SinglePaneExistingSessionStrategy } from './singlePane/singlePaneExistingSessionStrategy.js';
+import { SinglePaneQuickChatStrategy } from './singlePane/singlePaneQuickChatStrategy.js';
+import { SinglePaneVisibilityProfileStore } from './singlePane/singlePaneVisibilityProfileStore.js';
 
-export { TOGGLE_DETAILS_COMMAND_ID } from './singlePane/singlePaneDetailsStrategy.js';
+export { TOGGLE_DETAILS_COMMAND_ID } from './singlePane/singlePaneExistingSessionStrategy.js';
 
 /** Fresh single-pane key for the per-session layout state (not shared with the classic desktop controller). */
 const SINGLE_PANE_LAYOUT_STATE_KEY = 'sessions.singlePane.layoutState';
@@ -21,13 +23,20 @@ const SINGLE_PANE_LAYOUT_STATE_KEY = 'sessions.singlePane.layoutState';
 /**
  * Layout controller for the single-pane detail-panel layout. A sibling of the
  * classic {@link import('./desktopSessionLayoutController.js').LayoutController}
- * (both extend {@link BaseLayoutController}), it owns its behaviour through
- * composed strategy objects rather than desktop inheritance:
- *  - global editor/detail visibility, with temporary quick-chat suppression;
- *  - managed docked tabs (pinned Changes multi-diff + empty Files placeholder)
- *    and editor-area tab collapse;
- *  - the detail panel mapping (active editor → Changes/Files container);
- *  - the Toggle Details action;
+ * (both extend {@link BaseLayoutController}), it owns its behaviour through exactly
+ * three composed lifecycle strategies rather than desktop inheritance:
+ *  - {@link SinglePaneNewSessionStrategy} — an uncreated, workspace-backed draft;
+ *  - {@link SinglePaneExistingSessionStrategy} — a created, workspace-backed session
+ *    (also owns the Toggle Details command and the shared managed-tabs coordinator);
+ *  - {@link SinglePaneQuickChatStrategy} — a workspace-less quick chat.
+ *
+ * Each owns the full vertical slice of behaviour for its stage: side-pane visibility, the
+ * detail-panel (Changes/Files) mapping, and — for the two workspace stages — a supplementary
+ * nuance on the shared managed-docked-tabs reconcile pipeline (`SinglePaneDockedTabsCoordinator`,
+ * which also performs the detail-only editor-area collapse). That coordinator, the detail
+ * panel's sync mechanics (`SinglePaneDetailPanelCoordinator`), and the shared New/Existing
+ * Editor-visibility-profile storage (`SinglePaneVisibilityProfileStore`) are non-strategy coordinator
+ * objects — see `singlePane/singlePaneLayoutStrategy.ts`'s doc comment for why.
  *
  * Strategies coordinate through this controller (the {@link ISinglePaneLayoutContext}):
  * a session-switch restore is signalled by {@link _isRestoringSessionLayout}, so
@@ -36,7 +45,8 @@ const SINGLE_PANE_LAYOUT_STATE_KEY = 'sessions.singlePane.layoutState';
 export class SinglePaneLayoutController extends BaseLayoutController {
 
 	private _context: ISinglePaneLayoutContext | undefined;
-	private _details: SinglePaneDetailsStrategy | undefined;
+	private _existingSession: SinglePaneExistingSessionStrategy | undefined;
+	private _managedTabs: SinglePaneDockedTabsCoordinator | undefined;
 
 	protected override get _layoutStateStorageKey(): string {
 		return SINGLE_PANE_LAYOUT_STATE_KEY;
@@ -56,6 +66,7 @@ export class SinglePaneLayoutController extends BaseLayoutController {
 				get togglingSidePane() { return that._togglingSidePane; },
 				get multipleSessionsVisibleObs() { return that.multipleSessionsVisibleObs; },
 				get activeSessionResourceObs() { return that.activeSessionResourceObs; },
+				hasSavedWorkingSet: sessionResource => that._workingSets.has(sessionResource),
 			};
 		}
 		return this._context;
@@ -64,33 +75,29 @@ export class SinglePaneLayoutController extends BaseLayoutController {
 	// --- Side-pane visibility + detail content + Toggle Details ---
 
 	protected override _registerViewStateManagement(): void {
-		this._register(this._instantiationService.createInstance(SinglePaneSidePaneVisibilityStrategy, this._ctx));
-		// The detail-panel strategy owns which container (Changes/Files) is shown
-		// and the "nothing to show" hide. It only reads the active editor and opens
-		// containers, so it registers immediately (not deferred like the managed
-		// tabs) — the side-pane visibility strategy restores the part and this strategy
-		// fills it with the right container in the same turn.
-		this._register(this._instantiationService.createInstance(SinglePaneDetailPanelStrategy, this._ctx));
-		this._details = this._register(this._instantiationService.createInstance(SinglePaneDetailsStrategy, this._ctx));
+		const visibilityStore = this._instantiationService.createInstance(SinglePaneVisibilityProfileStore);
+		const detailPanel = this._register(this._instantiationService.createInstance(SinglePaneDetailPanelCoordinator));
+
+		this._existingSession = this._register(this._instantiationService.createInstance(SinglePaneExistingSessionStrategy, this._ctx, visibilityStore, detailPanel));
+		this._register(this._instantiationService.createInstance(SinglePaneNewSessionStrategy, this._ctx, detailPanel));
+		this._register(this._instantiationService.createInstance(SinglePaneQuickChatStrategy, this._ctx, detailPanel, visibilityStore));
 	}
 
-	// --- Managed tabs + detail panel (deferred to Restored so they reconcile on top of the restored group) ---
+	// --- Managed tabs + editor-area collapse (deferred to Restored so they reconcile on top of the restored group) ---
 
 	protected override _registerAuxiliaryControllers(): void {
 		this._lifecycleService.when(LifecyclePhase.Restored).then(() => {
 			if (this._store.isDisposed) {
 				return;
 			}
-			const coordinator = this._register(new SinglePaneDockedTabsCoordinator(this._sessionChangesService));
-
-			this._register(this._instantiationService.createInstance(SinglePaneManagedTabsStrategy, this._ctx, coordinator));
-			this._register(this._instantiationService.createInstance(SinglePaneEditorAreaCollapseStrategy, this._ctx, coordinator));
+			this._managedTabs = this._register(this._instantiationService.createInstance(SinglePaneDockedTabsCoordinator, this._ctx));
+			this._existingSession?.registerManagedTabs(this._managedTabs);
 		});
 	}
 
 	/** Toggle the detail panel and return whether it is now visible. */
 	toggleDetails(): boolean {
-		return this._details?.toggleDetails() ?? false;
+		return this._existingSession?.toggleDetails() ?? false;
 	}
 
 	// --- Base hooks ---
@@ -119,5 +126,9 @@ export class SinglePaneLayoutController extends BaseLayoutController {
 
 	protected override _shouldHideEditorPartOnApply(_editorPartHidden: boolean): boolean {
 		return false;
+	}
+
+	protected override _onWillApplyWorkingSet(workingSet: IEditorWorkingSet | 'empty'): void {
+		this._managedTabs?.prepareWorkingSetRestore(workingSet !== 'empty');
 	}
 }

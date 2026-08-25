@@ -147,10 +147,15 @@
 										{
 											"type": "object",
 											"additionalProperties": false,
-											"required": ["kind"],
+											"required": ["kind", "apiVersion"],
 											"properties": {
 												"kind": {
 													"const": "exportApi"
+												},
+												"apiVersion": {
+													"type": "integer",
+													"minimum": 1,
+													"description": "Version of the extension export API used to resolve this provider"
 												}
 											}
 										}

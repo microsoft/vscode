@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { SessionModelInfo } from './state/protocol/state.js';
-import type { IAgentModelInfo } from './agentService.js';
+import type { IAgentModelInfo } from './agent.js';
 
 /**
  * Well-known model picker metadata carried under a model's open `_meta` bag (see {@link IAgentModelInfo._meta} /
@@ -266,8 +266,7 @@ export function createPricingMetaFromBilling(billing: ICAPIModelBilling | undefi
 
 /**
  * Whether the model's long-context tier has any cost that differs from its default tier.
- * Used to decide whether to show a context-size picker (surcharge → user opts in) or to
- * silently use the full context window for free.
+ * Drives the context-size picker default: smaller tier when surcharged, full window when free.
  */
 export function hasLongContextSurcharge(billing: ICAPIModelBilling | undefined): boolean {
 	const tokenPrices = billing?.tokenPrices;

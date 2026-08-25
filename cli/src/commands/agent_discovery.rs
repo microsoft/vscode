@@ -33,7 +33,7 @@ use super::CommandContext;
 /// automatic discovery; callers should treat an empty `Vec` as "no agent
 /// host is currently running" ([`CodeError::NoRunningAgentHost`]) rather
 /// than falling back to any other discovery mechanism.
-pub fn discover_live_endpoints(
+pub async fn discover_live_endpoints(
 	ctx: &CommandContext,
 	user_data_dir: Option<&str>,
 ) -> Vec<AgentHostEndpointMetadata> {
@@ -43,7 +43,7 @@ pub fn discover_live_endpoints(
 		"discovering live agent hosts in {}",
 		user_data_path.display()
 	);
-	agent_host_registry::list_live_endpoints(&ctx.log, &user_data_path)
+	agent_host_registry::list_live_endpoints(&ctx.log, &user_data_path).await
 }
 
 /// Outcome of probing a single host for a given session, as consumed by
@@ -137,7 +137,8 @@ async fn probe_host(
 		"listSessions",
 		ListSessionsParams {
 			channel: ROOT_RESOURCE_URI.to_string(),
-			filter: None,
+			limit: None,
+			cursor: None,
 		},
 	)
 	.await;
@@ -184,7 +185,7 @@ pub async fn connect_to_session_host(
 	session: &str,
 	user_data_dir: Option<&str>,
 ) -> Result<Client, AnyError> {
-	let endpoints = discover_live_endpoints(ctx, user_data_dir);
+	let endpoints = discover_live_endpoints(ctx, user_data_dir).await;
 
 	if endpoints.is_empty() {
 		return Err(CodeError::NoRunningAgentHost.into());

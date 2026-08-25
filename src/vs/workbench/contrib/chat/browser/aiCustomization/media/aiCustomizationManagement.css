@@ -335,7 +335,7 @@
 }
 
 .ai-customization-management-editor .harness-dropdown-chevron {
-	font-size: 12px;
+	font-size: var(--vscode-codiconFontSize-compact);
 	flex-shrink: 0;
 	opacity: 0.7;
 }
@@ -461,7 +461,7 @@
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	font-size: 12px;
+	font-size: var(--vscode-codiconFontSize-compact);
 	opacity: 0.7;
 	order: 10;
 	margin-left: auto;
@@ -479,9 +479,10 @@
 	min-width: 0;
 }
 
+/* No text-transform: these labels are localized strings that are already cased correctly, and
+per-word capitalization does not survive translation. */
 .ai-customization-group-header .group-label {
 	font-weight: var(--vscode-agents-fontWeight-semiBold);
-	text-transform: capitalize;
 	color: var(--vscode-sideBarSectionHeader-foreground, var(--vscode-foreground));
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -732,6 +733,7 @@
 }
 
 .ai-customization-list-widget .section-title-header .section-title-link,
+.ai-customization-management-editor .prompt-migration-content-container > .section-title-link,
 .mcp-list-widget .section-title-header .section-title-link,
 .ai-customization-management-editor .tools-list-widget .section-title-header .section-title-link {
 	font-size: var(--vscode-agents-fontSize-body1);
@@ -747,6 +749,7 @@
 }
 
 .ai-customization-list-widget .section-title-header .section-title-link:hover,
+.ai-customization-management-editor .prompt-migration-content-container > .section-title-link:hover,
 .mcp-list-widget .section-title-header .section-title-link:hover,
 .ai-customization-management-editor .tools-list-widget .section-title-header .section-title-link:hover {
 	text-decoration: underline;
@@ -754,6 +757,7 @@
 
 /* Inset the focus ring so it isn't clipped by the widget's overflow:hidden at the header's edge. */
 .ai-customization-list-widget .section-title-header .section-title-link:focus-visible,
+.ai-customization-management-editor .prompt-migration-content-container > .section-title-link:focus-visible,
 .mcp-list-widget .section-title-header .section-title-link:focus-visible,
 .ai-customization-management-editor .tools-list-widget .section-title-header .section-title-link:focus-visible {
 	outline-offset: -1px;
@@ -885,6 +889,84 @@
 	min-height: 0;
 }
 
+/* Migration copy is dynamic; don't reserve the two-line section-header height. */
+.ai-customization-management-editor .prompt-migration-content-container .section-title-description {
+	min-height: 0;
+	margin-bottom: 0;
+}
+
+/*
+ * Migration banner — an Inner-tier callout that states the trade-off before the
+ * user commits to a migration that deletes the originals by default.
+ */
+.ai-customization-management-editor .customization-migration-banner {
+	flex-shrink: 0;
+	display: flex;
+	align-items: flex-start;
+	gap: var(--vscode-spacing-size100);
+	margin: 0 0 var(--vscode-spacing-size120) 0;
+	padding: var(--vscode-spacing-size120);
+	background-color: var(--vscode-textBlockQuote-background, transparent);
+	border: var(--vscode-strokeThickness) solid var(--vscode-widget-border, transparent);
+	border-radius: var(--vscode-cornerRadius-medium);
+	box-sizing: border-box;
+}
+
+.ai-customization-management-editor .customization-migration-banner-icon {
+	flex-shrink: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 16px;
+	height: 16px;
+	color: var(--vscode-list-warningForeground, var(--vscode-editorWarning-foreground, var(--vscode-descriptionForeground)));
+}
+
+.ai-customization-management-editor .customization-migration-banner-content {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size60);
+	min-width: 0;
+}
+
+.ai-customization-management-editor .customization-migration-banner-title {
+	margin: 0;
+	font-size: var(--vscode-agents-fontSize-body1);
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	color: var(--vscode-foreground);
+}
+
+.ai-customization-management-editor .customization-migration-banner-message {
+	margin: 0;
+	font-size: var(--vscode-agents-fontSize-body1);
+	line-height: 1.45;
+	color: var(--vscode-foreground);
+}
+
+.ai-customization-management-editor .customization-migration-banner-consequence {
+	display: flex;
+	align-items: flex-start;
+	gap: var(--vscode-spacing-size60);
+	margin: 0;
+	font-size: var(--vscode-agents-fontSize-body1);
+	line-height: 1.45;
+	color: var(--vscode-descriptionForeground);
+}
+
+.ai-customization-management-editor .customization-migration-banner-consequence-icon {
+	flex-shrink: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 16px;
+	height: 16px;
+}
+
+.ai-customization-management-editor .migration-learn-more-link {
+	align-self: flex-start;
+	margin-top: var(--vscode-spacing-size80);
+}
+
 .ai-customization-management-editor .prompt-migration-list {
 	position: absolute;
 	inset: 0;
@@ -944,6 +1026,7 @@
 
 .ai-customization-management-editor .prompt-migration-item {
 	gap: 8px;
+	cursor: default;
 }
 
 .ai-customization-management-editor .prompt-migration-checkbox {
@@ -957,6 +1040,23 @@
 
 .ai-customization-management-editor .prompt-migration-item .item-left {
 	gap: 8px;
+}
+
+.ai-customization-management-editor .prompt-migration-open-button.monaco-text-button {
+	flex: 1;
+	flex-direction: column;
+	align-items: stretch;
+	justify-content: center;
+	min-width: 0;
+	width: 100%;
+	padding: 0;
+	border: none;
+	background: transparent;
+	color: inherit;
+	font: inherit;
+	text-align: left;
+	cursor: pointer;
+	border-radius: var(--vscode-cornerRadius-small);
 }
 
 .ai-customization-management-editor .prompt-migration-item .icon-button {
@@ -1143,7 +1243,7 @@
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
-	font-size: 12px;
+	font-size: var(--vscode-codiconFontSize-compact);
 	color: var(--vscode-foreground);
 	opacity: 0.7;
 	cursor: pointer;
@@ -1356,7 +1456,7 @@
 }
 
 .ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-scope .codicon {
-	font-size: 12px;
+	font-size: var(--vscode-codiconFontSize-compact);
 }
 
 .ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-description {

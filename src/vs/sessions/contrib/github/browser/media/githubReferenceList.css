@@ -9,7 +9,7 @@
 	flex-direction: column;
 	min-width: 260px;
 	max-width: 420px;
-	padding: var(--vscode-spacing-size40) 0;
+	padding: 0;
 }
 
 .sessions-github-reference-list-item {

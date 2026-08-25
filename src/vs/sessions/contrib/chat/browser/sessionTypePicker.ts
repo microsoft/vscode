@@ -10,6 +10,7 @@ import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '..
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { localize } from '../../../../nls.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
 import { IProviderSessionType, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
@@ -24,11 +25,14 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
-import { getSessionTypeAvailability, getSessionTypeUnavailableDescription, getSessionTypeUnavailableHover, SessionTypeAvailability } from '../../../../workbench/contrib/chat/browser/agentSessions/sessionTypeAvailability.js';
+import { getSessionTypeAvailability, getSessionTypePickerAvailability, getSessionTypeUnavailableDescription, getSessionTypeUnavailableHover, SessionTypeAvailability } from '../../../../workbench/contrib/chat/browser/agentSessions/sessionTypeAvailability.js';
+import { hasAgentSdkSetupNotification } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostSdkSetupNotification.js';
+import { IChatInputNotificationService } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputNotificationService.js';
 import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { markOnboardingTarget } from '../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { reportNewChatPickerClosed } from './newChatPickerTelemetry.js';
 import { SessionHarnessPickerVisibleContext } from '../../../common/contextkeys.js';
+import { isAllowSignedOutWhenUsableEnabled } from '../../../browser/sessionsAuthGate.js';
 
 const STORAGE_KEY_LAST_SESSION_TYPE = 'sessions.userSelectedSessionType';
 
@@ -164,6 +168,8 @@ export class SessionTypePicker extends Disposable {
 		@IChatSessionsService protected readonly chatSessionsService: IChatSessionsService,
 		@IChatEntitlementService protected readonly chatEntitlementService: IChatEntitlementService,
 		@ILanguageModelsService protected readonly languageModelsService: ILanguageModelsService,
+		@IConfigurationService protected readonly configurationService: IConfigurationService,
+		@IChatInputNotificationService protected readonly chatInputNotificationService: IChatInputNotificationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
@@ -267,11 +273,10 @@ export class SessionTypePicker extends Disposable {
 	/**
 	 * Constrains a pick to the types the picker actually offers, falling back to
 	 * the preferred (first) type when it doesn't. A remembered pick outlives the
-	 * harness that produced it: a session type can stop being advertised (e.g.
-	 * the extension-host Copilot CLI once `chat.agents.copilotCli.hideExtensionHost`
-	 * is on), and the stored preference still names it. Displaying it as selected
-	 * while the dropdown hides it would let the user start a session on a harness
-	 * they can no longer pick.
+	 * harness that produced it: a session type can stop being advertised while
+	 * the stored preference still names it. Displaying it as selected while the
+	 * dropdown hides it would let the user start a session on a harness they can
+	 * no longer pick.
 	 *
 	 * An empty offer list means the types aren't known yet (no session or folder
 	 * to source them from, or a provider still connecting), so the pick is left
@@ -454,7 +459,14 @@ export class SessionTypePicker extends Disposable {
 			}
 			for (const { providerId, sessionType } of types) {
 				const isCurrent = this._picked?.providerId === providerId && this._picked?.sessionTypeId === sessionType.id;
-				const availability = getSessionTypeAvailability(this.chatSessionsService, this.chatEntitlementService, this.languageModelsService, sessionType.chatSessionType ?? sessionType.id);
+				const modelTarget = sessionType.chatSessionType ?? sessionType.id;
+				const allowSignedOutWhenUsable = isAllowSignedOutWhenUsableEnabled(this.configurationService);
+				const availability = getSessionTypePickerAvailability(
+					modelTarget,
+					getSessionTypeAvailability(this.chatSessionsService, this.chatEntitlementService, this.languageModelsService, modelTarget, allowSignedOutWhenUsable),
+					allowSignedOutWhenUsable,
+					hasAgentSdkSetupNotification(this.chatInputNotificationService, modelTarget),
+				);
 				const unavailable = availability !== SessionTypeAvailability.Available;
 				const item: ISessionTypePickerItem = {
 					providerId,

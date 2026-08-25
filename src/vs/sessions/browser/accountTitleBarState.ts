@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../base/common/codicons.js';
+import { FileAccess } from '../../base/common/network.js';
 import { ThemeIcon } from '../../base/common/themables.js';
+import { URI } from '../../base/common/uri.js';
 import { localize } from '../../nls.js';
 import { ChatEntitlement, IChatSentiment, IQuotaSnapshot } from '../../workbench/services/chat/common/chatEntitlementService.js';
 import { IDefaultAccountService } from '../../platform/defaultAccount/common/defaultAccount.js';
@@ -14,6 +16,11 @@ export interface IResolvedAccountInfo {
 	readonly accountName: string;
 	readonly accountProviderId: string;
 	readonly accountProviderLabel: string;
+	/**
+	 * The icon (avatar) supplied by the authentication provider for this
+	 * account, if any.
+	 */
+	readonly accountIcon?: URI;
 }
 
 /**
@@ -32,6 +39,7 @@ export async function resolveAccountInfo(
 			accountName: account.accountName,
 			accountProviderId: account.authenticationProvider.id,
 			accountProviderLabel: account.authenticationProvider.name,
+			accountIcon: await getSessionAccountIcon(authenticationService, account.authenticationProvider.id, account.sessionId),
 		};
 	}
 
@@ -42,6 +50,7 @@ export async function resolveAccountInfo(
 				accountName: sessions[0].account.label,
 				accountProviderId: 'github',
 				accountProviderLabel: 'GitHub',
+				accountIcon: sessions[0].account.icon,
 			};
 		}
 	} catch {
@@ -49,6 +58,20 @@ export async function resolveAccountInfo(
 	}
 
 	return undefined;
+}
+
+/**
+ * Looks up the icon (avatar) that the authentication provider supplied for the
+ * session backing the default account, if any.
+ */
+async function getSessionAccountIcon(authenticationService: IAuthenticationService, providerId: string, sessionId: string): Promise<URI | undefined> {
+	try {
+		const sessions = await authenticationService.getSessions(providerId);
+		return sessions.find(session => session.id === sessionId)?.account.icon;
+	} catch {
+		// Provider not available yet
+		return undefined;
+	}
 }
 
 export type AccountTitleBarStateSource = 'account' | 'copilot';
@@ -65,13 +88,12 @@ export interface IAccountTitleBarStateContext {
 		readonly completions?: IQuotaSnapshot;
 	};
 	/**
-	 * Whether at least one registered session type is usable without GitHub
-	 * right now (the conditional-auth opt-in is on and a usable type exists).
+	 * Whether the conditional-auth opt-in permits signed-out operation.
 	 * When true, a signed-out account shows a calm opt-in sign-in instead of the
 	 * alarming "Agents Signed Out". Defaults to `false`, so the opt-in being off
 	 * keeps today's behavior.
 	 */
-	readonly usableWithoutGitHub: boolean;
+	readonly allowSignedOutWhenUsable: boolean;
 }
 
 export interface IAccountTitleBarState {
@@ -85,7 +107,11 @@ export interface IAccountTitleBarState {
 	readonly revealLabelOnHover?: boolean;
 }
 
-export function getAccountProfileImageUrl(accountProviderId: string | undefined, accountName: string | undefined): string | undefined {
+export function getAccountProfileImageUrl(accountProviderId: string | undefined, accountName: string | undefined, accountIcon?: URI): string | undefined {
+	if (accountIcon) {
+		return FileAccess.uriToBrowserUri(accountIcon).toString(true);
+	}
+
 	if (accountProviderId !== 'github' || !accountName?.trim()) {
 		return undefined;
 	}
@@ -113,7 +139,7 @@ export function getAccountTitleBarState(context: IAccountTitleBarStateContext): 
 		};
 	}
 
-	const copilotState = getCopilotPresentation(context.entitlement, context.sentiment, context.quotas, context.usableWithoutGitHub);
+	const copilotState = getCopilotPresentation(context.entitlement, context.sentiment, context.quotas, context.allowSignedOutWhenUsable);
 	if (copilotState) {
 		return copilotState;
 	}
@@ -144,16 +170,15 @@ function getCopilotPresentation(
 	entitlement: ChatEntitlement,
 	sentiment: IChatSentiment,
 	quotas: { readonly chat?: IQuotaSnapshot; readonly completions?: IQuotaSnapshot },
-	usableWithoutGitHub: boolean
+	allowSignedOutWhenUsable: boolean
 ): IAccountTitleBarState | undefined {
 	if (sentiment.hidden) {
 		return undefined;
 	}
 
 	if (entitlement === ChatEntitlement.Unknown) {
-		if (usableWithoutGitHub) {
-			// A session type is usable without GitHub, so signing in is optional:
-			// present a calm opt-in affordance rather than alarming the user.
+		if (allowSignedOutWhenUsable) {
+			// Signing in is optional, so present a calm affordance.
 			return {
 				source: 'copilot',
 				kind: 'default',

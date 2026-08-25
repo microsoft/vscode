@@ -4,14 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Codicon } from '../../../../../base/common/codicons.js';
 import { Event } from '../../../../../base/common/event.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../../platform/actionWidget/browser/actionList.js';
-import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { BrowserEditorInput } from '../../../../../workbench/contrib/browserView/common/browserEditorInput.js';
 import { BrowserViewSharingState, IBrowserViewModel, IBrowserViewWorkbenchService } from '../../../../../workbench/contrib/browserView/common/browserView.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
@@ -27,25 +24,17 @@ interface IControlSpec {
 		readonly sharingState?: BrowserViewSharingState;
 	}[];
 	readonly enabled?: boolean;
+	/** Whether the user keeps the browsers pill visible. */
+	readonly visible?: boolean;
 	/** Start with only the main chat, so the subagent can be added later. */
 	readonly withoutSubagent?: boolean;
 }
 
 interface IControlHarness {
 	readonly control: SessionBrowsersControl;
-	readonly getPickerItems: () => readonly ICapturedPickerItem[];
-	readonly selectPickerItem: (label: string) => void;
 	readonly getBrowserOpenCount: () => number;
 	readonly getOpenedBrowserId: () => string | undefined;
 	readonly addSubagent: () => void;
-}
-
-interface ICapturedPickerItem {
-	readonly kind: ActionListItemKind;
-	readonly label: string;
-	readonly category: string;
-	readonly icon: string;
-	readonly select?: () => void;
 }
 
 function createControl(spec: IControlSpec, store: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>): IControlHarness {
@@ -71,7 +60,7 @@ function createControl(spec: IControlSpec, store: ReturnType<typeof ensureNoDisp
 			? subagent.resource.toString()
 			: browser.owner === 'other' ? 'chat:other' : browser.owner === 'unowned' ? undefined : mainChat.resource.toString();
 		const model = new class extends mock<IBrowserViewModel>() {
-			override readonly owner = ownerId ? { mainWindowId: 1, sessionId: ownerId } : { mainWindowId: 1 };
+			override readonly owner = ownerId ? { type: 'agent' as const, sessionId: ownerId } : { type: 'user' as const };
 			override readonly sharingState = browser.sharingState ?? BrowserViewSharingState.NotShared;
 		}();
 		return new class extends mock<BrowserEditorInput>() {
@@ -90,31 +79,6 @@ function createControl(spec: IControlSpec, store: ReturnType<typeof ensureNoDisp
 		override async getPreferredGroup() { return undefined; }
 	}();
 
-	let pickerItems: ICapturedPickerItem[] = [];
-	const actionWidgetService = new class extends mock<IActionWidgetService>() {
-		override get isVisible() { return false; }
-		override hide(): void { }
-		override show<T>(_user: string, _supportsPreview: boolean, items: readonly IActionListItem<T>[], delegate: IActionListDelegate<T>): void {
-			pickerItems = items.map(item => {
-				const value = item.item;
-				return {
-					kind: item.kind,
-					label: item.label ?? '',
-					category: item.group?.title ?? '',
-					icon: item.group?.icon?.id ?? '',
-					select: value === undefined ? undefined : () => delegate.onSelect(value),
-				};
-			});
-		}
-	}();
-	const selectPickerItem = (label: string) => {
-		const item = pickerItems.find(item => item.label === label && item.select);
-		if (!item?.select) {
-			throw new Error(`Picker item '${label}' not found`);
-		}
-		item.select();
-	};
-
 	let browserOpenCount = 0;
 	let openedBrowserId: string | undefined;
 	const browserIds = new Map<object, string>(inputs.map(input => [input, input.id]));
@@ -131,58 +95,58 @@ function createControl(spec: IControlSpec, store: ReturnType<typeof ensureNoDisp
 		constObservable(session),
 		constObservable(mainChat),
 		constObservable(spec.enabled ?? true),
+		constObservable(spec.visible ?? true),
 		browserViewService,
-		actionWidgetService,
 		editorService,
 	));
 
 	return {
 		control,
-		getPickerItems: () => pickerItems,
-		selectPickerItem,
 		getBrowserOpenCount: () => browserOpenCount,
 		getOpenedBrowserId: () => openedBrowserId,
 		addSubagent: () => chats.set([mainChat, subagent], undefined),
 	};
 }
 
-function summarize(control: SessionBrowsersControl): { readonly text: string; readonly ariaLabel: string | null; readonly icons: readonly string[] } {
-	const button = control.element.querySelector<HTMLElement>('.session-activity-pill-button')!;
-	const knownIcons = [Codicon.globe, Codicon.agent, Codicon.sessionInProgress, Codicon.chevronDown];
-	return {
-		text: button.textContent ?? '',
-		ariaLabel: button.getAttribute('aria-label'),
-		icons: [...button.querySelectorAll<HTMLElement>('.codicon')]
-			.map(element => knownIcons.find(icon => element.classList.contains(`codicon-${icon.id}`))?.id ?? 'unknown'),
-	};
+/** The sections the control publishes, reduced to what the pill renders from. */
+function sections(control: SessionBrowsersControl): readonly { readonly title: string; readonly entries: readonly { readonly label: string; readonly icon: string }[] }[] {
+	return control.sections.get().map(section => ({
+		title: section.title,
+		entries: section.entries.map(entry => ({ label: entry.label, icon: entry.icon?.id ?? '' })),
+	}));
 }
 
-function click(control: SessionBrowsersControl): void {
-	control.element.querySelector<HTMLElement>('.session-activity-pill-button')!.click();
+/** Opens an entry, as the pill does on click or on selecting a dropdown row. */
+function openEntry(control: SessionBrowsersControl, label?: string): void {
+	const entries = control.sections.get().flatMap(section => section.entries);
+	const entry = label ? entries.find(candidate => candidate.label === label) : entries[0];
+	if (!entry) {
+		throw new Error(`Browser entry '${label ?? '<first>'}' not found`);
+	}
+	entry.open();
 }
 
 suite('SessionBrowsersControl', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('renders single and aggregate labels, icons, and fallback', () => {
+	test('publishes browser entries with a fallback label', () => {
 		const cases: IControlSpec[] = [
 			{ browsers: [{ title: 'Visual Studio Code' }] },
 			{ browsers: [{}] },
 			{ browsers: [{ title: 'Docs' }, { title: 'Preview' }] },
 		];
-		const disabled = createControl({ browsers: [{ title: 'Hidden browser' }], enabled: false }, store);
 
 		assert.deepStrictEqual({
-			enabled: cases.map(spec => summarize(createControl(spec, store).control)),
-			disabledVisible: disabled.control.isVisible.get(),
+			enabled: cases.map(spec => sections(createControl(spec, store).control)),
+			disabled: sections(createControl({ browsers: [{ title: 'Hidden browser' }], enabled: false }, store).control),
 		}, {
 			enabled: [
-				{ text: 'Visual Studio Code', ariaLabel: 'Open Visual Studio Code', icons: ['globe'] },
-				{ text: 'Browser', ariaLabel: 'Open Browser', icons: ['globe'] },
-				{ text: '2 Active Browsers', ariaLabel: 'Show 2 browsers', icons: ['globe', 'chevron-down'] },
+				[{ title: 'Browsers', entries: [{ label: 'Visual Studio Code', icon: 'globe' }] }],
+				[{ title: 'Browsers', entries: [{ label: 'Browser', icon: 'globe' }] }],
+				[{ title: 'Browsers', entries: [{ label: 'Docs', icon: 'globe' }, { label: 'Preview', icon: 'globe' }] }],
 			],
-			disabledVisible: false,
+			disabled: [],
 		});
 	});
 
@@ -199,12 +163,12 @@ suite('SessionBrowsersControl', () => {
 			agentFeedback: 4,
 			autoIncrementChanges: false,
 		});
-		const forced = summarize(harness.control);
+		const forced = sections(harness.control);
 		harness.control.setDebugData(undefined);
 
-		assert.deepStrictEqual({ forced, visibleAfterClear: harness.control.isVisible.get() }, {
-			forced: { text: 'Debug Browser', ariaLabel: 'Open Debug Browser', icons: ['globe'] },
-			visibleAfterClear: false,
+		assert.deepStrictEqual({ forced, afterClear: sections(harness.control) }, {
+			forced: [{ title: 'Browsers', entries: [{ label: 'Debug Browser', icon: 'globe' }] }],
+			afterClear: [],
 		});
 	});
 
@@ -217,37 +181,35 @@ suite('SessionBrowsersControl', () => {
 			],
 		}, store);
 
-		click(harness.control);
-		harness.selectPickerItem('Subagent Preview');
+		openEntry(harness.control, 'Subagent Preview');
 		await Promise.resolve();
 
 		assert.deepStrictEqual({
-			items: harness.getPickerItems().map(({ select: _select, ...item }) => item),
+			sections: sections(harness.control),
 			openedBrowser: harness.getOpenedBrowserId(),
 		}, {
-			items: [
-				{ kind: ActionListItemKind.Header, label: 'Browsers', category: 'Browsers', icon: '' },
-				{ kind: ActionListItemKind.Action, label: 'Docs', category: '', icon: Codicon.globe.id },
-				{ kind: ActionListItemKind.Action, label: 'Subagent Preview', category: '', icon: Codicon.globe.id },
-			],
+			sections: [{
+				title: 'Browsers',
+				entries: [{ label: 'Docs', icon: 'globe' }, { label: 'Subagent Preview', icon: 'globe' }],
+			}],
 			openedBrowser: 'browser-1',
 		});
 	});
 
 	test('shows a subagent browser registered before the subagent joins the session', () => {
 		const harness = createControl({ browsers: [{ title: 'Subagent Preview', owner: 'subagent' }], withoutSubagent: true }, store);
-		const beforeJoin = harness.control.isVisible.get();
+		const beforeJoin = sections(harness.control);
 		harness.addSubagent();
 
-		assert.deepStrictEqual({ beforeJoin, afterJoin: summarize(harness.control) }, {
-			beforeJoin: false,
-			afterJoin: { text: 'Subagent Preview', ariaLabel: 'Open Subagent Preview', icons: ['globe'] },
+		assert.deepStrictEqual({ beforeJoin, afterJoin: sections(harness.control) }, {
+			beforeJoin: [],
+			afterJoin: [{ title: 'Browsers', entries: [{ label: 'Subagent Preview', icon: 'globe' }] }],
 		});
 	});
 
 	test('opens a single browser directly', async () => {
 		const harness = createControl({ browsers: [{ title: 'Preview' }] }, store);
-		click(harness.control);
+		openEntry(harness.control);
 		await Promise.resolve();
 
 		assert.deepStrictEqual({
@@ -266,7 +228,7 @@ suite('SessionBrowsersControl', () => {
 				{ title: 'Shared Host', url: 'https://example.com/live', owner: 'unowned', sharingState: BrowserViewSharingState.Shared },
 			],
 		}, store);
-		click(sharedHost.control);
+		openEntry(sharedHost.control, 'Normal');
 		await Promise.resolve();
 
 		const sharedExact = createControl({
@@ -276,7 +238,7 @@ suite('SessionBrowsersControl', () => {
 				{ title: 'Shared Exact', url: 'https://example.com/start', owner: 'unowned', sharingState: BrowserViewSharingState.Shared },
 			],
 		}, store);
-		click(sharedExact.control);
+		openEntry(sharedExact.control, 'Normal');
 		await Promise.resolve();
 
 		const fallback = createControl({
@@ -285,7 +247,7 @@ suite('SessionBrowsersControl', () => {
 				{ title: 'Unrelated Shared', url: 'https://other.test/live', owner: 'unowned', sharingState: BrowserViewSharingState.Shared },
 			],
 		}, store);
-		click(fallback.control);
+		openEntry(fallback.control, 'Normal');
 		await Promise.resolve();
 
 		assert.deepStrictEqual({
@@ -296,6 +258,25 @@ suite('SessionBrowsersControl', () => {
 			sharedHost: 'browser-1',
 			sharedExact: 'browser-2',
 			fallback: 'browser-0',
+		});
+	});
+
+	test('publishes the listed browser URLs only while the pill is visible', () => {
+		const browsers = [
+			{ title: 'Docs', url: 'https://example.com/docs' },
+			{ title: 'Subagent Preview', url: 'https://preview.test/', owner: 'subagent' as const },
+			{ title: 'Other Session', url: 'https://other.test/', owner: 'other' as const },
+			{ title: 'Blank' },
+		];
+
+		assert.deepStrictEqual({
+			visible: [...createControl({ browsers }, store).control.urls.get()],
+			hidden: [...createControl({ browsers, visible: false }, store).control.urls.get()],
+			disabled: [...createControl({ browsers, enabled: false }, store).control.urls.get()],
+		}, {
+			visible: ['https://example.com/docs', 'https://preview.test/'],
+			hidden: [],
+			disabled: [],
 		});
 	});
 });

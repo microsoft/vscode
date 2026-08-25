@@ -8,10 +8,9 @@ import { $ } from '../../../../../../base/browser/dom.js';
 import { IAction, toAction } from '../../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { combinedDisposable, Disposable, IDisposable } from '../../../../../../base/common/lifecycle.js';
-import { autorun, constObservable, derived, derivedOpts, IObservable } from '../../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, derivedObservableWithCache, derivedOpts, IObservable } from '../../../../../../base/common/observable.js';
 import { basename, getComparisonKey, isEqual } from '../../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
-import { URI } from '../../../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../../../nls.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { FileKind } from '../../../../../../platform/files/common/files.js';
@@ -23,8 +22,6 @@ import { IThemeService } from '../../../../../../platform/theme/common/themeServ
 import { DEFAULT_LABELS_CONTAINER, ResourceLabels } from '../../../../../browser/labels.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { createFileIconThemableTreeContainerScope } from '../../../../files/browser/views/explorerView.js';
-import { MultiDiffEditorInput } from '../../../../multiDiffEditor/browser/multiDiffEditorInput.js';
-import { MultiDiffEditorItem } from '../../../../multiDiffEditor/browser/multiDiffSourceResolverService.js';
 import { IEditSessionEntryDiff } from '../../../common/editing/chatEditingService.js';
 import { IChatRendererContent, IChatTurnPillsPart } from '../../../common/model/chatViewModel.js';
 import { ChatTreeItem } from '../../chat.js';
@@ -50,7 +47,7 @@ export class ChatTurnPillsContentPart extends Disposable implements IChatContent
 	constructor(
 		private readonly _content: IChatTurnPillsPart,
 		_context: IChatContentPartRenderContext,
-		@IChatResponseFileChangesService chatResponseFileChangesService: IChatResponseFileChangesService,
+		@IChatResponseFileChangesService private readonly _chatResponseFileChangesService: IChatResponseFileChangesService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IHoverService private readonly _hoverService: IHoverService,
 		@IEditorService private readonly _editorService: IEditorService,
@@ -63,7 +60,13 @@ export class ChatTurnPillsContentPart extends Disposable implements IChatContent
 
 		this.domNode = $('.chat-turn-pills-part');
 
-		this._diffs = chatResponseFileChangesService.getChangesForRequest(_content.sessionResource, _content.requestId) ?? constObservable([]);
+		const providedDiffs = this._chatResponseFileChangesService.getChangesForRequest(_content.sessionResource, _content.requestId) ?? constObservable([]);
+		// The provider observable is rebuilt on reconnect and starts out empty, so
+		// keep the last non-empty result rather than dropping a rendered summary.
+		this._diffs = derivedObservableWithCache<readonly IEditSessionEntryDiff[]>(this, (reader, lastValue) => {
+			const diffs = providedDiffs.read(reader);
+			return diffs.length > 0 ? diffs : (lastValue ?? diffs);
+		});
 
 		const stats = derivedOpts<IDiffStats>({ owner: this, equalsFn: diffStatsEqual }, reader => {
 			const diffs = this._diffs.read(reader);
@@ -78,7 +81,7 @@ export class ChatTurnPillsContentPart extends Disposable implements IChatContent
 			return { files: diffs.length, insertions, deletions };
 		});
 
-		const previewDiffs = chatResponseFileChangesService.getFileEditsForRequest?.(_content.sessionResource, _content.requestId) ?? constObservable([]);
+		const previewDiffs = this._chatResponseFileChangesService.getFileEditsForRequest?.(_content.sessionResource, _content.requestId) ?? constObservable([]);
 		const previewFiles = derivedOpts<readonly IPreviewFile[]>({ owner: this, equalsFn: previewFilesEqual }, reader => {
 			const created: IPreviewFile[] = [];
 			const edited: IPreviewFile[] = [];
@@ -225,7 +228,7 @@ export class ChatTurnPillsContentPart extends Disposable implements IChatContent
 
 	private _renderChevron(header: HTMLElement, details: HTMLDetailsElement, showChanges: IObservable<boolean>): IDisposable {
 		const chevron = header.appendChild($('span.chat-file-changes-chevron.chat-collapsible-hover-chevron', { 'aria-hidden': 'true' }));
-		chevron.classList.add(...ThemeIcon.asClassNameArray(Codicon.chevronRight));
+		chevron.classList.add(...ThemeIcon.asClassNameArray(Codicon.chevronRightCompact));
 
 		const setExpansionState = () => {
 			header.setAttribute('aria-expanded', String(details.open));
@@ -242,19 +245,11 @@ export class ChatTurnPillsContentPart extends Disposable implements IChatContent
 	}
 
 	private _openChanges(): void {
-		const diffs = this._diffs.get();
-		if (diffs.length === 0) {
-			return;
-		}
-		const source = URI.parse(`multi-diff-editor:${Date.now().toString()}-${Math.random().toString(36).slice(2)}`);
-		const input = this._instantiationService.createInstance(
-			MultiDiffEditorInput,
-			source,
-			localize('chatTurnPills.changes.title', "Turn File Changes"),
-			diffs.map(diff => new MultiDiffEditorItem(diff.originalURI, diff.modifiedURI, undefined)),
-			false,
+		this._chatResponseFileChangesService.openChangesForRequest(
+			this._content.sessionResource,
+			this._content.requestId,
+			{ isLastTurn: this._content.isLastTurn },
 		);
-		this._editorService.openEditor(input);
 	}
 
 	private _openPrimaryPreview(files: readonly IPreviewFile[]): void {
@@ -265,7 +260,7 @@ export class ChatTurnPillsContentPart extends Disposable implements IChatContent
 	}
 
 	/**
-	 * Row actions for the changed-files list: markdown files get a labelless,
+	 * Row actions for the changed-files list: previewable files get a labelless,
 	 * icon-free action that opens the file.
 	 */
 	private _getRowActions(diff: IEditSessionEntryDiff): IAction[] {
@@ -284,6 +279,7 @@ export class ChatTurnPillsContentPart extends Disposable implements IChatContent
 	hasSameContent(other: IChatRendererContent, _followingContent: IChatRendererContent[], _element: ChatTreeItem): boolean {
 		return other.kind === 'turnPills'
 			&& other.requestId === this._content.requestId
-			&& isEqual(other.sessionResource, this._content.sessionResource);
+			&& isEqual(other.sessionResource, this._content.sessionResource)
+			&& other.isLastTurn === this._content.isLastTurn;
 	}
 }
