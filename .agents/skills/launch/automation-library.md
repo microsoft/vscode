@@ -187,13 +187,30 @@ The two compose: attach the library for the flows it covers, and drop to
 Page content shown in the integrated browser is **its own CDP target**, not
 part of the workbench document, so `session.page.evaluate` cannot see it and
 mouse events aimed at workbench coordinates will not reach it. Pick the content
-page off the browser and drive it directly:
+page off the browser and drive it directly.
+
+**Every integrated browser tab is a separate page**, so match on the URL and
+fail loudly when the match is not unique — `find()` returns an arbitrary tab,
+and page order does not follow the order you opened them in:
 
 ```js
-const pages = session.browser.contexts().flatMap(c => c.pages());
-const content = pages.find(p => !p.url().startsWith('vscode-file://'));  // the page under test
+function contentPage(session, urlSubstring) {
+    const pages = session.browser.contexts().flatMap(c => c.pages());
+    const matches = pages.filter(p => p.url().includes(urlSubstring));
+    if (matches.length !== 1) {
+        throw new Error(`Expected exactly 1 page matching '${urlSubstring}', found ${matches.length}: `
+            + matches.map(p => p.url()).join(', '));
+    }
+    return matches[0];
+}
+
+const content = contentPage(session, 'demo.html');
 await content.evaluate(() => document.querySelector('h1')?.textContent);
 ```
+
+Workbench windows use the `vscode-file://` scheme, so excluding it narrows the
+list to browser content — but with two tabs open that still leaves two
+candidates, which is exactly the case the uniqueness check catches.
 
 This is what makes *Add Element to Chat* automatable end to end: enable the
 picker from the workbench toolbar, then click the element **in the content
