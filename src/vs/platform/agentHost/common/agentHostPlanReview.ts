@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { ChatInputRequest } from './state/sessionState.js';
+import { URI } from '../../../base/common/uri.js';
 
 export interface IAgentHostPlanReviewAction {
 	readonly id: string;
@@ -21,6 +22,10 @@ export interface IAgentHostPlanReview {
 	readonly answerQuestionId: string;
 	readonly planUri?: string;
 }
+
+export type INativeAgentHostPlanReview = Omit<IAgentHostPlanReview, 'planUri'> & {
+	readonly planUri?: URI;
+};
 
 export type ChatInputRequestWithPlanReview = ChatInputRequest & {
 	readonly planReview?: IAgentHostPlanReview;

@@ -14,7 +14,8 @@ import { posix, win32 } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { buildSubagentChatUri, isMessageHiddenFromTranscript, MessageKind, ToolCallCancellationReason, ToolCallContributorKind, ToolCallRiskAssessmentStatus, ToolCallStatus, TurnState, ResponsePartKind, getInlineToolInput, getToolFileEdits, getToolOutputText, getToolSubagentContent, hasReportedUsage, readUsageInfoMeta, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, type ActiveTurn, type ChatInputAnswer, type ChatInputRequest, type ICompletedToolCall, type InputRequestResponsePart, type Message, type TerminalCommandResult, type ToolCallPendingConfirmationState, type ToolCallState, type ToolResultSubagentContent, type Turn, FileEditKind, ToolResultContentType, type ToolResultContent, type UsageInfo, type UsageInfoMeta } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import type { ChatInputRequestWithPlanReview, IAgentHostPlanReview } from '../../../../../../platform/agentHost/common/agentHostPlanReview.js';
+import { type ChatInputRequestWithPlanReview, type IAgentHostPlanReview, type INativeAgentHostPlanReview } from '../../../../../../platform/agentHost/common/agentHostPlanReview.js';
+import { createAgentHostUriProjectionContext, decodeAgentHostPlanReview } from '../../../../../../platform/agentHost/common/state/agentHostUriProjection.js';
 import { getToolKind } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { readToolCallMeta } from '../../../../../../platform/agentHost/common/meta/agentToolCallMeta.js';
 import { getChatErrorDetailsFromMeta, IChatErrorContext } from '../../../common/chatErrorMessages.js';
@@ -292,7 +293,7 @@ export function createInputRequestCarousel(inputReq: ChatInputRequest, connectio
 	return carousel;
 }
 
-export function createInputRequestPlanReview(inputReq: ChatInputRequest, planReview: IAgentHostPlanReview, resourceUris: IAgentHostResourceUriMapper): ChatPlanReviewData {
+export function createInputRequestPlanReview(inputReq: ChatInputRequest, planReview: INativeAgentHostPlanReview): ChatPlanReviewData {
 	return new ChatPlanReviewData(
 		planReview.title,
 		planReview.content,
@@ -304,7 +305,7 @@ export function createInputRequestPlanReview(inputReq: ChatInputRequest, planRev
 			...(action.permissionLevel ? { permissionLevel: action.permissionLevel } : {}),
 		})),
 		planReview.canProvideFeedback,
-		planReview.planUri ? resourceUris.fromAgentHost(URI.parse(planReview.planUri)).toJSON() : undefined,
+		planReview.planUri?.toJSON(),
 		inputReq.id,
 	);
 }
@@ -331,7 +332,7 @@ export function inputRequestResponsePartToProgress(part: InputRequestResponsePar
 	const inputReq = part.request;
 	const planReview = (inputReq as ChatInputRequestWithPlanReview).planReview;
 	if (planReview) {
-		const review = createInputRequestPlanReview(inputReq, planReview, resourceUris);
+		const review = createInputRequestPlanReview(inputReq, decodeAgentHostPlanReview(planReview, createAgentHostUriProjectionContext(resourceUris)));
 		review.data = part.response === undefined
 			? undefined
 			: convertProtocolPlanReviewResult(planReview, part.response, inputReq.answers);

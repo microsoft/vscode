@@ -18,12 +18,13 @@ import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { AgentHostClientState, AgentHostProtocolClient } from '../../browser/agentHostProtocolClient.js';
 import { AgentHostPermissionMode, AgentHostResourceIdentity, AgentHostResourcePermissionError, IAgentHostResourceService, LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../../common/agentHostResourceService.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
+import { getAgentHostUriProjection } from '../../common/state/agentHostUriProjection.js';
 import { ConfigurationTarget, type IConfigurationValue } from '../../../configuration/common/configuration.js';
 import { ContentEncoding, ReconnectResultType } from '../../common/state/protocol/commands.js';
 import { ChatSourceKind } from '../../common/state/protocol/channels-chat/commands.js';
 import { AhpErrorCodes, JsonRpcErrorCodes } from '../../common/state/protocol/errors.js';
 import { PROTOCOL_VERSION, SUPPORTED_PROTOCOL_VERSIONS } from '../../common/state/protocol/version/registry.js';
-import { ActionType, type ChatTurnStartedAction, type SessionActiveClientSetAction, type SessionActiveClientRemovedAction, type SessionTitleChangedAction } from '../../common/state/sessionActions.js';
+import { ActionType, type ChatTurnStartedAction, type ClientAnnotationsAction, type SessionActiveClientSetAction, type SessionActiveClientRemovedAction, type SessionTitleChangedAction } from '../../common/state/sessionActions.js';
 import { ProtocolError, type AhpServerNotification, type JsonRpcNotification, type JsonRpcRequest, type JsonRpcResponse, type ProtocolMessage } from '../../common/state/sessionProtocol.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { mainWindow } from '../../../../base/browser/window.js';
@@ -337,6 +338,81 @@ suite('AgentHostProtocolClient', () => {
 		});
 		await connectPromise;
 	}
+
+	test('correlates initialize response with its native URI decoder', async () => {
+		const { client, transport } = createClient();
+		const connectPromise = client.connect();
+		const initialize = transport.sentMessages[0] as JsonRpcRequest;
+		const defaultDirectory = 'file:///Q:/repo';
+		transport.fireMessage({
+			jsonrpc: '2.0',
+			id: initialize.id,
+			result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 0, snapshots: [], defaultDirectory },
+		});
+		await connectPromise;
+
+		assert.deepStrictEqual({
+			wire: client.initializeResult.get()?.defaultDirectory,
+			native: client.projectedInitializeResult.get()?.defaultDirectory?.toString(),
+		}, {
+			wire: defaultDirectory,
+			native: client.resourceUris.fromAgentHost(URI.parse(defaultDirectory)).toString(),
+		});
+	});
+
+	test('projects optimistic annotation resources while dispatching raw AHP URIs', async () => {
+		const { client, transport } = createClient();
+		await connectClient(client, transport);
+		const sessionUri = URI.parse('copilot:/session-1');
+		const annotationsUri = URI.parse(buildAnnotationsUri(sessionUri.toString()));
+		const projection = getAgentHostUriProjection(client);
+		const reference = projection.getAnnotationsSubscription(annotationsUri, 'test');
+		let subscribe: JsonRpcRequest | undefined;
+		while (!subscribe) {
+			subscribe = transport.sentMessages.find((message): message is JsonRpcRequest => hasKey(message, { method: true, id: true }) && message.method === 'subscribe');
+			if (!subscribe) {
+				await Promise.resolve();
+			}
+		}
+		transport.fireMessage({
+			jsonrpc: '2.0',
+			id: subscribe.id,
+			result: { snapshot: { resource: annotationsUri.toString(), state: { annotations: [] }, fromSeq: 1 } },
+		});
+		while (reference.object.value === undefined) {
+			await Promise.resolve();
+		}
+
+		const rawResource = URI.parse('file:///q%3A/repo/src/file.ts');
+		const nativeResource = client.resourceUris.fromAgentHost(rawResource);
+		client.dispatch(annotationsUri.toString(), {
+			type: ActionType.AnnotationsSet,
+			annotation: {
+				id: 'annotation-1',
+				origin: { session: sessionUri },
+				resource: nativeResource,
+				resolved: false,
+				entries: [{ id: 'entry-1', text: 'Review this.' }],
+			},
+		});
+		const dispatched = transport.sentMessages.find(message =>
+			hasKey(message, { method: true })
+			&& message.method === 'dispatchAction'
+			&& !hasKey(message, { id: true })
+			&& (message.params as { readonly action?: { readonly type?: unknown } } | undefined)?.action?.type === ActionType.AnnotationsSet);
+		assert.ok(dispatched && hasKey(dispatched, { params: true }));
+		const wireAction = (dispatched.params as { readonly action: ClientAnnotationsAction }).action;
+		assert.strictEqual(wireAction.type, ActionType.AnnotationsSet);
+
+		assert.deepStrictEqual({
+			nativeResource: reference.object.value instanceof Error ? undefined : reference.object.value?.annotations[0]?.resource.toString(),
+			wireResource: wireAction.annotation.resource,
+		}, {
+			nativeResource: nativeResource.toString(),
+			wireResource: rawResource.toString(),
+		});
+		reference.dispose();
+	});
 
 	test('initialize sends the local client telemetry identity only for usage telemetry', async () => {
 		const transport = disposables.add(new TestProtocolTransport(AgentHostClientConnectionKind.RemoteExtensionHost));

@@ -26,6 +26,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { execSync } from 'child_process';
 import * as ts from 'typescript';
+import { generateAgentHostUriProjections } from './generate-agent-host-uri-projections';
 
 const ROOT = path.resolve(__dirname, '..');
 const PROTOCOL_REPO = path.resolve(ROOT, '../agent-host-protocol');
@@ -274,6 +275,9 @@ function main() {
 	const versionFile = path.join(DEST_DIR, '.ahp-version');
 	fs.writeFileSync(versionFile, commitHash + '\n', 'utf-8');
 	console.log(`  .ahp-version -> ${commitHash}`);
+
+	generateAgentHostUriProjections();
+	console.log('  agentHostUriProjection.generated.ts');
 
 	console.log();
 	console.log('Done.');

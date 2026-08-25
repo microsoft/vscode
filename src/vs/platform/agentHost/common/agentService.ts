@@ -17,6 +17,7 @@ import type { IActiveSubscriptionInfo, IAgentSubscription } from './state/agentS
 import type { IRemoteWatchHandle } from './agentHostFileSystemProvider.js';
 import type { IAgentHostResourceUriMapper } from './agentHostUri.js';
 import type { IAgentHostClientTelemetryContext } from './agentHostTelemetry.js';
+import type { NativeClientAnnotationsAction } from './state/agentHostUriProjection.generated.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
 import type { InitializeResult } from './state/protocol/common/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from './state/protocol/channels-changeset/commands.js';
@@ -1035,6 +1036,8 @@ export interface IAgentService {
  * Implementations wrap an {@link IAgentService} and layer subscription
  * management and optimistic write-ahead on top.
  */
+export type AgentConnectionAction = SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | NativeClientAnnotationsAction | IRootConfigChangedAction;
+
 export interface IAgentConnection {
 
 	readonly clientId: string;
@@ -1067,14 +1070,10 @@ export interface IAgentConnection {
 
 	// ---- Action dispatch ----------------------------------------------------
 	/**
-	 * Dispatch a client-originated action. `channel` is the protocol URI
-	 * string identifying the channel the action targets (a session URI for
-	 * session actions, terminal URI for terminal actions, or
-	 * `ROOT_STATE_URI` for root-config actions). Strings are used rather
-	 * than {@link URI} objects so authority-less scheme URIs like
-	 * `ahp-root://` survive the wire format without normalization.
+	 * Dispatch a client-originated native action. URI-bearing action fields are
+	 * encoded automatically before optimistic reduction and wire dispatch.
 	 */
-	dispatch(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction): void;
+	dispatch(channel: string, action: AgentConnectionAction): void;
 
 	// ---- Events (connection-level) ------------------------------------------
 	readonly onDidNotification: Event<INotification>;

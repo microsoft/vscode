@@ -40,7 +40,8 @@ import { SessionConfigKey } from '../../../../../../platform/agentHost/common/se
 import { isWorktreeUnderRepository } from '../../../../../../platform/agentHost/common/worktreePaths.js';
 import { CLIENT_SEMANTIC_SEARCH_TOOL_ID, SEMANTIC_SEARCH_TOOL_NAME } from '../../../../../../platform/agentHost/common/semanticSearchConstants.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../../../../../platform/agentHost/common/toolSearchConstants.js';
-import type { ChatInputRequestWithPlanReview, IAgentHostPlanReview } from '../../../../../../platform/agentHost/common/agentHostPlanReview.js';
+import { type ChatInputRequestWithPlanReview, type IAgentHostPlanReview } from '../../../../../../platform/agentHost/common/agentHostPlanReview.js';
+import { getAgentHostUriProjection } from '../../../../../../platform/agentHost/common/state/agentHostUriProjection.js';
 import { IAgentSubscription, observableFromSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ChatTruncatedAction } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
 import { CompletionItemKind as AhpCompletionItemKind, ContentEncoding, type CompletionItem as AhpCompletionItem } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
@@ -4198,7 +4199,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		opts: IObserveTurnOptions,
 	): void {
 		const inputReq = part$.get().request;
-		const review = createInputRequestPlanReview(inputReq, planReview, this._config.connection.resourceUris);
+		const review = createInputRequestPlanReview(inputReq, getAgentHostUriProjection(this._config.connection).decodePlanReview(planReview));
 		opts.sink([review]);
 
 		let inputCompleted = false;
