@@ -32,7 +32,6 @@ product.overrides.json
 vscode-telemetry-docs/
 test-output.json
 test/componentFixtures/.screenshots/*
-!test/componentFixtures/.screenshots/baseline/
 dist
 .playwright-cli
 .playwright-mcp
