@@ -110,7 +110,7 @@ function assertSimpleDialogForWorkspaceArgs(args: string[]): void {
 		'--log', '--remote-debugging-port', '--shared-data-dir', '--user-data-dir'
 	]);
 	for (let i = 0; i < args.length; i++) {
-		let argument = args[i];
+		const argument = args[i];
 		if (argument === '--folder-uri' || argument === '--file-uri') {
 			const kind = argument;
 			const uri = args[++i] ?? '';
