@@ -10,7 +10,7 @@ import { timeout } from '../../../../../../base/common/async.js';
 import { DisposableStore, IDisposable, ImmortalReference, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
-import { mock } from '../../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { autorun, constObservable, ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IConfigurationService, IConfigurationValue } from '../../../../../../platform/configuration/common/configuration.js';
@@ -35,7 +35,11 @@ import { IChatResponseModel } from '../../../../../../workbench/contrib/chat/com
 import { IChatAgentData } from '../../../../../../workbench/contrib/chat/common/participants/chatAgents.js';
 import { IGitService } from '../../../../../../workbench/contrib/git/common/gitService.js';
 import { ISessionChangeEvent } from '../../../../../services/sessions/common/sessionsProvider.js';
-import { ChatModelSource, GITHUB_REMOTE_FILE_SCHEME, SessionStatus } from '../../../../../services/sessions/common/session.js';
+import { ChatModelSource, GITHUB_REMOTE_FILE_SCHEME, IChat, ISession, SessionStatus } from '../../../../../services/sessions/common/session.js';
+import { CloudSandboxEnabledSettingId, type ICloudSandboxCreateSessionRequest } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { CloudSandboxAgentHostContribution, type ICloudSandboxProvisionedSession } from '../../../remoteAgentHost/browser/cloudSandboxAgentHostContribution.js';
+import { CloudSandboxSessionsProvider } from '../../../remoteAgentHost/browser/cloudSandboxSessionsProvider.js';
 import { ChatConfiguration, ChatPermissionLevel } from '../../../../../../workbench/contrib/chat/common/constants.js';
 import { CopilotChatSessionsProvider, COPILOT_PROVIDER_ID, CopilotCloudSessionType, ICopilotChatSession } from '../../browser/copilotChatSessionsProvider.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
@@ -244,7 +248,7 @@ function createProviderWithConfig(
 
 	instantiationService.stub(IConfigurationService, configService);
 	instantiationService.stub(IContextKeyService, disposables.add(new MockContextKeyService()));
-	instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: agentHostEnabled });
+	instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: agentHostEnabled, managedSandboxEnforced: constObservable(false) });
 	instantiationService.stub(IStorageService, disposables.add(new TestStorageService()));
 	instantiationService.stub(IFileDialogService, {});
 	instantiationService.stub(IDialogService, {
@@ -320,12 +324,27 @@ function createProviderWithConfig(
  * The caller can pass a custom `sendRequest` implementation to control the
  * lifecycle of the in-flight request.
  */
+/**
+ * Substitutes the sandbox contribution, which the provider otherwise resolves from the global
+ * workbench contribution registry.
+ */
+class TestSandboxCopilotProvider extends CopilotChatSessionsProvider {
+	sandboxContribution: Pick<CloudSandboxAgentHostContribution, 'provisionSession'> | undefined;
+
+	protected override _getCloudSandboxContribution(): Pick<CloudSandboxAgentHostContribution, 'provisionSession'> {
+		if (!this.sandboxContribution) {
+			throw new Error('No cloud sandbox contribution was registered');
+		}
+		return this.sandboxContribution;
+	}
+}
+
 function createProviderForSendTests(
 	disposables: DisposableStore,
 	model: MockAgentSessionsModel,
 	sendRequest: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>,
 	opts?: { onDidCommitSession?: Event<{ original: URI; committed: URI }>; configurationService?: TestConfigurationService; agentHostEnabled?: boolean },
-): CopilotChatSessionsProvider {
+): TestSandboxCopilotProvider {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	const configService = opts?.configurationService ?? new TestConfigurationService();
@@ -377,12 +396,12 @@ function createProviderForSendTests(
 		getUriLabel: (uri: URI) => uri.path,
 	});
 	instantiationService.stub(IUriIdentityService, { extUri });
-	instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: constObservable(opts?.agentHostEnabled ?? true) });
+	instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: constObservable(opts?.agentHostEnabled ?? true), managedSandboxEnforced: constObservable(false) });
 	instantiationService.stub(IContextKeyService, new MockContextKeyService());
 	instantiationService.stub(IGitHubService, new TestGitHubService());
 	instantiationService.stub(IPullRequestIconCache, new TestPullRequestIconCache());
 
-	return disposables.add(instantiationService.createInstance(CopilotChatSessionsProvider));
+	return disposables.add(instantiationService.createInstance(TestSandboxCopilotProvider));
 }
 
 suite('CopilotChatSessionsProvider', () => {
@@ -1806,5 +1825,148 @@ suite('CopilotChatSessionsProvider', () => {
 			!removals.includes(untitledResource.toString()),
 			`Cloud session should not be removed after committing. Removals seen: [${removals.join(', ')}]`,
 		);
+	});
+	suite('cloud sandbox send path', () => {
+		// A browsed GitHub workspace root carries a ref (`/<owner>/<repo>/HEAD`), which is what
+		// `repoNwo` has to strip back down to `owner/repo`.
+		const repoWorkspace = URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, path: '/osortega/simple-server/HEAD' });
+
+		function createSandboxProvider(opts: { enabled?: boolean; provision?: () => Promise<ICloudSandboxProvisionedSession> } = {}) {
+			const configurationService = new TestConfigurationService();
+			configurationService.setUserConfiguration(CloudSandboxEnabledSettingId, opts.enabled ?? true);
+			configurationService.setUserConfiguration(RemoteAgentHostsEnabledSettingId, true);
+
+			const cloudSends: string[] = [];
+			const provider = createProviderForSendTests(disposables, model, async (_resource, message) => {
+				cloudSends.push(message);
+				// Never settles: these tests only assert which path the send took.
+				return new Promise<ChatSendResult>(() => { });
+			}, { configurationService });
+
+			const provisionRequests: ICloudSandboxCreateSessionRequest[] = [];
+			provider.sandboxContribution = {
+				provisionSession: async request => {
+					provisionRequests.push(request);
+					if (opts.provision) {
+						return opts.provision();
+					}
+					throw new Error('provisioning failed');
+				},
+			};
+			return { provider, provisionRequests, cloudSends };
+		}
+
+		/** A provisioned session whose provider immediately commits the send. */
+		function provisionedSession(sendRequest?: () => Promise<ISession>): ICloudSandboxProvisionedSession & { published: string[] } {
+			const committed = upcastPartial<ISession>({
+				sessionId: 'agenthost:sess-new',
+				resource: URI.parse('agent-host-copilot:/sess-new'),
+			});
+			const sandboxSession = upcastPartial<ISession>({
+				sessionId: 'agenthost:sess-new',
+				resource: URI.parse('agent-host-copilot:/sess-new'),
+				mainChat: constObservable(upcastPartial<IChat>({ resource: URI.parse('agent-host-copilot:/sess-new') })),
+			});
+			const published: string[] = [];
+			return {
+				taskId: 'task-new',
+				sessionId: 'sess-new',
+				environmentId: 'env-new',
+				session: sandboxSession,
+				published,
+				provider: upcastPartial<CloudSandboxSessionsProvider>({
+					sendRequest: sendRequest ?? (async () => committed),
+					publishWithheldSession: (rawId: string) => { published.push(rawId); },
+				}) as CloudSandboxSessionsProvider,
+			};
+		}
+
+		test('provisions a sandbox and replaces the draft with the committed session', async () => {
+			const { provider, provisionRequests, cloudSends } = createSandboxProvider({ provision: async () => provisionedSession() });
+			const sessionInfo = provider.createNewSession(repoWorkspace, CopilotCloudSessionType.id);
+			const session = provider.getSession(sessionInfo.sessionId)!;
+			session.setUseSandbox(true);
+
+			const replacements: { from: string; to: string }[] = [];
+			disposables.add(provider.onDidReplaceSession(e => replacements.push({ from: e.from.sessionId, to: e.to.sessionId })));
+
+			const committed = await provider.sendRequest(sessionInfo.sessionId, session.mainChat.get().resource, { query: 'fix it' });
+
+			assert.deepStrictEqual({
+				committed: committed.sessionId,
+				// The repo comes from the workspace root; no baseRef, matching the Copilot app.
+				provisionRequests,
+				// The prompt must not also go through the server-run cloud agent.
+				cloudSends,
+				replacements: replacements.map(r => ({ from: r.from === sessionInfo.sessionId, to: r.to })),
+			}, {
+				committed: 'agenthost:sess-new',
+				provisionRequests: [{ repoNwo: 'osortega/simple-server', prompt: 'fix it' }],
+				cloudSends: [],
+				replacements: [{ from: true, to: 'agenthost:sess-new' }],
+			});
+		});
+
+		test('falls back to the server-run cloud agent when the feature is disabled', async () => {
+			// A remembered preference must not strand the user with a send that always fails.
+			const { provider, provisionRequests, cloudSends } = createSandboxProvider({ enabled: false });
+			const sessionInfo = provider.createNewSession(repoWorkspace, CopilotCloudSessionType.id);
+			const session = provider.getSession(sessionInfo.sessionId)!;
+			session.setUseSandbox(true);
+
+			void provider.sendRequest(sessionInfo.sessionId, session.mainChat.get().resource, { query: 'fix it' });
+			await timeout(0);
+
+			assert.deepStrictEqual({ provisionRequests, cloudSends }, { provisionRequests: [], cloudSends: ['fix it'] });
+		});
+
+		test('reveals the withheld sandbox session as it retires the placeholder', async () => {
+			const provisioned = provisionedSession();
+			const { provider } = createSandboxProvider({ provision: async () => provisioned });
+			const sessionInfo = provider.createNewSession(repoWorkspace, CopilotCloudSessionType.id);
+			const session = provider.getSession(sessionInfo.sessionId)!;
+			session.setUseSandbox(true);
+
+			// The sandbox session is seeded before connecting so a discovery pass reconciles
+			// against it, but it must stay out of the list until the placeholder goes away —
+			// otherwise both rows show for as long as the sandbox takes to wake.
+			await provider.sendRequest(sessionInfo.sessionId, session.mainChat.get().resource, { query: 'fix it' });
+
+			assert.deepStrictEqual(provisioned.published, ['sess-new']);
+		});
+
+		test('a failed send still reveals the sandbox session it already provisioned', async () => {
+			const provisioned = provisionedSession(async () => { throw new Error('send failed'); });
+			const { provider } = createSandboxProvider({ provision: async () => provisioned });
+			const sessionInfo = provider.createNewSession(repoWorkspace, CopilotCloudSessionType.id);
+			const session = provider.getSession(sessionInfo.sessionId)!;
+			session.setUseSandbox(true);
+
+			await assert.rejects(() => provider.sendRequest(sessionInfo.sessionId, session.mainChat.get().resource, { query: 'fix it' }));
+
+			// The sandbox outlives the failed turn, so leaving it withheld would hide a session
+			// that really exists.
+			assert.deepStrictEqual(provisioned.published, ['sess-new']);
+		});
+
+		test('a failed provision removes the placeholder instead of stranding it in the list', async () => {
+			const { provider } = createSandboxProvider();
+			const sessionInfo = provider.createNewSession(repoWorkspace, CopilotCloudSessionType.id);
+			const session = provider.getSession(sessionInfo.sessionId)!;
+			session.setUseSandbox(true);
+
+			const removed: string[] = [];
+			disposables.add(provider.onDidChangeSessions(e => removed.push(...e.removed.map(s => s.sessionId))));
+
+			await assert.rejects(() => provider.sendRequest(sessionInfo.sessionId, session.mainChat.get().resource, { query: 'fix it' }));
+
+			assert.deepStrictEqual({
+				removed,
+				stillListed: provider.getSessions().some(s => s.sessionId === sessionInfo.sessionId),
+			}, {
+				removed: [sessionInfo.sessionId],
+				stillListed: false,
+			});
+		});
 	});
 });

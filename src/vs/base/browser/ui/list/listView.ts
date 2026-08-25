@@ -13,7 +13,7 @@ import { distinct, equals, splice } from '../../../common/arrays.js';
 import { Delayer, disposableTimeout } from '../../../common/async.js';
 import { memoize } from '../../../common/decorators.js';
 import { Emitter, Event, IValueWithChangeEvent } from '../../../common/event.js';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../common/lifecycle.js';
 import { IRange, Range } from '../../../common/range.js';
 import { INewScrollDimensions, Scrollable, ScrollbarVisibility, ScrollEvent } from '../../../common/scrollable.js';
 import { ISpliceable } from '../../../common/sequence.js';
@@ -327,6 +327,7 @@ export class ListView<T> implements IListView<T> {
 	private accessibilityProvider: ListViewAccessibilityProvider<T>;
 	private scrollWidth: number | undefined;
 
+	private readonly disposables = new DisposableStore();
 	private dnd: IListViewDragAndDrop<T>;
 	private canDrop: boolean = false;
 	private currentDragData: IDragAndDropData | undefined;
@@ -334,11 +335,10 @@ export class ListView<T> implements IListView<T> {
 	private currentDragFeedbackPosition: ListDragOverEffectPosition | undefined;
 	private currentDragFeedbackDisposable: IDisposable = Disposable.None;
 	private onDragLeaveTimeout: IDisposable = Disposable.None;
-	private currentSelectionDisposable: IDisposable = Disposable.None;
+	private readonly currentSelectionDisposable = this.disposables.add(new MutableDisposable<IDisposable>());
+	private readonly currentSelectionMovementDisposable = this.disposables.add(new MutableDisposable<IDisposable>());
 	private currentSelectionBounds: IRange | undefined;
 	private activeElement: HTMLElement | undefined;
-
-	private readonly disposables: DisposableStore = new DisposableStore();
 
 	private readonly _onDidChangeContentHeight = this.disposables.add(new Emitter<number>());
 	private readonly _onDidChangeContentWidth = this.disposables.add(new Emitter<number>());
@@ -1242,61 +1242,72 @@ export class ListView<T> implements IListView<T> {
 	}
 
 	private onPotentialSelectionStart(e: MouseEvent) {
-		this.currentSelectionDisposable.dispose();
 		const doc = getDocument(this.domNode);
+		this.currentSelectionMovementDisposable.clear();
+
+		if (e.shiftKey && this.currentSelectionBounds && doc.getSelection()?.isCollapsed === false) {
+			this.currentSelectionMovementDisposable.value = this.createSelectionMovementStore(doc);
+			return;
+		}
+
+		this.currentSelectionDisposable.clear();
 
 		// Set up both the 'movement store' for watching the mouse, and the
 		// 'selection store' which lasts as long as there's a selection, even
 		// after the usr has stopped modifying it.
-		const selectionStore = this.currentSelectionDisposable = new DisposableStore();
-		const movementStore = selectionStore.add(new DisposableStore());
+		const selectionStore = new DisposableStore();
+		this.currentSelectionDisposable.value = selectionStore;
+		this.currentSelectionMovementDisposable.value = this.createSelectionMovementStore(doc);
 
 		// The selection events we get from the DOM are fairly limited and we lack a 'selection end' event.
 		// Selection events also don't tell us where the input doing the selection is. So, make a poor
 		// assumption that a user is using the mouse, and base our events on that.
+		selectionStore.add(toDisposable(() => {
+			this.currentSelectionMovementDisposable.clear();
+			const previousRenderRange = this.getRenderRange(this.lastRenderTop, this.lastRenderHeight);
+			this.currentSelectionBounds = undefined;
+			this.render(previousRenderRange, this.lastRenderTop, this.lastRenderHeight, undefined, undefined);
+		}));
+		selectionStore.add(addDisposableListener(doc, 'selectionchange', () => {
+			const selection = doc.getSelection();
+			// if the selection changed _after_ mouseup, it's from clearing the list or similar, so teardown
+			if (!selection || selection.isCollapsed) {
+				if (!this.currentSelectionMovementDisposable.value) {
+					this.currentSelectionDisposable.clear();
+				}
+				return;
+			}
+
+			let start = this.getIndexOfListElement(selection.anchorNode as HTMLElement);
+			let end = this.getIndexOfListElement(selection.focusNode as HTMLElement);
+			if (start !== undefined && end !== undefined) {
+				if (end < start) {
+					[start, end] = [end, start];
+				}
+				this.currentSelectionBounds = { start, end };
+			}
+		}));
+	}
+
+	private createSelectionMovementStore(doc: Document): IDisposable {
+		const movementStore = new DisposableStore();
 		movementStore.add(addDisposableListener(this.domNode, 'selectstart', () => {
 			movementStore.add(addDisposableListener(doc, 'mousemove', e => {
 				if (doc.getSelection()?.isCollapsed === false) {
 					this.setupDragAndDropScrollTopAnimation(e);
 				}
 			}));
-
-			// The selection is cleared either on mouseup if there's no selection, or on next mousedown
-			// when `this.currentSelectionDisposable` is reset.
-			selectionStore.add(toDisposable(() => {
-				const previousRenderRange = this.getRenderRange(this.lastRenderTop, this.lastRenderHeight);
-				this.currentSelectionBounds = undefined;
-				this.render(previousRenderRange, this.lastRenderTop, this.lastRenderHeight, undefined, undefined);
-			}));
-			selectionStore.add(addDisposableListener(doc, 'selectionchange', () => {
-				const selection = doc.getSelection();
-				// if the selection changed _after_ mouseup, it's from clearing the list or similar, so teardown
-				if (!selection || selection.isCollapsed) {
-					if (movementStore.isDisposed) {
-						selectionStore.dispose();
-					}
-					return;
-				}
-
-				let start = this.getIndexOfListElement(selection.anchorNode as HTMLElement);
-				let end = this.getIndexOfListElement(selection.focusNode as HTMLElement);
-				if (start !== undefined && end !== undefined) {
-					if (end < start) {
-						[start, end] = [end, start];
-					}
-					this.currentSelectionBounds = { start, end };
-				}
-			}));
 		}));
-
 		movementStore.add(addDisposableListener(doc, 'mouseup', () => {
-			movementStore.dispose();
+			this.currentSelectionMovementDisposable.clear();
 			this.teardownDragAndDropScrollTopAnimation();
 
 			if (doc.getSelection()?.isCollapsed !== false) {
-				selectionStore.dispose();
+				this.currentSelectionDisposable.clear();
 			}
 		}));
+
+		return movementStore;
 	}
 
 	private getIndexOfListElement(element: HTMLElement | null): number | undefined {
@@ -1859,6 +1870,8 @@ export class ListView<T> implements IListView<T> {
 	// Dispose
 
 	dispose() {
+		this.currentSelectionDisposable.clear();
+
 		for (const item of this.items) {
 			item.dragStartDisposable.dispose();
 			item.checkedDisposable.dispose();

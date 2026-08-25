@@ -10,7 +10,8 @@ import { Event } from '../../../../base/common/event.js';
 import type { IDetailedDiffResult, IDiffComputeService, IDiffCountResult } from '../../common/diffComputeService.js';
 import type { IFileEditContent, IFileEditRecord, ILocalTurnRecord, IReviewedFileRecord, ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
 import type { IAgentHostCheckpointService } from '../../common/agentHostCheckpointService.js';
-import type { Message } from '../../common/state/sessionState.js';
+import type { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
+import type { ISessionGitHubState, Message } from '../../common/state/sessionState.js';
 
 export class TestSessionDatabase implements ISessionDatabase {
 	private readonly _edits: (IFileEditRecord & IFileEditContent)[] = [];
@@ -87,6 +88,24 @@ export class TestSessionDatabase implements ISessionDatabase {
 			this.setMetadataCalls.push({ key, value });
 			this._metadata.set(key, value);
 		}
+	}
+
+	async setMetadataValuesIfAbsent(key: string, values: Readonly<Record<string, string>>, copies: Readonly<Record<string, string>> = {}): Promise<boolean> {
+		if (this._metadata.has(key)) {
+			return false;
+		}
+		for (const [targetKey, value] of Object.entries(values)) {
+			this.setMetadataCalls.push({ key: targetKey, value });
+			this._metadata.set(targetKey, value);
+		}
+		for (const [targetKey, sourceKey] of Object.entries(copies)) {
+			const value = this._metadata.get(sourceKey);
+			if (value !== undefined) {
+				this.setMetadataCalls.push({ key: targetKey, value });
+				this._metadata.set(targetKey, value);
+			}
+		}
+		return true;
 	}
 
 	async setChatDraft(chat: URI, draft: Message | undefined): Promise<void> {
@@ -344,6 +363,20 @@ export function createNoopChangesetService(): import('../../common/agentHostChan
 		onToolCallEditsApplied: () => { },
 		onTurnComplete: () => { },
 		onSessionTruncated: () => { },
+	};
+}
+
+export function createNoopGitStateService(): IAgentHostGitStateService {
+	return {
+		_serviceBrand: undefined,
+		onDidRefreshSessionGitState: Event.None,
+		onDidChangeSessionGitHubState: Event.None,
+		refreshSessionGitState: async (_sessionKey: string, _workingDirectory?: URI) => { },
+		resolveSessionBaseBranchName: async (_sessionKey: string) => undefined,
+		setSessionGitHubState: async (_sessionKey: string, _state: ISessionGitHubState) => { },
+		recordSessionMerge: async (_sessionKey: string, _commit: string) => { },
+		attachSessionGitHubPullRequest: async (_sessionKey: string, _workingDirectory?: URI) => { },
+		attachSessionGitHubReferences: async (_sessionKey: string, _text: string) => { },
 	};
 }
 

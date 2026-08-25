@@ -85,17 +85,6 @@ suite('Sessions - SessionHeader', () => {
 		return dragEvent;
 	}
 
-	test('a small pointer move over the meta row (e.g. the changed-files pill) does not start a session drag', () => {
-		const { header } = createHarness(disposables);
-
-		const metaRow = header.element.querySelector<HTMLElement>('.chat-composite-bar-meta-row');
-		assert.ok(metaRow, 'meta row should be rendered');
-
-		const dragEvent = simulateDragFrom(header, metaRow);
-
-		assert.strictEqual(dragEvent.defaultPrevented, true, 'drag-start originating in the meta row must be prevented so the underlying click is not swallowed');
-	});
-
 	test('a small pointer move over the title actions toolbar does not start a session drag', () => {
 		const { header } = createHarness(disposables);
 
@@ -113,5 +102,23 @@ suite('Sessions - SessionHeader', () => {
 		const dragEvent = simulateDragFrom(header, header.element);
 
 		assert.strictEqual(dragEvent.defaultPrevented, false);
+	});
+
+	test('hides the header while it is replaced by the single-group tabs row', () => {
+		const { header } = createHarness(disposables);
+
+		header.setVisible(false);
+		const hiddenDisplay = header.element.style.display;
+		header.setVisible(true);
+
+		assert.deepStrictEqual({
+			hiddenDisplay,
+			restoredDisplay: header.element.style.display,
+			hasMetadataRow: header.element.querySelector('.chat-composite-bar-meta-row') !== null,
+		}, {
+			hiddenDisplay: 'none',
+			restoredDisplay: '',
+			hasMetadataRow: false,
+		});
 	});
 });

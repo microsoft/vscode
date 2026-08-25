@@ -492,6 +492,8 @@ export namespace EditIntent {
 	}
 }
 
+export type EagernessPrompt = 'aggressionHighLow';
+
 export type PromptOptions = {
 	readonly promptingStrategy: PromptingStrategy | undefined /* default */;
 	readonly currentFile: CurrentFileOptions;
@@ -503,6 +505,7 @@ export type PromptOptions = {
 	readonly memory: PromptMemoryOptions | undefined;
 	readonly includePostScript: boolean;
 	readonly lintOptions: LintOptions | undefined;
+	readonly eagernessPrompt: EagernessPrompt | undefined;
 	/**
 	 * When set, parts share a single pool of `totalTokens` and unused budget from
 	 * earlier parts in `order` cascades to later parts. When `undefined`, each
@@ -539,6 +542,8 @@ export enum PromptingStrategy {
 	PatchBased02 = 'patchBased02',
 	/** PatchBased02 variant: line numbers on recent docs. */
 	PatchBased02WithRecentLineNumbers = 'patchBased02WithRecentLineNumbers',
+	/** Optimized PatchBased02 variant with line numbers on recent docs. */
+	PatchBased02Optimized = 'patchBased02Optimized',
 	/** PatchBased02 variant: no line numbers on recent docs. */
 	PatchBased02WithoutRecentLineNumbers = 'patchBased02WithoutRecentLineNumbers',
 	/**
@@ -559,12 +564,21 @@ export function isPromptingStrategy(value: string): value is PromptingStrategy {
 	return (Object.values(PromptingStrategy) as string[]).includes(value);
 }
 
-export function isAggressivenessStrategy(strategy: PromptingStrategy | undefined): boolean {
-	return strategy === PromptingStrategy.XtabAggressiveness
-		|| strategy === PromptingStrategy.Xtab275Aggressiveness
-		|| strategy === PromptingStrategy.Xtab275AggressivenessHighLow
-		|| strategy === PromptingStrategy.Xtab275EditIntent
-		|| strategy === PromptingStrategy.Xtab275EditIntentShort;
+export function isEagernessPrompt(options: PromptOptions): boolean {
+	if (options.promptingStrategy === undefined) {
+		return false;
+	}
+	return (options.eagernessPrompt !== undefined && [
+		PromptingStrategy.PatchBased02,
+		PromptingStrategy.PatchBased02WithRecentLineNumbers,
+		PromptingStrategy.PatchBased02WithoutRecentLineNumbers,
+	].includes(options.promptingStrategy)) // eagerness prompt option is only supported for patch-based strategies
+		|| [PromptingStrategy.XtabAggressiveness,
+		PromptingStrategy.Xtab275Aggressiveness,
+		PromptingStrategy.Xtab275AggressivenessHighLow,
+		PromptingStrategy.Xtab275EditIntent,
+		PromptingStrategy.Xtab275EditIntentShort,
+		].includes(options.promptingStrategy); // first-class aggressiveness strategies
 }
 
 export function isRejectedEditMemoryEnabled(options: { readonly memory?: PromptMemoryOptions }): boolean {
@@ -596,6 +610,7 @@ export namespace ResponseFormat {
 			case PromptingStrategy.PatchBased01:
 			case PromptingStrategy.PatchBased02:
 			case PromptingStrategy.PatchBased02WithRecentLineNumbers:
+			case PromptingStrategy.PatchBased02Optimized:
 			case PromptingStrategy.PatchBased02WithoutRecentLineNumbers:
 				return ResponseFormat.CustomDiffPatch;
 			case PromptingStrategy.Xtab275EditIntent:
@@ -614,6 +629,7 @@ export namespace ResponseFormat {
 
 export const DEFAULT_OPTIONS: PromptOptions = {
 	promptingStrategy: undefined,
+	eagernessPrompt: undefined,
 	currentFile: {
 		maxTokens: 1500,
 		includeTags: true,
@@ -670,9 +686,73 @@ export const LANGUAGE_CONTEXT_ENABLED_LANGUAGES: LanguageContextLanguages = {
 	'chatagent': true,
 };
 
+/**
+ * Shape of the predicted output we send to the patch-based model along with the prompt.
+ * In every example below, `{currentLineNumber}` is 0-based — matching `Patch.lineNumZeroBased`
+ * parsed by `XtabCustomDiffPatchResponseHandler`.
+ */
+export enum PatchModelPrediction {
+	/**
+	 * Expects changes in the current file but doesn't expect where (line number is not specified).
+	 *
+	 * Example:
+	 *
+	 * ```
+	 * path/to/file:
+	 * ```
+	 */
+	FilePath = 'filePath',
+	/**
+	 * Predicts the file path, cursor line number, and a deletion of the current line.
+	 * The model is free to follow with further `-`/`+` lines as needed.
+	 *
+	 * Example:
+	 *
+	 * ```
+	 * path/to/file:{currentLineNumber}
+	 * -	class Foo {
+	 * ```
+	 */
+	CurrentLine = 'currentLine',
+	/**
+	 * Expects the current line to be replaced.
+	 *
+	 * Example:
+	 *
+	 * ```
+	 * path/to/file:{currentLineNumber}
+	 * -	class Foo {
+	 * +
+	 * ```
+	 */
+	CurrentLineReplaced = 'currentLineReplaced',
+	/**
+	 * Expects the current line to be completed.
+	 *
+	 * Example:
+	 *
+	 * ```
+	 * path/to/file:{currentLineNumber}
+	 * -	class Foo
+	 * +	class Foo
+	 * ```
+	 */
+	CurrentLineCompleted = 'currentLineCompleted',
+}
+
+export namespace PatchModelPrediction {
+	export const VALIDATOR = vEnum(
+		PatchModelPrediction.FilePath,
+		PatchModelPrediction.CurrentLine,
+		PatchModelPrediction.CurrentLineReplaced,
+		PatchModelPrediction.CurrentLineCompleted
+	);
+}
+
 export interface ModelConfiguration {
 	modelName: string;
 	promptingStrategy: PromptingStrategy | undefined /* default */;
+	eagernessPrompt?: EagernessPrompt;
 	includeTagsInCurrentFile: boolean;
 	includePostScript?: boolean;
 	currentFile?: Partial<CurrentFileOptions>;
@@ -682,6 +762,28 @@ export interface ModelConfiguration {
 	supportsNextCursorLinePrediction?: boolean;
 	/** Whether import-only edits are allowed. `undefined` is treated as {@link ImportChanges.None}. */
 	allowImportChanges?: ImportChanges;
+	/** Shape of the predicted output for patch-based responses. `undefined` falls back to the experiment default. */
+	patchModelPredictionKind?: PatchModelPrediction;
+	/** Whether to split patches on diff boundaries. `undefined` falls back to the experiment default. */
+	splitPatchOnDiff?: boolean;
+	/** Whether to fast-yield the line containing the cursor when parsing patches. `undefined` falls back to the experiment default. */
+	patchFastYieldLineWithCursor?: boolean;
+	/** Extra debounce (ms) applied when the cursor is at the end of a line. `undefined` falls back to the experiment default. */
+	extraDebounceEndOfLine?: number;
+	/** Whether cached suggestions should mimic ghost-text rendering behavior. `undefined` falls back to the experiment default. */
+	nesMimicGhostTextBehavior?: boolean;
+	/** Minimum response delay (ms) enforced for cached edits. `undefined` falls back to the experiment default. */
+	cacheDelay?: number;
+	/** Minimum response delay (ms) enforced for rebased cached edits. `undefined` falls back to the experiment default. */
+	rebasedCacheDelay?: number;
+	/** Base debounce (ms) applied before issuing a request. `undefined` falls back to the experiment default. */
+	debounce?: number;
+	/**
+	 * Whether this model handles inline completions itself, so the separate completions provider
+	 * should be suppressed and the client should run as the single unified provider. `undefined`
+	 * falls back to the experiment/deployment toggles.
+	 */
+	supportsUnifiedCompletions?: boolean;
 }
 
 /**
@@ -689,18 +791,34 @@ export interface ModelConfiguration {
  * declares values here, those values override anything provided by the upstream
  * model configuration. A strategy without an entry contributes no overrides.
  */
+const PATCH_BASED_02_WITH_RECENT_LINE_NUMBERS_CONFIG: Partial<ModelConfiguration> = {
+	includeTagsInCurrentFile: false,
+	includePostScript: true,
+	currentFile: { includeLineNumbers: IncludeLineNumbersOption.WithoutSpace },
+	recentlyViewedDocuments: { includeLineNumbers: IncludeLineNumbersOption.WithoutSpace },
+	supportsNextCursorLinePrediction: false,
+	allowImportChanges: ImportChanges.All,
+};
+
 const STRATEGY_CONFIG: Partial<Record<PromptingStrategy, Partial<ModelConfiguration>>> = {
 	// proxy /models doesn't know about includeTagsInCurrentFile field as of now, so hard-code it for CopilotNesXtab
 	[PromptingStrategy.CopilotNesXtab]: {
 		includeTagsInCurrentFile: true,
 	},
-	[PromptingStrategy.PatchBased02WithRecentLineNumbers]: {
-		includeTagsInCurrentFile: false,
-		includePostScript: true,
-		currentFile: { includeLineNumbers: IncludeLineNumbersOption.WithoutSpace },
-		recentlyViewedDocuments: { includeLineNumbers: IncludeLineNumbersOption.WithoutSpace },
-		supportsNextCursorLinePrediction: false,
-		allowImportChanges: ImportChanges.All,
+	[PromptingStrategy.PatchBased02WithRecentLineNumbers]: PATCH_BASED_02_WITH_RECENT_LINE_NUMBERS_CONFIG,
+	// Inherits everything from PatchBased02WithRecentLineNumbers and additionally bakes in the
+	// client/latency knobs that this unified model was tuned to run with.
+	[PromptingStrategy.PatchBased02Optimized]: {
+		...PATCH_BASED_02_WITH_RECENT_LINE_NUMBERS_CONFIG,
+		patchModelPredictionKind: PatchModelPrediction.CurrentLineCompleted,
+		splitPatchOnDiff: true,
+		patchFastYieldLineWithCursor: true,
+		extraDebounceEndOfLine: 0,
+		nesMimicGhostTextBehavior: true,
+		cacheDelay: 200,
+		rebasedCacheDelay: 0,
+		debounce: 0,
+		supportsUnifiedCompletions: true,
 	},
 	[PromptingStrategy.PatchBased02WithoutRecentLineNumbers]: {
 		includeTagsInCurrentFile: false,
@@ -742,6 +860,7 @@ export const LINT_OPTIONS_VALIDATOR: IValidator<Partial<LintOptions>> = vObj({
 export const MODEL_CONFIGURATION_VALIDATOR: IValidator<ModelConfiguration> = vObj({
 	'modelName': vRequired(vString()),
 	'promptingStrategy': vUnion(vEnum(...Object.values(PromptingStrategy)), vUndefined()),
+	'eagernessPrompt': vUnion(vEnum<EagernessPrompt[]>('aggressionHighLow'), vUndefined()),
 	'includeTagsInCurrentFile': vRequired(vBoolean()),
 	'includePostScript': vUnion(vBoolean(), vUndefined()),
 	'currentFile': vUnion(CurrentFileOptions.VALIDATOR, vUndefined()),
@@ -750,6 +869,15 @@ export const MODEL_CONFIGURATION_VALIDATOR: IValidator<ModelConfiguration> = vOb
 	'lintOptions': vUnion(LINT_OPTIONS_VALIDATOR, vUndefined()),
 	'supportsNextCursorLinePrediction': vUnion(vBoolean(), vUndefined()),
 	'allowImportChanges': vUnion(ImportChanges.VALIDATOR, vUndefined()),
+	'patchModelPredictionKind': vUnion(PatchModelPrediction.VALIDATOR, vUndefined()),
+	'splitPatchOnDiff': vUnion(vBoolean(), vUndefined()),
+	'patchFastYieldLineWithCursor': vUnion(vBoolean(), vUndefined()),
+	'extraDebounceEndOfLine': vUnion(vNumber(), vUndefined()),
+	'nesMimicGhostTextBehavior': vUnion(vBoolean(), vUndefined()),
+	'cacheDelay': vUnion(vNumber(), vUndefined()),
+	'rebasedCacheDelay': vUnion(vNumber(), vUndefined()),
+	'debounce': vUnion(vNumber(), vUndefined()),
+	'supportsUnifiedCompletions': vUnion(vBoolean(), vUndefined()),
 });
 
 export function parseLintOptionString(optionString: string, defaults: LintOptions): LintOptions {
@@ -961,67 +1089,4 @@ export enum SpeculativeRequestsAutoExpandEditWindowLines {
 
 export namespace SpeculativeRequestsAutoExpandEditWindowLines {
 	export const VALIDATOR = vEnum(SpeculativeRequestsAutoExpandEditWindowLines.Off, SpeculativeRequestsAutoExpandEditWindowLines.Smart, SpeculativeRequestsAutoExpandEditWindowLines.Always);
-}
-
-/**
- * Shape of the predicted output we send to the patch-based model along with the prompt.
- * In every example below, `{currentLineNumber}` is 0-based — matching `Patch.lineNumZeroBased`
- * parsed by `XtabCustomDiffPatchResponseHandler`.
- */
-export enum PatchModelPrediction {
-	/**
-	 * Expects changes in the current file but doesn't expect where (line number is not specified).
-	 *
-	 * Example:
-	 *
-	 * ```
-	 * path/to/file:
-	 * ```
-	 */
-	FilePath = 'filePath',
-	/**
-	 * Predicts the file path, cursor line number, and a deletion of the current line.
-	 * The model is free to follow with further `-`/`+` lines as needed.
-	 *
-	 * Example:
-	 *
-	 * ```
-	 * path/to/file:{currentLineNumber}
-	 * -	class Foo {
-	 * ```
-	 */
-	CurrentLine = 'currentLine',
-	/**
-	 * Expects the current line to be replaced.
-	 *
-	 * Example:
-	 *
-	 * ```
-	 * path/to/file:{currentLineNumber}
-	 * -	class Foo {
-	 * +
-	 * ```
-	 */
-	CurrentLineReplaced = 'currentLineReplaced',
-	/**
-	 * Expects the current line to be completed.
-	 *
-	 * Example:
-	 *
-	 * ```
-	 * path/to/file:{currentLineNumber}
-	 * -	class Foo
-	 * +	class Foo
-	 * ```
-	 */
-	CurrentLineCompleted = 'currentLineCompleted',
-}
-
-export namespace PatchModelPrediction {
-	export const VALIDATOR = vEnum(
-		PatchModelPrediction.FilePath,
-		PatchModelPrediction.CurrentLine,
-		PatchModelPrediction.CurrentLineReplaced,
-		PatchModelPrediction.CurrentLineCompleted
-	);
 }

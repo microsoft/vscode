@@ -63,10 +63,6 @@
 	margin-bottom: 0;
 }
 
-.monaco-editor .debugHoverHighlight {
-	background-color: rgba(173, 214, 255, 0.15);
-}
-
 .monaco-editor .debug-hover-widget > .monaco-scrollable-element > .value {
 	color: rgba(108, 108, 108, 0.8);
 	overflow: auto;
@@ -74,9 +70,4 @@
 	max-height: 500px;
 	padding: 4px 5px;
 	white-space: pre-wrap;
-}
-
-.monaco-editor.vs-dark .debugHoverHighlight,
-.monaco-editor.hc-theme .debugHoverHighlight {
-	background-color: rgba(38, 79, 120, 0.25);
 }

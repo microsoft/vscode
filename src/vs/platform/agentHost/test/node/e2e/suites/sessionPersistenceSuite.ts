@@ -16,6 +16,7 @@ import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/regi
 import { createRealSession, driveTurnToCompletion, resolveGitHubToken } from '../harness/agentHostE2ETestHarness.js';
 import { fetchSessionWithChat, getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
+import { GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../../../common/agent.js';
 
 const RECORDING = process.env['AGENT_HOST_REPLAY_RECORD'] === '1' || process.env['AGENT_HOST_UPDATE_SNAPSHOTS'] === '1';
 
@@ -31,7 +32,7 @@ export function defineSessionPersistenceTests(context: IAgentHostE2ETestContext)
 		await context.client.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId }, 30_000);
 		await context.client.call('authenticate', {
 			channel: ROOT_STATE_URI,
-			resource: 'https://api.github.com',
+			resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource,
 			token: config.githubToken ?? resolveGitHubToken(),
 		}, 30_000);
 	}
@@ -92,7 +93,9 @@ export function defineSessionPersistenceTests(context: IAgentHostE2ETestContext)
 		}, 50, 20);
 	}
 
-	test('session metadata history and provider context survive a host restart', async function () {
+	// Codex starts the restored follow-up but intermittently never completes it across replay platforms.
+	const sessionPersistenceEnabled = config.provider !== 'codex' || context.runKnownIssueTests;
+	(sessionPersistenceEnabled ? test : test.skip)('session metadata history and provider context survive a host restart', async function () {
 		this.timeout(240_000);
 		const workspace = fs.mkdtempSync(`${tmpdir()}/ahp-persistence-`);
 		tempDirs.push(workspace);
@@ -149,7 +152,7 @@ export function defineSessionPersistenceTests(context: IAgentHostE2ETestContext)
 			action: {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-peer-local',
-				startedAt: '2025-01-01T00:00:00.000Z',
+				startedAt: new Date().toISOString(),
 				message: { text: '/rename Rehydrated Peer', origin: { kind: MessageKind.User } },
 			},
 		});

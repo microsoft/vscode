@@ -136,6 +136,7 @@ export function getUserPrompt(promptPieces: PromptPieces): UserPromptResult {
 			break;
 		case PromptingStrategy.PatchBased02:
 		case PromptingStrategy.PatchBased02WithRecentLineNumbers:
+		case PromptingStrategy.PatchBased02Optimized:
 		case PromptingStrategy.PatchBased02WithoutRecentLineNumbers: {
 			const currentDocument = promptPieces.currentDocument;
 			const cursorLine = currentDocument.lineWithCursor();
@@ -175,6 +176,7 @@ export function getUserPrompt(promptPieces: PromptPieces): UserPromptResult {
 		opts.promptingStrategy !== PromptingStrategy.PatchBased01 &&
 		opts.promptingStrategy !== PromptingStrategy.PatchBased02 &&
 		opts.promptingStrategy !== PromptingStrategy.PatchBased02WithRecentLineNumbers &&
+		opts.promptingStrategy !== PromptingStrategy.PatchBased02Optimized &&
 		opts.promptingStrategy !== PromptingStrategy.PatchBased02WithoutRecentLineNumbers;
 
 	const packagedPrompt = includeBackticks ? wrapInBackticks(mainPrompt) : mainPrompt;
@@ -367,9 +369,10 @@ function appendWithNewLineIfNeeded(base: string, toAppend: string, minNewLines: 
 	return (base + '\n'.repeat(newLinesToAdd) + toAppend).trim();
 }
 
-function getPostScript(opts: PromptOptions, currentFilePath: string, aggressivenessLevel: AggressivenessLevel) {
-	const { promptingStrategy } = opts;
+function getPostScript(options: PromptOptions, currentFilePath: string, aggressivenessLevel: AggressivenessLevel) {
+	const { promptingStrategy, eagernessPrompt } = options;
 	const xtab275BasePostScript = `The developer was working on a section of code within the tags \`code_to_edit\` in the file located at \`${currentFilePath}\`. Using the given \`recently_viewed_code_snippets\`, \`current_file_content\`, \`edit_diff_history\`, \`area_around_code_to_edit\`, and the cursor position marked as \`${PromptTags.CURSOR}\`, please continue the developer's work. Update the \`code_to_edit\` section by predicting and completing the changes they would have made next. Provide the revised code that was between the \`${PromptTags.EDIT_WINDOW.start}\` and \`${PromptTags.EDIT_WINDOW.end}\` tags, but do not include the tags themselves. Avoid undoing or reverting the developer's last change unless there are obvious typos or errors. Don't include the line numbers or the form #| in your response. Do not skip any lines. Do not be lazy.`;
+	const patchBased02PostScript = `The developer was working on a section of code within the \`current_file_content\` - carefully note their \`cursor_location\` marked with \`<|cursor|>\`. Using the given \`recently_viewed_code_snippets\`, \`current_file_content\`, \`edit_diff_history\`, and \`cursor_location\`, please continue the developer's work. Output a modified diff format with a sequence of intuitive next changes, where each patch must start with \`<filename>:<line number>\`. Order changes by priority and flow; for instance, edits adjacent to the user's cursor should always be prioritized, followed by lines near the cursor, followed by lines farther away. If there are no good edit candidates, output the empty string "". Avoid undoing or reverting the developer's last change unless there are obvious typos or errors. Adhere meticulously to the diff format.`;
 
 	let postScript: string | undefined;
 	switch (promptingStrategy) {
@@ -377,11 +380,14 @@ function getPostScript(opts: PromptOptions, currentFilePath: string, aggressiven
 		case PromptingStrategy.Codexv21NesUnified:
 			break;
 		case PromptingStrategy.PatchBased02:
-			postScript = `The developer was working on a section of code within the \`current_file_content\` - carefully note their \`cursor_location\` marked with \`<|cursor|>\`. Using the given \`recently_viewed_code_snippets\`, \`current_file_content\`, \`edit_diff_history\`, and \`cursor_location\`, please continue the developer's work. Output a modified diff format with a sequence of intuitive next changes, where each patch must start with \`<filename>:<line number>\`. Order changes by priority and flow; for instance, edits adjacent to the user's cursor should always be prioritized, followed by lines near the cursor, followed by lines farther away. If there are no good edit candidates, output the empty string "". Avoid undoing or reverting the developer's last change unless there are obvious typos or errors. Adhere meticulously to the diff format.`;
-			break;
 		case PromptingStrategy.PatchBased02WithRecentLineNumbers:
+		case PromptingStrategy.PatchBased02Optimized:
 		case PromptingStrategy.PatchBased02WithoutRecentLineNumbers:
-			postScript = `The developer was working on a section of code within the \`current_file_content\` - carefully note their \`cursor_location\` marked with \`<|cursor|>\`. Using the given \`recently_viewed_code_snippets\`, \`current_file_content\`, \`edit_diff_history\`, and \`cursor_location\`, please continue the developer's work. Output a modified diff format with a sequence of intuitive next changes, where each patch must start with \`<filename>:<line number>\`. Order changes by priority and flow; for instance, edits adjacent to the user's cursor should always be prioritized, followed by lines near the cursor, followed by lines farther away. If there are no good edit candidates, output the empty string "". Avoid undoing or reverting the developer's last change unless there are obvious typos or errors. Adhere meticulously to the diff format.`;
+			postScript = eagernessPrompt === 'aggressionHighLow'
+				? aggressivenessLevel === AggressivenessLevel.Medium
+					? patchBased02PostScript
+					: `<|aggression|>${aggressivenessLevel}<|/aggression|>\n\n${patchBased02PostScript}`
+				: patchBased02PostScript;
 			break;
 		case PromptingStrategy.UnifiedModel:
 			postScript = `The developer was working on a section of code within the tags \`code_to_edit\` in the file located at \`${currentFilePath}\`. Using the given \`recently_viewed_code_snippets\`, \`current_file_content\`, \`edit_diff_history\`, \`area_around_code_to_edit\`, and the cursor position marked as \`${PromptTags.CURSOR}\`, please continue the developer's work. Update the \`code_to_edit\` section by predicting and completing the changes they would have made next. Start your response with <EDIT>, <INSERT>, or <NO_CHANGE>. If you are making an edit, start with <EDIT> and then provide the rewritten code window followed by </EDIT>. If you are inserting new code, start with <INSERT> and then provide only the new code that will be inserted at the cursor position followed by </INSERT>. If no changes are necessary, reply only with <NO_CHANGE>. Avoid undoing or reverting the developer's last change unless there are obvious typos or errors.`;

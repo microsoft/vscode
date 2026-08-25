@@ -16,6 +16,13 @@ build/builtin/browser-main.js
 build/builtin/main.js
 build/npm/stubs/sharp/index.js
 build/codex/generate-protocol.mjs
+build/next/devTunnelsWebEntry.js
+build/next/devTunnelsShims/buffer.js
+build/next/devTunnelsShims/bufferutil.cjs
+build/next/devTunnelsShims/empty.cjs
+build/next/devTunnelsShims/process.js
+build/next/devTunnelsShims/utf8Validate.cjs
+build/next/devTunnelsShims/vscodeJsonrpc.cjs
 eslint.config.js
 extensions/copilot/.mocha-multi-reporters.js
 extensions/copilot/.mocharc.js

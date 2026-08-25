@@ -89,7 +89,8 @@
 	row-gap: 0;
 }
 
-.modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab:not(.selected):hover {
+.modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab:not(.selected):hover,
+.modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container:not(.active) > .title .tabs-container > .tab:not(.selected):hover {
 	background-color: transparent !important;
 }
 
@@ -386,10 +387,14 @@
 	bottom: 0;
 	width: var(--vscode-spacing-size160);
 	border-block: var(--vscode-strokeThickness) solid transparent;
-	background-image: linear-gradient(to right, transparent, var(--modern-ui-editor-tab-action-hover-background));
 	background-clip: padding-box;
 	box-sizing: border-box;
 	pointer-events: none;
+}
+
+.modern-ui-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor > .content .editor-group-container > .title .tabs-container > .tab:not(.tab-actions-left):not(.close-action-off):hover > .tab-actions::before,
+.modern-ui-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor > .content .editor-group-container > .title .tabs-container > .tab:not(.tab-actions-left):not(.close-action-off) > .tab-actions:focus-within::before {
+	background-image: linear-gradient(to right, transparent, var(--modern-ui-editor-tab-action-hover-background));
 }
 
 .modern-ui-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor > .content .editor-group-container > .title .tabs-container > .tab.tab-actions-left:not(.close-action-off):hover > .tab-actions::before,
@@ -902,8 +907,14 @@
  * Skip labels that carry a file-decoration color class so git/problem
  * decoration colors still apply to the entire tab label (name + description),
  * matching classic UI behavior. See https://github.com/microsoft/vscode/issues/325246
+ *
+ * `.monaco-decoration-itemColor` is the stable marker the resource label sets
+ * next to the generated, per-color decoration class (DECORATION_LABEL_COLOR_CLASS
+ * in vs/workbench/services/decorations/common/decorations.ts). Matching the
+ * hashed class with `[class*="..."]` instead would make every class mutation in
+ * the workbench pay style invalidation for these rules.
  */
-.modern-ui-tabs .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab:not(.active) .tab-label:not([class*="monaco-decoration-itemColor"]) a {
+.modern-ui-tabs .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab:not(.active) .tab-label:not(.monaco-decoration-itemColor) {
 	color: var(--modern-ui-editor-tab-inactive-foreground) !important;
 }
 
@@ -911,12 +922,12 @@
 	color: var(--modern-ui-editor-tab-inactive-foreground) !important;
 }
 
-.modern-ui-tabs .part.editor > .content .editor-group-container:not(.active) > .title .tabs-container > .tab:not(.active) .tab-label:not([class*="monaco-decoration-itemColor"]) a,
+.modern-ui-tabs .part.editor > .content .editor-group-container:not(.active) > .title .tabs-container > .tab:not(.active) .tab-label:not(.monaco-decoration-itemColor),
 .modern-ui-tabs .modern-ui-editor-tab-group:not(.modern-ui-editor-tab-group-active) .modern-ui-editor-tab:not(.active) {
 	color: var(--modern-ui-editor-tab-unfocused-inactive-foreground) !important;
 }
 
-.modern-ui-tabs .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab:hover:not(.selected):not(.active) .tab-label:not([class*="monaco-decoration-itemColor"]) a,
+.modern-ui-tabs .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab:hover:not(.selected):not(.active) .tab-label:not(.monaco-decoration-itemColor),
 .modern-ui-tabs .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab:hover:not(.selected):not(.active) > .tab-actions .action-label {
 	color: var(--modern-ui-editor-tab-hover-foreground) !important;
 }
@@ -925,13 +936,13 @@
 	color: var(--modern-ui-editor-tab-hover-foreground) !important;
 }
 
-.modern-ui-tabs .part.editor > .content .editor-group-container:not(.active) > .title .tabs-container > .tab:hover:not(.selected):not(.active) .tab-label:not([class*="monaco-decoration-itemColor"]) a,
+.modern-ui-tabs .part.editor > .content .editor-group-container:not(.active) > .title .tabs-container > .tab:hover:not(.selected):not(.active) .tab-label:not(.monaco-decoration-itemColor),
 .modern-ui-tabs .part.editor > .content .editor-group-container:not(.active) > .title .tabs-container > .tab:hover:not(.selected):not(.active) > .tab-actions .action-label,
 .modern-ui-tabs .modern-ui-editor-tab-group:not(.modern-ui-editor-tab-group-active) .modern-ui-editor-tab:hover:not(.active) {
 	color: var(--modern-ui-editor-tab-unfocused-hover-foreground) !important;
 }
 
-.modern-ui-tabs .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab.active .tab-label:not([class*="monaco-decoration-itemColor"]) a,
+.modern-ui-tabs .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab.active .tab-label:not(.monaco-decoration-itemColor),
 .modern-ui-tabs .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab.active > .tab-actions .action-label {
 	color: var(--modern-ui-editor-tab-active-foreground) !important;
 }
@@ -940,20 +951,20 @@
 	color: var(--modern-ui-editor-tab-active-foreground) !important;
 }
 
-.modern-ui-tabs .part.editor > .content .editor-group-container:not(.active) > .title .tabs-container > .tab.active .tab-label:not([class*="monaco-decoration-itemColor"]) a,
+.modern-ui-tabs .part.editor > .content .editor-group-container:not(.active) > .title .tabs-container > .tab.active .tab-label:not(.monaco-decoration-itemColor),
 .modern-ui-tabs .part.editor > .content .editor-group-container:not(.active) > .title .tabs-container > .tab.active > .tab-actions .action-label,
 .modern-ui-tabs .modern-ui-editor-tab-group:not(.modern-ui-editor-tab-group-active) .modern-ui-editor-tab.active {
 	color: var(--modern-ui-editor-tab-unfocused-active-foreground) !important;
 }
 
-.modern-ui-tabs .part.editor > .content .editor-group-container > .title .tabs-container > .tab.selected:not(.active) .tab-label:not([class*="monaco-decoration-itemColor"]) a {
+.modern-ui-tabs .part.editor > .content .editor-group-container > .title .tabs-container > .tab.selected:not(.active) .tab-label:not(.monaco-decoration-itemColor) {
 	color: var(--vscode-tab-selectedForeground) !important;
 }
 
 /* Ensure decoration color cascades to every part of the tab label. */
-.modern-ui-tabs .part.editor > .content .editor-group-container > .title .tabs-container > .tab .tab-label[class*="monaco-decoration-itemColor"] a,
-.modern-ui-tabs .part.editor > .content .editor-group-container > .title .tabs-container > .tab .tab-label[class*="monaco-decoration-itemColor"] .label-description,
-.modern-ui-tabs .part.editor > .content .editor-group-container > .title .tabs-container > .tab .tab-label[class*="monaco-decoration-itemColor"] .monaco-highlighted-label {
+.modern-ui-tabs .part.editor > .content .editor-group-container > .title .tabs-container > .tab .tab-label.monaco-decoration-itemColor a,
+.modern-ui-tabs .part.editor > .content .editor-group-container > .title .tabs-container > .tab .tab-label.monaco-decoration-itemColor .label-description,
+.modern-ui-tabs .part.editor > .content .editor-group-container > .title .tabs-container > .tab .tab-label.monaco-decoration-itemColor .monaco-highlighted-label {
 	color: inherit !important;
 }
 

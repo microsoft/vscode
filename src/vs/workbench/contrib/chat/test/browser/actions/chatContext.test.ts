@@ -4,10 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { extUri } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { getSessionWorkspaceName, isSameSessionWorkspace, shouldShowOpenEditorsContext } from '../../../browser/actions/chatContext.js';
+import { shouldShowOpenEditorsContext } from '../../../browser/actions/chatContext.js';
 import { IChatWidget } from '../../../browser/chat.js';
 
 function widget(overrides: Partial<Pick<IChatWidget, 'viewModel' | 'lockedAgentId'>>): Pick<IChatWidget, 'viewModel' | 'lockedAgentId'> {
@@ -54,47 +53,5 @@ suite('ChatContext', () => {
 			shouldShowOpenEditorsContext(widgetWithSession(URI.parse('copilotcli:/session-1')), false),
 			false
 		);
-	});
-
-	test('matches session workspaces by repository before cwd', () => {
-		assert.deepStrictEqual({
-			sameFolder: isSameSessionWorkspace(
-				{ cwd: '/Users/megan/repo/', repo: 'microsoft/vscode' },
-				{ cwd: '/users/megan/repo', repo: 'microsoft/vscode' },
-			),
-			sameRepositoryWorktree: isSameSessionWorkspace(
-				{ cwd: '/Users/megan/repo', repo: 'microsoft/vscode' },
-				{ cwd: '/Users/megan/repo-worktree', repo: 'microsoft/vscode' },
-			),
-			caseInsensitiveRepository: isSameSessionWorkspace(
-				{ repo: 'Microsoft/VSCode' },
-				{ repo: 'microsoft/vscode' },
-			),
-			differentRepository: isSameSessionWorkspace(
-				{ cwd: '/Users/megan/repo', repo: 'microsoft/vscode' },
-				{ cwd: '/Users/megan/repo', repo: 'microsoft/typescript' },
-			),
-			caseSensitiveCwd: isSameSessionWorkspace(
-				{ cwd: '/work/Foo' },
-				{ cwd: '/work/foo' },
-				extUri,
-			),
-		}, {
-			sameFolder: true,
-			sameRepositoryWorktree: true,
-			caseInsensitiveRepository: true,
-			differentRepository: false,
-			caseSensitiveCwd: false,
-		});
-	});
-
-	test('labels a session workspace by repository or folder name', () => {
-		assert.deepStrictEqual({
-			repository: getSessionWorkspaceName({ repo: 'microsoft/vscode', cwd: '/Users/megan/repo-worktree' }),
-			folder: getSessionWorkspaceName({ cwd: '/Users/megan/Repos/typescript/' }),
-		}, {
-			repository: 'vscode',
-			folder: 'typescript',
-		});
 	});
 });

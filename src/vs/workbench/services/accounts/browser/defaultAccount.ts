@@ -915,7 +915,7 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 		}
 	}
 
-	private async getManagedSettings(sessions: AuthenticationSession[], accountPolicyData: IAccountPolicyData | undefined, options?: { forceRefresh?: boolean }): Promise<{ data: Partial<IPolicyData> | undefined; fetchedAt: number; compatibilityError: IManagedSettingsCompatibilityError | null }> {
+	private async getManagedSettings(sessions: AuthenticationSession[], accountPolicyData: IAccountPolicyData | undefined, options?: { forceRefresh?: boolean }): Promise<{ data: Partial<IPolicyData> | undefined; fetchedAt: number | undefined; compatibilityError: IManagedSettingsCompatibilityError | null }> {
 		const accountId = sessions[0].account.id;
 		const cachedManagedSettings = accountPolicyData?.managedSettingsFetchedAt !== undefined && !this.isDataStale(accountPolicyData.managedSettingsFetchedAt)
 			? {
@@ -941,12 +941,15 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 				return { data: { managedSettings: undefined }, fetchedAt, compatibilityError: null };
 			case 'updateRequired':
 				return { data: { managedSettings: undefined }, fetchedAt, compatibilityError: result.error };
-			case 'unavailable':
+			case 'unavailable': {
+				// A failed fetch must not extend the life of the cached response: carry the cache's timestamp for expiry
+				const retained = this._managedSettingsCompatibilityError ? undefined : cachedManagedSettings;
 				return {
-					data: this._managedSettingsCompatibilityError ? { managedSettings: undefined } : cachedManagedSettings?.data,
-					fetchedAt,
+					data: { managedSettings: retained?.data.managedSettings },
+					fetchedAt: retained?.fetchedAt,
 					compatibilityError: this._managedSettingsCompatibilityError,
 				};
+			}
 		}
 	}
 

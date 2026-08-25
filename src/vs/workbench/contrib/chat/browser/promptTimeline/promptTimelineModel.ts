@@ -142,7 +142,8 @@ export class PromptTimelineModel extends Disposable {
 		if (!resource) {
 			return undefined;
 		}
-		return this.chatEditingService.editingSessionsObs.read(reader).find(s => isEqual(s.chatSessionResource, resource));
+		this.chatEditingService.editingSessionsObs.read(reader);
+		return this.chatEditingService.getEditingSession(resource);
 	});
 
 	/** Recency-bucketed ticks, capped to a fixed maximum so each keeps a >=24px slot. */

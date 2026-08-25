@@ -26,3 +26,10 @@ export const enum SessionServerToolName {
 	GetSessionContext = 'get_session_context',
 	DeleteSession = 'delete_session',
 }
+
+/** Names of the artifact server tools, shared between `common/` and `node/`. */
+export const enum ArtifactServerToolName {
+	AddArtifact = 'add_artifact',
+	RemoveArtifact = 'remove_artifact',
+	ListArtifacts = 'list_artifacts',
+}
