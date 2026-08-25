@@ -322,6 +322,16 @@ export interface IGitHubPullRequestRef {
 	readonly uri: URI;
 	/** Icon reflecting the last known PR state. */
 	readonly icon?: ThemeIcon;
+	/**
+	 * Pull request title, when the session recorded one. Absent for pull requests
+	 * discovered from git state, which carry no title until they are fetched live.
+	 */
+	readonly title?: string;
+	/**
+	 * Whether this pull request originated in the session, as opposed to being
+	 * inherited from the checkout it started from or merely referenced by the agent.
+	 */
+	readonly createdByThisSession?: boolean;
 }
 
 /** A GitHub issue referenced by a session. */
@@ -348,40 +358,6 @@ export type ISessionFileChange = IChatSessionFileChange | IChatSessionFileChange
 export type ISessionTurnFileChange = ISessionFileChange & {
 	readonly isOutsideWorkspace: boolean;
 };
-
-/**
- * The kind of change applied to a {@link ISessionFile}.
- *
- * A file that is first created and then edited during the session is reported
- * as {@link Created}. A file that is deleted is reported as {@link Deleted}
- * regardless of any earlier creation or edit.
- */
-export const enum SessionFileOperation {
-	/** The file was created during the session (and possibly edited afterwards). */
-	Created = 'created',
-	/** The file existed before the session and was modified during it. */
-	Modified = 'modified',
-	/** The file was deleted during the session. */
-	Deleted = 'deleted',
-}
-
-/**
- * A file that was created, edited or deleted **outside** the session workspace
- * folders during the session. These are surfaced separately from
- * {@link ISession.changes} because they are not part of the workspace and will
- * not be committed.
- */
-export interface ISessionFile {
-	/** The file URI (after-state for create/modify, the deleted path for delete). */
-	readonly uri: URI;
-	/** The kind of change applied to the file during the session. */
-	readonly operation: SessionFileOperation;
-	/**
-	 * URI from which the file's pre-session content can be read, when known.
-	 * Used to render a diff for {@link SessionFileOperation.Modified} files.
-	 */
-	readonly originalUri?: URI;
-}
 
 /**
  * Well-known id of the changeset that holds the diff between a session's branch
@@ -723,13 +699,6 @@ export interface ISession {
 	readonly changes: IObservable<readonly ISessionFileChange[]>;
 	/** Changesets produced by the session. */
 	readonly changesets: IObservable<readonly ISessionChangeset[] | undefined>;
-	/**
-	 * Files created, edited or deleted **outside** the session workspace folders
-	 * during the session (e.g. config files in the user's home directory). These
-	 * are not part of {@link changes} and will not be committed. Providers that
-	 * cannot determine this report an empty array (or omit the observable).
-	 */
-	readonly externalChanges?: IObservable<readonly ISessionFile[]>;
 	/** Artifacts the agent recorded for this session (pull requests, issues, files, …). */
 	readonly artifacts?: IObservable<readonly ISessionArtifact[]>;
 	/** Currently selected model identifier. */
@@ -970,6 +939,8 @@ export function gitHubInfoEqual(a: IGitHubInfo | undefined, b: IGitHubInfo | und
 			x.repo === y.repo &&
 			x.number === y.number &&
 			isEqual(x.uri, y.uri) &&
+			x.title === y.title &&
+			x.createdByThisSession === y.createdByThisSession &&
 			(x.icon === y.icon || (!!x.icon && !!y.icon && ThemeIcon.isEqual(x.icon, y.icon)))) &&
 		a.pullRequest?.number === b.pullRequest?.number &&
 		isEqual(a.pullRequest?.uri, b.pullRequest?.uri) &&

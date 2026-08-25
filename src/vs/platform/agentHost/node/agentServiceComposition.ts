@@ -166,7 +166,7 @@ export function createAgentServiceComposition(
 			sessionCoordination,
 			serverToolHost,
 		};
-		agentService = instantiationService.createInstance(AgentService, core, collaborators);
+		agentService = instantiationService.createInstance(AgentService, core, collaborators, options);
 		for (const disposable of additionalDisposables) {
 			owned.add(disposable);
 		}
