@@ -1276,7 +1276,7 @@
         "properties": {
           "markdown.experimental.richLinks.enabled": {
             "type": "boolean",
-            "default": false,
+            "default": true,
             "description": "%configuration.markdown.experimental.richLinks.enabled%",
             "scope": "window",
             "tags": [
