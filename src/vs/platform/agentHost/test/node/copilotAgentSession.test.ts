@@ -47,11 +47,10 @@ import { CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, 
 import { CopilotAgentSession } from '../../node/copilot/copilotAgentSession.js';
 import { buildNonPtyShellTerminalUri } from '../../node/copilot/copilotNonPtyShellTerminals.js';
 import { buildMcpChannel } from '../../node/shared/mcpCustomizationController.js';
-import { buildSandboxConfigForSdk } from '../../node/copilot/sandboxConfigForSdk.js';
+import { buildSandboxConfigForSdk, type SandboxConfig } from '../../node/copilot/sandboxConfigForSdk.js';
 import { ActiveClientToolSet } from '../../node/activeClientState.js';
 import { type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotSessionLauncher, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
-import { type IShellInitScriptMaterializer } from '../../node/copilot/shellInitScriptMaterializer.js';
-import { type IShellInitSnippet } from '../../common/shellInitSnippets.js';
+import { type IShellInitScript } from '../../common/shellInitScript.js';
 import { CopilotSessionWrapper } from '../../node/copilot/copilotSessionWrapper.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { IAgentHostCustomizationEnablementService, type CustomizationEnablementResolution, type ICustomizationEnablementTarget } from '../../node/agentHostCustomizationEnablementService.js';
@@ -66,7 +65,6 @@ import { CopilotCliConfigKey } from '../../common/copilotCliConfig.js';
 import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../common/toolSearchConstants.js';
 import { AgentHostSandboxConfigKey, AgentHostSandboxKey } from '../../common/sandboxConfigSchema.js';
-import type { SandboxConfig } from '../../node/copilot/sandboxConfigForSdk.js';
 import { AgentSandboxEnabledValue } from '../../../sandbox/common/settings.js';
 import { createNoopGitService, createSessionDataService, createZeroDiffComputeService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { OtelData } from '../../common/otlp/otlpLogEmitter.js';
@@ -420,8 +418,6 @@ class MockCopilotSession {
 				if (params.shell !== undefined) {
 					this.operationLog.push('options.update:shell');
 					this.shellInitScriptUpdates.push(params.shell.initScripts);
-				}
-				if (params.shell !== undefined) {
 					return { success: this.shellInitScriptUpdateSuccess };
 				}
 				return { success: params.sandboxConfig !== undefined ? this.sandboxConfigUpdateSuccess : this.experimentalModeUpdateSuccess };
@@ -724,7 +720,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	signals: AgentSignal[];
 	waitForSignal: (predicate: (signal: AgentSignal) => boolean) => Promise<AgentSignal>;
 	terminalManager: TestAgentHostTerminalManager;
-	shellInitScriptMaterializer: IShellInitScriptMaterializer & { materialized: IShellInitSnippet[][]; cleared: string[] };
+	storedFileContents: ReadonlyMap<string, string>;
 	dispatchedActions: readonly StateAction[];
 	sessionConfigUpdates: ReadonlyArray<{ session: string; patch: Record<string, unknown> }>;
 	setConfigValue: (key: string, value: unknown) => void;
@@ -804,24 +800,6 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		}
 	};
 
-	// Records what would be written without touching disk, so tests can assert
-	// the snippets a session materializes and the paths it registers.
-	const shellInitScriptMaterializer: IShellInitScriptMaterializer & { materialized: IShellInitSnippet[][]; cleared: string[] } = {
-		materialized: [],
-		cleared: [],
-		directoryFor: (sessionId: string) => URI.file(`/mock-userdata/agentHost/shellInit/${sessionId}`),
-		materialize: async (sessionId: string, snippets: readonly IShellInitSnippet[]) => {
-			shellInitScriptMaterializer.materialized.push([...snippets]);
-			return snippets.map((snippet, index) => ({
-				shell: snippet.shell,
-				path: `/mock-userdata/agentHost/shellInit/${sessionId}/${String(index).padStart(2, '0')}-${snippet.source}.${snippet.shell === 'powershell' ? 'ps1' : 'sh'}`,
-			}));
-		},
-		clear: async (sessionId: string) => {
-			shellInitScriptMaterializer.cleared.push(sessionId);
-		},
-	};
-
 	const services = new ServiceCollection();
 	services.set(ILogService, options?.logService ?? new NullLogService());
 	services.set(ITelemetryService, options?.telemetryService ?? new NullTelemetryServiceShape());
@@ -850,15 +828,19 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			return { value: VSBuffer.fromString(storedFileContents.get(resource.toString()) ?? storedFileContents.get(resource.fsPath) ?? '') };
 		},
 		exists: async (resource: URI) => storedFileContents.has(resource.toString()) || storedFileContents.has(resource.fsPath),
+		hasCapability: () => false,
 		writeFile: async (resource: URI, content: VSBuffer) => {
 			storedFileContents.set(resource.toString(), content.toString());
 			return { resource } as Awaited<ReturnType<IFileService['writeFile']>>;
 		},
 		del: async (resource: URI) => {
-			storedFileContents.delete(resource.toString());
-			storedFileContents.delete(resource.fsPath);
+			for (const key of storedFileContents.keys()) {
+				if (key.startsWith(resource.toString()) || key.startsWith(resource.fsPath)) {
+					storedFileContents.delete(key);
+				}
+			}
 		},
-	} as Partial<IFileService> as IFileService);
+	} as unknown as IFileService);
 	services.set(ISessionDataService, createSessionDataService(options?.sessionDatabase));
 	services.set(IDiffComputeService, createZeroDiffComputeService());
 	const sessionConfigUpdates: Array<{ session: string; patch: Record<string, unknown> }> = [];
@@ -978,7 +960,6 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			rawSessionId: 'test-session-1',
 			onDidSessionProgress: progressEmitter,
 			sessionLauncher,
-			shellInitScriptMaterializer,
 			launchPlan,
 			shellManager: undefined,
 			clientSnapshot: options?.clientSnapshot,
@@ -1013,7 +994,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		signals,
 		waitForSignal,
 		terminalManager,
-		shellInitScriptMaterializer,
+		storedFileContents,
 		dispatchedActions: stateManager.dispatchedActions,
 		sessionConfigUpdates,
 		setConfigValue: (key, value) => { configValues[key] = value; },
@@ -11672,97 +11653,54 @@ suite('CopilotAgentSession', () => {
 	});
 	suite('shell init scripts', () => {
 
-		const pythonSnippet = { shell: 'bash', script: 'activate', source: 'python-env' } satisfies IShellInitSnippet;
+		const initScript = { shell: 'bash', script: 'activate' } satisfies IShellInitScript;
 
-		test('materializes configured snippets and registers their paths with the SDK', async () => {
-			const { session, mockSession, shellInitScriptMaterializer, setConfigValue } = await createAgentSession(disposables);
-			setConfigValue(SessionConfigKey.ShellInitSnippets, [pythonSnippet]);
-
-			await session.send('go', undefined, 'turn-1', 'interactive');
-
-			assert.deepStrictEqual({
-				materialized: shellInitScriptMaterializer.materialized.at(-1),
-				registered: mockSession.shellInitScriptUpdates.at(-1),
-			}, {
-				materialized: [pythonSnippet],
-				registered: [{ shell: 'bash', path: '/mock-userdata/agentHost/shellInit/test-session-1/00-python-env.sh' }],
-			});
-		});
-
-		test('does not repeat the RPC while the resolved paths are unchanged', async () => {
-			const { session, mockSession, setConfigValue } = await createAgentSession(disposables);
-			setConfigValue(SessionConfigKey.ShellInitSnippets, [pythonSnippet]);
+		test('materializes, registers, avoids duplicate RPCs, and clears', async () => {
+			const { session, mockSession, setConfigValue, fireSessionConfigChange } = await createAgentSession(disposables);
+			setConfigValue(SessionConfigKey.ShellInitSnippets, [initScript]);
 
 			await session.send('go', undefined, 'turn-1', 'interactive');
+			assert.deepStrictEqual(mockSession.shellInitScriptUpdates.at(-1), [
+				{ shell: 'bash', path: '/mock-userdata/agentHost/shellInit/test-session-1/init.sh' },
+			]);
+
 			const afterFirst = mockSession.shellInitScriptUpdates.length;
 			await session.send('go', undefined, 'turn-2', 'interactive');
-
-			// Content changes reach the shell through the rewritten file, which
-			// the runtime re-reads per command, so only a path change needs an RPC.
 			assert.deepStrictEqual([afterFirst, mockSession.shellInitScriptUpdates.length], [1, 1]);
-		});
 
-		test('clears previously registered scripts when the configuration empties', async () => {
-			const { session, mockSession, setConfigValue } = await createAgentSession(disposables);
-			setConfigValue(SessionConfigKey.ShellInitSnippets, [pythonSnippet]);
-			await session.send('go', undefined, 'turn-1', 'interactive');
+			setConfigValue(SessionConfigKey.ShellInitSnippets, [{ ...initScript, script: 'changed' }]);
+			fireSessionConfigChange({ [SessionConfigKey.ShellInitSnippets]: [{ ...initScript, script: 'changed' }] });
+			await timeout(0);
 
 			setConfigValue(SessionConfigKey.ShellInitSnippets, []);
-			await session.send('go', undefined, 'turn-2', 'interactive');
-
+			await session.send('go', undefined, 'turn-3', 'interactive');
 			assert.deepStrictEqual(mockSession.shellInitScriptUpdates, [
-				[{ shell: 'bash', path: '/mock-userdata/agentHost/shellInit/test-session-1/00-python-env.sh' }],
+				[{ shell: 'bash', path: '/mock-userdata/agentHost/shellInit/test-session-1/init.sh' }],
+				[{ shell: 'bash', path: '/mock-userdata/agentHost/shellInit/test-session-1/init.sh' }],
 				[],
 			]);
 		});
 
-		test('applies a mid-session configuration change without waiting for the next turn', async () => {
-			const { mockSession, setConfigValue, fireSessionConfigChange } = await createAgentSession(disposables);
-			setConfigValue(SessionConfigKey.ShellInitSnippets, [pythonSnippet]);
+		test('does nothing when the custom terminal tool replaces the SDK shell', async () => {
+			const { session, mockSession, setConfigValue } = await createAgentSession(disposables, {
+				rootValues: { [CopilotCliConfigKey.EnableCustomTerminalTool]: true },
+			});
+			setConfigValue(SessionConfigKey.ShellInitSnippets, [initScript]);
 
-			fireSessionConfigChange({ [SessionConfigKey.ShellInitSnippets]: [pythonSnippet] });
-			await timeout(0);
-
-			assert.deepStrictEqual(mockSession.shellInitScriptUpdates, [
-				[{ shell: 'bash', path: '/mock-userdata/agentHost/shellInit/test-session-1/00-python-env.sh' }],
-			]);
-		});
-
-		test('ignores a configuration change for a different session', async () => {
-			const { mockSession, setConfigValue, fireSessionConfigChange } = await createAgentSession(disposables);
-			setConfigValue(SessionConfigKey.ShellInitSnippets, [pythonSnippet]);
-
-			fireSessionConfigChange({ [SessionConfigKey.ShellInitSnippets]: [pythonSnippet] }, 'agent-session://other');
-			await timeout(0);
+			await session.send('go', undefined, 'turn-1', 'interactive');
 
 			assert.deepStrictEqual(mockSession.shellInitScriptUpdates, []);
 		});
 
-		test('rejects a malformed configured value instead of writing it', async () => {
-			const { session, mockSession, shellInitScriptMaterializer, setConfigValue } = await createAgentSession(disposables);
-			setConfigValue(SessionConfigKey.ShellInitSnippets, [{ shell: 'zsh', script: 'x', source: 'a' }]);
-
+		test('removes the SDK-session-scoped script on dispose', async () => {
+			const { session, storedFileContents, setConfigValue } = await createAgentSession(disposables);
+			setConfigValue(SessionConfigKey.ShellInitSnippets, [initScript]);
 			await session.send('go', undefined, 'turn-1', 'interactive');
+			assert.ok([...storedFileContents.keys()].some(key => key.includes('/test-session-1/init.sh')));
 
-			// Nothing valid to apply, and nothing registered before, so no RPC.
-			assert.deepStrictEqual({
-				materialized: shellInitScriptMaterializer.materialized.at(-1),
-				registered: mockSession.shellInitScriptUpdates,
-			}, { materialized: [], registered: [] });
-		});
-
-		test('does nothing when the custom terminal tool replaces the SDK shell', async () => {
-			const { session, mockSession, shellInitScriptMaterializer, setConfigValue } = await createAgentSession(disposables, {
-				rootValues: { [CopilotCliConfigKey.EnableCustomTerminalTool]: true },
-			});
-			setConfigValue(SessionConfigKey.ShellInitSnippets, [pythonSnippet]);
-
-			await session.send('go', undefined, 'turn-1', 'interactive');
-
-			assert.deepStrictEqual({
-				materialized: shellInitScriptMaterializer.materialized,
-				registered: mockSession.shellInitScriptUpdates,
-			}, { materialized: [], registered: [] });
+			session.dispose();
+			await timeout(0);
+			assert.ok(![...storedFileContents.keys()].some(key => key.includes('/test-session-1/init.sh')));
 		});
 
 		test('grants the shell init directory read access in the sandbox policy', async () => {
@@ -11771,9 +11709,8 @@ suite('CopilotAgentSession', () => {
 
 			await session.send('go', undefined, 'turn-1', 'interactive');
 
-			// The session re-pushes sandboxConfig every turn, so omitting the
-			// directory here would silently revoke the launcher's grant and the
-			// SDK would fail to read the scripts without reporting anything.
+			// The SDK fails silently when an init script is outside the sandbox
+			// read policy, so the per-turn policy must include this directory.
 			const sandboxConfig = mockSession.sandboxConfigUpdates.at(-1) as SandboxConfig | undefined;
 			assert.ok(
 				sandboxConfig?.userPolicy?.filesystem?.readonlyPaths?.includes(TEST_SHELL_INIT_DIR),
@@ -11784,7 +11721,7 @@ suite('CopilotAgentSession', () => {
 		test('a failed registration is logged without aborting the turn', async () => {
 			const { session, mockSession, setConfigValue } = await createAgentSession(disposables);
 			mockSession.shellInitScriptUpdateSuccess = false;
-			setConfigValue(SessionConfigKey.ShellInitSnippets, [pythonSnippet]);
+			setConfigValue(SessionConfigKey.ShellInitSnippets, [initScript]);
 
 			await session.send('go', undefined, 'turn-1', 'interactive');
 

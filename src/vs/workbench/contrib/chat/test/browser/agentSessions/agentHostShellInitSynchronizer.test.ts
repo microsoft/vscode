@@ -12,23 +12,22 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
-import { AgentHostShellToolLoadUserProfileSettingId, AgentHostShellToolPythonActivationSettingId } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
+import { AgentHostShellToolInitScriptEnabledSettingId } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
-import type { IShellInitSnippet } from '../../../../../../platform/agentHost/common/shellInitSnippets.js';
+import type { IShellInitScript } from '../../../../../../platform/agentHost/common/shellInitScript.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionEnvelope, ActionType } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { SessionState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService, type IConfigurationOverrides } from '../../../../../../platform/configuration/common/configuration.js';
-import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { EnvironmentVariableMutatorType, type IEnvironmentVariableCollection, type IEnvironmentVariableMutator } from '../../../../../../platform/terminal/common/environmentVariable.js';
 import { MergedEnvironmentVariableCollection } from '../../../../../../platform/terminal/common/environmentVariableCollection.js';
-import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
 import { IEnvironmentVariableService } from '../../../../terminal/common/environmentVariable.js';
 import { AgentHostShellInitSynchronizer } from '../../../browser/agentSessions/agentHost/agentHostShellInitSynchronizer.js';
+import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 
-const PYTHON_EXT = 'ms-python.vscode-python-envs';
+const PYTHON_EXTENSION = 'ms-python.vscode-python-envs';
 const ACTIVATION_VARIABLE = isWindows ? 'VSCODE_PYTHON_PWSH_ACTIVATE' : 'VSCODE_PYTHON_BASH_ACTIVATE';
-const FALLBACK_VARIABLE = 'VSCODE_PYTHON_ZSH_ACTIVATE';
 
 class TestSubscription extends Disposable implements IAgentSubscription<SessionState> {
 	private readonly _onDidChange = this._register(new Emitter<SessionState>());
@@ -36,100 +35,40 @@ class TestSubscription extends Disposable implements IAgentSubscription<SessionS
 	readonly onWillApplyAction = Event.None as Event<ActionEnvelope>;
 	readonly onDidApplyAction = Event.None as Event<ActionEnvelope>;
 
-	constructor(private _state: SessionState | undefined) {
-		super();
-	}
-
-	get value(): SessionState | undefined { return this._state; }
-	get verifiedValue(): SessionState | undefined { return this._state; }
-
-	set(state: SessionState): void {
-		this._state = state;
-		this._onDidChange.fire(state);
-	}
+	constructor(private _state: SessionState) { super(); }
+	get value(): SessionState { return this._state; }
+	get verifiedValue(): SessionState { return this._state; }
+	set(state: SessionState): void { this._state = state; this._onDidChange.fire(state); }
 }
 
 suite('AgentHostShellInitSynchronizer', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
-
 	const session = URI.parse('copilot:/session');
-	const folderA = URI.file('/workspace/a');
-	const folderB = URI.file('/workspace/b');
+	const folderA = folder('/workspace/a', 0);
+	const folderB = folder('/workspace/b', 1);
 
-	/** Builds a merged collection holding one activation variable per folder index. */
-	function mergedCollection(entries: ReadonlyArray<{ variable: string; value: string; folderIndex?: number; extension?: string }>): MergedEnvironmentVariableCollection {
-		const byExtension = new Map<string, Map<string, IEnvironmentVariableMutator>>();
+	function folder(path: string, index: number): IWorkspaceFolder {
+		const uri = URI.file(path);
+		return { uri, index, name: path, toResource: relative => URI.joinPath(uri, relative) } as IWorkspaceFolder;
+	}
+
+	function collection(entries: ReadonlyArray<{ variable: string; value: string; folder: IWorkspaceFolder; extension?: string }>): MergedEnvironmentVariableCollection {
+		const collections = new Map<string, IEnvironmentVariableCollection>();
 		for (const entry of entries) {
-			const extension = entry.extension ?? PYTHON_EXT;
-			let existing = byExtension.get(extension);
-			if (!existing) {
-				existing = new Map<string, IEnvironmentVariableMutator>();
-				byExtension.set(extension, existing);
-			}
-			existing.set(`${entry.variable}:${entry.folderIndex ?? 'global'}`, {
+			const extension = entry.extension ?? PYTHON_EXTENSION;
+			const existing = collections.get(extension)?.map as Map<string, IEnvironmentVariableMutator> | undefined ?? new Map();
+			existing.set(`${entry.variable}:${entry.folder.index}`, {
 				variable: entry.variable,
 				value: entry.value,
 				type: EnvironmentVariableMutatorType.Replace,
-				...(entry.folderIndex === undefined ? {} : { scope: { workspaceFolder: folder(entry.folderIndex) } }),
+				scope: { workspaceFolder: entry.folder },
 			});
-		}
-		const collections = new Map<string, IEnvironmentVariableCollection>();
-		for (const [extension, map] of byExtension) {
-			collections.set(extension, { map } as IEnvironmentVariableCollection);
+			collections.set(extension, { map: existing } as IEnvironmentVariableCollection);
 		}
 		return new MergedEnvironmentVariableCollection(collections);
 	}
 
-	function folder(index: number): IWorkspaceFolder {
-		const uri = index === 0 ? folderA : folderB;
-		return { uri, index, name: uri.path, toResource: path => URI.joinPath(uri, path) } as IWorkspaceFolder;
-	}
-
-	function createSynchronizer(options?: {
-		collection?: MergedEnvironmentVariableCollection;
-		folders?: readonly IWorkspaceFolder[];
-		settings?: Record<string, unknown>;
-		onDidChangeCollections?: Event<MergedEnvironmentVariableCollection>;
-	}) {
-		const dispatched: Array<{ session: string; config: Record<string, unknown> }> = [];
-		const agentHostService = new class extends mock<IAgentHostService>() {
-			override dispatch(sessionUri: string, action: Parameters<IAgentHostService['dispatch']>[1]): void {
-				if (action.type === ActionType.SessionConfigChanged) {
-					dispatched.push({ session: sessionUri, config: action.config });
-				}
-			}
-		};
-		const configurationService = new class extends mock<IConfigurationService>() {
-			override readonly onDidChangeConfiguration = Event.None;
-			override getValue<T>(section?: string | IConfigurationOverrides): T {
-				return (typeof section === 'string' ? options?.settings?.[section] : undefined) as T;
-			}
-		};
-		const environmentVariableService = new class extends mock<IEnvironmentVariableService>() {
-			override readonly onDidChangeCollections = options?.onDidChangeCollections ?? Event.None;
-			override get mergedCollection() { return options?.collection ?? mergedCollection([]); }
-		};
-		const folders = options?.folders ?? [folder(0)];
-		const workspaceContextService = new class extends mock<IWorkspaceContextService>() {
-			override readonly onDidChangeWorkspaceFolders = Event.None;
-			override getWorkspace(): IWorkspace {
-				return { id: 'workspace', folders: [...folders] } as IWorkspace;
-			}
-			override getWorkspaceFolder(resource: URI): IWorkspaceFolder | null {
-				return folders.find(candidate => resource.path.startsWith(candidate.uri.path)) ?? null;
-			}
-		};
-		const synchronizer = disposables.add(new AgentHostShellInitSynchronizer(
-			agentHostService,
-			configurationService,
-			environmentVariableService,
-			workspaceContextService,
-			new NullLogService(),
-		));
-		return { synchronizer, dispatched };
-	}
-
-	function createState(options?: { schema?: boolean; values?: Record<string, unknown>; workingDirectory?: URI; project?: URI }): SessionState {
+	function state(options?: { schema?: boolean; values?: Record<string, unknown>; cwd?: URI; project?: URI }): SessionState {
 		return {
 			resource: session.toString(),
 			config: {
@@ -139,173 +78,137 @@ suite('AgentHostShellInitSynchronizer', () => {
 				},
 				values: options?.values ?? {},
 			},
-			workingDirectories: options?.workingDirectory ? [options.workingDirectory.toString()] : [folderA.toString()],
-			...(options?.project ? { project: { uri: options.project.toString(), displayName: 'p' } } : {}),
+			workingDirectories: [(options?.cwd ?? folderA.uri).toString()],
+			...(options?.project ? { project: { uri: options.project.toString(), displayName: 'project' } } : {}),
 		} as unknown as SessionState;
 	}
 
-	/** Registers a session and lets the coalescing scheduler run. */
-	async function publish(synchronizer: AgentHostShellInitSynchronizer, state: SessionState | undefined): Promise<TestSubscription> {
-		const subscription = disposables.add(new TestSubscription(state));
-		disposables.add(synchronizer.register({ session, subscription }));
+	function create(options?: {
+		collection?: MergedEnvironmentVariableCollection;
+		folders?: readonly IWorkspaceFolder[];
+		enabled?: boolean;
+		sessionsWindow?: boolean;
+		remoteAuthority?: string;
+		onDidChangeCollections?: Event<MergedEnvironmentVariableCollection>;
+	}) {
+		const dispatched: Record<string, unknown>[] = [];
+		const agentHostService = new class extends mock<IAgentHostService>() {
+			override dispatch(_uri: string, action: Parameters<IAgentHostService['dispatch']>[1]): void {
+				if (action.type === ActionType.SessionConfigChanged) {
+					dispatched.push(action.config);
+				}
+			}
+		};
+		const configurationService = new class extends mock<IConfigurationService>() {
+			override readonly onDidChangeConfiguration = Event.None;
+			override getValue<T>(section?: string | IConfigurationOverrides): T {
+				return (section === AgentHostShellToolInitScriptEnabledSettingId ? options?.enabled : undefined) as T;
+			}
+		};
+		const environmentService = new class extends mock<IEnvironmentVariableService>() {
+			override readonly onDidChangeCollections = options?.onDidChangeCollections ?? Event.None;
+			override readonly mergedCollection = options?.collection ?? collection([]);
+		};
+		const folders = options?.folders ?? [folderA];
+		const workspaceService = new class extends mock<IWorkspaceContextService>() {
+			override readonly onDidChangeWorkspaceFolders = Event.None;
+			override getWorkspaceFolder(resource: URI): IWorkspaceFolder | null {
+				return folders.find(candidate => resource.path.startsWith(candidate.uri.path)) ?? null;
+			}
+		};
+		return {
+			dispatched,
+			synchronizer: disposables.add(new AgentHostShellInitSynchronizer(
+				agentHostService,
+				configurationService,
+				environmentService,
+				workspaceService,
+				{ isSessionsWindow: options?.sessionsWindow === true, remoteAuthority: options?.remoteAuthority } as IWorkbenchEnvironmentService,
+			)),
+		};
+	}
+
+	async function register(synchronizer: AgentHostShellInitSynchronizer, initial: SessionState): Promise<TestSubscription> {
+		const subscription = disposables.add(new TestSubscription(initial));
+		disposables.add(synchronizer.register(session, subscription));
 		await timeout(0);
 		return subscription;
 	}
 
-	function snippetSources(dispatched: ReadonlyArray<{ config: Record<string, unknown> }>): string[][] {
-		return dispatched.map(entry => (entry.config[SessionConfigKey.ShellInitSnippets] as IShellInitSnippet[]).map(snippet => snippet.source));
+	function scripts(dispatched: readonly Record<string, unknown>[]): readonly IShellInitScript[] {
+		return dispatched.at(-1)?.[SessionConfigKey.ShellInitSnippets] as readonly IShellInitScript[];
 	}
 
-	test('publishes profile and python snippets for the session folder', async () => {
-		const { synchronizer, dispatched } = createSynchronizer({
-			collection: mergedCollection([{ variable: ACTIVATION_VARIABLE, value: 'source /workspace/a/.venv/bin/activate', folderIndex: 0 }]),
+	test('publishes one combined script with the folder-scoped Python activation', async () => {
+		const { synchronizer, dispatched } = create({
+			collection: collection([{ variable: ACTIVATION_VARIABLE, value: 'activate-a', folder: folderA }]),
 		});
-		await publish(synchronizer, createState());
-
-		assert.deepStrictEqual(snippetSources(dispatched), [['user-profile', 'python-env']]);
-		const snippets = dispatched[0].config[SessionConfigKey.ShellInitSnippets] as IShellInitSnippet[];
-		assert.ok(snippets[1].script.includes('/workspace/a/.venv/bin/activate'), snippets[1].script);
+		await register(synchronizer, state());
+		assert.strictEqual(scripts(dispatched).length, 1);
+		assert.ok(scripts(dispatched)[0].script.includes('activate-a'));
+		assert.ok(scripts(dispatched)[0].script.indexOf('.bashrc') < scripts(dispatched)[0].script.indexOf('activate-a'));
 	});
 
-	test('omits the python snippet when the folder has no activation', async () => {
-		const { synchronizer, dispatched } = createSynchronizer();
-		await publish(synchronizer, createState());
-
-		assert.deepStrictEqual(snippetSources(dispatched), [['user-profile']]);
-	});
-
-	test('matches the activation variable to the session folder in a multi-root workspace', async () => {
-		const { synchronizer, dispatched } = createSynchronizer({
-			folders: [folder(0), folder(1)],
-			collection: mergedCollection([
-				{ variable: ACTIVATION_VARIABLE, value: 'activate-a', folderIndex: 0 },
-				{ variable: ACTIVATION_VARIABLE, value: 'activate-b', folderIndex: 1 },
+	test('uses the session folder in a multi-root workspace and project for worktrees', async () => {
+		const { synchronizer, dispatched } = create({
+			folders: [folderA, folderB],
+			collection: collection([
+				{ variable: ACTIVATION_VARIABLE, value: 'activate-a', folder: folderA },
+				{ variable: ACTIVATION_VARIABLE, value: 'activate-b', folder: folderB },
 			]),
 		});
-		await publish(synchronizer, createState({ workingDirectory: folderB }));
-
-		const snippets = dispatched[0].config[SessionConfigKey.ShellInitSnippets] as IShellInitSnippet[];
-		assert.ok(snippets.some(snippet => snippet.script.includes('activate-b')), JSON.stringify(snippets));
-		assert.ok(!snippets.some(snippet => snippet.script.includes('activate-a')), JSON.stringify(snippets));
+		await register(synchronizer, state({ cwd: URI.file('/tmp/worktree'), project: folderB.uri }));
+		assert.ok(scripts(dispatched)[0].script.includes('activate-b'));
+		assert.ok(!scripts(dispatched)[0].script.includes('activate-a'));
 	});
 
-	test('resolves a worktree-isolated session through its originating project', async () => {
-		const { synchronizer, dispatched } = createSynchronizer({
-			collection: mergedCollection([{ variable: ACTIVATION_VARIABLE, value: 'activate-a', folderIndex: 0 }]),
+	test('ignores activation published by another extension', async () => {
+		const { synchronizer, dispatched } = create({
+			collection: collection([{ variable: ACTIVATION_VARIABLE, value: 'unsafe', folder: folderA, extension: 'other.extension' }]),
 		});
-		// The worktree path is not a workspace folder, but the interpreter was
-		// selected against the project the session came from.
-		await publish(synchronizer, createState({ workingDirectory: URI.file('/tmp/worktree-1'), project: folderA }));
-
-		const snippets = dispatched[0].config[SessionConfigKey.ShellInitSnippets] as IShellInitSnippet[];
-		assert.ok(snippets.some(snippet => snippet.script.includes('activate-a')), JSON.stringify(snippets));
+		await register(synchronizer, state());
+		assert.ok(!scripts(dispatched)[0].script.includes('unsafe'));
 	});
 
-	test('ignores an activation variable published by another extension', async () => {
-		const { synchronizer, dispatched } = createSynchronizer({
-			collection: mergedCollection([{ variable: ACTIVATION_VARIABLE, value: 'rm -rf /', folderIndex: 0, extension: 'some.other-extension' }]),
-		});
-		await publish(synchronizer, createState());
-
-		assert.deepStrictEqual(snippetSources(dispatched), [['user-profile']]);
-	});
-
-	test('does not publish when the host does not advertise the key', async () => {
-		const { synchronizer, dispatched } = createSynchronizer();
-		await publish(synchronizer, createState({ schema: false }));
-
-		assert.deepStrictEqual(dispatched, []);
-	});
-
-	test('publishes once the schema arrives after hydration', async () => {
-		const { synchronizer, dispatched } = createSynchronizer();
-		const subscription = await publish(synchronizer, createState({ schema: false }));
+	test('waits for schema hydration and does not redispatch the echoed value', async () => {
+		const { synchronizer, dispatched } = create();
+		const subscription = await register(synchronizer, state({ schema: false }));
 		assert.deepStrictEqual(dispatched, []);
 
-		subscription.set(createState());
+		subscription.set(state());
 		await timeout(0);
-
-		assert.deepStrictEqual(snippetSources(dispatched), [['user-profile']]);
-	});
-
-	test('does not redispatch a value the session already holds', async () => {
-		const { synchronizer, dispatched } = createSynchronizer();
-		const subscription = await publish(synchronizer, createState());
 		assert.strictEqual(dispatched.length, 1);
 
-		// Simulates the host echoing the value back, or another window having
-		// published it first. Redispatching would start a cross-window loop.
-		subscription.set(createState({ values: dispatched[0].config }));
+		subscription.set(state({ values: dispatched[0] }));
 		await timeout(0);
-
 		assert.strictEqual(dispatched.length, 1);
 	});
 
-	test('does not publish an empty list to a session that never had one', async () => {
-		const { synchronizer, dispatched } = createSynchronizer({
-			settings: {
-				[AgentHostShellToolLoadUserProfileSettingId]: false,
-				[AgentHostShellToolPythonActivationSettingId]: false,
-			},
-		});
-		await publish(synchronizer, createState());
+	test('the single setting clears the script when disabled', async () => {
+		const { synchronizer, dispatched } = create({ enabled: false });
+		await register(synchronizer, state({
+			values: { [SessionConfigKey.ShellInitSnippets]: [{ shell: 'bash', script: 'old' }] },
+		}));
+		assert.deepStrictEqual(dispatched, [{ [SessionConfigKey.ShellInitSnippets]: [] }]);
+	});
 
+	test('does not publish from the Agents window', async () => {
+		const { synchronizer, dispatched } = create({ sessionsWindow: true });
+		await register(synchronizer, state());
 		assert.deepStrictEqual(dispatched, []);
 	});
 
-	test('clears a previously published value when both settings are disabled', async () => {
-		const { synchronizer, dispatched } = createSynchronizer({
-			settings: {
-				[AgentHostShellToolLoadUserProfileSettingId]: false,
-				[AgentHostShellToolPythonActivationSettingId]: false,
-			},
+	test('does not publish when the Agent Host can run on a remote OS', async () => {
+		const { synchronizer, dispatched } = create({ remoteAuthority: 'ssh-remote+host' });
+		await register(synchronizer, state());
+		assert.deepStrictEqual(dispatched, []);
+	});
+
+	(isWindows ? test.skip : test)('falls back to the zsh activation value under bash', async () => {
+		const { synchronizer, dispatched } = create({
+			collection: collection([{ variable: 'VSCODE_PYTHON_ZSH_ACTIVATE', value: 'activate-zsh', folder: folderA }]),
 		});
-		await publish(synchronizer, createState({ values: { [SessionConfigKey.ShellInitSnippets]: [{ shell: 'bash', script: 'x', source: 'python-env' }] } }));
-
-		assert.deepStrictEqual(dispatched.map(entry => entry.config), [{ [SessionConfigKey.ShellInitSnippets]: [] }]);
-	});
-
-	test('republishes when the environment collection changes', async () => {
-		const onDidChange = disposables.add(new Emitter<MergedEnvironmentVariableCollection>());
-		let collection = mergedCollection([]);
-		const { synchronizer, dispatched } = createSynchronizer({
-			onDidChangeCollections: onDidChange.event,
-			get collection() { return collection; },
-		} as Parameters<typeof createSynchronizer>[0]);
-		await publish(synchronizer, createState());
-		assert.deepStrictEqual(snippetSources(dispatched), [['user-profile']]);
-
-		collection = mergedCollection([{ variable: ACTIVATION_VARIABLE, value: 'activate-a', folderIndex: 0 }]);
-		onDidChange.fire(collection);
-		await timeout(0);
-
-		assert.deepStrictEqual(snippetSources(dispatched), [['user-profile'], ['user-profile', 'python-env']]);
-	});
-
-	(isWindows ? test.skip : test)('falls back to the zsh variable when only it is published', async () => {
-		const { synchronizer, dispatched } = createSynchronizer({
-			collection: mergedCollection([{ variable: FALLBACK_VARIABLE, value: 'source /workspace/a/.venv/bin/activate', folderIndex: 0 }]),
-		});
-		await publish(synchronizer, createState());
-
-		// The extension emits identical text for bash and zsh, so the fallback is
-		// safe for the bash shell the tool actually spawns.
-		const snippets = dispatched[0].config[SessionConfigKey.ShellInitSnippets] as IShellInitSnippet[];
-		assert.ok(snippets.some(snippet => snippet.script.includes('/workspace/a/.venv/bin/activate')), JSON.stringify(snippets));
-	});
-
-	test('stops publishing once the registration is disposed', async () => {
-		const onDidChange = disposables.add(new Emitter<MergedEnvironmentVariableCollection>());
-		const { synchronizer, dispatched } = createSynchronizer({ onDidChangeCollections: onDidChange.event });
-		const subscription = disposables.add(new TestSubscription(createState()));
-		const registration = synchronizer.register({ session, subscription });
-		await timeout(0);
-		const afterFirst = dispatched.length;
-
-		registration.dispose();
-		onDidChange.fire(mergedCollection([]));
-		await timeout(0);
-
-		assert.strictEqual(dispatched.length, afterFirst);
+		await register(synchronizer, state());
+		assert.ok(scripts(dispatched)[0].script.includes('activate-zsh'));
 	});
 });

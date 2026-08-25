@@ -47,11 +47,8 @@ export const CopilotCliVSCodeAssignmentContextKey = 'copilotCliVSCodeAssignmentC
 
 export const AgentHostCustomTerminalToolEnabledSettingId = 'chat.agentHost.customTerminalTool.enabled';
 
-/** Activate the selected Python environment in the SDK built-in shell tool. */
-export const AgentHostShellToolPythonActivationSettingId = 'chat.agentHost.shellTool.pythonActivation';
-
-/** Load the user's shell profile in the SDK built-in shell tool. */
-export const AgentHostShellToolLoadUserProfileSettingId = 'chat.agentHost.shellTool.loadUserProfile';
+/** Enable VS Code's generated init script for the SDK built-in shell tool. */
+export const AgentHostShellToolInitScriptEnabledSettingId = 'chat.agentHost.shellTool.initScript.enabled';
 
 export const AgentHostCopilotSdkLogLevelSettingId = 'chat.agentHost.copilotSdk.logLevel';
 

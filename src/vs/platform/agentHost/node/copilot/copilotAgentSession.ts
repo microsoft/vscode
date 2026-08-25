@@ -24,7 +24,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
-import { IFileService } from '../../../files/common/files.js';
+import { FileOperationResult, FileSystemProviderCapabilities, IFileService, toFileOperationResult } from '../../../files/common/files.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILogService, LogLevel } from '../../../log/common/log.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
@@ -42,8 +42,7 @@ import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { toToolCallMeta, type IToolCallMeta, type IToolCallUiMeta, type IToolSearchCandidate } from '../../common/meta/agentToolCallMeta.js';
 import { OtelData, type OtelAttributeValue } from '../../common/otlp/otlpLogEmitter.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
-import { isShellInitSnippetArray } from '../../common/shellInitSnippets.js';
-import type { IShellInitScriptMaterializer } from './shellInitScriptMaterializer.js';
+import { isShellInitScriptList, type IShellInitScript } from '../../common/shellInitScript.js';
 import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
 import { resolveCopilotConfigSlashCommandOnSend } from '../../common/copilotConfigSlashCommands.js';
 import { STREAMING_TOOL_DISPLAY_INTERVAL_MS, streamingToolDisplayText } from '../../common/streamingToolCallDisplay.js';
@@ -401,8 +400,6 @@ export interface ICopilotAgentSessionOptions {
 	readonly rawSessionId: string;
 	readonly onDidSessionProgress: Emitter<AgentSignal>;
 	readonly sessionLauncher: ICopilotSessionLauncher;
-	/** Writes this session's shell init scripts to disk for the SDK's built-in shell tool. */
-	readonly shellInitScriptMaterializer: IShellInitScriptMaterializer;
 	readonly launchPlan: CopilotSessionLaunchPlan;
 	readonly shellManager: ShellManager | undefined;
 	/** Working directory associated with the session, used to strip redundant `cd` prefixes from shell commands. */
@@ -982,9 +979,9 @@ export class CopilotAgentSession extends Disposable {
 
 	private readonly _onDidSessionProgress: Emitter<AgentSignal>;
 	private readonly _sessionLauncher: ICopilotSessionLauncher;
-	private readonly _shellInitScriptMaterializer: IShellInitScriptMaterializer;
-	/** Paths last pushed as `shell.initScripts`, so an unchanged list skips the RPC. */
-	private _lastAppliedInitScriptPaths: string | undefined;
+	/** Last config materialized and pushed, so unchanged turns do no file I/O or RPC. */
+	private _lastAppliedShellInitScripts: string | undefined;
+	private readonly _shellInitScriptSequencer = new Sequencer();
 	private readonly _launchPlan: CopilotSessionLaunchPlan;
 	private readonly _isLaunchTokenStillCurrent: () => boolean;
 	/** Notifies the agent that this chat's turn ended. See {@link ICopilotAgentSessionOptions.onTurnEnded}. */
@@ -1069,7 +1066,6 @@ export class CopilotAgentSession extends Disposable {
 		this._storageUri = this.resourceUri;
 		this._onDidSessionProgress = options.onDidSessionProgress;
 		this._sessionLauncher = options.sessionLauncher;
-		this._shellInitScriptMaterializer = options.shellInitScriptMaterializer;
 		this._launchPlan = options.launchPlan;
 		this._isLaunchTokenStillCurrent = options.isLaunchTokenCurrent ?? (() => true);
 		this._onTurnEnded = options.onTurnEnded ?? (() => { });
@@ -2047,7 +2043,7 @@ export class CopilotAgentSession extends Disposable {
 		this._subscribeToPermissionConfigChanges();
 		// Re-establishes shell init scripts on a cold resume: the runtime does
 		// not persist its init-script list, but the host's session config does.
-		await this._applyEffectiveShellInitScripts();
+		await this._syncShellInitScript();
 		this._promptCacheState = this._promptCache.read(this.resourceUri);
 		if (this._launchPlan.kind === 'resume') {
 			await this._refreshSessionUsageMetrics();
@@ -2514,7 +2510,7 @@ export class CopilotAgentSession extends Disposable {
 		await this.applyMode(mode);
 		await this.syncPermissionMode('turn-start');
 		await this._applyEffectiveSandboxConfig();
-		await this._applyEffectiveShellInitScripts();
+		await this._syncShellInitScript();
 		await this._reconcileMcpServerEnablement();
 	}
 
@@ -2865,6 +2861,7 @@ export class CopilotAgentSession extends Disposable {
 		void this._editTracker.flushAttribution().catch(error => {
 			this._logService.warn(`[Copilot:${this.sessionId}] Failed to flush edit attribution: ${error}`);
 		});
+		void this._clearShellInitScript();
 		this._beginAbort();
 		super.dispose();
 	}
@@ -2882,6 +2879,7 @@ export class CopilotAgentSession extends Disposable {
 			this._logService.warn(`[Copilot:${this.sessionId}] Failed to flush edit attribution: ${error}`);
 		}
 		await this._wrapper.disconnect();
+		await this._clearShellInitScript();
 	}
 
 	async setModel(model: string, reasoningEffort?: SessionConfig['reasoningEffort'], contextTier?: SessionConfig['contextTier']): Promise<void> {
@@ -3464,7 +3462,12 @@ export class CopilotAgentSession extends Disposable {
 	 * the list lives here rather than at a single call site.
 	 */
 	private _sandboxExtraReadonlyPaths(): readonly string[] {
-		return [this._shellInitScriptMaterializer.directoryFor(this.sessionId).fsPath];
+		return [this._shellInitScriptDirectory().fsPath];
+	}
+
+	private _shellInitScriptDirectory(): URI {
+		const sessionId = this.sessionId.replace(/[^a-zA-Z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').substring(0, 128) || 'session';
+		return URI.joinPath(URI.file(this._environmentService.userDataPath), 'agentHost', 'shellInit', sessionId);
 	}
 
 	/**
@@ -3507,12 +3510,14 @@ export class CopilotAgentSession extends Disposable {
 			if (Object.hasOwn(event.config, SessionConfigKey.AutoApprove)) {
 				void this._syncPermissionModeAfterConfigChange();
 			}
-			// The selected Python environment can change while a session is
-			// live, so apply new scripts without waiting for the next turn.
 			if (Object.hasOwn(event.config, SessionConfigKey.ShellInitSnippets)) {
-				void this._applyEffectiveShellInitScripts();
+				void this._syncShellInitScript();
 			}
 		}));
+	}
+
+	private _syncShellInitScript(): Promise<void> {
+		return this._shellInitScriptSequencer.queue(() => this._applyEffectiveShellInitScripts());
 	}
 
 	private async _syncPermissionModeAfterConfigChange(): Promise<void> {
@@ -3608,11 +3613,8 @@ export class CopilotAgentSession extends Disposable {
 	 * loading) and arrive as session config, so this reads the validated
 	 * effective value rather than any host setting.
 	 *
-	 * Re-applied on every turn as well as at initialization. Cheap in the
-	 * steady state: the file paths are derived from the snippet shape, so an
-	 * unchanged list skips the RPC entirely, and rewritten *content* takes
-	 * effect without one because the runtime re-reads each script from disk
-	 * before every command.
+	 * Checked on every turn as well as at initialization, but unchanged config
+	 * skips both file I/O and the RPC.
 	 *
 	 * Also what restores scripts on a cold resume: the runtime does not persist
 	 * its init-script list across a restart, but the host's session config
@@ -3626,27 +3628,61 @@ export class CopilotAgentSession extends Disposable {
 		}
 		try {
 			const configured = this._configurationService.getEffectiveValue(this._ownerSessionUri.toString(), platformSessionSchema, SessionConfigKey.ShellInitSnippets);
-			const snippets = isShellInitSnippetArray(configured) ? configured : [];
-			const refs = await this._shellInitScriptMaterializer.materialize(this.sessionId, snippets);
-			const paths = JSON.stringify(refs);
-			if (this._lastAppliedInitScriptPaths === paths) {
+			const snippets = isShellInitScriptList(configured) ? configured : [];
+			const serialized = JSON.stringify(snippets);
+			if (this._lastAppliedShellInitScripts === serialized) {
 				return;
 			}
-			if (!refs.length && this._lastAppliedInitScriptPaths === undefined) {
+			const refs = await this._materializeShellInitScript(snippets);
+			if (snippets.length && !refs.length) {
+				// The write failed. Leave the cache unchanged so the next turn
+				// retries rather than permanently treating the script as applied.
+				return;
+			}
+			if (!refs.length && this._lastAppliedShellInitScripts === undefined) {
 				// Nothing configured and nothing registered yet: skip the RPC that
 				// would clear an already-empty list. Most sessions never configure
-				// snippets, so this keeps the common path free of an extra call.
-				this._lastAppliedInitScriptPaths = paths;
+				// a script, so this keeps the common path free of an extra call.
+				this._lastAppliedShellInitScripts = serialized;
 				return;
 			}
 			const result = await this._wrapper.session.rpc.options.update({ shell: { initScripts: refs } });
 			if (!result.success) {
 				throw new Error('Copilot SDK rejected shell init script update');
 			}
-			this._lastAppliedInitScriptPaths = paths;
+			this._lastAppliedShellInitScripts = serialized;
 			this._logService.trace(`[Copilot:${this.sessionId}] Applied ${refs.length} shell init script(s)`);
 		} catch (err) {
 			this._logService.warn(`[Copilot:${this.sessionId}] Failed to update shell init scripts`, err);
+		}
+	}
+
+	private async _materializeShellInitScript(scripts: readonly IShellInitScript[]): Promise<Array<{ shell: IShellInitScript['shell']; path: string }>> {
+		if (scripts.length !== 1) {
+			await this._clearShellInitScript();
+			return [];
+		}
+		const script = scripts[0];
+		const resource = URI.joinPath(this._shellInitScriptDirectory(), script.shell === 'powershell' ? 'init.ps1' : 'init.sh');
+		const atomic = this._fileService.hasCapability(resource, FileSystemProviderCapabilities.FileAtomicWrite)
+			? { postfix: '.vsctmp' }
+			: false;
+		try {
+			await this._fileService.writeFile(resource, VSBuffer.fromString(script.script), { atomic });
+			return [{ shell: script.shell, path: resource.fsPath }];
+		} catch (error) {
+			this._logService.warn(`[Copilot:${this.sessionId}] Failed to write shell init script: ${getErrorMessage(error)}`);
+			return [];
+		}
+	}
+
+	private async _clearShellInitScript(): Promise<void> {
+		try {
+			await this._fileService.del(this._shellInitScriptDirectory(), { recursive: true });
+		} catch (error) {
+			if (!(error instanceof Error) || toFileOperationResult(error) !== FileOperationResult.FILE_NOT_FOUND) {
+				this._logService.warn(`[Copilot:${this.sessionId}] Failed to remove shell init script: ${getErrorMessage(error)}`);
+			}
 		}
 	}
 

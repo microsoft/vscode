@@ -126,11 +126,9 @@ export interface SandboxSeatbeltPolicy {
  *
  * `extraReadonlyPaths` grants read access to host-generated files the shell
  * tool needs, such as the session's shell init scripts. The SDK treats init
- * script readability as a caller obligation and fails **silently** when a
- * script cannot be read, so every producer of a `sandboxConfig` for a session
- * must pass the same paths. There are two such producers — the launcher at
- * session creation and `CopilotAgentSession`, which re-pushes on every turn —
- * and omitting the paths from either one silently drops the grant.
+ * script readability as a caller obligation and fails silently when a script
+ * cannot be read. `CopilotAgentSession` therefore includes the directory when
+ * it applies the effective sandbox immediately before each turn.
  */
 export function buildSandboxConfigForSdk(
 	platform: NodeJS.Platform,

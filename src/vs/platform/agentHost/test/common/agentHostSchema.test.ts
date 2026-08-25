@@ -8,7 +8,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import type { IConfigurationValue } from '../../../configuration/common/configuration.js';
 import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostMarkdownPlanRichLinksEnabledConfigKey, createSchema, migrateLegacyAutopilotConfig, normalizeAgentHostTerminalAutoApproveRulesConfig, platformRootSchema, platformSessionSchema, schemaProperty, type AgentHostTerminalAutoApproveRules, type AutoApproveLevel, type IPermissionsValue, type SessionMode } from '../../common/agentHostSchema.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
-import type { IShellInitSnippet } from '../../common/shellInitSnippets.js';
+import type { IShellInitScript } from '../../common/shellInitScript.js';
 import { JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
 
 /**
@@ -348,10 +348,10 @@ suite('agentHostSchema', () => {
 		test('validates the shellInitSnippets shape', () => {
 			assert.deepStrictEqual([
 				platformSessionSchema.validate(SessionConfigKey.ShellInitSnippets, []),
-				platformSessionSchema.validate(SessionConfigKey.ShellInitSnippets, [{ shell: 'bash', script: 'x', source: 'python-env' }]),
-				platformSessionSchema.validate(SessionConfigKey.ShellInitSnippets, [{ shell: 'zsh', script: 'x', source: 'a' }]),
-				platformSessionSchema.validate(SessionConfigKey.ShellInitSnippets, [{ shell: 'bash', source: 'a' }]),
-				platformSessionSchema.validate(SessionConfigKey.ShellInitSnippets, [{ shell: 'bash', script: 1, source: 'a' }]),
+				platformSessionSchema.validate(SessionConfigKey.ShellInitSnippets, [{ shell: 'bash', script: 'x' }]),
+				platformSessionSchema.validate(SessionConfigKey.ShellInitSnippets, [{ shell: 'zsh', script: 'x' }]),
+				platformSessionSchema.validate(SessionConfigKey.ShellInitSnippets, [{ shell: 'bash' }]),
+				platformSessionSchema.validate(SessionConfigKey.ShellInitSnippets, [{ shell: 'bash', script: 1 }]),
 				platformSessionSchema.validate(SessionConfigKey.ShellInitSnippets, 'nope'),
 			], [true, true, false, false, false, false]);
 		});
@@ -362,11 +362,11 @@ suite('agentHostSchema', () => {
 		});
 
 		test('keeps a pushed shellInitSnippets value and has no default of its own', () => {
-			const snippets = [{ shell: 'bash', script: 'x', source: 'python-env' }];
+			const snippets = [{ shell: 'bash', script: 'x' }];
 			// Mirrors `resolveChatConfig`, which supplies defaults only for
 			// autoApprove and mode. An absent value must stay absent so it is
 			// distinguishable from an explicit empty array (clear).
-			const defaults: { [SessionConfigKey.AutoApprove]: AutoApproveLevel; [SessionConfigKey.Mode]: SessionMode; [SessionConfigKey.ShellInitSnippets]?: readonly IShellInitSnippet[] } = {
+			const defaults: { [SessionConfigKey.AutoApprove]: AutoApproveLevel; [SessionConfigKey.Mode]: SessionMode; [SessionConfigKey.ShellInitSnippets]?: readonly IShellInitScript[] } = {
 				[SessionConfigKey.AutoApprove]: 'default',
 				[SessionConfigKey.Mode]: 'interactive',
 			};

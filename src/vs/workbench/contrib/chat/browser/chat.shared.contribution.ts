@@ -20,7 +20,7 @@ import { AgentHostAutoReplyEnabledConfigKey, AgentHostEditAutoApprovePatternsCon
 import '../../../../platform/agentHost/common/agentHostStarter.config.contribution.js';
 import { AgentMergeSettingId } from '../../../../platform/agentHost/common/agentMerge.js';
 import { AgentHostAhpJsonlLoggingSettingId, AgentHostAllowSignedOutWhenUsableSettingId, AgentHostSdkSandboxEnabledSettingId, AgentHostSdkSandboxWindowsEnabledSettingId, CodexPreferAgentHostEditorSettingId } from '../../../../platform/agentHost/common/agentService.js';
-import { AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostCustomTerminalToolEnabledSettingId, AgentHostMultiTurnContextRoutingEnabledSettingId, AgentHostOpus48PromptEnabledSettingId, AgentHostReasoningEffortOverrideSettingId, AgentHostReasoningSummaryEnabledSettingId, AgentHostShellToolLoadUserProfileSettingId, AgentHostShellToolPythonActivationSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, CopilotSubagentModelGuidanceEnabledSettingId, copilotSdkLogLevelSettingValues } from '../../../../platform/agentHost/common/copilotCliConfig.js';
+import { AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostCustomTerminalToolEnabledSettingId, AgentHostMultiTurnContextRoutingEnabledSettingId, AgentHostOpus48PromptEnabledSettingId, AgentHostReasoningEffortOverrideSettingId, AgentHostReasoningSummaryEnabledSettingId, AgentHostShellToolInitScriptEnabledSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, CopilotSubagentModelGuidanceEnabledSettingId, copilotSdkLogLevelSettingValues } from '../../../../platform/agentHost/common/copilotCliConfig.js';
 import { CopilotSemanticSearchEnabledSettingId } from '../../../../platform/agentHost/common/semanticSearchConstants.js';
 import { DEFAULT_EDIT_AUTO_APPROVE_PATTERNS, mergeChatEditAutoApprovePatterns } from '../../../../platform/chat/common/chatSettings.js';
 import { reasoningEffortLevels } from '../../../../platform/agentHost/common/reasoningEffort.js';
@@ -1561,15 +1561,9 @@ configurationRegistry.registerConfiguration({
 			default: false,
 			tags: ['experimental', 'advanced'],
 		},
-		[AgentHostShellToolPythonActivationSettingId]: {
+		[AgentHostShellToolInitScriptEnabledSettingId]: {
 			type: 'boolean',
-			markdownDescription: nls.localize('chat.agentHost.shellTool.pythonActivation', "When enabled, commands run by the agent's shell tool activate the Python environment selected for the workspace. Requires the Python Environments extension with `#python-envs.terminal.autoActivationType#` set to `shellStartup`."),
-			default: true,
-			tags: ['experimental', 'advanced'],
-		},
-		[AgentHostShellToolLoadUserProfileSettingId]: {
-			type: 'boolean',
-			markdownDescription: nls.localize('chat.agentHost.shellTool.loadUserProfile', "When enabled, commands run by the agent's shell tool load your shell profile, so tools that install shell functions (such as `conda`) are available. The agent's shell is non-interactive, so profile sections guarded to interactive shells are skipped."),
+			markdownDescription: nls.localize('chat.agentHost.shellTool.initScript.enabled', "When enabled, commands run by the agent's shell tool load your shell profile and activate the Python environment selected for the workspace. Python activation requires the Python Environments extension with `#python-envs.terminal.autoActivationType#` set to `shellStartup`."),
 			default: true,
 			tags: ['experimental', 'advanced'],
 		},
