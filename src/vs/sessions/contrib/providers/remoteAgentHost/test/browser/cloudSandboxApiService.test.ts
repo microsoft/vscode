@@ -249,8 +249,9 @@ interface ICreateCall {
 	readonly body: unknown;
 }
 
-function createServiceForCreate(store: Pick<{ add<T extends { dispose(): void }>(t: T): T }, 'add'>, response: unknown, statusCode = 200, options?: { readonly failDelete?: boolean }): { service: CloudSandboxApiService; calls: ICreateCall[] } {
+function createServiceForCreate(store: Pick<{ add<T extends { dispose(): void }>(t: T): T }, 'add'>, response: unknown, statusCode = 200, options?: { readonly failDelete?: boolean; readonly responseHeaders?: Record<string, string> }): { service: CloudSandboxApiService; calls: ICreateCall[]; errors: string[] } {
 	const calls: ICreateCall[] = [];
+	const errors: string[] = [];
 	const instantiationService = store.add(new TestInstantiationService());
 	instantiationService.stub(IRequestService, new class extends mock<IRequestService>() {
 		override async request(opts: { url?: string; type?: string; data?: string }): Promise<IRequestContext> {
@@ -258,7 +259,7 @@ function createServiceForCreate(store: Pick<{ add<T extends { dispose(): void }>
 			if (opts.type === 'DELETE' && options?.failDelete) {
 				throw new Error('delete failed');
 			}
-			return jsonResponse(response, statusCode);
+			return jsonResponse(response, statusCode, options?.responseHeaders);
 		}
 	}());
 	instantiationService.stub(IAuthenticationService, new class extends mock<IAuthenticationService>() {
@@ -266,11 +267,15 @@ function createServiceForCreate(store: Pick<{ add<T extends { dispose(): void }>
 		override readonly onDidChangeSessions = Event.None;
 	}());
 	instantiationService.stub(IProductService, { defaultChatAgent: undefined } as unknown as IProductService);
-	instantiationService.stub(ILogService, new NullLogService());
+	instantiationService.stub(ILogService, new class extends NullLogService {
+		override error(message: string | Error): void {
+			errors.push(String(message));
+		}
+	}());
 	instantiationService.stub(ICloudSandboxTelemetryService, new class extends mock<ICloudSandboxTelemetryService>() {
 		override reportRequest(): void { }
 	}());
-	return { service: store.add(instantiationService.createInstance(CloudSandboxApiService)), calls };
+	return { service: store.add(instantiationService.createInstance(CloudSandboxApiService)), calls, errors };
 }
 
 suite('CloudSandboxApiService session creation', () => {
@@ -356,5 +361,45 @@ suite('CloudSandboxApiService session creation', () => {
 			() => service.createSession({ prompt: 'hello' }, CancellationToken.None),
 			/HTTP 403/,
 		);
+	});
+
+	test('deletes the task named by a failed create, which Mission Control recorded before failing', async () => {
+		// Compute is provisioned after the task record exists, so a provisioning failure leaves a
+		// task behind. When the failure names it, it is ours to clean up.
+		const { service, calls } = createServiceForCreate(store, { id: 'task-9', message: 'failed to create agent compute' }, 500);
+
+		await assert.rejects(() => service.createSession({ prompt: 'hello' }, CancellationToken.None));
+
+		assert.deepStrictEqual(calls.map(c => `${c.type} ${c.url.replace(/^.*\/agents/, '')}`), [
+			'POST /tasks',
+			'DELETE /tasks/task-9',
+		]);
+	});
+
+	test('keeps the failure message when the response names no task', async () => {
+		// The response body is read once and reused: reading it again to build the error would
+		// yield nothing and discard the only explanation of why creation failed.
+		const { service, calls } = createServiceForCreate(store, { message: 'failed to create agent compute' }, 500);
+
+		await assert.rejects(
+			() => service.createSession({ prompt: 'hello' }, CancellationToken.None),
+			/HTTP 500 - .*failed to create agent compute/,
+		);
+
+		assert.deepStrictEqual(calls.map(c => c.type), ['POST']);
+	});
+
+	test('logs the request id and raw body when a create fails, so the failure can be escalated', async () => {
+		// Provisioning failures answer with a message that masks the cause, so the server-side
+		// request id is the only thing that lets the owning team find the real error.
+		const { service, errors } = createServiceForCreate(store,
+			{ message: 'failed to create agent compute' }, 500,
+			{ responseHeaders: { 'x-github-request-id': 'ABCD:1234:5678', 'x-sweagentd-retry': 'compute_resource_locked' } });
+
+		await assert.rejects(() => service.createSession({ prompt: 'hello' }, CancellationToken.None));
+
+		assert.deepStrictEqual(errors.filter(e => e.includes('Task create failed.')), [
+			'[CloudSandboxApi] Task create failed. HTTP 500 | x-github-request-id: ABCD:1234:5678 | x-sweagentd-retry: compute_resource_locked | body: {"message":"failed to create agent compute"}',
+		]);
 	});
 });
