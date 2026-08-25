@@ -5,7 +5,7 @@
 
 import type { CopilotSession, CurrentToolMetadata, ElicitationContext, ElicitationFieldValue, ElicitationResult, ElicitationSchema, ElicitationSchemaField, ExitPlanModeCompletedData, ExitPlanModeRequest, ExitPlanModeResult, JsonValue, McpServersLoadedServer, MessageOptions, PermissionAllowAllMode, PermissionAutoApproval, PermissionRequest, PermissionRequestResult, PermissionResult, SessionConfig, SessionHooks, SessionMode as CopilotSdkMode, Tool, ToolResultObject, McpServerStatus as SdkMcpServerStatus } from '@github/copilot-sdk';
 import { cp, rm } from 'fs/promises';
-import { DeferredPromise, raceCancellation, RunOnceScheduler, Sequencer, SequencerByKey, Throttler } from '../../../../base/common/async.js';
+import { DeferredPromise, raceCancellation, RunOnceScheduler, Sequencer, SequencerByKey, Throttler, timeout } from '../../../../base/common/async.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../base/common/event.js';
@@ -150,6 +150,8 @@ interface ICopilotStreamingToolCall {
 }
 
 const SESSION_STATE_DIRECTORY = 'session-state';
+const DEBUG_LOG_COLLECTION_RETRY_ATTEMPTS = 50;
+const DEBUG_LOG_COLLECTION_RETRY_DELAY_MS = 20;
 const EMPTY_TOOL_RESULT_TEXT = '<empty />';
 const USER_DENIED_PERMISSION_RESULT = { kind: 'reject', feedback: 'The user denied permission.' } satisfies PermissionRequestResult;
 
@@ -852,23 +854,36 @@ export class CopilotAgentSession extends Disposable {
 	get currentTurnClientType(): AgentHostClientType { return this._currentTurn.value?.clientType ?? AgentHostClientType.Unknown; }
 	get currentTurnClientContext(): IAgentHostClientTelemetryContext | undefined { return this._currentTurn.value?.clientContext; }
 
-	async collectDebugLogs(outputDirectory: URI, includeSessionLogs: boolean): Promise<void> {
-		const result = await this._wrapper.session.rpc.debug.collectLogs({
-			destination: { kind: 'directory', outputDirectory: outputDirectory.fsPath },
-			include: {
-				events: includeSessionLogs,
-				processLogs: false,
-				shellLogs: includeSessionLogs,
-			},
-		});
+	async collectDebugLogs(outputDirectory: URI, includeSessionLogs: boolean): Promise<boolean> {
+		let result: Awaited<ReturnType<CopilotSession['rpc']['debug']['collectLogs']>>;
+		// The SDK can publish session.idle before its events journal is visible on disk.
+		for (let attempt = 0; ; attempt++) {
+			result = await this._wrapper.session.rpc.debug.collectLogs({
+				destination: { kind: 'directory', outputDirectory: outputDirectory.fsPath },
+				include: {
+					events: includeSessionLogs,
+					processLogs: false,
+					shellLogs: includeSessionLogs,
+				},
+			});
+			const eventLogPending = includeSessionLogs && result.skippedEntries?.some(entry => entry.bundlePath === 'events.jsonl' && entry.reason === 'not found');
+			if (!eventLogPending || attempt === DEBUG_LOG_COLLECTION_RETRY_ATTEMPTS - 1) {
+				break;
+			}
+			if (result.kind === 'directory' && result.path !== outputDirectory.fsPath) {
+				await rm(result.path, { recursive: true, force: true });
+			}
+			await timeout(DEBUG_LOG_COLLECTION_RETRY_DELAY_MS);
+		}
 		if (result.kind !== 'directory' || result.path === outputDirectory.fsPath) {
-			return;
+			return result.entries.length > 0;
 		}
 		try {
 			await cp(result.path, outputDirectory.fsPath, { recursive: true });
 		} finally {
 			await rm(result.path, { recursive: true, force: true });
 		}
+		return result.entries.length > 0;
 	}
 
 	/**
@@ -3268,8 +3283,10 @@ export class CopilotAgentSession extends Disposable {
 			// (`requestSandboxBypass`) are an elevation of privilege and must
 			// fall through to the normal confirmation flow — otherwise enabling
 			// `sandbox.allowBypass` would let the model escape the sandbox with no
-			// prompt at all.
-			if (!managedApprovalRequired && isShellRequest && !requestSandboxBypass && await this._isShellSandboxedByDefault()) {
+			// prompt at all. A file-scoped surface (editor inline chat) is
+			// likewise excluded: the sandbox contains a command to the workspace,
+			// not to that surface's one file, so it can still edit other files.
+			if (!managedApprovalRequired && !this._launchPlan.hasScopedEditSurface && isShellRequest && !requestSandboxBypass && await this._isShellSandboxedByDefault()) {
 				// Session may have been disposed while we awaited the engine
 				// check; if so the deferred has already been settled and
 				// removed, so leave it alone.
