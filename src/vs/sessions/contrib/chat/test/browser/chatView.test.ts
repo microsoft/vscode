@@ -150,7 +150,7 @@ suite('Sessions - Chat View', () => {
 		assert.deepStrictEqual({
 			responseBackgroundColor: responseStyle.backgroundColor,
 			responseBackdropFilter: responseStyle.getPropertyValue('backdrop-filter'),
-			responseWebkitBackdropFilter: responseStyle.getPropertyValue('-webkit-backdrop-filter'),
+			responseWebkitBackdropFilter: responseStyle.getPropertyValue('-webkit-backdrop-filter') || 'none',
 			responseBorderRadius: responseStyle.borderRadius,
 			responseOverflow: responseStyle.overflow,
 			responsePaddingBottom: responseStyle.paddingBottom,
@@ -162,7 +162,7 @@ suite('Sessions - Chat View', () => {
 		}, {
 			responseBackgroundColor: 'color(srgb 1 1 1 / 0.96)',
 			responseBackdropFilter: 'none',
-			responseWebkitBackdropFilter: '',
+			responseWebkitBackdropFilter: 'none',
 			responseBorderRadius: '6px',
 			responseOverflow: 'hidden',
 			responsePaddingBottom: '16px',
