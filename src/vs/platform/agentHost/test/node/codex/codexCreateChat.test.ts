@@ -54,6 +54,7 @@ interface ITestWireRequest {
 		readonly numTurns?: number;
 		readonly input?: readonly { readonly type: string; readonly text?: string; readonly text_elements?: readonly object[] }[];
 		readonly additionalContext?: Readonly<Record<string, { readonly kind: string; readonly value: string }>>;
+		readonly dynamicTools?: readonly { readonly name: string }[];
 	};
 }
 
@@ -852,6 +853,8 @@ suite('CodexAgent createChat', () => {
 			peer.push({ id: prewarmStart.id, result: { thread: { id: 'prewarmed-thread', cwd: folder.fsPath } } });
 			await new Promise(resolve => setImmediate(resolve));
 
+			const activeClient = agent.getOrCreateActiveClient(chat, context, { clientId: 'client-1' });
+			activeClient.tools = [{ name: 'client_tool', description: 'client tool', inputSchema: { type: 'object' } }];
 			const changingAgent = agent.chats.changeAgent(chat, undefined, context);
 			const unsubscribe = await readNextRequest(peer.outbound);
 			peer.push({ id: unsubscribe.id, result: {} });
@@ -868,6 +871,7 @@ suite('CodexAgent createChat', () => {
 			assert.deepStrictEqual({
 				beforeSend,
 				afterSend: materialized,
+				restartedDynamicTools: restartedThread.params.dynamicTools?.map(tool => tool.name),
 				requests: [prewarmStart, unsubscribe, restartedThread, turn].map(request => ({
 					method: request.method,
 					threadId: request.params.threadId,
@@ -875,6 +879,7 @@ suite('CodexAgent createChat', () => {
 			}, {
 				beforeSend: [],
 				afterSend: [chat.toString()],
+				restartedDynamicTools: ['client_tool'],
 				requests: [
 					{ method: 'thread/start', threadId: undefined },
 					{ method: 'thread/unsubscribe', threadId: 'prewarmed-thread' },

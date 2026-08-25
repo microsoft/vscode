@@ -4566,8 +4566,8 @@ export class CodexAgent extends Disposable implements IAgent {
 	}
 
 	/**
-	 * Restarts the current codex thread with the latest launch configuration.
-	 * This preserves provisional state; the first send owns materialization publication.
+	 * Restarts a pre-turn Codex thread so current `dynamicTools`, MCP servers, and customizations are applied at `thread/start`.
+	 * Only safe before history exists; the first send remains responsible for publishing materialization.
 	 */
 	private async _restartThreadWithCurrentTools(session: ICodexSession, configResource: URI = session.configurationResource): Promise<void> {
 		const conn = this._connection;
