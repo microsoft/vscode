@@ -88,6 +88,15 @@
 	}
 }
 
+.monaco-workbench.agent-sessions-workbench .part.sessionspart .chat-view.has-chat-background-image .interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-tree-sticky-container {
+	background-color: transparent;
+	--vscode-chat-list-background: transparent;
+
+	> .monaco-tree-sticky-row.request {
+		background-color: transparent;
+	}
+}
+
 .agent-sessions-workbench .interactive-list > .monaco-list.mouse-support > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row {
 	cursor: default;
 }

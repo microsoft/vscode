@@ -285,6 +285,52 @@ suite('Sessions - Chat View', () => {
 		});
 	});
 
+	test('keeps the sticky request surface transparent over chat backgrounds', () => {
+		const workbench = dom.$('.monaco-workbench.vs-dark.agent-sessions-workbench');
+		workbench.style.setProperty('--vscode-sideBar-background', '#ff0000');
+		workbench.style.setProperty('--vscode-chat-list-background', '#ff0000');
+		workbench.style.setProperty('--session-view-background', '#202020');
+		workbench.style.setProperty('--vscode-chat-requestBubbleBackground', 'rgba(255, 255, 255, 0.3)');
+		const part = dom.append(workbench, dom.$('.part.sessionspart'));
+		const createStickyRequest = (chatViewClassName: string) => {
+			const chatView = dom.append(part, dom.$(chatViewClassName));
+			const session = dom.append(chatView, dom.$('.interactive-session'));
+			const interactiveList = dom.append(session, dom.$('.interactive-list'));
+			const list = dom.append(interactiveList, dom.$('.monaco-list'));
+			const scrollable = dom.append(list, dom.$('.monaco-scrollable-element'));
+			const stickyContainer = dom.append(scrollable, dom.$('.monaco-tree-sticky-container'));
+			const stickyRow = dom.append(stickyContainer, dom.$('.monaco-tree-sticky-row.monaco-list-row.request.passive-focused'));
+			const treeRow = dom.append(stickyRow, dom.$('.monaco-tl-row'));
+			const treeContents = dom.append(treeRow, dom.$('.monaco-tl-contents'));
+			const request = dom.append(treeContents, dom.$('.interactive-item-container.editing-session.interactive-request.show-verbose-details'));
+			const value = dom.append(request, dom.$('.value'));
+			const bubble = dom.append(value, dom.$('.rendered-markdown'));
+			return { stickyContainer, stickyRow, treeContents, bubble };
+		};
+		const background = createStickyRequest('.chat-view.has-chat-background-image');
+		const plain = createStickyRequest('.chat-view');
+		dom.getWindow(workbench).document.body.appendChild(workbench);
+		disposables.add(toDisposable(() => workbench.remove()));
+
+		assert.deepStrictEqual({
+			container: dom.getWindow(background.stickyContainer).getComputedStyle(background.stickyContainer).backgroundColor,
+			row: dom.getWindow(background.stickyRow).getComputedStyle(background.stickyRow).backgroundColor,
+			contents: dom.getWindow(background.treeContents).getComputedStyle(background.treeContents).backgroundColor,
+			hoverBackground: dom.getWindow(background.stickyRow).getComputedStyle(background.stickyRow).getPropertyValue('--vscode-chat-list-background'),
+			bubble: dom.getWindow(background.bubble).getComputedStyle(background.bubble).backgroundColor,
+			plainContainer: dom.getWindow(plain.stickyContainer).getComputedStyle(plain.stickyContainer).backgroundColor,
+			plainRow: dom.getWindow(plain.stickyRow).getComputedStyle(plain.stickyRow).backgroundColor,
+		}, {
+			container: 'rgba(0, 0, 0, 0)',
+			row: 'rgba(0, 0, 0, 0)',
+			contents: 'rgba(0, 0, 0, 0)',
+			hoverBackground: 'transparent',
+			bubble: 'rgb(32, 32, 32)',
+			plainContainer: 'rgb(255, 0, 0)',
+			plainRow: 'rgb(255, 0, 0)',
+		});
+	});
+
 	test('stores view state independently by chat resource', () => {
 		const service = new SessionsChatViewStateService();
 		const first = URI.parse('test:///first');
