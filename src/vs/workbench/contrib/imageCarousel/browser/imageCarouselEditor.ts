@@ -477,9 +477,11 @@ window.addEventListener("message",function(e){var m=e.data;if(m.type==="loadVide
 		// Reset zoom when switching images
 		this._applyZoom('fit');
 
-		// Update info bar: caption + separator + counter
-		if (currentImage.caption) {
-			this._elements.captionText.textContent = currentImage.caption;
+		// Update info bar: name/caption + separator + counter
+		// Always show the file name so the user can identify what they are viewing.
+		const infoLabel = currentImage.caption || currentImage.name;
+		if (infoLabel) {
+			this._elements.captionText.textContent = infoLabel;
 			this._elements.captionText.style.display = '';
 			this._elements.captionSeparator.style.display = '';
 		} else {
