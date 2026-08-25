@@ -863,11 +863,11 @@ Use the affected provider command with `--grep "<exact test title>"` and tempora
 
 ### Codex model-backed multiple-chat recording
 
-- Tests: the model-backed peer-chat and fork scenarios in `multiChatSuite.ts`.
-- Scope: Codex recording and strict replay only. Codex advertises `multipleChats.fork`; host-only capability checks and conformance catalog/lifecycle scenarios run.
-- Expected: focused `AGENT_HOST_UPDATE_SNAPSHOTS=1` recording produces Codex peer/fork captures that replay without cache misses.
-- Observed: on the current live recording path, even the existing simple Codex recording fails before producing a usable model response; peer turns report a CAPI malformed authorization-header error. No fixtures are accepted or hand-edited.
-- Gate: `supportsMultipleChatsE2E: false` and `supportsChatForkE2E: false`.
+- Tests: the model-backed peer-chat and fork scenarios in `multiChatSuite.ts`, and `side chat receives bounded source context without copied history`.
+- Scope: Codex recording and strict replay only. Codex advertises `multipleChats.fork` and `multipleChats.sideChat`; host-only capability checks and conformance catalog/lifecycle scenarios run.
+- Expected: focused `AGENT_HOST_UPDATE_SNAPSHOTS=1` recording produces Codex peer/fork/side-chat captures that replay without cache misses.
+- Observed: on the current live recording path, even the existing simple Codex recording fails before producing a usable model response; peer turns report a CAPI malformed authorization-header error. The side-chat scenario shares that recording path and has no accepted capture. No fixtures are accepted or hand-edited.
+- Gate: `supportsMultipleChatsE2E: false`, `supportsChatForkE2E: false`, and `supportsSideChatsE2E: false`.
 - Reproduce:
 
   ```bash
@@ -875,6 +875,10 @@ Use the affected provider command with `--grep "<exact test title>"` and tempora
   AGENT_HOST_UPDATE_SNAPSHOTS=1 ./scripts/test-integration.sh --run \
     src/vs/platform/agentHost/test/node/e2e/providers/codexAgentHostE2E.integrationTest.ts \
     --grep "peer chat completes a simple turn"
+
+  AGENT_HOST_UPDATE_SNAPSHOTS=1 ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/providers/codexAgentHostE2E.integrationTest.ts \
+    --grep "side chat receives bounded source context without copied history"
   ```
 
 ## Test-design limitations
