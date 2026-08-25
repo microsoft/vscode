@@ -47,14 +47,15 @@ const require = createRequire(import.meta.url);
 
 /**
  * The automation page objects and Playwright are loaded from the repo at
- * runtime rather than imported, so their types are not available here. These
- * aliases mark the seams deliberately instead of scattering `any` inline.
+ * runtime rather than imported statically, so that this file works from any
+ * checkout without a build step. Type-only imports still give callers full
+ * checking and completion: Node erases them along with the annotations.
  */
-type PlaywrightPage = any;
-type PlaywrightBrowser = any;
-type PlaywrightContext = any;
-type AutomationCode = any;
-type AutomationWorkbench = any;
+type PlaywrightPage = import('playwright').Page;
+type PlaywrightBrowser = import('playwright').Browser;
+type PlaywrightContext = import('playwright').BrowserContext;
+type AutomationCode = import('../../../../test/automation/out/code.js').Code;
+type AutomationWorkbench = import('../../../../test/automation/out/workbench.js').Workbench;
 
 export interface IAttachedSession {
 	/** The CDP `Browser`; `detach()` is preferred over closing this directly. */
@@ -160,7 +161,8 @@ async function findPage(context: PlaywrightContext, urlHint: RegExp | undefined,
 async function waitForSmokeTestDriver(page: PlaywrightPage, timeoutMs: number): Promise<void> {
 	const deadline = Date.now() + timeoutMs;
 	for (;;) {
-		const hasDriver = await page.evaluate(() => typeof (globalThis as any).driver !== 'undefined');
+		const hasDriver = await page.evaluate(
+			() => typeof (globalThis as { driver?: unknown }).driver !== 'undefined');
 		if (hasDriver) {
 			return;
 		}
@@ -207,7 +209,7 @@ export async function attach(cdpPort: number | string, options: IAttachOptions =
 		browser = await chromium.connectOverCDP(endpoint);
 	} catch (error) {
 		throw new Error(
-			`Could not connect to Code OSS over CDP at ${endpoint}: ${error.message}. ` +
+			`Could not connect to Code OSS over CDP at ${endpoint}: ${error instanceof Error ? error.message : error}. ` +
 			`Confirm the instance is still running and that this is the cdpPort from its launch.sh output.`
 		);
 	}
@@ -222,7 +224,7 @@ export async function attach(cdpPort: number | string, options: IAttachOptions =
 		const page = await findPage(context, PAGE_URL_HINTS[windowKind], timeoutMs);
 		await waitForSmokeTestDriver(page, Math.max(deadline - Date.now(), 1_000));
 
-		const logger = { log: (...args) => { if (verbose) { console.error('[automation]', ...args); } } };
+		const logger = { log: (...args: unknown[]) => { if (verbose) { console.error('[automation]', ...args); } } };
 		const launchOptions = {
 			logger,
 			logsPath,

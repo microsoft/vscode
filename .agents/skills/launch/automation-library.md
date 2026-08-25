@@ -77,6 +77,24 @@ Two habits worth forming:
   clickable, which handles the animating-overlay case that makes a one-shot
   click silently do nothing.
 
+### Finding a control that has no page object
+
+Do not guess selectors. Ask the running window what is on screen, then work
+from the real labels. Toolbar buttons in chat are `.action-label` elements and
+their `aria-label` is the text you want:
+
+```js
+await session.page.evaluate(() =>
+    Array.from(document.querySelectorAll('.interactive-session .action-label'))
+        .map(el => el.getAttribute('aria-label'))
+        .filter(Boolean));
+// => [..., 'Set Session Target - Copilot', 'Configure Tools...', ...]
+```
+
+Now you have a stable hook — `.action-label[aria-label^="Set Session Target"]` —
+that reads like the UI instead of encoding DOM structure. The same idea works
+for any surface: enumerate the labelled elements, then select by label.
+
 ### When to use raw @playwright/cli instead
 
 The automation library is the better default, but reach for the CLI when:
