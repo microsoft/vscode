@@ -140,14 +140,41 @@ The two compose: attach the library for the flows it covers, and drop to
 
 - **Snapshot refs go stale** against virtualized lists. Re-query immediately
   before interacting.
-- **Do not over-scope a selector when enumerating a popup.** Menu rows are not
-  reliably nested under `.context-view`, so `.context-view .monaco-list-row`
-  can return an empty list for a popup that is plainly on screen. Query
-  `.monaco-list-row` and filter, or use a page object.
+- **Scope list queries to the part you mean — `.monaco-list-row` is everywhere.**
+  This bites in both directions, and the under-scoped case is the dangerous one
+  because it returns a plausible wrong answer instead of an error. Reading
+  Source Control with `.pane-body .monaco-list-row` returned four rows that were
+  actually chat sessions in the auxiliary bar; scoping to `.part.sidebar` gave
+  the true answer of zero. Over-scoping fails the other way: menu rows are not
+  reliably nested under `.context-view`, so `.context-view .monaco-list-row` can
+  come back empty for a popup that is plainly on screen. Anchor on the part
+  (`.part.sidebar`, `.part.panel`, `.part.auxiliarybar`) and filter from there,
+  and treat a suspiciously well-formed result as worth a second look.
 - **Not every surface exists in every window.** The Agents window has no Local
   session type, for instance. `workbench.agentsWindow.isSessionTypeAvailable(label)`
   answers that question directly instead of leaving you to infer it from a
   failure.
+- **Editor tab `aria-label` is not the tab title.** An untitled editor is
+  labelled from its *content*, so a file whose first line is `<!DOCTYPE html>`
+  gets `aria-label="<!DOCTYPE html> • Untitled-1"` and a
+  `[aria-label^="Untitled-1"]` selector never matches. Enumerate the tabs and
+  match on `textContent`, or just act on `.tab.active`.
+- **Toolbar toggles must be read, not blindly clicked.** Controls such as the
+  integrated browser's *Add Element to Chat* carry `checked` in their class
+  when active, so an unconditional click can switch the mode *off*. Check
+  first, then click only if needed:
+
+  ```js
+  const isOn = () => page.evaluate(() => (document.querySelector(
+      '.action-label[aria-label^="Add Element to Chat"]')?.className || '').includes('checked'));
+  if (!(await isOn())) { await code.waitAndClick('.action-label[aria-label^="Add Element to Chat"]'); }
+  ```
+
+- **Commands that open a native dialog will time out.** `runCommand` waits for
+  the quick input to *close*, so `workbench.action.files.openFolder` throws
+  after ~20s even though the dialog is up. Launch with the folder as an
+  argument instead (`launch.sh -- <path>`), and remember that opening a folder
+  reloads the window and drops the CDP connection — reattach afterwards.
 - **Some providers register asynchronously**, seconds after the window is
   usable. An agent-host session type that is missing right after launch may
   simply not have registered yet, so poll before concluding it is unavailable
@@ -155,3 +182,20 @@ The two compose: attach the library for the flows it covers, and drop to
   exactly this reason). This is *not* a symptom of a missing
   `--clone-extensions`: the built-in providers are present without it.
 
+### The integrated browser is a separate CDP page
+
+Page content shown in the integrated browser is **its own CDP target**, not
+part of the workbench document, so `session.page.evaluate` cannot see it and
+mouse events aimed at workbench coordinates will not reach it. Pick the content
+page off the browser and drive it directly:
+
+```js
+const pages = session.browser.contexts().flatMap(c => c.pages());
+const content = pages.find(p => !p.url().startsWith('vscode-file://'));  // the page under test
+await content.evaluate(() => document.querySelector('h1')?.textContent);
+```
+
+This is what makes *Add Element to Chat* automatable end to end: enable the
+picker from the workbench toolbar, then click the element **in the content
+page**. The picker turns itself off once an element is chosen, and the
+attachment shows up as a `.chat-attached-context-attachment` chip in chat.
