@@ -19,6 +19,7 @@ import { timeout } from '../../../../../../../base/common/async.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IAccessibleViewService } from '../../../../../../../platform/accessibility/browser/accessibleView.js';
 import { IMarkdownRenderer } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
+import { TerminalCapabilityStore } from '../../../../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { IAiEditTelemetryService } from '../../../../../editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
 import { IChatOutputRendererService } from '../../../../browser/chatOutputItemRenderer.js';
@@ -93,14 +94,12 @@ suite('ChatTerminalToolProgressPart listener ownership', () => {
 	test('rendered parts do not accumulate continue listeners and duplicate rows update', async () => {
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		const continueInBackgroundEmitter = store.add(new Emitter<string>());
+		const capabilities = store.add(new TerminalCapabilityStore());
 		const terminalInstance = new class extends mock<ITerminalInstance>() {
 			override readonly isDisposed = false;
 			override readonly onDisposed = Event.None;
 			override readonly onWillData = Event.None;
-			override readonly capabilities = {
-				get: () => undefined,
-				onDidAddCommandDetectionCapability: Event.None,
-			} as ITerminalInstance['capabilities'];
+			override readonly capabilities = capabilities;
 		}();
 		const terminalChatService = new TestTerminalChatService(continueInBackgroundEmitter, terminalInstance);
 		instantiationService.stub(ITerminalChatService, terminalChatService);
