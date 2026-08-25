@@ -36,7 +36,7 @@ import { ActionType, isChatAction, type SessionAction, type ChatAction } from '.
 import { parseLeadingSlashCommand } from '../../common/agentHostSlashCommand.js';
 import type { ConfigSchema, ModelSelection, ProtectedResourceMetadata, ToolDefinition, AgentSelection } from '../../common/state/protocol/state.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
-import { buildDefaultChatUri, isDefaultChatUri, parseRequiredSessionUriFromChatUri, withSessionWorkspaceless, CustomizationType, type ClientPluginCustomization, type DirectoryCustomization, type ISessionFolderPickerDecision, type McpServerCustomization, type MessageAttachment, type PendingMessage, type ChatInputAnswer, ChatInputResponseKind, type PluginCustomization, type PolicyState, type ToolCallResult, ToolResultContentType, type Turn, ResponsePartKind } from '../../common/state/sessionState.js';
+import { buildDefaultChatUri, chatStorageUri, isDefaultChatUri, parseRequiredSessionUriFromChatUri, withSessionWorkspaceless, CustomizationType, type ClientPluginCustomization, type DirectoryCustomization, type ISessionFolderPickerDecision, type McpServerCustomization, type MessageAttachment, type PendingMessage, type ChatInputAnswer, ChatInputResponseKind, type PluginCustomization, type PolicyState, type ToolCallResult, ToolResultContentType, type Turn, ResponsePartKind } from '../../common/state/sessionState.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { ActiveClientToolSet } from '../activeClientState.js';
 import { McpCustomizationController } from '../shared/mcpCustomizationController.js';
@@ -63,6 +63,7 @@ import { IAgentHostSessionTitleSignal } from '../agentHostSessionTitleSignal.js'
 import { IAgentHostProxyResolver } from '../agentHostProxyResolver.js';
 import { MODEL_REFRESH_BASE_DELAY_MS, MODEL_REFRESH_MAX_ATTEMPTS, MODEL_REFRESH_MAX_DELAY_MS, modelRefreshBackoff } from '../shared/modelRefreshRetry.js';
 import { IAgentHostCheckpointService } from '../../common/agentHostCheckpointService.js';
+import { ISessionDataService } from '../../common/sessionDataService.js';
 import { ICopilotApiService } from '../shared/copilotApiService.js';
 import { extractForwardedErrorInfo } from '../shared/proxyChatError.js';
 import { IAgentHostWorktreeIsolation, type IAgentHostWorktreePendingState } from '../shared/worktreeIsolation.js';
@@ -1120,6 +1121,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		@IAgentHostCustomizationEnablementService private readonly _customizationEnablementService: IAgentHostCustomizationEnablementService,
 		@IAgentHostSessionTitleSignal sessionTitleSignal: IAgentHostSessionTitleSignal,
 		@IAgentHostWorktreeIsolation worktree: IAgentHostWorktreeIsolation,
+		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
 	) {
 		super();
 		this._worktree = worktree;
@@ -2512,8 +2514,23 @@ export class CodexAgent extends Disposable implements IAgent {
 	private _handleTurnStartedNotification(session: ICodexSession, params: TurnStartedNotification): (SessionAction | ChatAction)[] {
 		// The workbench already dispatched the canonical turn start before sendMessage.
 		// Codex's event only establishes app-server turn id correlation for later items.
-		mapTurnStarted(session.mapState, this._withHostTurn(session, params), session.lastPromptText);
+		const appTurnId = params.turn.id;
+		const mapped = this._withHostTurn(session, params);
+		this._persistTurnEventId(session, mapped.turn.id, appTurnId);
+		mapTurnStarted(session.mapState, mapped, session.lastPromptText);
 		return [];
+	}
+
+	private _persistTurnEventId(session: ICodexSession, hostTurnId: string, appTurnId: string): void {
+		// Copilot already records this bridge, while Claude reuses the host turn id as its transcript uuid.
+		const storage = session.chatChannel ? chatStorageUri(session.chatChannel) : undefined;
+		if (!storage) {
+			return;
+		}
+		const ref = this._sessionDataService.openDatabase(storage);
+		ref.object.setTurnEventId(hostTurnId, appTurnId).catch(error => {
+			this._logService.warn(`[Codex:${session.threadId}] Failed to persist turn id mapping ${hostTurnId} -> ${appTurnId}`, error);
+		}).finally(() => ref.dispose());
 	}
 
 	private _handleTurnCompletedNotification(session: ICodexSession, params: TurnCompletedNotification): (SessionAction | ChatAction)[] {
@@ -4566,9 +4583,8 @@ export class CodexAgent extends Disposable implements IAgent {
 	}
 
 	/**
-	 * Tear down the current codex thread and start a fresh one so the
-	 * session's current client tools are registered as `dynamicTools`.
-	 * Only safe before any turn has committed history on the thread.
+	 * Restarts a pre-turn Codex thread so current `dynamicTools`, MCP servers, and customizations are applied at `thread/start`.
+	 * Only safe before history exists; the first send remains responsible for publishing materialization.
 	 */
 	private async _restartThreadWithCurrentTools(session: ICodexSession, configResource: URI = session.configurationResource): Promise<void> {
 		const conn = this._connection;
@@ -4588,7 +4604,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		session.threadId = undefined;
 		this._applyMcpInventoryToSession(session);
 		session.materializePromise = undefined;
-		await this._materializeIfNeeded(session, configResource, true);
+		await this._materializeIfNeeded(session, configResource, false);
 	}
 
 	private _fireMaterialized(session: ICodexSession): void {
@@ -4675,7 +4691,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	}
 
 	private _persistMaterializedSession(session: ICodexSession): void {
-		if (session.disposed || !session.threadId) {
+		if (session.disposed || !session.threadId || !session.prewarmClaimed) {
 			return;
 		}
 		// Persist only once the prewarmed thread is claimed by a turn. This

@@ -12,6 +12,7 @@ import { IMarkdownString, MarkdownString } from '../../../../../base/common/html
 import { mock } from '../../../../../base/test/common/mock.js';
 import { IMarkdownRendererService, MarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IListService, ListService } from '../../../../../platform/list/browser/listService.js';
+import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { EditorMarkdownCodeBlockRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/editorMarkdownCodeBlockRenderer.js';
@@ -235,6 +236,7 @@ function renderBlockedList(ctx: ComponentFixtureContext, sessions: readonly ISes
 			registerWorkbenchServices(reg);
 			reg.define(IListService, ListService);
 			reg.define(IMarkdownRendererService, MarkdownRendererService);
+			reg.defineInstance(IAgentHostConnectionsService, new class extends mock<IAgentHostConnectionsService>() { }());
 			// `SessionsFlatList` creates an `AgentSessionApprovalModel` (reads
 			// `IChatService.chatModels`) and observes each session through the
 			// agent-sessions model. Both are stubbed to no-ops for the fixture.
