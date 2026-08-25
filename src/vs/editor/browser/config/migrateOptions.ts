@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IEditorOptions } from '../../common/config/editorOptions.js';
+import { InsertSpaces } from '../../common/core/misc/indentation.js';
 
 export interface ISettingsReader {
 	(key: string): unknown;
@@ -79,6 +80,11 @@ export function migrateOptions(options: IEditorOptions): void {
 }
 
 registerSimpleEditorSettingMigration('wordWrap', [[true, 'on'], [false, 'off']]);
+registerEditorSettingMigration('insertSpaces', (value, _read, write) => {
+	if (typeof value === 'boolean') {
+		write('insertSpaces', value ? InsertSpaces.Spaces : InsertSpaces.Tabs);
+	}
+});
 registerSimpleEditorSettingMigration('lineNumbers', [[true, 'on'], [false, 'off']]);
 registerSimpleEditorSettingMigration('cursorBlinking', [['visible', 'solid']]);
 registerSimpleEditorSettingMigration('renderWhitespace', [[true, 'boundary'], [false, 'none']]);

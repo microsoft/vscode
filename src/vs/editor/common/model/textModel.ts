@@ -24,7 +24,7 @@ import { IUndoRedoService, ResourceEditStackSnapshot, UndoRedoGroup } from '../.
 import { ISingleEditOperation } from '../core/editOperation.js';
 import { TextEdit } from '../core/edits/textEdit.js';
 import { countEOL } from '../core/misc/eolCounter.js';
-import { InsertSpaces, normalizeIndentation, parseInsertSpaces } from '../core/misc/indentation.js';
+import { InsertSpaces, normalizeIndentation } from '../core/misc/indentation.js';
 import { EDITOR_MODEL_DEFAULTS } from '../core/misc/textModelDefaults.js';
 import { IPosition, Position } from '../core/position.js';
 import { IRange, Range } from '../core/range.js';
@@ -205,8 +205,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	public static resolveOptions(textBuffer: model.ITextBuffer, options: model.ITextModelCreationOptions): model.TextModelResolvedOptions {
 		if (options.detectIndentation) {
 			const defaultIndentSize = options.indentSize === 'tabSize' ? options.tabSize : options.indentSize;
-			const defaultInsertSpaces = parseInsertSpaces(options.insertSpaces) ?? InsertSpaces.Spaces;
-			const guessedIndentation = guessIndentation(textBuffer, options.tabSize, defaultInsertSpaces, defaultIndentSize);
+			const guessedIndentation = guessIndentation(textBuffer, options.tabSize, options.insertSpaces, defaultIndentSize);
 			return new model.TextModelResolvedOptions({
 				tabSize: guessedIndentation.tabSize,
 				indentSize: guessedIndentation.indentSize,
@@ -719,7 +718,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 
 	public detectIndentation(defaultInsertSpaces: model.TextModelResolvedOptions['insertSpaces'], defaultTabSize: number, defaultIndentSize: number = defaultTabSize): void {
 		this._assertNotDisposed();
-		const guessedIndentation = guessIndentation(this._buffer, defaultTabSize, parseInsertSpaces(defaultInsertSpaces) ?? InsertSpaces.Spaces, defaultIndentSize);
+		const guessedIndentation = guessIndentation(this._buffer, defaultTabSize, defaultInsertSpaces, defaultIndentSize);
 		this.updateOptions({
 			insertSpaces: guessedIndentation.insertSpaces,
 			tabSize: guessedIndentation.tabSize,

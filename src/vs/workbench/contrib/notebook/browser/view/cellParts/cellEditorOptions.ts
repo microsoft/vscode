@@ -6,7 +6,7 @@
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { IEditorOptions } from '../../../../../../editor/common/config/editorOptions.js';
-import { InsertSpaces, parseInsertSpaces } from '../../../../../../editor/common/core/misc/indentation.js';
+import { InsertSpaces } from '../../../../../../editor/common/core/misc/indentation.js';
 import { localize, localize2 } from '../../../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -101,7 +101,7 @@ export class CellEditorOptions extends CellContentPart implements ITextModelUpda
 		if (indentSize !== undefined) {
 			this.indentSize = indentSize;
 		}
-		const insertSpaces = parseInsertSpaces(cellEditorOverridesRaw?.['editor.insertSpaces']);
+		const insertSpaces = cellEditorOverridesRaw?.['editor.insertSpaces'];
 		if (insertSpaces !== undefined) {
 			this.insertSpaces = insertSpaces;
 		}

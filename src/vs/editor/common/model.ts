@@ -10,7 +10,7 @@ import { equals } from '../../base/common/objects.js';
 import { ThemeColor } from '../../base/common/themables.js';
 import { URI } from '../../base/common/uri.js';
 import { ISingleEditOperation } from './core/editOperation.js';
-import { InsertSpaces, parseInsertSpaces } from './core/misc/indentation.js';
+import { InsertSpaces } from './core/misc/indentation.js';
 import { IPosition, Position } from './core/position.js';
 import { IRange, Range } from './core/range.js';
 import { Selection } from './core/selection.js';
@@ -30,8 +30,6 @@ import { IEditorModel } from './editorCommon.js';
 import { TextModelEditSource } from './textModelEditSource.js';
 import { TextEdit } from './core/edits/textEdit.js';
 import { IViewModel } from './viewModel.js';
-
-export { InsertSpaces };
 
 /**
  * Vertical Lane in the overview ruler of the editor.
@@ -594,7 +592,7 @@ export class TextModelResolvedOptions {
 			this.indentSize = Math.max(1, src.indentSize | 0);
 			this._indentSizeIsTabSize = false;
 		}
-		this.insertSpaces = parseInsertSpaces(src.insertSpaces) ?? InsertSpaces.Spaces;
+		this.insertSpaces = src.insertSpaces;
 		this.defaultEOL = src.defaultEOL | 0;
 		this.trimAutoWhitespace = Boolean(src.trimAutoWhitespace);
 		this.bracketPairColorizationOptions = src.bracketPairColorizationOptions;

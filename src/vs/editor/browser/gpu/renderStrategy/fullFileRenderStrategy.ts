@@ -472,7 +472,7 @@ export class FullFileRenderStrategy extends BaseRenderStrategy {
 						if (chars === '\t') {
 							// Find the pixel offset between the current position and the next tab stop
 							const offsetBefore = x + tabXOffset;
-							tabXOffset = CursorColumns.nextRenderTabStop(x + tabXOffset, lineData.tabSize);
+							tabXOffset = CursorColumns.nextIndentTabStop(x + tabXOffset, lineData.tabSize);
 							absoluteOffsetX += charWidth * (tabXOffset - offsetBefore);
 							// Convert back to offset excluding x and the current character
 							tabXOffset -= x + 1;

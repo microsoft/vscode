@@ -1680,7 +1680,7 @@ suite('Editor Controller', () => {
 			].join('\n'),
 			undefined,
 			{
-				insertSpaces: false
+				insertSpaces: InsertSpaces.Tabs
 			},
 		);
 		withTestCodeEditor(model, {}, (editor, viewModel) => {
@@ -1699,7 +1699,7 @@ suite('Editor Controller', () => {
 			].join('\n'),
 			undefined,
 			{
-				insertSpaces: false,
+				insertSpaces: InsertSpaces.Tabs,
 				trimAutoWhitespace: false
 			},
 		);
@@ -1914,7 +1914,7 @@ suite('Editor Controller', () => {
 			].join('\n'),
 			undefined,
 			{
-				insertSpaces: false,
+				insertSpaces: InsertSpaces.Tabs,
 			},
 		);
 
@@ -2369,7 +2369,7 @@ suite('Editor Controller', () => {
 			].join('\n'),
 			undefined,
 			{
-				insertSpaces: false,
+				insertSpaces: InsertSpaces.Tabs,
 			}
 		);
 
@@ -3730,7 +3730,7 @@ suite('Editor Controller', () => {
 			].join('\n'),
 			undefined,
 			{
-				insertSpaces: false,
+				insertSpaces: InsertSpaces.Tabs,
 			}
 		);
 
@@ -3795,7 +3795,7 @@ suite('Editor Controller', () => {
 			].join('\n'),
 			undefined,
 			{
-				insertSpaces: false,
+				insertSpaces: InsertSpaces.Tabs,
 			}
 		);
 
@@ -3819,7 +3819,7 @@ suite('Editor Controller', () => {
 				'\tif (true) {'
 			],
 			languageId: indentRulesLanguageId,
-			modelOpts: { insertSpaces: false },
+			modelOpts: { insertSpaces: InsertSpaces.Tabs },
 			editorOpts: { autoIndent: 'full' }
 		}, (editor, model, viewModel) => {
 			moveTo(editor, viewModel, 1, 12, false);
@@ -3862,7 +3862,7 @@ suite('Editor Controller', () => {
 				'\t\t\treturn true'
 			],
 			languageId: indentRulesLanguageId,
-			modelOpts: { insertSpaces: false },
+			modelOpts: { insertSpaces: InsertSpaces.Tabs },
 			editorOpts: { autoIndent: 'full' }
 		}, (editor, model, viewModel) => {
 			moveTo(editor, viewModel, 2, 15, false);
@@ -3882,7 +3882,7 @@ suite('Editor Controller', () => {
 				'\t\t\t\treturn true'
 			],
 			languageId: indentRulesLanguageId,
-			modelOpts: { insertSpaces: false },
+			modelOpts: { insertSpaces: InsertSpaces.Tabs },
 			editorOpts: { autoIndent: 'full' }
 		}, (editor, model, viewModel) => {
 			moveTo(editor, viewModel, 2, 14, false);
@@ -3908,7 +3908,7 @@ suite('Editor Controller', () => {
 			].join('\n'),
 			indentRulesLanguageId,
 			{
-				insertSpaces: false,
+				insertSpaces: InsertSpaces.Tabs,
 			}
 		);
 
@@ -3955,7 +3955,7 @@ suite('Editor Controller', () => {
 				'\t}a}'
 			],
 			languageId: indentRulesLanguageId,
-			modelOpts: { insertSpaces: false }
+			modelOpts: { insertSpaces: InsertSpaces.Tabs }
 		}, (editor, model, viewModel) => {
 			moveTo(editor, viewModel, 4, 3, false);
 			moveTo(editor, viewModel, 4, 4, true);
@@ -3974,7 +3974,7 @@ suite('Editor Controller', () => {
 				'\tif (true) {'
 			],
 			languageId: indentRulesLanguageId,
-			modelOpts: { insertSpaces: false }
+			modelOpts: { insertSpaces: InsertSpaces.Tabs }
 		}, (editor, model, viewModel) => {
 			moveTo(editor, viewModel, 2, 12, false);
 			moveTo(editor, viewModel, 2, 13, true);
@@ -4043,7 +4043,7 @@ suite('Editor Controller', () => {
 				'    if (true) {'
 			],
 			languageId: indentRulesLanguageId,
-			modelOpts: { insertSpaces: false }
+			modelOpts: { insertSpaces: InsertSpaces.Tabs }
 		}, (editor, model, viewModel) => {
 			moveTo(editor, viewModel, 1, 12, false);
 			assertCursor(viewModel, new Selection(1, 12, 1, 12));
@@ -4098,7 +4098,7 @@ suite('Editor Controller', () => {
 				'\t}'
 			],
 			languageId: indentRulesLanguageId,
-			modelOpts: { insertSpaces: false },
+			modelOpts: { insertSpaces: InsertSpaces.Tabs },
 			editorOpts: { autoIndent: 'full' }
 		}, (editor, model, viewModel) => {
 			moveTo(editor, viewModel, 5, 4, false);
@@ -4119,7 +4119,7 @@ suite('Editor Controller', () => {
 				'\t}a}'
 			],
 			languageId: indentRulesLanguageId,
-			modelOpts: { insertSpaces: false }
+			modelOpts: { insertSpaces: InsertSpaces.Tabs }
 		}, (editor, model, viewModel) => {
 			moveTo(editor, viewModel, 3, 9, false);
 			assertCursor(viewModel, new Selection(3, 9, 3, 9));
@@ -4139,7 +4139,7 @@ suite('Editor Controller', () => {
 				'\t}a}'
 			],
 			languageId: indentRulesLanguageId,
-			modelOpts: { insertSpaces: false }
+			modelOpts: { insertSpaces: InsertSpaces.Tabs }
 		}, (editor, model, viewModel) => {
 			moveTo(editor, viewModel, 3, 3, false);
 			assertCursor(viewModel, new Selection(3, 3, 3, 3));
@@ -4178,7 +4178,7 @@ suite('Editor Controller', () => {
 				'\t}a}'
 			],
 			languageId: indentRulesLanguageId,
-			modelOpts: { insertSpaces: false }
+			modelOpts: { insertSpaces: InsertSpaces.Tabs }
 		}, (editor, model, viewModel) => {
 			moveTo(editor, viewModel, 3, 2, false);
 			assertCursor(viewModel, new Selection(3, 2, 3, 2));
@@ -4205,7 +4205,7 @@ suite('Editor Controller', () => {
 				'\t\t}a}'
 			],
 			languageId: indentRulesLanguageId,
-			modelOpts: { insertSpaces: false }
+			modelOpts: { insertSpaces: InsertSpaces.Tabs }
 		}, (editor, model, viewModel) => {
 			moveTo(editor, viewModel, 3, 4, false);
 			assertCursor(viewModel, new Selection(3, 4, 3, 4));
@@ -4311,7 +4311,7 @@ suite('Editor Controller', () => {
 				'}'
 			],
 			modelOpts: {
-				insertSpaces: false,
+				insertSpaces: InsertSpaces.Tabs,
 			},
 			languageId: indentRulesLanguageId,
 		}, (editor, model, viewModel) => {
@@ -4334,7 +4334,7 @@ suite('Editor Controller', () => {
 				'}'
 			],
 			modelOpts: {
-				insertSpaces: false,
+				insertSpaces: InsertSpaces.Tabs,
 			},
 			languageId: indentRulesLanguageId,
 		}, (editor, model, viewModel) => {
@@ -4358,7 +4358,7 @@ suite('Editor Controller', () => {
 				'\t}',
 				'?>'
 			],
-			modelOpts: { insertSpaces: false }
+			modelOpts: { insertSpaces: InsertSpaces.Tabs }
 		}, (editor, model, viewModel) => {
 			moveTo(editor, viewModel, 5, 3, false);
 			assertCursor(viewModel, new Selection(5, 3, 5, 3));
@@ -4377,7 +4377,7 @@ suite('Editor Controller', () => {
 				'		return 5;',
 				'	'
 			],
-			modelOpts: { insertSpaces: false }
+			modelOpts: { insertSpaces: InsertSpaces.Tabs }
 		}, (editor, model, viewModel) => {
 			moveTo(editor, viewModel, 3, 2, false);
 			assertCursor(viewModel, new Selection(3, 2, 3, 2));
@@ -4400,7 +4400,7 @@ suite('Editor Controller', () => {
 			].join('\n'),
 			indentRulesLanguageId,
 			{
-				insertSpaces: false,
+				insertSpaces: InsertSpaces.Tabs,
 			}
 		);
 
@@ -4426,7 +4426,7 @@ suite('Editor Controller', () => {
 			].join('\n'),
 			indentRulesLanguageId,
 			{
-				insertSpaces: false,
+				insertSpaces: InsertSpaces.Tabs,
 			}
 		);
 
@@ -4452,7 +4452,7 @@ suite('Editor Controller', () => {
 			].join('\n'),
 			indentRulesLanguageId,
 			{
-				insertSpaces: false,
+				insertSpaces: InsertSpaces.Tabs,
 			}
 		);
 
@@ -4477,7 +4477,7 @@ suite('Editor Controller', () => {
 			].join('\n'),
 			indentRulesLanguageId,
 			{
-				insertSpaces: false,
+				insertSpaces: InsertSpaces.Tabs,
 			}
 		);
 
@@ -4502,7 +4502,7 @@ suite('Editor Controller', () => {
 			].join('\n'),
 			indentRulesLanguageId,
 			{
-				insertSpaces: false,
+				insertSpaces: InsertSpaces.Tabs,
 			}
 		);
 
@@ -4692,7 +4692,7 @@ suite('Editor Controller', () => {
 				'Project:',
 			],
 			languageId: languageId,
-			modelOpts: { insertSpaces: false },
+			modelOpts: { insertSpaces: InsertSpaces.Tabs },
 			editorOpts: { autoIndent: 'full' }
 		}, (editor, model, viewModel) => {
 			moveTo(editor, viewModel, 1, 9, false);
@@ -4773,7 +4773,7 @@ suite('Editor Controller', () => {
 	});
 
 	test('issue #111128: Multicursor `Enter` issue with indentation', () => {
-		const model = createTextModel('    let a, b, c;', indentRulesLanguageId, { detectIndentation: false, insertSpaces: false, tabSize: 4 });
+		const model = createTextModel('    let a, b, c;', indentRulesLanguageId, { detectIndentation: false, insertSpaces: InsertSpaces.Tabs, tabSize: 4 });
 		withTestCodeEditor(model, {}, (editor, viewModel) => {
 			editor.setSelections([
 				new Selection(1, 11, 1, 11),
@@ -6550,7 +6550,7 @@ suite('Undo stops', () => {
 			].join('\n'),
 			undefined,
 			{
-				insertSpaces: false,
+				insertSpaces: InsertSpaces.Tabs,
 			}
 		);
 
@@ -6584,7 +6584,7 @@ suite('Undo stops', () => {
 			].join('\n'),
 			undefined,
 			{
-				insertSpaces: false,
+				insertSpaces: InsertSpaces.Tabs,
 			}
 		);
 
@@ -6628,7 +6628,7 @@ suite('Overtype Mode', () => {
 			].join('\n'),
 			undefined,
 			{
-				insertSpaces: false,
+				insertSpaces: InsertSpaces.Tabs,
 			}
 		);
 
@@ -6659,7 +6659,7 @@ suite('Overtype Mode', () => {
 			].join('\n'),
 			undefined,
 			{
-				insertSpaces: false,
+				insertSpaces: InsertSpaces.Tabs,
 			}
 		);
 
@@ -6682,7 +6682,7 @@ suite('Overtype Mode', () => {
 			].join('\n'),
 			undefined,
 			{
-				insertSpaces: false,
+				insertSpaces: InsertSpaces.Tabs,
 			}
 		);
 
@@ -6713,7 +6713,7 @@ suite('Overtype Mode', () => {
 			].join('\n'),
 			undefined,
 			{
-				insertSpaces: false,
+				insertSpaces: InsertSpaces.Tabs,
 			}
 		);
 
@@ -6736,7 +6736,7 @@ suite('Overtype Mode', () => {
 			].join('\n'),
 			undefined,
 			{
-				insertSpaces: false,
+				insertSpaces: InsertSpaces.Tabs,
 			}
 		);
 
@@ -6764,7 +6764,7 @@ suite('Overtype Mode', () => {
 			].join('\n'),
 			undefined,
 			{
-				insertSpaces: false,
+				insertSpaces: InsertSpaces.Tabs,
 			}
 		);
 

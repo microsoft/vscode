@@ -9,7 +9,7 @@ import { IStringDictionary } from '../../../../base/common/collections.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { FormattingOptions } from '../../../../base/common/jsonFormatter.js';
 import { URI } from '../../../../base/common/uri.js';
-import { InsertSpaces, parseInsertSpaces } from '../../../../editor/common/core/misc/indentation.js';
+import { InsertSpaces } from '../../../../editor/common/core/misc/indentation.js';
 import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { ITextResourcePropertiesService, ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration.js';
 
@@ -47,7 +47,7 @@ class UserDataSyncUtilService implements IUserDataSyncUtilService {
 		}
 		return {
 			eol: this.textResourcePropertiesService.getEOL(resource),
-			insertSpaces: parseInsertSpaces(this.textResourceConfigurationService.getValue(resource, 'editor.insertSpaces')) !== InsertSpaces.Tabs,
+			insertSpaces: this.textResourceConfigurationService.getValue<InsertSpaces>(resource, 'editor.insertSpaces') !== InsertSpaces.Tabs,
 			tabSize: this.textResourceConfigurationService.getValue(resource, 'editor.tabSize')
 		};
 	}

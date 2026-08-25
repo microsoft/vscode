@@ -254,19 +254,11 @@ export function guessIndentation(source: ITextBuffer, defaultTabSize: number, de
 	}
 
 	let insertSpaces: InsertSpaces = defaultInsertSpaces;
-	if (
-		(
-			defaultInsertSpaces === InsertSpaces.Mixed
-			&& linesIndentedWithCanonicalMixedWhitespaceCount > 0
-		)
-		|| (
-			linesIndentedWithCanonicalMixedWhitespaceCount > 1
-			&& (
-				linesIndentedWithSpacesCount > 0
-				|| linesIndentedWithCanonicalMixedWhitespaceCount === linesIndentedWithTabsCount
-			)
-		)
-	) {
+	if ((defaultInsertSpaces === InsertSpaces.Mixed && linesIndentedWithCanonicalMixedWhitespaceCount > 0) ||
+		(linesIndentedWithCanonicalMixedWhitespaceCount > 1 && (
+			linesIndentedWithSpacesCount > 0
+			|| linesIndentedWithCanonicalMixedWhitespaceCount === linesIndentedWithTabsCount
+		))) {
 		insertSpaces = InsertSpaces.Mixed;
 	} else if (linesIndentedWithTabsCount !== linesIndentedWithSpacesCount) {
 		insertSpaces = linesIndentedWithTabsCount < linesIndentedWithSpacesCount ? InsertSpaces.Spaces : InsertSpaces.Tabs;

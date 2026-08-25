@@ -7,6 +7,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { CoreEditingCommands } from '../../../../browser/coreCommands.js';
 import type { ICodeEditor } from '../../../../browser/editorBrowser.js';
 import { EditorAction } from '../../../../browser/editorExtensions.js';
+import { InsertSpaces } from '../../../../common/core/misc/indentation.js';
 import { Position } from '../../../../common/core/position.js';
 import { Selection } from '../../../../common/core/selection.js';
 import { Handler } from '../../../../common/editorCommon.js';
@@ -1630,7 +1631,7 @@ suite('Editor Contrib - Line Operations', () => {
 			].join('\n'),
 			undefined,
 			{
-				insertSpaces: false,
+				insertSpaces: InsertSpaces.Tabs,
 			}
 		);
 
@@ -1656,7 +1657,7 @@ suite('Editor Contrib - Line Operations', () => {
 			].join('\n'),
 			undefined,
 			{
-				insertSpaces: false,
+				insertSpaces: InsertSpaces.Tabs,
 			}
 		);
 

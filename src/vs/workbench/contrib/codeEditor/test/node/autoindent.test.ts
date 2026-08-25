@@ -15,6 +15,7 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { ILanguageConfiguration, LanguageConfigurationFileHandler } from '../../common/languageConfigurationExtensionPoint.js';
 import { parse } from '../../../../../base/common/json.js';
 import { IRange } from '../../../../../editor/common/core/range.js';
+import { InsertSpaces } from '../../../../../editor/common/core/misc/indentation.js';
 import { ISingleEditOperation } from '../../../../../editor/common/core/editOperation.js';
 import { trimTrailingWhitespace } from '../../../../../editor/common/commands/trimTrailingWhitespaceCommand.js';
 import { execSync } from 'child_process';
@@ -158,7 +159,7 @@ suite('Auto-Reindentation - TypeScript/JavaScript', () => {
 					const fileContents = fs.readFileSync(filePathName, { encoding: 'utf-8' });
 					const modelOptions: IRelaxedTextModelCreationOptions = {
 						tabSize: 4,
-						insertSpaces: false
+						insertSpaces: InsertSpaces.Tabs
 					};
 					const model = disposables.add(instantiateTextModel(instantiationService, fileContents, languageId, modelOptions));
 					const lineCount = model.getLineCount();

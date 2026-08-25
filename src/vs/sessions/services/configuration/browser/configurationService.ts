@@ -499,10 +499,10 @@ class ConfigurationEditing {
 			if (configuredEol && typeof configuredEol === 'string' && configuredEol !== 'auto') {
 				eol = configuredEol;
 			}
-			const insertSpaces = this.configurationService.getValue('editor.insertSpaces', { overrideIdentifier: 'jsonc' });
+			const insertSpaces = this.configurationService.getValue<'spaces' | 'tabs' | 'mixed'>('editor.insertSpaces', { overrideIdentifier: 'jsonc' });
 			this._formattingOptions = {
 				eol,
-				insertSpaces: insertSpaces === true || insertSpaces === 'spaces' || insertSpaces === 'mixed',
+				insertSpaces: insertSpaces !== 'tabs',
 				tabSize: this.configurationService.getValue('editor.tabSize', { overrideIdentifier: 'jsonc' })
 			};
 		}

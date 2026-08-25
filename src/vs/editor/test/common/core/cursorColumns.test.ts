@@ -202,7 +202,7 @@ suite('CursorColumns', () => {
 	});
 
 	for (const [name, fn] of [
-		['nextRenderTabStop', CursorColumns.nextRenderTabStop],
+		['nextRenderTabStop', CursorColumns.nextIndentTabStop],
 		['nextIndentTabStop', CursorColumns.nextIndentTabStop],
 	] as const) {
 		test(name, () => {

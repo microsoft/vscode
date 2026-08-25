@@ -571,7 +571,7 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 
 			if (chars === '\t') {
 				const offsetBefore = x + tabXOffset;
-				tabXOffset = CursorColumns.nextRenderTabStop(x + tabXOffset, lineData.tabSize);
+				tabXOffset = CursorColumns.nextIndentTabStop(x + tabXOffset, lineData.tabSize);
 				width += viewLineOptions.spaceWidth * (tabXOffset - offsetBefore);
 				tabXOffset -= x + 1;
 			} else if (lineData.isBasicASCII && viewLineOptions.useMonospaceOptimizations) {
@@ -683,7 +683,7 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 				resolvedStartCssPixelOffset += (this._renderStrategy.value!.glyphRasterizer.getTextMetrics(chars).width / getActiveWindow().devicePixelRatio) - viewLineOptions.spaceWidth;
 			}
 			if (chars === '\t') {
-				resolvedStartColumn = CursorColumns.nextRenderTabStop(resolvedStartColumn, lineData.tabSize);
+				resolvedStartColumn = CursorColumns.nextIndentTabStop(resolvedStartColumn, lineData.tabSize);
 			} else {
 				resolvedStartColumn++;
 			}
@@ -701,7 +701,7 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 				resolvedEndCssPixelOffset += (this._renderStrategy.value!.glyphRasterizer.getTextMetrics(chars).width / getActiveWindow().devicePixelRatio) - viewLineOptions.spaceWidth;
 			}
 			if (chars === '\t') {
-				resolvedEndColumn = CursorColumns.nextRenderTabStop(resolvedEndColumn, lineData.tabSize);
+				resolvedEndColumn = CursorColumns.nextIndentTabStop(resolvedEndColumn, lineData.tabSize);
 			} else {
 				resolvedEndColumn++;
 			}
@@ -774,7 +774,7 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 			if (chars === '\t') {
 				// Find the pixel offset between the current position and the next tab stop
 				const offsetBefore = x + tabXOffset;
-				tabXOffset = CursorColumns.nextRenderTabStop(x + tabXOffset, lineData.tabSize);
+				tabXOffset = CursorColumns.nextIndentTabStop(x + tabXOffset, lineData.tabSize);
 				charWidth = spaceWidthDevicePixels * (tabXOffset - offsetBefore);
 				// Convert back to offset excluding x and the current character
 				tabXOffset -= x + 1;

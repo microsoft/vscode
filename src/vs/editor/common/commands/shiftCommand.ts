@@ -41,12 +41,6 @@ function cachedStringRepeat(str: string, count: number): string {
 
 export class ShiftCommand implements ICommand {
 
-	private static mixedIndentation(visibleColumn: number, tabSize: number): string {
-		const tabsCount = Math.floor(visibleColumn / tabSize);
-		const spacesCount = visibleColumn % tabSize;
-		return cachedStringRepeat('\t', tabsCount) + cachedStringRepeat(' ', spacesCount);
-	}
-
 	public static unshiftIndent(line: string, column: number, tabSize: number, indentSize: number, insertSpaces: InsertSpaces): string {
 		// Determine the visible column where the content starts
 		const contentStartVisibleColumn = CursorColumns.visibleColumnFromColumn(line, column, tabSize);
@@ -61,10 +55,12 @@ export class ShiftCommand implements ICommand {
 			const desiredTabStop = CursorColumns.prevRenderTabStop(contentStartVisibleColumn, tabSize);
 			const indentCount = desiredTabStop / tabSize; // will be an integer
 			return cachedStringRepeat(indent, indentCount);
+		} else {
+			const desiredTabStop = CursorColumns.prevIndentTabStop(contentStartVisibleColumn, indentSize);
+			const tabsCount = Math.floor(desiredTabStop / tabSize);
+			const spacesCount = desiredTabStop % tabSize;
+			return cachedStringRepeat('\t', tabsCount) + cachedStringRepeat(' ', spacesCount);
 		}
-
-		const desiredTabStop = CursorColumns.prevIndentTabStop(contentStartVisibleColumn, indentSize);
-		return ShiftCommand.mixedIndentation(desiredTabStop, tabSize);
 	}
 
 	public static shiftIndent(line: string, column: number, tabSize: number, indentSize: number, insertSpaces: InsertSpaces): string {
@@ -78,13 +74,15 @@ export class ShiftCommand implements ICommand {
 			return cachedStringRepeat(indent, indentCount);
 		} else if (insertSpaces === InsertSpaces.Tabs) {
 			const indent = '\t';
-			const desiredTabStop = CursorColumns.nextRenderTabStop(contentStartVisibleColumn, tabSize);
+			const desiredTabStop = CursorColumns.nextIndentTabStop(contentStartVisibleColumn, tabSize);
 			const indentCount = desiredTabStop / tabSize; // will be an integer
 			return cachedStringRepeat(indent, indentCount);
+		} else {
+			const desiredTabStop = CursorColumns.nextIndentTabStop(contentStartVisibleColumn, indentSize);
+			const tabsCount = Math.floor(desiredTabStop / tabSize);
+			const spacesCount = desiredTabStop % tabSize;
+			return cachedStringRepeat('\t', tabsCount) + cachedStringRepeat(' ', spacesCount);
 		}
-
-		const desiredTabStop = CursorColumns.nextIndentTabStop(contentStartVisibleColumn, indentSize);
-		return ShiftCommand.mixedIndentation(desiredTabStop, tabSize);
 	}
 
 	private readonly _opts: IShiftCommandOpts;
@@ -214,7 +212,7 @@ export class ShiftCommand implements ICommand {
 				this._useLastEditRangeForCursorEndPosition = true;
 			}
 
-			const oneIndent = (insertSpaces === InsertSpaces.Tabs ? '\t' : cachedStringRepeat(' ', indentSize));
+			const oneIndent = (insertSpaces === InsertSpaces.Spaces ? cachedStringRepeat(' ', indentSize) : '\t');
 
 			for (let lineNumber = startLine; lineNumber <= endLine; lineNumber++) {
 				const lineText = model.getLineContent(lineNumber);

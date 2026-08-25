@@ -5,7 +5,7 @@
 
 import { DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
-import { InsertSpaces, parseInsertSpaces } from '../../common/core/misc/indentation.js';
+import { InsertSpaces } from '../../common/core/misc/indentation.js';
 import { BracketPairColorizationOptions, DefaultEndOfLine, ITextBufferFactory, ITextModelCreationOptions } from '../../common/model.js';
 import { TextModel } from '../../common/model/textModel.js';
 import { ILanguageConfigurationService } from '../../common/languages/languageConfigurationRegistry.js';
@@ -53,7 +53,7 @@ export function withEditorModel(text: string[], callback: (model: TextModel) => 
 export interface IRelaxedTextModelCreationOptions {
 	tabSize?: number;
 	indentSize?: number | 'tabSize';
-	insertSpaces?: InsertSpaces | boolean | 'mixed';
+	insertSpaces?: InsertSpaces;
 	detectIndentation?: boolean;
 	trimAutoWhitespace?: boolean;
 	defaultEOL?: DefaultEndOfLine;
@@ -67,7 +67,7 @@ function resolveOptions(_options: IRelaxedTextModelCreationOptions): ITextModelC
 	return {
 		tabSize: (typeof _options.tabSize === 'undefined' ? defaultOptions.tabSize : _options.tabSize),
 		indentSize: (typeof _options.indentSize === 'undefined' ? defaultOptions.indentSize : _options.indentSize),
-		insertSpaces: parseInsertSpaces(_options.insertSpaces) ?? defaultOptions.insertSpaces,
+		insertSpaces: _options.insertSpaces ?? defaultOptions.insertSpaces,
 		detectIndentation: (typeof _options.detectIndentation === 'undefined' ? defaultOptions.detectIndentation : _options.detectIndentation),
 		trimAutoWhitespace: (typeof _options.trimAutoWhitespace === 'undefined' ? defaultOptions.trimAutoWhitespace : _options.trimAutoWhitespace),
 		defaultEOL: (typeof _options.defaultEOL === 'undefined' ? defaultOptions.defaultEOL : _options.defaultEOL),

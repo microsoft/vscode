@@ -641,7 +641,7 @@ registerAction2(class SelectNotebookIndentation extends NotebookAction {
 			return quickInputService.pick([{ label: localize('noWritableCodeEditor', "The active notebook editor is read-only.") }]);
 		}
 
-		const picks: QuickPickInput<IQuickPickItem & { run(): void | Promise<void> }>[] = [
+		const picks: QuickPickInput<IQuickPickItem & { run(): void }>[] = [
 			new NotebookIndentUsingTabs(), // indent using tabs
 			new NotebookIndentUsingSpaces(), // indent using spaces
 			new NotebookIndentUsingMixed(), // indent using tabs and spaces
@@ -653,7 +653,9 @@ registerAction2(class SelectNotebookIndentation extends NotebookAction {
 			return {
 				id: item.desc.id,
 				label: item.desc.title.toString(),
-				run: () => instantiationService.invokeFunction(item.run)
+				run: () => {
+					instantiationService.invokeFunction(item.run);
+				}
 			};
 		});
 
@@ -664,7 +666,7 @@ registerAction2(class SelectNotebookIndentation extends NotebookAction {
 		if (!action) {
 			return;
 		}
-		await action.run();
+		action.run();
 		context.notebookEditor.focus();
 		return;
 	}

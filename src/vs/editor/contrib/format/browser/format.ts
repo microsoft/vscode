@@ -528,3 +528,4 @@ function ensureFormattingOptions(options: unknown, reference: IReference<IResolv
 
 	return validatedOptions;
 }
+

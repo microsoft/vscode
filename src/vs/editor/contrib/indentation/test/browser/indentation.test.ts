@@ -10,7 +10,6 @@ import { ILanguageConfigurationService } from '../../../../common/languages/lang
 import { createTextModel } from '../../../../test/common/testTextModel.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { Range } from '../../../../common/core/range.js';
-import { InsertSpaces, parseInsertSpaces } from '../../../../common/core/misc/indentation.js';
 import { Selection } from '../../../../common/core/selection.js';
 import { MetadataConsts, StandardTokenType } from '../../../../common/encodedTokenAttributes.js';
 import { EncodedTokenizationResult, IState, ITokenizationSupport, TokenizationRegistry } from '../../../../common/languages.js';
@@ -27,33 +26,6 @@ import { javascriptAutoClosingPairsRules, latexAutoClosingPairsRules } from '../
 import { LanguageService } from '../../../../common/services/languageService.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { TestLanguageConfigurationService } from '../../../../test/common/modes/testLanguageConfigurationService.js';
-
-suite('InsertSpaces', () => {
-
-	ensureNoDisposablesAreLeakedInTestSuite();
-
-	test('parses enum and legacy boolean values', () => {
-		assert.deepStrictEqual([
-			parseInsertSpaces(InsertSpaces.Spaces),
-			parseInsertSpaces(InsertSpaces.Tabs),
-			parseInsertSpaces(InsertSpaces.Mixed),
-			parseInsertSpaces(true),
-			parseInsertSpaces(false),
-			parseInsertSpaces('true'),
-			parseInsertSpaces('false'),
-			parseInsertSpaces('invalid')
-		], [
-			InsertSpaces.Spaces,
-			InsertSpaces.Tabs,
-			InsertSpaces.Mixed,
-			InsertSpaces.Spaces,
-			InsertSpaces.Tabs,
-			InsertSpaces.Spaces,
-			InsertSpaces.Tabs,
-			undefined
-		]);
-	});
-});
 
 export enum Language {
 	TypeScript = 'ts-test',
