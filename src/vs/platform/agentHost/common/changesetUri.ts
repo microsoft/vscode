@@ -117,6 +117,26 @@ export const enum ChangesetKind {
 	Unknown = 'unknown',
 }
 
+/** RFC 3986 scheme prefix, e.g. the `ahp-session:` in `ahp-session:/abc`. */
+const URI_SCHEME_PREFIX = /^[a-zA-Z][a-zA-Z0-9+.\-]*:/;
+
+/**
+ * Resolve a {@link Changeset.uriTemplate} from a session's catalogue into a
+ * subscribable URI template.
+ *
+ * AHP describes the template as itself subscribable, but a Copilot host
+ * publishes it relative to the session channel (`changeset/branch`), and using
+ * that verbatim addresses the client's own filesystem rather than the host.
+ * Templates that already carry a scheme are returned unchanged, so hosts that
+ * publish absolute templates are unaffected.
+ */
+export function resolveChangesetUriTemplate(sessionUri: URI, uriTemplate: string): string {
+	if (URI_SCHEME_PREFIX.test(uriTemplate)) {
+		return uriTemplate;
+	}
+	return `${sessionUri.replace(/\/+$/, '')}/${uriTemplate.replace(/^\/+/, '')}`;
+}
+
 export function buildBranchChangesetUri(sessionUri: URI): URI {
 	return `${sessionUri}${CHANGESET_PATH_SEGMENT}${BRANCH_CHANGESET_ID}`;
 }

@@ -20,6 +20,7 @@ import {
 	parseChangesetUri,
 	parseCompareTurnsChangesetUri,
 	parseTurnChangesetUri,
+	resolveChangesetUriTemplate,
 } from '../../common/changesetUri.js';
 
 suite('changesetUri', () => {
@@ -90,6 +91,30 @@ suite('changesetUri', () => {
 		assert.strictEqual(parseCompareTurnsChangesetUri(buildSessionChangesetUri(sessionUri)), undefined);
 		assert.strictEqual(parseCompareTurnsChangesetUri(buildTurnChangesetUri(sessionUri, 't1')), undefined);
 		assert.strictEqual(parseCompareTurnsChangesetUri(buildCompareTurnsChangesetUriTemplate(sessionUri)), undefined);
+	});
+
+	test('resolveChangesetUriTemplate joins a relative template onto the session channel', () => {
+		// A Copilot host publishes its catalogue relative to the session, so used verbatim these
+		// address the client's own filesystem instead of the host.
+		assert.strictEqual(resolveChangesetUriTemplate(sessionUri, 'changeset/branch'), `${sessionUri}/changeset/branch`);
+		assert.strictEqual(resolveChangesetUriTemplate(sessionUri, 'changeset/session'), buildSessionChangesetUri(sessionUri));
+		assert.strictEqual(resolveChangesetUriTemplate(sessionUri, 'changeset/uncommitted'), buildUncommittedChangesetUri(sessionUri));
+		// The variable survives, so expanding it afterwards still yields a subscribable URI.
+		assert.strictEqual(resolveChangesetUriTemplate(sessionUri, 'changeset/turn/{turnId}'), buildTurnChangesetUriTemplate(sessionUri));
+	});
+
+	test('resolveChangesetUriTemplate leaves an already-absolute template alone', () => {
+		// AHP describes the template as itself subscribable, and hosts that publish it that way
+		// must keep working unchanged.
+		assert.strictEqual(resolveChangesetUriTemplate(sessionUri, buildSessionChangesetUri(sessionUri)), buildSessionChangesetUri(sessionUri));
+		assert.strictEqual(resolveChangesetUriTemplate(sessionUri, buildTurnChangesetUriTemplate(sessionUri)), buildTurnChangesetUriTemplate(sessionUri));
+		// A different session's absolute template is still returned untouched.
+		assert.strictEqual(resolveChangesetUriTemplate(sessionUri, 'copilot:/other/changeset/branch'), 'copilot:/other/changeset/branch');
+	});
+
+	test('resolveChangesetUriTemplate does not double up separators', () => {
+		assert.strictEqual(resolveChangesetUriTemplate(sessionUri, '/changeset/branch'), `${sessionUri}/changeset/branch`);
+		assert.strictEqual(resolveChangesetUriTemplate(`${sessionUri}/`, 'changeset/branch'), `${sessionUri}/changeset/branch`);
 	});
 
 	test('predicates match the parser semantics', () => {
