@@ -93,6 +93,7 @@ function removeTrailingCommas(masked: string): string {
 
 function parseJsonc(text: string, source: string): unknown {
 	const masked = codeMask(text, source).replace(/^\uFEFF/, '');
+	if (masked.trim() === '') { return {}; }
 	try {
 		return JSON.parse(removeTrailingCommas(masked));
 	} catch (error) {
@@ -107,7 +108,7 @@ function assertSimpleDialogForWorkspaceArgs(args: string[]): void {
 	const launcherOwnedOptions = new Set([
 		'--extensions-dir', '--inspect', '--inspect-agenthost', '--inspect-brk',
 		'--inspect-brk-agenthost', '--inspect-brk-extensions', '--inspect-extensions',
-		'--remote-debugging-port', '--shared-data-dir', '--user-data-dir'
+		'--remote-debugging-port', '--shared-data-dir', '--transient', '--user-data-dir'
 	]);
 	// Keep this aligned with string/string[] entries in
 	// `src/vs/platform/environment/node/argv.ts`. Their separated values are not
@@ -163,7 +164,11 @@ function assertSimpleDialogForWorkspaceArgs(args: string[]): void {
 			}
 			continue;
 		}
-		if (optionsWithPathValue.has(argument)) { i++; continue; }
+		if (optionsWithPathValue.has(argument)) {
+			const next = args[i + 1];
+			if (next !== undefined && next !== '--' && (next === '-' || !next.startsWith('-'))) { i++; }
+			continue;
+		}
 		if (argument.startsWith('-')) { continue; }
 		let isDirectory = false;
 		try { isDirectory = fs.statSync(argument).isDirectory(); } catch { }

@@ -501,6 +501,15 @@ test('rejects a folder workspace that disables the simple dialog', () => {
 	}, { status: 1, settings: original });
 });
 
+test('accepts comment-only workspace settings as an empty configuration', () => {
+	const root = fixtureRoot('nas-workspace-comment-');
+	const settingsFile = path.join(root, '.vscode', 'settings.json');
+	fs.mkdirSync(path.dirname(settingsFile), { recursive: true });
+	fs.writeFileSync(settingsFile, '// project settings\n');
+
+	assert.strictEqual(workspaceCheckStatus([root]), 0);
+});
+
 test('rejects a code-workspace path or file URI that disables the simple dialog', () => {
 	const root = fixtureRoot('nas-code-workspace-');
 	const workspaceFile = path.join(root, 'automation.code-workspace');
@@ -546,13 +555,17 @@ test('rejects both forms of every launcher-owned forwarded option', () => {
 	const options = [
 		'--extensions-dir', '--inspect', '--inspect-agenthost', '--inspect-brk',
 		'--inspect-brk-agenthost', '--inspect-brk-extensions', '--inspect-extensions',
-		'--remote-debugging-port', '--shared-data-dir', '--user-data-dir'
+		'--remote-debugging-port', '--shared-data-dir', '--transient', '--user-data-dir'
 	];
 	const statuses = options.flatMap(option => [
 		workspaceCheckStatus([option, 'override']),
 		workspaceCheckStatus([option + '=override'])
 	]);
 	assert.deepStrictEqual(statuses, options.flatMap(() => [1, 1]));
+});
+
+test('does not let a missing option value swallow a protected option', () => {
+	assert.strictEqual(workspaceCheckStatus(['--locale', '--user-data-dir', '/outside']), 1);
 });
 
 // `rsync -a` preserves symlinked *directories* too, so a linked `User` or
