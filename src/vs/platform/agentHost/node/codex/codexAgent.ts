@@ -3392,7 +3392,7 @@ export class CodexAgent extends Disposable implements IAgent {
 					type: ActionType.ChatError,
 					turnId,
 					duration,
-					error: { errorType: 'CodexDisconnected', message: 'Codex app-server disconnected; session must restart.' },
+					part: { kind: ResponsePartKind.Error, error: { errorType: 'CodexDisconnected', message: 'Codex app-server disconnected; session must restart.' } },
 				});
 				this._fire(session.sessionUri, { type: ActionType.ChatTurnComplete, turnId, duration });
 			}
@@ -4845,7 +4845,7 @@ export class CodexAgent extends Disposable implements IAgent {
 				type: ActionType.ChatError,
 				turnId: effectiveTurnId,
 				duration,
-				error: { errorType: 'CodexMaterializeFailed', message },
+				part: { kind: ResponsePartKind.Error, error: { errorType: 'CodexMaterializeFailed', message } },
 			});
 			this._fire(sessionUri, { type: ActionType.ChatTurnComplete, turnId: effectiveTurnId, duration });
 			return;
@@ -4883,7 +4883,7 @@ export class CodexAgent extends Disposable implements IAgent {
 					type: ActionType.ChatError,
 					turnId: effectiveTurnId,
 					duration,
-					error: { errorType: 'CodexMaterializeFailed', message },
+					part: { kind: ResponsePartKind.Error, error: { errorType: 'CodexMaterializeFailed', message } },
 				});
 				this._fire(sessionUri, { type: ActionType.ChatTurnComplete, turnId: effectiveTurnId, duration });
 				return;
@@ -4903,9 +4903,12 @@ export class CodexAgent extends Disposable implements IAgent {
 					type: ActionType.ChatError,
 					turnId: effectiveTurnId,
 					duration,
-					error: {
-						errorType: 'CodexResumeFailed',
-						message: err instanceof Error ? err.message : String(err),
+					part: {
+						kind: ResponsePartKind.Error,
+						error: {
+							errorType: 'CodexResumeFailed',
+							message: err instanceof Error ? err.message : String(err),
+						},
 					},
 				});
 				this._fire(sessionUri, { type: ActionType.ChatTurnComplete, turnId: effectiveTurnId, duration });
@@ -4965,7 +4968,7 @@ export class CodexAgent extends Disposable implements IAgent {
 				type: ActionType.ChatError,
 				turnId: effectiveTurnId,
 				duration,
-				error: { errorType: isCompactCommand ? 'CodexCompactionError' : 'CodexTurnError', ...extractForwardedErrorInfo(message) },
+				part: { kind: ResponsePartKind.Error, error: { errorType: isCompactCommand ? 'CodexCompactionError' : 'CodexTurnError', ...extractForwardedErrorInfo(message) } },
 			});
 			this._fire(sessionUri, { type: ActionType.ChatTurnComplete, turnId: effectiveTurnId, duration });
 		} finally {

@@ -20,6 +20,7 @@ import {
 	ResponsePartKind,
 	SessionStatus,
 	ToolCallStatus,
+	TurnState,
 	SessionLifecycle,
 	TerminalState,
 	ToolResultContentType,
@@ -30,6 +31,7 @@ import {
 	type ChangesetState,
 	type ChatState,
 	type ChatSummary,
+	type ErrorInfo,
 	type PendingMessage,
 	type Turn,
 	type AnnotationsState,
@@ -67,7 +69,7 @@ export {
 	type ConfigSchema,
 	type ContentRef, type Customization, type CustomizationDegradedState,
 	type CustomizationErrorState, type CustomizationLoadedState, type CustomizationLoadingState, type CustomizationLoadState, type DirectoryCustomization, type ErrorInfo, type HookCustomization, type FileEdit as ISessionFileDiff, type ToolResultEmbeddedResourceContent as IToolResultBinaryContent, type MarkdownResponsePart, type McpServerCustomization, type MessageAttachment,
-	type MessageResourceAttachment, type MessageEmbeddedResourceAttachment, type MessageAnnotationsAttachment, type MessageChatAttachment, type ModelSelection, type PendingMessage, type PluginCustomization, type ProjectInfo, type PromptCustomization, type ReasoningResponsePart,
+	type MessageResourceAttachment, type MessageEmbeddedResourceAttachment, type MessageAnnotationsAttachment, type MessageChatAttachment, type ModelSelection, type PendingMessage, type PluginCustomization, type ProjectInfo, type PromptCustomization, type ReasoningResponsePart, type ErrorResponsePart,
 	type ResponsePart,
 	type RootState, type RuleCustomization, type SessionActiveClient,
 	type SessionConfigState, type SessionModelInfo,
@@ -927,6 +929,14 @@ export function createActiveTurn(id: string, message: Message, startedAt: string
 		responseParts: [],
 		usage: undefined,
 	};
+}
+
+export function getTurnError(turn: Turn | undefined): ErrorInfo | undefined {
+	if (turn?.state !== TurnState.Error) {
+		return undefined;
+	}
+	const part = turn.responseParts[turn.responseParts.length - 1];
+	return part?.kind === ResponsePartKind.Error ? part.error : undefined;
 }
 
 export const enum StateComponents {

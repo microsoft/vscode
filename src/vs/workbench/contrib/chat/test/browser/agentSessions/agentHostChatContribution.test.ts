@@ -125,8 +125,14 @@ type TestActionEnvelope = Omit<ActionEnvelope, 'action'> & { action: SessionActi
 
 function normalizeTestAction(action: SessionAction | ChatAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction): SessionAction | AgentHostChatAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction {
 	if (hasKey(action, { endedAt: true })) {
-		const { endedAt: _endedAt, ...rest } = action as ILegacyTimedChatAction;
-		return { ...rest, duration: 1000 } as AgentHostChatAction;
+		if (action.type === 'chat/error') {
+			return { type: ActionType.ChatError, turnId: action.turnId, duration: 1000, part: { kind: ResponsePartKind.Error, error: action.error } };
+		}
+		return {
+			type: action.type === 'chat/turnComplete' ? ActionType.ChatTurnComplete : ActionType.ChatTurnCancelled,
+			turnId: action.turnId,
+			duration: 1000,
+		};
 	}
 	return action as SessionAction | AgentHostChatAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction;
 }

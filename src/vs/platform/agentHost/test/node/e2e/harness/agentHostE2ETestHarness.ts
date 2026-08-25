@@ -584,7 +584,7 @@ async function driveTurn(c: TestProtocolClient, chat: string, turnId: string, cl
 
 		if (isActionNotification(notification, 'chat/error')) {
 			const action = getActionEnvelope(notification).action as ChatErrorAction;
-			throw new Error(`Session error while driving ${turnId}: ${action.error.errorType}: ${action.error.message}`);
+			throw new Error(`Session error while driving ${turnId}: ${action.part.error.errorType}: ${action.part.error.message}`);
 		}
 
 		if (isActionNotification(notification, 'chat/toolCallReady')) {
