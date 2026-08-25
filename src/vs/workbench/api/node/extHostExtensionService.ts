@@ -207,23 +207,19 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 			// the time below is this extension's own work and nothing else. Extensions that
 			// activate at the same time no longer end up counted against each other.
 			activationTimesBuilder.codeLoadingStart();
-			let loaded: { readonly module: T } | undefined;
 			try {
-				loaded = mode === 'esm'
+				const loaded = mode === 'esm'
 					? tryRequireSync<T>(module.fsPath)
 					: { module: <T>require(module.fsPath) };
-			} finally {
-				activationTimesBuilder.codeLoadingStop();
-			}
-			if (loaded) {
-				return loaded.module;
-			}
+				if (loaded) {
+					return loaded.module;
+				}
 
-			// Only ESM modules using top-level await get here. They have to be loaded
-			// asynchronously and other extensions run while they are suspended, so this is how
-			// long the load took rather than what it cost.
-			activationTimesBuilder.codeLoadingStart();
-			try {
+				// Only ESM modules using top-level await get here, and they have to be loaded
+				// asynchronously. The timer keeps running across both attempts: the first one
+				// still parsed the module graph, and that work belongs to this extension. Other
+				// extensions run while this one is suspended though, so the number is how long
+				// the load took rather than what it cost.
 				return <T>await import(module.toString(true));
 			} finally {
 				activationTimesBuilder.codeLoadingStop();
