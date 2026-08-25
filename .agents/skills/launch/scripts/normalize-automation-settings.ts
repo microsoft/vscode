@@ -19,21 +19,27 @@
 // silently overwrites with `{}`.
 
 import * as fs from 'node:fs';
+import process from 'node:process';
 const f = process.argv[2];
 if (!f) {
 	console.error('[normalize-automation-settings] usage: node normalize-automation-settings.ts <settings.json>');
 	process.exit(2);
 }
-const ENTRIES = [
+const ENTRIES: [string, string][] = [
 	['files.simpleDialog.enable', 'true'],
 	['editor.editContext', 'true'],
 ];
 
-let text;
+let text: string;
 try { text = fs.readFileSync(f, 'utf8'); }
 catch (e) {
-	if (e.code === 'ENOENT') text = '';
-	else { console.error('[normalize-automation-settings] cannot read ' + f + ': ' + e.message); process.exit(1); }
+	const error = e as NodeJS.ErrnoException;
+	if (error.code === 'ENOENT') {
+		text = '';
+	} else {
+		console.error('[normalize-automation-settings] cannot read ' + f + ': ' + error.message);
+		process.exit(1);
+	}
 }
 
 // Empty file -> write a fresh object with every key.
@@ -46,7 +52,7 @@ if (text.trim() === '') {
 // Blank out comments while preserving offsets, so a commented-out occurrence
 // such as `// "editor.editContext": false` is never mistaken for the real
 // setting and `//` inside a string (e.g. a proxy URL) is not treated as one.
-function codeMask(src) {
+function codeMask(src: string): string {
 	const out = src.split('');
 	let inString = false, inLine = false, inBlock = false;
 	for (let i = 0; i < src.length; i++) {
@@ -77,9 +83,10 @@ function codeMask(src) {
 // embedded in a string value is never mistaken for the real setting. Returns
 // the LAST match, which is the one Code OSS honours when a profile contains
 // duplicate keys.
-function findRootProperty(masked, key) {
-	let depth = 0, inString = false, found = null;
-	let keyStart = -1, pendingKey = null, expectValue = false;
+function findRootProperty(masked: string, key: string): { valueStart: number; valueLength: number } | null {
+	let depth = 0, inString = false;
+	let found: { valueStart: number; valueLength: number } | null = null;
+	let keyStart = -1, pendingKey: string | null = null, expectValue = false;
 	for (let i = 0; i < masked.length; i++) {
 		const c = masked[i];
 		if (inString) {
