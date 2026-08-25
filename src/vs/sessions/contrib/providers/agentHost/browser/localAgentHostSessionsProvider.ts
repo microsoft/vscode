@@ -38,7 +38,7 @@ import { adoptLegacyCopilotCliResource, LEGACY_MIGRATION_RESTORE_TIMEOUT_MS, LEG
 import { ChatConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
+import { ILanguageModelsService, type ILanguageModelChatMetadata } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { IWorkbenchEnvironmentService } from '../../../../../workbench/services/environment/common/environmentService.js';
 import { isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID, type IAgentHostSessionsProvider } from '../../../../common/agentHostSessionsProvider.js';
 import { buildAgentHostSessionWorkspace, readBranchProtectionPatterns } from '../../../../common/agentHostSessionWorkspace.js';
@@ -50,6 +50,13 @@ import { IGitHubService } from '../../../github/browser/githubService.js';
 import { AgentHostSessionAdapter, BaseAgentHostSessionsProvider } from './baseAgentHostSessionsProvider.js';
 
 const LOCAL_RESOURCE_SCHEME_PREFIX = 'agent-host-';
+
+function isSameLogicalModel(source: ILanguageModelChatMetadata, target: ILanguageModelChatMetadata): boolean {
+	if (source.byokModelIdentifier || target.byokModelIdentifier) {
+		return source.byokModelIdentifier !== undefined && source.byokModelIdentifier === target.byokModelIdentifier;
+	}
+	return source.id === target.id && source.family === target.family && source.version === target.version;
+}
 
 /**
  * Storage key for the local agent host's cached session summaries. There is a
@@ -315,11 +322,17 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 			const sourceChat = draft.session.mainChat.get();
 			const replacementChat = replacement.mainChat.get();
 			const modelId = sourceChat.modelId.get();
-			if (modelId && targetProvider.getModelsSnapshot(replacement.sessionId).models.some(model => model.identifier === modelId)) {
+			const sourceModelSnapshot = this.getModelsSnapshot(sessionId, modelId);
+			const sourceModel = sourceModelSnapshot.models.find(model => model.identifier === modelId)
+				?? (sourceModelSnapshot.desiredModelResolution.kind === 'available' ? sourceModelSnapshot.desiredModelResolution.model : undefined);
+			const targetModel = sourceModel
+				? targetProvider.getModelsSnapshot(replacement.sessionId).models.find(model => isSameLogicalModel(sourceModel.metadata, model.metadata))
+				: undefined;
+			if (targetModel) {
 				targetProvider.setModel(
 					replacement.sessionId,
 					replacementChat.resource,
-					modelId,
+					targetModel.identifier,
 					sourceChat.modelSource.get() ?? ChatModelSource.CarriedOver,
 				);
 			}
