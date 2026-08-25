@@ -31,6 +31,7 @@ const policy: GitHubEntityPollingPolicy = {
 	maximumDormantEntries: 2,
 	visible: 10,
 	background: 100,
+	failureBackoff: { immediateRetries: 0, base: 30, maximum: 300, jitter: 0 },
 	jitter: 0,
 };
 
@@ -802,6 +803,75 @@ suite('GitHubQueryService', () => {
 			assert.deepStrictEqual(await transientCapabilities.service.getRecentAssignedIssues(transientCapabilities.ref, signal()), []);
 
 			assert.strictEqual(server.requests.length, 3);
+			server.assertSatisfied();
+		});
+	});
+
+	test('spaces out retries the longer an entity keeps failing', async () => {
+		await withServer(async server => {
+			const { clock, ref, service } = setup(server);
+			server.enqueue(...Array.from({ length: 3 }, () => gitHubRestStep({
+				method: 'GET',
+				path: '/repos/octo/repo',
+				response: gitHubJsonResponse({ message: 'Not Found' }, { status: 404 }),
+			})));
+			const subscription = service.subscribeRepository(ref, { priority: 'visible' });
+
+			await assert.rejects(() => subscription.refresh());
+			const firstRetryAt = clock.nextDueTime;
+			clock.advanceTo(firstRetryAt!);
+			await assert.rejects(() => subscription.refresh());
+			const secondRetryAt = clock.nextDueTime;
+			clock.advanceTo(secondRetryAt!);
+			await assert.rejects(() => subscription.refresh());
+
+			// The visible cadence is 10ms, so a failure must never be retried at it.
+			assert.deepStrictEqual({
+				firstRetryAt,
+				secondRetryAt,
+				thirdRetryAt: clock.nextDueTime,
+				requestCount: server.requests.length,
+			}, {
+				firstRetryAt: 30,
+				secondRetryAt: 90,
+				thirdRetryAt: 210,
+				requestCount: 3,
+			});
+			subscription.dispose();
+			server.assertSatisfied();
+		});
+	});
+
+	test('jitters a failure retry that the poll cadence, not the backoff, decides', async () => {
+		await withServer(async server => {
+			// A background entity polls far slower than the first backoff steps,
+			// so the cadence wins. It still has to be spread: credential
+			// invalidation and rate-limit releases fail whole batches at the very
+			// same instant, and an unjittered retry keeps them phase-locked.
+			const jittered = disposables.add(new FakeGitHubScheduler({ now: 0, jitterValues: [7] }));
+			const credentials = disposables.add(new TestCredentialService({ host: new URL(server.apiBaseUrl).host, accountId: '101' }));
+			const transport = disposables.add(new GitHubTransport(nodeFetch));
+			const service = disposables.add(new GitHubQueryService(
+				jittered,
+				{ ...policy, failureBackoff: { ...policy.failureBackoff, jitter: 10 } },
+				credentials,
+				transport,
+				server.createEndpointService(),
+				new TestCapabilitiesService(),
+				new NullLogService(),
+			));
+			server.enqueue(gitHubRestStep({
+				method: 'GET',
+				path: '/repos/octo/repo',
+				response: gitHubJsonResponse({ message: 'Not Found' }, { status: 404 }),
+			}));
+			const subscription = service.subscribeRepository({ host: new URL(server.apiBaseUrl).host, accountId: '101', owner: 'octo', repo: 'repo' }, { priority: 'background' });
+
+			await assert.rejects(() => subscription.refresh());
+
+			// The background cadence is 100ms and the first backoff step is 30ms.
+			assert.strictEqual(jittered.nextDueTime, 107);
+			subscription.dispose();
 			server.assertSatisfied();
 		});
 	});

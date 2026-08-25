@@ -41,7 +41,7 @@ import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AgentMergeConfigKey, readAgentMergeSessionState } from '../../common/agentMerge.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { ActionType, ActionEnvelope, NotificationType, type INotification } from '../../common/state/sessionActions.js';
-import { AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, readSessionEhcliAdopted, AH_META_IS_ARCHIVED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, isDefaultChatUri, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionCreationReference, readSessionEhcliAdoptable, readSessionExternal, readSessionGitHubState, readSessionMultiRootMetadata, readSessionFolderPickerDecision, readSessionSourceControlState, withSessionEhcliAdoptable, withSessionExternal, withSessionMultiRootMetadata, ChatOriginKind, type ChangesetState, type ISessionFolderPickerDecision, type ISessionWithDefaultChat, type MarkdownResponsePart, type SessionState, type SessionSummary, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
+import { AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, readSessionEhcliAdopted, AH_META_IS_ARCHIVED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, isDefaultChatUri, isMessageHiddenFromTranscript, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionCreationReference, readSessionEhcliAdoptable, readSessionExternal, readSessionGitHubState, readSessionMultiRootMetadata, readSessionFolderPickerDecision, readSessionSourceControlState, withSessionEhcliAdoptable, withSessionExternal, withSessionMultiRootMetadata, ChatOriginKind, type ChangesetState, type ISessionFolderPickerDecision, type ISessionWithDefaultChat, type MarkdownResponsePart, type SessionState, type SessionSummary, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
 import { ChatInteractivity, type MessageAttachment } from '../../common/state/protocol/state.js';
 import { isHostSnapshotAttachment, toHostSnapshotAttachmentMeta } from '../../common/meta/agentSnapshotAttachmentMeta.js';
 import { readAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
@@ -9317,7 +9317,7 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
-		test('creates a side chat from the current active turn', async () => {
+		test('creates a fresh side chat from the first active turn', async () => {
 			const agent = disposables.add(new SideChatAgent('copilot'));
 			service.registerProvider(agent);
 			const session = await service.createSession({ provider: 'copilot' });
@@ -9350,7 +9350,7 @@ suite('AgentService (node dispatcher)', () => {
 			}, {
 				sourceActiveTurn: 'active-turn',
 				origin: { kind: ChatOriginKind.SideChat, chat: sourceChat, turnId: 'active-turn' },
-				forkForwarded: { source: sourceChat, turnId: 'active-turn', independentQueue: true },
+				forkForwarded: undefined,
 			});
 		});
 
@@ -9359,7 +9359,10 @@ suite('AgentService (node dispatcher)', () => {
 			service.registerProvider(agent);
 			const session = await service.createSession({ provider: 'copilot' });
 			const sourceChat = buildDefaultChatUri(session);
-			getStateManager(service).seedDefaultChatTurns(session.toString(), [completedTurn('t1', 'first question', 'first answer')]);
+			getStateManager(service).seedDefaultChatTurns(session.toString(), [
+				completedTurn('t1', 'first question', 'first answer'),
+				completedTurn('t2', 'second question', 'second answer'),
+			]);
 			service.dispatchAction(sourceChat, {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'active-turn',
@@ -9375,14 +9378,70 @@ suite('AgentService (node dispatcher)', () => {
 
 			await service.createChat(session, chatUri, { sideChat: { source: URI.parse(sourceChat), turnId: 'active-turn' } });
 
-			assert.deepStrictEqual(agent.lastCreateOptions?.fork && {
-				source: agent.lastCreateOptions.fork.source.toString(),
-				turnId: agent.lastCreateOptions.fork.turnId,
-				independentQueue: agent.lastCreateOptions.fork.independentQueue,
+			assert.deepStrictEqual({
+				origin: getStateManager(service).getChatState(chatUri.toString())?.origin,
+				forkForwarded: agent.lastCreateOptions?.fork && {
+					source: agent.lastCreateOptions.fork.source.toString(),
+					turnId: agent.lastCreateOptions.fork.turnId,
+					independentQueue: agent.lastCreateOptions.fork.independentQueue,
+				},
 			}, {
-				source: sourceChat,
+				origin: { kind: ChatOriginKind.SideChat, chat: sourceChat, turnId: 'active-turn' },
+				forkForwarded: {
+					source: sourceChat,
+					turnId: 't2',
+					independentQueue: true,
+				},
+			});
+		});
+
+		test('skips trailing local turns while anchoring an active side chat', async () => {
+			const db = new TestSessionDatabase();
+			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new SideChatAgent('copilot'));
+			localService.registerProvider(agent);
+			const { session } = await createAgentSession(agent);
+			const sessionResource = (await agent.listSessions())[0].session;
+			const sourceChat = buildDefaultChatUri(sessionResource.toString());
+			agent.sessionMessages = [
+				{ type: 'message', session, role: 'user', messageId: 'real-1', content: 'first question', toolRequests: [] },
+				{ type: 'message', session, role: 'assistant', messageId: 'real-1-a', content: 'first answer', toolRequests: [] },
+				{ type: 'message', session, role: 'user', messageId: 'real-2', content: 'second question', toolRequests: [] },
+				{ type: 'message', session, role: 'assistant', messageId: 'real-2-a', content: 'second answer', toolRequests: [] },
+			];
+			const localTurn: Turn = {
+				id: 'local-turn',
+				state: TurnState.Complete,
+				message: { text: '!command', origin: { kind: MessageKind.User } },
+				responseParts: [],
+				usage: undefined,
+			};
+			await db.insertLocalTurn({ turnId: localTurn.id, chatUri: sourceChat, anchorTurnId: 'real-2', seq: 1, payload: JSON.stringify(localTurn) });
+			await localService.restoreSession(sessionResource);
+			localService.dispatchAction(sourceChat, {
+				type: ActionType.ChatTurnStarted,
 				turnId: 'active-turn',
-				independentQueue: true,
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: 'still running', origin: { kind: MessageKind.User } },
+			}, 'test-client', 1);
+			const chatUri = URI.parse(buildChatUri(sessionResource, 'side-active-local'));
+
+			await localService.createChat(sessionResource, chatUri, { sideChat: { source: URI.parse(sourceChat), turnId: 'active-turn' } });
+
+			assert.deepStrictEqual({
+				origin: getStateManager(localService).getChatState(chatUri.toString())?.origin,
+				forkForwarded: agent.lastCreateOptions?.fork && {
+					source: agent.lastCreateOptions.fork.source.toString(),
+					turnId: agent.lastCreateOptions.fork.turnId,
+					independentQueue: agent.lastCreateOptions.fork.independentQueue,
+				},
+			}, {
+				origin: { kind: ChatOriginKind.SideChat, chat: sourceChat, turnId: 'active-turn' },
+				forkForwarded: {
+					source: sourceChat,
+					turnId: 'real-2',
+					independentQueue: true,
+				},
 			});
 		});
 
@@ -13654,6 +13713,45 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual(await orchestratorDb.listAgentMergeEnabledSessions(), [sessionResource.toString()]);
 		});
 
+		test('a disable explains itself in the transcript without telling the agent', async () => {
+			const orchestratorDb = new TestAgentHostOrchestratorDatabase();
+			const sessionDb = new TestSessionDatabase();
+			const { localService, localAgent, sessionResource } = await createEnabledSession(sessionDb, orchestratorDb);
+			const sessionStr = sessionResource.toString();
+			const chat = buildDefaultChatUri(sessionStr);
+
+			getConfigurationService(localService).updateSessionConfig(sessionStr, { [SessionConfigKey.AgentMerge]: { enabled: false } });
+			await timeout(0);
+
+			const turns = getStateManager(localService).getSessionState(chat)?.turns ?? [];
+			const notice = turns[turns.length - 1];
+			assert.deepStrictEqual({
+				// The turn exists only to carry the notice, so its own message
+				// stays out of the transcript.
+				hiddenMessage: isMessageHiddenFromTranscript(notice.message),
+				origin: notice.message.origin.kind,
+				state: notice.state,
+				responseParts: notice.responseParts,
+				// The whole point of a server-only dispatch: the agent's context
+				// must not gain host bookkeeping.
+				sentToAgent: localAgent.sendMessageCalls.length,
+				// The SDK transcript replayed on restore has never seen this turn,
+				// so it only survives reload as a local turn.
+				persistedLocally: (await sessionDb.getLocalTurns()).map(record => ({ chatUri: record.chatUri, turnId: record.turnId })),
+			}, {
+				hiddenMessage: true,
+				origin: MessageKind.SystemNotification,
+				state: TurnState.Complete,
+				responseParts: [{
+					kind: ResponsePartKind.SystemNotification,
+					content: 'Agent Merge was turned off for this session.',
+					_meta: { kind: 'agentMergeDisabled' },
+				}],
+				sentToAgent: 0,
+				persistedLocally: [{ chatUri: chat.toString(), turnId: notice.id }],
+			});
+		});
+
 		test('a persisted Agent-Merge-enabled session begins monitoring on a fresh host and becomes MRU-eligible once disabled', () => {
 			return runWithFakedTimers({ useFakeTimers: true }, async () => {
 				const orchestratorDb = new TestAgentHostOrchestratorDatabase();
@@ -13686,6 +13784,55 @@ suite('AgentService (node dispatcher)', () => {
 					resumed: { materialized: true, enabled: true, indexed: [sessionStr] },
 					residentAfterDisable: true,
 				});
+			});
+		});
+
+		test('a notice raised mid-turn waits for the agent to finish so it survives restore', async () => {
+			const orchestratorDb = new TestAgentHostOrchestratorDatabase();
+			const sessionDb = new TestSessionDatabase();
+			const { localService, sessionResource } = await createEnabledSession(sessionDb, orchestratorDb);
+			const sessionStr = sessionResource.toString();
+			const chat = buildDefaultChatUri(sessionStr);
+			const stateManager = getStateManager(localService);
+			const turnsOf = () => stateManager.getSessionState(chat)?.turns ?? [];
+
+			stateManager.dispatchServerAction(chat.toString(), {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'agent-turn',
+				startedAt: new Date().toISOString(),
+				message: { text: 'do the thing', origin: { kind: MessageKind.User } },
+			});
+			getConfigurationService(localService).updateSessionConfig(sessionStr, { [SessionConfigKey.AgentMerge]: { enabled: false } });
+			await timeout(0);
+			const duringTurn = {
+				// The running turn must keep its own response stream: a notice
+				// appended here would ride on a turn the provider owns.
+				activeTurnParts: stateManager.getChatState(chat)?.activeTurn?.responseParts.length,
+				persisted: (await sessionDb.getLocalTurns()).length,
+			};
+
+			stateManager.dispatchServerAction(chat.toString(), { type: ActionType.ChatTurnComplete, turnId: 'agent-turn', duration: 1 });
+			await timeout(0);
+
+			const notice = turnsOf()[turnsOf().length - 1];
+			assert.deepStrictEqual({
+				duringTurn,
+				afterTurn: {
+					responseParts: notice.responseParts,
+					anchoredTo: (await sessionDb.getLocalTurns()).map(record => record.anchorTurnId),
+					persistedTurnIds: (await sessionDb.getLocalTurns()).map(record => record.turnId),
+				},
+			}, {
+				duringTurn: { activeTurnParts: 0, persisted: 0 },
+				afterTurn: {
+					responseParts: [{
+						kind: ResponsePartKind.SystemNotification,
+						content: 'Agent Merge was turned off for this session.',
+						_meta: { kind: 'agentMergeDisabled' },
+					}],
+					anchoredTo: ['agent-turn'],
+					persistedTurnIds: [notice.id],
+				},
 			});
 		});
 

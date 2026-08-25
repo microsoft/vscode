@@ -27,6 +27,7 @@ import { AgentHostResourceIdentity, AgentHostResourcePermissionError, IAgentHost
 import type { ClientNotificationMap, CommandMap, JsonRpcErrorResponse, JsonRpcRequest } from '../common/state/protocol/messages.js';
 import { ActionType, type ActionEnvelope, type ChatAction, type ClientAnnotationsAction, type ClientChangesetAction, type INotification, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../common/state/sessionActions.js';
 import { MessageAttachmentKind, SessionSummary, ROOT_STATE_URI, StateComponents, isAhpRootChannel, type ClientPluginCustomization, type Message, type RootState } from '../common/state/sessionState.js';
+import { normalizeLegacyActionEnvelope } from '../common/state/legacyProtocolCompatibility.js';
 import { SUPPORTED_PROTOCOL_VERSIONS } from '../common/state/protocol/version/registry.js';
 import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, ProtocolError, ReconnectResultType, type ProtocolMessage, type IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { type IVscodeUpgradeResult } from '../common/state/protocolUpgrade.js';
@@ -862,7 +863,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				if (envelope.serverSeq > maxSeq) {
 					maxSeq = envelope.serverSeq;
 				}
-				this._onDidAction.fire(envelope);
+				this._onDidAction.fire(normalizeLegacyActionEnvelope(envelope));
 			}
 			this._serverSeq = maxSeq;
 			if (result.missing.length > 0) {
@@ -1471,7 +1472,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 					// Protocol envelope → VS Code envelope (superset of action types)
 					const envelope = msg.params;
 					this._serverSeq = Math.max(this._serverSeq, envelope.serverSeq);
-					this._onDidAction.fire(envelope);
+					this._onDidAction.fire(normalizeLegacyActionEnvelope(envelope));
 					break;
 				}
 				case 'root/sessionAdded':
