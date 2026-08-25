@@ -3,20 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { FileAccess } from '../../../../base/common/network.js';
-import { joinPath } from '../../../../base/common/resources.js';
-import type { URI } from '../../../../base/common/uri.js';
+import { fileURLToPath } from 'url';
+import { dirname, join } from '../../../../base/common/path.js';
 import { localize } from '../../../../nls.js';
 import { TROUBLESHOOT_SKILL_NAME } from '../../common/agentHostTroubleshoot.js';
-
-/**
- * Root directory of the Copilot harness's built-in skills, bundled next to
- * this module (`<out>/vs/platform/agentHost/node/copilot/skills`). Each skill
- * lives in its own `<name>/SKILL.md` subfolder.
- */
-function builtinSkillsRoot(): URI {
-	return FileAccess.asFileUri('vs/platform/agentHost/node/copilot/skills');
-}
 
 /**
  * A built-in skill bundled with the Copilot harness. Adding a new one is:
@@ -32,7 +22,7 @@ function builtinSkillsRoot(): URI {
  * send path.
  */
 export interface IBuiltinSkill {
-	/** Folder name under {@link builtinSkillsRoot} and the `/<name>` command. */
+	/** Folder name represented in {@link BUILTIN_SKILLS} and the `/<name>` command. */
 	readonly name: string;
 	/**
 	 * User-facing description shown in completions / the customization list,
@@ -60,12 +50,11 @@ export const BUILTIN_SKILLS: readonly IBuiltinSkill[] = [
  * without VS Code and over a remote connection.
  */
 export function getBuiltinSkillDirectories(): string[] {
-	const root = builtinSkillsRoot();
-	return BUILTIN_SKILLS.map(skill => joinPath(root, skill.name).fsPath);
+	const root = join(dirname(fileURLToPath(import.meta.url)), 'skills');
+	return BUILTIN_SKILLS.map(skill => join(root, skill.name));
 }
 
 /** Whether `name` is a bundled built-in skill's `/<name>` command. */
 export function isBuiltinSkill(name: string): boolean {
 	return BUILTIN_SKILLS.some(skill => skill.name === name);
 }
-
