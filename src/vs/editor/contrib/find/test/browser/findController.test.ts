@@ -543,6 +543,25 @@ suite('FindController', () => {
 			findController.dispose();
 		});
 	});
+
+	test('StartFindAction with multiline selection when autoFindInSelection is never', async () => {
+		await withAsyncTestCodeEditor([
+			'Line 1',
+			'Line 2',
+			'Line 3'
+		], { serviceCollection: serviceCollection, find: { autoFindInSelection: 'never' } }, async (editor, _, instantiationService) => {
+			const findController = editor.registerAndInstantiateContribution(TestFindController.ID, TestFindController);
+			editor.setSelection(new Selection(1, 1, 2, 7));
+
+			await executeAction(instantiationService, editor, StartFindAction);
+
+			const findState = findController.getState();
+			assert.deepStrictEqual(findState.searchString.split(/\r\n|\r|\n/g), ['Line 1', 'Line 2']);
+			assert.strictEqual(findState.searchScope, null);
+
+			findController.dispose();
+		});
+	});
 });
 
 suite('FindController query options persistence', () => {
