@@ -232,6 +232,35 @@ suite('SessionsListModelService', () => {
 		}]);
 	});
 
+	test('updated default placement expires when the created session becomes more recent', () => {
+		const updatedAt = observableValue('created-updatedAt', new Date('2024-06-04'));
+		const creator = createSession('creator', SessionStatus.Completed, {
+			updatedAt: new Date('2024-06-03'),
+		});
+		const next = createSession('next', SessionStatus.Completed, {
+			updatedAt: new Date('2024-06-01'),
+		});
+		const createdSession: ISession = {
+			...createSession('created', SessionStatus.Completed, { createdBySession: creator.resource }),
+			updatedAt,
+		};
+		sessions = [createdSession, creator, next];
+		sessionsChangedEmitter.fire({ added: [createdSession], removed: [], changed: [] });
+
+		updatedAt.set(new Date('2024-06-05'), undefined);
+		sessionsChangedEmitter.fire({ added: [], removed: [], changed: [createdSession] });
+		service.dispose();
+		service = disposables.add(instantiationService.createInstance(SessionsListModelService));
+
+		assert.deepStrictEqual({
+			hasOverride: service.hasSortOverride(createdSession.sessionId, 'updated'),
+			sortKey: service.getSortKey(createdSession, 'updated'),
+		}, {
+			hasOverride: false,
+			sortKey: new Date('2024-06-05').getTime(),
+		});
+	});
+
 	test('places a created session when creation metadata arrives after add', () => {
 		const creator = createSession('creator', SessionStatus.Completed, { createdAt: new Date('2024-06-03') });
 		const next = createSession('next', SessionStatus.Completed, { createdAt: new Date('2024-06-01') });

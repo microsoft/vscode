@@ -857,7 +857,7 @@ export function usageInfoToQuotas(usage: UsageInfo | undefined): IAgentHostQuota
  * The `lookup` callback is responsible for any session-level fallback (e.g.
  * `summary.model?.id` when usage hasn't reported a model yet).
  */
-export function turnsToHistory(backendSession: URI, turns: readonly Turn[], participantId: string, connectionAuthority: string, lookup?: TurnModelLookup, errorContext?: IChatErrorContext, terminalCommandPrefix?: string, resourceUris: IAgentHostResourceUriMapper = createAgentHostResourceUriMapper(connectionAuthority)): IChatSessionHistoryItem[] {
+export function turnsToHistory(backendSession: URI, turns: readonly Turn[], participantId: string, connectionAuthority: string, lookup?: TurnModelLookup, errorContext?: IChatErrorContext, terminalCommandPrefix?: string, resourceUris: IAgentHostResourceUriMapper = createAgentHostResourceUriMapper(connectionAuthority), logicalSessionScheme: string = backendSession.scheme): IChatSessionHistoryItem[] {
 	const history: IChatSessionHistoryItem[] = [];
 	for (const turn of turns) {
 		const rawModelId = turn.usage?.model;
@@ -866,7 +866,7 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 
 		// Request
 		const variableData = messageToVariableData(turn.message, connectionAuthority);
-		const origin = messageToRequestOrigin(backendSession, turn.message, participantId);
+		const origin = messageToRequestOrigin(backendSession, turn.message, participantId, logicalSessionScheme);
 		const isSystemInitiated = turn.message.origin.kind === MessageKind.SystemNotification;
 		// A message runs as a terminal command when it starts with the host's
 		// advertised prefix and has a non-empty command after it (mirroring the
@@ -963,20 +963,24 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 	return history;
 }
 
-export function messageToRequestOrigin(backendSession: URI, message: Message, participantId: string): IChatRequestOrigin | undefined {
+export function messageToRequestOrigin(backendSession: URI, message: Message, participantId: string, logicalSessionScheme: string = backendSession.scheme): IChatRequestOrigin | undefined {
 	const delegation = readAgentMessageDelegationMeta(message);
 	if (!delegation) {
 		return undefined;
 	}
 	if (hasKey(delegation, { sourceSession: true })) {
+		const sourceSession = URI.parse(delegation.sourceSession);
+		const logicalSourceSession = sourceSession.scheme === backendSession.scheme
+			? sourceSession.with({ scheme: logicalSessionScheme })
+			: sourceSession;
 		return {
 			kind: ChatRequestOriginKind.Delegation,
 			sourceSessionResource: URI.parse(buildOpenSessionLinkUri(
-				delegation.sourceSession,
+				logicalSourceSession,
 				delegation.sourceChat ? parseChatUri(delegation.sourceChat)?.chatId : undefined,
 				delegation.sourceTurnId,
 			)),
-			delegationScope: isEqual(URI.parse(delegation.sourceSession), backendSession) ? 'chat' : 'session',
+			delegationScope: isEqual(sourceSession, backendSession) ? 'chat' : 'session',
 		};
 	}
 	if (delegation.sourceThreadId === AgentSession.id(backendSession)) {

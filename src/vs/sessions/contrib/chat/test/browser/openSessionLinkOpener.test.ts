@@ -231,6 +231,7 @@ suite('OpenSessionLinkOpenerContribution', () => {
 				title: 'Fix authentication redirect loop',
 				location: undefined,
 				pullRequests: undefined,
+				createdBy: undefined,
 				providerLabels: ['Local Agent Host'],
 			},
 			unknown: undefined,
