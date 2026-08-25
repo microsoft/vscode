@@ -22,6 +22,7 @@ Each contribution has its own subfolder so its implementation, helpers, and test
 
 ## Completed `onOutgoingTurn` extractions
 
+- `turnDelegation` (order 50) — persists agent-authored delegation metadata before provider send so replay can restore request origins.
 - `markdownPlanRichLinks` (order 100) — adds Markdown plan rich-link guidance when `AgentHostMarkdownPlanRichLinksEnabledConfigKey` is enabled.
 - `artifactTools` (order 200) — adds artifact-tool guidance when `AgentHostArtifactToolsConfigKey` is enabled.
 - `chatSurface` (order 300) — adds terminal or editor-inline guidance from the session surface metadata.
@@ -34,6 +35,7 @@ Each contribution has its own subfolder so its implementation, helpers, and test
 
 ## Completed `onHydrateTurns` extractions
 
+- `turnDelegation` (order 50) — restores agent authorship and delegation metadata by host or provider turn id.
 - `persistedTurnUsage` (order 100) — restores persisted per-turn usage with one database read for the complete list.
 - `worktreeAnnouncement` (order 200) — restores the isolated-worktree notice for default chats through `IAgentHostWorktreeIsolation`.
 - Hydration reuses the spaced 100-series independently from turn-end and outgoing-turn hooks, because ordering is per hook.

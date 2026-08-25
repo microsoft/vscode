@@ -6732,7 +6732,7 @@ suite('CopilotAgentSession', () => {
 			}
 		});
 
-		test('live task_complete emits root markdown instead of a tool call', async () => {
+		test('live task_complete emits the input summary when tool output is truncated', async () => {
 			const { mockSession, signals } = await createAgentSession(disposables);
 
 			mockSession.fire('tool.execution_start', {
@@ -6743,7 +6743,7 @@ suite('CopilotAgentSession', () => {
 			mockSession.fire('tool.execution_complete', {
 				toolCallId: 'tc-task-complete',
 				success: true,
-				result: { content: 'Completed the requested work.' },
+				result: { content: 'Output too large to read at once (11.3 KB). Saved to: /tmp/task-complete.txt' },
 			} as SessionEventPayload<'tool.execution_complete'>['data']);
 
 			const actions = getActions(signals);

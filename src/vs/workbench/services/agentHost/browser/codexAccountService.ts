@@ -102,7 +102,7 @@ export async function readCodexProfileImageDataUri(
 	}
 }
 
-class CodexAccountService extends Disposable implements ICodexAccountService {
+export class CodexAccountService extends Disposable implements ICodexAccountService {
 	declare readonly _serviceBrand: undefined;
 
 	readonly agent = CODEX_AGENT_PROVIDER_ID;
@@ -172,7 +172,11 @@ class CodexAccountService extends Disposable implements ICodexAccountService {
 			return;
 		}
 		void readCodexProfileImageDataUri(this._agentHostService, reference).then(profileImageDataUri => {
-			if (!profileImageDataUri || request !== this._profileImageRequest || profileImageKey !== this._profileImageKey) {
+			if (request !== this._profileImageRequest || profileImageKey !== this._profileImageKey) {
+				return;
+			}
+			if (!profileImageDataUri) {
+				this._profileImageKey = undefined;
 				return;
 			}
 			this._account = { ...this._rootAccount, profileImageDataUri };

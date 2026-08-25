@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { AGENT_HOST_SESSION_LINK_SCHEME } from '../../../../platform/agentHost/common/openSessionLink.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IChatRequestOriginService } from '../../../../workbench/contrib/chat/common/chatRequestOrigin.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
@@ -15,10 +17,14 @@ class SessionsChatRequestOriginProviderContribution extends Disposable implement
 	constructor(
 		@IChatRequestOriginService requestOriginService: IChatRequestOriginService,
 		@ISessionsService sessionsService: ISessionsService,
+		@IOpenerService openerService: IOpenerService,
 	) {
 		super();
 		this._register(requestOriginService.registerOpener({
 			open: async origin => {
+				if (origin.sourceSessionResource.scheme === AGENT_HOST_SESSION_LINK_SCHEME) {
+					return openerService.open(origin.sourceSessionResource);
+				}
 				await sessionsService.openSession(origin.sourceSessionResource);
 				return true;
 			},
