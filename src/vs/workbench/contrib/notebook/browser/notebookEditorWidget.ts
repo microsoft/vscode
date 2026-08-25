@@ -30,7 +30,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Color, RGBA } from '../../../../base/common/color.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { combinedDisposable, Disposable, DisposableStore, dispose, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { combinedDisposable, Disposable, DisposableStore, dispose, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { setTimeout0 } from '../../../../base/common/platform.js';
 import { extname, isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -191,6 +191,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	//#endregion
 	private _overlayContainer!: HTMLElement;
 	private _overlayLayout!: OverlayLayoutElement;
+	private readonly _outerEdgeObserver = this._register(new MutableDisposable());
+	private _outerEdgePart: Element | undefined;
 	private _notebookTopToolbarContainer!: HTMLElement;
 	private _notebookTopToolbar!: NotebookEditorWorkbenchToolbar;
 	private _notebookStickyScrollContainer!: HTMLElement;
@@ -332,6 +334,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 		this._overlayLayout = this._register(new OverlayLayoutElement());
 		this._overlayContainer = this._overlayLayout.content;
+		// Marker used by the Modern UI editor border CSS to clip this overlay to the
+		// card's rounded corners. The radius belongs on the root because that is the
+		// element `OverlayLayoutElement` anchors over the part and clips.
+		this._overlayLayout.root.classList.add('notebook-overlay-host');
 		this.scopedContextKeyService = this._register(contextKeyService.createScoped(this._overlayContainer));
 		this.instantiationService = this._register(instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])));
 
@@ -1941,6 +1947,31 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this._overlayContainer.style.visibility = 'visible';
 		this._overlayLayout.setAnchorElement(anchorElement, { clippingContainer });
 		this._overlayLayout.reapplyLayoutStyles();
+
+		const part = anchorElement.closest('.part');
+		this._syncOuterEdgeClasses(part);
+
+		if (part !== this._outerEdgePart) {
+			this._outerEdgeObserver.clear();
+			this._outerEdgePart = part ?? undefined;
+
+			if (part) {
+				const observer = new (DOM.getWindow(part).MutationObserver)(() => this._syncOuterEdgeClasses(part));
+				observer.observe(part, { attributes: true, attributeFilter: ['class'] });
+				this._outerEdgeObserver.value = toDisposable(() => observer.disconnect());
+			}
+		}
+	}
+
+	private _syncOuterEdgeClasses(part: Element | null): void {
+		const classList = this._overlayLayout.root.classList;
+		classList.toggle('notebook-overlay-modal', part?.classList.contains('modal-editor-part') ?? false);
+		for (const edge of ['left', 'right', 'top', 'bottom']) {
+			const isOuterEdge = part?.classList.contains(`floating-part-outer-${edge}`)
+				|| part?.classList.contains(`floating-editor-outer-${edge}`)
+				|| false;
+			classList.toggle(`notebook-overlay-outer-${edge}`, isOuterEdge);
+		}
 	}
 
 	//#endregion
