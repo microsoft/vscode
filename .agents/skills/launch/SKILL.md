@@ -1,6 +1,6 @@
 ---
 name: launch
-description: "Launch Code OSS (VS Code from sources) into an isolated throwaway profile with unique debug ports so you can drive it with @playwright/cli AND attach a Node debugger via dap-cli in the same session. Use when working on VS Code itself and you want to interact with the running workbench, automate chat or UI flows, test UI features, take screenshots, set breakpoints in the renderer / extension host / main process, or combine UI driving with debugging."
+description: "Launch Code OSS (VS Code from sources) into an isolated throwaway profile with unique debug ports so you can drive it with the repo's own UI automation library or @playwright/cli AND attach a Node debugger via dap-cli in the same session. Use when working on VS Code itself and you want to interact with the running workbench, automate chat or UI flows, test UI features, take screenshots, set breakpoints in the renderer / extension host / main process, or combine UI driving with debugging."
 ---
 
 # Code OSS Dev - Launch + Debug
@@ -8,7 +8,7 @@ description: "Launch Code OSS (VS Code from sources) into an isolated throwaway 
 You're working on VS Code itself and you want to:
 
 1. Launch a Code OSS build from sources that is **already signed in** (Copilot, GitHub, etc.) so chat / agent flows work end-to-end.
-2. Drive it with `@playwright/cli` over CDP (UI automation).
+2. Drive it over CDP with the repo's own automation page objects (`test/automation`) or with `@playwright/cli`.
 3. Optionally attach a debugger via **dap-cli** to set breakpoints in the renderer, extension host, or main process.
 4. Run multiple instances at once without port conflicts.
 
@@ -155,7 +155,20 @@ $pid = $info.pid
 | `mainPort` (`--inspect`) | Electron main process (Node) | `dap-cli` (Node inspector protocol) |
 | `agentHostPort` (`--inspect-agenthost`) | Agent host process (Node) | `dap-cli` (Node inspector protocol) |
 
-## Drive the UI with @playwright/cli
+## Drive the UI
+
+Two options, and they compose:
+
+- **[The repo's own automation library](./automation-library.md) (recommended).**
+  `test/automation` is what the smoke tests use; it already has page objects for
+  chat, the Agents window, quick input, terminal, notebooks and more, with the
+  retry and verification logic those surfaces need. `scripts/attach.ts` connects
+  it to the instance you just launched.
+- **Raw `@playwright/cli`** (below) for exploration, screenshots, and surfaces the
+  library does not cover. `session.page` from `attach()` is a normal Playwright
+  `Page`, so you can mix the two.
+
+### Raw `@playwright/cli`
 
 Use the dynamic `cdpPort` from the launch JSON. The normal loop is: attach, confirm the target, snapshot, interact, then re-snapshot after meaningful UI changes.
 
