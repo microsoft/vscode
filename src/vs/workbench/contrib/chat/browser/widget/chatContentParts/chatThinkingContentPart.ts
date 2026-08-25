@@ -38,6 +38,7 @@ import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
 import { ChatMessageRole, ILanguageModelsService } from '../../../common/languageModels.js';
 import './media/chatThinkingContent.css';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { getCompactCodicon } from '../../chatIcons.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { extractImagesFromToolInvocationOutputDetails } from '../../../common/chatImageExtraction.js';
@@ -160,13 +161,13 @@ export function getToolInvocationIcon(toolId: string, registeredIcon?: ThemeIcon
 
 export function createThinkingIcon(icon: ThemeIcon): HTMLElement {
 	const iconElement = $('span.chat-thinking-icon');
-	iconElement.classList.add(...ThemeIcon.asClassNameArray(icon));
+	iconElement.classList.add(...ThemeIcon.asClassNameArray(getCompactCodicon(icon)));
 	return iconElement;
 }
 
 function setThinkingIcon(iconElement: HTMLElement, icon: ThemeIcon): void {
 	iconElement.className = 'chat-thinking-icon';
-	iconElement.classList.add(...ThemeIcon.asClassNameArray(icon));
+	iconElement.classList.add(...ThemeIcon.asClassNameArray(getCompactCodicon(icon)));
 }
 
 function extractTitleFromThinkingContent(content: string): string | undefined {
@@ -580,12 +581,12 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			const isExpanded = this.expanded.read(r);
 			if (this._collapseButton) {
 				if (this.streamingCompleted || this.element.isComplete) {
-					this._collapseButton.icon = Codicon.check;
+					this._collapseButton.icon = Codicon.checkCompact;
 				} else if (!this.fixedScrollingMode) {
 					if (isExpanded) {
-						this._collapseButton.icon = Codicon.chevronDown;
+						this._collapseButton.icon = Codicon.chevronDownCompact;
 					} else {
-						this._collapseButton.icon = Codicon.circleFilled;
+						this._collapseButton.icon = Codicon.circleFilledCompact;
 					}
 				}
 			}
@@ -1491,7 +1492,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		}
 
 		if (this._collapseButton) {
-			this._collapseButton.icon = Codicon.check;
+			this._collapseButton.icon = Codicon.checkCompact;
 		}
 
 		// Update scroll dimensions now that streaming is complete
@@ -1917,7 +1918,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 		this.flushPendingExternalResources();
 
 		if (this._collapseButton) {
-			this._collapseButton.icon = Codicon.check;
+			this._collapseButton.icon = Codicon.checkCompact;
 			this.setFinalizedTitle(finalLabel);
 		}
 

@@ -130,6 +130,82 @@ suite('ChatPetWidget', () => {
 		});
 	});
 
+	test('stacks the run cycle behind the input', () => {
+		const parent = mainWindow.document.createElement('div');
+		const input = mainWindow.document.createElement('div');
+		const movementBounds = mainWindow.document.createElement('div');
+		parent.append(input);
+		mainWindow.document.body.append(parent, movementBounds);
+		disposables.add(toDisposable(() => {
+			parent.remove();
+			movementBounds.remove();
+		}));
+		const service = disposables.add(new ChatPetService(disposables.add(new TestStorageService()), new TestTelemetryService(), new NullLogService()));
+		service.toggle();
+		disposables.add(new ChatPetWidget(
+			createPetHost(parent, input, movementBounds),
+			service,
+			new class extends TestAccessibilityService {
+				override isMotionReduced(): boolean { return false; }
+			}(),
+			new class extends mock<IContextMenuService>() { }(),
+			new class extends mock<ICommandService>() { }(),
+			new NullLogService(),
+			new class extends mock<IHostService>() {
+				override readonly hasFocus = true;
+				override readonly onDidChangeFocus = Event.None;
+				override readonly onDidChangeActiveWindow = Event.None;
+			}(),
+		));
+		const overlay = parent.getElementsByClassName('chat-pet-overlay')[0];
+		const button = parent.getElementsByClassName('chat-pet-button')[0] as HTMLElement;
+		const restingZIndex = mainWindow.getComputedStyle(button).zIndex;
+
+		service.setOnTheRun(true);
+		const onTheRun = {
+			onTheRunClass: button.classList.contains('on-the-run'),
+			returningClass: button.classList.contains('returning-from-run'),
+			zIndex: mainWindow.getComputedStyle(button).zIndex,
+		};
+		service.setOnTheRun(false);
+		const returning = {
+			onTheRunClass: button.classList.contains('on-the-run'),
+			returningClass: button.classList.contains('returning-from-run'),
+			zIndex: mainWindow.getComputedStyle(button).zIndex,
+		};
+		const transitionEnd = new mainWindow.Event('transitionend');
+		Object.defineProperty(transitionEnd, 'propertyName', { value: 'transform' });
+		button.dispatchEvent(transitionEnd);
+
+		assert.deepStrictEqual({
+			overlayPrecedesInput: overlay.nextElementSibling === input,
+			restingZIndex,
+			onTheRun,
+			returning,
+			returned: {
+				returningClass: button.classList.contains('returning-from-run'),
+				zIndex: mainWindow.getComputedStyle(button).zIndex,
+			},
+		}, {
+			overlayPrecedesInput: true,
+			restingZIndex: '1',
+			onTheRun: {
+				onTheRunClass: true,
+				returningClass: false,
+				zIndex: 'auto',
+			},
+			returning: {
+				onTheRunClass: false,
+				returningClass: true,
+				zIndex: 'auto',
+			},
+			returned: {
+				returningClass: false,
+				zIndex: '1',
+			},
+		});
+	});
+
 	test('moves one pet instance between chat hosts without respawning it', () => {
 		const firstParent = mainWindow.document.createElement('div');
 		const firstBounds = mainWindow.document.createElement('div');

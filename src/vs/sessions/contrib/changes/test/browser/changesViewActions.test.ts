@@ -39,7 +39,7 @@ suite('Changes View Actions', () => {
 		({ changesViewWhen } = await import('../../browser/changes.contribution.js'));
 	});
 
-	test('Changes view is hidden until the session is created', () => {
+	test('Changes view is available for new and created workspace sessions', () => {
 		assert.ok(changesViewWhen);
 		const context = new Context(1, null);
 		context.setValue(IsPhoneLayoutContext.key, false);
@@ -52,7 +52,7 @@ suite('Changes View Actions', () => {
 			whileNew,
 			afterCreation: changesViewWhen.evaluate(context),
 		}, {
-			whileNew: false,
+			whileNew: true,
 			afterCreation: true,
 		});
 	});

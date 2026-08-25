@@ -51,6 +51,13 @@ function parseRequestUrl(requestUrl: string): URL | undefined {
 	}
 }
 
+function getRemoteResourceResponseHeaders(): Record<string, string> {
+	return {
+		'Content-Security-Policy': `default-src 'none'; sandbox`,
+		'X-Content-Type-Options': 'nosniff',
+	};
+}
+
 declare namespace vsda {
 	// the signer is a native module that for historical reasons uses a lower case class name
 	// eslint-disable-next-line @typescript-eslint/naming-convention
@@ -174,7 +181,7 @@ class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
 				return serveError(req, res, 400, `Bad request.`);
 			}
 
-			const responseHeaders: Record<string, string> = Object.create(null);
+			const responseHeaders = getRemoteResourceResponseHeaders();
 			if (this._environmentService.isBuilt) {
 				if (isEqualOrParent(filePath, this._environmentService.builtinExtensionsPath, !platform.isLinux)
 					|| isEqualOrParent(filePath, this._environmentService.extensionsPath, !platform.isLinux)
