@@ -371,25 +371,57 @@ export function normalizeSettingsFile(f: string, root?: string): void {
 // `userDataProfiles` and `profileAssociations`, and
 // `WindowsMainService.resolveProfileForBrowserWindow` hands an associated
 // workspace its named profile, which reads `User/profiles/<id>/settings.json`.
-// Only files that already exist are returned - a profile that inherits settings
-// (`useDefaultFlags.settings`) points back at the default resource, so creating
-// one would invent an override that was never there.
+// An absent settings.json does not mean the profile inherits: `createProfile`
+// makes only the directory, and a normal independent profile simply has nothing
+// saved yet. Skipping it would hand an associated workspace the *default*
+// `editor.editContext`/`files.simpleDialog.enable`, which is the failure this
+// script exists to prevent. So the profile metadata decides: only a profile that
+// sets `useDefaultFlags.settings` truly points back at the default resource, and
+// only that one is left alone.
+// `userDataProfiles` in application state is the same list VS Code reads, and
+// each entry's `location` is the directory name under `User/profiles`. A profile
+// is only treated as inheriting when it explicitly says so; unreadable or absent
+// metadata means nothing is skipped, which is the safe direction.
+function inheritingProfileLocations(userDataDir: string): Set<string> {
+	const inheriting = new Set<string>();
+	const stateFile = path.join(userDataDir, 'User', 'globalStorage', 'storage.json');
+	let state: Record<string, unknown>;
+	try {
+		state = JSON.parse(fs.readFileSync(stateFile, 'utf8')) as Record<string, unknown>;
+	} catch {
+		return inheriting;
+	}
+	const raw = state['userDataProfiles'];
+	// The value has been stored both as an array and as a JSON string over time.
+	let profiles: unknown;
+	try {
+		profiles = typeof raw === 'string' ? JSON.parse(raw) : raw;
+	} catch {
+		return inheriting;
+	}
+	if (!Array.isArray(profiles)) {
+		return inheriting;
+	}
+	for (const profile of profiles) {
+		const entry = profile as { location?: unknown; useDefaultFlags?: { settings?: unknown } };
+		if (typeof entry?.location === 'string' && entry.useDefaultFlags?.settings === true) {
+			inheriting.add(path.basename(entry.location));
+		}
+	}
+	return inheriting;
+}
+
 export function findSettingsFiles(userDataDir: string): string[] {
 	const files = [path.join(userDataDir, 'User', 'settings.json')];
 	const profilesDir = path.join(userDataDir, 'User', 'profiles');
 	let entries: fs.Dirent[] = [];
 	try { entries = fs.readdirSync(profilesDir, { withFileTypes: true }); } catch { entries = []; }
+	const inheriting = inheritingProfileLocations(userDataDir);
 	for (const entry of entries) {
-		const candidate = path.join(profilesDir, entry.name, 'settings.json');
-		// `lstatSync`, not `existsSync`: the latter follows links, so a *dangling*
-		// settings symlink would be skipped here and left in the profile, where a
-		// later write by VS Code would create its target outside the clone.
-		try {
-			fs.lstatSync(candidate);
-			files.push(candidate);
-		} catch {
-			// No entry at all - a profile that inherits settings. Leave it absent.
+		if (inheriting.has(entry.name)) {
+			continue;
 		}
+		files.push(path.join(profilesDir, entry.name, 'settings.json'));
 	}
 	return files;
 }

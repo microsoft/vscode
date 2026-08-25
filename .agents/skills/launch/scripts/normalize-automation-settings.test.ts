@@ -281,29 +281,45 @@ test('replaces a dangling symlink instead of creating its target', posixOnly, ()
 // leaving that file alone reintroduces exactly the failure this script exists
 // to prevent. Exercise the discovery both launchers perform, against a real
 // profile layout, so the multi-file contract cannot regress silently.
-test('normalizes every existing named profile, leaving inheriting profiles alone', () => {
+test('normalizes independent profiles and skips only inheriting ones', () => {
 	const root = fs.mkdtempSync(path.join(os.tmpdir(), 'nas-profiles-'));
 	const userDir = path.join(root, 'User');
 	const named = path.join(userDir, 'profiles', 'autotest');
+	// An independent profile that simply has nothing saved yet: `createProfile`
+	// only makes the directory, so an absent settings.json is normal and must
+	// still be normalized - otherwise the workspace gets the defaults.
+	const fresh = path.join(userDir, 'profiles', 'fresh');
 	const inheriting = path.join(userDir, 'profiles', 'inherits');
-	fs.mkdirSync(named, { recursive: true });
-	fs.mkdirSync(inheriting, { recursive: true });
+	for (const dir of [named, fresh, inheriting]) {
+		fs.mkdirSync(dir, { recursive: true });
+	}
+	fs.mkdirSync(path.join(userDir, 'globalStorage'), { recursive: true });
 	fs.writeFileSync(path.join(userDir, 'settings.json'), '{}\n');
 	fs.writeFileSync(path.join(named, 'settings.json'), '{ "editor.editContext": false }\n');
+	fs.writeFileSync(path.join(userDir, 'globalStorage', 'storage.json'), JSON.stringify({
+		userDataProfiles: [
+			{ location: 'autotest', name: 'AutoTest' },
+			{ location: 'fresh', name: 'Fresh' },
+			{ location: 'inherits', name: 'Inherits', useDefaultFlags: { settings: true } }
+		]
+	}));
 
 	// Drive the real entry point both launchers use, rather than reimplementing
 	// the discovery here - otherwise the launchers could change and this would
 	// stay green. It also keeps the suite runnable without a POSIX shell.
 	const count = execFileSync(process.execPath, [script, '--user-data-dir', root], { encoding: 'utf8' }).trim();
 
+	const enabled = (file: string) => KEYS.map(k => [k, parseJsonc(fs.readFileSync(file, 'utf8'))[k]]);
 	assert.deepStrictEqual({
 		discovered: Number(count),
-		named: KEYS.map(k => [k, parseJsonc(fs.readFileSync(path.join(named, 'settings.json'), 'utf8'))[k]]),
-		default: KEYS.map(k => [k, parseJsonc(fs.readFileSync(path.join(userDir, 'settings.json'), 'utf8'))[k]]),
+		named: enabled(path.join(named, 'settings.json')),
+		fresh: enabled(path.join(fresh, 'settings.json')),
+		default: enabled(path.join(userDir, 'settings.json')),
 		inheritingUntouched: fs.existsSync(path.join(inheriting, 'settings.json'))
 	}, {
-		discovered: 2,
+		discovered: 3,
 		named: KEYS.map(k => [k, true]),
+		fresh: KEYS.map(k => [k, true]),
 		default: KEYS.map(k => [k, true]),
 		inheritingUntouched: false
 	});

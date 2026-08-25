@@ -544,18 +544,23 @@ On Windows, where neither Bash nor `pgrep` is available:
 Stop-Process -Id $codePid -ErrorAction SilentlyContinue
 Start-Sleep -Seconds 3
 
-# Resolve first: only a real launcher run directory may be removed.
+# Resolve first: only a real launcher run directory may be removed. The Windows
+# launcher names it `<temp>\code-oss-dev\<timestamp-pid>`, so the check is that
+# it is a direct child of that base - the leaf is a timestamp, not a prefix.
 $resolved = Resolve-Path -LiteralPath $info.runDir -ErrorAction SilentlyContinue
 $runDir = if ($resolved) { $resolved.ProviderPath } else { $null }
-if (-not $runDir -or (Split-Path -Leaf $runDir) -notlike 'code-oss-dev-*') {
+$base = (Resolve-Path -LiteralPath (Join-Path $env:TEMP 'code-oss-dev') -ErrorAction SilentlyContinue)
+if (-not $runDir -or -not $base -or (Split-Path -Parent $runDir) -ne $base.ProviderPath) {
 	throw "refusing to clean up: bad runDir '$($info.runDir)'"
 }
 
 # Match on the command line, so other agents' concurrent instances are left
-# alone. `-like` takes a wildcard pattern, not a regex, so the path needs no
-# escaping - but it does need the wildcards.
+# alone. Compare literally rather than with `-like`: a temp path containing
+# `[` or `]` would be read as a wildcard character class, which can miss this
+# instance (deleting a live profile) or match unrelated processes.
+$needle = $runDir.ToLowerInvariant()
 $survivors = { Get-CimInstance Win32_Process |
-	Where-Object { $_.CommandLine -like "*$runDir*" } }
+	Where-Object { $_.CommandLine -and $_.CommandLine.ToLowerInvariant().Contains($needle) } }
 
 & $survivors | ForEach-Object { Stop-Process -Id $_.ProcessId -ErrorAction SilentlyContinue }
 Start-Sleep -Seconds 2
