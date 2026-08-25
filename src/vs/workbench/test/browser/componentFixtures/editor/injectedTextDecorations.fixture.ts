@@ -14,13 +14,22 @@ import { ILanguageFeaturesService } from '../../../../../editor/common/services/
 import { ColorDetector } from '../../../../../editor/contrib/colorPicker/browser/colorDetector.js';
 import '../../../../../editor/contrib/colorPicker/browser/colorPickerContribution.js';
 import '../../../../../editor/contrib/colorPicker/browser/colorPicker.css';
-import { IInlayHintsCache, InlayHintsController } from '../../../../../editor/contrib/inlayHints/browser/inlayHintsController.js';
+import { InlayHintsController } from '../../../../../editor/contrib/inlayHints/browser/inlayHintsController.js';
 import '../../../../../editor/contrib/inlayHints/browser/inlayHintsContribution.js';
 import { InlineProgressManager } from '../../../../../editor/contrib/inlineProgress/browser/inlineProgress.js';
+import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ComponentFixtureContext, createEditorServices, createTextModel, defineComponentFixture, defineThemedFixtureGroup, ServiceRegistration } from '../fixtureUtils.js';
 
 const colorDetectorContribution = EditorExtensionsRegistry.getSomeEditorContributions([ColorDetector.ID])[0];
 const inlayHintsContribution = EditorExtensionsRegistry.getSomeEditorContributions([InlayHintsController.ID])[0];
+
+interface IFixtureInlayHintsCache {
+	readonly _serviceBrand: undefined;
+	get(): undefined;
+	set(): void;
+}
+
+const IFixtureInlayHintsCache = createDecorator<IFixtureInlayHintsCache>('IInlayHintsCache');
 
 async function renderColorDecorators(context: ComponentFixtureContext, selectFirstColor = false): Promise<void> {
 	const { editor } = createEditor(
@@ -84,7 +93,7 @@ async function renderInlayHints(context: ComponentFixtureContext): Promise<void>
 				};
 			}
 		})),
-		registration => registration.defineInstance(IInlayHintsCache, {
+		registration => registration.defineInstance(IFixtureInlayHintsCache, {
 			_serviceBrand: undefined,
 			get: () => undefined,
 			set: () => { },
