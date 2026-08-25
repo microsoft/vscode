@@ -107,7 +107,7 @@
     ],
     "configurationDefaults": {
       "[prompt]": {
-        "editor.insertSpaces": true,
+        "editor.insertSpaces": "spaces",
         "editor.tabSize": 2,
         "editor.autoIndent": "advanced",
         "editor.unicodeHighlight.ambiguousCharacters": false,
@@ -122,7 +122,7 @@
         "editor.wordBasedSuggestions": "off"
       },
       "[instructions]": {
-        "editor.insertSpaces": true,
+        "editor.insertSpaces": "spaces",
         "editor.tabSize": 2,
         "editor.autoIndent": "advanced",
         "editor.unicodeHighlight.ambiguousCharacters": false,
@@ -137,7 +137,7 @@
         "editor.wordBasedSuggestions": "off"
       },
       "[chatagent]": {
-        "editor.insertSpaces": true,
+        "editor.insertSpaces": "spaces",
         "editor.tabSize": 2,
         "editor.autoIndent": "advanced",
         "editor.unicodeHighlight.ambiguousCharacters": false,
@@ -152,7 +152,7 @@
         "editor.wordBasedSuggestions": "off"
       },
       "[skill]": {
-        "editor.insertSpaces": true,
+        "editor.insertSpaces": "spaces",
         "editor.tabSize": 2,
         "editor.autoIndent": "advanced",
         "editor.unicodeHighlight.ambiguousCharacters": false,

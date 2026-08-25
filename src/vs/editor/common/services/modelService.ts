@@ -15,7 +15,7 @@ import { IInstantiationService } from '../../../platform/instantiation/common/in
 import { IUndoRedoService, ResourceEditStackSnapshot } from '../../../platform/undoRedo/common/undoRedo.js';
 import { clampedInt } from '../config/editorOptions.js';
 import { EditOperation, ISingleEditOperation } from '../core/editOperation.js';
-import { InsertSpaces } from '../core/misc/indentation.js';
+import { InsertSpaces, parseInsertSpaces } from '../core/misc/indentation.js';
 import { EDITOR_MODEL_DEFAULTS } from '../core/misc/textModelDefaults.js';
 import { Range } from '../core/range.js';
 import { ILanguageSelection } from '../languages/language.js';
@@ -135,7 +135,7 @@ export class ModelService extends Disposable implements IModelService {
 
 		let insertSpaces: InsertSpaces = EDITOR_MODEL_DEFAULTS.insertSpaces;
 		if (config.editor && typeof config.editor.insertSpaces !== 'undefined') {
-			insertSpaces = config.editor.insertSpaces === 'mixed' ? 'mixed' : (config.editor.insertSpaces === 'false' ? false : Boolean(config.editor.insertSpaces));
+			insertSpaces = parseInsertSpaces(config.editor.insertSpaces) ?? EDITOR_MODEL_DEFAULTS.insertSpaces;
 		}
 
 		let newDefaultEOL = DEFAULT_EOL;

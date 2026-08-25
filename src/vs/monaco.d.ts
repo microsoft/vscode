@@ -1293,9 +1293,9 @@ declare namespace monaco.editor {
 		/**
 		 * Controls how indentation is inserted when pressing `Tab`.
 		 * This setting is overridden based on the file contents when `detectIndentation` is on.
-		 * Defaults to true.
+		 * Defaults to `InsertSpaces.Spaces`.
 		 */
-		insertSpaces?: boolean | 'mixed';
+		insertSpaces?: InsertSpaces;
 		/**
 		 * Controls whether `tabSize` and `insertSpaces` will be automatically detected when a file is opened based on the file contents.
 		 * Defaults to true.
@@ -1567,6 +1567,11 @@ declare namespace monaco.editor {
 		 * The column where the word ends.
 		 */
 		readonly endColumn: number;
+	}
+	export enum InsertSpaces {
+		Spaces = 'spaces',
+		Tabs = 'tabs',
+		Mixed = 'mixed'
 	}
 
 	/**
@@ -1974,7 +1979,7 @@ declare namespace monaco.editor {
 		_textModelResolvedOptionsBrand: void;
 		readonly tabSize: number;
 		readonly indentSize: number;
-		readonly insertSpaces: boolean | 'mixed';
+		readonly insertSpaces: InsertSpaces;
 		readonly defaultEOL: DefaultEndOfLine;
 		readonly trimAutoWhitespace: boolean;
 		readonly bracketPairColorizationOptions: BracketPairColorizationOptions;
@@ -1989,7 +1994,7 @@ declare namespace monaco.editor {
 	export interface ITextModelUpdateOptions {
 		tabSize?: number;
 		indentSize?: number | 'tabSize';
-		insertSpaces?: boolean | 'mixed';
+		insertSpaces?: InsertSpaces;
 		trimAutoWhitespace?: boolean;
 		bracketColorizationOptions?: BracketPairColorizationOptions;
 	}
@@ -2339,7 +2344,7 @@ declare namespace monaco.editor {
 		/**
 		 * Detect the indentation options for this model from its content.
 		 */
-		detectIndentation(defaultInsertSpaces: boolean | 'mixed', defaultTabSize: number, defaultIndentSize?: number): void;
+		detectIndentation(defaultInsertSpaces: InsertSpaces, defaultTabSize: number, defaultIndentSize?: number): void;
 		/**
 		 * Close the current undo-redo element.
 		 * This offers a way to create an undo/redo stop point.

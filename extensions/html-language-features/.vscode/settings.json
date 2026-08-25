@@ -1,5 +1,5 @@
 {
-	"editor.insertSpaces": false,
+	"editor.insertSpaces": "tabs",
 	"prettier.semi": true,
 	"prettier.singleQuote": true,
 	"prettier.printWidth": 120

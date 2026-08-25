@@ -32,7 +32,7 @@ export class NotebookIndentUsingTabs extends Action2 {
 	}
 
 	override run(accessor: ServicesAccessor, ...args: unknown[]): void {
-		changeNotebookIndentation(accessor, false, false);
+		changeNotebookIndentation(accessor, InsertSpaces.Tabs, false);
 	}
 }
 
@@ -48,7 +48,7 @@ export class NotebookIndentUsingSpaces extends Action2 {
 	}
 
 	override run(accessor: ServicesAccessor, ...args: unknown[]): void {
-		changeNotebookIndentation(accessor, true, false);
+		changeNotebookIndentation(accessor, InsertSpaces.Spaces, false);
 	}
 }
 
@@ -64,7 +64,7 @@ export class NotebookIndentUsingMixed extends Action2 {
 	}
 
 	override run(accessor: ServicesAccessor, ...args: unknown[]): void {
-		changeNotebookIndentation(accessor, 'mixed', false);
+		changeNotebookIndentation(accessor, InsertSpaces.Mixed, false);
 	}
 }
 
@@ -80,7 +80,7 @@ export class NotebookChangeTabDisplaySize extends Action2 {
 	}
 
 	override run(accessor: ServicesAccessor, ...args: unknown[]): void {
-		changeNotebookIndentation(accessor, true, true);
+		changeNotebookIndentation(accessor, InsertSpaces.Spaces, true);
 	}
 }
 
@@ -96,7 +96,7 @@ export class NotebookIndentationToSpacesAction extends Action2 {
 	}
 
 	override run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
-		return convertNotebookIndentation(accessor, true);
+		return convertNotebookIndentation(accessor, InsertSpaces.Spaces);
 	}
 }
 
@@ -112,7 +112,7 @@ export class NotebookIndentationToTabsAction extends Action2 {
 	}
 
 	override run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
-		return convertNotebookIndentation(accessor, false);
+		return convertNotebookIndentation(accessor, InsertSpaces.Tabs);
 	}
 }
 
@@ -128,7 +128,7 @@ export class NotebookIndentationToMixedAction extends Action2 {
 	}
 
 	override run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
-		return convertNotebookIndentation(accessor, 'mixed');
+		return convertNotebookIndentation(accessor, InsertSpaces.Mixed);
 	}
 }
 
@@ -167,7 +167,7 @@ function changeNotebookIndentation(accessor: ServicesAccessor, insertSpaces: Ins
 	delete initialConfig['editor.insertSpaces'];
 
 	setTimeout(() => {
-		const placeHolder = insertSpaces === 'mixed'
+		const placeHolder = insertSpaces === InsertSpaces.Mixed
 			? nls.localize('selectIndentWidth', "Select Indentation Size for Current File")
 			: nls.localize({ key: 'selectTabWidth', comment: ['Tab corresponds to the tab key'] }, "Select Tab Size for Current File");
 		quickInputService.pick(picks, { placeHolder }).then(pick => {
@@ -180,7 +180,7 @@ function changeNotebookIndentation(accessor: ServicesAccessor, insertSpaces: Ins
 						'editor.indentSize': initialIndentSize,
 						'editor.insertSpaces': initialInsertSpaces
 					});
-				} else if (insertSpaces === 'mixed') {
+				} else if (insertSpaces === InsertSpaces.Mixed) {
 					configurationService.updateValue(NotebookSetting.cellEditorOptionsCustomizations, {
 						...initialConfig,
 						'editor.tabSize': initialTabSize,
@@ -283,9 +283,9 @@ function getIndentationEditOperations(model: ITextModel, tabSize: number, insert
 
 		const originalIndentationRange = new Range(lineNumber, 1, lineNumber, lastIndentationColumn);
 		const originalIndentation = model.getValueInRange(originalIndentationRange);
-		const newIndentation = insertSpaces === 'mixed'
+		const newIndentation = insertSpaces === InsertSpaces.Mixed
 			? normalizeIndentation(originalIndentation, tabSize, insertSpaces, tabSize)
-			: insertSpaces
+			: insertSpaces === InsertSpaces.Spaces
 				? originalIndentation.replace(/\t/ig, spaces)
 				: originalIndentation.replace(spacesRegExp, '\t');
 		edits.push(new ResourceTextEdit(model.uri, { range: originalIndentationRange, text: newIndentation }));

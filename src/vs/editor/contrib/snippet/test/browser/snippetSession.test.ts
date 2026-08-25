@@ -6,6 +6,7 @@ import assert from 'assert';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IActiveCodeEditor } from '../../../../browser/editorBrowser.js';
+import { InsertSpaces } from '../../../../common/core/misc/indentation.js';
 import { IPosition, Position } from '../../../../common/core/position.js';
 import { Range } from '../../../../common/core/range.js';
 import { Selection } from '../../../../common/core/selection.js';
@@ -600,7 +601,7 @@ suite('SnippetSession', function () {
 		].join('\n');
 
 		editor.getModel()!.setValue(base);
-		editor.getModel()!.updateOptions({ insertSpaces: false });
+		editor.getModel()!.updateOptions({ insertSpaces: InsertSpaces.Tabs });
 		editor.setSelection(new Selection(2, 2, 2, 2));
 
 		const session = new SnippetSession(editor, snippet, undefined, languageConfigurationService);
@@ -710,7 +711,7 @@ suite('SnippetSession', function () {
 			'end'
 		].join('\n'));
 
-		editor.getModel()!.updateOptions({ insertSpaces: false });
+		editor.getModel()!.updateOptions({ insertSpaces: InsertSpaces.Tabs });
 		editor.setSelection(new Selection(2, 2, 3, 7));
 
 		new SnippetSession(editor, '<div>\n\t$TM_SELECTED_TEXT\n</div>$0', undefined, languageConfigurationService).insert();
@@ -733,7 +734,7 @@ suite('SnippetSession', function () {
 			'end'
 		].join('\n'));
 
-		editor.getModel()!.updateOptions({ insertSpaces: false });
+		editor.getModel()!.updateOptions({ insertSpaces: InsertSpaces.Tabs });
 		editor.setSelection(new Selection(2, 2, 3, 7));
 
 		new SnippetSession(editor, '<div>\n\t$TM_SELECTED_TEXT\n</div>$0', undefined, languageConfigurationService).insert();
@@ -768,7 +769,7 @@ suite('SnippetSession', function () {
 	test('Tabs don\'t get replaced with spaces in snippet transformations #103818', function () {
 		const model = editor.getModel()!;
 		model.setValue('\n{\n  \n}');
-		model.updateOptions({ insertSpaces: true, indentSize: 2 });
+		model.updateOptions({ insertSpaces: InsertSpaces.Spaces, indentSize: 2 });
 		editor.setSelections([new Selection(1, 1, 1, 1), new Selection(3, 6, 3, 6)]);
 		const session = new SnippetSession(editor, [
 			'function animate () {',

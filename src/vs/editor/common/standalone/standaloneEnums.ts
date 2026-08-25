@@ -464,6 +464,11 @@ export enum InlineCompletionTriggerKind {
 	 */
 	Explicit = 1
 }
+export enum InsertSpaces {
+	Spaces = 'spaces',
+	Tabs = 'tabs',
+	Mixed = 'mixed'
+}
 /**
  * Virtual Key Codes, the value does not hold any inherent meaning.
  * Inspired somewhat from https://msdn.microsoft.com/en-us/library/windows/desktop/dd375731(v=vs.85).aspx

@@ -19,6 +19,7 @@ import Severity from '../../../../base/common/severity.js';
 import * as Types from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import * as UUID from '../../../../base/common/uuid.js';
+import { InsertSpaces, parseInsertSpaces } from '../../../../editor/common/core/misc/indentation.js';
 import * as nls from '../../../../nls.js';
 import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -1652,7 +1653,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			reference = await this._textModelResolverService.createModelReference(resource);
 			const model = reference.object.textEditorModel;
 			const { tabSize, insertSpaces } = model.getOptions();
-			const formattingInsertSpaces = insertSpaces !== false;
+			const formattingInsertSpaces = insertSpaces !== InsertSpaces.Tabs;
 			const eol = model.getEOL();
 			let stringified = toFormattedString(task, { eol, tabSize, insertSpaces: formattingInsertSpaces });
 			const regex = new RegExp(eol + (formattingInsertSpaces ? ' '.repeat(tabSize) : '\\t'), 'g');
@@ -1789,8 +1790,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				'{',
 				nls.localize('tasksJsonComment', '\t// See https://go.microsoft.com/fwlink/?LinkId=733558 \n\t// for the documentation about the tasks.json format'),
 			].join('\n') + JSON.stringify(value, null, '\t').substr(1);
-			const editorConfig = this._configurationService.getValue<{ editor: { insertSpaces: boolean; tabSize: number } }>();
-			if (editorConfig.editor.insertSpaces) {
+			const editorConfig = this._configurationService.getValue<{ editor: { insertSpaces: InsertSpaces; tabSize: number } }>();
+			if (parseInsertSpaces(editorConfig.editor.insertSpaces) !== InsertSpaces.Tabs) {
 				content = content.replace(/(\n)(\t+)/g, (_, s1, s2) => s1 + ' '.repeat(s2.length * editorConfig.editor.tabSize));
 			}
 			await this._textFileService.create([{ resource: workspaceFolder.toResource('.vscode/tasks.json'), value: content }]);
@@ -3584,8 +3585,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 					return Promise.resolve(undefined);
 				}
 				content = pickTemplateResult.content;
-				const editorConfig = this._configurationService.getValue() as { editor: { insertSpaces: boolean; tabSize: number } };
-				if (editorConfig.editor.insertSpaces) {
+				const editorConfig = this._configurationService.getValue() as { editor: { insertSpaces: InsertSpaces; tabSize: number } };
+				if (parseInsertSpaces(editorConfig.editor.insertSpaces) !== InsertSpaces.Tabs) {
 					content = content.replace(/(\n)(\t+)/g, (_, s1, s2) => s1 + ' '.repeat(s2.length * editorConfig.editor.tabSize));
 				}
 				configFileCreated = true;

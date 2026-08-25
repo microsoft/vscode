@@ -27,6 +27,7 @@ import { CoreEditingCommands } from '../../../../editor/browser/coreCommands.js'
 import { ICodeEditor, IEditorMouseEvent, IPartialEditorMouseEvent, MouseTargetType } from '../../../../editor/browser/editorBrowser.js';
 import { EditorOption, IEditorHoverOptions } from '../../../../editor/common/config/editorOptions.js';
 import { EditOperation } from '../../../../editor/common/core/editOperation.js';
+import { InsertSpaces } from '../../../../editor/common/core/misc/indentation.js';
 import { Position } from '../../../../editor/common/core/position.js';
 import { IRange, Range } from '../../../../editor/common/core/range.js';
 import { DEFAULT_WORD_REGEXP } from '../../../../editor/common/core/wordHelper.js';
@@ -707,7 +708,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		if (!configurationsArrayPosition) {
 			// "configurations" array doesn't exist. Add it here.
 			const { tabSize, insertSpaces } = model.getOptions();
-			const formattingInsertSpaces = insertSpaces !== false;
+			const formattingInsertSpaces = insertSpaces !== InsertSpaces.Tabs;
 			const eol = model.getEOL();
 			const edit = (basename(model.uri.fsPath) === 'launch.json') ?
 				setProperty(model.getValue(), ['configurations'], [], { tabSize, insertSpaces: formattingInsertSpaces, eol })[0] :

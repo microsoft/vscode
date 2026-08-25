@@ -6,6 +6,7 @@ import assert from 'assert';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ICodeEditor } from '../../../../browser/editorBrowser.js';
+import { InsertSpaces } from '../../../../common/core/misc/indentation.js';
 import { Position } from '../../../../common/core/position.js';
 import { Selection } from '../../../../common/core/selection.js';
 import { LanguageFeaturesService } from '../../../../common/services/languageFeaturesService.js';
@@ -64,7 +65,7 @@ suite('SnippetController', () => {
 
 		withTestCodeEditor(lines, { serviceCollection }, (editor) => {
 			editor.getModel()!.updateOptions({
-				insertSpaces: false
+				insertSpaces: InsertSpaces.Tabs
 			});
 			const snippetController = editor.registerAndInstantiateContribution(TestSnippetController.ID, TestSnippetController);
 			const template = [

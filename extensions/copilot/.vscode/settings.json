@@ -1,7 +1,7 @@
 {
 	"files.trimTrailingWhitespace": true,
 	"[typescript][typescriptreact][javascript]": {
-		"editor.insertSpaces": false,
+		"editor.insertSpaces": "tabs",
 		"editor.formatOnSave": true,
 		"editor.codeActionsOnSave": {
 			"source.organizeImports": "always"

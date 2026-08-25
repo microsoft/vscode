@@ -11,6 +11,7 @@ import { Queue } from '../../../../base/common/async.js';
 import { Edit } from '../../../../base/common/jsonFormatter.js';
 import { IDisposable, IReference } from '../../../../base/common/lifecycle.js';
 import { EditOperation } from '../../../../editor/common/core/editOperation.js';
+import { InsertSpaces } from '../../../../editor/common/core/misc/indentation.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { Selection } from '../../../../editor/common/core/selection.js';
 import { ITextFileService } from '../../textfile/common/textfiles.js';
@@ -88,7 +89,7 @@ export class JSONEditingService implements IJSONEditingService {
 
 	private getEdits(model: ITextModel, configurationValue: IJSONValue): Edit[] {
 		const { tabSize, insertSpaces } = model.getOptions();
-		const formattingInsertSpaces = insertSpaces !== false;
+		const formattingInsertSpaces = insertSpaces !== InsertSpaces.Tabs;
 		const eol = model.getEOL();
 		const { path, value } = configurationValue;
 

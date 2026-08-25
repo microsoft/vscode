@@ -14,6 +14,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { CodeEditorStateFlag, EditorStateCancellationTokenSource, TextModelCancellationTokenSource } from '../../editorState/browser/editorState.js';
 import { IActiveCodeEditor, isCodeEditor } from '../../../browser/editorBrowser.js';
 import { ServicesAccessor } from '../../../browser/editorExtensions.js';
+import { InsertSpaces } from '../../../common/core/misc/indentation.js';
 import { Position } from '../../../common/core/position.js';
 import { Range } from '../../../common/core/range.js';
 import { Selection } from '../../../common/core/selection.js';
@@ -521,7 +522,7 @@ function ensureFormattingOptions(options: unknown, reference: IReference<IResolv
 		const modelOptions = reference.object.textEditorModel.getOptions();
 		validatedOptions = {
 			tabSize: modelOptions.tabSize,
-			insertSpaces: modelOptions.insertSpaces !== false
+			insertSpaces: modelOptions.insertSpaces !== InsertSpaces.Tabs
 		};
 	}
 

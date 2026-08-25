@@ -46,7 +46,7 @@
     ],
     "configurationDefaults": {
       "[makefile]": {
-        "editor.insertSpaces": false
+        "editor.insertSpaces": "tabs"
       }
     }
   },

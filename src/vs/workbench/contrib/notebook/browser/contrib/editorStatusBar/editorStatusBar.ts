@@ -6,6 +6,7 @@
 import * as nls from '../../../../../../nls.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../../base/common/network.js';
+import { InsertSpaces, parseInsertSpaces } from '../../../../../../editor/common/core/misc/indentation.js';
 import { ILanguageFeaturesService } from '../../../../../../editor/common/services/languageFeatures.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -305,14 +306,14 @@ class NotebookIndentationStatus extends Disposable {
 
 		const cellEditorOverridesRaw = editor.notebookOptions.getDisplayOptions().editorOptionsCustomizations;
 		const indentSize = cellEditorOverridesRaw?.['editor.indentSize'] ?? cellOptions?.indentSize;
-		const insertSpaces = cellEditorOverridesRaw?.['editor.insertSpaces'] ?? cellOptions?.insertSpaces;
+		const insertSpaces = parseInsertSpaces(cellEditorOverridesRaw?.['editor.insertSpaces']) ?? cellOptions?.insertSpaces;
 		const tabSize = cellEditorOverridesRaw?.['editor.tabSize'] ?? cellOptions?.tabSize;
 
 		const width = typeof indentSize === 'number' ? indentSize : tabSize;
 
-		const message = insertSpaces === 'mixed'
+		const message = insertSpaces === InsertSpaces.Mixed
 			? nls.localize('mixedIndentationSize', "Mixed: {0} (Tab Size: {1})", width, tabSize)
-			: insertSpaces
+			: insertSpaces === InsertSpaces.Spaces
 				? nls.localize('spacesSize', "Spaces: {0}", width)
 				: nls.localize({ key: 'tabSize', comment: ['Tab corresponds to the tab key'] }, "Tab Size: {0}", width);
 		const newText = message;

@@ -10,6 +10,7 @@ import { Registry } from '../../../platform/registry/common/platform.js';
 import { Disposable, IDisposable } from '../../../base/common/lifecycle.js';
 import { Mimes } from '../../../base/common/mime.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '../../../platform/configuration/common/configurationRegistry.js';
+import { InsertSpaces } from '../core/misc/indentation.js';
 
 // Define extension point ids
 export const Extensions = {
@@ -70,16 +71,16 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 			},
 			// TODO: Below is a workaround for: https://github.com/microsoft/vscode/issues/240567
 			'[go]': {
-				'editor.insertSpaces': false
+				'editor.insertSpaces': InsertSpaces.Tabs
 			},
 			'[makefile]': {
-				'editor.insertSpaces': false,
+				'editor.insertSpaces': InsertSpaces.Tabs,
 			},
 			'[shellscript]': {
 				'files.eol': '\n'
 			},
 			'[yaml]': {
-				'editor.insertSpaces': true,
+				'editor.insertSpaces': InsertSpaces.Spaces,
 				'editor.tabSize': 2
 			}
 		}

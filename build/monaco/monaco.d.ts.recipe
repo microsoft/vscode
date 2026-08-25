@@ -109,6 +109,7 @@ export interface ICommandMetadata {
 #include(vs/base/common/themables.js): ThemeColor, ThemeIcon
 #include(vs/editor/common/core/editOperation.js): ISingleEditOperation
 #include(vs/editor/common/core/wordHelper.js): IWordAtPosition
+#include(vs/editor/common/core/misc/indentation.js): InsertSpaces
 #includeAll(vs/editor/common/model.js): IScrollEvent
 #include(vs/editor/common/diff/legacyLinesDiffComputer.js): IChange, ICharChange, ILineChange
 #include(vs/editor/common/core/2d/dimension.js): IDimension

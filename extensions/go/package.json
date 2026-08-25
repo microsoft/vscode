@@ -34,7 +34,7 @@
     ],
     "configurationDefaults": {
       "[go]": {
-        "editor.insertSpaces": false
+        "editor.insertSpaces": "tabs"
       }
     }
   },

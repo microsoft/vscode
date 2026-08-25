@@ -10,6 +10,7 @@ import { getLeadingWhitespace } from '../../../../../base/common/strings.js';
 import { isString } from '../../../../../base/common/types.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { EditOperation } from '../../../../../editor/common/core/editOperation.js';
+import { InsertSpaces } from '../../../../../editor/common/core/misc/indentation.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { IEditorModel } from '../../../../../editor/common/editorCommon.js';
 import { registerEditorFeature } from '../../../../../editor/common/editorFeatures.js';
@@ -124,7 +125,7 @@ class ToolSetsCodeLensProvider extends Disposable implements CodeLensProvider {
 		}
 
 		const { insertSpaces, indentSize } = model.getOptions();
-		const oneIndent = insertSpaces ? ' '.repeat(indentSize) : '\t';
+		const oneIndent = insertSpaces === InsertSpaces.Tabs ? '\t' : ' '.repeat(indentSize);
 		const baseIndent = getLeadingWhitespace(model.getLineContent(range.startLineNumber));
 		const itemIndent = baseIndent + oneIndent;
 

@@ -9,6 +9,7 @@ import { ICodeEditor, IDiffEditor, IDiffEditorConstructionOptions } from '../../
 import { ICodeEditorService } from '../../browser/services/codeEditorService.js';
 import { CodeEditorWidget } from '../../browser/widget/codeEditor/codeEditorWidget.js';
 import { IDiffEditorOptions, IEditorOptions } from '../../common/config/editorOptions.js';
+import { InsertSpaces } from '../../common/core/misc/indentation.js';
 import { InternalEditorAction } from '../../common/editorAction.js';
 import { IModelChangedEvent } from '../../common/editorCommon.js';
 import { ITextModel } from '../../common/model.js';
@@ -102,11 +103,11 @@ export interface IGlobalEditorOptions {
 	 */
 	tabSize?: number;
 	/**
-	 * Insert spaces when pressing `Tab`.
+	 * Controls how indentation is inserted when pressing `Tab`.
 	 * This setting is overridden based on the file contents when `detectIndentation` is on.
-	 * Defaults to true.
+	 * Defaults to `InsertSpaces.Spaces`.
 	 */
-	insertSpaces?: boolean | 'mixed';
+	insertSpaces?: InsertSpaces;
 	/**
 	 * Controls whether `tabSize` and `insertSpaces` will be automatically detected when a file is opened based on the file contents.
 	 * Defaults to true.

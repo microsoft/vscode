@@ -23,7 +23,7 @@ export function generateIndent(spacesCnt: number, tabSize: number, insertSpaces:
 	spacesCnt = spacesCnt < 0 ? 0 : spacesCnt;
 
 	let result = '';
-	if (insertSpaces !== true) {
+	if (insertSpaces !== InsertSpaces.Spaces) {
 		const tabsCnt = Math.floor(spacesCnt / tabSize);
 		spacesCnt = spacesCnt % tabSize;
 		for (let i = 0; i < tabsCnt; i++) {

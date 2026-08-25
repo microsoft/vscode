@@ -27,6 +27,7 @@ import { IFileService, FILES_ASSOCIATIONS_CONFIG } from '../../../../platform/fi
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILanguageService, ILanguageSelection } from '../../../../editor/common/languages/language.js';
 import { Range } from '../../../../editor/common/core/range.js';
+import { InsertSpaces } from '../../../../editor/common/core/misc/indentation.js';
 import { Selection } from '../../../../editor/common/core/selection.js';
 import { ICommandService, CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { IExtensionGalleryService } from '../../../../platform/extensionManagement/common/extensionManagement.js';
@@ -800,10 +801,10 @@ class EditorStatus extends Disposable {
 			const model = editorWidget.getModel();
 			if (model) {
 				const modelOpts = model.getOptions();
-				update.indentation = modelOpts.insertSpaces === 'mixed'
+				update.indentation = modelOpts.insertSpaces === InsertSpaces.Mixed
 					? localize('mixedIndentationSize', "Mixed: {0} (Tab Size: {1})", modelOpts.indentSize, modelOpts.tabSize)
 					: (
-						modelOpts.insertSpaces
+						modelOpts.insertSpaces === InsertSpaces.Spaces
 							? modelOpts.tabSize === modelOpts.indentSize
 								? localize('spacesSize', "Spaces: {0}", modelOpts.indentSize)
 								: localize('spacesAndTabsSize', "Spaces: {0} (Tab Size: {1})", modelOpts.indentSize, modelOpts.tabSize)

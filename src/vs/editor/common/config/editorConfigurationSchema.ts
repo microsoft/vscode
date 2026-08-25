@@ -10,6 +10,7 @@ import { EDITOR_MODEL_DEFAULTS } from '../core/misc/textModelDefaults.js';
 import * as nls from '../../../nls.js';
 import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationPropertySchema, IConfigurationRegistry } from '../../../platform/configuration/common/configurationRegistry.js';
 import { Registry } from '../../../platform/registry/common/platform.js';
+import { InsertSpaces } from '../core/misc/indentation.js';
 
 export const editorConfigurationBaseNode = Object.freeze<IConfigurationNode>({
 	id: 'editor',
@@ -44,17 +45,19 @@ const editorConfiguration: IConfigurationNode = {
 			markdownDescription: nls.localize('indentSize', "The number of spaces used for indentation or `\"tabSize\"` to use the value from `#editor.tabSize#`. This setting is overridden based on the file contents when `#editor.detectIndentation#` is on.")
 		},
 		'editor.insertSpaces': {
-			anyOf: [
-				{
-					type: 'boolean'
-				},
-				{
-					type: 'string',
-					enum: ['mixed']
-				}
+			type: 'string',
+			enum: [
+				InsertSpaces.Spaces,
+				InsertSpaces.Tabs,
+				InsertSpaces.Mixed
+			],
+			enumDescriptions: [
+				nls.localize('insertSpaces.spaces', "Insert spaces."),
+				nls.localize('insertSpaces.tabs', "Insert tabs."),
+				nls.localize('insertSpaces.mixed', "Insert as many tabs as possible followed by spaces.")
 			],
 			default: EDITOR_MODEL_DEFAULTS.insertSpaces,
-			markdownDescription: nls.localize('insertSpaces', "Controls how indentation is inserted when pressing `Tab`. Use `true` to insert spaces, `false` to insert tabs, or `\"mixed\"` to insert as many tabs as possible followed by spaces. This setting is overridden based on the file contents when {0} is on.", '`#editor.detectIndentation#`')
+			markdownDescription: nls.localize('insertSpaces', "Controls how indentation is inserted when pressing `Tab`. This setting is overridden based on the file contents when {0} is on.", '`#editor.detectIndentation#`')
 		},
 		'editor.detectIndentation': {
 			type: 'boolean',

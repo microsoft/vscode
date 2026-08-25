@@ -12,6 +12,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IConfigurationResolverService } from '../../../services/configurationResolver/common/configurationResolver.js';
 import * as ConfigurationResolverUtils from '../../../services/configurationResolver/common/configurationResolverUtils.js';
 import { ITextResourcePropertiesService } from '../../../../editor/common/services/textResourceConfiguration.js';
+import { InsertSpaces, parseInsertSpaces } from '../../../../editor/common/core/misc/indentation.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { isDebuggerMainContribution } from './debugUtils.js';
@@ -213,7 +214,7 @@ export class Debugger implements IDebugger, IDebuggerMetadata {
 
 		// fix formatting
 		const editorConfig = this.configurationService.getValue<any>();
-		if (editorConfig.editor && editorConfig.editor.insertSpaces) {
+		if (editorConfig.editor && parseInsertSpaces(editorConfig.editor.insertSpaces) !== InsertSpaces.Tabs) {
 			content = content.replace(new RegExp('\t', 'g'), ' '.repeat(editorConfig.editor.tabSize));
 		}
 

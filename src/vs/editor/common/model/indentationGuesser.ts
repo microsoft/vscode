@@ -145,7 +145,7 @@ function spacesDiff(a: string, aLength: number, b: string, bLength: number, resu
  */
 export interface IGuessedIndentation {
 	/**
-	 * If indentation is based on spaces (`insertSpaces` = true), then what is the number of spaces that make an indent?
+	 * If indentation is based on spaces, then what is the number of spaces that make an indent?
 	 */
 	tabSize: number;
 	/**
@@ -239,7 +239,7 @@ export function guessIndentation(source: ITextBuffer, defaultTabSize: number, de
 			// const a = 1,
 			//       b = 2;
 
-			if (!(defaultInsertSpaces && defaultTabSize === tmp.spacesDiff)) {
+			if (!(defaultInsertSpaces === InsertSpaces.Spaces && defaultTabSize === tmp.spacesDiff)) {
 				continue;
 			}
 		}
@@ -256,7 +256,7 @@ export function guessIndentation(source: ITextBuffer, defaultTabSize: number, de
 	let insertSpaces: InsertSpaces = defaultInsertSpaces;
 	if (
 		(
-			defaultInsertSpaces === 'mixed'
+			defaultInsertSpaces === InsertSpaces.Mixed
 			&& linesIndentedWithCanonicalMixedWhitespaceCount > 0
 		)
 		|| (
@@ -267,15 +267,15 @@ export function guessIndentation(source: ITextBuffer, defaultTabSize: number, de
 			)
 		)
 	) {
-		insertSpaces = 'mixed';
+		insertSpaces = InsertSpaces.Mixed;
 	} else if (linesIndentedWithTabsCount !== linesIndentedWithSpacesCount) {
-		insertSpaces = (linesIndentedWithTabsCount < linesIndentedWithSpacesCount);
+		insertSpaces = linesIndentedWithTabsCount < linesIndentedWithSpacesCount ? InsertSpaces.Spaces : InsertSpaces.Tabs;
 	}
 
 	let tabSize = defaultTabSize;
-	let indentSize = insertSpaces === 'mixed' ? defaultIndentSize : defaultTabSize;
+	let indentSize = insertSpaces === InsertSpaces.Mixed ? defaultIndentSize : defaultTabSize;
 
-	if (insertSpaces !== false) {
+	if (insertSpaces !== InsertSpaces.Tabs) {
 		let indentSizeScore = 0;
 		ALLOWED_TAB_SIZE_GUESSES.forEach((possibleTabSize) => {
 			const possibleTabSizeScore = spacesDiffCount[possibleTabSize];
@@ -292,7 +292,7 @@ export function guessIndentation(source: ITextBuffer, defaultTabSize: number, de
 			indentSize = 2;
 		}
 
-		if (insertSpaces === true) {
+		if (insertSpaces === InsertSpaces.Spaces) {
 			tabSize = indentSize;
 		} else {
 			tabSize = guessMixedTabSize(indentationSamples, defaultTabSize, indentSize, ALLOWED_TAB_SIZE_GUESSES);

@@ -8,7 +8,7 @@ import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { UTF8_BOM_CHARACTER } from '../../../../base/common/strings.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { Position } from '../../../common/core/position.js';
-import { InsertSpaces } from '../../../common/core/misc/indentation.js';
+import { InsertSpaces, parseInsertSpaces } from '../../../common/core/misc/indentation.js';
 import { Range } from '../../../common/core/range.js';
 import { PLAINTEXT_LANGUAGE_ID } from '../../../common/languages/modesRegistry.js';
 import { EndOfLinePreference } from '../../../common/model.js';
@@ -16,7 +16,9 @@ import { TextModel, createTextBuffer } from '../../../common/model/textModel.js'
 import { createModelServices, createTextModel } from '../testTextModel.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 
-function testGuessIndentation(defaultInsertSpaces: InsertSpaces, defaultTabSize: number, expectedInsertSpaces: InsertSpaces, expectedTabSize: number, text: string[], msg?: string): void {
+type TestInsertSpaces = InsertSpaces | boolean | 'mixed';
+
+function testGuessIndentation(defaultInsertSpaces: TestInsertSpaces, defaultTabSize: number, expectedInsertSpaces: TestInsertSpaces, expectedTabSize: number, text: string[], msg?: string): void {
 	const m = createTextModel(
 		text.join('\n'),
 		undefined,
@@ -29,11 +31,11 @@ function testGuessIndentation(defaultInsertSpaces: InsertSpaces, defaultTabSize:
 	const r = m.getOptions();
 	m.dispose();
 
-	assert.strictEqual(r.insertSpaces, expectedInsertSpaces, msg);
+	assert.strictEqual(r.insertSpaces, parseInsertSpaces(expectedInsertSpaces), msg);
 	assert.strictEqual(r.tabSize, expectedTabSize, msg);
 }
 
-function assertGuess(expectedInsertSpaces: InsertSpaces | undefined, expectedTabSize: number | undefined | [number], text: string[], msg?: string): void {
+function assertGuess(expectedInsertSpaces: TestInsertSpaces | undefined, expectedTabSize: number | undefined | [number], text: string[], msg?: string): void {
 	if (typeof expectedInsertSpaces === 'undefined') {
 		// cannot guess insertSpaces
 		if (typeof expectedTabSize === 'undefined') {
@@ -61,7 +63,7 @@ function assertGuess(expectedInsertSpaces: InsertSpaces | undefined, expectedTab
 			testGuessIndentation(false, 13371, expectedInsertSpaces, expectedTabSize, text, msg);
 		} else {
 			// can only guess tabSize when insertSpaces is true
-			if (expectedInsertSpaces === true) {
+			if (parseInsertSpaces(expectedInsertSpaces) === InsertSpaces.Spaces) {
 				testGuessIndentation(true, 13370, expectedInsertSpaces, expectedTabSize[0], text, msg);
 				testGuessIndentation(false, 13371, expectedInsertSpaces, expectedTabSize[0], text, msg);
 			} else {
@@ -602,7 +604,7 @@ suite('Editor Model - TextModel', () => {
 		].join('\n'), undefined, {
 			tabSize: 4,
 			indentSize: 4,
-			insertSpaces: true,
+			insertSpaces: InsertSpaces.Spaces,
 			detectIndentation: true
 		});
 
@@ -610,14 +612,14 @@ suite('Editor Model - TextModel', () => {
 		assert.deepStrictEqual({ tabSize, indentSize, insertSpaces }, {
 			tabSize: 8,
 			indentSize: 3,
-			insertSpaces: 'mixed'
+			insertSpaces: InsertSpaces.Mixed
 		});
 		model.dispose();
 
 		const partialModel = createTextModel('\t if (third) {\n\t    work();', undefined, {
 			tabSize: 4,
 			indentSize: 4,
-			insertSpaces: true,
+			insertSpaces: InsertSpaces.Spaces,
 			detectIndentation: true
 		});
 		const partialOptions = partialModel.getOptions();
@@ -628,7 +630,7 @@ suite('Editor Model - TextModel', () => {
 		}, {
 			tabSize: 8,
 			indentSize: 3,
-			insertSpaces: 'mixed'
+			insertSpaces: InsertSpaces.Mixed
 		});
 		partialModel.dispose();
 	});
@@ -643,14 +645,14 @@ suite('Editor Model - TextModel', () => {
 		].join('\n'), undefined, {
 			tabSize: 8,
 			indentSize: 4,
-			insertSpaces: true,
+			insertSpaces: InsertSpaces.Spaces,
 			detectIndentation: true
 		});
 
 		const { tabSize, insertSpaces } = model.getOptions();
 		assert.deepStrictEqual({ tabSize, insertSpaces }, {
 			tabSize: 8,
-			insertSpaces: false
+			insertSpaces: InsertSpaces.Tabs
 		});
 		model.dispose();
 	});
@@ -1118,7 +1120,7 @@ suite('Editor Model - TextModel', () => {
 		const model = createTextModel('', undefined, {
 			tabSize: 8,
 			indentSize: 3,
-			insertSpaces: 'mixed'
+			insertSpaces: InsertSpaces.Mixed
 		});
 
 		assert.deepStrictEqual([

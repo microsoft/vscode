@@ -252,9 +252,10 @@ class ConfigurationEditing {
 			if (configuredEol && typeof configuredEol === 'string' && configuredEol !== 'auto') {
 				eol = configuredEol;
 			}
+			const insertSpaces = this.configurationService.getValue('editor.insertSpaces', { overrideIdentifier: 'jsonc' });
 			this._formattingOptions = {
 				eol,
-				insertSpaces: !!this.configurationService.getValue('editor.insertSpaces', { overrideIdentifier: 'jsonc' }),
+				insertSpaces: insertSpaces === true || insertSpaces === 'spaces' || insertSpaces === 'mixed',
 				tabSize: this.configurationService.getValue('editor.tabSize', { overrideIdentifier: 'jsonc' })
 			};
 		}

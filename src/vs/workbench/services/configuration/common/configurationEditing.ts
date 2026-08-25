@@ -24,6 +24,7 @@ import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uri
 import { ITextModel } from '../../../../editor/common/model.js';
 import { IDisposable, IReference } from '../../../../base/common/lifecycle.js';
 import { Range } from '../../../../editor/common/core/range.js';
+import { InsertSpaces } from '../../../../editor/common/core/misc/indentation.js';
 import { EditOperation } from '../../../../editor/common/core/editOperation.js';
 import { Selection } from '../../../../editor/common/core/selection.js';
 import { IUserDataProfileService } from '../../userDataProfile/common/userDataProfile.js';
@@ -258,7 +259,7 @@ export class ConfigurationEditing {
 	private getFormattingOptions(model: ITextModel): FormattingOptions {
 		const { insertSpaces, tabSize } = model.getOptions();
 		const eol = model.getEOL();
-		return { insertSpaces: insertSpaces !== false, tabSize, eol };
+		return { insertSpaces: insertSpaces !== InsertSpaces.Tabs, tabSize, eol };
 	}
 
 	private async onError(error: ConfigurationEditingError, operation: IConfigurationEditOperation, scopes: IConfigurationUpdateOverrides | undefined): Promise<void> {

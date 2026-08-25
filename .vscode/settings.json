@@ -12,7 +12,7 @@
 	},
 	"chat.editing.explainChanges.enabled": true,
 	// --- Editor ---
-	"editor.insertSpaces": false,
+	"editor.insertSpaces": "tabs",
 	"editor.experimental.asyncTokenization": true,
 	"editor.experimental.asyncTokenizationVerification": true,
 	"editor.occurrencesHighlightDelay": 0,

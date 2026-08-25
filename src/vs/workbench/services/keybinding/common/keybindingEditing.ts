@@ -11,6 +11,7 @@ import { setProperty } from '../../../../base/common/jsonEdit.js';
 import { Edit } from '../../../../base/common/jsonFormatter.js';
 import { Disposable, IReference } from '../../../../base/common/lifecycle.js';
 import { EditOperation } from '../../../../editor/common/core/editOperation.js';
+import { InsertSpaces } from '../../../../editor/common/core/misc/indentation.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { Selection } from '../../../../editor/common/core/selection.js';
 import { ITextModel } from '../../../../editor/common/model.js';
@@ -125,7 +126,7 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 
 	private updateKeybinding(keybindingItem: ResolvedKeybindingItem, newKey: string, when: string | undefined, model: ITextModel, userKeybindingEntryIndex: number): void {
 		const { tabSize, insertSpaces: modelInsertSpaces } = model.getOptions();
-		const insertSpaces = modelInsertSpaces !== false;
+		const insertSpaces = modelInsertSpaces !== InsertSpaces.Tabs;
 		const eol = model.getEOL();
 		if (userKeybindingEntryIndex !== -1) {
 			// Update the keybinding with new key
@@ -142,7 +143,7 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 
 	private removeUserKeybinding(keybindingItem: ResolvedKeybindingItem, model: ITextModel): void {
 		const { tabSize, insertSpaces: modelInsertSpaces } = model.getOptions();
-		const insertSpaces = modelInsertSpaces !== false;
+		const insertSpaces = modelInsertSpaces !== InsertSpaces.Tabs;
 		const eol = model.getEOL();
 		const userKeybindingEntries = <IUserFriendlyKeybinding[]>json.parse(model.getValue());
 		const userKeybindingEntryIndex = this.findUserKeybindingEntryIndex(keybindingItem, userKeybindingEntries);
@@ -153,7 +154,7 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 
 	private removeDefaultKeybinding(keybindingItem: ResolvedKeybindingItem, model: ITextModel): void {
 		const { tabSize, insertSpaces: modelInsertSpaces } = model.getOptions();
-		const insertSpaces = modelInsertSpaces !== false;
+		const insertSpaces = modelInsertSpaces !== InsertSpaces.Tabs;
 		const eol = model.getEOL();
 		const key = keybindingItem.resolvedKeybinding ? keybindingItem.resolvedKeybinding.getUserSettingsLabel() : null;
 		if (key) {
@@ -167,7 +168,7 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 
 	private removeUnassignedDefaultKeybinding(keybindingItem: ResolvedKeybindingItem, model: ITextModel): void {
 		const { tabSize, insertSpaces: modelInsertSpaces } = model.getOptions();
-		const insertSpaces = modelInsertSpaces !== false;
+		const insertSpaces = modelInsertSpaces !== InsertSpaces.Tabs;
 		const eol = model.getEOL();
 		const userKeybindingEntries = <IUserFriendlyKeybinding[]>json.parse(model.getValue());
 		const indices = this.findUnassignedDefaultKeybindingEntryIndex(keybindingItem, userKeybindingEntries).reverse();

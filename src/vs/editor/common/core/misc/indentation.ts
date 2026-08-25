@@ -6,11 +6,32 @@
 import * as strings from '../../../../base/common/strings.js';
 import { CursorColumns } from '../cursorColumns.js';
 
-export type InsertSpaces = boolean | 'mixed';
+export enum InsertSpaces {
+	Spaces = 'spaces',
+	Tabs = 'tabs',
+	Mixed = 'mixed'
+}
+
+export function parseInsertSpaces(value: unknown): InsertSpaces | undefined {
+	switch (value) {
+		case InsertSpaces.Spaces:
+		case true:
+		case 'true':
+			return InsertSpaces.Spaces;
+		case InsertSpaces.Tabs:
+		case false:
+		case 'false':
+			return InsertSpaces.Tabs;
+		case InsertSpaces.Mixed:
+			return InsertSpaces.Mixed;
+		default:
+			return undefined;
+	}
+}
 
 function _normalizeIndentationFromWhitespace(str: string, indentSize: number, tabSize: number, insertSpaces: InsertSpaces): string {
 	let spacesCnt = 0;
-	const renderTabSize = insertSpaces === 'mixed' ? tabSize : indentSize;
+	const renderTabSize = insertSpaces === InsertSpaces.Mixed ? tabSize : indentSize;
 	for (let i = 0; i < str.length; i++) {
 		if (str.charAt(i) === '\t') {
 			spacesCnt = CursorColumns.nextRenderTabStop(spacesCnt, renderTabSize);
@@ -20,8 +41,8 @@ function _normalizeIndentationFromWhitespace(str: string, indentSize: number, ta
 	}
 
 	let result = '';
-	if (insertSpaces !== true) {
-		const indentationTabSize = insertSpaces === 'mixed' ? tabSize : indentSize;
+	if (insertSpaces !== InsertSpaces.Spaces) {
+		const indentationTabSize = insertSpaces === InsertSpaces.Mixed ? tabSize : indentSize;
 		const tabsCnt = Math.floor(spacesCnt / indentationTabSize);
 		spacesCnt = spacesCnt % indentationTabSize;
 		for (let i = 0; i < tabsCnt; i++) {

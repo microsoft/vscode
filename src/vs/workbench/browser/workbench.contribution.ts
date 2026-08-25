@@ -5,6 +5,7 @@
 
 import { isStandalone } from '../../base/browser/browser.js';
 import { isLinux, isMacintosh, isNative, isWeb, isWindows } from '../../base/common/platform.js';
+import { InsertSpaces } from '../../editor/common/core/misc/indentation.js';
 import { localize } from '../../nls.js';
 import { Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationRegistry } from '../../platform/configuration/common/configurationRegistry.js';
 import product from '../../platform/product/common/product.js';
@@ -990,6 +991,17 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 	});
 
 })();
+
+Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration)
+	.registerConfigurationMigrations([{
+		key: 'editor.insertSpaces', migrateFn: (value: unknown) => {
+			const result: ConfigurationKeyValuePairs = [];
+			if (typeof value === 'boolean') {
+				result.push(['editor.insertSpaces', { value: value ? InsertSpaces.Spaces : InsertSpaces.Tabs }]);
+			}
+			return result;
+		}
+	}]);
 
 Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration)
 	.registerConfigurationMigrations([{

@@ -11,6 +11,7 @@ import { assertType } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { toFormattedString } from '../../../../base/common/jsonFormatter.js';
 import { ITextModel, ITextBufferFactory, ITextBuffer } from '../../../../editor/common/model.js';
+import { InsertSpaces } from '../../../../editor/common/core/misc/indentation.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
 import { ILanguageSelection, ILanguageService } from '../../../../editor/common/languages/language.js';
 import { ITextModelContentProvider, ITextModelService } from '../../../../editor/common/services/resolverService.js';
@@ -53,6 +54,7 @@ import { IResourceEditorInput } from '../../../../platform/editor/common/editor.
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IWorkingCopyEditorHandler, IWorkingCopyEditorService } from '../../../services/workingCopy/common/workingCopyEditorService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ConfigurationKeyValuePairs, Extensions as ConfigurationMigrationExtensions, IConfigurationMigrationRegistry } from '../../../common/configuration.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { NotebookRendererMessagingService } from './services/notebookRendererMessagingServiceImpl.js';
@@ -958,6 +960,27 @@ const editorOptionsCustomizationSchema: IConfigurationPropertySchema = {
 	],
 	tags: ['notebookLayout']
 };
+
+Registry.as<IConfigurationMigrationRegistry>(ConfigurationMigrationExtensions.ConfigurationMigration)
+	.registerConfigurationMigrations([{
+		key: NotebookSetting.cellEditorOptionsCustomizations,
+		migrateFn: (value: unknown) => {
+			const result: ConfigurationKeyValuePairs = [];
+			if (value && typeof value === 'object' && !Array.isArray(value)) {
+				const customizations = value as Record<string, unknown>;
+				const insertSpaces = customizations['editor.insertSpaces'];
+				if (typeof insertSpaces === 'boolean') {
+					result.push([NotebookSetting.cellEditorOptionsCustomizations, {
+						value: {
+							...customizations,
+							'editor.insertSpaces': insertSpaces ? InsertSpaces.Spaces : InsertSpaces.Tabs
+						}
+					}]);
+				}
+			}
+			return result;
+		}
+	}]);
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 configurationRegistry.registerConfiguration({

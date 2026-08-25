@@ -6,6 +6,7 @@ import assert from 'assert';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { CoreEditingCommands } from '../../../../browser/coreCommands.js';
 import { ICodeEditor } from '../../../../browser/editorBrowser.js';
+import { InsertSpaces } from '../../../../common/core/misc/indentation.js';
 import { Selection } from '../../../../common/core/selection.js';
 import { Range } from '../../../../common/core/range.js';
 import { Handler } from '../../../../common/editorCommon.js';
@@ -299,7 +300,7 @@ suite('SnippetController2', function () {
 		ctrl = instaService.createInstance(SnippetController2, editor);
 
 		model.setValue('');
-		model.updateOptions({ insertSpaces: false, tabSize: 4, trimAutoWhitespace: false });
+		model.updateOptions({ insertSpaces: InsertSpaces.Tabs, tabSize: 4, trimAutoWhitespace: false });
 		editor.setSelection(new Selection(1, 1, 1, 1));
 
 		ctrl.insert(`
@@ -511,7 +512,7 @@ suite('SnippetController2', function () {
 	test('leading TAB by snippets won\'t replace by spaces #101870', function () {
 		ctrl = instaService.createInstance(SnippetController2, editor);
 		model.setValue('');
-		model.updateOptions({ insertSpaces: true, tabSize: 4 });
+		model.updateOptions({ insertSpaces: InsertSpaces.Spaces, tabSize: 4 });
 		ctrl.insert('\tHello World\n\tNew Line');
 		assert.strictEqual(model.getValue(), '    Hello World\n    New Line');
 	});
@@ -519,7 +520,7 @@ suite('SnippetController2', function () {
 	test('leading TAB by snippets won\'t replace by spaces #101870 (part 2)', function () {
 		ctrl = instaService.createInstance(SnippetController2, editor);
 		model.setValue('');
-		model.updateOptions({ insertSpaces: true, tabSize: 4 });
+		model.updateOptions({ insertSpaces: InsertSpaces.Spaces, tabSize: 4 });
 		ctrl.insert('\tHello World\n\tNew Line\n${1:\tmore}');
 		assert.strictEqual(model.getValue(), '    Hello World\n    New Line\n    more');
 	});
@@ -530,7 +531,7 @@ suite('SnippetController2', function () {
 			// HAPPY - no nested snippet
 			ctrl = instaService.createInstance(SnippetController2, editor);
 			model.setValue('');
-			model.updateOptions({ insertSpaces: true, tabSize: 4 });
+			model.updateOptions({ insertSpaces: InsertSpaces.Spaces, tabSize: 4 });
 			ctrl.insert('$1\n\n${1/([A-Za-z0-9]+): ([A-Za-z]+).*/$1: \'$2\',/gm}');
 
 			assertSelections(editor, new Selection(1, 1, 1, 1), new Selection(3, 1, 3, 1));
@@ -541,7 +542,7 @@ suite('SnippetController2', function () {
 
 		ctrl = instaService.createInstance(SnippetController2, editor);
 		model.setValue('');
-		model.updateOptions({ insertSpaces: true, tabSize: 4 });
+		model.updateOptions({ insertSpaces: InsertSpaces.Spaces, tabSize: 4 });
 		ctrl.insert('$1\n\n${1/([A-Za-z0-9]+): ([A-Za-z]+).*/$1: \'$2\',/gm}');
 
 		assertSelections(editor, new Selection(1, 1, 1, 1), new Selection(3, 1, 3, 1));

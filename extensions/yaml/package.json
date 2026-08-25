@@ -91,7 +91,7 @@
     ],
     "configurationDefaults": {
       "[yaml]": {
-        "editor.insertSpaces": true,
+        "editor.insertSpaces": "spaces",
         "editor.tabSize": 2,
         "editor.autoIndent": "advanced",
         "diffEditor.ignoreTrimWhitespace": false,
@@ -101,7 +101,7 @@
         }
       },
       "[dockercompose]": {
-        "editor.insertSpaces": true,
+        "editor.insertSpaces": "spaces",
         "editor.tabSize": 2,
         "editor.autoIndent": "advanced"
       }

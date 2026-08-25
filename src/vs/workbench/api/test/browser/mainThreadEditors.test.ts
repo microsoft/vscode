@@ -12,6 +12,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { IBulkEditService } from '../../../../editor/browser/services/bulkEditService.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { EditOperation, ISingleEditOperation } from '../../../../editor/common/core/editOperation.js';
+import { InsertSpaces } from '../../../../editor/common/core/misc/indentation.js';
 import { Position } from '../../../../editor/common/core/position.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
@@ -273,7 +274,7 @@ suite('MainThreadEditors', () => {
 		assert.deepStrictEqual({ tabSize, indentSize, insertSpaces }, {
 			tabSize: 8,
 			indentSize: 3,
-			insertSpaces: 'mixed'
+			insertSpaces: InsertSpaces.Mixed
 		});
 	});
 

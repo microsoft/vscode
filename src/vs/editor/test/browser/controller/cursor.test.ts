@@ -10,6 +10,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { CoreEditingCommands, CoreNavigationCommands } from '../../../browser/coreCommands.js';
 import { IEditorOptions } from '../../../common/config/editorOptions.js';
 import { EditOperation } from '../../../common/core/editOperation.js';
+import { InsertSpaces } from '../../../common/core/misc/indentation.js';
 import { Position } from '../../../common/core/position.js';
 import { Range } from '../../../common/core/range.js';
 import { Selection } from '../../../common/core/selection.js';
@@ -3269,7 +3270,7 @@ suite('Editor Controller', () => {
 		const model = createTextModel('work();', undefined, {
 			tabSize: 8,
 			indentSize: 3,
-			insertSpaces: 'mixed'
+			insertSpaces: InsertSpaces.Mixed
 		});
 
 		withTestCodeEditor(model, {}, (editor, viewModel) => {
@@ -3285,7 +3286,7 @@ suite('Editor Controller', () => {
 		const model = createTextModel('      work();', undefined, {
 			tabSize: 8,
 			indentSize: 3,
-			insertSpaces: 'mixed'
+			insertSpaces: InsertSpaces.Mixed
 		});
 
 		withTestCodeEditor(model, {}, (editor, viewModel) => {
@@ -3362,7 +3363,7 @@ suite('Editor Controller', () => {
 			]
 		}, (editor, model, viewModel) => {
 			model.updateOptions({
-				insertSpaces: false
+				insertSpaces: InsertSpaces.Tabs
 			});
 			moveTo(editor, viewModel, 1, 4, false);
 			viewModel.type('\n', 'keyboard');
@@ -4069,7 +4070,7 @@ suite('Editor Controller', () => {
 			modelOpts: {
 				tabSize: 8,
 				indentSize: 3,
-				insertSpaces: 'mixed',
+				insertSpaces: InsertSpaces.Mixed,
 				detectIndentation: false
 			}
 		}, (editor, model, viewModel) => {
