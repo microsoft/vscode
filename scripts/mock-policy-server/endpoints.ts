@@ -86,11 +86,75 @@ declare var MOCK_POLICY_ENDPOINTS: EndpointDef[];
 				{
 					id: 'disable-bypass-permissions',
 					label: 'Disable bypass permissions',
-					description: 'Disables bypass permissions mode.',
+					description: 'Blocks all escalation to bypass-permissions ("allow-all"/"yolo") mode, including auto-approval.',
 					status: 200,
 					body: {
 						permissions: {
 							disableBypassPermissionsMode: 'disable'
+						}
+					}
+				},
+				{
+					id: 'allow-auto-only',
+					label: 'Allow auto-approval only',
+					description: 'Blocks full allow-all bypass but still permits advisory auto-approval (LLM safety recommendations with normal prompt paths).',
+					status: 200,
+					body: {
+						permissions: {
+							disableBypassPermissionsMode: 'allow-auto-only'
+						}
+					}
+				},
+				{
+					id: 'deny-dangerous-commands',
+					label: 'Deny dangerous shell/file operations',
+					description: 'Blocks specific shell commands, file writes, and a domain outright. Deny always wins and is unioned across every managed source.',
+					status: 200,
+					body: {
+						permissions: {
+							deny: [
+								'Shell(rm -rf *)',
+								'Shell(curl *)',
+								'Write(/etc/**)',
+								'Domain(evil.example.com)'
+							]
+						}
+					}
+				},
+				{
+					id: 'ask-before-publish',
+					label: 'Ask before publishing or deploying',
+					description: 'Requires human approval for package publish/deploy commands and any write outside the workspace, without blocking them entirely. Ask wins over allow but loses to deny.',
+					status: 200,
+					body: {
+						permissions: {
+							ask: [
+								'Shell(npm publish *)',
+								'Shell(git push *)',
+								'Write(~/**)'
+							]
+						}
+					}
+				},
+				{
+					id: 'lockdown-allowlist',
+					label: 'Lockdown: allow only an approved set',
+					description: 'Intersects with any other managed allow list, so only requests every managed source admits run without prompting. Combine with deny/ask for defense in depth.',
+					status: 200,
+					body: {
+						permissions: {
+							disableBypassPermissionsMode: 'disable',
+							allow: [
+								'Read(**)',
+								'Shell(git status)',
+								'Shell(git diff *)',
+								'Domain(github.com)',
+								'Domain(*.githubusercontent.com)'
+							],
+							deny: [
+								'Write(/etc/**)',
+								'Write(~/.ssh/**)'
+							]
 						}
 					}
 				},
