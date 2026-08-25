@@ -682,6 +682,8 @@ export interface ISession {
 	readonly isAutomation?: IObservable<boolean>;
 	/** Whether this session was discovered in an application other than the current host. Absent means `false`. */
 	readonly isExternal?: IObservable<boolean>;
+	/** Session turn that created this session, when it was created by another agent session. */
+	readonly createdBySession?: IObservable<ISessionCreationReference | undefined>;
 
 	// Reactive properties
 
@@ -725,6 +727,12 @@ export interface ISession {
 	 * arrives after the session's first state update).
 	 */
 	readonly capabilities: IObservable<ISessionCapabilities>;
+}
+
+export interface ISessionCreationReference {
+	readonly session: URI;
+	readonly chat?: URI;
+	readonly turnId?: string;
 }
 
 /** Returns whether any chat or session-level fallback reports file changes. */
