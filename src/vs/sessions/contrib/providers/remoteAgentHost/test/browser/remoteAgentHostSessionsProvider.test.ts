@@ -159,8 +159,7 @@ class MockAgentConnection extends mock<IAgentConnection>() {
 			onDidApplyAction: Event.None,
 		};
 		if (failing) {
-			// The real subscription resolves first and settles into an error afterwards, so the
-			// consumer attaches its listeners before the failure lands.
+			// Defer the error so the consumer can attach listeners after the reference resolves.
 			queueMicrotask(() => {
 				error = new Error(`not found: ${key}`);
 				errorEmitter.fire(error);
