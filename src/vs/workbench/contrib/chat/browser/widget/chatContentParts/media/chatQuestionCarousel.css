@@ -244,10 +244,6 @@
 			background-color: var(--vscode-list-activeSelectionBackground, var(--vscode-list-hoverBackground));
 			color: var(--vscode-list-activeSelectionForeground, var(--vscode-foreground));
 
-			.chat-question-label {
-				color: var(--vscode-list-activeSelectionForeground, var(--vscode-foreground));
-			}
-
 			.chat-question-list-label-desc {
 				color: var(--vscode-list-activeSelectionForeground, var(--vscode-foreground));
 			}
@@ -289,12 +285,6 @@
 
 		.chat-question-freeform-number {
 			height: fit-content;
-		}
-
-		/* this is probably legacy too */
-		.chat-question-freeform-label {
-			font-size: var(--vscode-chat-font-size-body-s);
-			color: var(--vscode-descriptionForeground);
 		}
 
 		.chat-question-freeform-textarea {
@@ -460,12 +450,6 @@
 	.chat-question-summary-answer-title {
 		color: var(--vscode-foreground);
 		font-weight: 600;
-		word-wrap: break-word;
-		overflow-wrap: break-word;
-	}
-
-	.chat-question-summary-answer-desc {
-		color: var(--vscode-foreground);
 		word-wrap: break-word;
 		overflow-wrap: break-word;
 	}

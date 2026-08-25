@@ -7581,7 +7581,7 @@ suite('AgentHostChatContribution', () => {
 			}
 		});
 
-		test('restores subagent pills from the chat catalog when tool metadata was lost', async () => {
+		test('restores failed subagent calls from the chat catalog when tool metadata was lost', async () => {
 			const byok = createByokLanguageModelTestData();
 			const { sessionHandler, agentHostService } = createContribution(disposables, byok);
 			const sessionUri = AgentSession.uri('copilot', 'subagent-history');
@@ -7613,7 +7613,8 @@ suite('AgentHostChatContribution', () => {
 							displayName: 'Delegating task',
 							invocationMessage: 'Delegating task',
 							confirmed: ToolCallConfirmationReason.NotNeeded,
-							success: true,
+							success: false,
+							error: { message: 'Subagent failed after producing a child chat' },
 							content: [],
 						},
 					}],
@@ -7715,6 +7716,45 @@ suite('AgentHostChatContribution', () => {
 				isActive: false,
 				activeToolState: IChatToolInvocation.StateKind.Completed,
 			});
+		});
+
+		test('does not subscribe to child chats for failed historical subagent calls', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const sessionUri = AgentSession.uri('copilot', 'failed-subagent-history');
+			const defaultChatUri = buildDefaultChatUri(sessionUri.toString());
+			const childChatUri = buildSubagentChatUri(sessionUri.toString(), 'tc-failed-subagent');
+			const summary = { resource: sessionUri.toString(), provider: 'copilot', title: 'Test', status: SessionStatus.Idle, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString() };
+			agentHostService.sessionStates.set(sessionUri.toString(), {
+				...createSessionState(summary),
+				lifecycle: SessionLifecycle.Ready,
+				defaultChat: defaultChatUri,
+				turns: [{
+					id: 'turn-1',
+					message: { text: 'delegate work', origin: { kind: MessageKind.User } },
+					state: TurnState.Complete,
+					responseParts: [{
+						kind: ResponsePartKind.ToolCall,
+						toolCall: {
+							status: ToolCallStatus.Completed,
+							toolCallId: 'tc-failed-subagent',
+							toolName: 'task',
+							displayName: 'Delegate Task',
+							invocationMessage: 'Delegating task',
+							confirmed: ToolCallConfirmationReason.NotNeeded,
+							success: false,
+							pastTenseMessage: 'Delegation failed',
+							error: { message: 'Maximum sub-agent depth reached' },
+							content: [],
+						},
+					}],
+					usage: undefined,
+				}],
+			} as SessionState);
+
+			const chatSession = await sessionHandler.provideChatSessionContent(URI.from({ scheme: 'agent-host-copilot', path: '/failed-subagent-history' }), CancellationToken.None);
+			disposables.add(toDisposable(() => chatSession.dispose()));
+
+			assert.strictEqual(agentHostService.hasLiveSubscription(childChatUri), false);
 		});
 
 		test('preserves reconstructed task descriptions over generic migrated subagent titles', async () => {
