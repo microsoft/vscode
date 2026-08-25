@@ -274,8 +274,47 @@ const ignoringReporter = {
 };
 
 export function parseArgs<T>(args: string[], options: OptionDescriptions<T>, errorReporter: ErrorReporter = ignoringReporter): T {
+	const optionsByName: Record<string, Option<'boolean'> | Option<'string'> | Option<'string[]'>> = {};
+	for (const optionId in options) {
+		const o = options[optionId];
+		if (o.type === 'subcommand') {
+			continue;
+		}
+		optionsByName[optionId] = o;
+		if (o.alias) {
+			optionsByName[o.alias] = o;
+		}
+		if (o.deprecates) {
+			for (const deprecatedId of o.deprecates) {
+				optionsByName[deprecatedId] = o;
+			}
+		}
+	}
+
 	// Find the first non-option arg, which also isn't the value for a previous `--flag`
-	const firstPossibleCommand = args.find((a, i) => a.length > 0 && a[0] !== '-' && options.hasOwnProperty(a) && options[a as T].type === 'subcommand');
+	let firstPossibleCommand: string | undefined = undefined;
+	let expectsValue = false;
+	for (const a of args) {
+		if (expectsValue) {
+			expectsValue = false;
+			continue;
+		}
+		if (a.length > 0 && a[0] !== '-') {
+			if (options.hasOwnProperty(a) && options[a as T].type === 'subcommand') {
+				firstPossibleCommand = a;
+				break;
+			}
+		} else {
+			const name = a.startsWith('--') ? a.slice(2) : a.slice(1);
+			if (name.includes('=')) {
+				continue;
+			}
+			const o = optionsByName[name];
+			if (o && (o.type === 'string' || o.type === 'string[]')) {
+				expectsValue = true;
+			}
+		}
+	}
 
 	const alias: { [key: string]: string } = {};
 	const stringOptions: string[] = ['_'];

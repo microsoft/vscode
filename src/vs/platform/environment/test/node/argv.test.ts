@@ -183,5 +183,70 @@ suite('parseArgs', () => {
 		);
 	});
 
+	test('subcommand vs option value', () => {
+
+		interface TestArgs3 {
+			chat?: {
+				verbose?: boolean;
+				_: string[];
+			};
+			tunnel?: {
+				verbose?: boolean;
+				_: string[];
+			};
+			agent?: {
+				verbose?: boolean;
+				_: string[];
+			};
+			profile?: string;
+			verbose?: boolean;
+			_: string[];
+		}
+
+		const options3 = {
+			'chat': c('Chat', { _: { type: 'string[]' } }),
+			'tunnel': c('Tunnel', { _: { type: 'string[]' } }),
+			'agent': c('Agent', { _: { type: 'string[]' } }),
+			profile: o('Profile name'),
+			verbose: { type: 'boolean', global: true, description: '' },
+			_: { type: 'string[]' }
+		} as OptionDescriptions<TestArgs3>;
+
+		assertParse(
+			options3,
+			['--profile', 'agent'],
+			{ profile: 'agent', verbose: false, '_': [] },
+			[]
+		);
+
+		assertParse(
+			options3,
+			['--profile', 'x', 'tunnel'],
+			{ tunnel: { verbose: false, '_': [] }, '_': [] },
+			['tunnel-onUnknownOption profile']
+		);
+
+		assertParse(
+			options3,
+			['tunnel'],
+			{ tunnel: { verbose: false, '_': [] }, '_': [] },
+			[]
+		);
+
+		assertParse(
+			options3,
+			['--verbose', 'chat'],
+			{ chat: { verbose: true, '_': [] }, '_': [] },
+			[]
+		);
+
+		assertParse(
+			options3,
+			['--profile=agent', 'tunnel'],
+			{ tunnel: { verbose: false, '_': [] }, '_': [] },
+			['tunnel-onUnknownOption profile']
+		);
+	});
+
 	ensureNoDisposablesAreLeakedInTestSuite();
 });
