@@ -141,6 +141,9 @@ const valid: [name: string, content: string | undefined][] = [
 	['open brace inside a string', '{ "s": "{" , "a": 1 }'],
 	['already correct', '{ "editor.editContext": true }'],
 	['boolean value', '{ "editor.editContext": false }'],
+	['nested root values', '{ "files": { "simpleDialog": { "enable": false } }, "editor": { "editContext": false } }'],
+	['direct setting before nested namespace', '{ "editor.editContext": false, "editor": { "editContext": false } }'],
+	['nested namespace before direct setting', '{ "editor": { "editContext": false }, "editor.editContext": false }'],
 	['null value', '{ "files.simpleDialog.enable": null }'],
 	['quoted value', '{ "editor.editContext": "false" }'],
 	['exponent value', '{ "editor.editContext": 1e2 }'],
@@ -151,6 +154,8 @@ const valid: [name: string, content: string | undefined][] = [
 	['duplicate key, primitive last', '{ "editor.editContext": { "x": 1 }, "editor.editContext": false }'],
 	['language override only', '{ "[typescript]": { "editor.editContext": false } }'],
 	['window setting inside a language block is inert', '{ "[typescript]": { "files.simpleDialog.enable": false } }'],
+	['nested language override', '{ "[typescript]": { "editor": { "editContext": false } } }'],
+	['nested window setting inside a language block is inert', '{ "[typescript]": { "files": { "simpleDialog": { "enable": false } } } }'],
 	['language override and root', '{ "[typescript]": { "editor.editContext": false }, "editor.editContext": false }'],
 	['two language overrides', '{ "[typescript]": { "editor.editContext": false }, "[python]": { "editor.editContext": 0 } }'],
 	['override alongside another setting', '{ "[md]": { "editor.editContext": "no", "editor.tabSize": 2 } }'],
@@ -191,7 +196,10 @@ for (const [name, content] of valid) {
 				continue;
 			}
 			const isOverride = OVERRIDE_KEY.test(key);
-			assert.deepStrictEqual(stripKeys(parsed[key], isOverride), stripKeys(value, isOverride),
+			const normalizedPaths = isOverride ? [['editor.editContext'], ['editor', 'editContext']] :
+				key === 'editor' ? [['editContext']] :
+					key === 'files' ? [['simpleDialog', 'enable']] : [];
+			assert.deepStrictEqual(stripPaths(parsed[key], normalizedPaths), stripPaths(value, normalizedPaths),
 				`${key} was not preserved in:\n${text}`);
 		}
 		// Comments are data too, and a reparse-and-rewrite would silently drop them.
@@ -225,21 +233,17 @@ function stripStrings(text: string): string {
 // This mirrors what the repository's own watcher tests do.
 const posixOnly = { skip: process.platform === 'win32' ? 'symlinks require elevation on Windows' : false };
 
-// Values nested under a language override legitimately change (that is the
-// point), so compare everything else structurally with those keys removed.
-function stripKeys(value: unknown, isOverrideBlock: boolean): unknown {
-	// Only direct children of a top-level `[language]` block are rewritten, so
-	// only those may be stripped. Recursing everywhere would also hide a deeply
-	// nested `editor.editContext` being corrupted - exactly what this guards.
+// Remove only the exact setting paths normalization may change. Recursing with
+// an empty path list still compares every unrelated nested value.
+function stripPaths(value: unknown, paths: string[][]): unknown {
 	if (value === null || typeof value !== 'object' || Array.isArray(value)) {
 		return value;
 	}
 	const out: Record<string, unknown> = {};
 	for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
-		if (isOverrideBlock && OVERRIDABLE_KEYS.includes(k)) {
-			continue;
-		}
-		out[k] = stripKeys(v, false);
+		const matching = paths.filter(path => path[0] === k);
+		if (matching.some(path => path.length === 1)) { continue; }
+		out[k] = stripPaths(v, matching.map(path => path.slice(1)));
 	}
 	return out;
 }
@@ -501,6 +505,22 @@ test('rejects a folder workspace that disables the simple dialog', () => {
 	}, { status: 1, settings: original });
 });
 
+
+test('resolves dotted and nested workspace settings in source order', () => {
+	const cases: [content: string, expectedStatus: number][] = [
+		['{ "files": { "simpleDialog": { "enable": false } } }', 1],
+		['{ "files.simpleDialog.enable": true, "files": { "simpleDialog": { "enable": false } } }', 1],
+		['{ "files": { "simpleDialog": { "enable": false } }, "files.simpleDialog.enable": true }', 0]
+	];
+	const statuses = cases.map(([content], index) => {
+		const root = fixtureRoot('nas-workspace-order-' + index + '-');
+		const settingsFile = path.join(root, '.vscode', 'settings.json');
+		fs.mkdirSync(path.dirname(settingsFile), { recursive: true });
+		fs.writeFileSync(settingsFile, content);
+		return workspaceCheckStatus([root]);
+	});
+	assert.deepStrictEqual(statuses, cases.map(([, expectedStatus]) => expectedStatus));
+});
 test('accepts comment-only workspace settings as an empty configuration', () => {
 	const root = fixtureRoot('nas-workspace-comment-');
 	const settingsFile = path.join(root, '.vscode', 'settings.json');

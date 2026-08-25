@@ -103,6 +103,35 @@ function parseJsonc(text: string, source: string): unknown {
 	}
 }
 
+function configurationValue(raw: Record<string, unknown>, key: string): { exists: boolean; value?: unknown } {
+	const tree: Record<string, unknown> = Object.create(null);
+	for (const [rawKey, value] of Object.entries(raw)) {
+		const segments = rawKey.split('.');
+		const last = segments.pop()!;
+		let current = tree;
+		let conflict = false;
+		for (const segment of segments) {
+			let child = current[segment];
+			if (child === undefined) {
+				child = current[segment] = Object.create(null);
+			} else if (child === null || typeof child !== 'object') {
+				conflict = true;
+				break;
+			}
+			current = child as Record<string, unknown>;
+		}
+		if (!conflict) { current[last] = value; }
+	}
+	let current: unknown = tree;
+	for (const segment of key.split('.')) {
+		if (!current || typeof current !== 'object' || !Object.hasOwn(current, segment)) {
+			return { exists: false };
+		}
+		current = (current as Record<string, unknown>)[segment];
+	}
+	return { exists: true, value: current };
+}
+
 function assertSimpleDialogForWorkspaceArgs(args: string[]): void {
 	const candidates = new Set<string>();
 	const positional: string[] = [];
@@ -212,7 +241,8 @@ function assertSimpleDialogForWorkspaceArgs(args: string[]): void {
 		const settings = workspaceFile ? (root as Record<string, unknown>).settings : root;
 		if (!settings || typeof settings !== 'object' || Array.isArray(settings)) { continue; }
 		const values = settings as Record<string, unknown>;
-		if (Object.hasOwn(values, 'files.simpleDialog.enable') && values['files.simpleDialog.enable'] !== true) {
+		const simpleDialog = configurationValue(values, 'files.simpleDialog.enable');
+		if (simpleDialog.exists && simpleDialog.value !== true) {
 			console.error('[normalize-automation-settings] ' + settingsFile +
 				' overrides files.simpleDialog.enable; set it to true or remove it so automation never opens a native dialog');
 			process.exit(1);
@@ -291,29 +321,28 @@ export function normalizeSettingsFile(f: string, root?: string): void {
 	// `textarea` in TypeScript editors while the page objects wait on
 	// `.native-edit-context`.
 	//
-	// Only *direct* properties of a top-level `[language]` block count, matching
-	// what VS Code itself recognizes (`OVERRIDE_PROPERTY_REGEX`, applied to
-	// top-level keys in `ConfigurationModelParser.toOverrides`). A same-named key
-	// anywhere else - `"some.extension": { "editor.editContext": false }` - is
-	// ordinary data belonging to another consumer and must not be touched.
+	// Both dotted and nested namespace forms inside a top-level `[language]` block
+	// count because `ConfigurationModelParser.toOverrides` runs `toValuesTree`.
+	// A same-named key anywhere else belongs to another consumer and must not be touched.
 	//
 	// For the root level the LAST occurrence is the effective one, which is what
 	// Code OSS honours when a profile contains duplicate keys.
 	interface Span { valueStart: number; valueLength: number }
 
-	function findProperties(masked: string, key: string): { root: Span | null; nested: Span[] } {
+	function findProperties(masked: string, key: string): { root: Span | null; rootNested: Span[]; nested: Span[] } {
 		let depth = 0, inString = false;
 		let root: Span | null = null;
 		const nested: Span[] = [];
+		const rootNested: Span[] = [];
 		let keyStart = -1, expectValue = false;
 		// One pending key per nesting level, so a nested object does not clobber the
 		// enclosing object's pending key.
 		const pendingKey: (string | null)[] = [];
-		// The top-level key whose object we are currently inside, so depth 2 can
-		// tell a `[language]` override from any other nested object.
-		let rootKeyOfCurrentObject: string | null = null;
+		const containerKeys: (string | null)[] = [];
+		const containerKinds: ('object' | 'array')[] = [];
 		let enteringKey: string | null = null;
 		const isOverrideKey = (k: string | null) => k !== null && /^(\[[^\]]+\])+$/.test(k);
+		const segments = key.split('.');
 		for (let i = 0; i < masked.length; i++) {
 			const c = masked[i];
 			if (inString) {
@@ -337,44 +366,47 @@ export function normalizeSettingsFile(f: string, root?: string): void {
 				// The string alternative must consume escapes, or a value such as
 				// `"a\"b"` would match only through `"a\"` and leave `trueb"`.
 				const m = /^(true|false|null|"(?:[^"\\\n]|\\.)*"|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)/.exec(masked.slice(i));
-				if (pendingKey[depth] === key) {
-					if (depth === 1) {
-						// Always reflect the LAST occurrence. If this one is not a
-						// primitive (an object or array value), drop any earlier hit:
-						// rewriting that one would leave the effective value unchanged.
-						root = m ? { valueStart: i, valueLength: m[1].length } : null;
-					} else if (m && depth === 2 && isOverrideKey(rootKeyOfCurrentObject)) {
-						nested.push({ valueStart: i, valueLength: m[1].length });
+				const currentKey = pendingKey[depth];
+				if (depth === 1 && currentKey === key) {
+					// Always reflect the LAST direct occurrence. If this one is not a
+					// primitive, drop any earlier hit: rewriting it would leave the
+					// effective value unchanged.
+					root = m ? { valueStart: i, valueLength: m[1].length } : null;
+				} else if (m && currentKey !== null && depth > 1 &&
+					containerKinds.slice(1, depth + 1).every(kind => kind === 'object')) {
+					const ancestors = containerKeys.slice(2, depth + 1);
+					const first = ancestors[0] ?? null;
+					const pathInScope = isOverrideKey(first) ? [...ancestors.slice(1), currentKey] : [...ancestors, currentKey];
+					if (pathInScope.every(segment => segment !== null) && pathInScope.join('.') === key) {
+						const span = { valueStart: i, valueLength: m[1].length };
+						if (isOverrideKey(first)) { nested.push(span); } else { rootNested.push(span); }
 					}
 				}
 				expectValue = false;
-				// Remember which key this non-primitive value belongs to before
-				// clearing it, so the `{` handler below can tell whether we are
-				// entering a `[language]` override block.
-				if (!m && depth === 1) { enteringKey = pendingKey[1]; }
+				if (!m) { enteringKey = currentKey; }
 				pendingKey[depth] = null;
 				if (m) { i += m[1].length - 1; continue; }
 				// Not a primitive: fall through so `{`/`[`/`"` is handled below.
 			}
 			if (c === '"') { inString = true; keyStart = i; continue; }
 			if (c === '{' || c === '[') {
-				if (depth === 1) { rootKeyOfCurrentObject = enteringKey; }
-				enteringKey = null;
 				depth++;
+				containerKeys[depth] = enteringKey;
+				containerKinds[depth] = c === '{' ? 'object' : 'array';
+				enteringKey = null;
 				pendingKey[depth] = null;
 				expectValue = false;
 				continue;
 			}
 			if (c === '}' || c === ']') {
 				depth--;
-				if (depth <= 1) { rootKeyOfCurrentObject = null; }
 				expectValue = false;
 				continue;
 			}
 			if (c === ':' && depth >= 1 && pendingKey[depth] !== null) { expectValue = true; continue; }
 			if (c === ',' && depth >= 1) { pendingKey[depth] = null; expectValue = false; continue; }
 		}
-		return { root, nested };
+		return { root, rootNested, nested };
 	}
 
 	// Locate the root object and prove it is balanced before rewriting anything.
@@ -470,13 +502,12 @@ export function normalizeSettingsFile(f: string, root?: string): void {
 	for (const [key, value, rewriteLanguageOverrides] of ENTRIES) {
 		let masked = codeMask(text, f);
 
-		const { root, nested } = findProperties(masked, key);
+		const { root, rootNested, nested } = findProperties(masked, key);
 
-		// Rewrite language overrides only for settings that support them, plus the
-		// root value. Apply spans last-first so earlier offsets stay valid; offsets
-		// line up with the original, so comments are left untouched.
+		// Rewrite nested root values, supported language overrides, and the direct
+		// root value. Apply spans last-first so earlier offsets stay valid.
 		const overrides = rewriteLanguageOverrides ? nested : [];
-		const spans = root ? [...overrides, root] : overrides;
+		const spans = root ? [...rootNested, ...overrides, root] : [...rootNested, ...overrides];
 		for (const span of spans.sort((a, b) => b.valueStart - a.valueStart)) {
 			text = text.slice(0, span.valueStart) + value + text.slice(span.valueStart + span.valueLength);
 		}
