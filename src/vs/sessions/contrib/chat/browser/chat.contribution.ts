@@ -208,7 +208,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		[AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_SETTING]: {
 			type: 'string',
 			default: '',
-			scope: ConfigurationScope.APPLICATION,
+			scope: ConfigurationScope.MACHINE,
 			markdownDescription: localize('chat.agentSessions.preferredDarkBackgroundImage', "Specifies an absolute file path or `file` URI for the image displayed behind chat content in the Agents Window when using a dark color theme. The image is hidden in high contrast themes."),
 			tags: ['experimental'],
 			ignoreSync: true,
@@ -216,7 +216,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		[AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_SETTING]: {
 			type: 'string',
 			default: '',
-			scope: ConfigurationScope.APPLICATION,
+			scope: ConfigurationScope.MACHINE,
 			markdownDescription: localize('chat.agentSessions.preferredLightBackgroundImage', "Specifies an absolute file path or `file` URI for the image displayed behind chat content in the Agents Window when using a light color theme. The image is hidden in high contrast themes."),
 			tags: ['experimental'],
 			ignoreSync: true,

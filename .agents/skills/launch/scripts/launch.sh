@@ -130,6 +130,8 @@ EXCLUDES=(
 	'/logs'
 	'/Cache' '/Code Cache' '/CachedData' '/component_crx_cache'
 	'/GPUCache' '/ShaderCache' '/Dawn*Cache'
+	'Partitions/vscode-browser/Cache' 'Partitions/vscode-browser/Code Cache'
+	'Partitions/vscode-browser/GPUCache' 'Partitions/vscode-browser/Dawn*Cache'
 	'/Backups' '/blob_storage' '/BrowserMetrics' '/Crashpad'
 	'/Session Storage'
 	'/Singleton*'
