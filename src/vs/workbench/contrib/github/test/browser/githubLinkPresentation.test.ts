@@ -11,7 +11,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ILinkPresentationProvider, ILinkPresentationProviderRegistration, ILinkPresentationService } from '../../../../../platform/dataChannel/common/dataChannel.js';
-import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { IDefaultAccount, IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IGitHubService } from '../../../../../platform/github/common/githubService.js';
 import { GitHubIssue, GitHubRepository } from '../../../../../platform/github/common/githubQueryService.js';
 import { FragmentState, PullRequestSnapshot } from '../../../../../platform/github/common/githubPullRequestService.js';
@@ -79,7 +79,7 @@ suite('GitHub link presentations', () => {
 
 	test('re-registers providers when the default account changes', () => {
 		const linkPresentationService = new TestLinkPresentationService();
-		const onDidChangeDefaultAccount = store.add(new Emitter<void>());
+		const onDidChangeDefaultAccount = store.add(new Emitter<IDefaultAccount | null>());
 		let authority = 'github.com';
 		store.add(new GitHubLinkPresentationContribution(
 			createGitHubService(() => { }),
@@ -95,7 +95,7 @@ suite('GitHub link presentations', () => {
 
 		const before = linkPresentationService.hasProvider(URI.parse('https://github.com/microsoft/vscode/issues/1'));
 		authority = 'github.example.com';
-		onDidChangeDefaultAccount.fire();
+		onDidChangeDefaultAccount.fire(null);
 
 		assert.deepStrictEqual({
 			before,
