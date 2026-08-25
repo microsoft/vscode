@@ -12,14 +12,14 @@ import { DisposableStore, IDisposable } from '../../../../../base/common/lifecyc
 import { ResourceSet } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { autorun, constObservable, IObservable } from '../../../../../base/common/observable.js';
-import { basename, dirname } from '../../../../../base/common/resources.js';
+import { basename, dirname, isEqualOrParent, relativePath } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { LOCAL_AGENT_HOST_AUTHORITY, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { type IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agent.js';
 import { affectsAgentHostProviderPreference, IAgentConnection, IAgentHostService, shouldSurfaceLocalAgentHostProvider } from '../../../../../platform/agentHost/common/agentService.js';
-import type { ISessionGitState } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import type { AgentCustomization, ISessionGitState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
@@ -56,6 +56,33 @@ function isSameLogicalModel(source: ILanguageModelChatMetadata, target: ILanguag
 		return source.byokModelIdentifier !== undefined && source.byokModelIdentifier === target.byokModelIdentifier;
 	}
 	return source.id === target.id && source.family === target.family && source.version === target.version;
+}
+
+function findEquivalentAgent(
+	selectedAgentUri: string,
+	sourceWorkspace: URI,
+	targetWorkspace: URI,
+	targetAgents: readonly AgentCustomization[],
+): AgentCustomization | undefined {
+	const exact = targetAgents.find(agent => agent.uri === selectedAgentUri);
+	if (exact) {
+		return exact;
+	}
+
+	const sourceAgentUri = URI.parse(selectedAgentUri);
+	if (!isEqualOrParent(sourceAgentUri, sourceWorkspace)) {
+		return undefined;
+	}
+	const relativeAgentPath = relativePath(sourceWorkspace, sourceAgentUri);
+	if (!relativeAgentPath) {
+		return undefined;
+	}
+
+	return targetAgents.find(agent => {
+		const candidate = URI.parse(agent.uri);
+		const targetRoot = candidate.with({ path: targetWorkspace.path, query: null, fragment: null });
+		return relativePath(targetRoot, candidate) === relativeAgentPath;
+	});
 }
 
 /**
@@ -336,9 +363,12 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 					sourceChat.modelSource.get() ?? ChatModelSource.CarriedOver,
 				);
 			}
-			const mode = sourceChat.mode.get();
-			if (mode) {
-				targetProvider.setMode?.(replacement.sessionId, mode.id);
+			const selectedAgentUri = sourceChat.mode.get()?.id;
+			const targetAgent = selectedAgentUri
+				? findEquivalentAgent(selectedAgentUri, sourceWorkspace, target.workspaceUri, targetProvider.getCustomAgents(replacement.sessionId))
+				: undefined;
+			if (targetAgent) {
+				targetProvider.setAgent?.(replacement.sessionId, { uri: targetAgent.uri, name: targetAgent.name });
 			}
 			return {
 				session: replacement,

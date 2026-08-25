@@ -3038,6 +3038,14 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const sourceModelId = 'agent-host-copilotcli:gpt-5';
 		const targetModelId = 'agent-host-devcontainer-copilotcli:gpt-5';
 		const selectedTargetModels: [string, URI, string, ChatModelSource][] = [];
+		const selectedTargetAgents: [string, string, string][] = [];
+		const sourceAgentUri = 'file:///home/user/project/.github/agents/reviewer.agent.md';
+		const targetAgent: AgentCustomization = {
+			type: CustomizationType.Agent,
+			id: 'reviewer',
+			uri: 'file:///workspaces/project/.github/agents/reviewer.agent.md',
+			name: 'Reviewer',
+		};
 		const targetProvider = new class extends mock<IAgentHostSessionsProvider>() {
 			override readonly id = targetProviderId;
 			override readonly onDidChangeSessionConfig = Event.None;
@@ -3084,6 +3092,14 @@ suite('LocalAgentHostSessionsProvider', () => {
 			}
 			override setModel(sessionId: string, chatResource: URI, modelId: string, source: ChatModelSource): void {
 				selectedTargetModels.push([sessionId, chatResource, modelId, source]);
+			}
+			override getCustomAgents(): readonly AgentCustomization[] {
+				return [targetAgent];
+			}
+			override setAgent(sessionId: string, agent: { readonly uri: string; readonly name: string } | undefined): void {
+				if (agent) {
+					selectedTargetAgents.push([sessionId, agent.uri, agent.name]);
+				}
 			}
 		}();
 		const sessionsProvidersService = new class extends mock<ISessionsProvidersService>() {
@@ -3133,6 +3149,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		state.replacement = replacement;
 
 		provider.setModel(source.sessionId, source.mainChat.get().resource, sourceModelId, ChatModelSource.Chosen);
+		provider.setAgent(source.sessionId, { uri: sourceAgentUri, name: 'Reviewer' });
 		provider.setDevContainerEnabled(source.sessionId, true);
 		const prepared = await provider.prepareNewSession(source.sessionId, CancellationToken.None);
 		await prepared.discard?.();
@@ -3144,6 +3161,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			preparedSessionId: prepared.session.sessionId,
 			transferredConfig,
 			selectedTargetModels,
+			selectedTargetAgents,
 			deletedTargetDrafts,
 			releaseCalls,
 			trustedTargetUris,
@@ -3154,6 +3172,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			preparedSessionId: replacement.sessionId,
 			transferredConfig: [['mode', 'interactive']],
 			selectedTargetModels: [[replacement.sessionId, replacementResource, targetModelId, ChatModelSource.Chosen]],
+			selectedTargetAgents: [[replacement.sessionId, targetAgent.uri, targetAgent.name]],
 			deletedTargetDrafts: [replacement.sessionId],
 			releaseCalls: 1,
 			trustedTargetUris: [remoteWorkspace.toString()],
