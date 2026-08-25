@@ -6,11 +6,12 @@
 import type { Mutable } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { isEqual } from '../../../../base/common/resources.js';
+import type { IAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
 import { localize } from '../../../../nls.js';
 import { AgentSession, type AgentProvider, type IAgentCreateSessionConfig, type IAgentModelInfo, type IAgentSessionMetadata } from '../../common/agent.js';
 import { SessionStatus } from '../../common/state/protocol/channels-session/state.js';
 import type { IAgentServerToolDefinition } from '../../common/agentServerTools.js';
-import { buildChatUri, buildDefaultChatUri, getInlineToolInput, getSessionRelatedPullRequestUrls, isDefaultChatUri, isSessionStatusArchived, isSessionStatusRead, parseChatUri, readSessionGitState, readSessionGitHubState, readSessionOrchestration, ResponsePartKind, ToolCallStatus, TurnState, type ISessionOrchestration, type Message, type ModelSelection, type ResponsePart, type SessionIdleNotification, type ToolCallState, type ToolDefinition, type Turn, type URI as ProtocolURI } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, getInlineToolInput, getSessionRelatedPullRequestUrls, isDefaultChatUri, isSessionStatusArchived, isSessionStatusRead, parseChatUri, readSessionGitState, readSessionGitHubState, ResponsePartKind, ToolCallStatus, TurnState, withSessionCreationReference, type Message, type ModelSelection, type ResponsePart, type ToolCallState, type ToolDefinition, type Turn, type URI as ProtocolURI } from '../../common/state/sessionState.js';
 import { buildOpenSessionLinkUri, parseOpenSessionLinkChatId, parseOpenSessionLinkUri } from '../../common/openSessionLink.js';
 import { SessionServerToolName } from '../../common/serverToolNames.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
@@ -58,8 +59,6 @@ const listSessionsInputSchema: ToolDefinition['inputSchema'] = {
 		includeArchived: { type: 'boolean', description: 'Whether to include archived sessions. Defaults to false; set true to also return archived sessions.' },
 		createdAfter: { type: 'string', description: 'Only return sessions created at or after this time (ISO-8601 timestamp, e.g. `2025-01-31T00:00:00Z`).' },
 		createdBefore: { type: 'string', description: 'Only return sessions created at or before this time (ISO-8601 timestamp).' },
-		parentSession: { type: 'string', description: 'Only return sessions created by this parent session URI or open-session link.' },
-		label: { type: 'string', description: 'Only return sessions with this orchestration label.' },
 	},
 };
 
@@ -69,9 +68,6 @@ const createSessionInputSchema: ToolDefinition['inputSchema'] = {
 		workspace: { type: 'string', description: 'Unique project name, project/workspace URI, absolute folder path, or working directory from an existing session. Use `create_chat` instead when the work should share the current session\'s workspace and changes.' },
 		prompt: { type: 'string', description: 'Initial prompt to send to the new session.' },
 		model: { type: 'string', description: 'Optional model ID or display name. Defaults to the current chat\'s model.' },
-		coordinateWithCreator: { type: 'boolean', description: 'Allow the child to identify and contact the session that created it. Set false for an independent child that must not send messages or create chats in its creator. Defaults to true.' },
-		notifyOnIdle: { type: 'string', enum: ['once', 'always'], description: 'Wake the creator when the child needs input, becomes idle, or errors, either once or after every work cycle.' },
-		label: { type: 'string', description: 'Optional label used to group and filter related child sessions.' },
 	},
 	required: ['workspace', 'prompt'],
 };
@@ -206,18 +202,12 @@ interface ICreateSessionArgs {
 	readonly workspace?: unknown;
 	readonly prompt?: unknown;
 	readonly model?: unknown;
-	readonly coordinateWithCreator?: unknown;
-	readonly notifyOnIdle?: unknown;
-	readonly label?: unknown;
 }
 
 export interface IResolvedCreateSessionArgs {
 	readonly workspace: URI;
 	readonly prompt: string;
 	readonly model?: IAgentModelInfo;
-	readonly coordinateWithCreator: boolean;
-	readonly notifyOnIdle?: SessionIdleNotification;
-	readonly label?: string;
 }
 
 /** Minimal dependency surface needed by the session server-tool group. */
@@ -228,7 +218,7 @@ export interface ISessionServerToolAccessor {
 	readonly createSession: (config: IAgentCreateSessionConfig) => Promise<URI>;
 	readonly getModels: () => readonly IAgentModelInfo[];
 	readonly getCreationDefaults: (source: URI) => ISessionCreationDefaults | undefined;
-	readonly startPrompt: (session: URI, chat: URI, prompt: string) => Promise<void>;
+	readonly startPrompt: (session: URI, chat: URI, prompt: string, delegation?: IAgentMessageDelegationMeta) => Promise<void>;
 	readonly createChat: (session: URI, chat: URI, options?: { title?: string; model?: ModelSelection }) => Promise<void>;
 	readonly renameChat: (session: URI, chat: URI, title: string) => Promise<IRenameTitleResult>;
 	readonly reportToolError: (toolName: SessionServerToolName, error: unknown) => void;
@@ -239,7 +229,6 @@ export interface ISessionServerToolAccessor {
 	readonly getSessionSpawnDepth: (session: URI) => number;
 	/** Records the spawn depth of a freshly-created session so its own `create_session` calls can enforce the recursion limit. */
 	readonly setSessionSpawnDepth: (session: URI, depth: number) => void;
-	readonly setSessionOrchestration: (session: URI, orchestration: ISessionOrchestration) => Promise<void>;
 }
 
 export interface IRenameTitleResult {
@@ -306,10 +295,6 @@ interface ISerializedSession {
 	}[];
 	readonly git?: ISerializedGitState;
 	readonly github?: ISerializedGitHubState;
-	readonly parentSession?: string;
-	readonly creator?: string;
-	readonly label?: string;
-	readonly notifyOnIdle?: SessionIdleNotification;
 }
 
 function getRequiredString(value: unknown, field: string, toolName: string): string {
@@ -432,22 +417,10 @@ export function getCreateSessionArgs(rawArgs: unknown, sessions: readonly IAgent
 	const workspace = getRequiredString(args.workspace, 'workspace', SessionServerToolName.CreateSession);
 	const prompt = getRequiredString(args.prompt, 'prompt', SessionServerToolName.CreateSession);
 	const modelName = getOptionalString(args.model, 'model', SessionServerToolName.CreateSession);
-	const coordinateWithCreator = getOptionalBoolean(args.coordinateWithCreator, 'coordinateWithCreator', SessionServerToolName.CreateSession) ?? true;
-	const label = getOptionalString(args.label, 'label', SessionServerToolName.CreateSession);
-	let notifyOnIdle: SessionIdleNotification | undefined;
-	if (args.notifyOnIdle !== undefined) {
-		if (args.notifyOnIdle !== 'once' && args.notifyOnIdle !== 'always') {
-			throw new Error(`Invalid ${SessionServerToolName.CreateSession} input: notifyOnIdle must be once or always.`);
-		}
-		notifyOnIdle = args.notifyOnIdle;
-	}
 	return {
 		workspace: resolveWorkspace(workspace, sessions),
 		prompt,
 		model: resolveModel(modelName, models),
-		coordinateWithCreator,
-		...(notifyOnIdle !== undefined ? { notifyOnIdle } : {}),
-		...(label !== undefined ? { label } : {}),
 	};
 }
 
@@ -504,8 +477,6 @@ export interface IListSessionsArgs {
 	readonly createdAfter?: number;
 	/** Upper bound on session creation time, in epoch milliseconds. */
 	readonly createdBefore?: number;
-	readonly parentSession?: string;
-	readonly label?: string;
 }
 
 function getOptionalBoolean(value: unknown, field: string, toolName: string): boolean | undefined {
@@ -534,7 +505,7 @@ function getOptionalTimestamp(value: unknown, field: string, toolName: string): 
 
 /** Validates and normalizes the optional `list_sessions` filter arguments. */
 export function getListSessionsArgs(rawArgs: unknown): IListSessionsArgs {
-	const args = (rawArgs ?? {}) as { session?: unknown; status?: unknown; workspace?: unknown; withChanges?: unknown; unread?: unknown; withPullRequest?: unknown; includeArchived?: unknown; createdAfter?: unknown; createdBefore?: unknown; parentSession?: unknown; label?: unknown };
+	const args = (rawArgs ?? {}) as { session?: unknown; status?: unknown; workspace?: unknown; withChanges?: unknown; unread?: unknown; withPullRequest?: unknown; includeArchived?: unknown; createdAfter?: unknown; createdBefore?: unknown };
 
 	let status: Set<string> | undefined;
 	if (args.status !== undefined) {
@@ -558,8 +529,6 @@ export function getListSessionsArgs(rawArgs: unknown): IListSessionsArgs {
 		includeArchived: getOptionalBoolean(args.includeArchived, 'includeArchived', SessionServerToolName.ListSessions),
 		createdAfter: getOptionalTimestamp(args.createdAfter, 'createdAfter', SessionServerToolName.ListSessions),
 		createdBefore: getOptionalTimestamp(args.createdBefore, 'createdBefore', SessionServerToolName.ListSessions),
-		parentSession: getOptionalString(args.parentSession, 'parentSession', SessionServerToolName.ListSessions),
-		label: getOptionalString(args.label, 'label', SessionServerToolName.ListSessions),
 	};
 }
 
@@ -593,33 +562,14 @@ function sessionMatchesWorkspace(session: IAgentSessionMetadata, workspace: stri
 }
 
 /** Applies the {@link IListSessionsArgs} filters to a set of sessions. */
-export function filterSessions(sessions: readonly IAgentSessionMetadata[], args: IListSessionsArgs, viewerSession?: string): readonly IAgentSessionMetadata[] {
+export function filterSessions(sessions: readonly IAgentSessionMetadata[], args: IListSessionsArgs): readonly IAgentSessionMetadata[] {
 	// A direct `session` lookup returns just that session, bypassing the other
 	// filters (including the default archived exclusion).
 	if (args.session !== undefined) {
 		const target = parseOpenSessionLinkUri(args.session)?.toString() ?? args.session;
 		return sessions.filter(session => session.session.toString() === target);
 	}
-	const requestedParent = args.parentSession !== undefined
-		? parseOpenSessionLinkUri(args.parentSession)?.toString() ?? args.parentSession
-		: undefined;
-	const viewerCanSeeRequestedParent = requestedParent === undefined || viewerSession === undefined || viewerSession === requestedParent
-		|| sessions.some(session => {
-			const orchestration = readSessionOrchestration(session._meta);
-			return session.session.toString() === viewerSession
-				&& orchestration?.parentSession === requestedParent
-				&& orchestration.coordinateWithCreator;
-		});
 	return sessions.filter(session => {
-		const orchestration = readSessionOrchestration(session._meta);
-		if (requestedParent !== undefined) {
-			if (!viewerCanSeeRequestedParent || orchestration?.parentSession !== requestedParent) {
-				return false;
-			}
-		}
-		if (args.label !== undefined && orchestration?.label !== args.label) {
-			return false;
-		}
 		if (args.status) {
 			const names = describeSessionStatusNames(session);
 			if (!names.some(name => args.status!.has(name))) {
@@ -681,17 +631,10 @@ function serializeGitHubState(session: IAgentSessionMetadata): ISerializedGitHub
 	return Object.keys(result).length > 0 ? result : undefined;
 }
 
-function serializeSession(session: IAgentSessionMetadata, viewerSession?: string): ISerializedSession {
+function serializeSession(session: IAgentSessionMetadata): ISerializedSession {
 	const git = serializeGitState(session);
 	const github = serializeGitHubState(session);
 	const status = describeSessionStatus(session);
-	const orchestration = readSessionOrchestration(session._meta);
-	const canSeeParent = orchestration !== undefined && (viewerSession === undefined
-		|| viewerSession === orchestration.parentSession
-		|| (viewerSession === session.session.toString() && orchestration.coordinateWithCreator));
-	const canSeeCreator = orchestration !== undefined && orchestration.coordinateWithCreator && (viewerSession === undefined
-		|| viewerSession === orchestration.creatorSession
-		|| viewerSession === session.session.toString());
 	return {
 		session: session.session.toString(),
 		...(session.summary !== undefined ? { title: session.summary } : {}),
@@ -717,18 +660,12 @@ function serializeSession(session: IAgentSessionMetadata, viewerSession?: string
 		} : {}),
 		...(git !== undefined ? { git } : {}),
 		...(github !== undefined ? { github } : {}),
-		...(orchestration !== undefined ? {
-			...(canSeeParent ? { parentSession: orchestration.parentSession } : {}),
-			...(canSeeCreator ? { creator: orchestration.creatorSession } : {}),
-			...(orchestration.label !== undefined ? { label: orchestration.label } : {}),
-			...(orchestration.notifyOnIdle !== undefined ? { notifyOnIdle: orchestration.notifyOnIdle } : {}),
-		} : {}),
 	};
 }
 
 /** Serializes session metadata into the compact tool-result JSON payload. */
-export function serializeSessions(sessions: readonly IAgentSessionMetadata[], viewerSession?: string): string {
-	return JSON.stringify({ sessions: sessions.map(session => serializeSession(session, viewerSession)) });
+export function serializeSessions(sessions: readonly IAgentSessionMetadata[]): string {
+	return JSON.stringify({ sessions: sessions.map(serializeSession) });
 }
 
 export interface ICreateSessionResult {
@@ -744,7 +681,7 @@ export interface ICreateSessionResult {
  * {@link currentSession} (the session the tool runs in) and stamps the new
  * session one level deeper so its own `create_session` calls are bounded too.
  */
-export async function applyCreateSessionTool(accessor: ISessionServerToolAccessor, rawArgs: unknown, source?: URI): Promise<ICreateSessionResult> {
+export async function applyCreateSessionTool(accessor: ISessionServerToolAccessor, rawArgs: unknown, source?: URI, sourceTurnId?: string): Promise<ICreateSessionResult> {
 	const currentSession = source ? currentSessionUri(source.toString()) : undefined;
 	const parentDepth = currentSession ? accessor.getSessionSpawnDepth(currentSession) : 0;
 	if (parentDepth >= maxSessionSpawnDepth) {
@@ -760,20 +697,22 @@ export async function applyCreateSessionTool(accessor: ISessionServerToolAccesso
 		...(provider !== undefined ? { provider } : {}),
 		...(args.model !== undefined ? { model: { id: args.model.id } } : defaults?.model !== undefined ? { model: defaults.model } : {}),
 		...(inheritsSourceProvider && defaults?.config !== undefined ? { config: defaults.config } : {}),
+		...(currentSession !== undefined && source !== undefined ? {
+			_meta: withSessionCreationReference(undefined, {
+				session: currentSession.toString(),
+				chat: source.toString(),
+				...(sourceTurnId !== undefined ? { turnId: sourceTurnId } : {}),
+			})
+		} : {}),
 	};
 	const session = await accessor.createSession(config);
 	accessor.setSessionSpawnDepth(session, parentDepth + 1);
-	if (currentSession) {
-		await accessor.setSessionOrchestration(session, {
-			parentSession: currentSession.toString(),
-			creatorSession: currentSession.toString(),
-			coordinateWithCreator: args.coordinateWithCreator,
-			...(args.notifyOnIdle !== undefined ? { notifyOnIdle: args.notifyOnIdle } : {}),
-			...(args.label !== undefined ? { label: args.label } : {}),
-		});
-	}
 	const chat = URI.parse(buildDefaultChatUri(session));
-	await accessor.startPrompt(session, chat, args.prompt);
+	await accessor.startPrompt(session, chat, args.prompt, currentSession ? {
+		sourceSession: currentSession.toString(),
+		sourceChat: source?.toString(),
+		...(sourceTurnId !== undefined ? { sourceTurnId } : {}),
+	} : undefined);
 	return { session: session.toString(), chat: chat.toString(), openLink: buildOpenSessionLinkUri(session) };
 }
 
@@ -843,29 +782,22 @@ export function getCreateChatArgs(rawArgs: unknown, sessions: readonly IAgentSes
 	return { session, prompt, ...(title !== undefined ? { title } : {}), ...(model !== undefined ? { model } : {}) };
 }
 
-function assertCanCoordinateWithTarget(sessions: readonly IAgentSessionMetadata[], source: URI, target: URI, toolName: SessionServerToolName): void {
-	const sourceMetadata = sessions.find(candidate => candidate.session.toString() === source.toString());
-	const orchestration = readSessionOrchestration(sourceMetadata?._meta);
-	if (orchestration && !orchestration.coordinateWithCreator && orchestration.creatorSession === target.toString()) {
-		throw new Error(`Invalid ${toolName} input: this session is not allowed to coordinate with its creator.`);
-	}
-}
-
 /** Adds a chat to a session, sends its initial prompt, and returns the created channels. */
-export async function applyCreateChatTool(accessor: ISessionServerToolAccessor, rawArgs: unknown, source?: URI): Promise<ICreateChatResult> {
+export async function applyCreateChatTool(accessor: ISessionServerToolAccessor, rawArgs: unknown, source?: URI, sourceTurnId?: string): Promise<ICreateChatResult> {
 	const sessions = await accessor.listSessions();
 	const currentSession = source ? currentSessionUri(source.toString()) : undefined;
 	const args = getCreateChatArgs(rawArgs, sessions, accessor.getModels(), currentSession);
-	if (currentSession) {
-		assertCanCoordinateWithTarget(sessions, currentSession, args.session, SessionServerToolName.CreateChat);
-	}
 	const defaults = source ? accessor.getCreationDefaults(source) : undefined;
 	const targetProvider = AgentSession.provider(args.session);
 	const model = args.model !== undefined ? { id: args.model.id } : targetProvider === defaults?.provider ? defaults?.model : undefined;
 	const chatId = generateUuid();
 	const chat = URI.parse(buildChatUri(args.session.toString(), chatId));
 	await accessor.createChat(args.session, chat, { title: args.title, model });
-	await accessor.startPrompt(args.session, chat, args.prompt);
+	await accessor.startPrompt(args.session, chat, args.prompt, currentSession ? {
+		sourceSession: currentSession.toString(),
+		sourceChat: source?.toString(),
+		...(sourceTurnId !== undefined ? { sourceTurnId } : {}),
+	} : undefined);
 	return { session: args.session.toString(), chat: chat.toString(), openLink: buildOpenSessionLinkUri(args.session, chatId) };
 }
 
@@ -1034,17 +966,19 @@ export function getSendMessageArgs(rawArgs: unknown, sessions: readonly IAgentSe
  * Refuses to target {@link currentChannel} (the chat channel the tool runs on)
  * to avoid a session trivially messaging itself in a loop.
  */
-export async function applySendMessageTool(accessor: ISessionServerToolAccessor, rawArgs: unknown, currentChannel?: ProtocolURI): Promise<string> {
+export async function applySendMessageTool(accessor: ISessionServerToolAccessor, rawArgs: unknown, currentChannel?: ProtocolURI, sourceTurnId?: string): Promise<string> {
 	const sessions = await accessor.listSessions();
 	const { session, chat, chatId, message } = getSendMessageArgs(rawArgs, sessions);
-	if (currentChannel) {
-		const source = currentSessionUri(currentChannel);
-		assertCanCoordinateWithTarget(sessions, source, session, SessionServerToolName.SendMessage);
-	}
 	if (currentChannel && chat.toString() === URI.parse(currentChannel).toString()) {
 		throw new Error(`Invalid ${SessionServerToolName.SendMessage} input: refusing to send a message to the current chat.`);
 	}
-	await accessor.startPrompt(session, chat, message);
+	const sourceChat = currentChannel ? URI.parse(currentChannel) : undefined;
+	const sourceSession = sourceChat ? currentSessionUri(sourceChat.toString()) : undefined;
+	await accessor.startPrompt(session, chat, message, sourceSession ? {
+		sourceSession: sourceSession.toString(),
+		sourceChat: sourceChat?.toString(),
+		...(sourceTurnId !== undefined ? { sourceTurnId } : {}),
+	} : undefined);
 	return formatSendMessageResult(buildOpenSessionLinkUri(session, chatId));
 }
 
@@ -1240,7 +1174,7 @@ export function serializeCurrentSession(currentSession: URI, sessions: readonly 
 	return JSON.stringify({
 		session: currentSession.toString(),
 		openLink: buildOpenSessionLinkUri(currentSession),
-		...(meta ? serializeSession(meta, currentSession.toString()) : {}),
+		...(meta ? serializeSession(meta) : {}),
 	});
 }
 
@@ -1356,8 +1290,7 @@ export function createSessionServerToolGroup(accessor?: ISessionServerToolAccess
 			switch (toolName) {
 				case SessionServerToolName.ListSessions:
 					{
-						const viewerSession = currentSessionUri(currentChannel).toString();
-						return serializeSessions(filterSessions(await accessor.listSessions(), getListSessionsArgs(rawArgs), viewerSession), viewerSession);
+						return serializeSessions(filterSessions(await accessor.listSessions(), getListSessionsArgs(rawArgs)));
 					}
 				case SessionServerToolName.GetCurrentSession:
 					return serializeCurrentSession(currentSessionUri(currentChannel), await accessor.listSessions());
@@ -1365,7 +1298,7 @@ export function createSessionServerToolGroup(accessor?: ISessionServerToolAccess
 					if (createdSessionCount >= maxCreatedSessions) {
 						throw new Error(`Refusing to create more than ${maxCreatedSessions} sessions from server tools in this process.`);
 					}
-					const result = await applyCreateSessionTool(accessor, rawArgs, URI.parse(currentChannel));
+					const result = await applyCreateSessionTool(accessor, rawArgs, URI.parse(currentChannel), context.turnId);
 					createdSessionCount++;
 					return formatCreateSessionResult(result);
 				}
@@ -1373,7 +1306,7 @@ export function createSessionServerToolGroup(accessor?: ISessionServerToolAccess
 					if (createdChatCount >= maxCreatedChats) {
 						throw new Error(`Refusing to create more than ${maxCreatedChats} chats from server tools in this process.`);
 					}
-					const result = await applyCreateChatTool(accessor, rawArgs, URI.parse(currentChannel));
+					const result = await applyCreateChatTool(accessor, rawArgs, URI.parse(currentChannel), context.turnId);
 					createdChatCount++;
 					return formatCreateChatResult(result);
 				}
@@ -1383,7 +1316,7 @@ export function createSessionServerToolGroup(accessor?: ISessionServerToolAccess
 					if (sentMessageCount >= maxSentMessages) {
 						throw new Error(`Refusing to send more than ${maxSentMessages} messages from server tools in this process.`);
 					}
-					const result = await applySendMessageTool(accessor, rawArgs, currentChannel);
+					const result = await applySendMessageTool(accessor, rawArgs, currentChannel, context.turnId);
 					sentMessageCount++;
 					return result;
 				}

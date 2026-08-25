@@ -41,9 +41,10 @@ import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AgentMergeConfigKey, readAgentMergeSessionState } from '../../common/agentMerge.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { ActionType, ActionEnvelope, NotificationType } from '../../common/state/sessionActions.js';
-import { AH_META_IS_READ_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, readSessionEhcliAdopted, AH_META_IS_ARCHIVED_DB_KEY, AH_META_ORCHESTRATION_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, isDefaultChatUri, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionEhcliAdoptable, readSessionExternal, readSessionGitHubState, readSessionMultiRootMetadata, readSessionFolderPickerDecision, readSessionOrchestration, readSessionSourceControlState, withSessionEhcliAdoptable, withSessionExternal, withSessionMultiRootMetadata, ChatOriginKind, type ChangesetState, type ISessionFolderPickerDecision, type ISessionOrchestration, type ISessionWithDefaultChat, type MarkdownResponsePart, type SessionState, type SessionSummary, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
+import { AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, readSessionEhcliAdopted, AH_META_IS_ARCHIVED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, isDefaultChatUri, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionCreationReference, readSessionEhcliAdoptable, readSessionExternal, readSessionGitHubState, readSessionMultiRootMetadata, readSessionFolderPickerDecision, readSessionSourceControlState, withSessionEhcliAdoptable, withSessionExternal, withSessionMultiRootMetadata, ChatOriginKind, type ChangesetState, type ISessionFolderPickerDecision, type ISessionWithDefaultChat, type MarkdownResponsePart, type SessionState, type SessionSummary, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
 import { ChatInteractivity, type MessageAttachment } from '../../common/state/protocol/state.js';
 import { isHostSnapshotAttachment, toHostSnapshotAttachmentMeta } from '../../common/meta/agentSnapshotAttachmentMeta.js';
+import { readAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { AgentService } from '../../node/agentService.js';
 import { AgentHostDatabase, IAgentHostDatabase, IAgentHostDatabaseRegisterOptions, IAgentHostDatabaseSession, IAgentHostDatabaseSessionOptions } from '../../node/agentHostDatabase.js';
@@ -7120,88 +7121,23 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual(readSessionMultiRootMetadata(getStateManager(localService).getSessionState(sessionResource.toString())?._meta), multiRoot);
 		});
 
-		test('restores persisted orchestration metadata', async () => {
+		test('restores persisted session creation metadata', async () => {
 			const db = new TestSessionDatabase();
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			localService.registerProvider(copilotAgent);
 			await createAgentSession(copilotAgent);
 			const sessionResource = (await copilotAgent.listSessions())[0].session;
 			copilotAgent.sessionMessages = [];
-			const orchestration = {
-				parentSession: 'copilot:/parent',
-				creatorSession: 'copilot:/creator',
-				coordinateWithCreator: true,
-				notifyOnIdle: 'always',
-			} as const;
-			await db.setMetadata(AH_META_ORCHESTRATION_DB_KEY, JSON.stringify(orchestration));
+			const creationReference = {
+				session: 'copilot:/creator',
+				chat: buildDefaultChatUri('copilot:/creator'),
+				turnId: 'turn-1',
+			};
+			await db.setMetadata(AH_META_CREATED_BY_SESSION_DB_KEY, JSON.stringify(creationReference));
 
 			await localService.restoreSession(sessionResource);
 
-			assert.deepStrictEqual(readSessionOrchestration(getStateManager(localService).getSessionState(sessionResource.toString())?._meta), orchestration);
-		});
-
-		test('does not consume a child notification when its creator cannot be resolved', async () => {
-			const sessionData = createPerSessionDataService();
-			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionData.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
-			localService.registerProvider(copilotAgent);
-			const child = await localService.createSession({ provider: 'copilot' });
-			const orchestration: ISessionOrchestration = {
-				parentSession: 'copilot:/missing',
-				creatorSession: 'copilot:/missing',
-				coordinateWithCreator: true,
-				notifyOnIdle: 'once',
-				creatorNotificationState: 'waitingForCompletion',
-			};
-			const coordinator = localService as unknown as {
-				_sessionCoordination: {
-					setOrchestration(session: string, value: ISessionOrchestration): Promise<void>;
-					handleStatusChange(session: string, status: SessionStatus): Promise<void>;
-				};
-			};
-			await coordinator._sessionCoordination.setOrchestration(child.toString(), orchestration);
-
-			await coordinator._sessionCoordination.handleStatusChange(child.toString(), SessionStatus.Idle);
-
-			assert.deepStrictEqual(readSessionOrchestration(getStateManager(localService).getSessionSummary(child.toString())?._meta), orchestration);
-		});
-
-		test('restores a cold creator before delivering and consuming a child notification', async () => {
-			const sessionData = createPerSessionDataService();
-			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionData.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
-			localService.registerProvider(copilotAgent);
-			const creator = await localService.createSession({ provider: 'copilot' });
-			const child = await localService.createSession({ provider: 'copilot' });
-			const orchestration: ISessionOrchestration = {
-				parentSession: creator.toString(),
-				creatorSession: creator.toString(),
-				coordinateWithCreator: true,
-				notifyOnIdle: 'once',
-				creatorNotificationState: 'waitingForCompletion',
-			};
-			const coordinator = localService as unknown as {
-				_sessionCoordination: {
-					setOrchestration(session: string, value: ISessionOrchestration): Promise<void>;
-					handleStatusChange(session: string, status: SessionStatus): Promise<void>;
-				};
-			};
-			await coordinator._sessionCoordination.setOrchestration(child.toString(), orchestration);
-			getStateManager(localService).removeSession(creator.toString());
-			assert.strictEqual(getStateManager(localService).getSessionState(creator.toString()), undefined);
-			let notificationStarted = false;
-			disposables.add(getStateManager(localService).onDidEmitEnvelope(envelope => {
-				if (envelope.channel === buildDefaultChatUri(creator) && envelope.action.type === ActionType.ChatTurnStarted && envelope.action.message.origin.kind === MessageKind.SystemNotification) {
-					notificationStarted = true;
-				}
-			}));
-
-			await coordinator._sessionCoordination.handleStatusChange(child.toString(), SessionStatus.Idle);
-
-			assert.ok(getStateManager(localService).getSessionState(creator.toString()));
-			assert.strictEqual(notificationStarted, true);
-			assert.deepStrictEqual(readSessionOrchestration(getStateManager(localService).getSessionSummary(child.toString())?._meta), {
-				...orchestration,
-				creatorNotificationState: 'notified',
-			});
+			assert.deepStrictEqual(readSessionCreationReference(getStateManager(localService).getSessionState(sessionResource.toString())?._meta), creationReference);
 		});
 
 		test('restores persisted source-control provenance', async () => {
@@ -10498,17 +10434,23 @@ suite('AgentService (node dispatcher)', () => {
 				message: { text: 'Create more work', origin: { kind: MessageKind.User }, model: { id: 'source-model' } },
 			}, 'test-client', 1);
 			const sourceModelBeforeCreation = getStateManager(localService).getSessionState(sourceChat.toString())?.activeTurn?.message.model;
+			const sessionUrisBeforeCreation = new Set(getStateManager(localService).getSessionUris());
 
 			await agent.serverToolHost!.executeTool(sourceChat.toString(), SessionServerToolName.CreateSession, {
 				workspace: URI.file('/workspace').toString(),
 				prompt: 'new session',
 			});
+			const createdSessionUri = getStateManager(localService).getSessionUris().find(uri => !sessionUrisBeforeCreation.has(uri));
+			const delegatedMessage = createdSessionUri
+				? getStateManager(localService).getChatState(buildDefaultChatUri(createdSessionUri))?.activeTurn?.message
+				: undefined;
 			await agent.serverToolHost!.executeTool(sourceChat.toString(), SessionServerToolName.CreateChat, {
 				prompt: 'new chat',
 			});
 
 			assert.deepStrictEqual({
 				sourceModelBeforeCreation,
+				delegation: delegatedMessage && readAgentMessageDelegationMeta(delegatedMessage),
 				sessionConfig: {
 					...agent.createSessionConfigs.at(-1),
 					session: agent.createSessionConfigs.at(-1)?.session?.scheme,
@@ -10517,6 +10459,11 @@ suite('AgentService (node dispatcher)', () => {
 				chatOptions: agent.createChatOptions.at(-1),
 			}, {
 				sourceModelBeforeCreation: { id: 'source-model' },
+				delegation: {
+					sourceSession: sourceSession.toString(),
+					sourceChat: sourceChat.toString(),
+					sourceTurnId: 'source-turn',
+				},
 				sessionConfig: {
 					session: 'copilot',
 					model: { id: 'source-model' },

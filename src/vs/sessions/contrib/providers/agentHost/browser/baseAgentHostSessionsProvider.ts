@@ -30,7 +30,7 @@ import type { IAgentSubscription } from '../../../../../platform/agentHost/commo
 import { ResolveSessionConfigResult, type SessionConfigPropertySchema } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { AgentCustomization, ChangesSummary, ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, type ClientPluginCustomization, Customization, CustomizationEnablementKind, CustomizationType, type CustomizationEnablement, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, SessionState, SessionSummary, type Changeset } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, isChatAction, isSessionAction, NotificationType } from '../../../../../platform/agentHost/common/state/sessionActions.js';
-import { AgentCapabilities, AgentInfo, buildChatUri, buildDefaultChatUri, DEFAULT_CHAT_ID, getSessionChatResource, getSessionRelatedPullRequestUrls, isDefaultChatUri, isSessionStatusArchived, isSessionStatusRead, parseChatUri, readSessionEhcliAdoptable, readSessionExternal, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, ROOT_STATE_URI, SESSION_META_MULTI_ROOT_KEY, SessionMeta, SessionSourceControlOutcome, StateComponents, withSessionExternal, withSessionGitHubState, withSessionMultiRootMetadata, withSessionStatusFlag, withSessionWorkspaceless, type ChatState, type ChatSummary, type ISessionGitHubState, type ISessionGitState, type ISessionMultiRootMetadata } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { AgentCapabilities, AgentInfo, buildChatUri, buildDefaultChatUri, DEFAULT_CHAT_ID, getSessionChatResource, getSessionRelatedPullRequestUrls, isDefaultChatUri, isSessionStatusArchived, isSessionStatusRead, parseChatUri, readSessionCreationReference, readSessionEhcliAdoptable, readSessionExternal, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, ROOT_STATE_URI, SESSION_META_MULTI_ROOT_KEY, SessionMeta, SessionSourceControlOutcome, StateComponents, withSessionCreationReference, withSessionExternal, withSessionGitHubState, withSessionMultiRootMetadata, withSessionStatusFlag, withSessionWorkspaceless, type ChatState, type ChatSummary, type ISessionCreationReference as IProtocolSessionCreationReference, type ISessionGitHubState, type ISessionGitState, type ISessionMultiRootMetadata } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -50,7 +50,7 @@ import { getRegisteredLanguageModels, resolveConfiguredModel, resolveModelIdenti
 import { buildMutableConfigSchema, IAgentHostMcpServer, IAgentHostSessionsProvider, resolvedConfigsEqual } from '../../../../common/agentHostSessionsProvider.js';
 import { agentHostSessionWorkspaceKey } from '../../../../common/agentHostSessionWorkspace.js';
 import { isSessionConfigComplete } from '../../../../common/sessionConfig.js';
-import { ChatInteractivity, ChatModelSource, ChatOriginKind, DEFAULT_CHAT_CAPABILITIES, effectiveChatInteractivity, IChat, IChatCapabilities, IGitHubInfo, IGitHubIssueRef, IGitHubPullRequestRef, ISession, ISessionAgentRef, ISessionArtifact, ISessionCapabilities, ISessionChangeset, ISessionChangesSummary, ISessionChatCustomization, ISessionFile, ISessionFileChange, ISessionTurnFileChange, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection, sessionFileChangesEqual, sessionWorkspaceEqual, SessionStatus, SessionTypeAuthRequirement, toSessionId, TURN_CHANGES_CHANGESET_ID } from '../../../../services/sessions/common/session.js';
+import { ChatInteractivity, ChatModelSource, ChatOriginKind, DEFAULT_CHAT_CAPABILITIES, effectiveChatInteractivity, IChat, IChatCapabilities, IGitHubInfo, IGitHubIssueRef, IGitHubPullRequestRef, ISession, ISessionAgentRef, ISessionArtifact, ISessionCapabilities, ISessionChangeset, ISessionChangesSummary, ISessionChatCustomization, ISessionCreationReference, ISessionFile, ISessionFileChange, ISessionTurnFileChange, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection, sessionFileChangesEqual, sessionWorkspaceEqual, SessionStatus, SessionTypeAuthRequirement, toSessionId, TURN_CHANGES_CHANGESET_ID } from '../../../../services/sessions/common/session.js';
 import { dedupeLinks, getPresentedArtifacts, linkKey, partitionSessionArtifacts } from './agentHostSessionArtifacts.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IDeleteChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration } from '../../../../services/sessions/common/sessionsProvider.js';
@@ -202,6 +202,7 @@ interface ISerializedSessionMetadata {
 	readonly workspaceless?: boolean;
 	readonly external?: boolean;
 	readonly multiRoot?: ISessionMultiRootMetadata;
+	readonly createdBySession?: IProtocolSessionCreationReference;
 }
 
 /**
@@ -225,6 +226,7 @@ function serializeMetadata(meta: IAgentSessionMetadata): ISerializedSessionMetad
 		workspaceless: readSessionWorkspaceless(meta._meta) || undefined,
 		external: readSessionExternal(meta._meta) || undefined,
 		multiRoot: readSessionMultiRootMetadata(meta._meta),
+		createdBySession: readSessionCreationReference(meta._meta),
 	};
 }
 
@@ -234,6 +236,9 @@ function deserializeMetadata(raw: ISerializedSessionMetadata): IAgentSessionMeta
 		_meta = withSessionExternal(_meta, raw.external === true);
 		_meta = withSessionMultiRootMetadata(_meta, readSessionMultiRootMetadata({ [SESSION_META_MULTI_ROOT_KEY]: raw.multiRoot }));
 		_meta = withSessionGitHubState(_meta, raw.github);
+		if (raw.createdBySession) {
+			_meta = withSessionCreationReference(_meta, raw.createdBySession);
+		}
 		return {
 			session: URI.parse(raw.session),
 			startTime: raw.startTime,
@@ -531,6 +536,8 @@ export interface IAgentHostAdapterOptions {
 	 * (cloud sandbox: provider `copilot`, sessions `ahp-session:/<id>`). Defaults to the provider.
 	 */
 	readonly backendSessionScheme?: string;
+	/** Maps a backend session URI to the client resource used by this host. */
+	readonly mapBackendSessionResource: (resource: URI) => URI;
 }
 
 /**
@@ -706,6 +713,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	readonly isQuickChat: IObservable<boolean>;
 	readonly isAutomation = observableValue('isAutomation', false);
 	readonly isExternal: IObservable<boolean>;
+	readonly createdBySession: IObservable<ISessionCreationReference | undefined>;
 	/** See {@link ISession.worktreePending}. */
 	readonly worktreePending: IObservable<boolean>;
 	readonly title: ISettableObservable<string>;
@@ -924,6 +932,18 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		this._meta = metadata._meta;
 		this._metaObs = observableValue<SessionMeta | undefined>('agentHostSessionMeta', this._meta);
 		this.isExternal = derived(this, reader => readSessionExternal(this._metaObs.read(reader)));
+		this.createdBySession = derived(this, reader => {
+			const creationReference = readSessionCreationReference(this._metaObs.read(reader));
+			if (!creationReference) {
+				return undefined;
+			}
+			const session = this._options.mapBackendSessionResource(URI.parse(creationReference.session));
+			const parsedChat = creationReference.chat ? parseChatUri(creationReference.chat) : undefined;
+			const chat = parsedChat
+				? session.with({ fragment: parsedChat.chatId === DEFAULT_CHAT_ID ? '' : parsedChat.chatId })
+				: undefined;
+			return { session, chat, turnId: creationReference.turnId };
+		});
 		this.artifacts = derivedOpts<readonly ISessionArtifact[]>({ owner: this, equalsFn: structuralEquals }, reader => {
 			const meta = this._metaObs.read(reader);
 			return getPresentedArtifacts(partitionSessionArtifacts(meta), toGitHubPromotion(meta).surfacedLinks);
@@ -2741,6 +2761,15 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		return agentProvider;
 	}
 
+	protected _logicalSessionTypeForBackendScheme(backendScheme: string): string {
+		return backendScheme;
+	}
+
+	private _mapBackendSessionResource(resource: URI): URI {
+		const sessionType = this._logicalSessionTypeForBackendScheme(resource.scheme);
+		return resource.with({ scheme: this.resourceSchemeForProvider(sessionType) });
+	}
+
 	/** Build an adapter for the given metadata. */
 	protected createAdapter(meta: IAgentSessionMetadata): AgentHostSessionAdapter {
 		const provider = AgentSession.provider(meta.session);
@@ -2758,6 +2787,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			getConnection: () => this.connection,
 			agentCapabilities: this._agentCapabilities,
 			backendSessionScheme: this._backendSessionScheme(provider),
+			mapBackendSessionResource: resource => this._mapBackendSessionResource(resource),
 			...this._adapterOptions(),
 		} satisfies IAgentHostAdapterOptions;
 
@@ -3136,6 +3166,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				instantiationService: this._instantiationService,
 				getConnection: () => this.connection,
 				agentCapabilities: this._agentCapabilities,
+				mapBackendSessionResource: resource => this._mapBackendSessionResource(resource),
 				...this._adapterOptions(),
 			} satisfies IAgentHostAdapterOptions);
 		} catch (err) {

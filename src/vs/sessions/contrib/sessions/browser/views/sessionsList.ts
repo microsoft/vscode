@@ -21,6 +21,7 @@ import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { IObservable, IReader, autorun, derived, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { Schemas } from '../../../../../base/common/network.js';
 import { fromNow } from '../../../../../base/common/date.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { localize } from '../../../../../nls.js';
@@ -44,6 +45,7 @@ import { chartsOrange } from '../../../../../platform/theme/common/colors/charts
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId, getChatSessionArchivedSectionLabel, getChatSessionArchiveActionWording } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 import { getSessionStatusMessage, getSessionWorkspaceKind, GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionWorkspace, SessionStatus, SessionWorkspaceKind } from '../../../../services/sessions/common/session.js';
 import { AgentSessionApprovalModel, agentSessionApprovalId, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
@@ -78,6 +80,8 @@ import { IWorkbenchAssignmentService } from '../../../../../workbench/services/a
 // eslint-disable-next-line no-restricted-imports
 import { IAgentSessionsService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
+import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { buildOpenSessionLinkUri } from '../../../../../platform/agentHost/common/openSessionLink.js';
 import { LocalSelectionTransfer } from '../../../../../platform/dnd/browser/dnd.js';
 import { DraggedSessionIdentifier, SessionsDataTransfers } from '../../../../browser/dnd.js';
 import { IDragAndDropData } from '../../../../../base/browser/dnd.js';
@@ -394,6 +398,19 @@ export interface ISessionCIFixModel {
 	fixCI(session: ISession): void;
 }
 
+function createSessionHoverLink(target: string): string {
+	return URI.from({
+		scheme: Schemas.internal,
+		authority: 'session-hover',
+		query: encodeURIComponent(target),
+	}).toString();
+}
+
+function parseSessionHoverLink(link: string): string | undefined {
+	const uri = URI.parse(link);
+	return uri.scheme === Schemas.internal && uri.authority === 'session-hover' ? decodeURIComponent(uri.query) : undefined;
+}
+
 class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, ISessionItemTemplate> {
 	static readonly TEMPLATE_ID = 'session-item';
 	readonly templateId = SessionItemRenderer.TEMPLATE_ID;
@@ -426,10 +443,29 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		private readonly markdownRendererService: IMarkdownRendererService,
 		private readonly hoverService: IHoverService,
 		private readonly sessionsProvidersService: ISessionsProvidersService,
+		private readonly sessionsManagementService: ISessionsManagementService,
+		private readonly agentHostConnectionsService: IAgentHostConnectionsService,
+		private readonly openerService: IOpenerService,
 		// TEMPORARY — see the note on the `IAgentSessionsService` import above (#320480).
 		private readonly agentSessionsService: IAgentSessionsService,
 		private readonly _voicePlaybackService: IVoicePlaybackService,
 	) {
+	}
+
+	private getCreatorHoverLink(session: ISession): { readonly title: string; readonly href: string } | undefined {
+		const creationReference = session.createdBySession?.get();
+		if (!creationReference) {
+			return undefined;
+		}
+		const creator = this.sessionsManagementService.getSession(creationReference.session);
+		const resolved = this.agentHostConnectionsService.resolveSessionResource(creationReference.session);
+		if (!creator || !resolved) {
+			return undefined;
+		}
+		return {
+			title: creator.title.get(),
+			href: createSessionHoverLink(buildOpenSessionLinkUri(resolved.backendSession, creationReference.chat?.fragment, creationReference.turnId)),
+		};
 	}
 
 	renderTemplate(container: HTMLElement): ISessionItemTemplate {
@@ -550,7 +586,13 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		if (this.options.showHover) {
 			// Rich hover on the row showing folder, branch, diff stats and provider.
 			template.elementDisposables.add(this.hoverService.setupDelayedHover(template.container, () => ({
-				content: buildSessionHoverContent(element, this.sessionsProvidersService),
+				content: buildSessionHoverContent(element, this.sessionsProvidersService, this.getCreatorHoverLink(element)),
+				linkHandler: href => {
+					const target = parseSessionHoverLink(href);
+					if (target) {
+						this.openerService.open(target).catch(onUnexpectedError);
+					}
+				},
 				appearance: { showPointer: true },
 				position: { hoverPosition: HoverPosition.RIGHT, forcePosition: true },
 				persistence: { hideOnHover: false },
@@ -1996,6 +2038,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 		@IWorkbenchAssignmentService private readonly assignmentService: IWorkbenchAssignmentService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@IAgentHostConnectionsService private readonly agentHostConnectionsService: IAgentHostConnectionsService,
+		@IOpenerService private readonly openerService: IOpenerService,
 	) {
 		super();
 
@@ -2071,6 +2115,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 			markdownRendererService,
 			hoverService,
 			sessionsProvidersService,
+			this._sessionsManagementService,
+			this.agentHostConnectionsService,
+			this.openerService,
 			agentSessionsService,
 			voicePlaybackService,
 		);
@@ -3830,6 +3877,8 @@ export class SessionsFlatList extends Disposable {
 		@IHoverService hoverService: IHoverService,
 		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
 		@IVoicePlaybackService voicePlaybackService: IVoicePlaybackService,
+		@IAgentHostConnectionsService agentHostConnectionsService: IAgentHostConnectionsService,
+		@IOpenerService openerService: IOpenerService,
 	) {
 		super();
 
@@ -3864,6 +3913,9 @@ export class SessionsFlatList extends Disposable {
 			markdownRendererService,
 			hoverService,
 			sessionsProvidersService,
+			this._sessionsManagementService,
+			agentHostConnectionsService,
+			openerService,
 			agentSessionsService,
 			voicePlaybackService,
 		);

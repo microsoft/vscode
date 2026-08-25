@@ -44,6 +44,7 @@ export function getSessionDiffStats(session: ISession): { files: number; inserti
 export function buildSessionHoverContent(
 	session: ISession,
 	sessionsProvidersService: ISessionsProvidersService,
+	creatorLink?: { readonly title: string; readonly href: string },
 ): IMarkdownString {
 	// Note: `isTrusted` is intentionally left undefined. The hover renders
 	// untrusted, workspace-derived values (folder paths, branch names, session
@@ -106,6 +107,14 @@ export function buildSessionHoverContent(
 	const provider = sessionsProvidersService.getProvider(session.providerId);
 	if (provider) {
 		md.appendText(provider.label);
+	}
+	if (creatorLink) {
+		if (provider) {
+			md.appendText('\n');
+		}
+		md.appendText(localize('agentSessions.createdBy', "Created by"));
+		md.appendMarkdown(' ');
+		md.appendLink(creatorLink.href, creatorLink.title);
 	}
 
 	return md;

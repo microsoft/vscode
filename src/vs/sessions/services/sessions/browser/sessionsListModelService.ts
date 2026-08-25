@@ -128,6 +128,9 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 		this._legacyReadSessionIds = legacyRead.size > 0 ? legacyRead : undefined;
 		this._migratedReadSessionIds = this.loadSet(SessionsListModelService.READ_MIGRATION_DONE_KEY);
 
+		this._register(this.sessionsManagementService.onDidChangeSessions(() => this.updateDefaultPlacement(this.sessionsManagementService.getSessions())));
+		this.updateDefaultPlacement(this.sessionsManagementService.getSessions());
+
 		// Only a definitive deletion discards pin and sort state. A session
 		// merely dropping out of the provider's list is an eviction (e.g. an
 		// agent that cannot answer `listSessions` yet reports no sessions), and
@@ -197,6 +200,65 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 
 	// -- Manual sort order --
 
+	/** Fills missing sort overrides so created sessions start beside their creator; existing overrides remain authoritative. */
+	private updateDefaultPlacement(sessionsToCheck: readonly ISession[]): void {
+		const sessions = this.sessionsManagementService.getSessions();
+		const changedSessionIds = new Set<string>();
+		let sortChanged = false;
+		for (const mode of ['created', 'updated'] as const) {
+			for (const session of sessionsToCheck) {
+				if (this.ensureCreatorAdjacentSortOverride(session, mode, sessions, new Set(), changedSessionIds)) {
+					sortChanged = true;
+				}
+			}
+		}
+		if (sortChanged) {
+			this.saveSortOverrides();
+		}
+		if (changedSessionIds.size > 0) {
+			this._onDidChange.fire({
+				changes: [...changedSessionIds].map(sessionId => ({ sessionId, kind: SessionListModelChangeKind.Sort })),
+			});
+		}
+	}
+
+	private ensureCreatorAdjacentSortOverride(session: ISession, mode: SessionSortMode, sessions: readonly ISession[], visiting: Set<string>, changedSessionIds: Set<string>): boolean {
+		if (this._sortOverrides[mode].has(session.sessionId)) {
+			return false;
+		}
+		const creatorResource = session.createdBySession?.get()?.session;
+		if (!creatorResource) {
+			return false;
+		}
+		const creator = this.sessionsManagementService.getSession(creatorResource);
+		if (!creator || visiting.has(session.sessionId)) {
+			return false;
+		}
+		visiting.add(session.sessionId);
+		this.ensureCreatorAdjacentSortOverride(creator, mode, sessions, visiting, changedSessionIds);
+		visiting.delete(session.sessionId);
+		if (creator.createdBySession?.get() && !this._sortOverrides[mode].has(creator.sessionId)) {
+			return false;
+		}
+
+		const creatorKey = this.getSortKey(creator, mode);
+		const sorted = sessions
+			.filter(candidate => candidate.sessionId !== session.sessionId)
+			.sort((a, b) => this.getSortKey(b, mode) - this.getSortKey(a, mode));
+		const creatorIndex = sorted.findIndex(candidate => candidate.sessionId === creator.sessionId);
+		if (creatorIndex < 0) {
+			return false;
+		}
+		const below = sorted[creatorIndex + 1];
+		const belowKey = below ? this.getSortKey(below, mode) : undefined;
+		const createdSessionKey = belowKey !== undefined && creatorKey > belowKey
+			? (creatorKey + belowKey) / 2
+			: creatorKey - 60_000;
+		this._sortOverrides[mode].set(session.sessionId, createdSessionKey);
+		changedSessionIds.add(session.sessionId);
+		return true;
+	}
+
 	getNaturalSortKey(session: ISession, mode: SessionSortMode): number {
 		return mode === 'updated' ? session.updatedAt.get().getTime() : session.createdAt.getTime();
 	}
@@ -214,7 +276,14 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 		const map = this._sortOverrides[mode];
 		const changes: { sessionId: string; kind: SessionListModelChangeKind }[] = [];
 		for (const sessionId of clear) {
-			if (map.delete(sessionId)) {
+			const session = this.sessionsManagementService.getSessions().find(session => session.sessionId === sessionId);
+			if (session?.createdBySession?.get()) {
+				const naturalKey = this.getNaturalSortKey(session, mode);
+				if (map.get(sessionId) !== naturalKey) {
+					map.set(sessionId, naturalKey);
+					changes.push({ sessionId, kind: SessionListModelChangeKind.Sort });
+				}
+			} else if (map.delete(sessionId)) {
 				changes.push({ sessionId, kind: SessionListModelChangeKind.Sort });
 			}
 		}

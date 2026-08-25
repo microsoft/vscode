@@ -103,6 +103,13 @@ archive state, and capabilities.
 Consumers derive state from those observables. Provider events announce catalog
 membership changes; they are not a parallel state store.
 
+Providers may expose immutable creation provenance when a session was created by
+another session. `createdBySession` identifies the creating session and may also
+identify its chat and turn. The reference is observable so list presentation can
+keep related sessions together when creation metadata arrives after discovery.
+Creation paths that know the reference include it in the initial session
+publication.
+
 ### Sessions and chats
 
 A session groups one or more chats and exposes a main chat. Providers advertise

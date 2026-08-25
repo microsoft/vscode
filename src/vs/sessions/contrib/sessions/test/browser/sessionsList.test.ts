@@ -27,7 +27,9 @@ import { ICustomViewService } from '../../../../services/customView/browser/cust
 import { ISessionsListModelService } from '../../../../services/sessions/browser/sessionsListModelService.js';
 import { IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { computeReorderSortChanges, groupByDate, groupByWorkspace, groupSessionsForList, ISessionSection, limitSessionsForList, SessionSectionRenderer, SessionsFlatList, SessionsList, sortSessions, SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
+import { buildSessionHoverContent } from '../../browser/sessionHoverContent.js';
 import { createListHarness, createTestSession } from './sessionsListTestUtils.js';
 import '../../browser/views/sessionsViewActions.js';
 
@@ -530,6 +532,34 @@ suite('Sessions - SessionsList', () => {
 				sessions: ['1', '2', '3'],
 				showMore: undefined,
 			});
+		});
+	});
+
+	test('created session hover link carries its creating turn', () => {
+		const createdSession = createSession('Created', { workspaceLabel: 'Workspace' });
+		const hover = buildSessionHoverContent(
+			createdSession,
+			new class extends mock<ISessionsProvidersService>() {
+				override getProvider() { return undefined; }
+			},
+			{
+				title: 'Creator [session]',
+				href: 'agent-host-session://copilotcli/creator?chat=main&turn=turn-1',
+			},
+		);
+
+		assert.deepStrictEqual({
+			hasLabel: hover.value.includes('Created&nbsp;by'),
+			hasCreatorTitle: hover.value.includes('Creator'),
+			hasCreatorLink: hover.value.includes('agent-host-session://copilotcli/creator'),
+			hasChat: hover.value.includes('chat=main'),
+			hasTurn: hover.value.includes('turn=turn-1'),
+		}, {
+			hasLabel: true,
+			hasCreatorTitle: true,
+			hasCreatorLink: true,
+			hasChat: true,
+			hasTurn: true,
 		});
 	});
 

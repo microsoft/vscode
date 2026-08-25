@@ -13,7 +13,7 @@ import { Schemas } from '../../../../../../base/common/network.js';
 import { posix, win32 } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
-import { buildSubagentChatUri, isMessageHiddenFromTranscript, MessageKind, ToolCallCancellationReason, ToolCallContributorKind, ToolCallRiskAssessmentStatus, ToolCallStatus, TurnState, ResponsePartKind, getInlineToolInput, getToolFileEdits, getToolOutputText, getToolSubagentContent, hasReportedUsage, readUsageInfoMeta, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, type ActiveTurn, type ChatInputAnswer, type ChatInputRequest, type ICompletedToolCall, type InputRequestResponsePart, type Message, type TerminalCommandResult, type ToolCallPendingConfirmationState, type ToolCallState, type ToolResultSubagentContent, type Turn, FileEditKind, ToolResultContentType, type ToolResultContent, type UsageInfo, type UsageInfoMeta } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildSubagentChatUri, isMessageHiddenFromTranscript, MessageKind, parseChatUri, ToolCallCancellationReason, ToolCallContributorKind, ToolCallRiskAssessmentStatus, ToolCallStatus, TurnState, ResponsePartKind, getInlineToolInput, getToolFileEdits, getToolOutputText, getToolSubagentContent, hasReportedUsage, readUsageInfoMeta, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, type ActiveTurn, type ChatInputAnswer, type ChatInputRequest, type ICompletedToolCall, type InputRequestResponsePart, type Message, type TerminalCommandResult, type ToolCallPendingConfirmationState, type ToolCallState, type ToolResultSubagentContent, type Turn, FileEditKind, ToolResultContentType, type ToolResultContent, type UsageInfo, type UsageInfoMeta } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import type { ChatInputRequestWithPlanReview, IAgentHostPlanReview } from '../../../../../../platform/agentHost/common/agentHostPlanReview.js';
 import { getToolKind } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { readToolCallMeta } from '../../../../../../platform/agentHost/common/meta/agentToolCallMeta.js';
@@ -27,7 +27,7 @@ import { getBrowserViewAttachmentMetadata, isBrowserViewAttachment } from '../..
 import { readAgentMessageDelegationMeta } from '../../../../../../platform/agentHost/common/meta/agentMessageDelegationMeta.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, readAgentSystemNotificationMeta } from '../../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
 import { isViewUnreviewedCommentsTool, isAddCommentTool } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAnnotations.js';
-import { AGENT_HOST_SESSION_LINK_SCHEME, isCreateChatTool, isCreateSessionTool, isSendMessageTool, parseOpenSessionLinkChatId, parseOpenSessionLinkUri } from '../../../../../../platform/agentHost/common/openSessionLink.js';
+import { AGENT_HOST_SESSION_LINK_SCHEME, buildOpenSessionLinkUri, isCreateChatTool, isCreateSessionTool, isSendMessageTool, parseOpenSessionLinkChatId, parseOpenSessionLinkUri } from '../../../../../../platform/agentHost/common/openSessionLink.js';
 import { parsePartialToolInputForDisplay } from '../../../../../../platform/agentHost/common/partialToolInput.js';
 import { MessageAttachmentKind, type FileEdit, type MessageAttachment, type StringOrMarkdown, type TextRange } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { normalizeFileEdit } from '../../../../../../platform/agentHost/common/fileEditDiff.js';
@@ -45,7 +45,7 @@ import { ChatRequestOriginKind, type IChatRequestOrigin } from '../../../common/
 import { AgentHostCompletionReferenceKind, restoreChatTranscriptContextVariableEntry, restorePasteVariableEntryFromAttachment, toAgentHostCompletionVariableEntryFromMetadata, type IAgentFeedbackVariableEntry, type IChatRequestVariableEntry, type IElementVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { type IToolConfirmationMessages, type IToolData, type IPreparedToolInvocation, type IToolResult, type IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { MCP } from '../../../../mcp/common/modelContextProtocol.js';
-import { basename } from '../../../../../../base/common/resources.js';
+import { basename, isEqual } from '../../../../../../base/common/resources.js';
 import { hasKey, type Mutable } from '../../../../../../base/common/types.js';
 import { localize } from '../../../../../../nls.js';
 import type { IRange } from '../../../../../../editor/common/core/range.js';
@@ -963,7 +963,21 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 
 export function messageToRequestOrigin(backendSession: URI, message: Message, participantId: string): IChatRequestOrigin | undefined {
 	const delegation = readAgentMessageDelegationMeta(message);
-	if (!delegation || delegation.sourceThreadId === AgentSession.id(backendSession)) {
+	if (!delegation) {
+		return undefined;
+	}
+	if (hasKey(delegation, 'sourceSession')) {
+		return {
+			kind: ChatRequestOriginKind.Delegation,
+			sourceSessionResource: URI.parse(buildOpenSessionLinkUri(
+				delegation.sourceSession,
+				delegation.sourceChat ? parseChatUri(delegation.sourceChat)?.chatId : undefined,
+				delegation.sourceTurnId,
+			)),
+			delegationScope: isEqual(URI.parse(delegation.sourceSession), backendSession) ? 'chat' : 'session',
+		};
+	}
+	if (delegation.sourceThreadId === AgentSession.id(backendSession)) {
 		return undefined;
 	}
 	return {

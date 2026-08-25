@@ -33,7 +33,6 @@ import { AgentMergeTools } from './agentMergeTools.js';
 import { AgentService, type IAgentServiceCollaborators, type IAgentServiceCore, type IAgentServiceOptions } from './agentService.js';
 import { AgentSessionRegistry } from './agentSessionRegistry.js';
 import { AgentSideEffects } from './agentSideEffects.js';
-import { SessionCoordinationService } from './sessionCoordination.js';
 import { AgentServerToolHost } from './shared/agentServerToolHost.js';
 import { buildServerToolGroups } from './shared/serverToolGroups.js';
 import { type IAgentServiceFoundation } from './agentServiceFoundation.js';
@@ -152,16 +151,6 @@ export function createAgentServiceComposition(
 				},
 			},
 		));
-		const sessionCoordination = owned.add(new SessionCoordinationService(
-			stateManager,
-			sessionDataService,
-			logService,
-			{
-				getSessionMetadata: session => callbackAdapter.value.getSessionMetadata(session),
-				restoreSession: session => callbackAdapter.value.restoreSession(session),
-				handleAction: (chat, action) => sideEffects.handleAction(chat, action),
-			},
-		));
 		const agentMergeTools = instantiationService.createInstance(
 			AgentMergeTools,
 			() => agentMergeController.isEnabled(),
@@ -186,7 +175,6 @@ export function createAgentServiceComposition(
 			terminalManager,
 			localTurns,
 			sideEffects,
-			sessionCoordination,
 			serverToolHost,
 		};
 		agentService = instantiationService.createInstance(AgentService, core, collaborators);
