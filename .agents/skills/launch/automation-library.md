@@ -187,8 +187,7 @@ fails with `Target page, context or browser has been closed`. Diff the page list
 async function openBrowserTab(session, url) {
     const ctx = session.browser.contexts()[0];
     const seen = new Set(ctx.pages());
-    await session.workbench.quickaccess.runCommand(
-        'workbench.action.openInIntegratedBrowser', { exactLabelMatch: false });
+    await session.workbench.quickaccess.runCommand('workbench.action.browser.open');
     await session.page.keyboard.type(url);
     await session.page.keyboard.press('Enter');
 
