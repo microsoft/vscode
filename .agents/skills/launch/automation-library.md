@@ -1,23 +1,21 @@
 # Driving the UI with the repo's automation library
 
-Before hand-writing selectors, check whether `test/automation` already covers
-the surface. It is the library the smoke tests use, and it encodes years of
-hard-won knowledge about VS Code's DOM: retry loops for async-populated
-pickers, read-back verification after typing, and workarounds for clicks that
-get absorbed by animating overlays.
+Before hand-writing selectors, check whether `test/automation` covers the
+surface. It is what the smoke tests use, and it encodes years of hard-won DOM
+knowledge: retry loops for async-populated pickers, read-back verification after
+typing, and workarounds for clicks absorbed by animating overlays.
 
-It normally *spawns* its own Electron, but it can attach to the instance
-`launch.sh` already started. `scripts/attach.ts` does that:
+It normally *spawns* Electron, but `scripts/attach.ts` points it at the instance
+`launch.sh` already started:
 
 ```bash
-# 1. The driver the page objects call through is only registered with this flag.
+# The driver the page objects call through only exists with this flag.
 INFO=$("$LAUNCH" --disable-workspace-trust -- --enable-smoke-test-driver | tail -n1)
-CDP=$(jq -r .cdpPort <<<"$INFO")
-PID=$(jq -r .pid <<<"$INFO")
+CDP=$(jq -r .cdpPort <<<"$INFO"); PID=$(jq -r .pid <<<"$INFO")
 ```
 
 ```js
-// 2. Write a throwaway script IN THE REPO ROOT so `playwright` resolves.
+// Write the script IN THE REPO ROOT so `playwright` resolves. No build step.
 import { attach } from '<dir-of-this-file>/scripts/attach.ts';
 
 const session = await attach(process.argv[2], { window: 'workbench' });
@@ -28,141 +26,91 @@ await workbench.chat.waitForChatView();
 await workbench.chat.sendMessage('Reply with exactly PONG.');
 console.log(await workbench.chat.waitForResponseText(/PONG/i));
 
-await session.detach();   // disconnects CDP; Code OSS keeps running
+await session.detach();   // closes CDP only; Code OSS keeps running
 ```
 
-### Pick the right window first
+`attach(cdpPort, options)` returns `{ workbench, code, page, browser, detach }`.
+Options: `window` (`'workbench' | 'agents' | 'any'`), `verbose` (stream the
+retry logger to stderr — fastest way to see *why* a step fails), `repoRoot`,
+`logsPath`, `timeoutMs`.
 
-`launch.sh` opens the regular workbench by default and the Agents window with
-`--agents`. They are different products with different surfaces, and a task
-aimed at one will quietly produce misleading results in the other:
+After `detach()`, kill the `pid` from the launch JSON and **verify it died** —
+see "Verify the cleanup actually worked" in SKILL.md. Killing `pid` alone
+routinely leaves the Electron process group alive.
 
-| | Regular workbench (default) | Agents window (`--agents`) |
+## Pick the right window first
+
+`launch.sh` opens the regular workbench by default, the Agents window with
+`--agents`. Different products, different surfaces:
+
+| | Regular workbench | Agents window (`--agents`) |
 |---|---|---|
 | Page objects | `workbench.chat`, `quickaccess`, `editors`, `terminal`, ... | `workbench.agentsWindow` |
 | Chat surface | sidebar / editor chat | session-based homepage |
 | Session types | Copilot, Local, Cloud, Claude | Copilot, Claude — **no Local** |
 
-Pass `window: 'workbench'` or `window: 'agents'` to `attach()` so a mismatch
-fails immediately instead of after a confusing search. If a control you expect
-is missing, check which window you launched before concluding the control does
-not exist.
+Pass `window:` so a mismatch fails immediately rather than after a confusing
+search. If an expected control is missing, check which window you launched.
 
-> **Do not pick the window by name-matching the task.** "Agent", "harness", and
-> "session target" all appear in *both* products, so a task phrased around
-> agents is not automatically an Agents-window task. Choose by the *control*
-> you need. In particular, anything involving the **Local** harness is a
-> regular-workbench task: the Agents window genuinely has no Local session
-> type, so `agentsWindow.selectSessionType('Local')` there fails with
-> `Available: ` (an empty list) — which looks like a broken selector but is the
-> API correctly reporting the wrong window. In one subagent run this cost the
-> whole session. The workbench control is a toolbar button labelled
-> `Set Session Target - <current>`, reachable with
-> `code.waitAndClick('[aria-label^="Set Session Target"]')`.
+> **Choose by the control you need, not by name-matching the task.** "Agent",
+> "harness" and "session target" appear in *both* products. Anything involving
+> the **Local** harness is a regular-workbench task — the Agents window has no
+> Local session type, so `agentsWindow.selectSessionType('Local')` fails there
+> with `Available: ` (empty list), which reads like a broken selector but is the
+> API correctly reporting the wrong window. This cost one subagent its whole
+> session. The workbench control is a toolbar button:
+> `code.waitAndClick('[aria-label^="Set Session Target"]')` — but it is gated on
+> `chatSessionIsEmpty`, so it disappears once the session has a turn in it.
+> Read the target *before* sending anything, or start a fresh chat first.
 
-`attach()` takes the `cdpPort` from the launch JSON and returns
-`{ workbench, code, page, browser, detach }`. Options: `window`
-(`'workbench' | 'agents' | 'any'`), `verbose` (stream the automation logger's
-per-retry output to stderr — the fastest way to see *why* a step is failing),
-`repoRoot`, `logsPath`, and `timeoutMs`.
+## What you get
 
-`detach()` only closes the CDP connection; the Code OSS process keeps running.
-Kill it with the `pid` from the launch JSON and then **verify it actually
-died** — see "Verify the cleanup actually worked" in SKILL.md. Killing `pid`
-alone routinely leaves the Electron process group alive.
-
-### What you get
-
-`workbench.*` exposes page objects for `chat`, `agentsWindow`, `quickaccess`,
+`workbench.*` has page objects for `chat`, `agentsWindow`, `quickaccess`,
 `quickinput`, `editors`, `explorer`, `search`, `terminal`, `notebook`,
-`settingsEditor`, `debug`, `scm`, `extensions`, `statusbar`, `problems`,
-`task`, `localization`, `activitybar`, `editor`, and `keybindingsEditor`.
-Read the `.d.ts` files under `test/automation/out/` for the current API of a
-surface — the doc comments explain known flakiness and how each method
-compensates for it.
+`settingsEditor`, `debug`, `scm`, `extensions`, `statusbar`, `problems`, `task`,
+`localization`, `activitybar`, `editor`, `keybindingsEditor`. Read the `.d.ts`
+files under `test/automation/out/` for the current API — the doc comments
+explain known flakiness and how each method compensates.
 
 Two habits worth forming:
 
-- `workbench.quickaccess.runCommand(id)` is more reliable than clicking your
-  way to a command, and it reports when a command is not found. A command
-  registered with `f1: false` is not reachable this way — that is a real
-  result about the command, not a failure of the tooling.
-- `code.waitAndClick(selector)` retries and waits for the element to be
-  clickable, which handles the animating-overlay case that makes a one-shot
-  click silently do nothing.
+- `quickaccess.runCommand(id)` beats clicking your way to a command and reports
+  when one is not found. A command registered with `f1: false` is unreachable
+  this way — a real result about the command, not a tooling failure.
+- `code.waitAndClick(selector)` retries and waits for clickability, handling the
+  animating-overlay case where a one-shot click silently does nothing.
 
-### Finding a control that has no page object
+## Finding a control with no page object
 
-Do not guess selectors. Ask the running window what is on screen, then work
-from the real labels. Toolbar buttons in chat are `.action-label` elements and
-their `aria-label` is the text you want:
+Don't guess selectors. Ask the window what is on screen and work from real
+labels. Chat toolbar buttons are `.action-label`, and `aria-label` is the text:
 
 ```js
 await session.page.evaluate(() =>
     Array.from(document.querySelectorAll('.interactive-session .action-label'))
-        .map(el => el.getAttribute('aria-label'))
-        .filter(Boolean));
+        .map(el => el.getAttribute('aria-label')).filter(Boolean));
 // => [..., 'Set Session Target - Copilot', 'Configure Tools...', ...]
 ```
 
-Now you have a stable hook — `.action-label[aria-label^="Set Session Target"]` —
-that reads like the UI instead of encoding DOM structure. The same idea works
-for any surface: enumerate the labelled elements, then select by label.
+That yields a stable hook — `.action-label[aria-label^="Set Session Target"]` —
+which reads like the UI instead of encoding DOM structure.
 
-### When to use raw @playwright/cli instead
+## When to use raw @playwright/cli
 
-The automation library is the better default, but reach for the CLI when:
+The library is the better default; reach for the CLI to explore (`snapshot`),
+to screenshot, or for a surface with no page object you touch once or twice.
+They compose: `session.page` is a normal Playwright `Page`.
 
-- You are exploring and want `snapshot` to see what is on screen.
-- The surface has no page object and you only need one or two interactions.
-- You want a screenshot for a paper trail (`screenshot --filename=...`).
-
-The two compose: attach the library for the flows it covers, and drop to
-`session.page` (a normal Playwright `Page`) for anything it does not.
-
-### Gotchas
+## Gotchas
 
 - **`--enable-smoke-test-driver` is mandatory.** Without it `window.driver` is
-  never registered (see `setupDriver` in `src/vs/workbench/browser/window.ts`)
-  and every page object fails. `attach()` checks this up front and tells you.
-- **`test/automation` must be compiled.** `npm run compile` covers it;
-  `attach()` reports if `out/` is missing.
-- **Lists select on `mousedown`, not `click`.** For menus and pickers without a
-  helper, prefer keyboard navigation and verify the focused row before
-  committing:
-
-  ```js
-  await page.keyboard.press('ArrowDown');
-  const focused = await page.evaluate(() =>
-      document.querySelector('.monaco-list-row.focused')?.textContent?.trim());
-  // assert `focused` is what you expect, then press Enter
-  ```
-
-- **Snapshot refs go stale** against virtualized lists. Re-query immediately
-  before interacting.
-- **Scope list queries to the part you mean — `.monaco-list-row` is everywhere.**
-  This bites in both directions, and the under-scoped case is the dangerous one
-  because it returns a plausible wrong answer instead of an error. Reading
-  Source Control with `.pane-body .monaco-list-row` returned four rows that were
-  actually chat sessions in the auxiliary bar; scoping to `.part.sidebar` gave
-  the true answer of zero. Over-scoping fails the other way: menu rows are not
-  reliably nested under `.context-view`, so `.context-view .monaco-list-row` can
-  come back empty for a popup that is plainly on screen. Anchor on the part
-  (`.part.sidebar`, `.part.panel`, `.part.auxiliarybar`) and filter from there,
-  and treat a suspiciously well-formed result as worth a second look.
-- **Not every surface exists in every window.** The Agents window has no Local
-  session type, for instance. `workbench.agentsWindow.isSessionTypeAvailable(label)`
-  answers that question directly instead of leaving you to infer it from a
-  failure.
-- **Editor tab `aria-label` is not the tab title.** An untitled editor is
-  labelled from its *content*, so a file whose first line is `<!DOCTYPE html>`
-  gets `aria-label="<!DOCTYPE html> • Untitled-1"` and a
-  `[aria-label^="Untitled-1"]` selector never matches. Enumerate the tabs and
-  match on `textContent`, or just act on `.tab.active`.
-- **Toolbar toggles must be read, not blindly clicked.** Controls such as the
-  integrated browser's *Add Element to Chat* carry `checked` in their class
-  when active, so an unconditional click can switch the mode *off*. Check
-  first, then click only if needed:
+  never registered (`setupDriver` in `src/vs/workbench/browser/window.ts`) and
+  every page object fails. `attach()` checks and tells you.
+- **`test/automation` must be compiled** (`npm run compile`). `attach()` reports
+  a missing `out/`.
+- **Toolbar toggles must be read, not blindly clicked.** Controls like the
+  integrated browser's *Add Element to Chat* carry `checked` in `className` when
+  active, so an unconditional click switches the mode *off*:
 
   ```js
   const isOn = () => page.evaluate(() => (document.querySelector(
@@ -170,28 +118,46 @@ The two compose: attach the library for the flows it covers, and drop to
   if (!(await isOn())) { await code.waitAndClick('.action-label[aria-label^="Add Element to Chat"]'); }
   ```
 
-- **Commands that open a native dialog will time out.** `runCommand` waits for
-  the quick input to *close*, so `workbench.action.files.openFolder` throws
-  after ~20s even though the dialog is up. Launch with the folder as an
-  argument instead (`launch.sh -- <path>`), and remember that opening a folder
-  reloads the window and drops the CDP connection — reattach afterwards.
-- **Some providers register asynchronously**, seconds after the window is
-  usable. An agent-host session type that is missing right after launch may
-  simply not have registered yet, so poll before concluding it is unavailable
-  (`isSessionTypeAvailable` already re-opens the picker on each attempt for
-  exactly this reason). This is *not* a symptom of a missing
-  `--clone-extensions`: the built-in providers are present without it.
+- **Scope list queries to the part you mean — `.monaco-list-row` is everywhere.**
+  The under-scoped case is dangerous because it returns a plausible *wrong*
+  answer instead of an error: reading Source Control with
+  `.pane-body .monaco-list-row` returned four rows that were actually chat
+  sessions in the auxiliary bar, while `.part.sidebar` gave the true zero.
+  Over-scoping fails the other way — menu rows aren't reliably under
+  `.context-view`. Anchor on the part (`.part.sidebar`, `.part.panel`,
+  `.part.auxiliarybar`) and treat a suspiciously tidy result as worth re-checking.
+- **Commands opening a native dialog time out.** `runCommand` waits for quick
+  input to *close*, so `workbench.action.files.openFolder` throws after ~20s with
+  the dialog up. Pass the folder to `launch.sh -- <path>` instead; note that
+  opening a folder reloads the window and drops CDP, so reattach.
+- **Editor tab `aria-label` is not the tab title.** Untitled editors are
+  labelled from *content*: a file starting `<!DOCTYPE html>` gets
+  `aria-label="<!DOCTYPE html> • Untitled-1"`, so `[aria-label^="Untitled-1"]`
+  never matches. Match on `textContent`, or act on `.tab.active`.
+- **Lists select on `mousedown`, not `click`.** Without a helper, prefer
+  keyboard navigation and verify the focused row before committing:
 
-### The integrated browser is a separate CDP page
+  ```js
+  await page.keyboard.press('ArrowDown');
+  const focused = await page.evaluate(() =>
+      document.querySelector('.monaco-list-row.focused')?.textContent?.trim());
+  ```
 
-Page content shown in the integrated browser is **its own CDP target**, not
-part of the workbench document, so `session.page.evaluate` cannot see it and
-mouse events aimed at workbench coordinates will not reach it. Pick the content
-page off the browser and drive it directly.
+- **Snapshot refs go stale** against virtualized lists. Re-query before acting.
+- **Some providers register seconds after the window is usable.** A missing
+  session type may just not have registered yet, so poll
+  (`isSessionTypeAvailable` re-opens the picker each attempt). This is *not* a
+  missing `--clone-extensions`; built-in providers are present without it.
 
-**Every integrated browser tab is a separate page**, so match on the URL and
-fail loudly when the match is not unique — `find()` returns an arbitrary tab,
-and page order does not follow the order you opened them in:
+## The integrated browser is a separate CDP page
+
+Integrated-browser content is **its own CDP target**, so `session.page.evaluate`
+cannot see it and workbench-coordinate clicks never reach it. This is what makes
+*Add Element to Chat* automatable: enable the picker from the workbench toolbar,
+then click the element **in the content page**.
+
+**Every tab is a separate page**, and page order does not follow open order, so
+match on URL and fail loudly when the match is not unique:
 
 ```js
 function contentPage(session, urlSubstring) {
@@ -203,37 +169,22 @@ function contentPage(session, urlSubstring) {
     }
     return matches[0];
 }
-
-const content = contentPage(session, 'demo.html');
-await content.evaluate(() => document.querySelector('h1')?.textContent);
+await contentPage(session, 'demo.html').evaluate(() => document.querySelector('h1')?.textContent);
 ```
 
-Workbench windows use the `vscode-file://` scheme, so excluding it narrows the
-list to browser content — but with two tabs open that still leaves two
-candidates, which is exactly the case the uniqueness check catches.
+`http://localhost:...` is unremarkable here — loopback pages are ordinary CDP
+targets. What bites is that URL matching stops discriminating when tabs *share*
+a URL, the normal state for a dev server. Titles don't rescue you either.
 
-`http://localhost:...` works exactly like any other URL here — nothing about the
-scheme or the loopback host is special, and a dev server's pages are ordinary CDP
-targets. What *does* bite is that URL matching stops discriminating when several
-tabs share a URL, which is the normal state of affairs for a dev server: open
-`http://localhost:3000/` twice and `contentPage` correctly refuses, but no
-substring can separate them. Titles do not rescue you either — same URL usually
-means same `<title>`.
-
-When you control the opening, capture the page as you open it and keep the
-handle. The handle is stable across in-tab navigation and reloads, so it stays
-valid while the dev server hot-reloads.
-
-Do **not** reach for `ctx.waitForEvent('page')` here. Opening a second tab first
-emits a transient blank page that is closed again a moment later, so
-`waitForEvent` hands you a dead target and the next call fails with
-`Target page, context or browser has been closed`. Diff the page list instead and
-require the URL to match:
+When you control the opening, capture the handle as you open it; it survives
+in-tab navigation and reloads, so it stays valid across hot reloads. Do **not**
+use `ctx.waitForEvent('page')`: opening a second tab first emits a transient
+blank page that is closed again, so you get a dead target and the next call
+fails with `Target page, context or browser has been closed`. Diff the page list:
 
 ```js
-const ctx = session.browser.contexts()[0];
-
-async function openBrowserTab(url) {
+async function openBrowserTab(session, url) {
+    const ctx = session.browser.contexts()[0];
     const seen = new Set(ctx.pages());
     await session.workbench.quickaccess.runCommand(
         'workbench.action.openInIntegratedBrowser', { exactLabelMatch: false });
@@ -253,15 +204,6 @@ async function openBrowserTab(url) {
     }
     throw new Error(`No new integrated-browser page for ${url}`);
 }
-
-const tab1 = await openBrowserTab('http://localhost:3000/');
-const tab2 = await openBrowserTab('http://localhost:3000/');   // distinct handles
 ```
 
-Use `contentPage` when the URLs are genuinely distinct, and `openBrowserTab`
-when they are not.
-
-This is what makes *Add Element to Chat* automatable end to end: enable the
-picker from the workbench toolbar, then click the element **in the content
-page**. The picker turns itself off once an element is chosen, and the
-attachment shows up as a `.chat-attached-context-attachment` chip in chat.
+Use `contentPage` when URLs are distinct, `openBrowserTab` when they are not.

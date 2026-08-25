@@ -173,11 +173,22 @@ console.log(await session.workbench.chat.waitForResponseText(/PONG/i));
 await session.detach();
 ```
 
-**Read [automation-library.md](./automation-library.md) first** — it covers
-picking the right window, driving controls with no page object, the integrated
-browser, and the gotchas. Fall back to raw `@playwright/cli` below for
+**Check for a page object before hand-rolling selectors.** `workbench.*` covers
+`chat`, `agentsWindow`, `quickaccess`, `quickinput`, `editors`, `explorer`,
+`search`, `terminal`, `notebook`, `settingsEditor`, `debug`, `scm`, `extensions`,
+`statusbar`, `problems`, `task`, `localization`, `activitybar`, `editor`,
+`keybindingsEditor` — each with the retries that surface needs. If your task
+names one of those surfaces, `ls test/automation/out/*.d.ts` and read its API
+first. Skipping this step is the single most expensive mistake with this skill:
+in a user study, finding an extension's publisher took **7m40s and 40 raw CLI
+calls** hand-rolling DOM queries, when `workbench.extensions.searchForExtension()`
+already did it.
+
+**Then read [automation-library.md](./automation-library.md)** — window choice,
+controls with no page object, the integrated browser, and the gotchas (several
+cost multiple runs to discover). Fall back to raw `@playwright/cli` below for
 exploration (`snapshot`), screenshots, and anything the library misses;
-`session.page` is a normal Playwright `Page`, so the two compose.
+`session.page` is a normal Playwright `Page`.
 
 ### Raw `@playwright/cli`
 
