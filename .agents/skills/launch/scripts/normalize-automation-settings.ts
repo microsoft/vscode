@@ -21,11 +21,141 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import process from 'node:process';
+import { fileURLToPath } from 'node:url';
 
 const ENTRIES: [string, string][] = [
 	['files.simpleDialog.enable', 'true'],
 	['editor.editContext', 'true'],
 ];
+
+function isJsoncLineBreak(c: string): boolean {
+	return c === '\n' || c === '\r' || c === '\u2028' || c === '\u2029';
+}
+
+function isJsoncWhitespace(c: string): boolean {
+	const ch = c.charCodeAt(0);
+	return ch === 0x20 || ch === 0x09 || ch === 0x0b || ch === 0x0c ||
+		ch === 0x00a0 || ch === 0x1680 || (ch >= 0x2000 && ch <= 0x200b) ||
+		ch === 0x202f || ch === 0x205f || ch === 0x3000 || ch === 0xfeff;
+}
+
+function codeMask(src: string, source: string): string {
+	const out = src.split('');
+	let inString = false, inLine = false, inBlock = false;
+	for (let i = 0; i < src.length; i++) {
+		const c = src[i], n = src[i + 1];
+		if (inLine) {
+			if (isJsoncLineBreak(c)) { i--; inLine = false; } else { out[i] = ' '; }
+			continue;
+		}
+		if (inBlock) {
+			if (c === '*' && n === '/') { out[i] = ' '; out[i + 1] = ' '; i++; inBlock = false; }
+			else if (c !== '\n') { out[i] = ' '; }
+			continue;
+		}
+		if (inString) {
+			if (c === '\\') { i++; }
+			else if (c === '"') { inString = false; }
+			continue;
+		}
+		if (isJsoncLineBreak(c) && c !== '\n' && c !== '\r') { out[i] = ' '; }
+		else if (isJsoncWhitespace(c) && c !== ' ' && c !== '\t') { out[i] = ' '; }
+		else if (c === '"') { inString = true; }
+		else if (c === '/' && n === '/') { out[i] = ' '; inLine = true; }
+		else if (c === '/' && n === '*') { out[i] = ' '; out[i + 1] = ' '; i++; inBlock = true; }
+	}
+	if (inBlock || inString) {
+		console.error('[normalize-automation-settings] ' + source + ' is not valid JSONC (unterminated ' +
+			(inBlock ? 'block comment' : 'string') + ') - refusing to continue');
+		process.exit(1);
+	}
+	return out.join('');
+}
+
+function removeTrailingCommas(masked: string): string {
+	const out = masked.split('');
+	let inString = false;
+	for (let i = 0; i < out.length; i++) {
+		const c = out[i];
+		if (inString) {
+			if (c === '\\') { i++; }
+			else if (c === '"') { inString = false; }
+			continue;
+		}
+		if (c === '"') { inString = true; continue; }
+		if (c !== ',') { continue; }
+		let next = i + 1;
+		while (next < out.length && /\s/.test(out[next])) { next++; }
+		if (out[next] === '}' || out[next] === ']') { out[i] = ' '; }
+	}
+	return out.join('');
+}
+
+function parseJsonc(text: string, source: string): unknown {
+	const masked = codeMask(text, source).replace(/^\uFEFF/, '');
+	try {
+		return JSON.parse(removeTrailingCommas(masked));
+	} catch (error) {
+		console.error('[normalize-automation-settings] ' + source + ' is not valid JSONC (' +
+			(error as Error).message + ') - refusing to continue');
+		process.exit(1);
+	}
+}
+
+function assertSimpleDialogForWorkspaceArgs(args: string[]): void {
+	const candidates = new Set<string>();
+	const optionsWithPathValue = new Set([
+		'--extensionDevelopmentPath', '--extensionTestsPath', '--extensions-dir', '--file-uri',
+		'--inspect', '--inspect-agenthost', '--inspect-brk', '--inspect-extensions', '--locale',
+		'--log', '--remote-debugging-port', '--shared-data-dir', '--user-data-dir'
+	]);
+	for (let i = 0; i < args.length; i++) {
+		let argument = args[i];
+		if (argument === '--folder-uri') {
+			argument = args[++i] ?? '';
+			if (argument.startsWith('file:')) { candidates.add(fileURLToPath(argument)); }
+			continue;
+		}
+		if (argument.startsWith('--folder-uri=')) {
+			const uri = argument.slice('--folder-uri='.length);
+			if (uri.startsWith('file:')) { candidates.add(fileURLToPath(uri)); }
+			continue;
+		}
+		if (optionsWithPathValue.has(argument)) { i++; continue; }
+		if (argument.startsWith('-')) { continue; }
+		let isDirectory = false;
+		try { isDirectory = fs.statSync(argument).isDirectory(); } catch { }
+		if (argument.endsWith('.code-workspace') || isDirectory) { candidates.add(path.resolve(argument)); }
+	}
+
+	for (const candidate of candidates) {
+		let workspaceFile = false;
+		try { workspaceFile = fs.statSync(candidate).isFile() && candidate.endsWith('.code-workspace'); }
+		catch { continue; }
+		const settingsFile = workspaceFile ? candidate : path.join(candidate, '.vscode', 'settings.json');
+		let text: string;
+		try { text = fs.readFileSync(settingsFile, 'utf8'); }
+		catch (error) {
+			if ((error as NodeJS.ErrnoException).code === 'ENOENT') { continue; }
+			console.error('[normalize-automation-settings] cannot read ' + settingsFile + ': ' + (error as Error).message);
+			process.exit(1);
+		}
+		const root = parseJsonc(text, settingsFile);
+		if (!root || typeof root !== 'object' || Array.isArray(root)) {
+			console.error('[normalize-automation-settings] ' + settingsFile + ' must contain a JSON object');
+			process.exit(1);
+		}
+		const settings = workspaceFile ? (root as Record<string, unknown>).settings : root;
+		if (!settings || typeof settings !== 'object' || Array.isArray(settings)) { continue; }
+		const values = settings as Record<string, unknown>;
+		if (Object.hasOwn(values, 'files.simpleDialog.enable') && values['files.simpleDialog.enable'] !== true) {
+			console.error('[normalize-automation-settings] ' + settingsFile +
+				' overrides files.simpleDialog.enable; set it to true or remove it so automation never opens a native dialog');
+			process.exit(1);
+		}
+	}
+}
+
 export function normalizeSettingsFile(f: string, root?: string): void {
 	// The profile is cloned with `rsync -a`, which preserves symlinks - and not
 	// only on the settings file itself. A symlinked `User` or
@@ -92,71 +222,6 @@ export function normalizeSettingsFile(f: string, root?: string): void {
 		}
 	}
 
-	// Empty file -> write a fresh object with every key.
-	if (text.trim() === '') {
-		const body = ENTRIES.map(([k, v]) => '  "' + k + '": ' + v).join(',\n');
-		fs.writeFileSync(f, '{\n' + body + '\n}\n');
-		return;
-	}
-
-	// VS Code's JSONC scanner (`src/vs/base/common/json.ts`) recognizes more line
-	// terminators and more whitespace than JSON does. Mirroring both sets here keeps
-	// a profile that VS Code reads happily from being rejected as malformed.
-	function isJsoncLineBreak(c: string): boolean {
-		return c === '\n' || c === '\r' || c === '\u2028' || c === '\u2029';
-	}
-
-	function isJsoncWhitespace(c: string): boolean {
-		const ch = c.charCodeAt(0);
-		return ch === 0x20 || ch === 0x09 || ch === 0x0b || ch === 0x0c ||
-			ch === 0x00a0 || ch === 0x1680 || (ch >= 0x2000 && ch <= 0x200b) ||
-			ch === 0x202f || ch === 0x205f || ch === 0x3000 || ch === 0xfeff;
-	}
-
-	// Blank out comments while preserving offsets, so a commented-out occurrence
-	// such as `// "editor.editContext": false` is never mistaken for the real
-	// setting and `//` inside a string (e.g. a proxy URL) is not treated as one.
-	// Scanner-only trivia outside strings is replaced by a plain space (1:1, so
-	// offsets still line up) because `JSON.parse` would otherwise reject it.
-	function codeMask(src: string): string {
-		const out = src.split('');
-		let inString = false, inLine = false, inBlock = false;
-		for (let i = 0; i < src.length; i++) {
-			const c = src[i], n = src[i + 1];
-			if (inLine) {
-				// A bare `\r` (and U+2028/U+2029) ends a line comment too - VS Code's
-				// scanner treats them all as LineBreakTrivia - so masking to the next
-				// `\n` would blank the whole file and get a valid settings.json
-				// rejected as malformed.
-				if (isJsoncLineBreak(c)) { i--; inLine = false; } else { out[i] = ' '; }
-				continue;
-			}
-			if (inBlock) {
-				if (c === '*' && n === '/') { out[i] = ' '; out[i + 1] = ' '; i++; inBlock = false; }
-				else if (c !== '\n') { out[i] = ' '; }
-				continue;
-			}
-			if (inString) {
-				if (c === '\\') { i++; }
-				else if (c === '"') { inString = false; }
-				continue;
-			}
-			if (isJsoncLineBreak(c) && c !== '\n' && c !== '\r') { out[i] = ' '; }
-			else if (isJsoncWhitespace(c) && c !== ' ' && c !== '\t') { out[i] = ' '; }
-			else if (c === '"') { inString = true; }
-			else if (c === '/' && n === '/') { out[i] = ' '; inLine = true; }
-			else if (c === '/' && n === '*') { out[i] = ' '; out[i + 1] = ' '; i++; inBlock = true; }
-		}
-		// An unterminated `/* ...` is a scan error in VS Code's JSONC parser, but
-		// masking it to EOF makes the remaining text look fine to `JSON.parse`, so
-		// a broken file would be rewritten despite the fail-closed contract.
-		if (inBlock || inString) {
-			console.error('[normalize-automation-settings] settings.json is not valid JSONC (unterminated ' +
-				(inBlock ? 'block comment' : 'string') + ') - refusing to clobber it: ' + f);
-			process.exit(1);
-		}
-		return out.join('');
-	}
 
 	// Decode a JSON string body (the text between the quotes) so keys are compared
 	// by value rather than by source spelling.
@@ -332,7 +397,7 @@ export function normalizeSettingsFile(f: string, root?: string): void {
 			// before concluding the file is actually broken.
 		}
 		try {
-			JSON.parse(masked.replace(/,(\s*[}\]])/g, '$1'));
+			JSON.parse(removeTrailingCommas(masked));
 		} catch (e) {
 			console.error('[normalize-automation-settings] settings.json is not valid JSONC (' +
 				(e as Error).message + ') - refusing to clobber it: ' + f);
@@ -340,12 +405,18 @@ export function normalizeSettingsFile(f: string, root?: string): void {
 		}
 	}
 
-	const maskedForValidation = codeMask(text);
+	const maskedForValidation = codeMask(text, f);
+	if (maskedForValidation.replace(/^\uFEFF/, '').trim() === '') {
+		const body = ENTRIES.map(([k, v]) => '  "' + k + '": ' + v).join(',\n');
+		const separator = text === '' || isJsoncLineBreak(text.at(-1) ?? '') ? '' : '\n';
+		fs.writeFileSync(f, text + separator + '{\n' + body + '\n}\n');
+		return;
+	}
 	assertParses(maskedForValidation);
 	findRootObject(maskedForValidation);
 
 	for (const [key, value] of ENTRIES) {
-		let masked = codeMask(text);
+		let masked = codeMask(text, f);
 
 		const { root, nested } = findProperties(masked, key);
 
@@ -362,7 +433,7 @@ export function normalizeSettingsFile(f: string, root?: string): void {
 		}
 		// No root-level occurrence: append one. Any nested overrides were already
 		// normalized above, so they cannot contradict it.
-		masked = codeMask(text);
+		masked = codeMask(text, f);
 
 		const { open: firstBrace, close: lastBrace } = findRootObject(masked);
 
@@ -405,10 +476,11 @@ export function normalizeSettingsFile(f: string, root?: string): void {
 // script exists to prevent. So the profile metadata decides: only a profile that
 // sets `useDefaultFlags.settings` truly points back at the default resource, and
 // only that one is left alone.
-// `userDataProfiles` in application state is the same list VS Code reads, and
-// each entry's `location` is the directory name under `User/profiles`. A profile
-// is only treated as inheriting when it explicitly says so; unreadable or absent
-// metadata means nothing is skipped, which is the safe direction.
+// Modern entries store a relative directory name. Older entries can contain a
+// serialized file URI that still points at the source profile after the clone;
+// rewrite those to the matching directory in the clone before Code OSS sees
+// them. A URI with no matching cloned directory is rejected rather than allowing
+// the launched instance to escape its throwaway user-data-dir.
 function inheritingProfileLocations(userDataDir: string): Set<string> {
 	const inheriting = new Set<string>();
 	const stateFile = path.join(userDataDir, 'User', 'globalStorage', 'storage.json');
@@ -429,10 +501,50 @@ function inheritingProfileLocations(userDataDir: string): Set<string> {
 	if (!Array.isArray(profiles)) {
 		return inheriting;
 	}
+	let changed = false;
 	for (const profile of profiles) {
 		const entry = profile as { location?: unknown; useDefaultFlags?: { settings?: unknown } };
-		if (typeof entry?.location === 'string' && entry.useDefaultFlags?.settings === true) {
-			inheriting.add(path.basename(entry.location));
+		let location: string;
+		if (typeof entry?.location === 'string') {
+			location = entry.location;
+			if (location === '' || location === '.' || location === '..' ||
+				path.posix.basename(location) !== location || path.win32.basename(location) !== location) {
+				console.error('[normalize-automation-settings] refusing non-relative profile location ' +
+					JSON.stringify(location) + ' in ' + stateFile);
+				process.exit(1);
+			}
+		} else if (entry?.location && typeof entry.location === 'object') {
+			const uri = entry.location as { scheme?: unknown; authority?: unknown; path?: unknown; query?: unknown; fragment?: unknown };
+			if (uri.scheme !== 'file' || typeof uri.path !== 'string' ||
+				(typeof uri.authority === 'string' && uri.authority !== '') ||
+				(typeof uri.query === 'string' && uri.query !== '') ||
+				(typeof uri.fragment === 'string' && uri.fragment !== '')) {
+				console.error('[normalize-automation-settings] refusing unsupported URI profile location in ' + stateFile);
+				process.exit(1);
+			}
+			location = path.posix.basename(uri.path.replace(/\/+$/, ''));
+			const clonedLocation = path.join(userDataDir, 'User', 'profiles', location);
+			let isDirectory = false;
+			try { isDirectory = fs.lstatSync(clonedLocation).isDirectory(); } catch { }
+			if (!location || !isDirectory) {
+				console.error('[normalize-automation-settings] URI profile location has no matching cloned directory: ' + uri.path);
+				process.exit(1);
+			}
+			entry.location = location;
+			changed = true;
+		} else {
+			continue;
+		}
+		if (entry.useDefaultFlags?.settings === true) {
+			inheriting.add(location);
+		}
+	}
+	if (changed) {
+		state['userDataProfiles'] = typeof raw === 'string' ? JSON.stringify(profiles) : profiles;
+		try { fs.writeFileSync(stateFile, JSON.stringify(state)); }
+		catch (error) {
+			console.error('[normalize-automation-settings] cannot remap URI profile locations in ' + stateFile + ': ' + (error as Error).message);
+			process.exit(1);
 		}
 	}
 	return inheriting;
@@ -480,10 +592,12 @@ export function findSettingsFiles(userDataDir: string): string[] {
 
 const target = process.argv[2];
 if (!target) {
-	console.error('[normalize-automation-settings] usage: node normalize-automation-settings.ts <settings.json|--user-data-dir <dir>>');
+	console.error('[normalize-automation-settings] usage: node normalize-automation-settings.ts <settings.json|--user-data-dir <dir>|--check-workspace-args [...]>');
 	process.exit(2);
 }
-if (target === '--user-data-dir') {
+if (target === '--check-workspace-args') {
+	assertSimpleDialogForWorkspaceArgs(process.argv.slice(3));
+} else if (target === '--user-data-dir') {
 	const userDataDir = process.argv[3];
 	if (!userDataDir) {
 		console.error('[normalize-automation-settings] --user-data-dir requires a path');

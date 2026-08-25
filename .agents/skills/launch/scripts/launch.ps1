@@ -436,6 +436,15 @@ try {
 	$sourceUserDataDir = [IO.Path]::GetFullPath($sourceUserDataDir)
 
 	$node = Get-UsableNode $repo
+	# Workspace settings override the cloned profile. Reject a forwarded folder or
+	# .code-workspace that would make Open Folder use an undriveable native dialog.
+	$normalize = Join-Path $PSScriptRoot 'normalize-automation-settings.ts'
+	$workspaceArgs = @($extraArgs)
+	& $node $normalize '--check-workspace-args' @workspaceArgs
+	if ($LASTEXITCODE -ne 0) {
+		throw 'forwarded workspace settings disable files.simpleDialog.enable'
+	}
+
 	Write-LaunchError "[launch.ps1] using Node: $node"
 	$ports = Get-FreePorts
 	$cdpPort = $ports[0]

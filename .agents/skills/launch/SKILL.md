@@ -36,6 +36,7 @@ The clone is **slim**: workspace storage, browser caches, file history, cached V
 > The launcher **copies** the source profile to a temp dir and never mutates the original. Each launch gets its own isolated `--user-data-dir` and `--extensions-dir`.
 
 > The launcher normalizes two settings in the launched profile's `User/settings.json`. `files.simpleDialog.enable: true` is required because VS Code's native OS file dialogs cannot be driven via `@playwright/cli` over CDP and are unreachable over SSH on headless macOS; the simple (quick-input) dialog can be navigated with `press` and clipboard paste. `editor.editContext: true` is required because `test/automation`'s page objects choose between `.native-edit-context` and `textarea` from `Code.editContextEnabled`, which is unconditionally true for a dev build — a profile that disabled the setting renders a `textarea` and every text-input helper waits on the wrong selector and times out. Language-specific overrides (a `"[typescript]"` block) are normalized too, since `editor.*` settings are `LANGUAGE_OVERRIDABLE` and would otherwise outrank the root value. Both overrides are per-launch and only affect throwaway profiles, and the launcher passes `--sync=off` so they can never reach the user's synced settings. The rewrite is user-scope only, so a workspace that sets `editor.editContext: false` in its own `.vscode/settings.json` still wins. `attach()` checks the editors the window restored and says so when it finds the mismatch, which turns the usual case into an actionable error instead of a 20s timeout - but a window that restores no editor has nothing to inspect, so if a text-input helper still times out, check the workspace and folder settings for that key.
+> A forwarded folder or `.code-workspace` that overrides `files.simpleDialog.enable` is rejected before launch; workspace scope wins over the throwaway profile and would otherwise reopen an undriveable native dialog.
 
 > For unattended automation, pass `--disable-workspace-trust` so a trust dialog cannot block the flow or extension-host startup. The override is process-scoped and does not modify the source profile. Only use it with content you trust.
 
@@ -536,19 +537,31 @@ fi
 # or broaden the match before the kill. Escape once, reuse everywhere.
 RUN_RE=$(printf '%s' "$RUN_DIR" | sed 's/[][\.^$*+?(){}|\\]/\\&/g')
 
-leftover=$(pgrep -f "$RUN_RE" || true)
-if [ -n "$leftover" ]; then
+leftover=''
+if leftover=$(pgrep -f "$RUN_RE"); then
   echo "$leftover" | xargs kill 2>/dev/null || true
   sleep 2
+else
+  pgrep_status=$?
+  if [ "$pgrep_status" -gt 1 ]; then
+    echo "pgrep failed with status $pgrep_status; keeping $RUN_DIR for diagnosis" >&2
+    return 2>/dev/null || exit 1
+  fi
 fi
 
 # Only discard the profile once nothing is left: a survivor still has the run's
 # logs open, and deleting them removes the evidence you need to diagnose it.
-if pgrep -f "$RUN_RE" >/dev/null; then
-  echo "STILL RUNNING: $(pgrep -f "$RUN_RE" | tr '\n' ' ')"
+if leftover=$(pgrep -f "$RUN_RE"); then
+  echo "STILL RUNNING: $(printf '%s' "$leftover" | tr '\n' ' ')"
   echo "keeping $RUN_DIR for diagnosis"
 else
-  rm -rf "$RUN_DIR"
+  pgrep_status=$?
+  if [ "$pgrep_status" -eq 1 ]; then
+    rm -rf "$RUN_DIR"
+  else
+    echo "pgrep failed with status $pgrep_status; keeping $RUN_DIR for diagnosis" >&2
+    return 2>/dev/null || exit 1
+  fi
 fi
 ```
 
@@ -573,15 +586,24 @@ if (-not $runDir -or -not $base -or (Split-Path -Parent $runDir) -ne $base.Provi
 # `[` or `]` would be read as a wildcard character class, which can miss this
 # instance (deleting a live profile) or match unrelated processes.
 $needle = $runDir.ToLowerInvariant()
-$survivors = { Get-CimInstance Win32_Process |
+$survivors = { Get-CimInstance Win32_Process -ErrorAction Stop |
 	Where-Object { $_.CommandLine -and $_.CommandLine.ToLowerInvariant().Contains($needle) } }
 
-& $survivors | ForEach-Object { Stop-Process -Id $_.ProcessId -ErrorAction SilentlyContinue }
+try {
+	$running = @(& $survivors)
+} catch {
+	throw "process enumeration failed; keeping $runDir for diagnosis: $($_.Exception.Message)"
+}
+$running | ForEach-Object { Stop-Process -Id $_.ProcessId -ErrorAction SilentlyContinue }
 Start-Sleep -Seconds 2
 
 # Only discard the profile once nothing is left: a survivor still holds the
 # run's logs open, and deleting them removes the evidence you need.
-$left = & $survivors
+try {
+	$left = @(& $survivors)
+} catch {
+	throw "process enumeration failed; keeping $runDir for diagnosis: $($_.Exception.Message)"
+}
 if ($left) {
 	Write-Host "STILL RUNNING: $($left.ProcessId -join ' ')"
 	Write-Host "keeping $runDir for diagnosis"

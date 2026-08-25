@@ -72,11 +72,19 @@ if [[ -z "$REPO" ]]; then
 		exit 2
 	fi
 fi
+NORMALIZE_SETTINGS="$(cd "$(dirname "$0")" && pwd)/normalize-automation-settings.ts"
 
 if [[ ! -d "$SOURCE_UDD" ]]; then
 	echo "Source user-data-dir does not exist: $SOURCE_UDD" >&2
 	echo "Pass --source-user-data-dir <path> or set CODE_OSS_DEV_AUTHED_USER_DATA_DIR." >&2
 	exit 2
+fi
+
+# A workspace value wins over the cloned profile's user setting. Refuse a
+# forwarded folder or .code-workspace that disables the simple dialog, or Open
+# Folder would still launch a native OS dialog that CDP cannot drive.
+if ! node "$NORMALIZE_SETTINGS" --check-workspace-args "${EXTRA_ARGS[@]}"; then
+	exit 1
 fi
 
 PORTS=$(node <<'NODE'
@@ -175,7 +183,6 @@ fi
 #     this setting, Monaco renders a `textarea`, the page objects still wait
 #     for `.native-edit-context`, and every text-input helper (Chat,
 #     Extensions, Editors, AgentsWindow, ...) times out.
-NORMALIZE_SETTINGS="$(cd "$(dirname "$0")" && pwd)/normalize-automation-settings.ts"
 mkdir -p "$DEST_UDD/User"
 
 # Discovery lives in the shared script, so both launchers normalize exactly the

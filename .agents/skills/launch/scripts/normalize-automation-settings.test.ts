@@ -23,7 +23,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import process from 'node:process';
 import { test } from 'node:test';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const script = path.join(scriptDir, 'normalize-automation-settings.ts');
@@ -60,7 +60,8 @@ function parseJsonc(text: string): Record<string, unknown> {
 		// but rejected by JSON.parse, so fold them to a plain space.
 		out += !inString && (isJsoncLineBreak(c) || isJsoncWhitespace(c)) && c !== '\n' && c !== '\r' && c !== ' ' && c !== '\t' ? ' ' : c;
 	}
-	return JSON.parse(out.replace(/^\uFEFF/, '').replace(/,(\s*[}\]])/g, '$1'));
+	const normalized = out.replace(/^\uFEFF/, '').replace(/,(\s*[}\]])/g, '$1');
+	return normalized.trim() === '' ? {} : JSON.parse(normalized);
 }
 
 /** `undefined` content means "no settings.json at all", exercising the ENOENT path. */
@@ -77,6 +78,16 @@ function normalize(content: string | undefined): { status: number; text: string 
 	}
 	return { status, text: fs.readFileSync(file, 'utf8') };
 }
+
+function workspaceCheckStatus(args: string[]): number {
+	try {
+		execFileSync(process.execPath, [script, '--check-workspace-args', ...args], { stdio: 'pipe' });
+		return 0;
+	} catch (error) {
+		return (error as { status?: number }).status ?? 1;
+	}
+}
+
 
 /**
  * Asserts that no `[language]` override contradicts the automation values.
@@ -99,6 +110,10 @@ function assertNoContradictingOverride(root: Record<string, unknown>): void {
 const valid: [name: string, content: string | undefined][] = [
 	['missing file', undefined],
 	['empty file', ''],
+	['line-comment-only file', '// keep this comment'],
+	['block-comment-only file', '/* keep this block */'],
+	['comments separated by Unicode trivia', '// first\u2028\u200b/* second */'],
+	['Unicode-trivia-only file', '\u00a0\u2003\u200b'],
 	['empty object', '{}'],
 	['object on its own lines', '{\n}\n'],
 	['unrelated key', '{ "a": 1 }'],
@@ -358,6 +373,77 @@ test('normalizes independent profiles and skips only inheriting ones', () => {
 	});
 });
 
+test('remaps a legacy URI profile location into the cloned profile', () => {
+	const root = fs.mkdtempSync(path.join(os.tmpdir(), 'nas-uri-profile-'));
+	const userDir = path.join(root, 'User');
+	const named = path.join(userDir, 'profiles', 'legacy');
+	const storageFile = path.join(userDir, 'globalStorage', 'storage.json');
+	fs.mkdirSync(named, { recursive: true });
+	fs.mkdirSync(path.dirname(storageFile), { recursive: true });
+	fs.writeFileSync(path.join(userDir, 'settings.json'), '{}\n');
+	fs.writeFileSync(path.join(named, 'settings.json'), '{ "editor.editContext": false }\n');
+	fs.writeFileSync(storageFile, JSON.stringify({
+		userDataProfiles: [{
+			location: { scheme: 'file', path: '/source/User/profiles/legacy' },
+			name: 'Legacy'
+		}]
+	}));
+
+	const count = execFileSync(process.execPath, [script, '--user-data-dir', root], { encoding: 'utf8' }).trim();
+	const stored = JSON.parse(fs.readFileSync(storageFile, 'utf8')) as {
+		userDataProfiles: { location: unknown }[];
+	};
+
+	assert.deepStrictEqual({
+		count,
+		location: stored.userDataProfiles[0].location,
+		enabled: KEYS.map(key => parseJsonc(fs.readFileSync(path.join(named, 'settings.json'), 'utf8'))[key])
+	}, {
+		count: '2',
+		location: 'legacy',
+		enabled: [true, true]
+	});
+});
+
+
+test('rejects a folder workspace that disables the simple dialog', () => {
+	const root = fs.mkdtempSync(path.join(os.tmpdir(), 'nas-workspace-folder-'));
+	const settingsFile = path.join(root, '.vscode', 'settings.json');
+	fs.mkdirSync(path.dirname(settingsFile), { recursive: true });
+	const original = '{ "files.simpleDialog.enable": false }\n';
+	fs.writeFileSync(settingsFile, original);
+
+	assert.deepStrictEqual({
+		status: workspaceCheckStatus([root]),
+		settings: fs.readFileSync(settingsFile, 'utf8')
+	}, { status: 1, settings: original });
+});
+
+test('rejects a code-workspace setting that disables the simple dialog', () => {
+	const root = fs.mkdtempSync(path.join(os.tmpdir(), 'nas-code-workspace-'));
+	const workspaceFile = path.join(root, 'automation.code-workspace');
+	fs.writeFileSync(workspaceFile, '{\n // keep\n "folders": [],\n "settings": { "files.simpleDialog.enable": false, },\n}\n');
+
+	assert.strictEqual(workspaceCheckStatus(['--new-window', workspaceFile]), 1);
+});
+
+test('accepts an enabled simple dialog through a folder URI', () => {
+	const root = fs.mkdtempSync(path.join(os.tmpdir(), 'nas-workspace-uri-'));
+	const settingsFile = path.join(root, '.vscode', 'settings.json');
+	fs.mkdirSync(path.dirname(settingsFile), { recursive: true });
+	fs.writeFileSync(settingsFile, '{ "files.simpleDialog.enable": true }\n');
+
+	assert.strictEqual(workspaceCheckStatus(['--folder-uri', pathToFileURL(root).href]), 0);
+});
+
+test('does not mistake an extension development path for the opened workspace', () => {
+	const root = fs.mkdtempSync(path.join(os.tmpdir(), 'nas-extension-dev-'));
+	const settingsFile = path.join(root, '.vscode', 'settings.json');
+	fs.mkdirSync(path.dirname(settingsFile), { recursive: true });
+	fs.writeFileSync(settingsFile, '{ "files.simpleDialog.enable": false }\n');
+
+	assert.strictEqual(workspaceCheckStatus(['--extensionDevelopmentPath', root]), 0);
+});
 // `rsync -a` preserves symlinked *directories* too, so a linked `User` or
 // `User/profiles/<id>` reaches the merge with an ordinary-looking file path that
 // still resolves outside the throwaway profile. Writing there would edit the

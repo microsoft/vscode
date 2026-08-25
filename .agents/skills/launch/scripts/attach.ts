@@ -226,7 +226,8 @@ async function assertEditContextMode(page: PlaywrightPage): Promise<void> {
 			'so the automation page objects would time out on every text input. The launcher ' +
 			'normalizes `editor.editContext` in the profile, but workspace and folder settings ' +
 			'are merged after it: check for `editor.editContext: false` in the opened ' +
-			'workspace\'s `.vscode/settings.json` (or a `[language]` override there) and remove it.'
+			'workspace\'s `.vscode/settings.json`, or in the `settings` section of its ' +
+			'`.code-workspace` file (including any `[language]` override), and remove it.'
 		);
 	}
 }
