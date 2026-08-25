@@ -105,20 +105,28 @@ function parseJsonc(text: string, source: string): unknown {
 function assertSimpleDialogForWorkspaceArgs(args: string[]): void {
 	const candidates = new Set<string>();
 	const optionsWithPathValue = new Set([
-		'--extensionDevelopmentPath', '--extensionTestsPath', '--extensions-dir', '--file-uri',
+		'--extensionDevelopmentPath', '--extensionTestsPath', '--extensions-dir',
 		'--inspect', '--inspect-agenthost', '--inspect-brk', '--inspect-extensions', '--locale',
 		'--log', '--remote-debugging-port', '--shared-data-dir', '--user-data-dir'
 	]);
 	for (let i = 0; i < args.length; i++) {
 		let argument = args[i];
-		if (argument === '--folder-uri') {
-			argument = args[++i] ?? '';
-			if (argument.startsWith('file:')) { candidates.add(fileURLToPath(argument)); }
+		if (argument === '--folder-uri' || argument === '--file-uri') {
+			const kind = argument;
+			const uri = args[++i] ?? '';
+			if (uri.startsWith('file:')) {
+				const localPath = fileURLToPath(uri);
+				if (kind === '--folder-uri' || localPath.endsWith('.code-workspace')) { candidates.add(localPath); }
+			}
 			continue;
 		}
-		if (argument.startsWith('--folder-uri=')) {
-			const uri = argument.slice('--folder-uri='.length);
-			if (uri.startsWith('file:')) { candidates.add(fileURLToPath(uri)); }
+		const uriOption = /^(--folder-uri|--file-uri)=(.*)$/.exec(argument);
+		if (uriOption) {
+			const uri = uriOption[2];
+			if (uri.startsWith('file:')) {
+				const localPath = fileURLToPath(uri);
+				if (uriOption[1] === '--folder-uri' || localPath.endsWith('.code-workspace')) { candidates.add(localPath); }
+			}
 			continue;
 		}
 		if (optionsWithPathValue.has(argument)) { i++; continue; }
@@ -507,8 +515,10 @@ function inheritingProfileLocations(userDataDir: string): Set<string> {
 		let location: string;
 		if (typeof entry?.location === 'string') {
 			location = entry.location;
-			if (location === '' || location === '.' || location === '..' ||
-				path.posix.basename(location) !== location || path.win32.basename(location) !== location) {
+			const isOrdinaryProfile = location !== '' && location !== '.' && location !== '..' &&
+				path.posix.basename(location) === location && path.win32.basename(location) === location;
+			const isAgentsProfile = location === 'builtin/agents';
+			if (!isOrdinaryProfile && !isAgentsProfile) {
 				console.error('[normalize-automation-settings] refusing non-relative profile location ' +
 					JSON.stringify(location) + ' in ' + stateFile);
 				process.exit(1);
@@ -522,8 +532,9 @@ function inheritingProfileLocations(userDataDir: string): Set<string> {
 				console.error('[normalize-automation-settings] refusing unsupported URI profile location in ' + stateFile);
 				process.exit(1);
 			}
-			location = path.posix.basename(uri.path.replace(/\/+$/, ''));
-			const clonedLocation = path.join(userDataDir, 'User', 'profiles', location);
+			const segments = uri.path.replace(/\/+$/, '').split('/').filter(Boolean);
+			location = segments.slice(-2).join('/') === 'builtin/agents' ? 'builtin/agents' : segments.at(-1) ?? '';
+			const clonedLocation = path.join(userDataDir, 'User', 'profiles', ...location.split('/'));
 			let isDirectory = false;
 			try { isDirectory = fs.lstatSync(clonedLocation).isDirectory(); } catch { }
 			if (!location || !isDirectory) {
@@ -535,7 +546,9 @@ function inheritingProfileLocations(userDataDir: string): Set<string> {
 		} else {
 			continue;
 		}
-		if (entry.useDefaultFlags?.settings === true) {
+		// The native profile service forces every built-in Agents profile to inherit
+		// settings even though the persisted entry does not carry useDefaultFlags.
+		if (location === 'builtin/agents' || entry.useDefaultFlags?.settings === true) {
 			inheriting.add(location);
 		}
 	}
@@ -574,18 +587,35 @@ export function findSettingsFiles(userDataDir: string): string[] {
 	try { entries = fs.readdirSync(profilesDir, { withFileTypes: true }); } catch { entries = []; }
 	refuseLinkedDir(profilesDir);
 	const inheriting = inheritingProfileLocations(userDataDir);
+	const addProfile = (entry: fs.Dirent, parent: string, location: string): void => {
+		if (entry.isSymbolicLink()) {
+			refuseLinkedDir(path.join(parent, entry.name));
+			return;
+		}
+		if (!entry.isDirectory() || inheriting.has(location)) {
+			return;
+		}
+		files.push(path.join(parent, entry.name, 'settings.json'));
+	};
 	for (const entry of entries) {
+		if (entry.name !== 'builtin') {
+			addProfile(entry, profilesDir, entry.name);
+			continue;
+		}
+		// `builtin` is a namespace, not a profile. The Agents profile is stored one
+		// level below it, so inspect its children without ever creating
+		// `User/profiles/builtin/settings.json`.
 		if (entry.isSymbolicLink()) {
 			refuseLinkedDir(path.join(profilesDir, entry.name));
 			continue;
 		}
-		if (!entry.isDirectory()) {
-			continue;
+		if (!entry.isDirectory()) { continue; }
+		const builtinDir = path.join(profilesDir, entry.name);
+		let builtinEntries: fs.Dirent[] = [];
+		try { builtinEntries = fs.readdirSync(builtinDir, { withFileTypes: true }); } catch { }
+		for (const builtinEntry of builtinEntries) {
+			addProfile(builtinEntry, builtinDir, 'builtin/' + builtinEntry.name);
 		}
-		if (inheriting.has(entry.name)) {
-			continue;
-		}
-		files.push(path.join(profilesDir, entry.name, 'settings.json'));
 	}
 	return files;
 }

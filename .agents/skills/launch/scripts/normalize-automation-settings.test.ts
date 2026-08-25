@@ -405,6 +405,30 @@ test('remaps a legacy URI profile location into the cloned profile', () => {
 	});
 });
 
+test('accepts the nested built-in Agents profile without treating builtin as a profile', () => {
+	const root = fs.mkdtempSync(path.join(os.tmpdir(), 'nas-agents-profile-'));
+	const userDir = path.join(root, 'User');
+	const agentsDir = path.join(userDir, 'profiles', 'builtin', 'agents');
+	const storageFile = path.join(userDir, 'globalStorage', 'storage.json');
+	fs.mkdirSync(agentsDir, { recursive: true });
+	fs.mkdirSync(path.dirname(storageFile), { recursive: true });
+	fs.writeFileSync(path.join(userDir, 'settings.json'), '{}\n');
+	fs.writeFileSync(storageFile, JSON.stringify({
+		userDataProfiles: [{ location: 'builtin/agents', name: 'Agents' }]
+	}));
+
+	const count = execFileSync(process.execPath, [script, '--user-data-dir', root], { encoding: 'utf8' }).trim();
+
+	assert.deepStrictEqual({
+		count,
+		parentSettingsCreated: fs.existsSync(path.join(userDir, 'profiles', 'builtin', 'settings.json')),
+		agentsSettingsCreated: fs.existsSync(path.join(agentsDir, 'settings.json'))
+	}, {
+		count: '1',
+		parentSettingsCreated: false,
+		agentsSettingsCreated: false
+	});
+});
 
 test('rejects a folder workspace that disables the simple dialog', () => {
 	const root = fs.mkdtempSync(path.join(os.tmpdir(), 'nas-workspace-folder-'));
@@ -419,12 +443,15 @@ test('rejects a folder workspace that disables the simple dialog', () => {
 	}, { status: 1, settings: original });
 });
 
-test('rejects a code-workspace setting that disables the simple dialog', () => {
+test('rejects a code-workspace path or file URI that disables the simple dialog', () => {
 	const root = fs.mkdtempSync(path.join(os.tmpdir(), 'nas-code-workspace-'));
 	const workspaceFile = path.join(root, 'automation.code-workspace');
 	fs.writeFileSync(workspaceFile, '{\n // keep\n "folders": [],\n "settings": { "files.simpleDialog.enable": false, },\n}\n');
 
-	assert.strictEqual(workspaceCheckStatus(['--new-window', workspaceFile]), 1);
+	assert.deepStrictEqual([
+		workspaceCheckStatus(['--new-window', workspaceFile]),
+		workspaceCheckStatus(['--file-uri=' + pathToFileURL(workspaceFile).href])
+	], [1, 1]);
 });
 
 test('accepts an enabled simple dialog through a folder URI', () => {
