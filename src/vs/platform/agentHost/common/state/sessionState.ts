@@ -16,6 +16,7 @@ import { hasKey, type Mutable } from '../../../../base/common/types.js';
 import { URI as ResourceURI } from '../../../../base/common/uri.js';
 import type { IProductService } from '../../../product/common/productService.js';
 import { readToolCallMeta } from '../meta/agentToolCallMeta.js';
+import { readLegacyTurnError } from './legacyProtocolCompatibility.js';
 import {
 	ResponsePartKind,
 	SessionStatus,
@@ -936,7 +937,7 @@ export function getTurnError(turn: Turn | undefined): ErrorInfo | undefined {
 		return undefined;
 	}
 	const part = turn.responseParts[turn.responseParts.length - 1];
-	return part?.kind === ResponsePartKind.Error ? part.error : undefined;
+	return part?.kind === ResponsePartKind.Error ? part.error : readLegacyTurnError(turn);
 }
 
 export const enum StateComponents {
