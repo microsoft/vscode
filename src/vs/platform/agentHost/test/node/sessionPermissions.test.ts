@@ -192,7 +192,7 @@ suite('SessionPermissionManager', () => {
 
 	if (!isLinux) {
 		test('requires confirmation for protected files with non-canonical casing', async () => {
-			const files = ['.ENV', 'Package.json', join('.GIT', 'config'), join('.VSCODE', 'settings.json')];
+			const files = ['.ENV', '.MCP.JSON', 'Package.json', join('.GIT', 'config'), join('.VSCODE', 'settings.json')];
 			const results = await Promise.all(files.map(file => permissions.getAutoApproval(writeEvent(join(workDir, file)), sessionUri)));
 			assert.deepStrictEqual(results, files.map(() => undefined));
 		});
