@@ -22,6 +22,7 @@ import { generateUuid } from '../../../base/common/uuid.js';
 import { localize } from '../../../nls.js';
 import { NativeEnvironmentService } from '../../environment/node/environmentService.js';
 import { parseArgs, OPTIONS } from '../../environment/node/argv.js';
+import { IFileService } from '../../files/common/files.js';
 import { getLogLevel, ILogService } from '../../log/common/log.js';
 import { LogService } from '../../log/common/logService.js';
 import { LoggerService } from '../../log/node/loggerService.js';
@@ -29,14 +30,19 @@ import { OtlpEmitterLogger, OtlpLogEmitter } from '../common/otlp/otlpLogEmitter
 import product from '../../product/common/product.js';
 import { IProductService } from '../../product/common/productService.js';
 import { flushAgentHostPersistenceBeforeShutdown } from './agentHostShutdown.js';
+import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { createAgentHostRuntime } from './agentHostBootstrap.js';
+import { IAgentConfigurationService } from './agentConfigurationService.js';
+import { IAgentHostCompletions } from './agentHostCompletions.js';
+import { IAgentHostCustomizationEnablementService } from './agentHostCustomizationEnablementService.js';
+import { IAgentHostStateManager } from './agentHostStateManager.js';
 import { BANG_COMMAND_PREFIX } from './agentHostBangCommand.js';
 import { CopilotAgent } from './copilot/copilotAgent.js';
 import { ClaudeAgent } from './claude/claudeAgent.js';
 import { ClaudeSdkPackage } from './claude/claudeAgentSdkService.js';
 import { CodexAgent, CodexSdkPackage } from './codex/codexAgent.js';
 import { createCodexProviderConfiguration } from './codex/codexProviderConfiguration.js';
-import { type IAgentSdkDownloadProgress } from './agentSdkDownloader.js';
+import { IAgentSdkDownloader, type IAgentSdkDownloadProgress } from './agentSdkDownloader.js';
 import { AgentHostCodexEnabledConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
 import { AgentModelRefreshScheduler, MODEL_REFRESH_INTERVAL_MS } from './agentModelRefreshScheduler.js';
 import { AgentHostClaudeAgentEnabledEnvVar, AgentHostClaudeSdkRootEnvVar, AgentHostCodexAgentEnabledEnvVar, AgentHostCodexAgentSdkRootEnvVar, isAgentEnabled } from '../common/agentService.js';
@@ -47,6 +53,7 @@ import { AGENT_CLIENT_SCHEME } from '../common/agentClientUri.js';
 import { resolveServerUrls } from './serverUrls.js';
 import ErrorTelemetry from '../../telemetry/node/errorTelemetry.js';
 import { AgentHostLaunchKind } from '../common/agentHostTelemetry.js';
+import { ISessionDataService } from '../common/sessionDataService.js';
 
 /** Log to stderr so messages appear in the terminal alongside the process. */
 function log(msg: string): void {
@@ -188,21 +195,38 @@ async function main(): Promise<void> {
 		productService,
 		logService,
 		loggerService,
-		disposables,
 		disableTelemetry: options.quiet,
 		transientProxyConfiguration: false,
 		hostLaunchKind: AgentHostLaunchKind.VSCodeCLI,
 		providerConfigurations: [createCodexProviderConfiguration(environmentService.userHome)],
 		byok: { kind: 'unavailable' },
 	});
-	const { agentService, configurationService: agentConfigurationService, instantiationService, fileService, sessionDataService } = runtime;
-	disposables.add(agentService);
-	errorTelemetry.value = new ErrorTelemetry(runtime.telemetryService);
+	disposables.add(runtime);
+	const { agentService, instantiationService } = runtime;
+	const runtimeServices = instantiationService.invokeFunction(accessor => ({
+		configurationService: accessor.get(IAgentConfigurationService),
+		fileService: accessor.get(IFileService),
+		sessionDataService: accessor.get(ISessionDataService),
+		telemetryService: accessor.get(ITelemetryService),
+		agentSdkDownloader: accessor.get(IAgentSdkDownloader),
+		stateManager: accessor.get(IAgentHostStateManager),
+		completions: accessor.get(IAgentHostCompletions),
+		customizationEnablementService: accessor.get(IAgentHostCustomizationEnablementService),
+	}));
+	const {
+		configurationService: agentConfigurationService,
+		fileService,
+		sessionDataService,
+		agentSdkDownloader,
+		stateManager,
+		completions,
+		customizationEnablementService,
+	} = runtimeServices;
+	errorTelemetry.value = new ErrorTelemetry(runtimeServices.telemetryService);
 
 	// Register agents
 	let sdkDownloadProgress: Event<IAgentSdkDownloadProgress> | undefined;
 	if (!options.quiet) {
-		const agentSdkDownloader = runtime.agentSdkDownloader;
 		sdkDownloadProgress = runtime.sdkDownloadProgress;
 		const copilotAgent = disposables.add(instantiationService.createInstance(CopilotAgent));
 		agentService.registerProvider(copilotAgent);
@@ -297,12 +321,12 @@ async function main(): Promise<void> {
 	disposables.add(instantiationService.createInstance(
 		ProtocolServerHandler,
 		agentService,
-		runtime.stateManager,
+		stateManager,
 		wsServer,
 		{
 			hostLaunchKind: AgentHostLaunchKind.VSCodeCLI,
 			defaultDirectory: URI.file(os.homedir()).toString(),
-			completionTriggerCharacters: runtime.completions.triggerCharacters,
+			completionTriggerCharacters: completions.triggerCharacters,
 			terminalCommandPrefix: BANG_COMMAND_PREFIX,
 			otlpLogEmitter,
 		},
@@ -313,6 +337,7 @@ async function main(): Promise<void> {
 	function reportReady(addr: string): void {
 		const listeningPort = Number(addr.split(':').pop());
 		process.stdout.write(`READY:${listeningPort}\n`);
+		agentService.markStartupComplete();
 
 		const urls = resolveServerUrls(options.host, listeningPort);
 		for (const url of urls.local) {
@@ -365,12 +390,11 @@ async function main(): Promise<void> {
 		// drop the latest decision.
 		// Capped so a stuck write cannot hang shutdown indefinitely.
 		await flushAgentHostPersistenceBeforeShutdown(
-			[sessionDataService.whenIdle(), runtime.customizationEnablementService.whenIdle()],
+			[sessionDataService.whenIdle(), customizationEnablementService.whenIdle()],
 			3000,
 			logService,
 		);
 		disposables.dispose();
-		instantiationService.dispose();
 		loggerService?.dispose();
 		process.exit(0);
 	}

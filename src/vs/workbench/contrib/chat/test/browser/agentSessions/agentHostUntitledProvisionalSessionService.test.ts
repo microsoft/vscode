@@ -56,6 +56,8 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	private readonly _onAgentHostStart = new Emitter<void>();
 	override readonly onAgentHostStart = this._onAgentHostStart.event;
 
+	private readonly _onRootStateChange = new Emitter<RootState>();
+
 	/** Agents advertised by the (stubbed) root state; drives capability gating. */
 	rootStateAgents: AgentInfo[] = [];
 	override readonly rootState: IAgentSubscription<RootState> = (() => {
@@ -63,11 +65,16 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		return {
 			get value(): RootState { return { agents: self.rootStateAgents } as unknown as RootState; },
 			verifiedValue: undefined,
-			onDidChange: Event.None,
+			onDidChange: self._onRootStateChange.event,
 			onWillApplyAction: Event.None,
 			onDidApplyAction: Event.None,
 		} as unknown as IAgentSubscription<RootState>;
 	})();
+
+	/** Simulates the host re-advertising after a `multiRootEnabled` change. */
+	fireRootStateChange(): void {
+		this._onRootStateChange.fire({ agents: this.rootStateAgents } as unknown as RootState);
+	}
 
 	/**
 	 * Each entry is consumed in order by the next `resolveSessionConfig` call.
@@ -105,6 +112,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 
 	dispose(): void {
 		this._onAgentHostStart.dispose();
+		this._onRootStateChange.dispose();
 	}
 
 	override dispatch(channel: Parameters<IAgentHostService['dispatch']>[0], action: Parameters<IAgentHostService['dispatch']>[1]): void {
@@ -529,6 +537,120 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 			liveBackendDisposed: false,
 			currentBackend: realBackend.toString(),
 		});
+	});
+
+	test('recreates an untitled draft with the workspace root set when multi-root is enabled at runtime', async () => {
+		const primary = URI.file('/workspace/one');
+		const secondary = URI.file('/workspace/two');
+		workspaceFolders = [primary, secondary];
+		workspaceConfiguration = URI.file('/workspace/demo.code-workspace');
+		workbenchState = WorkbenchState.WORKSPACE;
+		// Multi-root capability is off at creation, so the draft is single-root.
+		agentHost.rootStateAgents = [agentInfo('copilot', false)];
+		const ui = untitledChatUri('multi-root-enabled-at-runtime');
+
+		await provisional.getOrCreate(ui, 'copilot', primary);
+		// The hidden `multiRootEnabled` setting is toggled on: the host
+		// re-advertises `multipleWorkingDirectories`, so `rootState` changes
+		// without a window reload.
+		agentHost.rootStateAgents = [agentInfo('copilot', true)];
+		agentHost.fireRootStateChange();
+		await provisional.waitForPending(ui);
+
+		assert.deepStrictEqual(
+			agentHost.createCalls.map(call => call.workingDirectories?.map(directory => directory.toString())),
+			[
+				[primary.toString()],
+				[primary.toString(), secondary.toString()],
+			],
+		);
+	});
+
+	test('does not recreate a started session when multi-root is enabled at runtime', async () => {
+		const primary = URI.file('/workspace/one');
+		const secondary = URI.file('/workspace/two');
+		workspaceFolders = [primary, secondary];
+		workspaceConfiguration = URI.file('/workspace/demo.code-workspace');
+		workbenchState = WorkbenchState.WORKSPACE;
+		// Capability off at creation, so the started session is rooted single-root.
+		agentHost.rootStateAgents = [agentInfo('copilot', false)];
+		const ui = untitledChatUri('started-multi-root-enabled-at-runtime');
+		const real = URI.from({ scheme: 'agent-host-copilot', path: '/real-started-multi-root-enabled' });
+
+		await provisional.getOrCreate(ui, 'copilot', primary);
+		await provisional.tryRebind(ui, real, 'copilot');
+		const realBackend = provisional.get(real);
+		assert.ok(realBackend);
+		const createsAfterRebind = agentHost.createCalls.length;
+
+		// Enabling multi-root must not re-root a started session: its working
+		// directories are the agent's fixed process root once the session started.
+		agentHost.rootStateAgents = [agentInfo('copilot', true)];
+		agentHost.fireRootStateChange();
+		await provisional.waitForPending(real);
+
+		assert.deepStrictEqual({
+			createsAfterEnable: agentHost.createCalls.length - createsAfterRebind,
+			liveBackendDisposed: agentHost.disposed.some(uri => uri.toString() === realBackend.toString()),
+			currentBackend: provisional.get(real)?.toString(),
+		}, {
+			createsAfterEnable: 0,
+			liveBackendDisposed: false,
+			currentBackend: realBackend.toString(),
+		});
+	});
+
+	test('recreates an untitled draft with the workspace root set when the agent host starts after the draft', async () => {
+		const primary = URI.file('/workspace/one');
+		const secondary = URI.file('/workspace/two');
+		workspaceFolders = [primary, secondary];
+		workspaceConfiguration = URI.file('/workspace/demo.code-workspace');
+		workbenchState = WorkbenchState.WORKSPACE;
+		// The host has not started yet, so multi-root is not advertised.
+		agentHost.rootStateAgents = [agentInfo('copilot', false)];
+		const ui = untitledChatUri('multi-root-after-host-start');
+
+		await provisional.getOrCreate(ui, 'copilot', primary);
+		// The host starts and re-advertises `multipleWorkingDirectories`. The
+		// listener re-binds on `onAgentHostStart` and reconciles, so the draft
+		// picks up the capability even though `rootState.onDidChange` never fired
+		// (the pre-start root state is a noop whose event never fires).
+		agentHost.rootStateAgents = [agentInfo('copilot', true)];
+		agentHost.fireAgentHostStart();
+		await provisional.waitForPending(ui);
+
+		assert.deepStrictEqual(
+			agentHost.createCalls.map(call => call.workingDirectories?.map(directory => directory.toString())),
+			[
+				[primary.toString()],
+				[primary.toString(), secondary.toString()],
+			],
+		);
+	});
+
+	test('recreates an untitled draft with a single root when multi-root is disabled at runtime', async () => {
+		const primary = URI.file('/workspace/one');
+		const secondary = URI.file('/workspace/two');
+		workspaceFolders = [primary, secondary];
+		workspaceConfiguration = URI.file('/workspace/demo.code-workspace');
+		workbenchState = WorkbenchState.WORKSPACE;
+		agentHost.rootStateAgents = [agentInfo('copilot', true)];
+		const ui = untitledChatUri('multi-root-disabled-at-runtime');
+
+		await provisional.getOrCreate(ui, 'copilot', primary);
+		// Disabling the setting drops the advertised capability; the draft must
+		// collapse back to just its primary.
+		agentHost.rootStateAgents = [agentInfo('copilot', false)];
+		agentHost.fireRootStateChange();
+		await provisional.waitForPending(ui);
+
+		assert.deepStrictEqual(
+			agentHost.createCalls.map(call => call.workingDirectories?.map(directory => directory.toString())),
+			[
+				[primary.toString(), secondary.toString()],
+				[primary.toString()],
+			],
+		);
 	});
 
 	test('tryRebind reselects when the primary is removed during final creation', async () => {

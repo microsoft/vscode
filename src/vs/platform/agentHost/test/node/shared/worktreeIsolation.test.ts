@@ -18,13 +18,9 @@ import { SessionConfigKey } from '../../../common/sessionConfigKeys.js';
 import { AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, MessageKind, ResponsePartKind, TurnState, type Turn } from '../../../common/state/sessionState.js';
 import { AgentBranchNameGenerator, IAgentBranchNameGenerator } from '../../../node/shared/agentBranchNameGenerator.js';
 import { ICopilotApiService } from '../../../node/shared/copilotApiService.js';
-import { buildWorktreeFailureNotification, normalizeWorktreeFailureDiagnostic, SessionWorkingDirectoryMissingError, WorktreeIsolation, getWorktreeName, getWorktreesRoot } from '../../../node/shared/worktreeIsolation.js';
+import { buildWorktreeFailureNotification, normalizeWorktreeFailureDiagnostic, NullAgentHostWorktreeIsolation, SessionWorkingDirectoryMissingError, WorktreeIsolation, getWorktreeName, getWorktreesRoot } from '../../../node/shared/worktreeIsolation.js';
 import { TestSessionDatabase, createNoopGitService, createSessionDataService } from '../../common/sessionTestHelpers.js';
 
-/**
- * Minimal {@link ICopilotApiService} stub for constructing {@link WorktreeIsolation}
- * in tests. Tests inject their own branch-name generator, so its methods are never called.
- */
 function createNullCopilotApiService(): ICopilotApiService {
 	return {
 		_serviceBrand: undefined,
@@ -41,6 +37,37 @@ function createNullCopilotApiService(): ICopilotApiService {
 suite('WorktreeIsolation', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('null implementation preserves folder-only behavior', async () => {
+		const isolation = new NullAgentHostWorktreeIsolation();
+		const session = URI.parse('copilot:/session');
+		const workingDirectory = URI.file('/workspace');
+		const turns: Turn[] = [];
+
+		assert.deepStrictEqual({
+			supported: isolation.supported,
+			pending: isolation.isWorkingDirectoryPending('session'),
+			resolved: await isolation.resolveOnFirstSend({ sessionUri: session, sessionId: 'session', workingDirectory, config: undefined }),
+			config: await isolation.resolveIsolationConfig({ workingDirectory, config: undefined }),
+			branches: await isolation.branchCompletions(workingDirectory),
+			resumed: await isolation.resolveWorkingDirectoryForResume(session, 'session', workingDirectory),
+			restoredTurnsSame: await isolation.applyRestoreAnnouncement(session, turns) === turns,
+			deletion: await isolation.prepareSessionDeletion(session, 'session'),
+			adopted: await isolation.adoptExistingWorktreeMetadata(session, workingDirectory),
+			project: await isolation.resolveWorktreeProject(session),
+		}, {
+			supported: false,
+			pending: false,
+			resolved: undefined,
+			config: undefined,
+			branches: { items: [] },
+			resumed: workingDirectory,
+			restoredTurnsSame: true,
+			deletion: undefined,
+			adopted: false,
+			project: undefined,
+		});
+	});
 
 	let repoRoot: URI;
 	let worktreesRoot: URI;
@@ -99,7 +126,6 @@ suite('WorktreeIsolation', () => {
 		return disposableStore.add(new WorktreeIsolation(
 			branchNameGenerator,
 			options?.gitService ?? createGitService(),
-			createNullCopilotApiService(),
 			createSessionDataService(db),
 			new NullLogService(),
 		));

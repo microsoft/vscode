@@ -141,7 +141,7 @@ export const sessionServerToolDefinitions: IAgentServerToolDefinition[] = [
 	{
 		name: SessionServerToolName.ListSessions,
 		title: 'List Sessions',
-		description: 'List sessions and their compact metadata (status, activity, working directory, project, worktree changes, git/GitHub info, timestamps). Pass `session` to fetch a single known session by URI. By default archived sessions are omitted. Optionally filter by `status`, `workspace`, `withChanges`, `unread`, `withPullRequest`, `includeArchived`, `createdAfter`, or `createdBefore`.',
+		description: 'List sessions and their compact metadata (status, activity, working directory, project, worktree changes, git/GitHub info, timestamps). Each result includes `session` for identity and tool inputs and `openLink` for clickable Markdown links; do not use `session` as a link target. Pass `session` to fetch a single known session by URI. By default archived sessions are omitted. Optionally filter by `status`, `workspace`, `withChanges`, `unread`, `withPullRequest`, `includeArchived`, `createdAfter`, or `createdBefore`.',
 		inputSchema: listSessionsInputSchema,
 		annotations: { readOnlyHint: true },
 	},
@@ -280,6 +280,8 @@ interface ISerializedGitHubState {
 
 interface ISerializedSession {
 	readonly session: string;
+	/** Clickable URI that opens the session in the Agents window. */
+	readonly openLink: string;
 	readonly title?: string;
 	readonly status?: string;
 	/** Human-readable description of what the session is currently doing. */
@@ -694,6 +696,7 @@ function serializeSession(session: IAgentSessionMetadata, viewerSession?: string
 		|| viewerSession === session.session.toString());
 	return {
 		session: session.session.toString(),
+		openLink: buildOpenSessionLinkUri(session.session),
 		...(session.summary !== undefined ? { title: session.summary } : {}),
 		...(status !== undefined ? { status } : {}),
 		...(session.activity !== undefined ? { activity: session.activity } : {}),

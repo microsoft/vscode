@@ -31,7 +31,7 @@ suite('Session Artifacts', () => {
 			{ id: 'resource', kind: SessionArtifactKind.Resource, label: 'Resource', uri: resourceUri },
 		];
 
-		const entries = buildSessionArtifactSections(artifacts, [{ uri: externalFileUri, operation: SessionFileOperation.Created }], actions, true).flatMap(section => section.entries);
+		const entries = buildSessionArtifactSections(artifacts, [{ uri: externalFileUri, operation: SessionFileOperation.Created }], actions, true, new Set()).flatMap(section => section.entries);
 		assert.deepStrictEqual(entries.map(entry => {
 			const content = entry.hover?.content;
 			return {
@@ -47,6 +47,28 @@ suite('Session Artifacts', () => {
 			{ label: 'plan.md', ariaLabel: 'Open plan.md', ariaDescription: externalFileUri.toString(true), hover: externalFileUri.toString(true), tooltip: externalFileUri.toString(true) },
 			{ label: 'Resource', ariaLabel: 'Open Resource', ariaDescription: resourceUri.toString(true), hover: resourceUri.toString(true), tooltip: resourceUri.toString(true) },
 		]);
+	});
+
+	test('leaves out websites the browsers pill already lists', () => {
+		const pullRequestLink = URI.parse('https://github.com/microsoft/vscode/pull/12');
+		const artifacts: readonly ISessionArtifact[] = [
+			{ id: 'docs', kind: SessionArtifactKind.Website, label: 'Docs', link: URI.parse('https://example.com/docs') },
+			{ id: 'docs-slash', kind: SessionArtifactKind.Website, label: 'Docs Index', link: URI.parse('https://Example.com/docs/') },
+			{ id: 'deep', kind: SessionArtifactKind.Website, label: 'Deep Link', link: URI.parse('https://example.com/docs/api') },
+			{ id: 'blog', kind: SessionArtifactKind.Website, label: 'Blog', link: URI.parse('https://other.test/blog') },
+			{ id: 'pr', kind: SessionArtifactKind.PullRequest, label: 'PR #12', link: pullRequestLink },
+		];
+		const labels = (browserUrls: readonly string[]) => buildSessionArtifactSections(artifacts, [], actions, true, new Set(browserUrls))
+			.flatMap(section => section.entries)
+			.map(entry => entry.label);
+
+		assert.deepStrictEqual({
+			withBrowsers: labels(['https://example.com/docs', pullRequestLink.toString()]),
+			withoutBrowsers: labels([]),
+		}, {
+			withBrowsers: ['PR #12', 'Deep Link', 'Blog'],
+			withoutBrowsers: ['PR #12', 'Docs', 'Docs Index', 'Deep Link', 'Blog'],
+		});
 	});
 
 });

@@ -111,37 +111,38 @@ export type NotificationType = typeof NotificationType[keyof typeof Notification
 // ---- Local aliases for short names ------------------------------------------
 // Consumers use these shorter names; they're type-only aliases.
 
-import type {
-	RootAgentsChangedAction,
-	RootActiveSessionsChangedAction,
-	ChatDeltaAction,
-	ChatReasoningAction,
-	ChatResponsePartAction,
-	ChatToolCallApprovedAction,
-	ChatToolCallCompleteAction,
-	ChatToolCallConfirmedAction,
-	ChatToolCallDeniedAction,
-	ChatToolCallDeltaAction,
-	ChatToolCallReadyAction,
-	ChatToolCallResultConfirmedAction,
-	ChatToolCallStartAction,
-	SessionTitleChangedAction,
-	ChatTurnCancelledAction,
-	ChatTurnCompleteAction,
-	ChatTurnStartedAction,
-	ChatErrorAction,
-	ChatUsageAction,
-	ChatToolCallContentChangedAction,
-	StateAction,
-	ChatPendingMessageSetAction,
-	ChatPendingMessageRemovedAction,
-	ChatQueuedMessagesReorderedAction,
-	SessionIsReadChangedAction,
-	SessionIsArchivedChangedAction,
-	SessionWorkingDirectorySetAction,
-	SessionWorkingDirectoryRemovedAction,
-	SessionWorkingDirectoryReplacedAction,
-	RootConfigChangedAction,
+import {
+	ActionType,
+	type RootAgentsChangedAction,
+	type RootActiveSessionsChangedAction,
+	type ChatDeltaAction,
+	type ChatReasoningAction,
+	type ChatResponsePartAction,
+	type ChatToolCallApprovedAction,
+	type ChatToolCallCompleteAction,
+	type ChatToolCallConfirmedAction,
+	type ChatToolCallDeniedAction,
+	type ChatToolCallDeltaAction,
+	type ChatToolCallReadyAction,
+	type ChatToolCallResultConfirmedAction,
+	type ChatToolCallStartAction,
+	type SessionTitleChangedAction,
+	type ChatTurnCancelledAction,
+	type ChatTurnCompleteAction,
+	type ChatTurnStartedAction,
+	type ChatErrorAction,
+	type ChatUsageAction,
+	type ChatToolCallContentChangedAction,
+	type StateAction,
+	type ChatPendingMessageSetAction,
+	type ChatPendingMessageRemovedAction,
+	type ChatQueuedMessagesReorderedAction,
+	type SessionIsReadChangedAction,
+	type SessionIsArchivedChangedAction,
+	type SessionWorkingDirectorySetAction,
+	type SessionWorkingDirectoryRemovedAction,
+	type SessionWorkingDirectoryReplacedAction,
+	type RootConfigChangedAction,
 } from './protocol/actions.js';
 
 import type { SessionAddedParams, SessionRemovedParams, SessionSummaryChangedParams, ProgressParams, AuthRequiredParams } from './protocol/notifications.js';
@@ -252,4 +253,14 @@ export function isAutomationAction(action: StateAction): action is AutomationAct
 
 export function isAutomationRunAction(action: StateAction): action is AutomationRunAction {
 	return action.type.startsWith('automationRun/');
+}
+
+/**
+ * Whether `action` only toggles durable session metadata (archived / read)
+ * rather than mutating the conversation. These carry no intent to open a
+ * session, so the host applies them without materializing it.
+ */
+export function isPassiveSessionMetadataAction(action: StateAction): action is SessionIsArchivedChangedAction | SessionIsReadChangedAction {
+	return action.type === ActionType.SessionIsArchivedChanged
+		|| action.type === ActionType.SessionIsReadChanged;
 }

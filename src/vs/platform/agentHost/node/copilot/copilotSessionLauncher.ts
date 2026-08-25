@@ -213,6 +213,12 @@ interface ICopilotSessionLaunchBase {
 	readonly sessionId: string;
 	/** Whether this launch is for a transient session that skips durable-only provider work. */
 	readonly isEphemeral?: boolean;
+	/**
+	 * Whether the owning chat surface is scoped to editing a single file, so
+	 * blanket shell auto-approvals must not apply. See
+	 * {@link IAgentCreateChatOptions.hasScopedEditSurface}.
+	 */
+	readonly hasScopedEditSurface?: boolean;
 	readonly workingDirectory: URI | undefined;
 	/**
 	 * The additional working directories beyond the primary process root

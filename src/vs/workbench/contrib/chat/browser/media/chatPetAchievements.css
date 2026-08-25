@@ -85,7 +85,9 @@
 	border-radius: var(--vscode-cornerRadius-medium);
 	background: var(--vscode-editorWidget-background);
 	color: var(--vscode-foreground);
-	line-height: normal;
+	font-size: var(--vscode-fontSize-label1);
+	font-weight: var(--vscode-fontWeight-regular);
+	line-height: 1.4;
 	text-align: left;
 	white-space: normal;
 }
@@ -209,12 +211,11 @@
 	display: inline-block;
 	margin-bottom: var(--vscode-spacing-size100);
 	color: var(--vscode-descriptionForeground);
-	font-size: var(--vscode-fontSize-label2);
+	font-size: var(--vscode-fontSize-label1);
 	font-weight: var(--vscode-fontWeight-semiBold);
 }
 
 .chat-pet-achievement-description,
-.chat-pet-achievement-secret,
 .chat-pet-achievement-reward {
 	margin-bottom: var(--vscode-spacing-size80);
 	overflow-wrap: anywhere;
