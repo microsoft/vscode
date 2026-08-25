@@ -918,6 +918,38 @@ suite('AgentHostChatContributions', () => {
 		});
 	});
 
+	test('queue drain defers stale queued actions until a resumable turn completes', () => {
+		const queue = createQueueDrainContributions(disposables);
+		queue.stateManager.dispatchServerAction(queue.chat, {
+			type: ActionType.ChatTurnStarted,
+			turnId: 'resumable-turn',
+			startedAt: '2025-01-01T00:00:00.000Z',
+			message: { text: 'running', origin: { kind: MessageKind.User } },
+		});
+		queue.stateManager.dispatchServerAction(queue.chat, {
+			type: ActionType.ChatError,
+			turnId: 'resumable-turn',
+			duration: 1,
+			part: { kind: ResponsePartKind.Error, error: { errorType: 'requestFailed', message: 'failed' }, resumable: true },
+		});
+		const queued = queuedMessage('queued', 'queued');
+		queue.stateManager.dispatchServerAction(queue.chat, queued);
+		queue.service.action(observedAction(queue.chat, queue.session, queued));
+		const admittedWhileFailed = queue.admitted.map(admission => admission.message.text);
+
+		queue.stateManager.dispatchServerAction(queue.chat, { type: ActionType.ChatTurnResume, turnId: 'resumable-turn' });
+		queue.stateManager.dispatchServerAction(queue.chat, { type: ActionType.ChatTurnComplete, turnId: 'resumable-turn', duration: 2 });
+		queue.service.turnEnd({ session: queue.session, channel: queue.chat, turnId: 'resumable-turn', reason: { kind: 'success' } });
+
+		assert.deepStrictEqual({
+			admittedWhileFailed,
+			admittedAfterCompletion: queue.admitted.map(admission => admission.message.text),
+		}, {
+			admittedWhileFailed: [],
+			admittedAfterCompletion: ['queued'],
+		});
+	});
+
 	test('queue drain falls back after chat-memento eviction', () => {
 		const queue = createQueueDrainContributions(disposables);
 		queue.stateManager.dispatchServerAction(queue.chat, {

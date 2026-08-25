@@ -12,7 +12,7 @@ import { AgentHostClientType } from '../../../common/agentHostClientInfo.js';
 import { createUnknownAgentHostClientTelemetryContext } from '../../../common/agentHostTelemetry.js';
 import { IAgentHostChatContributions, createChatMementoKey, type IAgentHostChatContribution, type IAgentHostChatContributionContext, type IAgentHostChatContributionHost, type IObservedAction, type IQueuedMessageSender, type ITurnEnd } from '../../../common/agentHostChatContributionsService.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
-import { createErrorResponsePart, isAhpChatChannel, parseRequiredSessionUriFromChatUri, PendingMessageKind, type Message, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
+import { createErrorResponsePart, getErrorResponsePart, isAhpChatChannel, parseRequiredSessionUriFromChatUri, PendingMessageKind, TurnState, type Message, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../agentHostStateManager.js';
 import { createAgentChatContext } from '../../agentChatContext.js';
 import { IAgentHostProviderLocator } from '../../agentHostProviderLocator.js';
@@ -101,6 +101,10 @@ export class QueueDrainContribution extends Disposable implements IAgentHostChat
 		}
 		const state = this._stateManager.getSessionState(channel);
 		if (!state?.queuedMessages?.length || state.steeringMessage) {
+			return;
+		}
+		const latestTurn = state.turns.at(-1);
+		if (latestTurn?.state === TurnState.Error && getErrorResponsePart(latestTurn)?.resumable) {
 			return;
 		}
 		const host = this._getHost();

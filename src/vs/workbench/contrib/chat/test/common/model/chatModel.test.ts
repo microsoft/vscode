@@ -1665,6 +1665,36 @@ suite('ChatResponseModel', () => {
 		});
 	});
 
+	test('reopen excludes time spent failed from cumulative elapsed generation time', () => {
+		const clock = sinon.useFakeTimers({ now: 1000 });
+		try {
+			const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+			const text = 'hello';
+			const request = model.addRequest({ text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, text.length, 1, text.length), text)] }, { variables: [] }, 0);
+			const response = request.response!;
+
+			clock.tick(1000);
+			model.setResponse(request, { errorDetails: { message: 'failed' } });
+			response.complete();
+			const firstElapsedMs = response.elapsedMs;
+
+			clock.tick(5000);
+			response.reopen();
+			clock.tick(2000);
+			response.complete();
+
+			assert.deepStrictEqual({
+				firstElapsedMs,
+				finalElapsedMs: response.elapsedMs,
+			}, {
+				firstElapsedMs: 1000,
+				finalElapsedMs: 3000,
+			});
+		} finally {
+			clock.restore();
+		}
+	});
+
 	test('MCP tool authentication marks the response as needing input', () => {
 		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
 		const text = 'hello';
