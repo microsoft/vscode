@@ -298,7 +298,7 @@ suite('AccountPolicyGateContribution', () => {
 			await Promise.resolve();
 		}
 
-		await promptStub.getCall(5).args[0].buttons?.[0].run({});
+		const retryResult = promptStub.getCall(5).args[0].buttons?.[0].run({});
 		gateService.setGateInfo({ state: AccountPolicyGateState.Satisfied });
 		gateService.setGateInfo({
 			state: AccountPolicyGateState.Restricted,
@@ -317,6 +317,7 @@ suite('AccountPolicyGateContribution', () => {
 			})),
 			notificationCount: notificationPromptSpy.callCount,
 			retryOptions: defaultAccountService.refreshOptions,
+			retryResult,
 		}, {
 			dialogs: [
 				{
@@ -364,6 +365,7 @@ suite('AccountPolicyGateContribution', () => {
 			],
 			notificationCount: 0,
 			retryOptions: [{ forceRefresh: true, retryManagedSettings: true }],
+			retryResult: undefined,
 		});
 	});
 

@@ -347,7 +347,9 @@ export class AccountPolicyGateContribution extends Disposable implements IWorkbe
 		} else if (freshness.failure !== ManagedSettingsFreshnessFailure.NoUrl) {
 			buttons.push({
 				label: localize('managedSettingsRefresh.dialog.retry', "Retry"),
-				run: () => this.defaultAccountService.refresh({ forceRefresh: true, retryManagedSettings: true }),
+				run: () => {
+					void this.defaultAccountService.refresh({ forceRefresh: true, retryManagedSettings: true });
+				},
 			});
 		}
 
