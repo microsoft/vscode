@@ -1989,7 +1989,8 @@ suite('ChatPetWidget', () => {
 		});
 	});
 
-	test('uses only the pill under the pet as a raised platform', () => {		const pillBounds = [
+	test('uses only the pill under the pet as a raised platform', () => {
+		const pillBounds = [
 			{ left: 10, right: 50, top: 120, width: 40, height: 22 },
 			{ left: 56, right: 96, top: 118, width: 40, height: 24 },
 			{ left: 104, right: 144, top: 116, width: 0, height: 24 },

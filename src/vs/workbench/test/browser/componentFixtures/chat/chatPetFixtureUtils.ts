@@ -114,11 +114,16 @@ export function configureChatPetFixtureFileRoot(disposableStore: DisposableStore
 	disposableStore.add(toDisposable(() => globalThis._VSCODE_FILE_ROOT = previousFileRoot));
 }
 
-/** Fails loudly when the pet is missing or cropped, which the screenshot alone would bake in as correct. */
+/** Fails loudly when the pet is missing, unpainted or cropped, which the screenshot alone would bake in as correct. */
 export function assertChatPetInScreenshot(container: HTMLElement): void {
 	const pet = container.querySelector('.chat-pet-button');
 	if (!pet) {
 		throw new Error('Chat pet fixture: the pet did not render.');
+	}
+	// A sprite stays hidden until its image loads and passes dimension validation.
+	const sprite = container.querySelector<HTMLImageElement>('.chat-pet-sprite:not(.hidden) img.chat-pet-spritesheet');
+	if (!sprite?.complete || sprite.naturalWidth === 0) {
+		throw new Error('Chat pet fixture: no pet sprite was painted, so the screenshot would show an empty pet.');
 	}
 	const petBounds = pet.getBoundingClientRect();
 	const bounds = container.getBoundingClientRect();

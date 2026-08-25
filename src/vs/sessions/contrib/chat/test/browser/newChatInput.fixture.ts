@@ -28,7 +28,7 @@ import { ITtsPlaybackService } from '../../../../../workbench/contrib/chat/brows
 import { IMicCaptureService } from '../../../../../workbench/contrib/chat/browser/voiceClient/micCaptureService.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ChatInputNoticeVariant, ChatInputNoticeWidget } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputNoticeWidget.js';
-import { chatInputStackClass, chatInputStackSlotClass, ChatInputStackSlot, setChatInputStackSlot } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputStack.js';
+import { chatInputStackClass, ChatInputStackSlot, setChatInputStackSlot } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputStack.js';
 import { IChatInputNotification, ChatInputNotificationSeverity } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputNotificationService.js';
 import { IChatPetService } from '../../../../../workbench/contrib/chat/browser/chatPetService.js';
 import { configureChatPetFixtureFileRoot, FixtureChatPetService, assertChatPetInScreenshot } from '../../../../../workbench/test/browser/componentFixtures/chat/chatPetFixtureUtils.js';
@@ -174,21 +174,6 @@ async function renderNewChatInput(context: ComponentFixtureContext, fixtureOptio
 	const widgetContainer = dom.append(root, dom.$('.new-chat-widget-container.revealed'));
 	const content = dom.append(widgetContainer, dom.$(`.new-chat-widget-content.${chatInputStackClass}`));
 
-	// The sub-session tip, docked above the composer. The composer is a stack of
-	// its own, so this covers a notice reaching through a nested stack to square
-	// the input inside it.
-	if (subSessionTip) {
-		const tipSlot = dom.append(content, dom.$(`.sub-session-tip-container.${chatInputStackSlotClass}`));
-		const tip = disposableStore.add(new ChatInputNoticeWidget({
-			container: tipSlot,
-			variant: ChatInputNoticeVariant.Tip,
-			ariaLabel: 'Sub-session tip',
-		}));
-		dom.append(tip.domNode, dom.$('span.sub-session-tip-text')).textContent =
-			'Start a parallel conversation to build on all the changes made in this session.';
-		setChatInputStackSlot(tipSlot, ChatInputStackSlot.Docked);
-	}
-
 	const session = observableValue<IActiveSession | undefined>('session', undefined);
 	const widget = disposableStore.add(instantiationService.createInstance(NewChatInputWidget, {
 		session,
@@ -211,6 +196,20 @@ async function renderNewChatInput(context: ComponentFixtureContext, fixtureOptio
 		dom.append(tip.domNode, dom.$('span')).textContent =
 			'Tip: Configure default permissions to start new sessions in Bypass Approvals or Autopilot mode.';
 		setChatInputStackSlot(tipSlot, ChatInputStackSlot.Docked);
+	}
+
+	// The sub-session tip, which `NewChatInSessionWidget` docks in the composer's host slot.
+	const hostSlot = widget.hostNoticeContainerElement;
+	if (subSessionTip && hostSlot) {
+		hostSlot.classList.add('sub-session-tip-container');
+		const tip = disposableStore.add(new ChatInputNoticeWidget({
+			container: hostSlot,
+			variant: ChatInputNoticeVariant.Tip,
+			ariaLabel: 'Sub-session tip',
+		}));
+		dom.append(tip.domNode, dom.$('span.sub-session-tip-text')).textContent =
+			'Start a parallel conversation to build on all the changes made in this session.';
+		setChatInputStackSlot(hostSlot, ChatInputStackSlot.Docked);
 	}
 
 	// The widget lays out its editor on the input container's `animationend`; in the
@@ -266,12 +265,8 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/newInput/' }, {
 	WithPetAndGettingStartedTip: defineComponentFixture({
 		render: context => renderNewChatInput(context, { gettingStartedTip: true, pet: true }),
 	}),
-	// A run of two: the pet stands on top of the run, not between its members.
-	WithPetAndNoticeRun: defineComponentFixture({
-		render: context => renderNewChatInput(context, {
-			notification: petPlatformNotification,
-			gettingStartedTip: true,
-			pet: true,
-		}),
+	// The sub-session tip, docked from the composer's host slot.
+	WithPetAndSubSessionTip: defineComponentFixture({
+		render: context => renderNewChatInput(context, { subSessionTip: true, pet: true }),
 	}),
 });

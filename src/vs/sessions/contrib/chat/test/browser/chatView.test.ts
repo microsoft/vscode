@@ -24,7 +24,7 @@ suite('Sessions - Chat View', () => {
 
 	/** Reaches the banner without standing up the widget's whole service graph. */
 	interface ISubSessionTipRenderer {
-		_renderSubSessionTip(container: HTMLElement): void;
+		_renderSubSessionTip(): void;
 	}
 
 	test('forwards new chat visibility to the aquarium host', () => {
@@ -437,19 +437,17 @@ suite('Sessions - Chat View', () => {
 		store.add(toDisposable(() => container.remove()));
 
 		// Built through the prototype: the banner only needs its storage key, the
-		// input's notice host, and somewhere to keep its listeners.
+		// input's notice host and host slot, and somewhere to keep its listeners.
 		const widget = Object.create(NewChatInSessionWidget.prototype) as ISubSessionTipRenderer;
 		Object.assign(widget, {
 			storageService: { getBoolean: () => false, store: () => { } },
-			_newChatInput: { noticeHost, focus: () => { } },
+			_newChatInput: { noticeHost, focus: () => { }, hostNoticeContainerElement: container },
 			_tipDisposable: store.add(new MutableDisposable()),
 		});
-		widget._renderSubSessionTip(container);
+		widget._renderSubSessionTip();
 
-		const showing = () => {
-			const tip = container.querySelector<HTMLElement>('.sub-session-tip-container');
-			return !!tip && isChatInputStackSlotShowing(tip);
-		};
+		// The composer owns the slot, so the tip reports on the container itself.
+		const showing = () => isChatInputStackSlotShowing(container);
 		const shownInitially = showing();
 		// A notification owns the space outright, so the banner must not stack with it.
 		noticeHost.setOccupied(ChatInputNoticeLane.Notification, true, { hasFocus: () => false, focus: () => { } });

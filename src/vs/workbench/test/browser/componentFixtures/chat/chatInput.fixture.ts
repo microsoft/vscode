@@ -141,4 +141,8 @@ export default defineThemedFixtureGroup({ path: 'chat/input/' }, {
 	WithPetAndNotification: defineComponentFixture({
 		render: context => renderChatInput(context, { pet: true, notification: sampleNotification })
 	}),
+	// Notification and todo list are separate stack members, so they genuinely coexist.
+	WithPetAndNotificationAndTodos: defineComponentFixture({
+		render: context => renderChatInput(context, { pet: true, notification: sampleNotification, todos: sampleTodos })
+	}),
 });

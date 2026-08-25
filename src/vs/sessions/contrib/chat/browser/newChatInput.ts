@@ -320,10 +320,16 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	/** Arbitrates which notice occupies the area above this input. */
 	readonly noticeHost = this._register(new ChatInputNoticeHost(() => this.focus()));
 	private _gettingStartedTipContainer: HTMLElement | undefined;
+	private _hostNoticeContainer: HTMLElement | undefined;
 
 	/** The canonical notice slot, directly above this input. */
 	get gettingStartedTipContainerElement(): HTMLElement | undefined {
 		return this._gettingStartedTipContainer;
+	}
+
+	/** Notice slot for the composer's host, so its content docks inside this stack. */
+	get hostNoticeContainerElement(): HTMLElement | undefined {
+		return this._hostNoticeContainer;
 	}
 
 
@@ -562,6 +568,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		// Getting-started tip: the canonical notice slot, directly above and
 		// attached to the input, matching the workbench chat input.
 		this._gettingStartedTipContainer = dom.append(chatInputContainer, dom.$(`.chat-getting-started-tip-container.${chatInputStackSlotClass}`));
+		this._hostNoticeContainer = dom.append(chatInputContainer, dom.$(`.chat-input-host-notice-container.${chatInputStackSlotClass}`));
 
 		this._promptOptionsWidget.value = this.instantiationService.createInstance(NewSessionPromptOptionsWidget, chatInputContainer, {
 			selectOption: async (option, expectedInput, animate) => {
