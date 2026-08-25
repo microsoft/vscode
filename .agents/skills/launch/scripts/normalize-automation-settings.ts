@@ -78,54 +78,71 @@ function codeMask(src: string): string {
 	return out.join('');
 }
 
-// Locate a root-level `"key": <primitive>` pair, tracking nesting and string
-// state so a nested occurrence (e.g. inside a `"[typescript]"` block) or one
-// embedded in a string value is never mistaken for the real setting. Returns
-// the LAST match, which is the one Code OSS honours when a profile contains
-// duplicate keys.
-function findRootProperty(masked: string, key: string): { valueStart: number; valueLength: number } | null {
+// Locate `"key": <primitive>` pairs, tracking nesting and string state so an
+// occurrence embedded in a string value is never mistaken for the real setting.
+//
+// Root-level and nested occurrences are both reported, because a nested one is
+// not inert: every `editor.*` setting is LANGUAGE_OVERRIDABLE, so a
+// `"[typescript]": { "editor.editContext": false }` block still renders a
+// `textarea` in TypeScript editors while the page objects wait on
+// `.native-edit-context`. In a throwaway automation profile the only safe
+// reading is that no override may contradict the automation value.
+//
+// For the root level the LAST occurrence is the effective one, which is what
+// Code OSS honours when a profile contains duplicate keys.
+interface Span { valueStart: number; valueLength: number }
+
+function findProperties(masked: string, key: string): { root: Span | null; nested: Span[] } {
 	let depth = 0, inString = false;
-	let found: { valueStart: number; valueLength: number } | null = null;
-	let keyStart = -1, pendingKey: string | null = null, expectValue = false;
+	let root: Span | null = null;
+	const nested: Span[] = [];
+	let keyStart = -1, expectValue = false;
+	// One pending key per nesting level, so a nested object does not clobber the
+	// enclosing object's pending key.
+	const pendingKey: (string | null)[] = [];
 	for (let i = 0; i < masked.length; i++) {
 		const c = masked[i];
 		if (inString) {
 			if (c === '\\') { i++; continue; }
 			if (c === '"') {
 				inString = false;
-				if (depth === 1) { pendingKey = masked.slice(keyStart + 1, i); }
+				if (depth >= 1) { pendingKey[depth] = masked.slice(keyStart + 1, i); }
 			}
 			continue;
 		}
 		// The value check must come before the generic string branch below, or a
 		// quoted value such as `"editor.editContext": "false"` would be consumed
 		// as a string and never recognised as the property's value.
-		if (expectValue && depth === 1 && !/\s/.test(c)) {
-			// Start of a root-level value. Only primitives are rewritable; an
-			// object or array value is skipped and the key is appended instead.
+		if (expectValue && depth >= 1 && !/\s/.test(c)) {
+			// Only primitives are rewritable; an object or array value is skipped
+			// (at the root the key is appended instead).
 			// Full JSON number grammar, including exponents: a partial match
 			// (e.g. `1` out of `1e2`) would leave `truee2` behind.
 			// The string alternative must consume escapes, or a value such as
 			// `"a\"b"` would match only through `"a\"` and leave `trueb"`.
 			const m = /^(true|false|null|"(?:[^"\\\n]|\\.)*"|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)/.exec(masked.slice(i));
-			if (pendingKey === key) {
-				// Always reflect the LAST occurrence. If this one is not a
-				// primitive (an object or array value), drop any earlier hit:
-				// rewriting that one would leave the effective value unchanged.
-				found = m ? { valueStart: i, valueLength: m[1].length } : null;
+			if (pendingKey[depth] === key) {
+				if (depth === 1) {
+					// Always reflect the LAST occurrence. If this one is not a
+					// primitive (an object or array value), drop any earlier hit:
+					// rewriting that one would leave the effective value unchanged.
+					root = m ? { valueStart: i, valueLength: m[1].length } : null;
+				} else if (m) {
+					nested.push({ valueStart: i, valueLength: m[1].length });
+				}
 			}
 			expectValue = false;
-			pendingKey = null;
+			pendingKey[depth] = null;
 			if (m) { i += m[1].length - 1; continue; }
 			// Not a primitive: fall through so `{`/`[`/`"` is handled below.
 		}
 		if (c === '"') { inString = true; keyStart = i; continue; }
-		if (c === '{' || c === '[') { depth++; expectValue = false; continue; }
+		if (c === '{' || c === '[') { depth++; pendingKey[depth] = null; expectValue = false; continue; }
 		if (c === '}' || c === ']') { depth--; expectValue = false; continue; }
-		if (c === ':' && depth === 1 && pendingKey !== null) { expectValue = true; continue; }
-		if (c === ',' && depth === 1) { pendingKey = null; expectValue = false; continue; }
+		if (c === ':' && depth >= 1 && pendingKey[depth] !== null) { expectValue = true; continue; }
+		if (c === ',' && depth >= 1) { pendingKey[depth] = null; expectValue = false; continue; }
 	}
-	return found;
+	return { root, nested };
 }
 
 // Locate the root object and prove it is balanced before rewriting anything.
@@ -165,16 +182,24 @@ function findRootObject(masked: string): { open: number; close: number } {
 }
 
 for (const [key, value] of ENTRIES) {
-	const masked = codeMask(text);
+	let masked = codeMask(text);
 
-	// Key already present at the root (with any primitive value) -> rewrite
-	// its value slot only. Offsets line up with the original, so comments
-	// are left untouched.
-	const hit = findRootProperty(masked, key);
-	if (hit) {
-		text = text.slice(0, hit.valueStart) + value + text.slice(hit.valueStart + hit.valueLength);
+	const { root, nested } = findProperties(masked, key);
+
+	// Rewrite every nested override (e.g. a `"[typescript]"` block) as well as
+	// the root value, since a language override outranks the root one. Apply
+	// them last-first so earlier offsets stay valid. Offsets line up with the
+	// original, so comments are left untouched.
+	const spans = root ? [...nested, root] : nested;
+	for (const span of spans.sort((a, b) => b.valueStart - a.valueStart)) {
+		text = text.slice(0, span.valueStart) + value + text.slice(span.valueStart + span.valueLength);
+	}
+	if (root) {
 		continue;
 	}
+	// No root-level occurrence: append one. Any nested overrides were already
+	// normalized above, so they cannot contradict it.
+	masked = codeMask(text);
 
 	const { open: firstBrace, close: lastBrace } = findRootObject(masked);
 

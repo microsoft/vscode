@@ -498,6 +498,11 @@ try {
 	if ($agents) {
 		$launchArgs.Add('--agents')
 	}
+	# --sync=off: the cloned profile keeps application storage, which is where
+	# settings-sync enablement lives, so a source profile with sync on would
+	# treat this run's automation-only overrides as local edits and upload them
+	# to the user's real synced settings. Forcing it off keeps it throwaway.
+	$launchArgs.Add('--sync=off')
 	$launchArgs.Add("--user-data-dir=$destinationUdd")
 	$launchArgs.Add("--extensions-dir=$extensionsDir")
 	$launchArgs.Add("--shared-data-dir=$sharedDataDir")
