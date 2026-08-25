@@ -308,6 +308,38 @@ suite('ChatListWidget', () => {
 		disposables.dispose();
 	});
 
+	test('updates bottom padding without moving a transcript away from the end', async () => {
+		const { disposables, model, widget } = createWidget();
+		for (let i = 0; i < 10; i++) {
+			const text = `question ${i}`;
+			const request = model.addRequest({
+				text,
+				parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)]
+			}, { variables: [] }, 0);
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString(`response ${i}`) });
+		}
+
+		widget.refresh();
+		widget.layout(300, 500);
+		await waitForStableLayout(widget);
+		widget.scrollToEnd();
+		await waitForStableLayout(widget);
+		const scrollHeightWithoutPadding = widget.scrollHeight;
+
+		widget.setPaddingBottom(30);
+		await waitForStableLayout(widget);
+
+		assert.deepStrictEqual({
+			paddingAdded: widget.scrollHeight - scrollHeightWithoutPadding,
+			atBottom: widget.isScrolledToBottom,
+		}, {
+			paddingAdded: 30,
+			atBottom: true,
+		});
+
+		disposables.dispose();
+	});
+
 	test('keeps responses visible when a filter excludes their requests', async () => {
 		const { disposables, model, viewModel, widget } = createWidget({
 			filter: { filter: item => isResponseVM(item) },

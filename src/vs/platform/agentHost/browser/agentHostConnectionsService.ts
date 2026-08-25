@@ -83,7 +83,7 @@ export class AgentHostConnectionsService extends Disposable implements IAgentHos
 		if (scheme.startsWith(LOCAL_AGENT_HOST_SCHEME_PREFIX)) {
 			const provider = scheme.substring(LOCAL_AGENT_HOST_SCHEME_PREFIX.length);
 			return provider
-				? { connection: this._agentHostService, backendSession: AgentSession.uri(provider, rawSessionId) }
+				? { connection: this._agentHostService, connectionAuthority: AMBIENT_AGENT_HOST_AUTHORITY, backendSession: AgentSession.uri(provider, rawSessionId) }
 				: undefined;
 		}
 
@@ -96,7 +96,7 @@ export class AgentHostConnectionsService extends Disposable implements IAgentHos
 				const provider = scheme.substring(remoteAgentHostSessionTypeAuthorityPrefix(authority).length);
 				const connection = this.getConnectionByAuthority(authority);
 				if (provider && connection) {
-					return { connection, backendSession: AgentSession.uri(provider, rawSessionId) };
+					return { connection, connectionAuthority: authority, backendSession: AgentSession.uri(provider, rawSessionId) };
 				}
 			}
 		}

@@ -28,6 +28,17 @@ export function chatChangesStatsEqual(a: IChatChangesStats, b: IChatChangesStats
 	return a.files === b.files && a.insertions === b.insertions && a.deletions === b.deletions;
 }
 
+function getFilesLabel(files: number): string {
+	return files === 1
+		? localize('chatChangesPill.file', "{0} File", files)
+		: localize('chatChangesPill.files', "{0} Files", files);
+}
+
+/** Returns the changes pill's complete screen-reader label. */
+export function getChatChangesPillAriaLabel(actionLabel: string, stats: IChatChangesStats): string {
+	return localize('chatChangesPill.ariaLabel', "{0}: {1}, +{2}, -{3}", actionLabel, getFilesLabel(stats.files), stats.insertions, stats.deletions);
+}
+
 /**
  * The changes pill: `<diff-icon> <n> Files +insertions -deletions`. The counters
  * animate between values, so the label structure is built once and updated in
@@ -75,16 +86,17 @@ export class ChatChangesPillActionViewItem extends ChatPillActionViewItemBase {
 		}));
 	}
 
+	protected override getAriaLabel(): string {
+		return getChatChangesPillAriaLabel(this._action.label, this._statsObs.get());
+	}
+
 	private _updateLabel(stats: IChatChangesStats): void {
 		if (!this.button || !this._filesLabel) {
 			return;
 		}
-		const { files, insertions, deletions } = stats;
-		const filesLabel = files === 1
-			? localize('chatChangesPill.file', "{0} File", files)
-			: localize('chatChangesPill.files', "{0} Files", files);
+		const filesLabel = getFilesLabel(stats.files);
 		this._filesLabel.textContent = filesLabel;
 		this.button.setTitle(this._action.tooltip || this._action.label);
-		this.button.element.setAttribute('aria-label', localize('chatChangesPill.ariaLabel', "{0}: {1}, +{2}, -{3}", this._action.label, filesLabel, insertions, deletions));
+		this.button.element.setAttribute('aria-label', getChatChangesPillAriaLabel(this._action.label, stats));
 	}
 }

@@ -114,6 +114,20 @@ suite('Chat Accessibility Help', () => {
 		});
 	});
 
+	test('only describes Agent Host session status pills in agent mode', () => {
+		const keybindingService = {
+			lookupKeybindings: () => [],
+		} as unknown as IKeybindingService;
+
+		assert.deepStrictEqual({
+			agentView: getAccessibilityHelpText('agentView', keybindingService, true).includes('status pills above the input'),
+			panelChat: getAccessibilityHelpText('panelChat', keybindingService, true).includes('status pills above the input'),
+		}, {
+			agentView: true,
+			panelChat: false,
+		});
+	});
+
 	test('documents transcript Find everywhere it is enabled, but not in quick chat', () => {
 		const keybindingService = {
 			lookupKeybindings: () => [],

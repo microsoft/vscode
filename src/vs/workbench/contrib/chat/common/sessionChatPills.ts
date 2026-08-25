@@ -6,6 +6,8 @@
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IReader } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { observableMemento, ObservableMemento } from '../../../../platform/observable/common/observableMemento.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 
@@ -81,10 +83,11 @@ export function getSessionChatPillMenu(
 	kindsWithData: ReadonlySet<SessionChatPillKind>,
 	hiddenKinds: ReadonlySet<SessionChatPillKind>,
 	targetKind?: SessionChatPillKind,
+	offeredKinds: readonly SessionChatPillKind[] = SESSION_CHAT_PILL_KINDS,
 ): ISessionChatPillMenu {
 	const withData: ISessionChatPillMenuEntry[] = [];
 	const withoutData: ISessionChatPillMenuEntry[] = [];
-	for (const kind of SESSION_CHAT_PILL_KINDS) {
+	for (const kind of offeredKinds) {
 		if (!isSessionChatPillHideable(kind)) {
 			continue;
 		}
@@ -121,8 +124,21 @@ const hiddenSessionChatPills = observableMemento<readonly string[]>({
 	},
 });
 
+export const ISessionChatPillVisibilityService = createDecorator<ISessionChatPillVisibilityService>('sessionChatPillVisibilityService');
+
+/** Shared visibility state for session pills across every chat surface in a window. */
+export interface ISessionChatPillVisibilityService {
+	readonly _serviceBrand: undefined;
+	readHiddenKinds(reader: IReader | undefined): ReadonlySet<SessionChatPillKind>;
+	isVisible(kind: SessionChatPillKind, reader: IReader | undefined): boolean;
+	hide(kind: SessionChatPillKind): void;
+	toggle(kind: SessionChatPillKind): void;
+}
+
 /** The user's per-kind pill visibility choices, persisted across windows. */
-export class SessionChatPillVisibility extends Disposable {
+export class SessionChatPillVisibility extends Disposable implements ISessionChatPillVisibilityService {
+
+	declare readonly _serviceBrand: undefined;
 
 	private readonly _hiddenKinds: ObservableMemento<readonly string[]>;
 
@@ -155,3 +171,5 @@ export class SessionChatPillVisibility extends Disposable {
 		this._hiddenKinds.set(hidden.includes(kind) ? hidden.filter(hiddenKind => hiddenKind !== kind) : [...hidden, kind], undefined);
 	}
 }
+
+registerSingleton(ISessionChatPillVisibilityService, SessionChatPillVisibility, InstantiationType.Delayed);

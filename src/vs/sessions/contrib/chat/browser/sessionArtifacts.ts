@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../base/common/codicons.js';
-import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { getMediaMime } from '../../../../base/common/mime.js';
 import { derived, IObservable, IReader } from '../../../../base/common/observable.js';
@@ -19,7 +18,7 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
-import type { IChatPillEntry, IChatPillSection } from '../../../../workbench/browser/chatPills.js';
+import { getChatPillResourceLocation, type IChatPillEntry, type IChatPillSection } from '../../../../workbench/browser/chatPills.js';
 import { openChatTurnFile, previewKind } from '../../../../workbench/contrib/chat/browser/widget/chatTurnPills.js';
 import { ChatConfiguration } from '../../../../workbench/contrib/chat/common/constants.js';
 import type { IImageCarouselCollection } from '../../../../workbench/contrib/imageCarousel/browser/imageCarouselTypes.js';
@@ -72,13 +71,7 @@ function artifactValueKey(artifact: ISessionArtifact): string {
  * while the accessible name stays the action the entry performs.
  */
 export function sessionArtifactLocation(uri: URI, label: string): Pick<IChatPillEntry, 'ariaDescription' | 'ariaLabel' | 'hover' | 'tooltip'> {
-	const value = uri.toString(true);
-	return {
-		ariaDescription: value,
-		ariaLabel: localize('sessionArtifacts.open', "Open {0}", label),
-		hover: { content: new MarkdownString().appendText(value) },
-		tooltip: value,
-	};
+	return getChatPillResourceLocation(uri, label);
 }
 
 function getImageMimeType(uri: URI): string | undefined {

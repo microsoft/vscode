@@ -948,6 +948,8 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			return provider?.getSessionByResource(sessionResource)?.status.get() === SessionStatus.Untitled;
 		};
 
+		const backendSessionScheme = this._connectionCustomizations.get(address)?.backendSessionScheme?.(agent.provider);
+
 		// Chat session contribution
 		agentStore.add(this._chatSessionsService.registerChatSessionContribution({
 			type: sessionType,
@@ -958,6 +960,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			requiresCustomModels: true,
 			supportsAutoModel: agentHostProviderSupportsAutoModel(agent.provider),
 			agentHostProviderId: agent.provider,
+			agentHostBackendSessionScheme: backendSessionScheme,
 			supportsDelegation: true,
 			capabilities: {
 				supportsCheckpoints: true,
@@ -1007,7 +1010,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		const sessionHandler = agentStore.add(this._instantiationService.createInstance(
 			AgentHostSessionHandler, {
 			provider: agent.provider,
-			backendSessionScheme: this._connectionCustomizations.get(address)?.backendSessionScheme?.(agent.provider),
+			backendSessionScheme,
 			agentId,
 			sessionType,
 			fullName: displayName,

@@ -57,11 +57,13 @@ export interface IAgentHostConnectionInfo {
 
 /**
  * The result of resolving a chat-session resource to its backing agent host:
- * the owning {@link IAgentConnection} and the canonical backend agent-session
- * URI (`<provider>:/<rawId>`) used for protocol operations on that connection.
+ * the owning {@link IAgentConnection}, its sanitized authority, and the canonical
+ * backend agent-session URI (`<provider>:/<rawId>`) used for protocol operations.
  */
 export interface IAgentHostSessionResolution {
 	readonly connection: IAgentConnection;
+	/** Authority used when wrapping resources for the Agent Host file system. */
+	readonly connectionAuthority: string;
 	readonly backendSession: URI;
 }
 

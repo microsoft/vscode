@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
+import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 import { getSessionChatPillMenu, SessionChatPillKind, SessionChatPillVisibility } from '../../common/sessionChatPills.js';
 
 suite('SessionChatPills', () => {
@@ -43,6 +43,31 @@ suite('SessionChatPills', () => {
 			changes: undefined,
 			noTarget: undefined,
 		});
+	});
+
+	test('limits the menu to the pill kinds offered by the surface', () => {
+		const offeredKinds = [
+			SessionChatPillKind.Changes,
+			SessionChatPillKind.Artifacts,
+			SessionChatPillKind.PullRequests,
+		];
+
+		assert.deepStrictEqual(
+			getSessionChatPillMenu(
+				new Set([SessionChatPillKind.PullRequests]),
+				new Set(),
+				undefined,
+				offeredKinds,
+			),
+			{
+				withData: [
+					{ kind: SessionChatPillKind.PullRequests, label: 'Pull Requests', checked: true },
+				],
+				withoutData: [
+					{ kind: SessionChatPillKind.Artifacts, label: 'Artifacts', checked: true },
+				],
+			},
+		);
 	});
 
 	test('hides customizations and subagents by default, and always shows changes', () => {

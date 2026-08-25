@@ -153,3 +153,67 @@
 	background-repeat: no-repeat;
 	background-position: center center;
 }
+
+/* Horizontally scrollable status pills above a chat input. */
+
+.chat-pills-row {
+	width: 100%;
+	min-width: 0;
+}
+
+.chat-pills-row-content {
+	display: flex;
+	align-items: center;
+	justify-content: flex-start;
+	gap: var(--vscode-spacing-size60);
+	width: 100%;
+	min-width: 0;
+	box-sizing: border-box;
+	padding: var(--vscode-spacing-size20) 0 var(--vscode-spacing-size60) 0;
+}
+
+.chat-pills-row-content > .chat-pills {
+	flex-shrink: 0;
+}
+
+.chat-pills-row.hidden {
+	display: none;
+}
+
+/* No pill is left to right-click, so the row takes back a slim hit-testable
+	strip to keep the visibility menu (and with it the hidden pills) reachable. */
+.chat-pills-row.empty {
+	pointer-events: auto;
+}
+
+.chat-pills-row.empty .chat-pills-row-content {
+	min-height: var(--vscode-spacing-size120);
+}
+
+.chat-pills-row.empty .chat-pills-row-content:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+/* The floating row is click-through, so the slider shows the scroll position but
+	cannot be dragged; wheeling over a pill scrolls the row. */
+.chat-pills-row > .scrollbar > .slider {
+	background: transparent;
+}
+
+.chat-pills-row > .scrollbar.horizontal > .slider::before {
+	content: '';
+	position: absolute;
+	inset: var(--vscode-strokeThickness);
+	border-radius: var(--vscode-cornerRadius-circle);
+	background: var(--vscode-scrollbarSlider-background);
+}
+
+.chat-pills-row > .scrollbar > .slider:hover::before {
+	background: var(--vscode-scrollbarSlider-hoverBackground);
+}
+
+.chat-pills-row > .scrollbar > .slider.active::before {
+	background: var(--vscode-scrollbarSlider-activeBackground);
+}

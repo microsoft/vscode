@@ -12,7 +12,7 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { buildTurnChangesetUri } from '../../../../../../platform/agentHost/common/changesetUri.js';
-import { fromAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { AGENT_HOST_SCHEME, fromAgentHostUri, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import {
 	buildDefaultChatUri,
@@ -24,12 +24,13 @@ import {
 	ToolCallStatus,
 	ToolResultContentType,
 	TurnState,
+	type ChangesetFile,
 	type ChangesetState,
 	type ChatState,
 	type SessionState
 } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IEditSessionEntryDiff } from '../../../common/editing/chatEditingService.js';
-import { AgentHostResponseFileChangesProvider } from '../../../browser/agentSessions/agentHost/agentHostResponseFileChanges.js';
+import { agentHostChangesetFileToEntryDiff, AgentHostResponseFileChangesProvider } from '../../../browser/agentSessions/agentHost/agentHostResponseFileChanges.js';
 import { IChatResponseFileEdit } from '../../../browser/chatResponseFileChangesService.js';
 
 class FakeAgentConnection extends mock<IAgentConnection>() {
@@ -123,6 +124,27 @@ suite('AgentHostResponseFileChangesProvider', () => {
 		]);
 	});
 
+	test('wraps local session snapshot URIs through the Agent Host file system', () => {
+		const file = {
+			id: '1',
+			edit: {
+				before: { uri: URI.file('/repo/a.ts').toString(), content: { uri: 'session-db:/before' } },
+				after: { uri: URI.file('/repo/a.ts').toString(), content: { uri: 'session-db:/after' } },
+				diff: { added: 1, removed: 1 },
+			},
+		} satisfies ChangesetFile;
+
+		const diff = agentHostChangesetFileToEntryDiff(file, resource => toAgentHostUri(resource, 'local'));
+
+		assert.deepStrictEqual({
+			originalScheme: diff?.originalURI.scheme,
+			modifiedScheme: diff?.modifiedURI.scheme,
+		}, {
+			originalScheme: AGENT_HOST_SCHEME,
+			modifiedScheme: 'file',
+		});
+	});
+
 	test('keeps the changeset subscription when session state updates', () => {
 		const ds = store.add(new DisposableStore());
 		const conn = new FakeAgentConnection();
@@ -192,6 +214,59 @@ suite('AgentHostResponseFileChangesProvider', () => {
 			provider.getChangesForRequest(peerResource, 'same-turn-id'),
 			provider.getChangesForRequest(otherPeerResource, 'same-turn-id'),
 		);
+	});
+
+	test('keeps the latest snapshot when repeated file edits are aggregated', () => {
+		const ds = store.add(new DisposableStore());
+		const conn = new FakeAgentConnection();
+		const provider = ds.add(new AgentHostResponseFileChangesProvider(conn, authority, () => backendSession));
+		const defaultChat = URI.parse(buildDefaultChatUri(backendSession.toString()));
+		conn.setState(backendSession.toString(), sessionStateWithTurnSupport());
+		conn.setState(turnChangesetUri('repeat'), { status: ChangesetStatus.Computing, files: [] } satisfies ChangesetState);
+		conn.setState(defaultChat.toString(), {
+			resource: defaultChat.toString(),
+			turns: [{
+				id: 'repeat',
+				message: {},
+				responseParts: [{
+					kind: ResponsePartKind.ToolCall,
+					toolCall: {
+						status: ToolCallStatus.Completed,
+						content: [{
+							type: ToolResultContentType.FileEdit,
+							after: { uri: URI.file('/repo/repeated.ts').toString(), content: { uri: 'git-blob://first' } },
+							diff: { added: 1, removed: 0 },
+						}],
+					},
+				}, {
+					kind: ResponsePartKind.ToolCall,
+					toolCall: {
+						status: ToolCallStatus.Completed,
+						content: [{
+							type: ToolResultContentType.FileEdit,
+							before: { uri: URI.file('/repo/repeated.ts').toString(), content: { uri: 'git-blob://first' } },
+							after: { uri: URI.file('/repo/repeated.ts').toString(), content: { uri: 'git-blob://second' } },
+							diff: { added: 2, removed: 1 },
+						}],
+					},
+				}],
+				state: TurnState.Complete,
+			}],
+		} as unknown as ChatState);
+
+		const changes = provider.getChangesForRequest(chatResource, 'repeat')!.get();
+
+		assert.deepStrictEqual(changes.map(diff => ({
+			added: diff.added,
+			removed: diff.removed,
+			after: diff.modifiedSnapshotURI && fromAgentHostUri(diff.modifiedSnapshotURI).authority,
+			isCreated: diff.isCreated,
+		})), [{
+			added: 3,
+			removed: 1,
+			after: 'second',
+			isCreated: true,
+		}]);
 	});
 
 	test('preserves an authoritative empty turn changeset', () => {

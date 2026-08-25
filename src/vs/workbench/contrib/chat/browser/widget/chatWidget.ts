@@ -356,6 +356,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private listContainer!: HTMLElement;
 	private container!: HTMLElement;
+	private _persistentContentHeight: number;
 	private transcriptProgress: { readonly container: HTMLElement; readonly content: HTMLElement } | undefined;
 	private readonly transcriptProgressPart = this._register(new MutableDisposable<DisposableStore>());
 	private transcriptProgressActive = false;
@@ -581,6 +582,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 	) {
 		super();
+		this._persistentContentHeight = viewOptions.persistentContentHeight ?? 0;
 
 		this.readOnlyBanner = viewOptions.isSessionsWindow
 			? undefined
@@ -1008,12 +1010,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const renderInputToolbarBelowInput = this.viewOptions.renderInputToolbarBelowInput ?? false;
 
 		this.container = dom.append(parent, $('.interactive-session'));
-		if (this.viewOptions.persistentContentHeight) {
-			// The class floats the persistent content; the variable tells the
-			// surfaces the list now extends behind how far to keep clear.
-			this.container.classList.add(chatFloatingPersistentContentClass);
-			this.container.style.setProperty(chatPersistentContentHeightVariable, `${this.viewOptions.persistentContentHeight}px`);
-		}
+		this._applyPersistentContentHeight();
 		this.editorOverflowWidgetsDomNode = this.viewOptions.editorOverflowWidgetsDomNode;
 		if (!this.editorOverflowWidgetsDomNode) {
 			const editorOverflowWidgetsDomNode = this.layoutService.getContainer(dom.getWindow(parent)).appendChild($('.chat-editor-overflow.monaco-editor'));
@@ -2039,7 +2036,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				getSelectedModelRequestOptions: () => this.getSelectedModelRequestOptions(),
 				getCurrentModeInfo: () => this.input.currentModeInfo,
 				getEditingValue: () => this.input.inputEditor.getValue(),
-				paddingBottom: this.viewOptions.persistentContentHeight,
+				paddingBottom: this._persistentContentHeight,
 			}
 		));
 
@@ -2617,6 +2614,28 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 	}
 
+	setPersistentContentHeight(height: number | undefined): void {
+		const persistentContentHeight = Math.max(0, height ?? 0);
+		if (persistentContentHeight === this._persistentContentHeight) {
+			return;
+		}
+		this._persistentContentHeight = persistentContentHeight;
+		this._applyPersistentContentHeight();
+	}
+
+	private _applyPersistentContentHeight(): void {
+		if (!this.container) {
+			return;
+		}
+		const floatsPersistentContent = this._persistentContentHeight > 0;
+		this.container.classList.toggle(chatFloatingPersistentContentClass, floatsPersistentContent);
+		if (floatsPersistentContent) {
+			this.container.style.setProperty(chatPersistentContentHeightVariable, `${this._persistentContentHeight}px`);
+		} else {
+			this.container.style.removeProperty(chatPersistentContentHeightVariable);
+		}
+		this.listWidget?.setPaddingBottom(this._persistentContentHeight);
+	}
 
 	setModel(model: IChatModel | undefined): void {
 		if (!this.container || !this.inputPart) {

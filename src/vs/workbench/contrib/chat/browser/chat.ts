@@ -447,6 +447,8 @@ export interface IChatWidget {
 	setInput(query?: string): void;
 	getInput(): string;
 	refreshParsedInput(): void;
+	/** Floats persistent input content and reserves matching space below the transcript. */
+	setPersistentContentHeight(height: number | undefined): void;
 	logInputHistory(): void;
 	acceptInput(query?: string, options?: IChatAcceptInputOptions): Promise<IChatResponseModel | undefined>;
 	getSelectedModelRequestOptions(): Pick<IChatSendRequestOptions, 'userSelectedModelId' | 'userSelectedModelConfiguration'>;

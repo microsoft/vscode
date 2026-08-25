@@ -97,15 +97,25 @@ suite('AgentHostConnectionsService', () => {
 		const { service, ambient } = createService([info('myhost', 'My Remote')], byAddress);
 
 		const local = service.resolveSessionResource(URI.parse('agent-host-copilotcli:/abc123'));
-		assert.strictEqual(local?.connection, ambient);
-		assert.strictEqual(local?.backendSession.toString(), 'copilotcli:/abc123');
-
 		const remote = service.resolveSessionResource(URI.parse('remote-myhost-copilotcli:/xyz789'));
-		assert.strictEqual(remote?.connection, remoteConn);
-		assert.strictEqual(remote?.backendSession.toString(), 'copilotcli:/xyz789');
-
-		// Non-agent-host scheme and unknown remote authority resolve to undefined.
-		assert.strictEqual(service.resolveSessionResource(URI.parse('vscode-chat-editor:/foo')), undefined);
-		assert.strictEqual(service.resolveSessionResource(URI.parse('remote-unknown-copilotcli:/foo')), undefined);
+		assert.deepStrictEqual({
+			local: {
+				connection: local?.connection === ambient,
+				authority: local?.connectionAuthority,
+				session: local?.backendSession.toString(),
+			},
+			remote: {
+				connection: remote?.connection === remoteConn,
+				authority: remote?.connectionAuthority,
+				session: remote?.backendSession.toString(),
+			},
+			nonAgentHost: service.resolveSessionResource(URI.parse('vscode-chat-editor:/foo')),
+			unknownRemote: service.resolveSessionResource(URI.parse('remote-unknown-copilotcli:/foo')),
+		}, {
+			local: { connection: true, authority: 'local', session: 'copilotcli:/abc123' },
+			remote: { connection: true, authority: 'myhost', session: 'copilotcli:/xyz789' },
+			nonAgentHost: undefined,
+			unknownRemote: undefined,
+		});
 	});
 });
