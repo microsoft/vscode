@@ -28,6 +28,15 @@ import { COPILOT_CLI_AGENT_PROVIDER, getCopilotCliSessionRawId, migratedCopilotC
 export const LEGACY_MIGRATION_TIMEOUT_MS = 30_000;
 export const LEGACY_MIGRATION_RESTORE_TIMEOUT_MS = 60_000;
 
+/**
+ * Budget for an explicit, user-initiated open. Migration is invisible to the user, so we
+ * prefer to wait for the adopted session to surface (shown under a subtle progress hint)
+ * rather than fall back to the pre-migration view they did not ask for. A declined or
+ * external session still resolves quickly via the error signal, so only a genuinely
+ * still-warming host uses the full budget.
+ */
+export const LEGACY_MIGRATION_OPEN_TIMEOUT_MS = 60_000;
+
 /** Where a probe was triggered from, so outcomes can be attributed per entry point. */
 export type LegacyMigrationProbeSource = 'open' | 'restore';
 
