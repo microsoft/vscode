@@ -85,6 +85,10 @@
 	margin-bottom: var(--modern-ui-floating-card-inner-margin);
 }
 
+.monaco-workbench.floating-panels:not(.modern-ui-compact) .part.panel.top.floating-part-outer-bottom {
+	margin-bottom: var(--modern-ui-floating-card-outer-margin);
+}
+
 /* A bottom panel below the editor keeps the inter-card gap. */
 .monaco-workbench.floating-panels.panel-position-bottom:not(.nopanel):not(.nomaineditorarea) .part.panel.bottom {
 	margin-top: var(--modern-ui-floating-card-margin);
@@ -111,7 +115,7 @@
 /* Compact parts meet edge-to-edge; only corners on the cluster perimeter are restored below. */
 .monaco-workbench.floating-panels.modern-ui-compact .part:is(.sidebar, .panel, .auxiliarybar),
 .monaco-workbench.floating-panels.modern-ui-compact .part.editor > .content,
-.monaco-workbench.floating-panels.modern-ui-compact .webview-overlay-content {
+.monaco-workbench.floating-panels.modern-ui-compact .webview-overlay-content:not(.webview-overlay-modal) {
 	border-radius: 0;
 }
 

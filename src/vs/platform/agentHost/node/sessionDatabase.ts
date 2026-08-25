@@ -135,6 +135,13 @@ export const sessionDatabaseMigrations: readonly ISessionDatabaseMigration[] = [
 			usage   TEXT NOT NULL
 		)`,
 	},
+	{
+		version: 10,
+		sql: `CREATE TABLE IF NOT EXISTS turn_delegation (
+			turn_id    TEXT PRIMARY KEY NOT NULL REFERENCES turns(id) ON DELETE CASCADE,
+			delegation TEXT NOT NULL
+		)`,
+	},
 ];
 
 // ---- Promise wrappers around callback-based @vscode/sqlite3 API -----------
@@ -434,6 +441,35 @@ export class SessionDatabase implements ISessionDatabase {
 			}
 			return result;
 		});
+	}
+
+	setTurnDelegation(turnId: string, delegation: string): Promise<void> {
+		return this._track(async () => {
+			const db = await this._ensureDb();
+			await dbRun(db, 'INSERT OR IGNORE INTO turns (id) VALUES (?)', [turnId]);
+			await dbRun(db, 'INSERT OR REPLACE INTO turn_delegation (turn_id, delegation) VALUES (?, ?)', [turnId, delegation]);
+		});
+	}
+
+	async getTurnDelegations(): Promise<Map<string, string>> {
+		await this.whenIdle();
+		const db = await this._ensureDb();
+		const rows = await dbAll(
+			db,
+			`SELECT d.turn_id AS turn_id, t.event_id AS event_id, d.delegation AS delegation
+			FROM turn_delegation d LEFT JOIN turns t ON t.id = d.turn_id`,
+			[],
+		);
+		const result = new Map<string, string>();
+		for (const row of rows) {
+			const delegation = row.delegation as string;
+			result.set(row.turn_id as string, delegation);
+			const eventId = row.event_id as string | null;
+			if (eventId) {
+				result.set(eventId, delegation);
+			}
+		}
+		return result;
 	}
 
 	setTurnCheckpointRef(turnId: string, ref: string): Promise<void> {
@@ -836,6 +872,7 @@ export class SessionDatabase implements ISessionDatabase {
 					// or the forked session would restore with no gauge and zero cost.
 					for (const [oldId, newId] of mapping) {
 						await dbRun(db, 'UPDATE turn_usage SET turn_id = ? WHERE turn_id = ?', [newId, oldId]);
+						await dbRun(db, 'UPDATE turn_delegation SET turn_id = ? WHERE turn_id = ?', [newId, oldId]);
 					}
 					await dbExec(db, 'COMMIT');
 				} catch (err) {

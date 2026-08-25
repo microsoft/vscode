@@ -97,6 +97,24 @@ registerAction2(class extends Action2 {
 	}
 });
 
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'chat.pet.developer.resetSize',
+			title: localize2('chatPet.developer.resetSize', "Reset Pet Size"),
+			category: Categories.Developer,
+			precondition: ChatContextKeys.enabled,
+			f1: true,
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		const chatPetService = accessor.get(IChatPetService);
+		chatPetService.resetScale();
+		status(localize('chatPet.developer.resetSizeComplete', "VS Code pet size reset to {0} percent", Math.round(chatPetService.scale.get() * 100)));
+	}
+});
+
 export class ChatPetContextContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.chatPetContext';
