@@ -24,6 +24,7 @@ import { assertType } from '../../../base/common/types.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { BidirectionalMap } from '../../../base/common/map.js';
 import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
+import { ESMLoadQueue } from './esmLoadQueue.js';
 const require = nodeModule.createRequire(import.meta.url);
 
 class NodeModuleRequireInterceptor extends RequireInterceptor {
@@ -147,6 +148,8 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 
 	readonly extensionRuntime = ExtensionRuntime.Node;
 
+	private readonly _esmLoadQueue = new ESMLoadQueue();
+
 	protected async _beforeAlmostReadyToRunExtensions(): Promise<void> {
 		// make sure console.log calls make it to the render
 		this._instaService.createInstance(ExtHostConsoleForwarder);
@@ -189,30 +192,35 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 		if (module.scheme !== Schemas.file) {
 			throw new Error(`Cannot load URI: '${module}', must be of file-scheme`);
 		}
-		let r: T | null = null;
-		activationTimesBuilder.codeLoadingStart();
 		this._logService.trace(`ExtensionService#loadModule [${mode}] -> ${module.toString(true)}`);
 		this._logService.flush();
 		const extensionId = extension?.identifier.value;
 		if (extension) {
 			await this._extHostLocalizationService.initializeLocalizedMessages(extension);
 		}
+
+		// The marks cover the whole wait, so they still say when the extension was ready.
+		// `codeLoadingTime` below only covers the loading itself, so it says what it cost.
+		if (extensionId) {
+			performance.mark(`code/extHost/willLoadExtensionCode/${extensionId}`);
+		}
+		const load = async (): Promise<T> => {
+			activationTimesBuilder.codeLoadingStart();
+			try {
+				return mode === 'esm'
+					? <T>await import(module.toString(true))
+					: <T>require(module.fsPath);
+			} finally {
+				activationTimesBuilder.codeLoadingStop();
+			}
+		};
 		try {
-			if (extensionId) {
-				performance.mark(`code/extHost/willLoadExtensionCode/${extensionId}`);
-			}
-			if (mode === 'esm') {
-				r = <T>await import(module.toString(true));
-			} else {
-				r = <T>require(module.fsPath);
-			}
+			return await (mode === 'esm' ? this._esmLoadQueue.run(load) : load());
 		} finally {
 			if (extensionId) {
 				performance.mark(`code/extHost/didLoadExtensionCode/${extensionId}`);
 			}
-			activationTimesBuilder.codeLoadingStop();
 		}
-		return r;
 	}
 
 	protected async _loadCommonJSModule<T>(extension: IExtensionDescription | null, module: URI, activationTimesBuilder: ExtensionActivationTimesBuilder): Promise<T> {
