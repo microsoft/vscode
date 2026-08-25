@@ -170,59 +170,47 @@ function assertSimpleDialogForWorkspaceArgs(args: string[]): void {
 	}
 }
 
-export function normalizeSettingsFile(f: string, root?: string): void {
-	// The profile is cloned with `rsync -a`, which preserves symlinks - and not
-	// only on the settings file itself. A symlinked `User` or
-	// `User/profiles/<id>` directory reaches this code with a perfectly ordinary
-	// file path that still resolves outside the throwaway profile, so refuse to
-	// write through a linked ancestor rather than silently editing the user's
-	// real settings. Only the launcher-owned portion of the path is checked; the
-	// temp root above it is not ours to judge - on macOS `/tmp` is itself a
-	// symlink, so an unbounded walk would reject every run.
-	if (root !== undefined) {
-		const relative = path.relative(root, path.dirname(f));
-		let dir = root;
-		for (const segment of relative.split(path.sep).filter(s => s !== '')) {
-			dir = path.join(dir, segment);
-			let isLink = false;
-			try { isLink = fs.lstatSync(dir).isSymbolicLink(); } catch { break; }
-			if (isLink) {
-				console.error('[normalize-automation-settings] refusing to write through symlinked directory ' +
-					dir + ' - the cloned profile is not self-contained: ' + f);
-				process.exit(1);
-			}
-		}
-	}
-
-	// If the settings file *itself* is a link, writing through it would edit the
-	// user's real file instead of the throwaway copy. Replace it with a regular
-	// file holding its current contents before writing anything.
-	try {
-		if (fs.lstatSync(f).isSymbolicLink()) {
-			// A dangling link has no contents to preserve, but it must still be
-			// replaced: writing through it would create the target *outside* the
-			// throwaway profile.
-			// Only ENOENT proves the link is dangling. Any other read failure
-			// (EACCES, EIO, a directory target) means there *are* settings we just
-			// cannot see, and treating that as empty would silently discard them.
-			let contents = '';
-			try {
-				contents = fs.readFileSync(f, 'utf8');
-			} catch (e) {
-				if ((e as NodeJS.ErrnoException).code !== 'ENOENT') {
-					throw e;
-				}
-			}
-			fs.unlinkSync(f);
-			fs.writeFileSync(f, contents);
-		}
-	} catch (e) {
-		const error = e as NodeJS.ErrnoException;
-		if (error.code !== 'ENOENT') {
-			console.error('[normalize-automation-settings] cannot materialize ' + f + ': ' + error.message);
+function refuseLinkedAncestors(root: string, file: string): void {
+	const relative = path.relative(root, path.dirname(file));
+	let dir = root;
+	for (const segment of relative.split(path.sep).filter(Boolean)) {
+		dir = path.join(dir, segment);
+		let isLink = false;
+		try { isLink = fs.lstatSync(dir).isSymbolicLink(); } catch { break; }
+		if (isLink) {
+			console.error('[normalize-automation-settings] refusing to write through symlinked directory ' +
+				dir + ' - the cloned profile is not self-contained: ' + file);
 			process.exit(1);
 		}
 	}
+}
+
+function materializeLinkedFile(file: string): void {
+	try {
+		if (!fs.lstatSync(file).isSymbolicLink()) { return; }
+		let contents = '';
+		try { contents = fs.readFileSync(file, 'utf8'); }
+		catch (error) {
+			if ((error as NodeJS.ErrnoException).code !== 'ENOENT') { throw error; }
+		}
+		fs.unlinkSync(file);
+		fs.writeFileSync(file, contents);
+	} catch (error) {
+		const fileError = error as NodeJS.ErrnoException;
+		if (fileError.code !== 'ENOENT') {
+			console.error('[normalize-automation-settings] cannot materialize ' + file + ': ' + fileError.message);
+			process.exit(1);
+		}
+	}
+}
+
+export function normalizeSettingsFile(f: string, root?: string): void {
+	// `rsync -a` preserves links. Check only the launcher-owned part of the path;
+	// the temp root above it is not ours to judge, and `/tmp` is linked on macOS.
+	if (root !== undefined) {
+		refuseLinkedAncestors(root, f);
+	}
+	materializeLinkedFile(f);
 
 	let text: string;
 	try { text = fs.readFileSync(f, 'utf8'); }
@@ -498,6 +486,8 @@ export function normalizeSettingsFile(f: string, root?: string): void {
 function inheritingProfileLocations(userDataDir: string): Set<string> {
 	const inheriting = new Set<string>();
 	const stateFile = path.join(userDataDir, 'User', 'globalStorage', 'storage.json');
+	refuseLinkedAncestors(userDataDir, stateFile);
+	materializeLinkedFile(stateFile);
 	let state: Record<string, unknown>;
 	try {
 		state = JSON.parse(fs.readFileSync(stateFile, 'utf8')) as Record<string, unknown>;

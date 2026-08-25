@@ -405,6 +405,51 @@ test('remaps a legacy URI profile location into the cloned profile', () => {
 	});
 });
 
+
+test('materializes linked profile state before remapping a legacy URI', posixOnly, () => {
+	const root = fs.mkdtempSync(path.join(os.tmpdir(), 'nas-uri-state-link-'));
+	const userDir = path.join(root, 'User');
+	const named = path.join(userDir, 'profiles', 'legacy');
+	const storageDir = path.join(userDir, 'globalStorage');
+	const storageFile = path.join(storageDir, 'storage.json');
+	const outside = path.join(root, 'outside-storage.json');
+	fs.mkdirSync(named, { recursive: true });
+	fs.mkdirSync(storageDir, { recursive: true });
+	fs.writeFileSync(path.join(userDir, 'settings.json'), '{}\n');
+	fs.writeFileSync(path.join(named, 'settings.json'), '{}\n');
+	const original = JSON.stringify({ userDataProfiles: [{ location: { scheme: 'file', path: '/source/User/profiles/legacy' } }] });
+	fs.writeFileSync(outside, original);
+	fs.symlinkSync(outside, storageFile);
+
+	execFileSync(process.execPath, [script, '--user-data-dir', root], { stdio: 'pipe' });
+	const clonedState = JSON.parse(fs.readFileSync(storageFile, 'utf8')) as { userDataProfiles: { location: unknown }[] };
+
+	assert.deepStrictEqual({
+		outside: fs.readFileSync(outside, 'utf8'),
+		stillLinked: fs.lstatSync(storageFile).isSymbolicLink(),
+		clonedLocation: clonedState.userDataProfiles[0].location
+	}, { outside: original, stillLinked: false, clonedLocation: 'legacy' });
+});
+
+test('rejects a linked profile-state ancestor before remapping', posixOnly, () => {
+	const root = fs.mkdtempSync(path.join(os.tmpdir(), 'nas-uri-state-dir-'));
+	const userDir = path.join(root, 'User');
+	const named = path.join(userDir, 'profiles', 'legacy');
+	const outside = path.join(root, 'outside-globalStorage');
+	fs.mkdirSync(named, { recursive: true });
+	fs.mkdirSync(outside, { recursive: true });
+	fs.writeFileSync(path.join(userDir, 'settings.json'), '{}\n');
+	const storageFile = path.join(outside, 'storage.json');
+	const original = JSON.stringify({ userDataProfiles: [{ location: { scheme: 'file', path: '/source/User/profiles/legacy' } }] });
+	fs.writeFileSync(storageFile, original);
+	fs.symlinkSync(outside, path.join(userDir, 'globalStorage'), 'dir');
+
+	let status = 0;
+	try { execFileSync(process.execPath, [script, '--user-data-dir', root], { stdio: 'pipe' }); }
+	catch (error) { status = (error as { status?: number }).status ?? 1; }
+
+	assert.deepStrictEqual({ status, outside: fs.readFileSync(storageFile, 'utf8') }, { status: 1, outside: original });
+});
 test('accepts the nested built-in Agents profile without treating builtin as a profile', () => {
 	const root = fs.mkdtempSync(path.join(os.tmpdir(), 'nas-agents-profile-'));
 	const userDir = path.join(root, 'User');
