@@ -1340,10 +1340,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 	}));
 
 	test('re-subscribes to session state after a subscribe that failed because the host had no such session', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		// A client can address a session before the host has created it — the cloud sandbox does,
-		// using the id Mission Control minted — so the first subscribe legitimately fails. Caching
-		// that dead subscription would defeat the idempotent recovery and the session's state,
-		// including its changesets, would never arrive.
+		// A failed pre-creation subscribe must remain retryable so later session state, including changesets, can arrive.
 		connection.addSession(createSession('late-1', { summary: 'Created after we asked' }));
 		const provider = createProvider(disposables, connection, { isWebPlatform: false, omitHostFromWorkspaceLabel: true });
 		const backendUri = AgentSession.uri('copilotcli', 'late-1').toString();
