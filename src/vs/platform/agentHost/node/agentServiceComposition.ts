@@ -140,6 +140,7 @@ export function createAgentServiceComposition(
 			buildServerToolGroups(callbackAdapter.sessionServerToolAccessor, agentMergeTools, callbackAdapter.artifactServerToolAccessor),
 		);
 
+		const automationService = owned.add(instantiationService.createInstance(AgentHostAutomationService, callbackAdapter.automationExecution));
 		const collaborators: IAgentServiceCollaborators = {
 			gitHubEndpointService,
 			gitStateService,
@@ -154,10 +155,9 @@ export function createAgentServiceComposition(
 			localTurns,
 			sideEffects,
 			serverToolHost,
+			automationService,
 		};
 		agentService = instantiationService.createInstance(AgentService, core, collaborators, options);
-		const automationService = owned.add(instantiationService.createInstance(AgentHostAutomationService, callbackAdapter.automationExecution));
-		agentService.setAutomationService(automationService);
 		for (const disposable of additionalDisposables) {
 			owned.add(disposable);
 		}

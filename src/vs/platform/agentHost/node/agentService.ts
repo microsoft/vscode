@@ -394,6 +394,7 @@ export interface IAgentServiceCollaborators {
 	readonly localTurns: AgentHostLocalTurns;
 	readonly sideEffects: AgentSideEffects;
 	readonly serverToolHost: AgentServerToolHost;
+	readonly automationService: IAgentHostAutomationService;
 }
 
 /** Core services that must exist before {@link AgentService} can be constructed. */
@@ -512,7 +513,7 @@ export class AgentService extends Disposable implements IAgentService {
 	private readonly _serverToolHost: AgentServerToolHost;
 	private readonly _debugLogsCollector: AgentHostDebugLogsCollector | undefined;
 	private readonly _configurationService: AgentConfigurationService;
-	private _automationService!: IAgentHostAutomationService;
+	private readonly _automationService: IAgentHostAutomationService;
 	/** Captures baseline / per-turn git checkpoints backing the changeset pipeline. */
 	private readonly _checkpointService: IAgentHostCheckpointService;
 	/** Single source of truth for GitHub (Enterprise) endpoints and protected resources. */
@@ -614,6 +615,7 @@ export class AgentService extends Disposable implements IAgentService {
 		this._localTurns = collaborators.localTurns;
 		this._sideEffects = collaborators.sideEffects;
 		this._serverToolHost = collaborators.serverToolHost;
+		this._automationService = collaborators.automationService;
 		this._sessionResidency = this._register(instantiationService.createInstance(
 			AgentSessionResidency,
 			this._stateManager,
@@ -732,16 +734,6 @@ export class AgentService extends Disposable implements IAgentService {
 		this._editAttributionService.setEnabled(this._stateManager.rootState.config?.values[AgentHostEditTelemetryEnabledConfigKey] !== false);
 		this._runWhenStartupSettled('external session prune', () => this._pruneStaleExternalSessions());
 		this._register(core.disposables);
-	}
-
-	/**
-	 * Completes the automation-service cycle after the AgentService callbacks are bound.
-	 */
-	setAutomationService(automationService: IAgentHostAutomationService): void {
-		if (this._automationService) {
-			throw new Error('Automation service has already been set');
-		}
-		this._automationService = automationService;
 	}
 
 	/** Opens once startup settled: the host finished starting and the first listing was served. */
