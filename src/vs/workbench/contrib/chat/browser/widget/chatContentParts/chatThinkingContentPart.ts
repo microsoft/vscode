@@ -38,6 +38,7 @@ import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
 import { ChatMessageRole, ILanguageModelsService } from '../../../common/languageModels.js';
 import './media/chatThinkingContent.css';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { getCompactCodicon } from '../../chatIcons.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { extractImagesFromToolInvocationOutputDetails } from '../../../common/chatImageExtraction.js';
@@ -160,13 +161,13 @@ export function getToolInvocationIcon(toolId: string, registeredIcon?: ThemeIcon
 
 export function createThinkingIcon(icon: ThemeIcon): HTMLElement {
 	const iconElement = $('span.chat-thinking-icon');
-	iconElement.classList.add(...ThemeIcon.asClassNameArray(icon));
+	iconElement.classList.add(...ThemeIcon.asClassNameArray(getCompactCodicon(icon)));
 	return iconElement;
 }
 
 function setThinkingIcon(iconElement: HTMLElement, icon: ThemeIcon): void {
 	iconElement.className = 'chat-thinking-icon';
-	iconElement.classList.add(...ThemeIcon.asClassNameArray(icon));
+	iconElement.classList.add(...ThemeIcon.asClassNameArray(getCompactCodicon(icon)));
 }
 
 function extractTitleFromThinkingContent(content: string): string | undefined {
@@ -580,12 +581,12 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			const isExpanded = this.expanded.read(r);
 			if (this._collapseButton) {
 				if (this.streamingCompleted || this.element.isComplete) {
-					this._collapseButton.icon = Codicon.check;
+					this._collapseButton.icon = Codicon.checkCompact;
 				} else if (!this.fixedScrollingMode) {
 					if (isExpanded) {
-						this._collapseButton.icon = Codicon.chevronDown;
+						this._collapseButton.icon = Codicon.chevronDownCompact;
 					} else {
-						this._collapseButton.icon = Codicon.circleFilled;
+						this._collapseButton.icon = Codicon.circleFilledCompact;
 					}
 				}
 			}
@@ -971,14 +972,13 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		}
 
 		// Multi-header reasoning summaries render each header section as its own
-		// row so the dropdown reads as a list. Fixed-scrolling keeps its single
-		// auto-scrolling block. Sibling rows need an attached container so their
+		// row so the dropdown reads as a list. Sibling rows need an attached container so their
 		// insertion isn't a no-op, so a detached (lazy) container falls through to
 		// single-block rendering until it is materialized. A block drops its leading
 		// header only when that header is the tracked title owner, so a grouped block
 		// never drops a header that isn't surfaced as the title.
 		const dropLeadingHeader = this.droppedSummaryHeader !== undefined && extractTitleFromThinkingContent(cleanedContent) === this.droppedSummaryHeader;
-		const summaryRows = this.fixedScrollingMode ? undefined : splitReasoningSummaryRows(cleanedContent, dropLeadingHeader);
+		const summaryRows = splitReasoningSummaryRows(cleanedContent, dropLeadingHeader);
 		if (summaryRows && this.textContainer?.parentNode) {
 			this.renderSummaryRows(summaryRows);
 			return;
@@ -1097,8 +1097,11 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			return;
 		}
 		const trimmed = value.trim();
-		if (!this.fixedScrollingMode && splitReasoningSummaryRows(trimmed, true)) {
+		if (splitReasoningSummaryRows(trimmed, true)) {
 			this.droppedSummaryHeader = extractTitleFromThinkingContent(trimmed);
+			if (this.fixedScrollingMode && this.droppedSummaryHeader && this.currentTitle !== this.droppedSummaryHeader) {
+				this.setTitle(this.droppedSummaryHeader);
+			}
 		}
 	}
 
@@ -1489,7 +1492,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		}
 
 		if (this._collapseButton) {
-			this._collapseButton.icon = Codicon.check;
+			this._collapseButton.icon = Codicon.checkCompact;
 		}
 
 		// Update scroll dimensions now that streaming is complete
@@ -1915,7 +1918,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 		this.flushPendingExternalResources();
 
 		if (this._collapseButton) {
-			this._collapseButton.icon = Codicon.check;
+			this._collapseButton.icon = Codicon.checkCompact;
 			this.setFinalizedTitle(finalLabel);
 		}
 

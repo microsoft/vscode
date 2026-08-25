@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../nls.js';
+import { appendEscapedMarkdownInlineCode } from '../../../base/common/htmlContent.js';
 import { createSchema, schemaProperty } from './agentHostSchema.js';
 import { GitHubActor, PullRequestCheck, PullRequestChecks, PullRequestSnapshot } from '../../github/common/githubPullRequestService.js';
 import { SessionConfigKey } from './sessionConfigKeys.js';
@@ -155,7 +156,7 @@ export const defaultAgentMergeConfiguration: AgentMergeConfiguration = {
 };
 
 export type AgentMergeGateResult =
-	| { readonly kind: 'indeterminate'; readonly reason: string }
+	| { readonly kind: 'indeterminate'; readonly reason: string; readonly cause: string }
 	| { readonly kind: 'terminal' }
 	| { readonly kind: 'noWork'; readonly waitingOnChecks: boolean; readonly fingerprint: string }
 	| { readonly kind: 'prompt'; readonly actions: readonly AgentMergeRepairAction[]; readonly fingerprint: string; readonly context: AgentMergePromptContext }
@@ -196,6 +197,77 @@ export function resolveAgentMergeConfiguration(defaults: AgentMergeConfiguration
 		...defaults,
 		...overrides,
 	};
+}
+
+/**
+ * Why Agent Merge stopped monitoring a session. Keeping both strings together
+ * lets the controller log a stable English detail while the transcript shows a
+ * localized sentence, without either drifting from the other.
+ */
+export interface AgentMergeDisableReason {
+	/** Stable English detail appended to the host log line. */
+	readonly log: string;
+	/** Localized sentence shown to the user in the session transcript. */
+	readonly notice: string;
+}
+
+/** Every reason the Agent Merge controller can stop monitoring a session on its own. */
+export const agentMergeDisableReasons = {
+	sessionArchived: (): AgentMergeDisableReason => ({
+		log: 'the session was archived',
+		notice: localize('agentMerge.disabled.sessionArchived', "Agent Merge was turned off because this session was archived."),
+	}),
+	branchChanged: (from: string, to: string): AgentMergeDisableReason => ({
+		log: `branch changed from ${from} to ${to}`,
+		notice: localize(
+			'agentMerge.disabled.branchChanged',
+			"Agent Merge was turned off because the checked-out branch changed from {0} to {1}.",
+			appendEscapedMarkdownInlineCode(from),
+			appendEscapedMarkdownInlineCode(to)
+		),
+	}),
+	branchChangedWhileRefreshing: (): AgentMergeDisableReason => ({
+		log: 'the checked-out branch changed while pull request state was refreshing',
+		notice: localize('agentMerge.disabled.branchChangedWhileRefreshing', "Agent Merge was turned off because the checked-out branch changed while its pull request state was refreshing."),
+	}),
+	differentPullRequest: (): AgentMergeDisableReason => ({
+		log: 'the session became associated with a different pull request',
+		notice: localize('agentMerge.disabled.differentPullRequest', "Agent Merge was turned off because this session became associated with a different pull request."),
+	}),
+	invalidPullRequestUrl: (): AgentMergeDisableReason => ({
+		log: 'the associated pull request URL is invalid',
+		notice: localize('agentMerge.disabled.invalidPullRequestUrl', "Agent Merge was turned off because the associated pull request URL is invalid."),
+	}),
+	differentGitHubHost: (): AgentMergeDisableReason => ({
+		log: 'the bound pull request belongs to a different GitHub host than the signed-in account',
+		notice: localize('agentMerge.disabled.differentGitHubHost', "Agent Merge was turned off because its pull request belongs to a different GitHub host than the signed-in account."),
+	}),
+	indeterminate: (minutes: number, reason: string): AgentMergeDisableReason => ({
+		log: `the pull request state could not be evaluated for ${minutes} minutes: ${reason}`,
+		notice: localize('agentMerge.disabled.indeterminate', "Agent Merge was turned off because its pull request state could not be evaluated for {0} minutes.", minutes),
+	}),
+	pullRequestClosed: (): AgentMergeDisableReason => ({
+		log: 'the pull request is closed or merged',
+		notice: localize('agentMerge.disabled.pullRequestClosed', "Agent Merge was turned off because its pull request is closed or merged."),
+	}),
+	repairBudgetExhausted: (): AgentMergeDisableReason => ({
+		log: 'the same pull request blockers remained after repeated repair attempts',
+		notice: localize('agentMerge.disabled.repairBudgetExhausted', "Agent Merge was turned off because the same pull request blockers remained after repeated repair attempts."),
+	}),
+	pullRequestMerged: (): AgentMergeDisableReason => ({
+		log: 'the pull request was merged',
+		notice: localize('agentMerge.disabled.pullRequestMerged', "Agent Merge merged its pull request and turned itself off."),
+	}),
+} as const;
+
+/** The transcript notice shown once Agent Merge starts watching a branch. */
+export function agentMergeEnabledNotice(branchName: string): string {
+	return localize('agentMerge.notice.enabled', "Agent Merge is on and watching {0}.", appendEscapedMarkdownInlineCode(branchName));
+}
+
+/** The transcript notice shown when the user, rather than the controller, turns Agent Merge off. */
+export function agentMergeDisabledNotice(): string {
+	return localize('agentMerge.notice.disabled', "Agent Merge was turned off for this session.");
 }
 
 export function readAgentMergeSessionState(values: Record<string, unknown> | undefined): AgentMergeSessionState | undefined {
@@ -293,22 +365,19 @@ class FeedbackBudget {
 export function evaluateAgentMerge(snapshot: PullRequestSnapshot, configuration: AgentMergeConfiguration, commentWatermark: string): AgentMergeGateResult {
 	const core = snapshot.core;
 	if (core.status !== 'ready' || !core.complete || !core.value) {
-		return { kind: 'indeterminate', reason: 'Pull request core state is incomplete' };
+		return { kind: 'indeterminate', reason: 'Pull request core state is incomplete', cause: 'core:incomplete' };
 	}
 	if (core.value.state !== 'open') {
 		return { kind: 'terminal' };
 	}
-	if (!isCompleteFragment(snapshot, 'topLevelComments')
-		|| !isCompleteFragment(snapshot, 'submittedReviews')
-		|| !isCompleteFragment(snapshot, 'reviewThreads')
-		|| !isCompleteHeadFragment(snapshot, 'checks', core.value.headSha)
-		|| !isCompleteHeadFragment(snapshot, 'mergeability', core.value.headSha)) {
-		return { kind: 'indeterminate', reason: 'Pull request state is incomplete or stale' };
+	const incomplete = firstIncompleteFragment(snapshot, core.value.headSha);
+	if (incomplete) {
+		return { kind: 'indeterminate', ...describeIncompleteFragment(snapshot, incomplete) };
 	}
 
 	const checks = classifyAgentMergeRequiredChecks(snapshot.checks.value!);
 	if (checks.kind === 'indeterminate') {
-		return { kind: 'indeterminate', reason: checks.reason };
+		return { kind: 'indeterminate', reason: checks.reason, cause: `checks:${checks.reason}` };
 	}
 
 	const reviewThreads = snapshot.reviewThreads.value!
@@ -391,6 +460,43 @@ function isCompleteFragment(snapshot: PullRequestSnapshot, fragment: 'topLevelCo
 function isCompleteHeadFragment(snapshot: PullRequestSnapshot, fragment: 'checks' | 'mergeability', headSha: string): boolean {
 	const state = snapshot[fragment];
 	return state.status === 'ready' && state.complete && state.value !== undefined && state.headSha === headSha;
+}
+
+const conversationFragments = ['topLevelComments', 'submittedReviews', 'reviewThreads'] as const;
+const headFragments = ['checks', 'mergeability'] as const;
+
+type EvaluatedFragment = typeof conversationFragments[number] | typeof headFragments[number];
+
+/** Fragments the gate must be able to read before it can decide anything. */
+export const agentMergeGateFragments = ['core', ...conversationFragments, ...headFragments] as const;
+
+function firstIncompleteFragment(snapshot: PullRequestSnapshot, headSha: string): EvaluatedFragment | undefined {
+	for (const fragment of conversationFragments) {
+		if (!isCompleteFragment(snapshot, fragment)) {
+			return fragment;
+		}
+	}
+	for (const fragment of headFragments) {
+		if (!isCompleteHeadFragment(snapshot, fragment, headSha)) {
+			return fragment;
+		}
+	}
+	return undefined;
+}
+
+/** Describes why a fragment blocks evaluation, with a `cause` that stays stable while the condition lasts. */
+function describeIncompleteFragment(snapshot: PullRequestSnapshot, fragment: EvaluatedFragment): { readonly reason: string; readonly cause: string } {
+	const state = snapshot[fragment];
+	if (state.error) {
+		return {
+			reason: `Pull request ${fragment} could not be loaded (${state.error.kind}): ${state.error.message}`,
+			cause: `${fragment}:${state.error.kind}`,
+		};
+	}
+	return {
+		reason: `Pull request ${fragment} state is incomplete or stale (status=${state.status}, complete=${state.complete})`,
+		cause: `${fragment}:incomplete`,
+	};
 }
 
 function latestReviewsByAuthor(reviews: PullRequestSnapshot['submittedReviews']['value']): NonNullable<typeof reviews> {

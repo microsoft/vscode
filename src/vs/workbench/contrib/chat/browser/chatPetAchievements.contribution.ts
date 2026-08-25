@@ -97,6 +97,24 @@ registerAction2(class extends Action2 {
 	}
 });
 
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'chat.pet.developer.resetSize',
+			title: localize2('chatPet.developer.resetSize', "Reset Pet Size"),
+			category: Categories.Developer,
+			precondition: ChatContextKeys.enabled,
+			f1: true,
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		const chatPetService = accessor.get(IChatPetService);
+		chatPetService.resetScale();
+		status(localize('chatPet.developer.resetSizeComplete', "VS Code pet size reset to {0} percent", Math.round(chatPetService.scale.get() * 100)));
+	}
+});
+
 export class ChatPetContextContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.chatPetContext';
@@ -270,8 +288,8 @@ export class ChatPetAchievementsAccessibilityHelp implements IAccessibleViewImpl
 		const previouslyFocusedElement = DOM.getActiveElement();
 		const editorService = _accessor.get(IEditorService);
 		const content = [
-			localize('chatPet.achievements.accessibilityHelp.overview', "The Achievements modal lists secret agent-feature achievements and the pet hats rewarded by unlocked achievements."),
-			localize('chatPet.achievements.accessibilityHelp.cards', "Use Tab and Shift+Tab to move through No Hat and the achievement cards. Press Enter or Space on No Hat or an unlocked achievement to change what the pet wears. Newly unlocked cards are announced as New until you activate them. Locked achievements are announced as locked and cannot be selected."),
+			localize('chatPet.achievements.accessibilityHelp.overview', "The Achievements modal lists agent-feature achievements and their pet hat rewards. Locked cards reveal a hint and reward while keeping the achievement name and exact unlock requirement hidden."),
+			localize('chatPet.achievements.accessibilityHelp.cards', "Use Tab and Shift+Tab to move through No Hat and the achievement cards. Press Enter or Space on No Hat or an unlocked achievement to change what the pet wears. Newly unlocked cards are announced as New until you activate them. Locked achievements announce their hint and reward and cannot be selected."),
 			localize('chatPet.achievements.accessibilityHelp.roadmap', "The final TBD card is informational and lists upcoming pet ideas. The VS Code pet and achievements are experimental and may change."),
 			localize('chatPet.achievements.accessibilityHelp.close', "Press Escape to close the Achievements modal."),
 		].join('\n\n');

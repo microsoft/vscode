@@ -5,6 +5,7 @@
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { isCancellationError, onUnexpectedError } from '../../../../base/common/errors.js';
+import { URI } from '../../../../base/common/uri.js';
 import { withChatSurfaceMeta } from '../../../../platform/agentHost/common/meta/agentChatSurfaceMeta.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
@@ -29,12 +30,12 @@ export interface IInlineChatSessionResolution {
 /** Resolves the chat model reference used by the editor inline chat surface. */
 export interface IInlineChatSessionResolver {
 	readonly _serviceBrand: undefined;
-	resolve(token: CancellationToken, languageId: string | undefined): Promise<IInlineChatSessionResolution | undefined>;
+	resolve(token: CancellationToken, languageId: string | undefined, targetUri: URI): Promise<IInlineChatSessionResolution | undefined>;
 }
 
 /** Builds the Agent Host metadata for an editor inline chat session. */
-export function getInlineChatSessionMeta(languageId: string | undefined): Record<string, unknown> {
-	return withChatSurfaceMeta(undefined, { surface: 'editorInline', languageId })!;
+export function getInlineChatSessionMeta(languageId: string | undefined, targetUri: URI): Record<string, unknown> {
+	return withChatSurfaceMeta(undefined, { surface: 'editorInline', languageId, targetUri: targetUri.toString() })!;
 }
 
 /** Applies editor inline chat-specific Agent Host and local-session fallback policy. */
@@ -47,12 +48,12 @@ export class InlineChatSessionResolver implements IInlineChatSessionResolver {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) { }
 
-	async resolve(token: CancellationToken, languageId: string | undefined): Promise<IInlineChatSessionResolution | undefined> {
+	async resolve(token: CancellationToken, languageId: string | undefined, targetUri: URI): Promise<IInlineChatSessionResolution | undefined> {
 		if (token.isCancellationRequested) {
 			return undefined;
 		}
 
-		const meta = getInlineChatSessionMeta(languageId);
+		const meta = getInlineChatSessionMeta(languageId, targetUri);
 		let modelRef: IChatModelReference | undefined;
 		const agentHostEnabled = this._configurationService.getValue<boolean>(ChatConfiguration.InlineChatAgentHostEnabled) === true;
 		const contribution = agentHostEnabled ? this._chatSessionsService.getChatSessionContribution(SessionType.AgentHostCopilot) : undefined;

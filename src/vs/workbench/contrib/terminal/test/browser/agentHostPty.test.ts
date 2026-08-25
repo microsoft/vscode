@@ -13,7 +13,7 @@ import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelSc
 import { constObservable, IObservable } from '../../../../../base/common/observable.js';
 import { AgentHostDebugLogsArtifactKind, IAgentConnection, IAgentCreateSessionConfig, IAgentHostDebugLogsArtifact, IAgentHostDebugLogsChunk, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult } from '../../../../../platform/agentHost/common/agentService.js';
 import { ActionType, StateAction } from '../../../../../platform/agentHost/common/state/protocol/actions.js';
-import { RootState, TerminalClaimKind, type TerminalState } from '../../../../../platform/agentHost/common/state/protocol/state.js';
+import { RootState, TerminalClaimKind, TerminalLifecycleStatus, type TerminalState } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import type { ActionEnvelope, IRootConfigChangedAction, SessionAction, TerminalAction, INotification, ClientAnnotationsAction } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import type { ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWriteParams, ResourceWriteResult, CreateResourceWatchParams, CreateResourceWatchResult, ResourceMkdirParams, ResourceMkdirResult } from '../../../../../platform/agentHost/common/state/sessionProtocol.js';
@@ -26,11 +26,13 @@ import { IActiveSubscriptionInfo, IAgentSubscription } from '../../../../../plat
 import { StateComponents } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { terminalReducer } from '../../../../../platform/agentHost/common/state/protocol/reducers.js';
 import type { IRemoteWatchHandle } from '../../../../../platform/agentHost/common/agentHostFileSystemProvider.js';
+import { identityAgentHostResourceUriMapper } from '../../../../../platform/agentHost/common/agentHostUri.js';
 // ---- Mock IAgentConnection --------------------------------------------------
 
 class MockAgentConnection implements IAgentConnection {
 
 	readonly clientId = 'test-client';
+	readonly resourceUris = identityAgentHostResourceUriMapper;
 
 	private _seq = 0;
 	private readonly _onDidAction = new Emitter<ActionEnvelope>();
@@ -48,6 +50,7 @@ class MockAgentConnection implements IAgentConnection {
 
 	private _terminalState: TerminalState = {
 		title: 'Test Terminal', content: [], claim: { kind: TerminalClaimKind.Client, clientId: 'test-client' },
+		lifecycle: { status: TerminalLifecycleStatus.Running },
 	};
 
 	constructor(initialState?: Partial<TerminalState>) {
@@ -848,7 +851,7 @@ suite('AgentHostPty', () => {
 		});
 
 		const reconnect = pty.reconnect(conn2);
-		hydration.state = { title: 'Reconnected', content: [], claim: { kind: TerminalClaimKind.Client, clientId: 'test-client' } };
+		hydration.state = { title: 'Reconnected', content: [], claim: { kind: TerminalClaimKind.Client, clientId: 'test-client' }, lifecycle: { status: TerminalLifecycleStatus.Running } };
 		onDidChange.fire(hydration.state);
 		assert.strictEqual(await reconnect, true);
 		dataReceived.length = 0; // drop the replayed clear sequence
@@ -900,7 +903,7 @@ suite('AgentHostPty', () => {
 		const reconnect = pty.reconnect(conn2);
 		pty.shutdown(false);
 		const result = await reconnect;
-		onDidChange.fire({ title: 'Late', content: [{ type: 'unclassified', value: 'late data' }], claim: { kind: TerminalClaimKind.Client, clientId: 'test-client' } });
+		onDidChange.fire({ title: 'Late', content: [{ type: 'unclassified', value: 'late data' }], claim: { kind: TerminalClaimKind.Client, clientId: 'test-client' }, lifecycle: { status: TerminalLifecycleStatus.Running } });
 		onDidApplyAction.fire({ channel: terminalUri.toString(), action: { type: ActionType.TerminalData, data: 'late action' }, serverSeq: 1, origin: undefined });
 		await Promise.resolve();
 

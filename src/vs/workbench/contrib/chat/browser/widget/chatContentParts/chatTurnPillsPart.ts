@@ -8,7 +8,7 @@ import { $ } from '../../../../../../base/browser/dom.js';
 import { IAction, toAction } from '../../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { combinedDisposable, Disposable, IDisposable } from '../../../../../../base/common/lifecycle.js';
-import { autorun, constObservable, derived, derivedOpts, IObservable } from '../../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, derivedObservableWithCache, derivedOpts, IObservable } from '../../../../../../base/common/observable.js';
 import { basename, getComparisonKey, isEqual } from '../../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../../../nls.js';
@@ -60,7 +60,13 @@ export class ChatTurnPillsContentPart extends Disposable implements IChatContent
 
 		this.domNode = $('.chat-turn-pills-part');
 
-		this._diffs = this._chatResponseFileChangesService.getChangesForRequest(_content.sessionResource, _content.requestId) ?? constObservable([]);
+		const providedDiffs = this._chatResponseFileChangesService.getChangesForRequest(_content.sessionResource, _content.requestId) ?? constObservable([]);
+		// The provider observable is rebuilt on reconnect and starts out empty, so
+		// keep the last non-empty result rather than dropping a rendered summary.
+		this._diffs = derivedObservableWithCache<readonly IEditSessionEntryDiff[]>(this, (reader, lastValue) => {
+			const diffs = providedDiffs.read(reader);
+			return diffs.length > 0 ? diffs : (lastValue ?? diffs);
+		});
 
 		const stats = derivedOpts<IDiffStats>({ owner: this, equalsFn: diffStatsEqual }, reader => {
 			const diffs = this._diffs.read(reader);
@@ -222,7 +228,7 @@ export class ChatTurnPillsContentPart extends Disposable implements IChatContent
 
 	private _renderChevron(header: HTMLElement, details: HTMLDetailsElement, showChanges: IObservable<boolean>): IDisposable {
 		const chevron = header.appendChild($('span.chat-file-changes-chevron.chat-collapsible-hover-chevron', { 'aria-hidden': 'true' }));
-		chevron.classList.add(...ThemeIcon.asClassNameArray(Codicon.chevronRight));
+		chevron.classList.add(...ThemeIcon.asClassNameArray(Codicon.chevronRightCompact));
 
 		const setExpansionState = () => {
 			header.setAttribute('aria-expanded', String(details.open));

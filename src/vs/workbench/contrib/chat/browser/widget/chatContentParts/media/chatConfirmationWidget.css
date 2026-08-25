@@ -16,12 +16,6 @@
 	margin-bottom: 16px;
 }
 
-.chat-confirmation-widget + .chat-tool-approval-message {
-	margin: -12px 6px 16px;
-	color: var(--vscode-descriptionForeground);
-	font-size: var(--vscode-chat-font-size-body-s);
-}
-
 .chat-confirmation-widget-message {
 	-webkit-user-select: text;
 	user-select: text;
@@ -78,13 +72,8 @@
 	margin: 0 !important;
 }
 
-.chat-confirmation-widget .chat-confirmation-widget-title .codicon-error {
+.chat-confirmation-widget .chat-confirmation-widget-title .codicon-error-compact {
 	color: var(--vscode-errorForeground) !important;
-}
-
-.chat-confirmation-widget .chat-confirmation-widget-title .chat-confirmation-widget-expando {
-	display: flex;
-	align-items: center;
 }
 
 .chat-confirmation-widget .chat-confirmation-widget-title.monaco-button {
