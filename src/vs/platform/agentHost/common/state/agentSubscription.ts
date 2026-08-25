@@ -976,7 +976,7 @@ export class AgentSubscriptionManager extends Disposable {
 
 	/** Get or create a subscription using an exact protocol channel string. */
 	getSubscriptionByChannel<T>(kind: StateComponents, channel: string, owner: string): IReference<IAgentSubscription<T>> {
-		return this._getSubscription(kind, this._subscriptionChannel(channel), owner);
+		return this._getSubscription(kind, this._subscriptionResource(URI.parse(channel)), owner);
 	}
 
 	private _getSubscription<T>(kind: StateComponents, resolved: Pick<ManagedSubscriptionEntry, 'resource' | 'channel' | 'key'>, owner: string): IReference<IAgentSubscription<T>> {
@@ -1089,22 +1089,22 @@ export class AgentSubscriptionManager extends Disposable {
 	 */
 	dispatchOptimistic(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | ClientAutomationAction | ClientAutomationRunAction | IRootConfigChangedAction): number {
 		if (isSessionAction(action)) {
-			const entry = this._subscriptions.get(this._subscriptionChannel(channel).key);
+			const entry = this._subscriptions.get(this._subscriptionResource(URI.parse(channel)).key);
 			if (entry?.sub instanceof SessionStateSubscription) {
 				return entry.sub.applyOptimistic(action);
 			}
 		} else if (isChatAction(action)) {
-			const entry = this._subscriptions.get(this._subscriptionChannel(channel).key);
+			const entry = this._subscriptions.get(this._subscriptionResource(URI.parse(channel)).key);
 			if (entry?.sub instanceof ChatStateSubscription) {
 				return entry.sub.applyOptimistic(action);
 			}
 		} else if (isChangesetAction(action)) {
-			const entry = this._subscriptions.get(this._subscriptionChannel(channel).key);
+			const entry = this._subscriptions.get(this._subscriptionResource(URI.parse(channel)).key);
 			if (entry?.sub instanceof ChangesetStateSubscription) {
 				return entry.sub.applyOptimistic(action);
 			}
 		} else if (isAnnotationsAction(action)) {
-			const entry = this._subscriptions.get(this._subscriptionChannel(channel).key);
+			const entry = this._subscriptions.get(this._subscriptionResource(URI.parse(channel)).key);
 			if (entry?.sub instanceof AnnotationsStateSubscription) {
 				return entry.sub.applyOptimistic(action);
 			}
@@ -1173,7 +1173,7 @@ export class AgentSubscriptionManager extends Disposable {
 	 * already processed (and replayed back to us) so they're not resent.
 	 */
 	dropPendingAction(resource: string, clientSeq: number): void {
-		const entry = this._subscriptions.get(this._subscriptionChannel(resource).key);
+		const entry = this._subscriptions.get(this._subscriptionResource(URI.parse(resource)).key);
 		if (entry?.sub instanceof SessionStateSubscription || entry?.sub instanceof ChatStateSubscription || entry?.sub instanceof AnnotationsStateSubscription) {
 			entry.sub.dropPendingByClientSeq(clientSeq);
 		}
@@ -1191,7 +1191,7 @@ export class AgentSubscriptionManager extends Disposable {
 			this._rootState.handleSnapshot(state as RootState, fromSeq);
 			return;
 		}
-		const entry = this._subscriptions.get(this._subscriptionChannel(resource).key);
+		const entry = this._subscriptions.get(this._subscriptionResource(URI.parse(resource)).key);
 		if (!entry) {
 			return;
 		}
@@ -1212,7 +1212,7 @@ export class AgentSubscriptionManager extends Disposable {
 	 */
 	markSubscriptionsMissing(missing: readonly string[]): void {
 		for (const channel of missing) {
-			const entry = this._subscriptions.get(this._subscriptionChannel(channel).key);
+			const entry = this._subscriptions.get(this._subscriptionResource(URI.parse(channel)).key);
 			if (entry) {
 				if (entry.sub instanceof SessionStateSubscription || entry.sub instanceof ChatStateSubscription || entry.sub instanceof AnnotationsStateSubscription) {
 					entry.sub.clearPending();
@@ -1274,14 +1274,6 @@ export class AgentSubscriptionManager extends Disposable {
 			channel: resource.toString(),
 			key: `resource:${getComparisonKey(resource)}`,
 		};
-	}
-
-	private _subscriptionChannel(channel: string): Pick<ManagedSubscriptionEntry, 'resource' | 'channel' | 'key'> {
-		const resource = URI.parse(channel);
-		const key = isAhpAutomationCatalogChannel(channel)
-			? `channel:${channel}`
-			: `resource:${getComparisonKey(resource)}`;
-		return { resource, channel, key };
 	}
 }
 
