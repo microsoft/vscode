@@ -7,10 +7,10 @@ import { spawn, type ChildProcessWithoutNullStreams } from 'child_process';
 import * as fs from 'fs';
 import * as os from 'os';
 import { CancellationError } from '../../../../base/common/errors.js';
-import { Limiter, raceTimeout, retry, Sequencer } from '../../../../base/common/async.js';
+import { disposableTimeout, Limiter, raceTimeout, retry, Sequencer } from '../../../../base/common/async.js';
 import { fetchResourceMetadata } from '../../../../base/common/oauth.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { type IObservable, observableValue } from '../../../../base/common/observable.js';
 import { basename, dirname, isAbsolute, join, normalize, resolve, sep } from '../../../../base/common/path.js';
 import { extUriBiasedIgnorePathCase, isEqual } from '../../../../base/common/resources.js';
@@ -61,6 +61,7 @@ import { SessionMcpDiscovery } from '../shared/sessionMcpDiscovery.js';
 import { IAgentHostGitHubEndpointService } from '../agentHostGitHubEndpointService.js';
 import { IAgentHostSessionTitleSignal } from '../agentHostSessionTitleSignal.js';
 import { IAgentHostProxyResolver } from '../agentHostProxyResolver.js';
+import { MODEL_REFRESH_BASE_DELAY_MS, MODEL_REFRESH_MAX_ATTEMPTS, MODEL_REFRESH_MAX_DELAY_MS, modelRefreshBackoff } from '../shared/modelRefreshRetry.js';
 import { IAgentHostCheckpointService } from '../../common/agentHostCheckpointService.js';
 import { ICopilotApiService } from '../shared/copilotApiService.js';
 import { extractForwardedErrorInfo } from '../shared/proxyChatError.js';
@@ -1074,6 +1075,17 @@ export class CodexAgent extends Disposable implements IAgent {
 	readonly onDidDiscoverChats = this._onDidDiscoverChats.event;
 	private _codexChatDiscovery: Promise<void> | undefined;
 	private _modelsRefreshPromise: Promise<void> | undefined;
+	/**
+	 * Bounded retry for transient Copilot catalog failures. Without this, a
+	 * failed request triggered by sign-in leaves the picker stale until another
+	 * external refresh trigger or a full restart.
+	 */
+	protected readonly _modelRefreshMaxAttempts = MODEL_REFRESH_MAX_ATTEMPTS;
+	protected readonly _modelRefreshBaseDelayMs = MODEL_REFRESH_BASE_DELAY_MS;
+	protected readonly _modelRefreshMaxDelayMs = MODEL_REFRESH_MAX_DELAY_MS;
+	private readonly _modelRefreshRetry = this._register(new MutableDisposable());
+	/** Invalidates retries that belong to an older Copilot token or endpoint. */
+	private _modelCatalogGeneration = 0;
 	private _copilotModels: readonly IAgentModelInfo[] = [];
 	private _codexModels: readonly IAgentModelInfo[] = [];
 	private readonly _metadataStore: CodexSessionMetadataStore;
@@ -1318,6 +1330,9 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 		this._githubToken = normalizedToken;
 		this._gitHubMcpServerConfiguration = gitHubMcpServerConfiguration;
+		if (changed) {
+			this._modelCatalogGeneration++;
+		}
 		if (changed && this._connection.kind === 'ready' && this._connection.proxyHandle) {
 			// The app-server stays running. The proxy reads the new token from its
 			// own cell, while MCP-backed threads reconcile their per-thread config.
@@ -1352,6 +1367,7 @@ export class CodexAgent extends Disposable implements IAgent {
 
 	private _handleGitHubEndpointChange(): void {
 		this._githubAuthenticationGeneration++;
+		this._modelCatalogGeneration++;
 		this._githubToken = undefined;
 		this._gitHubMcpServerConfiguration = undefined;
 		if (this._connection.kind === 'ready' && this._connection.proxyHandle) {
@@ -1459,8 +1475,8 @@ export class CodexAgent extends Disposable implements IAgent {
 		return this._modelsRefreshPromise ?? this._queueModelRefresh();
 	}
 
-	private _queueModelRefresh(): Promise<void> {
-		const refreshPromise = this._refreshModels().finally(() => {
+	private _queueModelRefresh(attempt = 0, generation = this._modelCatalogGeneration): Promise<void> {
+		const refreshPromise = this._refreshModels(attempt, generation).finally(() => {
 			if (this._modelsRefreshPromise === refreshPromise) {
 				this._modelsRefreshPromise = undefined;
 			}
@@ -1756,13 +1772,30 @@ export class CodexAgent extends Disposable implements IAgent {
 		return { plugins, candidates, resolution };
 	}
 
-	private async _refreshModels(): Promise<void> {
-		const [, sdkReady] = await Promise.all([this._refreshCopilotModels(), this._refreshCodexModels()]);
+	private async _refreshModels(attempt = 0, generation = this._modelCatalogGeneration): Promise<void> {
+		// A fresh refresh or the retry itself supersedes the pending timer.
+		this._modelRefreshRetry.clear();
+		const [copilotError, sdkReady] = await Promise.all([this._refreshCopilotModels(), this._refreshCodexModels()]);
 		this._models.set([...this._copilotModels, ...this._codexModels], undefined);
 		// Last, never first: also the freshest answer to "is the SDK here" (a
 		// download that landed elsewhere surfaces here), but announcing `ready`
 		// before the catalog lands is how the window renders "no account found".
 		this._sdkSetupChannel.publishWith(sdkReady);
+
+		if (!copilotError || generation !== this._modelCatalogGeneration || this._store.isDisposed) {
+			return;
+		}
+		if (attempt + 1 < this._modelRefreshMaxAttempts) {
+			const delay = modelRefreshBackoff(attempt, this._modelRefreshBaseDelayMs, this._modelRefreshMaxDelayMs);
+			this._logService.warn(`[Codex] Failed to refresh models (attempt ${attempt + 1}), retrying in ${delay}ms: ${copilotError.message}`);
+			this._modelRefreshRetry.value = disposableTimeout(() => {
+				if (generation === this._modelCatalogGeneration && !this._store.isDisposed) {
+					void this._queueModelRefresh(attempt + 1, generation);
+				}
+			}, delay);
+			return;
+		}
+		this._logService.warn(`[Codex] Failed to refresh models after ${attempt + 1} attempts: ${copilotError.message}`);
 	}
 
 	/**
@@ -1788,17 +1821,17 @@ export class CodexAgent extends Disposable implements IAgent {
 		});
 	}
 
-	private async _refreshCopilotModels(): Promise<void> {
+	private async _refreshCopilotModels(): Promise<Error | undefined> {
 		const token = this._githubToken;
 		if (!token) {
 			this._copilotModels = [];
-			return;
+			return undefined;
 		}
 		try {
 			const userAgent = `${USER_AGENT_PREFIX}/${this._productService.version}`;
 			const all = await this._copilotApiService.models(token, { headers: { 'User-Agent': userAgent }, suppressIntegrationId: true });
 			if (this._githubToken !== token) {
-				return;
+				return undefined;
 			}
 			// Codex talks to every model through the `vscode-proxy` custom model
 			// provider with `wire_api="responses"` (see CodexProxyService), so it
@@ -1833,10 +1866,14 @@ export class CodexAgent extends Disposable implements IAgent {
 					),
 				}));
 			this._copilotModels = models;
+			return undefined;
 		} catch (err) {
-			this._logService.warn(`[Codex] Failed to refresh models: ${err instanceof Error ? err.message : String(err)}`);
 			// Keep the last known-good catalog; a transient periodic failure must
 			// not make every model disappear.
+			if (this._githubToken !== token) {
+				return undefined;
+			}
+			return err instanceof Error ? err : new Error(String(err));
 		}
 	}
 
@@ -6655,6 +6692,8 @@ export class CodexAgent extends Disposable implements IAgent {
 	}
 
 	async shutdown(): Promise<void> {
+		this._modelCatalogGeneration++;
+		this._modelRefreshRetry.clear();
 		this._disposeConnection();
 		this._clearRuntimeState();
 	}
