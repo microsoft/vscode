@@ -5,8 +5,11 @@
 
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Schemas } from '../../../../base/common/network.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
+import { localize } from '../../../../nls.js';
 import { ISessionSummaryHoverData, ISessionSummaryHoverLocation, ISessionSummaryHoverPullRequest } from '../../../../workbench/contrib/chat/browser/agentSessions/sessionSummaryHover.js';
+import { getPullRequestStatusFromIcon } from '../../github/common/types.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { getSessionWorkspaceKind, getUntitledSessionTitle, IGitHubPullRequestRef, ISession, SessionWorkspaceKind } from '../../../services/sessions/common/session.js';
 
@@ -97,8 +100,26 @@ function getPullRequests(session: ISession): readonly ISessionSummaryHoverPullRe
 			: [];
 
 	return refs.length
-		? refs.map(ref => ({ title: ref.title ?? `#${ref.number}`, icon: ref.icon }))
+		? refs.map(ref => ({
+			title: ref.title ?? `#${ref.number}`,
+			icon: ref.icon,
+			stateLabel: getPullRequestStateLabel(ref.icon),
+		}))
 		: undefined;
+}
+
+/**
+ * Names the state an icon encodes, so the hover can say in words what the icon
+ * says in shape and color. `undefined` while the state is still unresolved.
+ */
+function getPullRequestStateLabel(icon: ThemeIcon | undefined): string | undefined {
+	switch (getPullRequestStatusFromIcon(icon)) {
+		case 'open': return localize('sessionHover.pullRequest.open', "Open pull request");
+		case 'draft': return localize('sessionHover.pullRequest.draft', "Draft pull request");
+		case 'merged': return localize('sessionHover.pullRequest.merged', "Merged pull request");
+		case 'closed': return localize('sessionHover.pullRequest.closed', "Closed pull request");
+		default: return undefined;
+	}
 }
 
 /** The session type and the provider serving it, e.g. "Claude · Local Agent Host". */

@@ -127,6 +127,18 @@ function pullRequest(number: number, title: string | undefined, state: GitHubPul
 	};
 }
 
+/** A pull request whose state has not resolved yet, so it carries no icon. */
+function unresolvedPullRequest(number: number, title: string): IGitHubPullRequestRef {
+	return {
+		owner: 'microsoft',
+		repo: 'vscode',
+		number,
+		uri: URI.parse(`https://github.com/microsoft/vscode/pull/${number}`),
+		title,
+		createdByThisSession: true,
+	};
+}
+
 // ============================================================================
 // Rendering
 // ============================================================================
@@ -205,6 +217,25 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 				],
 			},
 			changes: [{ insertions: 96, deletions: 12 }, { insertions: 36, deletions: 6 }],
+		}),
+	}),
+	// Every pull request state, including one still resolving (no icon, so no
+	// state is announced) and one with no recorded title.
+	SessionHover_PullRequestStates: defineComponentFixture({
+		render: ctx => renderSessionHover(ctx, {
+			title: 'Fix authentication redirect loop',
+			workspace: {
+				root: '/home/user/projects/vscode',
+				branch: 'fix-auth-redirect',
+				pullRequests: [
+					pullRequest(241533, 'Open pull request', GitHubPullRequestState.Open),
+					pullRequest(241540, 'Draft pull request', 'draft'),
+					pullRequest(241001, 'Merged pull request', GitHubPullRequestState.Merged),
+					pullRequest(240988, 'Closed pull request', GitHubPullRequestState.Closed),
+					unresolvedPullRequest(241600, 'State not resolved yet'),
+					pullRequest(241601, undefined, GitHubPullRequestState.Open),
+				],
+			},
 		}),
 	}),
 	SessionHover_WorktreePending: defineComponentFixture({

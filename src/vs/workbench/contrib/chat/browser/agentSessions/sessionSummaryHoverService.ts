@@ -4,9 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { isCancellationError } from '../../../../../base/common/errors.js';
 import { IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
 import { ISessionSummaryHoverData, SessionSummaryHoverWidget } from './sessionSummaryHover.js';
 
 export const ISessionSummaryHoverService = createDecorator<ISessionSummaryHoverService>('sessionSummaryHoverService');
@@ -50,6 +52,10 @@ export class SessionSummaryHoverService implements ISessionSummaryHoverService {
 
 	private readonly _providers: ISessionSummaryHoverProvider[] = [];
 
+	constructor(
+		@ILogService private readonly _logService: ILogService,
+	) { }
+
 	registerProvider(provider: ISessionSummaryHoverProvider): IDisposable {
 		this._providers.unshift(provider);
 		return toDisposable(() => {
@@ -62,7 +68,19 @@ export class SessionSummaryHoverService implements ISessionSummaryHoverService {
 
 	async createHoverElement(resource: URI, token: CancellationToken): Promise<HTMLElement | undefined> {
 		for (const provider of this._providers) {
-			const data = await provider.provideSessionSummaryHoverData(resource, token);
+			let data: ISessionSummaryHoverData | undefined;
+			try {
+				data = await provider.provideSessionSummaryHoverData(resource, token);
+			} catch (error) {
+				// Dismissing a pending hover cancels its resolution, which is not a
+				// failure — and this promise is awaited by the managed hover widget,
+				// so letting either kind of rejection escape would surface as an
+				// unhandled rejection rather than a missing hover.
+				if (!isCancellationError(error)) {
+					this._logService.error('Failed to resolve session hover data', error);
+				}
+				return undefined;
+			}
 			if (token.isCancellationRequested) {
 				return undefined;
 			}

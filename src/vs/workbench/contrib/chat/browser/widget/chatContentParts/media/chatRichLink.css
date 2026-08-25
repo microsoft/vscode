@@ -5,6 +5,14 @@
 
 /* Copied and adapted from @vscode/markdown-editor's src/view/editor.css rich-link styles. */
 
+/* The plain-text hover shown when a session link's data cannot be resolved.
+An element hover is wrapped in `.html-hover-contents`, which is exempt from the
+padding `.hover-contents` normally applies (hoverWidget.css), so it carries the
+same padding itself rather than sitting flush against the hover border. */
+.chat-rich-link-plain-hover {
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size80);
+}
+
 .chat-rich-link {
 	display: inline-flex;
 	align-items: baseline;

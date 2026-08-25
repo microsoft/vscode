@@ -21,19 +21,20 @@
 	overflow-wrap: anywhere;
 }
 
-/* Sections are separated by a rule only when both sides are present, so a
-session with no pull requests shows one rule and a quick chat none. */
 .session-summary-hover-section {
 	display: flex;
 	flex-direction: column;
-	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size120);
-	border-top: var(--vscode-strokeThickness) solid var(--vscode-editorHoverWidget-border);
+	padding: 0 var(--vscode-spacing-size120) var(--vscode-spacing-size80);
 }
 
-/* The location block continues the title rather than starting a new one. */
-.session-summary-hover-title + .session-summary-hover-location {
-	padding-top: 0;
-	border-top: none;
+/* A rule and its spacing sit between visible sections, never before the first
+one, which continues the title instead of starting a new block. The count adapts
+to what is present: two rules for a session with pull requests, one for a session
+without, and none for a quick chat that only has a provider footer. Matching on
+`:not(.hidden)` keeps empty sections from leaving a stray rule behind. */
+.session-summary-hover-section:not(.hidden) ~ .session-summary-hover-section:not(.hidden) {
+	padding-top: var(--vscode-spacing-size80);
+	border-top: var(--vscode-strokeThickness) solid var(--vscode-editorHoverWidget-border);
 }
 
 .session-summary-hover-section.hidden {

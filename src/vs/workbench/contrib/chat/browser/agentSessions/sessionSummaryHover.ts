@@ -41,6 +41,12 @@ export interface ISessionSummaryHoverPullRequest {
 	readonly title: string;
 	/** Icon carrying the pull request's state (and its color). */
 	readonly icon?: ThemeIcon;
+	/**
+	 * Localized name of the pull request's state, e.g. "Merged pull request".
+	 * The state is otherwise conveyed only by the icon's shape and color, so this
+	 * is what a screen reader announces; omitted when the state is unresolved.
+	 */
+	readonly stateLabel?: string;
 }
 
 /**
@@ -71,9 +77,11 @@ export interface ISessionSummaryHoverData {
  * Agents window sessions list, and `agent-host-session://` pills in chat output.
  *
  * Owns the whole presentation — icons, the ordering of rows, the separators and
- * the muted provider footer — so every surface shows the same thing. Callers
- * supply data through {@link update} and place {@link domNode}; the widget is
- * pure DOM and holds no listeners, so it needs no disposal.
+ * the muted provider footer — so every surface shows the same thing. Sections
+ * hide themselves when they have nothing to show, and a rule is drawn only
+ * between the sections that remain. Callers supply data through {@link update}
+ * and place {@link domNode}; the widget is pure DOM and holds no listeners, so
+ * it needs no disposal.
  */
 export class SessionSummaryHoverWidget {
 
@@ -90,6 +98,11 @@ export class SessionSummaryHoverWidget {
 		this._location = dom.append(this.domNode, dom.$('.session-summary-hover-section.session-summary-hover-location'));
 		this._pullRequests = dom.append(this.domNode, dom.$('.session-summary-hover-section.session-summary-hover-pull-requests'));
 		this._provider = dom.append(this.domNode, dom.$('.session-summary-hover-section.session-summary-hover-provider'));
+		// Both blocks are lists of facts, and the role is also what lets their rows
+		// be named: `aria-label` is ignored on a generic element, but honoured on a
+		// `listitem` (see `_appendRow`).
+		this._location.setAttribute('role', 'list');
+		this._pullRequests.setAttribute('role', 'list');
 		if (data) {
 			this.update(data);
 		}
@@ -104,7 +117,9 @@ export class SessionSummaryHoverWidget {
 
 		dom.clearNode(this._pullRequests);
 		for (const pullRequest of data.pullRequests ?? []) {
-			this._appendRow(this._pullRequests, pullRequest.icon ?? Codicon.gitPullRequest, pullRequest.title);
+			this._appendRow(this._pullRequests, pullRequest.icon ?? Codicon.gitPullRequest, pullRequest.title, undefined, pullRequest.stateLabel
+				? localize('sessionSummaryHover.pullRequestAriaLabel', "{0}: {1}", pullRequest.stateLabel, pullRequest.title)
+				: undefined);
 		}
 		this._pullRequests.classList.toggle('hidden', !this._pullRequests.hasChildNodes());
 
@@ -134,14 +149,29 @@ export class SessionSummaryHoverWidget {
 
 		const changes = location.changes;
 		if (location.branch || changes) {
-			const text = this._appendRow(this._location, location.branch ? Codicon.gitBranch : Codicon.diffMultiple, location.branch);
-			if (changes) {
+			const files = changes
+				? changes.files === 1
+					? localize('sessionSummaryHover.fileChanged', "1 file changed")
+					: localize('sessionSummaryHover.filesChanged', "{0} files changed", changes.files)
+				: undefined;
+
+			// Visually the branch icon marks the name as a branch and the counts
+			// read as coloured +/- pairs; neither survives as speech, so the row
+			// spells both out for screen readers.
+			let ariaLabel: string | undefined;
+			if (location.branch && changes && files) {
+				ariaLabel = localize('sessionSummaryHover.branchAndChangesAriaLabel', "Branch {0}, {1}, {2} insertions, {3} deletions", location.branch, files, changes.insertions, changes.deletions);
+			} else if (location.branch) {
+				ariaLabel = localize('sessionSummaryHover.branchAriaLabel', "Branch {0}", location.branch);
+			} else if (changes && files) {
+				ariaLabel = localize('sessionSummaryHover.changesAriaLabel', "{0}, {1} insertions, {2} deletions", files, changes.insertions, changes.deletions);
+			}
+
+			const text = this._appendRow(this._location, location.branch ? Codicon.gitBranch : Codicon.diffMultiple, location.branch, undefined, ariaLabel);
+			if (changes && files) {
 				if (location.branch) {
 					appendSeparator(text);
 				}
-				const files = changes.files === 1
-					? localize('sessionSummaryHover.fileChanged', "1 file changed")
-					: localize('sessionSummaryHover.filesChanged', "{0} files changed", changes.files);
 				dom.append(text, dom.$('span.session-summary-hover-detail', undefined, files));
 				appendCount(text, 'session-summary-hover-insertions', chatLinesAddedForeground, `+${changes.insertions}`);
 				appendCount(text, 'session-summary-hover-deletions', chatLinesRemovedForeground, `-${changes.deletions}`);
@@ -153,13 +183,24 @@ export class SessionSummaryHoverWidget {
 	 * A row of `icon label [· detail]`, returning the inline text container so
 	 * callers can append further inline content. The icon keeps its theme color,
 	 * so a merged pull request reads as merged at a glance.
+	 *
+	 * The icon is decorative: it duplicates or qualifies the row's text and is
+	 * hidden from the accessibility tree. Where the icon is the *only* thing
+	 * carrying meaning (a pull request's state, a name being a branch), callers
+	 * pass an `ariaLabel` that spells it out instead — which the `listitem` role
+	 * makes effective, since a generic element cannot be named by its author.
 	 */
-	private _appendRow(parent: HTMLElement, icon: ThemeIcon, label?: string, detail?: string): HTMLElement {
+	private _appendRow(parent: HTMLElement, icon: ThemeIcon, label?: string, detail?: string, ariaLabel?: string): HTMLElement {
 		const row = dom.append(parent, dom.$('.session-summary-hover-row'));
+		row.setAttribute('role', 'listitem');
 		const iconElement = dom.append(row, renderIcon(icon));
 		iconElement.classList.add('session-summary-hover-icon');
+		iconElement.setAttribute('aria-hidden', 'true');
 		if (icon.color) {
 			iconElement.style.color = asCssVariable(icon.color.id);
+		}
+		if (ariaLabel) {
+			row.setAttribute('aria-label', ariaLabel);
 		}
 		const text = dom.append(row, dom.$('span.session-summary-hover-text'));
 		if (label) {
