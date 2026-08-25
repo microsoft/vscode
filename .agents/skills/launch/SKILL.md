@@ -577,7 +577,8 @@ Start-Sleep -Seconds 3
 $resolved = Resolve-Path -LiteralPath $info.runDir -ErrorAction SilentlyContinue
 $runDir = if ($resolved) { $resolved.ProviderPath } else { $null }
 $base = (Resolve-Path -LiteralPath (Join-Path $env:TEMP 'code-oss-dev') -ErrorAction SilentlyContinue)
-if (-not $runDir -or -not $base -or (Split-Path -Parent $runDir) -ne $base.ProviderPath) {
+$leaf = if ($runDir) { Split-Path -Leaf $runDir } else { '' }
+if (-not $runDir -or -not $base -or (Split-Path -Parent $runDir) -ne $base.ProviderPath -or $leaf -notmatch '^\d{8}-\d{6}-\d+$') {
 	throw "refusing to clean up: bad runDir '$($info.runDir)'"
 }
 

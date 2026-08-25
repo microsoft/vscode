@@ -105,8 +105,10 @@ const FIND = '.editor-widget.find-widget.visible';
 await page.keyboard.press('Meta+f');              // Control+f off macOS
 await page.waitForSelector(FIND);
 await page.fill(`${FIND} .monaco-findInput textarea`, 'vscode');
-// Options are toggles: read `aria-checked` before clicking, never click blind.
-await page.click(`${FIND} .monaco-custom-toggle[aria-label^="Match Case"]`);
+const matchCase = page.locator(`${FIND} .monaco-custom-toggle[aria-label^="Match Case"]`);
+const matchCaseOn = await matchCase.evaluate(el =>
+    el.getAttribute('aria-checked') === 'true' || el.classList.contains('checked'));
+if (matchCaseOn) { await matchCase.click(); }      // This search wants case-insensitive.
 // '1 of 81' | 'No results'. Updates synchronously with the input.
 await page.textContent(`${FIND} .matchesCount`);
 ```
