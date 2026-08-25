@@ -625,14 +625,9 @@ suite.skip('File Watcher (node.js)', function () {
 		const testDisposables = new DisposableStore();
 		watcher.setVerboseLogging(true);
 		let rawEventCount = 0;
-		let startedWatchingCount = 0;
-		const reattached = new DeferredPromise<void>();
 		testDisposables.add(watcher.onDidLogMessage(event => {
 			if (event.message.includes('[raw]')) {
 				rawEventCount++;
-			}
-			if (event.message.includes('Started watching') && ++startedWatchingCount === 2) {
-				reattached.complete();
 			}
 		}));
 
@@ -640,20 +635,24 @@ suite.skip('File Watcher (node.js)', function () {
 			await watcher.watch([{ path: folderPath, excludes: [], recursive: false, correlationId: 1 }]);
 
 			const instance = Array.from(watcher.watchers)[0].instance;
-			await Promises.rm(folderPath, RimRafMode.UNLINK);
-			await fs.promises.mkdir(folderPath);
-			await reattached.p;
-			const rawEventCountAfterReattach = rawEventCount;
-			await timeout(200);
-			const rawEventCountStable = rawEventCount === rawEventCountAfterReattach;
-			await basicCrudTest(join(folderPath, 'newFile.txt'), undefined, 1);
+			const rawEventCountsStable: boolean[] = [];
+			for (let i = 0; i < 3; i++) {
+				const reattached = Event.toPromise(Event.filter(watcher.onDidLogMessage, event => event.message.includes('Started watching')));
+				await Promises.rm(folderPath, RimRafMode.UNLINK);
+				await fs.promises.mkdir(folderPath);
+				await reattached;
+				const rawEventCountAfterReattach = rawEventCount;
+				await timeout(200);
+				rawEventCountsStable.push(rawEventCount === rawEventCountAfterReattach);
+				await basicCrudTest(join(folderPath, `newFile-${i}.txt`), undefined, 1);
+			}
 
 			assert.deepStrictEqual({
 				failed: instance.failed,
-				rawEventCountStable,
+				rawEventCountsStable,
 			}, {
 				failed: false,
-				rawEventCountStable: true,
+				rawEventCountsStable: [true, true, true],
 			});
 		} finally {
 			testDisposables.dispose();

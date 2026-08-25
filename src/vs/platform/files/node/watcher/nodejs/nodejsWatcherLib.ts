@@ -7,7 +7,7 @@ import { watch, promises } from 'fs';
 import { RunOnceWorker, ThrottledWorker } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { isEqual, isEqualOrParent } from '../../../../../base/common/extpath.js';
-import { Disposable, DisposableStore, IDisposable, thenRegisterOrDispose, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, thenRegisterOrDispose, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { normalizeNFC } from '../../../../../base/common/normalization.js';
 import { basename, dirname, isAbsolute, join } from '../../../../../base/common/path.js';
 import { isLinux, isMacintosh } from '../../../../../base/common/platform.js';
@@ -131,20 +131,34 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 	}
 
 	private async doWatch(isDirectory: boolean): Promise<IDisposable> {
-		const disposables = new DisposableStore();
+		const activeWatch = new MutableDisposable<IDisposable>();
+		try {
+			await this.doWatchGeneration(isDirectory, activeWatch);
+			return activeWatch;
+		} catch (error) {
+			activeWatch.dispose();
+			throw error;
+		}
+	}
 
-		if (this.doWatchWithExistingWatcher(isDirectory, disposables)) {
+	private async doWatchGeneration(isDirectory: boolean, activeWatch: MutableDisposable<IDisposable>): Promise<void> {
+		const disposables = new DisposableStore();
+		activeWatch.value = disposables;
+		if (activeWatch.value !== disposables) {
+			disposables.dispose();
+			return;
+		}
+
+		if (this.doWatchWithExistingWatcher(isDirectory, disposables, activeWatch)) {
 			this.trace(`reusing an existing recursive watcher for ${this.request.path}`);
 			this._isReusingRecursiveWatcher = true;
 		} else {
 			this._isReusingRecursiveWatcher = false;
-			await this.doWatchWithNodeJS(isDirectory, disposables);
+			await this.doWatchWithNodeJS(isDirectory, disposables, activeWatch);
 		}
-
-		return disposables;
 	}
 
-	private doWatchWithExistingWatcher(isDirectory: boolean, disposables: DisposableStore): boolean {
+	private doWatchWithExistingWatcher(isDirectory: boolean, disposables: DisposableStore, activeWatch: MutableDisposable<IDisposable>): boolean {
 		if (isDirectory) {
 			// Recursive watcher re-use is currently not enabled for when
 			// folders are watched. this is because the dispatching in the
@@ -161,7 +175,7 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 			}
 
 			if (error) {
-				await thenRegisterOrDispose(this.doWatch(isDirectory), disposables);
+				await this.doWatchGeneration(isDirectory, activeWatch);
 			} else if (change) {
 				if (typeof change.cId === 'number' || typeof this.request.correlationId === 'number') {
 					// Re-emit this change with the correlation id of the request
@@ -182,10 +196,10 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 		return false;
 	}
 
-	private async doWatchWithNodeJS(isDirectory: boolean, disposables: DisposableStore): Promise<void> {
+	private async doWatchWithNodeJS(isDirectory: boolean, disposables: DisposableStore, activeWatch: MutableDisposable<IDisposable>): Promise<void> {
 		const realPath = await this.realPath.value;
 
-		if (this.cts.token.isCancellationRequested) {
+		if (this.cts.token.isCancellationRequested || disposables.isDisposed) {
 			return;
 		}
 
@@ -314,13 +328,13 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 							//            full watched path
 							//
 							if (isAbsoluteWatchedPathChange) {
-								watcherDisposables.clear();
+								activeWatch.clear();
 								const watchedPathExists = await Promises.exists(realPath);
-								if (cts.token.isCancellationRequested) {
+								if (this.cts.token.isCancellationRequested) {
 									return;
 								}
 								if (watchedPathExists) {
-									await thenRegisterOrDispose(this.doWatch(true), watcherDisposables);
+									await this.doWatchGeneration(true, activeWatch);
 								} else {
 									this.onWatchedPathDeleted(requestResource);
 								}
@@ -329,7 +343,7 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 							}
 
 							if (isEqual(changedFileName, pathBasename, !isLinux) && !await Promises.exists(realPath)) {
-								watcherDisposables.clear();
+								activeWatch.clear();
 								this.onWatchedPathDeleted(requestResource);
 
 								return;
@@ -423,13 +437,15 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 
 							// File still exists, so emit as change event and reapply the watcher
 							if (fileExists) {
+								activeWatch.clear();
 								this.onFileChange({ resource: requestResource, type: FileChangeType.UPDATED, cId: this.request.correlationId }, true /* skip excludes/includes (file is explicitly watched) */);
 
-								watcherDisposables.add(await this.doWatch(false));
+								await this.doWatchGeneration(false, activeWatch);
 							}
 
 							// File seems to be really gone, so emit a deleted and failed event
 							else {
+								activeWatch.clear();
 								this.onWatchedPathDeleted(requestResource);
 							}
 						}, NodeJSFileWatcherLibrary.FILE_DELETE_HANDLER_DELAY);
