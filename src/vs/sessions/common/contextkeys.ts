@@ -45,6 +45,7 @@ export const SessionHasPullRequestContext = new RawContextKey<boolean>('sessionH
 export const SessionHasIssuesContext = new RawContextKey<boolean>('sessionHasIssues', false, localize('sessionHasIssues', "Whether the session view's session references at least one GitHub issue"));
 export const SessionHasWorkspaceContext = new RawContextKey<boolean>('sessionHasWorkspace', false, localize('sessionHasWorkspace', "Whether the session view's session has an associated workspace folder"));
 export const SessionsChatBackgroundAvailableContext = new RawContextKey<boolean>('sessionsChatBackgroundAvailable', false, localize('sessionsChatBackgroundAvailable', "Whether chat background customization is available for the current color theme"));
+export const SessionsChatBackgroundImageConfiguredContext = new RawContextKey<boolean>('sessionsChatBackgroundImageConfigured', false, localize('sessionsChatBackgroundImageConfigured', "Whether a chat background image is configured for the current color theme"));
 export const IsQuickChatSessionContext = new RawContextKey<boolean>('isQuickChatSession', false, localize('isQuickChatSession', "Whether the session in scope is a workspace-less quick chat"));
 
 //#endregion
