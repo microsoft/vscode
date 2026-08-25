@@ -16,6 +16,16 @@ AHP URI strings
 The reverse path converts native application values back to AHP strings before
 they enter optimistic reducers or cross the wire.
 
+The same generated codecs are used on both sides:
+
+```text
+VS Code application URI objects
+    <-> client projection policy
+AHP URI strings
+    <-> Agent Host application projection
+Agent Host application URI objects
+```
+
 ## Two separate decisions
 
 Projection deliberately separates these questions:
@@ -131,6 +141,29 @@ Encoding applies the inverse policy:
 Thus an application can dispatch a native annotation resource such as
 `vscode-agent-host://...`, while the wire action still contains
 `file:///Q:/repo/file.ts`.
+
+## Agent Host application boundary
+
+Agent Host resources are already in the namespace of the process using them, so
+the host policy does not add an Agent Host wrapper:
+
+```text
+file:///workspace/file.ts
+    -> URI.parse(...)
+    -> file:///workspace/file.ts
+```
+
+Client-owned resources arrive as `vscode-agent-client` URIs. Those URIs remain
+wrapped when decoded so the registered Agent Host client filesystem provider can
+route reads back to the owning client.
+
+The feedback server-tool implementation is the initial host-side vertical slice.
+It decodes the raw annotations snapshot into `NativeAnnotationsState`, performs
+all tool logic with native `URI` values, and encodes its native annotation
+actions before dispatching them into the wire-shaped state manager.
+
+This keeps the host boundary symmetric with the client without moving native
+objects into reducers, replay, persistence, or protocol envelopes.
 
 ## Boundary ownership
 

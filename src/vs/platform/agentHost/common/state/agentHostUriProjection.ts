@@ -16,7 +16,7 @@ import { isAnnotationsUri, parseAnnotationsUri } from '../annotationsUri.js';
 import { isChangesetUri } from '../changesetUri.js';
 import { OTLP_CHANNEL_SCHEME } from '../otlp/otlpLogEmitter.js';
 import { IAgentSubscription } from './agentSubscription.js';
-import { decodeAnnotationsActionEnvelope, decodeAnnotationsState, decodeInitializeResult, encodeClientAnnotationsAction, type IAgentHostUriProjectionContext, type NativeAnnotationsActionEnvelope, type NativeAnnotationsState, type NativeClientAnnotationsAction, type NativeInitializeResult } from './agentHostUriProjection.generated.js';
+import { decodeAnnotationsActionEnvelope, decodeAnnotationsState, decodeClientAnnotationsAction, decodeInitializeResult, encodeClientAnnotationsAction, type IAgentHostUriProjectionContext, type NativeAnnotationsActionEnvelope, type NativeAnnotationsState, type NativeClientAnnotationsAction, type NativeInitializeResult } from './agentHostUriProjection.generated.js';
 import { ActionType, type ActionEnvelope, type ChatAction, type ClientAnnotationsAction, type ClientChangesetAction, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from './sessionActions.js';
 import { isAhpChatChannel, isAhpResourceWatchChannel, isAhpRootChannel, ROOT_STATE_URI, StateComponents, type AnnotationsState } from './sessionState.js';
 
@@ -45,6 +45,31 @@ function isWireClientAnnotationsAction(action: AgentConnectionAction): action is
 export interface IAgentHostUriProjectionPolicy extends IAgentHostUriProjectionContext {
 	registerChannel(value: string | URI): void;
 }
+
+const agentHostApplicationUriProjectionContext: IAgentHostUriProjectionContext = {
+	decodeUri: value => URI.parse(value),
+	encodeUri: value => value.toString(),
+};
+
+/**
+ * Projects wire-shaped values into Agent Host application code. Host resources
+ * are already native, while `vscode-agent-client` URIs retain their client route.
+ */
+export class AgentHostApplicationUriProjection {
+	decodeAnnotationsState(state: AnnotationsState): NativeAnnotationsState {
+		return decodeAnnotationsState(state, agentHostApplicationUriProjectionContext);
+	}
+
+	decodeAnnotationsAction(action: ClientAnnotationsAction): NativeClientAnnotationsAction {
+		return decodeClientAnnotationsAction(action, agentHostApplicationUriProjectionContext);
+	}
+
+	encodeAnnotationsAction(action: NativeClientAnnotationsAction): ClientAnnotationsAction {
+		return encodeClientAnnotationsAction(action, agentHostApplicationUriProjectionContext);
+	}
+}
+
+export const agentHostApplicationUriProjection = new AgentHostApplicationUriProjection();
 
 /**
  * Classifies and routes generated URI projections as documented in {@link ./URI_PROJECTION.md}.

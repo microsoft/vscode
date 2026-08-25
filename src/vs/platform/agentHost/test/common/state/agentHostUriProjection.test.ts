@@ -10,7 +10,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { createAgentHostResourceUriMapper } from '../../../common/agentHostUri.js';
 import { IAgentSubscription } from '../../../common/state/agentSubscription.js';
 import { decodeAnnotationsActionEnvelope, decodeAnnotationsState, decodeClientAnnotationsAction, decodeInitializeResult, encodeAnnotationsState, encodeClientAnnotationsAction } from '../../../common/state/agentHostUriProjection.generated.js';
-import { createAgentHostUriProjectionContext, projectAgentSubscriptionObject } from '../../../common/state/agentHostUriProjection.js';
+import { agentHostApplicationUriProjection, createAgentHostUriProjectionContext, projectAgentSubscriptionObject } from '../../../common/state/agentHostUriProjection.js';
 import { ActionType, type ActionEnvelope } from '../../../common/state/sessionActions.js';
 import { AnnotationsState, ROOT_STATE_URI } from '../../../common/state/sessionState.js';
 
@@ -56,6 +56,34 @@ suite('Agent Host URI projection', () => {
 				type: ActionType.AnnotationsSet,
 				annotation: rawState.annotations[0],
 			},
+		});
+	});
+
+	test('projects Agent Host application values while preserving client routing', () => {
+		const resource = 'vscode-agent-client://client-1/file/-/workspace/file.ts';
+		const state: AnnotationsState = {
+			annotations: [{
+				id: 'annotation-1',
+				origin: { session: 'copilot:/session-1' },
+				resource,
+				resolved: false,
+				entries: [{ id: 'entry-1', text: 'Review this.' }],
+			}],
+		};
+		const nativeState = agentHostApplicationUriProjection.decodeAnnotationsState(state);
+		const wireAction = agentHostApplicationUriProjection.encodeAnnotationsAction({
+			type: ActionType.AnnotationsSet,
+			annotation: nativeState.annotations[0],
+		});
+
+		assert.deepStrictEqual({
+			nativeSession: nativeState.annotations[0].origin.session.toString(),
+			nativeResource: nativeState.annotations[0].resource.toString(),
+			wireResource: wireAction.type === ActionType.AnnotationsSet ? wireAction.annotation.resource : undefined,
+		}, {
+			nativeSession: 'copilot:/session-1',
+			nativeResource: resource,
+			wireResource: resource,
 		});
 	});
 

@@ -5,17 +5,20 @@
 
 import assert from 'assert';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { feedbackAnnotationEntryMeta, FEEDBACK_ANNOTATION_META_KEY, readFeedbackAnnotationEntryAuthor, type IFeedbackAnnotationMeta } from '../../common/meta/agentFeedbackAnnotations.js';
 import { ActionType } from '../../common/state/protocol/common/actions.js';
-import { Annotation, AnnotationsState, SessionStatus, SessionSummary, buildChatUri, buildDefaultChatUri } from '../../common/state/sessionState.js';
+import { type AnnotationsState, SessionStatus, SessionSummary, buildChatUri, buildDefaultChatUri } from '../../common/state/sessionState.js';
+import type { NativeAnnotation, NativeAnnotationsState } from '../../common/state/agentHostUriProjection.generated.js';
+import { agentHostApplicationUriProjection } from '../../common/state/agentHostUriProjection.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentServerToolHost } from '../../node/shared/agentServerToolHost.js';
 import {
 	addCommentToolName,
-	applyFeedbackTool,
+	applyFeedbackTool as applyFeedbackToolWithNativeUris,
 	deleteCommentsToolName,
 	feedbackServerToolDefinitions,
 	feedbackServerToolGroup,
@@ -31,11 +34,11 @@ suite('AgentFeedbackServerTools', () => {
 	const sessionResource = 'copilot:/test-session';
 	const fileUri = 'file:///workspace/app.ts';
 
-	function annotation(id: string, state: string, resolved = false, text = 'comment', kind = 'codeReview', pendingAgentReveal = false): Annotation {
+	function annotation(id: string, state: string, resolved = false, text = 'comment', kind = 'codeReview', pendingAgentReveal = false): NativeAnnotation {
 		return {
 			id,
-			origin: { session: sessionResource },
-			resource: fileUri,
+			origin: { session: URI.parse(sessionResource) },
+			resource: URI.parse(fileUri),
 			range: { start: { line: 0, character: 0 }, end: { line: 0, character: 4 } },
 			resolved,
 			entries: [{ id: `${id}:0`, text }],
@@ -43,8 +46,12 @@ suite('AgentFeedbackServerTools', () => {
 		};
 	}
 
-	function stateWith(...annotations: Annotation[]): AnnotationsState {
+	function stateWith(...annotations: NativeAnnotation[]): NativeAnnotationsState {
 		return { annotations };
+	}
+
+	function applyFeedbackTool(state: NativeAnnotationsState, session: string, toolName: string, rawArgs: unknown) {
+		return applyFeedbackToolWithNativeUris(state, URI.parse(session), toolName, rawArgs);
 	}
 
 	test('listComments distinguishes user, agent and PR reviewer voices in a thread', () => {
@@ -70,10 +77,10 @@ suite('AgentFeedbackServerTools', () => {
 	});
 
 	test('listComments reports unknown provenance rather than assuming the user', () => {
-		const orphan: Annotation = {
+		const orphan: NativeAnnotation = {
 			id: 'a',
-			origin: { session: sessionResource },
-			resource: fileUri,
+			origin: { session: URI.parse(sessionResource) },
+			resource: URI.parse(fileUri),
 			range: { start: { line: 0, character: 0 }, end: { line: 0, character: 4 } },
 			resolved: false,
 			entries: [{ id: 'a:0', text: 'comment' }],
@@ -98,6 +105,7 @@ suite('AgentFeedbackServerTools', () => {
 		assert.deepStrictEqual(set.annotation.range, { start: { line: 2, character: 1 }, end: { line: 2, character: 9 } });
 		assert.strictEqual(set.annotation.entries.length, 1);
 		assert.strictEqual(set.annotation.entries[0].text, 'please rename');
+		assert.strictEqual(set.annotation.resource.toString(), fileUri);
 		assert.deepStrictEqual(set.annotation._meta?.[FEEDBACK_ANNOTATION_META_KEY], { kind: 'codeReview', state: 'created', sessionResource });
 	});
 
@@ -327,10 +335,10 @@ suite('AgentFeedbackServerTools', () => {
 		// generic annotations channel must be invisible to the feedback tools:
 		// it is never listed, and delete/resolve treat it as not found rather
 		// than mutating it.
-		const foreign: Annotation = {
+		const foreign: NativeAnnotation = {
 			id: 'foreign',
-			origin: { session: sessionResource },
-			resource: fileUri,
+			origin: { session: URI.parse(sessionResource) },
+			resource: URI.parse(fileUri),
 			range: { start: { line: 0, character: 0 }, end: { line: 0, character: 4 } },
 			resolved: false,
 			entries: [{ id: 'foreign:0', text: 'not feedback' }],
@@ -399,10 +407,10 @@ suite('AgentFeedbackServerTools', () => {
 
 		test('executeTool appends a reply to an existing comment', async () => {
 			const annotationsUri = buildAnnotationsUri(sessionResource);
-			manager.dispatchServerAction(annotationsUri, {
+			manager.dispatchServerAction(annotationsUri, agentHostApplicationUriProjection.encodeAnnotationsAction({
 				type: ActionType.AnnotationsSet,
 				annotation: annotation('reply-target', 'accepted', false, 'original'),
-			});
+			}));
 
 			await host.executeTool(buildDefaultChatUri(sessionResource), replyToCommentToolName, {
 				commentId: 'reply-target',
@@ -437,10 +445,10 @@ suite('AgentFeedbackServerTools', () => {
 
 		test('executeTool submits every unreviewed comment when there is no explicit selection', async () => {
 			const annotationsUri = buildAnnotationsUri(sessionResource);
-			manager.dispatchServerAction(annotationsUri, {
+			manager.dispatchServerAction(annotationsUri, agentHostApplicationUriProjection.encodeAnnotationsAction({
 				type: ActionType.AnnotationsSet,
 				annotation: annotation('auto-submit', 'created', false, 'submit me', 'prReview'),
-			});
+			}));
 
 			const result = await host.executeTool(buildDefaultChatUri(sessionResource), viewUnreviewedCommentsToolName, {});
 			const state = manager.getSnapshot(annotationsUri)!.state as AnnotationsState;
@@ -489,26 +497,26 @@ suite('AgentFeedbackServerTools', () => {
 			const defaultChatUri = buildDefaultChatUri(sessionResource);
 			const empty = host.requiresConfirmation(defaultChatUri, viewUnreviewedCommentsToolName);
 
-			manager.dispatchServerAction(annotationsUri, {
+			manager.dispatchServerAction(annotationsUri, agentHostApplicationUriProjection.encodeAnnotationsAction({
 				type: ActionType.AnnotationsSet,
 				annotation: annotation('accepted', 'accepted', false, 'already accepted', 'prReview'),
-			});
+			}));
 			const acceptedOnly = host.requiresConfirmation(defaultChatUri, viewUnreviewedCommentsToolName);
 
-			manager.dispatchServerAction(annotationsUri, {
+			manager.dispatchServerAction(annotationsUri, agentHostApplicationUriProjection.encodeAnnotationsAction({
 				type: ActionType.AnnotationsSet,
 				annotation: annotation('created', 'created', false, 'new comment', 'codeReview'),
-			});
+			}));
 			const created = host.requiresConfirmation(defaultChatUri, viewUnreviewedCommentsToolName);
 			const peerChat = host.requiresConfirmation(chatUri, viewUnreviewedCommentsToolName);
 
 			await host.executeTool(defaultChatUri, viewUnreviewedCommentsToolName, {});
 			const delivered = host.requiresConfirmation(defaultChatUri, viewUnreviewedCommentsToolName);
 
-			manager.dispatchServerAction(annotationsUri, {
+			manager.dispatchServerAction(annotationsUri, agentHostApplicationUriProjection.encodeAnnotationsAction({
 				type: ActionType.AnnotationsSet,
 				annotation: annotation('pending', 'accepted', false, 'selected comment', 'prReview', true),
-			});
+			}));
 			const pendingSelection = host.requiresConfirmation(defaultChatUri, viewUnreviewedCommentsToolName);
 
 			assert.deepStrictEqual({

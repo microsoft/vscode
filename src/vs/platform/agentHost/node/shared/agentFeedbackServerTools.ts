@@ -4,13 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { generateUuid } from '../../../../base/common/uuid.js';
+import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { FEEDBACK_ANNOTATION_META_KEY, feedbackAnnotationEntryMeta, readFeedbackAnnotationMeta, resolveFeedbackEntryAuthor, VIEW_UNREVIEWED_COMMENTS_TOOL_NAME, ADD_COMMENT_TOOL_NAME, type IFeedbackAnnotationMeta } from '../../common/meta/agentFeedbackAnnotations.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
 import type { IAgentServerToolDefinition } from '../../common/agentServerTools.js';
-import type { AnnotationsAction } from '../../common/state/sessionActions.js';
+import { agentHostApplicationUriProjection } from '../../common/state/agentHostUriProjection.js';
+import type { NativeAnnotation, NativeAnnotationOrigin, NativeAnnotationsState, NativeClientAnnotationsAction } from '../../common/state/agentHostUriProjection.generated.js';
 import { ActionType } from '../../common/state/protocol/common/actions.js';
-import { parseChatUri, type Annotation, type AnnotationOrigin, type AnnotationsState, type StringOrMarkdown, type TextRange, type ToolDefinition } from '../../common/state/sessionState.js';
+import { parseChatUri, type AnnotationsState, type StringOrMarkdown, type TextRange, type ToolDefinition } from '../../common/state/sessionState.js';
 import type { AgentHostStateManager } from '../agentHostStateManager.js';
 import type { IServerToolDisplay, IServerToolDisplayResult, IServerToolGroup } from './agentServerToolHost.js';
 
@@ -20,10 +22,10 @@ import type { IServerToolDisplay, IServerToolDisplayResult, IServerToolGroup } f
  * These tools used to be registered on the client (agents window) and keyed
  * off an in-memory store. For agent-host sessions they now execute on the
  * server against the session's annotations channel: each comment is an
- * {@link Annotation} on `<session>/annotations`, with feedback semantics
- * carried in {@link Annotation._meta} under {@link FEEDBACK_ANNOTATION_META_KEY}
+ * {@link NativeAnnotation} on `<session>/annotations`, with feedback semantics
+ * carried in {@link NativeAnnotation._meta} under {@link FEEDBACK_ANNOTATION_META_KEY}
  * (see `agentFeedbackAnnotations.ts`). The functions here are pure — they read
- * the current {@link AnnotationsState} and return the annotation actions to
+ * the current {@link NativeAnnotationsState} and return the annotation actions to
  * dispatch plus a textual tool result — so they can be unit tested without a
  * running state manager. The host wiring (reading the snapshot, dispatching
  * the actions) lives in the caller.
@@ -211,7 +213,7 @@ function getRequiredPositiveInteger(value: unknown, field: string, toolName: str
 	return value;
 }
 
-function getAddCommentArgs(rawArgs: unknown): { resourceUri: string; range: IOneBasedRange; text: string } {
+function getAddCommentArgs(rawArgs: unknown): { resourceUri: URI; range: IOneBasedRange; text: string } {
 	const args = (rawArgs ?? {}) as IAddCommentArgs;
 	const resourceUri = getRequiredString(args.resourceUri, 'resourceUri', addCommentToolName);
 	const text = getRequiredString(args.text, 'text', addCommentToolName);
@@ -220,7 +222,7 @@ function getAddCommentArgs(rawArgs: unknown): { resourceUri: string; range: IOne
 	}
 	const range = args.range as Partial<IOneBasedRange>;
 	return {
-		resourceUri,
+		resourceUri: URI.parse(resourceUri),
 		text,
 		range: {
 			startLineNumber: getRequiredPositiveInteger(range.startLineNumber, 'range.startLineNumber', addCommentToolName),
@@ -287,7 +289,7 @@ function entryText(text: StringOrMarkdown): string {
 	return typeof text === 'string' ? text : text.markdown;
 }
 
-function readMeta(annotation: Annotation): IFeedbackAnnotationMeta | undefined {
+function readMeta(annotation: NativeAnnotation): IFeedbackAnnotationMeta | undefined {
 	return readFeedbackAnnotationMeta(annotation);
 }
 
@@ -307,7 +309,7 @@ interface ISerializedComment {
 	readonly replies?: readonly ISerializedReply[];
 }
 
-function serializeComment(annotation: Annotation): ISerializedComment {
+function serializeComment(annotation: NativeAnnotation): ISerializedComment {
 	const entries = annotation.entries ?? [];
 	const meta = readMeta(annotation);
 	const replies = entries.slice(1).map((entry, index): ISerializedReply => ({
@@ -316,7 +318,7 @@ function serializeComment(annotation: Annotation): ISerializedComment {
 	}));
 	return {
 		id: annotation.id,
-		resourceUri: annotation.resource,
+		resourceUri: annotation.resource.toString(),
 		range: fromTextRange(annotation.range),
 		text: entries.length ? entryText(entries[0].text) : '',
 		kind: meta?.kind ?? 'unknown',
@@ -331,7 +333,7 @@ function serializeComment(annotation: Annotation): ISerializedComment {
  * `created` state (the agent added them but the user has not accepted them
  * yet). Mirrors the client `getListableFeedback` behavior.
  */
-function listableAnnotations(state: AnnotationsState): Annotation[] {
+function listableAnnotations(state: NativeAnnotationsState): NativeAnnotation[] {
 	return state.annotations.filter(annotation => {
 		const meta = readMeta(annotation);
 		// The annotations channel is generic and may carry annotations produced
@@ -354,7 +356,7 @@ function listableAnnotations(state: AnnotationsState): Annotation[] {
  * (including review comments that happen to be accepted from a previous reveal
  * or a manual accept) is excluded.
  */
-function pendingRevealAnnotations(state: AnnotationsState): Annotation[] {
+function pendingRevealAnnotations(state: NativeAnnotationsState): NativeAnnotation[] {
 	return state.annotations.filter(annotation => {
 		const meta = readMeta(annotation);
 		if (!meta || !annotation.entries?.length) {
@@ -365,7 +367,7 @@ function pendingRevealAnnotations(state: AnnotationsState): Annotation[] {
 }
 
 /** Returns a copy of {@link annotation} with the {@link IFeedbackAnnotationMeta.pendingAgentReveal} flag cleared. */
-function clearPendingReveal(annotation: Annotation): Annotation {
+function clearPendingReveal(annotation: NativeAnnotation): NativeAnnotation {
 	const meta = readMeta(annotation);
 	if (!meta) {
 		return annotation;
@@ -375,7 +377,7 @@ function clearPendingReveal(annotation: Annotation): Annotation {
 }
 
 /** Returns a copy of {@link annotation} in the submitted state. */
-function markSubmitted(annotation: Annotation): Annotation {
+function markSubmitted(annotation: NativeAnnotation): NativeAnnotation {
 	const meta = readMeta(annotation);
 	if (!meta) {
 		return annotation;
@@ -389,7 +391,7 @@ function markSubmitted(annotation: Annotation): Annotation {
  * yet, i.e. still in the `created` state. Used to build the
  * {@link listCommentsToolName} note.
  */
-function createdReviewableAnnotations(state: AnnotationsState): Annotation[] {
+function createdReviewableAnnotations(state: NativeAnnotationsState): NativeAnnotation[] {
 	return state.annotations.filter(annotation => {
 		const meta = readMeta(annotation);
 		if (!meta || !annotation.entries?.length) {
@@ -399,7 +401,7 @@ function createdReviewableAnnotations(state: AnnotationsState): Annotation[] {
 	});
 }
 
-function hasRevealableComments(state: AnnotationsState): boolean {
+function hasRevealableComments(state: NativeAnnotationsState): boolean {
 	return pendingRevealAnnotations(state).length > 0 || createdReviewableAnnotations(state).length > 0;
 }
 
@@ -409,7 +411,7 @@ function hasRevealableComments(state: AnnotationsState): boolean {
  * {@link viewUnreviewedCommentsToolName}. Returns `undefined` (no note) when
  * there are no such comments.
  */
-function buildUnreviewedCommentsNote(state: AnnotationsState): string | undefined {
+function buildUnreviewedCommentsNote(state: NativeAnnotationsState): string | undefined {
 	const created = createdReviewableAnnotations(state);
 	if (!created.length) {
 		return undefined;
@@ -440,7 +442,7 @@ function buildUnreviewedCommentsNote(state: AnnotationsState): string | undefine
 
 export interface IFeedbackToolOutcome {
 	/** Annotation actions to dispatch on the session's annotations channel. */
-	readonly actions: readonly AnnotationsAction[];
+	readonly actions: readonly NativeClientAnnotationsAction[];
 	/** Textual tool result returned to the agent. */
 	readonly result: string;
 }
@@ -454,15 +456,15 @@ export interface IFeedbackToolOutcome {
  *
  * @throws if {@link toolName} is unknown or the arguments are invalid.
  */
-export function applyFeedbackTool(state: AnnotationsState, sessionResource: string, toolName: string, rawArgs: unknown, origin: AnnotationOrigin = { session: sessionResource }): IFeedbackToolOutcome {
+export function applyFeedbackTool(state: NativeAnnotationsState, sessionResource: URI, toolName: string, rawArgs: unknown, origin: NativeAnnotationOrigin = { session: sessionResource }): IFeedbackToolOutcome {
 	switch (toolName) {
 		case addCommentToolName: {
 			const { resourceUri, range, text } = getAddCommentArgs(rawArgs);
 			const id = generateUuid();
 			// The agent adds comments in the `created` state; the user accepts
 			// them before they are acted upon.
-			const meta: IFeedbackAnnotationMeta = { kind: 'codeReview', state: 'created', sessionResource };
-			const annotation: Annotation = {
+			const meta: IFeedbackAnnotationMeta = { kind: 'codeReview', state: 'created', sessionResource: sessionResource.toString() };
+			const annotation: NativeAnnotation = {
 				id,
 				origin,
 				resource: resourceUri,
@@ -498,7 +500,7 @@ export function applyFeedbackTool(state: AnnotationsState, sessionResource: stri
 				throw new Error(`Comment not found: ${commentId}`);
 			}
 			const entry = { id: generateUuid(), text, _meta: feedbackAnnotationEntryMeta('agent') };
-			const updatedAnnotation: Annotation = { ...annotation, entries: [...annotation.entries, entry] };
+			const updatedAnnotation: NativeAnnotation = { ...annotation, entries: [...annotation.entries, entry] };
 			return {
 				actions: [{ type: ActionType.AnnotationsEntrySet, annotationId: commentId, entry }],
 				result: JSON.stringify({ comment: serializeComment(updatedAnnotation) }, undefined, 2),
@@ -523,7 +525,7 @@ export function applyFeedbackTool(state: AnnotationsState, sessionResource: stri
 			// comments the user left unchecked (and review comments accepted by
 			// other means) are not flagged and so are excluded.
 			const comments = pending.map(serializeComment);
-			const actions: AnnotationsAction[] = pending.map(annotation => ({
+			const actions: NativeClientAnnotationsAction[] = pending.map(annotation => ({
 				type: ActionType.AnnotationsSet,
 				annotation: clearPendingReveal(annotation),
 			}));
@@ -533,7 +535,7 @@ export function applyFeedbackTool(state: AnnotationsState, sessionResource: stri
 			const ids = getUniqueCommentIds((rawArgs as IDeleteCommentsArgs)?.commentIds, deleteCommentsToolName);
 			const listable = listableAnnotations(state);
 			const existing = new Map(listable.map(a => [a.id, a]));
-			const actions: AnnotationsAction[] = [];
+			const actions: NativeClientAnnotationsAction[] = [];
 			const deleted: string[] = [];
 			const notFound: string[] = [];
 			for (const id of ids) {
@@ -556,7 +558,7 @@ export function applyFeedbackTool(state: AnnotationsState, sessionResource: stri
 			const resolved = getResolvedFlag(args.resolved);
 			const listable = listableAnnotations(state);
 			const existing = new Map(listable.map(a => [a.id, a]));
-			const actions: AnnotationsAction[] = [];
+			const actions: NativeClientAnnotationsAction[] = [];
 			const updated: string[] = [];
 			const notFound: string[] = [];
 			for (const id of ids) {
@@ -570,9 +572,9 @@ export function applyFeedbackTool(state: AnnotationsState, sessionResource: stri
 					...meta,
 					kind: meta?.kind ?? 'user',
 					state: resolved ? 'resolved' : 'submitted',
-					sessionResource: meta?.sessionResource ?? sessionResource,
+					sessionResource: meta?.sessionResource ?? sessionResource.toString(),
 				};
-				const nextAnnotation: Annotation = {
+				const nextAnnotation: NativeAnnotation = {
 					...annotation,
 					resolved,
 					_meta: { ...annotation._meta, [FEEDBACK_ANNOTATION_META_KEY]: nextMeta },
@@ -642,7 +644,7 @@ function getFeedbackToolDisplay(toolName: string, _args: unknown, _result?: ISer
  * The feedback ("comments") server-tool group, contributed to the
  * {@link AgentServerToolHost} at startup (see `node/agentService.ts`). Wraps
  * the pure {@link applyFeedbackTool} executor with the annotations-channel I/O:
- * it reads the session's current {@link AnnotationsState}, applies the tool,
+ * it reads the session's current {@link NativeAnnotationsState}, applies the tool,
  * and dispatches the resulting annotation actions through the state manager
  * (the single writer).
  */
@@ -668,21 +670,22 @@ export const feedbackServerToolGroup: IServerToolGroup = {
 		const turnId = stateManager.getChatState(context.chatUri)?.activeTurn?.id;
 		const outcome = applyFeedbackTool(state, mainSessionUri, toolName, rawArgs, {
 			session: mainSessionUri,
-			chat: context.chatUri,
+			chat: URI.parse(context.chatUri),
 			...(turnId ? { turnId } : {}),
 		});
 		for (const action of outcome.actions) {
-			stateManager.dispatchServerAction(annotationsUri, action);
+			stateManager.dispatchServerAction(annotationsUri, agentHostApplicationUriProjection.encodeAnnotationsAction(action));
 		}
 		return outcome.result;
 	},
 };
 
-function getFeedbackToolState(stateManager: AgentHostStateManager, chatUri: string): { mainSessionUri: string; annotationsUri: string; state: AnnotationsState } {
+function getFeedbackToolState(stateManager: AgentHostStateManager, chatUri: string): { mainSessionUri: URI; annotationsUri: string; state: NativeAnnotationsState } {
 	// Peer chats share feedback with their owning session.
-	const mainSessionUri = parseChatUri(chatUri)?.session ?? chatUri;
-	const annotationsUri = buildAnnotationsUri(mainSessionUri);
+	const mainSessionUri = URI.parse(parseChatUri(chatUri)?.session ?? chatUri);
+	const annotationsUri = buildAnnotationsUri(mainSessionUri.toString());
 	const snapshot = stateManager.getSnapshot(annotationsUri);
-	const state = (snapshot?.state as AnnotationsState | undefined) ?? { annotations: [] };
+	const wireState = (snapshot?.state as AnnotationsState | undefined) ?? { annotations: [] };
+	const state = agentHostApplicationUriProjection.decodeAnnotationsState(wireState);
 	return { mainSessionUri, annotationsUri, state };
 }
