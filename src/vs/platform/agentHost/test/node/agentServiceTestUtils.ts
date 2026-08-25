@@ -136,6 +136,8 @@ export function createTestAgentService(
 	hostLaunchKind = AgentHostLaunchKind.Unknown,
 	storageResource?: URI,
 	orchestratorDatabase?: IAgentHostDatabase,
+	sessionResidencyLimit?: number,
+	sessionReleaseRetryMs?: number,
 ): AgentService {
 	const effectiveFileMonitorService = fileMonitorService ?? new AgentHostFileMonitorService(fileService, logService);
 	const clientConnectionService = new AgentHostClientConnectionService();
@@ -161,6 +163,8 @@ export function createTestAgentService(
 		hostLaunchKind,
 		storageResource,
 		orchestratorDatabase,
+		sessionResidencyLimit,
+		sessionReleaseRetryMs,
 	};
 	const foundation = createAgentServiceFoundation({
 		services,

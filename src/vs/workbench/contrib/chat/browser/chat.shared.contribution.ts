@@ -190,6 +190,7 @@ import { AgentPluginEditor } from './agentPluginEditor/agentPluginEditor.js';
 import { AgentPluginEditorInput } from './agentPluginEditor/agentPluginEditorInput.js';
 import { AgentPluginRepositoryService } from './agentPluginRepositoryService.js';
 import { AgentHostImportConversationStore, IAgentHostImportConversationStore } from './agentSessions/agentHost/agentHostImportConversationStore.js';
+import { ISessionSummaryHoverService, SessionSummaryHoverService } from './agentSessions/sessionSummaryHoverService.js';
 import { ChatDynamicVariableModel } from './attachments/chatDynamicVariables.js';
 import { ChatImplicitContextContribution } from './attachments/chatImplicitContext.js';
 import { ChatPasteTargetService } from './attachments/chatPasteTargetService.js';
@@ -405,11 +406,11 @@ configurationRegistry.registerConfiguration({
 			type: 'string',
 			enum: [AgentHostExternalSessionsMode.None, AgentHostExternalSessionsMode.Recent, AgentHostExternalSessionsMode.Last24Hours, AgentHostExternalSessionsMode.Last7Days, AgentHostExternalSessionsMode.Last30Days],
 			enumDescriptions: [
-				nls.localize('chat.agentSessions.showExternal.none', "Only shows sessions created by the Agent Host."),
-				nls.localize('chat.agentSessions.showExternal.recent', "Shows up to the 2 most recently updated external sessions from the last 7 days, hiding any that you have started 2 newer sessions after."),
-				nls.localize('chat.agentSessions.showExternal.last24Hours', "Shows external sessions updated in the last 24 hours."),
-				nls.localize('chat.agentSessions.showExternal.last7Days', "Shows external sessions updated in the last 7 days."),
-				nls.localize('chat.agentSessions.showExternal.last30Days', "Shows external sessions updated in the last 30 days."),
+				nls.localize('chat.agentSessions.showExternal.none', "Do not show external sessions."),
+				nls.localize('chat.agentSessions.showExternal.recent', "Show up to the 2 most recent external sessions updated in the last 7 days. Once at least 2 local sessions exist, external sessions older than the second-newest local session are hidden."),
+				nls.localize('chat.agentSessions.showExternal.last24Hours', "Show external sessions updated in the last 24 hours."),
+				nls.localize('chat.agentSessions.showExternal.last7Days', "Show external sessions updated in the last 7 days."),
+				nls.localize('chat.agentSessions.showExternal.last30Days', "Show external sessions updated in the last 30 days."),
 			],
 			default: AgentHostExternalSessionsMode.Recent,
 			markdownDescription: nls.localize('chat.agentSessions.showExternal', "Controls which external agent sessions, created outside VS Code's Agent Host, are shown."),
@@ -3184,5 +3185,6 @@ registerSingleton(IChatTipService, ChatTipService, InstantiationType.Delayed);
 registerSingleton(IChatDebugService, ChatDebugServiceImpl, InstantiationType.Delayed);
 registerSingleton(IChatImageCarouselService, ChatImageCarouselService, InstantiationType.Delayed);
 registerSingleton(IAgentHostImportConversationStore, AgentHostImportConversationStore, InstantiationType.Delayed);
+registerSingleton(ISessionSummaryHoverService, SessionSummaryHoverService, InstantiationType.Delayed);
 
 ChatWidget.CONTRIBS.push(ChatDynamicVariableModel);

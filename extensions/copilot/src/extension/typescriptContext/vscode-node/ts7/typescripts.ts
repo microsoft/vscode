@@ -16,6 +16,7 @@ import {
 	isSourceFile,
 	isTypeAliasDeclaration,
 	isTypeReferenceNode,
+	isExpressionWithTypeArguments,
 	SyntaxKind,
 	type Node,
 	type SourceFile,
@@ -286,13 +287,11 @@ export class Symbols {
 			}
 			for (const heritageClause of declaration.heritageClauses ?? []) {
 				for (const type of heritageClause.types) {
-					// const candidate = await (isExpressionWithTypeArguments(type) ? this.getLeafSymbolAtLocation(type.expression) : this.getLeafSymbolAtLocation(type.typeName));
-					const candidate = await this.getLeafSymbolAtLocation(type.expression);
+					const candidate = await (isExpressionWithTypeArguments(type) ? this.getLeafSymbolAtLocation(type.expression) : this.getLeafSymbolAtLocation(type.typeName));
 					if (candidate === undefined) {
 						continue;
 					}
-					// const name = isExpressionWithTypeArguments(type) ? type.expression.getText() : type.typeName.getText();
-					const name = type.expression.getText();
+					const name = isExpressionWithTypeArguments(type) ? type.expression.getText() : type.typeName.getText();
 					if (heritageClause.token === SyntaxKind.ExtendsKeyword && result.extends === undefined) {
 						result.extends = { symbol: candidate, name };
 					} else if (heritageClause.token === SyntaxKind.ImplementsKeyword) {
