@@ -35,7 +35,7 @@ The clone is **slim**: workspace storage, browser caches, file history, cached V
 
 > The launcher **copies** the source profile to a temp dir and never mutates the original. Each launch gets its own isolated `--user-data-dir` and `--extensions-dir`.
 
-> The launcher always sets `files.simpleDialog.enable: true` in the launched profile's `User/settings.json`. This is required for automation: VS Code's native OS file dialogs cannot be driven via `@playwright/cli` over CDP and are completely unreachable over SSH on headless macOS. The simple (quick-input) dialog can be navigated with `press` and clipboard paste. The override is per-launch and only affects throwaway profiles.
+> The launcher normalizes two settings in the launched profile's `User/settings.json`. `files.simpleDialog.enable: true` is required because VS Code's native OS file dialogs cannot be driven via `@playwright/cli` over CDP and are unreachable over SSH on headless macOS; the simple (quick-input) dialog can be navigated with `press` and clipboard paste. `editor.editContext: true` is required because `test/automation`'s page objects choose between `.native-edit-context` and `textarea` from `Code.editContextEnabled`, which is unconditionally true for a dev build — a profile that disabled the setting renders a `textarea` and every text-input helper waits on the wrong selector and times out. Both overrides are per-launch and only affect throwaway profiles.
 
 > For unattended automation, pass `--disable-workspace-trust` so a trust dialog cannot block the flow or extension-host startup. The override is process-scoped and does not modify the source profile. Only use it with content you trust.
 

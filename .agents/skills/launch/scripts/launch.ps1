@@ -327,8 +327,20 @@ function Get-JsoncCodeMask([string]$text) {
 	return (-join $masked)
 }
 
-function Ensure-SimpleDialogSetting([string]$settingsFile) {
-	$key = 'files.simpleDialog.enable'
+function Ensure-AutomationSettings([string]$settingsFile) {
+	# Both keys are normalized on every launch because every instance launched
+	# under this skill is a throwaway used for automation.
+	#
+	#   files.simpleDialog.enable  Forces the simple (quick-input) file dialog
+	#     so automation can drive "Open Folder" / workspace pickers; the native
+	#     OS dialog cannot be controlled by @playwright/cli over CDP.
+	#
+	#   editor.editContext  Forces the EditContext input mode. test/automation's
+	#     page objects pick `.native-edit-context` vs `textarea` from
+	#     Code.editContextEnabled, which is unconditionally true for a dev
+	#     build. A profile that disabled this setting renders a `textarea`, so
+	#     every text-input helper waits on the wrong selector and times out.
+	$keys = @('files.simpleDialog.enable', 'editor.editContext')
 	$settingsDirectory = Split-Path -Parent $settingsFile
 	New-Item -ItemType Directory -Force -Path $settingsDirectory | Out-Null
 
@@ -339,41 +351,44 @@ function Ensure-SimpleDialogSetting([string]$settingsFile) {
 	}
 
 	if ([string]::IsNullOrWhiteSpace($text)) {
-		[IO.File]::WriteAllText($settingsFile, "{`n  `"$key`": true`n}`n", [Text.UTF8Encoding]::new($false))
+		$body = ($keys | ForEach-Object { "  `"$_`": true" }) -join ",`n"
+		[IO.File]::WriteAllText($settingsFile, "{`n$body`n}`n", [Text.UTF8Encoding]::new($false))
 		return
 	}
 
-	# Match against a comment-masked copy so a commented-out occurrence such as
-	# `// "files.simpleDialog.enable": false` is not mistaken for the real
-	# setting. Offsets line up with the original, so the value is rewritten in
-	# place without disturbing comments.
-	$maskedText = Get-JsoncCodeMask $text
-	$keyPattern = [regex]::Escape($key)
-	$keyValueRegex = [regex]::new("(`"$keyPattern`"\s*:\s*)(true|false|null|`"[^`"`r`n]*`"|-?\d+(?:\.\d+)?)")
-	$keyMatch = $keyValueRegex.Match($maskedText)
-	if ($keyMatch.Success) {
-		$valueGroup = $keyMatch.Groups[2]
-		$updated = $text.Substring(0, $valueGroup.Index) + 'true' + $text.Substring($valueGroup.Index + $valueGroup.Length)
-		[IO.File]::WriteAllText($settingsFile, $updated, [Text.UTF8Encoding]::new($false))
-		return
+	foreach ($key in $keys) {
+		# Match against a comment-masked copy so a commented-out occurrence such
+		# as `// "files.simpleDialog.enable": false` is not mistaken for the real
+		# setting. Offsets line up with the original, so the value is rewritten
+		# in place without disturbing comments.
+		$maskedText = Get-JsoncCodeMask $text
+		$keyPattern = [regex]::Escape($key)
+		$keyValueRegex = [regex]::new("(`"$keyPattern`"\s*:\s*)(true|false|null|`"[^`"`r`n]*`"|-?\d+(?:\.\d+)?)")
+		$keyMatch = $keyValueRegex.Match($maskedText)
+		if ($keyMatch.Success) {
+			$valueGroup = $keyMatch.Groups[2]
+			$text = $text.Substring(0, $valueGroup.Index) + 'true' + $text.Substring($valueGroup.Index + $valueGroup.Length)
+			continue
+		}
+
+		$lastBrace = $maskedText.LastIndexOf('}')
+		if ($lastBrace -eq -1) {
+			throw "settings.json has no closing brace - refusing to clobber it: $settingsFile"
+		}
+		$firstBrace = $maskedText.IndexOf('{')
+		if ($firstBrace -eq -1 -or $firstBrace -ge $lastBrace) {
+			throw "settings.json has no opening brace - refusing to clobber it: $settingsFile"
+		}
+
+		# Whether a leading comma is needed depends only on real content, so
+		# decide it from the masked copy too.
+		$between = $maskedText.Substring($firstBrace + 1, $lastBrace - $firstBrace - 1).Trim()
+		$separator = if ($between.Length -eq 0 -or $between.EndsWith(',')) { '' } else { ',' }
+		$head = $text.Substring(0, $lastBrace).TrimEnd()
+		$text = $head + "$separator`n  `"$key`": true`n" + $text.Substring($lastBrace)
 	}
 
-	$lastBrace = $maskedText.LastIndexOf('}')
-	if ($lastBrace -eq -1) {
-		throw "settings.json has no closing brace - refusing to clobber it: $settingsFile"
-	}
-	$firstBrace = $maskedText.IndexOf('{')
-	if ($firstBrace -eq -1 -or $firstBrace -ge $lastBrace) {
-		throw "settings.json has no opening brace - refusing to clobber it: $settingsFile"
-	}
-
-	# Whether a leading comma is needed depends only on real content, so decide
-	# it from the masked copy too.
-	$between = $maskedText.Substring($firstBrace + 1, $lastBrace - $firstBrace - 1).Trim()
-	$separator = if ($between.Length -eq 0 -or $between.EndsWith(',')) { '' } else { ',' }
-	$insertion = "$separator`n  `"$key`": true`n"
-	$updated = $text.Substring(0, $lastBrace) + $insertion + $text.Substring($lastBrace)
-	[IO.File]::WriteAllText($settingsFile, $updated, [Text.UTF8Encoding]::new($false))
+	[IO.File]::WriteAllText($settingsFile, $text, [Text.UTF8Encoding]::new($false))
 }
 
 function Write-LogTail([string]$logFile) {
@@ -574,8 +589,8 @@ try {
 	}
 
 	$settingsFile = Join-Path $destinationUdd 'User\settings.json'
-	Ensure-SimpleDialogSetting $settingsFile
-	Write-LaunchError "[launch.ps1] ensured files.simpleDialog.enable=true in $settingsFile"
+	Ensure-AutomationSettings $settingsFile
+	Write-LaunchError "[launch.ps1] ensured files.simpleDialog.enable=true and editor.editContext=true in $settingsFile"
 	$profileReadyMs = $launchStopwatch.ElapsedMilliseconds
 
 	$launchArgs = [System.Collections.Generic.List[string]]::new()
