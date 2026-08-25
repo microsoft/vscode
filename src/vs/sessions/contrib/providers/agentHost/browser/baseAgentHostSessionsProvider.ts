@@ -4851,11 +4851,28 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 		const sessionUri = cached.backendUri;
 		const ref = connection.getSubscription(StateComponents.Session, sessionUri, 'BaseAgentHostSessionsProvider.summary');
+		// A failed subscribe must not be cached: every later pin would see it as live and skip the
+		// idempotent per-tick recovery above, so the session's state would never arrive. Bailing
+		// without caching lets the next tick re-subscribe, which is what makes a session addressed
+		// before the host created it eventually resolve.
+		if (ref.object.value instanceof Error) {
+			ref.dispose();
+			return;
+		}
 		const store = new DisposableStore();
 		store.add(ref);
 		store.add(ref.object.onDidChange(state => {
 			this._applySessionStateUpdate(sessionId, state);
 		}));
+		// A subscribe that fails after this point settles via `onDidError`, never `onDidChange`.
+		const onDidError = ref.object.onDidError;
+		if (onDidError) {
+			store.add(onDidError(() => {
+				if (this._sessionStateSubscriptions.get(sessionId) === store) {
+					this._sessionStateSubscriptions.deleteAndDispose(sessionId);
+				}
+			}));
+		}
 		this._sessionStateSubscriptions.set(sessionId, store);
 
 		const value = ref.object.value;
