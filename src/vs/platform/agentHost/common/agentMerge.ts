@@ -5,6 +5,7 @@
 
 import { localize } from '../../../nls.js';
 import { appendEscapedMarkdownInlineCode } from '../../../base/common/htmlContent.js';
+import { structuralEquals } from '../../../base/common/equals.js';
 import { createSchema, schemaProperty } from './agentHostSchema.js';
 import { GitHubActor, PullRequestCheck, PullRequestChecks, PullRequestSnapshot } from '../../github/common/githubPullRequestService.js';
 import { SessionConfigKey } from './sessionConfigKeys.js';
@@ -289,6 +290,38 @@ export function readAgentMergeSessionState(values: Record<string, unknown> | und
 		...(typeof controller.repeatedPromptCount === 'number' && Number.isInteger(controller.repeatedPromptCount) && controller.repeatedPromptCount >= 0 ? { repeatedPromptCount: controller.repeatedPromptCount } : {}),
 		...(typeof controller.totalPromptCount === 'number' && Number.isInteger(controller.totalPromptCount) && controller.totalPromptCount >= 0 ? { totalPromptCount: controller.totalPromptCount } : {}),
 	};
+}
+
+/**
+ * Returns session config values with Agent Merge injected overrides removed,
+ * so callers can read the user's own picker selections while merge is active.
+ */
+export function getNonMergeSessionConfigValues(values: Readonly<Record<string, unknown>> | undefined): Readonly<Record<string, unknown>> {
+	if (!values) {
+		return {};
+	}
+	const agentMerge = readAgentMergeSessionState(values as Record<string, unknown>);
+	const injected = agentMerge?.injectedConfiguration;
+	if (!agentMerge?.enabled || !injected) {
+		return values;
+	}
+	const restored = { ...values };
+	for (const [key, appliedValue] of Object.entries(injected.applied)) {
+		if (!structuralEquals(restored[key], appliedValue)) {
+			continue;
+		}
+		if (Object.hasOwn(injected.previous, key)) {
+			const previousValue = injected.previous[key];
+			if (previousValue === undefined) {
+				delete restored[key];
+			} else {
+				restored[key] = previousValue;
+			}
+		} else {
+			delete restored[key];
+		}
+	}
+	return restored;
 }
 
 export function isAgentMergeFeedbackAuthor(actor: GitHubActor | undefined): boolean {

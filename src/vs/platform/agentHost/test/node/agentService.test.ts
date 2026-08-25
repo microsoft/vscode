@@ -10821,6 +10821,92 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('session creation tools inherit pre-merge picker values when agent merge is enabled', async () => {
+			class ServerToolAgent extends MockAgent {
+				readonly createSessionConfigs: (IAgentCreateSessionConfig | undefined)[] = [];
+				serverToolHost: IAgentServerToolHost | undefined;
+
+				constructor(id: string) {
+					super(id);
+					Object.assign(this, {
+						getInheritedChatConfig: (config: Readonly<Record<string, unknown>> = {}): Record<string, unknown> | undefined => {
+							const inherited: Record<string, unknown> = {};
+							for (const key of [SessionConfigKey.AutoApprove, SessionConfigKey.Mode, ClaudeSessionConfigKey.PermissionMode, CodexSessionConfigKey.PermissionsPreset]) {
+								if (config[key] !== undefined) {
+									inherited[key] = config[key];
+								}
+							}
+							return inherited;
+						},
+					});
+				}
+
+				setServerToolHost(host: IAgentServerToolHost): void {
+					this.serverToolHost = host;
+				}
+
+				override readonly chats: IAgentChats = withChatOverrides(getChatSurface(this), base => ({
+					createChat: async (chat, context, options) => {
+						const result = await base.createChat(chat, context, options);
+						if (result) {
+							this.createSessionConfigs.push({ session: resolveAgentChatContext(context, chat).configurationResource, model: options?.model, workingDirectories: options?.workingDirectories, config: options?.config });
+						}
+						return result;
+					},
+				}));
+			}
+
+			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new ServerToolAgent('copilot'));
+			localService.registerProvider(agent);
+			const sourceSession = await localService.createSession({ provider: 'copilot' });
+			const sourceChat = buildDefaultChatUri(sourceSession);
+			getStateManager(localService).setSessionConfig(sourceSession.toString(), {
+				schema: { type: 'object', properties: {} },
+				values: {
+					[SessionConfigKey.AgentMerge]: { enabled: true },
+					[SessionConfigKey.AgentMergeController]: {
+						injectedConfiguration: {
+							previous: {
+								[SessionConfigKey.AutoApprove]: 'default',
+								[SessionConfigKey.Mode]: 'interactive',
+								[ClaudeSessionConfigKey.PermissionMode]: 'acceptEdits',
+								[CodexSessionConfigKey.PermissionsPreset]: 'read-only',
+							},
+							applied: {
+								[SessionConfigKey.AutoApprove]: 'assisted',
+								[SessionConfigKey.Mode]: 'autopilot',
+								[ClaudeSessionConfigKey.PermissionMode]: 'auto',
+								[CodexSessionConfigKey.PermissionsPreset]: 'danger-full-access',
+							},
+						},
+					},
+					[SessionConfigKey.AutoApprove]: 'assisted',
+					[SessionConfigKey.Mode]: 'autopilot',
+					[ClaudeSessionConfigKey.PermissionMode]: 'auto',
+					[CodexSessionConfigKey.PermissionsPreset]: 'danger-full-access',
+				},
+			});
+			localService.dispatchAction(sourceChat, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'source-turn',
+				startedAt: new Date().toISOString(),
+				message: { text: 'create a child session', origin: { kind: MessageKind.User }, model: { id: 'source-model' } },
+			}, 'test-client', 1);
+
+			await agent.serverToolHost!.executeTool(sourceChat, SessionServerToolName.CreateSession, {
+				workspace: URI.file('/workspace').toString(),
+				prompt: 'new session',
+			});
+
+			assert.deepStrictEqual(agent.createSessionConfigs.at(-1)?.config, {
+				[SessionConfigKey.AutoApprove]: 'default',
+				[SessionConfigKey.Mode]: 'interactive',
+				[ClaudeSessionConfigKey.PermissionMode]: 'acceptEdits',
+				[CodexSessionConfigKey.PermissionsPreset]: 'read-only',
+			});
+		});
+
 		test('session creation tools preserve the provider default model on the active turn', async () => {
 			class ServerToolAgent extends MockAgent {
 				readonly createSessionConfigs: (IAgentCreateSessionConfig | undefined)[] = [];
