@@ -34,6 +34,7 @@ import { IWorkspaceContextService } from '../../../../../platform/workspace/comm
 import { isVirtualWorkspace } from '../../../../../platform/workspace/common/virtualWorkspace.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
+import { IPowerService } from '../../../../services/power/common/powerService.js';
 import { IChatDebugService } from '../chatDebugService.js';
 import { IMcpService } from '../../../mcp/common/mcpTypes.js';
 import { awaitStatsForSession } from '../chat.js';
@@ -71,6 +72,60 @@ const serializedChatKey = 'interactive.sessions';
 const customizationMigrationHintShownStateKey = 'customizationMigrationHintShown';
 
 /**
+ * Owns a power save blocker whose asynchronous acquisition can race with cancellation.
+ */
+class ChatRequestPowerSaveBlocker implements IDisposable {
+	private readonly _whenStarted: Promise<void>;
+	private _blockerId: number | undefined;
+	private _isDisposed = false;
+
+	get whenStarted(): Promise<void> {
+		return this._whenStarted;
+	}
+
+	constructor(
+		private readonly powerService: IPowerService,
+		private readonly logService: ILogService,
+	) {
+		this._whenStarted = this._start();
+	}
+
+	private async _start(): Promise<void> {
+		try {
+			const blockerId = await this.powerService.startPowerSaveBlocker('prevent-app-suspension');
+			if (this._isDisposed) {
+				await this._stop(blockerId);
+			} else {
+				this._blockerId = blockerId;
+			}
+		} catch (error) {
+			this.logService.warn('[ChatService] Failed to start power save blocker:', error);
+		}
+	}
+
+	private async _stop(blockerId: number): Promise<void> {
+		try {
+			await this.powerService.stopPowerSaveBlocker(blockerId);
+		} catch (error) {
+			this.logService.warn('[ChatService] Failed to stop power save blocker:', error);
+		}
+	}
+
+	dispose(): void {
+		if (this._isDisposed) {
+			return;
+		}
+
+		this._isDisposed = true;
+		if (this._blockerId !== undefined) {
+			const blockerId = this._blockerId;
+			this._blockerId = undefined;
+			void this._stop(blockerId);
+		}
+	}
+}
+
+/**
  * True when the user has typed text or attached non-trivial context to the input
  * but not yet sent it. Used to decide whether an external session needs metadata
  * persisted on dispose so the draft survives switching sessions.
@@ -99,10 +154,17 @@ class CancellableRequest implements IDisposable {
 		public requestId: string | undefined,
 		public readonly responseCompletePromise: Promise<void> | undefined,
 		public sendOptions: IChatSendRequestOptions | undefined,
+		private requestDisposable: IDisposable | undefined,
 		@ILanguageModelToolsService private readonly toolsService: ILanguageModelToolsService
 	) { }
 
+	private disposeRequest(): void {
+		this.requestDisposable?.dispose();
+		this.requestDisposable = undefined;
+	}
+
 	dispose() {
+		this.disposeRequest();
 		if (this.requestId) {
 			this.toolsService.cancelToolCallsForRequest(this.requestId);
 		}
@@ -110,6 +172,7 @@ class CancellableRequest implements IDisposable {
 	}
 
 	cancel() {
+		this.disposeRequest();
 		if (this.requestId) {
 			this.toolsService.cancelToolCallsForRequest(this.requestId);
 		}
@@ -278,6 +341,7 @@ export class ChatService extends Disposable implements IChatService {
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 		@IChatDebugService private readonly chatDebugService: IChatDebugService,
+		@IPowerService private readonly powerService: IPowerService,
 	) {
 		super();
 
@@ -989,7 +1053,7 @@ export class ChatService extends Disposable implements IChatService {
 			};
 
 			const trackNewCancellableRequest = () => {
-				const cancellableRequest = this.instantiationService.createInstance(CancellableRequest, new CancellationTokenSource(), undefined, undefined, undefined);
+				const cancellableRequest = this.instantiationService.createInstance(CancellableRequest, new CancellationTokenSource(), undefined, undefined, undefined, undefined);
 				this._syntheticPendingRequests.add(cancellableRequest);
 				this._pendingRequests.set(model.sessionResource, cancellableRequest);
 				this.telemetryService.publicLog2<ChatPendingRequestChangeEvent, ChatPendingRequestChangeClassification>(ChatPendingRequestChangeEventName, { action: 'add', source: 'remoteSession', chatSessionId: chatSessionResourceToId(model.sessionResource) });
@@ -1501,7 +1565,16 @@ export class ChatService extends Disposable implements IChatService {
 		const store = new DisposableStore();
 		const source = store.add(new CancellationTokenSource());
 		const token = source.token;
+		const initialAgent = agentPart?.agent ?? defaultAgent;
+		const isAgentRequest = options?.modeInfo
+			? options.modeInfo.kind === ChatModeKind.Agent
+			: initialAgent.modes.length === 1 && initialAgent.modes[0] === ChatModeKind.Agent;
+		const powerSaveBlocker = isAgentRequest ? new ChatRequestPowerSaveBlocker(this.powerService, this.logService) : undefined;
 		const sendRequestInternal = async () => {
+			if (powerSaveBlocker) {
+				await powerSaveBlocker.whenStarted;
+			}
+
 			const progressCallback = (progress: IChatProgress[]) => {
 				if (token.isCancellationRequested) {
 					return;
@@ -1558,6 +1631,7 @@ export class ChatService extends Disposable implements IChatService {
 						});
 						model.setResponse(request, {});
 						request.response?.complete();
+						powerSaveBlocker?.dispose();
 						store.dispose();
 						return;
 					}
@@ -1973,13 +2047,14 @@ export class ChatService extends Disposable implements IChatService {
 					request.response?.complete();
 				}
 			} finally {
+				powerSaveBlocker?.dispose();
 				store.dispose();
 			}
 		};
 		let shouldProcessPending = false;
 		const rawResponsePromise = sendRequestInternal();
 		// Note- requestId is not known at this point, assigned later
-		const cancellableRequest = this.instantiationService.createInstance(CancellableRequest, source, undefined, rawResponsePromise, options);
+		const cancellableRequest = this.instantiationService.createInstance(CancellableRequest, source, undefined, rawResponsePromise, options, powerSaveBlocker);
 		this._pendingRequests.set(model.sessionResource, cancellableRequest);
 		this.telemetryService.publicLog2<ChatPendingRequestChangeEvent, ChatPendingRequestChangeClassification>(ChatPendingRequestChangeEventName, { action: 'add', source: 'sendRequest', chatSessionId: chatSessionResourceToId(model.sessionResource) });
 		rawResponsePromise.finally(() => {

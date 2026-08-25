@@ -38,6 +38,7 @@ import { NullWorkbenchAssignmentService } from '../../../../../services/assignme
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IExtensionService, nullExtensionDescription } from '../../../../../services/extensions/common/extensions.js';
 import { ILifecycleService } from '../../../../../services/lifecycle/common/lifecycle.js';
+import { IPowerService, PowerSaveBlockerType } from '../../../../../services/power/common/powerService.js';
 import { IViewsService } from '../../../../../services/views/common/viewsService.js';
 import { IWorkspaceEditingService } from '../../../../../services/workspaces/common/workspaceEditing.js';
 import { InMemoryTestFileService, mock, TestChatEntitlementService, TestContextService, TestExtensionService, TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
@@ -55,7 +56,7 @@ import { ChatRequestOriginKind } from '../../../common/chatRequestOrigin.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, CustomizationMigrationHintMode } from '../../../common/constants.js';
 import { ChatEditingSessionState, IChatEditingService, IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../common/languageModels.js';
-import { ChatModel, IChatModel, ISerializableChatData, ISerializableChatModelInputState } from '../../../common/model/chatModel.js';
+import { ChatModel, IChatModel, IChatRequestModeInfo, ISerializableChatData, ISerializableChatModelInputState } from '../../../common/model/chatModel.js';
 import { LocalChatSessionUri } from '../../../common/model/chatUri.js';
 import { ChatViewModel, isPendingDividerVM, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { ChatAgentService, IChatAgent, IChatAgentData, IChatAgentImplementation, IChatAgentService } from '../../../common/participants/chatAgents.js';
@@ -148,12 +149,21 @@ function getAgentData(id: string): IChatAgentData {
 	};
 }
 
+const agentModeInfo: IChatRequestModeInfo = {
+	kind: ChatModeKind.Agent,
+	isBuiltin: true,
+	modeInstructions: undefined,
+	telemetryModeId: 'agent',
+	applyCodeBlockSuggestionId: undefined,
+};
+
 suite('ChatService', () => {
 	const testDisposables = new DisposableStore();
 
 	let instantiationService: TestInstantiationService;
 	let testFileService: InMemoryTestFileService;
 	let editingSessionEntries: ISettableObservable<readonly IModifiedFileEntry[]>;
+	let powerSaveBlockerEvents: string[];
 
 	let chatAgentService: IChatAgentService;
 	const testServices: ChatService[] = [];
@@ -181,6 +191,7 @@ suite('ChatService', () => {
 	}
 
 	setup(async () => {
+		powerSaveBlockerEvents = [];
 		instantiationService = testDisposables.add(new TestInstantiationService(new ServiceCollection(
 			[IChatVariablesService, new MockChatVariablesService()],
 			[IWorkbenchAssignmentService, new NullWorkbenchAssignmentService()],
@@ -207,6 +218,17 @@ suite('ChatService', () => {
 		instantiationService.stub(IEnvironmentService, { workspaceStorageHome: URI.file('/test/path/to/workspaceStorage') });
 		instantiationService.stub(ILifecycleService, { onWillShutdown: Event.None });
 		instantiationService.stub(IWorkspaceEditingService, { onDidEnterWorkspace: Event.None });
+		instantiationService.stub(IPowerService, new class extends mock<IPowerService>() {
+			override async startPowerSaveBlocker(type: PowerSaveBlockerType): Promise<number> {
+				powerSaveBlockerEvents.push(`start:${type}`);
+				return 1;
+			}
+
+			override async stopPowerSaveBlocker(id: number): Promise<boolean> {
+				powerSaveBlockerEvents.push(`stop:${id}`);
+				return true;
+			}
+		});
 		instantiationService.stub(IChatDebugService, testDisposables.add(new ChatDebugServiceImpl(new TestConfigurationService(), contextKeyService)));
 		editingSessionEntries = observableValue('editingSessionEntries', []);
 		instantiationService.stub(IChatEditingService, new class extends mock<IChatEditingService>() {
@@ -245,6 +267,58 @@ suite('ChatService', () => {
 		testServices.length = 0;
 	});
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('blocks power save for the duration of agent requests', async () => {
+		const invocationStarted = new DeferredPromise<void>();
+		const finishInvocation = new DeferredPromise<void>();
+		testDisposables.add(chatAgentService.registerAgent('powerAgent', {
+			...getAgentData('powerAgent'),
+			isDefault: true,
+			modes: [ChatModeKind.Agent],
+		}));
+		testDisposables.add(chatAgentService.registerAgentImplementation('powerAgent', {
+			async invoke() {
+				powerSaveBlockerEvents.push('invoke');
+				invocationStarted.complete();
+				await finishInvocation.p;
+				powerSaveBlockerEvents.push('invokeComplete');
+				return {};
+			},
+		}));
+
+		const service = createChatService();
+		const model = startSessionModel(service).object;
+		const result = await service.sendRequest(model.sessionResource, 'agent request', {
+			modeInfo: agentModeInfo,
+		});
+		assert.strictEqual(result.kind, 'sent');
+		await invocationStarted.p;
+		assert.deepStrictEqual(powerSaveBlockerEvents, ['start:prevent-app-suspension', 'invoke']);
+
+		finishInvocation.complete();
+		await result.data.responseCompletePromise;
+		assert.deepStrictEqual(powerSaveBlockerEvents, ['start:prevent-app-suspension', 'invoke', 'invokeComplete', 'stop:1']);
+	});
+
+	test('blocks power save for Agent-only participants without mode info', async () => {
+		testDisposables.add(chatAgentService.registerAgent('agentHost', {
+			...getAgentData('agentHost'),
+			modes: [ChatModeKind.Agent],
+		}));
+		testDisposables.add(chatAgentService.registerAgentImplementation('agentHost', {
+			async invoke() {
+				return {};
+			},
+		}));
+
+		const service = createChatService();
+		const model = startSessionModel(service).object;
+		const result = await service.sendRequest(model.sessionResource, 'agent request', { agentIdSilent: 'agentHost' });
+		ChatSendResult.assertSent(result);
+		await result.data.responseCompletePromise;
+
+		assert.deepStrictEqual(powerSaveBlockerEvents, ['start:prevent-app-suspension', 'stop:1']);
+	});
 
 	test('propagates Agents Voice Mode input to the participant request', async () => {
 		const captured = new DeferredPromise<boolean | undefined>();
@@ -1228,14 +1302,17 @@ suite('ChatService', () => {
 			},
 		};
 
-		testDisposables.add(chatAgentService.registerAgent('slowAgent', { ...getAgentData('slowAgent'), isDefault: true }));
+		testDisposables.add(chatAgentService.registerAgent('slowAgent', { ...getAgentData('slowAgent'), isDefault: true, modes: [ChatModeKind.Agent] }));
 		testDisposables.add(chatAgentService.registerAgentImplementation('slowAgent', slowAgent));
 
 		const testService = createChatService();
 		const modelRef = testDisposables.add(startSessionModel(testService));
 		const model = modelRef.object;
 
-		const response = await testService.sendRequest(model.sessionResource, 'test request', { agentId: 'slowAgent' });
+		const response = await testService.sendRequest(model.sessionResource, 'test request', {
+			agentId: 'slowAgent',
+			modeInfo: agentModeInfo,
+		});
 		ChatSendResult.assertSent(response);
 
 		await requestStarted.p;
@@ -1247,6 +1324,7 @@ suite('ChatService', () => {
 		const lastRequest = model.getRequests()[0];
 		assert.ok(lastRequest.response, 'Response should exist after cancellation completes');
 		assert.strictEqual(lastRequest.response.state, ResponseModelState.Cancelled, 'Response should be in Cancelled state');
+		assert.deepStrictEqual(powerSaveBlockerEvents, ['start:prevent-app-suspension', 'stop:1']);
 	});
 
 	test('cancelCurrentRequestForSession returns after timeout if response does not complete', async () => {
@@ -1262,14 +1340,14 @@ suite('ChatService', () => {
 			},
 		};
 
-		testDisposables.add(chatAgentService.registerAgent('hangingAgent', { ...getAgentData('hangingAgent'), isDefault: true }));
+		testDisposables.add(chatAgentService.registerAgent('hangingAgent', { ...getAgentData('hangingAgent'), isDefault: true, modes: [ChatModeKind.Agent] }));
 		testDisposables.add(chatAgentService.registerAgentImplementation('hangingAgent', hangingAgent));
 
 		const testService = createChatService();
 		const modelRef = testDisposables.add(startSessionModel(testService));
 		const model = modelRef.object;
 
-		const response = await testService.sendRequest(model.sessionResource, 'test request', { agentId: 'hangingAgent' });
+		const response = await testService.sendRequest(model.sessionResource, 'test request', { agentId: 'hangingAgent', modeInfo: agentModeInfo });
 		ChatSendResult.assertSent(response);
 
 		await requestStarted.p;
@@ -1279,10 +1357,12 @@ suite('ChatService', () => {
 		await runWithFakedTimers({ useFakeTimers: true }, async () => {
 			await testService.cancelCurrentRequestForSession(model.sessionResource, 'test');
 		});
+		assert.deepStrictEqual(powerSaveBlockerEvents, ['start:prevent-app-suspension', 'stop:1']);
 
 		// Let the agent finish so the test cleans up properly
 		completeRequest.complete();
 		await response.data.responseCompletePromise;
+		assert.deepStrictEqual(powerSaveBlockerEvents, ['start:prevent-app-suspension', 'stop:1']);
 	});
 
 	test('pending requests can be removed from one session and re-sent on another', async () => {
@@ -2612,7 +2692,7 @@ suite('ChatService', () => {
 				return {};
 			},
 		};
-		testDisposables.add(chatAgentService.registerAgent('troubleshootAgent', { ...getAgentData('troubleshootAgent'), isDefault: true }));
+		testDisposables.add(chatAgentService.registerAgent('troubleshootAgent', { ...getAgentData('troubleshootAgent'), isDefault: true, modes: [ChatModeKind.Agent] }));
 		testDisposables.add(chatAgentService.registerAgentImplementation('troubleshootAgent', troubleshootAgent));
 
 		const testService = createChatService();
@@ -2621,6 +2701,7 @@ suite('ChatService', () => {
 
 		const skillUri = URI.from({ scheme: COPILOT_SKILL_URI_SCHEME, path: TROUBLESHOOT_SKILL_PATH });
 		const response = await testService.sendRequest(model.sessionResource, 'investigate this issue', {
+			modeInfo: agentModeInfo,
 			attachedContext: [{
 				id: 'troubleshoot-skill',
 				name: 'troubleshoot',
@@ -2635,6 +2716,7 @@ suite('ChatService', () => {
 		assert.strictEqual(requests.length, 1);
 		const responseContent = requests[0].response?.response.toString();
 		assert.ok(responseContent?.includes(AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING), 'Response should mention the fileLogging setting');
+		assert.deepStrictEqual(powerSaveBlockerEvents, ['start:prevent-app-suspension', 'stop:1']);
 	});
 
 	test('troubleshoot skill via attachedContext proceeds when fileLogging.enabled is on', async () => {
