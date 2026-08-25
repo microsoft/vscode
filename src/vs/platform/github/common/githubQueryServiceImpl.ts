@@ -1145,13 +1145,15 @@ function toRequestPriority(priority: GitHubResourcePriority): 'interactive' | 'v
 function toRepository(value: unknown): GitHubRepository {
 	const item = asObject(value, 'GitHub repository response was malformed');
 	const owner = objectProperty(item, 'owner');
+	const language = nullableStringProperty(item, 'language');
+	const stars = numberProperty(item, 'stargazers_count');
 	return {
 		id: idProperty(item, 'node_id') ?? idProperty(item, 'id'),
 		owner: requiredActor(owner),
 		name: requiredString(item, 'name'),
 		nameWithOwner: requiredString(item, 'full_name'),
-		language: nullableStringProperty(item, 'language'),
-		stars: numberProperty(item, 'stargazers_count'),
+		...(language !== undefined ? { language } : {}),
+		...(stars !== undefined ? { stars } : {}),
 		defaultBranch: requiredString(item, 'default_branch'),
 		private: booleanProperty(item, 'private') ?? false,
 		description: nullableStringProperty(item, 'description') ?? '',
@@ -1165,13 +1167,14 @@ function toGraphQLRepository(value: object): GitHubRepository {
 	const owner = objectProperty(value, 'owner');
 	const primaryLanguage = optionalObjectProperty(value, 'primaryLanguage');
 	const defaultBranch = optionalObjectProperty(value, 'defaultBranchRef');
+	const stars = numberProperty(value, 'stargazerCount');
 	return {
 		id: idProperty(value, 'id'),
 		owner: requiredActor(owner),
 		name: requiredString(value, 'name'),
 		nameWithOwner: requiredString(value, 'nameWithOwner'),
-		language: primaryLanguage ? requiredString(primaryLanguage, 'name') : undefined,
-		stars: numberProperty(value, 'stargazerCount'),
+		...(primaryLanguage ? { language: requiredString(primaryLanguage, 'name') } : {}),
+		...(stars !== undefined ? { stars } : {}),
 		defaultBranch: defaultBranch ? requiredString(defaultBranch, 'name') : '',
 		private: booleanProperty(value, 'isPrivate') ?? false,
 		description: nullableStringProperty(value, 'description') ?? '',

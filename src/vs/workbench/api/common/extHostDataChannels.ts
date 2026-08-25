@@ -71,7 +71,7 @@ export class ExtHostDataChannels implements IExtHostDataChannels {
 			throw new Error(`Link presentation provider '${providerId}' does not accept '${resourceString}'.`);
 		}
 		const cacheKey = `${providerId}\0${resourceString}`;
-		const cachedPresentation = this._getCachedLinkPresentation(cacheKey);
+		const cachedPresentation = this._getCachedLinkPresentation(cacheKey, rule.kind);
 		const initialPresentation: vscode.LinkPresentationData = {
 			...(cachedPresentation ?? { kind: rule.kind }),
 			isLoading: true,
@@ -155,8 +155,12 @@ export class ExtHostDataChannels implements IExtHostDataChannels {
 		}
 	}
 
-	private _getCachedLinkPresentation(key: string): vscode.LinkPresentationData | undefined {
+	private _getCachedLinkPresentation(key: string, kind: LinkPresentationKind): vscode.LinkPresentationData | undefined {
 		const presentation = this._linkPresentationCache.get(key);
+		if (presentation?.kind !== kind) {
+			this._linkPresentationCache.delete(key);
+			return undefined;
+		}
 		if (presentation) {
 			this._linkPresentationCache.delete(key);
 			this._linkPresentationCache.set(key, presentation);

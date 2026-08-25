@@ -363,6 +363,10 @@ export class LinkPresentationService extends Disposable implements ILinkPresenta
 			const presentation = watcher.presentation.read(reader);
 			if (presentation && entry.isCurrent(generation) && entry.providerId) {
 				if (presentation.kind !== provider.kind) {
+					entry.setPresentation(undefined);
+					if (this._cache.delete(entry.key)) {
+						this._persistCache();
+					}
 					this._handleProviderError(
 						entry,
 						generation,

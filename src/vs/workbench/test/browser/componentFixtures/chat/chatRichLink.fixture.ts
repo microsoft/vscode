@@ -42,7 +42,7 @@ function renderRichLinks(context: ComponentFixtureContext, links: readonly RichL
 function createLinkPresentationService(presentation: ILinkPresentation): ILinkPresentationService {
 	return new class extends mock<ILinkPresentationService>() {
 		override getLinkPresentationRule(): ILinkPresentationRule {
-			return { id: 'fixture', uriPattern: /.*/, kind: 'resource' };
+			return { id: 'fixture', uriPattern: /.*/, kind: presentation.kind };
 		}
 		override createLinkPresentationWatcher(): ILinkPresentationWatcher {
 			return {

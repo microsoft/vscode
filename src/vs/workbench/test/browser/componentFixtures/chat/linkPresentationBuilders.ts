@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// Keep in sync with ../../../../../../../extensions/markdown-language-features/src/preview/linkPresentation/linkPresentationBuilders.ts.
-
 export type LinkPresentationKind =
 	| 'resource'
 	| 'issue'

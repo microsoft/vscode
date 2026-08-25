@@ -338,8 +338,6 @@ suite('GitHubQueryService', () => {
 						owner: { id: '1', login: 'new-owner' },
 						name: 'new-repo',
 						nameWithOwner: 'new-owner/new-repo',
-						language: undefined,
-						stars: undefined,
 						defaultBranch: 'main',
 						private: true,
 						description: 'repo',

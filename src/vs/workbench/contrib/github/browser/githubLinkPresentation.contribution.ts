@@ -46,9 +46,9 @@ export class GitHubLinkPresentationContribution extends Disposable implements IW
 	}
 
 	private _registerProviders(): void {
+		this._registrations.clear();
 		const authority = URI.parse(this._defaultAccountService.resolveGitHubUrl('')).authority;
 		if (!authority) {
-			this._registrations.clear();
 			return;
 		}
 
@@ -343,13 +343,18 @@ function pullRequestChecksStatus(checks: readonly PullRequestCheck[] | undefined
 	if (!checks?.length) {
 		return undefined;
 	}
-	if (checks.some(check => check.status !== 'completed')) {
+	if (checks.some(check => check.type === 'checkRun'
+		? check.status !== 'COMPLETED'
+		: check.status === 'PENDING' || check.status === 'EXPECTED')) {
 		return { kind: 'pending', label: localize('github.checks.running', "Checks running") };
 	}
-	if (checks.some(check => check.conclusion === 'failure'
-		|| check.conclusion === 'timed_out'
-		|| check.conclusion === 'cancelled'
-		|| check.conclusion === 'action_required')) {
+	if (checks.some(check => check.type === 'checkRun'
+		? check.conclusion === 'FAILURE'
+		|| check.conclusion === 'TIMED_OUT'
+		|| check.conclusion === 'CANCELLED'
+		|| check.conclusion === 'ACTION_REQUIRED'
+		|| check.conclusion === 'STARTUP_FAILURE'
+		: check.status === 'FAILURE' || check.status === 'ERROR')) {
 		return { kind: 'error', label: localize('github.checks.failed', "Checks failed") };
 	}
 	return { kind: 'success', label: localize('github.checks.passed', "Checks passed") };

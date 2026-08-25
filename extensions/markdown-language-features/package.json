@@ -52,31 +52,6 @@
         "uriPattern": "^(?:commit:[^?#]+|https?://[^\\s?#]+/(?:commit|-/commit)/[^/?#]+)(?:[?#].*)?$"
       },
       {
-        "id": "markdown.githubIssueLinkPresentations",
-        "kind": "issue",
-        "uriPattern": "^https://github\\.com/[^/?#]+/[^/?#]+/issues/[^/?#]+(?:[?#].*)?$"
-      },
-      {
-        "id": "markdown.githubPullRequestLinkPresentations",
-        "kind": "pullRequest",
-        "uriPattern": "^https://github\\.com/[^/?#]+/[^/?#]+/pull/[^/?#]+(?:[?#].*)?$"
-      },
-      {
-        "id": "markdown.githubTreeLinkPresentations",
-        "kind": "resource",
-        "uriPattern": "^https://github\\.com/[^/?#]+/[^/?#]+/tree/[^?#]+(?:[?#].*)?$"
-      },
-      {
-        "id": "markdown.githubFileLinkPresentations",
-        "kind": "file",
-        "uriPattern": "^https://github\\.com/[^/?#]+/[^/?#]+/blob/[^?#]+(?:[?#].*)?$"
-      },
-      {
-        "id": "markdown.githubRepositoryLinkPresentations",
-        "kind": "repository",
-        "uriPattern": "^https://github\\.com/[^/?#]+/[^/?#]+/?(?:[?#].*)?$"
-      },
-      {
         "id": "markdown.workspaceFileLinkPresentations",
         "kind": "file",
         "uriPattern": "^(?:(?:file|vscode-remote|vscode-vfs):[^?#]*|(?!(?:[a-z][a-z0-9+.-]*:|#))[^?#]+)(?:[?#].*)?$"

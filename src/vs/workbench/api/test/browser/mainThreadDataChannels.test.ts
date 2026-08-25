@@ -320,10 +320,18 @@ suite('MainThreadDataChannels', () => {
 		});
 		firstWatcher.dispose();
 		const secondWatcher = store.add(extHost.createLinkPresentationWatcher(extension, 'test.pullRequests', resource));
+		extHost.$acceptLinkPresentationRules([{
+			id: 'test.pullRequests',
+			source: '^https://github\\.com/[^/]+/[^/]+/pull/[0-9]+$',
+			flags: 'i',
+			kind: 'issue',
+		}]);
+		const changedKindWatcher = store.add(extHost.createLinkPresentationWatcher(extension, 'test.pullRequests', resource));
 
 		assert.deepStrictEqual({
 			ruleInitialPresentation,
 			cachedInitialPresentation: secondWatcher.presentation,
+			changedKindInitialPresentation: changedKindWatcher.presentation,
 		}, {
 			ruleInitialPresentation: {
 				kind: 'pullRequest',
@@ -333,6 +341,10 @@ suite('MainThreadDataChannels', () => {
 				kind: 'pullRequest',
 				title: 'Cached pull request',
 				status: { kind: 'open', label: 'Open' },
+				isLoading: true,
+			},
+			changedKindInitialPresentation: {
+				kind: 'issue',
 				isLoading: true,
 			},
 		});
@@ -429,6 +441,59 @@ suite('MainThreadDataChannels', () => {
 				title: 'Correct kind',
 			},
 		]);
+	});
+
+	test('replaces a restored presentation when the provider returns the wrong kind', () => {
+		const configurationService = new TestConfigurationService();
+		const storageService = store.add(new TestStorageService());
+		const resource = URI.parse('https://example.com/pull/1');
+		const registration: ILinkPresentationProviderRegistration = {
+			id: 'test.pullRequests',
+			uriPattern: /^https:\/\/example\.com\/pull\/[0-9]+$/,
+			kind: 'pullRequest',
+		};
+		const firstService = store.add(new LinkPresentationService(
+			new NullExtensionService(),
+			new NullLogService(),
+			configurationService,
+			storageService,
+		));
+		store.add(firstService.registerLinkPresentationProvider(registration, {
+			createLinkPresentationWatcher: () => ({
+				presentation: observableValue<ILinkPresentation | undefined>('firstPresentation', {
+					kind: 'pullRequest',
+					title: 'Cached pull request',
+				}),
+				dispose: () => { },
+			}),
+		}));
+		const firstWatcher = store.add(firstService.createLinkPresentationWatcher(registration.id, resource)!);
+		firstWatcher.dispose();
+		firstService.dispose();
+
+		const restoredService = store.add(new LinkPresentationService(
+			new NullExtensionService(),
+			new NullLogService(),
+			configurationService,
+			storageService,
+		));
+		store.add(restoredService.registerLinkPresentationProvider(registration, {
+			createLinkPresentationWatcher: () => ({
+				presentation: observableValue<ILinkPresentation | undefined>('wrongPresentation', {
+					kind: 'issue',
+					title: 'Wrong kind',
+				}),
+				dispose: () => { },
+			}),
+		}));
+		const restoredWatcher = store.add(restoredService.createLinkPresentationWatcher(registration.id, resource)!);
+
+		assert.deepStrictEqual(restoredWatcher.presentation.get(), {
+			kind: 'pullRequest',
+			status: { kind: 'error', label: 'Not available' },
+			tooltip: 'The link presentation provider failed to load.',
+			ariaLabel: 'Link presentation is not available',
+		});
 	});
 
 	test('restores the shared cache after a service restart', () => {

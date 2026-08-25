@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// Keep in sync with ../../../../../src/vs/workbench/test/browser/componentFixtures/chat/linkPresentationBuilders.ts.
-
 export type LinkPresentationKind =
 	| 'resource'
 	| 'issue'
@@ -43,136 +41,6 @@ export interface LinkPresentation {
 	readonly tooltip?: string;
 	readonly ariaLabel?: string;
 	readonly isLoading?: boolean;
-}
-
-export type GitHubIssueStatus = LinkPresentationStatus & {
-	readonly kind: 'open' | 'closed' | 'notPlanned';
-};
-
-export type GitHubPullRequestStatus = LinkPresentationStatus & {
-	readonly kind: 'open' | 'closed' | 'merged' | 'draft';
-};
-
-export type GitHubChecksStatus = LinkPresentationStatus & {
-	readonly kind: 'pending' | 'success' | 'error';
-};
-
-interface GitHubResourcePresentationData {
-	readonly owner: string;
-	readonly repository: string;
-}
-
-export interface GitHubIssuePresentationData extends GitHubResourcePresentationData {
-	readonly number: number;
-	readonly title: string;
-	readonly status: GitHubIssueStatus;
-}
-
-export function buildGitHubIssuePresentation(data: GitHubIssuePresentationData): LinkPresentation {
-	return {
-		kind: 'issue',
-		title: data.title,
-		reference: `#${data.number}`,
-		status: data.status,
-		tooltip: `${data.owner}/${data.repository}#${data.number} · ${data.status.label}`,
-		ariaLabel: `Issue ${data.owner} slash ${data.repository} number ${data.number}, ${data.status.label}: ${data.title}`,
-	};
-}
-
-export interface GitHubPullRequestPresentationData extends GitHubResourcePresentationData {
-	readonly number: number;
-	readonly title: string;
-	readonly status: GitHubPullRequestStatus;
-	readonly checksStatus?: GitHubChecksStatus;
-}
-
-export function buildGitHubPullRequestPresentation(data: GitHubPullRequestPresentationData): LinkPresentation {
-	const checksStatus = data.status.kind === 'open' || data.status.kind === 'draft' ? data.checksStatus : undefined;
-	return {
-		kind: 'pullRequest',
-		title: data.title,
-		reference: `#${data.number}`,
-		status: data.status,
-		...(checksStatus ? { secondaryStatus: checksStatus } : {}),
-		tooltip: [`${data.owner}/${data.repository}#${data.number}`, data.status.label, checksStatus?.label].filter(Boolean).join(' · '),
-		ariaLabel: `Pull request ${data.owner} slash ${data.repository} number ${data.number}, ${data.status.label}${checksStatus ? `, ${checksStatus.label}` : ''}: ${data.title}`,
-	};
-}
-
-export interface GitHubRepositoryPresentationData extends GitHubResourcePresentationData {
-	readonly language?: string;
-	readonly stars?: number;
-}
-
-export function buildGitHubRepositoryPresentation(data: GitHubRepositoryPresentationData): LinkPresentation {
-	const details = [
-		data.language,
-		data.stars === undefined ? undefined : `${formatCount(data.stars)} stars`,
-	].filter((value): value is string => !!value);
-	return {
-		kind: 'repository',
-		...(details.length ? { detail: details.join(' · ') } : {}),
-		tooltip: `${data.owner}/${data.repository}`,
-		ariaLabel: `GitHub repository ${data.owner} slash ${data.repository}`,
-	};
-}
-
-export interface GitHubFolderPresentationData extends GitHubResourcePresentationData {
-	readonly path: string;
-	readonly href: string;
-}
-
-export function buildGitHubFolderPresentation(data: GitHubFolderPresentationData): LinkPresentation {
-	return {
-		kind: 'folder',
-		detail: `${data.owner}/${data.repository} · ${data.path}`,
-		tooltip: data.href,
-		ariaLabel: `Folder ${data.path} in ${data.owner} slash ${data.repository}`,
-	};
-}
-
-export interface GitHubBranchPresentationData extends GitHubResourcePresentationData {
-	readonly branch: string;
-	readonly sha: string;
-}
-
-export function buildGitHubBranchPresentation(data: GitHubBranchPresentationData): LinkPresentation {
-	return {
-		kind: 'branch',
-		detail: data.sha.slice(0, 7),
-		tooltip: `${data.owner}/${data.repository} · ${data.branch}`,
-		ariaLabel: `Branch ${data.branch} in ${data.owner} slash ${data.repository}`,
-	};
-}
-
-export interface GitHubFilePresentationData extends GitHubResourcePresentationData {
-	readonly path: string;
-	readonly href: string;
-}
-
-export function buildGitHubFilePresentation(data: GitHubFilePresentationData): LinkPresentation {
-	return {
-		kind: 'file',
-		detail: `${data.owner}/${data.repository} · ${data.path}`,
-		tooltip: data.href,
-		ariaLabel: `File ${data.path} in ${data.owner} slash ${data.repository}`,
-	};
-}
-
-export interface GitHubLookupFailurePresentationData {
-	readonly kind: 'resource' | 'issue' | 'pullRequest' | 'file' | 'repository';
-	readonly label: string;
-	readonly detail: string;
-	readonly errorMessage?: string;
-}
-
-export function buildGitHubLookupFailurePresentation(data: GitHubLookupFailurePresentationData): LinkPresentation {
-	return {
-		kind: data.kind,
-		status: { kind: 'error', label: data.label },
-		tooltip: `${data.detail} ${data.errorMessage ?? ''}`.trim(),
-		ariaLabel: `GitHub ${data.kind} lookup failed: ${data.label}`,
-	};
 }
 
 export interface GitCommitPresentationData {
@@ -267,10 +135,6 @@ export function buildWorkspaceLookupFailurePresentation(
 	};
 }
 
-export function buildLoadingPresentationFromCached(presentation: LinkPresentation): LinkPresentation {
-	return { ...presentation, isLoading: true };
-}
-
 function relativeParent(value: string): string | undefined {
 	const separator = Math.max(value.lastIndexOf('/'), value.lastIndexOf('\\'));
 	return separator > 0 ? value.slice(0, separator) : undefined;
@@ -285,8 +149,4 @@ function compactParent(value: string): string | undefined {
 		return parent;
 	}
 	return parent.split(/[\\/]+/).filter(Boolean).slice(-4).join('/');
-}
-
-function formatCount(value: number): string {
-	return value >= 1000 ? `${(value / 1000).toFixed(value >= 10_000 ? 0 : 1)}k` : String(value);
 }

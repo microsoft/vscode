@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { Event } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -75,7 +75,37 @@ suite('GitHub link presentations', () => {
 				ariaLabel: 'Pull request microsoft slash vscode number 8, Open, Checks failed: Pull request title',
 			}],
 		});
+	});
 
+	test('re-registers providers when the default account changes', () => {
+		const linkPresentationService = new TestLinkPresentationService();
+		const onDidChangeDefaultAccount = store.add(new Emitter<void>());
+		let authority = 'github.com';
+		store.add(new GitHubLinkPresentationContribution(
+			createGitHubService(() => { }),
+			linkPresentationService,
+			new class extends mock<IDefaultAccountService>() {
+				override readonly onDidChangeDefaultAccount = onDidChangeDefaultAccount.event;
+				override resolveGitHubUrl(path: string): string {
+					return `https://${authority}/${path}`;
+				}
+			}(),
+			new NullLogService(),
+		));
+
+		const before = linkPresentationService.hasProvider(URI.parse('https://github.com/microsoft/vscode/issues/1'));
+		authority = 'github.example.com';
+		onDidChangeDefaultAccount.fire();
+
+		assert.deepStrictEqual({
+			before,
+			oldAuthority: linkPresentationService.hasProvider(URI.parse('https://github.com/microsoft/vscode/issues/1')),
+			newAuthority: linkPresentationService.hasProvider(URI.parse('https://github.example.com/microsoft/vscode/issues/1')),
+		}, {
+			before: true,
+			oldAuthority: false,
+			newAuthority: true,
+		});
 	});
 });
 
@@ -84,6 +114,9 @@ class TestLinkPresentationService extends mock<ILinkPresentationService>() {
 	private readonly _providers: { readonly registration: ILinkPresentationProviderRegistration; readonly provider: ILinkPresentationProvider }[] = [];
 
 	override registerLinkPresentationProvider(registration: ILinkPresentationProviderRegistration, provider: ILinkPresentationProvider): IDisposable {
+		if (this._providers.some(candidate => candidate.registration.id === registration.id)) {
+			throw new Error(`Duplicate provider '${registration.id}'.`);
+		}
 		const entry = { registration, provider };
 		this._providers.push(entry);
 		return toDisposable(() => {
@@ -99,6 +132,11 @@ class TestLinkPresentationService extends mock<ILinkPresentationService>() {
 		const entry = this._providers.find(candidate => candidate.registration.uriPattern.test(value));
 		assert.ok(entry);
 		return entry.provider.createLinkPresentationWatcher(resource);
+	}
+
+	hasProvider(resource: URI): boolean {
+		const value = resource.toString(true);
+		return this._providers.some(candidate => candidate.registration.uriPattern.test(value));
 	}
 }
 
@@ -131,8 +169,13 @@ function createGitHubService(onHydrate: (resources: Parameters<IGitHubService['q
 				id: 'check',
 				type: 'checkRun',
 				name: 'test',
-				status: 'completed',
-				conclusion: 'failure',
+				status: 'COMPLETED',
+				conclusion: 'FAILURE',
+			}, {
+				id: 'status',
+				type: 'statusContext',
+				name: 'status',
+				status: 'SUCCESS',
 			}],
 			requirednessComplete: true,
 			expectedSuites: [],

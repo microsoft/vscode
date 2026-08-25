@@ -7,19 +7,13 @@ import { autorun, type IObservable } from '@vscode/observables';
 import * as vscode from 'vscode';
 import type { ILogger } from '../../logging';
 import { Disposable } from '../../util/dispose';
-import { GitHubLinkPresentationResolver } from './githubLinkPresentationResolver';
 import { GitLinkPresentationResolver } from './gitLinkPresentationResolver';
-import { ImmutableLinkPresentationCache, LinkPresentationCache, type LinkPresentation, type LinkPresentationResolver, type LinkPresentationResolverContext } from './linkPresentationResolver';
+import { ImmutableLinkPresentationCache, type LinkPresentation, type LinkPresentationResolver, type LinkPresentationResolverContext } from './linkPresentationResolver';
 import { WorkspaceLinkPresentationResolver } from './workspaceLinkPresentationResolver';
 
 const refreshIntervalMs = 30_000;
 export const linkPresentationProviderIds = [
 	'markdown.gitCommitLinkPresentations',
-	'markdown.githubIssueLinkPresentations',
-	'markdown.githubPullRequestLinkPresentations',
-	'markdown.githubTreeLinkPresentations',
-	'markdown.githubFileLinkPresentations',
-	'markdown.githubRepositoryLinkPresentations',
 	'markdown.workspaceFileLinkPresentations',
 ] as const;
 
@@ -146,10 +140,9 @@ export class LinkPresentationService extends Disposable {
 	}
 }
 
-export function createSharedLinkPresentationService(globalState: vscode.Memento, logger: ILogger): LinkPresentationService {
+export function createSharedLinkPresentationService(logger: ILogger): LinkPresentationService {
 	return new LinkPresentationService([
 		new GitLinkPresentationResolver(new ImmutableLinkPresentationCache()),
-		new GitHubLinkPresentationResolver(new LinkPresentationCache(globalState, logger)),
 		new WorkspaceLinkPresentationResolver(),
 	], logger);
 }
