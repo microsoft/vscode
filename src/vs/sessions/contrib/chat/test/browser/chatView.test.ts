@@ -14,7 +14,8 @@ import { IChatRequestTranscriptContextVariableEntry } from '../../../../../workb
 import { ChatInputNoticeHost, ChatInputNoticeLane } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputNoticeHost.js';
 import { isChatInputStackSlotShowing } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputStack.js';
 import { SessionStatus } from '../../../../services/sessions/common/session.js';
-import { applySessionsChatBackground, findTranscriptContextEntry, getTranscriptProgress, NewChatView, shouldShowSessionChatTip, shouldShowTranscriptPreparationProgress } from '../../browser/chatView.js';
+import { findTranscriptContextEntry, getTranscriptProgress, NewChatView, shouldShowSessionChatTip, shouldShowTranscriptPreparationProgress } from '../../browser/chatView.js';
+import { SessionsChatBackgroundRenderer } from '../../browser/chatBackgroundRenderer.js';
 import { SessionsChatViewStateService } from '../../browser/chatViewStateService.js';
 import { NewChatInSessionWidget } from '../../browser/newChatInSessionWidget.js';
 import { NewChatWidget } from '../../browser/newChatWidget.js';
@@ -60,25 +61,29 @@ suite('Sessions - Chat View', () => {
 		const chatView = dom.append(part, dom.$('.chat-view'));
 		dom.getWindow(workbench).document.body.appendChild(workbench);
 		disposables.add(toDisposable(() => workbench.remove()));
-		applySessionsChatBackground(chatView, {
+		const renderer = disposables.add(new SessionsChatBackgroundRenderer(chatView));
+		renderer.setBackground({
+			kind: 'image',
 			backgroundImage: 'url("file:///textures/kirby.png")',
 			backgroundRepeat: 'no-repeat',
 			backgroundSize: 'auto',
 			backgroundPosition: 'right bottom',
 		});
 		const applied = {
-			enabled: chatView.classList.contains('has-chat-background-image'),
+			enabled: chatView.classList.contains('has-chat-background'),
+			imageEnabled: chatView.classList.contains('has-chat-background-image'),
 			image: chatView.style.backgroundImage,
 			repeat: chatView.style.backgroundRepeat,
 			size: chatView.style.backgroundSize,
 			position: chatView.style.backgroundPosition,
 		};
-		applySessionsChatBackground(chatView, undefined);
+		renderer.setBackground(undefined);
 
 		assert.deepStrictEqual({
 			applied,
 			cleared: {
-				enabled: chatView.classList.contains('has-chat-background-image'),
+				enabled: chatView.classList.contains('has-chat-background'),
+				imageEnabled: chatView.classList.contains('has-chat-background-image'),
 				image: chatView.style.backgroundImage,
 				repeat: chatView.style.backgroundRepeat,
 				size: chatView.style.backgroundSize,
@@ -87,12 +92,46 @@ suite('Sessions - Chat View', () => {
 		}, {
 			applied: {
 				enabled: true,
+				imageEnabled: true,
 				image: 'url("file:///textures/kirby.png")',
 				repeat: 'no-repeat',
 				size: 'auto',
 				position: 'right bottom',
 			},
-			cleared: { enabled: false, image: '', repeat: '', size: '', position: '' },
+			cleared: { enabled: false, imageEnabled: false, image: '', repeat: '', size: '', position: '' },
+		});
+	});
+
+	test('renders the codicons background preset from decorative in-memory icons', () => {
+		const workbench = dom.$('.monaco-workbench.agent-sessions-workbench');
+		workbench.style.setProperty('--vscode-foreground', '#202020');
+		const part = dom.append(workbench, dom.$('.part.sessionspart'));
+		const chatView = dom.append(part, dom.$('.chat-view'));
+		dom.getWindow(workbench).document.body.appendChild(workbench);
+		disposables.add(toDisposable(() => workbench.remove()));
+		const renderer = disposables.add(new SessionsChatBackgroundRenderer(chatView));
+		renderer.setBackground({ kind: 'codicons' });
+		const layer = chatView.querySelector<HTMLElement>(':scope > .sessions-chat-codicon-background');
+		const firstIcon = layer?.querySelector<HTMLElement>('.codicon');
+
+		assert.deepStrictEqual({
+			enabled: chatView.classList.contains('has-chat-background'),
+			imageEnabled: chatView.classList.contains('has-chat-background-image'),
+			backgroundImage: chatView.style.backgroundImage,
+			layerHidden: layer?.hidden,
+			layerAriaHidden: layer?.ariaHidden,
+			layerPointerEvents: layer ? dom.getWindow(layer).getComputedStyle(layer).pointerEvents : undefined,
+			hasIcons: (layer?.querySelectorAll('.codicon').length ?? 0) > 0,
+			firstIconAriaHidden: firstIcon?.ariaHidden,
+		}, {
+			enabled: true,
+			imageEnabled: false,
+			backgroundImage: '',
+			layerHidden: false,
+			layerAriaHidden: 'true',
+			layerPointerEvents: 'none',
+			hasIcons: true,
+			firstIconAriaHidden: 'true',
 		});
 	});
 
@@ -101,7 +140,7 @@ suite('Sessions - Chat View', () => {
 		workbench.style.setProperty('--session-view-background', '#202020');
 		workbench.style.setProperty('--vscode-chat-requestBubbleBackground', 'rgba(255, 255, 255, 0.3)');
 		const part = dom.append(workbench, dom.$('.part.sessionspart'));
-		const chatView = dom.append(part, dom.$('.chat-view.has-chat-background-image'));
+		const chatView = dom.append(part, dom.$('.chat-view.has-chat-background'));
 		const session = dom.append(chatView, dom.$('.interactive-session'));
 		const request = dom.append(session, dom.$('.interactive-item-container.interactive-request'));
 		const value = dom.append(request, dom.$('.value'));
@@ -135,7 +174,7 @@ suite('Sessions - Chat View', () => {
 		workbench.style.setProperty('--vscode-cornerRadius-medium', '6px');
 		workbench.style.setProperty('--vscode-spacing-size160', '16px');
 		const part = dom.append(workbench, dom.$('.part.sessionspart'));
-		const chatView = dom.append(part, dom.$('.chat-view.has-chat-background-image'));
+		const chatView = dom.append(part, dom.$('.chat-view.has-chat-background'));
 		const session = dom.append(chatView, dom.$('.interactive-session'));
 		const response = dom.append(session, dom.$('.interactive-item-container.interactive-response'));
 		const value = dom.append(response, dom.$('.value'));
@@ -186,7 +225,7 @@ suite('Sessions - Chat View', () => {
 		workbench.style.setProperty('--vscode-spacing-size120', '12px');
 		workbench.style.setProperty('--vscode-strokeThickness', '1px');
 		const part = dom.append(workbench, dom.$('.part.sessionspart'));
-		const chatView = dom.append(part, dom.$('.chat-view.has-chat-background-image'));
+		const chatView = dom.append(part, dom.$('.chat-view.has-chat-background'));
 		const newChatWidget = dom.append(chatView, dom.$('.sessions-chat-widget'));
 		const newChatContent = dom.append(newChatWidget, dom.$('.new-chat-widget-content'));
 		const inSessionWidget = dom.append(chatView, dom.$('.sessions-chat-widget.new-chat-in-session'));
@@ -311,7 +350,7 @@ suite('Sessions - Chat View', () => {
 			const bubble = dom.append(value, dom.$('.rendered-markdown'));
 			return { stickyContainer, stickyRow, treeContents, request, bubble };
 		};
-		const background = createStickyRequest('.chat-view.has-chat-background-image');
+		const background = createStickyRequest('.chat-view.has-chat-background');
 		const plain = createStickyRequest('.chat-view');
 		dom.getWindow(workbench).document.body.appendChild(workbench);
 		disposables.add(toDisposable(() => workbench.remove()));
