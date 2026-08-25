@@ -77,6 +77,7 @@ export function readClientConnectionKind(meta: Record<string, unknown> | undefin
 		case AgentHostClientConnectionKind.Local:
 		case AgentHostClientConnectionKind.DirectWebSocket:
 		case AgentHostClientConnectionKind.DevTunnel:
+		case AgentHostClientConnectionKind.DevContainer:
 		case AgentHostClientConnectionKind.SSH:
 		case AgentHostClientConnectionKind.WSL:
 		case AgentHostClientConnectionKind.RemoteExtensionHost:
