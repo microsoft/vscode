@@ -74,7 +74,7 @@ import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js
 import { CodexAppServerClient, JsonRpcError, transportFromChildProcess, type ICodexAppServerClient, type ServerRequestHandlerResult } from './codexAppServerClient.js';
 import { ICodexProxyService, type ICodexProxyHandle } from './codexProxyService.js';
 import { GITHUB_MCP_SERVER_NAME, resolveGitHubMcpServerConfiguration } from '../shared/githubMcpServer.js';
-import { createCodexSessionMapState, extractUserInputText, finalizeCodexTurnMapState, mapAgentMessageDelta, mapCommandExecutionOutputDelta, mapFileChangeOutputDelta, mapFileChangePatchUpdated, mapItemCompleted, mapItemStarted, mapMcpToolCallProgress, mapReasoningSummaryPartAdded, mapReasoningSummaryTextDelta, mapReasoningTextDelta, mapTokenUsageModelCallCompleted, mapTokenUsageUpdated, mapTurnCompleted, mapTurnStarted, type ICodexSessionMapState } from './codexMapAppServerEvents.js';
+import { createCodexSessionMapState, extractUserInputText, finalizeCodexTurnMapState, mapAgentMessageDelta, mapCommandExecutionOutputDelta, mapFileChangeOutputDelta, mapFileChangePatchUpdated, mapItemCompleted, mapItemStarted, mapMcpToolCallProgress, mapReasoningSummaryPartAdded, mapReasoningSummaryTextDelta, mapReasoningTextDelta, mapTokenUsageModelCallCompleted, mapTokenUsageUpdated, mapTurnCompleted, mapTurnPlanUpdated, mapTurnStarted, type ICodexSessionMapState } from './codexMapAppServerEvents.js';
 import type { ThreadTokenUsageUpdatedNotification } from './protocol/generated/v2/ThreadTokenUsageUpdatedNotification.js';
 import { unwrapShellInvocation } from './codexShellCommand.js';
 import { planForkedTurnIdMap, resolveForkBoundary } from './codexForkPlan.js';
@@ -2106,6 +2106,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		this._register(client.onNotification('item/reasoning/summaryTextDelta', params => this._dispatchByThread(params.threadId, s => mapReasoningSummaryTextDelta(s.mapState, this._withHostTurnId(s, params)))));
 		this._register(client.onNotification('item/reasoning/textDelta', params => this._dispatchByThread(params.threadId, s => mapReasoningTextDelta(s.mapState, this._withHostTurnId(s, params)))));
 		this._register(client.onNotification('thread/tokenUsage/updated', params => this._dispatchTokenUsageUpdated(params)));
+		this._register(client.onNotification('turn/plan/updated', params => this._dispatchByThread(params.threadId, s => s.currentTurnId ? mapTurnPlanUpdated(this._withHostTurnId(s, params)) : [])));
 		this._register(client.onNotification('item/completed', params => this._dispatchItemCompleted(params)));
 		this._register(client.onNotification('turn/completed', params => this._dispatchTurnCompleted(params)));
 		// Auto-review (guardian) surfacing. The guardian warning is shown as a

@@ -7,7 +7,7 @@ import assert from 'assert';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { readAgentMessageDelegationMeta } from '../../../common/meta/agentMessageDelegationMeta.js';
-import { createCodexSessionMapState, extractUserInputText, finalizeCodexTurnMapState, mapAgentMessageDelta, mapCommandExecutionOutputDelta, mapFileChangePatchUpdated, mapItemCompleted, mapItemStarted, mapMcpToolCallProgress, mapReasoningSummaryPartAdded, mapReasoningSummaryTextDelta, mapReasoningTextDelta, mapTokenUsageModelCallCompleted, mapTokenUsageUpdated, mapTurnCompleted, mapTurnStarted, resetCodexTurnMapState, turnStateFromStatus } from '../../../node/codex/codexMapAppServerEvents.js';
+import { createCodexSessionMapState, extractUserInputText, finalizeCodexTurnMapState, mapAgentMessageDelta, mapCodexPlanTodos, mapCommandExecutionOutputDelta, mapFileChangePatchUpdated, mapItemCompleted, mapItemStarted, mapMcpToolCallProgress, mapReasoningSummaryPartAdded, mapReasoningSummaryTextDelta, mapReasoningTextDelta, mapTokenUsageModelCallCompleted, mapTokenUsageUpdated, mapTurnCompleted, mapTurnPlanUpdated, mapTurnStarted, resetCodexTurnMapState, turnStateFromStatus } from '../../../node/codex/codexMapAppServerEvents.js';
 import { ActionType, type ChatAction, type SessionAction } from '../../../common/state/sessionActions.js';
 import { chatReducer } from '../../../common/state/protocol/reducers.js';
 import { ChatOriginKind, MessageKind, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolResultContentType, TurnState, type ChatState } from '../../../common/state/sessionState.js';
@@ -263,6 +263,49 @@ suite('codexMapAppServerEvents', () => {
 			turnId: 'turn_a',
 			modelCallId: '100:40:0:60:20:160',
 		});
+	});
+
+	test('turn/plan/updated emits a structured update_plan tool call', () => {
+		const actions = mapTurnPlanUpdated({
+			threadId: 'thr_1',
+			turnId: 'turn_a',
+			explanation: null,
+			plan: [
+				{ step: 'Read the protocol', status: 'completed' },
+				{ step: 'Patch the mapper', status: 'inProgress' },
+				{ step: 'Add tests', status: 'pending' },
+			],
+		});
+		const toolCallId = (actions[0] as { toolCallId: string }).toolCallId;
+		assert.deepStrictEqual(actions, [
+			{ type: ActionType.ChatToolCallStart, turnId: 'turn_a', toolCallId, toolName: 'update_plan', displayName: 'Update todo list' },
+			{ type: ActionType.ChatToolCallReady, turnId: 'turn_a', toolCallId, invocationMessage: 'Updating todo list', confirmed: ToolCallConfirmationReason.NotNeeded },
+			{
+				type: ActionType.ChatToolCallComplete,
+				turnId: 'turn_a',
+				toolCallId,
+				result: {
+					success: true,
+					pastTenseMessage: 'Updated todo list',
+					content: [{
+						type: ToolResultContentType.TodoList,
+						todos: [
+							{ id: 'plan-0', title: 'Read the protocol', status: 'completed' },
+							{ id: 'plan-1', title: 'Patch the mapper', status: 'in-progress' },
+							{ id: 'plan-2', title: 'Add tests', status: 'not-started' },
+						],
+					}],
+				},
+			},
+		]);
+	});
+
+	test('turn/plan/updated drops empty snapshots and untitled steps', () => {
+		assert.deepStrictEqual(mapTurnPlanUpdated({ threadId: 'thr_1', turnId: 'turn_a', explanation: null, plan: [] }), []);
+		assert.deepStrictEqual(mapCodexPlanTodos([
+			{ step: '', status: 'pending' },
+			{ step: 'Do work', status: 'completed' },
+		]), [{ id: 'plan-1', title: 'Do work', status: 'completed' }]);
 	});
 
 	test('contextCompaction item maps to visible running and completed progress', () => {
