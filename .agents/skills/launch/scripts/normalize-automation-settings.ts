@@ -37,7 +37,11 @@ const ENTRIES: [string, string][] = [
 // regular file holding its current contents before writing anything.
 try {
 	if (fs.lstatSync(f).isSymbolicLink()) {
-		const contents = fs.readFileSync(f, 'utf8');
+		// A dangling link has no contents to preserve, but it must still be
+		// replaced: writing through it would create the target *outside* the
+		// throwaway profile.
+		let contents = '';
+		try { contents = fs.readFileSync(f, 'utf8'); } catch { contents = ''; }
 		fs.unlinkSync(f);
 		fs.writeFileSync(f, contents);
 	}
@@ -97,6 +101,13 @@ function codeMask(src: string): string {
 	return out.join('');
 }
 
+// Decode a JSON string body (the text between the quotes) so keys are compared
+// by value rather than by source spelling.
+function decodeJsonString(raw: string): string {
+	if (!raw.includes('\\')) { return raw; }
+	try { return JSON.parse('"' + raw + '"') as string; } catch { return raw; }
+}
+
 // Locate `"key": <primitive>` pairs, tracking nesting and string state so an
 // occurrence embedded in a string value is never mistaken for the real setting.
 //
@@ -135,7 +146,9 @@ function findProperties(masked: string, key: string): { root: Span | null; neste
 			if (c === '\\') { i++; continue; }
 			if (c === '"') {
 				inString = false;
-				if (depth >= 1) { pendingKey[depth] = masked.slice(keyStart + 1, i); }
+				// Compare decoded keys: VS Code parses `"\u005btypescript\u005d"`
+				// as `[typescript]`, so the raw source spelling would miss it.
+				if (depth >= 1) { pendingKey[depth] = decodeJsonString(masked.slice(keyStart + 1, i)); }
 			}
 			continue;
 		}
@@ -198,6 +211,13 @@ function findRootObject(masked: string): { open: number; close: number } {
 	const open = masked.indexOf('{');
 	if (open === -1) {
 		console.error('[normalize-automation-settings] settings.json has no opening brace - refusing to clobber it: ' + f);
+		process.exit(1);
+	}
+	// Nothing but trivia (comments are already blanked) may precede the root
+	// object, or `junk { "a": 1 }` would be rewritten and reported as success
+	// even though VS Code cannot read it.
+	if (masked.slice(0, open).replace(/^\uFEFF/, '').trim() !== '') {
+		console.error('[normalize-automation-settings] settings.json has content before the root object - refusing to clobber it: ' + f);
 		process.exit(1);
 	}
 	// Track the delimiter *types*, not just the nesting depth: counting alone

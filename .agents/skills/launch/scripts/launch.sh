@@ -195,12 +195,7 @@ if [[ ! -x "$CODE_SH" ]]; then
 	exit 2
 fi
 
-# --sync=off: the cloned profile keeps application storage, which is where
-# settings-sync enablement lives, so a source profile with sync on would treat
-# this run's automation-only overrides as local edits and upload them to the
-# user's real synced settings. Forcing it off keeps the profile throwaway.
 ARGS=(
-	"--sync=off"
 	"--user-data-dir=$DEST_UDD"
 	"--extensions-dir=$EXT_DIR"
 	"--shared-data-dir=$SHARED_DATA_DIR"
@@ -218,6 +213,14 @@ fi
 if (( ${#EXTRA_ARGS[@]} )); then
 	ARGS+=("${EXTRA_ARGS[@]}")
 fi
+# --sync=off: the cloned profile keeps application storage, which is where
+# settings-sync enablement lives, so a source profile with sync on would treat
+# this run's automation-only overrides as local edits and upload them to the
+# user's real synced settings. Forcing it off keeps the profile throwaway.
+#
+# Appended *after* EXTRA_ARGS deliberately: for string options VS Code keeps the
+# last occurrence, so a forwarded `-- --sync=on` would otherwise win.
+ARGS+=("--sync=off")
 
 LOG_FILE="$RUN_DIR/code.log"
 echo "[launch.sh] launching: $CODE_SH ${ARGS[*]}" >&2

@@ -180,6 +180,39 @@ async function waitForSmokeTestDriver(page: PlaywrightPage, timeoutMs: number): 
 }
 
 /**
+ * `Code.editContextEnabled` is unconditionally `true` for a dev build, so every
+ * text-input page object waits for `.native-edit-context`. The launcher forces
+ * `editor.editContext: true` in the profile, but that only covers *user* scope:
+ * `editor.*` settings are `LANGUAGE_OVERRIDABLE` and also valid at workspace and
+ * folder scope, and those models are merged after user configuration. A launched
+ * workspace whose `.vscode/settings.json` disables the setting therefore renders
+ * a `textarea` and the page objects time out 20s later on a selector that never
+ * appears.
+ *
+ * Detect that here, where the cause is still obvious. Only a rendered editor can
+ * answer the question, so this is a no-op when none is open yet - it converts a
+ * mystery timeout into an actionable message whenever it can, and never blocks
+ * an otherwise healthy attach.
+ */
+async function assertEditContextMode(page: PlaywrightPage): Promise<void> {
+	const mismatched = await page.evaluate(() => {
+		const editors = Array.from(document.querySelectorAll('.monaco-editor'));
+		return editors.some(editor =>
+			editor.querySelector('textarea.inputarea') !== null &&
+			editor.querySelector('.native-edit-context') === null);
+	});
+	if (mismatched) {
+		throw new Error(
+			'This window renders Monaco with a `textarea` rather than `.native-edit-context`, ' +
+			'so the automation page objects would time out on every text input. The launcher ' +
+			'normalizes `editor.editContext` in the profile, but workspace and folder settings ' +
+			'are merged after it: check for `editor.editContext: false` in the opened ' +
+			'workspace\'s `.vscode/settings.json` (or a `[language]` override there) and remove it.'
+		);
+	}
+}
+
+/**
  * Attach the `test/automation` page objects to a running Code OSS instance.
  *
  * @param cdpPort `cdpPort` from the launcher (`launch.sh` / `launch.ps1`) JSON output.
@@ -237,6 +270,7 @@ export async function attach(cdpPort: number | string, options: IAttachOptions =
 		const deadline = Date.now() + timeoutMs;
 		const page = await findPage(context, PAGE_URL_HINTS[windowKind], timeoutMs);
 		await waitForSmokeTestDriver(page, Math.max(deadline - Date.now(), 1_000));
+		await assertEditContextMode(page);
 
 		const logger = { log: (...args: unknown[]) => { if (verbose) { console.error('[automation]', ...args); } } };
 		const launchOptions = {

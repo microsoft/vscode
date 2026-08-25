@@ -498,11 +498,6 @@ try {
 	if ($agents) {
 		$launchArgs.Add('--agents')
 	}
-	# --sync=off: the cloned profile keeps application storage, which is where
-	# settings-sync enablement lives, so a source profile with sync on would
-	# treat this run's automation-only overrides as local edits and upload them
-	# to the user's real synced settings. Forcing it off keeps it throwaway.
-	$launchArgs.Add('--sync=off')
 	$launchArgs.Add("--user-data-dir=$destinationUdd")
 	$launchArgs.Add("--extensions-dir=$extensionsDir")
 	$launchArgs.Add("--shared-data-dir=$sharedDataDir")
@@ -516,6 +511,14 @@ try {
 	foreach ($argument in $extraArgs) {
 		$launchArgs.Add($argument)
 	}
+	# --sync=off: the cloned profile keeps application storage, which is where
+	# settings-sync enablement lives, so a source profile with sync on would
+	# treat this run's automation-only overrides as local edits and upload them
+	# to the user's real synced settings. Forcing it off keeps it throwaway.
+	#
+	# Added *after* $extraArgs deliberately: for string options VS Code keeps
+	# the last occurrence, so a forwarded `--sync=on` would otherwise win.
+	$launchArgs.Add('--sync=off')
 
 	Write-LaunchError "[launch.ps1] launching: $codeBat $($launchArgs -join ' ')"
 	Write-LaunchError "[launch.ps1] logs: $logFile"

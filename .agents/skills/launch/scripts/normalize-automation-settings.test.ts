@@ -47,12 +47,15 @@ function parseJsonc(text: string): Record<string, unknown> {
 		if (c === '"') { inString = true; }
 		out += c;
 	}
-	return JSON.parse(out.replace(/,(\s*[}\]])/g, '$1'));
+	return JSON.parse(out.replace(/^\uFEFF/, '').replace(/,(\s*[}\]])/g, '$1'));
 }
 
-function normalize(content: string): { status: number; text: string } {
+/** `undefined` content means "no settings.json at all", exercising the ENOENT path. */
+function normalize(content: string | undefined): { status: number; text: string } {
 	const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'nas-')), 'settings.json');
-	fs.writeFileSync(file, content);
+	if (content !== undefined) {
+		fs.writeFileSync(file, content);
+	}
 	let status = 0;
 	try {
 		execFileSync(process.execPath, [script, file], { stdio: 'pipe' });
@@ -80,8 +83,9 @@ function assertNoContradictingOverride(root: Record<string, unknown>): void {
 	}
 }
 
-const valid: [name: string, content: string][] = [
-	['missing file', ''],
+const valid: [name: string, content: string | undefined][] = [
+	['missing file', undefined],
+	['empty file', ''],
 	['empty object', '{}'],
 	['object on its own lines', '{\n}\n'],
 	['unrelated key', '{ "a": 1 }'],
@@ -113,6 +117,8 @@ const valid: [name: string, content: string][] = [
 	['occurrence inside an array', '{ "a": [1, 2, { "editor.editContext": false }] }'],
 	['multi-language override key', '{ "[typescript][javascript]": { "editor.editContext": false } }'],
 	['array value at the root', '{ "a": [1, 2] }'],
+	['unicode-escaped override key', '{ "\\u005btypescript\\u005d": { "editor.editContext": false } }'],
+	['BOM before the root object', '\uFEFF{ "a": 1 }'],
 ];
 
 for (const [name, content] of valid) {
@@ -135,6 +141,7 @@ const malformed: [name: string, content: string][] = [
 	['no braces at all', 'no braces at all'],
 	['mismatched closing delimiter', '{]'],
 	['mismatched nested delimiter', '{ "a": [1, 2} }'],
+	['content before the root object', 'junk { "a": 1 }'],
 	// Both keys already present means every entry takes the rewrite path, so the
 	// structural check has to run before any of them rather than lazily.
 	['malformed but both keys already present', '{ "files.simpleDialog.enable": false, "editor.editContext": false, "b": { "c": 2 }\n'],
@@ -178,6 +185,30 @@ test('never writes through a symlink', () => {
 	execFileSync(process.execPath, [script, link], { stdio: 'pipe' });
 
 	assert.strictEqual(fs.readFileSync(real, 'utf8'), '{ "a": 1 }\n', 'the link target must be untouched');
+	assert.strictEqual(fs.lstatSync(link).isSymbolicLink(), false, 'the link must be materialized');
+	assert.strictEqual(parseJsonc(fs.readFileSync(link, 'utf8'))['editor.editContext'], true);
+});
+
+// `"\u005btypescript\u005d"` decodes to `[typescript]`, so it is a real language
+// override even though its source spelling contains no brackets.
+test('recognizes a unicode-escaped override key', () => {
+	const { status, text } = normalize('{ "\\u005btypescript\\u005d": { "editor.editContext": false } }');
+	assert.strictEqual(status, 0);
+	const parsed = parseJsonc(text) as Record<string, Record<string, unknown>>;
+	assert.strictEqual(parsed['[typescript]']['editor.editContext'], true);
+});
+
+// A dangling link must be replaced rather than written through, or the write
+// would create its target outside the throwaway profile.
+test('replaces a dangling symlink instead of creating its target', () => {
+	const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'nas-dangling-'));
+	const target = path.join(dir, 'missing.json');
+	const link = path.join(dir, 'settings.json');
+	fs.symlinkSync(target, link);
+
+	execFileSync(process.execPath, [script, link], { stdio: 'pipe' });
+
+	assert.strictEqual(fs.existsSync(target), false, 'the link target must not be created');
 	assert.strictEqual(fs.lstatSync(link).isSymbolicLink(), false, 'the link must be materialized');
 	assert.strictEqual(parseJsonc(fs.readFileSync(link, 'utf8'))['editor.editContext'], true);
 });
