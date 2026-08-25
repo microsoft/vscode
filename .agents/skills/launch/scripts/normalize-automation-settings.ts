@@ -111,6 +111,12 @@ function assertSimpleDialogForWorkspaceArgs(args: string[]): void {
 	]);
 	for (let i = 0; i < args.length; i++) {
 		const argument = args[i];
+		if (argument === '--profile' || argument.startsWith('--profile=') ||
+			argument === '--profile-temp' || argument.startsWith('--profile-temp=')) {
+			console.error('[normalize-automation-settings] forwarded profile creation is not supported: ' + argument +
+				'. Remove it so every launched profile can be normalized before Code OSS starts');
+			process.exit(1);
+		}
 		if (argument === '--folder-uri' || argument === '--file-uri') {
 			const kind = argument;
 			const uri = args[++i] ?? '';

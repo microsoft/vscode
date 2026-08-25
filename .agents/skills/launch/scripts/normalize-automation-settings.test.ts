@@ -471,6 +471,15 @@ test('does not mistake an extension development path for the opened workspace', 
 
 	assert.strictEqual(workspaceCheckStatus(['--extensionDevelopmentPath', root]), 0);
 });
+
+test('rejects forwarded profile creation after normalization', () => {
+	assert.deepStrictEqual([
+		workspaceCheckStatus(['--profile', 'new-profile']),
+		workspaceCheckStatus(['--profile=new-profile']),
+		workspaceCheckStatus(['--profile-temp'])
+	], [1, 1, 1]);
+});
+
 // `rsync -a` preserves symlinked *directories* too, so a linked `User` or
 // `User/profiles/<id>` reaches the merge with an ordinary-looking file path that
 // still resolves outside the throwaway profile. Writing there would edit the
