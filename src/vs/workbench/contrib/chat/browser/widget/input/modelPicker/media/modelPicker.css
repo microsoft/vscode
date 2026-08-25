@@ -11,7 +11,6 @@
 	padding: 0;
 	overflow: visible;
 	height: auto;
-	border-radius: 0;
 	position: relative;
 	cursor: default;
 }
@@ -19,13 +18,21 @@
 .chat-input-picker-item .action-label.model-picker-split .model-picker-section {
 	display: flex;
 	align-items: center;
-	height: 16px;
-	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size60);
-	border-radius: 4px;
+	box-sizing: border-box;
+	height: 22px;
+	padding: 0 var(--vscode-spacing-size60);
+	border-radius: inherit;
 	cursor: pointer;
 	text-decoration: none;
 	color: inherit;
 	white-space: nowrap;
+}
+
+.interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.model-picker-split.compact:not(:has(.chat-input-picker-label)) .model-picker-section {
+	width: 100%;
+	height: 100%;
+	padding: 0;
+	justify-content: center;
 }
 
 .chat-input-picker-item .action-label.model-picker-split:hover,
