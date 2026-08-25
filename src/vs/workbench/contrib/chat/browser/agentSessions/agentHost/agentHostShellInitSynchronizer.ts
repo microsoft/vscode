@@ -111,15 +111,16 @@ export class AgentHostShellInitSynchronizer extends Disposable implements IAgent
 			return;
 		}
 
-		const enabled = this._configurationService.getValue<boolean>(AgentHostShellToolInitScriptEnabledSettingId) !== false;
-		const folder = enabled ? this._resolveFolder(state) : undefined;
-		// Only the window that owns the session's workspace folder may publish.
-		// Other windows can subscribe to the same shared session state; publishing
-		// a profile-only script from them would fight the owning window forever.
-		if (enabled && !folder) {
+		// Only the window that owns the session's workspace folder may publish,
+		// including the clearing dispatch when the setting is off. Other windows
+		// can subscribe to the same shared session state; a non-owning window
+		// clearing the value would fight an owning window that re-publishes it.
+		const folder = this._resolveFolder(state);
+		if (!folder) {
 			return;
 		}
-		const desired = enabled && folder
+		const enabled = this._configurationService.getValue<boolean>(AgentHostShellToolInitScriptEnabledSettingId) !== false;
+		const desired = enabled
 			? [createShellInitScript(TOOL_SHELL, this._readPythonActivation(folder))]
 			: [];
 		const current = state.config.values[SessionConfigKey.ShellInitSnippets] as readonly IShellInitScript[] | undefined;

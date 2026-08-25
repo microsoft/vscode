@@ -983,6 +983,11 @@ export class CopilotAgentSession extends Disposable {
 	private _lastAppliedShellInitScripts: string | undefined;
 	private readonly _shellInitScriptSequencer = new Sequencer();
 	private _shellInitScriptDisposing = false;
+	/**
+	 * Scopes this instance's script files so a disposed predecessor's queued
+	 * cleanup for the same SDK session cannot delete a successor's live script.
+	 */
+	private readonly _shellInitScriptInstanceId = generateUuid().substring(0, 8);
 	private readonly _launchPlan: CopilotSessionLaunchPlan;
 	private readonly _isLaunchTokenStillCurrent: () => boolean;
 	/** Notifies the agent that this chat's turn ended. See {@link ICopilotAgentSessionOptions.onTurnEnded}. */
@@ -3464,9 +3469,23 @@ export class CopilotAgentSession extends Disposable {
 		return [this._shellInitScriptDirectory().fsPath];
 	}
 
+	/**
+	 * Session-scoped root granted to the sandbox; stable across instances of
+	 * the same SDK session so replacements do not churn the sandbox policy.
+	 */
 	private _shellInitScriptDirectory(): URI {
 		const sessionId = this.sessionId.replace(/[^a-zA-Z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').substring(0, 128) || 'session';
 		return URI.joinPath(URI.file(this._environmentService.userDataPath), 'agentHost', 'shellInit', sessionId);
+	}
+
+	/**
+	 * Where this instance writes and deletes its script. Instance-scoped because
+	 * {@link dispose} queues the deletion without awaiting it: a resumed
+	 * replacement for the same SDK session can register its script first, and a
+	 * shared directory would let the stale cleanup remove the live file.
+	 */
+	private _shellInitScriptInstanceDirectory(): URI {
+		return URI.joinPath(this._shellInitScriptDirectory(), this._shellInitScriptInstanceId);
 	}
 
 	/**
@@ -3661,7 +3680,7 @@ export class CopilotAgentSession extends Disposable {
 			return [];
 		}
 		const script = scripts[0];
-		const resource = URI.joinPath(this._shellInitScriptDirectory(), script.shell === 'powershell' ? 'init.ps1' : 'init.sh');
+		const resource = URI.joinPath(this._shellInitScriptInstanceDirectory(), script.shell === 'powershell' ? 'init.ps1' : 'init.sh');
 		const atomic = this._fileService.hasCapability(resource, FileSystemProviderCapabilities.FileAtomicWrite)
 			? { postfix: '.vsctmp' }
 			: false;
@@ -3676,7 +3695,7 @@ export class CopilotAgentSession extends Disposable {
 
 	private async _clearShellInitScript(): Promise<void> {
 		try {
-			await this._fileService.del(this._shellInitScriptDirectory(), { recursive: true });
+			await this._fileService.del(this._shellInitScriptInstanceDirectory(), { recursive: true });
 		} catch (error) {
 			if (!(error instanceof Error) || toFileOperationResult(error) !== FileOperationResult.FILE_NOT_FOUND) {
 				this._logService.warn(`[Copilot:${this.sessionId}] Failed to remove shell init script: ${getErrorMessage(error)}`);

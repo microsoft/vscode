@@ -1023,10 +1023,12 @@ function expectedSnapshotReadonlyNote(paths: string[]): string {
 		+ paths.map(path => `- ${path}`).join('\n');
 }
 
-/** Shell init directory the test materializer reports, granted read access in every sandbox policy. */
+/**
+ * Session-scoped shell init root granted read access in every sandbox policy.
+ * Scripts land in an instance-scoped subdirectory beneath it.
+ */
 const TEST_SHELL_INIT_DIRECTORY = URI.file('/mock-userdata/agentHost/shellInit/test-session-1');
 const TEST_SHELL_INIT_DIR = TEST_SHELL_INIT_DIRECTORY.fsPath;
-const TEST_SHELL_INIT_SCRIPT = URI.joinPath(TEST_SHELL_INIT_DIRECTORY, 'init.sh').fsPath;
 
 suite('CopilotAgentSession', () => {
 
@@ -11674,9 +11676,8 @@ suite('CopilotAgentSession', () => {
 			setConfigValue(SessionConfigKey.ShellInitSnippets, [initScript]);
 
 			await session.send('go', undefined, 'turn-1', 'interactive');
-			assert.deepStrictEqual(mockSession.shellInitScriptUpdates.at(-1), [
-				{ shell: 'bash', path: TEST_SHELL_INIT_SCRIPT },
-			]);
+			const scriptPath = (mockSession.shellInitScriptUpdates.at(-1) as Array<{ path: string }>)?.[0]?.path;
+			assert.ok(scriptPath?.startsWith(TEST_SHELL_INIT_DIR) && scriptPath.endsWith('init.sh'), String(scriptPath));
 
 			const afterFirst = mockSession.shellInitScriptUpdates.length;
 			await session.send('go', undefined, 'turn-2', 'interactive');
@@ -11689,10 +11690,26 @@ suite('CopilotAgentSession', () => {
 			setConfigValue(SessionConfigKey.ShellInitSnippets, []);
 			await session.send('go', undefined, 'turn-3', 'interactive');
 			assert.deepStrictEqual(mockSession.shellInitScriptUpdates, [
-				[{ shell: 'bash', path: TEST_SHELL_INIT_SCRIPT }],
-				[{ shell: 'bash', path: TEST_SHELL_INIT_SCRIPT }],
+				[{ shell: 'bash', path: scriptPath }],
+				[{ shell: 'bash', path: scriptPath }],
 				[],
 			]);
+		});
+
+		test('each instance owns a distinct directory so a stale cleanup cannot delete a successor script', async () => {
+			// dispose() queues the deletion without awaiting it; a resumed
+			// replacement for the same SDK session may register its script first.
+			const first = await createAgentSession(disposables);
+			const second = await createAgentSession(disposables);
+			first.setConfigValue(SessionConfigKey.ShellInitSnippets, [initScript]);
+			second.setConfigValue(SessionConfigKey.ShellInitSnippets, [initScript]);
+
+			await first.session.send('go', undefined, 'turn-1', 'interactive');
+			await second.session.send('go', undefined, 'turn-1', 'interactive');
+
+			const firstPath = (first.mockSession.shellInitScriptUpdates.at(-1) as Array<{ path: string }>)?.[0]?.path;
+			const secondPath = (second.mockSession.shellInitScriptUpdates.at(-1) as Array<{ path: string }>)?.[0]?.path;
+			assert.ok(firstPath && secondPath && firstPath !== secondPath, `${firstPath} vs ${secondPath}`);
 		});
 
 		test('does nothing when the custom terminal tool replaces the SDK shell', async () => {
@@ -11710,11 +11727,11 @@ suite('CopilotAgentSession', () => {
 			const { session, storedFileContents, setConfigValue } = await createAgentSession(disposables);
 			setConfigValue(SessionConfigKey.ShellInitSnippets, [initScript]);
 			await session.send('go', undefined, 'turn-1', 'interactive');
-			assert.ok([...storedFileContents.keys()].some(key => key.includes('/test-session-1/init.sh')));
+			assert.ok([...storedFileContents.keys()].some(key => key.includes('/test-session-1/') && key.endsWith('init.sh')));
 
 			session.dispose();
 			await timeout(0);
-			assert.ok(![...storedFileContents.keys()].some(key => key.includes('/test-session-1/init.sh')));
+			assert.ok(![...storedFileContents.keys()].some(key => key.includes('/test-session-1/') && key.endsWith('init.sh')));
 		});
 
 		test('grants the shell init directory read access in the sandbox policy', async () => {
