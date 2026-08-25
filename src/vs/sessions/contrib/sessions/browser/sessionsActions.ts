@@ -1431,6 +1431,7 @@ registerAction2(class RenameSessionHeaderAction extends Action2 {
 		super({
 			id: 'sessions.sessionHeader.rename',
 			title: localize2('renameSessionHeader', "Rename..."),
+			icon: Codicon.edit,
 			menu: [{
 				id: Menus.SessionHeaderContext,
 				group: '2_edit',
