@@ -135,6 +135,9 @@ steps:
   - powershell: node build/azure-pipelines/distro/mixin-quality.ts
     displayName: Mixin distro quality
 
+  - powershell: node build/npm/electronTypes.ts
+    displayName: Prepare Electron types
+
   # Start pulling the CG-generated NOTICE from the parallel Quality stage
   # in the background (overwrites repo-root ThirdPartyNotices.txt before packaging).
   # Publish builds only (CIBUILD=false) — CI test jobs never ship a notice.

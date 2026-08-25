@@ -108,6 +108,9 @@ steps:
     env:
       VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
 
+  - script: node build/npm/electronTypes.ts
+    displayName: Prepare Electron types
+
   - template: ../common/install-builtin-extensions.yml@self
 
   - template: ../common/mixin-vscode-capi.yml@self
