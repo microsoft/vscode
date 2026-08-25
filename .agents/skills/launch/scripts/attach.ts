@@ -9,7 +9,7 @@
  *
  * The smoke-test harness normally *spawns* Electron via
  * `playwright._electron.launch()` and keeps the resulting `ElectronApplication`.
- * `launch.sh` has already spawned a window, so instead we hand `PlaywrightDriver`
+ * The launcher has already spawned a window, so instead we hand `PlaywrightDriver`
  * a `Browser` obtained from `chromium.connectOverCDP()`. The driver only uses
  * that object for `windows()` / `close()` and already branches on
  * `'windows' in application`, so a CDP `Browser` works in its place.
@@ -154,7 +154,7 @@ async function findPage(context: PlaywrightContext, urlHint: RegExp | undefined,
 }
 
 /**
- * `launch.sh` treats the endpoint as ready as soon as `/json/version` responds,
+ * The launcher treats the endpoint as ready as soon as `/json/version` responds,
  * which can happen before the workbench has run `setupDriver()`. Poll rather
  * than sampling once, so a correctly launched instance is not misreported as
  * missing the flag purely because it was still starting up.
@@ -171,7 +171,8 @@ async function waitForSmokeTestDriver(page: PlaywrightPage, timeoutMs: number): 
 			throw new Error(
 				`window.driver was still not registered after ${timeoutMs}ms, so the automation page ` +
 				'objects cannot work. This usually means the window was launched without the ' +
-				'smoke-test driver: relaunch with `launch.sh -- --enable-smoke-test-driver`.'
+				'smoke-test driver: relaunch with `launch.sh` (or `launch.ps1` on Windows) and ' +
+				'pass `-- --enable-smoke-test-driver`.'
 			);
 		}
 		await new Promise(resolve => setTimeout(resolve, 250));
@@ -181,7 +182,7 @@ async function waitForSmokeTestDriver(page: PlaywrightPage, timeoutMs: number): 
 /**
  * Attach the `test/automation` page objects to a running Code OSS instance.
  *
- * @param cdpPort `cdpPort` from the `launch.sh` JSON output.
+ * @param cdpPort `cdpPort` from the launcher (`launch.sh` / `launch.ps1`) JSON output.
  * @param options See {@link IAttachOptions}.
  */
 export async function attach(cdpPort: number | string, options: IAttachOptions = {}): Promise<IAttachedSession> {
@@ -194,7 +195,7 @@ export async function attach(cdpPort: number | string, options: IAttachOptions =
 	} = options;
 
 	if (cdpPort === undefined || cdpPort === null || `${cdpPort}`.trim() === '') {
-		throw new Error('attach(cdpPort) requires the cdpPort printed by launch.sh.');
+		throw new Error('attach(cdpPort) requires the cdpPort printed by the launcher (launch.sh / launch.ps1).');
 	}
 	// The port is interpolated into the endpoint URL, so anything other than a
 	// plain port number could rewrite the URL authority (`80@example.com:9222`)
@@ -223,7 +224,7 @@ export async function attach(cdpPort: number | string, options: IAttachOptions =
 	} catch (error) {
 		throw new Error(
 			`Could not connect to Code OSS over CDP at ${endpoint}: ${error instanceof Error ? error.message : error}. ` +
-			`Confirm the instance is still running and that this is the cdpPort from its launch.sh output.`
+			`Confirm the instance is still running and that this is the cdpPort from its launcher output.`
 		);
 	}
 
@@ -247,7 +248,7 @@ export async function attach(cdpPort: number | string, options: IAttachOptions =
 		};
 
 		// `serverProcess` and `safeToKill` are only consulted when the harness owns
-		// the process lifetime. Here launch.sh owns it, so both are omitted and the
+		// the process lifetime. Here the launcher owns it, so both are omitted and the
 		// caller kills the pid from its JSON output.
 		const driver = new PlaywrightDriver(browser, context, page, undefined, Promise.resolve(), launchOptions, undefined);
 		const code = new Code(driver, logger, undefined, undefined, Quality.Dev, launchOptions.version);
@@ -256,8 +257,8 @@ export async function attach(cdpPort: number | string, options: IAttachOptions =
 		// otherwise fail obscurely on `this.mainProcess.pid`. Replace it with an
 		// explanation of what to do instead.
 		code.exit = () => Promise.reject(new Error(
-			'Code.exit() is not available on an attached instance, because launch.sh owns the process. ' +
-			'Call detach() to disconnect, then kill the `pid` from the launch.sh JSON output.'
+			'Code.exit() is not available on an attached instance, because the launcher owns the process. ' +
+			'Call detach() to disconnect, then kill the `pid` from the launcher JSON output.'
 		));
 
 		// `window.driver` is registered by `setupDriver()`, which runs before the

@@ -128,6 +128,42 @@ function findRootProperty(masked: string, key: string): { valueStart: number; va
 	return found;
 }
 
+// Locate the root object and prove it is balanced before rewriting anything.
+// `lastIndexOf('}')` alone would happily treat a *nested* closing brace as the
+// root close in a truncated file, and the new keys would then be inserted
+// inside that nested setting while the launcher reported success.
+function findRootObject(masked: string): { open: number; close: number } {
+	const open = masked.indexOf('{');
+	if (open === -1) {
+		console.error('[normalize-automation-settings] settings.json has no opening brace - refusing to clobber it: ' + f);
+		process.exit(1);
+	}
+	let depth = 0, inString = false;
+	for (let i = open; i < masked.length; i++) {
+		const c = masked[i];
+		if (inString) {
+			if (c === '\\') { i++; } else if (c === '"') { inString = false; }
+			continue;
+		}
+		if (c === '"') { inString = true; continue; }
+		if (c === '{' || c === '[') { depth++; continue; }
+		if (c === '}' || c === ']') {
+			depth--;
+			if (depth === 0) {
+				// Nothing but trivia may follow the root object.
+				const rest = masked.slice(i + 1).trim();
+				if (rest !== '') {
+					console.error('[normalize-automation-settings] settings.json has trailing content after the root object - refusing to clobber it: ' + f);
+					process.exit(1);
+				}
+				return { open, close: i };
+			}
+		}
+	}
+	console.error('[normalize-automation-settings] settings.json root object is not closed - refusing to clobber it: ' + f);
+	process.exit(1);
+}
+
 for (const [key, value] of ENTRIES) {
 	const masked = codeMask(text);
 
@@ -140,16 +176,7 @@ for (const [key, value] of ENTRIES) {
 		continue;
 	}
 
-	const lastBrace = masked.lastIndexOf('}');
-	if (lastBrace === -1) {
-		console.error('[normalize-automation-settings] settings.json has no closing brace - refusing to clobber it: ' + f);
-		process.exit(1);
-	}
-	const firstBrace = masked.indexOf('{');
-	if (firstBrace === -1 || firstBrace >= lastBrace) {
-		console.error('[normalize-automation-settings] settings.json has no opening brace - refusing to clobber it: ' + f);
-		process.exit(1);
-	}
+	const { open: firstBrace, close: lastBrace } = findRootObject(masked);
 
 	// Decide the separator from real content only.
 	const between = masked.slice(firstBrace + 1, lastBrace);
