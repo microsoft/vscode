@@ -1105,7 +1105,7 @@ suite('SessionsManagementService', () => {
 		});
 	});
 
-	test('sendNewChatRequest with background resolves before provider send commits', async () => {
+	test('sendNewChatRequest with background resolves before preparation and routes the replacement in the background', async () => {
 		const chat: IChat = { ...stubChat, resource: URI.parse('test:///chat') };
 		const session = stubSession({
 			sessionId: 's1',
@@ -1113,26 +1113,70 @@ suite('SessionsManagementService', () => {
 			chats: constObservable([chat]),
 			mainChat: constObservable(chat),
 		});
+		const replacementChat: IChat = { ...stubChat, resource: URI.parse('replacement:///chat') };
+		const replacement = stubSession({
+			sessionId: 's2',
+			providerId: 'replacement',
+			chats: constObservable([replacementChat]),
+			mainChat: constObservable(replacementChat),
+		});
 		let completeSendRequest: (() => void) | undefined;
+		const preparation = new DeferredPromise<void>();
+		const sendRequestStartedBarrier = new DeferredPromise<void>();
+		const deleted: string[] = [];
+		const replacements: string[] = [];
+		let preparationStarted = false;
 		let sendRequestStarted = false;
-		const provider = new class extends TestSessionsProvider {
-			override async sendRequest(_sessionId: string, _chatResource: URI, _options: ISendRequestOptions): Promise<ISession> {
+		let sentSessionId: string | undefined;
+		const originalProvider = new class extends TestSessionsProvider {
+			override async prepareNewSession() {
+				preparationStarted = true;
+				await preparation.p;
+				return { session: replacement };
+			}
+			override deleteNewSession(sessionId: string): void {
+				deleted.push(sessionId);
+			}
+		}(session);
+		const replacementProvider = new class extends TestSessionsProvider {
+			override readonly id = 'replacement';
+			override async sendRequest(sessionId: string, _chatResource: URI, _options: ISendRequestOptions): Promise<ISession> {
+				sentSessionId = sessionId;
 				sendRequestStarted = true;
+				await sendRequestStartedBarrier.complete();
 				await new Promise<void>(resolve => {
 					completeSendRequest = resolve;
 				});
-				return session;
+				return replacement;
 			}
-		}(session);
-		const { service } = createSessionsManagementService(session, disposables, provider);
+		}(replacement);
+		const { service } = createSessionsManagementService(session, disposables, [originalProvider, replacementProvider]);
+		disposables.add(service.onDidReplaceNewDraftSession(({ from, to }) => replacements.push(`${from.sessionId}->${to.sessionId}`)));
 
-		// The background send is fire-and-forget: the promise resolves before
-		// the provider's `sendRequest` commits.
 		const sendPromise = service.sendNewChatRequest(session, { query: 'hi', background: true });
 		await sendPromise;
 
-		assert.strictEqual(sendRequestStarted, true);
+		assert.deepStrictEqual({
+			preparationStarted,
+			sendRequestStarted,
+			deleted,
+		}, {
+			preparationStarted: true,
+			sendRequestStarted: false,
+			deleted: [],
+		});
 
+		await preparation.complete();
+		await sendRequestStartedBarrier.p;
+		assert.deepStrictEqual({
+			deleted,
+			replacements,
+			sentSessionId,
+		}, {
+			deleted: ['s1'],
+			replacements: [],
+			sentSessionId: 's2',
+		});
 		completeSendRequest?.();
 	});
 
