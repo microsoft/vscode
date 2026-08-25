@@ -52,8 +52,7 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 import { IRemoteUserDataProfilesService } from '../../../services/userDataProfile/common/remoteUserDataProfiles.js';
 import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
-import { CHAT_CONFIG_MENU_ID } from '../../chat/browser/actions/chatActions.js';
-import { ChatViewId, IChatWidgetService } from '../../chat/browser/chat.js';
+import { IChatWidgetService } from '../../chat/browser/chat.js';
 import { IAgentHostCustomizationService } from '../../chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { setAgentHostPluginEnablement } from '../../chat/browser/agentPluginActions.js';
 import { IAICustomizationWorkspaceService } from '../../chat/common/aiCustomizationWorkspaceService.js';
@@ -1496,16 +1495,6 @@ export class ShowInstalledMcpServersCommand extends Action2 {
 		}
 	}
 }
-
-MenuRegistry.appendMenuItem(CHAT_CONFIG_MENU_ID, {
-	command: {
-		id: McpCommandIds.ShowInstalled,
-		title: localize2('mcp.servers', "MCP Servers")
-	},
-	when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('view', ChatViewId)),
-	order: 10,
-	group: '2_level'
-});
 
 abstract class OpenMcpResourceCommand extends Action2 {
 	protected abstract getURI(accessor: ServicesAccessor): Promise<URI>;

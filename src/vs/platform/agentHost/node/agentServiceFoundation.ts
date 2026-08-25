@@ -35,7 +35,7 @@ export class AgentServiceCallbackAdapter implements IAgentServiceCallbackBinder 
 		createSession: config => this.value.sessionServerToolAccessor.createSession(config),
 		getModels: () => this.value.sessionServerToolAccessor.getModels(),
 		getCreationDefaults: source => this.value.sessionServerToolAccessor.getCreationDefaults(source),
-		startPrompt: (session, chat, prompt) => this.value.sessionServerToolAccessor.startPrompt(session, chat, prompt),
+		startPrompt: (session, chat, prompt, delegation) => this.value.sessionServerToolAccessor.startPrompt(session, chat, prompt, delegation),
 		createChat: (session, chat, options) => this.value.sessionServerToolAccessor.createChat(session, chat, options),
 		renameChat: (session, chat, title) => this.value.sessionServerToolAccessor.renameChat(session, chat, title),
 		reportToolError: (toolName, error) => this.value.sessionServerToolAccessor.reportToolError(toolName, error),
@@ -43,7 +43,6 @@ export class AgentServiceCallbackAdapter implements IAgentServiceCallbackBinder 
 		getChatContext: (session, chatId) => this.value.sessionServerToolAccessor.getChatContext(session, chatId),
 		getSessionSpawnDepth: session => this.value.sessionServerToolAccessor.getSessionSpawnDepth(session),
 		setSessionSpawnDepth: (session, depth) => this.value.sessionServerToolAccessor.setSessionSpawnDepth(session, depth),
-		setSessionOrchestration: (session, orchestration) => this.value.sessionServerToolAccessor.setSessionOrchestration(session, orchestration),
 	};
 
 	readonly artifactServerToolAccessor: IArtifactServerToolAccessor = {

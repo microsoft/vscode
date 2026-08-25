@@ -14,9 +14,12 @@ import { AGENT_HOST_SESSION_LINK_PATTERN, AgentSessionLinkStatus, createAgentSes
 import { ILinkPresentation, ILinkPresentationService, ILinkPresentationWatcher } from '../../../../platform/dataChannel/common/dataChannel.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
+import { ISessionSummaryHoverService } from '../../../../workbench/contrib/chat/browser/agentSessions/sessionSummaryHoverService.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISession, SessionStatus } from '../../../services/sessions/common/session.js';
+import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { getSessionSummaryHoverData } from '../../sessions/browser/sessionHoverContent.js';
 
 /**
  * Handles `agent-host-session://` links (surfaced by the `create_session` /
@@ -38,6 +41,8 @@ export class OpenSessionLinkOpenerContribution extends Disposable implements IWo
 		@ISessionsService private readonly _sessionsService: ISessionsService,
 		@IAgentHostConnectionsService private readonly _connectionsService: IAgentHostConnectionsService,
 		@ILinkPresentationService linkPresentationService: ILinkPresentationService,
+		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
+		@ISessionSummaryHoverService sessionSummaryHoverService: ISessionSummaryHoverService,
 	) {
 		super();
 		this._register(openerService.registerOpener({
@@ -50,20 +55,32 @@ export class OpenSessionLinkOpenerContribution extends Disposable implements IWo
 		}, {
 			createLinkPresentationWatcher: resource => new AgentSessionLinkPresentationWatcher(resource, this._sessionsManagementService, this._connectionsService),
 		}));
+		// A session pill in chat output gets the same hover as the sessions list,
+		// built from the live session this window already owns.
+		this._register(sessionSummaryHoverService.registerProvider({
+			provideSessionSummaryHoverData: async resource => {
+				const session = this._findSessionForLink(resource);
+				return session ? getSessionSummaryHoverData(session, sessionsProvidersService) : undefined;
+			},
+		}));
+	}
+
+	private _findSessionForLink(resource: URI | string): ISession | undefined {
+		const backendSession = parseOpenSessionLinkUri(resource);
+		return backendSession
+			? findSession(backendSession, this._sessionsManagementService, this._connectionsService)
+			: undefined;
 	}
 
 	private async _open(resource: URI | string): Promise<boolean> {
-		const backendSession = parseOpenSessionLinkUri(resource);
-		if (!backendSession) {
-			return false;
-		}
-		const session = findSession(backendSession, this._sessionsManagementService, this._connectionsService);
+		const session = this._findSessionForLink(resource);
 		if (!session) {
 			return false;
 		}
 		const chatId = parseOpenSessionLinkChatId(resource);
 		if (chatId) {
-			await this._sessionsService.openChat(session, session.resource.with({ fragment: chatId }));
+			const chatResource = session.resource.with({ fragment: chatId });
+			await this._sessionsService.openChat(session, chatResource);
 			return true;
 		}
 		await this._sessionsService.openSession(session.resource);
