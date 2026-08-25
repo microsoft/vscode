@@ -64,7 +64,7 @@ export class FileWalker {
 
 	private walkedPaths: { [path: string]: boolean };
 
-	constructor(config: IFileQuery, private readonly spawnRipgrepCmd: SpawnRipgrepCmd = spawnRipgrepCmd) {
+	constructor(config: IFileQuery, private readonly spawnRipgrep: SpawnRipgrepCmd = spawnRipgrepCmd) {
 		this.config = config;
 		this.filePattern = config.filePattern || '';
 		const globOptions = config.ignoreGlobCase ? { ignoreCase: true } : undefined;
@@ -202,7 +202,7 @@ export class FileWalker {
 
 		let ripgrep;
 		try {
-			ripgrep = await this.spawnRipgrepCmd(this.config, folderQuery, this.config.includePattern, this.folderExcludePatterns.get(folderQuery.folder.fsPath)!.expression, numThreads);
+			ripgrep = await this.spawnRipgrep(this.config, folderQuery, this.config.includePattern, this.folderExcludePatterns.get(folderQuery.folder.fsPath)!.expression, numThreads);
 		} catch (err) {
 			cb(err instanceof Error ? err : new Error(String(err)));
 			return;
