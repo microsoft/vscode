@@ -208,7 +208,11 @@ export class FileWalker {
 			return;
 		}
 		const cmd = ripgrep.cmd;
-		const killCmd = () => cmd.kill();
+		const killCmd = () => {
+			if (cmd.pid !== undefined) {
+				cmd.kill();
+			}
+		};
 		this.killCmds.add(killCmd);
 		killCmds.add(killCmd);
 
