@@ -36,13 +36,20 @@
 	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
-/* `.codicon` joins each compound so these sizes outrank the `font` shorthand
-   on the codicon base rule, which would otherwise force every glyph to 16px. */
+/* `.codicon` joins each compound so these sizes outrank the `font` shorthand on
+the codicon base rule, which would otherwise force every glyph to 16px. */
 .chat-agent-merge .chat-agent-merge-twistie.codicon {
 	flex: 0 0 auto;
 	font-size: var(--vscode-codiconFontSize-compact);
 	color: var(--vscode-descriptionForeground);
 	transition: transform 100ms ease-out;
+}
+
+/* Reduced motion follows the workbench-managed `.monaco-reduce-motion` class,
+which sits either on an ancestor or on the workbench element itself. */
+.monaco-reduce-motion .chat-agent-merge .chat-agent-merge-twistie.codicon,
+.monaco-workbench.monaco-reduce-motion .chat-agent-merge .chat-agent-merge-twistie.codicon {
+	transition: none;
 }
 
 .chat-agent-merge:not(.collapsed) > .chat-agent-merge-header > .chat-agent-merge-twistie,
@@ -118,7 +125,7 @@
 }
 
 /* Clickable text stays in its surrounding color and announces itself on hover,
-   matching the pull request content part's link treatment. */
+matching the pull request content part's link treatment. */
 .chat-agent-merge .chat-agent-merge-link {
 	cursor: pointer;
 	color: inherit;
