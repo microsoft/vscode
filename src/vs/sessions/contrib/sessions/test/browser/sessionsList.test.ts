@@ -27,7 +27,9 @@ import { ICustomViewService } from '../../../../services/customView/browser/cust
 import { ISessionsListModelService } from '../../../../services/sessions/browser/sessionsListModelService.js';
 import { IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { computeReorderSortChanges, groupByDate, groupByWorkspace, groupSessionsForList, ISessionSection, limitSessionsForList, SessionSectionRenderer, SessionsFlatList, SessionsList, sortSessions, SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
+import { getSessionSummaryHoverData } from '../../browser/sessionHoverContent.js';
 import { createListHarness, createTestSession } from './sessionsListTestUtils.js';
 import '../../browser/views/sessionsViewActions.js';
 
@@ -533,6 +535,26 @@ suite('Sessions - SessionsList', () => {
 		});
 	});
 
+	test('created session hover includes its creator action', () => {
+		const createdSession = createSession('Created', { workspaceLabel: 'Workspace' });
+		const onOpen = () => { };
+		const hover = getSessionSummaryHoverData(
+			createdSession,
+			new class extends mock<ISessionsProvidersService>() {
+				override getProvider() { return undefined; }
+			},
+			{
+				title: 'Creator session',
+				onOpen,
+			},
+		);
+
+		assert.deepStrictEqual(hover.createdBy, {
+			title: 'Creator session',
+			onOpen,
+		});
+	});
+
 	suite('groupSessionsForList', () => {
 
 		test('shows pinned sessions in a dedicated top section', () => {
@@ -951,6 +973,96 @@ suite('Sessions - SessionsList', () => {
 			assert.deepStrictEqual(clear, []);
 			assert.strictEqual(set.size, 2);
 			assert.ok(set.get('a')! > set.get('b')!);
+		});
+	});
+
+	suite('open trust gate', () => {
+
+		function findSessionRow(container: HTMLElement, title: string): HTMLElement {
+			const item = [...container.querySelectorAll<HTMLElement>('.session-item')]
+				.find(el => el.querySelector('.session-title')?.textContent === title);
+			const row = item?.closest<HTMLElement>('.monaco-list-row');
+			assert.ok(row, `expected a rendered row for "${title}"`);
+			return row;
+		}
+
+		// Mirrors the tree's open gesture (see objectTree.test.ts): a plain single
+		// left click opens the row under the list's single-click open mode.
+		function clickRow(row: HTMLElement): void {
+			row.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
+			row.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
+		}
+
+		// Drains the microtask queue so the asynchronous open gate settles.
+		async function settle(): Promise<void> {
+			for (let i = 0; i < 50; i++) {
+				await Promise.resolve();
+			}
+		}
+
+		function renderGatedList(title: string, canOpenSession?: (session: ISession) => Promise<boolean>) {
+			const { session } = createTestSession(title);
+			const harness = createListHarness(disposables, [session]);
+			const container = harness.createContainer();
+			const opened: string[] = [];
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => SessionsGrouping.Date,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: (resource: URI) => opened.push(resource.toString()),
+				canOpenSession,
+			}));
+			list.layout(300, 400);
+			return { session, harness, container, opened };
+		}
+
+		// Control: proves the click gesture actually reaches `onDidOpen`, so the
+		// "no side effects" assertions in the gated tests below are meaningful.
+		test('opens and marks read when no trust gate is configured', async () => {
+			const { session, harness, container, opened } = renderGatedList('Ungated');
+
+			clickRow(findSessionRow(container, 'Ungated'));
+			await settle();
+
+			assert.deepStrictEqual({ opened, markedRead: harness.managementService.readSessions.length }, {
+				opened: [session.resource.toString()],
+				markedRead: 1,
+			});
+		});
+
+		test('refuses to open when the trust gate returns false: no mark-read, no open', async () => {
+			const { harness, container, opened } = renderGatedList('Untrusted', async () => false);
+
+			clickRow(findSessionRow(container, 'Untrusted'));
+			await settle();
+
+			assert.deepStrictEqual({ opened, markedRead: harness.managementService.readSessions.length }, {
+				opened: [],
+				markedRead: 0,
+			});
+		});
+
+		test('marks read and opens only after the trust gate resolves true', async () => {
+			let allowOpen: (value: boolean) => void;
+			const gate = new Promise<boolean>(resolve => { allowOpen = resolve; });
+			const { session, harness, container, opened } = renderGatedList('Deferred', () => gate);
+
+			clickRow(findSessionRow(container, 'Deferred'));
+			await settle();
+
+			// Gate still pending — the open must not have produced any side effects.
+			assert.deepStrictEqual({ opened, markedRead: harness.managementService.readSessions.length }, {
+				opened: [],
+				markedRead: 0,
+			});
+
+			allowOpen!(true);
+			await settle();
+
+			// Gate resolved true — the session is now marked read and opened.
+			assert.deepStrictEqual({ opened, markedRead: harness.managementService.readSessions.length }, {
+				opened: [session.resource.toString()],
+				markedRead: 1,
+			});
 		});
 	});
 });

@@ -10,6 +10,9 @@
 
 # Multi-Chat Architecture
 
+> Node runtime service construction is documented separately in
+> [`node/serviceBootstrapping.md`](node/serviceBootstrapping.md).
+
 > **Status: COMPLETE** (2026-07-01)
 > All waves A–D and gates G-B1, G-C1, G-C2, G-D1 are done. Codex, Claude, and
 > Copilot all use the unified orchestrator path.
@@ -229,31 +232,19 @@ Provider-private discovery helpers name their concrete source: Claude uses `_lis
 
 For every provider, migration and discovery partition the same native catalog: migration returns known entries as plain metadata, while discovery emits unknown entries with provider-classified provenance (external for Claude and Codex, and for Copilot everything except an unknown legacy extension-host chat, which is emitted as internal and adoptable). The partition is not quite exhaustive for Copilot: a chat whose session database exists but holds none of the metadata keys `listChatsToMigrate` requires is rejected by both halves. That is deliberate — an empty database is how Agent Host records a chat it already touched — and is asserted by `copilotAgent.test.ts`'s "does not discover an extension-host chat with an empty Agent Host database". Central `agent-host.db` remains the durable provenance authority.
 
-### Server-tool orchestration relationships
+### Server-tool creation provenance
 
 Treat a session as the user-visible unit of work. The `create_chat` tool is the
 default for parallel subtasks that should share one workspace, lifecycle, and
 aggregate diff. Use `create_session` only when a delegated task needs an
 independent workspace, worktree or branch, provider, or lifecycle.
 
-Sessions created by the `create_session` server tool record provider-neutral
-orchestration metadata in the session summary `_meta` bag. The metadata names
-the creating session separately from the hierarchy parent, plus an optional
-label, whether the child may coordinate with its creator, and an optional
-idle-notification policy. Keeping creator identity separate from hierarchy
-placement preserves notification routing if parent relationships evolve.
-`list_sessions` projects and filters hierarchy metadata without involving
-provider harnesses.
-
-`SessionCoordinationService` owns idle-notification status observation,
-per-child sequencing, creator restoration, and delivery. Its durable
-`creatorNotificationState` is `waitingForCompletion` after work starts and
-`notified` after the next input-needed/idle/error transition wakes the creator.
-The `always` policy returns to `waitingForCompletion` on the next work cycle. A
-busy creator default chat receives a queued system notification rather than a
-new active turn, so concurrent child completion cannot overwrite creator work.
-The existing pending-message drain starts that queued notification when the
-creator chat becomes idle.
+Sessions created by the `create_session` server tool record only the creating
+session, chat, and turn as immutable, provider-neutral creation provenance in
+the initial session summary `_meta` bag, before the session is published or its
+first prompt starts. The reference supports related-session placement,
+source identification and session-list presentation; it does not define a
+hierarchy, grant communication privileges, or trigger lifecycle notifications.
 
 `list_sessions` exposes a session's configured project URI separately from its
 primary and additional working directories. `create_session` accepts those URIs

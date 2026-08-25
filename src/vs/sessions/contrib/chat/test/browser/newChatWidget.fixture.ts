@@ -32,6 +32,7 @@ import { registerChatFixtureServices } from '../../../../../workbench/test/brows
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { activeSessionViewBackground } from '../../../../common/theme.js';
 import { IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
+import { ISessionsChatBackgroundService } from '../../../../services/chatBackground/browser/chatBackgroundService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
@@ -222,6 +223,12 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 				override readonly isConfigured = false;
 				override readonly isPreparingModel = false;
 				override readonly isDownloadingModel = false;
+			}());
+			reg.defineInstance(ISessionsChatBackgroundService, new class extends mock<ISessionsChatBackgroundService>() {
+				override readonly onDidChangeBackground = Event.None;
+				override getBackground() { return undefined; }
+				override getConfiguredBackgroundImage() { return undefined; }
+				override setBackgroundImage() { return Promise.resolve(); }
 			}());
 		},
 	});

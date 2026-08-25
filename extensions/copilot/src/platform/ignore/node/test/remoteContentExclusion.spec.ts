@@ -493,4 +493,232 @@ suite('RemoteContentExclusion', () => {
 			mockCAPIClientService.releaseRequests();
 		});
 	});
+
+	describe('deferring verdicts until repositories resolve', () => {
+		const repoRoot = '/workspace/my-repo';
+		const file = URI.file('/workspace/my-repo/src/secret.ts');
+
+		test('applies a repository rule to a file first seen before discovery resolved it', async () => {
+			respondWithRules({ [repoRoot]: { paths: ['*'] } });
+			// The Git extension has not finished discovering repositories yet.
+			mockGitService.isInitialized = false;
+			mockGitService.setRepositoryFetchUrls(undefined);
+
+			const beforeDiscovery = await remoteContentExclusion.isIgnored(file, CancellationToken.None);
+
+			mockGitService.isInitialized = true;
+			mockGitService.setRepositoryFetchUrls({ rootUri: URI.file(repoRoot), remoteFetchUrls: [remoteFor(repoRoot)] });
+			const afterDiscovery = await remoteContentExclusion.isIgnored(file, CancellationToken.None);
+
+			expect({ beforeDiscovery, afterDiscovery }).toEqual({ beforeDiscovery: false, afterDiscovery: true });
+		});
+
+		test('does not memoise a verdict reached while repository discovery is still running', async () => {
+			mockGitService.isInitialized = false;
+			mockGitService.setRepositoryFetchUrls(undefined);
+
+			await remoteContentExclusion.isIgnored(file, CancellationToken.None);
+			await remoteContentExclusion.isIgnored(file, CancellationToken.None);
+
+			// Memoising here would pin the file open for the whole rule TTL.
+			expect(mockGitService.getRepositoryFetchUrlsCallCount).toBe(2);
+		});
+
+		test('memoises a verdict for a file that genuinely belongs to no repository', async () => {
+			mockGitService.setRepositoryFetchUrls(undefined);
+
+			const nonGitFile = URI.file('/some/random/file.txt');
+			await remoteContentExclusion.isIgnored(nonGitFile, CancellationToken.None);
+			await remoteContentExclusion.isIgnored(nonGitFile, CancellationToken.None);
+
+			expect(mockGitService.getRepositoryFetchUrlsCallCount).toBe(1);
+		});
+
+		test('applies a repository rule to files evaluated before that repository opened', async () => {
+			respondWithRules({ [repoRoot]: { paths: ['*'] } });
+			mockGitService.setRepositoryFetchUrls(undefined);
+
+			const beforeOpen = await remoteContentExclusion.isIgnored(file, CancellationToken.None);
+
+			mockGitService.fireDidOpenRepository({ rootUri: URI.file(repoRoot), remoteFetchUrls: [remoteFor(repoRoot)] });
+			const afterOpen = await remoteContentExclusion.isIgnored(file, CancellationToken.None);
+
+			expect({ beforeOpen, afterOpen }).toEqual({ beforeOpen: false, afterOpen: true });
+		});
+
+		test('does not cache a repository that resolved without a usable remote', async () => {
+			// Remotes can arrive after the repository itself does, so an empty remote list is not
+			// an answer worth reusing for every other file under that root.
+			mockGitService.setRepositoryFetchUrls({ rootUri: URI.file('/workspace/local-only'), remoteFetchUrls: [] });
+
+			await remoteContentExclusion.isIgnored(URI.file('/workspace/local-only/a.ts'), CancellationToken.None);
+			await remoteContentExclusion.isIgnored(URI.file('/workspace/local-only/b.ts'), CancellationToken.None);
+
+			expect(mockGitService.getRepositoryFetchUrlsCallCount).toBe(2);
+		});
+
+		test('applies a rule once a remote appears on a repository that had none', async () => {
+			respondWithRules({ '/workspace/local-only': { paths: ['*'] } });
+			const rootUri = URI.file('/workspace/local-only');
+			mockGitService.setRepositoryFetchUrls({ rootUri, remoteFetchUrls: [] });
+
+			const localOnlyFile = URI.file('/workspace/local-only/a.ts');
+			const beforeRemote = await remoteContentExclusion.isIgnored(localOnlyFile, CancellationToken.None);
+
+			// The user publishes the repository, so it becomes subject to server side rules.
+			mockGitService.setRepositoryFetchUrls({ rootUri, remoteFetchUrls: [remoteFor('/workspace/local-only')] });
+
+			expect({ beforeRemote, afterRemote: await remoteContentExclusion.isIgnored(localOnlyFile, CancellationToken.None) })
+				.toEqual({ beforeRemote: false, afterRemote: true });
+		});
+
+		test('does not match a cached repository root against a file from another scheme', async () => {
+			routeToRepos([repoRoot]);
+			await remoteContentExclusion.isIgnored(file, CancellationToken.None);
+			const afterLocalFile = mockGitService.getRepositoryFetchUrlsCallCount;
+
+			// Same path, different file system: this is not the repository that was cached.
+			const virtual = URI.from({ scheme: 'vscode-vfs', authority: 'github', path: file.path });
+			await remoteContentExclusion.isIgnored(virtual, CancellationToken.None);
+
+			expect({ afterLocalFile, afterVirtualFile: mockGitService.getRepositoryFetchUrlsCallCount })
+				.toEqual({ afterLocalFile: 1, afterVirtualFile: 2 });
+		});
+	});
+
+	describe('rule scoping', () => {
+		test('matches fetched globs against every file rather than only their own repository', async () => {
+			routeToRepos(['/workspace/repo-a', '/workspace/repo-b']);
+			respondWithRules({ '/workspace/repo-a': { paths: ['**/secret.ts'] } });
+
+			// Rules compile into one flattened matcher list, so a sibling repo is over-blocked rather
+			// than under-blocked. Pinned because that safe direction is what makes it acceptable.
+			expect({
+				excludedRepo: await remoteContentExclusion.isIgnored(URI.file('/workspace/repo-a/secret.ts'), CancellationToken.None),
+				siblingRepo: await remoteContentExclusion.isIgnored(URI.file('/workspace/repo-b/secret.ts'), CancellationToken.None)
+			}).toEqual({ excludedRepo: true, siblingRepo: true });
+		});
+
+		test('applies organization rules to files inside and outside a repository', async () => {
+			routeToRepos(['/workspace/repo-a']);
+			// Rules that are not scoped to a repository come back under the non-git pseudo repo.
+			mockCAPIClientService.setResponder(repos => rulesResponse(new Map([[NON_GIT_FILE_KEY, { paths: ['**/*.pem'] }]]), repos));
+
+			expect({
+				inRepo: await remoteContentExclusion.isIgnored(URI.file('/workspace/repo-a/key.pem'), CancellationToken.None),
+				outsideRepo: await remoteContentExclusion.isIgnored(URI.file('/elsewhere/key.pem'), CancellationToken.None)
+			}).toEqual({ inRepo: true, outsideRepo: true });
+		});
+
+		test('applies organization content rules to files inside a repository', async () => {
+			routeToRepos(['/workspace/repo-a']);
+			// The repository itself has no rules, so only the unscoped organization rule can
+			// exclude this file. Content rules must reach in-repo files just as globs do.
+			mockCAPIClientService.setResponder(repos => rulesResponse(new Map([[NON_GIT_FILE_KEY, { ifAnyMatch: ['BEGIN RSA PRIVATE KEY'] }]]), repos));
+			const inRepo = URI.file('/workspace/repo-a/id_rsa');
+			const outsideRepo = URI.file('/elsewhere/id_rsa');
+			mockFileSystemService.mockFile(inRepo, '-----BEGIN RSA PRIVATE KEY-----');
+			mockFileSystemService.mockFile(outsideRepo, '-----BEGIN RSA PRIVATE KEY-----');
+
+			expect({
+				inRepo: await remoteContentExclusion.isIgnored(inRepo, CancellationToken.None),
+				outsideRepo: await remoteContentExclusion.isIgnored(outsideRepo, CancellationToken.None)
+			}).toEqual({ inRepo: true, outsideRepo: true });
+		});
+
+		test('excludes every file in a repository that is fully excluded', async () => {
+			// The `paths: ["*"]` shape an administrator uses to exclude a whole repository.
+			routeToRepos(['/workspace/repo-a']);
+			respondWithRules({ '/workspace/repo-a': { paths: ['*'] } });
+
+			expect({
+				nested: await remoteContentExclusion.isIgnored(URI.file('/workspace/repo-a/src/deeply/nested.ts'), CancellationToken.None),
+				atRoot: await remoteContentExclusion.isIgnored(URI.file('/workspace/repo-a/top.ts'), CancellationToken.None)
+			}).toEqual({ nested: true, atRoot: true });
+		});
+
+		test('resolves a file in a submodule against the innermost repository', async () => {
+			routeToRepos(['/workspace/repo-a', '/workspace/repo-a/vendor/sub']);
+
+			await remoteContentExclusion.isIgnored(URI.file('/workspace/repo-a/vendor/sub/index.ts'), CancellationToken.None);
+
+			expect([...mockCAPIClientService.requestedRepos].sort())
+				.toEqual([NON_GIT_FILE_KEY, remoteFor('/workspace/repo-a/vendor/sub')].sort());
+		});
+	});
+
+	describe('content based rules', () => {
+		const file = URI.file('/workspace/repo-a/notes.ts');
+		const publicFile = URI.file('/workspace/repo-a/public.ts');
+
+		test('excludes a file whose contents match ifAnyMatch', async () => {
+			routeToRepos(['/workspace/repo-a']);
+			respondWithRules({ '/workspace/repo-a': { ifAnyMatch: ['CONFIDENTIAL'] } });
+			mockFileSystemService.mockFile(file, '// CONFIDENTIAL\nexport const a = 1;');
+			mockFileSystemService.mockFile(publicFile, 'export const b = 2;');
+
+			expect({
+				confidential: await remoteContentExclusion.isIgnored(file, CancellationToken.None),
+				unmarked: await remoteContentExclusion.isIgnored(publicFile, CancellationToken.None)
+			}).toEqual({ confidential: true, unmarked: false });
+		});
+
+		test('excludes a file that lacks a required ifNoneMatch marker', async () => {
+			routeToRepos(['/workspace/repo-a']);
+			respondWithRules({ '/workspace/repo-a': { ifNoneMatch: ['PUBLIC'] } });
+			mockFileSystemService.mockFile(file, 'export const a = 1;');
+			mockFileSystemService.mockFile(publicFile, '// PUBLIC\nexport const b = 2;');
+
+			expect({
+				unmarked: await remoteContentExclusion.isIgnored(file, CancellationToken.None),
+				marked: await remoteContentExclusion.isIgnored(publicFile, CancellationToken.None)
+			}).toEqual({ unmarked: true, marked: false });
+		});
+
+		test('excludes a file that cannot be read while content rules are in force', async () => {
+			routeToRepos(['/workspace/repo-a']);
+			respondWithRules({ '/workspace/repo-a': { ifAnyMatch: ['CONFIDENTIAL'] } });
+
+			// Nothing is mocked for this path, so the read fails and the contents are unknown.
+			expect(await remoteContentExclusion.isIgnored(file, CancellationToken.None)).toBe(true);
+		});
+
+		test('reports regex exclusions only once a regex rule has been fetched', async () => {
+			routeToRepos(['/workspace/repo-a']);
+			respondWithRules({ '/workspace/repo-a': { ifAnyMatch: ['CONFIDENTIAL'] } });
+			const beforeAnyFetch = remoteContentExclusion.isRegexContextExclusionsEnabled;
+
+			mockFileSystemService.mockFile(file, 'export const a = 1;');
+			await remoteContentExclusion.isIgnored(file, CancellationToken.None);
+
+			expect({ beforeAnyFetch, afterFetch: remoteContentExclusion.isRegexContextExclusionsEnabled })
+				.toEqual({ beforeAnyFetch: false, afterFetch: true });
+		});
+
+		test('does not reuse one repository content verdict for the same file in another', async () => {
+			routeToRepos(['/workspace/repo-a', '/workspace/repo-b']);
+			// Both repos exclude on content, but on different markers, so identical files must
+			// reach different verdicts.
+			respondWithRules({
+				'/workspace/repo-a': { ifAnyMatch: ['SECRET-A'] },
+				'/workspace/repo-b': { ifAnyMatch: ['SECRET-B'] }
+			});
+
+			const shared = '// SECRET-B\nexport const shared = 1;';
+			const inRepoA = URI.file('/workspace/repo-a/shared.ts');
+			const inRepoB = URI.file('/workspace/repo-b/shared.ts');
+			mockFileSystemService.mockFile(inRepoA, shared);
+			mockFileSystemService.mockFile(inRepoB, shared);
+
+			// Both rule sets are loaded up front, so evaluating the second file does not trigger a
+			// fetch that would incidentally retire the first file's cached verdict.
+			await remoteContentExclusion.loadRepos([URI.file('/workspace/repo-a'), URI.file('/workspace/repo-b')]);
+
+			// repo-a is evaluated first, so its permissive verdict for these contents is cached.
+			const repoA = await remoteContentExclusion.isIgnored(inRepoA, CancellationToken.None);
+
+			expect({ repoA, repoB: await remoteContentExclusion.isIgnored(inRepoB, CancellationToken.None) })
+				.toEqual({ repoA: false, repoB: true });
+		});
+	});
 });

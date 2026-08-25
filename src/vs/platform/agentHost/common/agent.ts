@@ -492,6 +492,13 @@ export function resolveAgentHostInstructions(context?: URI | IAgentChatContext):
 export interface IAgentCreateChatOptions {
 	/** Whether the owning session is transient and should skip durable-only provider work. */
 	readonly isEphemeral?: boolean;
+	/**
+	 * Whether the owning chat surface is scoped to editing a single file (editor
+	 * inline chat). Blanket shell auto-approvals must not apply to such a
+	 * session, because a shell command can write anywhere the sandbox allows and
+	 * carries no destination the permission layer can check against the scope.
+	 */
+	readonly hasScopedEditSurface?: boolean;
 	/** Optional display title for the new chat. */
 	readonly title?: string;
 	/** Optional model override; defaults to the session's model. */
@@ -517,10 +524,17 @@ export interface IAgentCreateChatOptions {
 	 * is forked from the source so it can continue independently.
 	 */
 	readonly fork?: IAgentCreateChatForkSource;
+}
+
+/**
+ * Host-facing chat creation options. Providers receive the resolved
+ * {@link IAgentCreateChatOptions} and never receive side-chat provenance.
+ */
+export interface IAgentCreateChatRequestOptions extends IAgentCreateChatOptions {
 	/**
 	 * Create this new chat as a side chat branching from a turn in an existing
-	 * chat (via `/btw`). Unlike {@link fork}, inherited context is provider-owned
-	 * and must not appear in the chat's visible history.
+	 * chat (via `/btw`). The host resolves this into {@link fork} before calling
+	 * the provider, while retaining the side-chat provenance itself.
 	 */
 	readonly sideChat?: IAgentCreateChatSideChatSource;
 }
@@ -530,6 +544,12 @@ export interface IAgentCreateChatForkSource {
 	readonly source: URI;
 	/** Turn ID in the source chat; content up to and including this turn is copied. */
 	readonly turnId: string;
+	/**
+	 * Allows a fork to start without waiting for the source chat's queue.
+	 * Side chats branch from potentially active source turns and use this to
+	 * avoid blocking their own creation behind that turn.
+	 */
+	readonly independentQueue?: boolean;
 	/** Zero-based source turn index, when the provider needs it for import/fork mapping. */
 	readonly turnIndex?: number;
 	/**
@@ -554,12 +574,6 @@ export interface IAgentCreateChatSideChatSource {
 	readonly turnId: string;
 	/** Optional selected-text snapshot captured from the source chat transcript. */
 	readonly selection?: IAgentCreateChatSideChatSelection;
-	/** Concrete provider turn ID to fork/resume from when `turnId` names a host-only local turn. */
-	readonly providerAnchorTurnId?: string;
-	/** Bounded source-chat context captured from host state when the provider transcript lags. */
-	readonly sourceContext?: string;
-	/** User-visible assistant text captured while the source turn was active. */
-	readonly partialResponse?: string;
 }
 
 /** Result of {@link IAgentChats.createChat}: the opaque blob to persist for restore. */
@@ -567,6 +581,8 @@ export interface IAgentCreateChatResult {
 	readonly project?: IAgentSessionProjectInfo;
 	readonly resolvedWorkingDirectory?: URI;
 	readonly provisional?: boolean;
+	/** Id of the last provider turn copied into a newly created fork, when known. */
+	readonly inheritedTurnId?: string;
 	/**
 	 * Opaque, agent-owned token the orchestrator persists verbatim in the chat
 	 * catalog and hands back to {@link IAgent.materializeChat} on
@@ -1216,7 +1232,7 @@ export interface IAgent {
 	getSessionStateFile?(session: URI): Promise<URI | undefined>;
 
 	/** Add provider-owned diagnostics to an Agent Host debug-log staging directory. */
-	collectDebugLogs?(session: URI | undefined, outputDirectory: URI): Promise<boolean>;
+	collectDebugLogs?(session: URI | undefined, outputDirectory: URI, chat?: URI): Promise<boolean>;
 
 	// ---- MCP and server tools -----------------------------------------------
 
