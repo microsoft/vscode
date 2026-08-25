@@ -99,19 +99,36 @@ export function normalizeSettingsFile(f: string, root?: string): void {
 		return;
 	}
 
+	// VS Code's JSONC scanner (`src/vs/base/common/json.ts`) recognizes more line
+	// terminators and more whitespace than JSON does. Mirroring both sets here keeps
+	// a profile that VS Code reads happily from being rejected as malformed.
+	function isJsoncLineBreak(c: string): boolean {
+		return c === '\n' || c === '\r' || c === '\u2028' || c === '\u2029';
+	}
+
+	function isJsoncWhitespace(c: string): boolean {
+		const ch = c.charCodeAt(0);
+		return ch === 0x20 || ch === 0x09 || ch === 0x0b || ch === 0x0c ||
+			ch === 0x00a0 || ch === 0x1680 || (ch >= 0x2000 && ch <= 0x200b) ||
+			ch === 0x202f || ch === 0x205f || ch === 0x3000 || ch === 0xfeff;
+	}
+
 	// Blank out comments while preserving offsets, so a commented-out occurrence
 	// such as `// "editor.editContext": false` is never mistaken for the real
 	// setting and `//` inside a string (e.g. a proxy URL) is not treated as one.
+	// Scanner-only trivia outside strings is replaced by a plain space (1:1, so
+	// offsets still line up) because `JSON.parse` would otherwise reject it.
 	function codeMask(src: string): string {
 		const out = src.split('');
 		let inString = false, inLine = false, inBlock = false;
 		for (let i = 0; i < src.length; i++) {
 			const c = src[i], n = src[i + 1];
 			if (inLine) {
-				// A bare `\r` ends a line comment too - VS Code's scanner treats it as
-				// LineBreakTrivia - so masking to the next `\n` would blank the whole
-				// file and get a valid CR-only settings.json rejected as malformed.
-				if (c === '\n' || c === '\r') { inLine = false; } else { out[i] = ' '; }
+				// A bare `\r` (and U+2028/U+2029) ends a line comment too - VS Code's
+				// scanner treats them all as LineBreakTrivia - so masking to the next
+				// `\n` would blank the whole file and get a valid settings.json
+				// rejected as malformed.
+				if (isJsoncLineBreak(c)) { i--; inLine = false; } else { out[i] = ' '; }
 				continue;
 			}
 			if (inBlock) {
@@ -124,7 +141,9 @@ export function normalizeSettingsFile(f: string, root?: string): void {
 				else if (c === '"') { inString = false; }
 				continue;
 			}
-			if (c === '"') { inString = true; }
+			if (isJsoncLineBreak(c) && c !== '\n' && c !== '\r') { out[i] = ' '; }
+			else if (isJsoncWhitespace(c) && c !== ' ' && c !== '\t') { out[i] = ' '; }
+			else if (c === '"') { inString = true; }
 			else if (c === '/' && n === '/') { out[i] = ' '; inLine = true; }
 			else if (c === '/' && n === '*') { out[i] = ' '; out[i + 1] = ' '; i++; inBlock = true; }
 		}

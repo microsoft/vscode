@@ -42,7 +42,7 @@ import { createRequire } from 'module';
 import { fileURLToPath } from 'url';
 import { dirname, join as joinPath, resolve as resolvePath } from 'path';
 import { tmpdir } from 'os';
-import { existsSync } from 'fs';
+import { existsSync, mkdtempSync } from 'fs';
 
 const require = createRequire(import.meta.url);
 
@@ -78,7 +78,12 @@ export interface IAttachOptions {
 	readonly verbose?: boolean;
 	/** Repo root, if it cannot be inferred from this file's location. */
 	readonly repoRoot?: string;
-	/** Where page objects may write logs. */
+	/**
+	 * Where page objects may write logs. Defaults to a fresh private directory,
+	 * because `PlaywrightDriver` names traces and screenshots from per-process
+	 * counters that both start at 1 - a shared directory would let concurrent
+	 * agents overwrite each other's artifacts.
+	 */
 	readonly logsPath?: string;
 	/** Budget for finding the window. */
 	readonly timeoutMs?: number;
@@ -237,7 +242,7 @@ export async function attach(cdpPort: number | string, options: IAttachOptions =
 		window: windowKind = 'any',
 		verbose = false,
 		repoRoot: explicitRepoRoot,
-		logsPath = joinPath(tmpdir(), 'vscode-attach-logs'),
+		logsPath = mkdtempSync(joinPath(tmpdir(), 'vscode-attach-logs-')),
 		timeoutMs = DEFAULT_PAGE_TIMEOUT_MS
 	} = options;
 

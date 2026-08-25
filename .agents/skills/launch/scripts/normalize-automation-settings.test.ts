@@ -29,13 +29,24 @@ const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const script = path.join(scriptDir, 'normalize-automation-settings.ts');
 const KEYS = ['files.simpleDialog.enable', 'editor.editContext'];
 
+function isJsoncLineBreak(c: string): boolean {
+	return c === '\n' || c === '\r' || c === '\u2028' || c === '\u2029';
+}
+
+function isJsoncWhitespace(c: string): boolean {
+	const ch = c.charCodeAt(0);
+	return ch === 0x20 || ch === 0x09 || ch === 0x0b || ch === 0x0c ||
+		ch === 0x00a0 || ch === 0x1680 || (ch >= 0x2000 && ch <= 0x200b) ||
+		ch === 0x202f || ch === 0x205f || ch === 0x3000 || ch === 0xfeff;
+}
+
 /** Minimal JSONC reader: strips comments and trailing commas, then JSON.parse. */
 function parseJsonc(text: string): Record<string, unknown> {
 	let out = '';
 	let inString = false, inLine = false, inBlock = false;
 	for (let i = 0; i < text.length; i++) {
 		const c = text[i], n = text[i + 1];
-		if (inLine) { if (c === '\n' || c === '\r') { inLine = false; out += c; } continue; }
+		if (inLine) { if (isJsoncLineBreak(c)) { inLine = false; out += isJsoncWhitespace(c) || c === '\u2028' || c === '\u2029' ? ' ' : c; } continue; }
 		if (inBlock) { if (c === '*' && n === '/') { inBlock = false; i++; } continue; }
 		if (inString) {
 			out += c;
@@ -45,7 +56,9 @@ function parseJsonc(text: string): Record<string, unknown> {
 		if (c === '/' && n === '/') { inLine = true; i++; continue; }
 		if (c === '/' && n === '*') { inBlock = true; i++; continue; }
 		if (c === '"') { inString = true; }
-		out += c;
+		// U+2028/U+2029 and the Unicode space set are trivia to VS Code's scanner
+		// but rejected by JSON.parse, so fold them to a plain space.
+		out += !inString && (isJsoncLineBreak(c) || isJsoncWhitespace(c)) && c !== '\n' && c !== '\r' && c !== ' ' && c !== '\t' ? ' ' : c;
 	}
 	return JSON.parse(out.replace(/^\uFEFF/, '').replace(/,(\s*[}\]])/g, '$1'));
 }
@@ -122,6 +135,12 @@ const valid: [name: string, content: string | undefined][] = [
 	// A bare CR ends a line comment for VS Code's scanner, so this file is valid
 	// and must not be masked away as one giant comment.
 	['CR-only line endings with a comment', '{\r // note\r "a": 1\r}'],
+	// VS Code's scanner ends a line comment at U+2028/U+2029 too, so a file using
+	// them is valid JSONC even though JSON.parse would choke on the raw text.
+	['U+2028 terminating a line comment', '{\u2028\t// note\u2028\t"a": 1\u2028}'],
+	['U+2029 terminating a line comment', '{\u2029\t// note\u2029\t"a": 1\u2029}'],
+	// ...and it accepts the full Unicode 3.0 space set as whitespace.
+	['Unicode whitespace between tokens', '{\u00a0"a":\u2003 1,\u3000"b": 2\u200b}'],
 ];
 
 for (const [name, content] of valid) {
@@ -150,8 +169,8 @@ for (const [name, content] of valid) {
 		// Comments are data too, and a reparse-and-rewrite would silently drop them.
 		// Only count `//` that actually starts a comment - a URL inside a string
 		// value is not one, and neither is a key that merely looks like one.
-		const comments = (stripStrings(content ?? '').match(/\/\/[^\n\r]*/g) ?? []).filter(c => !c.includes('editContext'));
-		const survivingComments = stripStrings(text).match(/\/\/[^\n\r]*/g) ?? [];
+		const comments = (stripStrings(content ?? '').match(/\/\/[^\n\r\u2028\u2029]*/g) ?? []).filter(c => !c.includes('editContext'));
+		const survivingComments = stripStrings(text).match(/\/\/[^\n\r\u2028\u2029]*/g) ?? [];
 		for (const comment of comments) {
 			assert.ok(survivingComments.includes(comment), `comment ${comment} was dropped from:\n${text}`);
 		}
