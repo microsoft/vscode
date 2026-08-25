@@ -41,9 +41,19 @@ suite('stringifyJsonBody', () => {
 	});
 
 	test('matches JSON.stringify when the payload is already well-formed', () => {
-		// `literalEscapeText` is text rather than an escape: its backslash run is even, so the
-		// sanitizing pass must leave it byte-for-byte identical.
+		// `literalEscapeText` is text rather than an escape: `JSON.stringify` doubles its backslash,
+		// so the sanitizing pass must consume the pair and leave it byte-for-byte identical.
 		const body = { emoji: 'a 🙂 b', literalEscapeText: 'not an escape: \\ud83d', control: '\n\t"' };
+
+		assert.strictEqual(stringifyJsonBody(body), JSON.stringify(body));
+	});
+
+	test('scans a long run of backslashes in linear time', () => {
+		// Guards against reintroducing a pattern like `(\\+)u...`, whose backtracking is quadratic in
+		// the length of a backslash run and turns this reachable tool output into a denial of service.
+		// A linear scan finishes in single-digit milliseconds; the quadratic one needs over a minute,
+		// so the suite timeout is what fails here rather than a flaky duration assertion.
+		const body = { content: '\\'.repeat(200_000) + 'ud8' };
 
 		assert.strictEqual(stringifyJsonBody(body), JSON.stringify(body));
 	});

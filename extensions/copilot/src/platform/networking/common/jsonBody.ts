@@ -4,15 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 /**
- * Matches a `\uD800`-`\uDFFF` escape in serialized JSON, preceded by the run of backslashes it
- * belongs to. The run tells us whether the escape is real: `JSON.stringify` writes a literal
- * backslash as `\\`, so the `u` only starts an escape when the run has odd length. An even run is
- * text that merely looks like an escape, and must be left untouched.
+ * Matches a single escape sequence in serialized JSON, capturing the part after the backslash.
+ *
+ * Matching *every* escape rather than only the surrogate ones is what keeps this both correct and
+ * linear. An escaped backslash is consumed whole, so text that merely looks like an escape (a
+ * literal `\ud83d`, which `JSON.stringify` writes as `\\ud83d`) can never be mistaken for one, and
+ * no position is ever rescanned. Matching `\\+u...` instead would be quadratic in the length of a
+ * run of backslashes, which is reachable from tool output.
  */
-const SURROGATE_ESCAPE = /(\\+)u[dD][89a-fA-F][0-9a-fA-F]{2}/g;
+const JSON_ESCAPE = /\\(u[dD][89a-fA-F][0-9a-fA-F]{2}|[\s\S])/g;
 
 /** The escaped form of the Unicode replacement character, `\uFFFD`. */
-const UNICODE_REPLACEMENT_ESCAPE = 'ufffd';
+const UNICODE_REPLACEMENT_ESCAPE = '\\ufffd';
 
 /**
  * Serializes a request body to JSON that can be decoded as UTF-8 by the receiving service.
@@ -32,8 +35,15 @@ export function stringifyJsonBody(value: unknown): string {
 	if (typeof serialized !== 'string') {
 		throw new Error(`Illegal arguments! A value of type '${typeof value}' has no JSON representation!`);
 	}
-	// A surrogate code unit is escaped only when it is unpaired: well-formed pairs, and every other
-	// non-ASCII character, are written as literal characters.
-	return serialized.replace(SURROGATE_ESCAPE, (match, backslashes: string) =>
-		backslashes.length % 2 === 0 ? match : `${backslashes}${UNICODE_REPLACEMENT_ESCAPE}`);
+	// `JSON.stringify` escapes a surrogate code unit only when it is unpaired, and always writes the
+	// escape in lowercase; well-formed pairs and every other non-ASCII character are written as
+	// literal characters. Bodies are usually replayed conversation history and almost never contain
+	// such an escape, so skip the scan entirely rather than walking megabytes for nothing. Text that
+	// itself contains a `\ud` sequence merely costs a redundant scan, so this check is allowed to be
+	// over-eager but never under-eager.
+	if (!serialized.includes('\\ud')) {
+		return serialized;
+	}
+	return serialized.replace(JSON_ESCAPE, (match, escape: string) =>
+		escape.length === 1 ? match : UNICODE_REPLACEMENT_ESCAPE);
 }
