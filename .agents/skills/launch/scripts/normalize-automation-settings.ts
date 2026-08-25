@@ -369,8 +369,14 @@ export function findSettingsFiles(userDataDir: string): string[] {
 	try { entries = fs.readdirSync(profilesDir, { withFileTypes: true }); } catch { entries = []; }
 	for (const entry of entries) {
 		const candidate = path.join(profilesDir, entry.name, 'settings.json');
-		if (fs.existsSync(candidate)) {
+		// `lstatSync`, not `existsSync`: the latter follows links, so a *dangling*
+		// settings symlink would be skipped here and left in the profile, where a
+		// later write by VS Code would create its target outside the clone.
+		try {
+			fs.lstatSync(candidate);
 			files.push(candidate);
+		} catch {
+			// No entry at all - a profile that inherits settings. Leave it absent.
 		}
 	}
 	return files;

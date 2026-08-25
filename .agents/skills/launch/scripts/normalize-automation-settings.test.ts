@@ -325,3 +325,29 @@ test('refuses to write through a symlinked profile directory', posixOnly, () => 
 		realFile: fs.readFileSync(path.join(real, 'settings.json'), 'utf8')
 	}, { status: 1, realFile: original });
 });
+
+// `existsSync` follows links, so a *dangling* settings symlink looks absent and
+// would be skipped as an inheriting profile - leaving the link in the clone for
+// VS Code to write through later, outside the throwaway profile.
+test('discovers a named profile whose settings.json is a dangling symlink', posixOnly, () => {
+	const root = fs.mkdtempSync(path.join(os.tmpdir(), 'nas-dangling-'));
+	const named = path.join(root, 'User', 'profiles', 'p1');
+	fs.mkdirSync(named, { recursive: true });
+	fs.writeFileSync(path.join(root, 'User', 'settings.json'), '{}\n');
+	const outside = path.join(root, 'outside.json');
+	fs.symlinkSync(outside, path.join(named, 'settings.json'));
+
+	const count = execFileSync(process.execPath, [script, '--user-data-dir', root], { encoding: 'utf8' }).trim();
+
+	assert.deepStrictEqual({
+		discovered: Number(count),
+		stillALink: fs.lstatSync(path.join(named, 'settings.json')).isSymbolicLink(),
+		targetCreated: fs.existsSync(outside),
+		enabled: KEYS.map(k => [k, parseJsonc(fs.readFileSync(path.join(named, 'settings.json'), 'utf8'))[k]])
+	}, {
+		discovered: 2,
+		stillALink: false,
+		targetCreated: false,
+		enabled: KEYS.map(k => [k, true])
+	});
+});

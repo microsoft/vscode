@@ -198,23 +198,22 @@ async function waitForSmokeTestDriver(page: PlaywrightPage, timeoutMs: number): 
  * timeout into an actionable message whenever it can without ever blocking an
  * otherwise healthy attach.
  *
- * Some editors opt out of `EditContext` on their own for speed, independent of
+ * A few editors opt out of `EditContext` on their own for speed, independent of
  * configuration - the inline-edit previews pass `editContext: false` directly.
- * Those are always a subset, so configuration is only blamed when *no* editor in
- * the window uses EditContext. Otherwise a visible inline-edit preview would
- * fail an out-of-the-box window.
+ * Those all live inside an inline-edits view, so they are excluded by ancestor
+ * rather than by counting: requiring *every* editor to be textarea-backed would
+ * miss a scoped override, which is the common case. `editor.editContext` is
+ * `LANGUAGE_OVERRIDABLE` and valid per folder, so one file's editor can be
+ * textarea-backed while Chat stays native-backed - and it is precisely that
+ * file's page object that would hang.
  */
 async function assertEditContextMode(page: PlaywrightPage): Promise<void> {
 	const mismatched = await page.evaluate(() => {
-		const editors = Array.from(document.querySelectorAll('.monaco-editor'));
-		const textareaBacked = editors.filter(editor => editor.querySelector('textarea.inputarea') !== null).length;
-		const nativeBacked = editors.filter(editor => editor.querySelector('.native-edit-context') !== null).length;
-		// Not every `.monaco-editor` owns an input at all (some are rendered
-		// read-only), so requiring *all* of them to be textarea-backed misses the
-		// real thing. What separates the two cases is whether anything in the
-		// window still uses EditContext: the editors that opt out for speed are
-		// always a subset, whereas a disabling setting leaves none at all.
-		return textareaBacked > 0 && nativeBacked === 0;
+		const OPT_OUT = '.inline-edits-view, .inline-edits-custom-view';
+		return Array.from(document.querySelectorAll('.monaco-editor')).some(editor =>
+			editor.querySelector('textarea.inputarea') !== null &&
+			editor.querySelector('.native-edit-context') === null &&
+			editor.closest(OPT_OUT) === null);
 	});
 	if (mismatched) {
 		throw new Error(

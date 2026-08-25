@@ -35,7 +35,7 @@ The clone is **slim**: workspace storage, browser caches, file history, cached V
 
 > The launcher **copies** the source profile to a temp dir and never mutates the original. Each launch gets its own isolated `--user-data-dir` and `--extensions-dir`.
 
-> The launcher normalizes two settings in the launched profile's `User/settings.json`. `files.simpleDialog.enable: true` is required because VS Code's native OS file dialogs cannot be driven via `@playwright/cli` over CDP and are unreachable over SSH on headless macOS; the simple (quick-input) dialog can be navigated with `press` and clipboard paste. `editor.editContext: true` is required because `test/automation`'s page objects choose between `.native-edit-context` and `textarea` from `Code.editContextEnabled`, which is unconditionally true for a dev build — a profile that disabled the setting renders a `textarea` and every text-input helper waits on the wrong selector and times out. Language-specific overrides (a `"[typescript]"` block) are normalized too, since `editor.*` settings are `LANGUAGE_OVERRIDABLE` and would otherwise outrank the root value. Both overrides are per-launch and only affect throwaway profiles, and the launcher passes `--sync=off` so they can never reach the user's synced settings. The rewrite is user-scope only, so a workspace that sets `editor.editContext: false` in its own `.vscode/settings.json` still wins - `attach()` detects that case up front and says so, rather than letting every text-input helper time out.
+> The launcher normalizes two settings in the launched profile's `User/settings.json`. `files.simpleDialog.enable: true` is required because VS Code's native OS file dialogs cannot be driven via `@playwright/cli` over CDP and are unreachable over SSH on headless macOS; the simple (quick-input) dialog can be navigated with `press` and clipboard paste. `editor.editContext: true` is required because `test/automation`'s page objects choose between `.native-edit-context` and `textarea` from `Code.editContextEnabled`, which is unconditionally true for a dev build — a profile that disabled the setting renders a `textarea` and every text-input helper waits on the wrong selector and times out. Language-specific overrides (a `"[typescript]"` block) are normalized too, since `editor.*` settings are `LANGUAGE_OVERRIDABLE` and would otherwise outrank the root value. Both overrides are per-launch and only affect throwaway profiles, and the launcher passes `--sync=off` so they can never reach the user's synced settings. The rewrite is user-scope only, so a workspace that sets `editor.editContext: false` in its own `.vscode/settings.json` still wins. `attach()` checks the editors the window restored and says so when it finds the mismatch, which turns the usual case into an actionable error instead of a 20s timeout - but a window that restores no editor has nothing to inspect, so if a text-input helper still times out, check the workspace and folder settings for that key.
 
 > For unattended automation, pass `--disable-workspace-trust` so a trust dialog cannot block the flow or extension-host startup. The override is process-scoped and does not modify the source profile. Only use it with content you trust.
 
@@ -505,9 +505,15 @@ command -v pgrep >/dev/null || { echo "pgrep not found; cannot verify cleanup" >
 
 # Fail closed: an empty or malformed RUN_DIR would turn the pgrep below into a
 # match-everything pattern (`pgrep -f ""` matches every process on Linux), and
-# the kill that follows would hit unrelated processes.
-case "$RUN_DIR" in
-  */code-oss-dev-*) ;;
+# the kill that follows would hit unrelated processes. Canonicalize first -
+# a glob matches `/` too, so `/tmp/code-oss-dev-x/../../home/you` would sail
+# through a pattern check and then reach `rm -rf`. Compare the resolved
+# basename instead, so only a real launcher run directory qualifies.
+RUN_DIR=$(cd "$RUN_DIR" 2>/dev/null && pwd -P) || {
+  echo "refusing to clean up: runDir does not exist" >&2; return 2>/dev/null || exit 1
+}
+case "$(basename "$RUN_DIR")" in
+  code-oss-dev-*) ;;
   *) echo "refusing to clean up: bad runDir '$RUN_DIR'" >&2; return 2>/dev/null || exit 1 ;;
 esac
 
