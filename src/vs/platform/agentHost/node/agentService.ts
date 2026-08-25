@@ -660,6 +660,14 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 		}));
 		this._register(this._stateManager.onDidEmitNotification(e => this._onDidNotification.fire(e)));
+		// A notice raised mid-turn waits for the agent to finish so it can own a
+		// turn of its own and survive restore.
+		this._register(this._stateManager.onDidChangeSessionActiveTurn(({ session, active }) => {
+			if (!active) {
+				this._flushAgentMergeNotices(session);
+			}
+		}));
+		this._register(this._stateManager.onDidRemoveSession(session => this._pendingAgentMergeNotices.delete(session)));
 		this._register(this._stateManager.onDidChangeSessionSummary(({ session, changes }) => {
 			const meta = this._stateManager.getSessionSummary(session)?._meta;
 			if (changes.modifiedAt !== undefined
@@ -1187,25 +1195,47 @@ export class AgentService extends Disposable implements IAgentService {
 	 *
 	 * The notice is dispatched as server state only — `AgentSideEffects` is
 	 * deliberately not involved — so it reaches clients without ever being sent
-	 * to the provider. When no turn is running it needs a turn of its own to live
-	 * on, because the chat reducer drops response parts that no active turn
-	 * claims; that turn's message is hidden so only the notice is rendered, and
-	 * it is recorded as a local turn because the SDK transcript replayed on
-	 * restore has never seen it.
+	 * to the provider. It needs a turn of its own to live on, because the chat
+	 * reducer drops response parts that no active turn claims; that turn's
+	 * message is hidden so only the notice is rendered, and it is recorded as a
+	 * local turn because the SDK transcript replayed on restore has never seen
+	 * it.
+	 *
+	 * A notice raised while the agent holds a turn has to wait: starting a turn
+	 * now would displace the running one, and appending to it would leave the
+	 * notice on a turn the provider owns, so restore would replay that turn
+	 * without it.
 	 */
 	private _postAgentMergeNotice(session: string, kind: AgentSystemNotificationKind, content: string): void {
-		const chat = buildDefaultChatUri(session);
-		const part = {
-			kind: ResponsePartKind.SystemNotification,
-			content,
-			_meta: toAgentSystemNotificationMeta({ kind }),
-		} as const;
-		const channel = chat.toString();
-		const activeTurnId = this._stateManager.getChatState(chat)?.activeTurn?.id;
-		if (activeTurnId) {
-			this._stateManager.dispatchServerAction(channel, { type: ActionType.ChatResponsePart, turnId: activeTurnId, part });
+		if (this._stateManager.hasActiveTurn(session)) {
+			const pending = this._pendingAgentMergeNotices.get(session);
+			if (pending) {
+				pending.push({ kind, content });
+			} else {
+				this._pendingAgentMergeNotices.set(session, [{ kind, content }]);
+			}
+			this._logService.debug(`[AgentService] Deferring an Agent Merge notice until the session is idle: session=${session}`);
 			return;
 		}
+		this._writeAgentMergeNotice(session, kind, content);
+	}
+
+	/** Emits the notices that were waiting for a session's turn to end. */
+	private _flushAgentMergeNotices(session: string): void {
+		const pending = this._pendingAgentMergeNotices.get(session);
+		if (!pending) {
+			return;
+		}
+		this._pendingAgentMergeNotices.delete(session);
+		for (const { kind, content } of pending) {
+			this._writeAgentMergeNotice(session, kind, content);
+		}
+	}
+
+	/** Writes one Agent Merge notice as a completed, host-owned local turn. */
+	private _writeAgentMergeNotice(session: string, kind: AgentSystemNotificationKind, content: string): void {
+		const chat = buildDefaultChatUri(session);
+		const channel = chat.toString();
 		const turnId = generateUuid();
 		this._stateManager.dispatchServerAction(channel, {
 			type: ActionType.ChatTurnStarted,
@@ -1213,7 +1243,15 @@ export class AgentService extends Disposable implements IAgentService {
 			startedAt: new Date().toISOString(),
 			message: withMessageHiddenFromTranscript({ text: content, origin: { kind: MessageKind.SystemNotification } }, true),
 		});
-		this._stateManager.dispatchServerAction(channel, { type: ActionType.ChatResponsePart, turnId, part });
+		this._stateManager.dispatchServerAction(channel, {
+			type: ActionType.ChatResponsePart,
+			turnId,
+			part: {
+				kind: ResponsePartKind.SystemNotification,
+				content,
+				_meta: toAgentSystemNotificationMeta({ kind }),
+			},
+		});
 		this._stateManager.dispatchServerAction(channel, { type: ActionType.ChatTurnComplete, turnId, duration: 0 });
 		const turns = this._stateManager.getSessionState(chat)?.turns;
 		const recorded = turns?.find(turn => turn.id === turnId);
@@ -1370,6 +1408,8 @@ export class AgentService extends Disposable implements IAgentService {
 
 	private _agentMergeRestore: Promise<void> = Promise.resolve();
 	private _agentMergeIndexWrites: Promise<void> = Promise.resolve();
+	/** Agent Merge notices waiting for a session's in-flight turn to finish. */
+	private readonly _pendingAgentMergeNotices = new Map<string, { readonly kind: AgentSystemNotificationKind; readonly content: string }[]>();
 
 	/** Test surface: settles once the startup Agent Merge restore pass and the index writes it enqueued have run. */
 	async whenAgentMergeSessionsRestored(): Promise<void> {

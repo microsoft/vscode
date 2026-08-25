@@ -3352,7 +3352,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-item-container .progress-container {
 	display: flex;
 	/* Keep the icon on the first line: a wrapped message must not drag it down
-	   to the middle of the block. */
+	to the middle of the block. */
 	align-items: flex-start;
 	gap: 4px;
 	margin: 0 0 var(--vscode-spacing-size160) 0;
@@ -3365,7 +3365,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	> .codicon[class*='codicon-'] {
 		font-size: var(--vscode-codiconFontSize-compact);
 		/* Makes the glyph box exactly one text line tall, so it stays optically
-		   centred on the first line at any font size. */
+		centred on the first line at any font size. */
 		line-height: inherit;
 
 		&::before {
