@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, observableValue } from '../../../../../base/common/observable.js';
@@ -14,13 +15,33 @@ import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/
 import { buildOpenSessionLinkUri } from '../../../../../platform/agentHost/common/openSessionLink.js';
 import { ILinkPresentationProvider, ILinkPresentationService } from '../../../../../platform/dataChannel/common/dataChannel.js';
 import { IOpener, IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { ISessionSummaryHoverProvider, ISessionSummaryHoverService } from '../../../../../workbench/contrib/chat/browser/agentSessions/sessionSummaryHoverService.js';
+import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionLinkChatState, ISessionLinkState, OpenSessionLinkOpenerContribution, readSessionState } from '../../browser/openSessionLinkOpener.contribution.js';
 
 suite('OpenSessionLinkOpenerContribution', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	const sessionsProvidersService = new class extends mock<ISessionsProvidersService>() {
+		override getProvider<T extends ISessionsProvider>(): T | undefined {
+			return upcastPartial<ISessionsProvider>({ label: 'Local Agent Host', sessionTypes: [] }) as T;
+		}
+	};
+
+	function createSessionSummaryHoverService(): { service: ISessionSummaryHoverService; provider: () => ISessionSummaryHoverProvider | undefined } {
+		let registered: ISessionSummaryHoverProvider | undefined;
+		const service = new class extends mock<ISessionSummaryHoverService>() {
+			override registerProvider(provider: ISessionSummaryHoverProvider): IDisposable {
+				registered = provider;
+				return Disposable.None;
+			}
+		};
+		return { service, provider: () => registered };
+	}
 
 	test('opens deep session and chat links in the Agents window', async () => {
 		let registeredOpener: IOpener | undefined;
@@ -57,12 +78,15 @@ suite('OpenSessionLinkOpenerContribution', () => {
 				return Disposable.None;
 			}
 		};
+		const sessionSummaryHoverService = createSessionSummaryHoverService().service;
 		store.add(new OpenSessionLinkOpenerContribution(
 			openerService,
 			sessionsManagementService,
 			sessionsService,
 			connectionsService,
 			linkPresentationService,
+			sessionsProvidersService,
+			sessionSummaryHoverService,
 		));
 
 		if (!registeredOpener) {
@@ -114,6 +138,7 @@ suite('OpenSessionLinkOpenerContribution', () => {
 				return Disposable.None;
 			}
 		};
+		const sessionSummaryHoverService = createSessionSummaryHoverService().service;
 		store.add(new OpenSessionLinkOpenerContribution(
 			new class extends mock<IOpenerService>() {
 				override registerOpener(): IDisposable { return Disposable.None; }
@@ -124,6 +149,8 @@ suite('OpenSessionLinkOpenerContribution', () => {
 				override resolveSessionResource() { return undefined; }
 			},
 			linkPresentationService,
+			sessionsProvidersService,
+			sessionSummaryHoverService,
 		));
 
 		const watcher = presentationProvider?.createLinkPresentationWatcher(URI.parse(buildOpenSessionLinkUri(sessionResource, 'chat-2')));
@@ -152,6 +179,59 @@ suite('OpenSessionLinkOpenerContribution', () => {
 				tooltip: 'Resolved chat · Completed',
 				ariaLabel: 'Agent chat Resolved chat, Completed',
 			},
+		});
+	});
+
+	test('resolves session hover data for a session link, and nothing for an unknown one', async () => {
+		const sessionResource = URI.parse('copilotcli:/session-1');
+		const session = upcastPartial<ISession>({
+			resource: sessionResource,
+			sessionType: 'claude',
+			providerId: 'local-agent-host',
+			title: observableValue('sessionTitle', 'Fix authentication redirect loop'),
+			isQuickChat: observableValue('isQuickChat', false),
+			workspace: observableValue('workspace', undefined),
+			worktreePending: observableValue('worktreePending', false),
+			changes: observableValue('changes', []),
+		});
+		const sessionsManagementService = new class extends mock<ISessionsManagementService>() {
+			override getSessions(): ISession[] {
+				return [session];
+			}
+		};
+		const hover = createSessionSummaryHoverService();
+		store.add(new OpenSessionLinkOpenerContribution(
+			new class extends mock<IOpenerService>() {
+				override registerOpener(): IDisposable { return Disposable.None; }
+			},
+			sessionsManagementService,
+			new class extends mock<ISessionsService>() { },
+			new class extends mock<IAgentHostConnectionsService>() {
+				override resolveSessionResource() { return undefined; }
+			},
+			new class extends mock<ILinkPresentationService>() {
+				override registerLinkPresentationProvider(): IDisposable { return Disposable.None; }
+			},
+			sessionsProvidersService,
+			hover.service,
+		));
+
+		const provider = hover.provider();
+		if (!provider) {
+			throw new Error('Expected the contribution to register a session hover provider');
+		}
+
+		assert.deepStrictEqual({
+			known: await provider.provideSessionSummaryHoverData(URI.parse(buildOpenSessionLinkUri(sessionResource)), CancellationToken.None),
+			unknown: await provider.provideSessionSummaryHoverData(URI.parse(buildOpenSessionLinkUri(URI.parse('copilotcli:/session-2'))), CancellationToken.None),
+		}, {
+			known: {
+				title: 'Fix authentication redirect loop',
+				location: undefined,
+				pullRequests: undefined,
+				providerLabels: ['Local Agent Host'],
+			},
+			unknown: undefined,
 		});
 	});
 

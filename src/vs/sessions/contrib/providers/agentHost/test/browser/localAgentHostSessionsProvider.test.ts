@@ -15,7 +15,7 @@ import { isEqual } from '../../../../../../base/common/resources.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { AgentSession, type IAgentCreateChatOptions, type IAgentCreateSessionConfig, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agent.js';
+import { AgentSession, type IAgentCreateChatRequestOptions, type IAgentCreateSessionConfig, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agent.js';
 import { AgentHostCodexAgentEnabledSettingId, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
@@ -152,8 +152,8 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		this.disposedChats.push(chat);
 	}
 
-	public createdChats: { session: URI; chat: URI; options?: IAgentCreateChatOptions }[] = [];
-	override async createChat(session: URI, chat: URI, options?: IAgentCreateChatOptions): Promise<void> {
+	public createdChats: { session: URI; chat: URI; options?: IAgentCreateChatRequestOptions }[] = [];
+	override async createChat(session: URI, chat: URI, options?: IAgentCreateChatRequestOptions): Promise<void> {
 		this.createdChats.push({ session, chat, options });
 		const key = session.toString();
 		const existing = this._sessionStateValues.get(key) as SessionState | undefined;
@@ -4876,6 +4876,35 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.strictEqual(target!.title.get(), 'Server Title');
 		assert.strictEqual(changes.length, 1);
 		assert.strictEqual(changes[0].changed.length, 1);
+	});
+
+	test('a rejected SessionIsArchivedChanged leaves the session unarchived', () => {
+		// The host refused the mutation, so applying it anyway would leave this
+		// window claiming a session is archived when nothing was ever recorded.
+		const provider = createProvider(disposables, agentHost);
+		fireSessionAdded(agentHost, 'rejected-archive', { title: 'Rejected' });
+
+		const target = provider.getSessions().find(s => s.title.get() === 'Rejected');
+		assert.ok(target);
+
+		const changes: ISessionChangeEvent[] = [];
+		disposables.add(provider.onDidChangeSessions(e => changes.push(e)));
+
+		agentHost.fireAction({
+			channel: AgentSession.uri('copilotcli', 'rejected-archive').toString(),
+			action: { type: ActionType.SessionIsArchivedChanged, isArchived: true },
+			serverSeq: 1,
+			origin: { clientId: 'test-client', clientSeq: 1 },
+			rejectionReason: 'Session is not ready',
+		} as ActionEnvelope);
+
+		assert.deepStrictEqual({
+			isArchived: target!.isArchived.get(),
+			changeEvents: changes.length,
+		}, {
+			isArchived: false,
+			changeEvents: 0,
+		});
 	});
 
 	test('server-echoed ChatTurnStarted model does not update cached session model', () => {

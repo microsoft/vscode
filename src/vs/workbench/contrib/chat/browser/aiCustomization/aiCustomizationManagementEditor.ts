@@ -1494,7 +1494,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			const setGroupCollapsed = (collapsed: boolean): void => {
 				groupItems.style.display = collapsed ? 'none' : '';
 				chevron.className = 'group-chevron';
-				chevron.classList.add(...ThemeIcon.asClassNameArray(collapsed ? Codicon.chevronRight : Codicon.chevronDown));
+				chevron.classList.add(...ThemeIcon.asClassNameArray(collapsed ? Codicon.chevronRightCompact : Codicon.chevronDownCompact));
 				groupToggle.setAttribute('aria-expanded', String(!collapsed));
 				this.migrationListScrollable?.scanDomNode();
 			};

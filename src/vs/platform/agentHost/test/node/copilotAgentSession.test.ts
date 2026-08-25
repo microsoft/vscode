@@ -7,6 +7,8 @@ import type Anthropic from '@anthropic-ai/sdk';
 import type { CopilotSession, CurrentToolMetadata, PermissionAllowAllMode, PermissionRequest, SessionEvent, SessionEventHandler, SessionEventPayload, SessionEventType, Tool, ToolResultObject, TypedSessionEventHandler } from '@github/copilot-sdk';
 import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
+import { existsSync, mkdirSync, mkdtempSync, rmSync } from 'fs';
+import { tmpdir } from 'os';
 import { PluginFormat } from '../../../agentPlugins/common/pluginParsers.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
@@ -91,6 +93,7 @@ class MockCopilotSession {
 	gitHubCredentialUpdateResult = { success: true, copilotUserResolved: true };
 	gitHubCredentialUpdateError: Error | undefined;
 	readonly collectLogsCalls: Parameters<CopilotSession['rpc']['debug']['collectLogs']>[0][] = [];
+	readonly collectLogsResults: Awaited<ReturnType<CopilotSession['rpc']['debug']['collectLogs']>>[] = [];
 	readonly experimentalModeUpdates: boolean[] = [];
 	experimentalModeUpdateSuccess = true;
 	sandboxConfigUpdateSuccess = true;
@@ -266,6 +269,10 @@ class MockCopilotSession {
 		debug: {
 			collectLogs: async (params: Parameters<CopilotSession['rpc']['debug']['collectLogs']>[0]) => {
 				this.collectLogsCalls.push(params);
+				const result = this.collectLogsResults.shift();
+				if (result) {
+					return result;
+				}
 				const { destination } = params;
 				return destination.kind === 'directory'
 					? { kind: 'directory' as const, path: destination.outputDirectory, entries: [] }
@@ -682,6 +689,8 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	serverToolHost?: IAgentServerToolHost;
 	/** Whether the launch plan represents an ephemeral session. */
 	isEphemeral?: boolean;
+	/** Whether the owning chat surface is scoped to editing a single file. */
+	hasScopedEditSurface?: boolean;
 	/** Platform used to compute the SDK sandbox policy. Defaults to `'linux'` so sandbox tests are deterministic. */
 	platform?: NodeJS.Platform;
 	githubToken?: string;
@@ -755,6 +764,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		shellManager: undefined,
 		githubToken: options?.githubToken,
 		isEphemeral: options?.isEphemeral,
+		hasScopedEditSurface: options?.hasScopedEditSurface,
 	};
 	const model = options?.modelId ? { id: options.modelId } : undefined;
 	const launchPlan: CopilotSessionLaunchPlan = options?.resume
@@ -825,13 +835,11 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	const rootValues = options?.rootValues ?? {};
 	const rootConfigEmitter = disposables.add(new Emitter<void>());
 	const sessionConfigEmitter = disposables.add(new Emitter<{ session: string; config: Record<string, unknown>; origin: { clientId: string; clientSeq: number } | undefined }>());
-	const workingDirectoryPendingEmitter = disposables.add(new Emitter<string>());
 	const customizationEnablementEmitter = disposables.add(new Emitter<{ sessions: readonly string[] }>());
 	const fakeConfigurationService: IAgentConfigurationService = {
 		_serviceBrand: undefined,
 		onDidRootConfigChange: rootConfigEmitter.event,
 		onDidSessionConfigChange: sessionConfigEmitter.event,
-		onDidChangeWorkingDirectoryPending: workingDirectoryPendingEmitter.event,
 		// Simple per-key map suffices for tests; the real service walks
 		// session → parent → host and validates against the schema, but
 		// neither matters here — we just need to surface a value the
@@ -840,8 +848,6 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		// mistakenly reads with a peer chat's own resource URI instead.
 		getEffectiveValue: ((session: string, _schema: unknown, key: string) => session === sessionUri.toString() ? configValues[key] : undefined) as IAgentConfigurationService['getEffectiveValue'],
 		getEffectiveWorkingDirectories: () => undefined,
-		isWorkingDirectoryPending: () => false,
-		resolveWorkingDirectoryForResume: async (_session, workingDirectory) => workingDirectory,
 		getSessionConfigValues: () => undefined,
 		updateSessionConfig: (session, patch) => { sessionConfigUpdates.push({ session, patch }); },
 		getRootValue: ((_schema: unknown, key: string) => rootValues[key]) as IAgentConfigurationService['getRootValue'],
@@ -1050,16 +1056,77 @@ suite('CopilotAgentSession', () => {
 		const { session, mockSession } = await createAgentSession(disposables);
 		const outputDirectory = URI.file('/tmp/agent-host-debug');
 
-		await session.collectDebugLogs(outputDirectory, true);
-		await session.collectDebugLogs(outputDirectory, false);
+		const sessionLogsIncluded = await session.collectDebugLogs(outputDirectory, true);
+		const processLogsIncluded = await session.collectDebugLogs(outputDirectory, false);
 
-		assert.deepStrictEqual(mockSession.collectLogsCalls, [{
-			destination: { kind: 'directory', outputDirectory: outputDirectory.fsPath },
-			include: { events: true, processLogs: false, shellLogs: true },
+		assert.deepStrictEqual({
+			included: [sessionLogsIncluded, processLogsIncluded],
+			calls: mockSession.collectLogsCalls,
 		}, {
-			destination: { kind: 'directory', outputDirectory: outputDirectory.fsPath },
-			include: { events: false, processLogs: false, shellLogs: false },
-		}]);
+			included: [false, false],
+			calls: [{
+				destination: { kind: 'directory', outputDirectory: outputDirectory.fsPath },
+				include: { events: true, processLogs: false, shellLogs: true },
+			}, {
+				destination: { kind: 'directory', outputDirectory: outputDirectory.fsPath },
+				include: { events: false, processLogs: false, shellLogs: false },
+			}],
+		});
+	});
+
+	test('retries SDK debug collection while the event log is pending', async () => {
+		const { session, mockSession } = await createAgentSession(disposables);
+		const testRoot = mkdtempSync(join(tmpdir(), 'copilot-debug-logs-'));
+		const outputDirectory = URI.file(join(testRoot, 'output'));
+		const retryDirectory = join(testRoot, 'retry');
+		mkdirSync(retryDirectory);
+		try {
+			mockSession.collectLogsResults.push({
+				kind: 'directory',
+				path: retryDirectory,
+				entries: [],
+				skippedEntries: [{ bundlePath: 'events.jsonl', path: join(testRoot, 'events.jsonl'), reason: 'not found' }],
+			}, {
+				kind: 'directory',
+				path: outputDirectory.fsPath,
+				entries: [{ bundlePath: 'events.jsonl', source: 'events', sizeBytes: 42 }],
+			});
+
+			const included = await session.collectDebugLogs(outputDirectory, true);
+
+			assert.deepStrictEqual({
+				included,
+				callCount: mockSession.collectLogsCalls.length,
+				retryDirectoryExists: existsSync(retryDirectory),
+			}, {
+				included: true,
+				callCount: 2,
+				retryDirectoryExists: false,
+			});
+		} finally {
+			rmSync(testRoot, { recursive: true, force: true });
+		}
+	});
+
+	test('does not retry a permanently skipped SDK event log', async () => {
+		const { session, mockSession } = await createAgentSession(disposables);
+		const outputDirectory = URI.file('/tmp/agent-host-debug');
+		mockSession.collectLogsResults.push({
+			kind: 'directory',
+			path: outputDirectory.fsPath,
+			entries: [],
+			skippedEntries: [{ bundlePath: 'events.jsonl', path: '/tmp/events.jsonl', reason: 'permission denied' }],
+		});
+
+		const included = await session.collectDebugLogs(outputDirectory, true);
+
+		assert.deepStrictEqual({
+			included,
+			callCount: mockSession.collectLogsCalls.length,
+		}, {
+			included: false,
+			callCount: 1,
+		});
 	});
 
 	suite('CopilotSessionWrapper', () => {
@@ -4234,6 +4301,26 @@ suite('CopilotAgentSession', () => {
 
 			assert.strictEqual(result.kind, 'approve-once');
 			assert.strictEqual(signals.length, 0);
+		});
+
+		test('does not auto-approve a sandboxed shell command for a file-scoped surface', async () => {
+			// The sandbox contains a command to the workspace, not to inline
+			// chat's single target file, so it must still prompt.
+			const { session, runtime, signals, waitForSignal } = await createAgentSession(disposables, {
+				rootValues: { [AgentHostSandboxConfigKey.Sandbox]: { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On } },
+				hasScopedEditSurface: true,
+			});
+
+			const resultPromise = runtime.handlePermissionRequest({
+				kind: 'shell',
+				toolCallId: 'tc-scoped-sandboxed',
+				fullCommandText: 'cat ~/something.txt',
+			});
+
+			await waitForSignal(s => s.kind === 'pending_confirmation' && s.state.toolCallId === 'tc-scoped-sandboxed');
+			assert.strictEqual(signals.length, 1);
+			assert.ok(session.respondToPermissionRequest('tc-scoped-sandboxed', true));
+			assert.strictEqual((await resultPromise).kind, 'approve-once');
 		});
 
 		test('does not auto-approve a shell command that opted out of the sandbox', async () => {

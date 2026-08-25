@@ -13,7 +13,7 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IWorkspaceContextService, Workspace, toWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
-import { ChatConfiguration, ChatPermissionLevel, getChatPermissionLevelFromDefaultConfiguration, getComputedDefaultSessionResource, getComputedDefaultSessionType, getDefaultNewChatSessionResource, getDefaultNewChatSessionType, IDefaultNewChatSessionTypeOptions, isEditorLocalAgentEnabled, isNewChatSessionTypeUsable, isVisibleEditorChatSessionType, recordUserSelectedSessionType, resolveDefaultNewChatSessionType } from '../../common/constants.js';
+import { ChatConfiguration, ChatPermissionLevel, getChatPermissionLevelFromDefaultConfiguration, getComputedDefaultSessionResource, getComputedDefaultSessionType, getDefaultNewChatSessionResource, getDefaultNewChatSessionType, IDefaultNewChatSessionTypeOptions, isEditorLocalAgentEnabled, isNewChatSessionTypeUsable, isVisibleEditorChatSessionType, recordUserSelectedSessionType, resolveDefaultNewChatSessionType, resolveDefaultNewChatSessionTypeWithReason } from '../../common/constants.js';
 import { localChatSessionType, SessionType, IChatSessionsExtensionPoint, IChatSessionsService } from '../../common/chatSessionsService.js';
 import { MockChatSessionsService } from './mockChatSessionsService.js';
 import { TestContextService, TestStorageService } from '../../../../test/common/workbenchTestServices.js';
@@ -61,6 +61,23 @@ suite('ChatConfiguration defaults', () => {
 		accessor.set(IWorkspaceContextService, new TestContextService(workspace));
 		accessor.set(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: constObservable(agentHostEnabled), managedSandboxEnforced: constObservable(false) });
 		return resolveDefaultNewChatSessionType(accessor, options);
+	}
+
+	function resolveSessionTypeWithReason(
+		configurationService: IConfigurationService,
+		chatSessionsService: IChatSessionsService,
+		storageService: IStorageService,
+		workspace: Workspace,
+		agentHostEnabled: boolean,
+		options?: IDefaultNewChatSessionTypeOptions,
+	) {
+		const accessor = disposables.add(new TestInstantiationService());
+		accessor.set(IConfigurationService, configurationService);
+		accessor.set(IChatSessionsService, chatSessionsService);
+		accessor.set(IStorageService, storageService);
+		accessor.set(IWorkspaceContextService, new TestContextService(workspace));
+		accessor.set(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: constObservable(agentHostEnabled), managedSandboxEnforced: constObservable(false) });
+		return resolveDefaultNewChatSessionTypeWithReason(accessor, options);
 	}
 
 	test('default permission configuration maps setting values to Agent Host values', () => {
@@ -642,6 +659,33 @@ suite('ChatConfiguration defaults', () => {
 		}, {
 			localEnabled: true,
 			computed: localChatSessionType,
+		});
+	});
+
+	test('new chat default resolver reports every selection reason', () => {
+		const configurationService = new TestConfigurationService();
+		const preferenceConfigurationService = new TestConfigurationService({
+			[ChatConfiguration.EditorPreferCopilotHarness]: true,
+		});
+		const chatSessionsService = createChatSessionsService(SessionType.AgentHostCopilot, SessionType.AgentHostClaude);
+		const storageService = disposables.add(new TestStorageService());
+		const rememberedStorageService = disposables.add(new TestStorageService());
+		storeUserSelectedSessionType(rememberedStorageService, SessionType.AgentHostClaude);
+
+		assert.deepStrictEqual({
+			explicit: resolveSessionTypeWithReason(configurationService, chatSessionsService, storageService, localWorkspace, true, { explicitOverride: SessionType.AgentHostClaude }),
+			virtual: resolveSessionTypeWithReason(configurationService, chatSessionsService, storageService, createWorkspace(URI.parse('vscode-vfs://github/microsoft/vscode')), true),
+			remembered: resolveSessionTypeWithReason(configurationService, chatSessionsService, rememberedStorageService, localWorkspace, true),
+			current: resolveSessionTypeWithReason(configurationService, chatSessionsService, storageService, localWorkspace, true, { currentSessionType: SessionType.AgentHostClaude }),
+			copilotPreference: resolveSessionTypeWithReason(preferenceConfigurationService, chatSessionsService, storageService, localWorkspace, true, { currentSessionType: localChatSessionType }),
+			computed: resolveSessionTypeWithReason(configurationService, chatSessionsService, storageService, localWorkspace, true),
+		}, {
+			explicit: { sessionType: SessionType.AgentHostClaude, selectionReason: 'explicitOverride' },
+			virtual: { sessionType: localChatSessionType, selectionReason: 'virtualWorkspace' },
+			remembered: { sessionType: SessionType.AgentHostClaude, selectionReason: 'rememberedSelection' },
+			current: { sessionType: SessionType.AgentHostClaude, selectionReason: 'currentSession' },
+			copilotPreference: { sessionType: SessionType.AgentHostCopilot, selectionReason: 'copilotPreference' },
+			computed: { sessionType: localChatSessionType, selectionReason: 'computedDefault' },
 		});
 	});
 
