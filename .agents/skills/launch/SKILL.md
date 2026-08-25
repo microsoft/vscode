@@ -503,7 +503,12 @@ case "$RUN_DIR" in
   *) echo "refusing to clean up: bad runDir '$RUN_DIR'" >&2; return 2>/dev/null || exit 1 ;;
 esac
 
-leftover=$(pgrep -f "$RUN_DIR" || true)
+# pgrep -f takes a regex, not a literal: an unescaped '+' or '[' from a custom
+# TMPDIR can miss this run (deleting a profile whose processes are still alive)
+# or broaden the match before the kill. Escape once, reuse everywhere.
+RUN_RE=$(printf '%s' "$RUN_DIR" | sed 's/[][\.^$*+?(){}|\\]/\\&/g')
+
+leftover=$(pgrep -f "$RUN_RE" || true)
 if [ -n "$leftover" ]; then
   echo "$leftover" | xargs kill 2>/dev/null || true
   sleep 2
@@ -511,8 +516,8 @@ fi
 
 # Only discard the profile once nothing is left: a survivor still has the run's
 # logs open, and deleting them removes the evidence you need to diagnose it.
-if pgrep -f "$RUN_DIR" >/dev/null; then
-  echo "STILL RUNNING: $(pgrep -f "$RUN_DIR" | tr '\n' ' ')"
+if pgrep -f "$RUN_RE" >/dev/null; then
+  echo "STILL RUNNING: $(pgrep -f "$RUN_RE" | tr '\n' ' ')"
   echo "keeping $RUN_DIR for diagnosis"
 else
   rm -rf "$RUN_DIR"
