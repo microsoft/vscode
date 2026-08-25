@@ -6,8 +6,8 @@
 import assert from 'assert';
 import { mkdtempSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
-import { join } from 'path';
 import { pathToFileURL } from 'url';
+import { join } from '../../../../base/common/path.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
 // The module under test imports `node:module`, which the Electron renderer that also picks up

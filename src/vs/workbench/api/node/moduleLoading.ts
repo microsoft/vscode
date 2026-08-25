@@ -27,7 +27,8 @@ export function tryRequireSync<T>(path: string): { readonly module: T } | undefi
 	try {
 		return { module: <T>require(path) };
 	} catch (err) {
-		if (err instanceof Error && 'code' in err && typeof err.code === 'string' && asyncOnlyErrorCodes.has(err.code)) {
+		const code = (<NodeJS.ErrnoException | undefined>err)?.code;
+		if (typeof code === 'string' && asyncOnlyErrorCodes.has(code)) {
 			return undefined;
 		}
 		throw err;
