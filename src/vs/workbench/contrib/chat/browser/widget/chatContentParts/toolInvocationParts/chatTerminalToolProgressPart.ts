@@ -59,7 +59,7 @@ import { isNumber } from '../../../../../../../base/common/types.js';
 import { removeAnsiEscapeCodes } from '../../../../../../../base/common/strings.js';
 import { PANEL_BACKGROUND } from '../../../../../../common/theme.js';
 import { editorBackground } from '../../../../../../../platform/theme/common/colorRegistry.js';
-import { IThemeService } from '../../../../../../../platform/theme/common/themeService.js';
+import { asCssVariable } from '../../../../../../../platform/theme/common/colorUtils.js';
 import { CommandsRegistry } from '../../../../../../../platform/commands/common/commands.js';
 
 /**
@@ -1347,7 +1347,6 @@ export class ChatTerminalToolOutputSection extends Disposable {
 		@IAccessibleViewService private readonly _accessibleViewService: IAccessibleViewService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ITerminalConfigurationService private readonly _terminalConfigurationService: ITerminalConfigurationService,
-		@IThemeService private readonly _themeService: IThemeService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService
 	) {
 		super();
@@ -1375,8 +1374,8 @@ export class ChatTerminalToolOutputSection extends Disposable {
 		const resizeObserver = this._register(new dom.DisposableResizeObserver('ChatTerminalToolProgressPart.handleResize', () => this._handleResize()));
 		this._register(resizeObserver.observe(this.domNode));
 
-		this._applyBackgroundColor();
-		this._register(this._themeService.onDidColorThemeChange(() => this._applyBackgroundColor()));
+		const backgroundColor = ChatContextKeys.inChatEditor.getValue(this._contextKeyService) ? editorBackground : PANEL_BACKGROUND;
+		this.domNode.style.backgroundColor = asCssVariable(backgroundColor);
 	}
 
 	public async toggle(expanded: boolean): Promise<boolean> {
@@ -1825,14 +1824,6 @@ export class ChatTerminalToolOutputSection extends Disposable {
 		return Math.max(rowHeight, 1);
 	}
 
-	private _applyBackgroundColor(): void {
-		const theme = this._themeService.getColorTheme();
-		const isInEditor = ChatContextKeys.inChatEditor.getValue(this._contextKeyService);
-		const backgroundColor = theme.getColor(isInEditor ? editorBackground : PANEL_BACKGROUND);
-		if (backgroundColor) {
-			this.domNode.style.backgroundColor = backgroundColor.toString();
-		}
-	}
 }
 
 export class ChatTerminalThinkingCollapsibleWrapper extends ChatCollapsibleContentPart {
