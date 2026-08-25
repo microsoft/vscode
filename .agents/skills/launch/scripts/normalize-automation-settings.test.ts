@@ -510,15 +510,17 @@ test('accepts comment-only workspace settings as an empty configuration', () => 
 	assert.strictEqual(workspaceCheckStatus([root]), 0);
 });
 
-test('rejects a code-workspace path or file URI that disables the simple dialog', () => {
+test('checks opened workspaces but not code-workspace diff or merge inputs', () => {
 	const root = fixtureRoot('nas-code-workspace-');
 	const workspaceFile = path.join(root, 'automation.code-workspace');
 	fs.writeFileSync(workspaceFile, '{\n // keep\n "folders": [],\n "settings": { "files.simpleDialog.enable": false, },\n}\n');
 
 	assert.deepStrictEqual([
 		workspaceCheckStatus(['--new-window', workspaceFile]),
-		workspaceCheckStatus(['--file-uri=' + pathToFileURL(workspaceFile).href])
-	], [1, 1]);
+		workspaceCheckStatus(['--file-uri=' + pathToFileURL(workspaceFile).href]),
+		workspaceCheckStatus(['--diff', workspaceFile, workspaceFile]),
+		workspaceCheckStatus(['--merge', workspaceFile, workspaceFile, workspaceFile, workspaceFile])
+	], [1, 1, 0, 0]);
 });
 
 test('accepts an enabled simple dialog through a folder URI', () => {
