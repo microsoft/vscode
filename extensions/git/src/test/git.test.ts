@@ -657,6 +657,16 @@ suite('git', () => {
 			);
 		});
 
+		test('heads with CRLF line endings', () => {
+			assert.deepStrictEqual(
+				parseLsRemote('52c293a05038d865604c2284aa8698bd087915a1\trefs/heads/main\r\n8e5a374372b8393906c7e380dbb09349c5385554\trefs/heads/release\r\n'),
+				[
+					{ name: 'main', commit: '52c293a05038d865604c2284aa8698bd087915a1', type: RefType.Head },
+					{ name: 'release', commit: '8e5a374372b8393906c7e380dbb09349c5385554', type: RefType.Head }
+				]
+			);
+		});
+
 		test('tags', () => {
 			assert.deepStrictEqual(
 				parseLsRemote('8e5a374372b8393906c7e380dbb09349c5385554\trefs/tags/v1.0.0\n'),
