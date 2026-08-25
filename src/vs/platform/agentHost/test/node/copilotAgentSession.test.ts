@@ -1024,7 +1024,9 @@ function expectedSnapshotReadonlyNote(paths: string[]): string {
 }
 
 /** Shell init directory the test materializer reports, granted read access in every sandbox policy. */
-const TEST_SHELL_INIT_DIR = '/mock-userdata/agentHost/shellInit/test-session-1';
+const TEST_SHELL_INIT_DIRECTORY = URI.file('/mock-userdata/agentHost/shellInit/test-session-1');
+const TEST_SHELL_INIT_DIR = TEST_SHELL_INIT_DIRECTORY.fsPath;
+const TEST_SHELL_INIT_SCRIPT = URI.joinPath(TEST_SHELL_INIT_DIRECTORY, 'init.sh').fsPath;
 
 suite('CopilotAgentSession', () => {
 
@@ -11673,7 +11675,7 @@ suite('CopilotAgentSession', () => {
 
 			await session.send('go', undefined, 'turn-1', 'interactive');
 			assert.deepStrictEqual(mockSession.shellInitScriptUpdates.at(-1), [
-				{ shell: 'bash', path: '/mock-userdata/agentHost/shellInit/test-session-1/init.sh' },
+				{ shell: 'bash', path: TEST_SHELL_INIT_SCRIPT },
 			]);
 
 			const afterFirst = mockSession.shellInitScriptUpdates.length;
@@ -11687,8 +11689,8 @@ suite('CopilotAgentSession', () => {
 			setConfigValue(SessionConfigKey.ShellInitSnippets, []);
 			await session.send('go', undefined, 'turn-3', 'interactive');
 			assert.deepStrictEqual(mockSession.shellInitScriptUpdates, [
-				[{ shell: 'bash', path: '/mock-userdata/agentHost/shellInit/test-session-1/init.sh' }],
-				[{ shell: 'bash', path: '/mock-userdata/agentHost/shellInit/test-session-1/init.sh' }],
+				[{ shell: 'bash', path: TEST_SHELL_INIT_SCRIPT }],
+				[{ shell: 'bash', path: TEST_SHELL_INIT_SCRIPT }],
 				[],
 			]);
 		});
