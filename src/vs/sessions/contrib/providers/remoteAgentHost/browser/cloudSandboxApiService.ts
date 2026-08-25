@@ -71,9 +71,8 @@ const REQUEST_TIMEOUT_MS = 10_000;
 const DISCOVERY_TIMEOUT_MS = 30_000;
 
 /**
- * Per-request timeout (ms) for task creation, which provisions a sandbox VM before replying. The
- * reply waits on a machine being allocated rather than a record being written; at the shorter
- * budget the client aborted every create before any response arrived.
+ * Per-request timeout (ms) for task creation, which waits on a sandbox VM being allocated rather
+ * than on a record being written.
  */
 const CREATE_TIMEOUT_MS = 60_000;
 
@@ -82,8 +81,7 @@ const DEFAULT_WAKING_RETRY_AFTER_SECONDS = 5;
 
 /**
  * Response headers worth logging when a request fails, lowercased to match the response map.
- * `x-github-request-id` is what a support escalation is keyed on; `x-sweagentd-retry` names the
- * transient reason when the provisioner classified the failure as retryable.
+ * `x-github-request-id` is what a support escalation is keyed on.
  */
 const DIAGNOSTIC_RESPONSE_HEADERS = ['x-github-request-id', 'x-request-id', 'x-sweagentd-retry', 'retry-after'] as const;
 
@@ -250,13 +248,10 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 			...(repository && { repositories: [repository] }),
 		});
 		if (!isSuccess(context)) {
-			// Mission Control records the task before it provisions compute, so a failure here can
-			// still leave a task behind. Read the body once: it carries both the id to clean up and
-			// the message explaining the failure.
+			// Read once: the body carries both the id to clean up and the failure message.
 			const failureBody = await asText(context).catch(() => '') ?? '';
 
-			// Provisioning failures answer with a generic `failed to create agent compute` that
-			// masks the upstream cause, so the server-side request id is the only usable handle.
+			// The generic failure message masks its cause; the request id is the only handle.
 			this._logService.error(`${LOG_PREFIX} Task create failed. ${this._describeResponse(context, failureBody)}`);
 
 			const orphanedTaskId = this._taskIdFromFailure(failureBody);
@@ -298,8 +293,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 				'Accept': 'application/json',
 				'Copilot-Integration-Id': COPILOT_INTEGRATION_ID,
 			}, CancellationToken.None, REQUEST_TIMEOUT_MS, undefined, 'DELETE');
-			// A rejected delete resolves rather than throwing, so the status decides: reporting a
-			// failed cleanup as success would hide an orphan that is still there.
+			// A rejected delete resolves rather than throwing, so the status decides.
 			if (!isSuccess(context)) {
 				this._logService.warn(`${LOG_PREFIX} Could not clean up sandbox task ${taskId}: HTTP ${context.res.statusCode ?? 'none'}. It remains and can only be removed server-side.`);
 				return;
@@ -440,8 +434,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 				url,
 				headers: {
 					...headers,
-					// `fetch` labels a string body `text/plain` unless told otherwise, so a JSON
-					// payload has to declare itself or it reaches Mission Control mistyped.
+					// `fetch` labels a string body `text/plain` unless told otherwise.
 					...(body === undefined ? undefined : { ['Content-Type']: 'application/json' }),
 					['Authorization']: `Bearer ${accessToken}`
 				},
@@ -487,10 +480,8 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 	}
 
 	/**
-	 * Throw a diagnosable error for a non-success response, including the body when readable.
-	 *
-	 * Pass `prereadBody` when the caller has already consumed the response stream; reading it a
-	 * second time yields nothing and would drop the message explaining the failure.
+	 * Throw a diagnosable error for a non-success response. Pass `prereadBody` when the caller has
+	 * already consumed the stream, since reading it twice yields nothing.
 	 */
 	private async _throwForStatus(action: string, context: IRequestContext, prereadBody?: string): Promise<never> {
 		const body = prereadBody ?? await asText(context).catch(() => '');
@@ -503,8 +494,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 
 	/**
 	 * Describe a response verbatim for a support escalation: status, the server-side request id,
-	 * and the body as received. Provisioning failures answer with a fallback message that masks the
-	 * upstream cause, so the request id is the only handle that correlates against their logs.
+	 * and the body as received.
 	 */
 	private _describeResponse(context: IRequestContext, body: string): string {
 		const headers = context.res.headers ?? {};

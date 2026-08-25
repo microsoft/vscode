@@ -269,8 +269,7 @@ function createServiceForCreate(store: Pick<{ add<T extends { dispose(): void }>
 				if (options?.failDelete) {
 					throw new Error('delete failed');
 				}
-				// The delete answers for itself: reusing the create's failure status would let a
-				// cleanup that never happened look like one that did.
+				// Reusing the create's failure status would fake a cleanup that never happened.
 				return jsonResponse({}, options?.deleteStatusCode ?? 204);
 			}
 			return jsonResponse(response, statusCode, options?.responseHeaders);
@@ -312,8 +311,7 @@ suite('CloudSandboxApiService session creation', () => {
 			type: calls[0].type,
 			endsWithTasks: calls[0].url.endsWith('/agents/tasks'),
 			body: calls[0].body,
-			// Creating a task provisions a VM before replying, so it needs its own budget; the
-			// shared one aborts the request before any response arrives.
+			// Creating a task provisions a VM before replying, so it needs its own budget.
 			timeout: calls[0].timeout,
 			// `fetch` labels a string body `text/plain` unless told otherwise.
 			contentType: calls[0].headers['Content-Type'],
@@ -326,8 +324,7 @@ suite('CloudSandboxApiService session creation', () => {
 				prompt: 'fix it',
 				repositories: [{ owner: 'osortega', name: 'simple-server' }],
 			},
-			// Pinned as a literal rather than the constant: asserting a value against itself would
-			// still pass if the budget were lowered back to the one that aborted every create.
+			// A literal, not the constant: comparing a value to itself would prove nothing.
 			timeout: 60_000,
 			contentType: 'application/json',
 		});
@@ -390,8 +387,7 @@ suite('CloudSandboxApiService session creation', () => {
 	});
 
 	test('deletes the task named by a failed create, which Mission Control recorded before failing', async () => {
-		// Compute is provisioned after the task record exists, so a provisioning failure leaves a
-		// task behind. When the failure names it, it is ours to clean up.
+		// Compute is provisioned after the record exists, so a failure leaves a task behind.
 		const { service, calls, warnings } = createServiceForCreate(store, { id: 'task-9', message: 'failed to create agent compute' }, 500);
 
 		await assert.rejects(() => service.createSession({ prompt: 'hello' }, CancellationToken.None));
@@ -407,8 +403,7 @@ suite('CloudSandboxApiService session creation', () => {
 	});
 
 	test('reports a rejected cleanup rather than claiming the orphan was removed', async () => {
-		// A rejected delete resolves like any other response, so without a status check the task
-		// is reported as cleaned up while it is still there.
+		// A rejected delete resolves like any other response, so the status must be checked.
 		const { service, warnings } = createServiceForCreate(store, { id: 'task-10', message: 'failed to create agent compute' }, 500, { deleteStatusCode: 500 });
 
 		await assert.rejects(() => service.createSession({ prompt: 'hello' }, CancellationToken.None));
@@ -419,8 +414,7 @@ suite('CloudSandboxApiService session creation', () => {
 	});
 
 	test('keeps the failure message when the response names no task', async () => {
-		// The response body is read once and reused: reading it again to build the error would
-		// yield nothing and discard the only explanation of why creation failed.
+		// The body is read once: reading it again would discard the failure's explanation.
 		const { service, calls } = createServiceForCreate(store, { message: 'failed to create agent compute' }, 500);
 
 		await assert.rejects(
@@ -432,8 +426,7 @@ suite('CloudSandboxApiService session creation', () => {
 	});
 
 	test('logs the request id and raw body when a create fails, so the failure can be escalated', async () => {
-		// Provisioning failures answer with a message that masks the cause, so the server-side
-		// request id is the only thing that lets the owning team find the real error.
+		// The failure message masks its cause, so the request id is what gets escalated.
 		const { service, errors } = createServiceForCreate(store,
 			{ message: 'failed to create agent compute' }, 500,
 			{ responseHeaders: { 'x-github-request-id': 'ABCD:1234:5678', 'x-sweagentd-retry': 'compute_resource_locked' } });
