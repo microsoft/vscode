@@ -148,6 +148,28 @@ suite('GetTerminalOutputTool', () => {
 		assert.strictEqual(value, `Output of terminal ${KNOWN_TERMINAL_ID} unchanged since previous poll (11 total characters in buffer). No new output.`);
 	});
 
+	test('rejects a second consecutive unchanged poll by default', async () => {
+		RunInTerminalTool.getExecution = () => createMockExecution('line1\nline2');
+
+		for (let i = 0; i < 2; i++) {
+			await tool.invoke(
+				createInvocation(KNOWN_TERMINAL_ID),
+				async () => 0,
+				{ report: () => { } },
+				CancellationToken.None,
+			);
+		}
+		const result = await tool.invoke(
+			createInvocation(KNOWN_TERMINAL_ID),
+			async () => 0,
+			{ report: () => { } },
+			CancellationToken.None,
+		);
+
+		const value = (result.content[0] as { value: string }).value;
+		assert.ok(value.includes('Do not poll again'));
+	});
+
 	test('returns only new output when output deltas experiment is enabled', async () => {
 		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.OutputDeltas, true);
 		const execution = createMutableMockExecution('line1');

@@ -421,10 +421,18 @@ describe('ToolCallingLoop autopilot', () => {
 
 		it('should return undefined when task_complete was called in a previous round', async () => {
 			const loop = createLoop('autopilot');
-			loop.addToolCallRound(createMockRound(['task_complete']));
+			loop.addToolCallRound(createMockRound(['task_complete'], 'Task completed successfully.'));
 
 			const result = await loop.testShouldAutopilotContinue(createMockSingleResult());
 			expect(result).toBeUndefined();
+		});
+
+		it('should nudge when task_complete was called without a completion summary', async () => {
+			const loop = createLoop('autopilot');
+			loop.addToolCallRound(createMockRound(['task_complete']));
+
+			const result = await loop.testShouldAutopilotContinue(createMockSingleResult());
+			expect(result).toContain('task_complete');
 		});
 
 		it('should stop after MAX_AUTOPILOT_ITERATIONS', async () => {

@@ -598,11 +598,14 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 			return undefined;
 		}
 
-		// might have called task_complete alongside other tools in an earlier round
-		const calledTaskComplete = this.toolCallRounds.some(
-			round => round.toolCalls.some(tc => tc.name === ToolCallingLoop.TASK_COMPLETE_TOOL_NAME)
+		// Require the completion call to be accompanied by the model's text summary.
+		// This prevents a bare task_complete call from ending the run without evidence
+		// that the model produced the required completion response.
+		const hasCompletionEvidence = this.toolCallRounds.some(
+			round => round.response.trim().length > 0
+				&& round.toolCalls.some(tc => tc.name === ToolCallingLoop.TASK_COMPLETE_TOOL_NAME)
 		);
-		if (calledTaskComplete) {
+		if (hasCompletionEvidence) {
 			this.taskCompleted = true;
 			this._logService.info('[ToolCallingLoop] Autopilot: task_complete found in history, stopping');
 			return undefined;

@@ -44,6 +44,7 @@ interface IOutputSnapshot {
 	readonly terminalInstanceId: number;
 	readonly length: number;
 	readonly hash: string;
+	readonly unchangedPollCount: number;
 }
 
 export class GetTerminalOutputTool extends Disposable implements IToolImpl {
@@ -100,20 +101,29 @@ export class GetTerminalOutputTool extends Disposable implements IToolImpl {
 	}
 
 	private _formatOutput(id: string, terminalInstanceId: number, output: string): string {
-		if (!this._configurationService.getValue<boolean>(TerminalChatAgentToolsSettingId.OutputDeltas)) {
-			this._lastOutputSnapshotByExecutionId.clear();
-			return this._formatTailOrFull(output, `Output of terminal ${id}`);
-		}
-
 		const previousOutputSnapshot = this._lastOutputSnapshotByExecutionId.get(id);
 		const currentOutputSnapshot = this._createOutputSnapshot(terminalInstanceId, output);
-		this._rememberOutput(id, currentOutputSnapshot);
 
 		if (previousOutputSnapshot === undefined) {
+			this._rememberOutput(id, currentOutputSnapshot);
 			return this._formatTailOrFull(output, `Output of terminal ${id}`);
 		}
-		if (currentOutputSnapshot.length === previousOutputSnapshot.length && currentOutputSnapshot.hash === previousOutputSnapshot.hash) {
+
+		const outputUnchanged = currentOutputSnapshot.terminalInstanceId === previousOutputSnapshot.terminalInstanceId
+			&& currentOutputSnapshot.length === previousOutputSnapshot.length
+			&& currentOutputSnapshot.hash === previousOutputSnapshot.hash;
+		if (outputUnchanged) {
+			const unchangedPollCount = previousOutputSnapshot.unchangedPollCount + 1;
+			this._rememberOutput(id, { ...currentOutputSnapshot, unchangedPollCount });
+			if (unchangedPollCount >= 2) {
+				return `Error: Terminal ${id} output has not changed for multiple consecutive polls. Do not poll again; wait for the automatic terminal completion notification.`;
+			}
 			return `Output of terminal ${id} unchanged since previous poll (${output.length} total characters in buffer). No new output.`;
+		}
+
+		this._rememberOutput(id, currentOutputSnapshot);
+		if (!this._configurationService.getValue<boolean>(TerminalChatAgentToolsSettingId.OutputDeltas)) {
+			return this._formatTailOrFull(output, `Output of terminal ${id}`);
 		}
 
 		if (output.length > previousOutputSnapshot.length && this._hashOutput(output, previousOutputSnapshot.length) === previousOutputSnapshot.hash) {
@@ -159,6 +169,7 @@ export class GetTerminalOutputTool extends Disposable implements IToolImpl {
 			terminalInstanceId,
 			length: output.length,
 			hash: this._hashOutput(output),
+			unchangedPollCount: 0,
 		};
 	}
 
