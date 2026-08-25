@@ -33,6 +33,7 @@ import { IChatService } from '../../../common/chatService/chatService.js';
 import { IChatSessionsService, localChatSessionType } from '../../../common/chatSessionsService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { clearChatEditor } from '../../actions/chatClear.js';
+import type { IChatWidgetViewOptions } from '../../chat.js';
 import { ChatEditorInput } from './chatEditorInput.js';
 import { ChatWidget } from '../../widget/chatWidget.js';
 import { IChatWidgetViewState, setModelPreservingInputTypedWhileLoading } from '../../chat.js';
@@ -59,6 +60,26 @@ export interface IChatEditorOptions extends IEditorOptions {
 }
 
 export type IChatEditorViewState = IChatWidgetViewState;
+
+export function createChatEditorViewOptions(parent: HTMLElement, clear: (targetSessionType?: string) => Promise<void>): IChatWidgetViewOptions {
+	return {
+		autoScroll: mode => mode !== ChatModeKind.Ask,
+		readOnlyBannerAtTop: true,
+		renderFollowups: true,
+		supportsFileReferences: true,
+		clear,
+		enableFind: true,
+		rendererOptions: {
+			renderTextEditsAsSummary: () => true,
+			referencesExpandedWhenEmptyResponse: false,
+			progressMessageAtBottomOfResponse: mode => mode !== ChatModeKind.Ask,
+		},
+		enableImplicitContext: true,
+		enableWorkingSet: 'explicit',
+		supportsChangingModes: true,
+		dndContainer: parent,
+	};
+}
 
 export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState> {
 	private static readonly VIEW_STATE_KEY = 'chatEditorViewState';
@@ -111,24 +132,7 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 				ChatWidget,
 				ChatAgentLocation.Chat,
 				undefined,
-				{
-					autoScroll: mode => mode !== ChatModeKind.Ask,
-					readOnlyBannerAtTop: true,
-					renderFollowups: true,
-					supportsFileReferences: true,
-					clear: (targetSessionType?: string) => this.clear(targetSessionType),
-					enableFind: true,
-					rendererOptions: {
-						renderTextEditsAsSummary: (uri) => {
-							return true;
-						},
-						referencesExpandedWhenEmptyResponse: false,
-						progressMessageAtBottomOfResponse: mode => mode !== ChatModeKind.Ask,
-					},
-					enableImplicitContext: true,
-					enableWorkingSet: 'explicit',
-					supportsChangingModes: true,
-				},
+				createChatEditorViewOptions(parent, targetSessionType => this.clear(targetSessionType)),
 				{
 					listForeground: editorForeground,
 					listBackground: editorBackground,
