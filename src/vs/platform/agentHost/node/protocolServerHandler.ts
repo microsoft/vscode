@@ -75,12 +75,11 @@ const REPLAY_BUFFER_CAPACITY = 1000;
 
 const CLIENT_TOOL_CALL_DISCONNECT_TIMEOUT = 30_000;
 
-/**
- * Chat-level working-directory subsets are not yet operational in this build.
- */
+/** Client actions whose state transition has no corresponding host-side behavior. */
 const UNSUPPORTED_CLIENT_ACTION_TYPES: ReadonlySet<ActionType> = new Set([
 	ActionType.ChatWorkingDirectorySet,
 	ActionType.ChatWorkingDirectoryRemoved,
+	ActionType.ChatTurnResume,
 ]);
 
 /** A client tool call in any of these statuses is still awaiting its result. */
