@@ -871,7 +871,10 @@ class ChatSynthesizerSessions {
 		return {
 			// Emoji are removed first, while the text is still markdown, so that
 			// the period added for the pause does not end up after their gap.
-			chunk: chunk ? punctuateLines(renderAsPlaintext({ value: stripEmoji(chunk) })) : chunk,
+			// `omitMarkdownSyntax` because a reader should hear the words, not the
+			// syntax around them: without it a list item keeps its `**` and a link
+			// keeps its target.
+			chunk: chunk ? punctuateLines(renderAsPlaintext({ value: stripEmoji(chunk) }, { omitMarkdownSyntax: true })) : chunk,
 			offset
 		};
 	}
