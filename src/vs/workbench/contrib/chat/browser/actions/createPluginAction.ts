@@ -13,6 +13,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { isUriComponents, URI } from '../../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { AGENT_PLUGIN_MCP_SCHEMA, AGENT_PLUGIN_SCHEMA } from '../../../../../platform/agentPlugins/common/agentPluginParser.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
@@ -323,17 +324,14 @@ export async function writePluginToDisk(
 ): Promise<void> {
 	await fileService.createFolder(pluginRoot);
 
-	// Create .plugin/plugin.json
-	const manifestDir = joinPath(pluginRoot, '.plugin');
-	await fileService.createFolder(manifestDir);
 	const manifest = {
+		$schema: AGENT_PLUGIN_SCHEMA,
 		name: pluginName,
 		version: '1.0.0',
 		description: '',
 	};
-	await fileService.writeFile(joinPath(manifestDir, 'plugin.json'), VSBuffer.fromString(JSON.stringify(manifest, null, '\t')));
+	await fileService.writeFile(joinPath(pluginRoot, 'plugin.json'), VSBuffer.fromString(JSON.stringify(manifest, null, '\t')));
 
-	// Group selected items by type
 	const byType = {
 		instruction: selected.filter(i => i.resourceType === 'instruction'),
 		prompt: selected.filter(i => i.resourceType === 'prompt'),
@@ -342,10 +340,10 @@ export async function writePluginToDisk(
 		hook: selected.filter(i => i.resourceType === 'hook'),
 		mcp: selected.filter(i => i.resourceType === 'mcp'),
 	};
+	const copilotExtensionDir = joinPath(pluginRoot, 'com.github.copilot');
 
-	// Copy instructions → rules/
 	if (byType.instruction.length > 0) {
-		const rulesDir = joinPath(pluginRoot, 'rules');
+		const rulesDir = joinPath(copilotExtensionDir, 'rules');
 		await fileService.createFolder(rulesDir);
 		for (const item of byType.instruction) {
 			if (!item.promptPath) {
@@ -360,9 +358,8 @@ export async function writePluginToDisk(
 		}
 	}
 
-	// Copy prompts → commands/
 	if (byType.prompt.length > 0) {
-		const commandsDir = joinPath(pluginRoot, 'commands');
+		const commandsDir = joinPath(copilotExtensionDir, 'commands');
 		await fileService.createFolder(commandsDir);
 		for (const item of byType.prompt) {
 			if (!item.promptPath) {
@@ -375,9 +372,8 @@ export async function writePluginToDisk(
 		}
 	}
 
-	// Copy agents → agents/
 	if (byType.agent.length > 0) {
-		const agentsDir = joinPath(pluginRoot, 'agents');
+		const agentsDir = joinPath(copilotExtensionDir, 'agents');
 		await fileService.createFolder(agentsDir);
 		for (const item of byType.agent) {
 			if (!item.promptPath) {
@@ -411,9 +407,8 @@ export async function writePluginToDisk(
 		}
 	}
 
-	// Copy hooks → hooks/hooks.json (merge all selected hook files)
 	if (byType.hook.length > 0) {
-		const hooksDir = joinPath(pluginRoot, 'hooks');
+		const hooksDir = joinPath(copilotExtensionDir, 'hooks');
 		await fileService.createFolder(hooksDir);
 
 		const mergedHooks: Record<string, Record<string, unknown>[]> = {};
@@ -449,7 +444,6 @@ export async function writePluginToDisk(
 		);
 	}
 
-	// Export MCP servers → .mcp.json
 	if (byType.mcp.length > 0) {
 		const mcpServers: Record<string, object> = {};
 		for (const item of byType.mcp) {
@@ -459,9 +453,9 @@ export async function writePluginToDisk(
 			const def = item.mcpServer.definition;
 			mcpServers[def.label] = serializeMcpLaunch(def.launch);
 		}
-		const mcpJson = { mcpServers };
+		const mcpJson = { $schema: AGENT_PLUGIN_MCP_SCHEMA, mcpServers };
 		await fileService.writeFile(
-			joinPath(pluginRoot, '.mcp.json'),
+			joinPath(pluginRoot, 'mcp.json'),
 			VSBuffer.fromString(JSON.stringify(mcpJson, null, '\t'))
 		);
 	}
@@ -511,7 +505,7 @@ export function serializeMcpLaunch(launch: McpServerDefinition['launch']): objec
 		return result;
 	} else {
 		const result: Record<string, unknown> = {
-			type: 'http',
+			type: 'streamable-http',
 			url: launch.uri.toString(),
 		};
 		if (launch.headers.length > 0) {
