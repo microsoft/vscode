@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../../base/browser/dom.js';
+import { toAction } from '../../../../../../base/common/actions.js';
 import { renderLabelWithIcons } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
@@ -27,8 +28,10 @@ import { ChatInputPickerActionViewItem, IChatInputPickerOptions } from './chatIn
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
+import { IPreferencesService } from '../../../../../services/preferences/common/preferences.js';
 import { maybeConfirmElevatedPermissionLevel } from '../../../common/chatPermissionWarnings.js';
 import { AgentSandboxEnabledSettingValue, AgentSandboxEnabledValue, AgentSandboxSettingId, isAgentSandboxEnabledValue } from '../../../../../../platform/sandbox/common/settings.js';
+import { TerminalContribSettingId } from '../../../../terminal/terminalContribExports.js';
 import { getCompactCodicon } from '../../chatIcons.js';
 
 export interface IExtensionPermissionState {
@@ -168,6 +171,7 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 		@IOpenerService openerService: IOpenerService,
 		@IStorageService storageService: IStorageService,
 		@IHoverService private readonly hoverService: IHoverService,
+		@IPreferencesService private readonly preferencesService: IPreferencesService,
 	) {
 		const isAutoApprovePolicyRestricted = () => configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue === false;
 		const actionProvider: IActionWidgetDropdownActionProvider = {
@@ -234,6 +238,22 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 					const inlineToggle = sandboxTogglePresentation === 'inline' && level === ChatPermissionLevel.Default
 						? sandboxToggle
 						: undefined;
+					const configureToolsLabel = localize('permissions.configureTools', "Configure tools");
+					const configureToolsAction = level === ChatPermissionLevel.Default
+						? toAction({
+							id: 'chat.permissions.configureTools',
+							label: configureToolsLabel,
+							tooltip: configureToolsLabel,
+							class: ThemeIcon.asClassName(Codicon.gear),
+							run: () => {
+								actionWidgetService.hide();
+								void this.preferencesService.openSettings({
+									jsonEditor: false,
+									query: `@id:${TerminalContribSettingId.AutoApprove}`,
+								});
+							},
+						})
+						: undefined;
 
 					return {
 						...action,
@@ -243,6 +263,7 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 						icon: meta.icon,
 						checked: currentLevel === level,
 						enabled: !disabledByPolicy,
+						toolbarActions: configureToolsAction ? [configureToolsAction] : undefined,
 						inlineToggle,
 						tooltip: disabledByPolicy ? localize('permissions.policyDisabled', "Disabled by enterprise policy") : '',
 						hover: {

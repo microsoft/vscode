@@ -66,6 +66,15 @@ suite('Chat Accessibility Help', () => {
 		});
 	});
 
+	test('describes the Configure tools permission picker action', () => {
+		const keybindingService = {
+			lookupKeybindings: () => [],
+		} as unknown as IKeybindingService;
+		const helpText = getAccessibilityHelpText('agentView', keybindingService, true);
+
+		assert.strictEqual(helpText.includes('Configure tools button on the Default permissions option'), true);
+	});
+
 	test('only describes the selection side chat affordance in the sessions window', () => {
 		const keybindingService = {
 			lookupKeybindings: () => [],

@@ -43,6 +43,7 @@ function buildItems(options: PermissionPickerListFixtureOptions): IActionListIte
 	});
 
 	const actionTemplate = { class: undefined, enabled: true, tooltip: '', run: async () => { } } as const;
+	const configureToolsLabel = localize('permissions.configureTools', "Configure tools");
 
 	const items: IActionListItem<IActionWidgetDropdownAction>[] = [
 		makeItem({
@@ -52,6 +53,13 @@ function buildItems(options: PermissionPickerListFixtureOptions): IActionListIte
 			detail: localize('permissions.default.subtext', "Asks when approval settings don't apply"),
 			icon: ThemeIcon.fromId(Codicon.shield.id),
 			checked: true,
+			toolbarActions: [{
+				...actionTemplate,
+				id: 'chat.permissions.configureTools',
+				label: configureToolsLabel,
+				tooltip: configureToolsLabel,
+				class: ThemeIcon.asClassName(Codicon.gear),
+			}],
 			inlineToggle: showToggle ? {
 				label: localize('permissions.default.sandbox.toggle', "Sandboxing for terminal"),
 				checked: sandboxOn,
