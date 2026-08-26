@@ -46,7 +46,8 @@ import { IAgentHostGitStateService } from '../../common/agentHostGitStateService
 import { AgentSideEffects, IAgentSideEffectsOptions } from '../../node/agentSideEffects.js';
 import { AgentHostLocalTurns, IAgentHostLocalTurns } from '../../node/agentHostLocalTurns.js';
 import { AgentHostChatContributions } from '../../node/agentHostChatContributionsService.js';
-import { AgentHostProviderLocator, IAgentHostProviderLocator } from '../../node/agentHostProviderLocator.js';
+import { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
+import { createTestAgentHostProviderService } from './testAgentHostProviderService.js';
 import { AgentHostSessionTitleController, IAgentHostSessionTitleController } from '../../node/agentHostSessionTitleController.js';
 import { registerBuiltInChatContributions } from '../../node/chatContributions/builtInChatContributions.js';
 import { AgentHostTelemetryReporter, IAgentHostTelemetryReporter, type IAgentHostAskQuestionsToolInvokedEvent } from '../../node/agentHostTelemetryReporter.js';
@@ -65,7 +66,7 @@ import { IAgentHostWorktreeIsolation, NullAgentHostWorktreeIsolation } from '../
 import { createNoopGitService, createNullSessionDataService, createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { MockAgent } from './mockAgent.js';
 import { TestAgentHostTerminalManager } from './testAgentHostTerminalManager.js';
-import { createTestAgentService, getTestAgentStateManager } from './agentServiceTestUtils.js';
+import { createTestAgentService, getTestAgentStateManager, registerTestAgentProvider } from './agentServiceTestUtils.js';
 
 // ---- Tests ------------------------------------------------------------------
 
@@ -181,7 +182,7 @@ function createTestSideEffects(
 		isActiveAgentTitleGenerationEnabled: () => configService.getRootValue(platformRootSchema, AgentHostActiveAgentTitleGenerationConfigKey) === true,
 	}, logService));
 	services.set(IAgentHostSessionTitleController, titleController);
-	services.set(IAgentHostProviderLocator, new AgentHostProviderLocator(session => options.getAgent(typeof session === 'string' ? session : session.toString())));
+	services.set(IAgentHostProviderService, createTestAgentHostProviderService(session => options.getAgent(typeof session === 'string' ? session : session.toString())));
 	const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
 	const chatContributions: IAgentHostChatContributions = disposables.add(new AgentHostChatContributions(logService, instantiationService));
 	services.set(IAgentHostChatContributions, chatContributions);
@@ -5207,7 +5208,7 @@ suite('AgentSideEffects', () => {
 			const localAgent = new MockAgent();
 			disposables.add(toDisposable(() => localAgent.dispose()));
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
-			localService.registerProvider(localAgent);
+			registerTestAgentProvider(localService, localAgent);
 
 			await localService.createSession({ provider: localAgent.id });
 
@@ -5226,7 +5227,7 @@ suite('AgentSideEffects', () => {
 			const localAgent = new MockAgent();
 			disposables.add(toDisposable(() => localAgent.dispose()));
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
-			localService.registerProvider(localAgent);
+			registerTestAgentProvider(localService, localAgent);
 
 			const session = await createAgentSession(localAgent);
 			const sessions = await localAgent.listSessions();
@@ -5253,7 +5254,7 @@ suite('AgentSideEffects', () => {
 			const localAgent = new MockAgent();
 			disposables.add(toDisposable(() => localAgent.dispose()));
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
-			localService.registerProvider(localAgent);
+			registerTestAgentProvider(localService, localAgent);
 
 			const session = await createAgentSession(localAgent);
 			const sessions = await localAgent.listSessions();

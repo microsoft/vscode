@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { SyncDescriptor } from '../../instantiation/common/descriptors.js';
-import { ServiceIdentifier } from '../../instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../instantiation/common/serviceCollection.js';
 import { GitHubService, IGitHubService } from '../../github/common/githubService.js';
 import type { GitHubServiceOptions } from '../../github/common/githubTypes.js';
@@ -55,23 +54,13 @@ import { AgentHostStorageService, IAgentHostStorageService } from './agentHostSt
 import { AgentHostTerminalManager, IAgentHostTerminalManager } from './agentHostTerminalManager.js';
 import { AgentHostTelemetryReporter, IAgentHostTelemetryReporter } from './agentHostTelemetryReporter.js';
 import { AgentHostTurnTracker, IAgentHostTurnTracker } from './agentHostTurnTracker.js';
+import { AgentHostProviderService, IAgentHostProviderService } from './agentHostProviderService.js';
 import { AgentEditAttributionService } from './shared/agentEditAttributionService.js';
 import { AgentHostOctoKitService, IAgentHostOctoKitService } from './shared/agentHostOctoKitService.js';
 import { EditArcReporterService, IEditArcReporterService } from './shared/editArcReporter.js';
 import { EditSurvivalReporterFactory, IEditSurvivalReporterFactory } from './shared/editSurvivalReporter.js';
 import { IAgentHostWorktreeIsolation, WorktreeIsolation } from './shared/worktreeIsolation.js';
 import { AgentBranchNameGenerator, IAgentBranchNameGenerator } from './shared/agentBranchNameGenerator.js';
-
-function registerService<T>(
-	services: ServiceCollection,
-	id: ServiceIdentifier<T>,
-	value: T | SyncDescriptor<T>,
-): void {
-	if (services.has(id)) {
-		return;
-	}
-	services.set(id, value);
-}
 
 export interface IAgentHostCoreServiceInputs {
 	readonly storageResource: URI | undefined;
@@ -81,34 +70,35 @@ export interface IAgentHostCoreServiceInputs {
 }
 
 export function registerAgentHostCoreServices(services: ServiceCollection, inputs: IAgentHostCoreServiceInputs): void {
-	registerService(services, IAgentHostFileMonitorService, new SyncDescriptor(AgentHostFileMonitorService));
-	registerService(services, INetworkDiagnosticsService, new SyncDescriptor(NetworkDiagnosticsService));
-	registerService(services, IDiffComputeService, new SyncDescriptor(NodeWorkerDiffComputeService));
-	registerService(services, IAgentEditAttributionService, new SyncDescriptor(AgentEditAttributionService, [undefined, undefined]));
-	registerService(services, IEditSurvivalReporterFactory, new SyncDescriptor(EditSurvivalReporterFactory));
-	registerService(services, IEditArcReporterService, new SyncDescriptor(EditArcReporterService, [undefined]));
-	registerService(services, IAgentHostStorageService, new SyncDescriptor(AgentHostStorageService, [inputs.storageResource]));
-	registerService(services, IAgentHostManagedSettingsService, new SyncDescriptor(AgentHostManagedSettingsService));
-	registerService(services, IAgentHostOctoKitService, new SyncDescriptor(AgentHostOctoKitService, [inputs.fetchFn]));
-	registerService(services, IGitHubService, new SyncDescriptor(GitHubService, [inputs.gitHubServiceOptions]));
-	registerService(services, ICopilotApiService, inputs.copilotApiService ?? new SyncDescriptor(CopilotApiService, [inputs.fetchFn]));
-	registerService(services, IAgentHostCustomizationEnablementService, new SyncDescriptor(AgentHostCustomizationEnablementService));
-	registerService(services, IAgentHostGitStateService, new SyncDescriptor(AgentHostGitStateService));
-	registerService(services, IAgentHostCheckpointService, new SyncDescriptor(AgentHostCheckpointService));
-	registerService(services, IAgentHostPromptCache, new SyncDescriptor(AgentHostPromptCache));
-	registerService(services, IAgentHostSessionTitleSignal, new SyncDescriptor(AgentHostSessionTitleSignal));
-	registerService(services, IAgentHostChangesetSubscriptionService, new SyncDescriptor(AgentHostChangesetSubscriptionService));
-	registerService(services, IAgentHostSubscriptionService, new SyncDescriptor(AgentHostSubscriptionService));
-	registerService(services, IAgentHostChangesetOperationService, new SyncDescriptor(AgentHostChangesetOperationService));
-	registerService(services, IAgentHostReviewService, new SyncDescriptor(AgentHostReviewService));
-	registerService(services, IAgentHostChangesetService, new SyncDescriptor(AgentHostChangesetService));
-	registerService(services, IAgentHostCompletions, new SyncDescriptor(AgentHostCompletions));
-	registerService(services, IAgentHostTerminalManager, new SyncDescriptor(AgentHostTerminalManager));
-	registerService(services, IAgentHostChatContributions, new SyncDescriptor(AgentHostChatContributions));
-	registerService(services, IAgentHostTelemetryReporter, new SyncDescriptor(AgentHostTelemetryReporter));
-	registerService(services, IAgentHostTurnTracker, new SyncDescriptor(AgentHostTurnTracker));
-	registerService(services, IAgentBranchNameGenerator, new SyncDescriptor(AgentBranchNameGenerator));
-	registerService(services, IAgentHostWorktreeIsolation, new SyncDescriptor(WorktreeIsolation));
+	services.set(IAgentHostFileMonitorService, new SyncDescriptor(AgentHostFileMonitorService));
+	services.set(INetworkDiagnosticsService, new SyncDescriptor(NetworkDiagnosticsService));
+	services.set(IDiffComputeService, new SyncDescriptor(NodeWorkerDiffComputeService));
+	services.set(IAgentEditAttributionService, new SyncDescriptor(AgentEditAttributionService, [undefined, undefined]));
+	services.set(IEditSurvivalReporterFactory, new SyncDescriptor(EditSurvivalReporterFactory));
+	services.set(IEditArcReporterService, new SyncDescriptor(EditArcReporterService, [undefined]));
+	services.set(IAgentHostStorageService, new SyncDescriptor(AgentHostStorageService, [inputs.storageResource]));
+	services.set(IAgentHostManagedSettingsService, new SyncDescriptor(AgentHostManagedSettingsService));
+	services.set(IAgentHostOctoKitService, new SyncDescriptor(AgentHostOctoKitService, [inputs.fetchFn]));
+	services.set(IGitHubService, new SyncDescriptor(GitHubService, [inputs.gitHubServiceOptions]));
+	services.set(ICopilotApiService, inputs.copilotApiService ?? new SyncDescriptor(CopilotApiService, [inputs.fetchFn]));
+	services.set(IAgentHostCustomizationEnablementService, new SyncDescriptor(AgentHostCustomizationEnablementService));
+	services.set(IAgentHostGitStateService, new SyncDescriptor(AgentHostGitStateService));
+	services.set(IAgentHostCheckpointService, new SyncDescriptor(AgentHostCheckpointService));
+	services.set(IAgentHostPromptCache, new SyncDescriptor(AgentHostPromptCache));
+	services.set(IAgentHostSessionTitleSignal, new SyncDescriptor(AgentHostSessionTitleSignal));
+	services.set(IAgentHostChangesetSubscriptionService, new SyncDescriptor(AgentHostChangesetSubscriptionService));
+	services.set(IAgentHostSubscriptionService, new SyncDescriptor(AgentHostSubscriptionService));
+	services.set(IAgentHostChangesetOperationService, new SyncDescriptor(AgentHostChangesetOperationService));
+	services.set(IAgentHostReviewService, new SyncDescriptor(AgentHostReviewService));
+	services.set(IAgentHostChangesetService, new SyncDescriptor(AgentHostChangesetService));
+	services.set(IAgentHostCompletions, new SyncDescriptor(AgentHostCompletions));
+	services.set(IAgentHostTerminalManager, new SyncDescriptor(AgentHostTerminalManager));
+	services.set(IAgentHostChatContributions, new SyncDescriptor(AgentHostChatContributions));
+	services.set(IAgentHostTelemetryReporter, new SyncDescriptor(AgentHostTelemetryReporter));
+	services.set(IAgentHostTurnTracker, new SyncDescriptor(AgentHostTurnTracker));
+	services.set(IAgentHostProviderService, new SyncDescriptor(AgentHostProviderService));
+	services.set(IAgentBranchNameGenerator, new SyncDescriptor(AgentBranchNameGenerator));
+	services.set(IAgentHostWorktreeIsolation, new SyncDescriptor(WorktreeIsolation));
 }
 
 export interface IAgentHostHostServiceInputs {
@@ -118,17 +108,16 @@ export interface IAgentHostHostServiceInputs {
 }
 
 export function registerAgentHostHostServices(services: ServiceCollection, inputs: IAgentHostHostServiceInputs): void {
-	registerService(services, IWindowsMxcTerminalSandboxRuntime, new SyncDescriptor(WindowsMxcTerminalSandboxRuntime));
-	registerService(services, ISandboxHelperService, new SyncDescriptor(SandboxHelperService));
-	registerService(services, IAgentHostGitService, new SyncDescriptor(AgentHostGitService));
-	registerService(services, IAgentPluginManager, new SyncDescriptor(AgentPluginManager, [inputs.userDataPath]));
-	registerService(services, IAgentSdkDownloader, new SyncDescriptor(AgentSdkDownloader));
-	registerService(services, IClaudeAgentSdkService, new SyncDescriptor(ClaudeAgentSdkService));
-	registerService(services, IClaudeProxyService, new SyncDescriptor(ClaudeProxyService));
-	registerService(services, ICodexProxyService, new SyncDescriptor(CodexProxyService));
-	registerService(services, IAgentHostOTelService, new SyncDescriptor(AgentHostOTelService, [inputs.fetchFn]));
-	registerService(
-		services,
+	services.set(IWindowsMxcTerminalSandboxRuntime, new SyncDescriptor(WindowsMxcTerminalSandboxRuntime));
+	services.set(ISandboxHelperService, new SyncDescriptor(SandboxHelperService));
+	services.set(IAgentHostGitService, new SyncDescriptor(AgentHostGitService));
+	services.set(IAgentPluginManager, new SyncDescriptor(AgentPluginManager, [inputs.userDataPath]));
+	services.set(IAgentSdkDownloader, new SyncDescriptor(AgentSdkDownloader));
+	services.set(IClaudeAgentSdkService, new SyncDescriptor(ClaudeAgentSdkService));
+	services.set(IClaudeProxyService, new SyncDescriptor(ClaudeProxyService));
+	services.set(ICodexProxyService, new SyncDescriptor(CodexProxyService));
+	services.set(IAgentHostOTelService, new SyncDescriptor(AgentHostOTelService, [inputs.fetchFn]));
+	services.set(
 		IByokLmProxyService,
 		inputs.byok.kind === 'renderer' ? new SyncDescriptor(ByokLmProxyService) : new NullByokLmProxyService(),
 	);

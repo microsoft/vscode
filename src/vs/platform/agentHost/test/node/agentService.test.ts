@@ -65,7 +65,7 @@ import { SessionServerToolName } from '../../common/serverToolNames.js';
 import { buildMcpChannel } from '../../node/shared/mcpCustomizationController.js';
 import { readEphemeralSessionMeta, withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
 import { readChatSurfaceMeta, withChatSurfaceMeta } from '../../common/meta/agentChatSurfaceMeta.js';
-import { createTestAgentHostWorktreeIsolation, createTestAgentService, getTestAgentHostWorktreeIsolation, getTestAgentServiceComposition, getTestAgentStateManager, setTestAgentHostWorktreeIsolation } from './agentServiceTestUtils.js';
+import { createTestAgentHostWorktreeIsolation, createTestAgentService, getTestAgentHostProviderService, getTestAgentHostWorktreeIsolation, getTestAgentServiceComposition, getTestAgentStateManager, registerTestAgentProvider, setTestAgentHostWorktreeIsolation } from './agentServiceTestUtils.js';
 
 /**
  * Replace individual operations on an agent's chat surface, delegating every
@@ -548,7 +548,7 @@ suite('AgentService (node dispatcher)', () => {
 	suite('registerProvider', () => {
 
 		test('registers a provider successfully', () => {
-			service.registerProvider(copilotAgent);
+			registerTestAgentProvider(service, copilotAgent);
 			// No throw - success
 		});
 
@@ -559,7 +559,7 @@ suite('AgentService (node dispatcher)', () => {
 				calls.push({ chat: chat.toString(), serverName, method, params });
 				return 'result';
 			};
-			service.registerProvider(provider);
+			registerTestAgentProvider(service, provider);
 			const session = AgentSession.uri('copilot', 'agent-host-session');
 			const chat = URI.parse(buildChatUri(session, 'peer-chat'));
 			const params = { uri: 'ui://example/app' };
@@ -578,10 +578,10 @@ suite('AgentService (node dispatcher)', () => {
 		});
 
 		test('throws on duplicate provider registration', () => {
-			service.registerProvider(copilotAgent);
+			registerTestAgentProvider(service, copilotAgent);
 			const duplicate = new MockAgent('copilot');
 			disposables.add(toDisposable(() => duplicate.dispose()));
-			assert.throws(() => service.registerProvider(duplicate), /already registered/);
+			assert.throws(() => registerTestAgentProvider(service, duplicate), /already registered/);
 		});
 
 		test('aggregates and deduplicates network diagnostics endpoints', async () => {
@@ -601,9 +601,9 @@ suite('AgentService (node dispatcher)', () => {
 			disposables.add(toDisposable(() => failingProvider.dispose()));
 			const failingProviderContract: IAgent = failingProvider;
 			failingProviderContract.getNetworkDiagnosticsEndpoints = async () => { throw new Error('unavailable'); };
-			service.registerProvider(providerA);
-			service.registerProvider(providerB);
-			service.registerProvider(failingProvider);
+			registerTestAgentProvider(service, providerA);
+			registerTestAgentProvider(service, providerB);
+			registerTestAgentProvider(service, failingProvider);
 
 			const info = await service.getNetworkDiagnosticsInfo();
 
@@ -633,9 +633,9 @@ suite('AgentService (node dispatcher)', () => {
 			disposables.add(toDisposable(() => failingProvider.dispose()));
 			const failingProviderContract: IAgent = failingProvider;
 			failingProviderContract.getManagedSettingsDiagnostics = async () => { throw new Error('unavailable'); };
-			service.registerProvider(provider);
-			service.registerProvider(unsupportedProvider);
-			service.registerProvider(failingProvider);
+			registerTestAgentProvider(service, provider);
+			registerTestAgentProvider(service, unsupportedProvider);
+			registerTestAgentProvider(service, failingProvider);
 
 			const diagnostics = await service.getManagedSettingsDiagnostics();
 
@@ -666,7 +666,7 @@ suite('AgentService (node dispatcher)', () => {
 				bypassPermissionsDisabled: false,
 				managedKeys: ['permissions'],
 			});
-			service.registerProvider(provider);
+			registerTestAgentProvider(service, provider);
 			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService());
 
 			assert.deepStrictEqual(await managementService.getManagedSettingsDiagnostics(), [{
@@ -683,7 +683,7 @@ suite('AgentService (node dispatcher)', () => {
 		});
 
 		test('maps progress events to protocol actions via onDidAction', async () => {
-			service.registerProvider(copilotAgent);
+			registerTestAgentProvider(service, copilotAgent);
 			const session = await service.createSession({ provider: 'copilot' });
 
 			// Start a turn so there's an active turn to map events to
@@ -720,7 +720,7 @@ suite('AgentService (node dispatcher)', () => {
 		)));
 		const agent = new MockAgent('copilot');
 		disposables.add(toDisposable(() => agent.dispose()));
-		localService.registerProvider(agent);
+		registerTestAgentProvider(localService, agent);
 		const includeFiles = ['.env', '.env.local', 'config/**'];
 
 		const worktree = await localService.resolveSessionConfig({
@@ -789,7 +789,7 @@ suite('AgentService (node dispatcher)', () => {
 			return { items: [] };
 		};
 		disposables.add(toDisposable(() => agent.dispose()));
-		localService.registerProvider(agent);
+		registerTestAgentProvider(localService, agent);
 
 		const initial = await localService.resolveSessionConfig({
 			provider: 'codex',
@@ -913,7 +913,7 @@ suite('AgentService (node dispatcher)', () => {
 		}
 		const agent = new PrewarmingAgent('codex');
 		disposables.add(toDisposable(() => agent.dispose()));
-		localService.registerProvider(agent);
+		registerTestAgentProvider(localService, agent);
 
 		await localService.createSession({
 			provider: 'codex',
@@ -949,7 +949,7 @@ suite('AgentService (node dispatcher)', () => {
 		const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 		const agent = new MockAgent('copilot');
 		disposables.add(toDisposable(() => agent.dispose()));
-		localService.registerProvider(agent);
+		registerTestAgentProvider(localService, agent);
 		const multiRoot = {
 			workspaceFile: 'vscode-remote://ssh-remote+host/work/demo.code-workspace',
 		};
@@ -998,7 +998,7 @@ suite('AgentService (node dispatcher)', () => {
 		const agent = new RejectingFolderPickerAgent('copilot');
 		disposables.add(toDisposable(() => agent.dispose()));
 		const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
-		localService.registerProvider(agent);
+		registerTestAgentProvider(localService, agent);
 
 		const session = await localService.createSession({
 			provider: agent.id,
@@ -1024,7 +1024,7 @@ suite('AgentService (node dispatcher)', () => {
 		const agent = new PinningFolderPickerAgent('copilot');
 		disposables.add(toDisposable(() => agent.dispose()));
 		const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
-		localService.registerProvider(agent);
+		registerTestAgentProvider(localService, agent);
 
 		const session = await localService.createSession({
 			provider: agent.id,
@@ -1061,7 +1061,7 @@ suite('AgentService (node dispatcher)', () => {
 			const creatingAgent = new DecidingFolderPickerAgent('copilot');
 			creatingAgent.decision = decision;
 			disposables.add(toDisposable(() => creatingAgent.dispose()));
-			creating.registerProvider(creatingAgent);
+			registerTestAgentProvider(creating, creatingAgent);
 			const session = await creating.createSession({
 				provider: creatingAgent.id,
 				workingDirectories: [URI.file('/workspace/one'), URI.file('/workspace/two')],
@@ -1074,7 +1074,7 @@ suite('AgentService (node dispatcher)', () => {
 			const reopenedAgent = new MockAgent('copilot');
 			disposables.add(toDisposable(() => reopenedAgent.dispose()));
 			(reopenedAgent as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(session), session);
-			reopened.registerProvider(reopenedAgent);
+			registerTestAgentProvider(reopened, reopenedAgent);
 			const restored = (await reopened.listSessions()).find(s => s.session.toString() === session.toString());
 
 			assert.deepStrictEqual({
@@ -1116,7 +1116,7 @@ suite('AgentService (node dispatcher)', () => {
 		const creating = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 		const agent = new ProvisionalDecidingAgent('copilot');
 		disposables.add(toDisposable(() => agent.dispose()));
-		creating.registerProvider(agent);
+		registerTestAgentProvider(creating, agent);
 		const decision = { hidden: true, primary: URI.file('/work/two').toString() };
 		const session = await creating.createSession({
 			provider: agent.id,
@@ -1132,7 +1132,7 @@ suite('AgentService (node dispatcher)', () => {
 		const reopenedAgent = new MockAgent('copilot');
 		disposables.add(toDisposable(() => reopenedAgent.dispose()));
 		(reopenedAgent as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(session), session);
-		reopened.registerProvider(reopenedAgent);
+		registerTestAgentProvider(reopened, reopenedAgent);
 		const restored = (await reopened.listSessions()).find(s => s.session.toString() === session.toString());
 
 		assert.deepStrictEqual({
@@ -1171,7 +1171,7 @@ suite('AgentService (node dispatcher)', () => {
 		const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 		const agent = new ProvisionalAgent('copilot');
 		disposables.add(toDisposable(() => agent.dispose()));
-		localService.registerProvider(agent);
+		registerTestAgentProvider(localService, agent);
 		const multiRoot = {
 			workspaceFile: 'file:///work/demo.code-workspace',
 		};
@@ -1237,8 +1237,8 @@ suite('AgentService (node dispatcher)', () => {
 		const readyAgent = new MockAgent('copilot');
 		disposables.add(toDisposable(() => provisionalAgent.dispose()));
 		disposables.add(toDisposable(() => readyAgent.dispose()));
-		localService.registerProvider(provisionalAgent);
-		localService.registerProvider(readyAgent);
+		registerTestAgentProvider(localService, provisionalAgent);
+		registerTestAgentProvider(localService, readyAgent);
 
 		const creatingSession = await localService.createSession({
 			provider: 'codex',
@@ -1372,7 +1372,7 @@ suite('AgentService (node dispatcher)', () => {
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
 			const agent = new MultiRootMockAgent('copilot');
 			disposables.add(toDisposable(() => agent.dispose()));
-			localService.registerProvider(agent);
+			registerTestAgentProvider(localService, agent);
 			const session = await localService.createSession({ provider: 'copilot', workingDirectories: [...workingDirectories] });
 			return { service: localService, session };
 		}
@@ -1433,7 +1433,7 @@ suite('AgentService (node dispatcher)', () => {
 			const agent = new MockAgent('copilot');
 			agent.sessionMetadataOverrides = { workingDirectories: [repoA] };
 			disposables.add(toDisposable(() => agent.dispose()));
-			localService.registerProvider(agent);
+			registerTestAgentProvider(localService, agent);
 			const { session } = await createAgentSession(agent);
 			const sessionRestoredBeforeRead = !!getStateManager(localService).getSessionState(session.toString());
 
@@ -1461,7 +1461,7 @@ suite('AgentService (node dispatcher)', () => {
 				const agent = new MockAgent('copilot');
 				agent.sessionMetadataOverrides = { workingDirectories: [repoA] };
 				disposables.add(toDisposable(() => agent.dispose()));
-				localService.registerProvider(agent);
+				registerTestAgentProvider(localService, agent);
 				const { session } = await createAgentSession(agent);
 				const childSession = URI.parse(buildSubagentSessionUri(session, 'child'));
 				const nestedSession = URI.parse(buildSubagentSessionUri(childSession, 'nested'));
@@ -1563,7 +1563,7 @@ suite('AgentService (node dispatcher)', () => {
 			getConfigurationService(svc).updateRootConfig({ [AgentHostActiveAgentTitleGenerationConfigKey]: activeAgentTitleGeneration });
 			const agent = new MockAgent('copilot');
 			disposables.add(toDisposable(() => agent.dispose()));
-			svc.registerProvider(agent);
+			registerTestAgentProvider(svc, agent);
 			await svc.authenticate({
 				resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource,
 				scopes: GITHUB_COPILOT_PROTECTED_RESOURCE.scopes_supported,
@@ -1595,7 +1595,7 @@ suite('AgentService (node dispatcher)', () => {
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = new DynamicWorkingDirectoryAgent('dynamic', immutablePrimary);
 			disposables.add(toDisposable(() => agent.dispose()));
-			svc.registerProvider(agent);
+			registerTestAgentProvider(svc, agent);
 			const primary = URI.file('/workspace/primary');
 			const secondary = URI.file('/workspace/secondary');
 			const session = await svc.createSession({
@@ -1610,7 +1610,7 @@ suite('AgentService (node dispatcher)', () => {
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = new MockAgent('copilot');
 			disposables.add(toDisposable(() => agent.dispose()));
-			svc.registerProvider(agent);
+			registerTestAgentProvider(svc, agent);
 			const session = await svc.createSession({ provider: 'copilot' });
 			const defaultChat = buildDefaultChatUri(session.toString());
 			const peerChat = buildChatUri(session, 'peer-1');
@@ -1654,7 +1654,7 @@ suite('AgentService (node dispatcher)', () => {
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = new MockAgent('copilot');
 			disposables.add(toDisposable(() => agent.dispose()));
-			svc.registerProvider(agent);
+			registerTestAgentProvider(svc, agent);
 			const session = await svc.createSession({ provider: 'copilot' });
 			const defaultChat = buildDefaultChatUri(session.toString());
 			const peerChat = buildChatUri(session, 'peer-1');
@@ -1724,7 +1724,7 @@ suite('AgentService (node dispatcher)', () => {
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = new MockAgent('copilot');
 			disposables.add(toDisposable(() => agent.dispose()));
-			svc.registerProvider(agent);
+			registerTestAgentProvider(svc, agent);
 			const session = await svc.createSession({ provider: 'copilot' });
 			const envelopePromise = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 1));
 
@@ -1752,7 +1752,7 @@ suite('AgentService (node dispatcher)', () => {
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = new MockAgent('copilot');
 			disposables.add(toDisposable(() => agent.dispose()));
-			svc.registerProvider(agent);
+			registerTestAgentProvider(svc, agent);
 			const controllerState = { target: { branchName: 'main', pullRequestUrl: 'https://github.com/octo/repo/pull/1', enabledAt: '2026-01-01T00:00:00.000Z', commentWatermark: '2026-01-01T00:00:00.000Z' } };
 			const session = await svc.createSession({ provider: 'copilot', config: { [SessionConfigKey.AgentMergeController]: controllerState } });
 			const envelopePromise = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 1));
@@ -1779,7 +1779,7 @@ suite('AgentService (node dispatcher)', () => {
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = new MockAgent('copilot');
 			disposables.add(toDisposable(() => agent.dispose()));
-			svc.registerProvider(agent);
+			registerTestAgentProvider(svc, agent);
 			const session = await svc.createSession({ provider: 'copilot' });
 			const envelopePromise = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 1));
 
@@ -1823,7 +1823,7 @@ suite('AgentService (node dispatcher)', () => {
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = new MockAgent('copilot');
 			disposables.add(toDisposable(() => agent.dispose()));
-			svc.registerProvider(agent);
+			registerTestAgentProvider(svc, agent);
 			const session = await svc.createSession({ provider: agent.id, workingDirectories: [URI.file('/workspace')] });
 			const changeset = buildBranchChangesetUri(session.toString());
 			getStateManager(svc).registerChangeset(changeset);
@@ -2012,7 +2012,7 @@ suite('AgentService (node dispatcher)', () => {
 				const svc = localDisposables.add(createTestAgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService(), rootConfigResource));
 				const agent = new MockAgent('copilot');
 				localDisposables.add(toDisposable(() => agent.dispose()));
-				svc.registerProvider(agent);
+				registerTestAgentProvider(svc, agent);
 
 				const customization = { uri: 'file:///plugin-a', displayName: 'Plugin A' };
 				svc.dispatchAction(ROOT_STATE_URI, {
@@ -2256,7 +2256,7 @@ suite('AgentService (node dispatcher)', () => {
 			const svc = disposables.add(createTestAgentService(logService, fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = new MockAgent('copilot');
 			disposables.add(toDisposable(() => agent.dispose()));
-			svc.registerProvider(agent);
+			registerTestAgentProvider(svc, agent);
 			const session = await svc.createSession({ provider: 'copilot' });
 			return { svc, agent, session, attachmentsRoot, warnings };
 		}
@@ -2499,7 +2499,7 @@ suite('AgentService (node dispatcher)', () => {
 		test('resolves provider-owned session state files through the local management service', async () => {
 			const provider: IAgent = copilotAgent;
 			provider.getSessionStateFile = async session => URI.file(`/state/${AgentSession.id(session)}/events.jsonl`);
-			service.registerProvider(provider);
+			registerTestAgentProvider(service, provider);
 			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService());
 
 			assert.deepStrictEqual({
@@ -2515,7 +2515,7 @@ suite('AgentService (node dispatcher)', () => {
 	suite('createSession', () => {
 
 		test('creates session via specified provider', async () => {
-			service.registerProvider(copilotAgent);
+			registerTestAgentProvider(service, copilotAgent);
 
 			const session = await service.createSession({ provider: 'copilot' });
 			assert.strictEqual(AgentSession.provider(session), 'copilot');
@@ -2540,7 +2540,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			const agent = new ProvisionalCustomizationAgent('codex');
 			disposables.add(toDisposable(() => agent.dispose()));
-			service.registerProvider(agent);
+			registerTestAgentProvider(service, agent);
 
 			const session = await service.createSession({ provider: agent.id });
 
@@ -2576,7 +2576,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			const agent = new MaterializingCustomizationAgent('codex');
 			disposables.add(toDisposable(() => agent.dispose()));
-			service.registerProvider(agent);
+			registerTestAgentProvider(service, agent);
 
 			const creation = service.createSession({ provider: agent.id });
 			const session = await agent.customizationReadStarted.p;
@@ -2621,8 +2621,8 @@ suite('AgentService (node dispatcher)', () => {
 			const multi = new CapturingAgent('multi', { multipleWorkingDirectories: { immutablePrimary: true } });
 			disposables.add(toDisposable(() => single.dispose()));
 			disposables.add(toDisposable(() => multi.dispose()));
-			service.registerProvider(single);
-			service.registerProvider(multi);
+			registerTestAgentProvider(service, single);
+			registerTestAgentProvider(service, multi);
 
 			const dirs = [URI.file('/repoA'), URI.file('/repoB'), URI.file('/repoC')];
 			await service.createSession({ provider: 'single', workingDirectories: dirs });
@@ -2640,7 +2640,7 @@ suite('AgentService (node dispatcher)', () => {
 		});
 
 		test('honors requested session URI', async () => {
-			service.registerProvider(copilotAgent);
+			registerTestAgentProvider(service, copilotAgent);
 
 			const requestedSession = AgentSession.uri('copilot', 'requested-session');
 			const session = await service.createSession({ provider: 'copilot', session: requestedSession });
@@ -2672,7 +2672,7 @@ suite('AgentService (node dispatcher)', () => {
 		});
 
 		test('uses default provider when none specified', async () => {
-			service.registerProvider(copilotAgent);
+			registerTestAgentProvider(service, copilotAgent);
 
 			const session = await service.createSession();
 			// A create with no config at all is still workspace-less: the agent
@@ -2697,7 +2697,7 @@ suite('AgentService (node dispatcher)', () => {
 			const db = new TransientRegistryWriteDatabase();
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, db));
 			const agent = disposables.add(new MockAgent('copilot'));
-			svc.registerProvider(agent);
+			registerTestAgentProvider(svc, agent);
 			await svc.listSessions();
 			db.failRegistryWrites(1);
 
@@ -2738,7 +2738,7 @@ suite('AgentService (node dispatcher)', () => {
 			const db = new FailingProviderDataDatabase();
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new BackedDefaultChatAgent('copilot'));
-			svc.registerProvider(agent);
+			registerTestAgentProvider(svc, agent);
 
 			await assert.rejects(() => svc.createSession({ provider: 'copilot' }), /provider data write failed/);
 
@@ -2761,7 +2761,7 @@ suite('AgentService (node dispatcher)', () => {
 	suite('disposeSession', () => {
 
 		test('dispatches to the correct provider and cleans up tracking', async () => {
-			service.registerProvider(copilotAgent);
+			registerTestAgentProvider(service, copilotAgent);
 
 			const session = await service.createSession({ provider: 'copilot' });
 			await service.disposeSession(session);
@@ -2770,7 +2770,7 @@ suite('AgentService (node dispatcher)', () => {
 		});
 
 		test('is a no-op for unknown sessions', async () => {
-			service.registerProvider(copilotAgent);
+			registerTestAgentProvider(service, copilotAgent);
 			const unknownSession = URI.from({ scheme: 'unknown', path: '/nope' });
 
 			// Should not throw
@@ -2788,7 +2788,7 @@ suite('AgentService (node dispatcher)', () => {
 				deleteSessionData: async () => { order.push('deleteSessionData'); },
 			};
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
-			svc.registerProvider(copilotAgent);
+			registerTestAgentProvider(svc, copilotAgent);
 			const session = await svc.createSession({ provider: 'copilot' });
 			const workingDirectoryPendingChange = disposables.add(new Emitter<string>());
 			setTestAgentHostWorktreeIsolation(svc, createTestAgentHostWorktreeIsolation({
@@ -2814,7 +2814,7 @@ suite('AgentService (node dispatcher)', () => {
 				deleteSessionData: async () => { deletedSessionData = true; },
 			};
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
-			svc.registerProvider(copilotAgent);
+			registerTestAgentProvider(svc, copilotAgent);
 			const session = await svc.createSession({ provider: 'copilot' });
 			setTestAgentHostWorktreeIsolation(svc, createTestAgentHostWorktreeIsolation({
 				prepareSessionDeletion: async () => { throw new Error('metadata unavailable'); },
@@ -2845,7 +2845,7 @@ suite('AgentService (node dispatcher)', () => {
 			};
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, db));
 			const agent = disposables.add(new MockAgent('copilot'));
-			svc.registerProvider(agent);
+			registerTestAgentProvider(svc, agent);
 			const session = await svc.createSession({ provider: 'copilot' });
 			setTestAgentHostWorktreeIsolation(svc, createTestAgentHostWorktreeIsolation({
 				prepareSessionDeletion: async () => undefined,
@@ -2979,7 +2979,7 @@ suite('AgentService (node dispatcher)', () => {
 		}
 
 		test('listSessions aggregates sessions from all providers', async () => {
-			service.registerProvider(copilotAgent);
+			registerTestAgentProvider(service, copilotAgent);
 
 			await service.createSession({ provider: 'copilot' });
 
@@ -2997,7 +2997,7 @@ suite('AgentService (node dispatcher)', () => {
 			// Simulate a provider-native session that predates host registration.
 			const external = AgentSession.uri('copilot', 'external-session');
 			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(external), external);
-			svc.registerProvider(agent);
+			registerTestAgentProvider(svc, agent);
 
 			const listed = new Set((await svc.listSessions()).map(s => s.session.toString()));
 			assert.deepStrictEqual(listed, new Set([external.toString()]));
@@ -3019,7 +3019,7 @@ suite('AgentService (node dispatcher)', () => {
 			const agent = disposables.add(new MockAgent('copilot'));
 			const session = AgentSession.uri('copilot', 'rediscovered-external');
 			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(session), session);
-			svc.registerProvider(agent);
+			registerTestAgentProvider(svc, agent);
 			await svc.listSessions();
 			await db.setMetadata(AH_META_IS_READ_DB_KEY, '');
 			const rediscoveredModifiedTime = Date.now() + 60_000;
@@ -3045,7 +3045,7 @@ suite('AgentService (node dispatcher)', () => {
 			const fresh = agent.addSession('fresh', now - 29 * day);
 			setExternalSessionsMode(svc, AgentHostExternalSessionsMode.Last30Days, 1);
 			await waitForSessionListReconciliation(svc);
-			svc.registerProvider(agent);
+			registerTestAgentProvider(svc, agent);
 			await (svc as unknown as { _registerDiscoveredChats(provider: IAgent, chats: readonly IAgentDiscoveredChat[]): Promise<boolean> })._registerDiscoveredChats(agent, [
 				{ chat: URI.parse(buildDefaultChatUri(stale)), startTime: now - 30 * day - 1, modifiedTime: now - 30 * day - 1, external: true },
 				{ chat: URI.parse(buildDefaultChatUri(fresh)), startTime: now - 29 * day, modifiedTime: now - 29 * day, external: true },
@@ -3079,7 +3079,7 @@ suite('AgentService (node dispatcher)', () => {
 				responseParts: [],
 				usage: undefined,
 			}];
-			svc.registerProvider(agent);
+			registerTestAgentProvider(svc, agent);
 			await svc.authenticate({
 				resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource,
 				scopes: GITHUB_COPILOT_PROTECTED_RESOURCE.scopes_supported,
@@ -3118,7 +3118,7 @@ suite('AgentService (node dispatcher)', () => {
 			const stale = agent.addSession('stale-prune', now - 30 * day - 1);
 			const staleAdoptable = agent.addSession('stale-adoptable', now - 30 * day - 1, withSessionEhcliAdoptable(undefined));
 			const fresh = agent.addSession('fresh-prune', now - 29 * day);
-			svc.registerProvider(agent);
+			registerTestAgentProvider(svc, agent);
 			const sessionRegistry = (svc as unknown as { _sessionRegistry: AgentSessionRegistry })._sessionRegistry;
 			await sessionRegistry.register(stale, { provider: 'copilot', startTime: now - 30 * day - 1, source: 'discovery' }, { checkTombstone: true });
 			await sessionRegistry.register(staleAdoptable, { provider: 'copilot', startTime: now - 30 * day - 1, source: 'discovery' }, { checkTombstone: true });
@@ -3230,7 +3230,7 @@ suite('AgentService (node dispatcher)', () => {
 			const agent = disposables.add(new TimedExternalAgent('copilot'));
 			agent.addSession('external-morning', at(10));
 			agent.addSession('external-afternoon', at(16));
-			svc.registerProvider(agent);
+			registerTestAgentProvider(svc, agent);
 
 			const listed = await svc.listSessions();
 
@@ -3322,7 +3322,7 @@ suite('AgentService (node dispatcher)', () => {
 			agent.addSession('older-than-7-days', now - 7 * day - 1);
 			agent.addSession('within-30-days', now - 30 * day + day / 2);
 			agent.addSession('older-than-30-days', now - 30 * day - 1);
-			svc.registerProvider(agent);
+			registerTestAgentProvider(svc, agent);
 
 			const listedByMode: Record<AgentHostExternalSessionsMode, string[]> = {
 				[AgentHostExternalSessionsMode.Recent]: [],
@@ -3358,7 +3358,7 @@ suite('AgentService (node dispatcher)', () => {
 			const agent = disposables.add(new TimedExternalAgent('copilot'));
 			agent.addSession('external-one', now);
 			agent.addSession('external-two', now);
-			svc.registerProvider(agent);
+			registerTestAgentProvider(svc, agent);
 			await svc.listSessions(AgentHostExternalSessionsMode.Last30Days);
 
 			// A catalog pass otherwise opens every registered session's database,
@@ -3395,7 +3395,7 @@ suite('AgentService (node dispatcher)', () => {
 			agent.addSession('recent', now);
 			agent.addSession('yesterday', now - day);
 			agent.addSession('last-week', now - 6 * day);
-			svc.registerProvider(agent);
+			registerTestAgentProvider(svc, agent);
 			setExternalSessionsMode(svc, AgentHostExternalSessionsMode.Last30Days, 1);
 			await waitForSessionListReconciliation(svc);
 
@@ -3435,7 +3435,7 @@ suite('AgentService (node dispatcher)', () => {
 			const agent = disposables.add(new TimedExternalAgent('copilot'));
 			const first = agent.addSession('first', now - 1);
 			const second = agent.addSession('second', now - 2);
-			svc.registerProvider(agent);
+			registerTestAgentProvider(svc, agent);
 			await svc.listSessions();
 			await waitForSessionListReconciliation(svc);
 
@@ -3484,7 +3484,7 @@ suite('AgentService (node dispatcher)', () => {
 			agent.addSession('first', now - 1);
 			agent.addSession('second', now - 2);
 			agent.addSession('third', now - 3);
-			svc.registerProvider(agent);
+			registerTestAgentProvider(svc, agent);
 
 			const initiallyListed = await svc.listSessions();
 			exposeListedSessions(svc, initiallyListed);
@@ -3521,7 +3521,7 @@ suite('AgentService (node dispatcher)', () => {
 			setExternalSessionsMode(svc, AgentHostExternalSessionsMode.Last30Days, 1);
 			await waitForSessionListReconciliation(svc);
 			const agent = disposables.add(new TimedExternalAgent('copilot'));
-			svc.registerProvider(agent);
+			registerTestAgentProvider(svc, agent);
 			await svc.listSessions();
 
 			const first = agent.addSession('first', now);
@@ -3576,7 +3576,7 @@ suite('AgentService (node dispatcher)', () => {
 			const first = agent.addSession('first', now - 1);
 			const second = agent.addSession('second', now - 2);
 			const third = agent.addSession('third', now - 3);
-			svc.registerProvider(agent);
+			registerTestAgentProvider(svc, agent);
 			await svc.listSessions();
 			await waitForSessionListReconciliation(svc);
 			await svc.restoreSession(third);
@@ -3621,7 +3621,7 @@ suite('AgentService (node dispatcher)', () => {
 					notifications.push(`remove:${notification.session}`);
 				}
 			}));
-			svc.registerProvider(agent);
+			registerTestAgentProvider(svc, agent);
 			await svc.listSessions();
 			for (let attempt = 0; attempt < 20 && (await svc.getRegisteredSessions()).length === 0; attempt++) {
 				await timeout(0);
@@ -3653,7 +3653,7 @@ suite('AgentService (node dispatcher)', () => {
 					notifications.push(`remove:${notification.session}`);
 				}
 			}));
-			svc.registerProvider(agent);
+			registerTestAgentProvider(svc, agent);
 			await svc.listSessions();
 			await svc.restoreSession(session);
 			notifications.length = 0;
@@ -3695,7 +3695,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			setExternalSessionsMode(svc, AgentHostExternalSessionsMode.None, 1);
 			await waitForSessionListReconciliation(svc);
-			svc.registerProvider(agent);
+			registerTestAgentProvider(svc, agent);
 			assert.deepStrictEqual(await svc.listSessions(), []);
 			agent.fireDiscoveredChats([discoveredChat(session)]);
 			for (let attempt = 0; attempt < 20 && (await svc.getRegisteredSessions()).length === 0; attempt++) {
@@ -3719,7 +3719,7 @@ suite('AgentService (node dispatcher)', () => {
 		test('discovery registration preserves provider-supplied internal provenance', async () => {
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new MockAgent('copilot'));
-			svc.registerProvider(agent);
+			registerTestAgentProvider(svc, agent);
 			await svc.listSessions();
 
 			const session = AgentSession.uri('copilot', 'provider-internal');
@@ -3741,7 +3741,7 @@ suite('AgentService (node dispatcher)', () => {
 		test('discovery announces a registered session with provider metadata intact', async () => {
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new MockAgent('copilot'));
-			svc.registerProvider(agent);
+			registerTestAgentProvider(svc, agent);
 			getConfigurationService(svc).updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
 			await svc.listSessions();
 
@@ -3772,7 +3772,7 @@ suite('AgentService (node dispatcher)', () => {
 		test('an adoptable chat retracted by disabling migration is re-surfaced when it is re-enabled', async () => {
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new MockAgent('copilot'));
-			svc.registerProvider(agent);
+			registerTestAgentProvider(svc, agent);
 			getConfigurationService(svc).updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
 			await svc.listSessions();
 
@@ -3805,7 +3805,7 @@ suite('AgentService (node dispatcher)', () => {
 			const perSession = createPerSessionDataService();
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, perSession.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new MockAgent('copilot'));
-			svc.registerProvider(agent);
+			registerTestAgentProvider(svc, agent);
 			const session = AgentSession.uri('copilot', 'known-discovered');
 			const register = (svc as unknown as { _registerDiscoveredChats(provider: IAgent, chats: readonly IAgentDiscoveredChat[]): Promise<boolean> })._registerDiscoveredChats.bind(svc);
 			await register(agent, [discoveredChat(session)]);
@@ -3829,7 +3829,7 @@ suite('AgentService (node dispatcher)', () => {
 		test('the known-sessions filter reports registered sessions only, leaving tombstones to registration', async () => {
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new MockAgent('copilot'));
-			svc.registerProvider(agent);
+			registerTestAgentProvider(svc, agent);
 			const registered = AgentSession.uri('copilot', 'filter-registered');
 			const deleted = AgentSession.uri('copilot', 'filter-deleted');
 			const unknown = AgentSession.uri('copilot', 'filter-unknown');
@@ -3854,7 +3854,7 @@ suite('AgentService (node dispatcher)', () => {
 		test('concurrent listSessions calls share one computation and never share their result array', async () => {
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new MockAgent('copilot'));
-			svc.registerProvider(agent);
+			registerTestAgentProvider(svc, agent);
 			await svc.createSession({ provider: 'copilot' });
 			let computations = 0;
 			const inner = svc as unknown as { _computeSessions(mode: AgentHostExternalSessionsMode): Promise<readonly IAgentSessionMetadata[]> };
@@ -3888,7 +3888,7 @@ suite('AgentService (node dispatcher)', () => {
 		test('a registry mutation during an in-flight list is not served from the shared computation', async () => {
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new MockAgent('copilot'));
-			svc.registerProvider(agent);
+			registerTestAgentProvider(svc, agent);
 			await svc.listSessions();
 			const snapshotCaptured = new DeferredPromise<void>();
 			const releaseSnapshot = new DeferredPromise<void>();
@@ -3934,7 +3934,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			const beforeRegistration = svc.listSessions();
 			const agent = disposables.add(new MockAgent('copilot'));
-			svc.registerProvider(agent);
+			registerTestAgentProvider(svc, agent);
 			const afterRegistration = svc.listSessions();
 			gate.complete();
 			await Promise.all([beforeRegistration, afterRegistration]);
@@ -3943,7 +3943,7 @@ suite('AgentService (node dispatcher)', () => {
 		});
 
 		test('explicitly created sessions are registered as non-external', async () => {
-			service.registerProvider(copilotAgent);
+			registerTestAgentProvider(service, copilotAgent);
 			const session = await service.createSession({ provider: 'copilot' });
 
 			assert.deepStrictEqual(
@@ -3986,7 +3986,7 @@ suite('AgentService (node dispatcher)', () => {
 			await sessionData.database(legacy).setMetadata(AH_META_WORKSPACELESS_DB_KEY, 'false');
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionData.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new SeparateCatalogAgent('copilot'));
-			svc.registerProvider(agent);
+			registerTestAgentProvider(svc, agent);
 			await svc.listSessions();
 
 			const initial = await (svc as unknown as { _sessionRegistry: AgentSessionRegistry })._sessionRegistry.list();
@@ -4015,7 +4015,7 @@ suite('AgentService (node dispatcher)', () => {
 		test('one invalid discovered chat does not block sibling registration', async () => {
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new MockAgent('copilot'));
-			svc.registerProvider(agent);
+			registerTestAgentProvider(svc, agent);
 			await svc.listSessions();
 			const invalid = AgentSession.uri('copilot', 'invalid-discovered');
 			const valid = AgentSession.uri('copilot', 'valid-discovered');
@@ -4039,7 +4039,7 @@ suite('AgentService (node dispatcher)', () => {
 		test('failed discovery announcement releases its deduplication reservation', async () => {
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new MockAgent('copilot'));
-			svc.registerProvider(agent);
+			registerTestAgentProvider(svc, agent);
 			await svc.listSessions();
 			const session = AgentSession.uri('copilot', 'announcement-retry');
 			const registry = (svc as unknown as { _sessionRegistry: AgentSessionRegistry })._sessionRegistry;
@@ -4082,7 +4082,7 @@ suite('AgentService (node dispatcher)', () => {
 			const sessionData = createPerSessionDataService();
 			await sessionData.database(restored).setMetadata(AH_META_WORKSPACELESS_DB_KEY, 'true');
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionData.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
-			svc.registerProvider(disposables.add(new MixedMigrationAgent('copilot')));
+			registerTestAgentProvider(svc, disposables.add(new MixedMigrationAgent('copilot')));
 			await svc.listSessions();
 
 			const registered = await (svc as unknown as { _sessionRegistry: AgentSessionRegistry })._sessionRegistry.list();
@@ -4153,7 +4153,7 @@ suite('AgentService (node dispatcher)', () => {
 				agent.sessionMetadataOverrides = { startTime: 1, modifiedTime: 1 };
 				const session = AgentSession.uri('copilot', 'legacy-real-database');
 				(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(session), session);
-				svc.registerProvider(agent);
+				registerTestAgentProvider(svc, agent);
 				await svc.getRegisteredSessions();
 				await svc.restoreSession(session);
 				const entries = await (svc as unknown as { _sessionRegistry: AgentSessionRegistry })._sessionRegistry.list();
@@ -4185,7 +4185,7 @@ suite('AgentService (node dispatcher)', () => {
 			const agent = disposables.add(new CountingAgent('copilot'));
 			const native = AgentSession.uri('copilot', 'native-disappeared');
 			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(native), native);
-			svc.registerProvider(agent);
+			registerTestAgentProvider(svc, agent);
 			await svc.listSessions();
 
 			(agent as unknown as { _sessions: Map<string, URI> })._sessions.delete(AgentSession.id(native));
@@ -4215,7 +4215,7 @@ suite('AgentService (node dispatcher)', () => {
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			getConfigurationService(svc).updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.Last30Days });
 			const agent = disposables.add(new GatedListAgent('copilot'));
-			svc.registerProvider(agent);
+			registerTestAgentProvider(svc, agent);
 			const legacy = AgentSession.uri('copilot', 'legacy-concurrent');
 			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(legacy), legacy);
 
@@ -4265,7 +4265,7 @@ suite('AgentService (node dispatcher)', () => {
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			getConfigurationService(svc).updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.Last30Days });
 			const agent = disposables.add(new TransientListFailureAgent('copilot'));
-			svc.registerProvider(agent);
+			registerTestAgentProvider(svc, agent);
 			const legacy = AgentSession.uri('copilot', 'legacy-session');
 			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(legacy), legacy);
 
@@ -4286,7 +4286,7 @@ suite('AgentService (node dispatcher)', () => {
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			getConfigurationService(svc).updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.Last30Days });
 			const early = disposables.add(new MockAgent('copilot'));
-			svc.registerProvider(early);
+			registerTestAgentProvider(svc, early);
 
 			// Run discovery for the first provider before the second registers.
 			await svc.listSessions();
@@ -4294,7 +4294,7 @@ suite('AgentService (node dispatcher)', () => {
 			const late = disposables.add(new MockAgent('claude'));
 			const legacy = AgentSession.uri('claude', 'legacy-late');
 			(late as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(legacy), legacy);
-			svc.registerProvider(late);
+			registerTestAgentProvider(svc, late);
 
 			// A subsequent listSessions call awaits the late provider's own
 			// discovery pass alongside the already-registered provider.
@@ -4328,7 +4328,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new LateEnumerableAgent('copilot'));
-			svc.registerProvider(agent);
+			registerTestAgentProvider(svc, agent);
 
 			// The first discovery completes with no native chats.
 			await svc.listSessions();
@@ -4364,7 +4364,7 @@ suite('AgentService (node dispatcher)', () => {
 			const legacy = AgentSession.uri('copilot', 'adoptable-legacy');
 			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(legacy), legacy);
 			agent.sessionMetadataOverrides = { _meta: withSessionEhcliAdoptable(undefined) };
-			svc.registerProvider(agent);
+			registerTestAgentProvider(svc, agent);
 			getConfigurationService(svc).updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
 			await svc.listSessions();
 
@@ -4384,7 +4384,7 @@ suite('AgentService (node dispatcher)', () => {
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new MockAgent('copilot'));
 			const legacy = AgentSession.uri('copilot', 'deleted-adoptable-legacy');
-			svc.registerProvider(agent);
+			registerTestAgentProvider(svc, agent);
 			await svc.listSessions();
 			await (svc as unknown as { _sessionRegistry: AgentSessionRegistry })._sessionRegistry.tombstone(legacy);
 			agent.fireDiscoveredChats([{
@@ -4430,8 +4430,8 @@ suite('AgentService (node dispatcher)', () => {
 			(providerA as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(legacyA), legacyA);
 			const legacyB = AgentSession.uri('other', 'legacy-b');
 			(providerB as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(legacyB), legacyB);
-			svc.registerProvider(providerA);
-			svc.registerProvider(providerB);
+			registerTestAgentProvider(svc, providerA);
+			registerTestAgentProvider(svc, providerB);
 
 			// One provider failing must never hide sessions already registered
 			// (or registerable in the same sweep) by another provider.
@@ -4483,7 +4483,7 @@ suite('AgentService (node dispatcher)', () => {
 				}
 				return originalListExternalChats();
 			};
-			svc.registerProvider(agent);
+			registerTestAgentProvider(svc, agent);
 			const legacy = AgentSession.uri('copilot', 'legacy-not-yet-enumerable');
 			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(legacy), legacy);
 
@@ -4522,7 +4522,7 @@ suite('AgentService (node dispatcher)', () => {
 					? [{ chat: URI.parse(buildDefaultChatUri(legacy)), startTime: Date.now(), modifiedTime: Date.now() }]
 					: undefined;
 			};
-			svc.registerProvider(agent);
+			registerTestAgentProvider(svc, agent);
 			await assert.rejects(svc.listSessions(), error => {
 				assert.ok(error instanceof Error);
 				const provider = Object.entries(error).find(([key]) => key === 'provider')?.[1];
@@ -4567,7 +4567,7 @@ suite('AgentService (node dispatcher)', () => {
 			}
 			const svc = createExternalSessionService();
 			const agent = disposables.add(new UnavailableCatalogAgent('copilot'));
-			svc.registerProvider(agent);
+			registerTestAgentProvider(svc, agent);
 			svc.markStartupComplete();
 
 			await assert.rejects(svc.listSessions());
@@ -4604,7 +4604,7 @@ suite('AgentService (node dispatcher)', () => {
 			}
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new SingleFlightRetryAgent('copilot'));
-			svc.registerProvider(agent);
+			registerTestAgentProvider(svc, agent);
 			for (let i = 0; i < 20 && agent.catalogCalls === 0; i++) {
 				await timeout(0);
 			}
@@ -4642,8 +4642,8 @@ suite('AgentService (node dispatcher)', () => {
 			(copilot as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(copilotSession), copilotSession);
 			(claude as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(claudeSession), claudeSession);
 			claude.available = false;
-			svc.registerProvider(copilot);
-			svc.registerProvider(claude);
+			registerTestAgentProvider(svc, copilot);
+			registerTestAgentProvider(svc, claude);
 
 			await assert.rejects(Promise.all([svc.listSessions(), svc.listSessions()]), /cannot enumerate its native session catalog yet/);
 			const callsAfterFailure = { copilot: copilot.catalogCalls, claude: claude.catalogCalls };
@@ -4699,7 +4699,7 @@ suite('AgentService (node dispatcher)', () => {
 			}
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new GatedListAgent('copilot'));
-			svc.registerProvider(agent);
+			registerTestAgentProvider(svc, agent);
 
 			// Start the first (non-forced) sweep and let it stall inside
 			// `listExternalChats` before it can see any sessions.
@@ -4742,7 +4742,7 @@ suite('AgentService (node dispatcher)', () => {
 			// legacy sessions forever.
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const early = disposables.add(new MockAgent('copilot'));
-			svc.registerProvider(early);
+			registerTestAgentProvider(svc, early);
 			await svc.listSessions();
 			assert.strictEqual(await svc.isProviderRegistryBackfilled('copilot'), true);
 			assert.strictEqual(await svc.isLegacyRegistryBackfilled(), false, 'the legacy global marker must never be written automatically');
@@ -4750,7 +4750,7 @@ suite('AgentService (node dispatcher)', () => {
 			// A late-registering provider (simulating Codex enabling after
 			// startup) also completes its own sweep.
 			const late = disposables.add(new MockAgent('claude'));
-			svc.registerProvider(late);
+			registerTestAgentProvider(svc, late);
 			await svc.listSessions();
 			assert.strictEqual(await svc.isProviderRegistryBackfilled('claude'), true);
 
@@ -4773,7 +4773,7 @@ suite('AgentService (node dispatcher)', () => {
 			}
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new ChatListChangeAgent('copilot'));
-			svc.registerProvider(agent);
+			registerTestAgentProvider(svc, agent);
 
 			const session = await svc.createSession({ provider: 'copilot', session: AgentSession.uri('copilot', 'to-be-deleted') });
 			assert.ok((await svc.getRegisteredSessions()).some(s => s.toString() === session.toString()));
@@ -4801,7 +4801,7 @@ suite('AgentService (node dispatcher)', () => {
 		test('an explicit create at a previously-deleted session URI clears its tombstone and allows reuse', async () => {
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new MockAgent('copilot'));
-			svc.registerProvider(agent);
+			registerTestAgentProvider(svc, agent);
 			const reusedUri = AgentSession.uri('copilot', 'reused-after-delete');
 
 			const session = await svc.createSession({ provider: 'copilot', session: reusedUri });
@@ -4848,7 +4848,7 @@ suite('AgentService (node dispatcher)', () => {
 			}
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new GatedListAgent('copilot'));
-			svc.registerProvider(agent);
+			registerTestAgentProvider(svc, agent);
 			await svc.listSessions();
 
 			const session = await svc.createSession({ provider: 'copilot', session: AgentSession.uri('copilot', 'race-delete-during-backfill') });
@@ -4891,7 +4891,7 @@ suite('AgentService (node dispatcher)', () => {
 			const agent = disposables.add(new CountingAgent('copilot'));
 			const legacy = AgentSession.uri('copilot', 'old-db-native-session');
 			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(legacy), legacy);
-			svc.registerProvider(agent);
+			registerTestAgentProvider(svc, agent);
 			agent.fireDiscoveredChats([discoveredChat(legacy)]);
 
 			assert.deepStrictEqual((await svc.listSessions()).map(session => session.session.toString()), [legacy.toString()]);
@@ -4931,7 +4931,7 @@ suite('AgentService (node dispatcher)', () => {
 			}
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new SequentiallyGatedListAgent('copilot'));
-			svc.registerProvider(agent);
+			registerTestAgentProvider(svc, agent);
 
 			// Let the automatic non-forced first sweep (from `registerProvider`)
 			// start, then release and await it to completion so its entry is
@@ -4991,7 +4991,7 @@ suite('AgentService (node dispatcher)', () => {
 			}
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new SequentiallyGatedListAgent('copilot'));
-			svc.registerProvider(agent);
+			registerTestAgentProvider(svc, agent);
 
 			// Call #1: the initial non-forced sweep. Let it start and gate.
 			const first = svc.listSessions();
@@ -5032,7 +5032,7 @@ suite('AgentService (node dispatcher)', () => {
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = new FlakyListAgent('copilot');
 			disposables.add(toDisposable(() => agent.dispose()));
-			svc.registerProvider(agent);
+			registerTestAgentProvider(svc, agent);
 
 			const session = await svc.createSession({ provider: 'copilot' });
 			assert.ok((await svc.listSessions()).some(s => s.session.toString() === session.toString()));
@@ -5056,7 +5056,7 @@ suite('AgentService (node dispatcher)', () => {
 			}
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new InactiveMetadataAgent('copilot'));
-			svc.registerProvider(agent);
+			registerTestAgentProvider(svc, agent);
 
 			const session = await svc.createSession({ provider: 'copilot' });
 			const registered = (await svc.listSessions()).find(candidate => candidate.session.toString() === session.toString());
@@ -5109,7 +5109,7 @@ suite('AgentService (node dispatcher)', () => {
 			}
 			const svc = createExternalSessionService();
 			const agent = disposables.add(new InactiveMetadataAgent('copilot'));
-			svc.registerProvider(agent);
+			registerTestAgentProvider(svc, agent);
 			const registry = (svc as unknown as { _sessionRegistry: AgentSessionRegistry })._sessionRegistry;
 			const now = Date.now();
 			const day = 24 * 60 * 60 * 1000;
@@ -5148,7 +5148,7 @@ suite('AgentService (node dispatcher)', () => {
 			}
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new MissingMetadataAgent('copilot'));
-			svc.registerProvider(agent);
+			registerTestAgentProvider(svc, agent);
 
 			const session = await svc.createSession({ provider: 'copilot' });
 			getStateManager(svc).deleteSession(session.toString());
@@ -5161,7 +5161,7 @@ suite('AgentService (node dispatcher)', () => {
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = new MockAgent('copilot');
 			disposables.add(toDisposable(() => agent.dispose()));
-			svc.registerProvider(agent);
+			registerTestAgentProvider(svc, agent);
 
 			const first = await svc.createSession({ provider: 'copilot' });
 			const second = await svc.createSession({ provider: 'copilot' });
@@ -5214,7 +5214,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			getConfigurationService(svc).updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.Last30Days });
-			svc.registerProvider(agent);
+			registerTestAgentProvider(svc, agent);
 
 			const sessions = await svc.listSessions();
 			assert.strictEqual(sessions.length, 1);
@@ -5260,7 +5260,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			getConfigurationService(svc).updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.Last30Days });
-			svc.registerProvider(agent);
+			registerTestAgentProvider(svc, agent);
 
 			const sessions = await svc.listSessions();
 			assert.strictEqual(sessions.length, 1);
@@ -5277,7 +5277,7 @@ suite('AgentService (node dispatcher)', () => {
 			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(sessionId, sessionUri);
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			getConfigurationService(svc).updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.Last30Days });
-			svc.registerProvider(agent);
+			registerTestAgentProvider(svc, agent);
 
 			const sessions = await svc.listSessions();
 			assert.deepStrictEqual(
@@ -5302,7 +5302,7 @@ suite('AgentService (node dispatcher)', () => {
 			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(sessionId, sessionUri);
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			getConfigurationService(svc).updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.Last30Days });
-			svc.registerProvider(agent);
+			registerTestAgentProvider(svc, agent);
 
 			const sessions = await svc.listSessions();
 
@@ -5323,7 +5323,7 @@ suite('AgentService (node dispatcher)', () => {
 			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(sessionId, sessionUri);
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			getConfigurationService(svc).updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.Last30Days });
-			svc.registerProvider(agent);
+			registerTestAgentProvider(svc, agent);
 
 			const sessions = await svc.listSessions();
 
@@ -5341,7 +5341,7 @@ suite('AgentService (node dispatcher)', () => {
 			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(sessionId, sessionUri);
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			getConfigurationService(svc).updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.Last30Days });
-			svc.registerProvider(agent);
+			registerTestAgentProvider(svc, agent);
 
 			const sessions = await svc.listSessions();
 
@@ -5367,7 +5367,7 @@ suite('AgentService (node dispatcher)', () => {
 			};
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, gitService));
 			getConfigurationService(svc).updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.Last30Days });
-			svc.registerProvider(agent);
+			registerTestAgentProvider(svc, agent);
 
 			const sessions = await svc.listSessions();
 			// Twice, because the deleted repair cached per session: one listing cannot tell "never resolves" from "resolves once".
@@ -5409,7 +5409,7 @@ suite('AgentService (node dispatcher)', () => {
 				new NullLogService(),
 			)));
 			await createAgentSession(agent);
-			svc.registerProvider(agent);
+			registerTestAgentProvider(svc, agent);
 			const sessionResource = (await agent.listSessions())[0].session;
 			agent.fireDiscoveredChats([discoveredChat(sessionResource)]);
 			for (let i = 0; i < 50 && (await svc.getRegisteredSessions()).length === 0; i++) {
@@ -5454,7 +5454,7 @@ suite('AgentService (node dispatcher)', () => {
 				sessionDataService,
 				new NullLogService(),
 			)));
-			svc.registerProvider(agent);
+			registerTestAgentProvider(svc, agent);
 			const { session } = await createAgentSession(agent);
 			agent.sessionMessages = [];
 
@@ -5479,7 +5479,7 @@ suite('AgentService (node dispatcher)', () => {
 		});
 
 		test('listSessions uses SDK title when no custom title exists', async () => {
-			service.registerProvider(copilotAgent);
+			registerTestAgentProvider(service, copilotAgent);
 			copilotAgent.sessionMetadataOverrides = { summary: 'Auto-generated Title' };
 
 			await service.createSession({ provider: 'copilot' });
@@ -5490,7 +5490,7 @@ suite('AgentService (node dispatcher)', () => {
 		});
 
 		test('listSessions never returns subagent sessions', async () => {
-			service.registerProvider(copilotAgent);
+			registerTestAgentProvider(service, copilotAgent);
 			const parentSession = await service.createSession({ provider: 'copilot' });
 
 			// Simulate a live subagent being spawned: `_handleSubagentStarted`
@@ -5545,7 +5545,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			const provisionalAgent = new ProvisionalMockAgent('copilot');
 			disposables.add(toDisposable(() => provisionalAgent.dispose()));
-			service.registerProvider(provisionalAgent);
+			registerTestAgentProvider(service, provisionalAgent);
 
 			const session = await service.createSession({ provider: 'copilot' });
 
@@ -5609,7 +5609,7 @@ suite('AgentService (node dispatcher)', () => {
 			const { session } = await createAgentSession(agent);
 			setExternalSessionsMode(service, AgentHostExternalSessionsMode.Last30Days, 1);
 			await waitForSessionListReconciliation(service);
-			service.registerProvider(agent);
+			registerTestAgentProvider(service, agent);
 			agent.fireDiscoveredChats([discoveredChat(session)]);
 			for (let i = 0; i < 50 && (await service.getRegisteredSessions()).length === 0; i++) {
 				await timeout(0);
@@ -5679,7 +5679,7 @@ suite('AgentService (node dispatcher)', () => {
 			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(sessionId, sessionUri);
 
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
-			svc.registerProvider(agent);
+			registerTestAgentProvider(svc, agent);
 
 			const sessions = await svc.listSessions();
 			assert.strictEqual(sessions.length, 1);
@@ -5722,7 +5722,7 @@ suite('AgentService (node dispatcher)', () => {
 			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(sessionId, sessionUri);
 
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
-			svc.registerProvider(agent);
+			registerTestAgentProvider(svc, agent);
 
 			const sessions = await svc.listSessions();
 			assert.strictEqual(sessions.length, 1);
@@ -5758,7 +5758,7 @@ suite('AgentService (node dispatcher)', () => {
 			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(sessionId, sessionUri);
 
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
-			svc.registerProvider(agent);
+			registerTestAgentProvider(svc, agent);
 
 			const sessions = await svc.listSessions();
 			const changesetUri = buildSessionChangesetUri(sessionUri.toString());
@@ -5813,7 +5813,7 @@ suite('AgentService (node dispatcher)', () => {
 			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(sessionId, sessionUri);
 
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
-			svc.registerProvider(agent);
+			registerTestAgentProvider(svc, agent);
 
 			// Seed live changeset state directly: a single file with
 			// different counts than the stale persisted blob.
@@ -5882,7 +5882,7 @@ suite('AgentService (node dispatcher)', () => {
 			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(sessionId, sessionUri);
 
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
-			svc.registerProvider(agent);
+			registerTestAgentProvider(svc, agent);
 
 			// Seed a ready (zero-file) live changeset state — this alone
 			// must be authoritative enough to suppress the persisted-diffs
@@ -5925,7 +5925,7 @@ suite('AgentService (node dispatcher)', () => {
 			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(sessionId, sessionUri);
 
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
-			svc.registerProvider(agent);
+			registerTestAgentProvider(svc, agent);
 
 			// Register a changeset but leave it in the default
 			// `Computing` status (no ChangesetStatusChanged dispatch).
@@ -5949,7 +5949,7 @@ suite('AgentService (node dispatcher)', () => {
 		});
 
 		test.skip('listSessions overlays live state manager title over SDK title', async () => {
-			service.registerProvider(copilotAgent);
+			registerTestAgentProvider(service, copilotAgent);
 
 			const session = await service.createSession({ provider: 'copilot' });
 
@@ -6019,7 +6019,7 @@ suite('AgentService (node dispatcher)', () => {
 			disposables.add(toDisposable(() => agent.dispose()));
 			agent.resolvedWorkingDirectory = workingDirectory;
 			agent.sessionMetadataOverrides = { workingDirectories: workingDirectory ? [workingDirectory] : undefined };
-			localService.registerProvider(agent);
+			registerTestAgentProvider(localService, agent);
 
 			// A normal session passes an input workingDirectory, so it is not
 			// inferred workspace-less; `_meta` carries only the git overlay.
@@ -6066,7 +6066,7 @@ suite('AgentService (node dispatcher)', () => {
 			disposables.add(toDisposable(() => agent.dispose()));
 			agent.resolvedWorkingDirectory = workingDirectory;
 			agent.sessionMetadataOverrides = { workingDirectories: workingDirectory ? [workingDirectory] : undefined };
-			localService.registerProvider(agent);
+			registerTestAgentProvider(localService, agent);
 
 			const session = await localService.createSession({ provider: 'copilot' });
 			for (let i = 0; i < 100 && computeCalls.length < 2; i++) {
@@ -6125,7 +6125,7 @@ suite('AgentService (node dispatcher)', () => {
 			const agent = new MockAgent('copilot');
 			disposables.add(toDisposable(() => agent.dispose()));
 			// No resolvedWorkingDirectory set on the mock.
-			localService.registerProvider(agent);
+			registerTestAgentProvider(localService, agent);
 
 			const session = await localService.createSession({ provider: 'copilot' });
 			for (let i = 0; i < 5; i++) {
@@ -6150,7 +6150,7 @@ suite('AgentService (node dispatcher)', () => {
 			disposables.add(toDisposable(() => agent.dispose()));
 			agent.resolvedWorkingDirectory = workingDirectory;
 			agent.sessionMetadataOverrides = { workingDirectories: workingDirectory ? [workingDirectory] : undefined };
-			localService.registerProvider(agent);
+			registerTestAgentProvider(localService, agent);
 
 			const session = await localService.createSession({ provider: 'copilot' });
 			for (let i = 0; i < 5; i++) {
@@ -6181,7 +6181,7 @@ suite('AgentService (node dispatcher)', () => {
 			disposables.add(toDisposable(() => agent.dispose()));
 			agent.resolvedWorkingDirectory = workingDirectory;
 			agent.sessionMetadataOverrides = { workingDirectories: workingDirectory ? [workingDirectory] : undefined };
-			localService.registerProvider(agent);
+			registerTestAgentProvider(localService, agent);
 
 			const session = await localService.createSession({ provider: 'copilot' });
 			for (let i = 0; i < 5; i++) {
@@ -6215,7 +6215,7 @@ suite('AgentService (node dispatcher)', () => {
 			disposables.add(toDisposable(() => agent.dispose()));
 			agent.resolvedWorkingDirectory = workingDirectory;
 			agent.sessionMetadataOverrides = { workingDirectories: workingDirectory ? [workingDirectory] : undefined };
-			localService.registerProvider(agent);
+			registerTestAgentProvider(localService, agent);
 
 			const session = await localService.createSession({ provider: 'copilot' });
 			for (let i = 0; i < 5; i++) {
@@ -6260,7 +6260,7 @@ suite('AgentService (node dispatcher)', () => {
 				disposables.add(toDisposable(() => agent.dispose()));
 				agent.resolvedWorkingDirectory = workingDirectory;
 				agent.sessionMetadataOverrides = { workingDirectories: workingDirectory ? [workingDirectory] : undefined };
-				localService.registerProvider(agent);
+				registerTestAgentProvider(localService, agent);
 
 				// Seed a session and clear its _meta so subscribe must lazily
 				// recompute git state. A microtask drain lets the
@@ -6288,7 +6288,7 @@ suite('AgentService (node dispatcher)', () => {
 		});
 
 		test('subscribe to a registered session changeset URI returns a changeset snapshot', async () => {
-			service.registerProvider(copilotAgent);
+			registerTestAgentProvider(service, copilotAgent);
 			const session = await service.createSession({ provider: 'copilot' });
 
 			const changesetUri = buildSessionChangesetUri(session.toString());
@@ -6311,7 +6311,7 @@ suite('AgentService (node dispatcher)', () => {
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionData.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = new MockAgent('copilot');
 			disposables.add(toDisposable(() => agent.dispose()));
-			localService.registerProvider(agent);
+			registerTestAgentProvider(localService, agent);
 			const session = await localService.createSession({ provider: 'copilot' });
 			const annotationsUri = buildAnnotationsUri(session.toString());
 			const annotation = {
@@ -6339,7 +6339,7 @@ suite('AgentService (node dispatcher)', () => {
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionData.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = new MockAgent('copilot');
 			disposables.add(toDisposable(() => agent.dispose()));
-			localService.registerProvider(agent);
+			registerTestAgentProvider(localService, agent);
 			const session = await localService.createSession({ provider: 'copilot' });
 			const annotationsUri = buildAnnotationsUri(session.toString());
 			// The shape written before annotations carried an origin: a
@@ -6373,7 +6373,7 @@ suite('AgentService (node dispatcher)', () => {
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionData.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = new MockAgent('copilot');
 			disposables.add(toDisposable(() => agent.dispose()));
-			localService.registerProvider(agent);
+			registerTestAgentProvider(localService, agent);
 			const session = await localService.createSession({ provider: 'copilot' });
 			const annotationsUri = buildAnnotationsUri(session.toString());
 			const annotation = {
@@ -6406,7 +6406,7 @@ suite('AgentService (node dispatcher)', () => {
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionData.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = new MockAgent('copilot');
 			disposables.add(toDisposable(() => agent.dispose()));
-			localService.registerProvider(agent);
+			registerTestAgentProvider(localService, agent);
 			const parent = await localService.createSession({ provider: 'copilot' });
 			const subagent = buildSubagentSessionUri(parent, 'tool-call');
 			getStateManager(localService).restoreSession({
@@ -6441,7 +6441,7 @@ suite('AgentService (node dispatcher)', () => {
 		});
 
 		test('subscribe to an unknown changeset id fails without restoring the parent session', async () => {
-			service.registerProvider(copilotAgent);
+			registerTestAgentProvider(service, copilotAgent);
 			// Build a changeset URI with a producer-defined id we don't
 			// recognise (`staged`). The unknown-changeset early throw must
 			// fire before the session-restore fallback so the parent session
@@ -6462,7 +6462,7 @@ suite('AgentService (node dispatcher)', () => {
 		});
 
 		test('createSession stores live session config', async () => {
-			service.registerProvider(copilotAgent);
+			registerTestAgentProvider(service, copilotAgent);
 
 			const config = { isolation: 'worktree', branch: 'feature/config' };
 			const session = await service.createSession({ provider: 'copilot', config });
@@ -6471,7 +6471,7 @@ suite('AgentService (node dispatcher)', () => {
 		});
 
 		test('seeds activeClient into the initial session state when provided', async () => {
-			service.registerProvider(copilotAgent);
+			registerTestAgentProvider(service, copilotAgent);
 
 			const envelopes: ActionEnvelope[] = [];
 			disposables.add(service.onDidAction(env => envelopes.push(env)));
@@ -6493,7 +6493,7 @@ suite('AgentService (node dispatcher)', () => {
 		});
 
 		test('omits activeClient from the initial session state when not provided', async () => {
-			service.registerProvider(copilotAgent);
+			registerTestAgentProvider(service, copilotAgent);
 
 			const session = await service.createSession({ provider: 'copilot' });
 
@@ -6506,7 +6506,7 @@ suite('AgentService (node dispatcher)', () => {
 	suite('authenticate', () => {
 
 		test('routes token to provider matching the resource', async () => {
-			service.registerProvider(copilotAgent);
+			registerTestAgentProvider(service, copilotAgent);
 
 			const result = await service.authenticate({ resource: 'https://api.github.com', token: 'ghp_test123' });
 
@@ -6515,7 +6515,7 @@ suite('AgentService (node dispatcher)', () => {
 		});
 
 		test('returns not authenticated for unknown resource', async () => {
-			service.registerProvider(copilotAgent);
+			registerTestAgentProvider(service, copilotAgent);
 
 			const result = await service.authenticate({ resource: 'https://unknown.example.com', token: 'tok' });
 
@@ -6527,7 +6527,7 @@ suite('AgentService (node dispatcher)', () => {
 		});
 
 		test('stores GitHub Copilot token for operation handlers', async () => {
-			service.registerProvider(copilotAgent);
+			registerTestAgentProvider(service, copilotAgent);
 			const changes: { resource: string; token: string | undefined }[] = [];
 			disposables.add(getAuthenticationService(service).onDidChangeAuthToken(event => changes.push({ resource: event.resource, token: event.token })));
 
@@ -6542,7 +6542,7 @@ suite('AgentService (node dispatcher)', () => {
 		});
 
 		test('removes a stored token when authentication is revoked', async () => {
-			service.registerProvider(copilotAgent);
+			registerTestAgentProvider(service, copilotAgent);
 			await service.authenticate({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, token: 'copilot-token' });
 
 			const result = await service.authenticate({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, token: '' });
@@ -6562,7 +6562,7 @@ suite('AgentService (node dispatcher)', () => {
 		});
 
 		test('does not replay a stored token after a failed revocation', async () => {
-			service.registerProvider(copilotAgent);
+			registerTestAgentProvider(service, copilotAgent);
 			await service.authenticate({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, token: 'copilot-token' });
 			copilotAgent.authenticate = async () => { throw new Error('clear failed'); };
 
@@ -6570,7 +6570,7 @@ suite('AgentService (node dispatcher)', () => {
 			const lateAgent = new MockAgent('codex');
 			lateAgent.getProtectedResources = () => [GITHUB_COPILOT_PROTECTED_RESOURCE];
 			disposables.add(toDisposable(() => lateAgent.dispose()));
-			service.registerProvider(lateAgent);
+			registerTestAgentProvider(service, lateAgent);
 			await timeout(0);
 
 			assert.deepStrictEqual({
@@ -6585,7 +6585,7 @@ suite('AgentService (node dispatcher)', () => {
 		});
 
 		test('stores tokens for the same resource by scopes', async () => {
-			service.registerProvider(copilotAgent);
+			registerTestAgentProvider(service, copilotAgent);
 
 			await service.authenticate({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, scopes: ['read:user'], token: 'read-token' });
 			await service.authenticate({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, scopes: ['read:user', 'user:email'], token: 'profile-token' });
@@ -6607,7 +6607,7 @@ suite('AgentService (node dispatcher)', () => {
 			const mcpAgentContract: IAgent = mcpAgent;
 			let handlerCalls = 0;
 			mcpAgentContract.handleAuthenticationToken = async () => ++handlerCalls === 1;
-			service.registerProvider(mcpAgentContract);
+			registerTestAgentProvider(service, mcpAgentContract);
 
 			const first = await service.authenticate({ resource: 'https://mcp.example.com', scopes: ['write', 'read'], token: 'token-1' });
 			const duplicate = await service.authenticate({ resource: 'https://mcp.example.com', scopes: ['read', 'write'], token: 'token-1' });
@@ -6633,7 +6633,7 @@ suite('AgentService (node dispatcher)', () => {
 				}
 				throw new Error('failed');
 			};
-			service.registerProvider(mcpAgentContract);
+			registerTestAgentProvider(service, mcpAgentContract);
 
 			const first = await service.authenticate({ resource: 'https://mcp.example.com', token: 'token-1' });
 			const duplicate = await service.authenticate({ resource: 'https://mcp.example.com', token: 'token-1' });
@@ -6653,8 +6653,8 @@ suite('AgentService (node dispatcher)', () => {
 			const claudeAgent = new MockAgent('claude');
 			claudeAgent.getProtectedResources = () => [{ resource: 'https://api.github.com', authorization_servers: ['https://github.com/login/oauth'], required: true }];
 			disposables.add(toDisposable(() => claudeAgent.dispose()));
-			service.registerProvider(copilotAgent);
-			service.registerProvider(claudeAgent);
+			registerTestAgentProvider(service, copilotAgent);
+			registerTestAgentProvider(service, claudeAgent);
 
 			const result = await service.authenticate({ resource: 'https://api.github.com', token: 'tok' });
 
@@ -6670,13 +6670,13 @@ suite('AgentService (node dispatcher)', () => {
 		});
 
 		test('replays stored authentication to a provider registered later', async () => {
-			service.registerProvider(copilotAgent);
+			registerTestAgentProvider(service, copilotAgent);
 			await service.authenticate({ resource: 'https://api.github.com', token: 'tok' });
 			const lateAgent = new MockAgent('codex');
 			lateAgent.getProtectedResources = () => [{ resource: 'https://api.github.com', authorization_servers: ['https://github.com/login/oauth'], required: true }];
 			disposables.add(toDisposable(() => lateAgent.dispose()));
 
-			service.registerProvider(lateAgent);
+			registerTestAgentProvider(service, lateAgent);
 			for (let attempt = 0; attempt < 20 && lateAgent.authenticateCalls.length === 0; attempt++) {
 				await new Promise(resolve => setTimeout(resolve, 5));
 			}
@@ -6692,8 +6692,8 @@ suite('AgentService (node dispatcher)', () => {
 			flakyAgent.getProtectedResources = () => [{ resource: 'https://api.github.com', authorization_servers: ['https://github.com/login/oauth'], required: true }];
 			flakyAgent.authenticate = async () => { throw new Error('proxy bind failed'); };
 			disposables.add(toDisposable(() => flakyAgent.dispose()));
-			service.registerProvider(copilotAgent);
-			service.registerProvider(flakyAgent);
+			registerTestAgentProvider(service, copilotAgent);
+			registerTestAgentProvider(service, flakyAgent);
 
 			const result = await service.authenticate({ resource: 'https://api.github.com', token: 'tok' });
 
@@ -6717,8 +6717,8 @@ suite('AgentService (node dispatcher)', () => {
 			flakyB.authenticate = async () => { throw new Error('B'); };
 			disposables.add(toDisposable(() => flakyA.dispose()));
 			disposables.add(toDisposable(() => flakyB.dispose()));
-			service.registerProvider(flakyA);
-			service.registerProvider(flakyB);
+			registerTestAgentProvider(service, flakyA);
+			registerTestAgentProvider(service, flakyB);
 
 			const result = await service.authenticate({ resource: 'https://api.github.com', token: 'tok' });
 
@@ -6734,7 +6734,7 @@ suite('AgentService (node dispatcher)', () => {
 			let copilotShutdown = false;
 			copilotAgent.shutdown = async () => { copilotShutdown = true; };
 
-			service.registerProvider(copilotAgent);
+			registerTestAgentProvider(service, copilotAgent);
 
 			await service.shutdown();
 			assert.ok(copilotShutdown);
@@ -6761,7 +6761,7 @@ suite('AgentService (node dispatcher)', () => {
 				new NullLogService(),
 			));
 			setTestAgentHostWorktreeIsolation(service, isolation);
-			service.registerProvider(copilotAgent);
+			registerTestAgentProvider(service, copilotAgent);
 			await isolation.resolveWorkingDirectory({
 				sessionUri: AgentSession.uri('copilot', 'session'),
 				sessionId: 'session',
@@ -6795,8 +6795,8 @@ suite('AgentService (node dispatcher)', () => {
 			};
 			disposables.add(toDisposable(() => failingAgent.dispose()));
 			disposables.add(toDisposable(() => slowAgent.dispose()));
-			service.registerProvider(failingAgent);
-			service.registerProvider(slowAgent);
+			registerTestAgentProvider(service, failingAgent);
+			registerTestAgentProvider(service, slowAgent);
 
 			const shutdown = service.shutdown();
 			await Promise.resolve();
@@ -6921,7 +6921,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new LazyMetadataAgent('codex'));
-			svc.registerProvider(agent);
+			registerTestAgentProvider(svc, agent);
 			const session = await svc.createSession({ provider: agent.id });
 			await svc.listSessions();
 			agent.ambientReads = 0;
@@ -6962,7 +6962,7 @@ suite('AgentService (node dispatcher)', () => {
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new DelayedMigrationAgent('copilot'));
 			const { session } = await createAgentSession(agent);
-			svc.registerProvider(agent);
+			registerTestAgentProvider(svc, agent);
 
 			const restore = svc.restoreSession(session);
 			await timeout(0);
@@ -6984,10 +6984,30 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('restores a registered session whose URI scheme differs from its provider', async () => {
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new MockAgent('copilot'));
+			registerTestAgentProvider(svc, agent);
+			const session = URI.parse('ahp-session:/durable-provider-route');
+			await svc.createSession({ provider: 'copilot', session });
+			getTestAgentHostProviderService(svc).releaseSession(session, 'copilot');
+			getStateManager(svc).removeSession(session.toString());
+
+			await svc.restoreSession(session);
+
+			assert.deepStrictEqual({
+				provider: getTestAgentHostProviderService(svc).getProviderForSession(session)?.id,
+				restored: !!getStateManager(svc).getSessionState(session.toString()),
+			}, {
+				provider: 'copilot',
+				restored: true,
+			});
+		});
+
 		test('rejects restoring a session that has been explicitly deleted (tombstoned) without resurrecting it', async () => {
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new MockAgent('copilot'));
-			svc.registerProvider(agent);
+			registerTestAgentProvider(svc, agent);
 
 			const session = await svc.createSession({ provider: 'copilot' });
 			await svc.disposeSession(session);
@@ -7030,7 +7050,7 @@ suite('AgentService (node dispatcher)', () => {
 				const session = AgentSession.uri('copilot', 'registered-by-backfill');
 				const agent = disposables.add(new BackfillRegistersAgent(session));
 				seedSession(agent, session);
-				svc.registerProvider(agent);
+				registerTestAgentProvider(svc, agent);
 				getConfigurationService(svc).updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
 
 				const restore = svc.restoreSession(session);
@@ -7087,7 +7107,7 @@ suite('AgentService (node dispatcher)', () => {
 				const agent = disposables.add(new StartupRaceAgent('copilot'));
 				const session = AgentSession.uri('copilot', 'race-session');
 				seedSession(agent, session);
-				svc.registerProvider(agent);
+				registerTestAgentProvider(svc, agent);
 
 				let rejected: unknown;
 				const restore = svc.restoreSession(session).catch(err => { rejected = err; });
@@ -7119,7 +7139,7 @@ suite('AgentService (node dispatcher)', () => {
 				const agent = disposables.add(new StartupRaceAgent('copilot'));
 				const session = AgentSession.uri('copilot', 'deleted-during-wait');
 				seedSession(agent, session);
-				svc.registerProvider(agent);
+				registerTestAgentProvider(svc, agent);
 
 				let rejected: unknown;
 				const restore = svc.restoreSession(session).catch(err => { rejected = err; });
@@ -7154,7 +7174,7 @@ suite('AgentService (node dispatcher)', () => {
 				seedSession(agent, session);
 				// Describable immediately, while the catalogue migration stays gated.
 				agent.sdkReady = true;
-				svc.registerProvider(agent);
+				registerTestAgentProvider(svc, agent);
 
 				await svc.restoreSession(session);
 
@@ -7169,7 +7189,7 @@ suite('AgentService (node dispatcher)', () => {
 				const svc = makeService();
 				const agent = disposables.add(new StartupRaceAgent('copilot'));
 				const session = AgentSession.uri('copilot', 'never-existed');
-				svc.registerProvider(agent);
+				registerTestAgentProvider(svc, agent);
 				agent.migrationGate.complete();
 
 				let rejected: unknown;
@@ -7192,7 +7212,7 @@ suite('AgentService (node dispatcher)', () => {
 				const session = AgentSession.uri('copilot', 'catalog-unavailable');
 				seedSession(agent, session);
 				agent.catalogAvailable = false;
-				svc.registerProvider(agent);
+				registerTestAgentProvider(svc, agent);
 				agent.migrationGate.complete();
 
 				let rejected: unknown;
@@ -7223,7 +7243,7 @@ suite('AgentService (node dispatcher)', () => {
 				const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, db));
 				const agent = disposables.add(new StartupRaceAgent('copilot'));
 				agent.migrationGate.complete();
-				svc.registerProvider(agent);
+				registerTestAgentProvider(svc, agent);
 
 				let rejected: unknown;
 				await svc.restoreSession(session).catch(err => { rejected = err; });
@@ -7247,8 +7267,8 @@ suite('AgentService (node dispatcher)', () => {
 				const ready = disposables.add(new MockAgent('claude'));
 				const session = AgentSession.uri('claude', 'ready-session');
 				seedSession(ready, session);
-				svc.registerProvider(stalled);
-				svc.registerProvider(ready);
+				registerTestAgentProvider(svc, stalled);
+				registerTestAgentProvider(svc, ready);
 				await advanceUntil(() => stalled.listChatsToMigrateCalls > 0);
 
 				await svc.restoreSession(session);
@@ -7274,7 +7294,7 @@ suite('AgentService (node dispatcher)', () => {
 			// nothing itself, yet the restored session still carries the tag.
 			const db = new TestSessionDatabase();
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
-			localService.registerProvider(copilotAgent);
+			registerTestAgentProvider(localService, copilotAgent);
 			await createAgentSession(copilotAgent);
 			const sessionResource = (await copilotAgent.listSessions())[0].session;
 			copilotAgent.sessionMessages = [];
@@ -7288,7 +7308,7 @@ suite('AgentService (node dispatcher)', () => {
 		test('restores persisted multi-root metadata', async () => {
 			const db = new TestSessionDatabase();
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
-			localService.registerProvider(copilotAgent);
+			registerTestAgentProvider(localService, copilotAgent);
 			await createAgentSession(copilotAgent);
 			const sessionResource = (await copilotAgent.listSessions())[0].session;
 			copilotAgent.sessionMessages = [];
@@ -7308,7 +7328,7 @@ suite('AgentService (node dispatcher)', () => {
 		test('restores persisted session creation metadata', async () => {
 			const db = new TestSessionDatabase();
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
-			localService.registerProvider(copilotAgent);
+			registerTestAgentProvider(localService, copilotAgent);
 			await createAgentSession(copilotAgent);
 			const sessionResource = (await copilotAgent.listSessions())[0].session;
 			copilotAgent.sessionMessages = [];
@@ -7327,7 +7347,7 @@ suite('AgentService (node dispatcher)', () => {
 		test('restores persisted source-control provenance', async () => {
 			const db = new TestSessionDatabase();
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
-			localService.registerProvider(copilotAgent);
+			registerTestAgentProvider(localService, copilotAgent);
 			await createAgentSession(copilotAgent);
 			const sessionResource = (await copilotAgent.listSessions())[0].session;
 			copilotAgent.sessionMessages = [];
@@ -7343,7 +7363,7 @@ suite('AgentService (node dispatcher)', () => {
 		});
 
 		test('restores a session with message history', async () => {
-			service.registerProvider(copilotAgent);
+			registerTestAgentProvider(service, copilotAgent);
 			const { session } = await createAgentSession(copilotAgent);
 			const sessions = await copilotAgent.listSessions();
 			const sessionResource = sessions[0].session;
@@ -7367,7 +7387,7 @@ suite('AgentService (node dispatcher)', () => {
 		});
 
 		test('advertises server tools after restoring the session state', async () => {
-			service.registerProvider(copilotAgent);
+			registerTestAgentProvider(service, copilotAgent);
 			await createAgentSession(copilotAgent);
 			const sessionResource = (await copilotAgent.listSessions())[0].session;
 
@@ -7386,7 +7406,7 @@ suite('AgentService (node dispatcher)', () => {
 			// context-usage gauge and a session cost of 0.
 			const db = new TestSessionDatabase();
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
-			localService.registerProvider(copilotAgent);
+			registerTestAgentProvider(localService, copilotAgent);
 			const { session } = await createAgentSession(copilotAgent);
 			const sessionResource = (await copilotAgent.listSessions())[0].session;
 			copilotAgent.sessionMessages = [
@@ -7414,7 +7434,7 @@ suite('AgentService (node dispatcher)', () => {
 			const autoModeResolved = { chosenModel: 'claude-opus-4.8', predictedLabel: 'needs_reasoning', confidence: 0.93 };
 			const agent = disposables.add(new MockAgent('copilot'));
 			agent.turnUsageOverride = { model: 'claude-opus-4.8', _meta: { autoModeResolved } };
-			localService.registerProvider(agent);
+			registerTestAgentProvider(localService, agent);
 			const { session } = await createAgentSession(agent);
 			const sessionResource = (await agent.listSessions())[0].session;
 			agent.sessionMessages = [
@@ -7440,7 +7460,7 @@ suite('AgentService (node dispatcher)', () => {
 		test('interleaves persisted host-injected local turns after their anchor on restore', async () => {
 			const db = new TestSessionDatabase();
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
-			localService.registerProvider(copilotAgent);
+			registerTestAgentProvider(localService, copilotAgent);
 			const { session } = await createAgentSession(copilotAgent);
 			const sessionResource = (await copilotAgent.listSessions())[0].session;
 			const defaultChatUri = buildDefaultChatUri(sessionResource.toString());
@@ -7471,7 +7491,7 @@ suite('AgentService (node dispatcher)', () => {
 		test('restores the default chat\'s independently-renamed title', async () => {
 			const db = new TestSessionDatabase();
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
-			localService.registerProvider(copilotAgent);
+			registerTestAgentProvider(localService, copilotAgent);
 			await createAgentSession(copilotAgent);
 			const sessionResource = (await copilotAgent.listSessions())[0].session;
 			copilotAgent.sessionMessages = [];
@@ -7490,7 +7510,7 @@ suite('AgentService (node dispatcher)', () => {
 		test('persists chat drafts to session metadata', async () => {
 			const db = new TestSessionDatabase();
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
-			localService.registerProvider(copilotAgent);
+			registerTestAgentProvider(localService, copilotAgent);
 			const session = await localService.createSession({ provider: 'copilot' });
 			const draft = {
 				text: 'draft text',
@@ -7510,7 +7530,7 @@ suite('AgentService (node dispatcher)', () => {
 		test('restores chat drafts from session metadata', async () => {
 			const db = new TestSessionDatabase();
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
-			localService.registerProvider(copilotAgent);
+			registerTestAgentProvider(localService, copilotAgent);
 			const { session } = await createAgentSession(copilotAgent);
 			const sessionResource = (await copilotAgent.listSessions())[0].session;
 			const draft = {
@@ -7529,7 +7549,7 @@ suite('AgentService (node dispatcher)', () => {
 		});
 
 		test('restores a session with tool calls', async () => {
-			service.registerProvider(copilotAgent);
+			registerTestAgentProvider(service, copilotAgent);
 			const { session } = await createAgentSession(copilotAgent);
 			const sessions = await copilotAgent.listSessions();
 			const sessionResource = sessions[0].session;
@@ -7556,7 +7576,7 @@ suite('AgentService (node dispatcher)', () => {
 		});
 
 		test('interleaves reasoning, markdown, and tool calls in stream order on resume', async () => {
-			service.registerProvider(copilotAgent);
+			registerTestAgentProvider(service, copilotAgent);
 			const { session } = await createAgentSession(copilotAgent);
 			const sessions = await copilotAgent.listSessions();
 			const sessionResource = sessions[0].session;
@@ -7590,7 +7610,7 @@ suite('AgentService (node dispatcher)', () => {
 		});
 
 		test('flushes interrupted turns', async () => {
-			service.registerProvider(copilotAgent);
+			registerTestAgentProvider(service, copilotAgent);
 			const { session } = await createAgentSession(copilotAgent);
 			const sessions = await copilotAgent.listSessions();
 			const sessionResource = sessions[0].session;
@@ -7611,7 +7631,7 @@ suite('AgentService (node dispatcher)', () => {
 		});
 
 		test('throws when session is not found on backend', async () => {
-			service.registerProvider(copilotAgent);
+			registerTestAgentProvider(service, copilotAgent);
 			await assert.rejects(
 				() => service.restoreSession(AgentSession.uri('copilot', 'nonexistent')),
 				/Session not found on backend/,
@@ -7639,7 +7659,7 @@ suite('AgentService (node dispatcher)', () => {
 			const db = new TestSessionDatabase();
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new AdoptOnOpenAgent());
-			localService.registerProvider(agent);
+			registerTestAgentProvider(localService, agent);
 			agent.sessionMessages = [];
 
 			const session = AgentSession.uri('copilot', 'surfaced-legacy');
@@ -7688,7 +7708,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new AdoptThenFailAgent());
-			localService.registerProvider(agent);
+			registerTestAgentProvider(localService, agent);
 			getConfigurationService(localService).updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
 			const session = AgentSession.uri('copilot', 'adopted-restore-fails');
 			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(session), session);
@@ -7715,7 +7735,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new AdoptAgent());
-			localService.registerProvider(agent);
+			registerTestAgentProvider(localService, agent);
 			getConfigurationService(localService).updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
 			const session = AgentSession.uri('copilot', 'adopted-registration-fails');
 			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(session), session);
@@ -7738,7 +7758,7 @@ suite('AgentService (node dispatcher)', () => {
 			}
 
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
-			localService.registerProvider(disposables.add(new NotAdoptableAgent()));
+			registerTestAgentProvider(localService, disposables.add(new NotAdoptableAgent()));
 			getConfigurationService(localService).updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
 
 			const session = AgentSession.uri('copilot', 'external-chat');
@@ -7766,7 +7786,7 @@ suite('AgentService (node dispatcher)', () => {
 				const db = new TestSessionDatabase();
 				const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 				const agent = disposables.add(new AdoptOnOpenAgent());
-				localService.registerProvider(agent);
+				registerTestAgentProvider(localService, agent);
 				agent.sessionMessages = [];
 
 				const session = AgentSession.uri('copilot', `surfaced-legacy-${action.type}`);
@@ -7802,7 +7822,7 @@ suite('AgentService (node dispatcher)', () => {
 				const db = new TestSessionDatabase();
 				const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 				const agent = disposables.add(new MockAgent('copilot'));
-				localService.registerProvider(agent);
+				registerTestAgentProvider(localService, agent);
 
 				const session = AgentSession.uri('copilot', `passive-${action.type}`);
 				const sessionStr = session.toString();
@@ -7853,7 +7873,7 @@ suite('AgentService (node dispatcher)', () => {
 			const db = new TestSessionDatabase();
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new MissingWorkingDirectoryAgent());
-			localService.registerProvider(agent);
+			registerTestAgentProvider(localService, agent);
 
 			const session = AgentSession.uri('copilot', 'archive-missing-cwd');
 			const sessionStr = session.toString();
@@ -7883,7 +7903,7 @@ suite('AgentService (node dispatcher)', () => {
 			const db = new TestSessionDatabase();
 			await db.setMetadata(AH_META_IS_ARCHIVED_DB_KEY, 'true');
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
-			localService.registerProvider(disposables.add(new MockAgent('copilot')));
+			registerTestAgentProvider(localService, disposables.add(new MockAgent('copilot')));
 
 			const session = AgentSession.uri('copilot', 'unarchive-unloaded');
 			const sessionStr = session.toString();
@@ -7914,7 +7934,7 @@ suite('AgentService (node dispatcher)', () => {
 			// host list, so a toggle must never do it for a never-surfaced session.
 			const db = new TestSessionDatabase();
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
-			localService.registerProvider(disposables.add(new MockAgent('copilot')));
+			registerTestAgentProvider(localService, disposables.add(new MockAgent('copilot')));
 
 			const sessionStr = AgentSession.uri('copilot', 'never-surfaced').toString();
 			localService.dispatchAction(sessionStr, { type: ActionType.SessionIsArchivedChanged, isArchived: true }, 'test-client', 1, AgentHostClientType.EditorWindow);
@@ -7937,7 +7957,7 @@ suite('AgentService (node dispatcher)', () => {
 			const db = new TestSessionDatabase();
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new MockAgent('copilot'));
-			localService.registerProvider(agent);
+			registerTestAgentProvider(localService, agent);
 
 			const session = AgentSession.uri('copilot', 'restored-mid-queue');
 			const sessionStr = session.toString();
@@ -7977,7 +7997,7 @@ suite('AgentService (node dispatcher)', () => {
 			// can archive it; "evicted" must behave like any other un-loaded session.
 			const db = new TestSessionDatabase();
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
-			localService.registerProvider(disposables.add(new MockAgent('copilot')));
+			registerTestAgentProvider(localService, disposables.add(new MockAgent('copilot')));
 
 			const created = await localService.createSession({ provider: 'copilot' });
 			const sessionStr = created.toString();
@@ -8009,7 +8029,7 @@ suite('AgentService (node dispatcher)', () => {
 			// still clear it, or a stale toggle could republish a deleted session.
 			const db = new TestSessionDatabase();
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
-			localService.registerProvider(disposables.add(new MockAgent('copilot')));
+			registerTestAgentProvider(localService, disposables.add(new MockAgent('copilot')));
 
 			const created = await localService.createSession({ provider: 'copilot' });
 			const sessionStr = created.toString();
@@ -8033,7 +8053,7 @@ suite('AgentService (node dispatcher)', () => {
 			}
 			const db = new HookedDb();
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
-			localService.registerProvider(disposables.add(new MockAgent('copilot')));
+			registerTestAgentProvider(localService, disposables.add(new MockAgent('copilot')));
 
 			const liveSession = (await localService.createSession({ provider: 'copilot' })).toString();
 			getStateManager(localService).prepareSessionSummariesForListing([getStateManager(localService).getSessionSummary(liveSession)!]);
@@ -8084,7 +8104,7 @@ suite('AgentService (node dispatcher)', () => {
 			const db = new TestSessionDatabase();
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new AdoptOnOpenAgent());
-			localService.registerProvider(agent);
+			registerTestAgentProvider(localService, agent);
 
 			// Setting on, then surface an adoptable legacy session.
 			getConfigurationService(localService).updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
@@ -8136,7 +8156,7 @@ suite('AgentService (node dispatcher)', () => {
 		});
 
 		test('restores known session without listing all provider sessions', async () => {
-			service.registerProvider(copilotAgent);
+			registerTestAgentProvider(service, copilotAgent);
 			const { session } = await createAgentSession(copilotAgent);
 			getStateManager(service).deleteSession(session.toString());
 
@@ -8158,7 +8178,7 @@ suite('AgentService (node dispatcher)', () => {
 		});
 
 		test('falls back to listing sessions when direct metadata restore fails', async () => {
-			service.registerProvider(copilotAgent);
+			registerTestAgentProvider(service, copilotAgent);
 			const session = await service.createSession({ provider: 'copilot' });
 			getStateManager(service).deleteSession(session.toString());
 
@@ -8212,7 +8232,7 @@ suite('AgentService (node dispatcher)', () => {
 			}
 
 			const agent = disposables.add(new BlockingRestoreAgent('copilot'));
-			service.registerProvider(agent);
+			registerTestAgentProvider(service, agent);
 			const { session } = await createAgentSession(agent);
 			getStateManager(service).deleteSession(session.toString());
 			agent.sessionMessages = [
@@ -8238,7 +8258,7 @@ suite('AgentService (node dispatcher)', () => {
 		});
 
 		test('hydrates session customizations when restoring an existing session', async () => {
-			service.registerProvider(copilotAgent);
+			registerTestAgentProvider(service, copilotAgent);
 			const { session } = await createAgentSession(copilotAgent);
 			getStateManager(service).deleteSession(session.toString());
 
@@ -8280,7 +8300,7 @@ suite('AgentService (node dispatcher)', () => {
 			}
 
 			const agent = disposables.add(new FailingOnceRestoreAgent('copilot'));
-			service.registerProvider(agent);
+			registerTestAgentProvider(service, agent);
 			const { session } = await createAgentSession(agent);
 			getStateManager(service).deleteSession(session.toString());
 			agent.sessionMessages = [
@@ -8303,7 +8323,7 @@ suite('AgentService (node dispatcher)', () => {
 		});
 
 		test('restores a session with subagent tool calls', async () => {
-			service.registerProvider(copilotAgent);
+			registerTestAgentProvider(service, copilotAgent);
 			const { session } = await createAgentSession(copilotAgent);
 			const sessions = await copilotAgent.listSessions();
 			const sessionResource = sessions[0].session;
@@ -8371,7 +8391,7 @@ suite('AgentService (node dispatcher)', () => {
 		});
 
 		test('inner assistant messages from subagent do not create extra turns (fixture)', async () => {
-			service.registerProvider(copilotAgent);
+			registerTestAgentProvider(service, copilotAgent);
 			const { session } = await createAgentSession(copilotAgent);
 			const sessions = await copilotAgent.listSessions();
 			const sessionResource = sessions[0].session;
@@ -8430,7 +8450,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			const agent = new LazySubagentMockAgent('copilot');
 			disposables.add(toDisposable(() => agent.dispose()));
-			service.registerProvider(agent);
+			registerTestAgentProvider(service, agent);
 			const { session } = await createAgentSession(agent);
 			const sessions = await agent.listSessions();
 			const sessionResource = sessions[0].session;
@@ -8478,7 +8498,7 @@ suite('AgentService (node dispatcher)', () => {
 		});
 
 		test('legacy subagent reconstruction replaces only a generic restored title', async () => {
-			service.registerProvider(copilotAgent);
+			registerTestAgentProvider(service, copilotAgent);
 			const parent = await service.createSession({ provider: 'copilot' });
 			const parentChat = buildDefaultChatUri(parent);
 			const childChat = buildSubagentChatUri(parent.toString(), 'tc-sub');
@@ -8514,7 +8534,7 @@ suite('AgentService (node dispatcher)', () => {
 		test('legacy subagent reconstruction restores a persisted custom title', async () => {
 			const db = new TestSessionDatabase();
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
-			localService.registerProvider(copilotAgent);
+			registerTestAgentProvider(localService, copilotAgent);
 			const parent = await localService.createSession({ provider: 'copilot' });
 			const childChat = buildSubagentChatUri(parent.toString(), 'tc-sub');
 			await db.setMetadata(`customChatTitle:${childChat}`, 'Persisted Worker');
@@ -8532,7 +8552,7 @@ suite('AgentService (node dispatcher)', () => {
 		});
 
 		test('subscribing to a restored canonical subagent chat reconstructs it on demand', async () => {
-			service.registerProvider(copilotAgent);
+			registerTestAgentProvider(service, copilotAgent);
 			const { session } = await createAgentSession(copilotAgent);
 			const parent = session.toString();
 			copilotAgent.sessionMessages = [
@@ -8562,7 +8582,7 @@ suite('AgentService (node dispatcher)', () => {
 		});
 
 		test('a restored subagent identifies the peer chat that actually spawned it', async () => {
-			service.registerProvider(copilotAgent);
+			registerTestAgentProvider(service, copilotAgent);
 			const { session } = await createAgentSession(copilotAgent);
 			const sessionResource = (await copilotAgent.listSessions())[0].session;
 			const parent = sessionResource.toString();
@@ -8611,7 +8631,7 @@ suite('AgentService (node dispatcher)', () => {
 			// reopen/replay path must resolve those back to the parent tool
 			// call id — otherwise the subagent's assistant messages leak into
 			// the main session as extra turns.
-			service.registerProvider(copilotAgent);
+			registerTestAgentProvider(service, copilotAgent);
 			const { session } = await createAgentSession(copilotAgent);
 			const sessions = await copilotAgent.listSessions();
 			const sessionResource = sessions[0].session;
@@ -8676,7 +8696,7 @@ suite('AgentService (node dispatcher)', () => {
 			}
 
 			const agent = disposables.add(new BlockingSubagentAgent('copilot'));
-			service.registerProvider(agent);
+			registerTestAgentProvider(service, agent);
 			const { session } = await createAgentSession(agent);
 			const sessions = await agent.listSessions();
 			const sessionResource = sessions[0].session;
@@ -8712,7 +8732,7 @@ suite('AgentService (node dispatcher)', () => {
 		});
 
 		test('restores an evicted subagent before applying a dispatched chat action', async () => {
-			service.registerProvider(copilotAgent);
+			registerTestAgentProvider(service, copilotAgent);
 			const { session } = await createAgentSession(copilotAgent);
 			const sessionResource = (await copilotAgent.listSessions())[0].session;
 			copilotAgent.sessionMessages = [
@@ -8760,7 +8780,7 @@ suite('AgentService (node dispatcher)', () => {
 				}
 			}
 			const agent = disposables.add(new MultiChatAgent('copilot'));
-			service.registerProvider(agent);
+			registerTestAgentProvider(service, agent);
 			const { session } = await createAgentSession(agent);
 			// Drop any tracking so only the scheme fallback can resolve the agent.
 			getStateManager(service).deleteSession(session.toString());
@@ -8784,7 +8804,7 @@ suite('AgentService (node dispatcher)', () => {
 				override async createChat(_session: URI, _chat: URI): Promise<void> { }
 			}
 			const agent = disposables.add(new MultiChatAgent('copilot'));
-			service.registerProvider(agent);
+			registerTestAgentProvider(service, agent);
 			const session = await service.createSession({ provider: 'copilot' });
 			const defaultChat = buildDefaultChatUri(session);
 			const peerChat = buildChatUri(session, 'peer-1');
@@ -8824,7 +8844,7 @@ suite('AgentService (node dispatcher)', () => {
 				override async createChat(_session: URI, _chat: URI): Promise<void> { }
 			}
 			const agent = disposables.add(new MultiChatAgent('copilot'));
-			service.registerProvider(agent);
+			registerTestAgentProvider(service, agent);
 			const session = await service.createSession({ provider: 'copilot' });
 
 			const chatUri = URI.parse(buildChatUri(session, 'peer-1'));
@@ -8846,7 +8866,7 @@ suite('AgentService (node dispatcher)', () => {
 				}
 			}
 			const agent = disposables.add(new MultiChatAgent('copilot'));
-			service.registerProvider(agent);
+			registerTestAgentProvider(service, agent);
 			const session = await service.createSession({ provider: 'copilot' });
 
 			const chatUri = URI.parse(buildChatUri(session, 'peer-1'));
@@ -8856,7 +8876,7 @@ suite('AgentService (node dispatcher)', () => {
 		});
 
 		test('throws when the provider does not support multiple chats', async () => {
-			service.registerProvider(copilotAgent);
+			registerTestAgentProvider(service, copilotAgent);
 			const session = await service.createSession({ provider: 'copilot' });
 			const chatUri = URI.parse(buildChatUri(session, 'peer-1'));
 
@@ -8877,7 +8897,7 @@ suite('AgentService (node dispatcher)', () => {
 				}
 			}
 			const agent = disposables.add(new MultiChatAgent('copilot'));
-			service.registerProvider(agent);
+			registerTestAgentProvider(service, agent);
 			const session = await service.createSession({ provider: 'copilot' });
 			const chatUri = URI.parse(buildChatUri(session, 'peer-1'));
 			await service.createChat(session, chatUri);
@@ -8930,7 +8950,7 @@ suite('AgentService (node dispatcher)', () => {
 			const db = new TestSessionDatabase();
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new MultiChatAgent('copilot'));
-			localService.registerProvider(agent);
+			registerTestAgentProvider(localService, agent);
 			const session = await localService.createSession({ provider: 'copilot' });
 
 			// Seed the orchestrator catalog in a,b,c order via createChat.
@@ -8956,7 +8976,7 @@ suite('AgentService (node dispatcher)', () => {
 				}
 			}
 			const agent = disposables.add(new MultiChatAgent('copilot'));
-			service.registerProvider(agent);
+			registerTestAgentProvider(service, agent);
 			const session = await service.createSession({ provider: 'copilot' });
 
 			// Seed the source (default) chat with two turns and a title.
@@ -8996,7 +9016,7 @@ suite('AgentService (node dispatcher)', () => {
 				override async createChat(): Promise<void> { }
 			}
 			const agent = disposables.add(new MultiChatAgent('copilot'));
-			service.registerProvider(agent);
+			registerTestAgentProvider(service, agent);
 			const session = await service.createSession({ provider: 'copilot' });
 			getStateManager(service).seedDefaultChatTurns(session.toString(), [
 				{ id: 't1', state: TurnState.Complete, message: { text: 'first', origin: { kind: MessageKind.User } }, responseParts: [], usage: undefined },
@@ -9020,7 +9040,7 @@ suite('AgentService (node dispatcher)', () => {
 				}
 			}
 			const agent = disposables.add(new MultiChatAgent('copilot'));
-			service.registerProvider(agent);
+			registerTestAgentProvider(service, agent);
 			const session = await service.createSession({ provider: 'copilot' });
 
 			const sourceTurns: Turn[] = [
@@ -9051,7 +9071,7 @@ suite('AgentService (node dispatcher)', () => {
 			const db = new TestSessionDatabase();
 			const agent = disposables.add(new MultiChatAgent('copilot'));
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
-			localService.registerProvider(agent);
+			registerTestAgentProvider(localService, agent);
 			const { session } = await createAgentSession(agent);
 			const sessionResource = (await agent.listSessions())[0].session;
 			const defaultChatUri = buildDefaultChatUri(sessionResource.toString());
@@ -9130,7 +9150,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			const agent = disposables.add(new LeakyMultiChatAgent('copilot'));
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, perSessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
-			svc.registerProvider(agent);
+			registerTestAgentProvider(svc, agent);
 			const session = await svc.createSession({ provider: 'copilot' });
 			const chatUri = URI.parse(buildChatUri(session, 'peer-1'));
 			await svc.createChat(session, chatUri);
@@ -9141,7 +9161,7 @@ suite('AgentService (node dispatcher)', () => {
 			// databases, with a fresh agent still leaking the backing session.
 			const restartAgent = disposables.add(new LeakyMultiChatAgent('copilot'));
 			const restarted = disposables.add(createTestAgentService(new NullLogService(), fileService, perSessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
-			restarted.registerProvider(restartAgent);
+			registerTestAgentProvider(restarted, restartAgent);
 			const afterRestart = await restarted.listSessions();
 
 			assert.deepStrictEqual({
@@ -9159,7 +9179,7 @@ suite('AgentService (node dispatcher)', () => {
 			const perSession = createPerSessionDataService();
 			const agent = disposables.add(new MockAgent('copilot'));
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, perSession.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
-			svc.registerProvider(agent);
+			registerTestAgentProvider(svc, agent);
 
 			const session = await svc.createSession({
 				provider: 'copilot',
@@ -9187,7 +9207,7 @@ suite('AgentService (node dispatcher)', () => {
 			const perSession = createPerSessionDataService();
 			const agent = disposables.add(new MockAgent('copilot'));
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, perSession.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
-			svc.registerProvider(agent);
+			registerTestAgentProvider(svc, agent);
 			const registry = (svc as unknown as { _sessionRegistry: AgentSessionRegistry })._sessionRegistry;
 
 			const session = await svc.createSession({
@@ -9221,7 +9241,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			const agent = disposables.add(new LeakyAgent('copilot'));
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, perSession.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
-			svc.registerProvider(agent);
+			registerTestAgentProvider(svc, agent);
 			await svc.createSession({
 				provider: 'copilot',
 				session: overlaySession,
@@ -9238,7 +9258,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			const restartedAgent = disposables.add(new LeakyAgent('copilot'));
 			const restarted = disposables.add(createTestAgentService(new NullLogService(), fileService, perSession.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
-			restarted.registerProvider(restartedAgent);
+			registerTestAgentProvider(restarted, restartedAgent);
 			const afterRestart = await restarted.listSessions();
 
 			assert.deepStrictEqual({
@@ -9281,7 +9301,7 @@ suite('AgentService (node dispatcher)', () => {
 			const db = new FailingBackingMarkerDatabase();
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new BackedMultiChatAgent('copilot'));
-			svc.registerProvider(agent);
+			registerTestAgentProvider(svc, agent);
 			const session = await svc.createSession({ provider: 'copilot' });
 			const chatUri = URI.parse(buildChatUri(session, 'peer-1'));
 
@@ -9329,7 +9349,7 @@ suite('AgentService (node dispatcher)', () => {
 			const db = new FailingBackingMarkerDatabase();
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new BackedMultiChatAgent('copilot'));
-			svc.registerProvider(agent);
+			registerTestAgentProvider(svc, agent);
 			const session = await svc.createSession({ provider: 'copilot' });
 			const chatUri = URI.parse(buildChatUri(session, 'peer-1'));
 			const backingSession = AgentSession.uri('copilot', 'backing-sdk-id');
@@ -9398,7 +9418,7 @@ suite('AgentService (node dispatcher)', () => {
 
 		test('rejects a side chat whose source turn does not exist', async () => {
 			const agent = disposables.add(new SideChatAgent('copilot'));
-			service.registerProvider(agent);
+			registerTestAgentProvider(service, agent);
 			const session = await service.createSession({ provider: 'copilot' });
 			const chatUri = URI.parse(buildChatUri(session, 'side-1'));
 
@@ -9410,7 +9430,7 @@ suite('AgentService (node dispatcher)', () => {
 
 		test('rejects an empty side-chat selection snapshot', async () => {
 			const agent = disposables.add(new SideChatAgent('copilot'));
-			service.registerProvider(agent);
+			registerTestAgentProvider(service, agent);
 			const session = await service.createSession({ provider: 'copilot' });
 			getStateManager(service).seedDefaultChatTurns(session.toString(), [completedTurn('t1')]);
 			const chatUri = URI.parse(buildChatUri(session, 'side-1'));
@@ -9423,7 +9443,7 @@ suite('AgentService (node dispatcher)', () => {
 
 		test('rejects a side chat whose source chat is in a different session', async () => {
 			const agent = disposables.add(new SideChatAgent('copilot'));
-			service.registerProvider(agent);
+			registerTestAgentProvider(service, agent);
 			const sessionA = await service.createSession({ provider: 'copilot' });
 			const sessionB = await service.createSession({ provider: 'copilot' });
 			getStateManager(service).seedDefaultChatTurns(sessionB.toString(), [completedTurn('t1')]);
@@ -9437,7 +9457,7 @@ suite('AgentService (node dispatcher)', () => {
 
 		test('creates a fresh peer with a SideChat origin and no copied source turns', async () => {
 			const agent = disposables.add(new SideChatAgent('copilot'));
-			service.registerProvider(agent);
+			registerTestAgentProvider(service, agent);
 			const session = await service.createSession({ provider: 'copilot' });
 			getStateManager(service).seedDefaultChatTurns(session.toString(), [completedTurn('t1'), completedTurn('t2')]);
 			const chatUri = URI.parse(buildChatUri(session, 'side-1'));
@@ -9466,7 +9486,7 @@ suite('AgentService (node dispatcher)', () => {
 			const db = new TestSessionDatabase();
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new SideChatAgent('copilot'));
-			localService.registerProvider(agent);
+			registerTestAgentProvider(localService, agent);
 			const { session } = await createAgentSession(agent);
 			const sessionResource = (await agent.listSessions())[0].session;
 			const defaultChatUri = buildDefaultChatUri(sessionResource.toString());
@@ -9506,7 +9526,7 @@ suite('AgentService (node dispatcher)', () => {
 
 		test('creates a fresh side chat from the first active turn', async () => {
 			const agent = disposables.add(new SideChatAgent('copilot'));
-			service.registerProvider(agent);
+			registerTestAgentProvider(service, agent);
 			const session = await service.createSession({ provider: 'copilot' });
 			const sourceChat = buildDefaultChatUri(session);
 			service.dispatchAction(sourceChat, {
@@ -9543,7 +9563,7 @@ suite('AgentService (node dispatcher)', () => {
 
 		test('creates a side chat from a later active turn without losing the current user question', async () => {
 			const agent = disposables.add(new SideChatAgent('copilot'));
-			service.registerProvider(agent);
+			registerTestAgentProvider(service, agent);
 			const session = await service.createSession({ provider: 'copilot' });
 			const sourceChat = buildDefaultChatUri(session);
 			getStateManager(service).seedDefaultChatTurns(session.toString(), [
@@ -9586,7 +9606,7 @@ suite('AgentService (node dispatcher)', () => {
 			const db = new TestSessionDatabase();
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new SideChatAgent('copilot'));
-			localService.registerProvider(agent);
+			registerTestAgentProvider(localService, agent);
 			const { session } = await createAgentSession(agent);
 			const sessionResource = (await agent.listSessions())[0].session;
 			const sourceChat = buildDefaultChatUri(sessionResource.toString());
@@ -9637,7 +9657,7 @@ suite('AgentService (node dispatcher)', () => {
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new SideChatAgent('copilot'));
 			agent.createChatResult = { inheritedTurnId: 'provider-turn' };
-			localService.registerProvider(agent);
+			registerTestAgentProvider(localService, agent);
 			const session = await localService.createSession({ provider: 'copilot' });
 			getStateManager(localService).seedDefaultChatTurns(session.toString(), [completedTurn('t1')]);
 			const chatUri = URI.parse(buildChatUri(session, 'side-1'));
@@ -9680,7 +9700,7 @@ suite('AgentService (node dispatcher)', () => {
 			const db = new TestSessionDatabase();
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new SideChatAgent('copilot'));
-			localService.registerProvider(agent);
+			registerTestAgentProvider(localService, agent);
 			const session = await localService.createSession({ provider: 'copilot' });
 			const source = URI.parse(buildChatUri(session, 'peer-source'));
 			const target = URI.parse(buildChatUri(session, 'peer-side'));
@@ -9714,7 +9734,7 @@ suite('AgentService (node dispatcher)', () => {
 			const db = new TestSessionDatabase();
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new SideChatAgent('copilot'));
-			localService.registerProvider(agent);
+			registerTestAgentProvider(localService, agent);
 			const session = await localService.createSession({ provider: 'copilot' });
 			const peerChat = URI.parse(buildChatUri(session, 'peer-1'));
 			await localService.createChat(session, peerChat);
@@ -9819,7 +9839,7 @@ suite('AgentService (node dispatcher)', () => {
 
 		test('session provisioning and additional chats route through the chat surface', async () => {
 			const agent = disposables.add(new ChatSurfaceAgent('copilot'));
-			service.registerProvider(agent);
+			registerTestAgentProvider(service, agent);
 
 			const session = await service.createSession({ provider: 'copilot', model: { id: 'model-1' } });
 			const chatUri = URI.parse(buildChatUri(session, 'peer-1'));
@@ -9876,7 +9896,7 @@ suite('AgentService (node dispatcher)', () => {
 				}
 			}
 			const agent = disposables.add(new ExactDefaultChatAgent('copilot'));
-			localService.registerProvider(agent);
+			registerTestAgentProvider(localService, agent);
 
 			const session = await localService.createSession({ provider: 'copilot' });
 			getStateManager(localService).deleteSession(session.toString());
@@ -9917,7 +9937,7 @@ suite('AgentService (node dispatcher)', () => {
 			const db = new TestSessionDatabase();
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new RecoveringDefaultChatAgent('copilot'));
-			localService.registerProvider(agent);
+			registerTestAgentProvider(localService, agent);
 
 			// Created without any default-chat provider data ever being
 			// persisted — a stand-in for a legacy session.
@@ -9966,7 +9986,7 @@ suite('AgentService (node dispatcher)', () => {
 			const agent = disposables.add(new ExternalRestoreAgent('copilot'));
 			const session = AgentSession.uri('copilot', 'external-restore');
 			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(session), session);
-			localService.registerProvider(agent);
+			registerTestAgentProvider(localService, agent);
 			await localService.listSessions();
 			getStateManager(localService).deleteSession(session.toString());
 
@@ -9989,7 +10009,7 @@ suite('AgentService (node dispatcher)', () => {
 			const db = new TestSessionDatabase();
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new RecoveringDefaultChatAgent('copilot'));
-			localService.registerProvider(agent);
+			registerTestAgentProvider(localService, agent);
 
 			const session = await localService.createSession({ provider: 'copilot' });
 			getStateManager(localService).deleteSession(session.toString());
@@ -10019,7 +10039,7 @@ suite('AgentService (node dispatcher)', () => {
 			const db = new TestSessionDatabase();
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new RecoveringDefaultChatAgent('copilot'));
-			localService.registerProvider(agent);
+			registerTestAgentProvider(localService, agent);
 
 			const session = await localService.createSession({ provider: 'copilot' });
 			// Seed a canonical providerData blob directly, as if it had been
@@ -10048,7 +10068,7 @@ suite('AgentService (node dispatcher)', () => {
 			// The base mock has no `materializeChat` at all, so restore has
 			// nothing to re-attach and no bind fallback to reach for.
 			const agent = disposables.add(new MockAgent('copilot'));
-			localService.registerProvider(agent);
+			registerTestAgentProvider(localService, agent);
 
 			const session = await localService.createSession({ provider: 'copilot' });
 			agent.sessionMessages = [
@@ -10068,7 +10088,7 @@ suite('AgentService (node dispatcher)', () => {
 
 		test('session disposal disposes every chat — peers first, the default chat last', async () => {
 			const agent = disposables.add(new ChatSurfaceAgent('copilot'));
-			service.registerProvider(agent);
+			registerTestAgentProvider(service, agent);
 			const session = await service.createSession({ provider: 'copilot' });
 			const chatA = URI.parse(buildChatUri(session, 'peer-a'));
 			const chatB = URI.parse(buildChatUri(session, 'peer-b'));
@@ -10089,7 +10109,7 @@ suite('AgentService (node dispatcher)', () => {
 
 		test('session disposal visits every chat before throwing the first error', async () => {
 			const agent = disposables.add(new ChatSurfaceAgent('copilot'));
-			service.registerProvider(agent);
+			registerTestAgentProvider(service, agent);
 			const session = await service.createSession({ provider: 'copilot' });
 			const chatA = URI.parse(buildChatUri(session, 'peer-a'));
 			const chatB = URI.parse(buildChatUri(session, 'peer-b'));
@@ -10120,7 +10140,7 @@ suite('AgentService (node dispatcher)', () => {
 				}));
 			}
 			const agent = disposables.add(new BackingChatSurfaceAgent('copilot'));
-			localService.registerProvider(agent);
+			registerTestAgentProvider(localService, agent);
 
 			await assert.rejects(localService.createSession({ provider: 'copilot' }));
 
@@ -10140,7 +10160,7 @@ suite('AgentService (node dispatcher)', () => {
 
 		test('fork routes to chats.fork with the resolved source chat', async () => {
 			const agent = disposables.add(new ChatSurfaceAgent('copilot'));
-			service.registerProvider(agent);
+			registerTestAgentProvider(service, agent);
 			const session = await service.createSession({ provider: 'copilot' });
 
 			const sourceTurns: Turn[] = [
@@ -10157,7 +10177,7 @@ suite('AgentService (node dispatcher)', () => {
 
 		test('fork rejects a provider-spawned source before calling the provider', async () => {
 			const agent = disposables.add(new ChatSurfaceAgent('copilot'));
-			service.registerProvider(agent);
+			registerTestAgentProvider(service, agent);
 			const session = await service.createSession({ provider: 'copilot' });
 			const source = buildSubagentChatUri(session.toString(), 'tool-1');
 			getStateManager(service).addChat(session.toString(), source, {
@@ -10175,7 +10195,7 @@ suite('AgentService (node dispatcher)', () => {
 
 		test('restore reads the default chat via chats.getMessages on the default chat URI', async () => {
 			const agent = disposables.add(new ChatSurfaceAgent('copilot'));
-			service.registerProvider(agent);
+			registerTestAgentProvider(service, agent);
 			const { session } = await createAgentSession(agent);
 			getStateManager(service).deleteSession(session.toString());
 
@@ -10210,7 +10230,7 @@ suite('AgentService (node dispatcher)', () => {
 
 		test('onDidSpawnChat adds the chat to the catalog with a Tool origin from its parent', async () => {
 			const agent = disposables.add(new SpawnChannelAgent('copilot'));
-			service.registerProvider(agent);
+			registerTestAgentProvider(service, agent);
 			const session = await service.createSession({ provider: 'copilot' });
 
 			const parentChat = URI.parse(buildDefaultChatUri(session.toString()));
@@ -10237,7 +10257,7 @@ suite('AgentService (node dispatcher)', () => {
 
 		test('onDidSpawnChat without a parent adds the chat with the plain user origin', async () => {
 			const agent = disposables.add(new SpawnChannelAgent('copilot'));
-			service.registerProvider(agent);
+			registerTestAgentProvider(service, agent);
 			const session = await service.createSession({ provider: 'copilot' });
 
 			const spawned = URI.parse(buildChatUri(session, 'spawned-2'));
@@ -10271,7 +10291,7 @@ suite('AgentService (node dispatcher)', () => {
 		}
 
 		test('a subagent_started signal yields exactly one catalog entry with the parent origin, title, and a started turn', async () => {
-			service.registerProvider(copilotAgent);
+			registerTestAgentProvider(service, copilotAgent);
 			const session = await service.createSession({ provider: 'copilot' });
 			const parentChat = buildDefaultChatUri(session.toString());
 			startParentTurn(session, 'turn-1');
@@ -10311,7 +10331,7 @@ suite('AgentService (node dispatcher)', () => {
 			// `openSubagentChat.ts`). If the two ever desync, the pill shows the
 			// fallback "Open Subagent" label and clicking it no-ops. Guard the
 			// round-trip so the pill stays resolvable.
-			service.registerProvider(copilotAgent);
+			registerTestAgentProvider(service, copilotAgent);
 			const session = await service.createSession({ provider: 'copilot' });
 			const parentChat = buildDefaultChatUri(session.toString());
 			startParentTurn(session, 'turn-1');
@@ -10336,7 +10356,7 @@ suite('AgentService (node dispatcher)', () => {
 		});
 
 		test('a subagent_started signal without a taskDescription falls back to the agent display name for the tab title', async () => {
-			service.registerProvider(copilotAgent);
+			registerTestAgentProvider(service, copilotAgent);
 			const session = await service.createSession({ provider: 'copilot' });
 			const parentChat = buildDefaultChatUri(session.toString());
 			startParentTurn(session, 'turn-1');
@@ -10375,7 +10395,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			const agent = new BridgingSubagentAgent('copilot');
 			disposables.add(toDisposable(() => agent.dispose()));
-			service.registerProvider(agent);
+			registerTestAgentProvider(service, agent);
 			const session = await service.createSession({ provider: 'copilot' });
 			const parentChat = buildDefaultChatUri(session.toString());
 			startParentTurn(session, 'turn-1');
@@ -10399,7 +10419,7 @@ suite('AgentService (node dispatcher)', () => {
 		});
 
 		test('an inner tool call arriving before subagent_started is buffered and drained onto the subagent chat', async () => {
-			service.registerProvider(copilotAgent);
+			registerTestAgentProvider(service, copilotAgent);
 			const session = await service.createSession({ provider: 'copilot' });
 			const parentChat = buildDefaultChatUri(session.toString());
 			startParentTurn(session, 'turn-1');
@@ -10423,7 +10443,7 @@ suite('AgentService (node dispatcher)', () => {
 		});
 
 		test('a subagent chat survives subagent_completed (stays live and subscribable, its turn completed)', async () => {
-			service.registerProvider(copilotAgent);
+			registerTestAgentProvider(service, copilotAgent);
 			const session = await service.createSession({ provider: 'copilot' });
 			const parentChat = buildDefaultChatUri(session.toString());
 			startParentTurn(session, 'turn-1');
@@ -10448,7 +10468,7 @@ suite('AgentService (node dispatcher)', () => {
 
 		test('a subagent tool call awaiting user confirmation does not time out before the user responds', () => {
 			return runWithFakedTimers({ useFakeTimers: true }, async () => {
-				service.registerProvider(copilotAgent);
+				registerTestAgentProvider(service, copilotAgent);
 				const session = await service.createSession({ provider: 'copilot' });
 				const parentChat = buildDefaultChatUri(session.toString());
 				startParentTurn(session, 'turn-1');
@@ -10484,7 +10504,7 @@ suite('AgentService (node dispatcher)', () => {
 		});
 
 		test('denying a subagent tool call before confirmation does not leave a dangling wait', async () => {
-			service.registerProvider(copilotAgent);
+			registerTestAgentProvider(service, copilotAgent);
 			const session = await service.createSession({ provider: 'copilot' });
 			const parentChat = buildDefaultChatUri(session.toString());
 			startParentTurn(session, 'turn-1');
@@ -10505,7 +10525,7 @@ suite('AgentService (node dispatcher)', () => {
 		});
 
 		test('subscribe to a subagent chat announced via _meta.subagentChatUri waits for the resource instead of failing immediately', async () => {
-			service.registerProvider(copilotAgent);
+			registerTestAgentProvider(service, copilotAgent);
 			const session = await service.createSession({ provider: 'copilot' });
 			const parentChat = buildDefaultChatUri(session.toString());
 			startParentTurn(session, 'turn-1');
@@ -10537,7 +10557,7 @@ suite('AgentService (node dispatcher)', () => {
 
 		test('subscribe to an announced subagent chat that never spawns eventually rejects instead of hanging', () => {
 			return runWithFakedTimers({ useFakeTimers: true }, async () => {
-				service.registerProvider(copilotAgent);
+				registerTestAgentProvider(service, copilotAgent);
 				const session = await service.createSession({ provider: 'copilot' });
 				const parentChat = buildDefaultChatUri(session.toString());
 				startParentTurn(session, 'turn-1');
@@ -10611,7 +10631,7 @@ suite('AgentService (node dispatcher)', () => {
 				}
 			}
 			const agent = disposables.add(new MultiChatAgent('copilot'));
-			localService.registerProvider(agent);
+			registerTestAgentProvider(localService, agent);
 			const session = await localService.createSession({ provider: 'copilot' });
 			const peer = URI.parse(buildChatUri(session, 'unpersisted-peer'));
 			db.failPeerCatalogWrites = true;
@@ -10644,7 +10664,7 @@ suite('AgentService (node dispatcher)', () => {
 			const db = new TestSessionDatabase();
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new BackedPeerChatAgent('copilot'));
-			localService.registerProvider(agent);
+			registerTestAgentProvider(localService, agent);
 			const session = await localService.createSession({ provider: 'copilot' });
 
 			const peerUri = URI.parse(buildChatUri(session, 'peer-1'));
@@ -10676,7 +10696,7 @@ suite('AgentService (node dispatcher)', () => {
 			const db = new TestSessionDatabase();
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new MultiChatAgent('copilot'));
-			localService.registerProvider(agent);
+			registerTestAgentProvider(localService, agent);
 			const session = await localService.createSession({ provider: 'copilot' });
 			const sessionUri = session.toString();
 			const defaultChat = buildDefaultChatUri(session);
@@ -10730,7 +10750,7 @@ suite('AgentService (node dispatcher)', () => {
 			const db = new TestSessionDatabase();
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new MultiChatAgent('copilot'));
-			localService.registerProvider(agent);
+			registerTestAgentProvider(localService, agent);
 			const session = await localService.createSession({ provider: 'copilot' });
 
 			const peerUri = URI.parse(buildChatUri(session, 'peer-1'));
@@ -10811,7 +10831,7 @@ suite('AgentService (node dispatcher)', () => {
 			const db = new TestSessionDatabase();
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new MultiChatAgent('copilot'));
-			localService.registerProvider(agent);
+			registerTestAgentProvider(localService, agent);
 			const session = await localService.createSession({ provider: 'copilot' });
 			const peerUri = URI.parse(buildChatUri(session, 'peer-1'));
 			await db.setMetadata('peerChats', JSON.stringify([{ uri: peerUri.toString(), providerData: 'blob-1' }]));
@@ -10870,7 +10890,7 @@ suite('AgentService (node dispatcher)', () => {
 			const db = new TestSessionDatabase();
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new MultiChatAgent('copilot'));
-			localService.registerProvider(agent);
+			registerTestAgentProvider(localService, agent);
 			const session = await localService.createSession({ provider: 'copilot' });
 			const peerUri = URI.parse(buildChatUri(session, 'peer-1'));
 			await db.setMetadata('peerChats', JSON.stringify([{ uri: peerUri.toString(), providerData: 'blob-1' }]));
@@ -10942,7 +10962,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new ServerToolAgent('copilot'));
-			localService.registerProvider(agent);
+			registerTestAgentProvider(localService, agent);
 			const sourceSession = await localService.createSession({ provider: 'copilot' });
 			const sourceChat = URI.parse(buildChatUri(sourceSession, 'source-chat'));
 			await localService.createChat(sourceSession, sourceChat);
@@ -11049,7 +11069,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new ServerToolAgent('copilot'));
-			localService.registerProvider(agent);
+			registerTestAgentProvider(localService, agent);
 			const sourceSession = await localService.createSession({ provider: 'copilot' });
 			const sourceChat = buildDefaultChatUri(sourceSession);
 			getStateManager(localService).setSessionConfig(sourceSession.toString(), {
@@ -11122,7 +11142,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new ServerToolAgent('copilot'));
-			localService.registerProvider(agent);
+			registerTestAgentProvider(localService, agent);
 			const sourceSession = await localService.createSession({ provider: 'copilot' });
 			const sourceChat = buildDefaultChatUri(sourceSession);
 			getStateManager(localService).dispatchServerAction(sourceChat, {
@@ -11164,7 +11184,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new ServerToolAgent('copilot'));
-			localService.registerProvider(agent);
+			registerTestAgentProvider(localService, agent);
 			const sourceSession = await localService.createSession({ provider: 'copilot' });
 			const sourceChat = buildDefaultChatUri(sourceSession);
 			const targetSession = await localService.createSession({ provider: 'copilot' });
@@ -11221,7 +11241,7 @@ suite('AgentService (node dispatcher)', () => {
 			const db = new TestSessionDatabase();
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new MultiChatAgent('copilot'));
-			localService.registerProvider(agent);
+			registerTestAgentProvider(localService, agent);
 			const session = await localService.createSession({ provider: 'copilot' });
 			const source = URI.parse(buildChatUri(session, 'peer-source'));
 			const target = URI.parse(buildChatUri(session, 'peer-fork'));
@@ -11270,7 +11290,7 @@ suite('AgentService (node dispatcher)', () => {
 			const db = new TestSessionDatabase();
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new MultiChatAgent('copilot'));
-			localService.registerProvider(agent);
+			registerTestAgentProvider(localService, agent);
 			const session = await localService.createSession({ provider: 'copilot' });
 			const firstPeer = URI.parse(buildChatUri(session, 'peer-1'));
 			const secondPeer = URI.parse(buildChatUri(session, 'peer-2'));
@@ -11313,7 +11333,7 @@ suite('AgentService (node dispatcher)', () => {
 			const db = new TestSessionDatabase();
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new MultiChatAgent('copilot'));
-			localService.registerProvider(agent);
+			registerTestAgentProvider(localService, agent);
 			const session = await localService.createSession({ provider: 'copilot' });
 			const peerUri = URI.parse(buildChatUri(session, 'peer-1'));
 			await db.setMetadata('peerChats', JSON.stringify([{ uri: peerUri.toString(), providerData: 'blob-1' }]));
@@ -11354,7 +11374,7 @@ suite('AgentService (node dispatcher)', () => {
 			const db = new TestSessionDatabase();
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new MultiChatAgent('copilot'));
-			localService.registerProvider(agent);
+			registerTestAgentProvider(localService, agent);
 			const session = await localService.createSession({ provider: 'copilot' });
 			const peerUri = URI.parse(buildChatUri(session, 'peer-1'));
 			await db.setMetadata('peerChats', JSON.stringify([{ uri: peerUri.toString(), providerData: 'blob-1' }]));
@@ -11400,7 +11420,7 @@ suite('AgentService (node dispatcher)', () => {
 			}
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new RestoringAgent('copilot'));
-			localService.registerProvider(agent);
+			registerTestAgentProvider(localService, agent);
 			const session = await localService.createSession({ provider: 'copilot' });
 			const chat = buildDefaultChatUri(session);
 			getStateManager(localService).deleteSession(session.toString());
@@ -11444,7 +11464,7 @@ suite('AgentService (node dispatcher)', () => {
 			}
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new RestoringAgent('copilot'));
-			localService.registerProvider(agent);
+			registerTestAgentProvider(localService, agent);
 			const session = await localService.createSession({
 				provider: 'copilot',
 				config: { [SessionConfigKey.AutoApprove]: 'autoApprove' },
@@ -11494,7 +11514,7 @@ suite('AgentService (node dispatcher)', () => {
 			const db = new TestSessionDatabase();
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new MultiChatAgent('copilot'));
-			localService.registerProvider(agent);
+			registerTestAgentProvider(localService, agent);
 			const session = AgentSession.uri('copilot', 'reused-session');
 			await localService.createSession({ provider: 'copilot', session });
 			const peerUri = URI.parse(buildChatUri(session, 'peer-1'));
@@ -11546,7 +11566,7 @@ suite('AgentService (node dispatcher)', () => {
 			const db = new TestSessionDatabase();
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new MultiChatAgent('copilot'));
-			localService.registerProvider(agent);
+			registerTestAgentProvider(localService, agent);
 			const session = await localService.createSession({ provider: 'copilot' });
 
 			const peerUri = URI.parse(buildChatUri(session, 'peer-1'));
@@ -11593,7 +11613,7 @@ suite('AgentService (node dispatcher)', () => {
 			const db = new TestSessionDatabase();
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new MultiChatAgent('copilot'));
-			localService.registerProvider(agent);
+			registerTestAgentProvider(localService, agent);
 			const session = await localService.createSession({ provider: 'copilot' });
 
 			const peerUri = URI.parse(buildChatUri(session, 'peer-1'));
@@ -11633,7 +11653,7 @@ suite('AgentService (node dispatcher)', () => {
 			const db = new TestSessionDatabase();
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new UpdatingDisposeAgent('copilot'));
-			localService.registerProvider(agent);
+			registerTestAgentProvider(localService, agent);
 			const session = await localService.createSession({ provider: 'copilot' });
 			const peer = URI.parse(buildChatUri(session, 'peer-race'));
 			await localService.createChat(session, peer);
@@ -11668,7 +11688,7 @@ suite('AgentService (node dispatcher)', () => {
 			const db = new FailingRemovalDatabase();
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new MultiChatAgent('copilot'));
-			localService.registerProvider(agent);
+			registerTestAgentProvider(localService, agent);
 			const session = await localService.createSession({ provider: 'copilot' });
 			const peer = URI.parse(buildChatUri(session, 'peer-retry'));
 			await localService.createChat(session, peer);
@@ -11723,7 +11743,7 @@ suite('AgentService (node dispatcher)', () => {
 			const db = new TestSessionDatabase();
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new LegacyAgent('copilot'));
-			localService.registerProvider(agent);
+			registerTestAgentProvider(localService, agent);
 			const session = await localService.createSession({ provider: 'copilot' });
 
 			// Seed a persisted title for one legacy chat so we can assert the
@@ -11771,7 +11791,7 @@ suite('AgentService (node dispatcher)', () => {
 			const db = new TestSessionDatabase();
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new LegacyAgent('copilot'));
-			localService.registerProvider(agent);
+			registerTestAgentProvider(localService, agent);
 			const session = await localService.createSession({ provider: 'copilot' });
 
 			// Known-empty catalog must be treated as "no peer chats", never migrated.
@@ -11804,7 +11824,7 @@ suite('AgentService (node dispatcher)', () => {
 			const db = new TestSessionDatabase();
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new LegacyAgent('copilot'));
-			localService.registerProvider(agent);
+			registerTestAgentProvider(localService, agent);
 			const session = await localService.createSession({ provider: 'copilot' });
 
 			const peerUri = URI.parse(buildChatUri(session, 'peer-1'));
@@ -11842,7 +11862,7 @@ suite('AgentService (node dispatcher)', () => {
 			const db = new TestSessionDatabase();
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new LegacyAgent('copilot'));
-			localService.registerProvider(agent);
+			registerTestAgentProvider(localService, agent);
 			const session = await localService.createSession({ provider: 'copilot' });
 
 			// Absent peerChats key => migration runs and must write the full set once.
@@ -11886,7 +11906,7 @@ suite('AgentService (node dispatcher)', () => {
 			const db = new FailingCatalogDatabase();
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new LegacyAgent('copilot'));
-			localService.registerProvider(agent);
+			registerTestAgentProvider(localService, agent);
 			const session = await localService.createSession({ provider: 'copilot' });
 
 			// First restore: the single catalog write is rejected. Because the write
@@ -11936,7 +11956,7 @@ suite('AgentService (node dispatcher)', () => {
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			getConfigurationService(localService).updateRootConfig({ [AgentHostActiveAgentTitleGenerationConfigKey]: true });
 			const agent = disposables.add(new ServerToolAgent('copilot'));
-			localService.registerProvider(agent);
+			registerTestAgentProvider(localService, agent);
 			const session = await localService.createSession({ provider: 'copilot' });
 			const sessionUri = session.toString();
 			const defaultChat = buildDefaultChatUri(session);
@@ -12033,7 +12053,7 @@ suite('AgentService (node dispatcher)', () => {
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			getConfigurationService(localService).updateRootConfig({ [AgentHostActiveAgentTitleGenerationConfigKey]: true });
 			const agent = disposables.add(new ServerToolAgent('copilot'));
-			localService.registerProvider(agent);
+			registerTestAgentProvider(localService, agent);
 			const session = await localService.createSession({ provider: 'copilot' });
 			const sessionUri = session.toString();
 			const defaultChat = buildDefaultChatUri(session);
@@ -12112,7 +12132,7 @@ suite('AgentService (node dispatcher)', () => {
 			));
 			disposables.add(toDisposable(() => agent.dispose()));
 			if (registerProvider) {
-				testService.registerProvider(agent);
+				registerTestAgentProvider(testService, agent);
 			}
 			return { service: testService, agent };
 		}
@@ -12243,7 +12263,7 @@ suite('AgentService (node dispatcher)', () => {
 		});
 
 		test('an empty session created in this lifetime stays observable until GC fires', async () => {
-			service.registerProvider(copilotAgent);
+			registerTestAgentProvider(service, copilotAgent);
 			const sessionResource = await service.createSession({ provider: 'copilot' });
 
 			service.addSubscriber(sessionResource, 'client-1');
@@ -12256,7 +12276,7 @@ suite('AgentService (node dispatcher)', () => {
 		});
 
 		test('a session with an active turn is NOT evicted when its last subscriber drops', async () => {
-			service.registerProvider(copilotAgent);
+			registerTestAgentProvider(service, copilotAgent);
 			const sessionResource = await service.createSession({ provider: 'copilot' });
 
 			service.addSubscriber(sessionResource, 'client-1');
@@ -12276,7 +12296,7 @@ suite('AgentService (node dispatcher)', () => {
 
 		test('a session with an active peer chat is NOT evicted when its last subscriber drops', () => {
 			return runWithFakedTimers({ useFakeTimers: true }, async () => {
-				service.registerProvider(copilotAgent);
+				registerTestAgentProvider(service, copilotAgent);
 				const sessionResource = await service.createSession({ provider: 'copilot' });
 				const peerChat = URI.parse(buildChatUri(sessionResource, 'peer-1'));
 				getStateManager(service).addChat(sessionResource.toString(), peerChat.toString(), {});
@@ -12331,7 +12351,7 @@ suite('AgentService (node dispatcher)', () => {
 				));
 				const agent = new MockAgent('copilot');
 				disposables.add(toDisposable(() => agent.dispose()));
-				localService.registerProvider(agent);
+				registerTestAgentProvider(localService, agent);
 				const sessionResource = await localService.createSession({ provider: 'copilot' });
 				const defaultChat = buildDefaultChatUri(sessionResource);
 				const peerChat = URI.parse(buildChatUri(sessionResource, 'peer-1'));
@@ -12363,7 +12383,7 @@ suite('AgentService (node dispatcher)', () => {
 		test('a provider can defer idle release without losing cached state', () => {
 			return runWithFakedTimers({ useFakeTimers: true }, async () => {
 				const agent = new DeferringReleaseMockAgent('copilot');
-				service.registerProvider(agent);
+				registerTestAgentProvider(service, agent);
 				const { session } = await createAgentSession(agent);
 				agent.sessionMessages = [
 					{ type: 'message', session, role: 'user', messageId: 'msg-1', content: 'Hello', toolRequests: [] },
@@ -12396,7 +12416,7 @@ suite('AgentService (node dispatcher)', () => {
 		test('chat subscription cancels the root release retry until the chat unsubscribes', () => {
 			return runWithFakedTimers({ useFakeTimers: true }, async () => {
 				const agent = new DeferringReleaseMockAgent('copilot');
-				service.registerProvider(agent);
+				registerTestAgentProvider(service, agent);
 				const { session } = await createAgentSession(agent);
 				const chatResource = URI.parse(buildDefaultChatUri(session));
 				agent.sessionMessages = [
@@ -12429,7 +12449,7 @@ suite('AgentService (node dispatcher)', () => {
 		test('overlapping residency reconciliations preserve the original in-flight release', () => {
 			return runWithFakedTimers({ useFakeTimers: true }, async () => {
 				const agent = new DelayedReleaseMockAgent('copilot');
-				service.registerProvider(agent);
+				registerTestAgentProvider(service, agent);
 				const { session } = await createAgentSession(agent);
 				const chatResource = URI.parse(buildDefaultChatUri(session));
 				agent.sessionMessages = [
@@ -12457,7 +12477,7 @@ suite('AgentService (node dispatcher)', () => {
 
 		test('a restored idle session is evicted when its last subscriber drops', () => {
 			return runWithFakedTimers({ useFakeTimers: true }, async () => {
-				service.registerProvider(copilotAgent);
+				registerTestAgentProvider(service, copilotAgent);
 				const { session } = await createAgentSession(copilotAgent);
 				const sessions = await copilotAgent.listSessions();
 				const sessionResource = sessions[0].session;
@@ -12492,7 +12512,7 @@ suite('AgentService (node dispatcher)', () => {
 				agent.chats.releaseChat = async chat => {
 					chatReleases.push(chat.toString());
 				};
-				service.registerProvider(agent);
+				registerTestAgentProvider(service, agent);
 				const { session } = await createAgentSession(agent);
 				agent.sessionMessages = [
 					{ type: 'message', session, role: 'user', messageId: 'msg-1', content: 'Hello', toolRequests: [] },
@@ -12522,7 +12542,7 @@ suite('AgentService (node dispatcher)', () => {
 
 		test('re-subscribing during release preflight cancels the release', () => {
 			return runWithFakedTimers({ useFakeTimers: true }, async () => {
-				service.registerProvider(copilotAgent);
+				registerTestAgentProvider(service, copilotAgent);
 				const { session } = await createAgentSession(copilotAgent);
 				const sessions = await copilotAgent.listSessions();
 				const sessionResource = sessions[0].session;
@@ -12546,7 +12566,7 @@ suite('AgentService (node dispatcher)', () => {
 
 		test('an evicted idle session restores losslessly on re-subscribe', () => {
 			return runWithFakedTimers({ useFakeTimers: true }, async () => {
-				service.registerProvider(copilotAgent);
+				registerTestAgentProvider(service, copilotAgent);
 				const { session } = await createAgentSession(copilotAgent);
 				const sessions = await copilotAgent.listSessions();
 				const sessionResource = sessions[0].session;
@@ -12579,7 +12599,7 @@ suite('AgentService (node dispatcher)', () => {
 		test('subscription waits for provider release and restores evicted state', () => {
 			return runWithFakedTimers({ useFakeTimers: true }, async () => {
 				const agent = new DelayedReleaseMockAgent('copilot');
-				service.registerProvider(agent);
+				registerTestAgentProvider(service, agent);
 				const { session } = await createAgentSession(agent);
 				const sessions = await agent.listSessions();
 				const sessionResource = sessions[0].session;
@@ -12614,10 +12634,60 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('inactive subscription is not registered after provider release', () => {
+			return runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const agent = new DelayedReleaseMockAgent('copilot');
+				service.registerProvider(agent);
+				const { session } = await createAgentSession(agent);
+				agent.sessionMessages = [
+					{ type: 'message', session, role: 'user', messageId: 'msg-1', content: 'Hello', toolRequests: [] },
+					{ type: 'message', session, role: 'assistant', messageId: 'msg-2', content: 'Hi', toolRequests: [] },
+				];
+				await service.restoreSession(session);
+				service.addSubscriber(session, 'client-1');
+				service.unsubscribe(session, 'client-1');
+				await new Promise(resolve => setTimeout(resolve, 30_000));
+
+				let isActive = true;
+				const subscription = service.subscribe(session, 'client-2', () => isActive);
+				isActive = false;
+				await agent.release.complete();
+
+				await assert.rejects(subscription, /Subscription cancelled/);
+				const subscriptions = (service as unknown as { _subscriptions: { hasSubscribers(resource: URI): boolean } })._subscriptions;
+				assert.strictEqual(subscriptions.hasSubscribers(session), false);
+			});
+		});
+
+		test('failed subscription removes its subscriber registration', async () => {
+			service.registerProvider(copilotAgent);
+			const missingSession = URI.parse('copilot:/missing-session');
+
+			await assert.rejects(service.subscribe(missingSession, 'client-1'));
+
+			const subscriptions = (service as unknown as { _subscriptions: { hasSubscribers(resource: URI): boolean } })._subscriptions;
+			assert.strictEqual(subscriptions.hasSubscribers(missingSession), false);
+		});
+
+		test('unsubscribe after service disposal does not schedule GC', () => {
+			return runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const agent = new MockAgent('copilot');
+				service.registerProvider(agent);
+				const session = await service.createSession({ provider: 'copilot' });
+				service.addSubscriber(session, 'client-1');
+
+				service.dispose();
+				service.unsubscribe(session, 'client-1');
+				await new Promise(resolve => setTimeout(resolve, 30_000));
+
+				assert.deepStrictEqual(agent.disposeSessionCalls, []);
+			});
+		});
+
 		test('initial subscriber added during release preflight keeps cached state', () => {
 			return runWithFakedTimers({ useFakeTimers: true }, async () => {
 				const agent = new DelayedCanReleaseMockAgent('copilot');
-				service.registerProvider(agent);
+				registerTestAgentProvider(service, agent);
 				const { session } = await createAgentSession(agent);
 				agent.sessionMessages = [
 					{ type: 'message', session, role: 'user', messageId: 'msg-1', content: 'Hello', toolRequests: [] },
@@ -12645,7 +12715,7 @@ suite('AgentService (node dispatcher)', () => {
 
 		test('restored session is evicted after all subscribers drop', () => {
 			return runWithFakedTimers({ useFakeTimers: true }, async () => {
-				service.registerProvider(copilotAgent);
+				registerTestAgentProvider(service, copilotAgent);
 				const { session } = await createAgentSession(copilotAgent);
 				const sessions = await copilotAgent.listSessions();
 				const sessionResource = sessions[0].session;
@@ -12670,7 +12740,7 @@ suite('AgentService (node dispatcher)', () => {
 
 		test('subagent subscriber pins the parent session against eviction', () => {
 			return runWithFakedTimers({ useFakeTimers: true }, async () => {
-				service.registerProvider(copilotAgent);
+				registerTestAgentProvider(service, copilotAgent);
 				const { session } = await createAgentSession(copilotAgent);
 				const sessions = await copilotAgent.listSessions();
 				const sessionResource = sessions[0].session;
@@ -12706,7 +12776,7 @@ suite('AgentService (node dispatcher)', () => {
 		});
 
 		test('nested subagent subscriber pins ancestor session against eviction', async () => {
-			service.registerProvider(copilotAgent);
+			registerTestAgentProvider(service, copilotAgent);
 			const { session } = await createAgentSession(copilotAgent);
 			const sessions = await copilotAgent.listSessions();
 			const sessionResource = sessions[0].session;
@@ -12739,7 +12809,7 @@ suite('AgentService (node dispatcher)', () => {
 				// Regression: when a depth-2 subagent URI unsubscribes the eviction
 				// must reach all the way to the root, not stop at the intermediate
 				// parent and leave root state cached indefinitely.
-				service.registerProvider(copilotAgent);
+				registerTestAgentProvider(service, copilotAgent);
 				const { session } = await createAgentSession(copilotAgent);
 				const sessions = await copilotAgent.listSessions();
 				const sessionResource = sessions[0].session;
@@ -12783,7 +12853,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			const sessionDataService = createSessionDataService();
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
-			localService.registerProvider(copilotAgent);
+			registerTestAgentProvider(localService, copilotAgent);
 			const sessionResource = await localService.createSession({ provider: 'copilot' });
 			const uncommittedUri = URI.parse(buildUncommittedChangesetUri(sessionResource.toString()));
 
@@ -12824,7 +12894,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			const sessionDataService = createSessionDataService();
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
-			localService.registerProvider(copilotAgent);
+			registerTestAgentProvider(localService, copilotAgent);
 			const sessionResource = await localService.createSession({ provider: 'copilot' });
 			const sessionChangesetUri = URI.parse(buildSessionChangesetUri(sessionResource.toString()));
 
@@ -12865,7 +12935,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			const sessionDataService = createSessionDataService();
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
-			localService.registerProvider(copilotAgent);
+			registerTestAgentProvider(localService, copilotAgent);
 
 			// Seed a session on the agent without calling
 			// `localService.createSession` — mirrors a restored-from-disk
@@ -12909,7 +12979,7 @@ suite('AgentService (node dispatcher)', () => {
 
 		test('a default-chat subscriber pins an empty session after the root unsubscribes', () => {
 			return runWithFakedTimers({ useFakeTimers: true }, async () => {
-				service.registerProvider(copilotAgent);
+				registerTestAgentProvider(service, copilotAgent);
 				const session = await service.createSession({ provider: 'copilot' });
 				const chat = URI.parse(buildDefaultChatUri(session));
 				service.addSubscriber(session, 'session-client');
@@ -12933,7 +13003,7 @@ suite('AgentService (node dispatcher)', () => {
 
 		test('an empty unsubscribed session is disposed after the grace period', () => {
 			return runWithFakedTimers({ useFakeTimers: true }, async () => {
-				service.registerProvider(copilotAgent);
+				registerTestAgentProvider(service, copilotAgent);
 				const sessionResource = await service.createSession({ provider: 'copilot' });
 				service.addSubscriber(sessionResource, 'client-1');
 
@@ -12954,7 +13024,7 @@ suite('AgentService (node dispatcher)', () => {
 
 		test('a session with at least one turn is not GC-disposed', () => {
 			return runWithFakedTimers({ useFakeTimers: true }, async () => {
-				service.registerProvider(copilotAgent);
+				registerTestAgentProvider(service, copilotAgent);
 				const sessionResource = await service.createSession({ provider: 'copilot' });
 				service.addSubscriber(sessionResource, 'client-1');
 				service.dispatchAction(
@@ -12977,7 +13047,7 @@ suite('AgentService (node dispatcher)', () => {
 
 		test('resubscribe within the grace period cancels GC', () => {
 			return runWithFakedTimers({ useFakeTimers: true }, async () => {
-				service.registerProvider(copilotAgent);
+				registerTestAgentProvider(service, copilotAgent);
 				const sessionResource = await service.createSession({ provider: 'copilot' });
 				service.addSubscriber(sessionResource, 'client-1');
 
@@ -12993,7 +13063,7 @@ suite('AgentService (node dispatcher)', () => {
 
 		test('GC is rearmed after a resubscribe-then-unsubscribe cycle', () => {
 			return runWithFakedTimers({ useFakeTimers: true }, async () => {
-				service.registerProvider(copilotAgent);
+				registerTestAgentProvider(service, copilotAgent);
 				const sessionResource = await service.createSession({ provider: 'copilot' });
 				service.addSubscriber(sessionResource, 'client-1');
 
@@ -13017,7 +13087,7 @@ suite('AgentService (node dispatcher)', () => {
 			// Without explicit cancellation, the timer would fire and
 			// dispose the just-revived session.
 			return runWithFakedTimers({ useFakeTimers: true }, async () => {
-				service.registerProvider(copilotAgent);
+				registerTestAgentProvider(service, copilotAgent);
 				const sessionResource = await service.createSession({ provider: 'copilot', session: AgentSession.uri('copilot', 'recreate-test') });
 				service.addSubscriber(sessionResource, 'client-1');
 				service.unsubscribe(sessionResource, 'client-1');
@@ -13037,7 +13107,7 @@ suite('AgentService (node dispatcher)', () => {
 			// Regression: GC used to key purely off "0 turns", but a restored
 			// session can present as empty because its history FAILED to load.
 			return runWithFakedTimers({ useFakeTimers: true }, async () => {
-				service.registerProvider(copilotAgent);
+				registerTestAgentProvider(service, copilotAgent);
 				await createAgentSession(copilotAgent);
 				const sessions = await copilotAgent.listSessions();
 				const sessionResource = sessions[0].session;
@@ -13065,7 +13135,7 @@ suite('AgentService (node dispatcher)', () => {
 			// The rehydrated session is deliberately still empty, so that the
 			// turns check cannot be what saves it — only draft status can.
 			return runWithFakedTimers({ useFakeTimers: true }, async () => {
-				service.registerProvider(copilotAgent);
+				registerTestAgentProvider(service, copilotAgent);
 				const sessionResource = await service.createSession({ provider: 'copilot' });
 				service.addSubscriber(sessionResource, 'client-1');
 				service.unsubscribe(sessionResource, 'client-1');
@@ -13087,7 +13157,7 @@ suite('AgentService (node dispatcher)', () => {
 			// data — its worktree holds real work — even though a truncate
 			// (checkpoint restore / first-message edit) empties its turns.
 			return runWithFakedTimers({ useFakeTimers: true }, async () => {
-				service.registerProvider(copilotAgent);
+				registerTestAgentProvider(service, copilotAgent);
 				const sessionResource = await service.createSession({ provider: 'copilot' });
 				const chatUri = buildDefaultChatUri(sessionResource.toString());
 				service.addSubscriber(sessionResource, 'client-1');
@@ -13114,7 +13184,7 @@ suite('AgentService (node dispatcher)', () => {
 			const localAgent = new MockAgent('copilot');
 			disposables.add(toDisposable(() => localAgent.dispose()));
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
-			localService.registerProvider(localAgent);
+			registerTestAgentProvider(localService, localAgent);
 
 			await localService.createSession({ provider: 'copilot', config: { autoApprove: 'autoApprove' } });
 
@@ -13132,7 +13202,7 @@ suite('AgentService (node dispatcher)', () => {
 			const localAgent = new MockAgent('copilot');
 			disposables.add(toDisposable(() => localAgent.dispose()));
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
-			localService.registerProvider(localAgent);
+			registerTestAgentProvider(localService, localAgent);
 
 			await localService.createSession({ provider: 'copilot' });
 
@@ -13161,7 +13231,7 @@ suite('AgentService (node dispatcher)', () => {
 				sessionDataService,
 				new NullLogService(),
 			)));
-			localService.registerProvider(localAgent);
+			registerTestAgentProvider(localService, localAgent);
 
 			await sessionDb.setMetadata('configValues', JSON.stringify({ autoApprove: 'autoApprove' }));
 			const { session } = await createAgentSession(localAgent);
@@ -13190,7 +13260,7 @@ suite('AgentService (node dispatcher)', () => {
 			localAgent.sessionMetadataOverrides = { model } as typeof localAgent.sessionMetadataOverrides;
 			disposables.add(toDisposable(() => localAgent.dispose()));
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
-			localService.registerProvider(localAgent);
+			registerTestAgentProvider(localService, localAgent);
 			const { session } = await createAgentSession(localAgent);
 			await sessionDb.setChatDraft(URI.parse(buildDefaultChatUri(session)), {
 				text: 'unsent text',
@@ -13217,7 +13287,7 @@ suite('AgentService (node dispatcher)', () => {
 			const localAgent = new MockAgent('copilot');
 			disposables.add(toDisposable(() => localAgent.dispose()));
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
-			localService.registerProvider(localAgent);
+			registerTestAgentProvider(localService, localAgent);
 
 			// Create a session on the agent backend (no config) so listSessions can find it
 			const { session } = await createAgentSession(localAgent);
@@ -13247,7 +13317,7 @@ suite('AgentService (node dispatcher)', () => {
 			const localAgent = new MockAgent('copilot');
 			disposables.add(toDisposable(() => localAgent.dispose()));
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
-			localService.registerProvider(localAgent);
+			registerTestAgentProvider(localService, localAgent);
 
 			const { session } = await createAgentSession(localAgent);
 			const sessions = await localAgent.listSessions();
@@ -13301,7 +13371,7 @@ suite('AgentService (node dispatcher)', () => {
 			const localAgent = new MockAgent('copilot');
 			disposables.add(toDisposable(() => localAgent.dispose()));
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
-			localService.registerProvider(localAgent);
+			registerTestAgentProvider(localService, localAgent);
 
 			const { session } = await createAgentSession(localAgent);
 			const sessions = await localAgent.listSessions();
@@ -13352,7 +13422,7 @@ suite('AgentService (node dispatcher)', () => {
 			const localAgent = new MockAgent('copilot');
 			disposables.add(toDisposable(() => localAgent.dispose()));
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
-			localService.registerProvider(localAgent);
+			registerTestAgentProvider(localService, localAgent);
 
 			const session = await localService.createSession({ provider: 'copilot', config: { autoApprove: 'autoApprove' } });
 
@@ -13379,7 +13449,7 @@ suite('AgentService (node dispatcher)', () => {
 			const localAgent = new MockAgent('copilot');
 			disposables.add(toDisposable(() => localAgent.dispose()));
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
-			localService.registerProvider(localAgent);
+			registerTestAgentProvider(localService, localAgent);
 
 			const { session } = await createAgentSession(localAgent);
 			const sessions = await localAgent.listSessions();
@@ -13431,7 +13501,7 @@ suite('AgentService (node dispatcher)', () => {
 			// Simulate an agent that resolves a worktree path different from the input
 			const worktreeDir = URI.file('/source/repo.worktrees/agents-xyz');
 			copilotAgent.resolvedWorkingDirectory = worktreeDir;
-			service.registerProvider(copilotAgent);
+			registerTestAgentProvider(service, copilotAgent);
 
 			const sourceDir = URI.file('/source/repo');
 			const session = await service.createSession({ provider: 'copilot', workingDirectories: [sourceDir] });
@@ -13444,7 +13514,7 @@ suite('AgentService (node dispatcher)', () => {
 		test('createSession falls back to config working directory when agent does not resolve', async () => {
 			// Agent does not override the working directory (e.g. folder isolation)
 			copilotAgent.resolvedWorkingDirectory = undefined;
-			service.registerProvider(copilotAgent);
+			registerTestAgentProvider(service, copilotAgent);
 
 			const sourceDir = URI.file('/source/repo');
 			const session = await service.createSession({ provider: 'copilot', workingDirectories: [sourceDir] });
@@ -13457,7 +13527,7 @@ suite('AgentService (node dispatcher)', () => {
 			// Agent returns the worktree path through listSessions
 			const worktreeDir = URI.file('/source/repo.worktrees/agents-xyz');
 			copilotAgent.sessionMetadataOverrides = { workingDirectories: worktreeDir ? [worktreeDir] : undefined };
-			service.registerProvider(copilotAgent);
+			registerTestAgentProvider(service, copilotAgent);
 
 			const session = await service.createSession({ provider: 'copilot' });
 
@@ -13523,7 +13593,7 @@ suite('AgentService (node dispatcher)', () => {
 			setTestAgentHostWorktreeIsolation(localService, isolation);
 			const agent = new ProvisionalWorktreeAgent('copilot');
 			disposables.add(toDisposable(() => agent.dispose()));
-			localService.registerProvider(agent);
+			registerTestAgentProvider(localService, agent);
 
 			const session = await localService.createSession({
 				provider: agent.id,
@@ -13769,7 +13839,7 @@ suite('AgentService (node dispatcher)', () => {
 		const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
 		const provisionalAgent = new ProvisionalMockAgent('provisional');
 		disposables.add(toDisposable(() => provisionalAgent.dispose()));
-		localService.registerProvider(provisionalAgent);
+		registerTestAgentProvider(localService, provisionalAgent);
 
 		const workspaceSession = await localService.createSession({
 			provider: provisionalAgent.id,
@@ -13850,7 +13920,7 @@ suite('AgentService (node dispatcher)', () => {
 		}
 
 		test('createSession seeds both halves before SessionReady', async () => {
-			service.registerProvider(copilotAgent);
+			registerTestAgentProvider(service, copilotAgent);
 
 			const session = await service.createSession({ provider: 'copilot' });
 			const sessionStr = session.toString();
@@ -13879,7 +13949,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			const provisionalAgent = new ProvisionalMockAgent('copilot');
 			disposables.add(toDisposable(() => provisionalAgent.dispose()));
-			service.registerProvider(provisionalAgent);
+			registerTestAgentProvider(service, provisionalAgent);
 
 			const session = await service.createSession({ provider: 'copilot' });
 			const sessionStr = session.toString();
@@ -13908,7 +13978,7 @@ suite('AgentService (node dispatcher)', () => {
 			const localAgent = new MockAgent('copilot');
 			disposables.add(toDisposable(() => localAgent.dispose()));
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
-			localService.registerProvider(localAgent);
+			registerTestAgentProvider(localService, localAgent);
 
 			const { session } = await createAgentSession(localAgent);
 			const sessions = await localAgent.listSessions();
@@ -13948,7 +14018,7 @@ suite('AgentService (node dispatcher)', () => {
 			// values; without one a `SessionConfigChanged` would be a no-op.
 			await sessionDb.setMetadata('configValues', '{}');
 			const localService = createAgentMergeService(sessionDb, orchestratorDb);
-			localService.registerProvider(localAgent);
+			registerTestAgentProvider(localService, localAgent);
 			const { session } = await createAgentSession(localAgent);
 			localAgent.sessionMessages = [
 				{ type: 'message', session, role: 'user', messageId: 'msg-1', content: 'Hello', toolRequests: [] },
@@ -14043,7 +14113,7 @@ suite('AgentService (node dispatcher)', () => {
 				// A fresh host over the same durable state must resume monitoring
 				// from the index alone.
 				const restarted = createAgentMergeService(sessionDb, orchestratorDb);
-				restarted.registerProvider(localAgent);
+				registerTestAgentProvider(restarted, localAgent);
 				await restarted.whenAgentMergeSessionsRestored();
 				const resumed = {
 					materialized: getStateManager(restarted).getSessionState(sessionStr) !== undefined,
@@ -14124,7 +14194,7 @@ suite('AgentService (node dispatcher)', () => {
 			await sessionDb.setMetadata(AH_META_IS_ARCHIVED_DB_KEY, 'true');
 
 			const restarted = createAgentMergeService(sessionDb, orchestratorDb);
-			restarted.registerProvider(localAgent);
+			registerTestAgentProvider(restarted, localAgent);
 			await restarted.whenAgentMergeSessionsRestored();
 
 			assert.deepStrictEqual({
