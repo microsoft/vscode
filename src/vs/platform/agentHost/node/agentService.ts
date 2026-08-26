@@ -5231,10 +5231,10 @@ export class AgentService extends Disposable implements IAgentService {
 			_meta: restoredMeta,
 		};
 
-		const [defaultDraft, defaultChatTitle] = await Promise.all([
-			this._getChatDraft(session, defaultChatUri),
-			this._readPersistedChatTitle(session, defaultChatUri),
-		]);
+		const { draft: defaultDraft, title: defaultChatTitle } = await this._chatContributions.hydrateChat({
+			session: sessionStr,
+			chat: defaultChatUri.toString(),
+		}, {});
 		const restoredDraft = meta.model
 			? { ...(defaultDraft ?? { text: '', origin: { kind: MessageKind.User } }), model: meta.model }
 			: defaultDraft;
@@ -5408,10 +5408,10 @@ export class AgentService extends Disposable implements IAgentService {
 				this._logService.warn(`[AgentService] Skipping malformed persisted peer chat URI '${entry.uri}': ${toErrorMessage(err)}`);
 				return undefined;
 			}
-			const [title, draft] = await Promise.all([
-				this._readPersistedChatTitle(session, chatUri),
-				this._getChatDraft(session, chatUri),
-			]);
+			const { title, draft } = await this._chatContributions.hydrateChat({
+				session: session.toString(),
+				chat: chatUri.toString(),
+			}, {});
 			return { chatUri, title, draft, providerData: entry.providerData, origin: entry.origin, inheritedTurnId: entry.inheritedTurnId };
 		}));
 		for (const item of restored) {
@@ -5796,33 +5796,6 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 			const updated = mutate(current);
 			await ref.object.setMetadata(PEER_CHATS_METADATA_KEY, JSON.stringify(updated));
-		} finally {
-			ref.dispose();
-		}
-	}
-
-	/** Reads a chat's persisted custom title (default or peer chat), if any. */
-	private async _readPersistedChatTitle(session: URI, chatUri: URI): Promise<string | undefined> {
-		const ref = await this._sessionDataService.tryOpenDatabase?.(session);
-		if (!ref) {
-			return undefined;
-		}
-		try {
-			return (await ref.object.getMetadata(`customChatTitle:${chatUri.toString()}`)) ?? undefined;
-		} catch {
-			return undefined;
-		} finally {
-			ref.dispose();
-		}
-	}
-
-	private async _getChatDraft(session: URI, chatUri: URI): Promise<Message | undefined> {
-		const ref = await this._sessionDataService.tryOpenDatabase(session);
-		if (!ref) {
-			return undefined;
-		}
-		try {
-			return await ref.object.getChatDraft(chatUri);
 		} finally {
 			ref.dispose();
 		}
@@ -6773,7 +6746,10 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 			const origin = { kind: ChatOriginKind.Tool, chat: parentChat, toolCallId: child.toolCallId } as const;
 			const existing = this._stateManager.getSessionState(parentSessionStr)?.chats.find(chat => chat.resource === chatUri);
-			const persistedTitle = await this._readPersistedChatTitle(parentSession, URI.parse(chatUri));
+			const { title: persistedTitle } = await this._chatContributions.hydrateChat({
+				session: parentSessionStr,
+				chat: chatUri,
+			}, {});
 			const title = persistedTitle ?? child.title;
 			this._stateManager.registerRestoredChatSummary(parentSessionStr, chatUri, {
 				title,

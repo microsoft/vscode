@@ -106,25 +106,6 @@ A user can start a shell command in the background, inspect or list the running 
     --grep "managed shell|custom terminal tool manages"
   ```
 
-### Copilot Try Again after a recoverable error never finishes the turn
-
-After Copilot hits a recoverable request error, the user can choose Try Again to continue the same turn. The host accepts resume, but the recovered answer never arrives, so the chat stays stuck on the failed turn.
-
-- Tests:
-  - `resumes a failed turn in place`
-  - `resumes the same turn after repeated failures`
-- Scope: Copilot with `@github/copilot` `1.0.81-12`.
-- Expected: `chat/turnResume` is followed by `chat/turnComplete` on the same turn, with the continuation shown to every subscribed client.
-- Observed: live and replay both emit `chat/error` then `chat/turnResume`, then time out waiting for `chat/turnComplete`. The Copilot process log shows the continuation model call finishing (`assistant_turn_end`, `session_idle`) without a matching AHP completion. Re-recording the fixtures does not change this.
-- Gate: both variants require `AGENT_HOST_RUN_KNOWN_ISSUES=1`.
-- Reproduce:
-
-  ```bash
-  AGENT_HOST_RUN_KNOWN_ISSUES=1 AGENT_HOST_UPDATE_SNAPSHOTS=1 ./scripts/test-integration.sh --run \
-    src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts \
-    --grep "resumes a failed turn"
-  ```
-
 ### Copilot deferred tool search cannot be replayed
 
 A Copilot session can defer client-provided tools, search for the relevant tool on demand, and then execute the selected tool. The live workflow succeeds, but the recorded Responses fixture loses the hosted tool-search output that triggers the AHP client-tool exchange, so replay ends the turn before either tool appears.
@@ -880,18 +861,25 @@ Use the affected provider command with `--grep "<exact test title>"` and tempora
     --grep "accepted steering followed by abort"
   ```
 
-### Mid-turn host shutdown recovery is record-only
+### Retryable Copilot errors are temporarily disabled
 
-A user can lose the Agent Host process while a model response is still streaming. Reopening the session should restore the unfinished request as a resumable error, and retrying should continue that same turn without adding another user message.
+Copilot errors currently end a turn without offering an in-place retry. The retry protocol remains implemented, but the host intentionally omits the `resumable` marker from live, restored, and repeated errors until the feature is re-enabled.
 
-- Test: `restores and resumes a turn interrupted by host shutdown`.
-- Scope: deterministic replay for Copilot.
-- Expected: the host dies after streaming starts but before any terminal turn action; restoration synthesizes a resumable `executionInterrupted` error, and a zero-message continuation completes the same turn.
-- Observed: replay serves the full recorded response immediately, leaving no active streaming window in which to kill the host before turn completion.
-- Gate: direct `AGENT_HOST_REPLAY_RECORD=1` mode only.
-- Run:
+- Tests:
+  - `resumes a failed turn in place`
+  - `resumes the same turn after repeated failures`
+  - `restores and resumes a turn interrupted by host shutdown`
+- Scope: Copilot on all platforms and execution modes.
+- Expected when enabled: a failed turn is marked resumable, and retrying continues the same turn without adding another user message. An unfinished request restored after host shutdown has the same behavior.
+- Observed: Copilot errors intentionally omit the `resumable` marker, so clients cannot request an in-place retry.
+- Gate: all three scenarios are unconditionally skipped. The host-shutdown scenario additionally requires direct `AGENT_HOST_REPLAY_RECORD=1` mode because replay has no active streaming window to terminate.
+- Run after removing the temporary gate:
 
   ```bash
+  ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts \
+    --grep "resumes a failed turn in place|resumes the same turn after repeated failures"
+
   AGENT_HOST_REPLAY_RECORD=1 ./scripts/test-integration.sh --run \
     src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts \
     --grep "restores and resumes a turn interrupted by host shutdown"

@@ -46,7 +46,6 @@ import { COPILOT_CONFIG } from './copilotTestConfiguration.js';
 
 const RECORD_ONLY = process.env['AGENT_HOST_REPLAY_RECORD'] === '1';
 const RECORD = RECORD_ONLY || process.env['AGENT_HOST_UPDATE_SNAPSHOTS'] === '1';
-const RUN_KNOWN_ISSUE_TESTS = RECORD && process.env['AGENT_HOST_RUN_KNOWN_ISSUES'] === '1';
 const isWindows = process.platform === 'win32';
 type DebugLogsArtifactResult = IAgentHostExtensionCommandMap[typeof CollectAgentHostDebugLogsExtensionMethod]['result'];
 
@@ -182,7 +181,7 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 			90_000,
 		);
 		const liveErrorPart = (getActionEnvelope(liveNotification).action as ChatErrorAction).part;
-		assert.strictEqual(liveErrorPart.resumable, true);
+		assert.strictEqual(liveErrorPart.resumable, undefined);
 
 		client = await lease.restart();
 		client.setWorkingDirectory(workingDirectory);
@@ -202,13 +201,12 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 		}, {
 			state: TurnState.Error,
 			error: liveErrorPart.error,
-			resumable: true,
+			resumable: undefined,
 		});
 	});
 
-	// After a recoverable CAPI 400, Try Again accepts resume but the
-	// continuation never emits AHP turnComplete against @github/copilot 1.0.81-12.
-	(RUN_KNOWN_ISSUE_TESTS ? test : test.skip)('resumes a failed turn in place', async function () {
+	// Retryable errors are temporarily disabled.
+	test.skip('resumes a failed turn in place', async function () {
 		this.timeout(180_000);
 		const workingDirectory = await mkdtemp(join(tmpdir(), 'copilot-failed-turn-resume-'));
 		tempDirs.push(workingDirectory);
@@ -347,7 +345,7 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 		}
 	});
 
-	(RUN_KNOWN_ISSUE_TESTS ? test : test.skip)('resumes the same turn after repeated failures', async function () {
+	test.skip('resumes the same turn after repeated failures', async function () {
 		this.timeout(180_000);
 		const workingDirectory = await mkdtemp(join(tmpdir(), 'copilot-repeated-failed-turn-resume-'));
 		tempDirs.push(workingDirectory);
@@ -428,8 +426,8 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 		});
 	});
 
-	// Replay serves the full recorded response immediately, so it has no active streaming window to terminate.
-	(RECORD_ONLY ? test : test.skip)('restores and resumes a turn interrupted by host shutdown', async function () {
+	// Retryable errors are temporarily disabled.
+	test.skip('restores and resumes a turn interrupted by host shutdown', async function () {
 		this.timeout(240_000);
 		const workingDirectory = await mkdtemp(join(tmpdir(), 'copilot-host-shutdown-resume-'));
 		tempDirs.push(workingDirectory);

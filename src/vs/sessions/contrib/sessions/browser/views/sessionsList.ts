@@ -223,7 +223,7 @@ function getSessionSectionIcon(sectionId: string): ThemeIcon | undefined {
 		case 'pinned':
 			return Codicon.pinned;
 		case AUTOMATIONS_SECTION_ID:
-			return Codicon.watch;
+			return Codicon.calendar;
 		case 'archived':
 			return Codicon.archive;
 		case 'recent':
@@ -1368,7 +1368,7 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 					statusIcon.setStatus(SessionStatus.Completed, false, false);
 				} else {
 					statusIcon.reset();
-					template.icon.className = `session-section-icon ${ThemeIcon.asClassName(Codicon.watch)}`;
+					template.icon.className = `session-section-icon ${ThemeIcon.asClassName(Codicon.calendar)}`;
 				}
 			}));
 		}

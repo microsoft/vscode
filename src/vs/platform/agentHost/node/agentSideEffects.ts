@@ -47,7 +47,6 @@ import {
 	AH_META_IS_READ_DB_KEY,
 	MessageAttachmentKind,
 	MessageKind,
-	parseChatUri,
 	parseRequiredSessionUriFromChatUri,
 	PendingMessageKind,
 	ResponsePartKind,
@@ -370,9 +369,6 @@ export class AgentSideEffects extends Disposable {
 				}
 				const sessionChannel = parseRequiredSessionUriFromChatUri(envelope.channel);
 				this._notifyClientToolCallComplete(sessionChannel, envelope.channel, action.toolCallId, action.result, 'server-envelope');
-			}
-			if (envelope.action.type === ActionType.ChatDraftChanged) {
-				this._persistChatDraft(envelope.channel, envelope.action.draft);
 			}
 			// A chat joining the catalog changes the session's authoritative
 			// membership, so every already-contributing client is re-fanned-out
@@ -1619,7 +1615,7 @@ export class AgentSideEffects extends Disposable {
 						type: ActionType.ChatError,
 						turnId: action.turnId,
 						duration: execution.duration + execution.stopWatch.elapsed(),
-						part: createErrorResponsePart(failure.error, true),
+						part: createErrorResponsePart(failure.error),
 					});
 					this._completeTurn(channel, action.turnId, 'error', failure);
 					this._toolCallTracker.clearSession(channel);
@@ -1936,25 +1932,6 @@ export class AgentSideEffects extends Disposable {
 		ref.object.setTurnUsage(action.turnId, JSON.stringify(action.usage)).catch(err => {
 			this._logService.warn(`[AgentSideEffects] Failed to persist turn usage for ${channel}/${action.turnId}`, err);
 		}).finally(() => ref.dispose());
-	}
-
-	private _persistChatDraft(channel: ProtocolURI, draft: Message | undefined): void {
-		if (!isAhpChatChannel(channel)) {
-			return;
-		}
-
-		const parsed = parseChatUri(channel);
-		if (!parsed) {
-			return;
-		}
-
-		const session = URI.parse(parsed.session);
-		const ref = this._options.sessionDataService.openDatabase(session);
-		ref.object.setChatDraft(URI.parse(channel), draft).catch(err => {
-			this._logService.warn(`[AgentSideEffects] Failed to persist chat draft for ${channel.toString()}`, err);
-		}).finally(() => {
-			ref.dispose();
-		});
 	}
 
 	/**

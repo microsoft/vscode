@@ -1483,7 +1483,6 @@ suite('CopilotAgentSession', () => {
 				errorType: 'executionInterrupted',
 				message: 'The agent was interrupted before this request finished.',
 			},
-			resumable: true,
 		});
 	});
 
@@ -3782,7 +3781,7 @@ suite('CopilotAgentSession', () => {
 			outputTokens: 20,
 			// `quotaSnapshots` is marked `asInternal` in the SDK schema so it is not on the public type, but is present at runtime.
 			quotaSnapshots: {
-				premium_interactions: {
+				premium_models: {
 					isUnlimitedEntitlement: false,
 					entitlementRequests: 300,
 					usedRequests: 75,
@@ -3791,6 +3790,8 @@ suite('CopilotAgentSession', () => {
 					overage: 1.5,
 					overageAllowedWithExhaustedQuota: true,
 					resetDate: '2026-07-01T00:00:00.000Z',
+					tokenBasedBilling: true,
+					overageEntitlement: 5000,
 				},
 			},
 		} as unknown as SessionEventPayload<'assistant.usage'>['data']);
@@ -3802,7 +3803,7 @@ suite('CopilotAgentSession', () => {
 
 		assert.deepStrictEqual(usageActions.map(a => a.usage._meta?.quotaSnapshots), [
 			{
-				premium_interactions: {
+				premium_models: {
 					isUnlimitedEntitlement: false,
 					entitlementRequests: 300,
 					usedRequests: 75,
@@ -3810,6 +3811,8 @@ suite('CopilotAgentSession', () => {
 					overage: 1.5,
 					overageAllowedWithExhaustedQuota: true,
 					resetDate: '2026-07-01T00:00:00.000Z',
+					tokenBasedBilling: true,
+					overageEntitlement: 5000,
 				},
 			},
 		]);
@@ -5570,7 +5573,7 @@ suite('CopilotAgentSession', () => {
 			});
 		});
 
-		test('the development $error-ui path emits a resumable error even with attachments', async () => {
+		test('the development $error-ui path emits an error even with attachments', async () => {
 			const { session, mockSession, signals } = await createAgentSession(disposables);
 
 			await session.send('$error-ui', [{
@@ -5596,7 +5599,6 @@ suite('CopilotAgentSession', () => {
 							errorType: 'developmentRecoverableError',
 							message: 'Injected recoverable development error (1/1).',
 						},
-						resumable: true,
 					},
 				}],
 			});
@@ -7882,24 +7884,30 @@ suite('CopilotAgentSession', () => {
 			assert.ok(isAction(signals[0], ActionType.ChatError));
 			if (isAction(signals[0], ActionType.ChatError)) {
 				const action = signals[0].action as ChatErrorAction;
-				assert.deepStrictEqual(action.part.error, {
-					errorType: 'TestError',
-					message: 'something went wrong',
-					stack: 'Error: something went wrong',
-					_meta: {
-						chatError: {
-							fetchError: {
-								type: 'failed',
-								reason: 'something went wrong',
-								requestId: 'provider-request-id',
-								serverRequestId: 'service-request-id',
-								capiError: {
-									code: 'test-code',
-									message: 'something went wrong',
+				assert.deepStrictEqual({
+					error: action.part.error,
+					resumable: action.part.resumable,
+				}, {
+					error: {
+						errorType: 'TestError',
+						message: 'something went wrong',
+						stack: 'Error: something went wrong',
+						_meta: {
+							chatError: {
+								fetchError: {
+									type: 'failed',
+									reason: 'something went wrong',
+									requestId: 'provider-request-id',
+									serverRequestId: 'service-request-id',
+									capiError: {
+										code: 'test-code',
+										message: 'something went wrong',
+									},
 								},
 							},
 						},
 					},
+					resumable: undefined,
 				});
 			}
 			assert.deepStrictEqual(telemetryService.events.filter(event => event.eventName === 'agentHost.copilotSdkSessionError'), [{

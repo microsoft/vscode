@@ -115,7 +115,7 @@ suite('mapSessionEvents — history replay', () => {
 		});
 	});
 
-	test('restores an unfinished request as a resumable error on the same turn', async () => {
+	test('restores an unfinished request as an error on the same turn', async () => {
 		const events: ISessionEvent[] = [
 			{ type: 'user.message', id: 'interrupted-turn', data: { interactionId: 'm1', content: 'Keep working' } },
 			{ type: 'assistant.turn_start', data: { turnId: 'sdk-turn' } },
@@ -140,7 +140,6 @@ suite('mapSessionEvents — history replay', () => {
 			errorPart: {
 				kind: ResponsePartKind.Error,
 				error: interruptedTurnError,
-				resumable: true,
 			},
 		});
 	});
@@ -202,11 +201,11 @@ suite('mapSessionEvents — history replay', () => {
 				{ kind: ResponsePartKind.Markdown, content: 'Second segment' },
 				{ kind: ResponsePartKind.Error },
 			],
-			resumable: true,
+			resumable: undefined,
 		});
 	});
 
-	test('keeps a resumable error terminal when a later notification starts another turn', async () => {
+	test('keeps an error terminal when a later notification starts another turn', async () => {
 		const events: ISessionEvent[] = [
 			{ type: 'user.message', id: 'failed-turn', timestamp: '2026-08-11T00:00:00.000Z', data: { interactionId: 'm1', content: 'Start the background agent' } },
 			{ type: 'assistant.turn_start', timestamp: '2026-08-11T00:00:00.100Z', data: { turnId: 'sdk-turn-1' } },
@@ -243,10 +242,10 @@ suite('mapSessionEvents — history replay', () => {
 			state: TurnState.Complete,
 			parts: [{ kind: ResponsePartKind.Markdown, content: 'The background agent finished.' }],
 		}]);
-		assert.strictEqual(getErrorResponsePart(turns[0])?.resumable, true);
+		assert.strictEqual(getErrorResponsePart(turns[0])?.resumable, undefined);
 	});
 
-	test('keeps a resumable error as the final part when a late tool completion arrives', async () => {
+	test('keeps an error as the final part when a late tool completion arrives', async () => {
 		const events: ISessionEvent[] = [
 			{ type: 'user.message', id: 'failed-turn', data: { interactionId: 'm1', content: 'Run a command' } },
 			{ type: 'assistant.turn_start', data: { turnId: 'sdk-turn-1' } },
@@ -264,7 +263,7 @@ suite('mapSessionEvents — history replay', () => {
 		}, {
 			state: TurnState.Error,
 			parts: [{ kind: ResponsePartKind.Error }],
-			resumable: true,
+			resumable: undefined,
 		});
 	});
 
