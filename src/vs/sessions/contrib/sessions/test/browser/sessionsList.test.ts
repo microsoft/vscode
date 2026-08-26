@@ -1446,6 +1446,64 @@ suite('Sessions - SessionsList', () => {
 
 			assert.ok(singleLineHeight && multiLineHeight && parseInt(multiLineHeight) > parseInt(singleLineHeight), `expected taller row after multi-line approval (${singleLineHeight} -> ${multiLineHeight})`);
 		});
+
+		test('reconciles a chat row height for an approval that changed while virtualized offscreen', () => {
+			const main = createChat('Main chat');
+			// Enough chats that, with a short viewport, the target row is
+			// virtualized offscreen (its template disposed) after initial render.
+			const chats = [main, ...Array.from({ length: 24 }, (_, i) => createChat(`Task ${String(i).padStart(2, '0')}`, ChatOriginKind.User))];
+			const targetTitle = 'Task 20';
+			const target = chats.find(chat => chat.title.get() === targetTitle)!;
+			const base = createTestSession('Session').session;
+			const session: ISession = {
+				...base,
+				chats: constObservable(chats),
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			};
+			// Approval starts absent, so the target's height is cached at its base
+			// (title-only) height when it is first spliced into the tree.
+			const pending = observableValue<IAgentSessionApprovalInfo | undefined>('pending', undefined);
+			const approvalModel = new class extends mock<AgentSessionApprovalModel>() {
+				override getApproval(resource: URI): IObservable<IAgentSessionApprovalInfo | undefined> {
+					return resource.toString() === target.resource.toString() ? pending : constObservable(undefined);
+				}
+			}();
+
+			const harness = createListHarness(disposables, [session]);
+			const container = harness.createContainer();
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => SessionsGrouping.Date,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+				approvalModel,
+			}));
+			// Short viewport so only the top rows render; the target is offscreen.
+			list.layout(120, 400);
+
+			const targetRow = () => [...container.querySelectorAll<HTMLElement>('.session-chat-item')]
+				.find(item => item.querySelector('.session-chat-title')?.textContent === targetTitle)
+				?.closest<HTMLElement>('.monaco-list-row');
+			assert.strictEqual(targetRow(), undefined, 'target row should start virtualized offscreen');
+
+			// Approval appears while the row is virtualized offscreen (its template
+			// disposed). The list-owned reconcile watches the approval model
+			// independently of the row template, so it must correct the cached
+			// height even while offscreen.
+			pending.set(terminalApproval(target, 'line one\nline two\nline three'), undefined);
+
+			// Grow the viewport so the target enters the render range. This renders
+			// the newly-visible row from its cached height (no re-splice recomputes
+			// it), so the row is only sized correctly if the offscreen reconcile
+			// already corrected the cache.
+			list.layout(1000, 400);
+
+			const row = targetRow();
+			assert.ok(row, 'target row should render after growing the viewport');
+			// Base chat rows are 28px; a reconciled approval must reserve more.
+			assert.ok(parseInt(row.style.height) > 28, `expected reconciled height to reserve the approval row, got ${row.style.height}`);
+			assert.ok(row.querySelector('.session-approval-row.visible'), 'approval row should be visible on the re-rendered target');
+		});
 	});
 
 	suite('SessionsFlatList quick-chat presentation', () => {
