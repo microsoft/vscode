@@ -200,6 +200,63 @@ suite('ChatEditorInput', () => {
 		}
 	});
 
+	test('unavailable Agent Host session falls back to Local with its selection reason', async () => {
+		const unavailableResource = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/untitled-unavailable' });
+		const localResource = LocalChatSessionUri.forSession('agent-host-unavailable-fallback');
+		const model = {
+			onDidDispose: Event.None,
+			onDidChange: Event.None,
+			sessionResource: localResource,
+		} as Partial<IChatModel> as IChatModel;
+
+		let startCall: { location: ChatAgentLocation; options: IChatSessionStartOptions | undefined } | undefined;
+		const chatService = {
+			async acquireOrLoadSession() {
+				return undefined;
+			},
+			startNewLocalSession(location: ChatAgentLocation, options?: IChatSessionStartOptions) {
+				startCall = { location, options };
+				return { object: model, dispose: () => { } };
+			},
+		} as Partial<IChatService> as IChatService;
+
+		const input = new ChatEditorInput(
+			unavailableResource,
+			{ sessionTypeSelectionReason: 'explicitOverride' },
+			chatService,
+			{} as IDialogService,
+			{} as IConfigurationService,
+			new MockChatSessionsService(),
+			{} as IInstantiationService,
+			{} as IStorageService,
+			new NullLogService(),
+			new TestContextService(),
+			{ _serviceBrand: undefined, enabled: constObservable(true), managedSandboxEnforced: constObservable(false) },
+			{ ambientConnection: undefined } as unknown as IAgentHostConnectionsService,
+			NullTelemetryService,
+		);
+
+		try {
+			const resolved = await input.resolve();
+
+			assert.deepStrictEqual({
+				model: resolved?.model,
+				sessionResource: input.sessionResource,
+				startLocation: startCall?.location,
+				debugOwner: startCall?.options?.debugOwner,
+				selectionReason: startCall?.options?.sessionTypeSelectionReason,
+			}, {
+				model,
+				sessionResource: localResource,
+				startLocation: ChatAgentLocation.Chat,
+				debugOwner: 'ChatEditorInput#resolveUntitledFallback',
+				selectionReason: 'agentHostUnavailable',
+			});
+		} finally {
+			input.dispose();
+		}
+	});
+
 	test('explicit local session type preserves empty local session resource', async () => {
 		const sessionResource = LocalChatSessionUri.forSession('explicit-empty-local');
 		const model = {

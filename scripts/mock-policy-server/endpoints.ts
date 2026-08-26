@@ -32,6 +32,8 @@ export interface EndpointPreset {
 	body: unknown;
 }
 
+export type EndpointResponseMode = 'json' | 'malformed-json' | 'disconnect' | 'timeout';
+
 export interface EndpointDef {
 	/** Stable id used by the API + GUI. */
 	id: string;
@@ -239,6 +241,13 @@ declare var MOCK_POLICY_ENDPOINTS: EndpointDef[];
 						client_version: '1.132.0',
 						minimum_client_version: '1.133.0'
 					}
+				},
+				{
+					id: 'server-error',
+					label: 'Server error (500)',
+					description: 'Returns an HTTP 500 response to exercise the fail-closed HTTP error path.',
+					status: 500,
+					body: { error: 'mock_managed_settings_failure' }
 				}
 			]
 		},

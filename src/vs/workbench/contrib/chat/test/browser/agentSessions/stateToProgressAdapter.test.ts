@@ -15,7 +15,7 @@ import { toAgentMessageDelegationMeta } from '../../../../../../platform/agentHo
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, toAgentSystemNotificationMeta } from '../../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
 import { McpAuthRequiredReason } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { createAgentHostResourceUriMapper, fromAgentHostUri, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
-import { buildSubagentChatUri, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, MessageAttachmentKind, MessageKind, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolCallConfirmationReason, ToolResultContentType, TurnState, ResponsePartKind, readUsageInfoMeta, withMessageHiddenFromTranscript, type ActiveTurn, type ICompletedToolCall, type ToolCallPendingConfirmationState, type ToolCallRunningState, type Turn, type ToolCallResponsePart, ToolCallCancellationReason, type Message, type ToolResultContent } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildSubagentChatUri, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, createErrorResponsePart, MessageAttachmentKind, MessageKind, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolCallConfirmationReason, ToolResultContentType, TurnState, ResponsePartKind, readUsageInfoMeta, withMessageHiddenFromTranscript, type ActiveTurn, type ICompletedToolCall, type ToolCallPendingConfirmationState, type ToolCallRunningState, type Turn, type ToolCallResponsePart, ToolCallCancellationReason, type Message, type ToolResultContent } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ChatTranscriptContextAttachmentDisplayKind, IChatRequestTranscriptContextVariableEntry, toChatTranscriptContextAttachmentMeta } from '../../../common/attachments/chatVariableEntries.js';
 import { ChatRequestOriginKind } from '../../../common/chatRequestOrigin.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind, type IChatMarkdownContent, type IChatTerminalToolInvocationData, type IChatThinkingPart, type IChatUsage } from '../../../common/chatService/chatService.js';
@@ -431,6 +431,7 @@ suite('stateToProgressAdapter', () => {
 
 		test('thread coordination tools restore deterministic target-session chips', () => {
 			const createLink = 'agent-host-session://codex/created-thread';
+			const createChatLink = 'agent-host-session://codex/source-thread?chat=peer';
 			const sendLink = 'agent-host-session://codex/target-thread';
 			const turn = createTurn({
 				responseParts: [{
@@ -440,6 +441,14 @@ suite('stateToProgressAdapter', () => {
 						toolName: 'create_session',
 						toolInput: JSON.stringify({ prompt: 'Remember this word: capybara' }),
 						content: [{ type: ToolResultContentType.Text, text: createLink }],
+					}),
+				}, {
+					kind: ResponsePartKind.ToolCall,
+					toolCall: createCompletedToolCall({
+						toolCallId: 'create-current',
+						toolName: 'create_session',
+						toolInput: JSON.stringify({ relationship: 'currentSession', prompt: 'Parallel task' }),
+						content: [{ type: ToolResultContentType.Text, text: createChatLink }],
 					}),
 				}, {
 					kind: ResponsePartKind.ToolCall,
@@ -462,12 +471,18 @@ suite('stateToProgressAdapter', () => {
 				kind: 'sessionCreated',
 				openLink: createLink,
 				label: 'Remember this word: capybara',
-				isChat: false,
+				fullTitle: 'Remember this word: capybara',
+			}, {
+				kind: 'sessionCreated',
+				openLink: createChatLink,
+				label: 'Parallel task',
+				fullTitle: 'Parallel task',
+				isChat: true,
 			}, {
 				kind: 'sessionCreated',
 				openLink: sendLink,
 				label: 'foo',
-				isChat: false,
+				fullTitle: 'foo',
 			}]);
 		});
 
@@ -744,13 +759,21 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(response.type, 'response');
 			if (response.type !== 'response') { return; }
 
-			assert.deepStrictEqual(response.parts, [{
-				kind: 'autoModeResolution',
-				resolvedModel: 'gpt-5.4-mini',
-				resolvedModelName: 'GPT-5.4 mini',
-				predictedLabel: 'no_reasoning',
-				confidence: 0.98,
-			}]);
+			assert.deepStrictEqual(response.parts, [
+				{ kind: 'autoModeResolution', resolved: { id: 'gpt-5.4-mini', name: 'GPT-5.4 mini' } },
+			]);
+		});
+
+		test('drops a routing part that never resolved from restored history', () => {
+			const turn = createTurn({ message: message('first'), usage: { model: 'auto' } });
+			const lookup = makeLookup('agent-host-copilot:', { 'auto': 'Auto' }, 'auto');
+
+			const history = turnsToHistory(URI.file('/'), [turn], 'p', lookup);
+			const response = history[1];
+			assert.strictEqual(response.type, 'response');
+			if (response.type !== 'response') { return; }
+
+			assert.deepStrictEqual(response.parts.filter(part => part.kind === 'autoModeResolution'), []);
 		});
 
 		test('falls back to session-level model when turn has no usage.model', () => {
@@ -1144,7 +1167,7 @@ suite('stateToProgressAdapter', () => {
 		test('error turn produces error details in history', () => {
 			const turn = createTurn({
 				state: TurnState.Error,
-				responseParts: [{ kind: ResponsePartKind.Error, error: { errorType: 'test', message: 'boom' } }],
+				responseParts: [createErrorResponsePart({ errorType: 'test', message: 'boom' })],
 			});
 
 			const history = turnsToHistory(URI.file('/'), [turn], 'p');
@@ -1155,17 +1178,32 @@ suite('stateToProgressAdapter', () => {
 			assert.ok(!response.parts.some(p => p.kind === 'markdownContent' && (p as IChatMarkdownContent).content.value.includes('boom')), 'Error should not be duplicated as a markdown part');
 		});
 
+		test('historical resumable errors can restore Try Again without rendering completed errors', () => {
+			const resumableError = createErrorResponsePart({ errorType: 'test', message: 'boom' }, true);
+			const errorTurn = createTurn({ state: TurnState.Error, responseParts: [resumableError] });
+			const completeTurn = createTurn({ state: TurnState.Complete, responseParts: [resumableError] });
+			const errorDetails = {
+				message: 'boom',
+				confirmationButtons: [{ data: { resume: true }, label: 'Try Again' }],
+			};
+
+			const history = rawTurnsToHistory(URI.file('/'), [errorTurn, completeTurn], 'p', '', undefined, undefined, undefined, createAgentHostResourceUriMapper(''), undefined, () => errorDetails);
+			const responses = history.filter(item => item.type === 'response');
+
+			assert.deepStrictEqual(responses.map(response => response.type === 'response' ? response.errorDetails : undefined), [
+				errorDetails,
+				undefined,
+			]);
+		});
+
 		test('forwarded quota error turn produces quota-exceeded error details', () => {
 			const turn = createTurn({
 				state: TurnState.Error,
-				responseParts: [{
-					kind: ResponsePartKind.Error,
-					error: {
-						errorType: 'quota',
-						message: 'raw',
-						_meta: { chatError: { fetchError: { type: 'quotaExceeded', capiError: { code: 'quota_exceeded' } } } },
-					},
-				}],
+				responseParts: [createErrorResponsePart({
+					errorType: 'quota',
+					message: 'raw',
+					_meta: { chatError: { fetchError: { type: 'quotaExceeded', capiError: { code: 'quota_exceeded' } } } },
+				})],
 			});
 
 			const history = turnsToHistory(URI.file('/'), [turn], 'p');

@@ -23,7 +23,7 @@ export const IAgentHostChatContributions = createDecorator<IAgentHostChatContrib
 export type TurnEndReason =
 	| { readonly kind: 'success' }
 	| { readonly kind: 'cancelled' }
-	| { readonly kind: 'error'; readonly error: ErrorInfo }
+	| { readonly kind: 'error'; readonly error: ErrorInfo; readonly resumable: boolean }
 	| { readonly kind: 'localCommand' };
 
 /** A terminal turn outcome offered to contributions after a turn ended. */

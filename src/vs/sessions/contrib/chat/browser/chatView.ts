@@ -9,7 +9,7 @@ import { $, addDisposableListener, EventHelper, EventType, getWindow, isHTMLElem
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, IObservable, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -54,6 +54,7 @@ import { ExternalSessionBanner } from './externalSessionBanner.js';
 import { Menus } from '../../../browser/menus.js';
 import { ISessionsChatBackgroundService } from '../../../services/chatBackground/browser/chatBackgroundService.js';
 import { SessionsChatBackgroundRenderer } from './chatBackgroundRenderer.js';
+import { ISessionOpenTelemetryService } from '../../../services/sessions/browser/sessionOpenTelemetryService.js';
 
 export function shouldShowSessionChatTip(sessionStatus: SessionStatus | undefined): boolean {
 	return sessionStatus === undefined || !isActiveSessionStatus(sessionStatus);
@@ -211,8 +212,10 @@ export class ChatView extends AbstractChatView {
 		@ISessionChatPillsDebugService private readonly chatPillsDebugService: ISessionChatPillsDebugService,
 		@INewChatVoiceTargetService private readonly newChatVoiceTargetService: INewChatVoiceTargetService,
 		@ISessionsChatViewStateService private readonly viewStateService: ISessionsChatViewStateService,
+		@ISessionOpenTelemetryService private readonly sessionOpenTelemetryService: ISessionOpenTelemetryService,
 	) {
 		super();
+		this._register(toDisposable(() => this._reportModelUnbound()));
 
 		this.element.classList.add('chat-view-chat');
 		const backgroundRenderer = this._register(new SessionsChatBackgroundRenderer(this.element));
@@ -396,6 +399,7 @@ export class ChatView extends AbstractChatView {
 
 	override setChat(chat: IChat, historyKey?: string, session?: ISession): void {
 		this.chatPillsDebugService.clear(this._chatPills);
+		const previousSession = this._currentSessionObs.get();
 		this._currentSessionObs.set(session, undefined);
 		this._externalSessionBanner.setSession(session);
 		const resource = chat.resource;
@@ -422,6 +426,12 @@ export class ChatView extends AbstractChatView {
 
 		// Skip loading if we're already showing this chat
 		if (!chatChanged) {
+			if (previousSession && !isEqual(previousSession.resource, session?.resource) && previousChatResource) {
+				this.sessionOpenTelemetryService.modelUnbound(previousSession.resource, previousChatResource);
+			}
+			if (session && isEqual(this._modelRef.value?.object.sessionResource, resource)) {
+				this.sessionOpenTelemetryService.modelBound(session.resource, resource);
+			}
 			return;
 		}
 
@@ -432,7 +442,7 @@ export class ChatView extends AbstractChatView {
 		// Cancel any in-flight load for the previous chat and start a fresh one.
 		this._loadCts.value?.cancel();
 		if (previousChatResource) {
-			this._clearCurrentChat();
+			this._clearCurrentChat(previousSession, previousChatResource);
 		}
 		const cts = new CancellationTokenSource();
 		this._loadCts.value = cts;
@@ -444,9 +454,13 @@ export class ChatView extends AbstractChatView {
 		const inputBeforeLoad = this._widget.getInput();
 
 		const loadPromise = this.chatService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, token, 'ChatView').then(ref => {
-			if (token.isCancellationRequested || !ref || !isEqual(this._currentChatResource, resource)) {
+			const isCurrentChat = isEqual(this._currentChatResource, resource);
+			if (token.isCancellationRequested || !ref || !isCurrentChat) {
 				ref?.dispose();
-				if (isEqual(this._currentChatResource, resource)) {
+				if (!token.isCancellationRequested && !ref && isCurrentChat && session) {
+					this.sessionOpenTelemetryService.modelBindFailed(session.resource, resource);
+				}
+				if (isCurrentChat) {
 					this._widget.setLoading(false);
 				}
 				this.logService.trace(`[ChatView] setChat abandoned uri=${resource.toString()}`);
@@ -461,6 +475,9 @@ export class ChatView extends AbstractChatView {
 				this._widget.restoreViewState(widgetViewState);
 			}
 			this._widget.setLoading(false);
+			if (session) {
+				this.sessionOpenTelemetryService.modelBound(session.resource, resource);
+			}
 			// Expose the bound chat resource on the DOM so test automation
 			// can synchronize with the post-rebind state without polling timeouts.
 			// Set AFTER `setModel` so observers see the attribute only once the
@@ -478,6 +495,9 @@ export class ChatView extends AbstractChatView {
 				this._currentChatResourceObs.set(undefined, undefined);
 				this._widget.setLoading(false);
 			}
+			if (!token.isCancellationRequested && session) {
+				this.sessionOpenTelemetryService.modelBindFailed(session.resource, resource);
+			}
 		});
 
 		// Surface progress on this leaf's own bar while the chat model loads,
@@ -494,7 +514,10 @@ export class ChatView extends AbstractChatView {
 		}
 	}
 
-	private _clearCurrentChat(): void {
+	private _clearCurrentChat(previousSession: ISession | undefined, previousChatResource: URI): void {
+		if (previousSession) {
+			this.sessionOpenTelemetryService.modelUnbound(previousSession.resource, previousChatResource);
+		}
 		this._widget.clear().catch(err => this.logService.error('[ChatView] Failed to clear chat widget', err));
 		this._widget.setModel(undefined);
 		this._modelRef.clear();
@@ -502,6 +525,13 @@ export class ChatView extends AbstractChatView {
 		// test automation can wait for the next `setChat` cycle to finish
 		// before acting on the view.
 		delete this.element.dataset.boundChatResource;
+	}
+
+	private _reportModelUnbound(): void {
+		const session = this._currentSessionObs.get();
+		if (session && this._currentChatResource) {
+			this.sessionOpenTelemetryService.modelUnbound(session.resource, this._currentChatResource);
+		}
 	}
 
 	private _applyHistoryKey(): void {

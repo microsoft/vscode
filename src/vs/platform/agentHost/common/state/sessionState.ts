@@ -33,6 +33,7 @@ import {
 	type ChatState,
 	type ChatSummary,
 	type ErrorInfo,
+	type ErrorResponsePart,
 	type PendingMessage,
 	type Turn,
 	type AnnotationsState,
@@ -70,8 +71,8 @@ export {
 	type ConfigSchema,
 	type ContentRef, type Customization, type CustomizationDegradedState,
 	type CustomizationErrorState, type CustomizationLoadedState, type CustomizationLoadingState, type CustomizationLoadState, type DirectoryCustomization, type ErrorInfo, type HookCustomization, type FileEdit as ISessionFileDiff, type ToolResultEmbeddedResourceContent as IToolResultBinaryContent, type MarkdownResponsePart, type McpServerCustomization, type MessageAttachment,
-	type MessageResourceAttachment, type MessageEmbeddedResourceAttachment, type MessageAnnotationsAttachment, type MessageChatAttachment, type ModelSelection, type PendingMessage, type PluginCustomization, type ProjectInfo, type PromptCustomization, type ReasoningResponsePart, type ErrorResponsePart,
-	type ResponsePart,
+	type MessageResourceAttachment, type MessageEmbeddedResourceAttachment, type MessageAnnotationsAttachment, type MessageChatAttachment, type ModelSelection, type PendingMessage, type PluginCustomization, type ProjectInfo, type PromptCustomization, type ReasoningResponsePart,
+	type ErrorResponsePart, type ResponsePart,
 	type RootState, type RuleCustomization, type SessionActiveClient,
 	type SessionConfigState, type SessionModelInfo,
 	type SessionState,
@@ -99,6 +100,82 @@ export {
 	type Turn, type URI, type UsageInfo,
 	type Message
 } from './protocol/state.js';
+
+export function getErrorResponsePart(turn: Turn | ActiveTurn | undefined): ErrorResponsePart | undefined {
+	if (!turn) {
+		return undefined;
+	}
+	const part = turn.responseParts.at(-1);
+	return part?.kind === ResponsePartKind.Error ? part : undefined;
+}
+
+export function createErrorResponsePart(error: ErrorInfo, resumable = false): ErrorResponsePart {
+	return {
+		kind: ResponsePartKind.Error,
+		error,
+		...(resumable ? { resumable: true } : {}),
+	};
+}
+
+export function mergeLogicalTurnUsage(previous: UsageInfo | undefined, current: UsageInfo | undefined): UsageInfo | undefined {
+	if (!previous) {
+		return current;
+	}
+	if (!current) {
+		return previous;
+	}
+
+	const previousMeta = readUsageInfoMeta(previous);
+	const currentMeta = readUsageInfoMeta(current);
+	const cost = sumDefined(previousMeta.cost, currentMeta.cost);
+	const totalNanoAiu = sumDefined(previousMeta.copilotUsage?.totalNanoAiu, currentMeta.copilotUsage?.totalNanoAiu);
+	const turnTokenTotals = mergeTurnTokenTotals(previousMeta.turnTokenTotals, currentMeta.turnTokenTotals);
+	const directTotalNanoAiu = sumDefined(previousMeta.directCopilotUsage?.totalNanoAiu, currentMeta.directCopilotUsage?.totalNanoAiu);
+	const directTurnTokenTotals = mergeTurnTokenTotals(previousMeta.directTurnTokenTotals, currentMeta.directTurnTokenTotals);
+	const meta = previous._meta !== undefined || current._meta !== undefined ? {
+		...previous._meta,
+		...current._meta,
+		...(cost !== undefined ? { cost } : {}),
+		...(previousMeta.copilotUsage || currentMeta.copilotUsage ? {
+			copilotUsage: {
+				...previousMeta.copilotUsage,
+				...currentMeta.copilotUsage,
+				...(totalNanoAiu !== undefined ? { totalNanoAiu } : {}),
+			},
+		} : {}),
+		...(turnTokenTotals ? { turnTokenTotals } : {}),
+		...(directTotalNanoAiu !== undefined ? { directCopilotUsage: { totalNanoAiu: directTotalNanoAiu } } : {}),
+		...(directTurnTokenTotals ? { directTurnTokenTotals } : {}),
+	} : undefined;
+
+	return {
+		...previous,
+		...current,
+		model: current.model ?? previous.model,
+		...(meta ? { _meta: meta } : {}),
+	};
+}
+
+function sumDefined(first: number | undefined, second: number | undefined): number | undefined {
+	return first === undefined ? second : second === undefined ? first : first + second;
+}
+
+function mergeTurnTokenTotals(previous: UsageInfoMeta['turnTokenTotals'], current: UsageInfoMeta['turnTokenTotals']): UsageInfoMeta['turnTokenTotals'] {
+	if (!previous && !current) {
+		return undefined;
+	}
+	const totals = new Map<string, ITurnTokenTotal>();
+	for (const total of [...previous ?? [], ...current ?? []]) {
+		const existing = totals.get(total.model);
+		totals.set(total.model, existing ? {
+			model: total.model,
+			inputTokens: existing.inputTokens + total.inputTokens,
+			cachedTokens: existing.cachedTokens + total.cachedTokens,
+			outputTokens: existing.outputTokens + total.outputTokens,
+		} : { ...total });
+	}
+	return [...totals.values()];
+}
 
 /**
  * Well-known keys that may appear on {@link UsageInfo._meta}.
