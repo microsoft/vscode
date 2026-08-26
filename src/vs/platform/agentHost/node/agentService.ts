@@ -5,66 +5,65 @@
 
 import { open, unlink, type FileHandle } from 'fs/promises';
 import { decodeBase64, encodeBase64, VSBuffer } from '../../../base/common/buffer.js';
-import { DeferredPromise, disposableTimeout, Limiter, Promises, ResourceQueue } from '../../../base/common/async.js';
+import { Barrier, DeferredPromise, disposableTimeout, Limiter, Promises, ResourceQueue } from '../../../base/common/async.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
-import { Emitter, type Event } from '../../../base/common/event.js';
+import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableResourceMap, DisposableStore, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
-import { ResourceMap } from '../../../base/common/map.js';
 import { getExtensionForMimeType, getMediaMime, getMediaOrTextMime } from '../../../base/common/mime.js';
 import { Schemas } from '../../../base/common/network.js';
-import { IObservable, observableValue } from '../../../base/common/observable.js';
+import { ISettableObservable } from '../../../base/common/observable.js';
 import { dirname as resourcesDirname, extname as resourcesExtname, extUriBiasedIgnorePathCase, isEqual, isEqualOrParent, joinPath } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { hasKey } from '../../../base/common/types.js';
 import { localize } from '../../../nls.js';
 import { FileChangeType, FileOperationResult, IFileChange, IFileService, toFileOperationResult, type FileChangesEvent } from '../../files/common/files.js';
+import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentProvider, AgentSession, AgentSignal, IAgent, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateChatSideChatSelection, IAgentCreateChatSideChatSource, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDiscoveredChat, IAgentHostAuthTokenRequest, IAgentHostNetworkEndpoint, IAgentMaterializeChatEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentChatAdoptionResult, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSpawnChatEvent, AuthenticateParams, AuthenticateResult, IMcpNotification, SubagentChatSignal, subagentChatTitle } from '../common/agent.js';
-import { AgentHostSessionReleaseGraceMsEnvVar, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentService } from '../common/agentService.js';
+import { AgentProvider, AgentSession, AgentSignal, IAgent, type IAgentAdoptedWorktree, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentCreateChatOptions, IAgentCreateChatRequestOptions, IAgentCreateChatResult, IAgentCreateChatSideChatSelection, IAgentCreateChatSideChatSource, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDiscoveredChat, IAgentHostNetworkEndpoint, IAgentMaterializeChatEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentChatAdoptionResult, type AgentChatAdoptionReason, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSpawnChatEvent, AuthenticateParams, AuthenticateResult, IMcpNotification, SubagentChatSignal, subagentChatTitle } from '../common/agent.js';
+import { type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentService } from '../common/agentService.js';
 import { ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../common/sessionDataService.js';
 import { IAgentEditAttributionService, ICancelEditAttributionFlushParams, ICommitEditAttributionFlushParams, IEditAttributionFlushResult, IPrepareEditAttributionFlushParams, IPreparedEditAttributionFlush, parseEditAttributionResource } from '../common/fileEditAttribution.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import type { IAgentCustomizationSettingsRegistration } from '../common/agentCustomizationSettings.js';
 import { buildAnnotationsUri, parseAnnotationsUri } from '../common/annotationsUri.js';
 import { parseChangesetUri } from '../common/changesetUri.js';
-import { ActionType, ActionEnvelope, AuthRequiredReason, INotification, isAnnotationsAction, isSessionAction, type ChatAction, type IRootConfigChangedAction, type SessionAction, type SessionWorkingDirectoryAction, type TerminalAction, type ClientAnnotationsAction, type ClientChangesetAction } from '../common/state/sessionActions.js';
+import { ActionType, ActionEnvelope, AuthRequiredReason, INotification, isAnnotationsAction, isPassiveSessionMetadataAction, isSessionAction, type ChatAction, type IIsArchivedChangedAction, type IIsReadChangedAction, type IRootConfigChangedAction, type SessionAction, type SessionWorkingDirectoryAction, type TerminalAction, type ClientAnnotationsAction, type ClientChangesetAction } from '../common/state/sessionActions.js';
 import { resolveSessionWorkingDirectoryAction } from '../common/state/sessionWorkingDirectories.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult, SessionConfigPropertySchema } from '../common/state/protocol/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
 import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError, ResourceChangeType, ResourceType, ResourceWriteMode, type CreateResourceWatchParams, type CreateResourceWatchResult, type DirectoryEntry, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMkdirParams, type ResourceMkdirResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceResolveParams, type ResourceResolveResult, type ResourceWatchState, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../common/state/sessionProtocol.js';
-import { ChangesSummary, ChatInteractivity, ChatOriginKind, MessageAttachmentKind, type Annotation, type AnnotationEntry, type AnnotationsState, type ChatOrigin, type Customization, type Message, type MessageAttachment, type MessageResourceAttachment } from '../common/state/protocol/state.js';
+import { ChangesSummary, ChatInteractivity, ChatOriginKind, MessageAttachmentKind, type Annotation, type AnnotationEntry, type AnnotationOrigin, type AnnotationsState, type ChatOrigin, type Customization, type Message, type MessageAttachment, type MessageResourceAttachment, type TextRange } from '../common/state/protocol/state.js';
 import type { ChatPendingMessageSetAction, ChatTurnStartedAction, SessionConfigChangedAction } from '../common/state/protocol/actions.js';
-import { ISessionGitHubState, ISessionGitState, MessageKind, ResponsePartKind, SESSION_META_GITHUB_KEY, SESSION_META_GIT_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, AH_META_ORCHESTRATION_DB_KEY, readSessionSpawnDepth, parseSessionOrchestration, withSessionSpawnDepth, withSessionOrchestration, SessionLifecycle, SessionStatus, ToolCallStatus, ToolResultContentType, AH_META_WORKSPACELESS_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, AH_META_IS_READ_DB_KEY, buildChatUri, buildDefaultChatUri, buildResourceWatchChannelUri, buildSubagentChatUri, buildSubagentSessionUriPrefix, isAhpChatChannel, isDefaultChatUri, isSubagentChatUri, isSubagentSession, needsSessionGitStateRefresh, parseChatUri, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, parseResourceWatchChannelUri, parseSessionMultiRootMetadata, parseSubagentSessionUri, readSessionExternal, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, withSessionExternal, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionStatusFlag, withSessionWorkspaceless, withSessionFolderPickerDecision, readSessionFolderPickerDecision, parseSessionFolderPickerDecision, SESSION_META_FOLDER_PICKER_KEY, readSessionEhcliAdoptable, type ISessionSourceControlState, type SessionConfigState, type SessionSummary, type ToolResultSubagentContent, type Turn, type UsageInfo, chatStorageUri, hasReportedUsage } from '../common/state/sessionState.js';
+import { ISessionGitHubState, ISessionGitState, MessageKind, ResponsePartKind, SESSION_META_GITHUB_KEY, SESSION_META_GIT_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, AH_META_CREATED_BY_SESSION_DB_KEY, readSessionCreationReference, readSessionSpawnDepth, withSessionSpawnDepth, withSessionCreationReference, parseSessionCreationReference, SessionLifecycle, SessionStatus, ToolCallStatus, ToolResultContentType, AH_META_WORKSPACELESS_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, AH_META_IS_READ_DB_KEY, buildChatUri, buildDefaultChatUri, buildResourceWatchChannelUri, buildSubagentChatUri, buildSubagentSessionUriPrefix, isAhpChatChannel, isDefaultChatUri, isSubagentChatUri, isSubagentSession, needsSessionGitStateRefresh, parseChatUri, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, parseResourceWatchChannelUri, parseSessionMultiRootMetadata, parseSubagentSessionUri, readSessionExternal, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, withSessionExternal, withSessionGitHubState, withSessionGitState, withMessageHiddenFromTranscript, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionStatusFlag, withSessionWorkspaceless, withSessionEhcliAdopted, withSessionFolderPickerDecision, readSessionFolderPickerDecision, parseSessionFolderPickerDecision, SESSION_META_FOLDER_PICKER_KEY, readSessionEhcliAdoptable, type ISessionSourceControlState, type SessionConfigState, type SessionSummary, type ToolResultSubagentContent, type Turn } from '../common/state/sessionState.js';
 import { readToolCallMeta } from '../common/meta/agentToolCallMeta.js';
 import { isHostSnapshotAttachment, toHostSnapshotAttachmentMeta } from '../common/meta/agentSnapshotAttachmentMeta.js';
 import { readEphemeralSessionMeta, withEphemeralSessionMeta } from '../common/meta/agentEphemeralSessionMeta.js';
+import { IAgentMessageDelegationMeta, toAgentMessageDelegationMeta } from '../common/meta/agentMessageDelegationMeta.js';
 import { readChatSurfaceMeta, withChatSurfaceMeta } from '../common/meta/agentChatSurfaceMeta.js';
-import { buildBoundedSideChatSourceContext, getSideChatPartialResponse } from './agentPeerChats.js';
-import { AgentConfigurationService, getEffectiveWorkingDirectories, IAgentConfigurationService } from './agentConfigurationService.js';
-import { IAgentHostManagedSettingsService } from './agentHostManagedSettingsService.js';
-import { AgentHostTerminalManager, IAgentHostTerminalManager } from './agentHostTerminalManager.js';
+import { AgentConfigurationService, getEffectiveWorkingDirectories } from './agentConfigurationService.js';
+import { IAgentHostTerminalManager } from './agentHostTerminalManager.js';
 import { ISessionDbUriFields, parseSessionDbUri } from '../common/sessionDbUri.js';
 import { IGitBlobUriFields, parseGitBlobUri } from './gitDiffContent.js';
 import { resolveSessionRepositories } from './agentHostSessionRepositories.js';
 import { findDeepestContainingWorkingDirectory, isMultiRootSession } from '../common/agentHostWorkingDirectories.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { createAgentChatContext } from './agentChatContext.js';
-import { IAgentHostPromptCache } from './agentHostPromptCache.js';
-import { IAgentHostSessionTitleSignal } from './agentHostSessionTitleSignal.js';
 import { AgentHostDebugLogsCollector, type IAgentHostDebugLogsEnvironment } from './agentHostDebugLogs.js';
 import { IAgentHostDatabase } from './agentHostDatabase.js';
 import { AgentSessionRegistry, IRegisteredSession, IStoredRegisteredSession } from './agentSessionRegistry.js';
 import { IAgentHostGitService } from '../common/agentHostGitService.js';
+import { IAgentHostSubscriptionService, resolveAgentHostSession } from '../common/agentHostSubscriptionService.js';
 import { AgentSideEffects, type IAgentSideEffectsOptions } from './agentSideEffects.js';
 import { AgentHostLocalTurns } from './agentHostLocalTurns.js';
+import { AgentSessionResidency } from './agentSessionResidency.js';
 import { AgentServerToolHost } from './shared/agentServerToolHost.js';
 import { type IChatContextSnapshot, type IRenameTitleResult, type ISessionCreationDefaults, type ISessionServerToolAccessor, validateRenameTitle } from './shared/sessionServerTools.js';
 import { AGENT_HOST_TITLE_SOURCE_AGENT, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, persistSessionMetadata, persistSessionMetadataValues, SESSION_ARTIFACTS_KEY, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from './shared/persistSessionMetadata.js';
 import { type IArtifactServerToolAccessor } from './shared/artifactServerTools.js';
-import { parseSessionArtifacts, stringifySessionArtifacts, withSessionArtifacts } from '../common/sessionArtifacts.js';
+import { parseSessionArtifacts, stringifySessionArtifacts, withSessionArtifacts, type ISessionArtifact } from '../common/sessionArtifacts.js';
 
-import { buildWorktreeFailureNotification, WorktreeIsolation, WORKTREE_META_REPOSITORY_ROOT, worktreeProjectFromRepositoryRoot } from './shared/worktreeIsolation.js';
+import { buildWorktreeFailureNotification, IAgentHostWorktreeIsolation, WORKTREE_META_REPOSITORY_ROOT, worktreeProjectFromRepositoryRoot } from './shared/worktreeIsolation.js';
 import { IAgentHostCheckpointService } from '../common/agentHostCheckpointService.js';
 import { IAgentHostReviewService } from '../common/agentHostReviewService.js';
 import { AgentHostChangesetCoordinator } from './agentHostChangesetCoordinator.js';
@@ -76,21 +75,20 @@ import { INetworkDiagnosticsService } from './networkDiagnosticsService.js';
 import { parseMcpChannelUri } from './shared/mcpCustomizationController.js';
 import { toAgentClientUri } from '../common/agentClientUri.js';
 import { AgentHostClientType } from '../common/agentHostClientInfo.js';
+import { resolveLastNonLocalTurnId } from '../common/agentHostConversationContext.js';
 import { AgentHostLaunchKind, createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
 import { IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
 import { AgentMergeController, type IAgentMergeControllerOptions } from './agentMergeController.js';
-import { AgentMergeConfigKey, agentMergeRootConfigSchema, readAgentMergeSessionState } from '../common/agentMerge.js';
+import { AgentMergeConfigKey, agentMergeRootConfigSchema, getNonMergeSessionConfigValues, readAgentMergeSessionState } from '../common/agentMerge.js';
+import { AgentSystemNotificationKind, toAgentSystemNotificationMeta } from '../common/meta/agentSystemNotificationMeta.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
-import { AgentHostAuthenticationService, type IAgentHostAuthenticationService } from './agentHostAuthenticationService.js';
+import { AgentHostAuthenticationService } from './agentHostAuthenticationService.js';
 import { updateAgentHostTelemetryLevelFromConfig } from './agentHostTelemetryService.js';
 import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostArtifactToolsConfigKey, AgentHostEditTelemetryEnabledConfigKey, AgentHostExternalSessionsMode, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostShowExternalSessionsConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
-import { AgentHostCustomizationEnablementService, IAgentHostCustomizationEnablementService } from './agentHostCustomizationEnablementService.js';
-import { AgentHostStorageService, IAgentHostStorageService } from './agentHostStorageService.js';
-import { SessionCoordinationService } from './sessionCoordination.js';
-import { IAgentHostOctoKitService } from './shared/agentHostOctoKitService.js';
 import { IAgentHostChangesetService, CHANGESET_DB_METADATA_KEYS, META_CHANGES_SUMMARY } from '../common/agentHostChangesetService.js';
 import { GIT_DB_METADATA_KEYS, IAgentHostGitStateService, META_GIT_STATE, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../common/agentHostGitStateService.js';
 import { IAgentHostChangesetOperationService } from '../common/agentHostChangesetOperationService.js';
+import { IAgentHostChatContributions } from '../common/agentHostChatContributionsService.js';
 
 /**
  * Grace period before an empty, unsubscribed session is garbage-collected
@@ -101,8 +99,12 @@ import { IAgentHostChangesetOperationService } from '../common/agentHostChangese
 const SESSION_GC_GRACE_MS = 30_000;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const EXTERNAL_SESSION_MAX_AGE_MS = 30 * DAY_MS;
-const EXTERNAL_SESSION_PRUNE_DELAY_MS = 60_000;
 const RECENT_EXTERNAL_SESSION_LIMIT = 2;
+/**
+ * How many locally created sessions must postdate an external session's last
+ * update before {@link AgentHostExternalSessionsMode.Recent} stops surfacing it.
+ */
+const RECENT_EXTERNAL_SUPERSEDING_LOCAL_LIMIT = 2;
 /** A catalog pass slower than this is logged at info, since it delays every session-list refresh. */
 const SLOW_LIST_SESSIONS_THRESHOLD_MS = 1_000;
 
@@ -116,6 +118,7 @@ type AgentHostLegacyMigrationEvent = {
 	hasWorktree: boolean;
 	workingDirectoryCount: number;
 	errorMessage: string | undefined;
+	reason: string;
 };
 
 type AgentHostLegacyMigrationClassification = {
@@ -128,6 +131,7 @@ type AgentHostLegacyMigrationClassification = {
 	hasWorktree: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the migrated session ran in a pre-existing git worktree that was bridged during adoption.' };
 	workingDirectoryCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of working directories associated with the migrated session.' };
 	errorMessage: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'Error message when the migration failed; absent for migrated/skipped outcomes.' };
+	reason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Why adoption ended as it did: adopted, alreadyNative, notLegacyChat, workingDirectoryMissing, or unknown. Separates a skipped session that was never ours from one whose working directory vanished, which need different fixes.' };
 	owner: 'vijayupadya';
 	comment: 'Tracks one-time adopt-on-open migration of legacy extension-host Copilot CLI sessions into the agent host to measure attempt, success, failure, and skipped rates.';
 };
@@ -140,6 +144,7 @@ const HOST_OWNED_SESSION_CONFIG_KEYS = [
 	SessionConfigKey.WorktreeBranchPrefix,
 	SessionConfigKey.WorktreeIncludeFiles,
 	SessionConfigKey.WorktreeBranchTrack,
+	SessionConfigKey.WorktreeCreateNewBranch,
 ] as const;
 
 /**
@@ -183,18 +188,6 @@ const RESOURCE_WATCH_GRACE_MS = 30_000;
 const SUBAGENT_CHAT_PENDING_TIMEOUT_MS = 15_000;
 
 /**
- * Grace period before an idle session is released from memory via
- * {@link AgentService._maybeEvictIdleSession}. This lets a quick reconnect
- * reuse the live SDK session instead of forcing an immediate release/resume
- * cycle. Overridable via {@link AgentHostSessionReleaseGraceMsEnvVar} in tests.
- */
-const SESSION_RELEASE_GRACE_MS = (() => {
-	const raw = process.env[AgentHostSessionReleaseGraceMsEnvVar];
-	const parsed = raw !== undefined ? parseInt(raw, 10) : NaN;
-	return Number.isFinite(parsed) && parsed >= 0 ? parsed : 30_000;
-})();
-
-/**
  * Session-database metadata key for the orchestrator-owned catalog of
  * additional peer chats. When absent, the session predates this persistence
  * and a one-time migration drains the agent's legacy `*.chats` state.
@@ -214,21 +207,75 @@ function isPersistedAnnotationEntry(value: unknown): value is AnnotationEntry {
 		|| (isRecord(value.text) && typeof value.text.markdown === 'string');
 }
 
-function isPersistedAnnotation(value: unknown): value is Annotation {
+function isPersistedAnnotationOrigin(value: unknown): value is AnnotationOrigin {
 	return isRecord(value)
-		&& typeof value.id === 'string'
-		&& typeof value.turnId === 'string'
-		&& typeof value.resource === 'string'
-		&& typeof value.resolved === 'boolean'
-		&& Array.isArray(value.entries)
-		&& value.entries.length > 0
-		&& value.entries.every(isPersistedAnnotationEntry);
+		&& typeof value.session === 'string'
+		&& (value.chat === undefined || typeof value.chat === 'string')
+		&& (value.turnId === undefined || typeof value.turnId === 'string');
 }
 
-function isPersistedAnnotationsState(value: unknown): value is AnnotationsState {
+function isPersistedTextRange(value: unknown): value is TextRange {
 	return isRecord(value)
-		&& Array.isArray(value.annotations)
-		&& value.annotations.every(isPersistedAnnotation);
+		&& isRecord(value.start) && typeof value.start.line === 'number' && typeof value.start.character === 'number'
+		&& isRecord(value.end) && typeof value.end.line === 'number' && typeof value.end.character === 'number';
+}
+
+/**
+ * Reads one persisted annotation, migrating the pre-`origin` shape. Releases
+ * before the annotation origin recorded a top-level `turnId` and no owning
+ * session, so the session that is being restored supplies the origin.
+ */
+function readPersistedAnnotation(value: unknown, session: string): Annotation | undefined {
+	if (!isRecord(value)
+		|| typeof value.id !== 'string'
+		|| typeof value.resource !== 'string'
+		|| typeof value.resolved !== 'boolean'
+		|| !Array.isArray(value.entries)
+		|| value.entries.length === 0
+		|| !value.entries.every(isPersistedAnnotationEntry)) {
+		return undefined;
+	}
+	let origin: AnnotationOrigin;
+	if (isPersistedAnnotationOrigin(value.origin)) {
+		origin = value.origin;
+	} else if (value.origin === undefined) {
+		origin = { session, ...(typeof value.turnId === 'string' && value.turnId ? { turnId: value.turnId } : {}) };
+	} else {
+		return undefined;
+	}
+	const annotation: Annotation = {
+		id: value.id,
+		origin,
+		resource: value.resource,
+		resolved: value.resolved,
+		entries: value.entries,
+	};
+	if (isPersistedTextRange(value.range)) {
+		annotation.range = value.range;
+	}
+	if (isRecord(value._meta)) {
+		annotation._meta = value._meta;
+	}
+	return annotation;
+}
+
+/**
+ * Reads a persisted annotations state, migrating any legacy annotation into the
+ * current shape. Returns `undefined` when the payload is not a valid state.
+ */
+function readPersistedAnnotationsState(value: unknown, session: string): AnnotationsState | undefined {
+	if (!isRecord(value) || !Array.isArray(value.annotations)) {
+		return undefined;
+	}
+	const annotations: Annotation[] = [];
+	for (const entry of value.annotations) {
+		const annotation = readPersistedAnnotation(entry, session);
+		if (!annotation) {
+			return undefined;
+		}
+		annotations.push(annotation);
+	}
+	return { annotations };
 }
 
 /** Opaque provider data for the session's default chat. */
@@ -255,6 +302,7 @@ interface IPersistedPeerChat {
 	readonly uri: string;
 	readonly providerData?: string;
 	readonly origin?: ChatOrigin;
+	readonly inheritedTurnId?: string;
 }
 
 /**
@@ -307,50 +355,42 @@ export interface IAgentServiceOptions {
 	readonly storageResource?: URI;
 	readonly orchestratorDatabase?: IAgentHostDatabase;
 	readonly debugLogsEnvironment?: IAgentHostDebugLogsEnvironment;
+	readonly sessionResidencyLimit?: number;
+	readonly sessionReleaseRetryMs?: number;
 }
 
-/** Core state and callbacks exposed only to the Agent Host composition root. */
-export interface IAgentServiceCompositionContext {
-	readonly stateManager: AgentHostStateManager;
-	readonly configurationService: AgentConfigurationService;
-	readonly storageService: AgentHostStorageService;
-	readonly managedSettingsService: IAgentHostManagedSettingsService;
-	readonly sessionDataService: ISessionDataService;
-	readonly agents: IObservable<readonly IAgent[]>;
-	readonly hostLaunchKind: AgentHostLaunchKind;
-	readonly copilotApiServiceOverride: ICopilotApiService | undefined;
-	readonly getAuthToken: (request: IAgentHostAuthTokenRequest) => string | undefined;
-	readonly createAgentMergeControllerOptions: () => IAgentMergeControllerOptions;
-	readonly createSideEffectsOptions: (services: {
-		readonly localTurns: AgentHostLocalTurns;
-		readonly copilotApiService: ICopilotApiService;
-		readonly octoKitService: IAgentHostOctoKitService;
-		readonly gitStateService: IAgentHostGitStateService;
-	}) => IAgentSideEffectsOptions;
+export interface IAgentServiceCallbacks {
+	readonly canEvictChangeset: (changeset: string) => boolean;
+	readonly startAgentMergeTurn: IAgentMergeControllerOptions['startTurn'];
+	readonly cancelAgentMergeTurn: IAgentMergeControllerOptions['cancelTurn'];
+	readonly postAgentMergeNotice: IAgentMergeControllerOptions['postNotice'];
+	readonly getAutonomousSessionConfig: IAgentMergeControllerOptions['getAutonomousSessionConfig'];
+	readonly getAgent: IAgentSideEffectsOptions['getAgent'];
+	readonly resolveWorkingDirectoryBeforeSend: NonNullable<IAgentSideEffectsOptions['resolveWorkingDirectoryBeforeSend']>;
+	readonly resolveChatAttachmentTurns: NonNullable<IAgentSideEffectsOptions['resolveChatAttachmentTurns']>;
 	readonly getSessionMetadata: (session: URI) => Promise<IAgentSessionMetadata | undefined>;
 	readonly restoreSession: (session: URI) => Promise<void>;
-	readonly createSessionServerToolAccessor: () => ISessionServerToolAccessor;
-	readonly createArtifactServerToolAccessor: () => IArtifactServerToolAccessor;
+	readonly sessionServerToolAccessor: ISessionServerToolAccessor;
+	readonly artifactServerToolAccessor: IArtifactServerToolAccessor;
 }
 
-/** Collaborators constructed by the composition root after registering {@link IAgentService}. */
-export interface IAgentServiceInitialization {
+export interface IAgentServiceCallbackBinder {
+	bind(callbacks: IAgentServiceCallbacks): void;
+}
+
+export interface IAgentServiceCollaborators {
 	readonly gitHubEndpointService: IAgentHostGitHubEndpointService;
-	readonly customizationEnablementService: AgentHostCustomizationEnablementService;
 	readonly gitStateService: IAgentHostGitStateService;
 	readonly agentMergeController: AgentMergeController;
 	readonly checkpointService: IAgentHostCheckpointService;
-	readonly promptCache: IAgentHostPromptCache;
-	readonly sessionTitleSignal: IAgentHostSessionTitleSignal;
 	readonly changesetOperationService: IAgentHostChangesetOperationService;
 	readonly reviewService: IAgentHostReviewService;
 	readonly changesets: IAgentHostChangesetService;
 	readonly changesetCoordinator: AgentHostChangesetCoordinator;
 	readonly completions: IAgentHostCompletions;
-	readonly terminalManager: AgentHostTerminalManager;
+	readonly terminalManager: IAgentHostTerminalManager;
 	readonly localTurns: AgentHostLocalTurns;
 	readonly sideEffects: AgentSideEffects;
-	readonly sessionCoordination: SessionCoordinationService;
 	readonly serverToolHost: AgentServerToolHost;
 }
 
@@ -363,10 +403,8 @@ export interface IAgentServiceCore {
 	readonly sessionRegistry: AgentSessionRegistry;
 	readonly stateManager: AgentHostStateManager;
 	readonly configurationService: AgentConfigurationService;
-	readonly storageService: AgentHostStorageService;
-	readonly managedSettingsService: IAgentHostManagedSettingsService;
-	readonly hostLaunchKind: AgentHostLaunchKind;
-	readonly copilotApiServiceOverride: ICopilotApiService | undefined;
+	readonly agents: ISettableObservable<readonly IAgent[]>;
+	readonly callbackBinder: IAgentServiceCallbackBinder;
 }
 
 /**
@@ -393,8 +431,6 @@ export class AgentService extends Disposable implements IAgentService {
 
 	/** Authoritative state manager for the sessions process protocol. */
 	private readonly _stateManager: AgentHostStateManager;
-	private _sessionCoordination!: SessionCoordinationService;
-	private readonly _managedSettingsService: IAgentHostManagedSettingsService;
 
 	/**
 	 * Orchestrator-owned durable index of known sessions. Populated alongside
@@ -419,32 +455,6 @@ export class AgentService extends Disposable implements IAgentService {
 	 * deleted session is harmless — that URI is never reachable again.
 	 */
 	private readonly _unpersistedChatBackings = new Set<string>();
-
-	/** Exposes the state manager for co-hosting a WebSocket protocol server. */
-	get stateManager(): AgentHostStateManager { return this._stateManager; }
-
-	/** Exposes the configuration service so agent providers can share root config plumbing. */
-	get configurationService(): IAgentConfigurationService { return this._configurationService; }
-
-	/** Exposes host-owned persistent storage to process-level DI. */
-	get storageService(): IAgentHostStorageService { return this._storageService; }
-
-	/** Exposes customization enablement to process-level DI. */
-	get customizationEnablementService(): IAgentHostCustomizationEnablementService { return this._customizationEnablementService; }
-
-	get managedSettingsService(): IAgentHostManagedSettingsService { return this._managedSettingsService; }
-
-	/** Exposes the GitHub endpoint service so agent providers share GitHub (Enterprise) resource resolution. */
-	get gitHubEndpointService(): IAgentHostGitHubEndpointService { return this._gitHubEndpointService; }
-
-	/** Exposes the checkpoint service so agent providers can capture session baselines. */
-	get checkpointService(): IAgentHostCheckpointService { return this._checkpointService; }
-
-	/** Exposes prompt-cache metadata without exposing the whole state manager. */
-	get promptCache(): IAgentHostPromptCache { return this._promptCache; }
-
-	/** Exposes host-owned session-title changes without exposing the whole state manager. */
-	get sessionTitleSignal(): IAgentHostSessionTitleSignal { return this._sessionTitleSignal; }
 
 	/** Registered providers keyed by their {@link AgentProvider} id. */
 	private readonly _providers = new Map<AgentProvider, IAgent>();
@@ -475,72 +485,49 @@ export class AgentService extends Disposable implements IAgentService {
 	private readonly _disposingPeerChats = new Set<string>();
 	private readonly _defaultChatBackingWrites = new Map<string, Promise<void>>();
 	private readonly _authService: AgentHostAuthenticationService;
-	get authenticationService(): IAgentHostAuthenticationService { return this._authService; }
 	/** Default provider used when no explicit provider is specified. */
 	private _defaultProvider: AgentProvider | undefined;
 	/** Observable registered agents, drives `root/agentsChanged` via {@link AgentSideEffects}. */
-	private readonly _agents = observableValue<readonly IAgent[]>('agents', []);
+	private readonly _agents: ISettableObservable<readonly IAgent[]>;
 	/** Shared side-effect handler for action dispatch and session lifecycle. */
-	private _sideEffects!: AgentSideEffects;
-	private _agentMergeController!: AgentMergeController;
+	private readonly _sideEffects: AgentSideEffects;
+	private readonly _agentMergeController: AgentMergeController;
 	/** Owns static / per-turn changeset compute, publish, persist, restore. */
-	private _changesets!: IAgentHostChangesetService;
+	private readonly _changesets: IAgentHostChangesetService;
 	/** Shared active changeset subscription registry. */
 	/** Owns changeset operation contributions and handler activation. */
-	private _changesetOperationService!: IAgentHostChangesetOperationService;
-	private _reviewService!: IAgentHostReviewService;
+	private readonly _changesetOperationService: IAgentHostChangesetOperationService;
+	private readonly _reviewService: IAgentHostReviewService;
 	/** Owns AgentService-side orchestration of the changeset feature. */
-	private _changesetCoordinator!: AgentHostChangesetCoordinator;
+	private readonly _changesetCoordinator: AgentHostChangesetCoordinator;
 	/** Owns session git-state probing and git-backed catalogue decoration. */
-	private _gitStateService!: IAgentHostGitStateService;
+	private readonly _gitStateService: IAgentHostGitStateService;
 	/** Manages PTY-backed terminals for the agent host protocol. */
-	private _terminalManager!: AgentHostTerminalManager;
+	private readonly _terminalManager: IAgentHostTerminalManager;
 	/** Persists host-injected `/rename` / `!command` turns for restore & fork/truncate. */
-	private _localTurns!: AgentHostLocalTurns;
+	private readonly _localTurns: AgentHostLocalTurns;
 	/** Server-side host for the agent host's server tools. */
-	private _serverToolHost!: AgentServerToolHost;
+	private readonly _serverToolHost: AgentServerToolHost;
 	private readonly _debugLogsCollector: AgentHostDebugLogsCollector | undefined;
 	private readonly _configurationService: AgentConfigurationService;
-	private readonly _storageService: AgentHostStorageService;
-	private _customizationEnablementService!: AgentHostCustomizationEnablementService;
 	/** Captures baseline / per-turn git checkpoints backing the changeset pipeline. */
-	private _checkpointService!: IAgentHostCheckpointService;
-	private _promptCache!: IAgentHostPromptCache;
-	private _sessionTitleSignal!: IAgentHostSessionTitleSignal;
-	/**
-	 * Host-owned worktree isolation controller. Set post-construction via
-	 * {@link setWorktreeIsolation} after host startup constructs the Copilot API
-	 * dependencies. All worktree behavior — schema contribution, first-send
-	 * resolution, project / announcement, archive, and cleanup — is driven from
-	 * the host so individual agents stay unaware of the folder-vs-worktree
-	 * distinction.
-	 */
-	private _worktree: WorktreeIsolation | undefined;
+	private readonly _checkpointService: IAgentHostCheckpointService;
 	/** Single source of truth for GitHub (Enterprise) endpoints and protected resources. */
-	private _gitHubEndpointService!: IAgentHostGitHubEndpointService;
+	private readonly _gitHubEndpointService: IAgentHostGitHubEndpointService;
 	/** Pluggable completion item providers (e.g. workspace file completions, agent-specific @-mentions). */
-	private _completions!: IAgentHostCompletions;
-	private _initialized = false;
+	private readonly _completions: IAgentHostCompletions;
 	private _skillCompletionProviderRegistered = false;
-	/** Backs {@link getNetworkDiagnosticsInfo} / {@link diagnosticsFetch}; wired via {@link setNetworkDiagnosticsService}. */
-	private _networkDiagnostics: INetworkDiagnosticsService | undefined;
-	private _editAttributionService: IAgentEditAttributionService | undefined;
-	private readonly _hostLaunchKind: AgentHostLaunchKind;
-	private readonly _copilotApiServiceOverride: ICopilotApiService | undefined;
-
 	/**
 	 * Authoritative server-side per-resource subscription refcount, keyed by
 	 * resource URI string and valued by the set of subscribed protocol
 	 * client IDs. Populated by {@link subscribe} (or {@link addSubscriber}
 	 * for handshake fast-paths) and drained by {@link unsubscribe}. When a
 	 * resource's set becomes empty, the resource is dropped from the map and
-	 * {@link _maybeEvictIdleSession} is invoked to release any cached state
-	 * for it.
+	 * session residency is reconciled against the MRU cap.
 	 */
-	private readonly _resourceSubscribers = new ResourceMap<Set<string>>();
-	private readonly _releaseSessionInFlight = new Map<string, Promise<void>>();
 	private readonly _restoreSessionInFlight = new Map<string, Promise<void>>();
 	private readonly _restoreSubagentInFlight = new Map<string, Promise<void>>();
+	private readonly _sessionResidency: AgentSessionResidency;
 
 	/**
 	 * Persisted-annotation reads in flight, keyed by session URI. Annotations
@@ -562,15 +549,6 @@ export class AgentService extends Disposable implements IAgentService {
 	 * whenever any client subscribes again or the timer fires.
 	 */
 	private readonly _pendingSessionGc = this._register(new DisposableResourceMap<IDisposable>());
-
-	/**
-	 * Pending {@link _maybeEvictIdleSession} timers, keyed by session URI. A
-	 * timer is armed when an idle session (with turns) loses its last subscriber
-	 * — see {@link unsubscribe}. Cleared when any client subscribes again
-	 * ({@link addSubscriber}) or the timer fires. Deferring the release avoids
-	 * churning the provider SDK session on rapid disconnect/reconnect cycles.
-	 */
-	private readonly _pendingSessionRelease = this._register(new DisposableResourceMap<IDisposable>());
 
 	/**
 	 * Active resource watches keyed by the channel URI string
@@ -596,36 +574,81 @@ export class AgentService extends Disposable implements IAgentService {
 	 */
 	private readonly _resourceWatches = this._register(new DisposableMap<string, IActiveResourceWatch>());
 
-	/** Exposes the terminal manager for use by agent providers. */
-	get terminalManager(): IAgentHostTerminalManager { return this._terminalManager; }
-
-	/** Exposes the completions service for use by agent providers (e.g. to register agent-scoped completion item providers). */
-	get completionsService(): IAgentHostCompletions { return this._completions; }
-
-	/**
-	 * Trigger characters announced to clients via `InitializeResult.completionTriggerCharacters`.
-	 * Aggregated from all registered {@link IAgentHostCompletionItemProvider}s.
-	 */
-	get completionTriggerCharacters(): readonly string[] { return this._completions.triggerCharacters; }
-
 	constructor(
 		core: IAgentServiceCore,
+		collaborators: IAgentServiceCollaborators,
+		options: IAgentServiceOptions,
 		@ILogService private readonly _logService: ILogService,
 		@IFileService private readonly _fileService: IFileService,
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
 		@IAgentHostGitService private readonly _gitService: IAgentHostGitService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IAgentHostChatContributions private readonly _chatContributions: IAgentHostChatContributions,
+		@IAgentHostSubscriptionService private readonly _subscriptions: IAgentHostSubscriptionService,
+		@INetworkDiagnosticsService private readonly _networkDiagnostics: INetworkDiagnosticsService,
+		@IAgentEditAttributionService private readonly _editAttributionService: IAgentEditAttributionService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IAgentHostWorktreeIsolation private readonly _worktree: IAgentHostWorktreeIsolation,
 	) {
 		super();
-		this._register(core.disposables);
-		this._hostLaunchKind = core.hostLaunchKind;
-		this._copilotApiServiceOverride = core.copilotApiServiceOverride;
-		this._logService.info('AgentService initialized');
 		this._authService = core.authenticationService;
 		this._orchestratorDatabase = core.orchestratorDatabase;
 		this._debugLogsCollector = core.debugLogsCollector;
 		this._sessionRegistry = core.sessionRegistry;
 		this._stateManager = core.stateManager;
+		this._configurationService = core.configurationService;
+		this._agents = core.agents;
+		this._gitHubEndpointService = collaborators.gitHubEndpointService;
+		this._gitStateService = collaborators.gitStateService;
+		this._agentMergeController = collaborators.agentMergeController;
+		this._checkpointService = collaborators.checkpointService;
+		this._changesetOperationService = collaborators.changesetOperationService;
+		this._reviewService = collaborators.reviewService;
+		this._changesets = collaborators.changesets;
+		this._changesetCoordinator = collaborators.changesetCoordinator;
+		this._completions = collaborators.completions;
+		this._terminalManager = collaborators.terminalManager;
+		this._localTurns = collaborators.localTurns;
+		this._sideEffects = collaborators.sideEffects;
+		this._serverToolHost = collaborators.serverToolHost;
+		this._sessionResidency = this._register(instantiationService.createInstance(
+			AgentSessionResidency,
+			this._stateManager,
+			{
+				isReleaseBlocked: session => this._restoreSessionInFlight.has(session.toString()),
+				whenSessionDataIdle: session => this._whenSessionDataIdle(session),
+				getSessionChats: session => this._getSessionChatsInTeardownOrder(session),
+				createRelease: session => {
+					const provider = this._findProviderForSession(session);
+					return provider ? {
+						canRelease: chats => this._canReleaseSession(provider, session, chats),
+						release: chats => this._releaseSession(provider, session, chats),
+					} : undefined;
+				},
+				evictSessionState: (session, chats) => this._evictSessionState(session, session.toString(), session.toString(), chats.map(chat => chat.toString())),
+			},
+			{
+				limit: options.sessionResidencyLimit,
+				releaseRetryMs: options.sessionReleaseRetryMs,
+				holdsSession: session => this._agentMergeController.holdsSession(session),
+				onDidReleaseHold: this._agentMergeController.onDidReleaseHold,
+			},
+		));
+		core.callbackBinder.bind({
+			canEvictChangeset: changeset => this._canEvictChangeset(changeset),
+			startAgentMergeTurn: (session, turnId, prompt) => this._startAgentMergePrompt(session, turnId, prompt),
+			cancelAgentMergeTurn: (session, turnId) => this._cancelAgentMergePrompt(session, turnId),
+			postAgentMergeNotice: (session, kind, content) => this._postAgentMergeNotice(session, kind, content),
+			getAutonomousSessionConfig: (session, config) => this._findProviderForSession(session)?.getAutonomousSessionConfig?.(config),
+			getAgent: session => this._findProviderForSession(session),
+			resolveWorkingDirectoryBeforeSend: params => this._resolveWorkingDirectoryBeforeSend(params),
+			resolveChatAttachmentTurns: resource => this._resolveChatAttachmentTurns(resource),
+			getSessionMetadata: session => this._getSessionMetadata(session),
+			restoreSession: session => this.restoreSession(session),
+			sessionServerToolAccessor: this._createSessionServerToolAccessor(),
+			artifactServerToolAccessor: this._createArtifactServerToolAccessor(),
+		});
+		this._logService.info('AgentService initialized');
 		this._register(this._stateManager.onDidEmitEnvelope(e => this._onDidAction.fire(e)));
 		this._register(this._stateManager.onDidEmitEnvelope(e => this._trackPendingSubagentChatFromEnvelope(e)));
 		this._register(this._stateManager.onDidEmitEnvelope(e => this._persistAnnotations(e)));
@@ -634,9 +657,18 @@ export class AgentService extends Disposable implements IAgentService {
 		this._register(this._stateManager.onDidEmitEnvelope(e => {
 			if (e.action.type === ActionType.SessionIsArchivedChanged && e.action.isArchived && !isAhpChatChannel(e.channel)) {
 				this._clearAgentMergeIndex(URI.parse(e.channel));
+				void this._sessionResidency.reconcile();
 			}
 		}));
 		this._register(this._stateManager.onDidEmitNotification(e => this._onDidNotification.fire(e)));
+		// A notice raised mid-turn waits for the agent to finish so it can own a
+		// turn of its own and survive restore.
+		this._register(this._stateManager.onDidChangeSessionActiveTurn(({ session, active }) => {
+			if (!active) {
+				this._flushAgentMergeNotices(session);
+			}
+		}));
+		this._register(this._stateManager.onDidRemoveSession(session => this._pendingAgentMergeNotices.delete(session)));
 		this._register(this._stateManager.onDidChangeSessionSummary(({ session, changes }) => {
 			const meta = this._stateManager.getSessionSummary(session)?._meta;
 			if (changes.modifiedAt !== undefined
@@ -646,94 +678,8 @@ export class AgentService extends Disposable implements IAgentService {
 				this._queueSessionListReconciliation();
 			}
 		}));
-		this._configurationService = core.configurationService;
-		this._storageService = core.storageService;
-		this._managedSettingsService = core.managedSettingsService;
 		updateAgentHostTelemetryLevelFromConfig(this._telemetryService, this._stateManager.rootState.config?.values);
-	}
-
-	/** Returns the narrow state and callback surface needed to compose collaborators. */
-	getCompositionContext(): IAgentServiceCompositionContext {
-		return {
-			stateManager: this._stateManager,
-			configurationService: this._configurationService,
-			storageService: this._storageService,
-			managedSettingsService: this._managedSettingsService,
-			sessionDataService: this._sessionDataService,
-			agents: this._agents,
-			hostLaunchKind: this._hostLaunchKind,
-			copilotApiServiceOverride: this._copilotApiServiceOverride,
-			getAuthToken: request => this._authService.getAuthToken(request),
-			createAgentMergeControllerOptions: () => ({
-				startTurn: (session, turnId, prompt) => this._startAgentMergePrompt(session, turnId, prompt),
-				cancelTurn: (session, turnId) => this._cancelAgentMergePrompt(session, turnId),
-				getAutonomousSessionConfig: (session, config) => this._findProviderForSession(session)?.getAutonomousSessionConfig?.(config),
-			}),
-			createSideEffectsOptions: services => ({
-				getAgent: session => this._findProviderForSession(session),
-				sessionDataService: this._sessionDataService,
-				localTurns: services.localTurns,
-				agents: this._agents,
-				hostLaunchKind: this._hostLaunchKind,
-				copilotApiService: services.copilotApiService,
-				getGitHubCopilotToken: () => {
-					const resource = this._gitHubEndpointService.getCopilotResource();
-					return this._authService.getAuthToken({ resource: resource.resource, scopes: resource.scopes_supported });
-				},
-				getGitHubToken: () => {
-					const resource = this._gitHubEndpointService.getRepoResource();
-					return this._authService.getAuthToken({ resource: resource.resource, scopes: resource.scopes_supported });
-				},
-				getGitHubHost: () => this._gitHubEndpointService.getEnterpriseHost() ?? 'github.com',
-				octoKitService: services.octoKitService,
-				resolveWorkingDirectoryBeforeSend: params => this._resolveWorkingDirectoryBeforeSend(params),
-				resolveChatAttachmentTurns: resource => this._resolveChatAttachmentTurns(resource),
-				onTurnComplete: session => {
-					const workingDirStr = this._stateManager.getSessionState(session)?.workingDirectories?.[0];
-					void services.gitStateService.attachSessionGitHubPullRequest(session, workingDirStr ? URI.parse(workingDirStr) : undefined);
-				},
-				onUserMessage: (session, text) => {
-					void services.gitStateService.attachSessionGitHubReferences(session.toString(), text);
-				},
-			}),
-			getSessionMetadata: session => this._getSessionMetadata(session),
-			restoreSession: session => this.restoreSession(session),
-			createSessionServerToolAccessor: () => this._createSessionServerToolAccessor(),
-			createArtifactServerToolAccessor: () => this._createArtifactServerToolAccessor(),
-		};
-	}
-
-	/** Completes the one-time wiring of collaborators that depend on {@link IAgentService}. */
-	initialize(initialization: IAgentServiceInitialization): void {
-		if (this._initialized) {
-			throw new Error('AgentService has already been initialized');
-		}
-		this._initialized = true;
-		this._gitHubEndpointService = initialization.gitHubEndpointService;
-		this._customizationEnablementService = initialization.customizationEnablementService;
-		this._gitStateService = initialization.gitStateService;
-		this._agentMergeController = initialization.agentMergeController;
-		this._checkpointService = initialization.checkpointService;
-		this._promptCache = initialization.promptCache;
-		this._sessionTitleSignal = initialization.sessionTitleSignal;
-		this._changesetOperationService = initialization.changesetOperationService;
-		this._reviewService = initialization.reviewService;
-		this._changesets = initialization.changesets;
-		this._changesetCoordinator = initialization.changesetCoordinator;
-		this._completions = initialization.completions;
-		this._terminalManager = initialization.terminalManager;
-		this._localTurns = initialization.localTurns;
-		this._sideEffects = initialization.sideEffects;
-		this._sessionCoordination = initialization.sessionCoordination;
-		this._serverToolHost = initialization.serverToolHost;
 		this._register(this._stateManager.onDidChangeSessionConfig(({ session, previous, current }) => this._syncAgentMergeIndex(URI.parse(session), previous, current)));
-		this._register(this._agentMergeController.onDidReleaseHold(session => {
-			const resource = URI.parse(session);
-			if (!this._hasSessionSubscribers(resource) && this._stateManager.getSessionState(session)) {
-				this._scheduleSessionRelease(resource);
-			}
-		}));
-
 		let externalSessionsMode = this._getExternalSessionsMode();
 		this._lastMigrateLegacyEnabled = this._isMigrateLegacyEnabled();
 		let agentMergeEnabled = this._isAgentMergeEnabled();
@@ -742,6 +688,9 @@ export class AgentService extends Disposable implements IAgentService {
 			if (nextMode !== externalSessionsMode) {
 				const previousMode = externalSessionsMode;
 				externalSessionsMode = nextMode;
+				// The only point past startup where `Recent` re-measures the
+				// superseding local sessions.
+				this._invalidateRecentSupersedingCutoff();
 				this._logService.info(`[AgentService] ${AgentHostShowExternalSessionsConfigKey} changed '${previousMode}' -> '${nextMode}'; queueing session list reconciliation`);
 				this._queueSessionListReconciliation(previousMode);
 			}
@@ -767,33 +716,51 @@ export class AgentService extends Disposable implements IAgentService {
 				reason: AuthRequiredReason.Required,
 			});
 		}));
-		this._scheduleExternalSessionPrune();
+		this._editAttributionService.setEnabled(this._stateManager.rootState.config?.values[AgentHostEditTelemetryEnabledConfigKey] !== false);
+		this._runWhenStartupSettled('external session prune', () => this._pruneStaleExternalSessions());
+		this._register(core.disposables);
+	}
+
+	/** Opens once startup settled: the host finished starting and the first listing was served. */
+	private readonly _startupSettled = new Barrier();
+	private _hostStartupComplete = false;
+	private _firstListingServed = false;
+	/** Serializes deferred work so background maintenance never overlaps. */
+	private _deferredWork = Promise.resolve();
+
+	/**
+	 * Signals that host startup finished. Deferred work runs once this and the
+	 * first session listing have both happened, so background maintenance never
+	 * competes with startup. Called by the process mains; the service owns no
+	 * ambient timer of its own.
+	 */
+	markStartupComplete(): void {
+		this._hostStartupComplete = true;
+		this._openStartupSettled();
+	}
+
+	private _openStartupSettled(): void {
+		if (this._hostStartupComplete && this._firstListingServed) {
+			this._startupSettled.open();
+		}
 	}
 
 	/**
-	 * The registered providers. Exposed so process-lifetime background jobs
-	 * (notably {@link AgentModelRefreshScheduler}) can observe registrations
-	 * without this service owning an ambient recurring timer of its own.
+	 * Runs `work` once startup has settled, serialized behind any deferred work
+	 * queued before it. For maintenance that is fine to run late and must not
+	 * compete with startup — pruning stale external sessions, titling external
+	 * sessions a provider surfaced without a title, and similar.
 	 */
-	get agents(): IObservable<readonly IAgent[]> {
-		return this._agents;
+	private _runWhenStartupSettled(name: string, work: () => Promise<void>): void {
+		this._deferredWork = this._deferredWork
+			.then(() => this._startupSettled.wait())
+			.then(() => this._store.isDisposed ? undefined : work())
+			.catch(error => this._logService.warn(`[AgentService] Deferred work '${name}' failed`, error));
 	}
 
-	/**
-	 * Fires with the provider id whenever a turn starts. Exposed alongside
-	 * {@link agents} so {@link AgentModelRefreshScheduler} can gate its periodic
-	 * refresh on real agent usage rather than polling an idle host.
-	 */
-	get onDidStartTurn(): Event<string> {
-		return this._sideEffects.onDidStartTurn;
-	}
-
-	private _scheduleExternalSessionPrune(): void {
-		this._register(disposableTimeout(() => {
-			void this._pruneStaleExternalSessions().catch(error => {
-				this._logService.warn('[AgentService] Failed to prune stale external sessions', error);
-			});
-		}, EXTERNAL_SESSION_PRUNE_DELAY_MS));
+	/** Test surface: settles once all deferred work queued so far has run. */
+	async whenDeferredWorkSettled(): Promise<void> {
+		await this._deferredWork;
 	}
 
 	private async _pruneStaleExternalSessions(): Promise<void> {
@@ -836,22 +803,64 @@ export class AgentService extends Disposable implements IAgentService {
 		this._logService.info(`[AgentService] pruned ${staleExternalSessions.length} stale external session row(s) older than ${EXTERNAL_SESSION_MAX_AGE_MS / DAY_MS} days`);
 	}
 
-	// ---- provider registration ----------------------------------------------
+	/** External sessions registered without a provider title, awaiting a generated one. */
+	private readonly _untitledExternalSessions = new Map<string, IAgentSessionMetadata>();
+	private _externalSessionTitlingQueued = false;
 
 	/**
-	 * Injects the host-owned {@link WorktreeIsolation} controller and forwards it
-	 * to the collaborators that consult it. Called by provider-infrastructure
-	 * composition after the Copilot API dependencies have been wired.
+	 * Queues external sessions whose provider surfaced them without a title.
+	 * Titling is deferred past startup and capped at the
+	 * {@link RECENT_EXTERNAL_SESSION_LIMIT} most recently updated candidates, so
+	 * a large provider catalog cannot trigger a burst of model calls.
 	 */
-	setWorktreeIsolation(worktree: WorktreeIsolation): void {
-		this._worktree = worktree;
-		this._configurationService.setWorktreeIsolation(worktree);
-		this._sideEffects.setWorktreeIsolation(worktree);
-		this._customizationEnablementService.setWorktreeIsolation(worktree);
+	private _scheduleExternalSessionTitles(sessions: readonly IAgentSessionMetadata[]): void {
+		for (const session of sessions) {
+			this._untitledExternalSessions.set(session.session.toString(), session);
+		}
+		if (this._externalSessionTitlingQueued) {
+			return;
+		}
+		this._externalSessionTitlingQueued = true;
+		this._runWhenStartupSettled('external session titles', () => {
+			this._externalSessionTitlingQueued = false;
+			return this._titleUntitledExternalSessions();
+		});
 	}
 
+	/** Titles the most recently updated queued sessions and drops the rest. */
+	private async _titleUntitledExternalSessions(): Promise<void> {
+		const candidates = [...this._untitledExternalSessions.values()]
+			.sort((a, b) => b.modifiedTime - a.modifiedTime)
+			.slice(0, RECENT_EXTERNAL_SESSION_LIMIT);
+		this._untitledExternalSessions.clear();
+		for (const candidate of candidates) {
+			try {
+				await this._generateExternalSessionTitle(candidate);
+			} catch (error) {
+				this._logService.warn(`[AgentService] Failed to title external session ${candidate.session.toString()}`, error);
+			}
+		}
+	}
+
+	/** Titles one external session from the first user prompt of its default chat. */
+	private async _generateExternalSessionTitle(metadata: IAgentSessionMetadata): Promise<void> {
+		const session = metadata.session;
+		const agent = this._findProviderForSession(session);
+		if (!agent) {
+			return;
+		}
+		const chat = URI.parse(buildDefaultChatUri(session));
+		const turns = await agent.chats.getMessages(chat, this._chatContext(session, chat));
+		const prompt = turns[0]?.message.text.trim();
+		if (prompt) {
+			await this._sideEffects.generateExternalSessionTitle(session.toString(), prompt);
+		}
+	}
+
+	// ---- provider registration ----------------------------------------------
+
 	private _toProviderConfig<T extends { readonly config?: Record<string, unknown> }>(request: T): T {
-		if (!this._worktree || !request.config) {
+		if (!this._worktree.supported || !request.config) {
 			return request;
 		}
 		return { ...request, config: omitHostOwnedSessionConfig(request.config) };
@@ -877,11 +886,11 @@ export class AgentService extends Disposable implements IAgentService {
 		// Only worktree-isolation sessions defer directory resolution to the first
 		// send (so the prompt can name the branch); folder / workspace-less
 		// sessions run directly in the picked folder.
-		if (!this._worktree?.isWorkingDirectoryPending(sessionId)) {
+		if (!this._worktree.isWorkingDirectoryPending(sessionId)) {
 			if (!pickedFolderUri) {
 				return undefined;
 			}
-			const resolved = await this._configurationService.resolveWorkingDirectoryForResume(params.session, pickedFolderUri);
+			const resolved = await this._worktree.resolveWorkingDirectoryForResume(URI.parse(params.session), sessionId, pickedFolderUri);
 			return [resolved, ...tail];
 		}
 
@@ -936,9 +945,6 @@ export class AgentService extends Disposable implements IAgentService {
 	private async _resolveWorktreeBeforeSend(params: { session: string; chat: string; turnId: string; prompt: string; sessionId: string; pickedFolderUri: URI | undefined }): Promise<URI | undefined> {
 		const { sessionId, pickedFolderUri } = params;
 		const worktree = this._worktree;
-		if (!worktree) {
-			return undefined;
-		}
 		let reportedActivity = false;
 		let failureDiagnostic: string | undefined;
 		try {
@@ -948,7 +954,7 @@ export class AgentService extends Disposable implements IAgentService {
 				workingDirectory: pickedFolderUri,
 				config: this._configurationService.getSessionConfigValues(params.session),
 				prompt: params.prompt,
-				githubToken: this.getAuthToken({
+				githubToken: this._authService.getAuthToken({
 					resource: this._gitHubEndpointService.getCopilotResource().resource,
 					scopes: this._gitHubEndpointService.getCopilotResource().scopes_supported,
 				}),
@@ -1060,10 +1066,6 @@ export class AgentService extends Disposable implements IAgentService {
 		return result;
 	}
 
-	getAuthToken(request: IAgentHostAuthTokenRequest): string | undefined {
-		return this._authService.getAuthToken(request);
-	}
-
 	// ---- Changeset operation handlers --------------------------------------
 
 	async invokeChangesetOperation(params: InvokeChangesetOperationParams): Promise<InvokeChangesetOperationResult> {
@@ -1104,7 +1106,7 @@ export class AgentService extends Disposable implements IAgentService {
 				return models;
 			},
 			getCreationDefaults: source => this._getServerToolCreationDefaults(source),
-			startPrompt: (session, chat, prompt) => this._startSessionPrompt(session, chat, prompt),
+			startPrompt: (session, chat, prompt, delegation) => this._startSessionPrompt(session, chat, prompt, delegation),
 			createChat: (session, chat, options) => this.createChat(session, chat, (options?.title !== undefined || options?.model !== undefined)
 				? { ...(options.title !== undefined ? { title: options.title } : {}), ...(options.model !== undefined ? { model: options.model } : {}) }
 				: undefined),
@@ -1119,7 +1121,6 @@ export class AgentService extends Disposable implements IAgentService {
 				type: ActionType.SessionMetaChanged,
 				_meta: withSessionSpawnDepth(this._stateManager.getSessionSummary(session.toString())?._meta, depth),
 			}),
-			setSessionOrchestration: (session, orchestration) => this._sessionCoordination.setOrchestration(session.toString(), orchestration),
 		};
 	}
 
@@ -1139,6 +1140,21 @@ export class AgentService extends Disposable implements IAgentService {
 		return this._configurationService.getRootValue(platformRootSchema, AgentHostArtifactToolsConfigKey) === true;
 	}
 
+	/**
+	 * Reads a session's persisted artifacts and references, warning when any are
+	 * lost. A corrupt row would otherwise empty a session's artifacts pill with
+	 * no trace of why the agent's recorded work disappeared.
+	 */
+	private _readPersistedArtifacts(value: string | undefined, session: string, logPrefix: string): readonly ISessionArtifact[] {
+		const { artifacts, error, dropped } = parseSessionArtifacts(value);
+		if (error) {
+			this._logService.warn(`${logPrefix} Failed to parse artifacts for ${session}: ${toErrorMessage(error)}`);
+		} else if (dropped > 0) {
+			this._logService.warn(`${logPrefix} Dropped ${dropped} malformed artifact(s) for ${session}`);
+		}
+		return artifacts;
+	}
+
 	private _getServerToolCreationDefaults(source: URI): ISessionCreationDefaults | undefined {
 		const session = this._stateManager.getSessionState(source.toString());
 		if (!session) {
@@ -1150,7 +1166,7 @@ export class AgentService extends Disposable implements IAgentService {
 			: session.draft
 				? session.draft.model
 				: session.turns.at(-1)?.message.model;
-		const config = this._providers.get(session.provider)?.getInheritedChatConfig(session.config?.values ?? {});
+		const config = this._providers.get(session.provider)?.getInheritedChatConfig(getNonMergeSessionConfigValues(session.config?.values));
 		return {
 			provider: session.provider,
 			...(model !== undefined ? { model } : {}),
@@ -1159,12 +1175,17 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	/**
-	 * Starts the first turn on a freshly-created session by dispatching a
+	 * Starts a turn requested by the session orchestration server tools
+	 * (`create_session`, `create_chat`, `send_message`) by dispatching a
 	 * `ChatTurnStarted` and routing it through the same side-effects path a
 	 * client-initiated turn takes (which sends the message to the provider).
 	 */
-	private async _startSessionPrompt(session: URI, chat: URI, prompt: string): Promise<void> {
-		const message: Message = { text: prompt, origin: { kind: MessageKind.User } };
+	private async _startSessionPrompt(session: URI, chat: URI, prompt: string, delegation?: IAgentMessageDelegationMeta): Promise<void> {
+		const message: Message = {
+			text: prompt,
+			origin: { kind: MessageKind.Agent },
+			...(delegation ? { _meta: toAgentMessageDelegationMeta(delegation) } : {}),
+		};
 		const action = { type: ActionType.ChatTurnStarted, turnId: generateUuid(), startedAt: new Date().toISOString(), message } as const;
 		this._stateManager.dispatchServerAction(chat.toString(), action);
 		this._sideEffects.handleAction(chat.toString(), action);
@@ -1183,6 +1204,76 @@ export class AgentService extends Disposable implements IAgentService {
 		this._stateManager.dispatchServerAction(chat, action);
 		this._sideEffects.handleAction(chat, action);
 		return true;
+	}
+
+	/**
+	 * Reports an Agent Merge state change in the session's default chat.
+	 *
+	 * The notice is dispatched as server state only — `AgentSideEffects` is
+	 * deliberately not involved — so it reaches clients without ever being sent
+	 * to the provider. It needs a turn of its own to live on, because the chat
+	 * reducer drops response parts that no active turn claims; that turn's
+	 * message is hidden so only the notice is rendered, and it is recorded as a
+	 * local turn because the SDK transcript replayed on restore has never seen
+	 * it.
+	 *
+	 * A notice raised while the agent holds a turn has to wait: starting a turn
+	 * now would displace the running one, and appending to it would leave the
+	 * notice on a turn the provider owns, so restore would replay that turn
+	 * without it.
+	 */
+	private _postAgentMergeNotice(session: string, kind: AgentSystemNotificationKind, content: string): void {
+		if (this._stateManager.hasActiveTurn(session)) {
+			const pending = this._pendingAgentMergeNotices.get(session);
+			if (pending) {
+				pending.push({ kind, content });
+			} else {
+				this._pendingAgentMergeNotices.set(session, [{ kind, content }]);
+			}
+			this._logService.debug(`[AgentService] Deferring an Agent Merge notice until the session is idle: session=${session}`);
+			return;
+		}
+		this._writeAgentMergeNotice(session, kind, content);
+	}
+
+	/** Emits the notices that were waiting for a session's turn to end. */
+	private _flushAgentMergeNotices(session: string): void {
+		const pending = this._pendingAgentMergeNotices.get(session);
+		if (!pending) {
+			return;
+		}
+		this._pendingAgentMergeNotices.delete(session);
+		for (const { kind, content } of pending) {
+			this._writeAgentMergeNotice(session, kind, content);
+		}
+	}
+
+	/** Writes one Agent Merge notice as a completed, host-owned local turn. */
+	private _writeAgentMergeNotice(session: string, kind: AgentSystemNotificationKind, content: string): void {
+		const chat = buildDefaultChatUri(session);
+		const channel = chat.toString();
+		const turnId = generateUuid();
+		this._stateManager.dispatchServerAction(channel, {
+			type: ActionType.ChatTurnStarted,
+			turnId,
+			startedAt: new Date().toISOString(),
+			message: withMessageHiddenFromTranscript({ text: content, origin: { kind: MessageKind.SystemNotification } }, true),
+		});
+		this._stateManager.dispatchServerAction(channel, {
+			type: ActionType.ChatResponsePart,
+			turnId,
+			part: {
+				kind: ResponsePartKind.SystemNotification,
+				content,
+				_meta: toAgentSystemNotificationMeta({ kind }),
+			},
+		});
+		this._stateManager.dispatchServerAction(channel, { type: ActionType.ChatTurnComplete, turnId, duration: 0 });
+		const turns = this._stateManager.getSessionState(chat)?.turns;
+		const recorded = turns?.find(turn => turn.id === turnId);
+		if (turns && recorded) {
+			this._localTurns.record(session, channel, recorded, this._localTurns.findAnchorTurnId(channel, turns, turnId));
+		}
 	}
 
 	/**
@@ -1219,17 +1310,6 @@ export class AgentService extends Disposable implements IAgentService {
 	private async _renameChatFromTool(session: URI, chat: URI, title: string): Promise<IRenameTitleResult> {
 		validateRenameTitle(title, SessionServerToolName.RenameChat);
 		const isDefaultChat = isDefaultChatUri(chat.toString());
-		if (isDefaultChat && await this._isOnlySessionChat(session)) {
-			await persistSessionMetadataValues(this._sessionDataService, session.toString(), {
-				[SESSION_CUSTOM_TITLE_KEY]: title,
-				[SESSION_CUSTOM_TITLE_SOURCE_KEY]: AGENT_HOST_TITLE_SOURCE_AGENT,
-			});
-			if (this._stateManager.getSessionState(session.toString())?.title !== title) {
-				this._stateManager.dispatchServerAction(session.toString(), { type: ActionType.SessionTitleChanged, title });
-			}
-			this._sideEffects.markTitleRenamed(session.toString());
-			return { title };
-		}
 		if (!isDefaultChat && !await this._peerChatExists(session, chat)) {
 			throw new Error(`Invalid ${SessionServerToolName.RenameChat} input: chat must match a known non-default chat.`);
 		}
@@ -1237,21 +1317,23 @@ export class AgentService extends Disposable implements IAgentService {
 		await persistSessionMetadataValues(this._sessionDataService, session.toString(), {
 			[customChatTitleMetadataKey(chat.toString())]: title,
 			[customChatTitleSourceMetadataKey(chat.toString())]: AGENT_HOST_TITLE_SOURCE_AGENT,
+			...(isDefaultChat ? {
+				[SESSION_CUSTOM_TITLE_KEY]: title,
+				[SESSION_CUSTOM_TITLE_SOURCE_KEY]: AGENT_HOST_TITLE_SOURCE_AGENT,
+			} : {}),
 		});
-		if (this._stateManager.getSessionState(session.toString())) {
+		const state = this._stateManager.getSessionState(session.toString());
+		if (state) {
+			if (isDefaultChat && state.title !== title) {
+				this._stateManager.dispatchServerAction(session.toString(), { type: ActionType.SessionTitleChanged, title });
+			}
 			this._stateManager.updateChatTitle(session.toString(), chat.toString(), title);
+		}
+		if (isDefaultChat) {
+			this._sideEffects.markTitleRenamed(session.toString());
 		}
 		this._sideEffects.markTitleRenamed(session.toString(), chat.toString());
 		return { title };
-	}
-
-	private async _isOnlySessionChat(session: URI): Promise<boolean> {
-		const state = this._stateManager.getSessionState(session.toString());
-		if (state) {
-			return state.chats.length === 1;
-		}
-		const persisted = await this._readPersistedPeerChatCatalog(session);
-		return persisted?.length === 0;
 	}
 
 	private async _peerChatExists(session: URI, chat: URI): Promise<boolean> {
@@ -1342,6 +1424,8 @@ export class AgentService extends Disposable implements IAgentService {
 
 	private _agentMergeRestore: Promise<void> = Promise.resolve();
 	private _agentMergeIndexWrites: Promise<void> = Promise.resolve();
+	/** Agent Merge notices waiting for a session's in-flight turn to finish. */
+	private readonly _pendingAgentMergeNotices = new Map<string, { readonly kind: AgentSystemNotificationKind; readonly content: string }[]>();
 
 	/** Test surface: settles once the startup Agent Merge restore pass and the index writes it enqueued have run. */
 	async whenAgentMergeSessionsRestored(): Promise<void> {
@@ -1391,14 +1475,6 @@ export class AgentService extends Disposable implements IAgentService {
 				}
 				this._logService.info(`[AgentService] Restoring Agent-Merge-enabled session for monitoring: ${sessionStr}`);
 				await this.restoreSession(session);
-				// `restoreSession` cancels any pending release and arms none, so
-				// a session that never takes the hold (e.g. a stale index entry
-				// whose config says disabled) would otherwise stay resident with
-				// nothing left to release it. While the hold does apply, this
-				// timer simply finds the session held and stands down.
-				if (!this._hasSessionSubscribers(session) && this._stateManager.getSessionState(sessionStr)) {
-					this._scheduleSessionRelease(session);
-				}
 			} catch (err) {
 				this._logService.warn(`[AgentService] Failed to restore Agent-Merge-enabled session ${sessionStr}`, err);
 			}
@@ -1578,20 +1654,22 @@ export class AgentService extends Disposable implements IAgentService {
 	 */
 
 	private async _registerDiscoveredChats(provider: IAgent, chats: readonly IAgentDiscoveredChat[]): Promise<boolean> {
-		const existing = new Map((await this._listRegisteredSessions()).map(session => [session.session.toString(), session.external]));
+		// Keys only: discovery arrives in batches, and the full listing re-runs the
+		// per-row provenance migration for every registered session each time.
+		const registeredKeys = new Set(await this._sessionRegistry.listSessionKeys());
 		const discoveryLimiter = new Limiter<boolean>(4);
 		let suppressed = 0;
 		let skippedAsStale = 0;
 		let registeredExternal = false;
 		let alreadyRegistered = 0;
 		let registryChanged = false;
+		const untitledExternal: IAgentSessionMetadata[] = [];
 		const results = await Promise.all(chats.map(({ external, ...metadata }) => discoveryLimiter.queue(async () => {
 			const sessionMetadata = this._toSessionMetadata(metadata);
 			const session = sessionMetadata.session;
 			try {
 				// Matching registry entries need no per-session I/O.
-				const known = existing.get(session.toString());
-				if (known !== undefined) {
+				if (registeredKeys.has(session.toString())) {
 					alreadyRegistered++;
 					return false;
 				}
@@ -1610,10 +1688,15 @@ export class AgentService extends Disposable implements IAgentService {
 				);
 				if (registered) {
 					registryChanged = true;
-					if (external && existing.get(session.toString()) !== true) {
+					// Only reached for a session the registry did not already hold, so its
+					// external read state has never been seeded.
+					if (external) {
 						await this._initializeExternalSessionReadState(session);
 					}
-					existing.set(session.toString(), external);
+					registeredKeys.add(session.toString());
+					if (external && !sessionMetadata.summary) {
+						untitledExternal.push(sessionMetadata);
+					}
 					if (external && !readSessionEhcliAdoptable(sessionMetadata._meta)) {
 						registeredExternal = true;
 					} else {
@@ -1634,6 +1717,9 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		if (registeredExternal) {
 			this._queueSessionListReconciliation();
+		}
+		if (untitledExternal.length > 0) {
+			this._scheduleExternalSessionTitles(untitledExternal);
 		}
 		this._logService.info(`[AgentService] discovery for provider ${provider.id}: ${chats.length} candidate(s) (${chats.filter(chat => chat.external).length} external), ${registered} registered, ${alreadyRegistered} already registered, ${suppressed} suppressed as subagent/chat backing, ${skippedAsStale} skipped as older than ${EXTERNAL_SESSION_MAX_AGE_MS / DAY_MS} days`);
 		return registered > 0;
@@ -1656,13 +1742,18 @@ export class AgentService extends Disposable implements IAgentService {
 		const existing = new Map((await this._listRegisteredSessions()).map(session => [session.session.toString(), session.external]));
 		const migrationLimiter = new Limiter<IRegisteredSession | undefined>(4);
 		const identities = await Promise.all(sessions.map(s => migrationLimiter.queue(async (): Promise<IRegisteredSession | undefined> => {
-			if (isSubagentSession(s.session.toString()) || await this._isChatBacking(s.session)) {
+			if (isSubagentSession(s.session.toString())) {
 				return undefined;
 			}
-			const external = await this._isExternalProviderChat(s.session);
+			const facts = await this._readSessionRegistrationFacts(s.session);
+			if (facts.chatBacking) {
+				return undefined;
+			}
+			const external = !facts.hostCreated;
 			return { session: s.session, provider: provider.id, startTime: s.startTime, external, source: external ? 'discovery' : 'restore' };
 		})));
 		let registeredExternal = false;
+		const untitledExternal: IAgentSessionMetadata[] = [];
 		for (let index = 0; index < identities.length; index++) {
 			const identity = identities[index];
 			if (!identity) {
@@ -1679,6 +1770,9 @@ export class AgentService extends Disposable implements IAgentService {
 					await this._initializeExternalSessionReadState(identity.session);
 				}
 				existing.set(identity.session.toString(), identity.external);
+				if (identity.external && !metadata.summary) {
+					untitledExternal.push(metadata);
+				}
 				if (identity.external && !readSessionEhcliAdoptable(metadata._meta)) {
 					registeredExternal = true;
 				} else {
@@ -1689,6 +1783,9 @@ export class AgentService extends Disposable implements IAgentService {
 		await this._sessionRegistry.markProviderBackfilled(provider.id);
 		if (registeredExternal) {
 			this._queueSessionListReconciliation();
+		}
+		if (untitledExternal.length > 0) {
+			this._scheduleExternalSessionTitles(untitledExternal);
 		}
 	}
 
@@ -1710,6 +1807,32 @@ export class AgentService extends Disposable implements IAgentService {
 
 		try {
 			return await ref.object.getMetadata(AH_META_WORKSPACELESS_DB_KEY) === undefined;
+		} finally {
+			ref.dispose();
+		}
+	}
+
+	/**
+	 * Both facts registry backfill needs about a session, from a single database
+	 * open — it asks for both per session, and a large catalogue makes the second
+	 * open the dominant cost of the pass.
+	 */
+	private async _readSessionRegistrationFacts(session: URI): Promise<{ readonly chatBacking: boolean; readonly hostCreated: boolean }> {
+		if (this._unpersistedChatBackings.has(session.toString())) {
+			return { chatBacking: true, hostCreated: false };
+		}
+		// A read failure is deliberately not caught: registering on a guess would
+		// durably mark a host-created session external, whereas failing the pass
+		// leaves it unmarked and retried.
+		const ref = await this._sessionDataService.tryOpenDatabase(session);
+		if (!ref) {
+			return { chatBacking: false, hostCreated: false };
+		}
+		try {
+			const metadata = await ref.object.getMetadataObject({ [CHAT_BACKING_METADATA_KEY]: true, [AH_META_WORKSPACELESS_DB_KEY]: true });
+			// The workspace-less marker is written when the host creates a session,
+			// so its presence is what identifies a host-created session.
+			return { chatBacking: !!metadata[CHAT_BACKING_METADATA_KEY], hostCreated: metadata[AH_META_WORKSPACELESS_DB_KEY] !== undefined };
 		} finally {
 			ref.dispose();
 		}
@@ -1802,7 +1925,16 @@ export class AgentService extends Disposable implements IAgentService {
 				this._inFlightListSessions.delete(mode);
 			}
 		};
-		void promise.then(clear, clear);
+		void promise.then(
+			() => {
+				clear();
+				// Only a served listing ends startup: a failed one is retried, and
+				// deferred work must not compete with that retry.
+				this._firstListingServed = true;
+				this._openStartupSettled();
+			},
+			clear,
+		);
 		return [...await promise];
 	}
 
@@ -1879,8 +2011,8 @@ export class AgentService extends Disposable implements IAgentService {
 					const sessionStr = s.session.toString();
 					const changesetKeys = this._changesetCoordinator.getListMetadataKeys(sessionStr);
 					const metadataKeys: Record<string, true> = changesetKeys
-						? { customTitle: true, [AH_META_IS_READ_DB_KEY]: true, [AH_META_IS_ARCHIVED_DB_KEY]: true, [AH_META_IS_DONE_DB_KEY]: true, [AH_META_ORCHESTRATION_DB_KEY]: true, [AH_META_WORKSPACELESS_DB_KEY]: true, [SESSION_META_MULTI_ROOT_KEY]: true, [SESSION_META_FOLDER_PICKER_KEY]: true, [SESSION_ARTIFACTS_KEY]: true, [CHAT_BACKING_METADATA_KEY]: true, [WORKTREE_META_REPOSITORY_ROOT]: true, ...GIT_DB_METADATA_KEYS, ...changesetKeys }
-						: { customTitle: true, [AH_META_IS_READ_DB_KEY]: true, [AH_META_IS_ARCHIVED_DB_KEY]: true, [AH_META_IS_DONE_DB_KEY]: true, [AH_META_ORCHESTRATION_DB_KEY]: true, [AH_META_WORKSPACELESS_DB_KEY]: true, [SESSION_META_MULTI_ROOT_KEY]: true, [SESSION_META_FOLDER_PICKER_KEY]: true, [SESSION_ARTIFACTS_KEY]: true, [CHAT_BACKING_METADATA_KEY]: true, [WORKTREE_META_REPOSITORY_ROOT]: true, ...GIT_DB_METADATA_KEYS };
+						? { customTitle: true, [AH_META_IS_READ_DB_KEY]: true, [AH_META_IS_ARCHIVED_DB_KEY]: true, [AH_META_IS_DONE_DB_KEY]: true, [AH_META_CREATED_BY_SESSION_DB_KEY]: true, [AH_META_WORKSPACELESS_DB_KEY]: true, [AH_META_EHCLI_ADOPTED_DB_KEY]: true, [SESSION_META_MULTI_ROOT_KEY]: true, [SESSION_META_FOLDER_PICKER_KEY]: true, [SESSION_ARTIFACTS_KEY]: true, [CHAT_BACKING_METADATA_KEY]: true, [WORKTREE_META_REPOSITORY_ROOT]: true, ...GIT_DB_METADATA_KEYS, ...changesetKeys }
+						: { customTitle: true, [AH_META_IS_READ_DB_KEY]: true, [AH_META_IS_ARCHIVED_DB_KEY]: true, [AH_META_IS_DONE_DB_KEY]: true, [AH_META_CREATED_BY_SESSION_DB_KEY]: true, [AH_META_WORKSPACELESS_DB_KEY]: true, [AH_META_EHCLI_ADOPTED_DB_KEY]: true, [SESSION_META_MULTI_ROOT_KEY]: true, [SESSION_META_FOLDER_PICKER_KEY]: true, [SESSION_ARTIFACTS_KEY]: true, [CHAT_BACKING_METADATA_KEY]: true, [WORKTREE_META_REPOSITORY_ROOT]: true, ...GIT_DB_METADATA_KEYS };
 					const m = await ref.object.getMetadataObject(metadataKeys);
 					// This session is an internal peer-chat backing (e.g. a
 					// Claude peer chat's SDK session, enumerated by the agent's
@@ -1902,9 +2034,9 @@ export class AgentService extends Disposable implements IAgentService {
 					if (persistedArchived !== undefined) {
 						updated = { ...updated, status: withSessionStatusFlag(updated.status ?? SessionStatus.Idle, SessionStatus.IsArchived, persistedArchived === 'true') };
 					}
-					const orchestration = parseSessionOrchestration(m[AH_META_ORCHESTRATION_DB_KEY]);
-					if (orchestration) {
-						updated = { ...updated, _meta: withSessionOrchestration(updated._meta, orchestration) };
+					const creationReference = parseSessionCreationReference(m[AH_META_CREATED_BY_SESSION_DB_KEY]);
+					if (creationReference) {
+						updated = { ...updated, _meta: withSessionCreationReference(updated._meta, creationReference) };
 					}
 					if (m[META_GIT_STATE]) {
 						try {
@@ -1934,11 +2066,14 @@ export class AgentService extends Disposable implements IAgentService {
 					if (m[AH_META_WORKSPACELESS_DB_KEY] !== undefined) {
 						updated = { ...updated, _meta: withSessionWorkspaceless(updated._meta, m[AH_META_WORKSPACELESS_DB_KEY] === 'true') };
 					}
+					if (m[AH_META_EHCLI_ADOPTED_DB_KEY] !== undefined) {
+						updated = { ...updated, _meta: withSessionEhcliAdopted(updated._meta, m[AH_META_EHCLI_ADOPTED_DB_KEY] === 'true') };
+					}
 					const multiRoot = parseSessionMultiRootMetadata(m[SESSION_META_MULTI_ROOT_KEY]);
 					if (multiRoot) {
 						updated = { ...updated, _meta: withSessionMultiRootMetadata(updated._meta, multiRoot) };
 					}
-					const artifacts = parseSessionArtifacts(m[SESSION_ARTIFACTS_KEY]);
+					const artifacts = this._readPersistedArtifacts(m[SESSION_ARTIFACTS_KEY], sessionStr, '[AgentService][listSessions]');
 					if (artifacts.length > 0) {
 						updated = { ...updated, _meta: withSessionArtifacts(updated._meta, artifacts) };
 					}
@@ -2031,7 +2166,7 @@ export class AgentService extends Disposable implements IAgentService {
 		const combined = additions.length > 0 ? [...withStatus, ...additions] : withStatus;
 		const now = Date.now();
 		const recentSessionKeys = mode === AgentHostExternalSessionsMode.Recent
-			? this._getRecentSessionKeys(combined, now)
+			? this._getRecentSessionKeys(combined, now, this._resolveRecentSupersedingCutoff(allRegistered, epoch))
 			: undefined;
 		const visible: IAgentSessionMetadata[] = [];
 		// Adoptable-legacy rows are withheld by migrate-legacy, not by the external mode.
@@ -2094,11 +2229,12 @@ export class AgentService extends Disposable implements IAgentService {
 		return modifiedTime < now - EXTERNAL_SESSION_MAX_AGE_MS;
 	}
 
-	private _getRecentSessionKeys(sessions: readonly IAgentSessionMetadata[], now: number): ReadonlySet<string> {
+	private _getRecentSessionKeys(sessions: readonly IAgentSessionMetadata[], now: number, supersededBefore: number | undefined): ReadonlySet<string> {
 		const recentExternalSessions = sessions
 			.filter(session => readSessionExternal(session._meta)
 				&& !readSessionEhcliAdoptable(session._meta)
-				&& session.modifiedTime >= now - 7 * DAY_MS)
+				&& session.modifiedTime >= now - 7 * DAY_MS
+				&& (supersededBefore === undefined || session.modifiedTime >= supersededBefore))
 			.sort((a, b) => {
 				const timeDifference = b.modifiedTime - a.modifiedTime;
 				if (timeDifference !== 0) {
@@ -2110,6 +2246,49 @@ export class AgentService extends Disposable implements IAgentService {
 			})
 			.slice(0, RECENT_EXTERNAL_SESSION_LIMIT);
 		return new Set(recentExternalSessions.map(session => session.session.toString()));
+	}
+
+	/**
+	 * Start time of the {@link RECENT_EXTERNAL_SUPERSEDING_LOCAL_LIMIT}-th most
+	 * recently created local session, or `undefined` while fewer exist. `Recent`
+	 * drops external sessions last updated before it.
+	 */
+	private _recentSupersedingCutoff: number | undefined;
+	private _hasRecentSupersedingCutoff = false;
+
+	/**
+	 * Snapshots the cutoff from the registry, which — unlike the hydrated
+	 * metadata — never drops a local session because its provider is
+	 * unavailable or its metadata read failed. Sending a first message
+	 * materializes a local session, so a per-listing cutoff would rotate an
+	 * external row out of the list mid-use. Committed only while `epoch` still
+	 * holds, so a discarded pass cannot freeze an undercounted value.
+	 */
+	private _resolveRecentSupersedingCutoff(registered: readonly IRegisteredSession[], epoch: number): number | undefined {
+		if (this._hasRecentSupersedingCutoff) {
+			return this._recentSupersedingCutoff;
+		}
+		// Idle provisional sessions are the composer's eagerly-created
+		// placeholder, not sessions the user started.
+		const localStartTimes = registered
+			.filter(entry => !entry.external
+				&& Number.isFinite(entry.startTime)
+				&& !this._stateManager.isIdleProvisionalSession(entry.session.toString()))
+			.map(entry => entry.startTime)
+			.sort((a, b) => b - a);
+		const cutoff = localStartTimes.length >= RECENT_EXTERNAL_SUPERSEDING_LOCAL_LIMIT
+			? localStartTimes[RECENT_EXTERNAL_SUPERSEDING_LOCAL_LIMIT - 1]
+			: undefined;
+		if (epoch === this._registryEpoch) {
+			this._recentSupersedingCutoff = cutoff;
+			this._hasRecentSupersedingCutoff = true;
+		}
+		return cutoff;
+	}
+
+	private _invalidateRecentSupersedingCutoff(): void {
+		this._hasRecentSupersedingCutoff = false;
+		this._recentSupersedingCutoff = undefined;
 	}
 
 	private _shouldIncludeSession(
@@ -2187,6 +2366,9 @@ export class AgentService extends Disposable implements IAgentService {
 	/** Adoptable keys retracted in this window; re-enabling also recovers earlier ones from the catalog. */
 	private readonly _retractedAdoptableKeys = new Set<string>();
 
+	/** Serializes adoptable re-surfacing, kept off the external-reconciliation chain. */
+	private _adoptableResurface: Promise<void> = Promise.resolve();
+
 	private _isMigrateLegacyEnabled(): boolean {
 		return this._configurationService.getRootValue(platformRootSchema, AgentHostMigrateLegacyCopilotCliEnabledConfigKey) === true;
 	}
@@ -2204,8 +2386,11 @@ export class AgentService extends Disposable implements IAgentService {
 		this._lastMigrateLegacyEnabled = enabled;
 		if (enabled) {
 			// Discovery skips chats already in the registry, so it cannot re-announce
-			// what disabling retracted — restore them from the registry instead.
-			this._sessionListReconciliation = this._sessionListReconciliation
+			// what disabling retracted. `_retractedAdoptableKeys` is process-local, so
+			// after a restart the catalog is the only record of them. Runs on its own
+			// chain: this scan on `_sessionListReconciliation` would stall external
+			// session reconciliation behind it.
+			this._adoptableResurface = this._adoptableResurface
 				.then(() => this._resurfaceAdoptableSessions())
 				.catch(error => this._logService.warn('[AgentService] Re-surfacing adoptable legacy sessions failed', error));
 			return;
@@ -2225,9 +2410,10 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	/**
-	 * Re-announces adoptable-legacy sessions that are not currently surfaced —
-	 * those this window retracted, plus any the catalog still reports as adoptable,
-	 * so rows retracted before a restart are recovered too.
+	 * A key is forgotten only once it is confirmed surfaced, so a failed listing —
+	 * or migration being disabled again before this runs — leaves it restorable.
+	 * Covers both what this process retracted and what the catalog still reports as
+	 * adoptable, so rows retracted before a restart are recovered too.
 	 */
 	private async _resurfaceAdoptableSessions(): Promise<void> {
 		if (!this._isMigrateLegacyEnabled()) {
@@ -2235,10 +2421,6 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		for (const metadata of await this.listSessions()) {
 			const key = metadata.session.toString();
-			if (this._announcedSurfacedKeys.has(key) || this._stateManager.getSessionState(key)) {
-				this._retractedAdoptableKeys.delete(key);
-				continue;
-			}
 			if (!this._retractedAdoptableKeys.has(key) && !readSessionEhcliAdoptable(metadata._meta)) {
 				continue;
 			}
@@ -2266,7 +2448,7 @@ export class AgentService extends Disposable implements IAgentService {
 			previouslyExposed.add(session);
 		}
 		const listed = previousMode !== undefined
-			? this._resolveModeChangeVisibility(await this.listSessions(AgentHostExternalSessionsMode.Last30Days), previousMode, previouslyExposed)
+			? await this._resolveModeChangeVisibility(await this.listSessions(AgentHostExternalSessionsMode.Last30Days), previousMode, previouslyExposed)
 			: await this.listSessions();
 		const visible = new Set<string>();
 		let published = 0;
@@ -2320,14 +2502,20 @@ export class AgentService extends Disposable implements IAgentService {
 	 * mode and the mode is just a parameter to {@link _shouldIncludeSession}.
 	 * Adds what `previousMode` had exposed into `previouslyExposed`.
 	 */
-	private _resolveModeChangeVisibility(
+	private async _resolveModeChangeVisibility(
 		superset: readonly IAgentSessionMetadata[],
 		previousMode: AgentHostExternalSessionsMode,
 		previouslyExposed: Set<string>,
-	): IAgentSessionMetadata[] {
+	): Promise<IAgentSessionMetadata[]> {
 		const now = Date.now();
-		const recentKeysFor = (mode: AgentHostExternalSessionsMode) => mode === AgentHostExternalSessionsMode.Recent
-			? this._getRecentSessionKeys(superset, now)
+		const mode = this._getExternalSessionsMode();
+		// The pass above ran as `Last30Days`, so it never snapshotted the cutoff.
+		const epoch = this._registryEpoch;
+		const supersededBefore = previousMode === AgentHostExternalSessionsMode.Recent || mode === AgentHostExternalSessionsMode.Recent
+			? this._resolveRecentSupersedingCutoff(await this._listRegisteredSessions(), epoch)
+			: undefined;
+		const recentKeysFor = (candidate: AgentHostExternalSessionsMode) => candidate === AgentHostExternalSessionsMode.Recent
+			? this._getRecentSessionKeys(superset, now, supersededBefore)
 			: undefined;
 
 		const previousRecentKeys = recentKeysFor(previousMode);
@@ -2337,7 +2525,6 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 		}
 
-		const mode = this._getExternalSessionsMode();
 		const recentKeys = recentKeysFor(mode);
 		const visible = superset.filter(session => this._shouldIncludeSession(session, mode, now, recentKeys));
 		// The pass ran as `Last30Days`, so report the mode actually in effect instead.
@@ -2400,7 +2587,7 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		if (config?.session) {
 			this._cancelPendingSessionGc(config.session);
-			this._cancelPendingSessionRelease(config.session);
+			this._sessionResidency.touch(config.session);
 		}
 
 		// Capability gate: only a provider that advertises
@@ -2419,39 +2606,6 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 		}
 
-		// When forking, build the old→new turn ID mapping before creating the
-		// session so the agent can use it to remap per-turn data. If the
-		// source has no turns to copy (e.g. a still-provisional session), a
-		// "fork" is indistinguishable from a fresh session, so we drop the
-		// fork parameter and fall through to the regular create path.
-		if (config?.fork) {
-			const sourceState = this._stateManager.getSessionState(config.fork.session.toString());
-			const sourceTurns = sourceState?.turns.slice(0, config.fork.turnIndex + 1) ?? [];
-			if (sourceTurns.length === 0) {
-				config = { ...config, fork: undefined };
-			} else {
-				const turnIdMapping = new Map<string, string>();
-				for (const t of sourceTurns) {
-					turnIdMapping.set(t.id, generateUuid());
-				}
-				// The SDK fork boundary must be a concrete (SDK-backed) turn.
-				// When the client forked at a host-injected local turn
-				// (`/rename` / `!command`), redirect the agent to the preceding
-				// concrete turn while still seeding the local turns up to the
-				// fork point into the new session's protocol state below.
-				const concreteForkTurnId = this._localTurns.resolveConcreteTurnId(buildDefaultChatUri(config.fork.session).toString(), config.fork.turnId);
-				config = {
-					...config,
-					fork: {
-						...config.fork,
-						chat: URI.parse(buildDefaultChatUri(config.fork.session)),
-						turnIdMapping,
-						...(concreteForkTurnId !== undefined ? { turnId: concreteForkTurnId } : {}),
-					},
-				};
-			}
-		}
-
 		// When importing a conversation, assign fresh UUID turn ids up front so
 		// the provider seeds an event log whose ids match the protocol turns we
 		// seed below — keeping edit / fork / truncate addressable at the SDK
@@ -2467,7 +2621,7 @@ export class AgentService extends Disposable implements IAgentService {
 		// materializing in the picked folder before the host creates the worktree.
 		const initializeSideEffects = this._sideEffects.initialize();
 		const sessionConfig = await this._resolveCreatedSessionConfig(provider, config);
-		const deferWorktreeCreation = sessionConfig?.values?.[SessionConfigKey.Isolation] === 'worktree' && !config?.fork && !config?.importConversation;
+		const deferWorktreeCreation = sessionConfig?.values?.[SessionConfigKey.Isolation] === 'worktree' && !config?.importConversation;
 
 		this._logService.trace(`[AgentService] createSession: initializing auto-approver and creating session...`);
 		const [, created] = await Promise.all([
@@ -2476,6 +2630,17 @@ export class AgentService extends Disposable implements IAgentService {
 		]);
 		const session = created.session;
 		this._logService.trace(`[AgentService] createSession: initialization complete`);
+		const creationReference = readSessionCreationReference(config?._meta);
+		if (creationReference && !isEphemeral) {
+			try {
+				await persistSessionMetadataValues(this._sessionDataService, session.toString(), {
+					[AH_META_CREATED_BY_SESSION_DB_KEY]: JSON.stringify(creationReference),
+				});
+			} catch (err) {
+				await this._rollbackProviderSession(provider, session);
+				throw err;
+			}
+		}
 		if (isEphemeral) {
 			try {
 				await this._retryRegistryMutation(
@@ -2506,7 +2671,7 @@ export class AgentService extends Disposable implements IAgentService {
 		// timer would still fire and dispose the just-revived session
 		// before the follow-up `subscribe` arrives.
 		this._cancelPendingSessionGc(session);
-		this._cancelPendingSessionRelease(session);
+		this._sessionResidency.touch(session);
 
 		this._logService.trace(`[AgentService] createSession: provider=${provider.id} model=${config?.model?.id ?? '(default)'}`);
 		this._sessionToProvider.set(session.toString(), provider.id);
@@ -2533,7 +2698,7 @@ export class AgentService extends Disposable implements IAgentService {
 		// updates while resolving that snapshot; without a state entry those
 		// actions are rejected as targeting an unknown session and custom agents
 		// can disappear from the picker permanently.
-		const provisionalState = created.provisional && !config?.fork && !config?.importConversation
+		const provisionalState = created.provisional && !config?.importConversation
 			? (() => {
 				const summary = this._buildInitialSummary(provider, session, config, created, '');
 				const state = this._stateManager.createSession(summary, { emitNotification: false });
@@ -2563,9 +2728,9 @@ export class AgentService extends Disposable implements IAgentService {
 			}),
 			// The harness owns the Folder-picker decision (it is provider-specific),
 			// derived from the ordered working-directory set. Only meaningful for a
-			// fresh (non-fork, non-import) multi-root session — the picker never
+			// fresh (non-import) multi-root session — the picker never
 			// shows with a single folder — and seeded into `_meta` below.
-			workingDirectories && workingDirectories.length > 1 && !config?.fork && !config?.importConversation && provider.computeFolderPickerDecision
+			workingDirectories && workingDirectories.length > 1 && !config?.importConversation && provider.computeFolderPickerDecision
 				? provider.computeFolderPickerDecision(workingDirectories).catch(err => {
 					// Fail open: on an indeterminate scan error, show the picker rather
 					// than silently hiding it and pinning the default (index 0) folder.
@@ -2575,47 +2740,7 @@ export class AgentService extends Disposable implements IAgentService {
 				: Promise.resolve(undefined),
 		]);
 
-		// When forking, populate the new session's protocol state with
-		// the source session's turns so the client sees the forked history.
-		if (config?.fork) {
-			const sourceState = this._stateManager.getSessionState(config.fork.session.toString());
-			const sourceChatUri = buildDefaultChatUri(config.fork.session).toString();
-			const newChatUri = buildDefaultChatUri(session).toString();
-			let sourceTurns: Turn[] = [];
-			if (sourceState && config.fork.turnIdMapping) {
-				const originalSlice = sourceState.turns.slice(0, config.fork.turnIndex + 1);
-				const mapping = config.fork.turnIdMapping;
-				sourceTurns = originalSlice.map(t => ({ ...t, id: mapping.get(t.id) ?? generateUuid() }));
-				// Re-persist forked local turns (`/rename`, `!command`) under the
-				// new session's default chat. `record` (keyed by turn id)
-				// overwrites any rows a DB copy carried with the SOURCE chat URI,
-				// and seeds the in-memory index for same-process fork/truncate.
-				this._persistForkedLocalTurns(session.toString(), sourceChatUri, newChatUri, originalSlice, sourceTurns, mapping);
-			}
-
-			// Prefix the forked session's title so consumers (sidebar, chat
-			// model) can distinguish it from the source without each surface
-			// reinventing the convention. Avoid double-prefixing when a user
-			// forks an already-forked session.
-			const forkedTitlePrefix = localize('agentHost.forkedTitlePrefix', "Forked: ");
-			const sourceTitle = sourceState?.title;
-			const forkedTitle = sourceTitle
-				? (sourceTitle.startsWith(forkedTitlePrefix) ? sourceTitle : `${forkedTitlePrefix}${sourceTitle}`)
-				: localize('agentHost.forkedSessionFallback', "Forked Session");
-			const summary = this._buildInitialSummary(provider, session, config, created, forkedTitle);
-			const state = this._stateManager.createSession(summary);
-			state.config = sessionConfig;
-			this._stateManager.seedDefaultChatTurns(summary.resource, sourceTurns);
-			state.activeClients = config.activeClient ? [config.activeClient] : [];
-
-			// Refine the forked session's placeholder `Forked: …` title into one
-			// derived from the inherited chat. Forks seed pre-existing
-			// turns, so the normal first-message/first-turn title generation
-			// never fires for them — this is the fork-time equivalent.
-			if (sourceTurns.length > 0) {
-				this._sideEffects.generateForkedTitle(summary.resource, undefined, sourceTurns, forkedTitle, sourceTitle);
-			}
-		} else if (config?.importConversation) {
+		if (config?.importConversation) {
 			// An imported conversation arrives with pre-existing turns (assigned
 			// fresh UUID ids above). Seed them into the new session's protocol
 			// state so the client renders the imported history immediately; the
@@ -2630,7 +2755,7 @@ export class AgentService extends Disposable implements IAgentService {
 			state.activeClients = config.activeClient ? [config.activeClient] : [];
 
 			// Refine the placeholder title into one generated from the imported
-			// conversation, mirroring forks. Imports seed pre-existing turns, so
+			// conversation. Imports seed pre-existing turns, so
 			// the normal first-message title generation never fires; without this
 			// the session would keep showing the raw first-message clip while
 			// sibling sessions show clean generated titles — making imports look
@@ -2689,13 +2814,17 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 		}
 
-		const workingDirectory = created.resolvedWorkingDirectory ?? config?.workingDirectories?.[0];
-		void this._gitStateService.refreshSessionGitState(session.toString(), workingDirectory);
+		if (!this._worktree.isWorkingDirectoryPending(AgentSession.id(session))) {
+			const workingDirectory = created.resolvedWorkingDirectory ?? config?.workingDirectories?.[0];
+			void this._gitStateService.refreshSessionGitState(session.toString(), workingDirectory);
+		}
 
+		this._sessionResidency.touch(session);
+		await this._sessionResidency.reconcile();
 		return session;
 	}
 
-	async createChat(session: URI, chat: URI, options?: IAgentCreateChatOptions): Promise<void> {
+	async createChat(session: URI, chat: URI, options?: IAgentCreateChatRequestOptions): Promise<void> {
 		const sessionKey = session.toString();
 		const provider = this._findProviderForSession(session);
 		if (!provider) {
@@ -2711,36 +2840,44 @@ export class AgentService extends Disposable implements IAgentService {
 		let forkedTurns: Turn[] | undefined;
 		let forkedTitle: string | undefined;
 		let forkedSourceTitle: string | undefined;
-		let createOptions = options;
+		const { sideChat, ...providerOptions } = options ?? {};
+		let createOptions: IAgentCreateChatOptions | undefined = providerOptions;
 		// Persist exhaustive provenance for peer chats. Fresh user-created chats
 		// leave this undefined and default to `ChatOriginKind.User`.
 		let peerChatOrigin: ChatOrigin | undefined;
-		if (options?.sideChat) {
-			const resolvedSideChat = await this._resolveSideChatOrigin(session, options.sideChat);
+		if (sideChat) {
+			const resolvedSideChat = await this._resolveSideChatOrigin(session, sideChat);
 			peerChatOrigin = resolvedSideChat.origin;
 			createOptions = {
-				...options,
-				sideChat: {
-					...options.sideChat,
-					source: URI.parse(resolvedSideChat.sourceChat),
-					...(resolvedSideChat.providerAnchorTurnId ? { providerAnchorTurnId: resolvedSideChat.providerAnchorTurnId } : {}),
-					...(resolvedSideChat.sourceContext ? { sourceContext: resolvedSideChat.sourceContext } : {}),
-					...(resolvedSideChat.partialResponse ? { partialResponse: resolvedSideChat.partialResponse } : {}),
-				},
+				...providerOptions,
+				...(resolvedSideChat.shouldFork
+					? {
+						fork: {
+							source: URI.parse(resolvedSideChat.sourceChat),
+							turnId: resolvedSideChat.anchorTurnId ?? sideChat.turnId,
+							independentQueue: true,
+						},
+					}
+					: {
+						// Active turns run on per-chat queues, so this fresh creation cannot wait behind the source turn.
+						fork: undefined,
+					}),
 			};
 		}
-		if (options?.fork) {
-			const { sourceChatKey, sourceSessionKey, sourceState } = await this._resolveSessionSourceChat(options.fork.source);
+		if (createOptions?.fork && !sideChat) {
+			const { sourceChatKey, sourceSessionKey, sourceState } = await this._resolveSessionSourceChat(createOptions.fork.source);
 			if (this._stateManager.getChatOrigin(sourceChatKey)?.kind === ChatOriginKind.Tool) {
 				throw new Error(`[AgentService] createChat: cannot fork provider-spawned chat ${sourceChatKey}`);
 			}
 			const sourceTurns = sourceState?.turns ?? [];
-			const forkIndex = sourceTurns.findIndex(t => t.id === options.fork!.turnId);
+			// Hoisted: narrowing on `createOptions` does not survive into the callback.
+			const forkTurnId = createOptions.fork.turnId;
+			const forkIndex = sourceTurns.findIndex(t => t.id === forkTurnId);
 			if (forkIndex < 0) {
 				// The fork point is unknown, so a fork is indistinguishable from a
 				// fresh chat. Drop the fork to avoid the provider inheriting the
 				// whole backend chat while the UI is seeded with no turns.
-				createOptions = { ...options, fork: undefined };
+				createOptions = { ...createOptions, fork: undefined };
 			} else {
 				const slice = sourceTurns.slice(0, forkIndex + 1);
 				const turnIdMapping = new Map<string, string>();
@@ -2752,7 +2889,7 @@ export class AgentService extends Disposable implements IAgentService {
 				// Record the fork boundary in host terms: the concrete source chat URI
 				// and the requested host-visible turn id, not the provider-specific
 				// one below.
-				peerChatOrigin = { kind: ChatOriginKind.Fork, chat: sourceChatKey, turnId: options.fork.turnId };
+				peerChatOrigin = { kind: ChatOriginKind.Fork, chat: sourceChatKey, turnId: createOptions.fork.turnId };
 
 				// Carry forked host-injected local turns (`/rename`, `!command`)
 				// into the new chat so they survive reload and anchor future
@@ -2768,11 +2905,11 @@ export class AgentService extends Disposable implements IAgentService {
 				// the client forked at a host-injected local turn, redirect the
 				// agent to the preceding concrete turn (the local turns are still
 				// seeded into the new chat's protocol state above).
-				const concreteForkTurnId = this._localTurns.resolveConcreteTurnId(sourceChatKey, options.fork.turnId);
+				const concreteForkTurnId = this._localTurns.resolveConcreteTurnId(sourceChatKey, createOptions.fork.turnId);
 				createOptions = {
-					...options,
+					...createOptions,
 					fork: {
-						...options.fork,
+						...createOptions.fork,
 						source: URI.parse(sourceChatKey),
 						turnIdMapping,
 						...(concreteForkTurnId !== undefined ? { turnId: concreteForkTurnId } : {}),
@@ -2786,7 +2923,7 @@ export class AgentService extends Disposable implements IAgentService {
 		const createResult = await this._createChat(provider, chat, session, createOptions);
 		const providerData = createResult?.providerData;
 		try {
-			await this._persistPeerChat(session, chat, providerData, peerChatOrigin);
+			await this._persistPeerChat(session, chat, providerData, peerChatOrigin, createResult?.inheritedTurnId);
 		} catch (error) {
 			try {
 				await provider.chats.disposeChat(chat, this._chatContext(session, chat));
@@ -2801,7 +2938,10 @@ export class AgentService extends Disposable implements IAgentService {
 			...(forkedTurns !== undefined ? { turns: forkedTurns } : {}),
 			...(providerData !== undefined ? { providerData } : {}),
 			...(peerChatOrigin !== undefined ? { origin: peerChatOrigin } : {}),
+			...(createResult?.inheritedTurnId !== undefined ? { inheritedTurnId: createResult.inheritedTurnId } : {}),
 		});
+		this._sessionResidency.touch(session);
+		void this._sessionResidency.reconcile();
 
 		// If the agent exposes this chat as its own SDK session, mark that
 		// backing so it stays out of the top-level session list. `_markChatBacking`
@@ -2826,7 +2966,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 * origin. Throws when the source chat is not part of `session` or when the
 	 * referenced completed or active turn is absent.
 	 */
-	private async _resolveSideChatOrigin(session: URI, sideChat: IAgentCreateChatSideChatSource): Promise<{ origin: ChatOrigin; sourceChat: string; selection?: IAgentCreateChatSideChatSelection; providerAnchorTurnId?: string; sourceContext?: string; partialResponse?: string }> {
+	private async _resolveSideChatOrigin(session: URI, sideChat: IAgentCreateChatSideChatSource): Promise<{ origin: ChatOrigin; sourceChat: string; selection?: IAgentCreateChatSideChatSelection; anchorTurnId?: string; shouldFork: boolean }> {
 		const sessionKey = session.toString();
 		const sourceKey = sideChat.source.toString();
 		const { sourceChatKey, sourceSessionKey, sourceState } = await this._resolveSessionSourceChat(sideChat.source);
@@ -2842,12 +2982,12 @@ export class AgentService extends Disposable implements IAgentService {
 		if (!hasCompletedTurn && !activeTurn) {
 			throw new Error(`[AgentService] createChat: side chat source turn ${sideChat.turnId} not found in ${sourceKey}`);
 		}
-		const isLocalSourceTurn = !activeTurn && this._localTurns.isLocal(sourceChatKey, sideChat.turnId);
-		const providerAnchorTurnId = isLocalSourceTurn ? this._localTurns.resolveConcreteTurnId(sourceChatKey, sideChat.turnId) : undefined;
-		const partialResponse = getSideChatPartialResponse(activeTurn);
-		const sourceContext = (activeTurn || isLocalSourceTurn)
-			? buildBoundedSideChatSourceContext(sourceState?.turns ?? [], sideChat.turnId, activeTurn)
-			: undefined;
+		let anchorTurnId: string | undefined;
+		if (activeTurn) {
+			anchorTurnId = resolveLastNonLocalTurnId(sourceState?.turns ?? [], turnId => this._localTurns.isLocal(sourceChatKey, turnId));
+		} else if (this._localTurns.isLocal(sourceChatKey, sideChat.turnId)) {
+			anchorTurnId = this._localTurns.resolveConcreteTurnId(sourceChatKey, sideChat.turnId);
+		}
 		const selection = sideChat.selection?.text.trim()
 			? sideChat.selection
 			: sideChat.selection
@@ -2861,10 +3001,9 @@ export class AgentService extends Disposable implements IAgentService {
 				...(selection ? { selection } : {}),
 			},
 			sourceChat: sourceChatKey,
+			shouldFork: !activeTurn || anchorTurnId !== undefined,
 			...(selection ? { selection } : {}),
-			...(providerAnchorTurnId ? { providerAnchorTurnId } : {}),
-			...(sourceContext ? { sourceContext } : {}),
-			...(partialResponse ? { partialResponse } : {}),
+			...(anchorTurnId ? { anchorTurnId } : {}),
 		};
 	}
 
@@ -2894,9 +3033,9 @@ export class AgentService extends Disposable implements IAgentService {
 				await this._disposeChat(provider, chat);
 			}
 			await this._removePersistedPeerChat(session, chat);
-			this._sideEffects.clearQueuedMessageSenders(chatKey);
 			this._sideEffects.cancelSubagentSessions(chatKey);
 			this._sideEffects.clearChannelTelemetry(chatKey);
+			this._chatContributions.disposeChatState(chatKey);
 			this._stateManager.removeChat(sessionKey, chatKey);
 		} finally {
 			this._disposingPeerChats.delete(chatKey);
@@ -2938,7 +3077,7 @@ export class AgentService extends Disposable implements IAgentService {
 	private async _createProviderSession(provider: IAgent, config: IAgentCreateSessionConfig | undefined, deferWorktreeCreation: boolean): Promise<IAgentCreateSessionResult> {
 		const requestedSessionId = deferWorktreeCreation && config?.session ? AgentSession.id(config.session) : undefined;
 		if (requestedSessionId) {
-			this._worktree?.notePending(requestedSessionId);
+			this._worktree.notePending(requestedSessionId);
 		}
 
 		let created: IAgentCreateSessionResult | undefined;
@@ -2956,7 +3095,7 @@ export class AgentService extends Disposable implements IAgentService {
 				...(result ? { chat: result } : {}),
 			};
 			if (deferWorktreeCreation && created.provisional) {
-				this._worktree?.notePending(AgentSession.id(created.session));
+				this._worktree.notePending(AgentSession.id(created.session));
 			}
 			await this._persistDefaultChatBacking(created);
 			return created;
@@ -2968,7 +3107,7 @@ export class AgentService extends Disposable implements IAgentService {
 		} finally {
 			const returnedPendingSessionId = created?.provisional ? AgentSession.id(created.session) : undefined;
 			if (requestedSessionId && requestedSessionId !== returnedPendingSessionId) {
-				this._worktree?.clearPending(requestedSessionId);
+				this._worktree.clearPending(requestedSessionId);
 			}
 		}
 	}
@@ -2989,13 +3128,29 @@ export class AgentService extends Disposable implements IAgentService {
 
 	private _getSessionChatsInTeardownOrder(session: URI): URI[] {
 		const state = this._stateManager.getSessionState(session.toString());
-		const defaultChat = state?.defaultChat ?? buildDefaultChatUri(session.toString());
+		return this._orderSessionChatsForTeardown(session, state?.chats.map(chat => chat.resource) ?? []);
+	}
+
+	private async _getSessionChatsForDisposal(provider: IAgent, session: URI): Promise<URI[]> {
+		const state = this._stateManager.getSessionState(session.toString());
+		if (state) {
+			return this._getSessionChatsInTeardownOrder(session);
+		}
+		const persisted = await this._readPersistedPeerChatCatalog(session);
+		const peerChats = persisted?.map(chat => chat.uri)
+			?? (await provider.listLegacyChatBackings?.(session))?.map(chat => chat.uri.toString())
+			?? [];
+		return this._orderSessionChatsForTeardown(session, peerChats);
+	}
+
+	private _orderSessionChatsForTeardown(session: URI, chats: readonly string[]): URI[] {
+		const defaultChat = buildDefaultChatUri(session.toString());
 		const result: URI[] = [];
 		const seen = new Set<string>();
-		for (const summary of state?.chats ?? []) {
-			if (summary.resource !== defaultChat && !seen.has(summary.resource)) {
-				seen.add(summary.resource);
-				result.push(URI.parse(summary.resource));
+		for (const chat of chats) {
+			if (chat !== defaultChat && !seen.has(chat)) {
+				seen.add(chat);
+				result.push(URI.parse(chat));
 			}
 		}
 		if (!seen.has(defaultChat)) {
@@ -3011,7 +3166,7 @@ export class AgentService extends Disposable implements IAgentService {
 	private async _disposeSession(provider: IAgent, session: URI): Promise<void> {
 		await this._defaultChatBackingWrites.get(session.toString())?.catch(() => { });
 		let firstError: unknown;
-		for (const chat of this._getSessionChatsInTeardownOrder(session)) {
+		for (const chat of await this._getSessionChatsForDisposal(provider, session)) {
 			try {
 				await provider.chats.disposeChat(chat, this._chatContext(session, chat));
 			} catch (err) {
@@ -3066,91 +3221,10 @@ export class AgentService extends Disposable implements IAgentService {
 	 */
 	private async _getChatMessages(provider: IAgent, chat: URI, session: URI, origin?: ChatOrigin): Promise<readonly Turn[]> {
 		const context = { ...this._chatContext(session, chat), ...(origin ? { origin } : {}) };
-		const turns = await this._applyPersistedTurnUsage(chat, await provider.chats.getMessages(chat, context));
-		// Host-owned worktree restore announcement: re-inject the "Created isolated
-		// worktree" message at the top of the default chat's first turn from
-		// persisted metadata. No-op for folder sessions and non-default chats (peer
-		// / subagent). Agents stay unaware of worktrees.
-		if (this._worktree && isDefaultChatUri(chat)) {
-			return this._worktree.applyRestoreAnnouncement(URI.parse(parseRequiredSessionUriFromChatUri(chat.toString())), turns);
-		}
-		return turns;
-	}
-
-	/**
-	 * Re-attaches persisted per-turn {@link UsageInfo} to reconstructed turns.
-	 *
-	 * Agent backends don't durably record token/credit usage — the Copilot
-	 * SDK's `assistant.usage` event is explicitly ephemeral and the Claude
-	 * transcript replay produces none — so restored turns come back without it.
-	 * Without this the chat's context-usage gauge stays hidden after a reload
-	 * and the session cost total restarts from zero. Usage recorded live by
-	 * {@link AgentSideEffects} is looked up by turn id (or the turn's SDK event
-	 * id, which is what a restored turn is keyed by).
-	 *
-	 * NOTE: the lookup only lands for providers that record the bridge between
-	 * the live protocol turn id (a host-generated uuid) and the id a restored
-	 * turn is keyed by. Today only Copilot does, via `setTurnEventId`. Claude
-	 * restores turns keyed by transcript uuid and never populates
-	 * `turns.event_id`, so its rows are written but never matched; giving it a
-	 * gauge after reload needs that bridge recorded first.
-	 */
-	private async _applyPersistedTurnUsage(chat: URI, turns: readonly Turn[]): Promise<readonly Turn[]> {
-		if (turns.length === 0 || turns.every(turn => hasReportedUsage(turn.usage)) || isSubagentChatUri(chat.toString())) {
-			return turns;
-		}
-		// Same storage the writer used; see `chatStorageUri`.
-		const storage = chatStorageUri(chat);
-		if (!storage) {
-			return turns;
-		}
-		let usages: Map<string, string>;
-		const ref = await this._sessionDataService.tryOpenDatabase(storage);
-		if (!ref) {
-			return turns;
-		}
-		try {
-			usages = await ref.object.getTurnUsages();
-		} catch (err) {
-			this._logService.warn(`[AgentService] Failed to read persisted turn usage for ${storage.toString()}`, err);
-			return turns;
-		} finally {
-			ref.dispose();
-		}
-		if (usages.size === 0) {
-			return turns;
-		}
-		return turns.map(turn => {
-			const raw = hasReportedUsage(turn.usage) ? undefined : usages.get(turn.id);
-			if (!raw) {
-				return turn;
-			}
-			try {
-				const parsed: unknown = JSON.parse(raw);
-				// Never spread an untyped payload blind: a corrupted column
-				// holding a string or array would splat index keys onto the
-				// turn's usage and flow that malformed shape to the renderer.
-				if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-					return turn;
-				}
-				const persisted = parsed as UsageInfo;
-				// Merge rather than replace: a turn that ran on Auto already
-				// carries a token-less stub holding `_meta.autoModeResolved`
-				// (see `mapSessionEvents`), which drives the "Auto (model)"
-				// label. Persisted values win; the stub fills what they lack.
-				const meta = { ...turn.usage?._meta, ...persisted._meta };
-				return {
-					...turn,
-					usage: {
-						...turn.usage,
-						...persisted,
-						...(Object.keys(meta).length > 0 ? { _meta: meta } : {}),
-					},
-				};
-			} catch {
-				return turn;
-			}
-		});
+		this._logService.trace(`[AgentService] getChatMessages start: chat=${chat.toString()}`);
+		const providerTurns = await provider.chats.getMessages(chat, context);
+		this._logService.trace(`[AgentService] getChatMessages: provider returned ${providerTurns.length} turn(s) for chat=${chat.toString()}`);
+		return this._chatContributions.hydrateTurns({ session: session.toString(), chat: chat.toString() }, providerTurns);
 	}
 
 	/**
@@ -3228,11 +3302,10 @@ export class AgentService extends Disposable implements IAgentService {
 	 */
 	private async _createChat(provider: IAgent, chat: URI, session: URI, options: IAgentCreateChatOptions | undefined): Promise<IAgentCreateChatResult | void> {
 		const placement = this._buildChatPlacement(session);
-		const convOptions: IAgentCreateChatOptions | undefined = (options?.title !== undefined || options?.model !== undefined || options?.sideChat !== undefined || placement)
+		const convOptions: IAgentCreateChatOptions | undefined = (options?.title !== undefined || options?.model !== undefined || placement)
 			? {
 				...(options?.title !== undefined ? { title: options.title } : {}),
 				...(options?.model !== undefined ? { model: options.model } : {}),
-				...(options?.sideChat !== undefined ? { sideChat: options.sideChat } : {}),
 				...(placement?.workingDirectories ? { workingDirectories: placement.workingDirectories } : {}),
 				...(placement?.project ? { project: placement.project } : {}),
 				...(placement?.config ? { config: placement.config } : {}),
@@ -3246,21 +3319,14 @@ export class AgentService extends Disposable implements IAgentService {
 	private _toCreateChatOptions(config: IAgentCreateSessionConfig): IAgentCreateChatOptions {
 		return {
 			...(config.session && this._stateManager.isEphemeralSession(config.session.toString()) ? { isEphemeral: true } : {}),
+			...(readChatSurfaceMeta(config)?.surface === 'editorInline' ? { hasScopedEditSurface: true } : {}),
 			...(config.model ? { model: config.model } : {}),
 			...(config.agent ? { agent: config.agent } : {}),
 			...(config.workingDirectories ? { workingDirectories: config.workingDirectories } : {}),
 			...(config.config ? { config: config.config } : {}),
 			...(config.activeClient ? { activeClient: config.activeClient } : {}),
-			...(!config.fork && !config.importConversation ? { deferBacking: true } : {}),
+			...(!config.importConversation ? { deferBacking: true } : {}),
 			...(config.importConversation ? { importConversation: config.importConversation } : {}),
-			...(config.fork ? {
-				fork: {
-					source: config.fork.chat,
-					turnIndex: config.fork.turnIndex,
-					turnId: config.fork.turnId,
-					turnIdMapping: config.fork.turnIdMapping,
-				},
-			} : {}),
 		};
 	}
 
@@ -3268,7 +3334,7 @@ export class AgentService extends Disposable implements IAgentService {
 	private _buildChatPlacement(session: URI): Pick<IAgentCreateChatOptions, 'workingDirectories' | 'project' | 'config'> | undefined {
 		const state = this._stateManager.getSessionState(session.toString());
 		const workingDirectories = state?.workingDirectories?.map(directory => typeof directory === 'string' ? URI.parse(directory) : directory) ?? [];
-		const resolvedPrimary = this._worktree?.getResolvedWorktree(AgentSession.id(session));
+		const resolvedPrimary = this._worktree.getResolvedWorktree(AgentSession.id(session));
 		if (resolvedPrimary) {
 			workingDirectories[0] = resolvedPrimary;
 		}
@@ -3311,15 +3377,14 @@ export class AgentService extends Disposable implements IAgentService {
 		const now = new Date().toISOString();
 		const explicitGitHubState = readSessionGitHubState(config?._meta);
 		const explicitMultiRoot = readSessionMultiRootMetadata(config?._meta);
-		const inheritedMultiRoot = config?.fork
-			? readSessionMultiRootMetadata(this._stateManager.getSessionSummary(config.fork.session.toString())?._meta)
-			: undefined;
 		let _meta = withSessionGitHubState(undefined, explicitGitHubState);
-		_meta = withSessionMultiRootMetadata(_meta, explicitMultiRoot ?? inheritedMultiRoot);
+		_meta = withSessionMultiRootMetadata(_meta, explicitMultiRoot);
 		_meta = withEphemeralSessionMeta(_meta, config ? readEphemeralSessionMeta(config).isEphemeral : undefined);
 		_meta = withChatSurfaceMeta(_meta, readChatSurfaceMeta(config ?? {}));
 		_meta = withSessionExternal(_meta, false);
-		_meta = !config?.fork && !config?.workingDirectories
+		const creationReference = readSessionCreationReference(config?._meta);
+		_meta = creationReference ? withSessionCreationReference(_meta, creationReference) : _meta;
+		_meta = !config?.workingDirectories
 			? withSessionWorkspaceless(_meta, true)
 			: _meta;
 		return {
@@ -3390,7 +3455,7 @@ export class AgentService extends Disposable implements IAgentService {
 		// The agent no longer knows about worktrees; the host's worktree project
 		// (created in the first-send hook) wins for worktree-isolated sessions, and
 		// falls back to whatever the agent reported for folder sessions.
-		const project = this._worktree?.sessionWorktreeProject(AgentSession.id(session)) ?? e.project;
+		const project = this._worktree.sessionWorktreeProject(AgentSession.id(session)) ?? e.project;
 		const currentSet = currentSummary.workingDirectories?.map(d => URI.parse(d));
 		const summary: SessionSummary = {
 			...currentSummary,
@@ -3622,10 +3687,10 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	private async _withWorktreeConfigContribution(result: ResolveSessionConfigResult, params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> {
-		if (!this._worktree) {
+		const iso = await this._worktree.resolveIsolationConfig({ workingDirectory: params.workingDirectory, config: params.config });
+		if (!iso) {
 			return result;
 		}
-		const iso = await this._worktree.resolveIsolationConfig({ workingDirectory: params.workingDirectory, config: params.config });
 		const properties: Record<string, SessionConfigPropertySchema> = {
 			[SessionConfigKey.Isolation]: iso.isolationProperty.protocol,
 			...omitHostOwnedSessionConfig(result.schema.properties),
@@ -3638,6 +3703,9 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		if (iso.worktreeBranchTrackProperty) {
 			properties[SessionConfigKey.WorktreeBranchTrack] = iso.worktreeBranchTrackProperty.protocol;
+		}
+		if (iso.worktreeCreateNewBranchProperty) {
+			properties[SessionConfigKey.WorktreeCreateNewBranch] = iso.worktreeCreateNewBranchProperty.protocol;
 		}
 		if (iso.worktreeIncludeFilesProperty) {
 			properties[SessionConfigKey.WorktreeIncludeFiles] = iso.worktreeIncludeFilesProperty.protocol;
@@ -3652,6 +3720,9 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		if (iso.worktreeBranchTrackProperty && typeof params.config?.[SessionConfigKey.WorktreeBranchTrack] === 'boolean') {
 			values[SessionConfigKey.WorktreeBranchTrack] = params.config[SessionConfigKey.WorktreeBranchTrack];
+		}
+		if (iso.worktreeCreateNewBranchProperty && typeof params.config?.[SessionConfigKey.WorktreeCreateNewBranch] === 'boolean') {
+			values[SessionConfigKey.WorktreeCreateNewBranch] = params.config[SessionConfigKey.WorktreeCreateNewBranch];
 		}
 		if (iso.worktreeIncludeFilesProperty
 			&& Array.isArray(params.config?.[SessionConfigKey.WorktreeIncludeFiles])
@@ -3674,7 +3745,7 @@ export class AgentService extends Disposable implements IAgentService {
 	async sessionConfigCompletions(params: IAgentSessionConfigCompletionsParams): Promise<SessionConfigCompletionsResult> {
 		// The host owns branch completions for every agent (they share the same
 		// git-backed branch list); all other properties stay provider-specific.
-		if (params.property === SessionConfigKey.Branch && this._worktree) {
+		if (params.property === SessionConfigKey.Branch && this._worktree.supported) {
 			return this._worktree.branchCompletions(params.workingDirectory, params.query);
 		}
 		const providerId = params.provider ?? this._defaultProvider;
@@ -3695,7 +3766,12 @@ export class AgentService extends Disposable implements IAgentService {
 
 	async disposeSession(session: URI): Promise<void> {
 		this._logService.trace(`[AgentService] disposeSession: ${session.toString()}`);
+		await this._sessionResidency.runDisposal(session, () => this._doDisposeSession(session));
+	}
+
+	private async _doDisposeSession(session: URI): Promise<void> {
 		const sessionKey = session.toString();
+		this._cancelPendingSessionGc(session);
 		const isEphemeral = this._stateManager.isEphemeralSession(sessionKey);
 		this._stateManager.invalidateSessionChatResolutions(session.toString());
 		const sessionChats = this._stateManager.getSessionState(session.toString())?.chats ?? [];
@@ -3710,7 +3786,7 @@ export class AgentService extends Disposable implements IAgentService {
 		// is reordered ahead of the data deletion.
 		const workingDirectories = this._configurationService.getEffectiveWorkingDirectories(session.toString());
 		const sessionId = AgentSession.id(session);
-		const worktree = await this._worktree?.prepareSessionDeletion(session, sessionId);
+		const worktree = await this._worktree.prepareSessionDeletion(session, sessionId);
 		const provider = this._findProviderForSession(session);
 		if (provider) {
 			await this._disposeSession(provider, session);
@@ -3727,6 +3803,7 @@ export class AgentService extends Disposable implements IAgentService {
 			this._clearDownloadProgressInterest(session.toString());
 		}
 		this._sideEffects.clearSessionTitleState(session.toString(), sessionChats.map(chat => chat.resource));
+		this._chatContributions.disposeSessionState(session.toString());
 		await this._whenSessionDataIdle(session);
 		// Remove the VS Code per-session data directory (metadata DB + checkpoints) to mirror the SDK-side cleanup
 		// performed by the provider above. No-op when the directory does not exist.
@@ -3737,11 +3814,8 @@ export class AgentService extends Disposable implements IAgentService {
 		// the repository can no longer be resolved and the refs would leak
 		// into the main repository (`refs/agents/*` is shared, not per-worktree).
 		await this._sessionDataService.deleteSessionData(session, workingDirectories);
-		await this._worktree?.removeSessionWorktree(sessionId, worktree);
+		await this._worktree.removeSessionWorktree(sessionId, worktree);
 		this._changesetCoordinator.onSessionDisposed(session.toString());
-		for (const chat of this._stateManager.getSessionState(session.toString())?.chats ?? []) {
-			this._sideEffects.clearQueuedMessageSenders(chat.resource);
-		}
 		this._sideEffects.clearInputRequestsForSession(session.toString());
 		// Remove all subagent sessions for this parent
 		this._sideEffects.removeSubagentSessions(session.toString());
@@ -3777,7 +3851,7 @@ export class AgentService extends Disposable implements IAgentService {
 		this._logService.trace(`[AgentService] subscribe: ${resource.toString()}`);
 		const resourceStr = resource.toString();
 		try {
-			await this._releaseSessionInFlight.get(this._sessionReleaseKey(resource));
+			await this._sessionResidency.waitForRelease(resource);
 			// Register after an in-flight release settles so a successful release
 			// can evict cached state and this subscribe reconstructs it. The
 			// handshake fast path calls addSubscriber directly and therefore pins
@@ -3790,6 +3864,7 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 
 			let snapshot = this._stateManager.getSnapshot(resourceStr);
+			const servedFromMemory = !!snapshot;
 			const parsedChangeset = parseChangesetUri(resourceStr);
 			if (snapshot && parsedChangeset && !this._stateManager.getSessionState(parsedChangeset.sessionUri)) {
 				await this._changesetCoordinator.restoreSessionIfChangesetSubscription(resource, s => this.restoreSession(s));
@@ -3858,6 +3933,8 @@ export class AgentService extends Disposable implements IAgentService {
 			if (!snapshot) {
 				throw new Error(`Cannot subscribe to unknown resource: ${resourceStr}`);
 			}
+			this._sessionResidency.touch(resource);
+			void this._sessionResidency.reconcile();
 
 			// Ensure git state has been computed for this session. When the snapshot
 			// already existed (e.g. seeded by list query, or restored earlier), the
@@ -3876,23 +3953,12 @@ export class AgentService extends Disposable implements IAgentService {
 				void this._gitStateService.refreshSessionGitState(resourceStr, workingDirectory);
 			}
 
+			this._logService.trace(`[AgentService] subscribe done: ${resourceStr} (servedFromMemory=${servedFromMemory})`);
 			return snapshot;
 		} catch (err) {
 			this.unsubscribe(resource, clientId);
 			throw err;
 		}
-	}
-
-	private _sessionReleaseKey(resource: URI): string {
-		const resourceString = resource.toString();
-		const changesetSession = parseChangesetUri(resourceString)?.sessionUri;
-		const chatSession = parseDefaultChatUri(resourceString);
-		let session = URI.parse(changesetSession ?? chatSession ?? resourceString);
-		let subagent;
-		while ((subagent = parseSubagentSessionUri(session))) {
-			session = subagent.parentSession;
-		}
-		return session.toString();
 	}
 
 	/** Waits for an armed subagent chat to register (or its wait to time out); returns `undefined` if not armed or never registered. */
@@ -3906,37 +3972,24 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	addSubscriber(resource: URI, clientId: string): void {
-		let set = this._resourceSubscribers.get(resource);
-		const wasUnsubscribed = !set || set.size === 0;
-		if (!set) {
-			set = new Set();
-			this._resourceSubscribers.set(resource, set);
-		}
-		set.add(clientId);
 		// A new subscriber means the session is being observed again; cancel
 		// any pending GC or idle-release armed while it had no subscribers.
 		this._cancelPendingSessionGc(resource);
 		this._cancelPendingEphemeralSessionGc(resource);
-		this._cancelPendingSessionRelease(resource);
 		// 0→1 transition — covers both the full subscribe path AND the
 		// handshake fast-path used by `ProtocolServerHandler` when state is
 		// already cached. The coordinator decides whether the URI is one
 		// it cares about (e.g. uncommitted changeset → trigger refresh).
-		if (wasUnsubscribed) {
+		if (this._subscriptions.addSubscriber(resource, clientId)) {
 			this._changesetCoordinator.onFirstSubscriber(resource);
 		}
+		this._sessionResidency.touch(resource);
 	}
 
 	unsubscribe(resource: URI, clientId: string): void {
-		const set = this._resourceSubscribers.get(resource);
-		if (!set) {
+		if (!this._subscriptions.removeSubscriber(resource, clientId)) {
 			return;
 		}
-		set.delete(clientId);
-		if (set.size > 0) {
-			return;
-		}
-		this._resourceSubscribers.delete(resource);
 		this._changesetCoordinator.onLastSubscriber(resource);
 		this._stateManager.onChangesetLivenessChanged();
 		if (this._maybeScheduleEphemeralSessionGc(resource)) {
@@ -3944,21 +3997,15 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		// An empty session whose last subscriber dropped is a candidate for
 		// full GC (provider session, worktree, on-disk state). Sessions with
-		// at least one turn fall through to {@link _maybeEvictIdleSession},
-		// which only drops the in-memory cache and lets the session be
-		// restored from disk later. Skipping eviction here for empty
+		// at least one turn participate in residency reconciliation, which only
+		// drops the in-memory cache and lets the session be restored from disk
+		// later. Skipping eviction here for empty
 		// sessions ensures their state stays observable so a re-subscribe
 		// can re-arm GC.
 		if (this._maybeScheduleSessionGc(resource)) {
 			return;
 		}
-		// Defer the idle-session release behind a grace window rather than
-		// releasing synchronously. A client that reconnects (or re-subscribes)
-		// within the window cancels this via {@link _cancelPendingSessionRelease}
-		// and keeps the live provider SDK session, avoiding a disconnect/resume
-		// churn cycle that races concurrent session operations on the shared
-		// provider runtime. A zero grace releases on the next tick.
-		this._scheduleSessionRelease(resource);
+		void this._sessionResidency.reconcile();
 	}
 
 	/**
@@ -3966,12 +4013,12 @@ export class AgentService extends Disposable implements IAgentService {
 	 * chat subscriptions are gone, regardless of whether it has completed turns.
 	 */
 	private _maybeScheduleEphemeralSessionGc(resource: URI): boolean {
-		const session = this._sessionReleaseResource(resource);
+		const session = resolveAgentHostSession(resource);
 		const sessionKey = session.toString();
 		if (!this._stateManager.isEphemeralSession(sessionKey)) {
 			return false;
 		}
-		if (this._hasSessionSubscribers(session)) {
+		if (this._subscriptions.hasSessionSubscribers(session)) {
 			return true;
 		}
 		this._pendingSessionGc.set(session, disposableTimeout(() => {
@@ -3983,30 +4030,12 @@ export class AgentService extends Disposable implements IAgentService {
 		return true;
 	}
 
-	private _cancelPendingSessionRelease(resource: URI): void {
-		this._pendingSessionRelease.deleteAndDispose(this._sessionReleaseResource(resource));
-	}
-
-	private _scheduleSessionRelease(resource: URI): void {
-		const session = this._sessionReleaseResource(resource);
-		this._pendingSessionRelease.set(session, disposableTimeout(() => {
-			this._pendingSessionRelease.deleteAndDispose(session);
-			void this._maybeEvictIdleSession(session).catch(err => {
-				this._logService.error(err, `[AgentService] Failed to evict idle session ${session.toString()}`);
-			});
-		}, SESSION_RELEASE_GRACE_MS));
-	}
-
-	private _sessionReleaseResource(resource: URI): URI {
-		return URI.parse(this._sessionReleaseKey(resource));
-	}
-
 	/**
 	 * If `resource` names a session that no client is still subscribed to and
 	 * that has produced no turns (and has no active turn), schedule a delayed
 	 * {@link _runSessionGc} to fully tear it down — provider session, worktree,
 	 * persisted state and all. Sessions with at least one turn are left to the
-	 * existing {@link _maybeEvictIdleSession} path which only drops cached
+	 * residency path which only drops cached
 	 * state and lets the session be restored from disk later.
 	 *
 	 * GC is restricted to sessions that are still unused drafts. A session that
@@ -4023,12 +4052,11 @@ export class AgentService extends Disposable implements IAgentService {
 	 * so callers can skip alternative cleanup paths.
 	 */
 	private _maybeScheduleSessionGc(resource: URI): boolean {
-		// Subagent URIs are backed by the parent session; the parent's GC is
-		// scheduled when its own subscriber count reaches zero.
-		if (parseSubagentSessionUri(resource)) {
-			return false;
+		const session = resolveAgentHostSession(resource);
+		if (this._subscriptions.hasSessionSubscribers(session)) {
+			return true;
 		}
-		const key = resource.toString();
+		const key = session.toString();
 		const state = this._stateManager.getSessionState(key);
 		if (!state) {
 			return false;
@@ -4041,12 +4069,12 @@ export class AgentService extends Disposable implements IAgentService {
 			return false;
 		}
 		// Never tear down a session Agent Merge is holding.
-		if (this._agentMergeController.holdsSession(this._sessionReleaseKey(resource))) {
+		if (this._agentMergeController.holdsSession(key)) {
 			return false;
 		}
-		this._pendingSessionGc.set(resource, disposableTimeout(() => {
-			this._pendingSessionGc.deleteAndDispose(resource);
-			this._runSessionGc(resource).catch(err => {
+		this._pendingSessionGc.set(session, disposableTimeout(() => {
+			this._pendingSessionGc.deleteAndDispose(session);
+			this._runSessionGc(session).catch(err => {
 				this._logService.error(err, `[AgentService] GC failed for ${key}`);
 			});
 		}, SESSION_GC_GRACE_MS));
@@ -4054,18 +4082,18 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	private _cancelPendingSessionGc(resource: URI): void {
-		this._pendingSessionGc.deleteAndDispose(resource);
+		this._pendingSessionGc.deleteAndDispose(resolveAgentHostSession(resource));
 	}
 
 	private _cancelPendingEphemeralSessionGc(resource: URI): void {
-		const session = this._sessionReleaseResource(resource);
+		const session = resolveAgentHostSession(resource);
 		if (this._stateManager.isEphemeralSession(session.toString())) {
 			this._pendingSessionGc.deleteAndDispose(session);
 		}
 	}
 
 	private async _runEphemeralSessionGc(session: URI): Promise<void> {
-		if (this._hasSessionSubscribers(session)) {
+		if (this._subscriptions.hasSessionSubscribers(session)) {
 			return;
 		}
 		this._logService.info(`[AgentService] GC: disposing unsubscribed ephemeral session ${session.toString()}`);
@@ -4077,12 +4105,12 @@ export class AgentService extends Disposable implements IAgentService {
 	 * subscriber while empty. Re-checks the invariants (still no subscribers,
 	 * still empty, still an unused draft) before tearing the session down via
 	 * {@link disposeSession}. The cached state may already have been evicted by
-	 * {@link _maybeEvictIdleSession}; in that case we still proceed because
+	 * residency reconciliation; in that case we still proceed because
 	 * "evicted + no resubscribe" implies no client is observing the session.
 	 */
 	private async _runSessionGc(resource: URI): Promise<void> {
 		const key = resource.toString();
-		if (this._resourceSubscribers.has(resource)) {
+		if (this._subscriptions.hasSessionSubscribers(resource)) {
 			return;
 		}
 		const state = this._stateManager.getSessionState(key);
@@ -4100,107 +4128,6 @@ export class AgentService extends Disposable implements IAgentService {
 		await this.disposeSession(resource);
 	}
 
-	/**
-	 * If `resource` names an idle session with no remaining subscribers, drop its
-	 * cached state and release its SDK chats. Subagent URIs evict the parent
-	 * session entry because the parent owns the materialized turn tree. Durable
-	 * data stays intact; the next subscribe restores the session on demand.
-	 */
-	private async _maybeEvictIdleSession(resource: URI): Promise<void> {
-		const key = resource.toString();
-		const evictionTarget = this._sessionReleaseResource(resource);
-		const evictionTargetKey = evictionTarget.toString();
-		if (this._hasSessionSubscribers(evictionTarget)) {
-			return;
-		}
-		// A restore/resume racing this unsubscribe means a client is about to
-		// observe the session again; releasing now would tear down state that
-		// the in-flight rehydrate is populating.
-		if (this._restoreSessionInFlight.has(evictionTargetKey)) {
-			return;
-		}
-		const targetState = this._stateManager.getSessionState(evictionTargetKey);
-		if (!targetState) {
-			return;
-		}
-		if (this._stateManager.hasActiveTurn(evictionTargetKey)) {
-			this._scheduleSessionRelease(evictionTarget);
-			return;
-		}
-		// Agent Merge keeps monitoring with no client subscriber, so releasing
-		// would silently stop it until someone reopened the session.
-		if (this._agentMergeController.holdsSession(evictionTargetKey)) {
-			this._logService.trace(`[AgentService] Skipping idle eviction for a session held by Agent Merge: ${evictionTargetKey}`);
-			return;
-		}
-		if (this._releaseSessionInFlight.has(evictionTargetKey)) {
-			return;
-		}
-		const chats = this._getSessionChatsInTeardownOrder(evictionTarget);
-		await this._whenSessionDataIdle(evictionTarget);
-		if (this._hasSessionSubscribers(evictionTarget) || this._restoreSessionInFlight.has(evictionTargetKey) || this._releaseSessionInFlight.has(evictionTargetKey)) {
-			return;
-		}
-		const settledState = this._stateManager.getSessionState(evictionTargetKey);
-		if (!settledState) {
-			return;
-		}
-		if (this._stateManager.hasActiveTurn(evictionTargetKey)) {
-			this._scheduleSessionRelease(evictionTarget);
-			return;
-		}
-		if (this._agentMergeController.holdsSession(evictionTargetKey)) {
-			return;
-		}
-		const provider = this._findProviderForSession(evictionTarget);
-		if (!provider) {
-			return;
-		}
-		const trackedRelease = (async () => {
-			try {
-				if (!await this._canReleaseSession(provider, evictionTarget, chats)) {
-					if (!this._hasSessionSubscribers(evictionTarget)) {
-						this._scheduleSessionRelease(evictionTarget);
-					}
-					return;
-				}
-				const currentState = this._stateManager.getSessionState(evictionTargetKey);
-				if (this._hasSessionSubscribers(evictionTarget)) {
-					return;
-				}
-				if (this._restoreSessionInFlight.has(evictionTargetKey) || this._stateManager.hasActiveTurn(evictionTargetKey)) {
-					this._scheduleSessionRelease(evictionTarget);
-					return;
-				}
-				if (currentState) {
-					this._evictSessionState(evictionTarget, evictionTargetKey, key, currentState.chats.map(chat => chat.resource));
-				}
-				await this._releaseSession(provider, evictionTarget, chats);
-			} catch (err) {
-				this._logService.error(err, `[AgentService] Failed to release idle session ${evictionTargetKey}`);
-				if (!this._hasSessionSubscribers(evictionTarget)) {
-					this._scheduleSessionRelease(evictionTarget);
-				}
-			}
-		})();
-		this._releaseSessionInFlight.set(evictionTargetKey, trackedRelease);
-		void trackedRelease.then(() => {
-			if (this._releaseSessionInFlight.get(evictionTargetKey) === trackedRelease) {
-				this._releaseSessionInFlight.delete(evictionTargetKey);
-			}
-		});
-	}
-
-	private _hasSessionSubscribers(session: URI): boolean {
-		const sessionKey = this._sessionReleaseKey(session);
-		for (const subscribedUri of this._resourceSubscribers.keys()) {
-			if (this._sessionReleaseKey(subscribedUri) === sessionKey) {
-				return true;
-			}
-		}
-		return false;
-	}
-
 	private _evictSessionState(evictionTarget: URI, evictionTargetKey: string, triggerKey: string, chats: readonly string[]): void {
 		this._logService.info(`[AgentService] Evicting idle session: ${evictionTargetKey} (triggered by unsubscribe of ${triggerKey})`);
 		const subagentPrefix = buildSubagentSessionUriPrefix(evictionTarget);
@@ -4208,15 +4135,16 @@ export class AgentService extends Disposable implements IAgentService {
 			this._stateManager.removeSession(cachedKey);
 		}
 		this._sideEffects.clearSessionTitleState(evictionTargetKey, chats);
+		this._chatContributions.disposeSessionState(evictionTargetKey);
 		this._stateManager.removeSession(evictionTargetKey);
 	}
 
 	/** Returns true when a changeset is safe to drop from the in-memory cache. */
-	canEvictChangeset(changeset: string): boolean {
+	private _canEvictChangeset(changeset: string): boolean {
 		const changesetUri = URI.parse(changeset);
 		// A direct changeset subscriber is rendering this expanded URI. Keep
 		// the state alive so future envelopes still target an existing object.
-		if (this._resourceSubscribers.has(changesetUri)) {
+		if (this._subscriptions.hasSubscribers(changesetUri)) {
 			return false;
 		}
 		const parsed = parseChangesetUri(changeset);
@@ -4227,12 +4155,12 @@ export class AgentService extends Disposable implements IAgentService {
 		const sessionUri = URI.parse(parsed.sessionUri);
 		// A parent-session subscriber can still receive catalogue count updates
 		// from this changeset, so keep the backing state while the session is observed.
-		if (this._resourceSubscribers.has(sessionUri)) {
+		if (this._subscriptions.hasSubscribers(sessionUri)) {
 			return false;
 		}
 		// Subagent views are backed by the parent session tree; treat any
 		// subscribed descendant as a parent-session pin for cache eviction.
-		for (const subscribedUri of this._resourceSubscribers.keys()) {
+		for (const subscribedUri of this._subscriptions.subscribedResources) {
 			if (this._isSubagentDescendantOf(subscribedUri, sessionUri)) {
 				return false;
 			}
@@ -4266,9 +4194,30 @@ export class AgentService extends Disposable implements IAgentService {
 	 */
 	private readonly _clientDispatchQueues = new Map<string, Promise<void>>();
 
-	/** A read/archive toggle carries no intent to open, so it must not trigger legacy adoption on an un-loaded session. */
-	private _isPassiveMetadataAction(action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction): boolean {
-		return action.type === ActionType.SessionIsReadChanged || action.type === ActionType.SessionIsArchivedChanged;
+	/**
+	 * Applies a read/archive toggle to a session that is not currently
+	 * materialized, by writing the flag to the session database and publishing
+	 * the catalogue delta on the root channel.
+	 *
+	 * Restoring instead cannot work: restore reopens the working directory, and
+	 * for a missing one only an *already* archived session resumes read-only —
+	 * so archiving, the very thing that would archive it, could never land.
+	 *
+	 * Returns `false` for a session the host does not know, which the caller must
+	 * drop: creating `agentSessionData/<id>` is how Agent Host claims ownership,
+	 * never a side effect of a metadata toggle. Callers must rule out live state
+	 * first, so an absent surfaced summary can only mean "unknown".
+	 */
+	private async _applyPassiveSessionMetadata(session: string, action: IIsArchivedChangedAction | IIsReadChangedAction): Promise<boolean> {
+		if (!this._stateManager.getSurfacedSessionSummary(session)) {
+			return false;
+		}
+		const [key, flag, set] = action.type === ActionType.SessionIsArchivedChanged
+			? [AH_META_IS_ARCHIVED_DB_KEY, SessionStatus.IsArchived, action.isArchived] as const
+			: [AH_META_IS_READ_DB_KEY, SessionStatus.IsRead, action.isRead] as const;
+		await persistSessionMetadataValues(this._sessionDataService, session, { [key]: set ? 'true' : '' });
+		this._stateManager.setSurfacedSessionStatusFlag(session, flag, set);
+		return true;
 	}
 
 	dispatchAction(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number, clientContextOrType: IAgentHostClientTelemetryContext | AgentHostClientType = AgentHostClientType.Unknown): void {
@@ -4296,14 +4245,28 @@ export class AgentService extends Disposable implements IAgentService {
 			return;
 		}
 		const next = (pending ?? Promise.resolve()).then(async () => {
-			if (requiresSessionRestore) {
-				const sessionUri = URI.parse(sessionChannel);
-				const subagent = parseSubagentSessionUri(sessionUri);
+			const sessionUri = URI.parse(sessionChannel);
+			const subagent = parseSubagentSessionUri(sessionUri);
+			// Evaluated here rather than from the entry-time `requiresSessionRestore`:
+			// this callback is queued behind earlier dispatches, so the session may
+			// since have been restored or evicted. Joining an in-flight restore also
+			// stops this write racing the metadata read that builds the restored summary.
+			if (isPassiveSessionMetadataAction(action) && !subagent) {
+				await this._restoreSessionInFlight.get(sessionChannel)?.catch(() => undefined);
+				if (!this._stateManager.getSessionState(sessionChannel)) {
+					if (readSessionEhcliAdoptable(this._stateManager.getSurfacedSessionSummary(sessionChannel)?._meta)) {
+						// Dropped so listing / scrolling can't adopt an un-opened legacy session; only an explicit open (subscribe) adopts.
+						return;
+					}
+					// Falls through so the envelope and its side effects (worktree
+					// cleanup, `onArchivedChanged`, Agent Merge sync) still run.
+					if (!await this._applyPassiveSessionMetadata(sessionChannel, action)) {
+						return;
+					}
+				}
+			} else if (requiresSessionRestore) {
 				if (subagent) {
 					await this._restoreSubagentSession(sessionChannel, subagent.parentSession);
-				} else if (this._isPassiveMetadataAction(action) && readSessionEhcliAdoptable(this._stateManager.getSurfacedSessionSummary(sessionChannel)?._meta)) {
-					// Dropped so listing / scrolling can't adopt an un-opened legacy session; only an explicit open (subscribe) adopts.
-					return;
 				} else {
 					await this.restoreSession(sessionUri);
 				}
@@ -4408,6 +4371,14 @@ export class AgentService extends Disposable implements IAgentService {
 				action = this._withPreservedHostWrittenSessionConfig(sessionChannel, configAction);
 			}
 		}
+		// `session/workingDirectoryReplaced` is client-dispatchable in the
+		// protocol, but no provider advertises `primaryReplacement` and the host
+		// has no backend side effect for it. Reject it rather than let the
+		// reducer apply an unvalidated, uncanonicalized mutation.
+		if (action.type === ActionType.SessionWorkingDirectoryReplaced) {
+			this._stateManager.rejectClientAction(channel, action, origin, 'Session working-directory replacement is not supported.');
+			return;
+		}
 		if (action.type === ActionType.SessionWorkingDirectorySet || action.type === ActionType.SessionWorkingDirectoryRemoved) {
 			if (clientContext.clientType !== AgentHostClientType.EditorWindow) {
 				this._stateManager.rejectClientAction(channel, action, origin, 'Session working-directory actions require an Editor Window client.');
@@ -4429,7 +4400,7 @@ export class AgentService extends Disposable implements IAgentService {
 			this._configurationService.persistRootConfig();
 			const editTelemetryEnabled = action.config[AgentHostEditTelemetryEnabledConfigKey];
 			if (typeof editTelemetryEnabled === 'boolean') {
-				this._editAttributionService?.setEnabled(editTelemetryEnabled);
+				this._editAttributionService.setEnabled(editTelemetryEnabled);
 			}
 		}
 		this._sideEffects.handleAction(channel, action, clientId, clientContext);
@@ -4684,22 +4655,29 @@ export class AgentService extends Disposable implements IAgentService {
 	async restoreSession(session: URI): Promise<void> {
 		const sessionStr = session.toString();
 		this._cancelPendingSessionGc(session);
-		this._cancelPendingSessionRelease(session);
-		await this._releaseSessionInFlight.get(sessionStr);
+		this._sessionResidency.touch(session);
+		await this._sessionResidency.waitForRelease(session);
 
 		const inFlight = this._restoreSessionInFlight.get(sessionStr);
 		if (inFlight) {
+			this._logService.trace(`[AgentService] restoreSession: joining in-flight restore for ${sessionStr}`);
 			return inFlight;
 		}
 
 		if (this._stateManager.getSessionState(sessionStr)) {
+			this._sessionResidency.touch(session);
+			await this._sessionResidency.reconcile();
 			return;
 		}
 
+		this._logService.trace(`[AgentService] restoreSession start: ${sessionStr}`);
 		const restore = this._doRestoreSession(session, sessionStr);
 		this._restoreSessionInFlight.set(sessionStr, restore);
 		try {
 			await restore;
+			this._sessionResidency.touch(session);
+			await this._sessionResidency.reconcile();
+			this._logService.trace(`[AgentService] restoreSession done: ${sessionStr}`);
 		} finally {
 			if (this._restoreSessionInFlight.get(sessionStr) === restore) {
 				this._restoreSessionInFlight.delete(sessionStr);
@@ -4712,7 +4690,7 @@ export class AgentService extends Disposable implements IAgentService {
 		provider: string,
 		outcome: AgentHostLegacyMigrationEvent['outcome'],
 		startTime: number,
-		extra: { turnCount?: number; hasProject?: boolean; hasWorktree?: boolean; workingDirectoryCount?: number; errorMessage?: string },
+		extra: { turnCount?: number; hasProject?: boolean; hasWorktree?: boolean; workingDirectoryCount?: number; errorMessage?: string; reason?: AgentChatAdoptionReason },
 	): void {
 		this._telemetryService.publicLog2<AgentHostLegacyMigrationEvent, AgentHostLegacyMigrationClassification>('agentHost.legacyCopilotCliMigration', {
 			provider,
@@ -4724,6 +4702,7 @@ export class AgentService extends Disposable implements IAgentService {
 			hasWorktree: extra.hasWorktree ?? false,
 			workingDirectoryCount: extra.workingDirectoryCount ?? 0,
 			errorMessage: extra.errorMessage,
+			reason: extra.reason ?? 'unknown',
 		});
 	}
 
@@ -4744,24 +4723,28 @@ export class AgentService extends Disposable implements IAgentService {
 		if (await this._sessionRegistry.isTombstoned(session)) {
 			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session was explicitly deleted: ${sessionStr}`);
 		}
-		// Wait for the provider's one-time catalog migration before reading
-		// metadata, mirroring `listSessions`, so restore does not misread an
-		// unwarmed catalog as a missing session (#331648). A catalog that stays
-		// unavailable is non-fatal: fall through, but remember it so a resulting
-		// miss is classified as unavailable rather than absent.
-		let catalogReadable = true;
-		try {
-			await this._awaitInitialProviderMigrationForProvider(agent);
-		} catch (err) {
-			catalogReadable = false;
-			this._logService.warn(`[AgentService] restore: initial catalog migration for provider ${agent.id} failed; a metadata miss will be reported as unavailable, not missing`, err);
-		}
-		// Re-check after the (possibly lengthy) wait so a delete that landed meanwhile is not resurrected.
-		if (await this._sessionRegistry.isTombstoned(session)) {
-			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session was explicitly deleted: ${sessionStr}`);
-		}
-		const registeredSession = (await this._listRegisteredSessions()).find(entry => entry.session.toString() === sessionStr);
-		const external = registeredSession?.external ?? false;
+		// Warming the provider catalogue is O(catalogue) — ~48s on a large
+		// `~/.copilot` — and the only decision that needs it is whether a metadata
+		// miss is authoritative (#331648). Defer it so a session that resolves from
+		// its own per-session lookup never pays for the whole catalogue.
+		let catalogReadable: Promise<boolean> | undefined;
+		const awaitCatalogReadable = () => catalogReadable ??= (async () => {
+			let readable = true;
+			try {
+				await this._awaitInitialProviderMigrationForProvider(agent);
+			} catch (err) {
+				readable = false;
+				this._logService.warn(`[AgentService] restore: initial catalog migration for provider ${agent.id} failed; a metadata miss will be reported as unavailable, not missing`, err);
+			}
+			// This wait can be lengthy, so re-check that a delete has not landed meanwhile.
+			if (await this._sessionRegistry.isTombstoned(session)) {
+				throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session was explicitly deleted: ${sessionStr}`);
+			}
+			return readable;
+		})();
+		let registeredSession = (await this._listRegisteredSessions()).find(entry => entry.session.toString() === sessionStr);
+		let external = registeredSession?.external ?? false;
+		this._logService.trace(`[AgentService] restore: catalog and registry resolved for ${sessionStr} (registered=${!!registeredSession}, external=${external})`);
 
 		// Adopt-on-open for a surfaced un-adopted legacy Copilot CLI session, strictly gated on the live migrate setting (a no-op for native / already-adopted sessions).
 		const migrateLegacyEnabled = this._configurationService.getRootValue(platformRootSchema, AgentHostMigrateLegacyCopilotCliEnabledConfigKey) === true;
@@ -4786,25 +4769,55 @@ export class AgentService extends Disposable implements IAgentService {
 		// created, hidden while `showExternalSessions` is `none`) would be
 		// materialized here and thereby claimed away from the extension host's list.
 		if (!registeredSession && migrateLegacyEnabled && agent.ensureChatAdopted && !adoption.eligible && !adoption.native) {
-			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session is not an adoptable legacy chat: ${sessionStr}`);
+			// The registry was read before the deferred catalog wait, so absence is only authoritative once that catalog is readable (#331721).
+			await awaitCatalogReadable();
+			registeredSession = (await this._listRegisteredSessions()).find(entry => entry.session.toString() === sessionStr);
+			external = registeredSession?.external ?? external;
+			if (!registeredSession) {
+				this._logService.info(`[AgentService] restore refused for unregistered ${sessionStr}: not an adoptable legacy chat (reason=${adoption.reason ?? 'unknown'})`);
+				throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session is not an adoptable legacy chat: ${sessionStr}`);
+			}
 		}
 
 		// From here the whole restore is wrapped so `migrated` is reported only
 		// after every required step succeeds, and any failure after a successful
 		// adoption is surfaced as a migration failure.
+		let registeredAfterAdoption = !!registeredSession;
 		try {
-			const facts = await this._restoreSessionState(agent, session, sessionStr, adopted, external, registeredSession?.source ?? 'restore', catalogReadable, !!registeredSession);
+			// Adoption has already claimed the chat on disk, which is what stops the
+			// extension host listing it. Register it before restoring so a later restore
+			// failure (e.g. a worktree whose branch is gone) leaves a session that
+			// reports an error like any native one, instead of one that exists in no
+			// list at all. A registration that cannot be made durable fails the
+			// migration: continuing would leave exactly the orphan this prevents.
+			if (adopted && !registeredSession) {
+				await this._retryRegistryMutation(
+					() => this._sessionRegistry.register(session, { provider: agent.id, startTime: Date.now(), source: 'restore' }, { checkTombstone: true }),
+					`adoption registration for ${sessionStr}`,
+				);
+				registeredAfterAdoption = true;
+				this._invalidateSessionList();
+			}
+			const facts = await this._restoreSessionState(agent, session, sessionStr, adopted, external, registeredSession?.source ?? 'restore', awaitCatalogReadable, !!registeredSession, adoption.worktree);
 			await this._restoreAnnotations(session);
 			if (adopted) {
-				this._reportLegacyMigration(agent.id, 'migrated', migrationStartTime, facts);
+				// Discovery never surfaced this chat when migration was enabled after
+				// startup, so clients have no entry for it and a restore alone stays
+				// silent. Publishing announces it with the adopted summary.
+				this._stateManager.setSessionSummaryPublished(sessionStr, true);
+				this._reportLegacyMigration(agent.id, 'migrated', migrationStartTime, { ...facts, reason: adoption.reason });
 			} else if (adoption.eligible) {
 				// Migrate setting on and a genuine legacy candidate, but not adopted
 				// this pass (e.g. its on-disk working directory could not be resolved).
-				this._reportLegacyMigration(agent.id, 'skipped', migrationStartTime, { hasProject: facts.hasProject, workingDirectoryCount: facts.workingDirectoryCount });
+				this._logService.info(`[AgentService] legacy session ${sessionStr} was a migration candidate but was not adopted (reason=${adoption.reason ?? 'unknown'})`);
+				this._reportLegacyMigration(agent.id, 'skipped', migrationStartTime, { hasProject: facts.hasProject, workingDirectoryCount: facts.workingDirectoryCount, reason: adoption.reason });
 			}
 		} catch (err) {
 			if (adopted) {
-				this._reportLegacyMigration(agent.id, 'failed', migrationStartTime, { errorMessage: toErrorMessage(err) });
+				this._logService.error(registeredAfterAdoption
+					? `[AgentService] legacy session ${sessionStr} was adopted but its restore failed; it is registered so it surfaces with an error rather than disappearing`
+					: `[AgentService] legacy session ${sessionStr} was adopted but could not be registered; the extension host no longer lists it, so it will not appear until the next successful restore`, err);
+				this._reportLegacyMigration(agent.id, 'failed', migrationStartTime, { errorMessage: toErrorMessage(err), reason: adoption.reason });
 			}
 			throw err;
 		}
@@ -4872,10 +4885,11 @@ export class AgentService extends Disposable implements IAgentService {
 					return;
 				}
 				const state: unknown = JSON.parse(raw);
-				if (!isPersistedAnnotationsState(state)) {
+				const annotations = readPersistedAnnotationsState(state, session.toString());
+				if (!annotations) {
 					throw new Error('Invalid annotations state');
 				}
-				this._stateManager.restoreAnnotations(session.toString(), state);
+				this._stateManager.restoreAnnotations(session.toString(), annotations);
 			} finally {
 				ref.dispose();
 			}
@@ -4890,17 +4904,28 @@ export class AgentService extends Disposable implements IAgentService {
 	 * Returns the facts used for migration telemetry; throws if any required step
 	 * fails so the caller can report the outcome accurately.
 	 */
-	private async _restoreSessionState(agent: IAgent, session: URI, sessionStr: string, adopted: boolean, external: boolean, registrationSource: IRegisteredSession['source'], catalogReadable: boolean, sessionKnownToRegistry: boolean): Promise<{ turnCount: number; hasProject: boolean; hasWorktree: boolean; workingDirectoryCount: number }> {
+	private async _restoreSessionState(agent: IAgent, session: URI, sessionStr: string, adopted: boolean, external: boolean, registrationSource: IRegisteredSession['source'], awaitCatalogReadable: () => Promise<boolean>, sessionKnownToRegistry: boolean, adoptionWorktree: IAgentAdoptedWorktree | undefined): Promise<{ turnCount: number; hasProject: boolean; hasWorktree: boolean; workingDirectoryCount: number }> {
+		this._logService.trace(`[AgentService] restore: reading provider metadata for ${sessionStr}`);
 		let meta = await this._getSessionMetadataForRestore(agent, session, external);
 		if (!meta) {
-			// Authoritative absence only when the catalog was readable this run and
-			// the registry has no record of the session; a miss for a known
-			// (registered) session, or while the catalog was unavailable, is
-			// transient — e.g. a provider whose SDK is not downloaded yet (#331648).
-			throw catalogReadable && !sessionKnownToRegistry
-				? new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found on backend: ${sessionStr}`)
-				: new ProtocolError(JSON_RPC_INTERNAL_ERROR, `Provider ${agent.id} could not describe ${sessionStr} yet`);
+			// Only a miss needs the catalogue: it decides whether the session is
+			// genuinely absent, and warming it may enumerate thousands of sessions.
+			const catalogReadable = await awaitCatalogReadable();
+			meta = await this._getSessionMetadataForRestore(agent, session, external);
+			// The registry is backfilled by that same pass, so re-read it before
+			// concluding the session is unknown.
+			const knownToRegistry = sessionKnownToRegistry || (await this._listRegisteredSessions()).some(entry => entry.session.toString() === sessionStr);
+			if (!meta) {
+				// Authoritative absence only when the catalog was readable this run and
+				// the registry has no record of the session; a miss for a known
+				// (registered) session, or while the catalog was unavailable, is
+				// transient — e.g. a provider whose SDK is not downloaded yet (#331648).
+				throw catalogReadable && !knownToRegistry
+					? new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found on backend: ${sessionStr}`)
+					: new ProtocolError(JSON_RPC_INTERNAL_ERROR, `Provider ${agent.id} could not describe ${sessionStr} yet`);
+			}
 		}
+		this._logService.trace(`[AgentService] restore: provider metadata resolved for ${sessionStr}`);
 
 		// A freshly-adopted legacy session whose working directory is a
 		// pre-existing git worktree keeps no worktree metadata (adoption seeds
@@ -4908,9 +4933,24 @@ export class AgentService extends Disposable implements IAgentService {
 		// its repository and diffs against the right base, matching native
 		// worktree-isolated sessions. No-op for folder / primary-checkout cwds.
 		let adoptedWorktree = false;
-		if (adopted && this._worktree) {
+		if (adopted && this._worktree.supported) {
+			// The predecessor recorded this worktree but its checkout is gone, so it
+			// cannot be probed; seed the same metadata a native session persists at
+			// creation and let resume recreate it.
+			if (adoptionWorktree) {
+				try {
+					await this._worktree.recordAdoptedWorktreeMetadata(session, adoptionWorktree);
+					adoptedWorktree = true;
+					const worktreeProject = await this._worktree.resolveWorktreeProject(session);
+					if (worktreeProject) {
+						meta = { ...meta, project: worktreeProject };
+					}
+				} catch (err) {
+					this._logService.warn(`[AgentService] adopt: recording recorded worktree metadata failed for ${sessionStr}`, err);
+				}
+			}
 			const adoptedWorkingDirectory = meta.workingDirectories?.[0];
-			if (adoptedWorkingDirectory) {
+			if (!adoptedWorktree && adoptedWorkingDirectory) {
 				try {
 					if (await this._worktree.adoptExistingWorktreeMetadata(session, adoptedWorkingDirectory)) {
 						adoptedWorktree = true;
@@ -4924,7 +4964,7 @@ export class AgentService extends Disposable implements IAgentService {
 				}
 			}
 		}
-		if (!meta.project && !readSessionWorkspaceless(meta._meta) && this._worktree) {
+		if (!meta.project && !readSessionWorkspaceless(meta._meta) && this._worktree.supported) {
 			const workingDirectory = meta.workingDirectories?.[0];
 			if (workingDirectory) {
 				try {
@@ -4995,7 +5035,8 @@ export class AgentService extends Disposable implements IAgentService {
 							[AH_META_IS_DONE_DB_KEY]: true,
 							configValues: true,
 							[AH_META_WORKSPACELESS_DB_KEY]: true,
-							[AH_META_ORCHESTRATION_DB_KEY]: true,
+							[AH_META_EHCLI_ADOPTED_DB_KEY]: true,
+							[AH_META_CREATED_BY_SESSION_DB_KEY]: true,
 							[SESSION_META_MULTI_ROOT_KEY]: true,
 							[SESSION_ARTIFACTS_KEY]: true,
 							[SESSION_META_FOLDER_PICKER_KEY]: true,
@@ -5056,12 +5097,15 @@ export class AgentService extends Disposable implements IAgentService {
 						if (m[AH_META_WORKSPACELESS_DB_KEY] !== undefined) {
 							sessionMetadata = withSessionWorkspaceless(sessionMetadata, m[AH_META_WORKSPACELESS_DB_KEY] === 'true');
 						}
-						const orchestration = parseSessionOrchestration(m[AH_META_ORCHESTRATION_DB_KEY]);
-						if (orchestration) {
-							sessionMetadata = withSessionOrchestration(sessionMetadata, orchestration);
+						if (m[AH_META_EHCLI_ADOPTED_DB_KEY] !== undefined) {
+							sessionMetadata = withSessionEhcliAdopted(sessionMetadata, m[AH_META_EHCLI_ADOPTED_DB_KEY] === 'true');
+						}
+						const creationReference = parseSessionCreationReference(m[AH_META_CREATED_BY_SESSION_DB_KEY]);
+						if (creationReference) {
+							sessionMetadata = withSessionCreationReference(sessionMetadata, creationReference);
 						}
 						sessionMetadata = withSessionMultiRootMetadata(sessionMetadata, parseSessionMultiRootMetadata(m[SESSION_META_MULTI_ROOT_KEY]));
-						sessionMetadata = withSessionArtifacts(sessionMetadata, parseSessionArtifacts(m[SESSION_ARTIFACTS_KEY]));
+						sessionMetadata = withSessionArtifacts(sessionMetadata, this._readPersistedArtifacts(m[SESSION_ARTIFACTS_KEY], sessionStr, '[AgentService]'));
 						sessionMetadata = withSessionFolderPickerDecision(sessionMetadata, parseSessionFolderPickerDecision(m[SESSION_META_FOLDER_PICKER_KEY]));
 
 						if (m.configValues) {
@@ -5079,6 +5123,7 @@ export class AgentService extends Disposable implements IAgentService {
 				// Best-effort: fall back to agent-provided metadata
 			}
 		}
+		this._logService.trace(`[AgentService] restore: persisted session metadata read for ${sessionStr}`);
 
 		// Encode isRead/isArchived as status bitmask flags
 		let status: SessionStatus = SessionStatus.Idle;
@@ -5127,6 +5172,7 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		this._invalidateSessionList();
 		this._stateManager.restoreSession(summary, mergedTurns, { draft: restoredDraft, defaultChatTitle });
+		this._logService.trace(`[AgentService] restore: hydrated state for ${sessionStr} with ${mergedTurns.length} turn(s)`);
 		this._serverToolHost.advertise(sessionStr);
 
 		// A freshly-adopted legacy session bridges its git checkpoints into the
@@ -5286,13 +5332,13 @@ export class AgentService extends Disposable implements IAgentService {
 				this._readPersistedChatTitle(session, chatUri),
 				this._getChatDraft(session, chatUri),
 			]);
-			return { chatUri, title, draft, providerData: entry.providerData, origin: entry.origin };
+			return { chatUri, title, draft, providerData: entry.providerData, origin: entry.origin, inheritedTurnId: entry.inheritedTurnId };
 		}));
 		for (const item of restored) {
 			if (!item) {
 				continue;
 			}
-			const { chatUri, title, draft, providerData, origin } = item;
+			const { chatUri, title, draft, providerData, origin, inheritedTurnId } = item;
 			if (this._stateManager.getChatState(chatUri.toString())) {
 				continue;
 			}
@@ -5301,6 +5347,7 @@ export class AgentService extends Disposable implements IAgentService {
 				draft,
 				providerData,
 				origin,
+				inheritedTurnId,
 				resolver: currentProviderData => this._materializeRestoredPeerChat(session, chatUri, currentProviderData),
 			});
 		}
@@ -5540,6 +5587,7 @@ export class AgentService extends Disposable implements IAgentService {
 					uri: entry.uri,
 					...(typeof entry.providerData === 'string' ? { providerData: entry.providerData } : {}),
 					...(entry.origin !== undefined ? { origin: entry.origin } : {}),
+					...(typeof entry.inheritedTurnId === 'string' ? { inheritedTurnId: entry.inheritedTurnId } : {}),
 				}));
 		} catch (err) {
 			this._logService.warn(`[AgentService] Failed to read peer-chat catalog for ${session.toString()}: ${toErrorMessage(err)}`);
@@ -5594,16 +5642,18 @@ export class AgentService extends Disposable implements IAgentService {
 	 * a data refresh never drops a side chat's source boundary. Serialized per
 	 * session via {@link _enqueuePeerChatCatalogWrite}.
 	 */
-	private _persistPeerChat(session: URI, chat: URI, providerData: string | undefined, origin?: ChatOrigin): Promise<void> {
+	private _persistPeerChat(session: URI, chat: URI, providerData: string | undefined, origin?: ChatOrigin, inheritedTurnId?: string): Promise<void> {
 		const chatUri = chat.toString();
 		return this._enqueuePeerChatCatalogWrite(session, entries => {
 			const existing = entries.find(entry => entry.uri === chatUri);
 			const effectiveOrigin = origin ?? existing?.origin;
+			const effectiveInheritedTurnId = inheritedTurnId ?? existing?.inheritedTurnId;
 			const next = entries.filter(entry => entry.uri !== chatUri);
 			next.push({
 				uri: chatUri,
 				...(providerData !== undefined ? { providerData } : {}),
 				...(effectiveOrigin !== undefined ? { origin: effectiveOrigin } : {}),
+				...(effectiveInheritedTurnId !== undefined ? { inheritedTurnId: effectiveInheritedTurnId } : {}),
 			});
 			return next;
 		});
@@ -5657,6 +5707,7 @@ export class AgentService extends Disposable implements IAgentService {
 								uri: entry.uri,
 								...(typeof entry.providerData === 'string' ? { providerData: entry.providerData } : {}),
 								...(entry.origin !== undefined ? { origin: entry.origin } : {}),
+								...(typeof entry.inheritedTurnId === 'string' ? { inheritedTurnId: entry.inheritedTurnId } : {}),
 							}));
 					}
 				}
@@ -5726,7 +5777,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 * sessions and for `undefined` metadata. Host-owned so agents stay unaware.
 	 */
 	private async _withWorktreeProject(session: URI, meta: IAgentSessionMetadata | undefined): Promise<IAgentSessionMetadata | undefined> {
-		if (!meta || !this._worktree) {
+		if (!meta) {
 			return meta;
 		}
 		const project = await this._worktree.resolveWorktreeProject(session);
@@ -5815,15 +5866,15 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	prepareEditAttributionFlush(params: IPrepareEditAttributionFlushParams): Promise<IPreparedEditAttributionFlush | undefined> {
-		return this._editAttributionService?.prepareFlush(params) ?? Promise.resolve(undefined);
+		return this._editAttributionService.prepareFlush(params);
 	}
 
 	commitEditAttributionFlush(params: ICommitEditAttributionFlushParams): Promise<IEditAttributionFlushResult> {
-		return this._editAttributionService?.commitFlush(params) ?? Promise.resolve({ outcome: 'missing', agentModifiedCount: 0 });
+		return this._editAttributionService.commitFlush(params);
 	}
 
 	cancelEditAttributionFlush(params: ICancelEditAttributionFlushParams): Promise<IEditAttributionFlushResult> {
-		return this._editAttributionService?.cancelFlush(params) ?? Promise.resolve({ outcome: 'missing', agentModifiedCount: 0 });
+		return this._editAttributionService.cancelFlush(params);
 	}
 
 	async resourceWrite(params: ResourceWriteParams): Promise<ResourceWriteResult> {
@@ -6247,25 +6298,7 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 	}
 
-	/**
-	 * Wire the network diagnostics service backing {@link getNetworkDiagnosticsInfo}
-	 * and {@link diagnosticsFetch}. A setter rather than a constructor argument
-	 * because the service depends on the agent-host proxy resolver, which the
-	 * remote server constructs lazily — after this service.
-	 */
-	setNetworkDiagnosticsService(service: INetworkDiagnosticsService): void {
-		this._networkDiagnostics = service;
-	}
-
-	setEditAttributionService(service: IAgentEditAttributionService): void {
-		this._editAttributionService = service;
-		service.setEnabled(this._stateManager.rootState.config?.values[AgentHostEditTelemetryEnabledConfigKey] !== false);
-	}
-
 	async getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo> {
-		if (!this._networkDiagnostics) {
-			throw new Error('Network diagnostics unavailable: service not wired');
-		}
 		const providers = [...this._providers.values()];
 		const contributions = await Promise.all(providers.map(async provider => {
 			try {
@@ -6312,9 +6345,6 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	async diagnosticsFetch(url: string): Promise<IAgentHostNetworkFetchResult> {
-		if (!this._networkDiagnostics) {
-			throw new Error('Network diagnostics unavailable: service not wired');
-		}
 		return this._networkDiagnostics.fetch(url);
 	}
 
@@ -6322,7 +6352,7 @@ export class AgentService extends Disposable implements IAgentService {
 		return this._findProviderForSession(session)?.getSessionStateFile?.(session);
 	}
 
-	async collectDebugLogs(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind): Promise<IAgentHostDebugLogsArtifact> {
+	async collectDebugLogs(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind, chat?: URI): Promise<IAgentHostDebugLogsArtifact> {
 		if (!this._debugLogsCollector) {
 			throw new Error('Agent Host debug log collection is unavailable');
 		}
@@ -6334,7 +6364,7 @@ export class AgentService extends Disposable implements IAgentService {
 				? `No Agent Host provider is available for session ${session.toString()}`
 				: 'No Agent Host providers are available for debug-log collection');
 		}
-		return this._debugLogsCollector.collect(providers, session, kind);
+		return this._debugLogsCollector.collect(providers, session, kind, chat);
 	}
 
 	async readDebugLogsChunk(resource: URI, position: number): Promise<IAgentHostDebugLogsChunk> {
@@ -6372,7 +6402,7 @@ export class AgentService extends Disposable implements IAgentService {
 		if (!this._gitService) {
 			throw new ProtocolError(AhpErrorCodes.NotFound, `git service unavailable for: ${fields.repoRelativePath}`);
 		}
-		const owningSession = this._sessionReleaseResource(URI.parse(fields.sessionUri));
+		const owningSession = resolveAgentHostSession(URI.parse(fields.sessionUri));
 		const wasRestored = !!this._stateManager.getSessionState(owningSession.toString());
 		try {
 			if (!wasRestored) {
@@ -6392,8 +6422,8 @@ export class AgentService extends Disposable implements IAgentService {
 				contentType: 'text/plain',
 			};
 		} finally {
-			if (!wasRestored && this._stateManager.getSessionState(owningSession.toString()) && !this._hasSessionSubscribers(owningSession)) {
-				this._scheduleSessionRelease(owningSession);
+			if (!wasRestored && this._stateManager.getSessionState(owningSession.toString()) && !this._subscriptions.hasSessionSubscribers(owningSession)) {
+				void this._sessionResidency.reconcile();
 			}
 		}
 	}
@@ -6755,6 +6785,9 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	override dispose(): void {
+		// Unblocks pending deferred work so its chain drains; the disposal guard
+		// in `_runWhenStartupSettled` keeps the work itself from running.
+		this._startupSettled.open();
 		for (const provider of this._providers.values()) {
 			provider.dispose();
 		}

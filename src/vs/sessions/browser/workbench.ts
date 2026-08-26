@@ -9,12 +9,12 @@ import './media/workbench.css';
 import './media/phoneLayout.css';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../base/common/lifecycle.js';
 import { Emitter, Event, setGlobalLeakWarningThreshold } from '../../base/common/event.js';
-import { addDisposableGenericMouseDownListener, addDisposableListener, EventType, getActiveDocument, getActiveElement, getClientArea, getWindowId, getWindows, IDimension, isAncestorUsingFlowTo, size, Dimension, runWhenWindowIdle } from '../../base/browser/dom.js';
+import { addDisposableGenericMouseDownListener, addDisposableListener, EventType, getActiveDocument, getActiveElement, getClientArea, getWindow, getWindowId, getWindows, IDimension, isAncestorUsingFlowTo, size, Dimension, runWhenWindowIdle } from '../../base/browser/dom.js';
 import { DeferredPromise, RunOnceScheduler } from '../../base/common/async.js';
 import { isFullscreen, onDidChangeFullscreen, isChrome, isFirefox, isSafari } from '../../base/browser/browser.js';
 import { mark } from '../../base/common/performance.js';
 import { onUnexpectedError, setUnexpectedErrorHandler } from '../../base/common/errors.js';
-import { isWindows, isLinux, isWeb, isNative, isMacintosh } from '../../base/common/platform.js';
+import { isWindows, isLinux, isWeb, isNative, isMacintosh, isIOS } from '../../base/common/platform.js';
 import { Parts, Position, PanelAlignment, IWorkbenchLayoutService, SINGLE_WINDOW_PARTS, MULTI_WINDOW_PARTS, IPartVisibilityChangeEvent, positionToString } from '../../workbench/services/layout/browser/layoutService.js';
 import { ILayoutOffsetInfo } from '../../platform/layout/browser/layoutService.js';
 import { Part } from '../../workbench/browser/part.js';
@@ -73,7 +73,7 @@ import { SessionsLayoutPolicy } from './layoutPolicy.js';
 import { AGENTS_PART_CARD_CLASS } from './parts/agentsPartCard.js';
 import { MobileNavigationStack } from './mobileNavigationStack.js';
 import { MobileTitlebarPart } from './parts/mobile/mobileTitlebarPart.js';
-import { IMobileVisualViewport } from './parts/mobile/mobileVisualViewport.js';
+import { getMobileViewportDimension, IMobileVisualViewport } from './parts/mobile/mobileVisualViewport.js';
 import { autorun } from '../../base/common/observable.js';
 import { ISessionsService } from '../services/sessions/browser/sessionsService.js';
 import { ISessionsPartService } from '../services/sessions/browser/sessionsPartService.js';
@@ -431,6 +431,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 	private _customViewVisibleKey!: IContextKey<boolean>;
 	/** Guards the grid updates that show/hide the custom view from feeding back into the desired part visibility. */
 	private _applyingCustomViewGridVisibility = false;
+	private _customViewCoveredPartWidths: { editor?: number; auxiliaryBar?: number } | undefined;
 	private _editorLastNonMaximizedVisibility: IPartVisibilityState | undefined;
 	private _editorLastNonMaximizedSize: IViewSize | undefined;
 	private _restoreAttachedEditorMaximizedOnShow = false;
@@ -1483,6 +1484,15 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		// Window resize — needed for device emulation and mobile viewport changes
 		const onWindowResize = () => this.layout();
 		this._register(addDisposableListener(mainWindow, 'resize', onWindowResize));
+
+		const visualViewport = getWindow(this.parent).visualViewport;
+		if (visualViewport && !isIOS) {
+			this._register(addDisposableListener(visualViewport, 'resize', () => {
+				if (this.layoutPolicy.viewportClass.get() === 'phone') {
+					this.layout();
+				}
+			}));
+		}
 	}
 
 	private updateFullscreenClass(): void {
@@ -1773,14 +1783,17 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 	private _previousViewportClass: string | undefined;
 
 	layout(): void {
-		this._mainContainerDimension = getClientArea(
+		const layoutViewportDimension = getClientArea(
 			this.mainWindowFullscreen ? mainWindow.document.body : this.parent
 		);
 
 		// Update viewport classification and toggle mobile CSS classes
 		const previousClass = this._previousViewportClass;
-		this.layoutPolicy.update(this._mainContainerDimension.width, this._mainContainerDimension.height);
+		this.layoutPolicy.update(layoutViewportDimension.width, layoutViewportDimension.height);
 		const currentClass = this.layoutPolicy.viewportClass.get();
+		this._mainContainerDimension = currentClass === 'phone'
+			? getMobileViewportDimension(layoutViewportDimension, getWindow(this.parent).visualViewport)
+			: layoutViewportDimension;
 		this.mainContainer.classList.toggle(LayoutClasses.PHONE_LAYOUT, currentClass === 'phone');
 
 		// When viewport class changes at runtime (e.g., device emulation toggle),
@@ -1933,6 +1946,10 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 
 	isFloatingPanelsEnabled(): boolean {
 		return false; // the agents window has its own floating card design
+	}
+
+	isModernUICompact(): boolean {
+		return false;
 	}
 
 	getLayoutClasses(): string[] {
@@ -2486,6 +2503,13 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 			this.setEditorMaximized(false);
 		}
 
+		if (visible && this.workbenchGrid) {
+			this._customViewCoveredPartWidths = {
+				editor: this._editorNodeShouldBeVisible() ? this.workbenchGrid.getViewSize(this.editorPartView).width : undefined,
+				auxiliaryBar: this._effectiveVisible(Parts.AUXILIARYBAR_PART) ? this._auxiliaryBarViewSize().width : undefined,
+			};
+		}
+
 		this.customViewGridPartService.setView(descriptor);
 		this.partVisibility.customViewGrid = visible;
 		this._customViewVisibleKey.set(visible);
@@ -2506,6 +2530,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 				} else {
 					this._applyExclusivePartVisibility();
 					this.workbenchGrid.setViewVisible(this.customViewGridPartView, false);
+					this._restoreCustomViewCoveredPartWidths();
 				}
 			});
 		} finally {
@@ -2536,6 +2561,18 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 			this.focusPart(Parts.CUSTOM_VIEW_GRID_PART);
 		} else {
 			this.sessionsPartService.focusSession(this.sessionsService.activeSession.get());
+		}
+	}
+
+	private _restoreCustomViewCoveredPartWidths(): void {
+		const widths = this._customViewCoveredPartWidths;
+		this._customViewCoveredPartWidths = undefined;
+
+		if (widths?.auxiliaryBar && this._effectiveVisible(Parts.AUXILIARYBAR_PART)) {
+			this._setAuxiliaryBarViewSize({ ...this._auxiliaryBarViewSize(), width: widths.auxiliaryBar });
+		}
+		if (widths?.editor && this._editorNodeShouldBeVisible()) {
+			this.workbenchGrid.resizeView(this.editorPartView, { ...this.workbenchGrid.getViewSize(this.editorPartView), width: widths.editor });
 		}
 	}
 

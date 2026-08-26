@@ -6,25 +6,218 @@
 import assert from 'assert';
 import type { Terminal } from '@xterm/xterm';
 import { importAMDNodeModule } from '../../../../../../../amdX.js';
+import { renderAsPlaintext } from '../../../../../../../base/browser/markdownRenderer.js';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { observableValue } from '../../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { toDisposable } from '../../../../../../../base/common/lifecycle.js';
+import { mock } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../../base/test/common/timeTravelScheduler.js';
 import { timeout } from '../../../../../../../base/common/async.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IAccessibleViewService } from '../../../../../../../platform/accessibility/browser/accessibleView.js';
+import { IMarkdownRenderer } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
+import { TerminalCapabilityStore } from '../../../../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
+import { IAiEditTelemetryService } from '../../../../../editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
+import { IChatOutputRendererService } from '../../../../browser/chatOutputItemRenderer.js';
+import { IChatMarkdownAnchorService } from '../../../../browser/widget/chatContentParts/chatMarkdownAnchorService.js';
 import { IChatContentPartRenderContext, InlineTextModelCollection } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
 import { DiffEditorPool, EditorPool } from '../../../../browser/widget/chatContentParts/chatContentCodePools.js';
-import { ChatTerminalThinkingCollapsibleWrapper, ChatTerminalToolOutputSection } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatTerminalToolProgressPart.js';
+import { ChatTerminalThinkingCollapsibleWrapper, ChatTerminalToolOutputSection, ChatTerminalToolProgressPart } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatTerminalToolProgressPart.js';
+import { IChatSessionsService } from '../../../../common/chatSessionsService.js';
+import { IChatTerminalToolInvocationData, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
 import { IChatResponseViewModel } from '../../../../common/model/chatViewModel.js';
 import { TerminalToolAutoExpand, TerminalToolAutoExpandTimeout } from '../../../../browser/widget/chatContentParts/toolInvocationParts/terminalToolAutoExpand.js';
-import { ITerminalConfigurationService, ITerminalService, type IDetachedXTermOptions } from '../../../../../terminal/browser/terminal.js';
+import { IChatTerminalToolProgressPart, ITerminalChatService, ITerminalConfigurationService, ITerminalInstance, ITerminalService, type IDetachedXTermOptions } from '../../../../../terminal/browser/terminal.js';
 import type { ITerminalFont } from '../../../../../terminal/common/terminal.js';
 import { createFakeDetachedTerminal } from '../../../../../terminal/test/browser/chatTerminalMirrorTestUtils.js';
+
+function listenerCount<T>(emitter: Emitter<T>): number {
+	return (emitter as unknown as { _size: number })._size ?? 0;
+}
+
+class TestTerminalChatService extends mock<ITerminalChatService>() {
+	override readonly onDidRegisterTerminalInstanceWithToolSession = Event.None;
+	override readonly onDidContinueInBackground: Event<string>;
+
+	private readonly progressParts = new Set<IChatTerminalToolProgressPart>();
+
+	constructor(
+		private readonly continueInBackgroundEmitter: Emitter<string>,
+		private readonly terminalInstance: ITerminalInstance,
+	) {
+		super();
+		this.onDidContinueInBackground = continueInBackgroundEmitter.event;
+	}
+
+	override async getTerminalInstanceByToolSessionId(_terminalToolSessionId: string): Promise<ITerminalInstance | undefined> {
+		return this.terminalInstance;
+	}
+
+	override registerProgressPart(part: IChatTerminalToolProgressPart) {
+		this.progressParts.add(part);
+		return toDisposable(() => this.progressParts.delete(part));
+	}
+
+	override continueInBackground(terminalToolSessionId: string): void {
+		this.continueInBackgroundEmitter.fire(terminalToolSessionId);
+		for (const part of this.progressParts) {
+			if (part.terminalToolSessionId === terminalToolSessionId) {
+				part.markContinuedInBackground();
+			}
+		}
+	}
+
+	override isBackgroundTerminal(): boolean {
+		return false;
+	}
+
+	override getOutputSource() {
+		return undefined;
+	}
+
+	override getAhpCommandSource() {
+		return undefined;
+	}
+
+	override setFocusedProgressPart(): void { }
+	override clearFocusedProgressPart(): void { }
+}
+
+suite('ChatTerminalToolProgressPart listener ownership', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('rendered parts do not accumulate continue listeners and duplicate rows update', async () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const continueInBackgroundEmitter = store.add(new Emitter<string>());
+		const capabilities = store.add(new TerminalCapabilityStore());
+		const terminalInstance = new class extends mock<ITerminalInstance>() {
+			override readonly isDisposed = false;
+			override readonly onDisposed = Event.None;
+			override readonly onWillData = Event.None;
+			override readonly capabilities = capabilities;
+		}();
+		const terminalChatService = new TestTerminalChatService(continueInBackgroundEmitter, terminalInstance);
+		instantiationService.stub(ITerminalChatService, terminalChatService);
+		instantiationService.stub(ITerminalService, new class extends mock<ITerminalService>() {
+			override readonly whenConnected = Promise.resolve();
+		}());
+		instantiationService.stub(IAccessibleViewService, new class extends mock<IAccessibleViewService>() { }());
+		instantiationService.stub(IChatMarkdownAnchorService, {
+			_serviceBrand: undefined,
+			register: () => toDisposable(() => { }),
+			lastFocusedAnchor: undefined,
+		});
+		instantiationService.stub(IAiEditTelemetryService, new class extends mock<IAiEditTelemetryService>() { }());
+		instantiationService.stub(IChatOutputRendererService, new class extends mock<IChatOutputRendererService>() {
+			override hasCodeBlockRenderer(): boolean {
+				return false;
+			}
+		}());
+		instantiationService.stub(IChatSessionsService, new class extends mock<IChatSessionsService>() { }());
+
+		const markdownRenderer: IMarkdownRenderer = {
+			render: (markdown, _options, outElement) => {
+				const element = outElement ?? mainWindow.document.createElement('div');
+				element.textContent = renderAsPlaintext(markdown);
+				return { element, dispose() { } };
+			}
+		};
+		const editorPool = Object.create(EditorPool.prototype) as EditorPool;
+		const host = mainWindow.document.createElement('div');
+		mainWindow.document.body.appendChild(host);
+		store.add(toDisposable(() => host.remove()));
+		const eventSessionIds: string[] = [];
+		store.add(continueInBackgroundEmitter.event(sessionId => eventSessionIds.push(sessionId)));
+		const listenerCountBeforeRender = listenerCount(continueInBackgroundEmitter);
+
+		const targetSessionId = 'terminal-session-target';
+		const terminalData: IChatTerminalToolInvocationData[] = [];
+		const parts: ChatTerminalToolProgressPart[] = [];
+		for (let index = 0; index < 50; index++) {
+			const data: IChatTerminalToolInvocationData = {
+				kind: 'terminal',
+				commandLine: { original: `echo ${index}` },
+				language: 'shellscript',
+				terminalToolSessionId: index === 24 || index === 25 ? targetSessionId : `terminal-session-${index}`,
+			};
+			const invocation: IChatToolInvocationSerialized = {
+				presentation: undefined,
+				toolSpecificData: data,
+				invocationMessage: 'Running command',
+				originMessage: undefined,
+				pastTenseMessage: 'Ran command',
+				isConfirmed: { type: ToolConfirmKind.ConfirmationNotNeeded },
+				isComplete: true,
+				toolCallId: `tool-call-${index}`,
+				toolId: 'run_in_terminal',
+				source: undefined,
+				kind: 'toolInvocationSerialized',
+			};
+			const element = Object.assign(Object.create(null) as IChatResponseViewModel, {
+				id: `response-${index}`,
+				isComplete: true,
+				sessionResource: URI.parse('chat-session://test/session'),
+				setVote() { },
+				get model() { return {} as IChatResponseViewModel['model']; },
+			});
+			const context: IChatContentPartRenderContext = {
+				element,
+				elementIndex: index,
+				container: host,
+				content: [invocation],
+				contentIndex: 0,
+				inlineTextModels: Object.create(InlineTextModelCollection.prototype) as InlineTextModelCollection,
+				editorPool,
+				codeBlockStartIndex: 0,
+				treeStartIndex: 0,
+				diffEditorPool: Object.create(DiffEditorPool.prototype) as DiffEditorPool,
+				currentWidth: observableValue('testWidth', 500),
+				onDidChangeVisibility: Event.None,
+			};
+			const part = store.add(instantiationService.createInstance(
+				ChatTerminalToolProgressPart,
+				invocation,
+				data,
+				context,
+				markdownRenderer,
+				editorPool,
+				() => 500,
+				0,
+			));
+			host.appendChild(part.domNode);
+			terminalData.push(data);
+			parts.push(part);
+		}
+		await timeout(0);
+
+		const listenerCountAfterRender = listenerCount(continueInBackgroundEmitter);
+		const actionCountsBefore = parts.map(part => part.domNode.querySelectorAll('.action-item').length);
+		parts[24].continueInBackground();
+		const actionCountsAfter = parts.map(part => part.domNode.querySelectorAll('.action-item').length);
+
+		assert.deepStrictEqual({
+			renderedRows: parts.filter(part => part.domNode.isConnected).length,
+			listenerCounts: [listenerCountBeforeRender, listenerCountAfterRender],
+			actionCountsBefore: [...new Set(actionCountsBefore)],
+			continuedRows: terminalData.flatMap((data, index) => data.didContinueInBackground ? [index] : []),
+			matchingActionCountsAfter: [actionCountsAfter[24], actionCountsAfter[25]],
+			unmatchedActionCountAfter: actionCountsAfter[0],
+			eventSessionIds,
+		}, {
+			renderedRows: 50,
+			listenerCounts: [1, 1],
+			actionCountsBefore: [2],
+			continuedRows: [24, 25],
+			matchingActionCountsAfter: [1, 1],
+			unmatchedActionCountAfter: 2,
+			eventSessionIds: [targetSessionId],
+		});
+	});
+});
 
 suite('ChatTerminalToolProgressPart Auto-Expand Logic', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

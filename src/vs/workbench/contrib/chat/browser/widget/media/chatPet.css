@@ -38,9 +38,7 @@
 	cursor: grabbing;
 }
 
-.chat-pet-button.dragging,
-.chat-pet-button.falling,
-.chat-pet-button.throwing,
+.chat-pet-button,
 .chat-pet-respawn-effect {
 	z-index: 1;
 }
@@ -262,6 +260,11 @@
 .chat-pet-button[data-state='yappingMouthOpen'] .chat-pet-eye-accessory {
 	transform-origin: 30% 80%;
 	transform: translateY(calc(-1 * var(--vscode-spacing-size40))) rotate(-90deg);
+}
+
+.chat-pet-button.on-the-run,
+.chat-pet-button.returning-from-run {
+	z-index: auto;
 }
 
 .chat-pet-button.on-the-run {

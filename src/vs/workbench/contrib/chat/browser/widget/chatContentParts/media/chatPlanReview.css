@@ -38,14 +38,8 @@
 }
 
 .interactive-session .chat-plan-review-container > .chat-confirmation-widget2.chat-plan-review {
-	display: flex;
-	flex-direction: column;
-	border: var(--vscode-strokeThickness) solid var(--vscode-input-border, var(--vscode-chat-requestBorder));
-	border-radius: var(--vscode-cornerRadius-large);
-	background-color: var(--vscode-panel-background);
 	max-height: min(420px, 50vh);
 	min-height: 0;
-	overflow: hidden;
 	margin-bottom: 8px;
 }
 
@@ -110,27 +104,7 @@
 	flex-shrink: 0;
 }
 
-/* Small, transparent title-bar buttons — matches the question carousel
- * chat-question-collapse-toggle / chat-question-close styles. */
-.interactive-session .chat-plan-review-container .monaco-button.chat-plan-review-title-button {
-	min-width: 22px;
-	height: 22px;
-	padding: 0 6px;
-	border: none !important;
-	box-shadow: none !important;
-	background: transparent !important;
-	color: var(--vscode-icon-foreground) !important;
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-}
-
-.interactive-session .chat-plan-review-container .monaco-button.chat-plan-review-title-button:hover:not(.disabled) {
-	background: var(--vscode-toolbar-hoverBackground) !important;
-}
-
-/* Icon-only square buttons (restore, chevron, edit). Exactly 22x22 with no
- * padding, matching `.monaco-button.chat-question-collapse-toggle`. */
+/* Icon-only square buttons (restore, chevron, edit): back to the default 22x22 square. */
 .interactive-session .chat-plan-review-container .monaco-button.chat-plan-review-title-icon-button {
 	width: 22px;
 	padding: 0;
@@ -402,11 +376,6 @@
 	display: flex;
 	gap: 6px;
 	align-items: center;
-}
-
-/* ---------- Hidden helper ---------- */
-.interactive-session .chat-plan-review-container .monaco-button.chat-plan-review-hidden {
-	display: none;
 }
 
 /* ---------- Collapsed state ---------- */

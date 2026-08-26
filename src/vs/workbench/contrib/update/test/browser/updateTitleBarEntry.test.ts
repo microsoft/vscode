@@ -22,9 +22,9 @@ import { IProductService } from '../../../../../platform/product/common/productS
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IUpdateService, State } from '../../../../../platform/update/common/update.js';
 import { InEditorZenModeContext } from '../../../../common/contextkeys.js';
-import { UpdateTitleBarEntry } from '../../browser/updateTitleBarEntry.js';
+import { getAdditionalUpdateTitleBarMenuWhen, UpdateTitleBarEntry } from '../../browser/updateTitleBarEntry.js';
 import { UpdateTooltip } from '../../browser/updateTooltip.js';
-import { UpdateGlobalActivityBadgeVisibleContext, UpdateTitleBarChatInProgressContext, UpdateTitleBarContext } from '../../common/update.js';
+import { UpdateGlobalActivityBadgeVisibleContext, UpdateTitleBarChatInProgressContext, UpdateTitleBarContext, UpdateTitleBarEditorVisibleContext } from '../../common/update.js';
 
 class TestCommandService extends mock<ICommandService>() {
 	private readonly _onDidExecuteCommand = new Emitter<ICommandEvent>();
@@ -138,6 +138,27 @@ suite('UpdateGlobalActivityBadgeVisibleContext', () => {
 		});
 
 		assert.deepStrictEqual(actual, scenarios.map(({ name, expected }) => ({ name, visible: expected })));
+	});
+});
+
+suite('UpdateTitleBarVisibleContexts', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('shows an additional placement during an active chat while the editor hides it', () => {
+		const contextKeyService = new TestContextKeyService();
+		UpdateTitleBarContext.bindTo(contextKeyService).set(true);
+		UpdateTitleBarChatInProgressContext.bindTo(contextKeyService).set(true);
+		InEditorZenModeContext.bindTo(contextKeyService).set(false);
+		contextKeyService.createKey('inDebugMode', false);
+
+		assert.deepStrictEqual({
+			additional: contextKeyService.contextMatchesRules(getAdditionalUpdateTitleBarMenuWhen()),
+			editor: contextKeyService.contextMatchesRules(UpdateTitleBarEditorVisibleContext),
+		}, {
+			additional: true,
+			editor: false,
+		});
 	});
 });
 

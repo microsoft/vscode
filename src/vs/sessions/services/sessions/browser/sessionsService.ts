@@ -15,11 +15,12 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
-import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
+import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { localize } from '../../../../nls.js';
 import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionStatus } from '../common/session.js';
 import { IActiveSession, ICreateNewChatInSessionOptions, ICreateNewSessionOptions, inheritableSessionTarget, IRecentlyOpenedSessions, ISessionsChangeEvent, ISessionsManagementService, IToggleSessionStickinessEvent } from '../common/sessionsManagement.js';
 import { ISessionsProvidersService } from './sessionsProvidersService.js';
+import { ensureSessionWorktreesTrusted } from './worktreeTrust.js';
 import { ClosedItemHistory } from './closedItemHistory.js';
 import { SessionsNavigation } from './sessionNavigation.js';
 import { SessionsRecencyHistory } from './sessionsRecencyHistory.js';
@@ -29,6 +30,7 @@ import { ISessionsPartService } from './sessionsPartService.js';
 import { ICustomViewService } from '../../customView/browser/customViewService.js';
 import { IsNewChatSessionContext } from '../../../common/contextkeys.js';
 import { setActiveSessionContextKeys } from '../common/sessionContextKeys.js';
+import { ISessionChangesStatsCache } from '../common/sessionChangesStatsCache.js';
 
 const ACTIVE_SESSION_STATES_KEY = 'agentSessions.activeSessionStates';
 
@@ -173,6 +175,13 @@ export interface ISessionsService {
 	 * keyboard focus into it.
 	 */
 	openSession(sessionResource: URI, options?: { preserveFocus?: boolean }): Promise<void>;
+
+	/**
+	 * Whether the given session may be opened, honoring workspace trust. Prompts
+	 * for trust on any untrusted folder the session runs in and resolves to
+	 * `false` if the user declines.
+	 */
+	canOpenSession(session: ISession): Promise<boolean>;
 
 	/**
 	 * Open a specific chat within a session and show it in the grid.
@@ -354,6 +363,8 @@ export class SessionsService extends Disposable implements ISessionsService {
 		@ICustomViewService private readonly customViewService: ICustomViewService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
+		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
+		@ISessionChangesStatsCache private readonly changesStatsCache: ISessionChangesStatsCache,
 	) {
 		super();
 
@@ -416,7 +427,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 			// sent for the first time). Scoping to the active session avoids flipping
 			// into "new chat" mode while viewing a different established session.
 			this._isNewChatSessionContext.set(activeSession === undefined || activeSession.sessionId === newSession?.sessionId);
-			setActiveSessionContextKeys(activeSession, this.contextKeyService, reader);
+			setActiveSessionContextKeys(activeSession, this.contextKeyService, reader, this.changesStatsCache);
 		}));
 
 		// Per-active-session view reactions (archived → new-session view,
@@ -786,6 +797,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 	}
 
 	async openSession(sessionResource: URI, options?: { preserveFocus?: boolean }): Promise<void> {
+		this.logService.trace(`[SessionsView] openSession requested uri=${sessionResource.toString()}`);
 		// Claim the open before resolving: resolution can take seconds for a legacy
 		// Copilot CLI resource, and a newer open must win regardless of which
 		// resolution finishes first.
@@ -799,6 +811,49 @@ export class SessionsService extends Disposable implements ISessionsService {
 		}
 		const sessionData = this._showSession(resolved, options);
 		await this._waitForOpenSessionToLoad(sessionData, token);
+	}
+
+	async canOpenSession(session: ISession): Promise<boolean> {
+		// Re-focusing the already-active session is not a new open, so never gate it.
+		if (this.activeSession.get()?.sessionId === session.sessionId) {
+			return true;
+		}
+		const workspace = session.workspace.get();
+		// A session that doesn't require workspace trust (virtual/cloud/quick-chat),
+		// or whose workspace metadata has not hydrated yet, opens without a check; a
+		// folder-less workspace has nothing to gate.
+		if (!workspace?.requiresWorkspaceTrust) {
+			return true;
+		}
+		// Inherit trust for any isolated worktree VS Code created off a base
+		// repository the user already trusts, before checking folders — so opening
+		// a worktree session does not prompt for a folder whose provenance is
+		// already trusted. This runs here (the imperative open path) because the
+		// reactive mount's equivalent step only runs once the session is active,
+		// i.e. after this gate.
+		await ensureSessionWorktreesTrusted(workspace, this.workspaceTrustManagementService);
+		// Every folder the session operates in must be trusted before it opens, not
+		// just the primary one: the agent — and its tasks, terminals and other
+		// tooling — can run against any of the session's working directories, so we
+		// make no assumptions about the non-primary folders being harmless. Check
+		// all in parallel (fast path when already trusted), then surface VS Code's
+		// standard workspace-trust dialog for each untrusted folder in turn.
+		// Declining any leaves the current session (or empty new-session slot)
+		// untouched. Run from this imperative open path (not the reactive mount),
+		// the prompt fires once per open and cannot loop.
+		const folders = workspace.folders.map(folder => folder.workingDirectory);
+		const trustInfos = await Promise.all(folders.map(folder => this.workspaceTrustManagementService.getUriTrustInfo(folder)));
+		const untrustedFolders = folders.filter((_, index) => !trustInfos[index].trusted);
+		for (const folder of untrustedFolders) {
+			const trusted = await this.workspaceTrustRequestService.requestResourcesTrust({
+				uri: folder,
+				message: localize('sessionsService.trustFolderMessage', "An agent session will be able to read files, run commands, and make changes in this folder."),
+			});
+			if (!trusted) {
+				return false;
+			}
+		}
+		return true;
 	}
 
 	showSession(sessionResource: URI, options?: { preserveFocus?: boolean }): void {
