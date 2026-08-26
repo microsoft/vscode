@@ -629,6 +629,24 @@ h2 {
 	margin-bottom: 10px;
 }
 
+.platform-tips {
+	display: grid;
+	gap: 12px;
+	margin-top: 12px;
+}
+
+.platform-tips h5 {
+	margin: 0;
+	color: var(--text);
+	font-size: 12px;
+	font-weight: 600;
+}
+
+.platform-tips ul {
+	margin: 6px 0 0;
+	padding-left: 20px;
+}
+
 .setup-steps.compact .step-content > p {
 	margin-bottom: 10px;
 }

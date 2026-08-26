@@ -18,10 +18,12 @@ The GUI opens on the **Policies** workspace. Select **Setup** in the header to
 open a modal that guides you through either connection method:
 
 - **System proxy (recommended):** works with Code OSS, Stable, Insiders, Copilot
-  CLI, and SDK/runtime clients. The page recommends Proxyman on macOS and
-  provides a **Map Remote** rule. VS Code normally uses the system proxy; the
-  `http.proxy` setting is available as an optional fallback when explicit client
-  configuration is needed.
+  CLI, and SDK/runtime clients. The page recommends Proxyman on macOS and Windows
+  and provides a **Map Remote** rule, along with the per-platform toggle that
+  routes system traffic through Proxyman (**Tools > macOS Proxy** on macOS,
+  **Tools > Override Windows Proxy** on Windows). VS Code normally uses the
+  system proxy; the `http.proxy` setting is available as an optional fallback
+  when explicit client configuration is needed.
 - **Code OSS overrides:** the quicker option for Code OSS from this checkout.
   Select **Apply Overrides**, reload, and sign in. This option does not redirect
   SDK/runtime requests.
@@ -33,8 +35,8 @@ Account Policy**. To refresh the policy used by Local Agent Host, also run
 The Setup dialog checks Code OSS overrides directly. It tests the system proxy by
 sending a request without credentials to the managed settings URL and confirming
 that the response came from this local server. It does not inspect Proxyman or
-macOS proxy configuration. The test runs automatically, and the global header
-always shows a green or red connection indicator.
+the operating system's proxy configuration. The test runs automatically, and the
+global header always shows a green or red connection indicator.
 
 If no real request appears in **Live Requests**, use **Clear Policy Cache**. A
 fresh managed-settings cache entry can prevent the client from making a request

@@ -60,7 +60,7 @@
 							<label class="method-label" for="setup-method-proxy">
 								<span class="method-badge">Recommended</span>
 								<h3>System Proxy</h3>
-								<span class="method-recommendation">Recommended on macOS: Proxyman</span>
+								<span class="method-recommendation">Recommended on macOS and Windows: Proxyman</span>
 								<p>Routes policy requests from Code OSS, Stable, Insiders, Copilot CLI, and SDK/runtime clients.</p>
 							</label>
 						</div>
@@ -91,10 +91,24 @@
 								<details>
 									<summary>Proxyman tips</summary>
 									<ul>
-										<li>Turn on macOS Proxy in Proxyman before checking the connection.</li>
-										<li>If HTTPS requests do not appear, install and trust Proxyman's certificate.</li>
 										<li>Keep the source and destination paths identical.</li>
+										<li>If HTTPS requests do not appear, install and trust Proxyman's certificate.</li>
 									</ul>
+									<div class="platform-tips">
+										<section>
+											<h5>macOS</h5>
+											<ul>
+												<li>Turn on <code>Tools &gt; macOS Proxy</code> before checking the connection.</li>
+											</ul>
+										</section>
+										<section>
+											<h5>Windows</h5>
+											<ul>
+												<li>Turn on <code>Tools &gt; Override Windows Proxy</code> before checking the connection. Proxyman still shows its listening port while this is off, but Windows leaves system proxying disabled, so clients connect directly and no requests are captured.</li>
+												<li>Confirm Windows picked up the change: <code>ProxyEnable</code> should be <code>1</code> and <code>ProxyServer</code> should be Proxyman's host and port under <code>HKCU\Software\Microsoft\Windows\CurrentVersion\Internet Settings</code>.</li>
+											</ul>
+										</section>
+									</div>
 								</details>
 								<details>
 									<summary>Optional: configure VS Code explicitly</summary>
