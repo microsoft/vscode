@@ -128,6 +128,7 @@ export class PluginMcpDiscovery extends Disposable implements IMcpDiscovery {
 		try {
 			return {
 				type: McpServerTransportType.HTTP,
+				...(config.transport === 'sse' ? { transport: 'sse' as const } : {}),
 				uri: URI.parse(config.url),
 				headers: Object.entries(config.headers ?? {}),
 				oauth: config.oauth,

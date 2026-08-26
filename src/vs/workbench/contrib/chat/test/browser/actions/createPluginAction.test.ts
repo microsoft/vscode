@@ -224,7 +224,7 @@ suite('CreatePluginAction helpers', () => {
 					type: McpServerTransportType.Stdio,
 					command: 'node',
 					args: ['server.js'],
-					cwd: '/workspace',
+					cwd: '${PLUGIN_ROOT}',
 					env: { NODE_ENV: 'production' },
 					envFile: undefined,
 					sandbox: undefined,
@@ -233,7 +233,7 @@ suite('CreatePluginAction helpers', () => {
 					type: 'stdio',
 					command: 'node',
 					args: ['server.js'],
-					cwd: '/workspace',
+					cwd: '${PLUGIN_ROOT}',
 					env: { NODE_ENV: 'production' },
 				}
 			);
@@ -257,25 +257,37 @@ suite('CreatePluginAction helpers', () => {
 			);
 		});
 
-		test('serializes HTTP launch as streamable HTTP', () => {
+		test('rejects HTTP headers', () => {
+			assert.throws(() => serializeMcpLaunch({
+				type: McpServerTransportType.HTTP,
+				transport: 'streamable-http',
+				uri: URI.parse('http://localhost:3000'),
+				headers: [['Authorization', 'Bearer token']],
+			}, 'server'),
+				/server.*HTTP headers/
+			);
+		});
+
+		test('serializes SSE launch', () => {
 			assert.deepStrictEqual(
 				serializeMcpLaunch({
 					type: McpServerTransportType.HTTP,
+					transport: 'sse',
 					uri: URI.parse('http://localhost:3000'),
-					headers: [['Authorization', 'Bearer token']],
+					headers: [],
 				}),
 				{
-					type: 'streamable-http',
+					type: 'sse',
 					url: 'http://localhost:3000/',
-					headers: { Authorization: 'Bearer token' },
 				}
 			);
 		});
 
-		test('omits empty headers for streamable HTTP', () => {
+		test('serializes streamable HTTP launch', () => {
 			assert.deepStrictEqual(
 				serializeMcpLaunch({
 					type: McpServerTransportType.HTTP,
+					transport: 'streamable-http',
 					uri: URI.parse('http://localhost:3000'),
 					headers: [],
 				}),
@@ -284,6 +296,27 @@ suite('CreatePluginAction helpers', () => {
 					url: 'http://localhost:3000/',
 				}
 			);
+		});
+
+		test('rejects non-portable stdio configuration', () => {
+			assert.throws(() => serializeMcpLaunch({
+				type: McpServerTransportType.Stdio,
+				command: '/usr/bin/server',
+				args: [],
+				cwd: '/workspace',
+				env: { PORT: 3000 },
+				envFile: undefined,
+				sandbox: undefined,
+			}, 'server'), /server.*command/);
+		});
+
+		test('rejects non-portable HTTP URLs', () => {
+			assert.throws(() => serializeMcpLaunch({
+				type: McpServerTransportType.HTTP,
+				transport: 'streamable-http',
+				uri: URI.parse('http://example.com/mcp'),
+				headers: [],
+			}, 'server'), /server.*URL/);
 		});
 	});
 });
@@ -512,6 +545,39 @@ suite('writePluginToDisk', () => {
 				}
 			}
 		});
+	});
+
+	test('validates MCP servers before creating the plugin', async () => {
+		const pluginRoot = URI.joinPath(root, 'test-plugin');
+		await assert.rejects(writePluginToDisk(fileService, pluginRoot, 'test-plugin', [
+			makeResourceItem({
+				label: 'unsafe-server',
+				resourceType: 'mcp',
+				mcpServer: {
+					collection: {
+						id: 'col1',
+						label: 'Test Collection',
+						order: McpCollectionSortOrder.User,
+					} as IResourceTreeItem['mcpServer'] extends undefined ? never : NonNullable<IResourceTreeItem['mcpServer']>['collection'],
+					definition: {
+						id: 'def1',
+						label: 'unsafe-server',
+						launch: {
+							type: McpServerTransportType.Stdio,
+							command: 'node',
+							args: [],
+							cwd: '/workspace',
+							env: {},
+							envFile: undefined,
+							sandbox: undefined,
+						},
+						cacheNonce: '1',
+					} as IResourceTreeItem['mcpServer'] extends undefined ? never : NonNullable<IResourceTreeItem['mcpServer']>['definition'],
+				},
+			}),
+		]), /unsafe-server.*working directory/);
+
+		assert.strictEqual(await fileService.exists(pluginRoot), false);
 	});
 
 	test('strips namespace prefix from plugin resource names', async () => {

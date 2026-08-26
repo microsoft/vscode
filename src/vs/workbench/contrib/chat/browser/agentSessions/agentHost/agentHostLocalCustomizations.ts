@@ -233,6 +233,7 @@ function launchToMcpServerConfiguration(launch: McpServerLaunch): IMcpServerConf
 		case McpServerTransportType.HTTP:
 			return {
 				type: McpServerType.REMOTE,
+				transport: launch.transport === 'sse' ? 'sse' : 'http',
 				url: launch.uri.toString(),
 				headers: launch.headers.length > 0 ? Object.fromEntries(launch.headers) : undefined,
 			};

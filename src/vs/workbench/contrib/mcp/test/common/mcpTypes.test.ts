@@ -143,4 +143,27 @@ suite('MCP Types', () => {
 			deserialized: defaultCwd.toString(),
 		});
 	});
+
+	test('McpServerDefinition preserves SSE transport when serialized', () => {
+		const definition: McpServerDefinition = {
+			id: 'test-server',
+			label: 'Test Server',
+			cacheNonce: 'nonce',
+			launch: {
+				type: McpServerTransportType.HTTP,
+				transport: 'sse',
+				uri: URI.parse('https://example.com/sse'),
+				headers: [],
+			},
+		};
+
+		const launch = McpServerDefinition.fromSerialized(McpServerDefinition.toSerialized(definition)).launch;
+		assert.deepStrictEqual(launch.type === McpServerTransportType.HTTP ? {
+			type: launch.type,
+			transport: launch.transport,
+		} : undefined, {
+			type: McpServerTransportType.HTTP,
+			transport: 'sse',
+		});
+	});
 });

@@ -87,6 +87,7 @@ export class InstalledMcpServersDiscovery extends Disposable implements IMcpDisc
 
 				const launch: McpServerLaunch = config.type === 'http' ? {
 					type: McpServerTransportType.HTTP,
+					...(config.transport === 'sse' ? { transport: 'sse' as const } : {}),
 					uri: URI.parse(config.url),
 					headers: Object.entries(config.headers || {}),
 					oauth: config.oauth,
