@@ -234,10 +234,12 @@ For every provider, migration and discovery partition the same native catalog: m
 
 ### Server-tool creation provenance
 
-Treat a session as the user-visible unit of work. The `create_chat` tool is the
-default for parallel subtasks that should share one workspace, lifecycle, and
-aggregate diff. Use `create_session` only when a delegated task needs an
-independent workspace, worktree or branch, provider, or lifecycle.
+Treat a session as the user-visible unit of work. `create_session` requires a
+relationship: `currentSession` creates a peer chat for tasks in the current plan
+or deliverable, sharing its workspace, lifecycle, and aggregate diff;
+`independent` creates a top-level session for a separate deliverable that needs
+its own workspace, provider, or lifecycle. A title is required for both
+relationships and is applied before the initial prompt starts.
 
 Sessions created by the `create_session` server tool record only the creating
 session, chat, and turn as immutable, provider-neutral creation provenance in
@@ -250,10 +252,12 @@ hierarchy, grant communication privileges, or trigger lifecycle notifications.
 primary and additional working directories. `create_session` accepts those URIs
 directly and can resolve a unique project display name, preferring the
 configured project root over a transient worktree. Ambiguous names require an
-explicit project URI. Its optional `baseBranch` input selects worktree isolation
-and overrides the host-owned base branch while preserving provider-owned
-configuration inherited from the creating chat. This supports stacked work
-without exposing worktree implementation details to the model.
+explicit project URI. For `independent` work, its optional `baseBranch` input
+selects worktree isolation and overrides the host-owned base branch while
+preserving provider-owned configuration inherited from the creating chat. It is
+invalid for `currentSession` work, which shares the existing workspace. This
+supports stacked work without exposing worktree implementation details to the
+model.
 
 ---
 
