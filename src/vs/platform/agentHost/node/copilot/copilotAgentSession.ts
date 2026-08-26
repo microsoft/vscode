@@ -2991,7 +2991,7 @@ export class CopilotAgentSession extends Disposable {
 			...(this._detectInterruptedTurnOnRestore ? {
 				interruptedTurnError: {
 					errorType: 'executionInterrupted',
-					message: localize('copilotAgent.interruptedTurn', "The agent host stopped before this request finished."),
+					message: localize('copilotAgent.interruptedTurn', "The agent was interrupted before this request finished."),
 				},
 			} : {}),
 		});

@@ -1448,6 +1448,26 @@ suite('CopilotAgentSession', () => {
 		assert.strictEqual(getEventsCalls, 3, 'memo should be invalidated after a session error');
 	});
 
+	test('describes an interrupted restored request without exposing Agent Host terminology', async () => {
+		const { session, mockSession } = await createAgentSession(disposables, { resume: true });
+		mockSession.messages = [
+			{ type: 'user.message', id: 'interrupted-turn', data: { interactionId: 'message-1', content: 'Keep working' } },
+			{ type: 'assistant.turn_start', data: { turnId: 'sdk-turn' } },
+			{ type: 'assistant.message', data: { messageId: 'message-2', content: 'Partial response' } },
+		] as SessionEvent[];
+
+		const turn = (await session.getMessages())[0];
+
+		assert.deepStrictEqual(turn.responseParts.at(-1), {
+			kind: ResponsePartKind.Error,
+			error: {
+				errorType: 'executionInterrupted',
+				message: 'The agent was interrupted before this request finished.',
+			},
+			resumable: true,
+		});
+	});
+
 	test('falls back to file reference when reading a symbol Resource attachment fails', async () => {
 		const symbolUri = URI.file('/workspace/missing.ts');
 		const { session, mockSession } = await createAgentSession(disposables, {

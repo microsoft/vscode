@@ -123,7 +123,7 @@ suite('mapSessionEvents — history replay', () => {
 		];
 		const interruptedTurnError = {
 			errorType: 'executionInterrupted',
-			message: 'The agent host stopped before this request finished.',
+			message: 'The agent was interrupted before this request finished.',
 		};
 
 		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events), { interruptedTurnError });
@@ -184,7 +184,7 @@ suite('mapSessionEvents — history replay', () => {
 		];
 		const interruptedTurnError = {
 			errorType: 'executionInterrupted',
-			message: 'The agent host stopped before this request finished.',
+			message: 'The agent was interrupted before this request finished.',
 		};
 
 		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events), { interruptedTurnError });
