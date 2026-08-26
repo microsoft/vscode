@@ -353,7 +353,7 @@ function normalizeProjectSessionTitle(title: string): string {
 	return humanized.replace(/\s+/g, ' ').trim();
 }
 
-export function validateRenameTitle(title: string, toolName: SessionServerToolName.CreateSession | SessionServerToolName.RenameChat): void {
+export function validateRenameTitle(title: string, toolName: SessionServerToolName.CreateSession | SessionServerToolName.CreateChat | SessionServerToolName.RenameChat): void {
 	if (!title.trim()) {
 		throw new Error(`Invalid ${toolName} input: title must contain non-whitespace characters.`);
 	}
@@ -404,15 +404,21 @@ function resolveWorkspace(workspace: string, sessions: readonly IAgentSessionMet
 	return parsed;
 }
 
-function resolveModel(modelName: string | undefined, models: readonly IAgentModelInfo[]): IAgentModelInfo | undefined {
+function resolveModel(modelName: string | undefined, models: readonly IAgentModelInfo[], provider?: AgentProvider): IAgentModelInfo | undefined {
 	if (modelName === undefined) {
 		return undefined;
 	}
-	const model = models.find(candidate => candidate.id === modelName || candidate.name === modelName);
-	if (!model) {
-		throw new Error(`Invalid ${SessionServerToolName.CreateSession} input: model must match an available model id or name.`);
+	const availableModels = provider === undefined ? models : models.filter(candidate => candidate.provider === provider);
+	const idMatches = availableModels.filter(candidate => candidate.id === modelName);
+	const matches = idMatches.length > 0 ? idMatches : availableModels.filter(candidate => candidate.name === modelName);
+	if (matches.length === 0) {
+		const providerSuffix = provider === undefined ? '' : ` for provider "${provider}"`;
+		throw new Error(`Invalid ${SessionServerToolName.CreateSession} input: model must match an available model id or name${providerSuffix}.`);
 	}
-	return model;
+	if (matches.length > 1) {
+		throw new Error(`Invalid ${SessionServerToolName.CreateSession} input: model "${modelName}" is ambiguous; use one of these model ids: ${matches.map(model => model.id).join(', ')}.`);
+	}
+	return matches[0];
 }
 
 function getCreateSessionRelationship(rawArgs: unknown): CreateSessionRelationship {
@@ -425,7 +431,7 @@ function getCreateSessionRelationship(rawArgs: unknown): CreateSessionRelationsh
 }
 
 /** Validates and resolves create-session arguments against current sessions and models. */
-export function getCreateSessionArgs(rawArgs: unknown, sessions: readonly IAgentSessionMetadata[], models: readonly IAgentModelInfo[]): IResolvedCreateSessionArgs {
+export function getCreateSessionArgs(rawArgs: unknown, sessions: readonly IAgentSessionMetadata[], models: readonly IAgentModelInfo[], currentProvider?: AgentProvider): IResolvedCreateSessionArgs {
 	const args = (rawArgs ?? {}) as ICreateSessionArgs;
 	const relationship = getCreateSessionRelationship(args);
 	const prompt = getRequiredString(args.prompt, 'prompt', SessionServerToolName.CreateSession);
@@ -433,7 +439,7 @@ export function getCreateSessionArgs(rawArgs: unknown, sessions: readonly IAgent
 	validateRenameTitle(title, SessionServerToolName.CreateSession);
 	const workspace = getOptionalString(args.workspace, 'workspace', SessionServerToolName.CreateSession);
 	const modelName = getOptionalString(args.model, 'model', SessionServerToolName.CreateSession);
-	const model = resolveModel(modelName, models);
+	const model = resolveModel(modelName, models, relationship === 'currentSession' ? currentProvider : undefined);
 	if (relationship === 'currentSession') {
 		if (workspace !== undefined) {
 			throw new Error(`Invalid ${SessionServerToolName.CreateSession} input: workspace is only valid when relationship is "independent".`);
@@ -712,13 +718,13 @@ export interface ICreateSessionResult {
  */
 export async function applyCreateSessionTool(accessor: ISessionServerToolAccessor, rawArgs: unknown, source?: URI, sourceTurnId?: string): Promise<ICreateSessionResult> {
 	const sessions = await accessor.listSessions();
-	const args = getCreateSessionArgs(rawArgs, sessions, accessor.getModels());
 	const currentSession = source ? currentSessionUri(source.toString()) : undefined;
+	const currentProvider = currentSession ? AgentSession.provider(currentSession) : undefined;
+	const args = getCreateSessionArgs(rawArgs, sessions, accessor.getModels(), currentProvider);
 	if (args.relationship === 'currentSession') {
 		if (!currentSession) {
 			throw new Error(`Invalid ${SessionServerToolName.CreateSession} input: relationship "currentSession" requires an invoking session.`);
 		}
-		const currentProvider = AgentSession.provider(currentSession);
 		if (args.model !== undefined && args.model.provider !== currentProvider) {
 			throw new Error(`Invalid ${SessionServerToolName.CreateSession} input: model "${args.model.id}" belongs to provider "${args.model.provider}", but relationship "currentSession" targets provider "${currentProvider}".`);
 		}
@@ -825,8 +831,10 @@ export function getCreateChatArgs(rawArgs: unknown, sessions: readonly IAgentSes
 	const args = (rawArgs ?? {}) as ICreateChatArgs;
 	const prompt = getRequiredString(args.prompt, 'prompt', SessionServerToolName.CreateChat);
 	const title = getOptionalString(args.title, 'title', SessionServerToolName.CreateChat);
+	if (title !== undefined) {
+		validateRenameTitle(title, SessionServerToolName.CreateChat);
+	}
 	const modelName = getOptionalString(args.model, 'model', SessionServerToolName.CreateChat);
-	const model = resolveModel(modelName, models);
 	const sessionInput = getOptionalString(args.session, 'session', SessionServerToolName.CreateChat);
 	let session: URI;
 	if (sessionInput !== undefined) {
@@ -836,6 +844,7 @@ export function getCreateChatArgs(rawArgs: unknown, sessions: readonly IAgentSes
 	} else {
 		throw new Error(`Invalid ${SessionServerToolName.CreateChat} input: no session provided and the current session could not be determined.`);
 	}
+	const model = resolveModel(modelName, models, AgentSession.provider(session));
 	return { session, prompt, ...(title !== undefined ? { title } : {}), ...(model !== undefined ? { model } : {}) };
 }
 

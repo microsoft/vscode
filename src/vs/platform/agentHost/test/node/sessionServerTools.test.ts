@@ -483,6 +483,21 @@ suite('SessionServerTools', () => {
 		});
 	});
 
+	test('getCreateSessionArgs scopes current-session models and rejects ambiguous independent names', () => {
+		const copilotModel: IAgentModelInfo = { provider: 'copilot', id: 'copilot-shared', name: 'Shared Model', supportsVision: false };
+		const claudeModel: IAgentModelInfo = { provider: 'claude', id: 'claude-shared', name: 'Shared Model', supportsVision: false };
+		const models = [copilotModel, claudeModel];
+
+		assert.deepStrictEqual(
+			getCreateSessionArgs({ relationship: 'currentSession', prompt: 'hi', title: 'Task', model: 'Shared Model' }, [], models, 'claude').model,
+			claudeModel,
+		);
+		assert.throws(
+			() => getCreateSessionArgs({ relationship: 'independent', workspace: workspace.toString(), prompt: 'hi', title: 'Task', model: 'Shared Model' }, [], models),
+			/model "Shared Model" is ambiguous; use one of these model ids: copilot-shared, claude-shared/,
+		);
+	});
+
 	test('getCreateSessionArgs resolves a unique project name to its configured root', () => {
 		const project = URI.parse('file:///workspace/vscode');
 		const worktree = URI.parse('file:///worktrees/pr-331525');
@@ -893,7 +908,7 @@ suite('SessionServerTools', () => {
 				title: 'Cross-provider Task',
 				model: claudeModel.id,
 			}),
-			/belongs to provider "claude".*targets provider "copilot"/,
+			/model must match an available model id or name for provider "copilot"/,
 		);
 		store.dispose();
 	});
@@ -909,6 +924,20 @@ suite('SessionServerTools', () => {
 		assert.throws(() => getCreateChatArgs({ session: 'copilot:/unknown', prompt: 'hi' }, sessions, [model]), /session/);
 		assert.throws(() => getCreateChatArgs({ prompt: 'hi' }, sessions, [model]), /session/);
 		assert.throws(() => getCreateChatArgs({ prompt: 'hi', model: 'nope' }, sessions, [model], URI.parse('copilot:/s1')), /model/);
+		assert.throws(() => getCreateChatArgs({ prompt: 'hi', title: ' ' }, sessions, [model], URI.parse('copilot:/s1')), /non-whitespace/);
+		assert.throws(() => getCreateChatArgs({ prompt: 'hi', title: 'x'.repeat(201) }, sessions, [model], URI.parse('copilot:/s1')), /must not exceed 200/);
+	});
+
+	test('legacy create_chat validates titles before creating a chat', async () => {
+		let createCount = 0;
+		const accessor = createAccessor({ onCreateChat: () => { createCount++; } });
+
+		await assert.rejects(
+			applyCreateChatTool(accessor, { prompt: 'do it', title: 'x'.repeat(201) }, URI.parse(buildDefaultChatUri('copilot:/s1'))),
+			/must not exceed 200/,
+		);
+
+		assert.strictEqual(createCount, 0);
 	});
 
 	test('legacy create_chat adds a chat to the session, starts the prompt, and returns an open link', async () => {
