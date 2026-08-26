@@ -14,7 +14,8 @@ import { IChatRequestTranscriptContextVariableEntry } from '../../../../../workb
 import { ChatInputNoticeHost, ChatInputNoticeLane } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputNoticeHost.js';
 import { isChatInputStackSlotShowing } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputStack.js';
 import { SessionStatus } from '../../../../services/sessions/common/session.js';
-import { applySessionsChatBackground, findTranscriptContextEntry, getTranscriptProgress, NewChatView, shouldShowSessionChatTip, shouldShowTranscriptPreparationProgress } from '../../browser/chatView.js';
+import { findTranscriptContextEntry, getTranscriptProgress, NewChatView, shouldShowSessionChatTip, shouldShowTranscriptPreparationProgress } from '../../browser/chatView.js';
+import { SessionsChatBackgroundRenderer } from '../../browser/chatBackgroundRenderer.js';
 import { SessionsChatViewStateService } from '../../browser/chatViewStateService.js';
 import { NewChatInSessionWidget } from '../../browser/newChatInSessionWidget.js';
 import { NewChatWidget } from '../../browser/newChatWidget.js';
@@ -43,6 +44,73 @@ suite('Sessions - Chat View', () => {
 		assert.deepStrictEqual({ forwarded, petHostVisible: isVisible.get() }, { forwarded: [false, true], petHostVisible: true });
 	});
 
+	test('hides the phone combined picker label when compact', () => {
+		const toolbar = dom.append(document.body, dom.$('.sessions-chat-config-toolbar'));
+		disposables.add(toDisposable(() => toolbar.remove()));
+		const actionBar = dom.append(toolbar, dom.$('.monaco-action-bar'));
+		const item = dom.append(actionBar, dom.$('.action-item.compact-picker'));
+		const label = dom.append(item, dom.$('.chat-input-picker-label'));
+
+		assert.strictEqual(dom.getWindow(label).getComputedStyle(label).display, 'none');
+	});
+
+	test('keeps compact empty-state picker icons inside their action item', () => {
+		const toolbar = dom.append(document.body, dom.$('.sessions-chat-config-toolbar'));
+		disposables.add(toDisposable(() => toolbar.remove()));
+		const actionBar = dom.append(toolbar, dom.$('.monaco-action-bar'));
+		const item = dom.append(actionBar, dom.$('.action-item.compact-picker'));
+		const label = dom.append(item, dom.$('a.action-label'));
+		const icon = dom.append(label, dom.$('span.codicon'));
+		icon.style.width = '12px';
+		icon.style.height = '12px';
+
+		const itemBounds = item.getBoundingClientRect();
+		const labelBounds = label.getBoundingClientRect();
+		const iconBounds = icon.getBoundingClientRect();
+		assert.deepStrictEqual({
+			labelOffset: labelBounds.left - itemBounds.left,
+			iconOffset: iconBounds.left - itemBounds.left,
+			iconEscapes: iconBounds.left < itemBounds.left || iconBounds.right > itemBounds.right,
+		}, {
+			labelOffset: 0,
+			iconOffset: 8,
+			iconEscapes: false,
+		});
+	});
+
+	test('keeps compact bottom-row picker glyphs inside their action item', () => {
+		const workbench = dom.append(document.body, dom.$('.agent-sessions-workbench'));
+		disposables.add(toDisposable(() => workbench.remove()));
+		workbench.style.setProperty('--vscode-codiconFontSize-compact', '12px');
+		const widget = dom.append(workbench, dom.$('.new-chat-widget-container.revealed'));
+		const row = dom.append(widget, dom.$('.new-chat-bottom-container'));
+		const actionBar = dom.append(row, dom.$('.monaco-action-bar'));
+		const item = dom.append(actionBar, dom.$('.action-item.compact-picker'));
+		const label = dom.append(item, dom.$('a.action-label'));
+		const icon = dom.append(label, dom.$('span.codicon'));
+		icon.style.width = '12px';
+		icon.style.height = '12px';
+
+		const itemBounds = item.getBoundingClientRect();
+		const labelBounds = label.getBoundingClientRect();
+		const iconBounds = icon.getBoundingClientRect();
+		assert.deepStrictEqual({
+			itemWidth: itemBounds.width,
+			labelWidth: labelBounds.width,
+			labelOffset: labelBounds.left - itemBounds.left,
+			iconWidth: iconBounds.width,
+			iconOffset: iconBounds.left - itemBounds.left,
+			iconEscapes: iconBounds.left < itemBounds.left || iconBounds.right > itemBounds.right,
+		}, {
+			itemWidth: 22,
+			labelWidth: 22,
+			labelOffset: 0,
+			iconWidth: 12,
+			iconOffset: 8,
+			iconEscapes: false,
+		});
+	});
+
 	test('does not forward aquarium visibility to the peer chat composer', () => {
 		const isVisible = observableValue(disposables, true);
 		const view: NewChatView = Object.assign(Object.create(NewChatView.prototype), {
@@ -60,25 +128,29 @@ suite('Sessions - Chat View', () => {
 		const chatView = dom.append(part, dom.$('.chat-view'));
 		dom.getWindow(workbench).document.body.appendChild(workbench);
 		disposables.add(toDisposable(() => workbench.remove()));
-		applySessionsChatBackground(chatView, {
+		const renderer = disposables.add(new SessionsChatBackgroundRenderer(chatView));
+		renderer.setBackground({
+			kind: 'image',
 			backgroundImage: 'url("file:///textures/kirby.png")',
 			backgroundRepeat: 'no-repeat',
 			backgroundSize: 'auto',
 			backgroundPosition: 'right bottom',
 		});
 		const applied = {
-			enabled: chatView.classList.contains('has-chat-background-image'),
+			enabled: chatView.classList.contains('has-chat-background'),
+			imageEnabled: chatView.classList.contains('has-chat-background-image'),
 			image: chatView.style.backgroundImage,
 			repeat: chatView.style.backgroundRepeat,
 			size: chatView.style.backgroundSize,
 			position: chatView.style.backgroundPosition,
 		};
-		applySessionsChatBackground(chatView, undefined);
+		renderer.setBackground(undefined);
 
 		assert.deepStrictEqual({
 			applied,
 			cleared: {
-				enabled: chatView.classList.contains('has-chat-background-image'),
+				enabled: chatView.classList.contains('has-chat-background'),
+				imageEnabled: chatView.classList.contains('has-chat-background-image'),
 				image: chatView.style.backgroundImage,
 				repeat: chatView.style.backgroundRepeat,
 				size: chatView.style.backgroundSize,
@@ -87,12 +159,46 @@ suite('Sessions - Chat View', () => {
 		}, {
 			applied: {
 				enabled: true,
+				imageEnabled: true,
 				image: 'url("file:///textures/kirby.png")',
 				repeat: 'no-repeat',
 				size: 'auto',
 				position: 'right bottom',
 			},
-			cleared: { enabled: false, image: '', repeat: '', size: '', position: '' },
+			cleared: { enabled: false, imageEnabled: false, image: '', repeat: '', size: '', position: '' },
+		});
+	});
+
+	test('renders the codicons background preset from decorative in-memory icons', () => {
+		const workbench = dom.$('.monaco-workbench.agent-sessions-workbench');
+		workbench.style.setProperty('--vscode-foreground', '#202020');
+		const part = dom.append(workbench, dom.$('.part.sessionspart'));
+		const chatView = dom.append(part, dom.$('.chat-view'));
+		dom.getWindow(workbench).document.body.appendChild(workbench);
+		disposables.add(toDisposable(() => workbench.remove()));
+		const renderer = disposables.add(new SessionsChatBackgroundRenderer(chatView));
+		renderer.setBackground({ kind: 'codicons' });
+		const layer = chatView.querySelector<HTMLElement>(':scope > .sessions-chat-codicon-background');
+		const firstIcon = layer?.querySelector<HTMLElement>('.codicon');
+
+		assert.deepStrictEqual({
+			enabled: chatView.classList.contains('has-chat-background'),
+			imageEnabled: chatView.classList.contains('has-chat-background-image'),
+			backgroundImage: chatView.style.backgroundImage,
+			layerHidden: layer?.hidden,
+			layerAriaHidden: layer?.ariaHidden,
+			layerPointerEvents: layer ? dom.getWindow(layer).getComputedStyle(layer).pointerEvents : undefined,
+			hasIcons: (layer?.querySelectorAll('.codicon').length ?? 0) > 0,
+			firstIconAriaHidden: firstIcon?.ariaHidden,
+		}, {
+			enabled: true,
+			imageEnabled: false,
+			backgroundImage: '',
+			layerHidden: false,
+			layerAriaHidden: 'true',
+			layerPointerEvents: 'none',
+			hasIcons: true,
+			firstIconAriaHidden: 'true',
 		});
 	});
 
@@ -101,7 +207,7 @@ suite('Sessions - Chat View', () => {
 		workbench.style.setProperty('--session-view-background', '#202020');
 		workbench.style.setProperty('--vscode-chat-requestBubbleBackground', 'rgba(255, 255, 255, 0.3)');
 		const part = dom.append(workbench, dom.$('.part.sessionspart'));
-		const chatView = dom.append(part, dom.$('.chat-view.has-chat-background-image'));
+		const chatView = dom.append(part, dom.$('.chat-view.has-chat-background'));
 		const session = dom.append(chatView, dom.$('.interactive-session'));
 		const request = dom.append(session, dom.$('.interactive-item-container.interactive-request'));
 		const value = dom.append(request, dom.$('.value'));
@@ -135,7 +241,7 @@ suite('Sessions - Chat View', () => {
 		workbench.style.setProperty('--vscode-cornerRadius-medium', '6px');
 		workbench.style.setProperty('--vscode-spacing-size160', '16px');
 		const part = dom.append(workbench, dom.$('.part.sessionspart'));
-		const chatView = dom.append(part, dom.$('.chat-view.has-chat-background-image'));
+		const chatView = dom.append(part, dom.$('.chat-view.has-chat-background'));
 		const session = dom.append(chatView, dom.$('.interactive-session'));
 		const response = dom.append(session, dom.$('.interactive-item-container.interactive-response'));
 		const value = dom.append(response, dom.$('.value'));
@@ -186,7 +292,7 @@ suite('Sessions - Chat View', () => {
 		workbench.style.setProperty('--vscode-spacing-size120', '12px');
 		workbench.style.setProperty('--vscode-strokeThickness', '1px');
 		const part = dom.append(workbench, dom.$('.part.sessionspart'));
-		const chatView = dom.append(part, dom.$('.chat-view.has-chat-background-image'));
+		const chatView = dom.append(part, dom.$('.chat-view.has-chat-background'));
 		const newChatWidget = dom.append(chatView, dom.$('.sessions-chat-widget'));
 		const newChatContent = dom.append(newChatWidget, dom.$('.new-chat-widget-content'));
 		const inSessionWidget = dom.append(chatView, dom.$('.sessions-chat-widget.new-chat-in-session'));
@@ -311,7 +417,7 @@ suite('Sessions - Chat View', () => {
 			const bubble = dom.append(value, dom.$('.rendered-markdown'));
 			return { stickyContainer, stickyRow, treeContents, request, bubble };
 		};
-		const background = createStickyRequest('.chat-view.has-chat-background-image');
+		const background = createStickyRequest('.chat-view.has-chat-background');
 		const plain = createStickyRequest('.chat-view');
 		dom.getWindow(workbench).document.body.appendChild(workbench);
 		disposables.add(toDisposable(() => workbench.remove()));

@@ -234,7 +234,7 @@ export function getSessionWorkspaceKind(workspace: ISessionWorkspace | undefined
 }
 
 /**
- * The kinds of artifact an agent can record on a session.
+ * The kinds of artifact or reference an agent can record on a session.
  */
 export const enum SessionArtifactKind {
 	PullRequest = 'pullRequest',
@@ -250,6 +250,11 @@ export interface ISessionArtifact {
 	readonly id: string;
 	readonly kind: SessionArtifactKind;
 	readonly label: string;
+	/**
+	 * `true` for an artifact — something the session produced — and `false` for
+	 * a reference, something it only points the user at.
+	 */
+	readonly isArtifact: boolean;
 	/** Link opened when activating a pull request, issue, commit or website. */
 	readonly link?: URI;
 	/** Resource opened when activating a file or resource artifact. */
@@ -682,6 +687,8 @@ export interface ISession {
 	readonly isAutomation?: IObservable<boolean>;
 	/** Whether this session was discovered in an application other than the current host. Absent means `false`. */
 	readonly isExternal?: IObservable<boolean>;
+	/** Session turn that created this session, when it was created by another agent session. */
+	readonly createdBySession?: IObservable<ISessionCreationReference | undefined>;
 
 	// Reactive properties
 
@@ -699,7 +706,12 @@ export interface ISession {
 	readonly changes: IObservable<readonly ISessionFileChange[]>;
 	/** Changesets produced by the session. */
 	readonly changesets: IObservable<readonly ISessionChangeset[] | undefined>;
-	/** Artifacts the agent recorded for this session (pull requests, issues, files, …). */
+	/**
+	 * The artifacts and references the agent recorded for this session (pull
+	 * requests, issues, files, …). Both categories share this observable and are
+	 * told apart by {@link ISessionArtifact.isArtifact}, so a consumer that
+	 * surfaces only one of them must filter on that field.
+	 */
 	readonly artifacts?: IObservable<readonly ISessionArtifact[]>;
 	/** Currently selected model identifier. */
 	readonly modelId: IObservable<string | undefined>;
@@ -725,6 +737,12 @@ export interface ISession {
 	 * arrives after the session's first state update).
 	 */
 	readonly capabilities: IObservable<ISessionCapabilities>;
+}
+
+export interface ISessionCreationReference {
+	readonly session: URI;
+	readonly chat?: URI;
+	readonly turnId?: string;
 }
 
 /** Returns whether any chat or session-level fallback reports file changes. */

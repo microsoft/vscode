@@ -324,6 +324,14 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 	private readonly _fileToSession = new ResourceMap<URI>();
 	private readonly _explicitResourceScopes = new ResourceMap<URI>();
 
+	/**
+	 * The last {@link _resolveSession} lookup, hit or miss. Feedback resolution
+	 * runs once per resource of the active editor, so a Changes multi-diff asks
+	 * for the same session thousands of times in a row. A single entry is enough
+	 * to collapse that run; it is dropped whenever the session catalog changes.
+	 */
+	private _lastResolvedSession: { readonly sessionResource: URI; readonly session: ISession | undefined } | undefined;
+
 	/** Workspace the shared new-session comments are bound to; `undefined` when there are none. */
 	private _boundNewSessionWorkspaceKey: string | undefined;
 
@@ -391,6 +399,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		}));
 
 		this._register(this._sessionsManagementService.onDidDeleteSession(session => this._forgetSession(session.resource)));
+		this._register(this._sessionsManagementService.onDidChangeSessions(() => this._lastResolvedSession = undefined));
 	}
 
 	/**
@@ -400,6 +409,9 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 	 */
 	private _forgetSession(sessionResource: URI): void {
 		const key = sessionResource.toString();
+		if (this._lastResolvedSession && isEqual(this._lastResolvedSession.sessionResource, sessionResource)) {
+			this._lastResolvedSession = undefined;
+		}
 		this._sessionUpdatedOrder.delete(key);
 		this._navigationAnchorBySession.delete(key);
 		this._visibleResolvedFeedbackIds.delete(sessionResource);
@@ -496,16 +508,37 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		}
 	}
 
+	/**
+	 * Resolves a session by resource, answering from the active session facade
+	 * whenever it is the one asked for and otherwise from the last lookup.
+	 * `ISessionsManagementService.getSession` rebuilds every provider's session
+	 * catalog and then scans it linearly, which is far too expensive for the
+	 * per-resource lookups this service performs while a Changes editor with
+	 * thousands of resources is open.
+	 */
+	private _resolveSession(sessionResource: URI): ISession | undefined {
+		const activeSession = this._sessionsService.activeSession.get();
+		if (activeSession && isEqual(activeSession.resource, sessionResource)) {
+			return activeSession;
+		}
+		if (this._lastResolvedSession && isEqual(this._lastResolvedSession.sessionResource, sessionResource)) {
+			return this._lastResolvedSession.session;
+		}
+		const session = this._sessionsManagementService.getSession(sessionResource);
+		this._lastResolvedSession = { sessionResource, session };
+		return session;
+	}
+
 	getSessionForFile(resourceUri: URI): ISession | undefined {
+		if (!this._isFileEligibleForFeedback(resourceUri)) {
+			return undefined;
+		}
 		const sessionResource = this._fileToSession.get(resourceUri) ?? this._sessionsService.activeSession.get()?.resource;
 		if (!sessionResource) {
 			return undefined;
 		}
-		const session = this._sessionsManagementService.getSession(sessionResource);
+		const session = this._resolveSession(sessionResource);
 		if (!session || session.status.get() === SessionStatus.Untitled) {
-			return undefined;
-		}
-		if (!this._isFileEligibleForFeedback(resourceUri)) {
 			return undefined;
 		}
 		return session;
@@ -734,7 +767,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 			}
 		}
 
-		const session = this._sessionsManagementService.getSession(sessionResource);
+		const session = this._resolveSession(sessionResource);
 		if (!session) {
 			return false;
 		}
@@ -904,7 +937,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 	}
 
 	private _isAgentHostSession(sessionResource: URI): boolean {
-		const session = this._sessionsManagementService.getSession(sessionResource);
+		const session = this._resolveSession(sessionResource);
 		return session ? isAgentHostProviderId(session.providerId) : false;
 	}
 

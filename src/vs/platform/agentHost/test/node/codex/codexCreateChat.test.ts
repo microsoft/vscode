@@ -325,10 +325,10 @@ suite('CodexAgent createChat', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('advertises chat fork support without side-chat support', async () => {
+	test('advertises chat fork and side-chat support', async () => {
 		const agent = await createAgent(disposables);
 
-		assert.deepStrictEqual(agent.getDescriptor().capabilities?.multipleChats, { fork: true });
+		assert.deepStrictEqual(agent.getDescriptor().capabilities?.multipleChats, { fork: true, sideChat: true });
 	});
 
 	test('fresh: binds the exact target chat during creation, never leaving the runtime unbound', async () => {
@@ -1438,6 +1438,42 @@ suite('CodexAgent chat backing durability', () => {
 			corruptDefault: undefined,
 			sessions: [],
 		});
+	});
+
+	test('persists the app-server turn id for restored turn metadata', async () => {
+		const sessionStore = createTestSessionStore();
+		const session = AgentSession.uri('codex', 'turn-id-mapping');
+		const chat = URI.parse(buildDefaultChatUri(session));
+		const folder = URI.file('/repo/turn-id-mapping');
+		const agent = await createAgent(disposables, { sdkResolvableWithoutDownload: true, sessionStore });
+		const peer = disposables.add(createTestPeer());
+		connect(agent, peer);
+
+		try {
+			await materializeSession(agent, peer, session, chat, folder, 'codex-thread');
+			const codexSession = agent['_sessions'].get(AgentSession.id(session))!;
+			agent['_handleTurnStartedNotification'](codexSession, {
+				threadId: 'codex-thread',
+				turn: {
+					id: 'app-turn-1',
+					items: [],
+					itemsView: 'full',
+					status: 'inProgress',
+					error: null,
+					startedAt: null,
+					completedAt: null,
+					durationMs: null,
+				},
+			});
+			await new Promise(resolve => setImmediate(resolve));
+
+			assert.deepStrictEqual(sessionStore.databaseFor(session).setTurnEventIdCalls, [{
+				turnId: 'turn-1',
+				eventId: 'app-turn-1',
+			}]);
+		} finally {
+			peer.dispose();
+		}
 	});
 
 	test('the materialize receipt re-keys the chat backing onto the runtime, so a restored session stays addressable', async () => {

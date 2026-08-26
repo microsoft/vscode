@@ -9,9 +9,7 @@ import { URI } from '../../../base/common/uri.js';
 import { Emitter } from '../../../base/common/event.js';
 import { ILogService } from '../../log/common/log.js';
 import { IAgentHostGitStateService, META_GIT_STATE, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../common/agentHostGitStateService.js';
-import { getSessionRelatedPullRequestUrls, ISessionGitHubState, ISessionWithDefaultChat, readSessionGitHubState, readSessionGitState, readSessionSourceControlState, SessionLifecycle, SessionSourceControlOutcome, withInitialSessionPullRequest, withMostRecentReferencedSessionPullRequest, withMostRecentSessionPullRequest, withSessionGitHubState, withSessionGitState, withSessionSourceControlState, type ISessionGitState, type ISessionSourceControlState } from '../common/state/sessionState.js';
-import { MAX_SESSION_ISSUE_REFERENCES, parseGitHubIssueReferences, toGitHubIssueUrl } from '../common/githubIssueReferences.js';
-import { parseGitHubPullRequestReferences, toGitHubPullRequestUrl } from '../common/githubPullRequestReferences.js';
+import { getSessionRelatedPullRequestUrls, ISessionGitHubState, ISessionWithDefaultChat, readSessionGitHubState, readSessionGitState, readSessionSourceControlState, SessionLifecycle, SessionSourceControlOutcome, withInitialSessionPullRequest, withMostRecentSessionPullRequest, withSessionGitHubState, withSessionGitState, withSessionSourceControlState, type ISessionGitState, type ISessionSourceControlState } from '../common/state/sessionState.js';
 import { IAgentHostGitService, META_DIFF_BASE_BRANCH, parseUpstreamBranchName, resolveDiffBaseBranchName } from '../common/agentHostGitService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
@@ -199,40 +197,6 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		return headSha
 			? this._octoKitService.findPullRequestByHeadSha(owner, repo, headSha, authToken, signal)
 			: undefined;
-	}
-
-	async attachSessionGitHubReferences(sessionKey: string, text: string): Promise<void> {
-		const currentState = readSessionGitHubState(this._stateManager.getSessionState(sessionKey)?._meta);
-		const issueReferences = parseGitHubIssueReferences(text);
-		const repository = currentState?.owner && currentState.repo ? { owner: currentState.owner, repo: currentState.repo } : undefined;
-		const gitHubHost = this._gitHubEndpointService.getEnterpriseHost() ?? 'github.com';
-		const pullRequestReferences = parseGitHubPullRequestReferences(text, repository, gitHubHost)
-			.filter(reference => !repository || reference.owner.toLowerCase() === repository.owner.toLowerCase() && reference.repo.toLowerCase() === repository.repo.toLowerCase());
-		if (issueReferences.length === 0 && pullRequestReferences.length === 0) {
-			return;
-		}
-
-		const currentIssueUrls = currentState?.issueUrls ?? [];
-		const nextIssueUrls = [...currentIssueUrls];
-		for (const reference of issueReferences) {
-			const url = toGitHubIssueUrl(reference);
-			if (!nextIssueUrls.includes(url)) {
-				nextIssueUrls.push(url);
-			}
-		}
-
-		let nextState: ISessionGitHubState = issueReferences.length > 0
-			? { issueUrls: nextIssueUrls.slice(0, MAX_SESSION_ISSUE_REFERENCES) }
-			: {};
-		for (let index = pullRequestReferences.length - 1; index >= 0; index--) {
-			const reference = pullRequestReferences[index];
-			const url = toGitHubPullRequestUrl(reference, gitHubHost);
-			nextState = {
-				...nextState,
-				...withMostRecentReferencedSessionPullRequest({ ...currentState, ...nextState }, url)
-			};
-		}
-		await this.setSessionGitHubState(sessionKey, nextState);
 	}
 
 	async refreshSessionGitState(sessionKey: string, workingDirectory: URI | undefined): Promise<void> {
