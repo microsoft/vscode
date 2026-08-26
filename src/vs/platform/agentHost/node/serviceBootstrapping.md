@@ -70,9 +70,9 @@ descriptors, creates the strict instantiation service, composes `AgentService`,
 and finally activates contributions.
 
 Tests use the same synchronous foundation, core registrations, and composition,
-but supply telemetry and typed overrides directly, skip production host
-services, and pre-register a mutable worktree seam whose default delegate is
-`NullAgentHostWorktreeIsolation`.
+but supply telemetry directly, apply typed overrides after registering core
+defaults, skip production host services, and use a mutable worktree seam whose
+default delegate is `NullAgentHostWorktreeIsolation`.
 
 ## Where does a new object go?
 
@@ -146,8 +146,8 @@ disposed. `InstantiationService` disposes only instances it creates.
 ## Test overrides
 
 `createTestAgentService` builds the shared foundation and core graph with typed
-overrides; defaults never overwrite an existing override. Its returned
-`AgentService` disposes the whole test graph.
+overrides applied explicitly after the core defaults. Its returned `AgentService`
+disposes the whole test graph.
 
 The test graph does not force construction of unused descriptors. Whole-graph
 dependency completeness and cycle freedom are checked statically in

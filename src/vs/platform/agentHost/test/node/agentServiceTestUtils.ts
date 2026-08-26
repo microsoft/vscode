@@ -159,10 +159,7 @@ export function createTestAgentService(
 		[IProductService, productService],
 		[IAgentHostGitService, gitService],
 		[ITelemetryService, telemetryService],
-		[IAgentHostFileMonitorService, effectiveFileMonitorService],
-		[IAgentEditAttributionService, new NullAgentEditAttributionService()],
 		[IAgentHostClientConnectionService, clientConnectionService],
-		[IAgentHostWorktreeIsolation, worktreeIsolation.service],
 	);
 	const options = {
 		rootConfigResource,
@@ -191,6 +188,9 @@ export function createTestAgentService(
 		gitHubServiceOptions: foundation.gitHubServiceOptions,
 		copilotApiService,
 	});
+	services.set(IAgentHostFileMonitorService, effectiveFileMonitorService);
+	services.set(IAgentEditAttributionService, new NullAgentEditAttributionService());
+	services.set(IAgentHostWorktreeIsolation, worktreeIsolation.service);
 	const instantiationService = new InstantiationService(services, /*strict*/ true);
 	const octoKitService = instantiationService.invokeFunction(accessor => accessor.get(IAgentHostOctoKitService));
 	const effectiveCopilotApiService = instantiationService.invokeFunction(accessor => accessor.get(ICopilotApiService));
