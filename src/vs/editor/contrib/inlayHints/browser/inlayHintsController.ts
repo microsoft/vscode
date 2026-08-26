@@ -568,7 +568,7 @@ export class InlayHintsController implements IEditorContribution {
 				width: `${widthInPixels}px`,
 				display: 'inline-block'
 			});
-			addInjectedText(item, marginRule, '\u200a', isLast ? InjectedTextCursorStops.Right : InjectedTextCursorStops.None, InlayHintsController._whitespaceData, widthInEm);
+			addInjectedText(item, marginRule, '', isLast ? InjectedTextCursorStops.Right : InjectedTextCursorStops.None, InlayHintsController._whitespaceData, widthInEm);
 		};
 
 

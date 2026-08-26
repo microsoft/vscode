@@ -221,15 +221,87 @@ suite('Editor ViewModel - MonospaceLineBreaksComputer', () => {
 		]);
 
 		// The injection counts as a single character column, so the tab at character column 3 expands
-		// to character column 4 and the whole line spans 10 columns. Were the 1.5em width to leak into
-		// the column accumulator, the injection would count as 3 columns and the tab would expand to
-		// character column 8 instead.
+		// to character column 4 and the whole line spans 10 columns. Its 1.5em is spent on the wrapping
+		// decision alone, which runs out of room at `g`. Were that width to leak into the column
+		// accumulator, the injection would count as 3 columns, the tab would expand to character
+		// column 8, and the line would already run out of room at `e`.
 		assert.deepStrictEqual({
 			breakOffsets: lineBreakData?.breakOffsets,
 			breakOffsetsVisibleColumn: lineBreakData?.breakOffsetsVisibleColumn
 		}, {
-			breakOffsets: [4, 10],
-			breakOffsetsVisibleColumn: [4, 10]
+			breakOffsets: [8, 10],
+			breakOffsetsVisibleColumn: [8, 10]
+		});
+	});
+
+	test('reserves width for a spacing-only injection at the beginning of a line', () => {
+		const factory = new MonospaceLineBreaksComputerFactory('', '');
+		const lineBreakData = getLineBreakData(factory, 4, 6, 2, WrappingIndent.None, 'normal', false, 'abcdef', null, [
+			new LineInjectedText(0, 1, 1, { content: '', widthInEm: 1 }, 0)
+		]);
+
+		// 1em is two columns wide here, so the spacer pushes the last two characters onto a second
+		// line. It consumes no character, so the offsets still refer to the original text.
+		assert.deepStrictEqual({
+			breakOffsets: lineBreakData?.breakOffsets,
+			breakOffsetsVisibleColumn: lineBreakData?.breakOffsetsVisibleColumn
+		}, {
+			breakOffsets: [4, 6],
+			breakOffsetsVisibleColumn: [4, 6]
+		});
+	});
+
+	test('lets a spacing-only injection in the middle of a line inherit surrounding break opportunities', () => {
+		const factory = new MonospaceLineBreaksComputerFactory('', ' ');
+		const lineBreakData = getLineBreakData(factory, 4, 8, 2, WrappingIndent.None, 'normal', false, 'ab cdef', null, [
+			new LineInjectedText(0, 1, 4, { content: '', widthInEm: 1 }, 0)
+		]);
+
+		// The spacer is transparent for break opportunities: it neither creates nor suppresses one, so
+		// the break after the space is still recorded even though the spacer sits on top of it, and the
+		// line breaks there rather than at `f` where it runs out of room. Its 1em is what makes the line
+		// run out of room at all: without it the seven characters fit in the eight available columns.
+		assert.deepStrictEqual({
+			breakOffsets: lineBreakData?.breakOffsets,
+			breakOffsetsVisibleColumn: lineBreakData?.breakOffsetsVisibleColumn
+		}, {
+			breakOffsets: [3, 7],
+			breakOffsetsVisibleColumn: [3, 7]
+		});
+	});
+
+	test('ignores a spacing-only injection at the end of a line', () => {
+		const factory = new MonospaceLineBreaksComputerFactory('', '');
+		const lineBreakData = getLineBreakData(factory, 4, 6, 2, WrappingIndent.None, 'normal', false, 'abcdef', null, [
+			new LineInjectedText(0, 1, 7, { content: '', widthInEm: 1 }, 0)
+		]);
+
+		// The line is exactly full, and there is no character after the spacer that could be moved to a
+		// following line, so the spacer cannot introduce a break.
+		assert.deepStrictEqual({
+			breakOffsets: lineBreakData?.breakOffsets,
+			breakOffsetsVisibleColumn: lineBreakData?.breakOffsetsVisibleColumn
+		}, {
+			breakOffsets: [6],
+			breakOffsetsVisibleColumn: [6]
+		});
+	});
+
+	test('expands a tab following a spacing-only injection from the character column', () => {
+		const factory = new MonospaceLineBreaksComputerFactory('', '');
+		const lineBreakData = getLineBreakData(factory, 4, 6, 2, WrappingIndent.None, 'normal', false, 'ab\tcd', null, [
+			new LineInjectedText(0, 1, 3, { content: '', widthInEm: 1 }, 0)
+		]);
+
+		// The spacer occupies no character column, so the tab still expands from character column 2 to
+		// character column 4. Were its 1em width to leak into the column accumulator, the tab would
+		// start at character column 4 and expand to character column 8 instead.
+		assert.deepStrictEqual({
+			breakOffsets: lineBreakData?.breakOffsets,
+			breakOffsetsVisibleColumn: lineBreakData?.breakOffsetsVisibleColumn
+		}, {
+			breakOffsets: [3, 5],
+			breakOffsetsVisibleColumn: [4, 6]
 		});
 	});
 

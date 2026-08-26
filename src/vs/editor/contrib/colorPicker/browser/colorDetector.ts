@@ -9,7 +9,6 @@ import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
-import { noBreakWhitespace } from '../../../../base/common/strings.js';
 import { ICodeEditor } from '../../../browser/editorBrowser.js';
 import { DynamicCssRules } from '../../../browser/editorDom.js';
 import { EditorOption } from '../../../common/config/editorOptions.js';
@@ -239,7 +238,7 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 				options: {
 					description: 'colorDetector',
 					before: {
-						content: noBreakWhitespace,
+						content: '',
 						inlineClassName: `${ref.className} colorpicker-color-decoration`,
 						inlineClassNameAffectsLetterSpacing: true,
 						attachedData: ColorDecorationInjectedTextMarker,

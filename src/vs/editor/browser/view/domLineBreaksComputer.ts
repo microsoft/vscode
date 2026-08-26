@@ -240,15 +240,33 @@ function renderLine(lineContent: string, initialVisibleColumn: number, tabSize: 
 
 	sb.appendString('<span>');
 	for (let charIndex = 0; charIndex < len; charIndex++) {
-		const fixedWidthRange = fixedWidthRanges[fixedWidthRangeIndex];
+		let fixedWidthRange = fixedWidthRanges[fixedWidthRangeIndex];
 		const startsFixedWidth = fixedWidthRange && fixedWidthRange.startOffset === charIndex;
 		if (startsFixedWidth) {
 			if (spanOpen) {
 				sb.appendString('</span>');
 			}
-			sb.appendString('<span style="display:inline-block;box-sizing:border-box;width:');
-			sb.appendString(String(fixedWidthRange.widthInEm));
-			sb.appendString('em;">');
+			// Injected text that only reserves horizontal space covers no character, so it gets a span of
+			// its own. Rendering it inside the span of the character below would make that character fixed
+			// width as well. Several such injections can sit at the same offset.
+			while (fixedWidthRange && fixedWidthRange.startOffset === charIndex && fixedWidthRange.endOffset === charIndex) {
+				sb.appendString('<span style="display:inline-block;box-sizing:border-box;width:');
+				sb.appendString(String(fixedWidthRange.widthInEm));
+				sb.appendString('em;">');
+				sb.appendString('</span>');
+				spanStartOffsets.push(charOffset);
+				fixedWidthRange = fixedWidthRanges[++fixedWidthRangeIndex];
+			}
+			// The character below goes into a fixed width span if one still covers it, a normal one
+			// otherwise. At most one such range can start here: injections at the same column are laid
+			// out one after the other, so only an empty one leaves the next starting at the same offset.
+			if (fixedWidthRange && fixedWidthRange.startOffset === charIndex) {
+				sb.appendString('<span style="display:inline-block;box-sizing:border-box;width:');
+				sb.appendString(String(fixedWidthRange.widthInEm));
+				sb.appendString('em;">');
+			} else {
+				sb.appendString('<span>');
+			}
 			spanStartOffsets.push(charOffset);
 			spanOpen = true;
 		} else if (!spanOpen) {
@@ -323,7 +341,9 @@ function renderLine(lineContent: string, initialVisibleColumn: number, tabSize: 
 		charOffset += producedCharacters;
 		visibleColumn += charWidth;
 
-		if (fixedWidthRange && charIndex + 1 === fixedWidthRange.endOffset) {
+		// A range that covers no character has already been closed above, and must not be consumed here:
+		// its `endOffset` equals its `startOffset`, so this condition would hold one character too early.
+		if (fixedWidthRange && fixedWidthRange.startOffset < fixedWidthRange.endOffset && charIndex + 1 === fixedWidthRange.endOffset) {
 			sb.appendString('</span>');
 			spanOpen = false;
 			fixedWidthRangeIndex++;
@@ -332,6 +352,8 @@ function renderLine(lineContent: string, initialVisibleColumn: number, tabSize: 
 	if (spanOpen) {
 		sb.appendString('</span>');
 	}
+	// A spacing-only injection at the very end of the line is left out on purpose: nothing follows it,
+	// so it cannot move a break point. `MonospaceLineBreaksComputer` ignores it for the same reason.
 
 	charOffsets[lineContent.length] = charOffset;
 	visibleColumns[lineContent.length] = visibleColumn;

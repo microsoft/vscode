@@ -549,9 +549,10 @@ function computeCharPixelWidth(charCode: number, visibleColumn: number, tabSize:
 }
 
 /**
- * The number of columns the characters of a fixed width injected text range occupy. `widthInEm`
- * is deliberately ignored here: `visibleColumn` only drives tab expansion, which must stay in
- * sync with the line rendering, and the rendering does not know about `widthInEm`.
+ * The number of columns the characters of a fixed width injected text range occupy, which is 0 for
+ * a width-only injection. `widthInEm` is deliberately ignored here: `visibleColumn` only drives tab
+ * expansion, which must stay in sync with the line rendering, and the rendering does not know about
+ * `widthInEm`.
  */
 function computeFixedWidthRangeColumnWidth(lineText: string, range: FixedWidthInjectedTextRange, visibleColumn: number, tabSize: number, columnsForFullWidthChar: number): number {
 	let width = 0;

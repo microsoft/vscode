@@ -7,7 +7,6 @@ import * as dom from '../../../../base/browser/dom.js';
 import { disposableTimeout } from '../../../../base/common/async.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { noBreakWhitespace } from '../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import './inlineProgressWidget.css';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from '../../../browser/editorBrowser.js';
@@ -24,7 +23,7 @@ const inlineProgressDecoration = ModelDecorationOptions.register({
 	stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 	showIfCollapsed: true,
 	after: {
-		content: noBreakWhitespace,
+		content: '',
 		inlineClassName: 'inline-editor-progress-decoration',
 		inlineClassNameAffectsLetterSpacing: true,
 		widthInEm: 1,
