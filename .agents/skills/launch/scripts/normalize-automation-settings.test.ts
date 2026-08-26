@@ -390,6 +390,37 @@ test('normalizes independent profiles and skips only inheriting ones', () => {
 	});
 });
 
+test('materializes but does not normalize an inheriting profile settings link', posixOnly, () => {
+	const root = fixtureRoot('nas-inherited-settings-link-');
+	const userDir = path.join(root, 'User');
+	const inheriting = path.join(userDir, 'profiles', 'inherits');
+	const settingsFile = path.join(inheriting, 'settings.json');
+	const outside = path.join(root, 'outside-settings.json');
+	const original = '{ "editor.editContext": false }\n';
+	fs.mkdirSync(inheriting, { recursive: true });
+	fs.mkdirSync(path.join(userDir, 'globalStorage'), { recursive: true });
+	fs.writeFileSync(path.join(userDir, 'settings.json'), '{}\n');
+	fs.writeFileSync(outside, original);
+	fs.symlinkSync(outside, settingsFile);
+	fs.writeFileSync(path.join(userDir, 'globalStorage', 'storage.json'), JSON.stringify({
+		userDataProfiles: [{ location: 'inherits', useDefaultFlags: { settings: true } }]
+	}));
+
+	const count = execFileSync(process.execPath, [script, '--user-data-dir', root], { encoding: 'utf8' }).trim();
+
+	assert.deepStrictEqual({
+		count,
+		outside: fs.readFileSync(outside, 'utf8'),
+		inheriting: fs.readFileSync(settingsFile, 'utf8'),
+		stillLinked: fs.lstatSync(settingsFile).isSymbolicLink()
+	}, {
+		count: '1',
+		outside: original,
+		inheriting: original,
+		stillLinked: false
+	});
+});
+
 test('remaps a legacy URI profile location into the cloned profile', () => {
 	const root = fixtureRoot('nas-uri-profile-');
 	const userDir = path.join(root, 'User');

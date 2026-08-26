@@ -670,10 +670,15 @@ export function findSettingsFiles(userDataDir: string): string[] {
 			refuseLinkedDir(path.join(parent, entry.name));
 			return;
 		}
-		if (!entry.isDirectory() || inheriting.has(location)) {
+		if (!entry.isDirectory()) {
 			return;
 		}
-		files.push(path.join(parent, entry.name, 'settings.json'));
+		const settingsFile = path.join(parent, entry.name, 'settings.json');
+		if (inheriting.has(location)) {
+			materializeLinkedFile(settingsFile);
+			return;
+		}
+		files.push(settingsFile);
 	};
 	for (const entry of entries) {
 		if (entry.name !== 'builtin') {
