@@ -10,11 +10,17 @@ import { observableValue, type IObservable, type ISettableObservable } from '../
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
-import { type AgentProvider, AgentSession, type AuthenticateParams, type AuthenticateResult, type IAgent, type IMcpNotification } from '../common/agent.js';
+import { type AgentProvider, AgentSession, type AuthenticateParams, type AuthenticateResult, type IAgent, type IAgentHostNetworkEndpoint, type IMcpNotification } from '../common/agent.js';
+import type { IAgentHostManagedSettingsDiagnostics } from '../common/agentService.js';
 import { IAgentHostAuthenticationController } from './agentHostAuthenticationService.js';
 import { parseMcpChannelUri } from './shared/mcpCustomizationController.js';
 
 export const IAgentHostProviderService = createDecorator<IAgentHostProviderService>('agentHostProviderService');
+
+export interface IAgentHostProviderNetworkDiagnostics {
+	readonly endpoints: readonly IAgentHostNetworkEndpoint[];
+	readonly account: string | undefined;
+}
 
 export interface IAgentHostProviderService {
 	readonly _serviceBrand: undefined;
@@ -32,6 +38,8 @@ export interface IAgentHostProviderService {
 	releaseSession(session: URI | string, expectedProvider?: AgentProvider): void;
 	authenticate(params: AuthenticateParams): Promise<AuthenticateResult>;
 	handleMcpRequest(channel: string, method: string, params: Record<string, unknown> | undefined): Promise<unknown>;
+	getNetworkDiagnostics(): Promise<IAgentHostProviderNetworkDiagnostics>;
+	getManagedSettingsDiagnostics(): Promise<readonly IAgentHostManagedSettingsDiagnostics[]>;
 	shutdown(): Promise<void>;
 }
 
@@ -160,6 +168,54 @@ export class AgentHostProviderService extends Disposable implements IAgentHostPr
 			throw new Error(`Method not found: no provider for mcp:// channel ${channel}`);
 		}
 		return provider.handleMcpRequest(route.chatUri, route.serverName, method, params);
+	}
+
+	async getNetworkDiagnostics(): Promise<IAgentHostProviderNetworkDiagnostics> {
+		const providers = this.getProviders();
+		const [contributions, accounts] = await Promise.all([
+			Promise.all(providers.map(async provider => {
+				try {
+					return await provider.getNetworkDiagnosticsEndpoints?.() ?? [];
+				} catch (error) {
+					this._logService.warn(`[AgentHostProviderService] Failed to resolve network diagnostics endpoints for ${provider.id}: ${error instanceof Error ? error.message : String(error)}`);
+					return [];
+				}
+			})),
+			Promise.all(providers.map(async provider => {
+				try {
+					return await provider.getNetworkDiagnosticsAccount?.();
+				} catch (error) {
+					this._logService.warn(`[AgentHostProviderService] Failed to resolve network diagnostics account for ${provider.id}: ${error instanceof Error ? error.message : String(error)}`);
+					return undefined;
+				}
+			})),
+		]);
+		const endpoints: IAgentHostNetworkEndpoint[] = [];
+		const seen = new Set<string>();
+		for (const endpoint of contributions.flat()) {
+			let key: string;
+			try {
+				key = new URL(endpoint.url).toString();
+			} catch {
+				key = endpoint.url;
+			}
+			if (!seen.has(key)) {
+				seen.add(key);
+				endpoints.push(endpoint);
+			}
+		}
+		return { endpoints, account: accounts.find(account => !!account) };
+	}
+
+	async getManagedSettingsDiagnostics(): Promise<readonly IAgentHostManagedSettingsDiagnostics[]> {
+		const providers = this.getProviders().filter(provider => provider.getManagedSettingsDiagnostics);
+		return Promise.all(providers.map(async provider => {
+			try {
+				return { provider: provider.id, snapshot: await provider.getManagedSettingsDiagnostics!() };
+			} catch (error) {
+				return { provider: provider.id, error: error instanceof Error ? error.message : String(error) };
+			}
+		}));
 	}
 
 	shutdown(): Promise<void> {

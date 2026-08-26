@@ -27,6 +27,8 @@ export function createTestAgentHostProviderService(getProviderForSession: (sessi
 		releaseSession: () => { },
 		authenticate: async () => ({ authenticated: false }),
 		handleMcpRequest: async () => { throw new Error('Not implemented'); },
+		getNetworkDiagnostics: async () => ({ endpoints: [], account: undefined }),
+		getManagedSettingsDiagnostics: async () => [],
 		shutdown: async () => { },
 	};
 }

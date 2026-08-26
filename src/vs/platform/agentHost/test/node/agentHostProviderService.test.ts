@@ -199,6 +199,82 @@ suite('AgentHostProviderService', () => {
 		});
 	});
 
+	test('aggregates provider network diagnostics in registration order', async () => {
+		const { service } = createService();
+		const first: IAgent = new TestProvider('first');
+		const second: IAgent = new TestProvider('second');
+		const failing: IAgent = new TestProvider('failing');
+		const late: IAgent = new TestProvider('late');
+		const endpointsGate = new DeferredPromise<void>();
+		first.getNetworkDiagnosticsEndpoints = async () => {
+			await endpointsGate.p;
+			return [
+				{ name: 'First', url: 'https://example.com' },
+				{ name: 'Other', url: 'not a url' },
+			];
+		};
+		first.getNetworkDiagnosticsAccount = async () => { throw new Error('account unavailable'); };
+		second.getNetworkDiagnosticsEndpoints = async () => [
+			{ name: 'Duplicate normalized URL', url: 'https://example.com/' },
+			{ name: 'Duplicate invalid URL', url: 'not a url' },
+		];
+		second.getNetworkDiagnosticsAccount = async () => 'octocat';
+		failing.getNetworkDiagnosticsEndpoints = async () => { throw new Error('endpoints unavailable'); };
+		late.getNetworkDiagnosticsEndpoints = async () => [{ name: 'Late', url: 'https://late.example.com' }];
+		late.getNetworkDiagnosticsAccount = async () => 'late-account';
+		service.registerProvider(first);
+		service.registerProvider(second);
+		service.registerProvider(failing);
+
+		const diagnostics = service.getNetworkDiagnostics();
+		service.registerProvider(late);
+		endpointsGate.complete();
+
+		assert.deepStrictEqual(await diagnostics, {
+			endpoints: [
+				{ name: 'First', url: 'https://example.com' },
+				{ name: 'Other', url: 'not a url' },
+			],
+			account: 'octocat',
+		});
+	});
+
+	test('aggregates managed-settings diagnostics from capable providers', async () => {
+		const { service } = createService();
+		const supported: IAgent = new TestProvider('supported');
+		const unsupported: IAgent = new TestProvider('unsupported');
+		const failing: IAgent = new TestProvider('failing');
+		supported.getManagedSettingsDiagnostics = async () => ({
+			source: 'device',
+			serverManaged: false,
+			deviceManaged: true,
+			failClosed: false,
+			bypassPermissionsDisabled: false,
+			managedKeys: ['permissions'],
+			settings: { permissions: { allow: ['Shell(echo *)'] } },
+		});
+		failing.getManagedSettingsDiagnostics = async () => { throw new Error('unavailable'); };
+		service.registerProvider(supported);
+		service.registerProvider(unsupported);
+		service.registerProvider(failing);
+
+		assert.deepStrictEqual(await service.getManagedSettingsDiagnostics(), [
+			{
+				provider: 'supported',
+				snapshot: {
+					source: 'device',
+					serverManaged: false,
+					deviceManaged: true,
+					failClosed: false,
+					bypassPermissionsDisabled: false,
+					managedKeys: ['permissions'],
+					settings: { permissions: { allow: ['Shell(echo *)'] } },
+				},
+			},
+			{ provider: 'failing', error: 'unavailable' },
+		]);
+	});
+
 	test('fans out authentication and shutdown', async () => {
 		const { service, authentication } = createService();
 		const first = new TestProvider('first');

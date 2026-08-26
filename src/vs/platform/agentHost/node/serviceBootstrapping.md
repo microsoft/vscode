@@ -87,8 +87,8 @@ default delegate is `NullAgentHostWorktreeIsolation`.
 | starts transports, providers, recurring schedulers, or process listeners | entry point | activation after runtime creation |
 
 `IAgentHostProviderService` is the core service that owns provider registration,
-routing, and lifetime. A successful `registerProvider` call transfers disposal
-ownership to that service.
+routing, lifetime, and provider-wide diagnostics aggregation. A successful
+`registerProvider` call transfers disposal ownership to that service.
 
 Place an object based on construction requirements and lifetime, not on which
 existing file first needs it.

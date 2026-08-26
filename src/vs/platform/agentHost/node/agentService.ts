@@ -19,7 +19,7 @@ import { localize } from '../../../nls.js';
 import { FileChangeType, FileOperationResult, IFileChange, IFileService, toFileOperationResult, type FileChangesEvent } from '../../files/common/files.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentProvider, AgentSession, AgentSignal, IAgent, type IAgentAdoptedWorktree, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentCreateChatOptions, IAgentCreateChatRequestOptions, IAgentCreateChatResult, IAgentCreateChatSideChatSelection, IAgentCreateChatSideChatSource, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDiscoveredChat, IAgentHostNetworkEndpoint, IAgentMaterializeChatEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentChatAdoptionResult, type AgentChatAdoptionReason, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSpawnChatEvent, AuthenticateParams, AuthenticateResult, SubagentChatSignal, subagentChatTitle } from '../common/agent.js';
+import { AgentProvider, AgentSession, AgentSignal, IAgent, type IAgentAdoptedWorktree, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentCreateChatOptions, IAgentCreateChatRequestOptions, IAgentCreateChatResult, IAgentCreateChatSideChatSelection, IAgentCreateChatSideChatSource, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDiscoveredChat, IAgentMaterializeChatEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentChatAdoptionResult, type AgentChatAdoptionReason, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSpawnChatEvent, AuthenticateParams, AuthenticateResult, SubagentChatSignal, subagentChatTitle } from '../common/agent.js';
 import { type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentService } from '../common/agentService.js';
 import { ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../common/sessionDataService.js';
 import { IAgentEditAttributionService, ICancelEditAttributionFlushParams, ICommitEditAttributionFlushParams, IEditAttributionFlushResult, IPrepareEditAttributionFlushParams, IPreparedEditAttributionFlush, parseEditAttributionResource } from '../common/fileEditAttribution.js';
@@ -6259,49 +6259,12 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	async getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo> {
-		const providers = this._providerService.getProviders();
-		const contributions = await Promise.all(providers.map(async provider => {
-			try {
-				return await provider.getNetworkDiagnosticsEndpoints?.() ?? [];
-			} catch (error) {
-				this._logService.warn(`[AgentService] Failed to resolve network diagnostics endpoints for ${provider.id}: ${error instanceof Error ? error.message : String(error)}`);
-				return [];
-			}
-		}));
-		const accounts = await Promise.all(providers.map(async provider => {
-			try {
-				return await provider.getNetworkDiagnosticsAccount?.();
-			} catch (error) {
-				this._logService.warn(`[AgentService] Failed to resolve network diagnostics account for ${provider.id}: ${error instanceof Error ? error.message : String(error)}`);
-				return undefined;
-			}
-		}));
-		const endpoints: IAgentHostNetworkEndpoint[] = [];
-		const seen = new Set<string>();
-		for (const endpoint of contributions.flat()) {
-			let key: string;
-			try {
-				key = new URL(endpoint.url).toString();
-			} catch {
-				key = endpoint.url;
-			}
-			if (!seen.has(key)) {
-				seen.add(key);
-				endpoints.push(endpoint);
-			}
-		}
-		return this._networkDiagnostics.getInfo(endpoints, accounts.find(account => !!account));
+		const { endpoints, account } = await this._providerService.getNetworkDiagnostics();
+		return this._networkDiagnostics.getInfo(endpoints, account);
 	}
 
 	async getManagedSettingsDiagnostics(): Promise<readonly IAgentHostManagedSettingsDiagnostics[]> {
-		const providers = this._providerService.getProviders().filter(provider => provider.getManagedSettingsDiagnostics);
-		return Promise.all(providers.map(async provider => {
-			try {
-				return { provider: provider.id, snapshot: await provider.getManagedSettingsDiagnostics!() };
-			} catch (error) {
-				return { provider: provider.id, error: error instanceof Error ? error.message : String(error) };
-			}
-		}));
+		return this._providerService.getManagedSettingsDiagnostics();
 	}
 
 	async diagnosticsFetch(url: string): Promise<IAgentHostNetworkFetchResult> {
