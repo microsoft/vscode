@@ -360,9 +360,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private _onDidLoadInputState: Emitter<void> = this._register(new Emitter());
 	readonly onDidLoadInputState: Event<void> = this._onDidLoadInputState.event;
 	private readonly _toolbarRelayoutScheduler = this._register(new RunOnceScheduler(() => {
-		if (typeof this.cachedWidth === 'number') {
-			this.layout(this.cachedWidth);
-		}
+		this.layoutForToolbarChange();
 	}, 0));
 
 	private _onDidFocus = this._register(new Emitter<void>());
@@ -422,6 +420,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private readonly inputEditorMinHeight: number | undefined;
 	private readonly singleLineInputEditorHeight: number;
 	private inputEditorHeight: number = 0;
+	private ignoreInputEditorContentSizeChanges = false;
 	private _maxHeight: number | undefined;
 	private container!: HTMLElement;
 
@@ -3313,7 +3312,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this._syncTextDebounced.schedule();
 		}));
 		this._register(this._inputEditor.onDidContentSizeChange(e => {
-			if (e.contentHeightChanged) {
+			if (e.contentHeightChanged && !this.ignoreInputEditorContentSizeChanges) {
 				this.inputEditorHeight = !this.inline ? e.contentHeight : this.inputEditorHeight;
 				// Directly update editor layout - ResizeObserver will notify parent about height change
 				if (this.cachedWidth) {
@@ -3821,12 +3820,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		if (this.options.renderStyle === 'compact') {
 			const toolbarsResizeObserver = this._register(new dom.DisposableResizeObserver('ChatInputPart.compactToolbars', () => {
-				// Have to layout the editor when the toolbars change size, when they share width with the editor.
-				// This handles ensuring we layout when quick chat is shown/hidden.
-				// The toolbar may have changed since the last time it was visible.
-				if (this.cachedWidth) {
-					this.layout(this.cachedWidth);
-				}
+				// Recalculate the shared width without changing the editor's height.
+				this.layoutForToolbarChange();
 			}));
 			this._register(toolbarsResizeObserver.observe(toolbarsContainer));
 		}
@@ -4794,6 +4789,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return this._layout(width);
 	}
 
+	private layoutForToolbarChange(): void {
+		if (typeof this.cachedWidth === 'number') {
+			this._layout(this.cachedWidth, true, true);
+		}
+	}
+
 	/**
 	 * Scale the working/progress border comet animation duration with
 	 * the input width so the comet's perceived linear travel speed (the
@@ -4859,7 +4860,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	private previousInputEditorDimension: IDimension | undefined;
-	private _layout(width: number, allowRecurse = true): void {
+	private _layout(width: number, allowRecurse = true, preserveInputEditorHeight = false): void {
 		const data = this.getLayoutData();
 
 		const followupsWidth = width - data.inputPartHorizontalPadding;
@@ -4868,19 +4869,27 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const initialEditorScrollWidth = this._inputEditor.getScrollWidth();
 		const newEditorWidth = width - data.inputPartHorizontalPadding - data.editorBorder - data.inputPartHorizontalPaddingInside - data.toolbarsWidth - data.sideToolbarWidth;
 		const effectiveMaxHeight = this._effectiveInputEditorMaxHeight;
-		const clampedContentHeight = Math.min(this._inputEditor.getContentHeight(), effectiveMaxHeight);
+		const contentHeight = preserveInputEditorHeight && this.previousInputEditorDimension
+			? this.previousInputEditorDimension.height
+			: this._inputEditor.getContentHeight();
+		const clampedContentHeight = Math.min(contentHeight, effectiveMaxHeight);
 		const inputEditorHeight = this.inputEditorMinHeight ? Math.min(Math.max(this.inputEditorMinHeight, clampedContentHeight), effectiveMaxHeight) : clampedContentHeight;
 		const newDimension = { width: newEditorWidth, height: inputEditorHeight };
 		if (!this.previousInputEditorDimension || (this.previousInputEditorDimension.width !== newDimension.width || this.previousInputEditorDimension.height !== newDimension.height)) {
 			// This layout call has side-effects that are hard to understand. eg if we are calling this inside a onDidChangeContent handler, this can trigger the next onDidChangeContent handler
 			// to be invoked, and we have a lot of these on this editor. Only doing a layout this when the editor size has actually changed makes it much easier to follow.
-			this._inputEditor.layout(newDimension);
+			this.ignoreInputEditorContentSizeChanges = preserveInputEditorHeight;
+			try {
+				this._inputEditor.layout(newDimension);
+			} finally {
+				this.ignoreInputEditorContentSizeChanges = false;
+			}
 			this.previousInputEditorDimension = newDimension;
 		}
 
 		if (allowRecurse && initialEditorScrollWidth < 10) {
 			// This is probably the initial layout. Now that the editor is layed out with its correct width, it should report the correct contentHeight
-			return this._layout(width, false);
+			return this._layout(width, false, preserveInputEditorHeight);
 		}
 	}
 
