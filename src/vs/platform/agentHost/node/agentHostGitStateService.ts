@@ -9,20 +9,18 @@ import { URI } from '../../../base/common/uri.js';
 import { Emitter } from '../../../base/common/event.js';
 import { ILogService } from '../../log/common/log.js';
 import { IAgentHostGitStateService, META_GIT_STATE, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../common/agentHostGitStateService.js';
-import { getSessionRelatedPullRequestUrls, ISessionGitHubState, ISessionWithDefaultChat, readSessionGitHubState, readSessionGitState, readSessionSourceControlState, SessionLifecycle, SessionSourceControlOutcome, withInitialSessionPullRequest, withMostRecentReferencedSessionPullRequest, withMostRecentSessionPullRequest, withSessionGitHubState, withSessionGitState, withSessionSourceControlState, type ISessionGitState, type ISessionSourceControlState } from '../common/state/sessionState.js';
-import { MAX_SESSION_ISSUE_REFERENCES, parseGitHubIssueReferences, toGitHubIssueUrl } from '../common/githubIssueReferences.js';
-import { parseGitHubPullRequestReferences, toGitHubPullRequestUrl } from '../common/githubPullRequestReferences.js';
+import { getSessionRelatedPullRequestUrls, ISessionGitHubState, ISessionWithDefaultChat, readSessionGitHubState, readSessionGitState, readSessionSourceControlState, SessionLifecycle, SessionSourceControlOutcome, withInitialSessionPullRequest, withMostRecentSessionPullRequest, withSessionGitHubState, withSessionGitState, withSessionSourceControlState, type ISessionGitState, type ISessionSourceControlState } from '../common/state/sessionState.js';
 import { IAgentHostGitService, META_DIFF_BASE_BRANCH, parseUpstreamBranchName, resolveDiffBaseBranchName } from '../common/agentHostGitService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { CreatedPullRequest, IAgentHostOctoKitService } from './shared/agentHostOctoKitService.js';
-import { IAgentService } from '../common/agentService.js';
 import { IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
 import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { ThrottlerByKey, SequencerByKey, timeout } from '../../../base/common/async.js';
 import { isCancellationError } from '../../../base/common/errors.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
+import { IAgentHostAuthenticationService } from './agentHostAuthenticationService.js';
 
 const PULL_REQUEST_CREATION_CLOCK_SKEW_MS = 5 * 60_000;
 
@@ -50,7 +48,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
 		@IAgentHostGitService private readonly _gitService: IAgentHostGitService,
 		@IAgentHostOctoKitService private readonly _octoKitService: IAgentHostOctoKitService,
-		@IAgentService private readonly _agentService: IAgentService,
+		@IAgentHostAuthenticationService private readonly _authenticationService: IAgentHostAuthenticationService,
 		@IAgentHostGitHubEndpointService private readonly _gitHubEndpointService: IAgentHostGitHubEndpointService,
 		@ILogService private readonly _logService: ILogService,
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
@@ -110,7 +108,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 
 		try {
 			const repoResource = this._gitHubEndpointService.getRepoResource();
-			const authToken = this._agentService.getAuthToken({
+			const authToken = this._authenticationService.getAuthToken({
 				resource: repoResource.resource,
 				scopes: repoResource.scopes_supported,
 			});
@@ -201,43 +199,9 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 			: undefined;
 	}
 
-	async attachSessionGitHubReferences(sessionKey: string, text: string): Promise<void> {
-		const currentState = readSessionGitHubState(this._stateManager.getSessionState(sessionKey)?._meta);
-		const issueReferences = parseGitHubIssueReferences(text);
-		const repository = currentState?.owner && currentState.repo ? { owner: currentState.owner, repo: currentState.repo } : undefined;
-		const gitHubHost = this._gitHubEndpointService.getEnterpriseHost() ?? 'github.com';
-		const pullRequestReferences = parseGitHubPullRequestReferences(text, repository, gitHubHost)
-			.filter(reference => !repository || reference.owner.toLowerCase() === repository.owner.toLowerCase() && reference.repo.toLowerCase() === repository.repo.toLowerCase());
-		if (issueReferences.length === 0 && pullRequestReferences.length === 0) {
-			return;
-		}
-
-		const currentIssueUrls = currentState?.issueUrls ?? [];
-		const nextIssueUrls = [...currentIssueUrls];
-		for (const reference of issueReferences) {
-			const url = toGitHubIssueUrl(reference);
-			if (!nextIssueUrls.includes(url)) {
-				nextIssueUrls.push(url);
-			}
-		}
-
-		let nextState: ISessionGitHubState = issueReferences.length > 0
-			? { issueUrls: nextIssueUrls.slice(0, MAX_SESSION_ISSUE_REFERENCES) }
-			: {};
-		for (let index = pullRequestReferences.length - 1; index >= 0; index--) {
-			const reference = pullRequestReferences[index];
-			const url = toGitHubPullRequestUrl(reference, gitHubHost);
-			nextState = {
-				...nextState,
-				...withMostRecentReferencedSessionPullRequest({ ...currentState, ...nextState }, url)
-			};
-		}
-		await this.setSessionGitHubState(sessionKey, nextState);
-	}
-
 	async refreshSessionGitState(sessionKey: string, workingDirectory: URI | undefined): Promise<void> {
 		const sessionState = this._stateManager.getSessionState(sessionKey);
-		if (sessionState?.lifecycle === SessionLifecycle.CreationFailed) {
+		if (sessionState?.lifecycle === SessionLifecycle.Failed) {
 			return;
 		}
 
@@ -338,8 +302,10 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 
 	async resolveSessionBaseBranchName(sessionKey: string): Promise<string | undefined> {
 		const state = this._stateManager.getSessionState(sessionKey);
-		const configuredBranch = state?.config?.values[SessionConfigKey.Isolation] === 'worktree'
-			? state.config.values[SessionConfigKey.Branch]
+		const configValues = state?.config?.values;
+		const configuredBranch = configValues?.[SessionConfigKey.Isolation] === 'worktree'
+			&& configValues[SessionConfigKey.WorktreeCreateNewBranch] !== false
+			? configValues[SessionConfigKey.Branch]
 			: undefined;
 		if (typeof configuredBranch === 'string' && configuredBranch.trim()) {
 			return resolveDiffBaseBranchName(configuredBranch.trim(), undefined);

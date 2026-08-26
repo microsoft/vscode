@@ -33,6 +33,8 @@ export const enum SessionConfigKey {
 	WorktreeIncludeFiles = 'worktreeIncludeFiles',
 	/** `'worktreeBranchTrack'` — host-owned branch tracking preference for programmatic session creation. */
 	WorktreeBranchTrack = 'worktreeBranchTrack',
+	/** `'worktreeCreateNewBranch'` — host-owned choice to create a branch instead of checking out the selected branch. */
+	WorktreeCreateNewBranch = 'worktreeCreateNewBranch',
 	/** `'agentMerge'` — client-owned Agent Merge enablement and session overrides. */
 	AgentMerge = 'agentMerge',
 	/** `'agentMerge.controller'` — host-owned Agent Merge lifecycle state. */

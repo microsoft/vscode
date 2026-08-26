@@ -77,9 +77,7 @@ class OpenPullRequestAction extends Action2 {
 			title: localize2('agentSessions.openPullRequest', "Open Pull Request"),
 			icon: Codicon.gitPullRequest,
 			f1: false,
-			// Pull request pill shown in the session header meta row
-			// (vs/sessions/browser/parts/sessionHeader.ts). Rendered with a
-			// custom action view item that summarizes the session's PRs.
+			// Metadata pill that summarizes the session's pull requests.
 			menu: [{
 				id: Menus.SessionHeaderMeta,
 				group: 'navigation',
@@ -456,9 +454,7 @@ function getPullRequestAriaLabel(ref: IGitHubPullRequestRef, pullRequest: IGitHu
 }
 
 /**
- * Registers the {@link OpenPullRequestActionViewItem} for the open-pull-request action in the
- * session header meta toolbar. Registering it here (rather than in the core session header)
- * keeps the rendering of the GitHub-owned action co-located with the action itself.
+ * Registers the {@link OpenPullRequestActionViewItem} for the pull-request metadata pill.
  */
 class OpenPullRequestActionViewItemContribution extends Disposable implements IWorkbenchContribution {
 
@@ -469,11 +465,7 @@ class OpenPullRequestActionViewItemContribution extends Disposable implements IW
 	) {
 		super();
 
-		// The action view item service only notifies toolbars of a factory via
-		// the event passed to register(), not on registration itself. A session
-		// header restored with an existing pull request may create its meta
-		// toolbar before this contribution runs, so announce the factory once
-		// right after registering to make those toolbars re-render and pick it up.
+		// Announce the factory after registration so existing metadata pills re-render.
 		const onDidRegister = this._register(new Emitter<void>());
 		this._register(actionViewItemService.register(Menus.SessionHeaderMeta, OpenPullRequestAction.ID, (action, options, instantiationService) => {
 			if (!(action instanceof MenuItemAction)) {

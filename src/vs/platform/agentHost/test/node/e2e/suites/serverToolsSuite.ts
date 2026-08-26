@@ -18,7 +18,7 @@ import type { ListSessionsResult, SubscribeResult } from '../../../../common/sta
 import { ActionType, NotificationType, type ChatToolCallCompleteAction, type ChatToolCallStartAction, type SessionAddedParams, type StateAction } from '../../../../common/state/sessionActions.js';
 import {
 	buildDefaultChatUri,
-	readSessionOrchestration,
+	readSessionCreationReference,
 	ROOT_STATE_URI,
 	type AnnotationsState,
 	type ChatState,
@@ -60,7 +60,6 @@ const sessionToolNames = [
 	SessionServerToolName.ListSessions,
 	SessionServerToolName.GetCurrentSession,
 	SessionServerToolName.CreateSession,
-	SessionServerToolName.CreateChat,
 	SessionServerToolName.SendMessage,
 	SessionServerToolName.GetSessionContext,
 	SessionServerToolName.DeleteSession,
@@ -80,8 +79,8 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 	const supportsSelfSendRejection = config.provider === 'copilotcli';
 	// Model ids are not provider-qualified; Claude and Codex selections currently resolve to Copilot.
 	const supportsProviderModelSessionCreation = config.provider === 'copilotcli';
-	// Claude's create_chat server-tool turn does not complete after confirmation.
-	const supportsServerToolCreateChat = config.provider === 'copilotcli';
+	// Claude's current-session creation turn does not complete after confirmation.
+	const supportsCurrentSessionCreation = config.provider === 'copilotcli';
 	let nextClientSequence = 10_000;
 
 	function reserveClientSequenceBlock(): number {
@@ -179,7 +178,7 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 			type: ActionType.AnnotationsSet,
 			annotation: {
 				id: options.id,
-				turnId: 'seed-feedback',
+				origin: { session: sessionUri, chat: buildDefaultChatUri(sessionUri), turnId: 'seed-feedback' },
 				resource: options.resource,
 				range: { start: { line: 1, character: 2 }, end: { line: 1, character: 8 } },
 				resolved: options.resolved ?? false,
@@ -655,14 +654,14 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 		assert.ok(result.sessions.some(item => item.session === session.sessionUri));
 	});
 
-	serverToolTest('server tool: create_chat defaults to the invoking session and starts its local prompt', async function () {
+	serverToolTest('server tool: create_session currentSession starts a prompt in a peer chat', async function () {
 		const session = await createSession('create-chat-default');
 		const before = new Set((await sessionState(session.sessionUri)).chats.map(chat => chat.resource));
 		const { turn } = await driveServerTool(
 			session,
 			'turn-create-chat-default',
-			'Call create_chat exactly once with prompt "/rename Created Peer", then reply exactly "created".',
-			SessionServerToolName.CreateChat,
+			'Call create_session exactly once with relationship "currentSession", prompt "/rename Created Peer", and title "Created Peer", then reply exactly "created".',
+			SessionServerToolName.CreateSession,
 		);
 		const after = await sessionState(session.sessionUri);
 		const peer = after.chats.find(chat => !before.has(chat.resource));
@@ -675,23 +674,23 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 			sawPendingConfirmation: true,
 			messages: ['/rename Created Peer'],
 		});
-	}, config.supportsMultipleChats && supportsServerToolCreateChat);
+	}, config.supportsMultipleChats && supportsCurrentSessionCreation);
 
-	serverToolTest('server tool: create_chat applies an explicit peer title', async function () {
+	serverToolTest('server tool: create_session currentSession applies an explicit peer title', async function () {
 		const session = await createSession('create-chat-title');
 		const before = new Set((await sessionState(session.sessionUri)).chats.map(chat => chat.resource));
 		await driveServerTool(
 			session,
 			'turn-create-chat-title',
-			'Call create_chat exactly once with prompt "/rename" and title "Explicit Peer", then reply exactly "created".',
-			SessionServerToolName.CreateChat,
+			'Call create_session exactly once with relationship "currentSession", prompt "/rename", and title "Explicit Peer", then reply exactly "created".',
+			SessionServerToolName.CreateSession,
 		);
 		const after = await sessionState(session.sessionUri);
 		const peer = after.chats.find(chat => !before.has(chat.resource));
 		assert.ok(peer);
 		await waitForChatIdle(peer.resource);
 		assert.strictEqual((await sessionState(session.sessionUri)).chats.find(chat => chat.resource === peer.resource)?.title, 'Explicit Peer');
-	}, config.supportsMultipleChats && supportsServerToolCreateChat);
+	}, config.supportsMultipleChats && supportsCurrentSessionCreation);
 
 	serverToolTest('server tool: get_session_context summary includes a completed prior turn', async function () {
 		const session = await createSession('context-summary', true);
@@ -848,13 +847,13 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 		const root = await context.client.call<SubscribeResult>('subscribe', { channel: ROOT_STATE_URI });
 		const model = (root.snapshot!.state as RootState).agents
 			.find(agent => agent.provider === config.provider)
-			?.models.find(model => model.id === 'claude-opus-4.6');
+			?.models.find(model => model.id === 'claude-sonnet-5');
 		assert.ok(model);
 		context.client.clearReceived();
 		const { turn } = await driveServerTool(
 			session,
 			'turn-create-session',
-			`Call create_session exactly once with workspace "${session.workspace}", prompt "${childPrompt}", and model "${model.id}", then reply exactly "created".`,
+			`Call create_session exactly once with relationship "independent", workspace "${session.workspace}", prompt "${childPrompt}", title "Created Child", and model "${model.id}", then reply exactly "created".`,
 			SessionServerToolName.CreateSession,
 		);
 		const childAdded = await context.client.waitForNotification(notification => {
@@ -866,8 +865,8 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 		}, 30_000);
 		const child = (childAdded.params as SessionAddedParams).summary;
 		createdSessions.push(child.resource);
-		const orchestration = readSessionOrchestration(child._meta);
-		assert.ok(orchestration, 'child SessionAdded summary should include orchestration metadata');
+		const creationReference = readSessionCreationReference(child._meta);
+		assert.ok(creationReference, 'child SessionAdded summary should include its creating turn');
 		const childRequest = await retry(async () => {
 			const requests = context.observedModelRequestBodies
 				.map(summarizeAnthropicRequest)
@@ -883,17 +882,19 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 			sawPendingConfirmation: turn.sawPendingConfirmation,
 			provider: child.provider,
 			messages: childState.turns.map(turn => turn.message.text),
+			title: childState.title,
 			childRequestModel: childRequest.model,
-			orchestration,
+			creationReference,
 		}, {
 			sawPendingConfirmation: true,
 			provider: model.provider,
 			messages: [childPrompt],
+			title: 'Created Child',
 			childRequestModel: model.id,
-			orchestration: {
-				parentSession: session.sessionUri,
-				creatorSession: session.sessionUri,
-				coordinateWithCreator: true,
+			creationReference: {
+				session: session.sessionUri,
+				chat: session.chatUri,
+				turnId: 'turn-create-session',
 			},
 		});
 	}, supportsProviderModelSessionCreation);

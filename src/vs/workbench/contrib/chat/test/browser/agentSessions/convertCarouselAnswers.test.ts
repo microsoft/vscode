@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { ChatInputQuestionKind, SessionInputAnswerState, SessionInputAnswerValueKind } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { convertCarouselAnswers } from '../../../browser/agentSessions/agentHost/agentHostSessionHandler.js';
 
 suite('convertCarouselAnswers', () => {
@@ -16,8 +16,8 @@ suite('convertCarouselAnswers', () => {
 		const result = convertCarouselAnswers({ 'q1': 'hello' });
 		assert.deepStrictEqual(result, {
 			'q1': {
-				state: SessionInputAnswerState.Submitted,
-				value: { kind: SessionInputAnswerValueKind.Text, value: 'hello' }
+				state: ChatInputAnswerState.Submitted,
+				value: { kind: ChatInputAnswerValueKind.Text, value: 'hello' }
 			}
 		});
 	});
@@ -26,8 +26,8 @@ suite('convertCarouselAnswers', () => {
 		const result = convertCarouselAnswers({ 'q1': { selectedValue: 'opt-1' } });
 		assert.deepStrictEqual(result, {
 			'q1': {
-				state: SessionInputAnswerState.Submitted,
-				value: { kind: SessionInputAnswerValueKind.Selected, value: 'opt-1', freeformValues: undefined }
+				state: ChatInputAnswerState.Submitted,
+				value: { kind: ChatInputAnswerValueKind.Selected, value: 'opt-1', freeformValues: undefined }
 			}
 		});
 	});
@@ -36,8 +36,8 @@ suite('convertCarouselAnswers', () => {
 		const result = convertCarouselAnswers({ 'q1': { selectedValue: 'opt-1', freeformValue: 'custom' } });
 		assert.deepStrictEqual(result, {
 			'q1': {
-				state: SessionInputAnswerState.Submitted,
-				value: { kind: SessionInputAnswerValueKind.Selected, value: 'opt-1', freeformValues: ['custom'] }
+				state: ChatInputAnswerState.Submitted,
+				value: { kind: ChatInputAnswerValueKind.Selected, value: 'opt-1', freeformValues: ['custom'] }
 			}
 		});
 	});
@@ -50,8 +50,8 @@ suite('convertCarouselAnswers', () => {
 		}]);
 		assert.deepStrictEqual(result, {
 			'q1': {
-				state: SessionInputAnswerState.Submitted,
-				value: { kind: SessionInputAnswerValueKind.Boolean, value: false }
+				state: ChatInputAnswerState.Submitted,
+				value: { kind: ChatInputAnswerValueKind.Boolean, value: false }
 			}
 		});
 	});
@@ -60,8 +60,8 @@ suite('convertCarouselAnswers', () => {
 		const result = convertCarouselAnswers({ 'q1': { selectedValues: ['a', 'b'] } });
 		assert.deepStrictEqual(result, {
 			'q1': {
-				state: SessionInputAnswerState.Submitted,
-				value: { kind: SessionInputAnswerValueKind.SelectedMany, value: ['a', 'b'], freeformValues: undefined }
+				state: ChatInputAnswerState.Submitted,
+				value: { kind: ChatInputAnswerValueKind.SelectedMany, value: ['a', 'b'], freeformValues: undefined }
 			}
 		});
 	});
@@ -70,8 +70,8 @@ suite('convertCarouselAnswers', () => {
 		const result = convertCarouselAnswers({ 'q1': { selectedValues: ['a'], freeformValue: 'extra' } });
 		assert.deepStrictEqual(result, {
 			'q1': {
-				state: SessionInputAnswerState.Submitted,
-				value: { kind: SessionInputAnswerValueKind.SelectedMany, value: ['a'], freeformValues: ['extra'] }
+				state: ChatInputAnswerState.Submitted,
+				value: { kind: ChatInputAnswerValueKind.SelectedMany, value: ['a'], freeformValues: ['extra'] }
 			}
 		});
 	});
@@ -80,8 +80,8 @@ suite('convertCarouselAnswers', () => {
 		const result = convertCarouselAnswers({ 'q1': { freeformValue: 'something' } });
 		assert.deepStrictEqual(result, {
 			'q1': {
-				state: SessionInputAnswerState.Submitted,
-				value: { kind: SessionInputAnswerValueKind.Text, value: 'something' }
+				state: ChatInputAnswerState.Submitted,
+				value: { kind: ChatInputAnswerValueKind.Text, value: 'something' }
 			}
 		});
 	});
@@ -93,9 +93,9 @@ suite('convertCarouselAnswers', () => {
 			'q3': { selectedValues: ['a'] },
 		});
 		assert.strictEqual(Object.keys(result).length, 3);
-		assert.strictEqual(result['q1'].state, SessionInputAnswerState.Submitted);
-		assert.strictEqual(result['q2'].state, SessionInputAnswerState.Submitted);
-		assert.strictEqual(result['q3'].state, SessionInputAnswerState.Submitted);
+		assert.strictEqual(result['q1'].state, ChatInputAnswerState.Submitted);
+		assert.strictEqual(result['q2'].state, ChatInputAnswerState.Submitted);
+		assert.strictEqual(result['q3'].state, ChatInputAnswerState.Submitted);
 	});
 
 	test('skips empty object answers', () => {

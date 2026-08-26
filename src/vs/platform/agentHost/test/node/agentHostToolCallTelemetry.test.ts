@@ -19,19 +19,31 @@ import { TelemetryTrustedValue } from '../../../telemetry/common/telemetryUtils.
 import { AgentSession, IAgent } from '../../common/agent.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, type IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
+import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
 import { SessionInputRequestKind } from '../../common/state/protocol/state.js';
 import { ActionType, type ChatAction } from '../../common/state/sessionActions.js';
 import { buildDefaultChatUri, MessageKind, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, type ToolCallContributor, type ToolCallResult } from '../../common/state/sessionState.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
+import { IAgentHostChatContributions } from '../../common/agentHostChatContributionsService.js';
 import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
-import { AgentHostLocalTurns } from '../../node/agentHostLocalTurns.js';
+import { AgentHostLocalTurns, IAgentHostLocalTurns } from '../../node/agentHostLocalTurns.js';
+import { AgentHostLocalCommands, IAgentHostLocalCommands } from '../../node/localCommands/localChatCommand.js';
+import { AgentHostChatContributions } from '../../node/agentHostChatContributionsService.js';
+import { AgentHostProviderLocator, IAgentHostProviderLocator } from '../../node/agentHostProviderLocator.js';
+import { AgentHostSessionTitleController, IAgentHostSessionTitleController } from '../../node/agentHostSessionTitleController.js';
+import { AgentHostTelemetryReporter, IAgentHostTelemetryReporter } from '../../node/agentHostTelemetryReporter.js';
 import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.js';
+import { AgentHostTurnTracker, IAgentHostTurnTracker } from '../../node/agentHostTurnTracker.js';
+import { AgentHostClientConnectionService, IAgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { IAgentHostChangesetService } from '../../common/agentHostChangesetService.js';
+import { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
 import { AgentSideEffects } from '../../node/agentSideEffects.js';
 import type { IAgentHostCustomizationEnablementService } from '../../node/agentHostCustomizationEnablementService.js';
-import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
-import { createNullSessionDataService } from '../common/sessionTestHelpers.js';
+import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { IAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
+import { createNoopGitStateService, createNullSessionDataService } from '../common/sessionTestHelpers.js';
+import { createNoopWorktreeIsolation } from './worktreeTestHelpers.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { MockAgent } from './mockAgent.js';
 import { TestAgentHostTerminalManager } from './testAgentHostTerminalManager.js';
@@ -70,14 +82,16 @@ class CapturingTelemetryService implements ITelemetryService {
 	readonly devDeviceId = 'test-dev-device';
 	readonly firstSessionDate = 'test-first-session-date';
 	readonly sendErrorTelemetry = false;
-	readonly events: { eventName: string; data: unknown }[] = [];
+	readonly events: { eventName: string; data: unknown; level: 'usage' | 'error' }[] = [];
 
 	publicLog(): void { }
 	publicLog2(eventName: string, data?: unknown): void {
-		this.events.push({ eventName, data });
+		this.events.push({ eventName, data, level: 'usage' });
 	}
 	publicLogError(): void { }
-	publicLogError2(): void { }
+	publicLogError2(eventName: string, data?: unknown): void {
+		this.events.push({ eventName, data, level: 'error' });
+	}
 	setExperimentProperty(): void { }
 	setCommonProperty(): void { }
 }
@@ -158,6 +172,24 @@ suite('AgentSideEffects — tool call telemetry', () => {
 			});
 	}
 
+	function agentHostToolEvents(): { eventName: string; data: Record<string, unknown> }[] {
+		return telemetry.events
+			.filter(e => e.eventName === 'agentHost.toolInvoked')
+			.map(e => {
+				const data = e.data as Record<string, unknown>;
+				return {
+					eventName: e.eventName,
+					data: {
+						...data,
+						invocationTimeMs: data.invocationTimeMs === undefined
+							? undefined
+							: typeof data.invocationTimeMs === 'number' && data.invocationTimeMs >= 0,
+						model: data.model instanceof TelemetryTrustedValue ? { trusted: true, value: data.model.value } : data.model,
+					},
+				};
+			});
+	}
+
 	function stalledEvents(): { eventName: string; data: Record<string, unknown> }[] {
 		return telemetry.events
 			.filter(e => e.eventName === 'agentHost.toolCallStalled')
@@ -208,21 +240,36 @@ suite('AgentSideEffects — tool call telemetry', () => {
 			setEnablement: () => ({ kind: 'resolved', enablement: [], enabled: true, workingDirectory: { kind: 'workspaceless' } }),
 			whenIdle: async () => { },
 		};
-		const instantiationService = disposables.add(new InstantiationService(new ServiceCollection(
+		const sharedLocalTurns = new AgentHostLocalTurns(sessionDataService, logService);
+		const services = new ServiceCollection(
+			[IAgentHostLocalTurns, sharedLocalTurns],
 			[ILogService, logService],
 			[IAgentConfigurationService, configService],
 			[IAgentHostChangesetService, new FakeChangesetService()],
 			[IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE],
+			[IAgentHostGitStateService, createNoopGitStateService()],
+			[IAgentHostStateManager, stateManager],
 			[ITelemetryService, telemetryService],
 			[IAgentHostTerminalManager, disposables.add(new TestAgentHostTerminalManager())],
 			[ISessionDataService, sessionDataService],
-		), /*strict*/ true));
+			[IAgentHostWorktreeIsolation, createNoopWorktreeIsolation()],
+			[IAgentHostClientConnectionService, disposables.add(new AgentHostClientConnectionService())],
+		);
+		const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
+		services.set(IAgentHostChatContributions, disposables.add(new AgentHostChatContributions(logService, instantiationService)));
+		services.set(IAgentHostSessionTitleController, disposables.add(new AgentHostSessionTitleController(stateManager, { sessionDataService }, logService)));
+		services.set(IAgentHostProviderLocator, new AgentHostProviderLocator(() => agent));
+		const telemetryReporter = new AgentHostTelemetryReporter(telemetryService);
+		services.set(IAgentHostTelemetryReporter, telemetryReporter);
+		const turnTracker = disposables.add(instantiationService.createInstance(AgentHostTurnTracker));
+		services.set(IAgentHostTurnTracker, turnTracker);
+		const localCommands = disposables.add(instantiationService.createInstance(AgentHostLocalCommands));
+		services.set(IAgentHostLocalCommands, localCommands);
 		sideEffects = disposables.add(instantiationService.createInstance(AgentSideEffects, stateManager, customizationEnablementService, {
 			getAgent: () => agent,
 			agents: agentList,
 			sessionDataService,
-			localTurns: new AgentHostLocalTurns(sessionDataService, logService),
-			onTurnComplete: () => { },
+			localTurns: sharedLocalTurns,
 		}));
 		disposables.add(sideEffects.registerProgressListener(agent));
 	});
@@ -261,6 +308,26 @@ suite('AgentSideEffects — tool call telemetry', () => {
 				resultSizeInCharacters: 41,
 				turnId: 'turn-1',
 				model: undefined,
+			},
+		}]);
+		assert.deepStrictEqual(agentHostToolEvents(), [{
+			eventName: 'agentHost.toolInvoked',
+			data: {
+				result: 'success',
+				agentSessionId: 'session-1',
+				chatSessionId: getTelemetryChatSessionId(defaultChatUri),
+				isSubagentSession: false,
+				toolId: 'bash',
+				toolExtensionId: undefined,
+				toolSourceKind: 'agentHost',
+				toolCallId: 'tc-1',
+				provider: 'mock',
+				invocationTimeMs: true,
+				resultSizeInCharacters: 41,
+				turnId: 'turn-1',
+				model: undefined,
+				errorCode: undefined,
+				msg: undefined,
 			},
 		}]);
 	});
@@ -322,6 +389,23 @@ suite('AgentSideEffects — tool call telemetry', () => {
 				model: undefined,
 			},
 		}]);
+		assert.deepStrictEqual(agentHostToolEvents()[0].data, {
+			result: 'userCancelled',
+			agentSessionId: 'session-1',
+			chatSessionId: getTelemetryChatSessionId(defaultChatUri),
+			isSubagentSession: false,
+			toolId: 'lookup',
+			toolExtensionId: undefined,
+			toolSourceKind: 'mcp',
+			toolCallId: 'tc-mcp',
+			provider: 'mock',
+			invocationTimeMs: undefined,
+			resultSizeInCharacters: 90,
+			turnId: 'turn-1',
+			model: undefined,
+			errorCode: 'denied',
+			msg: 'denied',
+		});
 	});
 
 	test('emits client source kind for a client-contributed tool', () => {
@@ -508,10 +592,46 @@ suite('AgentSideEffects — tool call telemetry', () => {
 		startTurn('turn-1');
 
 		toolStart('turn-1', 'tc-err', 'bash');
-		toolComplete('turn-1', 'tc-err', { success: false, pastTenseMessage: 'boom', error: { message: 'boom' } });
+		toolComplete('turn-1', 'tc-err', { success: false, pastTenseMessage: 'boom', error: { message: 'bridge call \'session_effect\' failed to schedule: GenericFailure', code: 'failure' } });
 		completeTurn('turn-1');
 
-		assert.strictEqual(toolEvents()[0].data.result, 'error');
+		assert.deepStrictEqual({
+			legacy: toolEvents()[0].data,
+			agentHost: agentHostToolEvents()[0].data,
+			agentHostLevel: telemetry.events.find(event => event.eventName === 'agentHost.toolInvoked')?.level,
+		}, {
+			legacy: {
+				result: 'error',
+				chatSessionId: sessionKey,
+				toolId: 'bash',
+				toolExtensionId: undefined,
+				toolSourceKind: 'agentHost',
+				toolCallId: 'tc-err',
+				provider: 'mock',
+				invocationTimeMs: undefined,
+				resultSizeInCharacters: 146,
+				turnId: 'turn-1',
+				model: undefined,
+			},
+			agentHost: {
+				result: 'error',
+				agentSessionId: 'session-1',
+				chatSessionId: getTelemetryChatSessionId(defaultChatUri),
+				isSubagentSession: false,
+				toolId: 'bash',
+				toolExtensionId: undefined,
+				toolSourceKind: 'agentHost',
+				toolCallId: 'tc-err',
+				provider: 'mock',
+				invocationTimeMs: undefined,
+				resultSizeInCharacters: 146,
+				turnId: 'turn-1',
+				model: undefined,
+				errorCode: 'failure',
+				msg: 'bridge call \'session_effect\' failed to schedule: GenericFailure',
+			},
+			agentHostLevel: 'usage',
+		});
 	});
 
 	test('emits a single event when a tool completion is duplicated', () => {
@@ -523,7 +643,13 @@ suite('AgentSideEffects — tool call telemetry', () => {
 		toolComplete('turn-1', 'tc-dup', { success: true, pastTenseMessage: 'ran' });
 		completeTurn('turn-1');
 
-		assert.strictEqual(toolEvents().length, 1);
+		assert.deepStrictEqual({
+			legacyEvents: toolEvents().length,
+			agentHostEvents: agentHostToolEvents().length,
+		}, {
+			legacyEvents: 1,
+			agentHostEvents: 1,
+		});
 	});
 
 	test('drops an in-flight tool call when the turn is cancelled before completion', () => {

@@ -28,7 +28,7 @@ import { ChatSessionArchiveActionWordingSettingId, getChatSessionArchivedSection
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { localize } from '../../../../../nls.js';
 import { SessionsList, SessionsGrouping, SessionsSorting } from './sessionsList.js';
-import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { SessionStatus } from '../../../../services/sessions/common/session.js';
 import { AICustomizationShortcutsWidget } from '../aiCustomizationShortcutsWidget.js';
 import { AgentHostShortcutsWidget } from '../agentHostShortcutsWidget.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
@@ -39,6 +39,7 @@ import { IWorkbenchLayoutService, Parts } from '../../../../../workbench/service
 import { PANEL_SECTION_BORDER } from '../../../../../workbench/common/theme.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { Menus } from '../../../../browser/menus.js';
 import { MobileSessionFilterChips } from '../../../../browser/parts/mobile/mobileSessionFilterChips.js';
@@ -52,21 +53,6 @@ const GROUPING_STORAGE_KEY = 'sessionsViewPane.grouping';
 const SORTING_STORAGE_KEY = 'sessionsViewPane.sorting';
 const CUSTOMIZATIONS_MIN_HEIGHT = 129;
 const SESSIONS_SECTION_MIN_HEIGHT = 120;
-
-/**
- * Place the given session in the sessions grid to the right of the last
- * currently-visible session (as a non-sticky entry) and make it active. If
- * the session is already the last visible one, this is a no-op aside from
- * activation.
- */
-export async function openSessionToTheSide(sessionsService: ISessionsService, session: ISession, options?: { preserveFocus?: boolean }): Promise<void> {
-	const visible = sessionsService.visibleSessions.get();
-	const lastVisible = visible[visible.length - 1];
-	if (lastVisible && lastVisible.sessionId !== session.sessionId) {
-		sessionsService.insertAt(session, lastVisible.sessionId, 'right');
-	}
-	await sessionsService.openSession(session.resource, options);
-}
 
 export const SessionsViewFilterSubMenu = new MenuId('SessionsViewPaneFilterSubMenu');
 export const SessionsViewFilterOptionsSubMenu = new MenuId('SessionsViewPaneFilterOptionsSubMenu');
@@ -110,6 +96,7 @@ export class SessionsView extends ViewPane {
 		@IHoverService hoverService: IHoverService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionsService private readonly sessionsService: ISessionsService,
+		@ISessionsPartService private readonly sessionsPartService: ISessionsPartService,
 		@IHostService private readonly hostService: IHostService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IStorageService private readonly storageService: IStorageService,
@@ -220,15 +207,37 @@ export class SessionsView extends ViewPane {
 						this.layoutService.setPartHidden(true, Parts.SIDEBAR_PART);
 					}
 				};
+				const session = this.sessionsManagementService.getSession(resource);
+				if (!session) {
+					onUnexpectedError(new Error(`Unable to open session because '${resource.toString()}' is not available`));
+					return;
+				}
+				const mainChat = session.mainChat.get();
 				if (sideBySide) {
 					// Alt-click: open the session to the right of the last visible session in the grid.
-					const session = this.sessionsManagementService.getSession(resource);
-					if (session) {
-						openSessionToTheSide(this.sessionsService, session, { preserveFocus }).then(onOpened).catch(onUnexpectedError);
+					this.sessionsService.openSessionToSide(session, { preserveFocus, chatResource: mainChat.resource }).then(onOpened).catch(onUnexpectedError);
+					return;
+				}
+				this.sessionsService.openChat(session, mainChat.resource, { preserveFocus }).then(onOpened).catch(onUnexpectedError);
+			},
+			canOpenSession: session => this.sessionsService.canOpenSession(session),
+			onChatOpen: (session, chat, preserveFocus, sideBySide) => {
+				const onOpened = () => {
+					if (isWeb && isPhoneLayout(this.layoutService)) {
+						this.layoutService.setPartHidden(true, Parts.SIDEBAR_PART);
+					}
+				};
+				if (sideBySide) {
+					this.sessionsService.showSession(session.resource, { preserveFocus });
+					const sessionView = this.sessionsPartService.getSessionView(session.sessionId);
+					if (!sessionView) {
+						onUnexpectedError(new Error(`Unable to open chat to the side because session view '${session.sessionId}' is not mounted`));
 						return;
 					}
+					sessionView.openChatToSide(chat.resource).then(onOpened).catch(onUnexpectedError);
+					return;
 				}
-				this.sessionsService.openSession(resource, { preserveFocus }).then(onOpened).catch(onUnexpectedError);
+				this.sessionsService.openChat(session, chat.resource, { preserveFocus }).then(onOpened).catch(onUnexpectedError);
 			},
 		}));
 		this._register(this.onDidChangeBodyVisibility(visible => sessionsControl.setVisible(visible)));

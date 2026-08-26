@@ -18,15 +18,13 @@ import { AbstractChatView, IChatViewOptions } from './chatView.js';
 import { ChatGroupsView } from './chatGroupsView.js';
 import { SessionHeader, SessionViewFloatingToolbar } from './sessionHeader.js';
 import { ISessionContext, SessionContext } from '../../services/sessions/browser/sessionContext.js';
-import { autorun, IObservable, observableValue } from '../../../base/common/observable.js';
+import { autorun, observableValue } from '../../../base/common/observable.js';
 import { SessionIsMaximizedContext } from '../../common/contextkeys.js';
 import { AGENTS_CENTERED_CONTENT_MAX_WIDTH } from '../../common/layoutConstants.js';
 import { setActiveSessionContextKeys } from '../../services/sessions/common/sessionContextKeys.js';
+import { ISessionChangesStatsCache } from '../../services/sessions/common/sessionChangesStatsCache.js';
 import { applySessionViewThemeColors } from './sessionBarStyles.js';
 import { IChatViewFactory } from '../../services/chatView/browser/chatViewFactory.js';
-import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
-import { observableConfigValue } from '../../../platform/observable/common/platformObservableUtils.js';
-import { SHOW_SESSION_METADATA_IN_CHAT_INPUT_SETTING } from '../../common/sessionConfig.js';
 
 /**
  * Options passed to {@link SessionView.openSession}. Extends the chat view
@@ -86,18 +84,16 @@ export class SessionView extends Disposable implements ISerializableView {
 	private _isLeafVisible = true;
 
 	private readonly _sessionObs = observableValue<IActiveSession | undefined>(this, undefined);
-	private readonly _showMetadataInChatInput: IObservable<boolean>;
 
 	constructor(
 		@IChatViewFactory private readonly _chatViewFactory: IChatViewFactory,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IThemeService private readonly themeService: IThemeService,
-		@IConfigurationService configurationService: IConfigurationService,
+		@ISessionChangesStatsCache private readonly _changesStatsCache: ISessionChangesStatsCache,
 	) {
 		super();
 
-		this._showMetadataInChatInput = observableConfigValue(SHOW_SESSION_METADATA_IN_CHAT_INPUT_SETTING, false, configurationService);
 		// Scoped context key service so toolbars hosted within can react to
 		// session-specific context keys (e.g. sessionIsCreated, sessionIsSticky).
 		const scopedContextKeyService = this._scopedContextKeyService = this._register(contextKeyService.createScoped(this.element));
@@ -157,8 +153,7 @@ export class SessionView extends Disposable implements ISerializableView {
 
 		this._register(autorun(reader => {
 			const session = this._sessionObs.read(reader);
-			const tabsReplaceHeader = this._showMetadataInChatInput.read(reader)
-				&& this._groupsView.groupCount.read(reader) === 1
+			const tabsReplaceHeader = this._groupsView.groupCount.read(reader) === 1
 				&& (session?.isCreated.read(reader) ?? false)
 				&& (session?.shouldShowChatTabs.read(reader) ?? false);
 			this._header.setVisible(!tabsReplaceHeader);
@@ -200,7 +195,7 @@ export class SessionView extends Disposable implements ISerializableView {
 		// scoped service whenever the session's observable properties change.
 		// Passing `undefined` resets the keys to their defaults.
 		return autorun(reader => {
-			setActiveSessionContextKeys(session, this._scopedContextKeyService, reader);
+			setActiveSessionContextKeys(session, this._scopedContextKeyService, reader, this._changesStatsCache);
 		});
 	}
 
@@ -257,8 +252,14 @@ export class SessionView extends Disposable implements ISerializableView {
 		standaloneView ? standaloneView.focus() : this._groupsView.focus();
 	}
 
-	startTitleEditing(): void {
-		this._header.startTitleEditing();
+	/**
+	 * Starts an inline rename of the session title in the header. Returns
+	 * `false` when the header cannot host it (e.g. this view is hidden or the
+	 * chat tabs row replaces the header) so callers can fall back to another
+	 * rename affordance.
+	 */
+	startTitleEditing(): boolean {
+		return this._isVisible && this._header.startTitleEditing();
 	}
 
 	selectWorkspace(folderUri: URI, providerId?: string): void {

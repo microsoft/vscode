@@ -7,7 +7,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { raceCancellationError } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
-import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { IObservable, observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -85,6 +85,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	private readonly _providerListeners = this._register(new DisposableMap<string, IDisposable>());
 	private readonly _disposeCts = this._register(new CancellationTokenSource());
 	private readonly _unlistedNewSessions = new ResourceMap<ISession>();
+	private readonly _inFlightNewSessionRequests = new ResourceMap<{ readonly session: ISession; count: number }>();
 
 	/**
 	 * Chat resources for which this service has just kicked off a
@@ -224,6 +225,28 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		// still be resolved by resource, and {@link resolveSessionResource} redirects
 		// it to its agent-host twin when it is opened.
 		return this._dedupeMigratedCopilotCliSessions(this._getMergedSessions());
+	}
+
+	getInFlightNewSessionRequests(): readonly ISession[] {
+		return Array.from(this._inFlightNewSessionRequests.values(), entry => entry.session);
+	}
+
+	private trackInFlightNewSessionRequest(session: ISession): IDisposable {
+		const entry = this._inFlightNewSessionRequests.get(session.resource);
+		if (entry) {
+			entry.count++;
+		} else {
+			this._inFlightNewSessionRequests.set(session.resource, { session, count: 1 });
+		}
+
+		return toDisposable(() => {
+			const current = this._inFlightNewSessionRequests.get(session.resource);
+			if (current?.count === 1) {
+				this._inFlightNewSessionRequests.delete(session.resource);
+			} else if (current) {
+				current.count--;
+			}
+		});
 	}
 
 	private _getMergedSessions(): ISession[] {
@@ -407,6 +430,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		let sessionTypeId: string | undefined;
 		const requiresWorktreeConfiguration = options?.isolationMode === 'worktree'
 			|| options?.worktreeBranchTrack !== undefined
+			|| options?.worktreeCreateNewBranch !== undefined
 			|| options?.branch !== undefined;
 		const resolveSessionTypeId = (candidate: ISessionsProvider): string | undefined => {
 			const sessionTypes = candidate.getSessionTypes(folderUri);
@@ -691,42 +715,51 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			throw new Error(`Sessions provider '${session.providerId}' not found`);
 		}
 
+		const isNewSessionRequest = session.status.get() === SessionStatus.Untitled;
+		const inFlightRequest = isNewSessionRequest ? this.trackInFlightNewSessionRequest(session) : undefined;
+
 		if (options.background) {
 			// Fire-and-forget so the composer can reset immediately. On commit
 			// failure the graduating draft is stranded, so dispose it through
 			// its provider (no-op if already graduated/removed).
-			this._sendNewChatRequestInBackground(provider, session, options).catch(e => {
-				provider.deleteNewSession(session.sessionId);
-				this.logService.error('[SessionsManagement] Failed to send background request:', e);
-			});
+			this._sendNewChatRequestInBackground(provider, session, options)
+				.catch(e => {
+					provider.deleteNewSession(session.sessionId);
+					this.logService.error('[SessionsManagement] Failed to send background request:', e);
+				})
+				.finally(() => inFlightRequest?.dispose());
 			return;
 		}
 
-		// Foreground send: notify listeners that a send is starting. Listeners
-		// (e.g., telemetry) can use this to prewarm caches whose result is
-		// consumed when `onDidSendRequest` fires below. The background path
-		// fires this from within `_sendNewChatRequestInBackground`. The view
-		// service observes the will/did send pair to keep the newest chat
-		// active in the visible slot while the send materialises.
-		this._onWillSendRequest.fire(session);
-
-		// Ask the provider to create the new chat, then send the request.
-		const chat = await provider.createNewChat(session.sessionId, options.query);
-
-		const sendOptions = this._augmentOptionsForTroubleshoot(session, options);
-		const chatResourceKey = chat.resource.toString();
-		this._pendingSendChatResources.add(chatResourceKey);
-		let updatedSession: ISession;
 		try {
-			updatedSession = await provider.sendRequest(session.sessionId, chat.resource, sendOptions);
+			// Foreground send: notify listeners that a send is starting. Listeners
+			// (e.g., telemetry) can use this to prewarm caches whose result is
+			// consumed when `onDidSendRequest` fires below. The background path
+			// fires this from within `_sendNewChatRequestInBackground`. The view
+			// service observes the will/did send pair to keep the newest chat
+			// active in the visible slot while the send materialises.
+			this._onWillSendRequest.fire(session);
+
+			// Ask the provider to create the new chat, then send the request.
+			const chat = await provider.createNewChat(session.sessionId, options.query);
+
+			const sendOptions = this._augmentOptionsForTroubleshoot(session, options);
+			const chatResourceKey = chat.resource.toString();
+			this._pendingSendChatResources.add(chatResourceKey);
+			let updatedSession: ISession;
+			try {
+				updatedSession = await provider.sendRequest(session.sessionId, chat.resource, sendOptions);
+			} finally {
+				this._pendingSendChatResources.delete(chatResourceKey);
+			}
+			if (updatedSession.sessionId !== session.sessionId) {
+				this.logService.info(`[SessionsManagement] sendRequest: active session replaced: ${session.sessionId} -> ${updatedSession.sessionId}`);
+			}
+			this._onDidStartSession.fire(updatedSession);
+			this._onDidSendRequest.fire({ session: updatedSession, chat, isNewSession: true, isNewChat: true, options });
 		} finally {
-			this._pendingSendChatResources.delete(chatResourceKey);
+			inFlightRequest?.dispose();
 		}
-		if (updatedSession.sessionId !== session.sessionId) {
-			this.logService.info(`[SessionsManagement] sendRequest: active session replaced: ${session.sessionId} -> ${updatedSession.sessionId}`);
-		}
-		this._onDidStartSession.fire(updatedSession);
-		this._onDidSendRequest.fire({ session: updatedSession, chat, isNewSession: true, isNewChat: true, options });
 	}
 
 	/**
@@ -790,6 +823,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		folderUri?: URI,
 		requestActivity?: MutableDisposable<IDisposable>,
 	): Promise<ISession | undefined> {
+		const inFlightRequest = this.trackInFlightNewSessionRequest(session);
 		try {
 			if (token.isCancellationRequested) {
 				throw new CancellationError();
@@ -813,6 +847,8 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			// rethrowing. Safe no-op if the provider already removed it.
 			provider.deleteNewSession(session.sessionId);
 			throw e;
+		} finally {
+			inFlightRequest.dispose();
 		}
 	}
 
@@ -834,11 +870,12 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		if (createOptions?.permissionLevel) {
 			provider.setPermissionLevel?.(session.sessionId, createOptions.permissionLevel);
 		}
-		if (supportsWorktreeConfiguration && (createOptions?.isolationMode || createOptions?.worktreeBranchTrack !== undefined || createOptions?.branch)) {
+		if (supportsWorktreeConfiguration && (createOptions?.isolationMode || createOptions?.worktreeBranchTrack !== undefined || createOptions?.worktreeCreateNewBranch !== undefined || createOptions?.branch)) {
 			if (provider.setWorktreeConfiguration) {
 				await raceCancellationError(provider.setWorktreeConfiguration(session.sessionId, {
 					isolationMode: createOptions.isolationMode,
 					worktreeBranchTrack: createOptions.worktreeBranchTrack,
+					worktreeCreateNewBranch: createOptions.worktreeCreateNewBranch,
 					branch: createOptions.branch,
 				}), token);
 			} else {
@@ -847,6 +884,9 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 				}
 				if (createOptions.worktreeBranchTrack !== undefined && provider.setWorktreeBranchTrack) {
 					await raceCancellationError(provider.setWorktreeBranchTrack(session.sessionId, createOptions.worktreeBranchTrack), token);
+				}
+				if (createOptions.worktreeCreateNewBranch !== undefined && provider.setWorktreeCreateNewBranch) {
+					await raceCancellationError(provider.setWorktreeCreateNewBranch(session.sessionId, createOptions.worktreeCreateNewBranch), token);
 				}
 				if (createOptions.branch && provider.setBranch) {
 					await raceCancellationError(provider.setBranch(session.sessionId, createOptions.branch), token);
