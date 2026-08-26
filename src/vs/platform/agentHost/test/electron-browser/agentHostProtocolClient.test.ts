@@ -380,9 +380,9 @@ suite('AgentHostProtocolClient', () => {
 		}
 	}
 
-	function fireConfigurationChange(configurationService: TestConfigurationService, settingId: string): void {
+	function fireConfigurationChange(configurationService: TestConfigurationService, settingId: string, source = ConfigurationTarget.USER): void {
 		configurationService.onDidChangeConfigurationEmitter.fire({
-			source: ConfigurationTarget.USER,
+			source,
 			affectedKeys: new Set([settingId]),
 			change: { keys: [settingId], overrides: [] },
 			affectsConfiguration: configuration => configuration === settingId,
@@ -1145,6 +1145,19 @@ suite('AgentHostProtocolClient', () => {
 		assert.deepStrictEqual(getRootConfig(findLastRootConfigNotification(transport.sentMessages, SYNC_CONFIG_KEY_A)), {
 			[SYNC_CONFIG_KEY_A]: false,
 		});
+	});
+
+	test('ignores configuration changes from layers excluded by global mirroring', async () => {
+		const configurationService = new TestConfigurationService({ [SYNC_SETTING_A]: true });
+		const { client, transport } = createClient(disposables.add(new TestProtocolTransport()), createPermissionService(), undefined, new NullLogService(), configurationService);
+		await connectClient(client, transport);
+		transport.sentMessages.length = 0;
+
+		fireConfigurationChange(configurationService, SYNC_SETTING_A, ConfigurationTarget.WORKSPACE);
+		fireConfigurationChange(configurationService, SYNC_SETTING_A, ConfigurationTarget.WORKSPACE_FOLDER);
+		fireConfigurationChange(configurationService, SYNC_SETTING_A, ConfigurationTarget.MEMORY);
+
+		assert.deepStrictEqual(transport.sentMessages, []);
 	});
 
 	test('applies local and ambient configuration scopes to the target Agent Host', async () => {

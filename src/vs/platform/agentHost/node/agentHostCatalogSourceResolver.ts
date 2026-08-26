@@ -8,7 +8,7 @@ import { parseSessionArtifacts, readSessionArtifacts, SESSION_META_ARTIFACTS_KEY
 import { META_CHANGES_SUMMARY } from '../common/agentHostChangesetService.js';
 import { GIT_DB_METADATA_KEYS, META_GIT_STATE, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../common/agentHostGitStateService.js';
 import { ChangesSummary, ChatOrigin, ChatOriginKind } from '../common/state/protocol/state.js';
-import { AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_ORCHESTRATION_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ISessionGitHubState, ISessionGitState, ISessionSourceControlState, parseSessionFolderPickerDecision, parseSessionMultiRootMetadata, parseSessionOrchestration, readSessionEhcliAdoptable, readSessionEhcliAdopted, readSessionFolderPickerDecision, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionOrchestration, readSessionSourceControlState, readSessionWorkspaceless, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_EHCLI_ADOPTED_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_GIT_KEY, SESSION_META_GITHUB_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_ORCHESTRATION_KEY, SESSION_META_SOURCE_CONTROL_KEY, SESSION_META_WORKSPACELESS_KEY, SessionStatus, SessionSummary } from '../common/state/sessionState.js';
+import { AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ISessionGitHubState, ISessionGitState, ISessionSourceControlState, parseSessionCreationReference, parseSessionFolderPickerDecision, parseSessionMultiRootMetadata, readSessionCreationReference, readSessionEhcliAdoptable, readSessionEhcliAdopted, readSessionFolderPickerDecision, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, SESSION_META_CREATED_BY_SESSION_KEY, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_EHCLI_ADOPTED_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_GIT_KEY, SESSION_META_GITHUB_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, SESSION_META_WORKSPACELESS_KEY, SessionStatus, SessionSummary } from '../common/state/sessionState.js';
 import { AgentHostCatalogData, AgentHostCatalogJsonValue, AgentHostCatalogMetadata, agentHostCatalogGitValidator } from './agentHostCatalogProjection.js';
 import { IAgentHostCatalogSyncRequest } from './agentHostCatalogSyncService.js';
 import { AGENT_HOST_TITLE_SOURCE_AUTO, AgentHostTitleSource, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_ARTIFACTS_KEY, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from './shared/persistSessionMetadata.js';
@@ -54,7 +54,7 @@ export class AgentHostCatalogSourceResolver {
 			[AH_META_IS_READ_DB_KEY]: true,
 			[AH_META_IS_ARCHIVED_DB_KEY]: true,
 			[AH_META_IS_DONE_DB_KEY]: true,
-			[AH_META_ORCHESTRATION_DB_KEY]: true,
+			[AH_META_CREATED_BY_SESSION_DB_KEY]: true,
 			[AH_META_WORKSPACELESS_DB_KEY]: true,
 			[AH_META_EHCLI_ADOPTED_DB_KEY]: true,
 			[SESSION_META_MULTI_ROOT_KEY]: true,
@@ -97,12 +97,12 @@ export class AgentHostCatalogSourceResolver {
 		const artifacts = preferPersistedMetadata
 			? (metadata[SESSION_ARTIFACTS_KEY] !== undefined ? persistedArtifacts : stateArtifacts)
 			: (metadataOverrides[SESSION_ARTIFACTS_KEY] !== undefined || stateArtifacts.length === 0 ? persistedArtifacts : stateArtifacts);
-		const persistedOrchestration = metadata[AH_META_ORCHESTRATION_DB_KEY] !== undefined
-			? parseSessionOrchestration(metadata[AH_META_ORCHESTRATION_DB_KEY])
+		const persistedCreationReference = metadata[AH_META_CREATED_BY_SESSION_DB_KEY] !== undefined
+			? parseSessionCreationReference(metadata[AH_META_CREATED_BY_SESSION_DB_KEY])
 			: undefined;
-		const orchestration = preferPersistedMetadata
-			? (metadata[AH_META_ORCHESTRATION_DB_KEY] !== undefined ? persistedOrchestration : readSessionOrchestration(state.meta))
-			: (metadataOverrides[AH_META_ORCHESTRATION_DB_KEY] !== undefined ? persistedOrchestration : readSessionOrchestration(state.meta) ?? persistedOrchestration);
+		const creationReference = preferPersistedMetadata
+			? (metadata[AH_META_CREATED_BY_SESSION_DB_KEY] !== undefined ? persistedCreationReference : readSessionCreationReference(state.meta))
+			: readSessionCreationReference(state.meta) ?? persistedCreationReference;
 		const persistedGitHub = metadata[META_GITHUB_STATE] !== undefined
 			? readPersistedGitHubState(metadata[META_GITHUB_STATE])
 			: undefined;
@@ -145,7 +145,7 @@ export class AgentHostCatalogSourceResolver {
 			...(git ? { [SESSION_META_GIT_KEY]: git } : undefined),
 			...(sourceControl ? { [SESSION_META_SOURCE_CONTROL_KEY]: sourceControl } : undefined),
 			...(artifacts.length > 0 ? { [SESSION_META_ARTIFACTS_KEY]: [...artifacts] } : undefined),
-			...(orchestration ? { [SESSION_META_ORCHESTRATION_KEY]: orchestration } : undefined),
+			...(creationReference ? { [SESSION_META_CREATED_BY_SESSION_KEY]: creationReference } : undefined),
 			...(workspaceless ? { [SESSION_META_WORKSPACELESS_KEY]: true } : undefined),
 			...(ehcliAdoptable ? { [SESSION_META_EHCLI_ADOPTABLE_KEY]: true } : undefined),
 			...(ehcliAdopted ? { [SESSION_META_EHCLI_ADOPTED_KEY]: true } : undefined),
@@ -179,8 +179,10 @@ export class AgentHostCatalogSourceResolver {
 			[SESSION_META_MULTI_ROOT_KEY]: multiRoot ? JSON.stringify(multiRoot) : '',
 			[SESSION_META_FOLDER_PICKER_KEY]: folderPicker ? JSON.stringify(folderPicker) : '',
 			[SESSION_ARTIFACTS_KEY]: stringifySessionArtifacts(artifacts),
-			[AH_META_ORCHESTRATION_DB_KEY]: orchestration ? JSON.stringify(orchestration) : '',
 		};
+		if (creationReference || metadata[AH_META_CREATED_BY_SESSION_DB_KEY] !== undefined) {
+			legacyMetadata[AH_META_CREATED_BY_SESSION_DB_KEY] = creationReference ? JSON.stringify(creationReference) : '';
+		}
 		if (workspaceless || metadata[AH_META_WORKSPACELESS_DB_KEY] !== undefined) {
 			legacyMetadata[AH_META_WORKSPACELESS_DB_KEY] = workspaceless ? 'true' : 'false';
 		}

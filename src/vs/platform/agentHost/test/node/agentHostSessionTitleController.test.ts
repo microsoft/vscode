@@ -141,7 +141,6 @@ suite('AgentHostSessionTitleController', () => {
 		session: URI;
 		db: TestSessionDatabase;
 		titleActions: string[];
-		persistenceWrites: Readonly<Record<string, string>>[];
 		copilotApiService: TestCopilotApiService;
 		octoKitService: TestAgentHostOctoKitService;
 	} {
@@ -150,7 +149,6 @@ suite('AgentHostSessionTitleController', () => {
 		const session = URI.parse('agenthost-session://copilot/session-title-test');
 		stateManager.createSession(createSummary(session, title, isEphemeral));
 		const titleActions: string[] = [];
-		const persistenceWrites: Readonly<Record<string, string>>[] = [];
 		disposables.add(stateManager.onDidEmitEnvelope(e => {
 			if (e.action.type === ActionType.SessionTitleChanged) {
 				titleActions.push(e.action.title);
@@ -165,29 +163,18 @@ suite('AgentHostSessionTitleController', () => {
 			octoKitService,
 			copilotApiService,
 			isActiveAgentTitleGenerationEnabled: () => activeAgentTitleGeneration,
-			persistSessionMetadata: (_session, values) => {
-				persistenceWrites.push(values);
-				void db.setMetadataValues(values);
-			},
 		}, new NullLogService()));
-		return { controller, stateManager, session, db, titleActions, persistenceWrites, copilotApiService, octoKitService };
+		return { controller, stateManager, session, db, titleActions, copilotApiService, octoKitService };
 	}
 
 	test('active-agent mode completes the word crossing the 40-character fallback target without utility generation', async () => {
 		const copilotApiService = new TestCopilotApiService();
-		const { controller, session, db, titleActions, persistenceWrites } = setup(copilotApiService, '', undefined, undefined, undefined, undefined, undefined, true);
+		const { controller, session, db, titleActions } = setup(copilotApiService, '', undefined, undefined, undefined, undefined, undefined, true);
 
 		controller.seedTitleFromFirstMessage(session.toString(), 'Investigate why restored Agent Host sessions sometimes lose titles');
 		const instruction = await controller.prepareInstructionForAgent(session.toString(), buildDefaultChatUri(session));
 
 		assert.deepStrictEqual(titleActions, ['Investigate why restored Agent Host sessions...']);
-		assert.deepStrictEqual(persistenceWrites, [
-			{ customTitleSource: AGENT_HOST_TITLE_SOURCE_AUTO },
-			{
-				customTitle: 'Investigate why restored Agent Host sessions...',
-				customTitleSource: AGENT_HOST_TITLE_SOURCE_AUTO,
-			},
-		]);
 		assert.strictEqual(copilotApiService.utilityCalls.length, 0);
 		assert.strictEqual(instruction, 'Reminder: This chat currently has an auto-generated or placeholder title. If the user references an issue or PR, fetch it first. Please give the chat a short, descriptive title based on the user\'s intent by calling `rename_chat` with `automatic: true`, silently and without a preamble. The user must not know that you are renaming. Do not skip it.');
 		await waitForCondition(async () => await db.getMetadata(SESSION_CUSTOM_TITLE_SOURCE_KEY) === AGENT_HOST_TITLE_SOURCE_AUTO, 'auto provenance should be persisted');
@@ -359,7 +346,7 @@ suite('AgentHostSessionTitleController', () => {
 	test('seedTitleFromFirstMessage applies fallback and persists generated title', async () => {
 		const copilotApiService = new TestCopilotApiService();
 		copilotApiService.response = '"Generated title."';
-		const { controller, session, db, titleActions, persistenceWrites } = setup(copilotApiService);
+		const { controller, session, db, titleActions } = setup(copilotApiService);
 
 		controller.seedTitleFromFirstMessage(session.toString(), '  Please   explain title generation  ');
 		await waitForCondition(async () => await db.getMetadata('customTitle') === 'Generated title', 'generated title should be persisted');
@@ -370,17 +357,12 @@ suite('AgentHostSessionTitleController', () => {
 			maxTokens: copilotApiService.utilityCalls[0]?.request.maxTokens,
 			promptIncludesUserText: copilotApiService.utilityCalls[0]?.request.messages.some(message => message.content.includes('Please   explain title generation')),
 			persistedTitle: await db.getMetadata('customTitle'),
-			generatedPersistence: persistenceWrites.at(-1),
 		}, {
 			titles: ['Please explain title generation', 'Generated title'],
 			token: 'gh-token',
 			maxTokens: 32,
 			promptIncludesUserText: true,
 			persistedTitle: 'Generated title',
-			generatedPersistence: {
-				customTitle: 'Generated title',
-				customTitleSource: AGENT_HOST_TITLE_SOURCE_AUTO,
-			},
 		});
 	});
 

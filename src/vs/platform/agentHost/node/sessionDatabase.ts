@@ -137,7 +137,20 @@ export const sessionDatabaseMigrations: readonly ISessionDatabaseMigration[] = [
 	},
 	{
 		version: 10,
-		sql: `CREATE TABLE IF NOT EXISTS catalog_sync_snapshot (
+		sql: `CREATE TABLE IF NOT EXISTS turn_delegation (
+			turn_id    TEXT PRIMARY KEY NOT NULL REFERENCES turns(id) ON DELETE CASCADE,
+			delegation TEXT NOT NULL
+		)`,
+	},
+	{
+		version: 11,
+		// Both tables are repeated with IF NOT EXISTS so databases created by
+		// either pre-merge v10 migration converge on the combined schema.
+		sql: [`CREATE TABLE IF NOT EXISTS turn_delegation (
+			turn_id    TEXT PRIMARY KEY NOT NULL REFERENCES turns(id) ON DELETE CASCADE,
+			delegation TEXT NOT NULL
+		)`,
+			`CREATE TABLE IF NOT EXISTS catalog_sync_snapshot (
 			singleton_id       INTEGER PRIMARY KEY NOT NULL CHECK (singleton_id = 1),
 			session_generation TEXT NOT NULL CHECK (length(session_generation) > 0),
 			source_revision    INTEGER NOT NULL CHECK (source_revision >= 0),
@@ -151,7 +164,7 @@ export const sessionDatabaseMigrations: readonly ISessionDatabaseMigration[] = [
 				OR (length(pending_hash) > 0 AND pending_payload IS NOT NULL)
 			),
 			CHECK (acknowledged_hash IS NOT NULL OR pending_hash IS NOT NULL)
-		)`,
+		)`].join(';\n'),
 	},
 ];
 
@@ -516,6 +529,35 @@ export class SessionDatabase implements ISessionDatabase {
 			}
 			return result;
 		});
+	}
+
+	setTurnDelegation(turnId: string, delegation: string): Promise<void> {
+		return this._track(async () => {
+			const db = await this._ensureDb();
+			await dbRun(db, 'INSERT OR IGNORE INTO turns (id) VALUES (?)', [turnId]);
+			await dbRun(db, 'INSERT OR REPLACE INTO turn_delegation (turn_id, delegation) VALUES (?, ?)', [turnId, delegation]);
+		});
+	}
+
+	async getTurnDelegations(): Promise<Map<string, string>> {
+		await this.whenIdle();
+		const db = await this._ensureDb();
+		const rows = await dbAll(
+			db,
+			`SELECT d.turn_id AS turn_id, t.event_id AS event_id, d.delegation AS delegation
+			FROM turn_delegation d LEFT JOIN turns t ON t.id = d.turn_id`,
+			[],
+		);
+		const result = new Map<string, string>();
+		for (const row of rows) {
+			const delegation = row.delegation as string;
+			result.set(row.turn_id as string, delegation);
+			const eventId = row.event_id as string | null;
+			if (eventId) {
+				result.set(eventId, delegation);
+			}
+		}
+		return result;
 	}
 
 	setTurnCheckpointRef(turnId: string, ref: string): Promise<void> {
@@ -1045,6 +1087,7 @@ export class SessionDatabase implements ISessionDatabase {
 					// or the forked session would restore with no gauge and zero cost.
 					for (const [oldId, newId] of mapping) {
 						await dbRun(db, 'UPDATE turn_usage SET turn_id = ? WHERE turn_id = ?', [newId, oldId]);
+						await dbRun(db, 'UPDATE turn_delegation SET turn_id = ? WHERE turn_id = ?', [newId, oldId]);
 					}
 					await dbExec(db, 'COMMIT');
 				} catch (err) {

@@ -638,6 +638,35 @@ suite('SessionDatabase', () => {
 		});
 	});
 
+	// ---- Turn delegation -------------------------------------------------
+
+	suite('turn delegation', () => {
+
+		test('restores delegation by host or provider turn id', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.setTurnDelegation('host-turn', '{"sourceSession":"copilot:/source"}');
+			await db.setTurnEventId('host-turn', 'provider-turn');
+
+			assert.deepStrictEqual([...(await db.getTurnDelegations()).entries()], [
+				['host-turn', '{"sourceSession":"copilot:/source"}'],
+				['provider-turn', '{"sourceSession":"copilot:/source"}'],
+			]);
+		});
+
+		test('truncation and remapping follow the owning turn', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.setTurnDelegation('old-1', '{"sourceSession":"copilot:/one"}');
+			await db.setTurnDelegation('old-2', '{"sourceSession":"copilot:/two"}');
+
+			await db.remapTurnIds(new Map([['old-1', 'new-1']]));
+			await db.deleteTurnsAfter('new-1');
+
+			assert.deepStrictEqual([...(await db.getTurnDelegations()).entries()], [
+				['new-1', '{"sourceSession":"copilot:/one"}'],
+			]);
+		});
+	});
+
 	// ---- Turn checkpoint refs -------------------------------------------
 
 	suite('turn checkpoint refs', () => {
@@ -883,7 +912,7 @@ suite('SessionDatabase', () => {
 			assert.ok((await db.getAllTables()).includes('catalog_sync_snapshot'));
 		});
 
-		test('migration v10 upgrades a v9 database', async () => {
+		test('migration v11 upgrades a v9 database', async () => {
 			const v9Database = await TestableSessionDatabase.open(':memory:', sessionDatabaseMigrations.slice(0, 9));
 			await v9Database.setMetadata('customTitle', 'Before upgrade');
 			const rawDatabase = await v9Database.ejectDb();
@@ -896,13 +925,39 @@ suite('SessionDatabase', () => {
 				title: await db.getMetadata('customTitle'),
 				snapshot: await db.getCatalogSyncSnapshot(),
 			}, {
-				tables: ['catalog_sync_snapshot', 'chat_drafts', 'file_edits', 'local_turns', 'reviewed_files', 'session_metadata', 'turn_usage', 'turns'],
+				tables: ['catalog_sync_snapshot', 'chat_drafts', 'file_edits', 'local_turns', 'reviewed_files', 'session_metadata', 'turn_delegation', 'turn_usage', 'turns'],
 				title: 'After upgrade',
 				snapshot: snapshot(1),
 			});
 		});
 
-		test('migration v10 upgrades every published v1 through v9 schema', async () => {
+		test('migration v11 converges a catalog-only v10 database', async () => {
+			const catalogV10 = await TestableSessionDatabase.open(':memory:', sessionDatabaseMigrations.slice(0, 9));
+			await catalogV10.runRaw(`CREATE TABLE catalog_sync_snapshot (
+				singleton_id       INTEGER PRIMARY KEY NOT NULL CHECK (singleton_id = 1),
+				session_generation TEXT NOT NULL CHECK (length(session_generation) > 0),
+				source_revision    INTEGER NOT NULL CHECK (source_revision >= 0),
+				projection_version INTEGER NOT NULL CHECK (projection_version >= 0),
+				acknowledged_hash  TEXT,
+				pending_hash       TEXT,
+				pending_payload    TEXT
+			)`);
+			await catalogV10.runRaw('PRAGMA user_version = 10');
+			await catalogV10.setMetadataValuesAndCatalogSyncSnapshot({}, snapshot(1));
+			const rawDatabase = await catalogV10.ejectDb();
+
+			const upgraded = disposables.add(await TestableSessionDatabase.fromDb(rawDatabase));
+
+			assert.deepStrictEqual({
+				tables: await upgraded.getAllTables(),
+				snapshot: await upgraded.getCatalogSyncSnapshot(),
+			}, {
+				tables: ['catalog_sync_snapshot', 'chat_drafts', 'file_edits', 'local_turns', 'reviewed_files', 'session_metadata', 'turn_delegation', 'turn_usage', 'turns'],
+				snapshot: snapshot(1),
+			});
+		});
+
+		test('migration v11 upgrades every published v1 through v9 schema', async () => {
 			const results: object[] = [];
 			for (let version = 1; version <= 9; version++) {
 				const priorDatabase = await TestableSessionDatabase.open(':memory:', sessionDatabaseMigrations.slice(0, version));

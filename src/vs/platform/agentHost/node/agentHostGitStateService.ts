@@ -47,7 +47,6 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 	private readonly _pullRequestAbortController = new AbortController();
 
 	constructor(
-		private readonly _persistSessionMetadata: (session: string, values: Readonly<Record<string, string>>) => Promise<void>,
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
 		@IAgentHostGitService private readonly _gitService: IAgentHostGitService,
 		@IAgentHostOctoKitService private readonly _octoKitService: IAgentHostOctoKitService,
@@ -321,7 +320,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		const sourceControlStateChanged = !objectEquals(currentSourceControlState, nextSourceControlState);
 
 		if (objectEquals(currentState, nextState) && !sourceControlStateChanged) {
-			await this._saveSessionState(sessionKey, { [META_GITHUB_STATE]: JSON.stringify(nextState) });
+			await this._saveSessionState(sessionKey, META_GITHUB_STATE, JSON.stringify(nextState));
 			return;
 		}
 
@@ -331,13 +330,10 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		this._onDidChangeSessionGitHubState.fire(sessionKey);
 
 		// Update session database
-		const metadata: Record<string, string> = {
-			[META_GITHUB_STATE]: JSON.stringify(nextState),
-		};
+		await this._saveSessionState(sessionKey, META_GITHUB_STATE, JSON.stringify(nextState));
 		if (sourceControlStateChanged && nextSourceControlState) {
-			metadata[META_SOURCE_CONTROL_STATE] = JSON.stringify(nextSourceControlState);
+			await this._saveSessionState(sessionKey, META_SOURCE_CONTROL_STATE, JSON.stringify(nextSourceControlState));
 		}
-		await this._saveSessionState(sessionKey, metadata);
 	}
 
 	async resolveSessionBaseBranchName(sessionKey: string): Promise<string | undefined> {
@@ -386,12 +382,12 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 			latestOutcome: SessionSourceControlOutcome.Merge,
 		};
 		if (objectEquals(currentState, nextState)) {
-			await this._saveSessionState(sessionKey, { [META_SOURCE_CONTROL_STATE]: JSON.stringify(nextState) });
+			await this._saveSessionState(sessionKey, META_SOURCE_CONTROL_STATE, JSON.stringify(nextState));
 			return;
 		}
 
 		this._stateManager.setSessionMeta(sessionKey, withSessionSourceControlState(currentMeta, nextState));
-		await this._saveSessionState(sessionKey, { [META_SOURCE_CONTROL_STATE]: JSON.stringify(nextState) });
+		await this._saveSessionState(sessionKey, META_SOURCE_CONTROL_STATE, JSON.stringify(nextState));
 	}
 
 	private async _setSessionGitState(sessionKey: string, gitState: ISessionGitState): Promise<void> {
@@ -401,20 +397,30 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		this._stateManager.setSessionMeta(sessionKey, nextMeta);
 
 		// Update session database
-		await this._saveSessionState(sessionKey, { [META_GIT_STATE]: JSON.stringify(gitState) });
+		await this._saveSessionState(sessionKey, META_GIT_STATE, JSON.stringify(gitState));
 	}
 
-	private async _saveSessionState(sessionKey: string, values: Readonly<Record<string, string>>): Promise<void> {
+	private async _saveSessionState(sessionKey: string, key: string, value: string): Promise<void> {
 		// Skip saving session state if the session is not materialized
 		const state = this._stateManager.getSessionState(sessionKey);
 		if (state?.lifecycle === SessionLifecycle.Creating) {
 			return;
 		}
 
+		let databaseRef;
 		try {
-			await this._persistSessionMetadata(sessionKey, values);
+			databaseRef = this._sessionDataService.openDatabase(URI.parse(sessionKey));
 		} catch (error) {
-			this._logService.warn(`[AgentHostGitStateService][_saveSessionState] Failed to persist ${Object.keys(values).join(', ')}`, error);
+			this._logService.warn(`[AgentHostGitStateService][_saveSessionState] Failed to open session database for ${sessionKey}`, error);
+			return;
+		}
+
+		try {
+			await databaseRef.object.setMetadata(key, value);
+		} catch (error) {
+			this._logService.warn(`[AgentHostGitStateService][_saveSessionState] Failed to persist ${key}`, error);
+		} finally {
+			databaseRef.dispose();
 		}
 	}
 }

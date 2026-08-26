@@ -40,6 +40,13 @@ type ContentExclusionResponse = {
 
 type RepoMetadata = { repoRootPath: string; fetchUrls: string[] };
 
+/**
+ * A repository that was actually resolved, and so can be cached and matched against future files.
+ * `rootUri` is kept alongside the path because paths alone are ambiguous across schemes.
+ */
+type CachedRepoMetadata = RepoMetadata & { rootUri: URI };
+
+
 /** Rules for a single repo, along with when they were fetched so they can expire individually. */
 type CachedRules = {
 	patterns: string[];
@@ -107,9 +114,9 @@ export class RemoteContentExclusion implements IDisposable {
 	private readonly _fetchExclusionRules: HttpFetchFn;
 	private _disposables: IDisposable[] = [];
 	private readonly _fileReadLimiter: Limiter<string | Uint8Array>;
-	// Cache of repository root paths to their metadata to avoid calling getRepositoryFetchUrls for every file
+	// Cache of repository roots to their metadata to avoid calling getRepositoryFetchUrls for every file
 	// This is critical for performance when there are many files in a workspace
-	private readonly _repoRootCache: Map<string, RepoMetadata> = new Map();
+	private readonly _repoRootCache: Map<string, CachedRepoMetadata> = new Map();
 
 	constructor(
 		private readonly _gitService: IGitService,
@@ -122,13 +129,24 @@ export class RemoteContentExclusion implements IDisposable {
 		// Injectable so tests can exercise rule expiry and backoff without waiting on the wall clock.
 		private readonly _now: () => number = Date.now
 	) {
+		this._disposables.push(this._gitService.onDidOpenRepository((r) => {
+			const repoInfo = this.getRepositoryInfo(r);
+			if (!repoInfo) {
+				return;
+			}
+			this.cacheRepoMetadata(repoInfo);
+			// Files under this root may already have been evaluated as belonging to no repository,
+			// and so judged without this repo's rules. Those verdicts have to be recomputed.
+			this.invalidateVerdicts();
+		}));
+
 		this._disposables.push(this._gitService.onDidCloseRepository((r) => {
 			const repoInfo = this.getRepositoryInfo(r);
 			if (!repoInfo) {
 				return;
 			}
 			// Remove from repo root cache
-			this._repoRootCache.delete(repoInfo.repoRootPath);
+			this._repoRootCache.delete(repoRootCacheKey(repoInfo.rootUri));
 			for (const url of repoInfo.fetchUrls) {
 				this._contentExclusionCache.delete(url);
 			}
@@ -163,23 +181,25 @@ export class RemoteContentExclusion implements IDisposable {
 
 		// Try to find the repository from the cache first to avoid expensive git extension calls
 		// This is critical for performance when there are many files in a workspace
-		let repoMetadata = this.findCachedRepoMetadataForFile(file);
+		let resolvedRepo = this.findCachedRepoMetadataForFile(file);
 
 		// If not in cache, query the git extension (this is expensive for many files)
-		if (!repoMetadata) {
+		if (!resolvedRepo) {
 			const repo = await raceCancellationError(this._gitService.getRepositoryFetchUrls(file), token);
-			repoMetadata = this.getRepositoryInfo(repo);
+			resolvedRepo = this.getRepositoryInfo(repo);
 			// Cache the result for future lookups
-			if (repoMetadata) {
-				this._repoRootCache.set(repoMetadata.repoRootPath, repoMetadata);
+			if (resolvedRepo) {
+				this.cacheRepoMetadata(resolvedRepo);
 			}
 		}
 
+		// A negative verdict is only safe to trust for the whole rule TTL once the repository is
+		// settled. A repo with no usable remote is unsettled because remotes can still arrive.
+		const repoSettled = resolvedRepo ? resolvedRepo.fetchUrls.length > 0 : this._gitService.isInitialized;
+
 		// No repository is associated with this file, so we set it to the 'virtual' non-git file repo / key
 		// This way when we go to lookup rules for this file it will pull the non git file rules
-		if (!repoMetadata) {
-			repoMetadata = { repoRootPath: '', fetchUrls: [NON_GIT_FILE_KEY] };
-		}
+		const repoMetadata: RepoMetadata = resolvedRepo ?? { repoRootPath: '', fetchUrls: [NON_GIT_FILE_KEY] };
 
 		const fileName = file.path.toLowerCase().replace(repoMetadata.repoRootPath.toLowerCase(), '');
 
@@ -199,7 +219,16 @@ export class RemoteContentExclusion implements IDisposable {
 		}
 		let fileContents: string = '';
 		let fileContentHash: string = '';
-		for (const fetchUrl of repoMetadata.fetchUrls) {
+		// Unscoped organization rules are keyed under the non-git pseudo repo and apply to any file.
+		// Their globs already reach every file, so content rules must be evaluated against them too.
+		const regexRuleSources = repoMetadata.fetchUrls.includes(NON_GIT_FILE_KEY)
+			? repoMetadata.fetchUrls
+			: [...repoMetadata.fetchUrls, NON_GIT_FILE_KEY];
+		// Regex rules are per repository, so the rule set is part of the key. Otherwise a permitted
+		// file would hand its verdict to a same-content file whose own repository excludes it.
+		const regexScope = regexRuleSources.join(' ');
+		let regexCacheKey: string = '';
+		for (const fetchUrl of regexRuleSources) {
 			const { ifAnyMatch, ifNoneMatch } = this._contentExclusionCache.get(fetchUrl) ?? { ifAnyMatch: [], ifNoneMatch: [] };
 			// We only want to read the file if we absolutely must as it can be expensive
 			if (ifAnyMatch.length > 0 || ifNoneMatch.length > 0) {
@@ -210,8 +239,9 @@ export class RemoteContentExclusion implements IDisposable {
 						const fileContentOrBuffer = await this._fileReadLimiter.queue(() => readFileFromTextBufferOrFS(this._fileSystemService, this._workspaceService, file, 1024));
 						fileContents = typeof fileContentOrBuffer === 'string' ? fileContentOrBuffer : new TextDecoder().decode(fileContentOrBuffer);
 						fileContentHash = await createSha256Hash(fileContents);
+						regexCacheKey = `${regexScope}\n${fileContentHash}`;
 						// Cache hit for these file contents, no need to run the regex patterns
-						const cachedRegexVerdict = this._ignoreRegexResultCache.get(fileContentHash);
+						const cachedRegexVerdict = this._ignoreRegexResultCache.get(regexCacheKey);
 						if (cachedRegexVerdict && cachedRegexVerdict.generation === generation) {
 							return cachedRegexVerdict.verdict;
 						}
@@ -223,23 +253,23 @@ export class RemoteContentExclusion implements IDisposable {
 			}
 			if (ifAnyMatch.length > 0 && fileContents && ifAnyMatch.some(pattern => pattern.test(fileContents))) {
 				this._logService.debug(`File ${file.path} is ignored by content exclusion rule ifAnyMatch`);
-				this._ignoreRegexResultCache.set(fileContentHash, { verdict: true, generation });
+				this._ignoreRegexResultCache.set(regexCacheKey, { verdict: true, generation });
 				return true;
 			}
 			if (ifNoneMatch.length > 0 && fileContents && !ifNoneMatch.some(pattern => pattern.test(fileContents))) {
 				this._logService.debug(`File ${file.path} is ignored by content exclusion rule ifNoneMatch`);
-				this._ignoreRegexResultCache.set(fileContentHash, { verdict: true, generation });
+				this._ignoreRegexResultCache.set(regexCacheKey, { verdict: true, generation });
 				return true;
 			}
 		}
 
-		// Only memoise a negative verdict once every relevant rule set has actually loaded. Caching it
-		// after a failed fetch would leave the file permanently allowed.
-		if (rulesLoaded) {
+		// Memoise a negative verdict only once the rules have loaded and the repository is settled.
+		// Doing it earlier would keep the file allowed long after its real rules become known.
+		if (rulesLoaded && repoSettled) {
 			this._ignoreGlobResultCache.set(file, { verdict: false, generation });
 			// Only meaningful when regex rules forced us to read (and hash) the file.
-			if (fileContentHash) {
-				this._ignoreRegexResultCache.set(fileContentHash, { verdict: false, generation });
+			if (regexCacheKey) {
+				this._ignoreRegexResultCache.set(regexCacheKey, { verdict: false, generation });
 			}
 		}
 		return false;
@@ -281,11 +311,22 @@ export class RemoteContentExclusion implements IDisposable {
 			const repoInfo = this.getRepositoryInfo(repo);
 			// Populate the repo root cache for future lookups
 			if (repoInfo) {
-				this._repoRootCache.set(repoInfo.repoRootPath, repoInfo);
+				this.cacheRepoMetadata(repoInfo);
 				fetchUrls.push(...repoInfo.fetchUrls);
 			}
 		}
 		await this.ensureRulesLoaded(fetchUrls);
+	}
+
+	/**
+	 * Records a resolved repo so that later files under it skip the git extension lookup.
+	 * A repo with no usable remote is not cached, so its files retry once remotes are known.
+	 */
+	private cacheRepoMetadata(metadata: CachedRepoMetadata): void {
+		if (metadata.fetchUrls.length === 0) {
+			return;
+		}
+		this._repoRootCache.set(repoRootCacheKey(metadata.rootUri), metadata);
 	}
 
 	public async asMinimatchPatterns() {
@@ -521,7 +562,7 @@ export class RemoteContentExclusion implements IDisposable {
 	}
 
 
-	private getRepositoryInfo(repo: Pick<RepoContext, 'rootUri' | 'remoteFetchUrls'> | undefined): RepoMetadata | undefined {
+	private getRepositoryInfo(repo: Pick<RepoContext, 'rootUri' | 'remoteFetchUrls'> | undefined): CachedRepoMetadata | undefined {
 		if (!repo || !repo.remoteFetchUrls) {
 			return undefined;
 		}
@@ -536,7 +577,7 @@ export class RemoteContentExclusion implements IDisposable {
 				return undefined;
 			}
 		}));
-		return { repoRootPath: repo.rootUri.path, fetchUrls: fetchUrls };
+		return { rootUri: repo.rootUri, repoRootPath: repo.rootUri.path, fetchUrls: fetchUrls };
 	}
 
 	/**
@@ -545,13 +586,18 @@ export class RemoteContentExclusion implements IDisposable {
 	 * Returns the most specific (longest) matching repository to handle nested repos/submodules correctly.
 	 * This avoids expensive calls to the git extension API for every file.
 	 */
-	private findCachedRepoMetadataForFile(file: URI): RepoMetadata | undefined {
+	private findCachedRepoMetadataForFile(file: URI): CachedRepoMetadata | undefined {
 		const filePath = file.path.toLowerCase();
-		let bestMatch: RepoMetadata | undefined;
+		let bestMatch: CachedRepoMetadata | undefined;
 		let bestMatchLength = 0;
 
-		for (const [repoRootPath, metadata] of this._repoRootCache.entries()) {
-			const normalizedRepoRoot = repoRootPath.toLowerCase();
+		for (const metadata of this._repoRootCache.values()) {
+			// Paths alone are ambiguous: the same path can exist under file:// and under a virtual
+			// file system that points at an entirely different repository.
+			if (metadata.rootUri.scheme !== file.scheme || metadata.rootUri.authority !== file.authority) {
+				continue;
+			}
+			const normalizedRepoRoot = metadata.repoRootPath.toLowerCase();
 			if ((filePath.startsWith(normalizedRepoRoot + '/') || filePath === normalizedRepoRoot) &&
 				normalizedRepoRoot.length > bestMatchLength) {
 				bestMatch = metadata;
@@ -560,6 +606,11 @@ export class RemoteContentExclusion implements IDisposable {
 		}
 		return bestMatch;
 	}
+}
+
+/** Keys a repo root by identity rather than path, so schemes cannot collide with one another. */
+function repoRootCacheKey(rootUri: URI): string {
+	return `${rootUri.scheme}://${rootUri.authority}${rootUri.path.toLowerCase()}`;
 }
 
 /** Compares two rule sets by content, so an unchanged refresh does not retire memoised verdicts. */

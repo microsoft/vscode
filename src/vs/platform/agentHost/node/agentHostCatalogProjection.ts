@@ -9,7 +9,7 @@ import { stableStringify } from '../../../base/common/objects.js';
 import { URI } from '../../../base/common/uri.js';
 import { IValidator, ValidationError, ValidatorBase, ValidatorType, vArray, vBoolean, vEnum, vObj, vOptionalProp } from '../../../base/common/validation.js';
 import { SESSION_META_ARTIFACTS_KEY } from '../common/sessionArtifacts.js';
-import { SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_EHCLI_ADOPTED_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_GIT_KEY, SESSION_META_GITHUB_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_ORCHESTRATION_KEY, SESSION_META_SOURCE_CONTROL_KEY, SESSION_META_WORKSPACELESS_KEY } from '../common/state/sessionState.js';
+import { SESSION_META_CREATED_BY_SESSION_KEY, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_EHCLI_ADOPTED_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_GIT_KEY, SESSION_META_GITHUB_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, SESSION_META_WORKSPACELESS_KEY } from '../common/state/sessionState.js';
 
 export const AGENT_HOST_CATALOG_PAYLOAD_VERSION = 1;
 export const AGENT_HOST_CATALOG_GITHUB_REFERENCE_LIMIT = 10;
@@ -264,13 +264,10 @@ const artifactsValidator = new RefinedValidator(
 	},
 );
 
-const orchestrationValidator = plainObject(vObj({
-	parentSession: uriString(),
-	creatorSession: uriString(),
-	label: vOptionalProp(boundedString(MAX_TITLE_LENGTH)),
-	coordinateWithCreator: vBoolean(),
-	notifyOnIdle: vOptionalProp(vEnum('once', 'always')),
-	creatorNotificationState: vOptionalProp(vEnum('waitingForCompletion', 'notified')),
+const creationReferenceValidator = plainObject(vObj({
+	session: uriString(),
+	chat: vOptionalProp(uriString()),
+	turnId: vOptionalProp(boundedString()),
 }));
 
 /**
@@ -285,7 +282,7 @@ const metadataValidator = plainObject(vObj({
 	[SESSION_META_GIT_KEY]: vOptionalProp(gitValidator),
 	[SESSION_META_SOURCE_CONTROL_KEY]: vOptionalProp(sourceControlValidator),
 	[SESSION_META_ARTIFACTS_KEY]: vOptionalProp(artifactsValidator),
-	[SESSION_META_ORCHESTRATION_KEY]: vOptionalProp(orchestrationValidator),
+	[SESSION_META_CREATED_BY_SESSION_KEY]: vOptionalProp(creationReferenceValidator),
 	[SESSION_META_WORKSPACELESS_KEY]: vOptionalProp(vBoolean()),
 	[SESSION_META_EHCLI_ADOPTABLE_KEY]: vOptionalProp(vBoolean()),
 	[SESSION_META_EHCLI_ADOPTED_KEY]: vOptionalProp(vBoolean()),

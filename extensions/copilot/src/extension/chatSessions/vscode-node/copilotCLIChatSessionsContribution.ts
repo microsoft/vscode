@@ -205,12 +205,6 @@ export class CopilotCLIChatSessionItemProvider extends Disposable implements vsc
 	) {
 		super();
 		this._register(this.terminalIntegration);
-		this._register(configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(ConfigKey.Advanced.CLIShowExternalSessions.fullyQualifiedId)) {
-				this._onDidChangeChatSessionItems.fire();
-			}
-		}));
-
 		if (configurationService.getConfig(ConfigKey.Advanced.CLIChatLazyLoadSessionItem)) {
 			this.resolveChatSessionItem = async (item: vscode.ChatSessionItem, token: vscode.CancellationToken): Promise<vscode.ChatSessionItem | undefined> => {
 				const sessionId = SessionIdForCLI.parse(item.resource);

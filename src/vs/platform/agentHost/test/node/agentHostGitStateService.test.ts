@@ -136,12 +136,7 @@ suite('AgentHostGitStateService', () => {
 		]);
 	});
 
-	function createHarness(options?: {
-		octoKitService?: IAgentHostOctoKitService;
-		authenticationService?: IAgentHostAuthenticationService;
-		enterpriseUri?: string;
-		persistSessionMetadata?: (session: string, values: Readonly<Record<string, string>>) => Promise<void>;
-	}) {
+	function createHarness(options?: { octoKitService?: IAgentHostOctoKitService; authenticationService?: IAgentHostAuthenticationService; enterpriseUri?: string }) {
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		const db = new TestSessionDatabase();
 		const sessionDataService = createSessionDataService(db);
@@ -180,15 +175,6 @@ suite('AgentHostGitStateService', () => {
 				return pullRequestsBySha.get(sha);
 			},
 		} as unknown as IAgentHostOctoKitService;
-		const persistenceCalls: { session: string; values: Readonly<Record<string, string>>; publishedMeta: Readonly<Record<string, unknown>> | undefined }[] = [];
-		const persistSessionMetadata = options?.persistSessionMetadata ?? (async (session: string, values: Readonly<Record<string, string>>) => {
-			persistenceCalls.push({
-				session,
-				values,
-				publishedMeta: stateManager.getSessionState(session)?._meta,
-			});
-			await db.setMetadataValues(values);
-		});
 		const authenticationService: IAgentHostAuthenticationService = {
 			_serviceBrand: undefined,
 			onDidChangeAuthToken: Event.None,
@@ -196,7 +182,6 @@ suite('AgentHostGitStateService', () => {
 		};
 
 		const service = disposables.add(new AgentHostGitStateService(
-			persistSessionMetadata,
 			stateManager,
 			gitService,
 			options?.octoKitService ?? octoKitService,
@@ -221,7 +206,6 @@ suite('AgentHostGitStateService', () => {
 			gitHubStateEvents,
 			pullRequestCalls,
 			pullRequestShaCalls,
-			persistenceCalls,
 			setGitResult: (state: ISessionGitState | undefined) => { gitResult = state; },
 			setGitError: (error: Error) => { gitError = error; },
 			setHeadSha: (sha: string | undefined) => { headSha = sha; },
@@ -286,11 +270,6 @@ suite('AgentHostGitStateService', () => {
 			afterPullRequest,
 			gitHubStateEvents: h.gitHubStateEvents,
 			persistedAfterPullRequest: persistedAfterPullRequest ? JSON.parse(persistedAfterPullRequest) : undefined,
-			persistenceCalls: h.persistenceCalls.map(call => ({
-				keys: Object.keys(call.values),
-				publishedGitHub: readSessionGitHubState(call.publishedMeta),
-				publishedSourceControl: readSessionSourceControlState(call.publishedMeta),
-			})),
 		}, {
 			afterMerge: {
 				merge: { commit: 'merge-commit' },
@@ -309,26 +288,6 @@ suite('AgentHostGitStateService', () => {
 				merge: { commit: 'merge-commit' },
 				latestOutcome: SessionSourceControlOutcome.PullRequest,
 			},
-			persistenceCalls: [{
-				keys: [META_SOURCE_CONTROL_STATE],
-				publishedGitHub: undefined,
-				publishedSourceControl: {
-					merge: { commit: 'merge-commit' },
-					latestOutcome: SessionSourceControlOutcome.Merge,
-				},
-			}, {
-				keys: [META_GITHUB_STATE, META_SOURCE_CONTROL_STATE],
-				publishedGitHub: {
-					owner: 'microsoft',
-					repo: 'vscode',
-					pullRequestUrls: ['https://github.com/microsoft/vscode/pull/42'],
-					pullRequestBranchName: 'feature',
-				},
-				publishedSourceControl: {
-					merge: { commit: 'merge-commit' },
-					latestOutcome: SessionSourceControlOutcome.PullRequest,
-				},
-			}],
 		});
 	});
 

@@ -7,6 +7,7 @@ import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
 import { Event } from '../../../../../base/common/event.js';
 import type { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { waitForState } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { INativeEnvironmentService } from '../../../../../platform/environment/common/environment.js';
@@ -14,7 +15,9 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IAgentHostGitHubEndpointService } from '../../../node/agentHostGitHubEndpointService.js';
+import { IAgentHostProxyResolver } from '../../../node/agentHostProxyResolver.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../../node/agentConfigurationService.js';
+import { IAgentHostWorktreeIsolation, NullAgentHostWorktreeIsolation } from '../../../node/shared/worktreeIsolation.js';
 import { IAgentHostCustomizationEnablementService } from '../../../node/agentHostCustomizationEnablementService.js';
 import { AgentHostStateManager } from '../../../node/agentHostStateManager.js';
 import { IAgentHostSessionTitleSignal } from '../../../node/agentHostSessionTitleSignal.js';
@@ -31,6 +34,7 @@ import { AgentHostCodexMultiRootEnabledConfigKey } from '../../../common/agentHo
 import { IAgentHostOTelService } from '../../../common/otel/agentHostOTelService.js';
 import { AgentHostConfigKey } from '../../../common/agentHostCustomizationConfig.js';
 import { createNoopCustomizationEnablementService } from '../testCustomizationEnablementService.js';
+import { createTestAgentHostProxyResolver } from '../agentServiceTestUtils.js';
 
 interface ITestAgentContext {
 	readonly agent: CodexAgent;
@@ -55,8 +59,10 @@ function createAgentContext(disposables: Pick<DisposableStore, 'add'>, models: (
 	instantiationService.stub(ICopilotApiService, { _serviceBrand: undefined, models });
 	instantiationService.stub(ICodexProxyService, { _serviceBrand: undefined });
 	instantiationService.stub(IAgentConfigurationService, configurationService);
+	instantiationService.stub(IAgentHostWorktreeIsolation, new NullAgentHostWorktreeIsolation());
 	instantiationService.stub(IAgentHostCustomizationEnablementService, createNoopCustomizationEnablementService());
 	instantiationService.stub(IAgentHostGitHubEndpointService, createTestGitHubEndpointService());
+	instantiationService.stub(IAgentHostProxyResolver, createTestAgentHostProxyResolver());
 	instantiationService.stub(IAgentSdkDownloader, sdkDownloader);
 	instantiationService.stub(IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE);
 	instantiationService.stub(IAgentHostOTelService, { _serviceBrand: undefined, getNativeSdkTelemetryConfig: async () => undefined });
@@ -306,6 +312,38 @@ suite('CodexAgent model refresh', () => {
 		await agent.refreshModels();
 
 		assert.deepStrictEqual(agent.models.get().map(model => model.id), [toCodexModelSelectionId('vscode-proxy', 'gpt-5.5')]);
+	});
+
+	test('retries Copilot model discovery after a transient authentication refresh failure', async () => {
+		let attempts = 0;
+		const models = [{ id: 'gpt-5.5', name: 'GPT-5.5', supported_endpoints: ['/responses'] }] as CCAModel[];
+		const agent = createAgent(disposables, async () => {
+			attempts++;
+			if (attempts === 1) {
+				throw new Error('503 Service Unavailable');
+			}
+			return models;
+		});
+		agent['_isSdkResolvableWithoutDownload'] = async () => false;
+		Object.defineProperties(agent, {
+			_modelRefreshBaseDelayMs: { value: 1 },
+			_modelRefreshMaxDelayMs: { value: 1 },
+		});
+
+		await agent.authenticate(agent.getProtectedResources()[0].resource, 'token');
+		await agent.refreshModels();
+		const modelsAfterTransientFailure = agent.models.get().map(model => model.id);
+		await waitForState(agent.models, currentModels => currentModels.length > 0);
+
+		assert.deepStrictEqual({
+			attempts,
+			modelsAfterTransientFailure,
+			modelsAfterRetry: agent.models.get().map(model => model.id),
+		}, {
+			attempts: 2,
+			modelsAfterTransientFailure: [],
+			modelsAfterRetry: [toCodexModelSelectionId('vscode-proxy', 'gpt-5.5')],
+		});
 	});
 
 	test('uses the reasoning efforts advertised by Copilot models', async () => {

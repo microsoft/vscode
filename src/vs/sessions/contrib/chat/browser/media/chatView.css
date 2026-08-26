@@ -18,21 +18,106 @@
 	min-height: 0;
 }
 
+.chat-view.has-chat-background {
+	isolation: isolate;
+}
+
+.chat-view > .sessions-chat-codicon-background {
+	position: absolute;
+	inset: 0;
+	z-index: -1;
+	overflow: hidden;
+	pointer-events: none;
+	color: color-mix(in srgb, var(--vscode-foreground) 14%, transparent);
+}
+
+.chat-view > .sessions-chat-codicon-background[hidden] {
+	display: none;
+}
+
+.chat-view > .sessions-chat-codicon-background > .codicon {
+	position: absolute;
+}
+
+.monaco-workbench.agent-sessions-workbench .part.sessionspart .chat-view.has-chat-background .interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-list-rows {
+	background-color: transparent;
+}
+
+.monaco-workbench.agent-sessions-workbench .part.sessionspart .chat-view.has-chat-background .interactive-item-container.interactive-response {
+	background: color-mix(in srgb, var(--session-view-background) 96%, transparent);
+	border: var(--vscode-strokeThickness) solid color-mix(in srgb, var(--vscode-editorWidget-border, var(--vscode-widget-border)) 70%, transparent);
+	border-radius: var(--vscode-cornerRadius-medium);
+	box-shadow: 0 var(--vscode-spacing-size80) var(--vscode-spacing-size240) color-mix(in srgb, var(--vscode-widget-shadow) 18%, transparent);
+	padding-bottom: var(--vscode-spacing-size160);
+	overflow: hidden;
+}
+
+.monaco-workbench.agent-sessions-workbench .part.sessionspart .chat-view.has-chat-background .sessions-chat-widget:not(.new-chat-in-session) .new-chat-widget-content {
+	box-sizing: border-box;
+	padding: var(--vscode-spacing-size120);
+	background: color-mix(in srgb, var(--session-view-background) 86%, transparent);
+	-webkit-backdrop-filter: blur(var(--vscode-spacing-size160)) saturate(1.08);
+	backdrop-filter: blur(var(--vscode-spacing-size160)) saturate(1.08);
+	border: var(--vscode-strokeThickness) solid color-mix(in srgb, var(--vscode-editorWidget-border, var(--vscode-widget-border)) 70%, transparent);
+	border-radius: var(--vscode-cornerRadius-large);
+	box-shadow: 0 var(--vscode-spacing-size80) var(--vscode-spacing-size240) color-mix(in srgb, var(--vscode-widget-shadow) 18%, transparent);
+}
+
+.monaco-workbench.agent-sessions-workbench .part.sessionspart .chat-view.has-chat-background .interactive-session .chat-secondary-toolbar .action-label,
+.monaco-workbench.agent-sessions-workbench .part.sessionspart .chat-view.has-chat-background .interactive-session .chat-context-usage-widget {
+	background-color: var(--vscode-chat-list-background, var(--vscode-button-secondaryBackground));
+	background-image: linear-gradient(var(--vscode-button-secondaryBackground), var(--vscode-button-secondaryBackground));
+	border: var(--vscode-strokeThickness) solid var(--vscode-button-secondaryBorder);
+	border-radius: var(--vscode-cornerRadius-small);
+	color: var(--vscode-button-secondaryForeground);
+}
+
+.monaco-workbench.agent-sessions-workbench .part.sessionspart .chat-view.has-chat-background .interactive-session .chat-secondary-toolbar .action-label:hover,
+.monaco-workbench.agent-sessions-workbench .part.sessionspart .chat-view.has-chat-background .interactive-session .chat-context-usage-widget:hover {
+	background-image: linear-gradient(var(--vscode-button-secondaryHoverBackground), var(--vscode-button-secondaryHoverBackground));
+}
+
+.agent-sessions-workbench .part.sessionspart .chat-view.has-chat-background .interactive-session .interactive-item-container.interactive-request .value .rendered-markdown {
+	background-color: var(--session-view-background);
+	background-image: linear-gradient(var(--vscode-chat-requestBubbleBackground), var(--vscode-chat-requestBubbleBackground));
+}
+
+.agent-sessions-workbench .part.sessionspart .chat-view.has-chat-background .interactive-session .interactive-item-container.interactive-request .value .rendered-markdown.clickable:hover {
+	background-color: var(--session-view-background);
+	background-image: linear-gradient(var(--vscode-chat-requestBubbleHoverBackground), var(--vscode-chat-requestBubbleHoverBackground));
+}
+
 .agent-sessions-workbench .interactive-session {
 	max-width: none;
 }
 
-.monaco-workbench.vs.agent-sessions-workbench .part.sessionspart .interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-list-rows {
+.monaco-workbench.vs.agent-sessions-workbench .part.sessionspart .interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-list-rows,
+.monaco-workbench.vs-dark.agent-sessions-workbench .part.sessionspart .interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-list-rows {
 	background: transparent !important;
+
+	> .monaco-list-row {
+		&.request,
+		&.response {
+			&:hover,
+			&.focused,
+			&.selected {
+				background: transparent !important;
+			}
+		}
+	}
 }
 
-.monaco-workbench.vs.agent-sessions-workbench .part.sessionspart .interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.request:hover,
-.monaco-workbench.vs.agent-sessions-workbench .part.sessionspart .interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.response:hover,
-.monaco-workbench.vs.agent-sessions-workbench .part.sessionspart .interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.focused.request,
-.monaco-workbench.vs.agent-sessions-workbench .part.sessionspart .interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.focused.response,
-.monaco-workbench.vs.agent-sessions-workbench .part.sessionspart .interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.selected.request,
-.monaco-workbench.vs.agent-sessions-workbench .part.sessionspart .interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.selected.response {
-	background: transparent !important;
+.monaco-workbench.agent-sessions-workbench .part.sessionspart .chat-view.has-chat-background .interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-tree-sticky-container {
+	background-color: transparent;
+	--vscode-chat-list-background: transparent;
+
+	> .monaco-tree-sticky-row.request {
+		background-color: transparent;
+
+		.interactive-item-container.interactive-request {
+			background-color: var(--session-view-background);
+		}
+	}
 }
 
 .agent-sessions-workbench .interactive-list > .monaco-list.mouse-support > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row {
@@ -176,5 +261,9 @@
 }
 
 .agent-sessions-workbench .interactive-session .chat-input-toolbars .chat-sessionPicker-container {
+	display: none;
+}
+
+.agent-sessions-workbench .interactive-session .compact-picker .sessions-chat-dropdown-label {
 	display: none;
 }

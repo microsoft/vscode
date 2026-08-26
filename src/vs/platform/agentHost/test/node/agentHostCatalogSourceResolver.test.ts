@@ -10,7 +10,7 @@ import { META_CHANGES_SUMMARY } from '../../common/agentHostChangesetService.js'
 import { META_GIT_STATE, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../../common/agentHostGitStateService.js';
 import { SessionArtifactType, SESSION_META_ARTIFACTS_KEY, withSessionArtifacts } from '../../common/sessionArtifacts.js';
 import { ChatOriginKind } from '../../common/state/protocol/state.js';
-import { AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_ORCHESTRATION_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_EHCLI_ADOPTED_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_GIT_KEY, SESSION_META_GITHUB_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_ORCHESTRATION_KEY, SESSION_META_SOURCE_CONTROL_KEY, SESSION_META_WORKSPACELESS_KEY, SessionSourceControlOutcome, SessionStatus, withSessionEhcliAdoptable, withSessionFolderPickerDecision, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionOrchestration, withSessionSourceControlState, withSessionWorkspaceless } from '../../common/state/sessionState.js';
+import { AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, SESSION_META_CREATED_BY_SESSION_KEY, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_EHCLI_ADOPTED_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_GIT_KEY, SESSION_META_GITHUB_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, SESSION_META_WORKSPACELESS_KEY, SessionSourceControlOutcome, SessionStatus, withSessionCreationReference, withSessionEhcliAdoptable, withSessionFolderPickerDecision, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionWorkspaceless } from '../../common/state/sessionState.js';
 import { AgentHostCatalogSourceResolver, CHAT_BACKING_METADATA_KEY, ICatalogSourceState } from '../../node/agentHostCatalogSourceResolver.js';
 import { customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_ARTIFACTS_KEY, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
 import { WORKTREE_META_REPOSITORY_ROOT } from '../../node/shared/worktreeIsolation.js';
@@ -19,8 +19,8 @@ const session = URI.parse('agenthost:catalog-source');
 const chat = 'agenthost-chat:catalog-source/default';
 const liveArtifact = { id: 'live-artifact', type: SessionArtifactType.Website, label: 'Live artifact', link: 'https://example.com/live' };
 const persistedArtifact = { id: 'persisted-artifact', type: SessionArtifactType.Issue, label: 'Persisted artifact', link: 'https://example.com/persisted' };
-const liveOrchestration = { parentSession: 'agenthost:live-parent', creatorSession: 'agenthost:live-creator', label: 'live', coordinateWithCreator: true } as const;
-const persistedOrchestration = { parentSession: 'agenthost:persisted-parent', creatorSession: 'agenthost:persisted-creator', label: 'persisted', coordinateWithCreator: false } as const;
+const liveCreationReference = { session: 'agenthost:live-creator', chat: 'agenthost-chat:live-creator/default', turnId: 'live-turn' } as const;
+const persistedCreationReference = { session: 'agenthost:persisted-creator', chat: 'agenthost-chat:persisted-creator/default', turnId: 'persisted-turn' } as const;
 const liveGit = { branchName: 'live-branch', outgoingChanges: 2 };
 const persistedGit = { branchName: 'persisted-branch', outgoingChanges: 5 };
 const liveGitHub = { owner: 'live-owner', repo: 'live-repo' };
@@ -32,7 +32,7 @@ function sourceState(): ICatalogSourceState {
 	let meta = withSessionMultiRootMetadata(undefined, { workspaceFile: 'file:///live.code-workspace' });
 	meta = withSessionFolderPickerDecision(meta, { hidden: false });
 	meta = withSessionArtifacts(meta, [liveArtifact]);
-	meta = withSessionOrchestration(meta, liveOrchestration);
+	meta = withSessionCreationReference(meta, liveCreationReference);
 	meta = withSessionGitHubState(meta, liveGitHub);
 	meta = withSessionGitState(meta, liveGit);
 	meta = withSessionSourceControlState(meta, liveSourceControl);
@@ -66,7 +66,7 @@ function persistedMetadata(): Readonly<Record<string, string>> {
 		[SESSION_META_MULTI_ROOT_KEY]: JSON.stringify({ workspaceFile: 'file:///persisted.code-workspace' }),
 		[SESSION_META_FOLDER_PICKER_KEY]: JSON.stringify({ hidden: true, primary: 'file:///persisted' }),
 		[SESSION_ARTIFACTS_KEY]: JSON.stringify([persistedArtifact]),
-		[AH_META_ORCHESTRATION_DB_KEY]: JSON.stringify(persistedOrchestration),
+		[AH_META_CREATED_BY_SESSION_DB_KEY]: JSON.stringify(persistedCreationReference),
 		[META_GITHUB_STATE]: JSON.stringify(persistedGitHub),
 		[META_GIT_STATE]: JSON.stringify(persistedGit),
 		[META_SOURCE_CONTROL_STATE]: JSON.stringify(persistedSourceControl),
@@ -119,7 +119,7 @@ suite('AgentHostCatalogSourceResolver', () => {
 					[SESSION_META_GIT_KEY]: liveGit,
 					[SESSION_META_SOURCE_CONTROL_KEY]: liveSourceControl,
 					[SESSION_META_ARTIFACTS_KEY]: [liveArtifact],
-					[SESSION_META_ORCHESTRATION_KEY]: liveOrchestration,
+					[SESSION_META_CREATED_BY_SESSION_KEY]: liveCreationReference,
 					[SESSION_META_WORKSPACELESS_KEY]: true,
 					[SESSION_META_EHCLI_ADOPTABLE_KEY]: true,
 					[SESSION_META_EHCLI_ADOPTED_KEY]: true,
@@ -142,12 +142,7 @@ suite('AgentHostCatalogSourceResolver', () => {
 				[SESSION_META_MULTI_ROOT_KEY]: JSON.stringify({ workspaceFile: 'file:///live.code-workspace' }),
 				[SESSION_META_FOLDER_PICKER_KEY]: JSON.stringify({ hidden: false }),
 				[SESSION_ARTIFACTS_KEY]: JSON.stringify([liveArtifact]),
-				[AH_META_ORCHESTRATION_DB_KEY]: JSON.stringify({
-					parentSession: liveOrchestration.parentSession,
-					creatorSession: liveOrchestration.creatorSession,
-					coordinateWithCreator: liveOrchestration.coordinateWithCreator,
-					label: liveOrchestration.label,
-				}),
+				[AH_META_CREATED_BY_SESSION_DB_KEY]: JSON.stringify(liveCreationReference),
 				[AH_META_WORKSPACELESS_DB_KEY]: 'true',
 				[CHAT_BACKING_METADATA_KEY]: 'agenthost-chat:owner/peer',
 				[WORKTREE_META_REPOSITORY_ROOT]: 'file:///persisted-worktree',
@@ -180,7 +175,7 @@ suite('AgentHostCatalogSourceResolver', () => {
 					[SESSION_META_GIT_KEY]: liveGit,
 					[SESSION_META_SOURCE_CONTROL_KEY]: { merge: undefined, ...persistedSourceControl },
 					[SESSION_META_ARTIFACTS_KEY]: [persistedArtifact],
-					[SESSION_META_ORCHESTRATION_KEY]: persistedOrchestration,
+					[SESSION_META_CREATED_BY_SESSION_KEY]: persistedCreationReference,
 					[SESSION_META_EHCLI_ADOPTABLE_KEY]: true,
 					[SESSION_META_EHCLI_ADOPTED_KEY]: true,
 				},
@@ -200,12 +195,7 @@ suite('AgentHostCatalogSourceResolver', () => {
 				[SESSION_META_MULTI_ROOT_KEY]: JSON.stringify({ workspaceFile: 'file:///persisted.code-workspace' }),
 				[SESSION_META_FOLDER_PICKER_KEY]: JSON.stringify({ hidden: true, primary: 'file:///persisted' }),
 				[SESSION_ARTIFACTS_KEY]: JSON.stringify([persistedArtifact]),
-				[AH_META_ORCHESTRATION_DB_KEY]: JSON.stringify({
-					parentSession: persistedOrchestration.parentSession,
-					creatorSession: persistedOrchestration.creatorSession,
-					coordinateWithCreator: persistedOrchestration.coordinateWithCreator,
-					label: persistedOrchestration.label,
-				}),
+				[AH_META_CREATED_BY_SESSION_DB_KEY]: JSON.stringify(persistedCreationReference),
 				[AH_META_WORKSPACELESS_DB_KEY]: 'false',
 				[CHAT_BACKING_METADATA_KEY]: 'agenthost-chat:owner/peer',
 				[WORKTREE_META_REPOSITORY_ROOT]: 'file:///persisted-worktree',

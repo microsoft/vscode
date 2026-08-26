@@ -7,7 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { AgentSession } from '../../common/agent.js';
 import { readSessionArtifacts, SESSION_META_ARTIFACTS_KEY } from '../../common/sessionArtifacts.js';
-import { isSessionStatusArchived, isSessionStatusRead, readSessionEhcliAdoptable, readSessionExternal, readSessionFolderPickerDecision, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionOrchestration, readSessionSourceControlState, readSessionWorkspaceless, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_GIT_KEY, SESSION_META_GITHUB_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_ORCHESTRATION_KEY, SESSION_META_SOURCE_CONTROL_KEY, SESSION_META_WORKSPACELESS_KEY } from '../../common/state/sessionState.js';
+import { isSessionStatusArchived, isSessionStatusRead, readSessionCreationReference, readSessionEhcliAdoptable, readSessionExternal, readSessionFolderPickerDecision, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, SESSION_META_CREATED_BY_SESSION_KEY, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_GIT_KEY, SESSION_META_GITHUB_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, SESSION_META_WORKSPACELESS_KEY } from '../../common/state/sessionState.js';
 import { AgentHostCatalogListReader } from '../../node/agentHostCatalogListReader.js';
 import { AGENT_HOST_CATALOG_PAYLOAD_VERSION, encodeAgentHostCatalogPayload, type AgentHostCatalogData } from '../../node/agentHostCatalogProjection.js';
 import { AgentHostDatabase, type IAgentHostDatabaseSessionV2 } from '../../node/agentHostDatabase.js';
@@ -67,13 +67,10 @@ suite('AgentHostCatalogListReader', () => {
 			},
 			[SESSION_META_SOURCE_CONTROL_KEY]: { merge: { commit: 'abc123' }, latestOutcome: 'pullRequest' },
 			[SESSION_META_ARTIFACTS_KEY]: [{ id: 'artifact', type: 'pullRequest', label: 'PR', link: 'https://github.com/microsoft/vscode/pull/1', isGitHub: true, createdByThisSession: true }],
-			[SESSION_META_ORCHESTRATION_KEY]: {
-				parentSession: 'agent-session://copilot/parent',
-				creatorSession: 'agent-session://copilot/creator',
-				label: 'child',
-				coordinateWithCreator: true,
-				notifyOnIdle: 'always',
-				creatorNotificationState: 'waitingForCompletion',
+			[SESSION_META_CREATED_BY_SESSION_KEY]: {
+				session: 'agent-session://copilot/creator',
+				chat: 'agent-chat://copilot/creator/default',
+				turnId: 'turn-1',
 			},
 			[SESSION_META_WORKSPACELESS_KEY]: true,
 			[SESSION_META_EHCLI_ADOPTABLE_KEY]: true,
@@ -138,7 +135,7 @@ suite('AgentHostCatalogListReader', () => {
 			git: readSessionGitState(result.metadata._meta),
 			sourceControl: readSessionSourceControlState(result.metadata._meta),
 			artifacts: readSessionArtifacts(result.metadata._meta),
-			orchestration: readSessionOrchestration(result.metadata._meta),
+			creationReference: readSessionCreationReference(result.metadata._meta),
 			chats: result.data.chats.map(chat => ({ ...chat, uri: chat.uri.toString() })),
 		}, {
 			session: session.toString(),
@@ -159,7 +156,7 @@ suite('AgentHostCatalogListReader', () => {
 			git: data._meta?.[SESSION_META_GIT_KEY],
 			sourceControl: data._meta?.[SESSION_META_SOURCE_CONTROL_KEY],
 			artifacts: data._meta?.[SESSION_META_ARTIFACTS_KEY],
-			orchestration: data._meta?.[SESSION_META_ORCHESTRATION_KEY],
+			creationReference: data._meta?.[SESSION_META_CREATED_BY_SESSION_KEY],
 			chats: data.chats,
 		});
 	});

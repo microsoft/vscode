@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { SESSION_META_ARTIFACTS_KEY } from '../../common/sessionArtifacts.js';
-import { SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_EHCLI_ADOPTED_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_GIT_KEY, SESSION_META_GITHUB_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_ORCHESTRATION_KEY, SESSION_META_SOURCE_CONTROL_KEY, SESSION_META_WORKSPACELESS_KEY } from '../../common/state/sessionState.js';
+import { SESSION_META_CREATED_BY_SESSION_KEY, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_EHCLI_ADOPTED_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_GIT_KEY, SESSION_META_GITHUB_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, SESSION_META_WORKSPACELESS_KEY } from '../../common/state/sessionState.js';
 import {
 	AGENT_HOST_CATALOG_ARTIFACT_LIMIT,
 	AGENT_HOST_CATALOG_CHILD_LIMIT,
@@ -66,11 +66,10 @@ function createData(): AgentHostCatalogData {
 				link: 'https://github.com/microsoft/vscode/pull/1',
 				createdByThisSession: true,
 			}],
-			[SESSION_META_ORCHESTRATION_KEY]: {
-				parentSession: 'agent-session://test/parent',
-				creatorSession: 'agent-session://test/parent',
-				coordinateWithCreator: true,
-				notifyOnIdle: 'once',
+			[SESSION_META_CREATED_BY_SESSION_KEY]: {
+				session: 'agent-session://test/parent',
+				chat: 'agent-chat://test/parent/default',
+				turnId: 'turn-1',
 			},
 			[SESSION_META_WORKSPACELESS_KEY]: true,
 			[SESSION_META_EHCLI_ADOPTABLE_KEY]: true,
@@ -117,7 +116,7 @@ suite('AgentHostCatalogProjection', () => {
 				ok: true,
 				value: { data: typedData, payload: encoded.payload },
 			},
-			payload: '{"data":{"_meta":{"agentHost/orchestration":{"coordinateWithCreator":true,"creatorSession":"agent-session://test/parent","notifyOnIdle":"once","parentSession":"agent-session://test/parent"},"agentHost/sessionArtifacts":[{"createdByThisSession":true,"id":"artifact-1","label":"Catalog payload","link":"https://github.com/microsoft/vscode/pull/1","type":"pullRequest"}],"ehcliAdoptable":true,"ehcliAdopted":true,"git":{"branchName":"feature/catalog","hasGitHubRemote":true,"incomingChanges":2},"github":{"issueUrls":["https://github.com/microsoft/vscode/issues/2"],"owner":"microsoft","pullRequestUrls":["https://github.com/microsoft/vscode/pull/1"],"repo":"vscode"},"multiRoot":{"workspaceFile":"file:///workspace/project.code-workspace"},"vscode.folderPicker":{"hidden":true,"primary":"file:///workspace"},"vscode.sourceControl":{"latestOutcome":"merge","merge":{"commit":"0123456789abcdef"}},"workspaceless":true},"changes":{"additions":12,"deletions":4,"files":2},"chats":[{"kind":"default","order":0,"origin":{"kind":"default","metadata":{"a":1,"b":2}},"summary":"Main","titleSource":"auto","uri":"agent-chat://test/session/default"},{"kind":"peer","order":1,"origin":{"kind":"subagent"},"summary":"Peer","titleSource":"agent","uri":"agent-chat://test/session/peer"}],"isArchived":false,"isChatBacking":false,"isRead":true,"modifiedTime":1720000000000,"project":{"displayName":"workspace","uri":"file:///workspace"},"summary":"Implement opaque catalog payload","titleSource":"user","workingDirectories":["file:///workspace","file:///workspace/secondary"]},"payloadVersion":1}',
+			payload: '{"data":{"_meta":{"agentHost/createdBySession":{"chat":"agent-chat://test/parent/default","session":"agent-session://test/parent","turnId":"turn-1"},"agentHost/sessionArtifacts":[{"createdByThisSession":true,"id":"artifact-1","label":"Catalog payload","link":"https://github.com/microsoft/vscode/pull/1","type":"pullRequest"}],"ehcliAdoptable":true,"ehcliAdopted":true,"git":{"branchName":"feature/catalog","hasGitHubRemote":true,"incomingChanges":2},"github":{"issueUrls":["https://github.com/microsoft/vscode/issues/2"],"owner":"microsoft","pullRequestUrls":["https://github.com/microsoft/vscode/pull/1"],"repo":"vscode"},"multiRoot":{"workspaceFile":"file:///workspace/project.code-workspace"},"vscode.folderPicker":{"hidden":true,"primary":"file:///workspace"},"vscode.sourceControl":{"latestOutcome":"merge","merge":{"commit":"0123456789abcdef"}},"workspaceless":true},"changes":{"additions":12,"deletions":4,"files":2},"chats":[{"kind":"default","order":0,"origin":{"kind":"default","metadata":{"a":1,"b":2}},"summary":"Main","titleSource":"auto","uri":"agent-chat://test/session/default"},{"kind":"peer","order":1,"origin":{"kind":"subagent"},"summary":"Peer","titleSource":"agent","uri":"agent-chat://test/session/peer"}],"isArchived":false,"isChatBacking":false,"isRead":true,"modifiedTime":1720000000000,"project":{"displayName":"workspace","uri":"file:///workspace"},"summary":"Implement opaque catalog payload","titleSource":"user","workingDirectories":["file:///workspace","file:///workspace/secondary"]},"payloadVersion":1}',
 			hash: hashAgentHostCatalogPayload(encoded.payload),
 		});
 	});

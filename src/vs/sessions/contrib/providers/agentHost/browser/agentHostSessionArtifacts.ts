@@ -66,6 +66,11 @@ export interface ISessionArtifactPartition {
 	readonly createdPullRequestUrls: readonly string[];
 	/** Pull requests the session only referenced; listed and polled, never main. */
 	readonly referencedPullRequestUrls: readonly string[];
+	/**
+	 * Titles the agent recorded for its pull request artifacts, keyed by
+	 * {@link linkKey}. Pull requests discovered from git state have no entry.
+	 */
+	readonly pullRequestTitles: ReadonlyMap<string, string>;
 	readonly issueUrls: readonly string[];
 }
 
@@ -114,6 +119,7 @@ export function partitionSessionArtifacts(meta: SessionMeta | undefined): ISessi
 	const entries: ISessionArtifactEntry[] = [];
 	const createdPullRequestUrls: string[] = [];
 	const referencedPullRequestUrls: string[] = [];
+	const pullRequestTitles = new Map<string, string>();
 	const issueUrls: string[] = [];
 
 	for (const artifact of readSessionArtifacts(meta)) {
@@ -129,14 +135,23 @@ export function partitionSessionArtifacts(meta: SessionMeta | undefined): ISessi
 
 		if (artifact.type === SessionArtifactType.Issue) {
 			issueUrls.push(link);
-		} else if (artifact.createdByThisSession) {
+			continue;
+		}
+
+		// The label an agent records for a pull request is its title; keep the
+		// first one so a later duplicate cannot rewrite it.
+		const key = linkKey(link);
+		if (mapped.label && !pullRequestTitles.has(key)) {
+			pullRequestTitles.set(key, mapped.label);
+		}
+		if (artifact.createdByThisSession) {
 			createdPullRequestUrls.push(link);
 		} else {
 			referencedPullRequestUrls.push(link);
 		}
 	}
 
-	return { entries, createdPullRequestUrls, referencedPullRequestUrls, issueUrls };
+	return { entries, createdPullRequestUrls, referencedPullRequestUrls, pullRequestTitles, issueUrls };
 }
 
 /** Case-insensitive de-duplication that keeps the first occurrence's casing. */

@@ -103,15 +103,15 @@ suite('AgentHostPeerChatStore', () => {
 		]);
 	});
 
-	test('refreshes provider data without dropping a persisted origin', async () => {
+	test('refreshes provider data without dropping persisted origin or inherited turn', async () => {
 		const database = new TestSessionDatabase();
 		const store = createStore(database);
-		await store.upsert(session, first, 'old', origin);
+		await store.upsert(session, first, 'old', origin, 'inherited-turn');
 
 		await store.upsert(session, first, 'refreshed');
 
 		assert.deepStrictEqual(await store.tryRead(session), [
-			{ uri: first.toString(), providerData: 'refreshed', origin },
+			{ uri: first.toString(), providerData: 'refreshed', origin, inheritedTurnId: 'inherited-turn' },
 		]);
 	});
 

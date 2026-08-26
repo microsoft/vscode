@@ -284,10 +284,11 @@ function finalizeTurn(builder: ITurnBuilder, state: TurnState): Turn {
 		...(builder.startedAt !== undefined ? { startedAt: builder.startedAt } : {}),
 		...(duration !== undefined ? { duration } : {}),
 		message: builder.message,
-		responseParts: builder.responseParts,
+		responseParts: builder.error
+			? [...builder.responseParts, { kind: ResponsePartKind.Error, error: builder.error }]
+			: builder.responseParts,
 		usage: builder.usage,
 		state,
-		...(builder.error ? { error: builder.error } : {}),
 	};
 }
 

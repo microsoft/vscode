@@ -45,28 +45,22 @@ export class RenameLocalCommand extends Disposable implements ILocalChatCommand 
 		if (chatTarget) {
 			this._context.updateChatTitle(sessionChannel, chatTarget, title);
 			this._context.markTitleRenamed(sessionChannel, chatTarget);
-			const values: Record<string, string> = {
-				[customChatTitleMetadataKey(chatTarget)]: title,
-				[customChatTitleSourceMetadataKey(chatTarget)]: AGENT_HOST_TITLE_SOURCE_USER,
-			};
+			this._context.persistSessionFlag(sessionChannel, customChatTitleMetadataKey(chatTarget), title);
+			this._context.persistSessionFlag(sessionChannel, customChatTitleSourceMetadataKey(chatTarget), AGENT_HOST_TITLE_SOURCE_USER);
 			if (isDefaultChatUri(chatTarget)) {
-				// The default chat is the session's face: renaming it renames both.
 				this._context.dispatch(sessionChannel, { type: ActionType.SessionTitleChanged, title });
 				this._context.markTitleRenamed(sessionChannel);
-				values[SESSION_CUSTOM_TITLE_KEY] = title;
-				values[SESSION_CUSTOM_TITLE_SOURCE_KEY] = AGENT_HOST_TITLE_SOURCE_USER;
+				this._context.persistSessionFlag(sessionChannel, SESSION_CUSTOM_TITLE_KEY, title);
+				this._context.persistSessionFlag(sessionChannel, SESSION_CUSTOM_TITLE_SOURCE_KEY, AGENT_HOST_TITLE_SOURCE_USER);
 			}
-			this._context.persistSessionMetadata(sessionChannel, values);
 		} else {
 			this._context.dispatch(sessionChannel, { type: ActionType.SessionTitleChanged, title });
 			this._context.markTitleRenamed(sessionChannel);
 			// Server-dispatched actions bypass `handleAction`, so persist the
 			// new title here directly (the client-dispatched rename path relies
 			// on the `SessionTitleChanged` case in `handleAction` instead).
-			this._context.persistSessionMetadata(sessionChannel, {
-				[SESSION_CUSTOM_TITLE_KEY]: title,
-				[SESSION_CUSTOM_TITLE_SOURCE_KEY]: AGENT_HOST_TITLE_SOURCE_USER,
-			});
+			this._context.persistSessionFlag(sessionChannel, SESSION_CUSTOM_TITLE_KEY, title);
+			this._context.persistSessionFlag(sessionChannel, SESSION_CUSTOM_TITLE_SOURCE_KEY, AGENT_HOST_TITLE_SOURCE_USER);
 		}
 		// Acknowledge the rename with a brief response so the turn has visible
 		// content in the transcript.

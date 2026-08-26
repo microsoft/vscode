@@ -17,6 +17,7 @@ export interface IPersistedPeerChat {
 	readonly uri: string;
 	readonly providerData?: string;
 	readonly origin?: ChatOrigin;
+	readonly inheritedTurnId?: string;
 }
 
 export class AgentHostPeerChatStore {
@@ -61,16 +62,18 @@ export class AgentHostPeerChatStore {
 		return this._enqueueWrite(session, () => [...entries]);
 	}
 
-	upsert(session: URI, chat: URI, providerData: string | undefined, origin?: ChatOrigin): Promise<void> {
+	upsert(session: URI, chat: URI, providerData: string | undefined, origin?: ChatOrigin, inheritedTurnId?: string): Promise<void> {
 		const chatUri = chat.toString();
 		return this._enqueueWrite(session, entries => {
 			const existing = entries.find(entry => entry.uri === chatUri);
 			const effectiveOrigin = origin ?? existing?.origin;
+			const effectiveInheritedTurnId = inheritedTurnId ?? existing?.inheritedTurnId;
 			const next = entries.filter(entry => entry.uri !== chatUri);
 			next.push({
 				uri: chatUri,
 				...(providerData !== undefined ? { providerData } : {}),
 				...(effectiveOrigin !== undefined ? { origin: effectiveOrigin } : {}),
+				...(effectiveInheritedTurnId !== undefined ? { inheritedTurnId: effectiveInheritedTurnId } : {}),
 			});
 			return next;
 		});
@@ -152,6 +155,10 @@ export class AgentHostPeerChatStore {
 				this._logService.warn(`[AgentService] Skipping peer-chat catalog entry ${index} with invalid provider data`);
 				continue;
 			}
+			if (value.inheritedTurnId !== undefined && typeof value.inheritedTurnId !== 'string') {
+				this._logService.warn(`[AgentService] Skipping peer-chat catalog entry ${index} with invalid inherited turn id`);
+				continue;
+			}
 			const originValue = toCatalogJsonValue(value.origin);
 			const origin = fromCatalogChatOrigin(originValue);
 			if (value.origin !== undefined && !origin) {
@@ -162,6 +169,7 @@ export class AgentHostPeerChatStore {
 				uri: value.uri,
 				...(typeof value.providerData === 'string' ? { providerData: value.providerData } : {}),
 				...(origin ? { origin } : {}),
+				...(typeof value.inheritedTurnId === 'string' ? { inheritedTurnId: value.inheritedTurnId } : {}),
 			});
 		}
 		return result;

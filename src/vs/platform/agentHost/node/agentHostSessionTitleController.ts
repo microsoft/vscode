@@ -7,6 +7,7 @@ import { Limiter } from '../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { SessionServerToolName } from '../common/serverToolNames.js';
@@ -16,7 +17,7 @@ import { buildConversationContext, renderResponseMarkdown, truncateMiddle } from
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import type { GitHubIssueOrPullRequest, IAgentHostOctoKitService } from './shared/agentHostOctoKitService.js';
 import { ICopilotApiService, type ICopilotUtilityChatMessage } from './shared/copilotApiService.js';
-import { AGENT_HOST_TITLE_SOURCE_AGENT, AGENT_HOST_TITLE_SOURCE_AUTO, AGENT_HOST_TITLE_SOURCE_USER, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from './shared/persistSessionMetadata.js';
+import { AGENT_HOST_TITLE_SOURCE_AGENT, AGENT_HOST_TITLE_SOURCE_AUTO, AGENT_HOST_TITLE_SOURCE_USER, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, persistSessionMetadata, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from './shared/persistSessionMetadata.js';
 
 const MAX_TITLE_LENGTH = 200;
 const MAX_ACTIVE_AGENT_FALLBACK_TITLE_LENGTH = 40;
@@ -82,10 +83,28 @@ export interface IAgentHostSessionTitleControllerOptions {
 	readonly octoKitService?: IAgentHostOctoKitService;
 	readonly copilotApiService?: ICopilotApiService;
 	readonly isActiveAgentTitleGenerationEnabled?: () => boolean;
-	readonly persistSessionMetadata: (session: ProtocolURI, values: Readonly<Record<string, string>>) => void;
 }
 
-export class AgentHostSessionTitleController extends Disposable {
+export const IAgentHostSessionTitleController = createDecorator<IAgentHostSessionTitleController>('agentHostSessionTitleController');
+
+/** Coordinates automatic, generated, and user-renamed session and chat titles. */
+export interface IAgentHostSessionTitleController {
+	readonly _serviceBrand: undefined;
+	seedTitleFromFirstMessage(channel: ProtocolURI, userPrompt: string, chatChannel?: ProtocolURI): void;
+	seedProvisionalTitle(channel: ProtocolURI, suggestedTitle: string, chatChannel?: ProtocolURI): void;
+	refineTitleFromFirstTurn(channel: ProtocolURI, chatChannel?: ProtocolURI): void;
+	generateForkedTitle(channel: ProtocolURI, chatChannel: ProtocolURI | undefined, turns: readonly Turn[], fallbackTitle: string, sourceTitle?: string): void;
+	generateExternalSessionTitle(session: ProtocolURI, userPrompt: string): Promise<void>;
+	cancelTitleGeneration(session: ProtocolURI): void;
+	clearSession(session: ProtocolURI, chatChannels: readonly ProtocolURI[]): void;
+	markTitleAuto(channel: ProtocolURI, chatChannel: ProtocolURI | undefined, title: string): void;
+	markTitleRenamed(channel: ProtocolURI, chatChannel?: ProtocolURI): void;
+	prepareInstructionForAgent(channel: ProtocolURI, chatChannel: ProtocolURI): Promise<string | undefined>;
+}
+
+export class AgentHostSessionTitleController extends Disposable implements IAgentHostSessionTitleController {
+
+	declare readonly _serviceBrand: undefined;
 
 	private readonly _titleGenerationCancellationSources = new Map<ProtocolURI, CancellationTokenSource>();
 
@@ -221,34 +240,29 @@ export class AgentHostSessionTitleController extends Disposable {
 	private _applySeedTitle(channel: ProtocolURI, independentChat: ProtocolURI | undefined, title: string): void {
 		if (independentChat) {
 			this._applyTitle(independentChat, title, t => this._stateManager.updateChatTitle(channel, independentChat, t));
+			this._persistAutoTitleSource(channel, independentChat);
 		} else {
 			this._applyTitle(channel, title, t => this._stateManager.dispatchServerAction(channel, {
 				type: ActionType.SessionTitleChanged,
 				title: t,
 			}));
+			this._persistAutoTitleSource(channel, undefined);
 		}
-		this._persistAutoTitleSource(channel, independentChat);
 	}
 
 	/** Persists `title` as the custom title of the addressed independent chat or session. */
 	private _persistAutoTitle(channel: ProtocolURI, independentChat: ProtocolURI | undefined, title: string): void {
 		if (independentChat) {
-			this._options.persistSessionMetadata(channel, {
-				[customChatTitleMetadataKey(independentChat)]: title,
-				[customChatTitleSourceMetadataKey(independentChat)]: AGENT_HOST_TITLE_SOURCE_AUTO,
-			});
+			this._persistSessionFlag(channel, customChatTitleMetadataKey(independentChat), title);
+			this._persistSessionFlag(channel, customChatTitleSourceMetadataKey(independentChat), AGENT_HOST_TITLE_SOURCE_AUTO);
 			return;
 		}
-		this._options.persistSessionMetadata(channel, {
-			[SESSION_CUSTOM_TITLE_KEY]: title,
-			[SESSION_CUSTOM_TITLE_SOURCE_KEY]: AGENT_HOST_TITLE_SOURCE_AUTO,
-		});
+		this._persistSessionFlag(channel, SESSION_CUSTOM_TITLE_KEY, title);
+		this._persistSessionFlag(channel, SESSION_CUSTOM_TITLE_SOURCE_KEY, AGENT_HOST_TITLE_SOURCE_AUTO);
 	}
 
 	private _persistAutoTitleSource(channel: ProtocolURI, independentChat: ProtocolURI | undefined): void {
-		this._options.persistSessionMetadata(channel, {
-			[independentChat ? customChatTitleSourceMetadataKey(independentChat) : SESSION_CUSTOM_TITLE_SOURCE_KEY]: AGENT_HOST_TITLE_SOURCE_AUTO,
-		});
+		this._persistSessionFlag(channel, independentChat ? customChatTitleSourceMetadataKey(independentChat) : SESSION_CUSTOM_TITLE_SOURCE_KEY, AGENT_HOST_TITLE_SOURCE_AUTO);
 	}
 
 	/** The live title of the addressed independent chat or session. */
@@ -843,6 +857,10 @@ export class AgentHostSessionTitleController extends Disposable {
 			? `This conversation was branched from an earlier chat titled "${framedTitle}". The turns below, oldest first, are the inherited history up to the branch point.\n\n`
 			: undefined;
 		return buildConversationContext(turns, { maxChars: MAX_TITLE_CONTEXT_CHARS, framing });
+	}
+
+	private _persistSessionFlag(session: ProtocolURI, key: string, value: string): void {
+		persistSessionMetadata(this._options.sessionDataService, this._logService, session, key, value);
 	}
 
 	private _isActiveAgentTitleGenerationEnabled(channel: ProtocolURI): boolean {
