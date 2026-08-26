@@ -913,6 +913,23 @@ suite('ProtocolServerHandler', () => {
 		});
 	});
 
+	test('resubscribing an active channel keeps action delivery active', async () => {
+		stateManager.createSession(makeSessionSummary());
+		const transport = connectClient('client-active-resubscribe', [sessionUri]);
+		transport.sent.length = 0;
+		agentService.subscribeBarrier = new DeferredPromise<void>();
+		const responsePromise = waitForResponse(transport, 2);
+
+		transport.simulateMessage(request(2, 'subscribe', { channel: sessionUri }));
+		await Promise.resolve();
+		stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionTitleChanged, title: 'Updated while resubscribing' });
+		const actionsWhilePending = findNotifications(transport.sent, 'action');
+		await agentService.subscribeBarrier.complete();
+		await responsePromise;
+
+		assert.strictEqual(actionsWhilePending.length, 1);
+	});
+
 	test('cancelled subscribe does not clean up a newer subscribe from the same client', async () => {
 		stateManager.createSession(makeSessionSummary());
 		agentService.subscribeBarrier = new DeferredPromise<void>();
@@ -2496,6 +2513,43 @@ suite('ProtocolServerHandler', () => {
 		if (result.type === 'snapshot') {
 			assert.ok(result.snapshots.length > 0, 'should contain snapshots');
 		}
+	});
+
+	test('snapshot reconnect refreshes state after a slower subscription settles', async () => {
+		const slowSessionUri = URI.from({ scheme: 'copilot', path: '/slow-snapshot-session' }).toString();
+		stateManager.createSession(makeSessionSummary());
+		stateManager.createSession(makeSessionSummary(slowSessionUri));
+		const transport1 = connectClient('client-snapshot-refresh', [sessionUri, slowSessionUri]);
+		transport1.simulateClose();
+		for (let i = 0; i < 1100; i++) {
+			stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionTitleChanged, title: `Title ${i}` });
+		}
+		const slowSubscribeBarrier = new DeferredPromise<void>();
+		agentService.subscribeBarriers.set(slowSessionUri, slowSubscribeBarrier);
+
+		const transport2 = new MockProtocolTransport();
+		server.simulateConnection(transport2);
+		const responsePromise = waitForResponse(transport2, 2);
+		transport2.simulateMessage(request(2, 'reconnect', {
+			clientId: 'client-snapshot-refresh',
+			lastSeenServerSeq: 0,
+			subscriptions: [sessionUri, slowSessionUri],
+		}));
+		await Promise.resolve();
+		stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionTitleChanged, title: 'Updated while reconnecting' });
+		await slowSubscribeBarrier.complete();
+		const response = await responsePromise as { result: ReconnectResult };
+		const sessionSnapshot = response.result.type === 'snapshot'
+			? response.result.snapshots.find(snapshot => snapshot.resource.toString() === sessionUri)
+			: undefined;
+
+		assert.deepStrictEqual({
+			type: response.result.type,
+			title: sessionSnapshot && hasKey(sessionSnapshot.state, { title: true }) ? sessionSnapshot.state.title : undefined,
+		}, {
+			type: 'snapshot',
+			title: 'Updated while reconnecting',
+		});
 	});
 
 	test('reconnect rehydrates server-side state that was evicted while disconnected', async () => {
