@@ -11,8 +11,12 @@ import { Color } from '../../../../../base/common/color.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ConfigurationTarget } from '../../../../../platform/configuration/common/configuration.js';
+import { isIMenuItem, isISubmenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
+import { ContextKeyValue } from '../../../../../platform/contextkey/common/contextkey.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { editorBackground, Extensions as ColorRegistryExtensions, IColorRegistry, listHoverBackground, listHoverForeground, listInactiveSelectionBackground, listInactiveSelectionForeground, oneOf, opaque } from '../../../../../platform/theme/common/colorRegistry.js';
 import { foreground } from '../../../../../platform/theme/common/colors/baseColors.js';
@@ -112,6 +116,74 @@ suite('ModernUIContribution', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const colorRegistry = Registry.as<IColorRegistry>(ColorRegistryExtensions.ColorContribution);
 	const themingRegistry = Registry.as<IThemingRegistry>(ThemeServiceExtensions.ThemingContribution);
+
+	test('shows layout density options in the Settings menu only when Modern UI is enabled', () => {
+		const parent = MenuRegistry.getMenuItems(MenuId.GlobalActivity)
+			.filter(isISubmenuItem)
+			.find(item => (typeof item.title === 'string' ? item.title : item.title.value) === 'Layout Density');
+		const options = parent ? MenuRegistry.getMenuItems(parent.submenu).filter(isIMenuItem) : [];
+		const context = (modernUI: boolean, density: ModernUIDensity) => ({
+			getValue: <T extends ContextKeyValue = ContextKeyValue>(key: string) => (
+				key === `config.${LayoutSettings.MODERN_UI}` ? modernUI
+					: key === `config.${LayoutSettings.MODERN_UI_DENSITY}` ? density
+						: undefined
+			) as T,
+		});
+
+		assert.deepStrictEqual({
+			parent: parent && {
+				group: parent.group,
+				order: parent.order,
+				visibleWhenEnabled: parent.when?.evaluate(context(true, ModernUIDensity.Default)),
+				visibleWhenDisabled: parent.when?.evaluate(context(false, ModernUIDensity.Default)),
+			},
+			options: options.map(item => ({
+				title: typeof item.command.title === 'string' ? item.command.title : item.command.title.value,
+				checkedForDefault: item.command.toggled?.evaluate(context(true, ModernUIDensity.Default)),
+				checkedForCompact: item.command.toggled?.evaluate(context(true, ModernUIDensity.Compact)),
+			})),
+		}, {
+			parent: {
+				group: '2_configuration',
+				order: 8,
+				visibleWhenEnabled: true,
+				visibleWhenDisabled: false,
+			},
+			options: [
+				{ title: 'Default', checkedForDefault: true, checkedForCompact: false },
+				{ title: 'Compact', checkedForDefault: false, checkedForCompact: true },
+			],
+		});
+	});
+
+	test('updates the layout density from the Settings menu', async () => {
+		const updates: { key: string; value: unknown }[] = [];
+		const configurationService = new class extends TestConfigurationService {
+			override updateValue(key: string, value: unknown): Promise<void> {
+				updates.push({ key, value });
+				return Promise.resolve();
+			}
+		}();
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IConfigurationService, configurationService);
+		const parent = MenuRegistry.getMenuItems(MenuId.GlobalActivity)
+			.filter(isISubmenuItem)
+			.find(item => (typeof item.title === 'string' ? item.title : item.title.value) === 'Layout Density');
+		assert.ok(parent);
+		const compactOption = MenuRegistry.getMenuItems(parent.submenu)
+			.filter(isIMenuItem)
+			.find(item => item.command.id === 'workbench.action.setLayoutDensity.compact');
+		assert.ok(compactOption);
+		const command = CommandsRegistry.getCommand(compactOption.command.id);
+		assert.ok(command);
+
+		await instantiationService.invokeFunction(accessor => command.handler(accessor));
+
+		assert.deepStrictEqual(updates, [{
+			key: LayoutSettings.MODERN_UI_DENSITY,
+			value: ModernUIDensity.Compact,
+		}]);
+	});
 
 	test('applies startup density and relayouts when density or enablement changes', async () => {
 		const configurationService = new TestConfigurationService({
