@@ -77,7 +77,8 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 		}
 		const updateChannels = (manifest: IExtensionGalleryManifest | null) => {
 			this.logService.trace(`[Marketplace] Updating channels with manifest ${manifest ? 'available' : 'unavailable'}`);
-			channels.forEach(channel => channel.call('setExtensionGalleryManifest', [manifest]));
+			// The shared process and remote server never negotiate a token themselves.
+			channels.forEach(channel => channel.call('setExtensionGalleryManifest', [manifest, this.marketplaceAccessToken, this.marketplaceServiceIndexUrl]));
 		};
 		this.getExtensionGalleryManifest().then(manifest => {
 			if (this._store.isDisposed) {
