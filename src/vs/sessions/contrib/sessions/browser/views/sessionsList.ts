@@ -496,9 +496,9 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 				});
 			}
 
-			// Fire on any height change, not just visibility — the model can swap
-			// one pending approval for another whose label spans a different number
-			// of lines, which changes the reserved row height.
+			// Fire on any height change while onscreen, not just visibility — the
+			// model can swap one pending approval for another whose label spans a
+			// different number of lines, changing the reserved row height.
 			const height = approvalRowHeightFor(info, this.approvalRowMaxLines);
 			if (height !== lastApprovalHeight) {
 				lastApprovalHeight = height;
@@ -583,8 +583,9 @@ function renderApprovalRowContent(
 		// All simultaneously visible "Allow" buttons share the same visible label
 		// and tooltip, so give each an explicit accessible name that names the
 		// command/action it approves — otherwise screen-reader users can't tell
-		// which chat's action a button belongs to.
-		ariaLabel: localize('allowActionAria', "Allow: {0}", info.label),
+		// which chat's action a button belongs to. Keep the "once" scope so the
+		// one-time nature of the permission is still conveyed.
+		ariaLabel: localize('allowActionAria', "Allow once: {0}", info.label),
 		secondary: true,
 		...defaultButtonStyles
 	}));
@@ -1113,9 +1114,9 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 				});
 			}
 
-			// Fire on any height change, not just visibility — the model can swap
-			// one pending approval for another whose label spans a different number
-			// of lines, which changes the reserved row height.
+			// Fire on any height change while onscreen, not just visibility — the
+			// model can swap one pending approval for another whose label spans a
+			// different number of lines, changing the reserved row height.
 			const height = approvalRowHeightFor(info, this.options.approvalRowMaxLines);
 			if (height !== lastApprovalHeight) {
 				lastApprovalHeight = height;
@@ -2250,6 +2251,14 @@ export class SessionsList extends Disposable implements ISessionsList {
 	private sessions: ISession[] = [];
 	private readonly sessionChatsObserver = this._register(new MutableDisposable());
 	private readonly activeSessionUpdate = this._register(new MutableDisposable());
+	/**
+	 * Reactively reconciles each chat row's virtualized height with its live
+	 * approval state. Owned by the list (not the row templates), so an approval
+	 * that appears, clears, or changes line count while a row is virtualized
+	 * offscreen still corrects the ListView's cached height. Re-established after
+	 * every {@link update} because chat items are rebuilt each render.
+	 */
+	private readonly chatApprovalHeightReconcile = this._register(new MutableDisposable());
 	private readonly automationSessions = observableValue<readonly ISession[]>(this, []);
 	private visible = true;
 	private readonly excludedSessionTypes: Set<string>;
@@ -2257,6 +2266,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 	private _excludeArchived: boolean;
 	private _excludeRead: boolean;
 	private workspaceGroupCapped: boolean;
+
+	/** Tree delegate, retained so height reconciliation can recompute row heights. */
+	private _delegate!: SessionsTreeDelegate;
+	/** Approval model tracking pending tool confirmations across the shown chats. */
+	private _approvalModel!: AgentSessionApprovalModel;
 
 	/**
 	 * Maximum number of sessions shown per workspace section or user group.
@@ -2337,6 +2351,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		}, true));
 
 		const approvalModel = this.options.approvalModel ?? this._register(instantiationService.createInstance(AgentSessionApprovalModel));
+		this._approvalModel = approvalModel;
 		const markdownRendererService = instantiationService.invokeFunction(accessor => accessor.get(IMarkdownRendererService));
 		const hoverService = instantiationService.invokeFunction(accessor => accessor.get(IHoverService));
 		const sessionsProvidersService = instantiationService.invokeFunction(accessor => accessor.get(ISessionsProvidersService));
@@ -2418,6 +2433,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		// scoped default of `false`. The reactive height refresh below listens
 		// on the same scoped service for changes.
 		const delegate = new SessionsTreeDelegate(approvalModel, () => !!IsPhoneLayoutContext.getValue(contextKeyService));
+		this._delegate = delegate;
 
 		this.tree = this._register(instantiationService.createInstance(
 			WorkbenchObjectTree<SessionListItem, FuzzyScore>,
@@ -3120,7 +3136,46 @@ export class SessionsList extends Disposable implements ISessionsList {
 		}
 
 		this.tree.setChildren(null, children);
+		this.reconcileChatApprovalHeights();
 		this._onDidUpdate.fire();
+	}
+
+	/**
+	 * (Re-)establish the list-owned autorun that keeps each chat row's cached
+	 * height in sync with its live approval state, independent of whether the row
+	 * is currently rendered. Chat items are rebuilt on every {@link update}, so
+	 * the autorun is recreated to track the current set. Height updates are safe
+	 * to apply to offscreen elements — the ListView corrects its cached size so
+	 * the row shows the right height (and never clips the Allow control) when it
+	 * is next scrolled into view.
+	 */
+	private reconcileChatApprovalHeights(): void {
+		const chatItems: ISessionChatItem[] = [];
+		const collect = (node: ITreeNode<SessionListItem | null, FuzzyScore | undefined>): void => {
+			if (node.element && isSessionChatItem(node.element)) {
+				chatItems.push(node.element);
+			}
+			for (const child of node.children) {
+				collect(child);
+			}
+		};
+		collect(this.tree.getNode());
+
+		if (chatItems.length === 0) {
+			this.chatApprovalHeightReconcile.clear();
+			return;
+		}
+
+		this.chatApprovalHeightReconcile.value = autorun(reader => {
+			for (const chatItem of chatItems) {
+				// Read the approval so the autorun re-runs when it changes; the
+				// delegate derives the row height from the same live model.
+				this._approvalModel.getApproval(chatItem.chat.resource).read(reader);
+				if (this.tree.hasElement(chatItem)) {
+					this.tree.updateElementHeight(chatItem, this._delegate.getHeight(chatItem));
+				}
+			}
+		});
 	}
 
 	private syncActiveChatSelection(activeSession: IActiveSession | undefined): void {
