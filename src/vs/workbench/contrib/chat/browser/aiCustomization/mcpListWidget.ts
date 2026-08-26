@@ -310,14 +310,19 @@ export class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry 
 			const activeSessionServer = element.activeSessionServer === undefined
 				? undefined
 				: this.agentHostCustomizationService.getMcpServers(this.customizationHarnessService.activeSessionResource.get()).find(server => server.id === element.activeSessionServer?.id) ?? element.activeSessionServer;
+			if (localDisabled) {
+				templateData.container.classList.toggle('disabled', true);
+				this.updateStatus(templateData, element, 'disabled');
+				return;
+			}
 			if (activeSessionServer !== undefined) {
 				const presentation = getActiveSessionServerPresentation(activeSessionServer);
 				templateData.container.classList.toggle('disabled', !presentation.enabled);
 				this.updateStatus(templateData, element, presentation.status, presentation.enabled ? undefined : activeSessionServer.disabledReason);
 				return;
 			}
-			templateData.container.classList.toggle('disabled', localDisabled);
-			this.updateStatus(templateData, element, localDisabled ? 'disabled' : undefined);
+			templateData.container.classList.toggle('disabled', false);
+			this.updateStatus(templateData, element, undefined);
 		};
 		templateData.elementDisposables.add(autorun(reader => {
 			localDisabled = element.localServer ? isContributionDisabled(element.localServer.enablement.read(reader)) : false;
@@ -568,11 +573,11 @@ function getMcpStatusKind(entry: IMcpServerItemEntry | IMcpSessionServerItemEntr
 	if (entry.type === 'session-server-item') {
 		return getActiveSessionServerPresentation(entry.server).status;
 	}
-	if (entry.activeSessionServer !== undefined) {
-		return getActiveSessionServerPresentation(entry.activeSessionServer).status;
-	}
 	if (entry.localServer && isContributionDisabled(entry.localServer.enablement.get())) {
 		return 'disabled';
+	}
+	if (entry.activeSessionServer !== undefined) {
+		return getActiveSessionServerPresentation(entry.activeSessionServer).status;
 	}
 	if (entry.type === 'server-item' && !isSessionsWindow) {
 		return entry.localServer?.connectionState.get().state;
@@ -785,9 +790,9 @@ function createAgentHostMcpServerEnablementAction(agentHostCustomizations: IAgen
 /** Creates durable profile/workspace actions for a locally backed built-in server row. */
 export function getLocalMcpServerEnablementActions(mcpService: IMcpService, serverId: string, isEmptyWorkbench: boolean, options: { readonly includeWorkspace?: boolean; readonly activeSessionServer?: AgentHostMcpServer } = {}): IAction[] {
 	const includeWorkspace = options.includeWorkspace ?? true;
-	const disabled = options.activeSessionServer
-		? !getActiveSessionServerPresentation(options.activeSessionServer).enabled
-		: isContributionDisabled(mcpService.enablementModel.readEnabled(serverId));
+	const localDisabled = isContributionDisabled(mcpService.enablementModel.readEnabled(serverId));
+	const sessionDisabled = options.activeSessionServer !== undefined && !getActiveSessionServerPresentation(options.activeSessionServer).enabled;
+	const disabled = localDisabled || sessionDisabled;
 	const actions: IAction[] = [];
 	if (disabled) {
 		actions.push(new Action('mcpServer.builtin.enable', localize('builtinMcpServerEnable', "Enable"), undefined, true, () => {
@@ -819,9 +824,15 @@ export function getBuiltinMcpServerEnablementActions(mcpService: IMcpService, se
 	if (activeSessionServer.isPluginProvided && !activeSessionServer.isClientBundled) {
 		return getAgentHostMcpServerEnablementActions(agentHostCustomizations, agentPluginService, sessionResource, activeSessionServer);
 	}
+	const localActions = getLocalMcpServerEnablementActions(mcpService, serverId, isEmptyWorkbench, { includeWorkspace: false, activeSessionServer });
+	const isLocallyDisabled = isContributionDisabled(mcpService.enablementModel.readEnabled(serverId));
+	const hostActions = getAgentHostMcpServerEnablementActions(agentHostCustomizations, agentPluginService, sessionResource, activeSessionServer, ['workspace', 'session']);
+	const visibleHostActions = isLocallyDisabled
+		? hostActions.filter(action => !action.id.startsWith('mcpServer.agentHost.disable.'))
+		: hostActions;
 	return [
-		...getLocalMcpServerEnablementActions(mcpService, serverId, isEmptyWorkbench, { includeWorkspace: false, activeSessionServer }),
-		...getAgentHostMcpServerEnablementActions(agentHostCustomizations, agentPluginService, sessionResource, activeSessionServer, ['workspace', 'session']),
+		...localActions,
+		...visibleHostActions,
 	];
 }
 
@@ -877,9 +888,12 @@ function isLocalMcpServerWorkspaceEnablementAction(action: IAction): boolean {
 		|| action.id === DisableMcpServerForWorkspaceAction.ID;
 }
 
-export function getServerItemContextMenuActions(menuActionGroups: readonly (readonly IAction[])[], activeSessionServer: AgentHostMcpServer | undefined, activeSessionLifecycleAction: IAction | undefined, agentHostEnablementActions: readonly IAction[]): IAction[] {
+export function getServerItemContextMenuActions(menuActionGroups: readonly (readonly IAction[])[], activeSessionServer: AgentHostMcpServer | undefined, activeSessionLifecycleAction: IAction | undefined, agentHostEnablementActions: readonly IAction[], isLocallyDisabled: boolean = false): IAction[] {
 	const actions: IAction[] = [];
 	const hasActiveSession = activeSessionServer !== undefined;
+	const visibleAgentHostEnablementActions = isLocallyDisabled
+		? agentHostEnablementActions.filter(action => !action.id.startsWith('mcpServer.agentHost.disable.'))
+		: agentHostEnablementActions;
 	let agentHostEnablementAdded = false;
 	if (activeSessionLifecycleAction) {
 		actions.push(activeSessionLifecycleAction, new Separator());
@@ -890,7 +904,7 @@ export function getServerItemContextMenuActions(menuActionGroups: readonly (read
 			: menuActions;
 		actions.push(...visibleMenuActions);
 		if (hasActiveSession && menuActions.some(isLocalMcpServerEnablementAction)) {
-			actions.push(...agentHostEnablementActions);
+			actions.push(...visibleAgentHostEnablementActions);
 			agentHostEnablementAdded = true;
 		}
 		if (visibleMenuActions.length > 0) {
@@ -898,7 +912,7 @@ export function getServerItemContextMenuActions(menuActionGroups: readonly (read
 		}
 	}
 	if (hasActiveSession && !agentHostEnablementAdded) {
-		actions.push(...agentHostEnablementActions);
+		actions.push(...visibleAgentHostEnablementActions);
 	}
 	if (actions[actions.length - 1] instanceof Separator) {
 		actions.pop();
@@ -1817,7 +1831,10 @@ export class McpListWidget extends Disposable {
 				disposables.add(action);
 			}
 		}
-		const actions = getServerItemContextMenuActions(groups, activeSessionServer, activeSessionLifecycleAction, agentHostEnablementActions);
+		const localDisabled = serverEntry.localServer
+			? isContributionDisabled(serverEntry.localServer.enablement.get())
+			: isContributionDisabled(this.mcpService.enablementModel.readEnabled(mcpServer.id));
+		const actions = getServerItemContextMenuActions(groups, activeSessionServer, activeSessionLifecycleAction, agentHostEnablementActions, localDisabled);
 
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,

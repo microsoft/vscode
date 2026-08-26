@@ -344,6 +344,28 @@ suite('mcpListWidget', () => {
 
 			assert.deepStrictEqual(actions.filter(action => !(action instanceof Separator)).map(action => action.label), localActions.map(action => action.label));
 		});
+
+		test('omits agent-host enablement actions when locally disabled', () => {
+			const { service } = createAgentHostCustomizations();
+			const server = createAgentHostServer();
+			const agentHostActions = trackActions(disposables, getAgentHostMcpServerEnablementActions(service, createAgentPluginService(), sessionResource, server, ['workspace', 'session']));
+			const localActions = trackActions(disposables, [
+				new Action(EnableMcpServerGloballyAction.ID, 'Enable'),
+				new Action('unrelated', 'Unrelated'),
+			]);
+			const actions = getServerItemContextMenuActions(
+				[localActions],
+				server,
+				undefined,
+				agentHostActions,
+				true,
+			);
+
+			assert.deepStrictEqual(actions.filter(action => !(action instanceof Separator)).map(action => action.label), [
+				'Enable',
+				'Unrelated',
+			]);
+		});
 	});
 
 	suite('getLocalMcpServerEnablementActions', () => {
@@ -476,6 +498,41 @@ suite('mcpListWidget', () => {
 					enabled: { status: McpServerStatus.Ready, menu: 'Disable' },
 					disabled: { status: 'disabled', menu: 'Enable' },
 				});
+			});
+
+			test('omits host disable actions but retains host enable actions when locally disabled', () => {
+				const { service: disabledMcpService } = createMcpService(ContributionEnablementState.DisabledProfile);
+				const { service: agentHostService } = createAgentHostCustomizations();
+				const enabledServer = createAgentHostServer({ isClientBundled: true });
+				const disabledServer = createAgentHostServer({
+					isClientBundled: true,
+					enabled: false,
+					enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
+				});
+
+				const actionsWithEnabledHost = trackActions(disposables, getBuiltinMcpServerEnablementActions(
+					disabledMcpService,
+					'server-def-id',
+					false,
+					agentHostService,
+					createAgentPluginService(),
+					sessionResource,
+					enabledServer,
+				));
+				// When locally disabled and host server is enabled, host disable actions are omitted
+				assert.deepStrictEqual(actionsWithEnabledHost.map(a => a.label), ['Enable']);
+
+				const actionsWithDisabledHost = trackActions(disposables, getBuiltinMcpServerEnablementActions(
+					disabledMcpService,
+					'server-def-id',
+					false,
+					agentHostService,
+					createAgentPluginService(),
+					sessionResource,
+					disabledServer,
+				));
+				// When locally disabled and host server is disabled, host enable actions are retained
+				assert.deepStrictEqual(actionsWithDisabledHost.map(a => a.label), ['Enable', 'Enable (Workspace)', 'Enable (Session)']);
 			});
 
 			test('keeps legacy VS Code workspace actions without an active agent-host session', () => {
