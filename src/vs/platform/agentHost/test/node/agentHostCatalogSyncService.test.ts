@@ -9,30 +9,34 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../log/common/log.js';
 import type { ISessionCatalogSyncAcknowledgement, ISessionCatalogSyncPendingSnapshot, SessionCatalogSyncWriteResult } from '../../common/sessionDataService.js';
 import { META_GIT_STATE } from '../../common/agentHostGitStateService.js';
-import { AGENT_HOST_CATALOG_PROJECTION_VERSION } from '../../node/agentHostCatalogProjection.js';
+import { AGENT_HOST_CATALOG_PAYLOAD_VERSION, AgentHostCatalogData } from '../../node/agentHostCatalogProjection.js';
 import { AgentHostCatalogSyncService } from '../../node/agentHostCatalogSyncService.js';
-import { AgentHostDatabase, AgentHostDatabaseSessionV2UpsertResult, IAgentHostDatabaseSessionV2Projection } from '../../node/agentHostDatabase.js';
+import { AgentHostDatabase, AgentHostDatabaseSessionV2UpsertResult, IAgentHostDatabaseSessionV2Envelope } from '../../node/agentHostDatabase.js';
 import { createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 
 const session = URI.parse('agenthost:test-session');
 
-function source(title: string, chatTitle = title) {
+function data(summary: string, chatSummary = summary): AgentHostCatalogData {
 	return {
 		modifiedTime: 1,
-		title,
-		titleSource: 'user' as const,
+		summary,
+		titleSource: 'user',
 		isRead: false,
 		isArchived: false,
-		workspaceless: true,
 		workingDirectories: [],
 		chats: [{
 			uri: 'agenthost-chat:test-session/default',
 			order: 0,
-			kind: 'default' as const,
-			title: chatTitle,
-			titleSource: 'user' as const,
+			kind: 'default',
+			summary: chatSummary,
+			titleSource: 'user',
 		}],
 	};
+}
+
+/** Reads the opaque payload the way a downstream reader would, without a SQL projection. */
+function summaryOf(payload: string): string {
+	return JSON.parse(payload).data.summary;
 }
 
 class RecordingSessionDatabase extends TestSessionDatabase {
@@ -46,9 +50,9 @@ class RecordingSessionDatabase extends TestSessionDatabase {
 	}
 
 	override async setMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, snapshot: ISessionCatalogSyncPendingSnapshot): Promise<SessionCatalogSyncWriteResult> {
-		const persistedSource = JSON.parse(snapshot.payload).source;
-		this.calls.push(`local:${snapshot.sourceRevision}:${persistedSource.title}`);
-		this.writes.push({ metadata: { ...values }, title: persistedSource.title, chatTitle: persistedSource.chats[0].title });
+		const persisted = JSON.parse(snapshot.payload).data;
+		this.calls.push(`local:${snapshot.sourceRevision}:${persisted.summary}`);
+		this.writes.push({ metadata: { ...values }, title: persisted.summary, chatTitle: persisted.chats[0].summary });
 		this.order?.push('local');
 		if (this.failLocalWrite) {
 			throw new Error('local write failed');
@@ -93,8 +97,8 @@ class RecordingCatalogDatabase extends AgentHostDatabase {
 		return super.getSessionV2(session);
 	}
 
-	override async upsertSessionV2(projection: IAgentHostDatabaseSessionV2Projection, expectedSessionGeneration: string | undefined): Promise<AgentHostDatabaseSessionV2UpsertResult> {
-		this.calls.push(`upsert:${projection.sourceRevision}:${projection.title}`);
+	override async upsertSessionV2(envelope: IAgentHostDatabaseSessionV2Envelope, expectedSessionGeneration: string | undefined): Promise<AgentHostDatabaseSessionV2UpsertResult> {
+		this.calls.push(`upsert:${envelope.sourceRevision}:${summaryOf(envelope.payload)}`);
 		this.order?.push('upsert');
 		if (this.upsertError) {
 			throw this.upsertError;
@@ -102,10 +106,10 @@ class RecordingCatalogDatabase extends AgentHostDatabase {
 		if (this.seedConcurrentGeneration) {
 			const generation = this.seedConcurrentGeneration;
 			this.seedConcurrentGeneration = undefined;
-			await super.upsertSessionV2({ ...projection, sessionGeneration: generation }, expectedSessionGeneration);
+			await super.upsertSessionV2({ ...envelope, sessionGeneration: generation }, expectedSessionGeneration);
 			return 'generationMismatch';
 		}
-		return this.upsertResult ?? super.upsertSessionV2(projection, expectedSessionGeneration);
+		return this.upsertResult ?? super.upsertSessionV2(envelope, expectedSessionGeneration);
 	}
 }
 
@@ -131,7 +135,7 @@ suite('AgentHostCatalogSyncService', () => {
 		const order: string[] = [];
 		const { local, central, service } = await createHarness(order);
 
-		const result = await service.synchronize(session, { source: source('one'), legacyMetadata: { customTitle: 'one' } });
+		const result = await service.synchronize(session, { data: data('one'), legacyMetadata: { customTitle: 'one' } });
 		const snapshot = await local.getCatalogSyncSnapshot();
 		const catalog = await central.getSessionV2(session.toString());
 
@@ -141,11 +145,11 @@ suite('AgentHostCatalogSyncService', () => {
 			localCalls: local.calls,
 			title: await local.getMetadata('customTitle'),
 			snapshot,
-			catalogTitle: catalog?.title,
+			catalogTitle: catalog && summaryOf(catalog.payload),
 			receiptMatchesCatalog: snapshot?.sessionGeneration === catalog?.sessionGeneration
 				&& snapshot?.sourceRevision === catalog?.sourceRevision
-				&& snapshot?.projectionVersion === catalog?.projectionVersion
-				&& snapshot?.payloadHash === catalog?.sourceHash,
+				&& snapshot?.projectionVersion === catalog?.payloadVersion
+				&& snapshot?.payloadHash === catalog?.payloadHash,
 		}, {
 			result: { status: 'acknowledged', sourceRevision: 0 },
 			order: ['local', 'upsert', 'ack'],
@@ -154,7 +158,7 @@ suite('AgentHostCatalogSyncService', () => {
 			snapshot: {
 				sessionGeneration: snapshot?.sessionGeneration,
 				sourceRevision: 0,
-				projectionVersion: AGENT_HOST_CATALOG_PROJECTION_VERSION,
+				projectionVersion: AGENT_HOST_CATALOG_PAYLOAD_VERSION,
 				payload: undefined,
 				payloadHash: snapshot?.payloadHash,
 				acknowledgedHash: snapshot?.payloadHash,
@@ -169,7 +173,7 @@ suite('AgentHostCatalogSyncService', () => {
 		const { local, central, service } = await createHarness();
 		local.failLocalWrite = true;
 
-		await assert.rejects(service.synchronize(session, { source: source('one'), legacyMetadata: { customTitle: 'one' } }), /local write failed/);
+		await assert.rejects(service.synchronize(session, { data: data('one'), legacyMetadata: { customTitle: 'one' } }), /local write failed/);
 		assert.deepStrictEqual(central.calls, ['get']);
 	});
 
@@ -177,7 +181,7 @@ suite('AgentHostCatalogSyncService', () => {
 		const { local, central, service } = await createHarness();
 		central.upsertError = new Error('central unavailable');
 
-		const result = await service.synchronize(session, { source: source('one'), legacyMetadata: { customTitle: 'one' } });
+		const result = await service.synchronize(session, { data: data('one'), legacyMetadata: { customTitle: 'one' } });
 		const snapshot = await local.getCatalogSyncSnapshot();
 
 		assert.deepStrictEqual({
@@ -195,7 +199,7 @@ suite('AgentHostCatalogSyncService', () => {
 
 	test('replays an acknowledged exact receipt without rewriting sessions_v2', async () => {
 		const { local, central, service } = await createHarness();
-		const request = { source: source('one'), legacyMetadata: { customTitle: 'one' } };
+		const request = { data: data('one'), legacyMetadata: { customTitle: 'one' } };
 
 		const first = await service.synchronize(session, request);
 		const callsAfterFirst = central.calls.length;
@@ -218,77 +222,15 @@ suite('AgentHostCatalogSyncService', () => {
 
 	test('advances the revision when legacy metadata changes without changing the projection hash', async () => {
 		const { local, service } = await createHarness();
-		const catalogSource = source('one');
+		const catalogData = data('one');
 
 		await service.synchronize(session, {
-			source: catalogSource,
+			data: catalogData,
 			legacyMetadata: { customTitle: 'one', [META_GIT_STATE]: '{"branch":"first"}' },
-		});
-
-		test('advances changed content beyond a newer local pending revision after central failure', async () => {
-			const { local, central, service } = await createHarness();
-			await service.synchronize(session, { source: source('H0'), legacyMetadata: { customTitle: 'H0' } });
-			central.upsertError = new Error('central unavailable');
-			const failed = await service.synchronize(session, { source: source('H1'), legacyMetadata: { customTitle: 'H1' } });
-			const pending = await local.getCatalogSyncSnapshot();
-			central.upsertError = undefined;
-
-			const recovered = await service.synchronize(session, { source: source('H2'), legacyMetadata: { customTitle: 'H2' } });
-			const acknowledged = await local.getCatalogSyncSnapshot();
-
-			assert.deepStrictEqual({
-				failed,
-				pending: { revision: pending?.sourceRevision, state: pending?.state, hasPayload: pending?.payload !== undefined },
-				recovered,
-				acknowledged: { revision: acknowledged?.sourceRevision, state: acknowledged?.state, payload: acknowledged?.payload },
-				central: {
-					revision: (await central.getSessionV2(session.toString()))?.sourceRevision,
-					title: (await central.getSessionV2(session.toString()))?.title,
-				},
-				legacyTitle: await local.getMetadata('customTitle'),
-			}, {
-				failed: { status: 'pending', sourceRevision: 1, reason: 'upsertFailed' },
-				pending: { revision: 1, state: 'pending', hasPayload: true },
-				recovered: { status: 'acknowledged', sourceRevision: 2 },
-				acknowledged: { revision: 2, state: 'acknowledged', payload: undefined },
-				central: { revision: 2, title: 'H2' },
-				legacyTitle: 'H2',
-			});
-		});
-
-		test('advances pending content while getSessionV2 is unavailable and later converges without rejection', async () => {
-			const { local, central, service } = await createHarness();
-			await service.synchronize(session, { source: source('H0'), legacyMetadata: { customTitle: 'H0' } });
-			central.getError = new Error('central read unavailable');
-
-			const first = await service.synchronize(session, { source: source('H1'), legacyMetadata: { customTitle: 'H1' } });
-			const second = await service.synchronize(session, { source: source('H2'), legacyMetadata: { customTitle: 'H2' } });
-			const pending = await local.getCatalogSyncSnapshot();
-			central.getError = undefined;
-			const recovered = await service.synchronize(session, { source: source('H2'), legacyMetadata: { customTitle: 'H2' } });
-
-			assert.deepStrictEqual({
-				first,
-				second,
-				pending: { revision: pending?.sourceRevision, state: pending?.state, hasPayload: pending?.payload !== undefined },
-				recovered,
-				central: {
-					revision: (await central.getSessionV2(session.toString()))?.sourceRevision,
-					title: (await central.getSessionV2(session.toString()))?.title,
-				},
-				payload: (await local.getCatalogSyncSnapshot())?.payload,
-			}, {
-				first: { status: 'pending', sourceRevision: 1, reason: 'upsertFailed' },
-				second: { status: 'pending', sourceRevision: 2, reason: 'upsertFailed' },
-				pending: { revision: 2, state: 'pending', hasPayload: true },
-				recovered: { status: 'acknowledged', sourceRevision: 2 },
-				central: { revision: 2, title: 'H2' },
-				payload: undefined,
-			});
 		});
 		const first = await local.getCatalogSyncSnapshot();
 		const result = await service.synchronize(session, {
-			source: catalogSource,
+			data: catalogData,
 			legacyMetadata: { customTitle: 'one', [META_GIT_STATE]: '{"branch":"second"}' },
 		});
 		const second = await local.getCatalogSyncSnapshot();
@@ -308,11 +250,73 @@ suite('AgentHostCatalogSyncService', () => {
 		});
 	});
 
+	test('advances changed content beyond a newer local pending revision after central failure', async () => {
+		const { local, central, service } = await createHarness();
+		await service.synchronize(session, { data: data('H0'), legacyMetadata: { customTitle: 'H0' } });
+		central.upsertError = new Error('central unavailable');
+		const failed = await service.synchronize(session, { data: data('H1'), legacyMetadata: { customTitle: 'H1' } });
+		const pending = await local.getCatalogSyncSnapshot();
+		central.upsertError = undefined;
+
+		const recovered = await service.synchronize(session, { data: data('H2'), legacyMetadata: { customTitle: 'H2' } });
+		const acknowledged = await local.getCatalogSyncSnapshot();
+
+		assert.deepStrictEqual({
+			failed,
+			pending: { revision: pending?.sourceRevision, state: pending?.state, hasPayload: pending?.payload !== undefined },
+			recovered,
+			acknowledged: { revision: acknowledged?.sourceRevision, state: acknowledged?.state, payload: acknowledged?.payload },
+			central: {
+				revision: (await central.getSessionV2(session.toString()))?.sourceRevision,
+				title: summaryOf((await central.getSessionV2(session.toString()))!.payload),
+			},
+			legacyTitle: await local.getMetadata('customTitle'),
+		}, {
+			failed: { status: 'pending', sourceRevision: 1, reason: 'upsertFailed' },
+			pending: { revision: 1, state: 'pending', hasPayload: true },
+			recovered: { status: 'acknowledged', sourceRevision: 2 },
+			acknowledged: { revision: 2, state: 'acknowledged', payload: undefined },
+			central: { revision: 2, title: 'H2' },
+			legacyTitle: 'H2',
+		});
+	});
+
+	test('advances pending content while getSessionV2 is unavailable and later converges without rejection', async () => {
+		const { local, central, service } = await createHarness();
+		await service.synchronize(session, { data: data('H0'), legacyMetadata: { customTitle: 'H0' } });
+		central.getError = new Error('central read unavailable');
+
+		const first = await service.synchronize(session, { data: data('H1'), legacyMetadata: { customTitle: 'H1' } });
+		const second = await service.synchronize(session, { data: data('H2'), legacyMetadata: { customTitle: 'H2' } });
+		const pending = await local.getCatalogSyncSnapshot();
+		central.getError = undefined;
+		const recovered = await service.synchronize(session, { data: data('H2'), legacyMetadata: { customTitle: 'H2' } });
+
+		assert.deepStrictEqual({
+			first,
+			second,
+			pending: { revision: pending?.sourceRevision, state: pending?.state, hasPayload: pending?.payload !== undefined },
+			recovered,
+			central: {
+				revision: (await central.getSessionV2(session.toString()))?.sourceRevision,
+				title: summaryOf((await central.getSessionV2(session.toString()))!.payload),
+			},
+			payload: (await local.getCatalogSyncSnapshot())?.payload,
+		}, {
+			first: { status: 'pending', sourceRevision: 1, reason: 'upsertFailed' },
+			second: { status: 'pending', sourceRevision: 2, reason: 'upsertFailed' },
+			pending: { revision: 2, state: 'pending', hasPayload: true },
+			recovered: { status: 'acknowledged', sourceRevision: 2 },
+			central: { revision: 2, title: 'H2' },
+			payload: undefined,
+		});
+	});
+
 	test('adopts the winning generation after a concurrent first writer', async () => {
 		const { local, central, service } = await createHarness();
 		central.seedConcurrentGeneration = 'winner';
 
-		const result = await service.synchronize(session, { source: source('one'), legacyMetadata: {} });
+		const result = await service.synchronize(session, { data: data('one'), legacyMetadata: {} });
 		const snapshot = await local.getCatalogSyncSnapshot();
 
 		assert.deepStrictEqual({
@@ -330,7 +334,7 @@ suite('AgentHostCatalogSyncService', () => {
 
 	test('delete and recreate uses a new session generation', async () => {
 		const { local, central, service } = await createHarness();
-		await service.synchronize(session, { source: source('one'), legacyMetadata: {} });
+		await service.synchronize(session, { data: data('one'), legacyMetadata: {} });
 		const firstGeneration = (await local.getCatalogSyncSnapshot())?.sessionGeneration;
 		await central.tombstoneAndUnregisterSession(session.toString());
 		await central.clearSessionTombstone(session.toString());
@@ -340,7 +344,7 @@ suite('AgentHostCatalogSyncService', () => {
 			source: 'explicit',
 		}, { checkTombstone: false });
 
-		const result = await service.synchronize(session, { source: source('two'), legacyMetadata: {} });
+		const result = await service.synchronize(session, { data: data('two'), legacyMetadata: {} });
 		const secondGeneration = (await local.getCatalogSyncSnapshot())?.sessionGeneration;
 
 		assert.deepStrictEqual({
@@ -359,9 +363,9 @@ suite('AgentHostCatalogSyncService', () => {
 		const { local, service } = await createHarness();
 		local.blockFirstWrite = new Promise(resolve => releaseFirstWrite = resolve);
 
-		const first = service.synchronize(session, { source: source('one', 'chat-one'), legacyMetadata: { customTitle: 'one' } });
-		const second = service.synchronize(session, { source: source('two', 'chat-two'), legacyMetadata: { customTitle: 'two' } });
-		const third = service.synchronize(session, { source: source('three', 'chat-three'), legacyMetadata: { customTitle: 'three' } });
+		const first = service.synchronize(session, { data: data('one', 'chat-one'), legacyMetadata: { customTitle: 'one' } });
+		const second = service.synchronize(session, { data: data('two', 'chat-two'), legacyMetadata: { customTitle: 'two' } });
+		const third = service.synchronize(session, { data: data('three', 'chat-three'), legacyMetadata: { customTitle: 'three' } });
 		releaseFirstWrite();
 
 		assert.deepStrictEqual({

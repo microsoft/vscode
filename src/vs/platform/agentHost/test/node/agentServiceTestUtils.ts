@@ -18,7 +18,6 @@ import { IAgentEditAttributionService, NullAgentEditAttributionService } from '.
 import { AgentHostLaunchKind } from '../../common/agentHostTelemetry.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { IAgentHostDatabase } from '../../node/agentHostDatabase.js';
-import type { AgentHostCatalogReadMode, IAgentHostCatalogShadowValidationReporter } from '../../node/agentHostCatalogShadowValidator.js';
 import { AgentHostFileMonitorService, IAgentHostFileMonitorService } from '../../node/agentHostFileMonitorService.js';
 import { IAgentHostProxyResolver } from '../../node/agentHostProxyResolver.js';
 import { AgentService } from '../../node/agentService.js';
@@ -59,9 +58,6 @@ export function createTestAgentService(
 	hostLaunchKind = AgentHostLaunchKind.Unknown,
 	storageResource?: URI,
 	orchestratorDatabase?: IAgentHostDatabase,
-	catalogReadMode?: AgentHostCatalogReadMode,
-	catalogShadowReporter?: IAgentHostCatalogShadowValidationReporter,
-	catalogShadowConcurrency?: number,
 ): AgentService {
 	const effectiveFileMonitorService = fileMonitorService ?? new AgentHostFileMonitorService(fileService, logService);
 	const clientConnectionService = new AgentHostClientConnectionService();
@@ -92,9 +88,6 @@ export function createTestAgentService(
 		hostLaunchKind,
 		storageResource,
 		orchestratorDatabase,
-		catalogReadMode,
-		catalogShadowReporter,
-		catalogShadowConcurrency,
 	};
 	const foundationDisposables = new DisposableStore();
 	const foundation = createAgentServiceFoundation({

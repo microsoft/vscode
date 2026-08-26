@@ -5,12 +5,14 @@
 
 import assert from 'assert';
 import * as fs from 'fs/promises';
+import { createHash } from 'crypto';
 import { tmpdir } from 'os';
 import type { Database } from '@vscode/sqlite3';
+import { stableStringify } from '../../../../base/common/objects.js';
 import { join } from '../../../../base/common/path.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { AgentHostDatabase, IAgentHostDatabase, IAgentHostDatabaseSessionV2Projection } from '../../node/agentHostDatabase.js';
+import { AgentHostDatabase, IAgentHostDatabase, IAgentHostDatabaseSessionV2Envelope } from '../../node/agentHostDatabase.js';
 
 function openDatabase(path: string): Promise<Database> {
 	return new Promise((resolve, reject) => {
@@ -34,42 +36,49 @@ function close(database: Database): Promise<void> {
 	return new Promise((resolve, reject) => database.close(error => error ? reject(error) : resolve()));
 }
 
-function createProjection(
+function createPayload(session: string, sourceRevision: number, isChatBacking = false): string {
+	return stableStringify({
+		payloadVersion: 1,
+		data: {
+			modifiedTime: 100 + sourceRevision,
+			summary: `Title ${sourceRevision}`,
+			isRead: true,
+			isArchived: false,
+			isChatBacking,
+			project: { uri: 'file:///project', displayName: 'Project' },
+			_meta: { ehcliAdoptable: true },
+			workingDirectories: ['file:///project', 'file:///project/packages/app'],
+			changes: { files: 2 },
+			chats: [
+				{ kind: 'default', order: 0, summary: 'Default', titleSource: 'auto', uri: `${session}#default` },
+				{ kind: 'peer', order: 1, origin: { type: 'subagent' }, summary: 'Peer', titleSource: 'agent', uri: `${session}#peer` },
+			],
+		},
+	});
+}
+
+function createEnvelope(
 	session: string,
 	sessionGeneration: string,
 	sourceRevision: number,
-	overrides: Partial<IAgentHostDatabaseSessionV2Projection> = {},
-): IAgentHostDatabaseSessionV2Projection {
+	overrides: Partial<IAgentHostDatabaseSessionV2Envelope> = {},
+): IAgentHostDatabaseSessionV2Envelope {
+	const payload = overrides.payload ?? createPayload(session, sourceRevision);
 	return {
 		session,
 		sessionGeneration,
-		modifiedTime: 100 + sourceRevision,
-		title: `Title ${sourceRevision}`,
-		titleSource: 'user',
-		isRead: true,
-		isArchived: false,
-		projectUri: 'file:///project',
-		projectDisplayName: 'Project',
-		workspaceless: false,
-		isChatBacking: false,
-		ehcliAdoptable: true,
-		ehcliAdopted: false,
-		workingDirectoriesJson: '["file:///project","file:///project/packages/app"]',
-		chatsJson: `[{"kind":"default","order":0,"title":"Default","titleSource":"auto","uri":"${session}#default"},{"kind":"peer","order":1,"originJson":"{\\"type\\":\\"subagent\\"}","title":"Peer","titleSource":"agent","uri":"${session}#peer"}]`,
-		multiRootJson: '{"workspaceFile":"file:///project.code-workspace"}',
-		folderPickerJson: '{"hidden":false,"primary":"file:///project"}',
-		changesSummaryJson: '{"files":2}',
-		githubSummaryJson: '{"owner":"microsoft","repo":"vscode"}',
-		gitSummaryJson: '{"branchName":"main"}',
-		sourceControlSummaryJson: '{"latestOutcome":"merge"}',
-		artifactsJson: '[{"id":"artifact","label":"Artifact","type":"file"}]',
-		orchestrationJson: '{"coordinateWithCreator":true,"creatorSession":"session://parent","parentSession":"session://parent"}',
 		sourceRevision,
-		projectionVersion: 4,
-		sourceHash: `hash-${sourceRevision}`,
+		payloadVersion: 1,
+		payloadHash: createHash('sha256').update(payload, 'utf8').digest('hex'),
 		verified: true,
+		payload,
 		...overrides,
 	};
+}
+
+/** The stored row a verified envelope produces for a session registered with `registration`. */
+function storedRow(envelope: IAgentHostDatabaseSessionV2Envelope, registration: object, isChatBacking = false) {
+	return { ...envelope, ...registration, isChatBacking };
 }
 
 async function createPublishedSessionsV2Database(path: string, version: 4 | 5 | 6): Promise<void> {
@@ -202,16 +211,12 @@ suite('AgentHostDatabase sessions_v2', () => {
 				sessionV2Columns: sessionV2Columns.map(row => row.name),
 				sessionV2ForeignKeys,
 			}, {
-				version: [{ user_version: 7 }],
+				version: [{ user_version: 8 }],
 				tables: ['metadata', 'sessions', 'sessions_v2'],
 				sessionColumns: ['session_uri', 'provider', 'start_time', 'external', 'registration_source'],
 				sessionV2Columns: [
-					'session_uri', 'provider', 'start_time', 'external', 'registration_source', 'modified_time',
-					'title', 'title_source', 'is_read', 'is_archived', 'project_uri', 'project_display_name',
-					'workspaceless', 'ehcli_adoptable', 'working_directories_json', 'chats_json', 'multi_root_json',
-					'folder_picker_json', 'changes_summary_json', 'github_summary_json', 'git_summary_json',
-					'source_control_summary_json', 'artifacts_json', 'orchestration_json', 'session_generation',
-					'source_revision', 'projection_version', 'source_hash', 'verified', 'is_chat_backing', 'ehcli_adopted',
+					'session_uri', 'provider', 'start_time', 'external', 'registration_source', 'session_generation',
+					'source_revision', 'payload_version', 'payload_hash', 'verified', 'payload', 'is_chat_backing',
 				],
 				sessionV2ForeignKeys: [],
 			});
@@ -221,7 +226,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 		}
 	});
 
-	test('upgrades published v4 through v6 rows through the independent v7 schema', async () => {
+	test('upgrades published v4 through v6 rows through v8 and invalidates old projections', async () => {
 		const results: object[] = [];
 		for (const version of [4, 5, 6] as const) {
 			const path = join(temporaryDirectory!, `agent-host-published-v${version}.db`);
@@ -253,41 +258,9 @@ suite('AgentHostDatabase sessions_v2', () => {
 
 		assert.deepStrictEqual(results, [4, 5, 6].map(version => ({
 			version,
-			schemaVersion: [{ user_version: 7 }],
+			schemaVersion: [{ user_version: 8 }],
 			foreignKeys: [],
-			published: {
-				session: `session://published-${version}`,
-				provider: 'copilot',
-				startTime: version,
-				external: true,
-				source: 'discovery',
-				sessionGeneration: `generation-${version}`,
-				modifiedTime: 100,
-				title: 'Published',
-				titleSource: 'user',
-				isRead: true,
-				isArchived: false,
-				projectUri: 'file:///project',
-				projectDisplayName: 'Project',
-				workspaceless: false,
-				isChatBacking: version >= 5,
-				ehcliAdoptable: true,
-				ehcliAdopted: version >= 6 ? true : undefined,
-				workingDirectoriesJson: '["file:///project"]',
-				chatsJson: '[]',
-				multiRootJson: '{}',
-				folderPickerJson: '{}',
-				changesSummaryJson: '{}',
-				githubSummaryJson: '{}',
-				gitSummaryJson: '{}',
-				sourceControlSummaryJson: '{}',
-				artifactsJson: '[]',
-				orchestrationJson: '{}',
-				sourceRevision: 7,
-				projectionVersion: 4,
-				sourceHash: 'published-hash',
-				verified: true,
-			},
+			published: undefined,
 			directLegacy: undefined,
 			directCurrent: {
 				session: `session://direct-${version}`,
@@ -297,6 +270,52 @@ suite('AgentHostDatabase sessions_v2', () => {
 				source: 'explicit',
 			},
 		})));
+	});
+
+	test('migrates v7 registry rows to the v8 envelope and requires payload reseeding', async () => {
+		const path = join(temporaryDirectory!, 'agent-host-v7.db');
+		await createPublishedSessionsV2Database(path, 6);
+		const v7Database = await openDatabase(path);
+		await exec(v7Database, 'PRAGMA user_version = 7');
+		await close(v7Database);
+
+		database = new AgentHostDatabase(path);
+		const registration = await database.getSessionV2Registration('session://published-6');
+		const projection = await database.getSessionV2('session://published-6');
+		await database.close();
+		database = undefined;
+
+		const migratedDatabase = await openDatabase(path);
+		const rows = await all(migratedDatabase, `SELECT
+			session_uri, provider, start_time, external, registration_source, session_generation,
+			source_revision, payload_version, payload_hash, verified, payload, is_chat_backing
+			FROM sessions_v2`);
+		await close(migratedDatabase);
+
+		assert.deepStrictEqual({ registration, projection, rows }, {
+			registration: {
+				session: 'session://published-6',
+				provider: 'copilot',
+				startTime: 6,
+				external: true,
+				source: 'discovery',
+			},
+			projection: undefined,
+			rows: [{
+				session_uri: 'session://published-6',
+				provider: 'copilot',
+				start_time: 6,
+				external: 1,
+				registration_source: 'discovery',
+				session_generation: 'generation-6',
+				source_revision: 7,
+				payload_version: 4,
+				payload_hash: 'published-hash',
+				verified: 0,
+				payload: null,
+				is_chat_backing: 1,
+			}],
+		});
 	});
 
 	test('upgrades published v1 through v3 schemas with incomplete v2 rows', async () => {
@@ -368,30 +387,57 @@ suite('AgentHostDatabase sessions_v2', () => {
 			startTime: 42,
 			source: 'restore',
 		}, { checkTombstone: false });
-		const projection = createProjection(session, 'generation-1', 7);
+		const registration = { provider: 'copilot', startTime: 42, external: false, source: 'restore' };
+		const envelope = createEnvelope(session, 'generation-1', 7);
 
-		const result = await database.upsertSessionV2(projection, undefined);
+		const result = await database.upsertSessionV2(envelope, undefined);
+		const { payload, ...receipt } = storedRow(envelope, registration);
 
 		assert.deepStrictEqual({
 			result,
 			row: await database.getSessionV2(session),
 			rows: await database.listSessionsV2(),
+			receipts: await database.listSessionsV2Receipts(),
 		}, {
 			result: 'applied',
-			row: {
-				...projection,
-				provider: 'copilot',
-				startTime: 42,
-				external: false,
-				source: 'restore',
-			},
-			rows: [{
-				...projection,
-				provider: 'copilot',
-				startTime: 42,
-				external: false,
-				source: 'restore',
-			}],
+			row: storedRow(envelope, registration),
+			rows: [storedRow(envelope, registration)],
+			receipts: [receipt],
+		});
+	});
+
+	test('derives is_chat_backing from the validated payload and rejects payloads the envelope does not describe', async () => {
+		database = new AgentHostDatabase(':memory:');
+		const session = 'session://derived';
+		await database.registerSessionV2(session, { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+		const backing = createEnvelope(session, 'generation-1', 1, { payload: createPayload(session, 1, true) });
+		await database.upsertSessionV2(backing, undefined);
+		const backingRow = await database.getSessionV2(session);
+
+		await database.upsertSessionV2(createEnvelope(session, 'generation-1', 2), 'generation-1');
+		const clearedRow = await database.getSessionV2(session);
+
+		await assert.rejects(
+			database.upsertSessionV2({ ...createEnvelope(session, 'generation-1', 3), payloadHash: 'wrong' }, 'generation-1'),
+			/payloadHash must match payload/,
+		);
+		await assert.rejects(
+			database.upsertSessionV2(createEnvelope(session, 'generation-1', 3, { payload: '{"payloadVersion":1,"data":{}}' }), 'generation-1'),
+			/Catalog payload is invalid/,
+		);
+		await assert.rejects(
+			database.upsertSessionV2(createEnvelope(session, 'generation-1', 3, { payload: `{"data":{},"payloadVersion":0}` }), 'generation-1'),
+			/Catalog payload is outdated/,
+		);
+
+		assert.deepStrictEqual({
+			backing: backingRow?.isChatBacking,
+			cleared: clearedRow?.isChatBacking,
+			receipts: (await database.listSessionsV2Receipts()).map(receipt => receipt.isChatBacking),
+		}, {
+			backing: true,
+			cleared: false,
+			receipts: [false],
 		});
 	});
 
@@ -399,15 +445,15 @@ suite('AgentHostDatabase sessions_v2', () => {
 		database = new AgentHostDatabase(':memory:');
 		const session = 'session://ordering';
 		await database.registerSessionV2(session, { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
-		await database.upsertSessionV2(createProjection(session, 'generation-1', 2), undefined);
+		await database.upsertSessionV2(createEnvelope(session, 'generation-1', 2), undefined);
 
 		const results = {
-			stale: await database.upsertSessionV2(createProjection(session, 'generation-1', 1), 'generation-1'),
-			conflict: await database.upsertSessionV2(createProjection(session, 'generation-1', 2, { sourceHash: 'conflict' }), 'generation-1'),
-			replayed: await database.upsertSessionV2(createProjection(session, 'generation-1', 2), 'generation-1'),
-			wrongGeneration: await database.upsertSessionV2(createProjection(session, 'generation-2', 0), 'unknown-generation'),
-			transitioned: await database.upsertSessionV2(createProjection(session, 'generation-2', 0), 'generation-1'),
-			delayedOldGeneration: await database.upsertSessionV2(createProjection(session, 'generation-1', 3), 'generation-1'),
+			stale: await database.upsertSessionV2(createEnvelope(session, 'generation-1', 1), 'generation-1'),
+			conflict: await database.upsertSessionV2(createEnvelope(session, 'generation-1', 2, { payload: createPayload(session, 99) }), 'generation-1'),
+			replayed: await database.upsertSessionV2(createEnvelope(session, 'generation-1', 2), 'generation-1'),
+			wrongGeneration: await database.upsertSessionV2(createEnvelope(session, 'generation-2', 0), 'unknown-generation'),
+			transitioned: await database.upsertSessionV2(createEnvelope(session, 'generation-2', 0), 'generation-1'),
+			delayedOldGeneration: await database.upsertSessionV2(createEnvelope(session, 'generation-1', 3), 'generation-1'),
 		};
 
 		assert.deepStrictEqual({
@@ -422,13 +468,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 				transitioned: 'applied',
 				delayedOldGeneration: 'generationMismatch',
 			},
-			row: {
-				...createProjection(session, 'generation-2', 0),
-				provider: 'copilot',
-				startTime: 1,
-				external: false,
-				source: 'explicit',
-			},
+			row: storedRow(createEnvelope(session, 'generation-2', 0), { provider: 'copilot', startTime: 1, external: false, source: 'explicit' }),
 		});
 	});
 
@@ -439,10 +479,10 @@ suite('AgentHostDatabase sessions_v2', () => {
 			await database.registerSessionV2(session, { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
 		}
 
-		const upsertResults = await Promise.all(sessions.map(session => database!.upsertSessionV2(createProjection(session, 'generation-1', 1), undefined)));
+		const upsertResults = await Promise.all(sessions.map(session => database!.upsertSessionV2(createEnvelope(session, 'generation-1', 1), undefined)));
 		const racingSession = sessions[0];
 		const [racingUpsert] = await Promise.all([
-			database.upsertSessionV2(createProjection(racingSession, 'generation-1', 2), 'generation-1'),
+			database.upsertSessionV2(createEnvelope(racingSession, 'generation-1', 2), 'generation-1'),
 			database.unregisterSessionV2(racingSession),
 		]);
 
@@ -463,7 +503,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 		database = new AgentHostDatabase(':memory:');
 		const session = 'session://provenance';
 		await database.registerSessionV2(session, { provider: 'copilot', startTime: 1, source: 'discovery' }, { checkTombstone: true });
-		await database.upsertSessionV2(createProjection(session, 'generation-1', 1), undefined);
+		await database.upsertSessionV2(createEnvelope(session, 'generation-1', 1), undefined);
 		const discovered = await database.getSessionV2(session);
 
 		await database.registerSessionV2(session, { provider: 'ignored-provider', startTime: 2, source: 'restore' }, { checkTombstone: false });
@@ -487,7 +527,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 		const session = 'session://external-backfill';
 		database = new AgentHostDatabase(path);
 		await database.registerSessionV2(session, { provider: 'copilot', startTime: 1, source: 'restore' }, { checkTombstone: false });
-		await database.upsertSessionV2(createProjection(session, 'generation-1', 1), undefined);
+		await database.upsertSessionV2(createEnvelope(session, 'generation-1', 1), undefined);
 		await database.close();
 		database = undefined;
 
@@ -566,7 +606,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 		const session = 'session://runtime-provenance';
 		database = new AgentHostDatabase(path);
 		await database.registerRuntimeSession(session, { provider: 'copilot', startTime: 1, source: 'restore' }, { checkTombstone: false });
-		await database.upsertSessionV2(createProjection(session, 'generation-1', 3), undefined);
+		await database.upsertSessionV2(createEnvelope(session, 'generation-1', 3), undefined);
 		await database.close();
 		database = undefined;
 
@@ -630,7 +670,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 		database = new AgentHostDatabase(path);
 		const currentOnly = 'session://current-only';
 		await database.registerSessionV2(currentOnly, { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
-		await database.upsertSessionV2(createProjection(currentOnly, 'generation-1', 1), undefined);
+		await database.upsertSessionV2(createEnvelope(currentOnly, 'generation-1', 1), undefined);
 		await database.registerSession(currentOnly, { provider: 'claude', startTime: 99, source: 'discovery' }, { checkTombstone: true });
 		await database.unregisterSession(currentOnly);
 		await database.close();
@@ -649,13 +689,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 			oldBuildSessionV2: await database.getSessionV2Registration('session://old-build'),
 		}, {
 			currentOnlyLegacy: undefined,
-			currentOnlyV2: {
-				...createProjection(currentOnly, 'generation-1', 1),
-				provider: 'copilot',
-				startTime: 1,
-				external: false,
-				source: 'explicit',
-			},
+			currentOnlyV2: storedRow(createEnvelope(currentOnly, 'generation-1', 1), { provider: 'copilot', startTime: 1, external: false, source: 'explicit' }),
 			oldBuildSession: { session: 'session://old-build', provider: 'copilot', startTime: 2, external: true, source: 'discovery' },
 			oldBuildSessionV2: undefined,
 		});
@@ -666,7 +700,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 		const session = 'session://old-build-orphan';
 		database = new AgentHostDatabase(path);
 		await database.registerSessionV2(session, { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
-		await database.upsertSessionV2(createProjection(session, 'generation-1', 1), undefined);
+		await database.upsertSessionV2(createEnvelope(session, 'generation-1', 1), undefined);
 		await database.close();
 		database = undefined;
 
@@ -682,20 +716,8 @@ suite('AgentHostDatabase sessions_v2', () => {
 			list: await database.listSessionsV2(),
 		}, {
 			orphanRows: [{ session_uri: session }],
-			get: {
-				...createProjection(session, 'generation-1', 1),
-				provider: 'copilot',
-				startTime: 1,
-				external: false,
-				source: 'explicit',
-			},
-			list: [{
-				...createProjection(session, 'generation-1', 1),
-				provider: 'copilot',
-				startTime: 1,
-				external: false,
-				source: 'explicit',
-			}],
+			get: storedRow(createEnvelope(session, 'generation-1', 1), { provider: 'copilot', startTime: 1, external: false, source: 'explicit' }),
+			list: [storedRow(createEnvelope(session, 'generation-1', 1), { provider: 'copilot', startTime: 1, external: false, source: 'explicit' })],
 		});
 	});
 
@@ -703,7 +725,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 		database = new AgentHostDatabase(':memory:');
 		const session = 'session://tombstoned-read';
 		await database.registerSessionV2(session, { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
-		await database.upsertSessionV2(createProjection(session, 'generation-1', 1), undefined);
+		await database.upsertSessionV2(createEnvelope(session, 'generation-1', 1), undefined);
 		await database.tombstoneAndUnregisterSession(session);
 		const imported = await database.registerSessionV2(session, { provider: 'copilot', startTime: 2, source: 'discovery' }, { checkTombstone: true });
 		const explicit = await database.registerSessionV2(session, { provider: 'claude', startTime: 3, source: 'explicit' }, { checkTombstone: false });
@@ -723,7 +745,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 		});
 	});
 
-	test('projection-versioned markers do not alter old marker semantics', async () => {
+	test('payload-versioned markers do not alter old marker semantics', async () => {
 		database = new AgentHostDatabase(':memory:');
 		await database.markSessionRegistryBackfilled();
 		await database.markProviderBackfilled('copilot');
@@ -766,7 +788,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 		database = new AgentHostDatabase(':memory:');
 		const session = 'copilot:/excluded';
 		await database.registerSessionV2(session, { provider: 'copilot', startTime: 1, source: 'discovery' }, { checkTombstone: true });
-		await database.upsertSessionV2(createProjection(session, 'generation-1', 1), undefined);
+		await database.upsertSessionV2(createEnvelope(session, 'generation-1', 1), undefined);
 		await database.excludeSessionV2({
 			provider: 'copilot',
 			session,
@@ -817,7 +839,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 		const excluded = 'copilot:/atomic-exclusion';
 		const registered = 'copilot:/registered-before-batch';
 		await database.registerSessionV2(excluded, { provider: 'copilot', startTime: 1, source: 'discovery' }, { checkTombstone: true });
-		await database.upsertSessionV2(createProjection(excluded, 'generation-1', 1), undefined);
+		await database.upsertSessionV2(createEnvelope(excluded, 'generation-1', 1), undefined);
 
 		await database.excludeSessionV2({
 			provider: 'copilot',
@@ -825,7 +847,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 			reason: 'staleExternal',
 			fingerprint: '1',
 		});
-		const excludedUpsert = await database.upsertSessionV2(createProjection(excluded, 'generation-1', 2), 'generation-1');
+		const excludedUpsert = await database.upsertSessionV2(createEnvelope(excluded, 'generation-1', 2), 'generation-1');
 
 		await database.registerSessionV2(registered, { provider: 'copilot', startTime: 2, source: 'discovery' }, { checkTombstone: true });
 		await database.markSessionsV2ExcludedBatch?.([{

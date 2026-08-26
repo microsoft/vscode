@@ -3,37 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from '../../../base/common/uri.js';
 import { AgentSession, type IAgentSessionMetadata } from '../common/agent.js';
-import { SessionArtifactType, withSessionArtifacts } from '../common/sessionArtifacts.js';
-import { SessionSourceControlOutcome, SessionStatus, withSessionEhcliAdoptable, withSessionEhcliAdopted, withSessionExternal, withSessionFolderPickerDecision, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionOrchestration, withSessionSourceControlState, withSessionStatusFlag, withSessionWorkspaceless } from '../common/state/sessionState.js';
-import { AGENT_HOST_CATALOG_PROJECTION_VERSION, parseAgentHostDatabaseCatalog, type IAgentHostCatalogSource } from './agentHostCatalogProjection.js';
+import { SessionStatus, withSessionExternal, withSessionStatusFlag } from '../common/state/sessionState.js';
+import { AGENT_HOST_CATALOG_PAYLOAD_VERSION, decodeAgentHostCatalogPayload, reviveAgentHostCatalogData, type AgentHostCatalogRevivedData } from './agentHostCatalogProjection.js';
 import type { IAgentHostDatabase } from './agentHostDatabase.js';
 import type { IRegisteredSession } from './agentSessionRegistry.js';
 
-const artifactTypes = {
-	pullRequest: SessionArtifactType.PullRequest,
-	issue: SessionArtifactType.Issue,
-	commit: SessionArtifactType.Commit,
-	website: SessionArtifactType.Website,
-	file: SessionArtifactType.File,
-	resource: SessionArtifactType.Resource,
-} as const;
-
-export type AgentHostCatalogListIneligibilityReason =
-	| 'missingCatalog'
-	| 'chatBacking'
-	| 'identityMismatch'
-	| 'providerMismatch'
-	| 'outdated'
-	| 'malformed'
-	| 'readError';
-
 export type AgentHostCatalogListResult =
-	| { readonly eligible: true; readonly metadata: IAgentSessionMetadata; readonly source: IAgentHostCatalogSource }
-	| { readonly eligible: false; readonly reason: Exclude<AgentHostCatalogListIneligibilityReason, 'readError'> }
-	| { readonly eligible: false; readonly reason: 'readError'; readonly error: Error };
+	/** The central row is authoritative for this session's listing. */
+	| { readonly eligible: true; readonly metadata: IAgentSessionMetadata; readonly data: AgentHostCatalogRevivedData }
+	/**
+	 * The central row marks the session as a chat backing. It is deliberately
+	 * hidden and must never fall back into the top-level list.
+	 */
+	| { readonly eligible: false; readonly chatBacking: true }
+	/** The central row is missing, stale or unusable; the caller falls back and schedules a repair. */
+	| { readonly eligible: false; readonly chatBacking: false; readonly detail: string; readonly error?: Error };
 
+/**
+ * Eligibility boundary between the `sessions_v2` catalog and the session list:
+ * it checks that a stored row still describes the registered session, then
+ * hands the payload's own decoded data to the caller without re-parsing it.
+ */
 export class AgentHostCatalogListReader {
 
 	constructor(private readonly _catalogDatabase: IAgentHostDatabase) { }
@@ -43,78 +34,60 @@ export class AgentHostCatalogListReader {
 		try {
 			const catalog = await this._catalogDatabase.getSessionV2(session);
 			if (!catalog) {
-				return { eligible: false, reason: 'missingCatalog' };
+				return ineligible('no central row');
 			}
 			if (catalog.session !== session) {
-				return { eligible: false, reason: 'identityMismatch' };
+				return ineligible(`central row identity ${catalog.session} does not match`);
 			}
 			if (catalog.isChatBacking) {
-				return { eligible: false, reason: 'chatBacking' };
+				return { eligible: false, chatBacking: true };
 			}
 			if (AgentSession.provider(registered.session) !== registered.provider || catalog.provider !== registered.provider) {
-				return { eligible: false, reason: 'providerMismatch' };
+				return ineligible(`central row provider ${catalog.provider} does not match ${registered.provider}`);
 			}
-			if (catalog.projectionVersion !== AGENT_HOST_CATALOG_PROJECTION_VERSION) {
-				return { eligible: false, reason: 'outdated' };
+			if (catalog.payloadVersion !== AGENT_HOST_CATALOG_PAYLOAD_VERSION) {
+				return ineligible(`central row payload version ${catalog.payloadVersion} is outdated`);
 			}
-			const parsed = parseAgentHostDatabaseCatalog(catalog);
-			if (!parsed.ok) {
-				return { eligible: false, reason: 'malformed' };
+			const decoded = decodeAgentHostCatalogPayload(catalog.payload);
+			if (!decoded.ok) {
+				return ineligible(`central payload is ${decoded.reason}: ${decoded.error}`);
 			}
-			return {
-				eligible: true,
-				metadata: this._toSessionMetadata(registered, parsed.value.source),
-				source: parsed.value.source,
-			};
+			// A payload can only become chat-backing through a write that also
+			// updates the row marker, but an inconsistent row must still hide
+			// the session rather than surface a backing as a top-level entry.
+			if (decoded.value.data.isChatBacking) {
+				return { eligible: false, chatBacking: true };
+			}
+			const data = reviveAgentHostCatalogData(decoded.value.data);
+			return { eligible: true, metadata: this._toSessionMetadata(registered, data), data };
 		} catch (error) {
 			return {
 				eligible: false,
-				reason: 'readError',
+				chatBacking: false,
+				detail: 'central row read failed',
 				error: error instanceof Error ? error : new Error(String(error)),
 			};
 		}
 	}
 
-	private _toSessionMetadata(registered: IRegisteredSession, source: IAgentHostCatalogSource): IAgentSessionMetadata {
-		let status = withSessionStatusFlag(SessionStatus.Idle, SessionStatus.IsRead, source.isRead);
-		status = withSessionStatusFlag(status, SessionStatus.IsArchived, source.isArchived);
-
-		let meta = withSessionExternal(undefined, registered.external);
-		meta = withSessionWorkspaceless(meta, source.workspaceless);
-		if (source.ehcliAdoptable) {
-			meta = withSessionEhcliAdoptable(meta);
-		}
-		meta = withSessionEhcliAdopted(meta, source.ehcliAdopted === true);
-		meta = withSessionMultiRootMetadata(meta, source.multiRoot);
-		meta = withSessionFolderPickerDecision(meta, source.folderPicker);
-		meta = withSessionGitHubState(meta, source.github);
-		meta = withSessionGitState(meta, source.git);
-		meta = withSessionSourceControlState(meta, source.sourceControl ? {
-			merge: source.sourceControl.merge,
-			latestOutcome: source.sourceControl.latestOutcome === 'merge'
-				? SessionSourceControlOutcome.Merge
-				: source.sourceControl.latestOutcome === 'pullRequest'
-					? SessionSourceControlOutcome.PullRequest
-					: undefined,
-		} : undefined);
-		meta = withSessionArtifacts(meta, source.artifacts?.map(artifact => ({
-			...artifact,
-			type: artifactTypes[artifact.type],
-		})) ?? []);
-		if (source.orchestration) {
-			meta = withSessionOrchestration(meta, source.orchestration);
-		}
-
+	private _toSessionMetadata(registered: IRegisteredSession, data: AgentHostCatalogRevivedData): IAgentSessionMetadata {
+		let status = withSessionStatusFlag(SessionStatus.Idle, SessionStatus.IsRead, data.isRead);
+		status = withSessionStatusFlag(status, SessionStatus.IsArchived, data.isArchived);
+		const meta = withSessionExternal(data._meta, registered.external);
 		return {
 			session: registered.session,
 			startTime: registered.startTime,
-			modifiedTime: source.modifiedTime,
-			summary: source.title,
+			modifiedTime: data.modifiedTime,
+			summary: data.summary,
 			status,
-			project: source.project ? { uri: URI.parse(source.project.uri), displayName: source.project.displayName } : undefined,
-			workingDirectories: source.workingDirectories.map(directory => URI.parse(directory)),
-			changes: source.changes,
+			project: data.project,
+			workingDirectories: [...data.workingDirectories],
+			changes: data.changes,
 			...(meta !== undefined ? { _meta: meta } : {}),
 		};
 	}
+}
+
+function ineligible(detail: string): AgentHostCatalogListResult {
+	return { eligible: false, chatBacking: false, detail };
 }

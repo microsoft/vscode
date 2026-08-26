@@ -6,12 +6,11 @@
 import { disposableTimeout, Limiter } from '../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { Disposable, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
-import { equals } from '../../../base/common/objects.js';
 import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
 import type { ISessionCatalogSyncAcknowledgement, ISessionCatalogSyncPendingSnapshot, ISessionDataService } from '../common/sessionDataService.js';
-import { AGENT_HOST_CATALOG_PROJECTION_VERSION, parseAgentHostCatalogSourcePayload, projectAgentHostCatalog } from './agentHostCatalogProjection.js';
-import { AgentHostCatalogSyncResult, AgentHostCatalogSyncService, IAgentHostCatalogSyncRequest } from './agentHostCatalogSyncService.js';
+import { AGENT_HOST_CATALOG_PAYLOAD_VERSION, decodeAgentHostCatalogPayload, encodeAgentHostCatalogPayload, hashAgentHostCatalogPayload } from './agentHostCatalogProjection.js';
+import { AgentHostCatalogSyncResult, AgentHostCatalogSyncService, catalogLegacyMetadataMatches, IAgentHostCatalogSyncRequest, matchesAcknowledgedCatalogReceipt } from './agentHostCatalogSyncService.js';
 import type { AgentHostDatabaseSessionV2UpsertResult, IAgentHostDatabase } from './agentHostDatabase.js';
 import type { IRegisteredSession } from './agentSessionRegistry.js';
 import type { IAgentHostStorageService } from './agentHostStorageService.js';
@@ -198,7 +197,19 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 			try {
 				const snapshot = await database.object.getCatalogSyncSnapshot();
 				let replayedRevision: number | undefined;
-				if (snapshot?.state === 'pending') {
+				// A pending snapshot written by a *different* build carries that
+				// build's projection, which this build cannot replay verbatim.
+				// It is still evidence that the central row is stale, so the
+				// session falls through to a full re-projection from its own
+				// metadata instead of being reported as malformed — otherwise a
+				// downgrade would leave the older build's writes unreachable
+				// forever, since the central row it could not update stays
+				// valid and keeps serving the pre-downgrade values.
+				const replayable = snapshot?.state === 'pending' && snapshot.projectionVersion === AGENT_HOST_CATALOG_PAYLOAD_VERSION;
+				if (snapshot?.state === 'pending' && !replayable) {
+					this._logService.trace(`[AgentHostCatalogReconciliation] Pending snapshot for ${sessionKey} uses projection version ${snapshot.projectionVersion}; re-projecting instead of replaying`);
+				}
+				if (replayable) {
 					const replay = await this._catalogSyncService.runExclusive(
 						session,
 						async () => {
@@ -234,37 +245,20 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 				if (token.isCancellationRequested) {
 					return { session: sessionKey, status: 'retry', reason: 'cancelled' };
 				}
-				const metadataKeys: Record<string, true> = {};
-				for (const key of Object.keys(sourceResult.request.legacyMetadata)) {
-					metadataKeys[key] = true;
-				}
-				const persistedMetadata = await database.object.getMetadataObject(metadataKeys);
-				const legacyMetadataMatches = Object.entries(sourceResult.request.legacyMetadata)
-					.every(([key, value]) => persistedMetadata[key] === value);
+				const legacyMetadataMatches = await catalogLegacyMetadataMatches(database.object, sourceResult.request.legacyMetadata);
 				if (token.isCancellationRequested) {
 					return { session: sessionKey, status: 'retry', reason: 'cancelled' };
 				}
 
 				const central = await this._catalogDatabase.getSessionV2(sessionKey);
-				if (currentSnapshot?.state === 'acknowledged' && central) {
-					const expected = projectAgentHostCatalog(sourceResult.request.source, {
-						session: sessionKey,
-						sessionGeneration: central.sessionGeneration,
-						sourceRevision: currentSnapshot.sourceRevision,
-					});
-					if (expected.ok
-						&& currentSnapshot.projectionVersion === AGENT_HOST_CATALOG_PROJECTION_VERSION
-						&& currentSnapshot.payloadHash === expected.value.catalog.sourceHash
-						&& currentSnapshot.sessionGeneration === central.sessionGeneration
-						&& currentSnapshot.sourceRevision === central.sourceRevision
-						&& currentSnapshot.projectionVersion === central.projectionVersion
-						&& currentSnapshot.payloadHash === central.sourceHash
-						&& legacyMetadataMatches
-						&& equals(central, { ...expected.value.catalog, provider: central.provider, startTime: central.startTime, external: central.external, source: central.source })) {
-						return replayedRevision === undefined
-							? { session: sessionKey, status: 'skipped', reason: 'synchronized' }
-							: { session: sessionKey, status: 'succeeded', reason: 'pendingReplayed', sourceRevision: replayedRevision };
-					}
+				const expected = encodeAgentHostCatalogPayload(sourceResult.request.data);
+				if (legacyMetadataMatches
+					&& expected.ok
+					&& currentSnapshot?.payloadHash === expected.value.payloadHash
+					&& matchesAcknowledgedCatalogReceipt(currentSnapshot, central)) {
+					return replayedRevision === undefined
+						? { session: sessionKey, status: 'skipped', reason: 'synchronized' }
+						: { session: sessionKey, status: 'succeeded', reason: 'pendingReplayed', sourceRevision: replayedRevision };
 				}
 
 				if (token.isCancellationRequested) {
@@ -293,25 +287,16 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 		token: CancellationToken,
 	): Promise<Extract<AgentHostCatalogReconciliationOutcome, { status: 'succeeded' | 'retry' | 'failed' }>> {
 		const sessionKey = session.toString();
-		const parsed = parseAgentHostCatalogSourcePayload(snapshot.payload);
-		if (!parsed.ok || snapshot.projectionVersion !== AGENT_HOST_CATALOG_PROJECTION_VERSION) {
-			return { session: sessionKey, status: 'failed', reason: 'malformedPayload', error: parsed.ok ? 'Unsupported projection version' : `${parsed.error.field}: ${parsed.error.message}` };
+		const decoded = decodeAgentHostCatalogPayload(snapshot.payload);
+		if (!decoded.ok || snapshot.projectionVersion !== AGENT_HOST_CATALOG_PAYLOAD_VERSION) {
+			return { session: sessionKey, status: 'failed', reason: 'malformedPayload', error: decoded.ok ? 'Unsupported payload version' : decoded.error };
+		}
+		if (decoded.value.payload !== snapshot.payload || hashAgentHostCatalogPayload(snapshot.payload) !== snapshot.payloadHash) {
+			return { session: sessionKey, status: 'failed', reason: 'payloadMismatch', error: 'Pending payload is not canonical or its hash does not match' };
 		}
 		let central = await this._catalogDatabase.getSessionV2(sessionKey);
 		if (central && central.sessionGeneration !== snapshot.sessionGeneration) {
 			return { session: sessionKey, status: 'retry', reason: 'staleIncarnation' };
-		}
-		if (token.isCancellationRequested) {
-			return { session: sessionKey, status: 'retry', reason: 'cancelled' };
-		}
-
-		const projection = projectAgentHostCatalog(parsed.value.source, {
-			session: sessionKey,
-			sessionGeneration: snapshot.sessionGeneration,
-			sourceRevision: snapshot.sourceRevision,
-		});
-		if (!projection.ok || projection.value.sourcePayload !== snapshot.payload || projection.value.catalog.sourceHash !== snapshot.payloadHash) {
-			return { session: sessionKey, status: 'failed', reason: 'payloadMismatch', error: projection.ok ? 'Payload hash does not match canonical source' : `${projection.error.field}: ${projection.error.message}` };
 		}
 		if (token.isCancellationRequested) {
 			return { session: sessionKey, status: 'retry', reason: 'cancelled' };
@@ -329,7 +314,15 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 
 		let applyResult: AgentHostDatabaseSessionV2UpsertResult;
 		try {
-			applyResult = await this._catalogDatabase.upsertSessionV2(projection.value.catalog, central?.sessionGeneration);
+			applyResult = await this._catalogDatabase.upsertSessionV2({
+				session: sessionKey,
+				sessionGeneration: snapshot.sessionGeneration,
+				sourceRevision: snapshot.sourceRevision,
+				payloadVersion: AGENT_HOST_CATALOG_PAYLOAD_VERSION,
+				payloadHash: snapshot.payloadHash,
+				verified: true,
+				payload: snapshot.payload,
+			}, central?.sessionGeneration);
 		} catch (error) {
 			return { session: sessionKey, status: 'failed', reason: 'centralApplyFailed', error: error instanceof Error ? error.message : String(error) };
 		}

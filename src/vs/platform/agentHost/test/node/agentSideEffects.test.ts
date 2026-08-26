@@ -5219,12 +5219,14 @@ suite('AgentSideEffects', () => {
 
 			// Persist a custom title in the DB
 			await sessionDb.setMetadata('customTitle', 'My Custom Title');
+			// The catalog is authoritative for the listing, so a title written
+			// straight to session.db surfaces once reconciliation folds it in.
+			await localService.whenCatalogReconciliationIdle();
+			(localService as unknown as { _invalidateSessionList(): void })._invalidateSessionList();
 
 			const sessions = await localService.listSessions();
 			assert.strictEqual(sessions.length, 1);
-			// Custom title comes from the DB and is returned via the agent's listSessions
-			// The mock agent summary is used; the service doesn't read the DB for list
-			assert.ok(sessions[0].summary);
+			assert.strictEqual(sessions[0].summary, 'My Custom Title');
 		});
 
 		test('handleRestoreSession uses persisted custom title', async () => {

@@ -13,28 +13,33 @@ import { NullLogService } from '../../../log/common/log.js';
 import type { ISessionDataService } from '../../common/sessionDataService.js';
 import { AgentHostCatalogReconciliationService, AgentHostCatalogReconciliationSourceResult } from '../../node/agentHostCatalogReconciliationService.js';
 import { AgentHostCatalogSyncService } from '../../node/agentHostCatalogSyncService.js';
-import { AgentHostDatabase, AgentHostDatabaseSessionV2UpsertResult, IAgentHostDatabaseSessionV2Projection } from '../../node/agentHostDatabase.js';
+import { AgentHostCatalogData, AGENT_HOST_CATALOG_PAYLOAD_VERSION } from '../../node/agentHostCatalogProjection.js';
+import { AgentHostDatabase, AgentHostDatabaseSessionV2UpsertResult, IAgentHostDatabaseSessionV2Envelope } from '../../node/agentHostDatabase.js';
 import type { IRegisteredSession } from '../../node/agentSessionRegistry.js';
 import type { IAgentHostStorageService } from '../../node/agentHostStorageService.js';
 import { TestSessionDatabase } from '../common/sessionTestHelpers.js';
 
-function catalogSource(title: string) {
+function catalogData(summary: string): AgentHostCatalogData {
 	return {
 		modifiedTime: 1,
-		title,
-		titleSource: 'user' as const,
+		summary,
+		titleSource: 'user',
 		isRead: false,
 		isArchived: false,
-		workspaceless: true,
 		workingDirectories: [],
 		chats: [{
-			uri: `agenthost-chat:${title}/default`,
+			uri: `agenthost-chat:${summary}/default`,
 			order: 0,
-			kind: 'default' as const,
-			title,
-			titleSource: 'user' as const,
+			kind: 'default',
+			summary,
+			titleSource: 'user',
 		}],
 	};
+}
+
+/** Reads the opaque payload the way a downstream reader would, without a SQL projection. */
+function summaryOf(payload: string): string {
+	return JSON.parse(payload).data.summary;
 }
 
 function registered(name: string): IRegisteredSession {
@@ -75,12 +80,12 @@ class RecordingCatalogDatabase extends AgentHostDatabase {
 		super(':memory:');
 	}
 
-	override async upsertSessionV2(projection: IAgentHostDatabaseSessionV2Projection, expectedSessionGeneration: string | undefined): Promise<AgentHostDatabaseSessionV2UpsertResult> {
+	override async upsertSessionV2(envelope: IAgentHostDatabaseSessionV2Envelope, expectedSessionGeneration: string | undefined): Promise<AgentHostDatabaseSessionV2UpsertResult> {
 		this.upsertCalls++;
 		if (this.failUpsert) {
 			throw new Error('central unavailable');
 		}
-		return super.upsertSessionV2(projection, expectedSessionGeneration);
+		return super.upsertSessionV2(envelope, expectedSessionGeneration);
 	}
 }
 
@@ -132,7 +137,7 @@ suite('AgentHostCatalogReconciliationService', () => {
 			sync,
 			createService: (resolveSource = async session => ({
 				status: 'available',
-				request: { source: catalogSource(session.session.path), legacyMetadata: { customTitle: session.session.path } },
+				request: { data: catalogData(session.session.path), legacyMetadata: { customTitle: session.session.path } },
 			})) => store.add(new AgentHostCatalogReconciliationService(
 				sessionDataService,
 				central,
@@ -148,7 +153,7 @@ suite('AgentHostCatalogReconciliationService', () => {
 	test('skips only an exact sessions_v2 row, compact receipt, and canonical legacy match', async () => {
 		const harness = await createHarness(['one']);
 		const session = registered('one');
-		await harness.sync.synchronize(session.session, { source: catalogSource('one'), legacyMetadata: { customTitle: 'one' } });
+		await harness.sync.synchronize(session.session, { data: catalogData('one'), legacyMetadata: { customTitle: 'one' } });
 		harness.central.upsertCalls = 0;
 		const service = harness.createService();
 
@@ -170,7 +175,7 @@ suite('AgentHostCatalogReconciliationService', () => {
 		const harness = await createHarness(['one']);
 		const session = registered('one');
 		harness.central.failUpsert = true;
-		await harness.sync.synchronize(session.session, { source: catalogSource('one'), legacyMetadata: { customTitle: 'one' } });
+		await harness.sync.synchronize(session.session, { data: catalogData('one'), legacyMetadata: { customTitle: 'one' } });
 		const pending = await requiredLocal(harness.locals, session.session).getCatalogSyncSnapshot();
 		harness.central.failUpsert = false;
 
@@ -181,7 +186,7 @@ suite('AgentHostCatalogReconciliationService', () => {
 			before: { state: pending?.state, hasPayload: pending?.payload !== undefined },
 			outcomes: report.outcomes,
 			after: { state: acknowledged?.state, payload: acknowledged?.payload },
-			catalogTitle: (await harness.central.getSessionV2(session.session.toString()))?.title,
+			catalogTitle: summaryOf((await harness.central.getSessionV2(session.session.toString()))!.payload),
 		}, {
 			before: { state: 'pending', hasPayload: true },
 			outcomes: [{ session: 'agenthost:one', status: 'succeeded', reason: 'pendingReplayed', sourceRevision: 0 }],
@@ -193,18 +198,18 @@ suite('AgentHostCatalogReconciliationService', () => {
 	test('rebuilds from legacy/provider state and advances revision after an old-build mutation', async () => {
 		const harness = await createHarness(['one']);
 		const session = registered('one');
-		await harness.sync.synchronize(session.session, { source: catalogSource('one'), legacyMetadata: { customTitle: 'one' } });
+		await harness.sync.synchronize(session.session, { data: catalogData('one'), legacyMetadata: { customTitle: 'one' } });
 		await requiredLocal(harness.locals, session.session).setMetadata('customTitle', 'old-title');
 
 		const report = await harness.createService(async () => ({
 			status: 'available',
-			request: { source: catalogSource('old-title'), legacyMetadata: { customTitle: 'old-title' } },
+			request: { data: catalogData('old-title'), legacyMetadata: { customTitle: 'old-title' } },
 		})).runPass();
 		const receipt = await requiredLocal(harness.locals, session.session).getCatalogSyncSnapshot();
 
 		assert.deepStrictEqual({
 			outcomes: report.outcomes,
-			title: (await harness.central.getSessionV2(session.session.toString()))?.title,
+			title: summaryOf((await harness.central.getSessionV2(session.session.toString()))!.payload),
 			revision: receipt?.sourceRevision,
 			payload: receipt?.payload,
 		}, {
@@ -215,10 +220,49 @@ suite('AgentHostCatalogReconciliationService', () => {
 		});
 	});
 
+	test('re-projects instead of failing when an older build left a pending snapshot in its own projection', async () => {
+		// A downgraded build writes the user's rename into the session database
+		// and leaves a pending snapshot this build cannot replay. The central
+		// row it could not update is still structurally valid, so nothing else
+		// would ever repair it.
+		const harness = await createHarness(['one']);
+		const session = registered('one');
+		await harness.sync.synchronize(session.session, { data: catalogData('one'), legacyMetadata: { customTitle: 'one' } });
+		const local = requiredLocal(harness.locals, session.session);
+		const acknowledged = await local.getCatalogSyncSnapshot();
+		assert.ok(acknowledged);
+		await local.setMetadataValuesAndCatalogSyncSnapshot({ customTitle: 'renamed-by-older-build' }, {
+			sessionGeneration: acknowledged.sessionGeneration,
+			sourceRevision: acknowledged.sourceRevision + 1,
+			projectionVersion: AGENT_HOST_CATALOG_PAYLOAD_VERSION + 3,
+			payload: '{"projectionVersion":4,"source":{"title":"renamed-by-older-build"}}',
+			payloadHash: 'older-build-hash',
+			state: 'pending',
+		});
+
+		const report = await harness.createService(async () => ({
+			status: 'available',
+			request: { data: catalogData('renamed-by-older-build'), legacyMetadata: { customTitle: 'renamed-by-older-build' } },
+		})).runPass();
+		const receipt = await local.getCatalogSyncSnapshot();
+
+		assert.deepStrictEqual({
+			outcomes: report.outcomes,
+			title: summaryOf((await harness.central.getSessionV2(session.session.toString()))!.payload),
+			state: receipt?.state,
+			generation: receipt?.sessionGeneration === acknowledged.sessionGeneration,
+		}, {
+			outcomes: [{ session: 'agenthost:one', status: 'succeeded', reason: 'synchronized', sourceRevision: 2 }],
+			title: 'renamed-by-older-build',
+			state: 'acknowledged',
+			generation: true,
+		});
+	});
+
 	test('adopts the current sessions_v2 generation when the local receipt is stale', async () => {
 		const harness = await createHarness(['one']);
 		const session = registered('one');
-		await harness.sync.synchronize(session.session, { source: catalogSource('one'), legacyMetadata: { customTitle: 'one' } });
+		await harness.sync.synchronize(session.session, { data: catalogData('one'), legacyMetadata: { customTitle: 'one' } });
 		const current = await harness.central.getSessionV2(session.session.toString());
 		assert.ok(current);
 		await harness.central.upsertSessionV2({ ...current, sessionGeneration: 'current', sourceRevision: current.sourceRevision + 1 }, current.sessionGeneration);
@@ -226,7 +270,7 @@ suite('AgentHostCatalogReconciliationService', () => {
 
 		const report = await harness.createService(async () => ({
 			status: 'available',
-			request: { source: catalogSource('two'), legacyMetadata: { customTitle: 'two' } },
+			request: { data: catalogData('two'), legacyMetadata: { customTitle: 'two' } },
 		})).runPass();
 
 		assert.deepStrictEqual({

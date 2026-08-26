@@ -61,10 +61,9 @@ import { AGENT_HOST_TITLE_SOURCE_AGENT, AGENT_HOST_TITLE_SOURCE_AUTO, customChat
 import { type IArtifactServerToolAccessor } from './shared/artifactServerTools.js';
 import { parseSessionArtifacts, stringifySessionArtifacts, withSessionArtifacts } from '../common/sessionArtifacts.js';
 import { AgentHostCatalogSyncService, IAgentHostCatalogSyncRequest } from './agentHostCatalogSyncService.js';
-import { AGENT_HOST_CATALOG_PROJECTION_VERSION } from './agentHostCatalogProjection.js';
+import { AGENT_HOST_CATALOG_PAYLOAD_VERSION } from './agentHostCatalogProjection.js';
 import { AgentHostCatalogReconciliationService, AgentHostCatalogReconciliationSourceResult } from './agentHostCatalogReconciliationService.js';
 import { IAgentHostStorageService } from './agentHostStorageService.js';
-import { AgentHostCatalogShadowValidator, type AgentHostCatalogReadMode, type IAgentHostCatalogShadowValidationReporter } from './agentHostCatalogShadowValidator.js';
 import { AgentHostCatalogListReader } from './agentHostCatalogListReader.js';
 import { AgentHostSessionsV2CandidateResolution, AgentHostSessionsV2MigrationService, IAgentHostSessionsV2Candidate } from './agentHostSessionsV2MigrationService.js';
 
@@ -350,12 +349,6 @@ export interface IAgentServiceOptions {
 	readonly storageResource?: URI;
 	readonly orchestratorDatabase?: IAgentHostDatabase;
 	readonly debugLogsEnvironment?: IAgentHostDebugLogsEnvironment;
-	/** Selects how {@link AgentService.listSessions} reads the `sessions_v2` catalog. Defaults to `legacy`. */
-	readonly catalogReadMode?: AgentHostCatalogReadMode;
-	/** Receives `shadow`-mode catalog validation results. */
-	readonly catalogShadowReporter?: IAgentHostCatalogShadowValidationReporter;
-	/** Caps concurrent `shadow`-mode catalog validations. */
-	readonly catalogShadowConcurrency?: number;
 }
 
 export interface IAgentServiceCallbacks {
@@ -409,12 +402,6 @@ export interface IAgentServiceCore {
 	readonly configurationService: AgentConfigurationService;
 	readonly agents: ISettableObservable<readonly IAgent[]>;
 	readonly callbackBinder: IAgentServiceCallbackBinder;
-	/** Selects how {@link AgentService.listSessions} reads the `sessions_v2` catalog. Defaults to `legacy`. */
-	readonly catalogReadMode?: AgentHostCatalogReadMode;
-	/** Receives `shadow`-mode catalog validation results. */
-	readonly catalogShadowReporter?: IAgentHostCatalogShadowValidationReporter;
-	/** Caps concurrent `shadow`-mode catalog validations. */
-	readonly catalogShadowConcurrency?: number;
 }
 
 /**
@@ -449,12 +436,10 @@ export class AgentService extends Disposable implements IAgentService {
 	 */
 	private readonly _sessionRegistry: AgentSessionRegistry;
 	private readonly _orchestratorDatabase: IAgentHostDatabase;
-	private readonly _catalogReadMode: AgentHostCatalogReadMode;
 	private readonly _catalogSyncService: AgentHostCatalogSyncService;
 	private readonly _catalogSourceResolver: AgentHostCatalogSourceResolver;
 	private readonly _peerChatStore: AgentHostPeerChatStore;
 	private readonly _catalogReconciliationService: AgentHostCatalogReconciliationService;
-	private readonly _catalogShadowValidator: AgentHostCatalogShadowValidator;
 	private readonly _catalogListReader: AgentHostCatalogListReader;
 	private readonly _sessionsV2MigrationService: AgentHostSessionsV2MigrationService<IAgentSessionMetadata>;
 	private readonly _catalogListRepair = this._register(new MutableDisposable<IDisposable>());
@@ -646,7 +631,6 @@ export class AgentService extends Disposable implements IAgentService {
 		this._sideEffects = collaborators.sideEffects;
 		this._sessionCoordination = collaborators.sessionCoordination;
 		this._serverToolHost = collaborators.serverToolHost;
-		this._catalogReadMode = core.catalogReadMode ?? 'legacy';
 		this._catalogSyncService = new AgentHostCatalogSyncService(this._sessionDataService, this._orchestratorDatabase, this._logService);
 		this._catalogSourceResolver = new AgentHostCatalogSourceResolver({
 			openDatabase: session => this._sessionDataService.openDatabase(session),
@@ -756,13 +740,6 @@ export class AgentService extends Disposable implements IAgentService {
 			this._logService,
 		));
 		this._catalogReconciliationService.schedule();
-		this._catalogShadowValidator = new AgentHostCatalogShadowValidator(
-			this._orchestratorDatabase,
-			core.catalogShadowReporter ?? { report: () => { } },
-			() => this._catalogReconciliationService.schedule(),
-			this._logService,
-			core.catalogShadowConcurrency === undefined ? {} : { concurrency: core.catalogShadowConcurrency },
-		);
 		this._register(core.disposables);
 	}
 
@@ -2024,13 +2001,13 @@ export class AgentService extends Disposable implements IAgentService {
 			candidate => isSubagentSession(candidate.session.toString())
 				? { reason: 'subagent', fingerprint: 'uri-v1' }
 				: candidate.catalog?.isChatBacking === true
-					? { reason: 'backing', fingerprint: candidate.catalog.sourceHash }
+					? { reason: 'backing', fingerprint: candidate.catalog.payloadHash }
 					: undefined,
 			candidate => this._resolveSessionsV2ImportCandidate(provider, candidate),
 			force,
 		);
 		if (!report) {
-			if (!await this._sessionRegistry.isSessionsV2Backfilled(provider.id, AGENT_HOST_CATALOG_PROJECTION_VERSION)) {
+			if (!await this._sessionRegistry.isSessionsV2Backfilled(provider.id, AGENT_HOST_CATALOG_PAYLOAD_VERSION)) {
 				throw new ProviderCatalogUnavailableError(provider.id);
 			}
 			return;
@@ -2317,23 +2294,18 @@ export class AgentService extends Disposable implements IAgentService {
 				return undefined;
 			}
 
-			if (this._catalogReadMode === 'centralWithFallback' || this._catalogReadMode === 'central') {
-				const central = await this._catalogListReader.read(registeredSession);
-				if (central.eligible) {
-					return central.metadata;
-				}
-				if (central.reason === 'chatBacking') {
-					return undefined;
-				}
-				repairNeeded = true;
-				if (central.reason === 'readError') {
-					this._logService.warn(`[AgentService] Failed to read central catalog row for ${session.toString()}`, central.error);
-				} else {
-					this._logService.trace(`[AgentService] Central catalog row for ${session.toString()} is ineligible: ${central.reason}`);
-				}
-				if (this._catalogReadMode === 'central') {
-					return undefined;
-				}
+			const central = await this._catalogListReader.read(registeredSession);
+			if (central.eligible) {
+				return central.metadata;
+			}
+			if (central.chatBacking) {
+				return undefined;
+			}
+			repairNeeded = true;
+			if (central.error) {
+				this._logService.warn(`[AgentService] Failed to read central catalog row for ${session.toString()}`, central.error);
+			} else {
+				this._logService.trace(`[AgentService] Central catalog row for ${session.toString()} is ineligible: ${central.detail}`);
 			}
 
 			try {
@@ -2343,7 +2315,10 @@ export class AgentService extends Disposable implements IAgentService {
 				return undefined;
 			}
 		})));
-		if (repairNeeded) {
+		// A late listing can still find catalog misses after disposal (a
+		// queued reconciliation resolves after teardown); scheduling a repair
+		// then would leak the timer, since a disposed holder drops its value.
+		if (repairNeeded && !this._store.isDisposed) {
 			this._catalogListRepair.value = disposableTimeout(() => {
 				this._catalogListRepair.clear();
 				this._catalogReconciliationService.start();
@@ -2447,9 +2422,6 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		if (epoch !== this._registryEpoch) {
 			return this.listSessions(mode);
-		}
-		if (this._catalogReadMode === 'shadow') {
-			this._catalogShadowValidator.schedule(visible, registered);
 		}
 		return visible;
 	}
@@ -3186,15 +3158,22 @@ export class AgentService extends Disposable implements IAgentService {
 				? { ...existing, title: sessionState.title }
 				: existing
 		));
-		const catalogChats = [
-			...existingCatalogChats,
-			{
-				uri: chat.toString(),
-				kind: 'peer' as const,
-				...(title !== undefined ? { title } : {}),
-				...(peerChatOrigin !== undefined ? { origin: peerChatOrigin } : {}),
-			},
-		];
+		const newCatalogChat = {
+			uri: chat.toString(),
+			kind: 'peer' as const,
+			...(title !== undefined ? { title } : {}),
+			...(peerChatOrigin !== undefined ? { origin: peerChatOrigin } : {}),
+		};
+		// Re-creating an existing chat must not add a second membership entry:
+		// chat URIs are unique in the catalog. Merge into the existing entry in
+		// place so repeated `createChat` calls stay idempotent while preserving
+		// catalog order and the entry's kind (a default chat stays default).
+		const existingIndex = existingCatalogChats.findIndex(existing => existing.uri === newCatalogChat.uri);
+		const catalogChats = existingIndex < 0
+			? [...existingCatalogChats, newCatalogChat]
+			: existingCatalogChats.map((existing, index) => index === existingIndex
+				? { ...existing, ...newCatalogChat, kind: existing.kind }
+				: existing);
 		this._catalogSyncSuppressedSessions.add(sessionKey);
 		try {
 			await this._peerChatStore.upsert(session, chat, providerData, peerChatOrigin);
@@ -5748,17 +5727,19 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		const result = await this._catalogListReader.read(registered);
 		if (!result.eligible) {
-			if (result.reason === 'readError') {
+			if (result.chatBacking) {
+				this._logService.trace(`[AgentService] Central chat catalog for ${session.toString()} is a chat backing`);
+			} else if (result.error) {
 				this._logService.warn(`[AgentService] Failed to read central chat catalog for ${session.toString()}`, result.error);
 			} else {
-				this._logService.trace(`[AgentService] Central chat catalog for ${session.toString()} is ineligible: ${result.reason}`);
+				this._logService.trace(`[AgentService] Central chat catalog for ${session.toString()} is ineligible: ${result.detail}`);
 			}
 			return undefined;
 		}
-		return result.source.chats.map(chat => ({
-			uri: chat.uri,
+		return result.data.chats.map(chat => ({
+			uri: chat.uri.toString(),
 			kind: chat.kind,
-			title: chat.title,
+			title: chat.summary,
 			origin: fromCatalogChatOrigin(chat.origin),
 		}));
 	}

@@ -520,6 +520,195 @@ Sysroot/asset download `429: Too Many Requests`, network resets, etc. are infras
 
 ---
 
+## Live compatibility
+
+The suites above run one build against itself. The **live-compatibility** suite
+(`liveCompat/`) runs *different builds against the same profile*, which is the
+only way to ask whether a change to persisted state can be shipped: whether an
+old profile opens in the new build, whether a new profile still opens in an old
+one, and whether either survives an unclean death.
+
+### What "black box" means here — and what it does not
+
+Every build is driven **only over AHP**. The suite never imports host internals
+and never inspects the database or any other persisted file directly: if a
+migration claim cannot be observed through the protocol, it is not asserted.
+That is the property the compatibility claims rest on, since a client speaking
+AHP is exactly what a shipped build has to satisfy.
+
+It does **not** mean the host is launched the way a user launches it. Each build
+is started with `--enable-mock-agent` and driven through the scripted mock
+provider, so **no model is ever contacted** and a run is deterministic and
+tokenless. That is a test-only flag, and it is a deliberate trade: these
+scenarios are about *persisted state surviving a version change*, which the
+choice of provider does not affect, and pinning them to a real provider would
+make every compatibility result depend on fixtures that drift for unrelated
+reasons.
+
+So this suite is not provider-parity evidence. Whether a provider behaves
+correctly is what the `providers/` E2E suites answer, against recorded CAPI
+fixtures. This suite answers whether a profile written by one build is usable by
+another, and it is the only suite that answers that.
+
+### Builds
+
+Four checkpoints, listed by `npm run agent-host-live-compat`:
+
+| Build | Source |
+|---|---|
+| `legacy` | oldest supported checkpoint |
+| `predecessor` | the build immediately preceding the in-flight change |
+| `intermediate` | an intermediate checkpoint, for multi-hop upgrades |
+| `current` | your working tree |
+
+The three historical ones are materialized as **detached git worktrees** under a
+cache root outside the repository (`$TMPDIR/vscode-agent-host-live-compat`, or
+`AGENT_HOST_LIVE_COMPAT_CACHE`) and compiled there. Your repository is never
+checked out, reset, stashed or cleaned; `current` is simply built in place.
+
+```sh
+# Prepare every build. Does real work the first time; a no-op afterwards.
+npm run agent-host-live-compat-prepare
+
+# Report readiness. Non-destructive: it never prepares, compiles or deletes.
+npm run agent-host-live-compat-check
+```
+
+**Prerequisites.** Preparation needs the checkpoint commits present locally
+(they are resolved in *this* repository, so a shallow clone will not have them)
+and network access for two `npm install` runs per checkpoint. A checkpoint that
+cannot be resolved is reported as not-ready with both fixes — fetch it, or
+re-pin it — and never silently skipped.
+
+**Cost.** Measured on macOS, cold, for all three historical checkpoints:
+**~1 m 36 s** and **2.9 GB each (8.8 GB total)**. Re-running preparation once
+ready is a no-op (~0.07 s).
+
+That footprint is deliberate, and its shape is worth knowing before trying to
+shrink it further. Preparation installs with `--ignore-scripts`, skipping the
+repository-wide `postinstall` that would otherwise install every built-in
+extension and the remote tree — **7.6 GB** per checkpoint, none of which the
+Agent Host uses. It then rebuilds, explicitly, only the native modules the host
+actually loads at run time (`@vscode/sqlite3`, which backs the very database
+these scenarios migrate, `@vscode/fs-copyfile`, `@vscode/spdlog`,
+`@parcel/watcher`, `node-pty`).
+
+That rebuild is not optional: skipping it produces builds that transpile
+cleanly and then exit 1 on startup with `Cannot find module
+'../build/Debug/vscode_fs.node'`. Preparation is therefore validated by running
+the full matrix from a cold cache, not by checking that the entry point exists.
+
+Preparation is cached on the checkpoint commit plus a build-recipe version,
+recorded in a marker under the cache root (**not** inside the worktree, so the
+worktree stays clean and the dirty check keeps protecting real local edits).
+A separate sentinel records that dependency installation *succeeded*, so an
+interrupted install is redone rather than half-reused. Change the recipe and
+stale output is rebuilt rather than silently reused; `--force` rebuilds
+regardless, and also forces a rebuild of `current`, which is otherwise left
+alone when it is already compiled.
+
+### Running the matrices
+
+```sh
+npm run agent-host-live-compat-baselines   # each build restarts against its own profile
+npm run agent-host-live-compat-forward     # legacy/predecessor/intermediate ▸ current
+npm run agent-host-live-compat-backward    # current ▸ older ▸ current round trips
+npm run agent-host-live-compat-recovery    # SIGKILL and restart
+
+npm run agent-host-live-compat-all         # all four, in that order
+npm run agent-host-live-compat-pr          # the reduced subset CI runs on a PR
+```
+
+Three properties of a run are worth knowing, because they are what the aggregate
+command exists to guarantee:
+
+- **Matrices run sequentially.** Each scenario forks real Agent Host processes
+  from separately compiled trees that share this machine's temp space and ports.
+  Overlapping them would make a failure attributable to contention rather than
+  to compatibility.
+- **An unresolved checkpoint is a failure, never a skip.** A build that was
+  never prepared is reported as a failed row carrying the exact `--prepare`
+  command to run, and the process exits nonzero. A run that covered two of three
+  upgrades can never be mistaken for one that covered three.
+- **Evidence is retained.** Every matrix writes a JSON summary under
+  `.build/agent-host-live-compat` (`--output-dir` to relocate), and a multi-matrix
+  run adds `run.json` aggregating them. Each scenario also keeps its diagnostics
+  directory — the home, the user-data directory (and so the host's own logs) and
+  the workspace, for every phase. These are never deleted: a compatibility
+  failure exists to be diagnosed, and that state is the diagnosis.
+
+The full sweep takes roughly a minute against prepared builds.
+
+### CI — not yet wired up, and why
+
+**There is no workflow for this suite yet.** It is run manually with the
+commands above. Wiring it into CI is deliberately deferred rather than
+forgotten, because a prerequisite is not met today.
+
+Two of the three historical checkpoints (`49f24d8`, `7453d67`) exist only on the
+feature branch that introduced this suite. They are unreachable from the default
+branch, from a fork, and from the shallow clones CI jobs use — so a scheduled or
+fork-triggered job could not resolve them, and would either fail for a reason
+that has nothing to do with compatibility or, worse, appear to pass while
+silently covering less than it claims. The runner refuses to do the latter: an
+unresolvable checkpoint is reported as a failed row that names both fixes
+(fetch, or re-pin), never skipped.
+
+**Prerequisites, in order:**
+
+1. This work lands on the default branch.
+2. Re-pin `legacy`, `predecessor` and `intermediate` in
+   `harness/agentHostLiveCompatBuilds.ts` to commits reachable from the default
+   branch. (`legacy`, `97ed7b5`, already is; the other two are not.)
+3. Confirm a cold preparation on a clean CI runner — the numbers below were
+   measured locally on macOS, and the install step is the part most likely to
+   differ.
+4. Then add the workflow.
+
+**Intended shape**, once those hold: the reduced subset (`--pr`) on pull
+requests, and the full sweep on a schedule and on demand. The subset keeps the
+*shape* of every claim — all four matrices still run — but only against
+`predecessor`, the checkpoint an in-flight regression shows up against first;
+pinning "oldest supported" is what the scheduled run is for. Summaries and
+diagnostics should be uploaded as an artifact on success and failure alike.
+
+Two details such a job must get right, both learned the hard way:
+
+- Checkpoints are resolved as commits **in this repository**, so a shallow
+  checkout cannot see them; the job needs full history (`fetch-depth: 0`).
+- The path filter should cover `src/vs/platform/agentHost/**`,
+  `scripts/test-agent-host-live-compat.ts`, `package.json` (the commands live
+  there, so a change to them changes what CI runs) and the workflow itself.
+
+Caching the prepared worktrees is an obvious further win but is **unproven** —
+a restored worktree's git metadata lives in the main repository and is not part
+of the archive. The runner detects and re-registers that case, but no cache
+round trip has actually been exercised on a runner, so it should be measured
+before being relied on.
+
+### What recovery does *not* cover
+
+The recovery matrix asserts **convergence** after an unclean kill — the session
+is present exactly once and is describable — rather than "the last write
+survived". The host advertises no durability acknowledgment and the catalogue
+write is queued fire-and-forget, so a rename is readable long before it is
+durable; asserting that it survives would encode a guarantee the host does not
+make and would flake as a function of disk speed. Which shape was observed is
+reported in `classificationCounts`, so the durability gap stays visible as data.
+
+Two boundaries are **deliberately out of black-box reach** and are routed to
+scoped integration tests rather than faked with a plausible-looking E2E:
+
+| Boundary | Why it is integration-only |
+|---|---|
+| `torn-write-corruption` | A black-box AHP client cannot truncate host-owned files; doing so would violate the externality principle. |
+| `pending-receipt-at-kill` | The write queue is internal and no durability acknowledgment is advertised, so the boundary cannot be observed or targeted from outside. |
+
+Both ship inside every recovery summary as `boundaries` and
+`integrationProposals`, described precisely enough to be implemented without
+re-deriving the analysis. A run's most misreadable property is its *scope*, so
+what was deliberately not covered travels in the same artifact as what passed.
+
 ## Relationship to the protocol suite
 
 `../protocol/` is **frozen**. Do not add tests there; add them here.

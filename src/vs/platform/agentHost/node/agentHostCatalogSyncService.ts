@@ -7,14 +7,14 @@ import { generateUuid } from '../../../base/common/uuid.js';
 import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
 import type { ISessionCatalogSyncAcknowledgement, ISessionCatalogSyncPendingSnapshot, ISessionCatalogSyncSnapshot, ISessionDataService } from '../common/sessionDataService.js';
-import { AGENT_HOST_CATALOG_PROJECTION_VERSION, IAgentHostCatalogSource, projectAgentHostCatalog } from './agentHostCatalogProjection.js';
-import type { AgentHostDatabaseSessionV2UpsertResult, IAgentHostDatabase, IAgentHostDatabaseSessionV2 } from './agentHostDatabase.js';
+import { AGENT_HOST_CATALOG_PAYLOAD_VERSION, AgentHostCatalogData, encodeAgentHostCatalogPayload, IAgentHostCatalogEncodedPayload } from './agentHostCatalogProjection.js';
+import type { AgentHostDatabaseSessionV2UpsertResult, IAgentHostDatabase, IAgentHostDatabaseSessionV2Envelope, IAgentHostDatabaseSessionV2Receipt } from './agentHostDatabase.js';
 
 const INITIAL_SOURCE_REVISION = 0;
 const MAX_GENERATION_RETRIES = 3;
 
 export interface IAgentHostCatalogSyncRequest {
-	readonly source: IAgentHostCatalogSource;
+	readonly data: AgentHostCatalogData;
 	readonly legacyMetadata: Readonly<Record<string, string>>;
 }
 
@@ -24,6 +24,34 @@ export type AgentHostCatalogSyncResult =
 
 interface IQueuedOperation {
 	readonly run: () => Promise<void>;
+}
+
+/**
+ * Whether the stored catalog row is exactly the one an acknowledged local
+ * receipt describes, so the session needs no further synchronization.
+ */
+export function matchesAcknowledgedCatalogReceipt(
+	receipt: ISessionCatalogSyncSnapshot | undefined,
+	catalog: IAgentHostDatabaseSessionV2Receipt | undefined,
+): boolean {
+	return receipt?.state === 'acknowledged'
+		&& catalog?.sessionGeneration === receipt.sessionGeneration
+		&& catalog.sourceRevision === receipt.sourceRevision
+		&& catalog.payloadVersion === receipt.projectionVersion
+		&& catalog.payloadHash === receipt.payloadHash;
+}
+
+/** Whether every legacy compatibility key the request carries is already persisted. */
+export async function catalogLegacyMetadataMatches(
+	database: ReturnType<ISessionDataService['openDatabase']>['object'],
+	legacyMetadata: Readonly<Record<string, string>>,
+): Promise<boolean> {
+	const metadataKeys: Record<string, true> = {};
+	for (const key of Object.keys(legacyMetadata)) {
+		metadataKeys[key] = true;
+	}
+	const persistedMetadata = await database.getMetadataObject(metadataKeys);
+	return Object.entries(legacyMetadata).every(([key, value]) => persistedMetadata[key] === value);
 }
 
 interface ISessionSyncQueue {
@@ -85,36 +113,26 @@ export class AgentHostCatalogSyncService {
 
 	private async _synchronizeNow(session: URI, request: IAgentHostCatalogSyncRequest): Promise<AgentHostCatalogSyncResult> {
 		const sessionKey = session.toString();
+		const encoded = this._encode(request.data);
 		const ref = this._sessionDataService.openDatabase(session);
 		try {
 			for (let attempt = 0; attempt < MAX_GENERATION_RETRIES; attempt++) {
 				const existing = await ref.object.getCatalogSyncSnapshot();
-				let central: IAgentHostDatabaseSessionV2 | undefined;
+				let central: IAgentHostDatabaseSessionV2Receipt | undefined;
 				try {
 					central = await this._catalogDatabase.getSessionV2(sessionKey);
 				} catch (error) {
 					this._logService.warn(`[AgentHostCatalogSync] Failed to read sessions_v2 row for ${sessionKey}`, error);
-					const legacyMetadataMatches = await this._legacyMetadataMatches(ref.object, request.legacyMetadata);
-					const pending = await this._storePending(ref.object, sessionKey, request, existing, legacyMetadataMatches);
+					const legacyMetadataMatches = await catalogLegacyMetadataMatches(ref.object, request.legacyMetadata);
+					const pending = await this._storePending(ref.object, request, encoded, existing, legacyMetadataMatches);
 					return { status: 'pending', sourceRevision: pending.sourceRevision, reason: 'upsertFailed' };
 				}
 
 				const sessionGeneration = central?.sessionGeneration
 					?? (existing?.state === 'pending' ? existing.sessionGeneration : generateUuid());
-				const legacyMetadataMatches = await this._legacyMetadataMatches(ref.object, request.legacyMetadata);
-				const candidate = this._project(request.source, sessionKey, sessionGeneration, INITIAL_SOURCE_REVISION);
-				const sourceRevision = this._sourceRevision(existing, central, sessionGeneration, candidate.catalog.sourceHash, legacyMetadataMatches);
-				const projection = sourceRevision === INITIAL_SOURCE_REVISION
-					? candidate
-					: this._project(request.source, sessionKey, sessionGeneration, sourceRevision);
-				const snapshot: ISessionCatalogSyncPendingSnapshot = {
-					sessionGeneration,
-					sourceRevision,
-					projectionVersion: AGENT_HOST_CATALOG_PROJECTION_VERSION,
-					payload: projection.sourcePayload,
-					payloadHash: projection.catalog.sourceHash,
-					state: 'pending',
-				};
+				const legacyMetadataMatches = await catalogLegacyMetadataMatches(ref.object, request.legacyMetadata);
+				const sourceRevision = this._sourceRevision(existing, central, sessionGeneration, encoded.payloadHash, legacyMetadataMatches);
+				const snapshot = this._pendingSnapshot(sessionGeneration, sourceRevision, encoded);
 
 				if (existing && existing.sessionGeneration !== sessionGeneration) {
 					const transitioned = await ref.object.transitionMetadataValuesAndCatalogSyncSnapshot(
@@ -128,8 +146,7 @@ export class AgentHostCatalogSyncService {
 				} else {
 					const writeResult = await ref.object.setMetadataValuesAndCatalogSyncSnapshot(request.legacyMetadata, snapshot);
 					if (writeResult === 'replayed'
-						&& existing?.state === 'acknowledged'
-						&& this._matchesReceipt(central, existing)
+						&& matchesAcknowledgedCatalogReceipt(existing, central)
 						&& legacyMetadataMatches) {
 						return { status: 'acknowledged', sourceRevision };
 					}
@@ -137,7 +154,10 @@ export class AgentHostCatalogSyncService {
 
 				let upsertResult: AgentHostDatabaseSessionV2UpsertResult;
 				try {
-					upsertResult = await this._catalogDatabase.upsertSessionV2(projection.catalog, central?.sessionGeneration);
+					upsertResult = await this._catalogDatabase.upsertSessionV2(
+						this._envelope(sessionKey, sessionGeneration, sourceRevision, encoded),
+						central?.sessionGeneration,
+					);
 				} catch (error) {
 					this._logService.warn(`[AgentHostCatalogSync] Failed to upsert sessions_v2 row for ${sessionKey}`, error);
 					return { status: 'pending', sourceRevision, reason: 'upsertFailed' };
@@ -146,7 +166,7 @@ export class AgentHostCatalogSyncService {
 					continue;
 				}
 				if (upsertResult !== 'applied' && upsertResult !== 'replayed') {
-					this._logService.warn(`[AgentHostCatalogSync] sessions_v2 projection for ${sessionKey} remains pending: ${upsertResult}`);
+					this._logService.warn(`[AgentHostCatalogSync] sessions_v2 payload for ${sessionKey} remains pending: ${upsertResult}`);
 					return { status: 'pending', sourceRevision, reason: upsertResult };
 				}
 
@@ -175,25 +195,14 @@ export class AgentHostCatalogSyncService {
 
 	private async _storePending(
 		database: ReturnType<ISessionDataService['openDatabase']>['object'],
-		session: string,
 		request: IAgentHostCatalogSyncRequest,
+		encoded: IAgentHostCatalogEncodedPayload,
 		existing: ISessionCatalogSyncSnapshot | undefined,
 		legacyMetadataMatches: boolean,
 	): Promise<ISessionCatalogSyncPendingSnapshot> {
 		const sessionGeneration = existing?.sessionGeneration ?? generateUuid();
-		const candidate = this._project(request.source, session, sessionGeneration, INITIAL_SOURCE_REVISION);
-		const sourceRevision = this._sourceRevision(existing, undefined, sessionGeneration, candidate.catalog.sourceHash, legacyMetadataMatches);
-		const projection = sourceRevision === INITIAL_SOURCE_REVISION
-			? candidate
-			: this._project(request.source, session, sessionGeneration, sourceRevision);
-		const snapshot: ISessionCatalogSyncPendingSnapshot = {
-			sessionGeneration,
-			sourceRevision,
-			projectionVersion: AGENT_HOST_CATALOG_PROJECTION_VERSION,
-			payload: projection.sourcePayload,
-			payloadHash: projection.catalog.sourceHash,
-			state: 'pending',
-		};
+		const sourceRevision = this._sourceRevision(existing, undefined, sessionGeneration, encoded.payloadHash, legacyMetadataMatches);
+		const snapshot = this._pendingSnapshot(sessionGeneration, sourceRevision, encoded);
 		if (existing && existing.sessionGeneration !== sessionGeneration) {
 			await database.transitionMetadataValuesAndCatalogSyncSnapshot(request.legacyMetadata, existing.sessionGeneration, snapshot);
 		} else {
@@ -202,21 +211,9 @@ export class AgentHostCatalogSyncService {
 		return snapshot;
 	}
 
-	private async _legacyMetadataMatches(
-		database: ReturnType<ISessionDataService['openDatabase']>['object'],
-		legacyMetadata: Readonly<Record<string, string>>,
-	): Promise<boolean> {
-		const metadataKeys: Record<string, true> = {};
-		for (const key of Object.keys(legacyMetadata)) {
-			metadataKeys[key] = true;
-		}
-		const persistedMetadata = await database.getMetadataObject(metadataKeys);
-		return Object.entries(legacyMetadata).every(([key, value]) => persistedMetadata[key] === value);
-	}
-
 	private _sourceRevision(
 		existing: ISessionCatalogSyncSnapshot | undefined,
-		central: IAgentHostDatabaseSessionV2 | undefined,
+		central: IAgentHostDatabaseSessionV2Receipt | undefined,
 		sessionGeneration: string,
 		payloadHash: string,
 		legacyMetadataMatches: boolean,
@@ -227,10 +224,10 @@ export class AgentHostCatalogSyncService {
 			local?.sourceRevision ?? INITIAL_SOURCE_REVISION,
 			current?.sourceRevision ?? INITIAL_SOURCE_REVISION,
 		);
-		const localMatches = local?.projectionVersion === AGENT_HOST_CATALOG_PROJECTION_VERSION
+		const localMatches = local?.projectionVersion === AGENT_HOST_CATALOG_PAYLOAD_VERSION
 			&& local.payloadHash === payloadHash;
-		const centralMatches = current?.projectionVersion === AGENT_HOST_CATALOG_PROJECTION_VERSION
-			&& current.sourceHash === payloadHash;
+		const centralMatches = current?.payloadVersion === AGENT_HOST_CATALOG_PAYLOAD_VERSION
+			&& current.payloadHash === payloadHash;
 		if (legacyMetadataMatches) {
 			if (localMatches && (!current || centralMatches || local.sourceRevision > current.sourceRevision)) {
 				return baselineRevision;
@@ -242,21 +239,33 @@ export class AgentHostCatalogSyncService {
 		return local || current ? baselineRevision + 1 : INITIAL_SOURCE_REVISION;
 	}
 
-	private _matchesReceipt(central: IAgentHostDatabaseSessionV2 | undefined, receipt: ISessionCatalogSyncSnapshot): boolean {
-		return central?.sessionGeneration === receipt.sessionGeneration
-			&& central.sourceRevision === receipt.sourceRevision
-			&& central.projectionVersion === receipt.projectionVersion
-			&& central.sourceHash === receipt.payloadHash;
+	private _pendingSnapshot(sessionGeneration: string, sourceRevision: number, encoded: IAgentHostCatalogEncodedPayload): ISessionCatalogSyncPendingSnapshot {
+		return {
+			sessionGeneration,
+			sourceRevision,
+			projectionVersion: AGENT_HOST_CATALOG_PAYLOAD_VERSION,
+			payload: encoded.payload,
+			payloadHash: encoded.payloadHash,
+			state: 'pending',
+		};
 	}
 
-	private _project(source: IAgentHostCatalogSource, session: string, sessionGeneration: string, sourceRevision: number) {
-		const result = projectAgentHostCatalog(source, {
+	private _envelope(session: string, sessionGeneration: string, sourceRevision: number, encoded: IAgentHostCatalogEncodedPayload): IAgentHostDatabaseSessionV2Envelope {
+		return {
 			session,
 			sessionGeneration,
 			sourceRevision,
-		});
+			payloadVersion: AGENT_HOST_CATALOG_PAYLOAD_VERSION,
+			payloadHash: encoded.payloadHash,
+			verified: true,
+			payload: encoded.payload,
+		};
+	}
+
+	private _encode(data: AgentHostCatalogData): IAgentHostCatalogEncodedPayload {
+		const result = encodeAgentHostCatalogPayload(data);
 		if (!result.ok) {
-			throw new Error(`Invalid catalog source at ${result.error.field}: ${result.error.message}`);
+			throw new Error(`Invalid catalog data: ${result.error}`);
 		}
 		return result.value;
 	}

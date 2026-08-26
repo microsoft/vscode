@@ -8,9 +8,9 @@ import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { META_CHANGES_SUMMARY } from '../../common/agentHostChangesetService.js';
 import { META_GIT_STATE, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../../common/agentHostGitStateService.js';
-import { SessionArtifactType, withSessionArtifacts } from '../../common/sessionArtifacts.js';
+import { SessionArtifactType, SESSION_META_ARTIFACTS_KEY, withSessionArtifacts } from '../../common/sessionArtifacts.js';
 import { ChatOriginKind } from '../../common/state/protocol/state.js';
-import { AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_ORCHESTRATION_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_MULTI_ROOT_KEY, SessionSourceControlOutcome, SessionStatus, withSessionEhcliAdoptable, withSessionFolderPickerDecision, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionOrchestration, withSessionSourceControlState, withSessionWorkspaceless } from '../../common/state/sessionState.js';
+import { AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_ORCHESTRATION_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_EHCLI_ADOPTED_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_GIT_KEY, SESSION_META_GITHUB_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_ORCHESTRATION_KEY, SESSION_META_SOURCE_CONTROL_KEY, SESSION_META_WORKSPACELESS_KEY, SessionSourceControlOutcome, SessionStatus, withSessionEhcliAdoptable, withSessionFolderPickerDecision, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionOrchestration, withSessionSourceControlState, withSessionWorkspaceless } from '../../common/state/sessionState.js';
 import { AgentHostCatalogSourceResolver, CHAT_BACKING_METADATA_KEY, ICatalogSourceState } from '../../node/agentHostCatalogSourceResolver.js';
 import { customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_ARTIFACTS_KEY, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
 import { WORKTREE_META_REPOSITORY_ROOT } from '../../node/shared/worktreeIsolation.js';
@@ -103,31 +103,33 @@ suite('AgentHostCatalogSourceResolver', () => {
 		}, false);
 
 		assert.deepStrictEqual(result, {
-			source: {
+			data: {
 				modifiedTime: 123,
-				title: 'Override title',
+				summary: 'Override title',
 				titleSource: 'user',
 				isRead: false,
 				isArchived: false,
 				project: { uri: 'file:///persisted-worktree', displayName: 'Persisted worktree' },
-				workspaceless: true,
 				isChatBacking: true,
-				ehcliAdoptable: true,
-				ehcliAdopted: true,
-				multiRoot: { workspaceFile: 'file:///live.code-workspace' },
-				folderPicker: { hidden: false },
 				changes: { additions: 1, deletions: 2, files: 3 },
-				github: liveGitHub,
-				git: liveGit,
-				sourceControl: liveSourceControl,
-				artifacts: [liveArtifact],
-				orchestration: liveOrchestration,
+				_meta: {
+					[SESSION_META_MULTI_ROOT_KEY]: { workspaceFile: 'file:///live.code-workspace' },
+					[SESSION_META_FOLDER_PICKER_KEY]: { hidden: false },
+					[SESSION_META_GITHUB_KEY]: liveGitHub,
+					[SESSION_META_GIT_KEY]: liveGit,
+					[SESSION_META_SOURCE_CONTROL_KEY]: liveSourceControl,
+					[SESSION_META_ARTIFACTS_KEY]: [liveArtifact],
+					[SESSION_META_ORCHESTRATION_KEY]: liveOrchestration,
+					[SESSION_META_WORKSPACELESS_KEY]: true,
+					[SESSION_META_EHCLI_ADOPTABLE_KEY]: true,
+					[SESSION_META_EHCLI_ADOPTED_KEY]: true,
+				},
 				workingDirectories: ['file:///live'],
 				chats: [{
 					uri: chat,
 					order: 0,
 					kind: 'default',
-					title: 'Override chat',
+					summary: 'Override chat',
 					titleSource: 'agent',
 					origin: { kind: ChatOriginKind.Fork, chat: 'agenthost-chat:source/default', turnId: 'turn-1' },
 				}],
@@ -162,31 +164,32 @@ suite('AgentHostCatalogSourceResolver', () => {
 		const result = await createResolver(persistedMetadata()).buildCatalogSyncRequest(session, sourceState(), {}, true);
 
 		assert.deepStrictEqual(result, {
-			source: {
+			data: {
 				modifiedTime: 123,
-				title: 'Persisted title',
+				summary: 'Persisted title',
 				titleSource: 'user',
 				isRead: true,
 				isArchived: true,
 				project: { uri: 'file:///persisted-worktree', displayName: 'Persisted worktree' },
-				workspaceless: false,
 				isChatBacking: true,
-				ehcliAdoptable: true,
-				ehcliAdopted: true,
-				multiRoot: { workspaceFile: 'file:///persisted.code-workspace' },
-				folderPicker: { hidden: true, primary: 'file:///persisted' },
 				changes: { additions: 10, deletions: 20, files: 30 },
-				github: persistedGitHub,
-				git: liveGit,
-				sourceControl: { merge: undefined, ...persistedSourceControl },
-				artifacts: [persistedArtifact],
-				orchestration: persistedOrchestration,
+				_meta: {
+					[SESSION_META_MULTI_ROOT_KEY]: { workspaceFile: 'file:///persisted.code-workspace' },
+					[SESSION_META_FOLDER_PICKER_KEY]: { hidden: true, primary: 'file:///persisted' },
+					[SESSION_META_GITHUB_KEY]: persistedGitHub,
+					[SESSION_META_GIT_KEY]: liveGit,
+					[SESSION_META_SOURCE_CONTROL_KEY]: { merge: undefined, ...persistedSourceControl },
+					[SESSION_META_ARTIFACTS_KEY]: [persistedArtifact],
+					[SESSION_META_ORCHESTRATION_KEY]: persistedOrchestration,
+					[SESSION_META_EHCLI_ADOPTABLE_KEY]: true,
+					[SESSION_META_EHCLI_ADOPTED_KEY]: true,
+				},
 				workingDirectories: ['file:///live'],
 				chats: [{
 					uri: chat,
 					order: 0,
 					kind: 'default',
-					title: 'Persisted chat',
+					summary: 'Persisted chat',
 					titleSource: 'agent',
 					origin: { kind: ChatOriginKind.Fork, chat: 'agenthost-chat:source/default', turnId: 'turn-1' },
 				}],

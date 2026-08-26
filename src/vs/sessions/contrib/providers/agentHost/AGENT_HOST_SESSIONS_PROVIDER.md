@@ -125,10 +125,12 @@ retention when monitoring ends.
 ### Host session catalog
 
 The local Agent Host maintains a host-wide `sessions_v2` SQLite registry and
-catalog. Each row contains current registry identity plus bounded list-visible
-session and chat metadata. Per-session databases continue to own turns, drafts,
-annotations, detailed changesets, and opaque provider backing required when a
-session or chat is opened.
+catalog. Each row contains a small indexed registry and synchronization envelope
+plus one bounded, versioned payload for list-visible session and chat metadata.
+The payload's structural validator is also its TypeScript type authority and
+normalizes all data before canonical serialization and hashing. Per-session
+databases continue to own turns, drafts, annotations, detailed changesets, and
+opaque provider backing required when a session or chat is opened.
 
 Catalog persistence is legacy-first during the compatibility window: one
 per-session transaction updates downgrade-compatible metadata and a durable
@@ -146,7 +148,7 @@ store a third copy of their list metadata.
 `sessions_v2` is independent of the predecessor `sessions` registry. The
 current-version importer unions existing v2 identities, optional predecessor
 registry rows, and provider discovery by session URI, then writes complete rows
-directly to v2. Projection-versioned per-provider markers record successful
+directly to v2. Payload-versioned per-provider markers record successful
 current enumeration without changing predecessor migration markers. Partial
 imports resume per session; durable exclusions make permanently ineligible
 candidates terminal and revivable by later discovery.
@@ -159,24 +161,23 @@ legacy-only additions and resolved legacy identity changes; legacy-row absence
 alone is never interpreted as deletion. Shared tombstones are the durable
 cross-version delete signal.
 
-An upsert atomically replaces the complete v2 row and is guarded by the session
+An upsert atomically replaces the verified payload and its synchronization
+envelope while preserving the registered identity. It is guarded by the session
 incarnation and source revision. Concurrent first writers converge on the
-winning incarnation through a serialized retry. Runtime rollback selects legacy
-read mode; no retained central generation is required.
+winning incarnation through a serialized retry. Older builds continue to read
+the mirrored predecessor metadata; no retained central generation is required.
 
-Each row also persists top-level eligibility. Chat-backing sessions therefore
-remain hidden after restart without opening their per-session database. For
-worktree sessions, both legacy and central projections derive the displayed
-project from the persisted repository root rather than the worktree checkout.
+The indexed envelope also carries payload-derived top-level eligibility.
+Chat-backing sessions therefore remain hidden after restart without decoding
+their payload or opening their per-session database. For worktree sessions,
+both legacy metadata and the central payload derive the displayed project from
+the persisted repository root rather than the worktree checkout.
 
-Session listing supports internal legacy, shadow, central-with-fallback, and
-central-only modes. Shadow validation is non-blocking and reports aggregate
-categories without session content. Central-with-fallback resolves each
-registered session independently: verified current-version catalog rows avoid
-provider metadata calls and per-session database opens, while missing, stale,
-or malformed rows use the legacy path and schedule reconciliation. The
-production default remains conservative until rollout explicitly selects a
-central mode.
+Session listing resolves each registered session independently from its verified
+current-version payload. A missing, outdated, or malformed payload falls back to
+the legacy/provider source for that row and schedules reconciliation. A valid
+chat-backing envelope remains authoritative and never falls back into the
+top-level session list.
 
 ## Local and remote boundary
 

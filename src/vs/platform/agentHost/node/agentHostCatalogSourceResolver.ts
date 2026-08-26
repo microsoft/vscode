@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../base/common/uri.js';
-import { parseSessionArtifacts, readSessionArtifacts, stringifySessionArtifacts } from '../common/sessionArtifacts.js';
+import { parseSessionArtifacts, readSessionArtifacts, SESSION_META_ARTIFACTS_KEY, stringifySessionArtifacts } from '../common/sessionArtifacts.js';
 import { META_CHANGES_SUMMARY } from '../common/agentHostChangesetService.js';
 import { GIT_DB_METADATA_KEYS, META_GIT_STATE, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../common/agentHostGitStateService.js';
 import { ChangesSummary, ChatOrigin, ChatOriginKind } from '../common/state/protocol/state.js';
-import { AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_ORCHESTRATION_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ISessionGitHubState, ISessionGitState, ISessionSourceControlState, parseSessionFolderPickerDecision, parseSessionMultiRootMetadata, parseSessionOrchestration, readSessionEhcliAdoptable, readSessionEhcliAdopted, readSessionFolderPickerDecision, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionOrchestration, readSessionSourceControlState, readSessionWorkspaceless, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_GITHUB_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, SessionStatus, SessionSummary } from '../common/state/sessionState.js';
-import { AgentHostCatalogJsonValue, IAgentHostCatalogSource, projectAgentHostCatalog } from './agentHostCatalogProjection.js';
+import { AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_ORCHESTRATION_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ISessionGitHubState, ISessionGitState, ISessionSourceControlState, parseSessionFolderPickerDecision, parseSessionMultiRootMetadata, parseSessionOrchestration, readSessionEhcliAdoptable, readSessionEhcliAdopted, readSessionFolderPickerDecision, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionOrchestration, readSessionSourceControlState, readSessionWorkspaceless, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_EHCLI_ADOPTED_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_GIT_KEY, SESSION_META_GITHUB_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_ORCHESTRATION_KEY, SESSION_META_SOURCE_CONTROL_KEY, SESSION_META_WORKSPACELESS_KEY, SessionStatus, SessionSummary } from '../common/state/sessionState.js';
+import { AgentHostCatalogData, AgentHostCatalogJsonValue, AgentHostCatalogMetadata, agentHostCatalogGitValidator } from './agentHostCatalogProjection.js';
 import { IAgentHostCatalogSyncRequest } from './agentHostCatalogSyncService.js';
 import { AGENT_HOST_TITLE_SOURCE_AUTO, AgentHostTitleSource, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_ARTIFACTS_KEY, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from './shared/persistSessionMetadata.js';
 import { WORKTREE_META_REPOSITORY_ROOT } from './shared/worktreeIsolation.js';
@@ -136,48 +136,53 @@ export class AgentHostCatalogSourceResolver {
 			: undefined;
 		const changes = preferPersistedMetadata && metadata[META_CHANGES_SUMMARY] !== undefined ? persistedChanges : state.changes;
 		const worktreeProject = this._dependencies.worktreeProjectFromRepositoryRoot(metadata[WORKTREE_META_REPOSITORY_ROOT]);
-		const source: IAgentHostCatalogSource = {
+		const ehcliAdoptable = readSessionEhcliAdoptable(state.meta);
+		const ehcliAdopted = readSessionEhcliAdopted(state.meta) || metadata[AH_META_EHCLI_ADOPTED_DB_KEY] === 'true';
+		const meta: AgentHostCatalogMetadata = {
+			...(multiRoot ? { [SESSION_META_MULTI_ROOT_KEY]: multiRoot } : undefined),
+			...(folderPicker ? { [SESSION_META_FOLDER_PICKER_KEY]: folderPicker } : undefined),
+			...(github ? { [SESSION_META_GITHUB_KEY]: github } : undefined),
+			...(git ? { [SESSION_META_GIT_KEY]: git } : undefined),
+			...(sourceControl ? { [SESSION_META_SOURCE_CONTROL_KEY]: sourceControl } : undefined),
+			...(artifacts.length > 0 ? { [SESSION_META_ARTIFACTS_KEY]: [...artifacts] } : undefined),
+			...(orchestration ? { [SESSION_META_ORCHESTRATION_KEY]: orchestration } : undefined),
+			...(workspaceless ? { [SESSION_META_WORKSPACELESS_KEY]: true } : undefined),
+			...(ehcliAdoptable ? { [SESSION_META_EHCLI_ADOPTABLE_KEY]: true } : undefined),
+			...(ehcliAdopted ? { [SESSION_META_EHCLI_ADOPTED_KEY]: true } : undefined),
+		};
+		const data: AgentHostCatalogData = {
 			modifiedTime: state.modifiedTime,
-			title: title || undefined,
+			summary: title || undefined,
 			titleSource,
 			isRead,
 			isArchived,
 			project: worktreeProject
 				? { uri: worktreeProject.uri.toString(), displayName: worktreeProject.displayName }
 				: state.project,
-			workspaceless,
 			isChatBacking: !!metadata[CHAT_BACKING_METADATA_KEY] || this._dependencies.isUnpersistedChatBacking(session),
-			ehcliAdoptable: readSessionEhcliAdoptable(state.meta),
-			ehcliAdopted: readSessionEhcliAdopted(state.meta) || metadata[AH_META_EHCLI_ADOPTED_DB_KEY] === 'true',
-			multiRoot,
-			folderPicker,
-			changes,
-			github,
-			git,
-			sourceControl,
-			artifacts,
-			orchestration,
 			workingDirectories: state.workingDirectories,
+			changes,
+			_meta: Object.keys(meta).length > 0 ? meta : undefined,
 			chats: state.chats.map((chat, order) => ({
 				uri: chat.uri,
 				order,
 				kind: chat.kind,
-				title: (preferPersistedMetadata ? metadata[customChatTitleMetadataKey(chat.uri)] : metadataOverrides[customChatTitleMetadataKey(chat.uri)]) || chat.title || undefined,
+				summary: (preferPersistedMetadata ? metadata[customChatTitleMetadataKey(chat.uri)] : metadataOverrides[customChatTitleMetadataKey(chat.uri)]) || chat.title || undefined,
 				titleSource: normalizeCatalogTitleSource(metadata[customChatTitleSourceMetadataKey(chat.uri)]),
 				origin: chat.origin,
 			})),
 		};
 		const legacyMetadata: Record<string, string> = {
 			...metadataOverrides,
-			[AH_META_IS_READ_DB_KEY]: source.isRead ? 'true' : '',
-			[AH_META_IS_ARCHIVED_DB_KEY]: source.isArchived ? 'true' : '',
+			[AH_META_IS_READ_DB_KEY]: data.isRead ? 'true' : '',
+			[AH_META_IS_ARCHIVED_DB_KEY]: data.isArchived ? 'true' : '',
 			[SESSION_META_MULTI_ROOT_KEY]: multiRoot ? JSON.stringify(multiRoot) : '',
 			[SESSION_META_FOLDER_PICKER_KEY]: folderPicker ? JSON.stringify(folderPicker) : '',
 			[SESSION_ARTIFACTS_KEY]: stringifySessionArtifacts(artifacts),
 			[AH_META_ORCHESTRATION_DB_KEY]: orchestration ? JSON.stringify(orchestration) : '',
 		};
-		if (source.workspaceless || metadata[AH_META_WORKSPACELESS_DB_KEY] !== undefined) {
-			legacyMetadata[AH_META_WORKSPACELESS_DB_KEY] = source.workspaceless ? 'true' : 'false';
+		if (workspaceless || metadata[AH_META_WORKSPACELESS_DB_KEY] !== undefined) {
+			legacyMetadata[AH_META_WORKSPACELESS_DB_KEY] = workspaceless ? 'true' : 'false';
 		}
 		if (metadata[CHAT_BACKING_METADATA_KEY] !== undefined) {
 			legacyMetadata[CHAT_BACKING_METADATA_KEY] = metadata[CHAT_BACKING_METADATA_KEY];
@@ -205,7 +210,7 @@ export class AgentHostCatalogSourceResolver {
 		if (metadata[META_CHANGES_SUMMARY] !== undefined) {
 			legacyMetadata[META_CHANGES_SUMMARY] = changes ? JSON.stringify(changes) : '';
 		}
-		return { source, legacyMetadata };
+		return { data, legacyMetadata };
 	}
 }
 
@@ -308,20 +313,7 @@ function readPersistedGitState(value: string | undefined): ISessionGitState | un
 		return undefined;
 	}
 	try {
-		const projected = projectAgentHostCatalog({
-			modifiedTime: 0,
-			isRead: false,
-			isArchived: false,
-			workspaceless: false,
-			git: JSON.parse(value),
-			workingDirectories: [],
-			chats: [],
-		}, {
-			session: 'agent-host-catalog-git-validation',
-			sessionGeneration: 'agent-host-catalog-git-validation',
-			sourceRevision: 0,
-		});
-		return projected.ok ? projected.value.source.git : undefined;
+		return agentHostCatalogGitValidator.validate(JSON.parse(value)).content;
 	} catch {
 		return undefined;
 	}

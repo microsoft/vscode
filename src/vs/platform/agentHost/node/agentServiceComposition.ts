@@ -95,9 +95,6 @@ export function createAgentServiceComposition(
 			configurationService,
 			agents,
 			callbackBinder: callbackAdapter,
-			catalogReadMode: options.catalogReadMode,
-			catalogShadowReporter: options.catalogShadowReporter,
-			catalogShadowConcurrency: options.catalogShadowConcurrency,
 		};
 		// AgentService subscribes after this graph is complete, so collaborator constructors must not emit state-manager events.
 		const octoKitService = accessor.get(IAgentHostOctoKitService);

@@ -6,10 +6,10 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { AgentSession } from '../../common/agent.js';
-import { readSessionArtifacts } from '../../common/sessionArtifacts.js';
-import { isSessionStatusArchived, isSessionStatusRead, readSessionEhcliAdoptable, readSessionExternal, readSessionFolderPickerDecision, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionOrchestration, readSessionSourceControlState, readSessionWorkspaceless } from '../../common/state/sessionState.js';
+import { readSessionArtifacts, SESSION_META_ARTIFACTS_KEY } from '../../common/sessionArtifacts.js';
+import { isSessionStatusArchived, isSessionStatusRead, readSessionEhcliAdoptable, readSessionExternal, readSessionFolderPickerDecision, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionOrchestration, readSessionSourceControlState, readSessionWorkspaceless, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_GIT_KEY, SESSION_META_GITHUB_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_ORCHESTRATION_KEY, SESSION_META_SOURCE_CONTROL_KEY, SESSION_META_WORKSPACELESS_KEY } from '../../common/state/sessionState.js';
 import { AgentHostCatalogListReader } from '../../node/agentHostCatalogListReader.js';
-import { AGENT_HOST_CATALOG_PROJECTION_VERSION, projectAgentHostCatalog, type IAgentHostCatalogSource } from '../../node/agentHostCatalogProjection.js';
+import { AGENT_HOST_CATALOG_PAYLOAD_VERSION, encodeAgentHostCatalogPayload, type AgentHostCatalogData } from '../../node/agentHostCatalogProjection.js';
 import { AgentHostDatabase, type IAgentHostDatabaseSessionV2 } from '../../node/agentHostDatabase.js';
 import type { IRegisteredSession } from '../../node/agentSessionRegistry.js';
 
@@ -39,61 +39,71 @@ suite('AgentHostCatalogListReader', () => {
 		external: true,
 		source: 'discovery',
 	};
-	const source: IAgentHostCatalogSource = {
+	const data: AgentHostCatalogData = {
 		modifiedTime: 200,
-		title: 'Catalog title',
+		summary: 'Catalog title',
 		titleSource: 'user',
 		isRead: true,
 		isArchived: true,
 		project: { uri: 'file:///workspace', displayName: 'Workspace' },
-		workspaceless: true,
-		ehcliAdoptable: true,
-		multiRoot: { workspaceFile: 'file:///workspace/project.code-workspace' },
-		folderPicker: { hidden: true, primary: 'file:///workspace' },
-		changes: { additions: 4, deletions: 2, files: 3 },
-		github: { owner: 'microsoft', repo: 'vscode', pullRequestUrls: ['https://github.com/microsoft/vscode/pull/1'] },
-		git: {
-			hasGitHubRemote: true,
-			branchName: 'feature',
-			baseBranchName: 'main',
-			upstreamBranchName: 'origin/feature',
-			incomingChanges: 1,
-			outgoingChanges: 2,
-			uncommittedChanges: 3,
-			hasBaseBranchChanges: true,
-			githubOwner: 'microsoft',
-			githubHeadOwner: 'contributor',
-			githubRepo: 'vscode',
-		},
-		sourceControl: { merge: { commit: 'abc123' }, latestOutcome: 'pullRequest' },
-		artifacts: [{ id: 'artifact', type: 'pullRequest', label: 'PR', link: 'https://github.com/microsoft/vscode/pull/1', isGitHub: true, createdByThisSession: true }],
-		orchestration: {
-			parentSession: 'agent-session://copilot/parent',
-			creatorSession: 'agent-session://copilot/creator',
-			label: 'child',
-			coordinateWithCreator: true,
-			notifyOnIdle: 'always',
-			creatorNotificationState: 'waitingForCompletion',
-		},
 		workingDirectories: ['file:///workspace', 'file:///other'],
+		changes: { additions: 4, deletions: 2, files: 3 },
+		_meta: {
+			[SESSION_META_MULTI_ROOT_KEY]: { workspaceFile: 'file:///workspace/project.code-workspace' },
+			[SESSION_META_FOLDER_PICKER_KEY]: { hidden: true, primary: 'file:///workspace' },
+			[SESSION_META_GITHUB_KEY]: { owner: 'microsoft', repo: 'vscode', pullRequestUrls: ['https://github.com/microsoft/vscode/pull/1'] },
+			[SESSION_META_GIT_KEY]: {
+				hasGitHubRemote: true,
+				branchName: 'feature',
+				baseBranchName: 'main',
+				upstreamBranchName: 'origin/feature',
+				incomingChanges: 1,
+				outgoingChanges: 2,
+				uncommittedChanges: 3,
+				hasBaseBranchChanges: true,
+				githubOwner: 'microsoft',
+				githubHeadOwner: 'contributor',
+				githubRepo: 'vscode',
+			},
+			[SESSION_META_SOURCE_CONTROL_KEY]: { merge: { commit: 'abc123' }, latestOutcome: 'pullRequest' },
+			[SESSION_META_ARTIFACTS_KEY]: [{ id: 'artifact', type: 'pullRequest', label: 'PR', link: 'https://github.com/microsoft/vscode/pull/1', isGitHub: true, createdByThisSession: true }],
+			[SESSION_META_ORCHESTRATION_KEY]: {
+				parentSession: 'agent-session://copilot/parent',
+				creatorSession: 'agent-session://copilot/creator',
+				label: 'child',
+				coordinateWithCreator: true,
+				notifyOnIdle: 'always',
+				creatorNotificationState: 'waitingForCompletion',
+			},
+			[SESSION_META_WORKSPACELESS_KEY]: true,
+			[SESSION_META_EHCLI_ADOPTABLE_KEY]: true,
+		},
 		chats: [
-			{ uri: `${session.toString()}/chat/default`, order: 0, kind: 'default', title: 'Catalog title', titleSource: 'user' },
-			{ uri: `${session.toString()}/chat/peer`, order: 1, kind: 'peer', title: 'Peer title', titleSource: 'agent', origin: { kind: 'fork', chat: `${session.toString()}/chat/default`, turnId: 'turn-1' } },
+			{ uri: `${session.toString()}/chat/default`, order: 0, kind: 'default', summary: 'Catalog title', titleSource: 'user' },
+			{ uri: `${session.toString()}/chat/peer`, order: 1, kind: 'peer', summary: 'Peer title', titleSource: 'agent', origin: { kind: 'fork', chat: `${session.toString()}/chat/default`, turnId: 'turn-1' } },
 		],
 	};
 
-	function createDatabase(): TestCatalogDatabase {
+	function encode(catalogData: AgentHostCatalogData): { readonly payload: string; readonly payloadHash: string } {
+		const encoded = encodeAgentHostCatalogPayload(catalogData);
+		if (!encoded.ok) {
+			throw new Error(encoded.error);
+		}
+		return encoded.value;
+	}
+
+	function createDatabase(catalogData: AgentHostCatalogData = data): TestCatalogDatabase {
 		const database = disposables.add(new TestCatalogDatabase());
-		const projection = projectAgentHostCatalog(source, {
+		const encoded = encode(catalogData);
+		database.catalog = {
 			session: session.toString(),
 			sessionGeneration: 'incarnation',
 			sourceRevision: 2,
-		});
-		if (!projection.ok) {
-			throw new Error(projection.error.message);
-		}
-		database.catalog = {
-			...projection.value.catalog,
+			payloadVersion: AGENT_HOST_CATALOG_PAYLOAD_VERSION,
+			payloadHash: encoded.payloadHash,
+			verified: true,
+			payload: encoded.payload,
+			isChatBacking: catalogData.isChatBacking === true,
 			provider: registered.provider,
 			startTime: registered.startTime,
 			external: registered.external,
@@ -102,7 +112,7 @@ suite('AgentHostCatalogListReader', () => {
 		return database;
 	}
 
-	test('converts a verified projection-v3 catalog into complete list metadata', async () => {
+	test('converts a verified catalog payload into complete list metadata and chats', async () => {
 		const result = await new AgentHostCatalogListReader(createDatabase()).read(registered);
 		assert.strictEqual(result.eligible, true);
 		if (!result.eligible) {
@@ -129,7 +139,7 @@ suite('AgentHostCatalogListReader', () => {
 			sourceControl: readSessionSourceControlState(result.metadata._meta),
 			artifacts: readSessionArtifacts(result.metadata._meta),
 			orchestration: readSessionOrchestration(result.metadata._meta),
-			chats: result.source.chats,
+			chats: result.data.chats.map(chat => ({ ...chat, uri: chat.uri.toString() })),
 		}, {
 			session: session.toString(),
 			startTime: 100,
@@ -139,43 +149,64 @@ suite('AgentHostCatalogListReader', () => {
 			isArchived: true,
 			project: { uri: 'file:///workspace', displayName: 'Workspace' },
 			workingDirectories: ['file:///workspace', 'file:///other'],
-			changes: source.changes,
+			changes: data.changes,
 			external: true,
 			workspaceless: true,
 			ehcliAdoptable: true,
-			multiRoot: source.multiRoot,
-			folderPicker: source.folderPicker,
-			github: source.github,
-			git: source.git,
-			sourceControl: source.sourceControl,
-			artifacts: source.artifacts,
-			orchestration: source.orchestration,
-			chats: source.chats.map(chat => ({ ...chat, origin: chat.origin })),
+			multiRoot: data._meta?.[SESSION_META_MULTI_ROOT_KEY],
+			folderPicker: data._meta?.[SESSION_META_FOLDER_PICKER_KEY],
+			github: data._meta?.[SESSION_META_GITHUB_KEY],
+			git: data._meta?.[SESSION_META_GIT_KEY],
+			sourceControl: data._meta?.[SESSION_META_SOURCE_CONTROL_KEY],
+			artifacts: data._meta?.[SESSION_META_ARTIFACTS_KEY],
+			orchestration: data._meta?.[SESSION_META_ORCHESTRATION_KEY],
+			chats: data.chats,
 		});
 	});
 
-	test('returns explicit ineligibility reasons without fabricating metadata', async () => {
+	test('falls back for every unusable row and hides a chat-backing row instead', async () => {
+		const outdated = encode(data);
 		const cases: Array<{ readonly expected: string; readonly mutate: (database: TestCatalogDatabase) => void }> = [
-			{ expected: 'missingCatalog', mutate: database => database.catalog = undefined },
+			{ expected: 'fallback', mutate: database => database.catalog = undefined },
 			{ expected: 'chatBacking', mutate: database => database.catalog = { ...database.catalog!, isChatBacking: true } },
-			{ expected: 'identityMismatch', mutate: database => database.catalog = { ...database.catalog!, session: AgentSession.uri('copilot', 'other').toString() } },
-			{ expected: 'providerMismatch', mutate: database => database.catalog = { ...database.catalog!, provider: 'claude' } },
-			{ expected: 'outdated', mutate: database => database.catalog = { ...database.catalog!, projectionVersion: AGENT_HOST_CATALOG_PROJECTION_VERSION - 1 } },
-			{ expected: 'malformed', mutate: database => database.catalog = { ...database.catalog!, sourceHash: 'not-the-canonical-hash' } },
-			{ expected: 'readError', mutate: database => database.readError = new Error('read failed') },
+			{ expected: 'fallback', mutate: database => database.catalog = { ...database.catalog!, session: AgentSession.uri('copilot', 'other').toString() } },
+			{ expected: 'fallback', mutate: database => database.catalog = { ...database.catalog!, provider: 'claude' } },
+			{ expected: 'fallback', mutate: database => database.catalog = { ...database.catalog!, payloadVersion: AGENT_HOST_CATALOG_PAYLOAD_VERSION - 1, payload: outdated.payload } },
+			{ expected: 'fallback', mutate: database => database.catalog = { ...database.catalog!, payload: '{ not json' } },
+			{ expected: 'fallback', mutate: database => database.readError = new Error('read failed') },
 		];
 		const actual: string[] = [];
 		for (const testCase of cases) {
 			const database = createDatabase();
 			testCase.mutate(database);
 			const result = await new AgentHostCatalogListReader(database).read(registered);
-			actual.push(result.eligible ? 'eligible' : result.reason);
+			actual.push(result.eligible ? 'eligible' : result.chatBacking ? 'chatBacking' : 'fallback');
 		}
 		assert.deepStrictEqual(actual, cases.map(testCase => testCase.expected));
 	});
 
+	test('hides a chat-backing payload even when the row marker disagrees', async () => {
+		const database = createDatabase({ ...data, isChatBacking: true });
+		database.catalog = { ...database.catalog!, isChatBacking: false };
+
+		const result = await new AgentHostCatalogListReader(database).read(registered);
+
+		assert.deepStrictEqual(result, { eligible: false, chatBacking: true });
+	});
+
 	test('rejects a registry provider that does not match the session identity', async () => {
 		const result = await new AgentHostCatalogListReader(createDatabase()).read({ ...registered, provider: 'claude' });
-		assert.deepStrictEqual(result, { eligible: false, reason: 'providerMismatch' });
+
+		assert.strictEqual(result.eligible, false);
+		assert.strictEqual(result.eligible === false && result.chatBacking, false);
+	});
+
+	test('reports a read failure with its error so the caller can log it', async () => {
+		const database = createDatabase();
+		database.readError = new Error('read failed');
+
+		const result = await new AgentHostCatalogListReader(database).read(registered);
+
+		assert.deepStrictEqual(result.eligible === false && !result.chatBacking ? result.error?.message : undefined, 'read failed');
 	});
 });

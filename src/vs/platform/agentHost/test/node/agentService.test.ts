@@ -41,15 +41,14 @@ import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AgentMergeConfigKey, readAgentMergeSessionState } from '../../common/agentMerge.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { ActionType, ActionEnvelope, NotificationType } from '../../common/state/sessionActions.js';
-import { AH_META_IS_READ_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, readSessionEhcliAdopted, AH_META_IS_ARCHIVED_DB_KEY, AH_META_ORCHESTRATION_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, isDefaultChatUri, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionEhcliAdoptable, readSessionExternal, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionFolderPickerDecision, readSessionOrchestration, readSessionSourceControlState, withSessionEhcliAdoptable, withSessionExternal, withSessionGitState, withSessionMultiRootMetadata, withSessionOrchestration, ChatOriginKind, type ChangesetState, type ISessionFolderPickerDecision, type ISessionGitState, type ISessionOrchestration, type ISessionWithDefaultChat, type MarkdownResponsePart, type SessionState, type SessionSummary, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
+import { AH_META_IS_READ_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, readSessionEhcliAdopted, AH_META_IS_ARCHIVED_DB_KEY, AH_META_ORCHESTRATION_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_ORCHESTRATION_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, isDefaultChatUri, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionEhcliAdoptable, readSessionExternal, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionFolderPickerDecision, readSessionOrchestration, readSessionSourceControlState, withSessionEhcliAdoptable, withSessionExternal, withSessionGitState, withSessionMultiRootMetadata, withSessionOrchestration, ChatOriginKind, type ChangesetState, type ISessionFolderPickerDecision, type ISessionGitState, type ISessionOrchestration, type ISessionWithDefaultChat, type MarkdownResponsePart, type SessionState, type SessionSummary, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
 import { ChatInteractivity, type MessageAttachment } from '../../common/state/protocol/state.js';
 import { isHostSnapshotAttachment, toHostSnapshotAttachmentMeta } from '../../common/meta/agentSnapshotAttachmentMeta.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { AgentService } from '../../node/agentService.js';
-import { AgentHostDatabase, AgentHostDatabaseSessionV2UpsertResult, IAgentHostDatabase, IAgentHostDatabaseRegisterOptions, IAgentHostDatabaseSession, IAgentHostDatabaseSessionsV2Exclusion, IAgentHostDatabaseSessionOptions, IAgentHostDatabaseSessionV2, IAgentHostDatabaseSessionV2Projection } from '../../node/agentHostDatabase.js';
+import { AgentHostDatabase, AgentHostDatabaseSessionV2UpsertResult, IAgentHostDatabase, IAgentHostDatabaseRegisterOptions, IAgentHostDatabaseSession, IAgentHostDatabaseSessionsV2Exclusion, IAgentHostDatabaseSessionOptions, IAgentHostDatabaseSessionV2, IAgentHostDatabaseSessionV2Envelope, IAgentHostDatabaseSessionV2Receipt } from '../../node/agentHostDatabase.js';
 import type { AgentHostCatalogReconciliationSourceResult } from '../../node/agentHostCatalogReconciliationService.js';
-import type { AgentHostCatalogReadMode, IAgentHostCatalogShadowValidationReport, IAgentHostCatalogShadowValidationReporter } from '../../node/agentHostCatalogShadowValidator.js';
-import { AGENT_HOST_CATALOG_PROJECTION_VERSION, projectAgentHostCatalog, type IAgentHostCatalogSource } from '../../node/agentHostCatalogProjection.js';
+import { AGENT_HOST_CATALOG_PAYLOAD_VERSION, decodeAgentHostCatalogPayload, encodeAgentHostCatalogPayload, type AgentHostCatalogData } from '../../node/agentHostCatalogProjection.js';
 import { AgentSessionRegistry, type IRegisteredSession } from '../../node/agentSessionRegistry.js';
 import { AgentHostManagementService } from '../../node/agentHostManagementService.js';
 import { AGENT_HOST_TITLE_SOURCE_AUTO, SESSION_ARTIFACTS_KEY, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
@@ -67,7 +66,7 @@ import { SessionServerToolName } from '../../common/serverToolNames.js';
 import { buildMcpChannel } from '../../node/shared/mcpCustomizationController.js';
 import { readEphemeralSessionMeta, withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
 import { readChatSurfaceMeta, withChatSurfaceMeta } from '../../common/meta/agentChatSurfaceMeta.js';
-import { readSessionArtifacts, SessionArtifactType, withSessionArtifacts } from '../../common/sessionArtifacts.js';
+import { readSessionArtifacts, SESSION_META_ARTIFACTS_KEY, SessionArtifactType, withSessionArtifacts } from '../../common/sessionArtifacts.js';
 import { createTestAgentService, getTestAgentServiceComposition, getTestAgentStateManager } from './agentServiceTestUtils.js';
 
 /**
@@ -155,46 +154,68 @@ function createPerSessionDataService(): { readonly service: ISessionDataService;
 	};
 }
 
+/** Builds the durable catalog envelope a verified payload produces for `session`. */
+function catalogEnvelope(session: URI, data: AgentHostCatalogData, sessionGeneration = 'test-generation', sourceRevision = 1): IAgentHostDatabaseSessionV2Envelope {
+	const encoded = encodeAgentHostCatalogPayload(data);
+	if (!encoded.ok) {
+		throw new Error(encoded.error);
+	}
+	return {
+		session: session.toString(),
+		sessionGeneration,
+		sourceRevision,
+		payloadVersion: AGENT_HOST_CATALOG_PAYLOAD_VERSION,
+		payloadHash: encoded.value.payloadHash,
+		verified: true,
+		payload: encoded.value.payload,
+	};
+}
+
+/** Mirrors the database's own derivation of the chat-backing marker from a stored payload. */
+function isChatBackingPayload(payload: string): boolean {
+	const decoded = decodeAgentHostCatalogPayload(payload);
+	return decoded.ok && decoded.value.data.isChatBacking === true;
+}
+
+/** Reads a stored catalog row the way a downstream consumer would: through its payload. */
+function catalogDataOf(row: { readonly payload: string } | undefined): AgentHostCatalogData | undefined {
+	if (!row) {
+		return undefined;
+	}
+	const decoded = decodeAgentHostCatalogPayload(row.payload);
+	return decoded.ok ? decoded.value.data : undefined;
+}
+
 async function seedVerifiedSessionV2(database: IAgentHostDatabase, sessionData: TestSessionDatabase, session: URI, external: boolean, isRead = true): Promise<void> {
 	const provider = AgentSession.provider(session);
 	assert.ok(provider);
-	const source: IAgentHostCatalogSource = {
+	const envelope = catalogEnvelope(session, {
 		modifiedTime: 1,
-		title: 'verified',
+		summary: 'verified',
 		isRead,
 		isArchived: false,
-		workspaceless: false,
 		workingDirectories: [],
 		chats: [{ uri: buildDefaultChatUri(session), order: 0, kind: 'default' }],
-	};
-	const projection = projectAgentHostCatalog(source, {
-		session: session.toString(),
-		sessionGeneration: 'verified-generation',
-		sourceRevision: 0,
-	});
-	assert.strictEqual(projection.ok, true);
-	if (!projection.ok) {
-		return;
-	}
+	}, 'verified-generation', 0);
 	await database.registerSessionV2(session.toString(), {
 		provider,
 		startTime: 1,
 		source: external ? 'discovery' : 'restore',
 	}, { checkTombstone: true });
 	await sessionData.setMetadataValuesAndCatalogSyncSnapshot({}, {
-		sessionGeneration: projection.value.catalog.sessionGeneration,
-		sourceRevision: projection.value.catalog.sourceRevision,
-		projectionVersion: projection.value.catalog.projectionVersion,
-		payload: projection.value.sourcePayload,
-		payloadHash: projection.value.catalog.sourceHash,
+		sessionGeneration: envelope.sessionGeneration,
+		sourceRevision: envelope.sourceRevision,
+		projectionVersion: envelope.payloadVersion,
+		payload: envelope.payload,
+		payloadHash: envelope.payloadHash,
 		state: 'pending',
 	});
-	assert.strictEqual(await database.upsertSessionV2(projection.value.catalog, undefined), 'applied');
+	assert.strictEqual(await database.upsertSessionV2(envelope, undefined), 'applied');
 	assert.strictEqual(await sessionData.acknowledgeCatalogSyncSnapshot({
-		sessionGeneration: projection.value.catalog.sessionGeneration,
-		sourceRevision: projection.value.catalog.sourceRevision,
-		projectionVersion: projection.value.catalog.projectionVersion,
-		payloadHash: projection.value.catalog.sourceHash,
+		sessionGeneration: envelope.sessionGeneration,
+		sourceRevision: envelope.sourceRevision,
+		projectionVersion: envelope.payloadVersion,
+		payloadHash: envelope.payloadHash,
 	}), true);
 }
 
@@ -302,12 +323,12 @@ class TransientRegistryWriteDatabase implements IAgentHostDatabase {
 		this._sessions.set(session.session, { ...session, external: undefined });
 	}
 
-	setSessionV2ProjectionVersion(session: URI, projectionVersion: number): void {
+	setSessionV2PayloadReceipt(session: URI, payloadVersion: number, sessionGeneration: string): void {
 		const catalog = this._sessionsV2.get(session.toString());
 		if (!catalog) {
 			throw new Error(`Missing test sessions_v2 row ${session.toString()}`);
 		}
-		this._sessionsV2.set(session.toString(), { ...catalog, projectionVersion });
+		this._sessionsV2.set(session.toString(), { ...catalog, payloadVersion, sessionGeneration });
 	}
 
 	failRegistryWrites(count: number): void {
@@ -573,17 +594,20 @@ class TransientRegistryWriteDatabase implements IAgentHostDatabase {
 
 	async getSessionV2(session: string): Promise<IAgentHostDatabaseSessionV2 | undefined> { return this._sessionsV2.get(session); }
 	async listSessionsV2(): Promise<readonly IAgentHostDatabaseSessionV2[]> { return [...this._sessionsV2.values()]; }
-	async upsertSessionV2(projection: IAgentHostDatabaseSessionV2Projection, expectedSessionGeneration: string | undefined): Promise<AgentHostDatabaseSessionV2UpsertResult> {
+	async listSessionsV2Receipts(): Promise<readonly IAgentHostDatabaseSessionV2Receipt[]> {
+		return [...this._sessionsV2.values()].map(({ payload, ...receipt }) => receipt);
+	}
+	async upsertSessionV2(envelope: IAgentHostDatabaseSessionV2Envelope, expectedSessionGeneration: string | undefined): Promise<AgentHostDatabaseSessionV2UpsertResult> {
 		this.sessionV2UpsertAttempts++;
-		const session = this._sessionV2Registrations.get(projection.session);
+		const session = this._sessionV2Registrations.get(envelope.session);
 		if (!session) {
 			return 'missingSession';
 		}
-		const current = this._sessionsV2.get(projection.session);
+		const current = this._sessionsV2.get(envelope.session);
 		if (current?.sessionGeneration !== expectedSessionGeneration) {
 			return 'generationMismatch';
 		}
-		this._sessionsV2.set(projection.session, { ...session, ...projection });
+		this._sessionsV2.set(envelope.session, { ...session, ...envelope, isChatBacking: isChatBackingPayload(envelope.payload) });
 		return 'applied';
 	}
 
@@ -815,19 +839,23 @@ class TestAgentHostOrchestratorDatabase implements IAgentHostDatabase {
 		this.catalogListCalls++;
 		return [...this._sessionsV2.values()];
 	}
-	async upsertSessionV2(projection: IAgentHostDatabaseSessionV2Projection, expectedSessionGeneration: string | undefined): Promise<AgentHostDatabaseSessionV2UpsertResult> {
-		const session = this._sessionV2Registrations.get(projection.session);
+	async listSessionsV2Receipts(): Promise<readonly IAgentHostDatabaseSessionV2Receipt[]> {
+		this.catalogListCalls++;
+		return [...this._sessionsV2.values()].map(({ payload, ...receipt }) => receipt);
+	}
+	async upsertSessionV2(envelope: IAgentHostDatabaseSessionV2Envelope, expectedSessionGeneration: string | undefined): Promise<AgentHostDatabaseSessionV2UpsertResult> {
+		const session = this._sessionV2Registrations.get(envelope.session);
 		if (!session) {
 			return 'missingSession';
 		}
-		const current = this._sessionsV2.get(projection.session);
+		const current = this._sessionsV2.get(envelope.session);
 		if (current?.sessionGeneration !== expectedSessionGeneration) {
 			return 'generationMismatch';
 		}
-		if (current?.sessionGeneration === projection.sessionGeneration && current.sourceRevision === projection.sourceRevision) {
-			return current.projectionVersion === projection.projectionVersion && current.sourceHash === projection.sourceHash ? 'replayed' : 'conflict';
+		if (current?.sessionGeneration === envelope.sessionGeneration && current.sourceRevision === envelope.sourceRevision) {
+			return current.payloadVersion === envelope.payloadVersion && current.payloadHash === envelope.payloadHash ? 'replayed' : 'conflict';
 		}
-		this._sessionsV2.set(projection.session, { ...session, ...projection });
+		this._sessionsV2.set(envelope.session, { ...session, ...envelope, isChatBacking: isChatBackingPayload(envelope.payload) });
 		return 'applied';
 	}
 
@@ -3282,27 +3310,28 @@ suite('AgentService (node dispatcher)', () => {
 				const entry = this.catalog.get(AgentSession.id(session));
 				return entry ? { chat, startTime: entry.modifiedTime, modifiedTime: entry.modifiedTime, ...(entry._meta ? { _meta: entry._meta } : {}) } : undefined;
 			}
+
+			// The catalog is now read back for listing, so the session-scoped
+			// metadata a real provider reports must agree with the chat-scoped one.
+			override async getSessionMetadata(session: URI): Promise<IAgentSessionMetadata | undefined> {
+				const entry = this.catalog.get(AgentSession.id(session));
+				return entry ? { session, startTime: entry.modifiedTime, modifiedTime: entry.modifiedTime, ...(entry._meta ? { _meta: entry._meta } : {}) } : undefined;
+			}
 		}
 
 		class CentralCatalogDatabase extends TestAgentHostOrchestratorDatabase {
-			private readonly _catalogs = new Map<string, IAgentHostDatabaseSessionV2Projection>();
+			private readonly _catalogs = new Map<string, IAgentHostDatabaseSessionV2Envelope>();
 
-			setCatalog(session: URI, source: IAgentHostCatalogSource): void {
-				const projection = projectAgentHostCatalog(source, {
-					session: session.toString(),
-					sessionGeneration: 'test-generation',
-					sourceRevision: 1,
-				});
-				if (!projection.ok) {
-					throw new Error(projection.error.message);
-				}
-				this._catalogs.set(session.toString(), projection.value.catalog);
+			setCatalog(session: URI, data: AgentHostCatalogData): void {
+				this._catalogs.set(session.toString(), catalogEnvelope(session, data));
 			}
 
 			override async getSessionV2(session: string): Promise<IAgentHostDatabaseSessionV2 | undefined> {
-				const catalog = this._catalogs.get(session);
+				const envelope = this._catalogs.get(session);
 				const registered = await this.getSessionV2Registration(session);
-				return catalog && registered ? { ...registered, ...catalog } : undefined;
+				return envelope && registered
+					? { ...registered, ...envelope, isChatBacking: isChatBackingPayload(envelope.payload) }
+					: undefined;
 			}
 		}
 
@@ -3315,14 +3344,13 @@ suite('AgentService (node dispatcher)', () => {
 			}
 		}
 
-		function centralSource(modifiedTime: number, title: string, ehcliAdoptable = false): IAgentHostCatalogSource {
+		function centralData(modifiedTime: number, summary: string, ehcliAdoptable = false): AgentHostCatalogData {
 			return {
 				modifiedTime,
-				title,
+				summary,
 				isRead: false,
 				isArchived: false,
-				workspaceless: false,
-				ehcliAdoptable,
+				...(ehcliAdoptable ? { _meta: { [SESSION_META_EHCLI_ADOPTABLE_KEY]: true } } : {}),
 				workingDirectories: [],
 				chats: [],
 			};
@@ -3347,12 +3375,7 @@ suite('AgentService (node dispatcher)', () => {
 			));
 		}
 
-		function createCatalogReadModeService(
-			sessionDataService: ISessionDataService,
-			orchestratorDatabase: IAgentHostDatabase,
-			readMode: AgentHostCatalogReadMode,
-			reporter: IAgentHostCatalogShadowValidationReporter,
-		): AgentService {
+		function createCentralCatalogService(sessionDataService: ISessionDataService, orchestratorDatabase: IAgentHostDatabase): AgentService {
 			return disposables.add(createTestAgentService(
 				new NullLogService(),
 				fileService,
@@ -3368,8 +3391,6 @@ suite('AgentService (node dispatcher)', () => {
 				undefined,
 				undefined,
 				orchestratorDatabase,
-				readMode,
-				reporter,
 			));
 		}
 
@@ -3424,35 +3445,6 @@ suite('AgentService (node dispatcher)', () => {
 			assert.strictEqual(sessions.length, 1);
 		});
 
-		test('listSessions does not read the central catalog during dual write', async () => {
-			const orchestratorDatabase = new TestAgentHostOrchestratorDatabase();
-			const svc = disposables.add(createTestAgentService(
-				new NullLogService(),
-				fileService,
-				createSessionDataService(),
-				{ _serviceBrand: undefined } as IProductService,
-				createNoopGitService(),
-				undefined,
-				undefined,
-				undefined,
-				undefined,
-				undefined,
-				[],
-				undefined,
-				undefined,
-				orchestratorDatabase,
-			));
-			const agent = new MockAgent('copilot');
-			disposables.add(toDisposable(() => agent.dispose()));
-			svc.registerProvider(agent);
-			await svc.createSession({ provider: 'copilot' });
-			orchestratorDatabase.catalogListCalls = 0;
-
-			await svc.listSessions();
-
-			assert.strictEqual(orchestratorDatabase.catalogListCalls, 0);
-		});
-
 		test('central list uses eligible catalogs and suppresses chat backing with zero legacy reads', async () => {
 			const orchestratorDatabase = new CentralCatalogDatabase();
 			const session = AgentSession.uri('copilot', 'central-only');
@@ -3461,14 +3453,14 @@ suite('AgentService (node dispatcher)', () => {
 				startTime: 10,
 				source: 'explicit',
 			}, { checkTombstone: false });
-			orchestratorDatabase.setCatalog(session, centralSource(20, 'Central'));
+			orchestratorDatabase.setCatalog(session, centralData(20, 'Central'));
 			const backingSession = AgentSession.uri('copilot', 'central-backing');
 			await orchestratorDatabase.registerSessionV2(backingSession.toString(), {
 				provider: 'copilot',
 				startTime: 11,
 				source: 'explicit',
 			}, { checkTombstone: false });
-			orchestratorDatabase.setCatalog(backingSession, { ...centralSource(21, 'Backing'), isChatBacking: true });
+			orchestratorDatabase.setCatalog(backingSession, { ...centralData(21, 'Backing'), isChatBacking: true });
 			let databaseOpens = 0;
 			const sessionDataService: ISessionDataService = {
 				...createSessionDataService(),
@@ -3477,7 +3469,7 @@ suite('AgentService (node dispatcher)', () => {
 					throw new Error('central list must not open session.db');
 				},
 			};
-			const svc = createCatalogReadModeService(sessionDataService, orchestratorDatabase, 'centralWithFallback', { report: () => { } });
+			const svc = createCentralCatalogService(sessionDataService, orchestratorDatabase);
 			await svc.whenCatalogReconciliationIdle();
 			databaseOpens = 0;
 			const agent = disposables.add(new CountingMetadataAgent('copilot'));
@@ -3499,71 +3491,54 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
-		test('central modes gate adoptable catalogs without provider or session database reads', async () => {
-			const outcomes: object[] = [];
-			for (const readMode of ['centralWithFallback', 'central'] as const) {
-				const orchestratorDatabase = new CentralCatalogDatabase();
-				const session = AgentSession.uri('copilot', `central-adoptable-${readMode}`);
-				await orchestratorDatabase.registerSessionV2(session.toString(), {
-					provider: 'copilot',
-					startTime: 10,
-					source: 'explicit',
-				}, { checkTombstone: false });
-				orchestratorDatabase.setCatalog(session, centralSource(20, 'Adoptable', true));
-				let databaseOpens = 0;
-				const sessionDataService: ISessionDataService = {
-					...createSessionDataService(),
-					tryOpenDatabase: async () => {
-						databaseOpens++;
-						throw new Error('eligible central list must not open session.db');
-					},
-				};
-				const svc = createCatalogReadModeService(sessionDataService, orchestratorDatabase, readMode, { report: () => { } });
-				await svc.whenCatalogReconciliationIdle();
-				databaseOpens = 0;
-				const agent = disposables.add(new CountingMetadataAgent('copilot'));
-				svc.registerProvider(agent);
-				await timeout(0);
-				agent.metadataCalls = [];
-				databaseOpens = 0;
-
-				const whileDisabled = await svc.listSessions();
-				getConfigurationService(svc).updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
-				(svc as unknown as { _invalidateSessionList(): void })._invalidateSessionList();
-				const whileEnabled = await svc.listSessions();
-				orchestratorDatabase.setCatalog(session, centralSource(20, 'Adopted'));
-				getConfigurationService(svc).updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: false });
-				(svc as unknown as { _invalidateSessionList(): void })._invalidateSessionList();
-				const afterAdoption = await svc.listSessions();
-
-				outcomes.push({
-					readMode,
-					whileDisabled: whileDisabled.length,
-					whileEnabled: whileEnabled.map(metadata => metadata.summary),
-					afterAdoption: afterAdoption.map(metadata => metadata.summary),
-					providerMetadataCalls: agent.metadataCalls,
-					sessionDatabaseOpens: databaseOpens,
-				});
-			}
-
-			assert.deepStrictEqual(outcomes, [
-				{
-					readMode: 'centralWithFallback',
-					whileDisabled: 0,
-					whileEnabled: ['Adoptable'],
-					afterAdoption: ['Adopted'],
-					providerMetadataCalls: [],
-					sessionDatabaseOpens: 0,
+		test('central list gates adoptable catalogs without provider or session database reads', async () => {
+			const orchestratorDatabase = new CentralCatalogDatabase();
+			const session = AgentSession.uri('copilot', 'central-adoptable');
+			await orchestratorDatabase.registerSessionV2(session.toString(), {
+				provider: 'copilot',
+				startTime: 10,
+				source: 'explicit',
+			}, { checkTombstone: false });
+			orchestratorDatabase.setCatalog(session, centralData(20, 'Adoptable', true));
+			let databaseOpens = 0;
+			const sessionDataService: ISessionDataService = {
+				...createSessionDataService(),
+				tryOpenDatabase: async () => {
+					databaseOpens++;
+					throw new Error('eligible central list must not open session.db');
 				},
-				{
-					readMode: 'central',
-					whileDisabled: 0,
-					whileEnabled: ['Adoptable'],
-					afterAdoption: ['Adopted'],
-					providerMetadataCalls: [],
-					sessionDatabaseOpens: 0,
-				},
-			]);
+			};
+			const svc = createCentralCatalogService(sessionDataService, orchestratorDatabase);
+			await svc.whenCatalogReconciliationIdle();
+			databaseOpens = 0;
+			const agent = disposables.add(new CountingMetadataAgent('copilot'));
+			svc.registerProvider(agent);
+			await timeout(0);
+			agent.metadataCalls = [];
+			databaseOpens = 0;
+
+			const whileDisabled = await svc.listSessions();
+			getConfigurationService(svc).updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
+			(svc as unknown as { _invalidateSessionList(): void })._invalidateSessionList();
+			const whileEnabled = await svc.listSessions();
+			orchestratorDatabase.setCatalog(session, centralData(20, 'Adopted'));
+			getConfigurationService(svc).updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: false });
+			(svc as unknown as { _invalidateSessionList(): void })._invalidateSessionList();
+			const afterAdoption = await svc.listSessions();
+
+			assert.deepStrictEqual({
+				whileDisabled: whileDisabled.length,
+				whileEnabled: whileEnabled.map(metadata => metadata.summary),
+				afterAdoption: afterAdoption.map(metadata => metadata.summary),
+				providerMetadataCalls: agent.metadataCalls,
+				sessionDatabaseOpens: databaseOpens,
+			}, {
+				whileDisabled: 0,
+				whileEnabled: ['Adoptable'],
+				afterAdoption: ['Adopted'],
+				providerMetadataCalls: [],
+				sessionDatabaseOpens: 0,
+			});
 		});
 
 		test('central fallback accesses provider and session database only for the ineligible session', async () => {
@@ -3577,7 +3552,7 @@ suite('AgentService (node dispatcher)', () => {
 					source: 'explicit',
 				}, { checkTombstone: false });
 			}
-			orchestratorDatabase.setCatalog(centralSession, centralSource(30, 'Central'));
+			orchestratorDatabase.setCatalog(centralSession, centralData(30, 'Central'));
 			const databaseOpens: string[] = [];
 			const baseSessionDataService = createSessionDataService();
 			const sessionDataService: ISessionDataService = {
@@ -3587,7 +3562,7 @@ suite('AgentService (node dispatcher)', () => {
 					return baseSessionDataService.tryOpenDatabase(session);
 				},
 			};
-			const svc = createCatalogReadModeService(sessionDataService, orchestratorDatabase, 'centralWithFallback', { report: () => { } });
+			const svc = createCentralCatalogService(sessionDataService, orchestratorDatabase);
 			await svc.whenCatalogReconciliationIdle();
 			const agent = disposables.add(new CountingMetadataAgent('copilot'));
 			agent.addSession('eligible', 30);
@@ -3613,7 +3588,7 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
-		test('central mode omits ineligible rows and lists eligible rows without a provider or session database', async () => {
+		test('central list drops an ineligible row whose fallback has no provider and lists eligible rows without a session database', async () => {
 			const orchestratorDatabase = new CentralCatalogDatabase();
 			const eligible = AgentSession.uri('copilot', 'provider-unavailable');
 			const ineligible = AgentSession.uri('copilot', 'missing-catalog');
@@ -3624,7 +3599,7 @@ suite('AgentService (node dispatcher)', () => {
 					source: 'explicit',
 				}, { checkTombstone: false });
 			}
-			orchestratorDatabase.setCatalog(eligible, centralSource(40, 'Available centrally'));
+			orchestratorDatabase.setCatalog(eligible, centralData(40, 'Available centrally'));
 			let databaseOpens = 0;
 			const sessionDataService: ISessionDataService = {
 				...createSessionDataService(),
@@ -3633,7 +3608,7 @@ suite('AgentService (node dispatcher)', () => {
 					return undefined;
 				},
 			};
-			const svc = createCatalogReadModeService(sessionDataService, orchestratorDatabase, 'central', { report: () => { } });
+			const svc = createCentralCatalogService(sessionDataService, orchestratorDatabase);
 			await svc.whenCatalogReconciliationIdle();
 			databaseOpens = 0;
 
@@ -3650,13 +3625,13 @@ suite('AgentService (node dispatcher)', () => {
 
 		test('central list applies the same live state overlay as legacy listing', async () => {
 			const orchestratorDatabase = new CentralCatalogDatabase();
-			const svc = createCatalogReadModeService(createSessionDataService(), orchestratorDatabase, 'central', { report: () => { } });
+			const svc = createCentralCatalogService(createSessionDataService(), orchestratorDatabase);
 			const agent = disposables.add(new MockAgent('copilot'));
 			svc.registerProvider(agent);
 			const session = await svc.createSession({ provider: 'copilot' });
 			await svc.whenCatalogReconciliationIdle();
 			orchestratorDatabase.setCatalog(session, {
-				...centralSource(20, 'Persisted title'),
+				...centralData(20, 'Persisted title'),
 				workingDirectories: ['file:///persisted'],
 				changes: { files: 1 },
 			});
@@ -3679,7 +3654,7 @@ suite('AgentService (node dispatcher)', () => {
 			}, {
 				title: 'Live title',
 				workingDirectories: ['file:///persisted'],
-				changes: { additions: undefined, deletions: undefined, files: 1 },
+				changes: { files: 1 },
 				git: { branchName: 'live-branch' },
 			});
 		});
@@ -3696,9 +3671,9 @@ suite('AgentService (node dispatcher)', () => {
 					startTime: index,
 					source: 'discovery',
 				}, { checkTombstone: false });
-				orchestratorDatabase.setCatalog(session, centralSource(now - index, `Session ${index}`));
+				orchestratorDatabase.setCatalog(session, centralData(now - index, `Session ${index}`));
 			}
-			const svc = createCatalogReadModeService(createSessionDataService(), orchestratorDatabase, 'central', { report: () => { } });
+			const svc = createCentralCatalogService(createSessionDataService(), orchestratorDatabase);
 			await svc.whenCatalogReconciliationIdle();
 			setExternalSessionsMode(svc, AgentHostExternalSessionsMode.Recent, 1);
 			await waitForSessionListReconciliation(svc);
@@ -3719,7 +3694,7 @@ suite('AgentService (node dispatcher)', () => {
 				startTime: 10,
 				source: 'explicit',
 			}, { checkTombstone: false });
-			const svc = createCatalogReadModeService(createSessionDataService(), orchestratorDatabase, 'centralWithFallback', { report: () => { } });
+			const svc = createCentralCatalogService(createSessionDataService(), orchestratorDatabase);
 			await svc.whenCatalogReconciliationIdle();
 			const agent = disposables.add(new CountingMetadataAgent('copilot'));
 			agent.addSession('repair-later', 20);
@@ -3741,68 +3716,7 @@ suite('AgentService (node dispatcher)', () => {
 			await reconciliationStarted.p;
 		});
 
-		test('shadow list returns the exact legacy result without additional session database opens', async () => {
-			const sessionDatabase = new TestSessionDatabase();
-			const baseSessionDataService = createSessionDataService(sessionDatabase);
-			let listDatabaseOpens = 0;
-			const sessionDataService: ISessionDataService = {
-				...baseSessionDataService,
-				tryOpenDatabase: async session => {
-					listDatabaseOpens++;
-					return baseSessionDataService.tryOpenDatabase(session);
-				},
-			};
-			const orchestratorDatabase = new TestAgentHostOrchestratorDatabase();
-			const reports: IAgentHostCatalogShadowValidationReport[] = [];
-			const reportReceived = new DeferredPromise<void>();
-			const svc = createCatalogReadModeService(sessionDataService, orchestratorDatabase, 'legacy', {
-				report: report => {
-					reports.push(report);
-					reportReceived.complete();
-				},
-			});
-			const agent = disposables.add(new MockAgent('copilot'));
-			svc.registerProvider(agent);
-			const session = await svc.createSession({ provider: 'copilot' });
-			const projected = await orchestratorDatabase.getSessionV2(session.toString());
-			agent.sessionMetadataOverrides = { startTime: projected!.startTime };
-			exposeListedSessions(svc, [{
-				session,
-				startTime: projected!.startTime,
-				modifiedTime: 1,
-				summary: 'Session',
-				status: SessionStatus.Idle,
-			}]);
-
-			const legacyStartOpens = listDatabaseOpens;
-			const legacy = await svc.listSessions();
-			const legacyOpens = listDatabaseOpens - legacyStartOpens;
-			(svc as unknown as { _catalogReadMode: AgentHostCatalogReadMode })._catalogReadMode = 'shadow';
-			const shadowStartOpens = listDatabaseOpens;
-			const shadow = await svc.listSessions();
-			const shadowOpens = listDatabaseOpens - shadowStartOpens;
-			await reportReceived.p;
-
-			const comparable = (metadata: IAgentSessionMetadata) => ({
-				...metadata,
-				session: metadata.session.toString(),
-				startTime: 0,
-				project: metadata.project ? { ...metadata.project, uri: metadata.project.uri.toString() } : undefined,
-				workingDirectories: metadata.workingDirectories?.map(directory => directory.toString()),
-			});
-			assert.deepStrictEqual(shadow.map(comparable), legacy.map(comparable));
-			assert.deepStrictEqual({
-				openCountsEqual: shadowOpens === legacyOpens,
-				legacyOpenedDatabase: legacyOpens > 0,
-				reports: reports.map(report => ({ total: report.total, matched: report.counts.matched })),
-			}, {
-				openCountsEqual: true,
-				legacyOpenedDatabase: true,
-				reports: [{ total: 1, matched: 1 }],
-			});
-		});
-
-		test('shadow list returns before validation and coalesces repeated lists to one latest pass', async () => {
+		test('central list coalesces repeated lists onto one in-flight catalog read', async () => {
 			const firstReadStarted = new DeferredPromise<void>();
 			const releaseFirstRead = new DeferredPromise<void>();
 			class DeferredCatalogDatabase extends TestAgentHostOrchestratorDatabase {
@@ -3821,66 +3735,30 @@ suite('AgentService (node dispatcher)', () => {
 				}
 			}
 			const orchestratorDatabase = new DeferredCatalogDatabase();
-			const reports: IAgentHostCatalogShadowValidationReport[] = [];
-			const twoReportsReceived = new DeferredPromise<void>();
-			const svc = createCatalogReadModeService(createSessionDataService(), orchestratorDatabase, 'legacy', {
-				report: report => {
-					reports.push(report);
-					if (reports.length === 2) {
-						twoReportsReceived.complete();
-					}
-				},
-			});
+			const svc = createCentralCatalogService(createSessionDataService(), orchestratorDatabase);
 			const agent = disposables.add(new MockAgent('copilot'));
 			svc.registerProvider(agent);
 			await svc.createSession({ provider: 'copilot' });
-			(svc as unknown as { _catalogReadMode: AgentHostCatalogReadMode })._catalogReadMode = 'shadow';
+			await svc.whenCatalogReconciliationIdle();
 			orchestratorDatabase.deferActiveCatalogReads = true;
 
-			const firstList = await svc.listSessions();
+			const blocked = svc.listSessions();
 			await firstReadStarted.p;
-			const repeatedLists = await Promise.all([svc.listSessions(), svc.listSessions(), svc.listSessions()]);
-
-			assert.deepStrictEqual({
-				firstListCount: firstList.length,
-				repeatedListCounts: repeatedLists.map(list => list.length),
-				activeCatalogReadsWhileBlocked: orchestratorDatabase.activeCatalogReads,
-				reportsWhileBlocked: reports.length,
-			}, {
-				firstListCount: 1,
-				repeatedListCounts: [1, 1, 1],
-				activeCatalogReadsWhileBlocked: 1,
-				reportsWhileBlocked: 0,
-			});
-
+			const repeated = Promise.all([svc.listSessions(), svc.listSessions(), svc.listSessions()]);
+			const readsWhileBlocked = orchestratorDatabase.activeCatalogReads;
 			releaseFirstRead.complete();
-			await twoReportsReceived.p;
+
 			assert.deepStrictEqual({
+				readsWhileBlocked,
+				blockedListCount: (await blocked).length,
+				repeatedListCounts: (await repeated).map(list => list.length),
 				activeCatalogReads: orchestratorDatabase.activeCatalogReads,
-				reports: reports.length,
 			}, {
-				activeCatalogReads: 2,
-				reports: 2,
+				readsWhileBlocked: 1,
+				blockedListCount: 1,
+				repeatedListCounts: [1, 1, 1],
+				activeCatalogReads: 1,
 			});
-		});
-
-		test('shadow reporter failure cannot fail listSessions', async () => {
-			const orchestratorDatabase = new TestAgentHostOrchestratorDatabase();
-			const reportAttempted = new DeferredPromise<void>();
-			const svc = createCatalogReadModeService(createSessionDataService(), orchestratorDatabase, 'shadow', {
-				report: () => {
-					reportAttempted.complete();
-					throw new Error('reporter failed');
-				},
-			});
-			const agent = disposables.add(new MockAgent('copilot'));
-			svc.registerProvider(agent);
-			await svc.createSession({ provider: 'copilot' });
-
-			const listed = await svc.listSessions();
-			await reportAttempted.p;
-
-			assert.strictEqual(listed.length, 1);
 		});
 
 		test('listSessions discovers provider-native sessions as external and restore preserves provenance', async () => {
@@ -4199,7 +4077,9 @@ suite('AgentService (node dispatcher)', () => {
 		testWithExternalSessionClock('filters external sessions in every mode', async () => {
 			const day = 24 * 60 * 60 * 1000;
 			const now = Date.now();
-			const svc = createExternalSessionService();
+			// Per-session databases: the catalog relay snapshot is per session, so a
+			// shared test database would let one session's pending payload land on another.
+			const svc = createExternalSessionService(createPerSessionDataService().service);
 			const agent = disposables.add(new TimedExternalAgent('copilot'));
 			agent.addSession('recent', now);
 			agent.addSession('within-24-hours', now - day + day / 2);
@@ -4901,7 +4781,7 @@ suite('AgentService (node dispatcher)', () => {
 					legacy: await database.listSessions(),
 					currentRegistrations: (await database.listSessionV2Registrations()).map(row => row.session),
 					currentCatalog: (await database.listSessionsV2()).map(row => row.session),
-					currentMarker: await database.isSessionsV2Backfilled('copilot', AGENT_HOST_CATALOG_PROJECTION_VERSION),
+					currentMarker: await database.isSessionsV2Backfilled('copilot', AGENT_HOST_CATALOG_PAYLOAD_VERSION),
 					oldGlobalMarker: await database.isSessionRegistryBackfilled(),
 					oldProviderMarker: await database.isProviderBackfilled('copilot'),
 				}, {
@@ -4917,7 +4797,7 @@ suite('AgentService (node dispatcher)', () => {
 			test('runtime discovery after the current marker mirrors both registries', async () => {
 				const database = new TransientRegistryWriteDatabase();
 				const perSession = createPerSessionDataService();
-				await database.markSessionsV2Backfilled('copilot', AGENT_HOST_CATALOG_PROJECTION_VERSION);
+				await database.markSessionsV2Backfilled('copilot', AGENT_HOST_CATALOG_PAYLOAD_VERSION);
 				const svc = createService(database, perSession.service);
 				const agent = disposables.add(new DirectImportAgent('copilot'));
 				const discovered = AgentSession.uri('copilot', 'runtime-after-marker');
@@ -5073,7 +4953,7 @@ suite('AgentService (node dispatcher)', () => {
 
 				assert.deepStrictEqual({
 					persistedRead: await perSession.database(session).getMetadata(AH_META_IS_READ_DB_KEY),
-					catalogRead: (await database.getSessionV2(session.toString()))?.isRead,
+					catalogRead: catalogDataOf(await database.getSessionV2(session.toString()))?.isRead,
 				}, {
 					persistedRead: '',
 					catalogRead: false,
@@ -5131,7 +5011,7 @@ suite('AgentService (node dispatcher)', () => {
 					catalog: (await database.listSessionsV2()).map(row => row.session).sort(),
 					verifiedGeneration: (await database.getSessionV2(verified.toString()))?.sessionGeneration,
 					missingRevisions: [missingRevisionAfterInitialImport, (await database.getSessionV2(missing.toString()))?.sourceRevision],
-					currentMarker: await database.isSessionsV2Backfilled('copilot', AGENT_HOST_CATALOG_PROJECTION_VERSION),
+					currentMarker: await database.isSessionsV2Backfilled('copilot', AGENT_HOST_CATALOG_PAYLOAD_VERSION),
 					catalogCalls: agent.catalogCalls,
 				}, {
 					registrations: [verified.toString(), incomplete.toString(), missing.toString()].sort(),
@@ -5199,7 +5079,7 @@ suite('AgentService (node dispatcher)', () => {
 					current: (await database.listSessionV2Registrations()).map(row => ({ session: row.session, source: row.source })).sort((a, b) => a.session.localeCompare(b.session)),
 					catalog: (await database.listSessionsV2()).map(row => row.session).sort(),
 					originalGenerationStable: (await database.getSessionV2(original.toString()))?.sessionGeneration === originalGeneration,
-					currentMarker: await database.isSessionsV2Backfilled('copilot', AGENT_HOST_CATALOG_PROJECTION_VERSION),
+					currentMarker: await database.isSessionsV2Backfilled('copilot', AGENT_HOST_CATALOG_PAYLOAD_VERSION),
 				}, {
 					legacy: [
 						{ session: intermediate.toString(), source: 'restore' },
@@ -5246,7 +5126,7 @@ suite('AgentService (node dispatcher)', () => {
 					completeSessionOpens: perSession.databaseOpens.filter(session => session === imported.toString()),
 					oldGlobalMarker: await database.isSessionRegistryBackfilled(),
 					oldProviderMarker: await database.isProviderBackfilled('copilot'),
-					currentMarker: await database.isSessionsV2Backfilled('copilot', AGENT_HOST_CATALOG_PROJECTION_VERSION),
+					currentMarker: await database.isSessionsV2Backfilled('copilot', AGENT_HOST_CATALOG_PAYLOAD_VERSION),
 				}, {
 					imported: [imported.toString(), intermediateLegacy.toString()].sort(),
 					firstCatalogCalls: 1,
@@ -5264,7 +5144,7 @@ suite('AgentService (node dispatcher)', () => {
 				const perSession = createPerSessionDataService();
 				const session = AgentSession.uri('copilot', 'intermediate-provenance-update');
 				await seedVerifiedSessionV2(database, perSession.database(session), session, false);
-				await database.markSessionsV2Backfilled('copilot', AGENT_HOST_CATALOG_PROJECTION_VERSION);
+				await database.markSessionsV2Backfilled('copilot', AGENT_HOST_CATALOG_PAYLOAD_VERSION);
 				await database.registerSession(session.toString(), { provider: 'copilot', startTime: 1, source: 'discovery' }, { checkTombstone: true });
 				const svc = createService(database, perSession.service);
 				const agent = disposables.add(new DirectImportAgent('copilot'));
@@ -5303,7 +5183,7 @@ suite('AgentService (node dispatcher)', () => {
 					external: false,
 					source: 'explicit',
 				});
-				await database.markSessionsV2Backfilled('copilot', AGENT_HOST_CATALOG_PROJECTION_VERSION);
+				await database.markSessionsV2Backfilled('copilot', AGENT_HOST_CATALOG_PAYLOAD_VERSION);
 				const svc = createService(database, perSession.service);
 				const agent = disposables.add(new DirectImportAgent('copilot'));
 				agent.catalog = undefined;
@@ -5345,7 +5225,7 @@ suite('AgentService (node dispatcher)', () => {
 					source: 'explicit',
 				});
 				await database.registerSession(session.toString(), { provider: 'copilot', startTime: 1, source: 'restore' }, { checkTombstone: true });
-				await database.markSessionsV2Backfilled('copilot', AGENT_HOST_CATALOG_PROJECTION_VERSION);
+				await database.markSessionsV2Backfilled('copilot', AGENT_HOST_CATALOG_PAYLOAD_VERSION);
 				const svc = createService(database, perSession.service);
 				const agent = disposables.add(new DirectImportAgent('copilot'));
 				agent.catalog = undefined;
@@ -5371,7 +5251,7 @@ suite('AgentService (node dispatcher)', () => {
 				const perSession = createPerSessionDataService();
 				const session = AgentSession.uri('copilot', 'current-without-legacy');
 				await seedVerifiedSessionV2(database, perSession.database(session), session, false);
-				await database.markSessionsV2Backfilled('copilot', AGENT_HOST_CATALOG_PROJECTION_VERSION);
+				await database.markSessionsV2Backfilled('copilot', AGENT_HOST_CATALOG_PAYLOAD_VERSION);
 				const svc = createService(database, perSession.service);
 				const agent = disposables.add(new DirectImportAgent('copilot'));
 				agent.catalog = undefined;
@@ -5396,7 +5276,7 @@ suite('AgentService (node dispatcher)', () => {
 				const perSession = createPerSessionDataService();
 				const session = AgentSession.uri('copilot', 'intermediate-recreate');
 				await seedVerifiedSessionV2(database, perSession.database(session), session, false);
-				await database.markSessionsV2Backfilled('copilot', AGENT_HOST_CATALOG_PROJECTION_VERSION);
+				await database.markSessionsV2Backfilled('copilot', AGENT_HOST_CATALOG_PAYLOAD_VERSION);
 				await database.tombstoneAndUnregisterSession(session.toString());
 				await database.registerSession(session.toString(), { provider: 'copilot', startTime: 2, source: 'explicit' }, { checkTombstone: false });
 				const svc = createService(database, perSession.service);
@@ -5419,14 +5299,31 @@ suite('AgentService (node dispatcher)', () => {
 				});
 			});
 
-			test('marker rerun upgrades an outdated projection without forcing an existing external row read', async () => {
+			test('marker rerun upgrades an outdated payload without forcing an existing external row read', async () => {
 				const database = new TransientRegistryWriteDatabase();
 				const perSession = createPerSessionDataService();
 				const session = AgentSession.uri('copilot', 'outdated-unread');
 				await seedVerifiedSessionV2(database, perSession.database(session), session, true, false);
 				await perSession.database(session).setMetadata(AH_META_IS_READ_DB_KEY, '');
-				database.setSessionV2ProjectionVersion(session, AGENT_HOST_CATALOG_PROJECTION_VERSION - 1);
-				await database.markSessionsV2Backfilled('copilot', AGENT_HOST_CATALOG_PROJECTION_VERSION);
+				const catalog = await database.getSessionV2(session.toString());
+				assert.ok(catalog);
+				const outdatedGeneration = 'outdated-generation';
+				await perSession.database(session).transitionMetadataValuesAndCatalogSyncSnapshot({}, catalog.sessionGeneration, {
+					sessionGeneration: outdatedGeneration,
+					sourceRevision: catalog.sourceRevision,
+					projectionVersion: AGENT_HOST_CATALOG_PAYLOAD_VERSION - 1,
+					payload: catalog.payload,
+					payloadHash: catalog.payloadHash,
+					state: 'pending',
+				});
+				await perSession.database(session).acknowledgeCatalogSyncSnapshot({
+					sessionGeneration: outdatedGeneration,
+					sourceRevision: catalog.sourceRevision,
+					projectionVersion: AGENT_HOST_CATALOG_PAYLOAD_VERSION - 1,
+					payloadHash: catalog.payloadHash,
+				});
+				database.setSessionV2PayloadReceipt(session, AGENT_HOST_CATALOG_PAYLOAD_VERSION - 1, outdatedGeneration);
+				await database.markSessionsV2Backfilled('copilot', AGENT_HOST_CATALOG_PAYLOAD_VERSION);
 				const svc = createService(database, perSession.service);
 				const agent = disposables.add(new DirectImportAgent('copilot'));
 				(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(session), session);
@@ -5435,13 +5332,13 @@ suite('AgentService (node dispatcher)', () => {
 
 				await (svc as unknown as { _ensureSessionsV2Imported(provider: IAgent, force: boolean): Promise<void> })._ensureSessionsV2Imported(agent, false);
 
-				const projection = await database.getSessionV2(session.toString());
+				const stored = await database.getSessionV2(session.toString());
 				assert.deepStrictEqual({
-					projectionVersion: projection?.projectionVersion,
-					isRead: projection?.isRead,
+					payloadVersion: stored?.payloadVersion,
+					isRead: catalogDataOf(stored)?.isRead,
 					catalogCalls: agent.catalogCalls,
 				}, {
-					projectionVersion: AGENT_HOST_CATALOG_PROJECTION_VERSION,
+					payloadVersion: AGENT_HOST_CATALOG_PAYLOAD_VERSION,
 					isRead: false,
 					catalogCalls: 0,
 				});
@@ -5506,13 +5403,13 @@ suite('AgentService (node dispatcher)', () => {
 				agent.catalog = undefined;
 				svc.registerProvider(agent);
 				await assert.rejects(svc.listSessions(), /cannot enumerate its native session catalog yet/);
-				const markerWhileUnavailable = await database.isSessionsV2Backfilled('copilot', AGENT_HOST_CATALOG_PROJECTION_VERSION);
+				const markerWhileUnavailable = await database.isSessionsV2Backfilled('copilot', AGENT_HOST_CATALOG_PAYLOAD_VERSION);
 
 				agent.catalog = [metadata(failing), metadata(sibling)];
 				await svc.listSessions();
 				const afterFailedPass = {
 					catalog: (await database.listSessionsV2()).map(row => row.session),
-					marker: await database.isSessionsV2Backfilled('copilot', AGENT_HOST_CATALOG_PROJECTION_VERSION),
+					marker: await database.isSessionsV2Backfilled('copilot', AGENT_HOST_CATALOG_PAYLOAD_VERSION),
 				};
 
 				failOneSession = false;
@@ -5522,7 +5419,7 @@ suite('AgentService (node dispatcher)', () => {
 					markerWhileUnavailable,
 					afterFailedPass,
 					finalCatalog: (await database.listSessionsV2()).map(row => row.session).sort(),
-					finalMarker: await database.isSessionsV2Backfilled('copilot', AGENT_HOST_CATALOG_PROJECTION_VERSION),
+					finalMarker: await database.isSessionsV2Backfilled('copilot', AGENT_HOST_CATALOG_PAYLOAD_VERSION),
 				}, {
 					markerWhileUnavailable: false,
 					afterFailedPass: { catalog: [sibling.toString()], marker: false },
@@ -5561,7 +5458,7 @@ suite('AgentService (node dispatcher)', () => {
 				assert.deepStrictEqual({
 					exclusionAfterEnumeration,
 					incompleteIdentityAfterEnumeration,
-					marker: await database.isSessionsV2Backfilled('copilot', AGENT_HOST_CATALOG_PROJECTION_VERSION),
+					marker: await database.isSessionsV2Backfilled('copilot', AGENT_HOST_CATALOG_PAYLOAD_VERSION),
 					markerFastPass,
 					revivedExclusion: await database.getSessionsV2Exclusion('copilot', absent.toString()),
 					revived: (await database.getSessionV2(absent.toString()))?.session,
@@ -5597,7 +5494,7 @@ suite('AgentService (node dispatcher)', () => {
 					exclusion: await database.getSessionsV2Exclusion('copilot', verified.toString()),
 					registration: (await database.getSessionV2Registration(verified.toString()))?.session,
 					projection: (await database.getSessionV2(verified.toString()))?.session,
-					marker: await database.isSessionsV2Backfilled('copilot', AGENT_HOST_CATALOG_PROJECTION_VERSION),
+					marker: await database.isSessionsV2Backfilled('copilot', AGENT_HOST_CATALOG_PAYLOAD_VERSION),
 					catalogCalls: agent.catalogCalls,
 					metadataCalls: agent.metadataCalls,
 					markerFastDatabaseOpens: perSession.databaseOpens,
@@ -5683,14 +5580,14 @@ suite('AgentService (node dispatcher)', () => {
 					registrations: (await database.listSessionV2Registrations()).map(row => row.session),
 					catalog: catalog.map(row => ({
 						session: row.session,
-						adoptable: row.ehcliAdoptable,
-						adopted: row.ehcliAdopted,
+						adoptable: readSessionEhcliAdoptable(catalogDataOf(row)?._meta),
+						adopted: readSessionEhcliAdopted(catalogDataOf(row)?._meta),
 					})),
 					adoptionCalls: agent.adoptionCalls,
 					exclusions: exclusions.map(exclusion => ({ session: exclusion.session, reason: exclusion.reason })).sort((a, b) => a.session.localeCompare(b.session)),
 					markerFastCatalogCalls: agent.catalogCalls,
 					markerFastDatabaseOpens: perSession.databaseOpens,
-					currentMarker: await database.isSessionsV2Backfilled('copilot', AGENT_HOST_CATALOG_PROJECTION_VERSION),
+					currentMarker: await database.isSessionsV2Backfilled('copilot', AGENT_HOST_CATALOG_PAYLOAD_VERSION),
 				}, {
 					registrations: [adoptable.toString()],
 					catalog: [{ session: adoptable.toString(), adoptable: true, adopted: false }],
@@ -6257,8 +6154,6 @@ suite('AgentService (node dispatcher)', () => {
 			const existing = AgentSession.uri('copilot', 'existing-before-unavailable');
 			await db.registerSession(existing.toString(), { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
 			const writesBeforeUnavailable = db.registryWriteAttempts;
-			let shadowReports = 0;
-			const shadowReportReceived = new DeferredPromise<void>();
 			const svc = disposables.add(createTestAgentService(
 				new NullLogService(),
 				fileService,
@@ -6274,13 +6169,6 @@ suite('AgentService (node dispatcher)', () => {
 				undefined,
 				undefined,
 				db,
-				'shadow',
-				{
-					report: () => {
-						shadowReports++;
-						shadowReportReceived.complete();
-					},
-				},
 			));
 			getConfigurationService(svc).updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.Last30Days });
 			const agent = disposables.add(new NotYetMigratableAgent('copilot'));
@@ -6310,26 +6198,21 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual({
 				registryWrites: db.registryWriteAttempts,
 				registered: (await svc.getRegisteredSessions()).map(session => session.toString()),
-				shadowReports,
 			}, {
 				registryWrites: writesBeforeUnavailable,
 				registered: [],
-				shadowReports: 0,
 			});
 
 			agent.enumerable = true;
 			const listed = await svc.listSessions();
-			await shadowReportReceived.p;
 			assert.deepStrictEqual({
 				retriedBeforeFailure: callsAfterFailure > 1,
 				retriedAfterFailure: agent.migrationCalls > callsAfterFailure,
 				listed: listed.map(session => session.session.toString()).sort(),
-				shadowReports,
 			}, {
 				retriedBeforeFailure: true,
 				retriedAfterFailure: true,
 				listed: [existing.toString(), legacy.toString()].sort(),
-				shadowReports: 1,
 			});
 		});
 
@@ -6430,8 +6313,8 @@ suite('AgentService (node dispatcher)', () => {
 				callsAfterFailure,
 				finalCalls: { copilot: copilot.catalogCalls, claude: claude.catalogCalls },
 				backfilled: {
-					copilot: await db.isSessionsV2Backfilled('copilot', AGENT_HOST_CATALOG_PROJECTION_VERSION),
-					claude: await db.isSessionsV2Backfilled('claude', AGENT_HOST_CATALOG_PROJECTION_VERSION),
+					copilot: await db.isSessionsV2Backfilled('copilot', AGENT_HOST_CATALOG_PAYLOAD_VERSION),
+					claude: await db.isSessionsV2Backfilled('claude', AGENT_HOST_CATALOG_PAYLOAD_VERSION),
 				},
 				first: first.map(session => session.session.toString()).sort(),
 				second: second.map(session => session.session.toString()).sort(),
@@ -7030,8 +6913,6 @@ suite('AgentService (node dispatcher)', () => {
 				return [];
 			};
 			const catalogDatabase = new TestAgentHostOrchestratorDatabase();
-			const reports: IAgentHostCatalogShadowValidationReport[] = [];
-			const reportReceived = new DeferredPromise<void>();
 			const svc = disposables.add(createTestAgentService(
 				new NullLogService(),
 				fileService,
@@ -7047,36 +6928,29 @@ suite('AgentService (node dispatcher)', () => {
 				undefined,
 				undefined,
 				catalogDatabase,
-				'legacy',
-				{ report: report => { reports.push(report); reportReceived.complete(); } },
 			));
 			getConfigurationService(svc).updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.Last30Days });
 			svc.registerProvider(agent);
 
+			// The first listing predates the catalog row and falls back; the second is served centrally.
 			const sessions = await svc.listSessions();
 			await svc.whenCatalogReconciliationIdle();
-			const projected = await catalogDatabase.getSessionV2(sessionUri.toString());
-			(svc as unknown as { _catalogReadMode: AgentHostCatalogReadMode })._catalogReadMode = 'central';
+			const stored = await catalogDatabase.getSessionV2(sessionUri.toString());
+			const decoded = stored && decodeAgentHostCatalogPayload(stored.payload);
+			(svc as unknown as { _invalidateSessionList(): void })._invalidateSessionList();
 			const centralSessions = await svc.listSessions();
-			(svc as unknown as { _catalogReadMode: AgentHostCatalogReadMode })._catalogReadMode = 'shadow';
-			await svc.listSessions();
-			await reportReceived.p;
-			// Twice, because the deleted repair cached per session: one listing cannot tell "never resolves" from "resolves once".
-			await svc.listSessions();
 
 			assert.deepStrictEqual({
 				worktreeRootResolutions,
 				project: sessions[0].project && { uri: sessions[0].project.uri.toString(), displayName: sessions[0].project.displayName },
 				centralProject: centralSessions[0].project && { uri: centralSessions[0].project.uri.toString(), displayName: centralSessions[0].project.displayName },
-				projectedProject: projected && { uri: projected.projectUri, displayName: projected.projectDisplayName },
-				shadowProjectMismatches: reports.at(-1)?.counts.projectMismatch,
+				storedProject: decoded && decoded.ok ? decoded.value.data.project : undefined,
 				persistedRepositoryRoot: await db.getMetadata(WORKTREE_META_REPOSITORY_ROOT),
 			}, {
 				worktreeRootResolutions: 0,
 				project: { uri: linkedCheckout.toString(), displayName: 'parent' },
 				centralProject: { uri: linkedCheckout.toString(), displayName: 'parent' },
-				projectedProject: { uri: linkedCheckout.toString(), displayName: 'parent' },
-				shadowProjectMismatches: 0,
+				storedProject: { uri: linkedCheckout.toString(), displayName: 'parent' },
 				persistedRepositoryRoot: linkedCheckout.toString(),
 			});
 		});
@@ -7182,6 +7056,10 @@ suite('AgentService (node dispatcher)', () => {
 			copilotAgent.sessionMetadataOverrides = { summary: 'Auto-generated Title' };
 
 			await service.createSession({ provider: 'copilot' });
+			// The catalog is authoritative for the listing, so a title only the
+			// provider knows surfaces once reconciliation has folded it in.
+			await service.whenCatalogReconciliationIdle();
+			(service as unknown as { _invalidateSessionList(): void })._invalidateSessionList();
 
 			const sessions = await service.listSessions();
 			assert.strictEqual(sessions.length, 1);
@@ -7290,34 +7168,60 @@ suite('AgentService (node dispatcher)', () => {
 			);
 		});
 
-		test('listSessions overlays live workspace metadata over a stale provider snapshot', async () => {
-			class DelayedListAgent extends MockAgent {
+		test('listSessions overlays live workspace metadata over a stale catalog snapshot', async () => {
+			// The listing is blocked mid-flight on the catalog read, so live
+			// state that lands while it runs must still win over the snapshot.
+			class DelayedCatalogDatabase extends TestAgentHostOrchestratorDatabase {
 				readonly listStarted = new DeferredPromise<void>();
 				readonly releaseList = new DeferredPromise<void>();
-				override async getChatMetadata(chat: URI, context: URI | IAgentChatContext): Promise<IAgentChatMetadata | undefined> {
-					const snapshot = await super.getChatMetadata(chat, context);
-					this.listStarted.complete();
-					await this.releaseList.p;
-					return snapshot;
+				deferReads = false;
+
+				override async getSessionV2(session: string): Promise<IAgentHostDatabaseSessionV2 | undefined> {
+					const row = await super.getSessionV2(session);
+					if (this.deferReads) {
+						this.listStarted.complete();
+						await this.releaseList.p;
+					}
+					return row;
 				}
 			}
 
-			const agent = new DelayedListAgent('copilot');
+			const agent = new MockAgent('copilot');
 			disposables.add(toDisposable(() => agent.dispose()));
 			agent.resolvedWorkingDirectory = URI.file('/original');
+			const catalogDatabase = new DelayedCatalogDatabase();
+			const svc = disposables.add(createTestAgentService(
+				new NullLogService(),
+				fileService,
+				createSessionDataService(),
+				{ _serviceBrand: undefined } as IProductService,
+				createNoopGitService(),
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				[],
+				undefined,
+				undefined,
+				catalogDatabase,
+			));
 			const { session } = await createAgentSession(agent);
-			setExternalSessionsMode(service, AgentHostExternalSessionsMode.Last30Days, 1);
-			await waitForSessionListReconciliation(service);
-			service.registerProvider(agent);
+			setExternalSessionsMode(svc, AgentHostExternalSessionsMode.Last30Days, 1);
+			await waitForSessionListReconciliation(svc);
+			svc.registerProvider(agent);
 			agent.fireDiscoveredChats([discoveredChat(session)]);
-			for (let i = 0; i < 50 && (await service.getRegisteredSessions()).length === 0; i++) {
+			for (let i = 0; i < 50 && (await svc.getRegisteredSessions()).length === 0; i++) {
 				await timeout(0);
 			}
+			await svc.whenCatalogReconciliationIdle();
+			(svc as unknown as { _invalidateSessionList(): void })._invalidateSessionList();
+			catalogDatabase.deferReads = true;
 
-			const listing = service.listSessions();
-			await agent.listStarted.p;
+			const listing = svc.listSessions();
+			await catalogDatabase.listStarted.p;
 			const summaryNow = Date.now();
-			getStateManager(service).restoreSession({
+			getStateManager(svc).restoreSession({
 				resource: session.toString(),
 				provider: 'copilot',
 				title: 'Materialized',
@@ -7327,7 +7231,7 @@ suite('AgentService (node dispatcher)', () => {
 				project: { uri: URI.file('/project').toString(), displayName: 'project' },
 				workingDirectories: [URI.file('/worktree').toString()],
 			}, []);
-			agent.releaseList.complete();
+			catalogDatabase.releaseList.complete();
 
 			const listed = (await listing).find(item => item.session.toString() === session.toString());
 			assert.deepStrictEqual({
@@ -8882,7 +8786,7 @@ suite('AgentService (node dispatcher)', () => {
 				const db = new TransientRegistryWriteDatabase();
 				const session = AgentSession.uri('copilot', 'registered-but-unavailable');
 				await db.registerSessionV2(session.toString(), { provider: 'copilot', startTime: 1, source: 'restore' }, { checkTombstone: false });
-				await db.markSessionsV2Backfilled('copilot', AGENT_HOST_CATALOG_PROJECTION_VERSION);
+				await db.markSessionsV2Backfilled('copilot', AGENT_HOST_CATALOG_PAYLOAD_VERSION);
 				const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, db));
 				const agent = disposables.add(new StartupRaceAgent('copilot'));
 				agent.migrationGate.complete();
@@ -9015,7 +8919,7 @@ suite('AgentService (node dispatcher)', () => {
 			const central = await (localService as unknown as { _orchestratorDatabase: IAgentHostDatabase })._orchestratorDatabase.getSessionV2(child.toString());
 			assert.deepStrictEqual({
 				revisionAdvanced: firstSnapshot !== undefined && secondSnapshot?.sourceRevision === firstSnapshot.sourceRevision + 1,
-				projectedOrchestration: central?.orchestrationJson ? JSON.parse(central.orchestrationJson) : undefined,
+				projectedOrchestration: catalogDataOf(central)?._meta?.[SESSION_META_ORCHESTRATION_KEY],
 				receiptPayload: secondSnapshot?.payload,
 				persistedOrchestration: JSON.parse((await db.getMetadata(AH_META_ORCHESTRATION_DB_KEY)) ?? 'null'),
 			}, {
@@ -9057,7 +8961,7 @@ suite('AgentService (node dispatcher)', () => {
 			});
 
 			assert.deepStrictEqual(result.status === 'available' ? {
-				source: result.request.source.orchestration,
+				source: result.request.data._meta?.[SESSION_META_ORCHESTRATION_KEY],
 				legacy: JSON.parse(result.request.legacyMetadata[AH_META_ORCHESTRATION_DB_KEY]),
 			} : result, {
 				source: persisted,
@@ -9092,9 +8996,9 @@ suite('AgentService (node dispatcher)', () => {
 			});
 
 			assert.deepStrictEqual({
-				live: central?.ehcliAdoptable,
+				live: readSessionEhcliAdoptable(catalogDataOf(central)?._meta),
 				receiptPayload: liveSnapshot?.payload,
-				reconciliation: reconciliation.status === 'available' ? reconciliation.request.source.ehcliAdoptable : undefined,
+				reconciliation: reconciliation.status === 'available' ? readSessionEhcliAdoptable(reconciliation.request.data._meta) : undefined,
 			}, {
 				live: true,
 				receiptPayload: undefined,
@@ -9135,11 +9039,11 @@ suite('AgentService (node dispatcher)', () => {
 			const central = await (localService as unknown as { _orchestratorDatabase: IAgentHostDatabase })._orchestratorDatabase.getSessionV2(session.toString());
 			assert.deepStrictEqual({
 				projectionVersion: snapshot?.projectionVersion,
-				projectedGit: central?.gitSummaryJson ? JSON.parse(central.gitSummaryJson) : undefined,
+				projectedGit: catalogDataOf(central)?._meta?.git,
 				receiptPayload: snapshot?.payload,
 				legacyGit: JSON.parse((await db.getMetadata(META_GIT_STATE)) ?? 'null'),
 			}, {
-				projectionVersion: AGENT_HOST_CATALOG_PROJECTION_VERSION,
+				projectionVersion: AGENT_HOST_CATALOG_PAYLOAD_VERSION,
 				projectedGit: liveGit,
 				receiptPayload: undefined,
 				legacyGit: liveGit,
@@ -9173,7 +9077,7 @@ suite('AgentService (node dispatcher)', () => {
 			});
 
 			assert.deepStrictEqual(result.status === 'available' ? {
-				source: result.request.source.git,
+				source: result.request.data._meta?.git,
 				legacy: JSON.parse(result.request.legacyMetadata[META_GIT_STATE]),
 			} : result, {
 				source: persistedGit,
@@ -9200,7 +9104,7 @@ suite('AgentService (node dispatcher)', () => {
 			});
 
 			assert.deepStrictEqual(result.status === 'available' ? {
-				source: result.request.source.git,
+				source: result.request.data._meta?.git,
 				legacy: result.request.legacyMetadata[META_GIT_STATE],
 			} : result, {
 				source: undefined,
@@ -9236,7 +9140,7 @@ suite('AgentService (node dispatcher)', () => {
 			const snapshot = await db.getCatalogSyncSnapshot();
 			const central = await (localService as unknown as { _orchestratorDatabase: IAgentHostDatabase })._orchestratorDatabase.getSessionV2(session.toString());
 			assert.deepStrictEqual({
-				projectedGit: central?.gitSummaryJson ? JSON.parse(central.gitSummaryJson) : undefined,
+				projectedGit: catalogDataOf(central)?._meta?.git,
 				receiptPayload: snapshot?.payload,
 				legacyGit: JSON.parse((await db.getMetadata(META_GIT_STATE)) ?? 'null'),
 				workspacelessSentinel: await db.getMetadata(AH_META_WORKSPACELESS_DB_KEY),
@@ -9291,9 +9195,9 @@ suite('AgentService (node dispatcher)', () => {
 				generationChanged: upgraded?.sessionGeneration !== oldSnapshot.sessionGeneration,
 				state: upgraded?.state,
 				writes: [writesAfterImport, catalogDatabase.sessionV2UpsertAttempts],
-				hashStable: imported !== undefined && reconciled?.sourceHash === imported.sourceHash,
+				hashStable: imported !== undefined && reconciled?.payloadHash === imported.payloadHash,
 			}, {
-				projectionVersion: AGENT_HOST_CATALOG_PROJECTION_VERSION,
+				projectionVersion: AGENT_HOST_CATALOG_PAYLOAD_VERSION,
 				sourceRevision: 0,
 				generationChanged: true,
 				state: 'acknowledged',
@@ -9947,7 +9851,6 @@ suite('AgentService (node dispatcher)', () => {
 				undefined,
 				undefined,
 				catalogDatabase,
-				'central',
 			));
 			const [restarted] = await restartedService.listSessions();
 
@@ -9956,7 +9859,7 @@ suite('AgentService (node dispatcher)', () => {
 				isRead: ((restarted.status ?? SessionStatus.Idle) & SessionStatus.IsRead) !== 0,
 				isArchived: ((restarted.status ?? SessionStatus.Idle) & SessionStatus.IsArchived) !== 0,
 				artifacts: readSessionArtifacts(restarted._meta),
-				persistedArtifacts: persisted?.artifactsJson ? JSON.parse(persisted.artifactsJson) : undefined,
+				persistedArtifacts: catalogDataOf(persisted)?._meta?.[SESSION_META_ARTIFACTS_KEY],
 			}, {
 				title: 'Renamed',
 				isRead: true,
@@ -10768,6 +10671,27 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual(
 				state?.chats.find(c => c.resource.toString() === chatUri.toString())?.title,
 				'Peer Chat',
+			);
+		});
+
+		test('creating the same chat twice keeps a single catalog membership entry', async () => {
+			class MultiChatAgent extends MockAgent {
+				override async createChat(_session: URI, _chat: URI): Promise<void> { }
+			}
+			const db = new TestSessionDatabase();
+			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new MultiChatAgent('copilot'));
+			localService.registerProvider(agent);
+			const session = await localService.createSession({ provider: 'copilot' });
+
+			const chatUri = URI.parse(buildChatUri(session, 'peer-1'));
+			await localService.createChat(session, chatUri, { title: 'Peer Chat' });
+			await localService.createChat(session, chatUri, { title: 'Peer Chat' });
+
+			const state = getStateManager(localService).getSessionState(session.toString());
+			assert.deepStrictEqual(
+				(state?.chats ?? []).map(c => c.resource.toString()),
+				[buildDefaultChatUri(session), chatUri.toString()],
 			);
 		});
 
@@ -12496,8 +12420,8 @@ suite('AgentService (node dispatcher)', () => {
 			const afterDelete = await catalogDatabase.getSessionV2(session.toString());
 
 			assert.deepStrictEqual({
-				afterCreate: afterCreate ? (JSON.parse(afterCreate.chatsJson) as Array<{ uri: string; order: number; kind: string; title?: string }>).map(chat => ({ uri: chat.uri, order: chat.order, kind: chat.kind, title: chat.title })) : undefined,
-				afterDelete: afterDelete ? (JSON.parse(afterDelete.chatsJson) as Array<{ uri: string; order: number; kind: string }>).map(chat => ({ uri: chat.uri, order: chat.order, kind: chat.kind })) : undefined,
+				afterCreate: catalogDataOf(afterCreate)?.chats.map(chat => ({ uri: chat.uri, order: chat.order, kind: chat.kind, title: chat.summary })),
+				afterDelete: catalogDataOf(afterDelete)?.chats.map(chat => ({ uri: chat.uri, order: chat.order, kind: chat.kind })),
 				legacy: await readCatalog(db),
 				stateTitleAfterCreate,
 				legacyTitleAfterCreate,
@@ -12667,7 +12591,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			assert.deepStrictEqual({
 				firstRestore,
-				repairedCentral: repairedCentral ? (JSON.parse(repairedCentral.chatsJson) as Array<{ uri: string }>).map(chat => chat.uri) : undefined,
+				repairedCentral: catalogDataOf(repairedCentral)?.chats.map(chat => chat.uri),
 				secondRestore: getStateManager(localService).getSessionState(session.toString())?.chats.map(chat => chat.resource),
 				legacyEnumerations: agent.legacyEnumerations,
 				materialized: agent.materialized.filter(chat => !isDefaultChatUri(URI.parse(chat))).sort(),
@@ -14010,11 +13934,11 @@ suite('AgentService (node dispatcher)', () => {
 			const summaryTitleChange = await summaryTitleChanged.p;
 			await timeout(0);
 			const central = await catalogDatabase.getSessionV2(sessionUri);
-			const centralChats = central ? (JSON.parse(central.chatsJson) as Array<{ uri: string; title?: string; titleSource?: string }>).map(chat => ({
+			const centralChats = catalogDataOf(central)?.chats.map(chat => ({
 				uri: chat.uri,
-				title: chat.title,
+				title: chat.summary,
 				titleSource: chat.titleSource,
-			})) : undefined;
+			}));
 
 			assert.deepStrictEqual({
 				singleChatResult,

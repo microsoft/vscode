@@ -6,10 +6,10 @@
 import * as fs from 'fs';
 import type { Database, RunResult } from '@vscode/sqlite3';
 import { Sequencer } from '../../../base/common/async.js';
-import { stableStringify } from '../../../base/common/objects.js';
 import { dirname } from '../../../base/common/path.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
 import { AgentProvider } from '../common/agent.js';
+import { decodeAgentHostCatalogPayload, hashAgentHostCatalogPayload } from './agentHostCatalogProjection.js';
 
 /**
  * Durable origin used to resolve competing registrations for the same session.
@@ -52,49 +52,26 @@ export interface IAgentHostDatabaseSessionsV2Exclusion {
 	readonly fingerprint: string;
 }
 
-export type AgentHostCatalogTitleSource = 'user' | 'agent' | 'auto';
-export type AgentHostCatalogChatKind = 'default' | 'peer';
-
-export interface IAgentHostDatabaseCatalogChat {
-	readonly uri: string;
-	readonly order: number;
-	readonly kind: AgentHostCatalogChatKind;
-	readonly title: string | undefined;
-	readonly titleSource: AgentHostCatalogTitleSource | undefined;
-	readonly originJson: string | undefined;
-}
-
-export interface IAgentHostDatabaseSessionV2Projection {
+/** Durable catalog envelope written alongside the opaque, self-describing payload. */
+export interface IAgentHostDatabaseSessionV2Envelope {
 	readonly session: string;
 	readonly sessionGeneration: string;
-	readonly modifiedTime: number;
-	readonly title: string | undefined;
-	readonly titleSource: AgentHostCatalogTitleSource | undefined;
-	readonly isRead: boolean;
-	readonly isArchived: boolean;
-	readonly projectUri: string | undefined;
-	readonly projectDisplayName: string | undefined;
-	readonly workspaceless: boolean;
-	readonly isChatBacking: boolean;
-	readonly ehcliAdoptable?: boolean;
-	readonly ehcliAdopted?: boolean;
-	readonly multiRootJson: string | undefined;
-	readonly folderPickerJson: string | undefined;
-	readonly changesSummaryJson: string | undefined;
-	readonly githubSummaryJson: string | undefined;
-	readonly gitSummaryJson: string | undefined;
-	readonly sourceControlSummaryJson: string | undefined;
-	readonly artifactsJson: string | undefined;
-	readonly orchestrationJson: string | undefined;
 	readonly sourceRevision: number;
-	readonly projectionVersion: number;
-	readonly sourceHash: string;
+	readonly payloadVersion: number;
+	readonly payloadHash: string;
 	readonly verified: true;
-	readonly workingDirectoriesJson: string;
-	readonly chatsJson: string;
+	readonly payload: string;
 }
 
-export interface IAgentHostDatabaseSessionV2 extends IAgentHostDatabaseSessionV2Projection, IAgentHostDatabaseSession { }
+/** Envelope identity without the payload, for callers that only compare receipts. */
+export interface IAgentHostDatabaseSessionV2Receipt extends Omit<IAgentHostDatabaseSessionV2Envelope, 'payload'>, IAgentHostDatabaseSession {
+	/** Derived from the validated payload so the catalog can hide chat-backing rows without decoding. */
+	readonly isChatBacking: boolean;
+}
+
+export interface IAgentHostDatabaseSessionV2 extends IAgentHostDatabaseSessionV2Receipt {
+	readonly payload: string;
+}
 
 export type AgentHostDatabaseSessionV2UpsertResult = 'applied' | 'replayed' | 'stale' | 'conflict' | 'generationMismatch' | 'missingSession' | 'tombstoned';
 
@@ -123,10 +100,10 @@ export interface IAgentHostDatabase extends IDisposable {
 	isProviderBackfilled(provider: AgentProvider): Promise<boolean>;
 	/** Durably records a completed provider-native discovery pass. */
 	markProviderBackfilled(provider: AgentProvider): Promise<void>;
-	/** Whether a provider has completed backfill for a specific v2 projection version. */
-	isSessionsV2Backfilled(provider: AgentProvider, projectionVersion: number): Promise<boolean>;
-	/** Records that a provider completed backfill for a specific v2 projection version. */
-	markSessionsV2Backfilled(provider: AgentProvider, projectionVersion: number): Promise<void>;
+	/** Whether a provider has completed backfill for a specific v2 payload version. */
+	isSessionsV2Backfilled(provider: AgentProvider, payloadVersion: number): Promise<boolean>;
+	/** Records that a provider completed backfill for a specific v2 payload version. */
+	markSessionsV2Backfilled(provider: AgentProvider, payloadVersion: number): Promise<void>;
 	/** Durably records a non-deletion exclusion from the current v2 catalog. */
 	markSessionsV2Excluded(exclusion: IAgentHostDatabaseSessionsV2Exclusion): Promise<void>;
 	/** Durably records multiple non-deletion exclusions in one transaction. */
@@ -166,15 +143,15 @@ export interface IAgentHostDatabase extends IDisposable {
 	listAgentMergeEnabledSessions(): Promise<readonly string[]>;
 	/** Importer-only: records an identity in v2 without writing the legacy registry. */
 	registerSessionV2(session: string, sessionOptions: IAgentHostDatabaseSessionOptions, registerOptions: IAgentHostDatabaseRegisterOptions): Promise<boolean>;
-	/** Importer-only: removes an identity and projection from v2 without changing legacy. */
+	/** Importer-only: removes an identity and its payload from v2 without changing legacy. */
 	unregisterSessionV2(session: string): Promise<void>;
 	/** Importer-only: updates unresolved provenance in v2 without changing legacy. */
 	updateSessionV2External(updates: readonly IAgentHostDatabaseExternalUpdate[]): Promise<void>;
 	/** Importer-only: replaces v2 identity with newer legacy compatibility input. */
 	reconcileSessionV2RegistrationFromLegacy(session: string, legacy: IAgentHostDatabaseSession): Promise<void>;
-	/** Returns a current v2 registry identity, including one whose projection is incomplete. */
+	/** Returns a current v2 registry identity, including one whose payload is incomplete. */
 	getSessionV2Registration(session: string): Promise<IAgentHostDatabaseSession | undefined>;
-	/** Lists current v2 registry identities, including rows whose projections are incomplete. */
+	/** Lists current v2 registry identities, including rows whose payloads are incomplete. */
 	listSessionV2Registrations(): Promise<readonly IAgentHostDatabaseSession[]>;
 	/** Importer-only: lists all v2 identities, including durably excluded rows. */
 	listSessionV2RegistrationsForImport(): Promise<readonly IAgentHostDatabaseSession[]>;
@@ -182,7 +159,9 @@ export interface IAgentHostDatabase extends IDisposable {
 	isSessionV2RegistryEmpty(): Promise<boolean>;
 	getSessionV2(session: string): Promise<IAgentHostDatabaseSessionV2 | undefined>;
 	listSessionsV2(): Promise<readonly IAgentHostDatabaseSessionV2[]>;
-	upsertSessionV2(projection: IAgentHostDatabaseSessionV2Projection, expectedSessionGeneration: string | undefined): Promise<AgentHostDatabaseSessionV2UpsertResult>;
+	/** Lists catalog receipts without materializing payloads, for startup scans. */
+	listSessionsV2Receipts(): Promise<readonly IAgentHostDatabaseSessionV2Receipt[]>;
+	upsertSessionV2(envelope: IAgentHostDatabaseSessionV2Envelope, expectedSessionGeneration: string | undefined): Promise<AgentHostDatabaseSessionV2UpsertResult>;
 	close(): Promise<void>;
 }
 
@@ -312,6 +291,35 @@ const migrations = [
 			'ALTER TABLE sessions_v2_v7 RENAME TO sessions_v2',
 		].join(';\n'),
 	},
+	{
+		version: 8,
+		sql: [
+			`CREATE TABLE sessions_v2_v8 (
+				session_uri         TEXT PRIMARY KEY NOT NULL,
+				provider            TEXT NOT NULL,
+				start_time          INTEGER NOT NULL,
+				external            INTEGER,
+				registration_source TEXT NOT NULL,
+				session_generation  TEXT,
+				source_revision     INTEGER CHECK (source_revision >= 0),
+				payload_version     INTEGER CHECK (payload_version >= 0),
+				payload_hash        TEXT,
+				verified            INTEGER NOT NULL DEFAULT 0 CHECK (verified IN (0, 1)),
+				payload             TEXT,
+				is_chat_backing     INTEGER NOT NULL DEFAULT 0 CHECK (is_chat_backing IN (0, 1))
+			)`,
+			`INSERT INTO sessions_v2_v8 (
+				session_uri, provider, start_time, external, registration_source,
+				session_generation, source_revision, payload_version, payload_hash, verified, payload, is_chat_backing
+			)
+				SELECT
+					session_uri, provider, start_time, external, registration_source,
+					session_generation, source_revision, projection_version, source_hash, 0, NULL, is_chat_backing
+				FROM sessions_v2`,
+			'DROP TABLE sessions_v2',
+			'ALTER TABLE sessions_v2_v8 RENAME TO sessions_v2',
+		].join(';\n'),
+	},
 ] as const;
 
 function openDatabase(path: string): Promise<Database> {
@@ -360,9 +368,9 @@ function providerBackfillKey(provider: AgentProvider): string {
 	return `sessionRegistryBackfilled:${provider}`;
 }
 
-/** Metadata key for a provider's completed current-projection backfill. */
-function sessionsV2BackfillKey(provider: AgentProvider, projectionVersion: number): string {
-	return `sessionsV2Backfilled:${provider}:v${projectionVersion}`;
+/** Metadata key for a provider's completed current-payload backfill. */
+function sessionsV2BackfillKey(provider: AgentProvider, payloadVersion: number): string {
+	return `sessionsV2PayloadBackfilled:${provider}:v${payloadVersion}`;
 }
 
 const sessionsV2ExcludedKeyPrefix = 'sessionsV2Excluded:';
@@ -545,18 +553,18 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 		);
 	}
 
-	async isSessionsV2Backfilled(provider: AgentProvider, projectionVersion: number): Promise<boolean> {
-		this._validateProjectionVersion(projectionVersion);
-		const row = await get(await this._ensureDatabase(), 'SELECT value FROM metadata WHERE key = ?', [sessionsV2BackfillKey(provider, projectionVersion)]);
+	async isSessionsV2Backfilled(provider: AgentProvider, payloadVersion: number): Promise<boolean> {
+		this._validatePayloadVersion(payloadVersion);
+		const row = await get(await this._ensureDatabase(), 'SELECT value FROM metadata WHERE key = ?', [sessionsV2BackfillKey(provider, payloadVersion)]);
 		return row?.value === 'true';
 	}
 
-	markSessionsV2Backfilled(provider: AgentProvider, projectionVersion: number): Promise<void> {
-		this._validateProjectionVersion(projectionVersion);
+	markSessionsV2Backfilled(provider: AgentProvider, payloadVersion: number): Promise<void> {
+		this._validatePayloadVersion(payloadVersion);
 		return this._run(
 			`INSERT INTO metadata (key, value) VALUES (?, 'true')
 				ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
-			[sessionsV2BackfillKey(provider, projectionVersion)],
+			[sessionsV2BackfillKey(provider, payloadVersion)],
 		);
 	}
 
@@ -946,64 +954,57 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 					)`,
 			[session, tombstoneKey(session)],
 		);
-		return row ? this._toSessionV2(row) : undefined;
+		return row ? { ...this._toSessionV2Receipt(row), payload: row.payload as string } : undefined;
 	}
 
 	async listSessionsV2(): Promise<readonly IAgentHostDatabaseSessionV2[]> {
-		const rows = await all(
-			await this._ensureDatabase(),
-			`SELECT *
-				FROM sessions_v2
-				WHERE sessions_v2.verified = 1
-					AND NOT EXISTS (
-						SELECT 1 FROM metadata
-						WHERE key = 'sessionTombstone:' || sessions_v2.session_uri AND value = 'true'
-					)
-					AND NOT EXISTS (
-						SELECT 1 FROM metadata
-						WHERE key = '${sessionsV2ExcludedKeyPrefix}' || sessions_v2.provider || ':' || sessions_v2.session_uri
-					)
-				ORDER BY sessions_v2.session_uri`,
-			[],
-		);
-		return rows.map(row => this._toSessionV2(row));
+		const rows = await all(await this._ensureDatabase(), this._selectVerifiedSessionsV2('*'), []);
+		return rows.map(row => ({ ...this._toSessionV2Receipt(row), payload: row.payload as string }));
 	}
 
-	async upsertSessionV2(projection: IAgentHostDatabaseSessionV2Projection, expectedSessionGeneration: string | undefined): Promise<AgentHostDatabaseSessionV2UpsertResult> {
-		this._validateSessionV2Projection(projection);
+	async listSessionsV2Receipts(): Promise<readonly IAgentHostDatabaseSessionV2Receipt[]> {
+		const rows = await all(await this._ensureDatabase(), this._selectVerifiedSessionsV2(
+			`session_uri, provider, start_time, external, registration_source,
+				session_generation, source_revision, payload_version, payload_hash, is_chat_backing`,
+		), []);
+		return rows.map(row => this._toSessionV2Receipt(row));
+	}
+
+	async upsertSessionV2(envelope: IAgentHostDatabaseSessionV2Envelope, expectedSessionGeneration: string | undefined): Promise<AgentHostDatabaseSessionV2UpsertResult> {
+		const isChatBacking = this._validateSessionV2Envelope(envelope);
 		return this._transactionSequencer.queue(async () => {
 			const database = await this._ensureDatabase();
 			await exec(database, 'BEGIN IMMEDIATE');
 			try {
-				const tombstone = await get(database, 'SELECT value FROM metadata WHERE key = ?', [tombstoneKey(projection.session)]);
+				const tombstone = await get(database, 'SELECT value FROM metadata WHERE key = ?', [tombstoneKey(envelope.session)]);
 				if (tombstone?.value === 'true') {
 					await exec(database, 'COMMIT');
 					return 'tombstoned';
 				}
-				const registry = await get(database, 'SELECT provider, start_time, external, registration_source FROM sessions_v2 WHERE session_uri = ?', [projection.session]);
+				const registry = await get(database, 'SELECT provider, start_time, external, registration_source FROM sessions_v2 WHERE session_uri = ?', [envelope.session]);
 				if (!registry) {
 					await exec(database, 'COMMIT');
 					return 'missingSession';
 				}
-				const exclusion = await get(database, 'SELECT 1 FROM metadata WHERE key = ?', [sessionsV2ExcludedKey(registry.provider as AgentProvider, projection.session)]);
+				const exclusion = await get(database, 'SELECT 1 FROM metadata WHERE key = ?', [sessionsV2ExcludedKey(registry.provider as AgentProvider, envelope.session)]);
 				if (exclusion) {
 					await exec(database, 'COMMIT');
 					return 'missingSession';
 				}
-				const current = await get(database, 'SELECT session_generation, source_revision, projection_version, source_hash, verified FROM sessions_v2 WHERE session_uri = ?', [projection.session]);
+				const current = await get(database, 'SELECT session_generation, source_revision, payload_version, payload_hash, verified FROM sessions_v2 WHERE session_uri = ?', [envelope.session]);
 				const currentGeneration = current?.session_generation === null || current?.verified !== 1 ? undefined : current?.session_generation as string;
 				if (currentGeneration !== expectedSessionGeneration) {
 					await exec(database, 'COMMIT');
 					return 'generationMismatch';
 				}
-				if (currentGeneration === projection.sessionGeneration) {
+				if (currentGeneration === envelope.sessionGeneration) {
 					const currentRevision = current?.source_revision as number;
-					if (projection.sourceRevision < currentRevision) {
+					if (envelope.sourceRevision < currentRevision) {
 						await exec(database, 'COMMIT');
 						return 'stale';
 					}
-					if (projection.sourceRevision === currentRevision) {
-						const replayed = current?.projection_version === projection.projectionVersion && current?.source_hash === projection.sourceHash;
+					if (envelope.sourceRevision === currentRevision) {
+						const replayed = current?.payload_version === envelope.payloadVersion && current?.payload_hash === envelope.payloadHash;
 						await exec(database, 'COMMIT');
 						return replayed ? 'replayed' : 'conflict';
 					}
@@ -1011,78 +1012,36 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 
 				await run(database, `INSERT INTO sessions_v2 (
 				session_uri, provider, start_time, external, registration_source,
-				modified_time, title, title_source, is_read, is_archived, project_uri, project_display_name,
-				workspaceless, is_chat_backing, ehcli_adoptable, ehcli_adopted, working_directories_json, chats_json, multi_root_json,
-				folder_picker_json, changes_summary_json, github_summary_json, git_summary_json,
-				source_control_summary_json, artifacts_json, orchestration_json, session_generation,
-				source_revision, projection_version, source_hash, verified
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+				session_generation, source_revision, payload_version, payload_hash, verified, payload, is_chat_backing
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
 			ON CONFLICT(session_uri) DO UPDATE SET
 				provider = excluded.provider,
 				start_time = excluded.start_time,
 				external = excluded.external,
 				registration_source = excluded.registration_source,
-				modified_time = excluded.modified_time,
-				title = excluded.title,
-				title_source = excluded.title_source,
-				is_read = excluded.is_read,
-				is_archived = excluded.is_archived,
-				project_uri = excluded.project_uri,
-				project_display_name = excluded.project_display_name,
-				workspaceless = excluded.workspaceless,
-				is_chat_backing = excluded.is_chat_backing,
-				ehcli_adoptable = excluded.ehcli_adoptable,
-				ehcli_adopted = excluded.ehcli_adopted,
-				working_directories_json = excluded.working_directories_json,
-				chats_json = excluded.chats_json,
-				multi_root_json = excluded.multi_root_json,
-				folder_picker_json = excluded.folder_picker_json,
-				changes_summary_json = excluded.changes_summary_json,
-				github_summary_json = excluded.github_summary_json,
-				git_summary_json = excluded.git_summary_json,
-				source_control_summary_json = excluded.source_control_summary_json,
-				artifacts_json = excluded.artifacts_json,
-				orchestration_json = excluded.orchestration_json,
 				session_generation = excluded.session_generation,
 				source_revision = excluded.source_revision,
-				projection_version = excluded.projection_version,
-				source_hash = excluded.source_hash,
-				verified = excluded.verified`, [
-					projection.session,
+				payload_version = excluded.payload_version,
+				payload_hash = excluded.payload_hash,
+				verified = excluded.verified,
+				payload = excluded.payload,
+				is_chat_backing = excluded.is_chat_backing`, [
+					envelope.session,
 					registry.provider,
 					registry.start_time,
 					registry.external,
 					registry.registration_source,
-					projection.modifiedTime,
-					projection.title,
-					projection.titleSource,
-					projection.isRead ? 1 : 0,
-					projection.isArchived ? 1 : 0,
-					projection.projectUri,
-					projection.projectDisplayName,
-					projection.workspaceless ? 1 : 0,
-					projection.isChatBacking ? 1 : 0,
-					projection.ehcliAdoptable === undefined ? null : projection.ehcliAdoptable ? 1 : 0,
-					projection.ehcliAdopted === undefined ? null : projection.ehcliAdopted ? 1 : 0,
-					projection.workingDirectoriesJson,
-					projection.chatsJson,
-					projection.multiRootJson,
-					projection.folderPickerJson,
-					projection.changesSummaryJson,
-					projection.githubSummaryJson,
-					projection.gitSummaryJson,
-					projection.sourceControlSummaryJson,
-					projection.artifactsJson,
-					projection.orchestrationJson,
-					projection.sessionGeneration,
-					projection.sourceRevision,
-					projection.projectionVersion,
-					projection.sourceHash,
+					envelope.sessionGeneration,
+					envelope.sourceRevision,
+					envelope.payloadVersion,
+					envelope.payloadHash,
+					envelope.payload,
+					isChatBacking ? 1 : 0,
 				]);
 				await exec(database, 'COMMIT');
 				return 'applied';
 			} catch (error) {
-				return this._rollback(database, error, `Failed to upsert sessions_v2 row for ${projection.session}`);
+				return this._rollback(database, error, `Failed to upsert sessions_v2 row for ${envelope.session}`);
 			}
 		});
 	}
@@ -1116,55 +1075,64 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 		);
 	}
 
-	private _validateSessionV2Projection(projection: IAgentHostDatabaseSessionV2Projection): void {
+	/**
+	 * Validates the envelope against its opaque payload and returns the derived
+	 * chat-backing flag, so the payload stays the only authority for content.
+	 */
+	private _validateSessionV2Envelope(envelope: IAgentHostDatabaseSessionV2Envelope): boolean {
 		for (const [name, value] of [
-			['modifiedTime', projection.modifiedTime],
-			['sourceRevision', projection.sourceRevision],
-			['projectionVersion', projection.projectionVersion],
+			['sourceRevision', envelope.sourceRevision],
+			['payloadVersion', envelope.payloadVersion],
 		] as const) {
 			if (!Number.isSafeInteger(value) || value < 0) {
 				throw new Error(`Catalog ${name} must be a non-negative safe integer`);
 			}
 		}
 		for (const [name, value] of [
-			['session', projection.session],
-			['sessionGeneration', projection.sessionGeneration],
-			['sourceHash', projection.sourceHash],
-			['workingDirectoriesJson', projection.workingDirectoriesJson],
-			['chatsJson', projection.chatsJson],
+			['session', envelope.session],
+			['sessionGeneration', envelope.sessionGeneration],
+			['payloadHash', envelope.payloadHash],
+			['payload', envelope.payload],
 		] as const) {
 			if (!value) {
 				throw new Error(`Catalog ${name} must not be empty`);
 			}
 		}
-		if (projection.verified !== true) {
-			throw new Error('Catalog projection must be verified before it is stored');
+		if (envelope.verified !== true) {
+			throw new Error('Catalog envelope must be verified before it is stored');
 		}
-		const workingDirectories = this._validateCanonicalJson('workingDirectoriesJson', projection.workingDirectoriesJson);
-		const chats = this._validateCanonicalJson('chatsJson', projection.chatsJson);
-		if (!Array.isArray(workingDirectories) || !Array.isArray(chats)) {
-			throw new Error('Catalog working directories and chats must be JSON arrays');
+		const decoded = decodeAgentHostCatalogPayload(envelope.payload);
+		if (!decoded.ok) {
+			throw new Error(`Catalog payload is ${decoded.reason}: ${decoded.error}`);
 		}
-		for (const [name, value] of [
-			['multiRootJson', projection.multiRootJson],
-			['folderPickerJson', projection.folderPickerJson],
-			['changesSummaryJson', projection.changesSummaryJson],
-			['githubSummaryJson', projection.githubSummaryJson],
-			['gitSummaryJson', projection.gitSummaryJson],
-			['sourceControlSummaryJson', projection.sourceControlSummaryJson],
-			['artifactsJson', projection.artifactsJson],
-			['orchestrationJson', projection.orchestrationJson],
-		] as const) {
-			if (value !== undefined) {
-				this._validateCanonicalJson(name, value);
-			}
+		if (decoded.value.payload !== envelope.payload) {
+			throw new Error('Catalog payload must be canonical JSON');
+		}
+		if (hashAgentHostCatalogPayload(envelope.payload) !== envelope.payloadHash) {
+			throw new Error('Catalog payloadHash must match payload');
+		}
+		return decoded.value.data.isChatBacking === true;
+	}
+
+	private _validatePayloadVersion(payloadVersion: number): void {
+		if (!Number.isSafeInteger(payloadVersion) || payloadVersion < 0) {
+			throw new Error('Catalog payloadVersion must be a non-negative safe integer');
 		}
 	}
 
-	private _validateProjectionVersion(projectionVersion: number): void {
-		if (!Number.isSafeInteger(projectionVersion) || projectionVersion < 0) {
-			throw new Error('Catalog projectionVersion must be a non-negative safe integer');
-		}
+	private _selectVerifiedSessionsV2(columns: string): string {
+		return `SELECT ${columns}
+			FROM sessions_v2
+			WHERE sessions_v2.verified = 1
+				AND NOT EXISTS (
+					SELECT 1 FROM metadata
+					WHERE key = 'sessionTombstone:' || sessions_v2.session_uri AND value = 'true'
+				)
+				AND NOT EXISTS (
+					SELECT 1 FROM metadata
+					WHERE key = '${sessionsV2ExcludedKeyPrefix}' || sessions_v2.provider || ':' || sessions_v2.session_uri
+				)
+			ORDER BY sessions_v2.session_uri`;
 	}
 
 	private _toSessionsV2Exclusion(provider: AgentProvider, session: string, value: string): IAgentHostDatabaseSessionsV2Exclusion {
@@ -1177,47 +1145,15 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 		return { provider, session, reason: parsed.reason, fingerprint: parsed.fingerprint };
 	}
 
-	private _validateCanonicalJson(name: string, value: string): unknown {
-		const parsed = JSON.parse(value);
-		if (stableStringify(parsed) !== value) {
-			throw new Error(`Catalog ${name} must be canonical JSON`);
-		}
-		return parsed;
-	}
-
-	private _toSessionV2(row: Record<string, unknown>): IAgentHostDatabaseSessionV2 {
+	private _toSessionV2Receipt(row: Record<string, unknown>): IAgentHostDatabaseSessionV2Receipt {
 		return {
-			session: row.session_uri as string,
-			provider: row.provider as AgentProvider,
-			startTime: row.start_time as number,
-			external: row.external === null ? undefined : row.external === 1,
-			source: row.registration_source as AgentSessionRegistrationSource,
+			...this._toSessionRegistration(row),
 			sessionGeneration: row.session_generation as string,
-			modifiedTime: row.modified_time as number,
-			title: row.title === null ? undefined : row.title as string,
-			titleSource: row.title_source === null ? undefined : row.title_source as AgentHostCatalogTitleSource,
-			isRead: row.is_read === 1,
-			isArchived: row.is_archived === 1,
-			projectUri: row.project_uri === null ? undefined : row.project_uri as string,
-			projectDisplayName: row.project_display_name === null ? undefined : row.project_display_name as string,
-			workspaceless: row.workspaceless === 1,
-			isChatBacking: row.is_chat_backing === 1,
-			ehcliAdoptable: row.ehcli_adoptable === null ? undefined : row.ehcli_adoptable === 1,
-			ehcliAdopted: row.ehcli_adopted === null ? undefined : row.ehcli_adopted === 1,
-			workingDirectoriesJson: row.working_directories_json as string,
-			chatsJson: row.chats_json as string,
-			multiRootJson: row.multi_root_json === null ? undefined : row.multi_root_json as string,
-			folderPickerJson: row.folder_picker_json === null ? undefined : row.folder_picker_json as string,
-			changesSummaryJson: row.changes_summary_json === null ? undefined : row.changes_summary_json as string,
-			githubSummaryJson: row.github_summary_json === null ? undefined : row.github_summary_json as string,
-			gitSummaryJson: row.git_summary_json === null ? undefined : row.git_summary_json as string,
-			sourceControlSummaryJson: row.source_control_summary_json === null ? undefined : row.source_control_summary_json as string,
-			artifactsJson: row.artifacts_json === null ? undefined : row.artifacts_json as string,
-			orchestrationJson: row.orchestration_json === null ? undefined : row.orchestration_json as string,
 			sourceRevision: row.source_revision as number,
-			projectionVersion: row.projection_version as number,
-			sourceHash: row.source_hash as string,
+			payloadVersion: row.payload_version as number,
+			payloadHash: row.payload_hash as string,
 			verified: true,
+			isChatBacking: row.is_chat_backing === 1,
 		};
 	}
 

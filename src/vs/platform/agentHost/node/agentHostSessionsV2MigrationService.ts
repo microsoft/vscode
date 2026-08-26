@@ -8,9 +8,9 @@ import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
 import { AgentProvider } from '../common/agent.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
-import { AGENT_HOST_CATALOG_PROJECTION_VERSION } from './agentHostCatalogProjection.js';
-import { IAgentHostCatalogSyncRequest, AgentHostCatalogSyncService } from './agentHostCatalogSyncService.js';
-import { AgentHostSessionsV2ExclusionReason, IAgentHostDatabase, IAgentHostDatabaseSession, IAgentHostDatabaseSessionsV2Exclusion, IAgentHostDatabaseSessionOptions, IAgentHostDatabaseSessionV2 } from './agentHostDatabase.js';
+import { AGENT_HOST_CATALOG_PAYLOAD_VERSION } from './agentHostCatalogProjection.js';
+import { AgentHostCatalogSyncService, IAgentHostCatalogSyncRequest, matchesAcknowledgedCatalogReceipt } from './agentHostCatalogSyncService.js';
+import { AgentHostSessionsV2ExclusionReason, IAgentHostDatabase, IAgentHostDatabaseSession, IAgentHostDatabaseSessionsV2Exclusion, IAgentHostDatabaseSessionOptions, IAgentHostDatabaseSessionV2Receipt } from './agentHostDatabase.js';
 
 const IMPORT_CONCURRENCY = 4;
 
@@ -25,7 +25,7 @@ export interface IAgentHostSessionsV2Candidate<T> {
 	readonly session: URI;
 	readonly current: IAgentHostDatabaseSession | undefined;
 	readonly legacy: IAgentHostDatabaseSession | undefined;
-	readonly catalog: IAgentHostDatabaseSessionV2 | undefined;
+	readonly catalog: IAgentHostDatabaseSessionV2Receipt | undefined;
 	readonly provider: IAgentHostSessionsV2ProviderCandidate<T> | undefined;
 	readonly exclusion: IAgentHostDatabaseSessionsV2Exclusion | undefined;
 }
@@ -85,7 +85,7 @@ export class AgentHostSessionsV2MigrationService<T> {
 		resolve: (candidate: IAgentHostSessionsV2Candidate<T>) => Promise<AgentHostSessionsV2CandidateResolution<T>>,
 		force = false,
 	): Promise<IAgentHostSessionsV2MigrationReport<T> | undefined> {
-		const wasBackfilled = await this._database.isSessionsV2Backfilled(provider, AGENT_HOST_CATALOG_PROJECTION_VERSION);
+		const wasBackfilled = await this._database.isSessionsV2Backfilled(provider, AGENT_HOST_CATALOG_PAYLOAD_VERSION);
 		const providerCandidates = !force && wasBackfilled ? [] : await enumerate();
 		if (providerCandidates === undefined) {
 			return undefined;
@@ -93,7 +93,7 @@ export class AgentHostSessionsV2MigrationService<T> {
 
 		const [currentRegistrations, currentCatalog, legacyRegistrations, exclusions] = await Promise.all([
 			this._database.listSessionV2RegistrationsForImport(),
-			this._database.listSessionsV2(),
+			this._database.listSessionsV2Receipts(),
 			this._database.listSessions(),
 			this._database.listSessionsV2Exclusions(provider),
 		]);
@@ -141,7 +141,7 @@ export class AgentHostSessionsV2MigrationService<T> {
 						candidate.current.external === undefined
 						|| (!!candidate.legacy && candidate.legacy.external !== undefined && !this._registrationsEqual(candidate.current, candidate.legacy))
 						|| !candidate.catalog
-						|| candidate.catalog.projectionVersion !== AGENT_HOST_CATALOG_PROJECTION_VERSION
+						|| candidate.catalog.payloadVersion !== AGENT_HOST_CATALOG_PAYLOAD_VERSION
 					));
 			})
 			: providerCandidatesToMigrate;
@@ -166,7 +166,7 @@ export class AgentHostSessionsV2MigrationService<T> {
 		};
 		if (report.incomplete === 0 && report.failed === 0) {
 			if (!wasBackfilled) {
-				await this._database.markSessionsV2Backfilled(provider, AGENT_HOST_CATALOG_PROJECTION_VERSION);
+				await this._database.markSessionsV2Backfilled(provider, AGENT_HOST_CATALOG_PAYLOAD_VERSION);
 			}
 			return { ...report, marked: true };
 		}
@@ -299,8 +299,8 @@ export class AgentHostSessionsV2MigrationService<T> {
 		});
 	}
 
-	private async _hasMatchingReceipt(session: URI, catalog: IAgentHostDatabaseSessionV2): Promise<boolean> {
-		if (!catalog.verified || catalog.projectionVersion !== AGENT_HOST_CATALOG_PROJECTION_VERSION) {
+	private async _hasMatchingReceipt(session: URI, catalog: IAgentHostDatabaseSessionV2Receipt): Promise<boolean> {
+		if (catalog.payloadVersion !== AGENT_HOST_CATALOG_PAYLOAD_VERSION) {
 			return false;
 		}
 		const ref = await this._sessionDataService.tryOpenDatabase(session);
@@ -308,12 +308,7 @@ export class AgentHostSessionsV2MigrationService<T> {
 			return false;
 		}
 		try {
-			const receipt = await ref.object.getCatalogSyncSnapshot();
-			return receipt?.state === 'acknowledged'
-				&& receipt.sessionGeneration === catalog.sessionGeneration
-				&& receipt.sourceRevision === catalog.sourceRevision
-				&& receipt.projectionVersion === catalog.projectionVersion
-				&& receipt.payloadHash === catalog.sourceHash;
+			return matchesAcknowledgedCatalogReceipt(await ref.object.getCatalogSyncSnapshot(), catalog);
 		} finally {
 			ref.dispose();
 		}
