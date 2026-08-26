@@ -20,6 +20,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import type { IChatPillEntry, IChatPillSection } from '../../../../workbench/browser/chatPills.js';
+import { ChatPillSingleEntry, type IChatDropdownPillOptions } from '../../../../workbench/browser/chatDropdownPill.js';
 import { openChatTurnFile, previewKind } from '../../../../workbench/contrib/chat/browser/widget/chatTurnPills.js';
 import { ChatConfiguration } from '../../../../workbench/contrib/chat/common/constants.js';
 import type { IImageCarouselCollection } from '../../../../workbench/contrib/imageCarousel/browser/imageCarouselTypes.js';
@@ -27,6 +28,27 @@ import { SessionArtifactKind, type ISessionArtifact } from '../../../services/se
 import type { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 
 const OPEN_IMAGE_CAROUSEL_COMMAND_ID = 'workbench.action.chat.openImageInCarousel';
+
+/** Action id of the references pill. */
+export const SESSION_REFERENCES_PILL_ID = 'sessions.chatPills.references';
+
+/**
+ * Presentation of the references pill. References are always summarized: the
+ * pill answers "what did this session point me at" with a count, rather than
+ * turning into whichever single reference happens to be recorded.
+ */
+export const sessionReferencesPillOptions: IChatDropdownPillOptions = {
+	widgetId: 'sessionReferences',
+	icon: Codicon.pinned,
+	title: localize('sessionReferences.title', "References"),
+	summaryLabel: count => count === 1
+		? localize('sessionReferences.countSingle', "1 Reference")
+		: localize('sessionReferences.count', "{0} References", count),
+	summaryAriaLabel: count => count === 1
+		? localize('sessionReferences.showSingle', "Show 1 reference")
+		: localize('sessionReferences.show', "Show {0} references", count),
+	singleEntry: ChatPillSingleEntry.Summary,
+};
 
 const artifactIcons: ReadonlyMap<SessionArtifactKind, ThemeIcon> = new Map([
 	[SessionArtifactKind.PullRequest, Codicon.gitPullRequest],
@@ -151,9 +173,10 @@ function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions): 
 }
 
 /**
- * Builds the artifact sections shown in the pill from the agent-set artifacts.
- * Websites the browsers pill already lists are left out, so the same page is
- * offered once across the two pills.
+ * Builds the sections shown in a pill from one group of agent-set entries —
+ * the artifacts pill and the references pill each build their own. Websites
+ * the browsers pill already lists are left out, so the same page is offered
+ * once across the pills.
  */
 export function buildSessionArtifactSections(artifacts: readonly ISessionArtifact[], actions: ISessionArtifactActions, imageCarouselEnabled: boolean, browserUrls: ReadonlySet<string>): readonly IChatPillSection[] {
 	const entriesByKind = new Map<SessionArtifactKind, IChatPillEntry[]>();
@@ -219,14 +242,17 @@ export function buildSessionArtifactSections(artifacts: readonly ISessionArtifac
 	return sections;
 }
 
-/** Publishes a session's artifact sections for the chat input pill. */
+/** Publishes a session's artifact and reference sections for the chat input pills. */
 export class SessionArtifacts extends Disposable {
 
+	/** Sections for the artifacts pill: what the session produced. */
 	readonly sections: IObservable<readonly IChatPillSection[]>;
+	/** Sections for the references pill: what the session points the user at. */
+	readonly referenceSections: IObservable<readonly IChatPillSection[]>;
 
 	constructor(
 		session: IObservable<IActiveSession | undefined>,
-		/** The URLs the browsers pill lists; website artifacts for them are left out. */
+		/** The URLs the browsers pill lists; website entries for them are left out. */
 		private readonly _browserUrls: IObservable<ReadonlySet<string>>,
 		@IClipboardService private readonly _clipboardService: IClipboardService,
 		@ICommandService private readonly _commandService: ICommandService,
@@ -237,18 +263,21 @@ export class SessionArtifacts extends Disposable {
 
 		const imageCarouselEnabled = observableConfigValue<boolean>(ChatConfiguration.ImageCarouselEnabled, true, this._configurationService);
 
-		this.sections = derived(this, reader => {
+		const sectionsFor = (isArtifact: boolean) => derived(this, reader => {
 			const current = session.read(reader);
 			if (!current) {
 				return [];
 			}
 			return buildSessionArtifactSections(
-				current.artifacts?.read(reader) ?? [],
+				(current.artifacts?.read(reader) ?? []).filter(artifact => artifact.isArtifact === isArtifact),
 				this._actions(),
 				imageCarouselEnabled.read(reader),
 				this._browserUrls.read(reader),
 			);
 		});
+
+		this.sections = sectionsFor(true);
+		this.referenceSections = sectionsFor(false);
 	}
 
 	private _actions(): ISessionArtifactActions {

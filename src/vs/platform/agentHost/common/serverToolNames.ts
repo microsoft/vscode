@@ -29,7 +29,7 @@ export const enum SessionServerToolName {
 
 /** Names of the artifact server tools, shared between `common/` and `node/`. */
 export const enum ArtifactServerToolName {
-	AddArtifact = 'add_artifact',
-	RemoveArtifact = 'remove_artifact',
-	ListArtifacts = 'list_artifacts',
+	AddArtifactOrReference = 'add_artifact_or_reference',
+	RemoveArtifactOrReference = 'remove_artifact_or_reference',
+	ListArtifactsAndReferences = 'list_artifacts_and_references',
 }

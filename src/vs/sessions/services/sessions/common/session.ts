@@ -234,7 +234,7 @@ export function getSessionWorkspaceKind(workspace: ISessionWorkspace | undefined
 }
 
 /**
- * The kinds of artifact an agent can record on a session.
+ * The kinds of artifact or reference an agent can record on a session.
  */
 export const enum SessionArtifactKind {
 	PullRequest = 'pullRequest',
@@ -250,6 +250,11 @@ export interface ISessionArtifact {
 	readonly id: string;
 	readonly kind: SessionArtifactKind;
 	readonly label: string;
+	/**
+	 * `true` for an artifact — something the session produced — and `false` for
+	 * a reference, something it only points the user at.
+	 */
+	readonly isArtifact: boolean;
 	/** Link opened when activating a pull request, issue, commit or website. */
 	readonly link?: URI;
 	/** Resource opened when activating a file or resource artifact. */
