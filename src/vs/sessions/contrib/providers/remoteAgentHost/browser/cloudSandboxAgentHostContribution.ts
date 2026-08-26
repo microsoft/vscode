@@ -29,6 +29,7 @@ import {
 	type ICloudSandboxDiscoveryResult,
 } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { AgentSession, type IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agent.js';
+import { ChangesetKind } from '../../../../../platform/agentHost/common/changesetUri.js';
 import { IReplayedTaskHistory } from '../../../../../platform/agentHost/common/taskEventReplay.js';
 import { agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { findRemoteAgentHostSessionTypeAuthority, remoteAgentHostSessionTypeId } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
@@ -658,6 +659,8 @@ export class CloudSandboxAgentHostContribution extends Disposable implements IWo
 			name: env.name,
 			connectOnDemand: () => this.connect({ environmentId: env.environmentId, sessionId: env.sessionId, name: env.name }).then(() => { }),
 			sessionSchemeAlias: SANDBOX_SESSION_SCHEME_ALIAS,
+			// The sandbox agent edits without committing, so `branch` is always empty.
+			defaultChangesetKind: ChangesetKind.Session,
 			// Each sandbox is its own provider named after its task, so the `[host]` suffix would
 			// put every session in a workspace group of one.
 			omitHostFromWorkspaceLabel: true,
