@@ -270,10 +270,26 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 		conversationId: string,
 		entry: AutoModeCacheEntry | undefined,
 	): Promise<IChatEndpoint> {
+		// Brackets the round so every way of settling it — including the cached
+		// fallback below — reports the endpoint it settled on. A throw reports
+		// nothing, leaving the turn's row unresolved for the UI to drop.
+		this._onDidRoute.fire({ requestId: chatRequest?.id, endpoint: undefined });
+		const endpoint = await this._route(prompt, tier, chatRequest, knownEndpoints, conversationId, entry);
+		this._onDidRoute.fire({ requestId: chatRequest?.id, endpoint });
+		return endpoint;
+	}
+
+	private async _route(
+		prompt: string,
+		tier: AutoModeTier | undefined,
+		chatRequest: IAutoModeRoutingRequest | undefined,
+		knownEndpoints: IChatEndpoint[],
+		conversationId: string,
+		entry: AutoModeCacheEntry | undefined,
+	): Promise<IChatEndpoint> {
 		// The session this mints belongs to the account signed in right now, so
 		// anything resolved here is void if that account changes mid-flight.
 		const authGeneration = this._authGeneration;
-		this._onDidRoute.fire({ requestId: chatRequest?.id, endpoint: undefined });
 		let result: AutoV2Response;
 		try {
 			result = await this._autoV2Fetcher.getAutoDecision(prompt, {
@@ -327,7 +343,6 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 		const endpoint = (entry?.endpoint && entry.sessionToken === result.session_token && entry.endpoint.model === selectedModel.model && entry.tier === tier)
 			? entry.endpoint
 			: this._instantiationService.createInstance(AutoChatEndpoint, selectedModel, result.session_token, result.discounted_costs?.[selectedModel.model] ?? selectedModel.autoDiscount ?? 0, this._calculateDiscountRange(knownEndpoints));
-		this._onDidRoute.fire({ requestId: chatRequest?.id, endpoint });
 
 		if (conversationId === 'unknown') {
 			return endpoint;

@@ -474,6 +474,11 @@ export function getChatResponsePlaintextParts(item: IChatResponseViewModel, incl
 				break;
 			}
 			case 'autoModeResolution': {
+				// Matches the renderer: a row that never resolved is dropped once
+				// the response ends, so it must not linger in the text either.
+				if (!part.resolved && item.isComplete) {
+					break;
+				}
 				contentParts.push({ partIndex, text: autoModeRoutingDetail(part) ?? autoModeRoutingTitle(part) });
 				break;
 			}

@@ -171,13 +171,22 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 
 	/**
 	 * Turns the row into a plain status line: it no longer toggles, and it drops
-	 * the affordances that would otherwise promise expansion.
+	 * the affordances that would otherwise promise expansion — including its
+	 * place in the tab order, so it is not a focusable dead control.
 	 */
 	protected setExpandable(expandable: boolean): void {
 		this._isExpandable = expandable;
 		this._hoverChevron?.classList.toggle('hidden', !expandable);
-		if (this._collapseButton) {
-			this._collapseButton.element.ariaExpanded = expandable ? String(this.isExpanded()) : null;
+		const button = this._collapseButton?.element;
+		if (button) {
+			button.tabIndex = expandable ? 0 : -1;
+			if (expandable) {
+				button.removeAttribute('aria-disabled');
+				button.ariaExpanded = String(this.isExpanded());
+			} else {
+				button.setAttribute('aria-disabled', 'true');
+				button.removeAttribute('aria-expanded');
+			}
 		}
 		if (!expandable) {
 			this.setExpanded(false);

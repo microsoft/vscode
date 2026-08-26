@@ -17,6 +17,9 @@ import { IChatResponseViewModel } from '../../../../contrib/chat/common/model/ch
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
 
 import '../../../../contrib/chat/browser/widget/media/chat.css';
+// The routing row is styled by the Thinking chrome; import it so this fixture
+// does not rely on another module happening to pull it into the bundle.
+import '../../../../contrib/chat/browser/widget/chatContentParts/media/chatThinkingContent.css';
 
 function createRenderContext(isComplete: boolean): IChatContentPartRenderContext {
 	const element = new class extends mock<IChatResponseViewModel>() {

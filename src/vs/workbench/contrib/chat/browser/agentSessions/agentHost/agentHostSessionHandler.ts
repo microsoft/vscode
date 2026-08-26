@@ -1092,8 +1092,14 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 */
 	private readonly _hydratingChatSessions = new Map<string, number>();
 
-	/** Whether the `hideAutoExplainability` experiment suppresses Auto's routing row. */
-	private readonly _hideAutoExplainability = observableValue<boolean>('hideAutoExplainability', false);
+	/**
+	 * Whether the `hideAutoExplainability` experiment suppresses Auto's routing
+	 * row. `undefined` until the treatment resolves — emitting on a guess would
+	 * append rows to a hidden-cohort turn that cannot be retracted afterwards.
+	 */
+	private readonly _hideAutoExplainability = observableValue<boolean | undefined>('hideAutoExplainability', undefined);
+	/** Settles once {@link _hideAutoExplainability} is known. */
+	private readonly _hideAutoExplainabilityReady: Promise<void>;
 
 	constructor(
 		config: IAgentHostSessionHandlerConfig,
@@ -1131,11 +1137,14 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		super();
 		this._config = config;
 
-		// Resolves asynchronously, so turns started earlier re-render once it lands.
 		const readHideAutoExplainability = () => assignmentService.getTreatment<boolean>(HIDE_AUTO_EXPLAINABILITY_TREATMENT)
 			.then(hidden => this._hideAutoExplainability.set(hidden === true, undefined))
-			.catch(err => this._logService.warn(`[AgentHost] Failed to resolve ${HIDE_AUTO_EXPLAINABILITY_TREATMENT}`, err));
-		readHideAutoExplainability();
+			.catch(err => {
+				// Never leave it unknown, or routing rows would be deferred forever.
+				this._logService.warn(`[AgentHost] Failed to resolve ${HIDE_AUTO_EXPLAINABILITY_TREATMENT}`, err);
+				this._hideAutoExplainability.set(false, undefined);
+			});
+		this._hideAutoExplainabilityReady = readHideAutoExplainability();
 		this._register(assignmentService.onDidRefetchAssignments(() => readHideAutoExplainability()));
 
 		// The `inputNeeded` watchers live in a plain map (they are shared and
@@ -1433,6 +1442,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 							this._config.connection.dispatch(chatURI, { type: ActionType.ChatDraftChanged, draft });
 						}
 						const fallbackRawModelId = lastTurnModelSelection(sessionState)?.id;
+						// History is built once and never rebuilt, so settle the
+						// treatment first rather than baking in a guess.
+						await this._hideAutoExplainabilityReady;
 						const lookup = this._createTurnModelLookup(sessionResource, fallbackRawModelId);
 						history.push(...turnsToHistory(
 							resolvedSession,
@@ -5527,7 +5539,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 * `usage?.model` is not yet set (e.g. older sessions or turns that
 	 * never reported usage).
 	 */
-	private _createTurnModelLookup(sessionResource: URI, fallbackRawModelId: string | undefined, hideAutoExplainability = this._hideAutoExplainability.get()): TurnModelLookup {
+	private _createTurnModelLookup(sessionResource: URI, fallbackRawModelId: string | undefined, hideAutoExplainability: boolean | undefined = this._hideAutoExplainability.get()): TurnModelLookup {
 		const resolveRaw = (rawModelId: string | undefined): string | undefined => rawModelId ?? fallbackRawModelId;
 		// Try the raw billed id and its dots-normalised form (slug mismatch:
 		// `claude-sonnet-4-6` → `.6`) before falling back to the picked model.
@@ -5575,7 +5587,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			toAutoModeResolution: usage => {
 				const resolution = readUsageInfoMeta(usage).autoModeResolved;
 				const isAutoTurn = fallbackRawModelId === AUTO_RAW_MODEL_ID || !!resolution;
-				if (!isAutoTurn || hideAutoExplainability) {
+				// Also suppressed while the treatment is unknown; see the field.
+				if (!isAutoTurn || hideAutoExplainability !== false) {
 					return undefined;
 				}
 				if (!resolution) {
