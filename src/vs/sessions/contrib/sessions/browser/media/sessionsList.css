@@ -528,17 +528,17 @@
 	}
 
 	/* Reuses the session row's approval-row styling; only the left inset is
-		reset since the chat row is already indented. No extra vertical margin —
-		the height must stay in sync with SessionItemRenderer.getApprovalRowHeight. */
+		reset since the chat row is already indented. When visible, a small bottom
+		margin adds slack that absorbs the rendered code-block's line-height
+		rounding (the chat row has no bottom padding of its own). As a flex-item
+		margin it reserves the same space without an ancestor `:has()` match. Kept
+		in sync with SessionsTreeDelegate.CHAT_APPROVAL_BOTTOM_SLACK. */
 	.session-approval-row {
 		margin-left: 0;
-	}
 
-	/* Small bottom slack under the approval prompt, absorbing the rendered
-		code-block's line-height rounding (the chat row has no bottom padding of
-		its own). Kept in sync with SessionsTreeDelegate.CHAT_APPROVAL_BOTTOM_SLACK. */
-	&:has(.session-approval-row.visible) {
-		padding-bottom: 6px;
+		&.visible {
+			margin-bottom: 6px;
+		}
 	}
 }
 

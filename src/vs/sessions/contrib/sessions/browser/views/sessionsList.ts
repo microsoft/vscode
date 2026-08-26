@@ -272,7 +272,8 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 	 * Bottom slack reserved under a chat row's approval prompt. The session row
 	 * absorbs the rendered code-block's line-height rounding in its own bottom
 	 * padding; the chat row has none, so it reserves this small buffer instead.
-	 * Keep in sync with `.session-chat-item:has(.session-approval-row.visible)`.
+	 * Keep in sync with the `.session-approval-row.visible` bottom margin in
+	 * `sessionsList.css`.
 	 */
 	private static readonly CHAT_APPROVAL_BOTTOM_SLACK = 6;
 	/**
@@ -311,7 +312,7 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 					// Reserve the approval row plus a small bottom slack (the chat row,
 					// unlike the session row, has no bottom padding to absorb the
 					// rendered code-block's line-height rounding). Kept in sync with the
-					// `.session-chat-item:has(.session-approval-row.visible)` padding.
+					// `.session-approval-row.visible` bottom margin in `sessionsList.css`.
 					chatHeight += SessionItemRenderer.getApprovalRowHeight(approval.label, this._approvalRowMaxLines) + SessionsTreeDelegate.CHAT_APPROVAL_BOTTOM_SLACK;
 				}
 			}
@@ -473,8 +474,8 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 		const approvalModel = this.approvalModel;
 		const markdownRendererService = this.markdownRendererService;
 		const chatResource = element.chat.resource;
-		let wasVisible = !!approvalModel.getApproval(chatResource).get();
-		template.approvalRow.classList.toggle('visible', wasVisible);
+		let lastApprovalHeight = approvalRowHeightFor(approvalModel.getApproval(chatResource).get(), this.approvalRowMaxLines);
+		template.approvalRow.classList.toggle('visible', lastApprovalHeight > 0);
 
 		const buttonStore = template.elementDisposables.add(new DisposableStore());
 
@@ -495,8 +496,12 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 				});
 			}
 
-			if (wasVisible !== visible) {
-				wasVisible = visible;
+			// Fire on any height change, not just visibility — the model can swap
+			// one pending approval for another whose label spans a different number
+			// of lines, which changes the reserved row height.
+			const height = approvalRowHeightFor(info, this.approvalRowMaxLines);
+			if (height !== lastApprovalHeight) {
+				lastApprovalHeight = height;
 				this._onDidChangeItemHeight.fire(element);
 			}
 		}));
@@ -519,6 +524,17 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 interface IApprovalRowElements {
 	readonly label: HTMLElement;
 	readonly buttonContainer: HTMLElement;
+}
+
+/**
+ * The vertical space a pending approval contributes to its row, or `0` when
+ * there is none. Tracked by the approval renderers so a row's virtualized
+ * height is refreshed whenever it changes — including when one approval is
+ * replaced directly by another with a different line count (not just when an
+ * approval appears or clears).
+ */
+function approvalRowHeightFor(info: IAgentSessionApprovalInfo | undefined, maxLines: number): number {
+	return info ? SessionItemRenderer.getApprovalRowHeight(info.label, maxLines) : 0;
 }
 
 /**
@@ -564,6 +580,11 @@ function renderApprovalRowContent(
 	elements.buttonContainer.textContent = '';
 	const button = store.add(new Button(elements.buttonContainer, {
 		title: localize('allowActionOnce', "Allow once"),
+		// All simultaneously visible "Allow" buttons share the same visible label
+		// and tooltip, so give each an explicit accessible name that names the
+		// command/action it approves — otherwise screen-reader users can't tell
+		// which chat's action a button belongs to.
+		ariaLabel: localize('allowActionAria', "Allow: {0}", info.label),
 		secondary: true,
 		...defaultButtonStyles
 	}));
@@ -1070,8 +1091,8 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		const approvalModel = this.approvalModel;
 		const aggregate = this.options.aggregateChatApprovals;
 		const initialInfo = getSessionRowApproval(approvalModel, element, undefined, aggregate);
-		let wasVisible = !!initialInfo;
-		template.approvalRow.classList.toggle('visible', wasVisible);
+		let lastApprovalHeight = approvalRowHeightFor(initialInfo, this.options.approvalRowMaxLines);
+		template.approvalRow.classList.toggle('visible', lastApprovalHeight > 0);
 
 		const buttonStore = template.elementDisposables.add(new DisposableStore());
 
@@ -1092,8 +1113,12 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 				});
 			}
 
-			if (wasVisible !== visible) {
-				wasVisible = visible;
+			// Fire on any height change, not just visibility — the model can swap
+			// one pending approval for another whose label spans a different number
+			// of lines, which changes the reserved row height.
+			const height = approvalRowHeightFor(info, this.options.approvalRowMaxLines);
+			if (height !== lastApprovalHeight) {
+				lastApprovalHeight = height;
 				this._onDidChangeItemHeight.fire(element);
 			}
 		}));
