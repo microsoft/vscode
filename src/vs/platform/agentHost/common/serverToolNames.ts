@@ -33,3 +33,14 @@ export const enum ArtifactServerToolName {
 	RemoveArtifactOrReference = 'remove_artifact_or_reference',
 	ListArtifactsAndReferences = 'list_artifacts_and_references',
 }
+
+/**
+ * The names these tools were advertised under before they also recorded
+ * references, mapped to their replacement. Restored history and prompts written
+ * against the old names keep routing and keep their display.
+ */
+export const LEGACY_ARTIFACT_SERVER_TOOL_NAMES: ReadonlyMap<string, string> = new Map([
+	['add_artifact', ArtifactServerToolName.AddArtifactOrReference as string],
+	['remove_artifact', ArtifactServerToolName.RemoveArtifactOrReference as string],
+	['list_artifacts', ArtifactServerToolName.ListArtifactsAndReferences as string],
+]);

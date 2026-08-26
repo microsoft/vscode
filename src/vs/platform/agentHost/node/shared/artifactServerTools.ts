@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { generateUuid } from '../../../../base/common/uuid.js';
-import { ArtifactServerToolName } from '../../common/serverToolNames.js';
+import { ArtifactServerToolName, LEGACY_ARTIFACT_SERVER_TOOL_NAMES } from '../../common/serverToolNames.js';
 import { parseSessionArtifactInput, SessionArtifactCollection } from '../../common/sessionArtifactCollection.js';
 import { readSessionArtifacts, SESSION_ARTIFACT_TYPES, SessionArtifactType, withSessionArtifacts, type ISessionArtifact } from '../../common/sessionArtifacts.js';
 import { parseRequiredSessionUriFromChatUri, type ToolDefinition } from '../../common/state/sessionState.js';
@@ -119,6 +119,7 @@ class SessionArtifacts {
 export function createArtifactServerToolGroup(accessor?: IArtifactServerToolAccessor): IServerToolGroup {
 	return {
 		definitions: artifactServerToolDefinitions,
+		legacyToolNames: LEGACY_ARTIFACT_SERVER_TOOL_NAMES,
 		isEnabled(): boolean {
 			return accessor?.isEnabled() === true;
 		},

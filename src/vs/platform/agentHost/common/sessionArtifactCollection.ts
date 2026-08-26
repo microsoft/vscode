@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { URI } from '../../../base/common/uri.js';
 import { getSessionArtifactValue, isGitHubArtifactLink, SESSION_ARTIFACT_TYPES, SessionArtifactType, type ISessionArtifact } from './sessionArtifacts.js';
 
 /** The fields an agent supplies when adding an artifact or reference. */
@@ -61,13 +62,18 @@ function requireWebLink(value: unknown, field: string, toolName: string): string
 /**
  * The client opens a `uri` by parsing it strictly, so anything it cannot parse
  * would be recorded, reported as added, and then quietly appear in no pill at
- * all. Rejecting it here gives the agent an error it can act on instead. A
- * single-letter scheme is a Windows drive path (`C:\repo\plan.md`), which parses
- * into a nonsense URI rather than failing, so it is called out by name.
+ * all. Parsing it the same way here gives the agent an error it can act on
+ * instead. A single-letter scheme is a Windows drive path (`C:\repo\plan.md`),
+ * which parses into a nonsense URI rather than failing, so it is rejected too.
  */
 function requireUri(value: unknown, field: string, toolName: string): string {
 	const uri = requireString(value, field, toolName);
-	const scheme = /^([^\s:]+):/.exec(uri)?.[1];
+	let scheme: string | undefined;
+	try {
+		scheme = URI.parse(uri, /*strict*/ true).scheme;
+	} catch {
+		scheme = undefined;
+	}
 	if (!scheme || scheme.length === 1) {
 		throw new Error(`Invalid ${toolName} input: ${field} must be an absolute URI including its scheme, such as 'file:///path/to/file' — not a plain file system path.`);
 	}

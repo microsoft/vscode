@@ -68,6 +68,13 @@ function parseSessionArtifact(value: unknown): ISessionArtifact | undefined {
 	if (typeof raw['id'] !== 'string' || typeof raw['label'] !== 'string' || !isSessionArtifactType(raw['type'])) {
 		return undefined;
 	}
+	// `isArtifact` is mandatory, so only its absence is tolerated — that is an
+	// entry recorded before artifacts and references were told apart, which was
+	// always an artifact. Any other value is malformed and rejects the entry.
+	const isArtifact = raw['isArtifact'];
+	if (isArtifact !== undefined && typeof isArtifact !== 'boolean') {
+		return undefined;
+	}
 	const artifact: {
 		id: string;
 		type: SessionArtifactType;
@@ -81,8 +88,7 @@ function parseSessionArtifact(value: unknown): ISessionArtifact | undefined {
 		id: raw['id'],
 		type: raw['type'],
 		label: raw['label'],
-		// Entries recorded before artifacts and references were told apart are artifacts.
-		isArtifact: raw['isArtifact'] !== false,
+		isArtifact: isArtifact ?? true,
 	};
 
 	if (typeof raw['link'] === 'string') { artifact.link = raw['link']; }

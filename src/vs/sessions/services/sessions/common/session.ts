@@ -706,7 +706,12 @@ export interface ISession {
 	readonly changes: IObservable<readonly ISessionFileChange[]>;
 	/** Changesets produced by the session. */
 	readonly changesets: IObservable<readonly ISessionChangeset[] | undefined>;
-	/** Artifacts the agent recorded for this session (pull requests, issues, files, …). */
+	/**
+	 * The artifacts and references the agent recorded for this session (pull
+	 * requests, issues, files, …). Both categories share this observable and are
+	 * told apart by {@link ISessionArtifact.isArtifact}, so a consumer that
+	 * surfaces only one of them must filter on that field.
+	 */
 	readonly artifacts?: IObservable<readonly ISessionArtifact[]>;
 	/** Currently selected model identifier. */
 	readonly modelId: IObservable<string | undefined>;

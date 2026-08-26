@@ -7,6 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ArtifactServerToolName } from '../../common/serverToolNames.js';
 import { createArtifactServerToolGroup } from '../../node/shared/artifactServerTools.js';
+import { getServerToolDisplay } from '../../node/shared/serverToolGroups.js';
 
 suite('Artifact Server Tools', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -41,6 +42,27 @@ suite('Artifact Server Tools', () => {
 			artifact: 'Removed artifact',
 			reference: 'Removed reference',
 			missing: undefined,
+		});
+	});
+
+	test('keeps the display of a call restored under a pre-rename tool name', () => {
+		const displayName = (toolName: string) => getServerToolDisplay(toolName, { label: 'Fix login', isArtifact: true })?.displayName;
+
+		assert.deepStrictEqual({
+			current: displayName(ArtifactServerToolName.AddArtifactOrReference),
+			legacyAdd: displayName('add_artifact'),
+			legacyRemove: getServerToolDisplay('remove_artifact', { id: 'id-1' })?.displayName,
+			legacyList: getServerToolDisplay('list_artifacts', undefined)?.displayName,
+			// Claude prefixes server tools on the wire; the suffix still resolves.
+			transportPrefixed: displayName('mcp__vscode__add_artifact'),
+			unknown: displayName('not_a_tool'),
+		}, {
+			current: 'Add Artifact',
+			legacyAdd: 'Add Artifact',
+			legacyRemove: 'Remove Artifact or Reference',
+			legacyList: 'List Artifacts and References',
+			transportPrefixed: 'Add Artifact',
+			unknown: undefined,
 		});
 	});
 });

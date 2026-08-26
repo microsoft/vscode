@@ -72,7 +72,12 @@ suite('Session Artifacts', () => {
 		assert.throws(parse('plan.md'), /absolute URI/);
 		assert.throws(parse('/repo/plan.md'), /absolute URI/);
 		assert.throws(parse('C:\\repo\\plan.md'), /absolute URI/);
+		// A scheme the URI grammar rejects: the client fails to parse it too.
+		assert.throws(parse('foo/bar:baz'), /absolute URI/);
 		assert.strictEqual(parseSessionArtifactInput({ type: 'file', label: 'Plan', uri: 'file:///repo/plan.md', isArtifact: true }, TOOL).uri, 'file:///repo/plan.md');
+		// Validation is the client's own parse, so anything it opens is accepted —
+		// a leading digit is legal for `URI`, whose scheme grammar is the contract.
+		assert.strictEqual(parseSessionArtifactInput({ type: 'resource', label: 'Custom', uri: '1scheme:/x', isArtifact: true }, TOOL).uri, '1scheme:/x');
 	});
 
 	test('rejects links that are not http(s), since a link is opened externally', () => {
@@ -124,6 +129,27 @@ suite('Session Artifacts', () => {
 		assert.deepStrictEqual(readSessionArtifacts({ 'agentHost/sessionArtifacts': legacy }), [
 			{ id: 'id-1', type: SessionArtifactType.PullRequest, label: 'Legacy', isArtifact: true, link: 'https://github.com/microsoft/vscode/pull/1' },
 		]);
+	});
+
+	test('rejects a malformed isArtifact rather than reading it as an artifact', () => {
+		const entry = (isArtifact: unknown) => ({ id: 'id-1', type: SessionArtifactType.Website, label: 'Docs', link: 'https://example.com', isArtifact });
+		const read = (isArtifact: unknown) => readSessionArtifacts({ 'agentHost/sessionArtifacts': [entry(isArtifact)] }).map(artifact => artifact.isArtifact);
+
+		assert.deepStrictEqual({
+			trueFlag: read(true),
+			falseFlag: read(false),
+			stringFalse: read('false'),
+			nullFlag: read(null),
+			numberFlag: read(0),
+		}, {
+			trueFlag: [true],
+			falseFlag: [false],
+			// Only a boolean or an absent field is accepted, so these are dropped
+			// and counted as malformed rather than silently becoming artifacts.
+			stringFalse: [],
+			nullFlag: [],
+			numberFlag: [],
+		});
 	});
 
 	test('detects GitHub links', () => {
