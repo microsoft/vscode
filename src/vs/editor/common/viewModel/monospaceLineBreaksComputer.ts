@@ -402,7 +402,7 @@ function createLineBreaks(classifier: WrappingCharacterClassifier, _lineText: st
 
 	let breakingColumn = firstLineBreakColumn;
 	let fixedWidthRangeIndex = 0;
-	const firstFixedWidthRange = injectedTextWidthsInEm[0];
+	const firstFixedWidthRange = injectedTextWidthsInEm.length > 0 ? injectedTextWidthsInEm[0] : null;
 	const startsWithFixedWidth = firstFixedWidthRange && firstFixedWidthRange.startOffset === 0;
 
 	let prevCharCode: number;
