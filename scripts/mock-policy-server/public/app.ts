@@ -952,8 +952,10 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 				debouncedSave();
 				toast('JSON formatted successfully');
 			} catch (e) {
-				toast(`Cannot format: Invalid JSON`, true);
+				toast('Cannot format: Invalid JSON', true);
 			}
+		});
+	 
 		});
 		presetSelect.addEventListener('change', applyPreset);
 		$('overrides-action').addEventListener('click', () => wire(!overridesWired));
