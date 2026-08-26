@@ -2587,6 +2587,45 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.strictEqual(agentHost.sessionUnsubscribeCounts.get(changesetUri), 1);
 	});
 
+	test('subscribes to the session channel for a catalogue published relative to the session', async () => {
+		// Verbatim, `changeset/uncommitted` parses to `file:///changeset/uncommitted`.
+		const activeSession = observableValue<IActiveSession | undefined>('test.activeSession', undefined);
+		const provider = createProvider(disposables, agentHost, undefined, { activeSession });
+		const sessionTypeId = provider.sessionTypes[0].id;
+		const session = provider.createNewSession(URI.parse('file:///home/user/proj'), sessionTypeId);
+		await timeout(0);
+
+		activeSession.set(new class extends mock<IActiveSession>() {
+			override readonly resource = session.resource;
+		}(), undefined);
+		disposables.add(autorun(reader => {
+			for (const changeset of session.changesets?.read(reader) ?? []) {
+				changeset.changes.read(reader);
+			}
+		}));
+
+		const backendUri = agentHost.createdSessionUris.at(-1)!;
+		agentHost.setSessionState(AgentSession.id(backendUri), sessionTypeId, {
+			provider: sessionTypeId,
+			title: '',
+			status: ProtocolSessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready,
+			activeClients: [],
+			chats: [],
+			changesets: [
+				{ label: 'Uncommitted Changes', uriTemplate: 'changeset/uncommitted', changeKind: 'uncommitted' },
+			],
+		});
+
+		assert.deepStrictEqual({
+			resolved: agentHost.sessionSubscribeCounts.get(`${backendUri}/changeset/uncommitted`),
+			verbatim: agentHost.sessionSubscribeCounts.get('file:///changeset/uncommitted'),
+		}, {
+			resolved: 1,
+			verbatim: undefined,
+		});
+	});
+
 	test('NewSession dispose clears _lastSessionStates entry and fires onDidChangeCustomAgents', async () => {
 		const provider = createProvider(disposables, agentHost);
 		const sessionTypeId = provider.sessionTypes[0].id;
@@ -6228,14 +6267,17 @@ suite('LocalAgentHostSessionsProvider', () => {
 			owner: 'owner',
 			repo: 'repo',
 			pullRequestUrls: ['https://github.com/owner/repo/pull/41'],
-			issueUrls: ['https://github.com/owner/repo/issues/1'],
 		}), [
-			{ id: 'a1', type: SessionArtifactType.PullRequest, label: 'Created', link: 'https://github.com/owner/repo/pull/50', isGitHub: true, createdByThisSession: true },
-			{ id: 'a2', type: SessionArtifactType.PullRequest, label: 'Referenced', link: 'https://github.com/owner/repo/pull/60', isGitHub: true, createdByThisSession: false },
-			{ id: 'a3', type: SessionArtifactType.PullRequest, label: 'Duplicate', link: 'https://github.com/owner/repo/pull/41/', isGitHub: true, createdByThisSession: false },
-			{ id: 'a4', type: SessionArtifactType.Issue, label: 'Issue', link: 'https://github.com/owner/repo/issues/7', isGitHub: true },
-			{ id: 'a5', type: SessionArtifactType.PullRequest, label: 'Elsewhere', link: 'https://gitlab.com/owner/repo/-/merge_requests/3', isGitHub: false, createdByThisSession: false },
-			{ id: 'a6', type: SessionArtifactType.File, label: 'Plan', uri: 'file:///repo/plan.md' },
+			{ id: 'a1', type: SessionArtifactType.PullRequest, label: 'Created', isArtifact: true, link: 'https://github.com/owner/repo/pull/50', isGitHub: true },
+			{ id: 'a2', type: SessionArtifactType.PullRequest, label: 'Referenced', isArtifact: false, link: 'https://github.com/owner/repo/pull/60', isGitHub: true },
+			{ id: 'a3', type: SessionArtifactType.PullRequest, label: 'Duplicate', isArtifact: true, link: 'https://github.com/owner/repo/pull/41/', isGitHub: true },
+			{ id: 'a4', type: SessionArtifactType.Issue, label: 'Issue', isArtifact: true, link: 'https://github.com/owner/repo/issues/7', isGitHub: true },
+			{ id: 'a5', type: SessionArtifactType.PullRequest, label: 'Elsewhere', isArtifact: true, link: 'https://gitlab.com/owner/repo/-/merge_requests/3', isGitHub: false },
+			{ id: 'a6', type: SessionArtifactType.File, label: 'Plan', isArtifact: true, uri: 'file:///repo/plan.md' },
+			{ id: 'a7', type: SessionArtifactType.Issue, label: 'Referenced issue', isArtifact: false, link: 'https://github.com/owner/repo/issues/8', isGitHub: true },
+			// The pull request discovered from git state, also recorded as a
+			// reference: the pull request pill already shows it, so it is dropped here.
+			{ id: 'a8', type: SessionArtifactType.PullRequest, label: 'Discovered', isArtifact: false, link: 'https://github.com/owner/repo/pull/41', isGitHub: true },
 		]);
 		agentHost.setSessionState('pr-artifacts', 'copilotcli', {
 			provider: 'copilotcli', title: 'Artifact Session', status: ProtocolSessionStatus.Idle,
@@ -6253,9 +6295,10 @@ suite('LocalAgentHostSessionsProvider', () => {
 			artifacts: session.artifacts?.get().map(artifact => artifact.id),
 		}, {
 			activePullRequest: 50,
-			pullRequests: [50, 41, 60],
-			issues: [1, 7],
-			artifacts: ['a5', 'a6'],
+			pullRequests: [50, 41],
+			// Only issues the session produced are polled; a referenced one stays a reference.
+			issues: [7],
+			artifacts: ['a2', 'a5', 'a6', 'a7'],
 		});
 	}));
 
@@ -6281,7 +6324,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			activeClients: [],
 			chats: [],
 			_meta: withSessionArtifacts(undefined, [
-				{ id: 'a1', type: SessionArtifactType.Issue, label: 'Orphan issue', link: 'https://github.com/owner/repo/issues/7', isGitHub: true },
+				{ id: 'a1', type: SessionArtifactType.Issue, label: 'Orphan issue', isArtifact: true, link: 'https://github.com/owner/repo/issues/7', isGitHub: true },
 			]),
 		});
 		const withoutRepository = session.artifacts?.get().map(artifact => artifact.id);
@@ -6292,8 +6335,8 @@ suite('LocalAgentHostSessionsProvider', () => {
 			activeClients: [],
 			chats: [],
 			_meta: withSessionArtifacts(withSessionGitHubState(undefined, { owner: 'owner', repo: 'repo' }), [
-				{ id: 'a1', type: SessionArtifactType.Issue, label: 'Same repo', link: 'https://github.com/owner/repo/issues/7', isGitHub: true },
-				{ id: 'a2', type: SessionArtifactType.PullRequest, label: 'Other repo', link: 'https://github.com/other/project/pull/9', isGitHub: true, createdByThisSession: true },
+				{ id: 'a1', type: SessionArtifactType.Issue, label: 'Same repo', isArtifact: true, link: 'https://github.com/owner/repo/issues/7', isGitHub: true },
+				{ id: 'a2', type: SessionArtifactType.PullRequest, label: 'Other repo', isArtifact: true, link: 'https://github.com/other/project/pull/9', isGitHub: true },
 			]),
 		});
 		const gitHubInfo = session.workspace.get()!.folders[0]!.gitRepository!.gitHubInfo.get();

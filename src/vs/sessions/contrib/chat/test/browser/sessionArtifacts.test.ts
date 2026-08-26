@@ -25,9 +25,9 @@ suite('Session Artifacts', () => {
 		const resourceUri = URI.parse('vscode://sessions/resource');
 		const pullRequestLink = URI.parse('https://github.com/microsoft/vscode/pull/12');
 		const artifacts: readonly ISessionArtifact[] = [
-			{ id: 'pr', kind: SessionArtifactKind.PullRequest, label: 'PR #12', link: pullRequestLink },
-			{ id: 'file', kind: SessionArtifactKind.File, label: 'Report', uri: fileUri },
-			{ id: 'resource', kind: SessionArtifactKind.Resource, label: 'Resource', uri: resourceUri },
+			{ id: 'pr', kind: SessionArtifactKind.PullRequest, label: 'PR #12', isArtifact: true, link: pullRequestLink },
+			{ id: 'file', kind: SessionArtifactKind.File, label: 'Report', isArtifact: true, uri: fileUri },
+			{ id: 'resource', kind: SessionArtifactKind.Resource, label: 'Resource', isArtifact: true, uri: resourceUri },
 		];
 
 		const entries = buildSessionArtifactSections(artifacts, actions, true, new Set()).flatMap(section => section.entries);
@@ -50,11 +50,11 @@ suite('Session Artifacts', () => {
 	test('leaves out websites the browsers pill already lists', () => {
 		const pullRequestLink = URI.parse('https://github.com/microsoft/vscode/pull/12');
 		const artifacts: readonly ISessionArtifact[] = [
-			{ id: 'docs', kind: SessionArtifactKind.Website, label: 'Docs', link: URI.parse('https://example.com/docs') },
-			{ id: 'docs-slash', kind: SessionArtifactKind.Website, label: 'Docs Index', link: URI.parse('https://Example.com/docs/') },
-			{ id: 'deep', kind: SessionArtifactKind.Website, label: 'Deep Link', link: URI.parse('https://example.com/docs/api') },
-			{ id: 'blog', kind: SessionArtifactKind.Website, label: 'Blog', link: URI.parse('https://other.test/blog') },
-			{ id: 'pr', kind: SessionArtifactKind.PullRequest, label: 'PR #12', link: pullRequestLink },
+			{ id: 'docs', kind: SessionArtifactKind.Website, label: 'Docs', isArtifact: true, link: URI.parse('https://example.com/docs') },
+			{ id: 'docs-slash', kind: SessionArtifactKind.Website, label: 'Docs Index', isArtifact: true, link: URI.parse('https://Example.com/docs/') },
+			{ id: 'deep', kind: SessionArtifactKind.Website, label: 'Deep Link', isArtifact: true, link: URI.parse('https://example.com/docs/api') },
+			{ id: 'blog', kind: SessionArtifactKind.Website, label: 'Blog', isArtifact: true, link: URI.parse('https://other.test/blog') },
+			{ id: 'pr', kind: SessionArtifactKind.PullRequest, label: 'PR #12', isArtifact: true, link: pullRequestLink },
 		];
 		const labels = (browserUrls: readonly string[]) => buildSessionArtifactSections(artifacts, actions, true, new Set(browserUrls))
 			.flatMap(section => section.entries)

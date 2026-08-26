@@ -23,7 +23,7 @@ export const IAgentHostChatContributions = createDecorator<IAgentHostChatContrib
 export type TurnEndReason =
 	| { readonly kind: 'success' }
 	| { readonly kind: 'cancelled' }
-	| { readonly kind: 'error'; readonly error: ErrorInfo }
+	| { readonly kind: 'error'; readonly error: ErrorInfo; readonly resumable: boolean }
 	| { readonly kind: 'localCommand' };
 
 /** A terminal turn outcome offered to contributions after a turn ended. */
@@ -74,6 +74,20 @@ export interface IOutgoingTurnContributionResult {
 export interface IHydrationContext {
 	readonly session: ProtocolURI;
 	readonly chat: ProtocolURI;
+}
+
+/**
+ * Host-owned chat state restored from persistence before a chat enters the
+ * session catalog. Distinct from turn hydration: this runs eagerly for every
+ * restored chat, including peer chats whose turns stay unloaded until their
+ * first content request.
+ *
+ * The object form lets this grow with further host-owned restorable fields
+ * without adding another hook.
+ */
+export interface IRestoredChat {
+	readonly title?: string;
+	readonly draft?: Message;
 }
 
 /** A client action after it has been reduced into host state. */
@@ -181,6 +195,13 @@ export interface IAgentHostChatContribution extends IDisposable {
 	 * failures preserve that previous list so a failed enrichment never loses chat history.
 	 */
 	onHydrateTurns?(context: IHydrationContext, turns: readonly Turn[]): readonly Turn[] | Promise<readonly Turn[]>;
+	/**
+	 * Hydrates host-owned chat state before the chat is registered in the
+	 * session catalog. Each ordered stage receives the previous stage's result;
+	 * failures preserve that previous value, so a failed enrichment never drops
+	 * an already-restored title or draft.
+	 */
+	onHydrateChat?(context: IHydrationContext, restored: IRestoredChat): IRestoredChat | Promise<IRestoredChat>;
 }
 
 export type IAgentHostChatContributionSignature<Services extends BrandedService[]> = new (context: IAgentHostChatContributionContext, ...services: Services) => IAgentHostChatContribution;
@@ -205,6 +226,7 @@ export interface IAgentHostChatContributions extends IDisposable {
 	action(action: IObservedAction): void;
 	outgoingTurn(turn: IOutgoingTurn): Promise<IOutgoingTurnContributionResult>;
 	hydrateTurns(context: IHydrationContext, turns: readonly Turn[]): Promise<readonly Turn[]>;
+	hydrateChat(context: IHydrationContext, restored: IRestoredChat): Promise<IRestoredChat>;
 	disposeChatState(chat: ProtocolURI): void;
 	disposeSessionState(session: ProtocolURI): void;
 }

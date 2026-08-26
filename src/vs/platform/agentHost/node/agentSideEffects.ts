@@ -34,17 +34,19 @@ import { ActionType, isChatAction, StateAction, type ChatAction, type ChatToolCa
 import {
 	buildSubagentChatUri,
 	chatStorageUri,
+	createErrorResponsePart,
+	getErrorResponsePart,
 	getToolFileEdits,
 	getInlineToolInput,
 	isAhpChatChannel,
 	buildDefaultChatUri,
 	isSubagentChatUri,
 	isChatReadOnly,
+	mergeLogicalTurnUsage,
 	AH_META_IS_ARCHIVED_DB_KEY,
 	AH_META_IS_READ_DB_KEY,
 	MessageAttachmentKind,
 	MessageKind,
-	parseChatUri,
 	parseRequiredSessionUriFromChatUri,
 	PendingMessageKind,
 	ResponsePartKind,
@@ -64,6 +66,7 @@ import {
 	type ToolCallResult,
 	type ToolResultContent,
 	type Turn,
+	type UsageInfo,
 	type Customization,
 	type McpServerCustomization,
 	type PluginCustomization
@@ -172,6 +175,12 @@ function getCustomizationEnablementCandidates(customizations: readonly Customiza
 
 type AgentSignalTurnIdRouting = 'preserve' | 'remap';
 
+interface IResumedTurnExecution {
+	readonly duration: number;
+	readonly usage: UsageInfo | undefined;
+	readonly stopWatch: StopWatch;
+}
+
 /**
  * Shared implementation of agent side-effect handling.
  *
@@ -188,6 +197,7 @@ export class AgentSideEffects extends Disposable {
 	private readonly _toolCallAgents = new Map<string, string>();
 	/** Managed confirmations are human-only and must never seed host-side session permissions. */
 	private readonly _managedApprovalToolCalls = new Set<string>();
+	private readonly _resumedTurnExecutions = new Map<string, IResumedTurnExecution>();
 	private _lastAgentInfos: readonly AgentInfo[] = [];
 
 	private readonly _permissionManager: SessionPermissionManager;
@@ -299,6 +309,22 @@ export class AgentSideEffects extends Disposable {
 				const chatState = this._stateManager.getChatState(envelope.channel);
 				const action = envelope.action;
 				switch (action.type) {
+					case ActionType.ChatTurnStarted: {
+						if (envelope.rejectionReason) {
+							break;
+						}
+						const sessionChannel = parseRequiredSessionUriFromChatUri(envelope.channel);
+						const previousTurn = chatState?.turns.at(-1);
+						if (!this._stateManager.isEphemeralSession(sessionChannel)
+							&& previousTurn
+							&& previousTurn.id !== action.turnId
+							&& getErrorResponsePart(previousTurn)?.resumable === true) {
+							void this._checkpointService.discardTurnStartCheckpoint(URI.parse(sessionChannel), URI.parse(envelope.channel), previousTurn.id).catch(error => {
+								this._logService.warn(`[AgentSideEffects] Failed to discard checkpoint for superseded resumable turn ${previousTurn.id}`, error);
+							});
+						}
+						break;
+					}
 					case ActionType.ChatInputRequested: {
 						const turnId = chatState?.activeTurn?.id;
 						const provider = this._options.getAgent(parseRequiredSessionUriFromChatUri(envelope.channel))?.id;
@@ -343,9 +369,6 @@ export class AgentSideEffects extends Disposable {
 				}
 				const sessionChannel = parseRequiredSessionUriFromChatUri(envelope.channel);
 				this._notifyClientToolCallComplete(sessionChannel, envelope.channel, action.toolCallId, action.result, 'server-envelope');
-			}
-			if (envelope.action.type === ActionType.ChatDraftChanged) {
-				this._persistChatDraft(envelope.channel, envelope.action.draft);
 			}
 			// A chat joining the catalog changes the session's authoritative
 			// membership, so every already-contributing client is re-fanned-out
@@ -908,6 +931,15 @@ export class AgentSideEffects extends Disposable {
 				return;
 			}
 		}
+		const attemptUsage = action.type === ActionType.ChatUsage ? action.usage : undefined;
+		const resumedExecution = this._resumedTurnExecutions.get(this._resumedTurnExecutionKey(sessionKey, turnId));
+		if (resumedExecution) {
+			if (action.type === ActionType.ChatUsage) {
+				action = { ...action, usage: mergeLogicalTurnUsage(resumedExecution.usage, action.usage) ?? action.usage };
+			} else if (action.type === ActionType.ChatTurnComplete || action.type === ActionType.ChatTurnCancelled || action.type === ActionType.ChatError) {
+				action = { ...action, duration: resumedExecution.duration + action.duration };
+			}
+		}
 
 		if (action.type === ActionType.ChatToolCallStart && agent) {
 			this._toolCallAgents.set(`${sessionKey}:${action.toolCallId}`, agent.id);
@@ -923,7 +955,7 @@ export class AgentSideEffects extends Disposable {
 			}
 		}
 		if (action.type === ActionType.ChatUsage) {
-			const usageMeta = readUsageInfoMeta(action.usage);
+			const usageMeta = readUsageInfoMeta(attemptUsage ?? action.usage);
 			this._turnTracker.updateDirectUsage(
 				sessionKey,
 				action.turnId,
@@ -1043,8 +1075,21 @@ export class AgentSideEffects extends Disposable {
 			const clientContext = this._turnTracker.getClientTelemetryContext(sessionKey, turnId);
 			this._completeTurn(sessionKey, turnId, 'error', { stage: 'provider', error: action.part.error });
 			this._toolCallTracker.clearSession(sessionKey);
-			this._chatContributions.turnEnd({ session: sessionUri, channel: sessionKey, turnId, reason: { kind: 'error', error: action.part.error }, clientContext });
+			this._chatContributions.turnEnd({
+				session: sessionUri,
+				channel: sessionKey,
+				turnId,
+				reason: { kind: 'error', error: action.part.error, resumable: action.part.resumable === true },
+				clientContext
+			});
 		}
+		if (action.type === ActionType.ChatTurnComplete || action.type === ActionType.ChatTurnCancelled || action.type === ActionType.ChatError) {
+			this._resumedTurnExecutions.delete(this._resumedTurnExecutionKey(sessionKey, turnId));
+		}
+	}
+
+	private _resumedTurnExecutionKey(chat: ProtocolURI, turnId: string): string {
+		return `${chat}\0${turnId}`;
 	}
 
 	private _recordModelCallCompleted(signal: IAgentModelCallCompletedSignal, sessionKey: ProtocolURI, turnId: string, turnIdRouting: AgentSignalTurnIdRouting): void {
@@ -1319,10 +1364,21 @@ export class AgentSideEffects extends Disposable {
 	clearChannelTelemetry(channel: ProtocolURI): void {
 		this._toolCallTracker.clearSession(channel);
 		this._turnTracker.clearSession(channel);
+		const prefix = `${channel}\0`;
+		for (const key of this._resumedTurnExecutions.keys()) {
+			if (key.startsWith(prefix)) {
+				this._resumedTurnExecutions.delete(key);
+			}
+		}
 	}
 
 	clearInputRequestsForSession(session: ProtocolURI): void {
 		this._inputRequestTracker.clearAgentSession(session);
+	}
+
+	getResumedTurnDuration(channel: ProtocolURI, turnId: string): number | undefined {
+		const execution = this._resumedTurnExecutions.get(this._resumedTurnExecutionKey(channel, turnId));
+		return execution ? execution.duration + execution.stopWatch.elapsed() : undefined;
 	}
 
 	/**
@@ -1464,7 +1520,7 @@ export class AgentSideEffects extends Disposable {
 		this._turnTracker.markActivity(sessionKey, turnId, readyAction.type);
 	}
 
-	handleAction(channel: ProtocolURI, action: StateAction, clientId?: string, clientContextOrType: IAgentHostClientTelemetryContext | AgentHostClientType = AgentHostClientType.Unknown): void {
+	handleAction(channel: ProtocolURI, action: StateAction, clientId?: string, clientContextOrType: IAgentHostClientTelemetryContext | AgentHostClientType = AgentHostClientType.Unknown, resumedTurn?: Turn): void {
 		let clientContext = typeof clientContextOrType === 'string'
 			? createUnknownAgentHostClientTelemetryContext(clientContextOrType)
 			: clientContextOrType;
@@ -1481,6 +1537,7 @@ export class AgentSideEffects extends Disposable {
 				const turnStopWatch = StopWatch.create(false);
 				// Per-turn streaming part tracking is owned by the agent
 				// (e.g. CopilotAgentSession) and reset on its `send()` call.
+				const state = this._stateManager.getSessionState(channel);
 
 				// Generic, agent-agnostic host commands (`/rename`, `!command`,
 				// …) are intercepted here and handled by the local-command
@@ -1493,7 +1550,6 @@ export class AgentSideEffects extends Disposable {
 					break;
 				}
 
-				const state = this._stateManager.getSessionState(channel);
 				if (!state) {
 					this._logService.info(`[AgentSideEffects] Turn started for session not in state manager: ${channel}, turnId=${action.turnId} - status/summary updates may be dropped unless the session is restored`);
 				}
@@ -1505,7 +1561,7 @@ export class AgentSideEffects extends Disposable {
 						type: ActionType.ChatError,
 						turnId: action.turnId,
 						duration: this._turnDuration(turnStopWatch),
-						part: { kind: ResponsePartKind.Error, error: { errorType: 'noAgent', message: 'No agent found for session' } },
+						part: createErrorResponsePart({ errorType: 'noAgent', message: 'No agent found for session' }),
 					});
 					return;
 				}
@@ -1522,6 +1578,48 @@ export class AgentSideEffects extends Disposable {
 					senderClientId: clientId,
 					clientContext,
 					turnStopWatch,
+				});
+				break;
+			}
+			case ActionType.ChatTurnResume: {
+				if (!chatChannel || !resumedTurn) {
+					throw new Error(`ChatTurnResume must be accepted with its previous turn on an AHP chat channel: ${channel}`);
+				}
+				const agent = this._options.getAgent(sessionChannel);
+				if (!agent?.chats.resumeTurn) {
+					throw new Error(`ChatTurnResume reached side effects without provider support: ${sessionChannel}`);
+				}
+				const state = this._stateManager.getSessionState(channel);
+				const { model, modelTelemetryKind, modelSelectionKind, permissionLevel, interactionMode } = getTurnTelemetryContext(agent, channel, this._chatContext(sessionChannel, channel), state, resumedTurn.message.model?.id);
+				this._turnTracker.turnStarted(agent, channel, action.turnId, model, modelTelemetryKind, modelSelectionKind, permissionLevel, interactionMode, clientContext, clientId);
+				this._turnTracker.setCurrentStage(channel, action.turnId, 'provider');
+				const key = this._resumedTurnExecutionKey(channel, action.turnId);
+				const execution: IResumedTurnExecution = {
+					duration: resumedTurn.duration ?? 0,
+					usage: resumedTurn.usage,
+					stopWatch: StopWatch.create(false),
+				};
+				this._resumedTurnExecutions.set(key, execution);
+				void agent.chats.resumeTurn(
+					URI.parse(channel),
+					action.turnId,
+					{ ...this._chatContext(sessionChannel, channel), clientTelemetryContext: clientContext },
+					clientId,
+					clientContext.clientType,
+				).catch(error => {
+					if (this._resumedTurnExecutions.get(key) !== execution) {
+						return;
+					}
+					const failure = buildTurnFailure('sendMessage', error);
+					this._stateManager.dispatchServerAction(channel, {
+						type: ActionType.ChatError,
+						turnId: action.turnId,
+						duration: execution.duration + execution.stopWatch.elapsed(),
+						part: createErrorResponsePart(failure.error, true),
+					});
+					this._completeTurn(channel, action.turnId, 'error', failure);
+					this._toolCallTracker.clearSession(channel);
+					this._resumedTurnExecutions.delete(key);
 				});
 				break;
 			}
@@ -1570,6 +1668,7 @@ export class AgentSideEffects extends Disposable {
 					throw new Error(`ChatTurnCancelled must be handled on an AHP chat channel: ${channel}`);
 				}
 				this._completeTurn(channel, action.turnId, 'cancelled');
+				this._resumedTurnExecutions.delete(this._resumedTurnExecutionKey(channel, action.turnId));
 				this._toolCallTracker.clearSession(channel);
 				void this._checkpointService.discardTurnStartCheckpoint(URI.parse(sessionChannel), URI.parse(channel), action.turnId).catch(() => undefined);
 				// Cancel all subagent sessions for this parent
@@ -1835,25 +1934,6 @@ export class AgentSideEffects extends Disposable {
 		}).finally(() => ref.dispose());
 	}
 
-	private _persistChatDraft(channel: ProtocolURI, draft: Message | undefined): void {
-		if (!isAhpChatChannel(channel)) {
-			return;
-		}
-
-		const parsed = parseChatUri(channel);
-		if (!parsed) {
-			return;
-		}
-
-		const session = URI.parse(parsed.session);
-		const ref = this._options.sessionDataService.openDatabase(session);
-		ref.object.setChatDraft(URI.parse(channel), draft).catch(err => {
-			this._logService.warn(`[AgentSideEffects] Failed to persist chat draft for ${channel.toString()}`, err);
-		}).finally(() => {
-			ref.dispose();
-		});
-	}
-
 	/**
 	 * Applies a turn message's model/agent selection (see
 	 * {@link _applyMessageSelection}) and forwards it to the agent's
@@ -1883,7 +1963,7 @@ export class AgentSideEffects extends Disposable {
 				type: ActionType.ChatError,
 				turnId,
 				duration: this._turnDuration(turnStopWatch),
-				part: { kind: ResponsePartKind.Error, error },
+				part: createErrorResponsePart(error),
 			});
 			this._completeTurn(turnChannel, turnId, 'error', { stage: 'validation', error });
 			this._toolCallTracker.clearSession(turnChannel);
@@ -1939,7 +2019,7 @@ export class AgentSideEffects extends Disposable {
 				type: ActionType.ChatError,
 				turnId,
 				duration: this._turnDuration(turnStopWatch),
-				part: { kind: ResponsePartKind.Error, error },
+				part: createErrorResponsePart(error),
 			});
 			this._completeTurn(turnChannel, turnId, 'error', failure);
 			this._toolCallTracker.clearSession(turnChannel);
