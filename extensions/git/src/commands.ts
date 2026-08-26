@@ -4447,6 +4447,10 @@ export class CommandCenter {
 			return;
 		}
 
+		if (this.warnIfResourceMissing(resourceState)) {
+			return;
+		}
+
 		await commands.executeCommand('revealInExplorer', resourceState.resourceUri);
 	}
 
@@ -4462,7 +4466,26 @@ export class CommandCenter {
 			return;
 		}
 
+		if (this.warnIfResourceMissing(resourceState)) {
+			return;
+		}
+
 		await commands.executeCommand('revealFileInOS', resourceState.resourceUri);
+	}
+
+	private warnIfResourceMissing(resourceState: SourceControlResourceState): boolean {
+		const isMissing = resourceState instanceof Resource && (
+			resourceState.type === Status.DELETED ||
+			resourceState.type === Status.INDEX_DELETED ||
+			resourceState.type === Status.BOTH_DELETED
+		);
+
+		if (isMissing) {
+			// The resource no longer exists on disk (e.g. a deleted file) and there is nothing to reveal.
+			window.showWarningMessage(l10n.t('"{0}" no longer exists on disk.', path.basename(resourceState.resourceUri.fsPath)));
+		}
+
+		return isMissing;
 	}
 
 	private async _stash(repository: Repository, includeUntracked = false, staged = false): Promise<boolean> {
