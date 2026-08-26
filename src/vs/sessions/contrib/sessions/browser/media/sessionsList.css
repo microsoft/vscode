@@ -452,8 +452,8 @@
 	gap: var(--vscode-spacing-size60);
 	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size120) var(--vscode-spacing-size60) var(--vscode-spacing-size360);
 	color: var(--vscode-foreground);
-	font-size: var(--vscode-agents-fontSize-body1);
-	font-weight: var(--vscode-agents-fontWeight-regular);
+	font-size: var(--vscode-fontSize-body1);
+	font-weight: var(--vscode-fontWeight-regular);
 	line-height: 17px;
 
 	&::before {
@@ -895,7 +895,7 @@
 
 	.session-chat-item {
 		padding: var(--vscode-spacing-size120) var(--vscode-spacing-size120) var(--vscode-spacing-size120) var(--vscode-spacing-size360);
-		font-size: var(--vscode-agents-fontSize-body1);
+		font-size: var(--vscode-fontSize-body1);
 	}
 
 	.session-item .session-icon {
