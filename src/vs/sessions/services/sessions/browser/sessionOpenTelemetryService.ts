@@ -78,6 +78,7 @@ class SessionOpenTelemetryAttempt extends Disposable implements ISessionOpenTele
 	resourceResolvedDurationMs: number | undefined;
 	sessionLoadedDurationMs: number | undefined;
 	modelBoundDurationMs: number | undefined;
+	modelBindFailedChatResource: URI | undefined;
 
 	constructor(
 		readonly id: number,
@@ -141,6 +142,10 @@ export class SessionOpenTelemetryService extends Disposable implements ISessionO
 		}
 
 		activeAttempt.chatResource = chatResource;
+		if (activeAttempt.modelBindFailedChatResource && isEqual(activeAttempt.modelBindFailedChatResource, chatResource)) {
+			this._finish(activeAttempt, 'failure');
+			return;
+		}
 		activeAttempt.modelAlreadyBound = isEqual(this._boundChats.get(activeAttempt.sessionResource), chatResource);
 		if (activeAttempt.modelAlreadyBound) {
 			activeAttempt.modelBoundDurationMs = this._elapsed(activeAttempt);
@@ -180,10 +185,12 @@ export class SessionOpenTelemetryService extends Disposable implements ISessionO
 
 	modelBindFailed(sessionResource: URI, chatResource: URI): void {
 		const activeAttempt = this._activeAttempt;
-		if (activeAttempt?.sessionResource
-			&& activeAttempt.chatResource
-			&& isEqual(activeAttempt.sessionResource, sessionResource)
-			&& isEqual(activeAttempt.chatResource, chatResource)) {
+		if (!activeAttempt?.sessionResource || !isEqual(activeAttempt.sessionResource, sessionResource)) {
+			return;
+		}
+		if (!activeAttempt.chatResource) {
+			activeAttempt.modelBindFailedChatResource = chatResource;
+		} else if (isEqual(activeAttempt.chatResource, chatResource)) {
 			this._finish(activeAttempt, 'failure');
 		}
 	}

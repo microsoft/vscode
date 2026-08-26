@@ -431,6 +431,9 @@ export class ChatView extends AbstractChatView {
 
 		// Skip loading if we're already showing this chat
 		if (!chatChanged) {
+			if (previousSession && !isEqual(previousSession.resource, session?.resource) && previousChatResource) {
+				this.sessionOpenTelemetryService.modelUnbound(previousSession.resource, previousChatResource);
+			}
 			if (session && isEqual(this._modelRef.value?.object.sessionResource, resource)) {
 				this.sessionOpenTelemetryService.modelBound(session.resource, resource);
 			}

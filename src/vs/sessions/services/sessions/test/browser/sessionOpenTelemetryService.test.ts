@@ -123,6 +123,28 @@ suite('SessionOpenTelemetryService', () => {
 		]);
 	});
 
+	test('preserves a model bind failure reported before chat activation', async () => {
+		const telemetryService = new TestTelemetryService();
+		const service = disposables.add(new SessionOpenTelemetryService(telemetryService));
+
+		await service.withOpenRequest('sessionsList', CancellationToken.None, async attempt => {
+			service.sessionResolved(attempt, sessionResource, 'local-agent-host', false, true);
+			service.modelBindFailed(sessionResource, chatResource);
+			service.sessionActivated(attempt, chatResource);
+			service.sessionLoaded(attempt);
+		});
+
+		assert.deepStrictEqual(telemetryService.events.map(event => ({
+			outcome: event.data.outcome,
+			provider: event.data.provider,
+			sessionWasLoading: event.data.sessionWasLoading,
+		})), [{
+			outcome: 'failure',
+			provider: 'local-agent-host',
+			sessionWasLoading: true,
+		}]);
+	});
+
 	test('emits bounded timeout without content-bearing fields', async () => {
 		await runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const telemetryService = new TestTelemetryService();
