@@ -9,10 +9,10 @@ import { VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { FileChangeType, FileSystemProviderErrorCode, FileType, IFileChange, toFileSystemProviderErrorCode } from '../../../files/common/files.js';
+import { FileChangeType, FilePermission, FileSystemProviderErrorCode, FileType, IFileChange, toFileSystemProviderErrorCode } from '../../../files/common/files.js';
 import { AgentHostFileSystemProvider, agentHostRemotePath, agentHostUri, type IRemoteFilesystemConnection } from '../../common/agentHostFileSystemProvider.js';
 import { remoteAgentHostSessionTypeId } from '../../common/agentHostSessionType.js';
-import { AGENT_HOST_LABEL_FORMATTER, AGENT_HOST_SCHEME, agentHostAuthority, createAgentHostResourceUriMapper, fromAgentHostUri, identityAgentHostResourceUriMapper, toAgentHostUri } from '../../common/agentHostUri.js';
+import { AGENT_HOST_LABEL_FORMATTER, AGENT_HOST_SCHEME, agentHostAuthority, createAgentHostResourceUriMapper, fromAgentHostUri, identityAgentHostResourceUriMapper, isAgentHostContentRefUri, toAgentHostContentUri, toAgentHostUri } from '../../common/agentHostUri.js';
 import { ContentEncoding, ResourceType, type CreateResourceWatchParams, type ResourceCopyParams, type ResourceListResult, type ResourceMkdirParams, type ResourceReadResult, type ResourceRequestParams, type ResourceRequestResult, type ResourceResolveParams, type ResourceResolveResult } from '../../common/state/protocol/commands.js';
 import { AhpErrorCodes } from '../../common/state/protocol/errors.js';
 import { ProtocolError } from '../../common/state/sessionProtocol.js';
@@ -170,6 +170,30 @@ suite('toAgentHostUri / fromAgentHostUri', () => {
 		const original = URI.file('/workspace/test.ts');
 		const result = toAgentHostUri(original, 'local');
 		assert.strictEqual(result.toString(), original.toString());
+	});
+
+	test('a content ref is marked as one and still round-trips', () => {
+		const original = URI.parse('ahp-session:/ab456a26/changeset/turncontent/2011679d');
+
+		const asContent = toAgentHostContentUri(original, 'remote-host');
+		const asFile = toAgentHostUri(original, 'remote-host');
+
+		assert.deepStrictEqual({
+			contentMarked: isAgentHostContentRefUri(asContent),
+			fileMarked: isAgentHostContentRefUri(asFile),
+			plainUriMarked: isAgentHostContentRefUri(original),
+			roundTripped: fromAgentHostUri(asContent).toString(),
+		}, {
+			contentMarked: true,
+			fileMarked: false,
+			plainUriMarked: false,
+			roundTripped: original.toString(),
+		});
+	});
+
+	test('a content ref that is a plain file on the local connection stays unwrapped', () => {
+		const original = URI.file('/workspace/test.ts');
+		assert.strictEqual(toAgentHostContentUri(original, 'local').toString(), original.toString());
 	});
 
 	test('resource URI mappers translate remote resources and preserve local resources', () => {
@@ -441,6 +465,68 @@ suite('AgentHostFileSystemProvider - synthetic content schemes', () => {
 		await provider.stat(wrapped);
 		assert.strictEqual(connection.resolveCalls.length, 1);
 		assert.strictEqual(connection.listCalls.length, 0);
+	});
+
+	// A `ContentRef` is read with `resourceRead` and carries its own
+	// `sizeHint`/`contentType`; `resourceResolve` is POSIX stat+realpath over
+	// filesystem entries and has no answer for one. A host is free to pick its
+	// own content URI shape, so the scheme alone cannot identify a content ref:
+	// copilotd publishes `ahp-session:/<id>/changeset/turncontent/<sha>`, which
+	// the host's filesystem resolver rejects as a malformed file path. That
+	// failed the stat the diff editor issues before reading, so the read that
+	// would have succeeded never ran and the diff came up empty.
+	test('stat treats a marked content ref as a read-only file whatever its scheme', async () => {
+		const provider = disposables.add(new AgentHostFileSystemProvider());
+		const connection = new StubConnection();
+		disposables.add(provider.registerAuthority('remote', connection));
+		const inner = URI.parse('ahp-session:/ab456a26/changeset/turncontent/2011679d');
+		const wrapped = toAgentHostContentUri(inner, 'remote');
+
+		const stat = await provider.stat(wrapped);
+
+		assert.deepStrictEqual({
+			type: stat.type,
+			readonly: stat.permissions === FilePermission.Readonly,
+			resolved: connection.resolveCalls.length,
+			listed: connection.listCalls.length,
+		}, {
+			type: FileType.File,
+			readonly: true,
+			resolved: 0,
+			listed: 0,
+		});
+	});
+
+	test('realpath returns a marked content ref unchanged without resolving it', async () => {
+		const provider = disposables.add(new AgentHostFileSystemProvider());
+		const connection = new StubConnection();
+		disposables.add(provider.registerAuthority('remote', connection));
+		const inner = URI.parse('ahp-session:/ab456a26/changeset/turncontent/2011679d');
+		const wrapped = toAgentHostContentUri(inner, 'remote');
+
+		const path = await provider.realpath(wrapped);
+
+		assert.deepStrictEqual({ path, resolved: connection.resolveCalls.length }, {
+			path: wrapped.path,
+			resolved: 0,
+		});
+	});
+
+	test('readFile still asks the host for the content ref it declined to stat', async () => {
+		const provider = disposables.add(new AgentHostFileSystemProvider());
+		const connection = new StubConnection();
+		disposables.add(provider.registerAuthority('remote', connection));
+		const inner = URI.parse('ahp-session:/ab456a26/changeset/turncontent/2011679d');
+
+		const bytes = await provider.readFile(toAgentHostContentUri(inner, 'remote'));
+
+		assert.deepStrictEqual({
+			content: VSBuffer.wrap(bytes).toString(),
+			resources: connection.readCalls.map(u => u.toString()),
+		}, {
+			content: 'stub-content',
+			resources: [inner.toString()],
+		});
 	});
 
 	test('readFile passes the decoded synthetic URI through to the connection', async () => {
