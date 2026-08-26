@@ -148,9 +148,7 @@ suite('Progress Indicator', () => {
 		// Inactive scope: nothing is shown yet
 		assert.strictEqual(false, !!testProgressBar.fInfinite);
 
-		// The state has to keep the configured delay and the wall clock
-		// start time so that a later reactivation can compute the
-		// remaining delay.
+		// The state keeps delay and wall clock start for replay computation.
 		const state = (testObject as unknown as { progressState: { whileStart: number; whileDelay: number } }).progressState;
 		assert.strictEqual(5000, state.whileDelay);
 		assert.strictEqual(true, state.whileStart >= startTime && state.whileStart <= Date.now(), `unexpected whileStart: ${state.whileStart}`);
