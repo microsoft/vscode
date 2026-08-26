@@ -56,6 +56,7 @@ import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { packErrorForTelemetry } from '../../../../../../platform/telemetry/common/errorTelemetry.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
+import { IWorkbenchAssignmentService } from '../../../../../services/assignment/common/assignmentService.js';
 import { IPathService } from '../../../../../services/path/common/pathService.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
@@ -86,7 +87,8 @@ import { IWorkingCopyService } from '../../../../../services/workingCopy/common/
 import { ChatMode } from '../../../common/chatModes.js';
 import { CHAT_SUBAGENT_RESOURCE_QUERY_PARAM, ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../common/constants.js';
 import { IChatEditingService } from '../../../common/editing/chatEditingService.js';
-import { getLanguageModelDisplayNameWithProvider, ILanguageModelChatMetadata, ILanguageModelsService } from '../../../common/languageModels.js';
+import { HIDE_AUTO_EXPLAINABILITY_TREATMENT } from '../../../common/chatAutoModeExplainability.js';
+import { AUTO_RAW_MODEL_ID, getLanguageModelDisplayNameWithProvider, ILanguageModelChatMetadata, ILanguageModelsService } from '../../../common/languageModels.js';
 import { ChatInputStateOrigin, reviveSerializableInputState, type IChatModel, type IChatModelInputState, type IChatRequestVariableData, type IInputModel, type ISerializableChatModelInputState } from '../../../common/model/chatModel.js';
 import { ChatElicitationRequestPart } from '../../../common/model/chatProgressTypes/chatElicitationRequestPart.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
@@ -1090,6 +1092,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 */
 	private readonly _hydratingChatSessions = new Map<string, number>();
 
+	/** Whether the `hideAutoExplainability` experiment suppresses Auto's routing row. */
+	private readonly _hideAutoExplainability = observableValue<boolean>('hideAutoExplainability', false);
+
 	constructor(
 		config: IAgentHostSessionHandlerConfig,
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
@@ -1121,9 +1126,17 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		@IRemoteAgentHostService private readonly _remoteAgentHostService: IRemoteAgentHostService,
 		@IAgentHostCustomizationService private readonly _customizationService: IAgentHostCustomizationService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IWorkbenchAssignmentService assignmentService: IWorkbenchAssignmentService,
 	) {
 		super();
 		this._config = config;
+
+		// Resolves asynchronously, so turns started earlier re-render once it lands.
+		const readHideAutoExplainability = () => assignmentService.getTreatment<boolean>(HIDE_AUTO_EXPLAINABILITY_TREATMENT)
+			.then(hidden => this._hideAutoExplainability.set(hidden === true, undefined))
+			.catch(err => this._logService.warn(`[AgentHost] Failed to resolve ${HIDE_AUTO_EXPLAINABILITY_TREATMENT}`, err));
+		readHideAutoExplainability();
+		this._register(assignmentService.onDidRefetchAssignments(() => readHideAutoExplainability()));
 
 		// The `inputNeeded` watchers live in a plain map (they are shared and
 		// ref-counted across sibling resources), so dispose any that survive
@@ -3171,7 +3184,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			}));
 
 			store.add(autorun(reader => {
-				const resolution = modelLookup.toAutoModeResolution?.(usage$.read(reader));
+				// The turn's own pick tells us Auto is routing before the host
+				// reports what it landed on, so the row can start as "Routing task…".
+				const selectedModelId = turn$.read(reader)?.message?.model?.id;
+				const resolution = this._createTurnModelLookup(opts.sessionResource, selectedModelId, this._hideAutoExplainability.read(reader))
+					.toAutoModeResolution?.(usage$.read(reader));
 				if (!resolution || equals(lastAutoModeResolution, resolution)) {
 					return;
 				}
@@ -5510,7 +5527,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 * `usage?.model` is not yet set (e.g. older sessions or turns that
 	 * never reported usage).
 	 */
-	private _createTurnModelLookup(sessionResource: URI, fallbackRawModelId: string | undefined): TurnModelLookup {
+	private _createTurnModelLookup(sessionResource: URI, fallbackRawModelId: string | undefined, hideAutoExplainability = this._hideAutoExplainability.get()): TurnModelLookup {
 		const resolveRaw = (rawModelId: string | undefined): string | undefined => rawModelId ?? fallbackRawModelId;
 		// Try the raw billed id and its dots-normalised form (slug mismatch:
 		// `claude-sonnet-4-6` → `.6`) before falling back to the picked model.
@@ -5540,10 +5557,15 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			toLanguageModelId: (rawModelId) => this._toLanguageModelId(sessionResource, resolveRaw(rawModelId)),
 			toModelDisplayName: rawModelId => lookupRawModel(rawModelId)?.model.name,
 			toResponseDetails: (rawModelId, usage) => {
-				const resolved = lookupModel(rawModelId);
+				// A routed turn bills to Auto rather than the model it picked when
+				// explainability is hidden. Keyed off the reported routing decision
+				// so restored history only rewrites turns that actually used Auto.
+				const routed = !!readUsageInfoMeta(usage).autoModeResolved;
+				const billedId = routed && hideAutoExplainability ? AUTO_RAW_MODEL_ID : rawModelId;
+				const resolved = lookupModel(billedId);
 				// resolvedFromRaw=false means we fell back to the picked model; surface billedModelId so
 				// e.g. an "Auto" pick reads "Auto (raptor-mini)".
-				const billedModelId = resolved && !resolved.resolvedFromRaw ? rawModelId : undefined;
+				const billedModelId = resolved && !resolved.resolvedFromRaw ? billedId : undefined;
 				const responseModel = resolved ? {
 					name: getLanguageModelDisplayNameWithProvider({ identifier: resolved.identifier, metadata: resolved.model }, this._languageModelsService),
 					pricing: resolved.model.pricing,
@@ -5552,9 +5574,18 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			},
 			toAutoModeResolution: usage => {
 				const resolution = readUsageInfoMeta(usage).autoModeResolved;
-				const resolved = resolution ? lookupModel(resolution.chosenModel) : undefined;
-				const resolvedModelName = resolved?.resolvedFromRaw ? resolved.model.name : undefined;
-				return usageInfoToAutoModeResolution(usage, resolvedModelName);
+				const isAutoTurn = fallbackRawModelId === AUTO_RAW_MODEL_ID || !!resolution;
+				if (!isAutoTurn || hideAutoExplainability) {
+					return undefined;
+				}
+				if (!resolution) {
+					// Auto was picked, but the router has not answered yet.
+					return { kind: 'autoModeResolution' };
+				}
+				const resolved = lookupRawModel(resolution.chosenModel);
+				// Named the same way as the footer, so the two agree.
+				const name = resolved && getLanguageModelDisplayNameWithProvider({ identifier: resolved.identifier, metadata: resolved.model }, this._languageModelsService);
+				return usageInfoToAutoModeResolution(usage, name);
 			},
 		};
 	}

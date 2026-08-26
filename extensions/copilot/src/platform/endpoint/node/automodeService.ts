@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { ChatRequest } from 'vscode';
+import type { ChatRequest, ChatResponseStream } from 'vscode';
 import { createServiceIdentifier } from '../../../util/common/services';
 import { TaskSingler } from '../../../util/common/taskSingler';
 import { Emitter, type Event } from '../../../util/vs/base/common/event';
-import { Disposable } from '../../../util/vs/base/common/lifecycle';
+import { Disposable, type IDisposable } from '../../../util/vs/base/common/lifecycle';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
-import { ChatLocation } from '../../../vscodeTypes';
+import { ChatLocation, ChatResponseAutoModeResolutionPart } from '../../../vscodeTypes';
 import { IAuthenticationService } from '../../authentication/common/authentication';
 import { ConfigKey, IConfigurationService } from '../../configuration/common/configurationService';
 import { ILogService } from '../../log/common/logService';
@@ -67,6 +67,30 @@ export interface AutoModePickerMetadata {
 	discountRange: { low: number; high: number };
 }
 
+/** A routing state change for one request: `endpoint` is unset while the router is still deciding. */
+export interface IAutoModeRoutingState {
+	readonly requestId: string | undefined;
+	readonly endpoint: IChatEndpoint | undefined;
+}
+
+/**
+ * Reports Auto's routing rounds into a turn's response stream. Install this
+ * before the turn resolves any endpoint — the first route happens during
+ * endpoint resolution, and a route that already finished cannot be replayed.
+ */
+export function reportAutoModeRouting(
+	request: ChatRequest,
+	stream: ChatResponseStream,
+	automodeService: IAutomodeService,
+): IDisposable {
+	return automodeService.onDidRoute(e => {
+		if (e.requestId !== request.id) {
+			return;
+		}
+		stream.push(new ChatResponseAutoModeResolutionPart(e.endpoint && { id: e.endpoint.model, name: e.endpoint.name }));
+	});
+}
+
 export interface IAutomodeService {
 	readonly _serviceBrand: undefined;
 
@@ -102,6 +126,13 @@ export interface IAutomodeService {
 	readonly onDidChangeAutoModeTierSupport: Event<void>;
 
 	/**
+	 * Fires when a request starts routing and again once it resolves. Only real
+	 * routing rounds fire — a cached endpoint is silent — and Auto can route
+	 * several times in a turn, e.g. after compaction.
+	 */
+	readonly onDidRoute: Event<IAutoModeRoutingState>;
+
+	/**
 	 * Marks the router cache for this conversation as needing re-evaluation.
 	 * The next call to {@link resolveAutoModeEndpoint} will re-run the router
 	 * instead of returning the cached endpoint.
@@ -121,6 +152,8 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 	private static readonly CACHE_MAX_ENTRIES = 50;
 	private readonly _onDidChangeAutoModeTierSupport = this._register(new Emitter<void>());
 	readonly onDidChangeAutoModeTierSupport = this._onDidChangeAutoModeTierSupport.event;
+	private readonly _onDidRoute = this._register(new Emitter<IAutoModeRoutingState>());
+	readonly onDidRoute = this._onDidRoute.event;
 	/** Last announced {@link areAutoModeTiersSupported}. See {@link _updateAutoModeTierSupport}. */
 	private _tierSupportAnnounced = false;
 
@@ -240,6 +273,7 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 		// The session this mints belongs to the account signed in right now, so
 		// anything resolved here is void if that account changes mid-flight.
 		const authGeneration = this._authGeneration;
+		this._onDidRoute.fire({ requestId: chatRequest?.id, endpoint: undefined });
 		let result: AutoV2Response;
 		try {
 			result = await this._autoV2Fetcher.getAutoDecision(prompt, {
@@ -293,6 +327,7 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 		const endpoint = (entry?.endpoint && entry.sessionToken === result.session_token && entry.endpoint.model === selectedModel.model && entry.tier === tier)
 			? entry.endpoint
 			: this._instantiationService.createInstance(AutoChatEndpoint, selectedModel, result.session_token, result.discounted_costs?.[selectedModel.model] ?? selectedModel.autoDiscount ?? 0, this._calculateDiscountRange(knownEndpoints));
+		this._onDidRoute.fire({ requestId: chatRequest?.id, endpoint });
 
 		if (conversationId === 'unknown') {
 			return endpoint;
