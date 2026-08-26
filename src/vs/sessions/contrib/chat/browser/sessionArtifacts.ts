@@ -7,7 +7,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { getMediaMime } from '../../../../base/common/mime.js';
-import { derived, IObservable, IReader } from '../../../../base/common/observable.js';
+import { derived, IObservable } from '../../../../base/common/observable.js';
 import { basename, getComparisonKey } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -23,7 +23,7 @@ import type { IChatPillEntry, IChatPillSection } from '../../../../workbench/bro
 import { openChatTurnFile, previewKind } from '../../../../workbench/contrib/chat/browser/widget/chatTurnPills.js';
 import { ChatConfiguration } from '../../../../workbench/contrib/chat/common/constants.js';
 import type { IImageCarouselCollection } from '../../../../workbench/contrib/imageCarousel/browser/imageCarouselTypes.js';
-import { SessionArtifactKind, SessionFileOperation, type ISessionArtifact, type ISessionFile } from '../../../services/sessions/common/session.js';
+import { SessionArtifactKind, type ISessionArtifact } from '../../../services/sessions/common/session.js';
 import type { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 
 const OPEN_IMAGE_CAROUSEL_COMMAND_ID = 'workbench.action.chat.openImageInCarousel';
@@ -151,12 +151,11 @@ function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions): 
 }
 
 /**
- * Builds the artifact sections shown in the pill: the agent-set artifacts plus
- * the previewable files the session wrote outside its workspace, de-duplicated
- * with the agent's own entries winning. Websites the browsers pill already lists
- * are left out, so the same page is offered once across the two pills.
+ * Builds the artifact sections shown in the pill from the agent-set artifacts.
+ * Websites the browsers pill already lists are left out, so the same page is
+ * offered once across the two pills.
  */
-export function buildSessionArtifactSections(artifacts: readonly ISessionArtifact[], externalFiles: readonly ISessionFile[], actions: ISessionArtifactActions, imageCarouselEnabled: boolean, browserUrls: ReadonlySet<string>): readonly IChatPillSection[] {
+export function buildSessionArtifactSections(artifacts: readonly ISessionArtifact[], actions: ISessionArtifactActions, imageCarouselEnabled: boolean, browserUrls: ReadonlySet<string>): readonly IChatPillSection[] {
 	const entriesByKind = new Map<SessionArtifactKind, IChatPillEntry[]>();
 	const images: ISessionArtifactImage[] = [];
 	const seen = new Set<string>();
@@ -188,22 +187,6 @@ export function buildSessionArtifactSections(artifacts: readonly ISessionArtifac
 		const entries = entriesByKind.get(artifact.kind) ?? [];
 		entries.push(entry);
 		entriesByKind.set(artifact.kind, entries);
-	}
-
-	for (const file of externalFiles) {
-		const imageMimeType = getImageMimeType(file.uri);
-		if (file.operation === SessionFileOperation.Deleted || (!previewKind(file.uri) && !imageMimeType) || seen.has(getComparisonKey(file.uri))) {
-			continue;
-		}
-		seen.add(getComparisonKey(file.uri));
-		if (imageMimeType) {
-			images.push({ uri: file.uri, mimeType: imageMimeType });
-			continue;
-		}
-		const entries = entriesByKind.get(SessionArtifactKind.File) ?? [];
-		const label = basename(file.uri);
-		entries.push({ id: file.uri.toString(), label, resource: file.uri, ...sessionArtifactLocation(file.uri, label), open: () => actions.openResource(file.uri) });
-		entriesByKind.set(SessionArtifactKind.File, entries);
 	}
 
 	const sections: IChatPillSection[] = [];
@@ -261,16 +244,11 @@ export class SessionArtifacts extends Disposable {
 			}
 			return buildSessionArtifactSections(
 				current.artifacts?.read(reader) ?? [],
-				this._readExternalFiles(current, reader),
 				this._actions(),
 				imageCarouselEnabled.read(reader),
 				this._browserUrls.read(reader),
 			);
 		});
-	}
-
-	private _readExternalFiles(session: IActiveSession, reader: IReader): readonly ISessionFile[] {
-		return session.externalChanges?.read(reader) ?? [];
 	}
 
 	private _actions(): ISessionArtifactActions {

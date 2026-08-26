@@ -185,7 +185,7 @@ registerAction2(class NavigatePreviousSessionAction extends Action2 {
 				secondary: [KeyMod.Alt | KeyCode.UpArrow],
 				mac: {
 					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.LeftArrow,
-					secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.BracketLeft, KeyMod.Alt | KeyCode.UpArrow],
+					secondary: [KeyMod.Alt | KeyCode.UpArrow],
 				},
 			},
 			menu: [{
@@ -219,7 +219,7 @@ registerAction2(class NavigateNextSessionAction extends Action2 {
 				secondary: [KeyMod.Alt | KeyCode.DownArrow],
 				mac: {
 					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.RightArrow,
-					secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.BracketRight, KeyMod.Alt | KeyCode.DownArrow],
+					secondary: [KeyMod.Alt | KeyCode.DownArrow],
 				},
 			},
 			menu: [{
@@ -975,11 +975,6 @@ registerAction2(class RenameSessionAction extends Action2 {
 				group: '1_edit',
 				order: 1,
 				when: SessionSupportsRenameContext,
-			}, {
-				id: Menus.SessionBarToolbar,
-				group: 'secondary/1_session',
-				order: 20,
-				when: ContextKeyExpr.and(SessionIsCreatedContext, SessionSupportsRenameContext, SessionIsArchivedContext.negate()),
 			}]
 		});
 	}

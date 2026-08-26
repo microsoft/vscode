@@ -1219,7 +1219,7 @@ function _idle(session: URI, sessionStr: string, turnId: string): IAgentActionSi
 
 /** Creates a {@link ActionType.ChatError} signal. */
 function _error(session: URI, sessionStr: string, turnId: string, errorType: string, message: string, stack?: string): IAgentActionSignal {
-	return _action(session, { type: ActionType.ChatError, turnId, duration: 1, error: { errorType, message, stack } });
+	return _action(session, { type: ActionType.ChatError, turnId, duration: 1, part: { kind: ResponsePartKind.Error, error: { errorType, message, stack } } });
 }
 
 /** Creates a {@link ActionType.SessionTitleChanged} signal. */

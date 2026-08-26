@@ -676,8 +676,8 @@ export class ToolsListWidget extends Disposable {
 		this._rowStore.add(autorun(reader => {
 			const expanded = vm.forceExpanded || this._expanded.read(reader).has(ts.id);
 			group.style.display = expanded ? '' : 'none';
-			chevron.classList.toggle('codicon-chevron-down', expanded);
-			chevron.classList.toggle('codicon-chevron-right', !expanded);
+			chevron.classList.toggle('codicon-chevron-down-compact', expanded);
+			chevron.classList.toggle('codicon-chevron-right-compact', !expanded);
 			row.setAttribute('aria-expanded', String(expanded));
 			this._treeScrollable.scanDomNode();
 		}));

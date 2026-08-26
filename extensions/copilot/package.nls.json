@@ -421,7 +421,6 @@
 	"github.copilot.config.cli.sandbox.enabled.allowNetworkDescription": "Enable sandboxing for Copilot CLI tools and allow all network domains.",
 	"github.copilot.config.cli.branchSupport.enabled": "Enable branch support for Copilot CLI.",
 	"github.copilot.config.cli.forkSessions.enabled": "Enable forking sessions in Copilot CLI.",
-	"github.copilot.config.cli.showExternalSessions": "Show sessions created by other applications.",
 	"github.copilot.config.cli.planExitMode.enabled": "Enable Plan Mode exit handling in Copilot CLI.",
 	"github.copilot.config.cli.autoModel.enabled": "Enable the Auto model option in Copilot CLI, which automatically selects the best model for each request. Requires VS Code reload.",
 	"github.copilot.config.chat.autoMode.tiers.enabled": "Choose a routing tier for the Auto model, biasing model selection toward cost, capability, or speed. When disabled, the service picks the routing profile.",

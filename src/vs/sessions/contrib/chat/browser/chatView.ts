@@ -5,7 +5,8 @@
 
 import './media/chatView.css';
 import './media/voiceChatView.css';
-import { $, isHTMLElement, size } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, EventHelper, EventType, getWindow, isHTMLElement, size } from '../../../../base/browser/dom.js';
+import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { MutableDisposable } from '../../../../base/common/lifecycle.js';
@@ -14,9 +15,11 @@ import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { scrollbarShadow } from '../../../../platform/theme/common/colorRegistry.js';
+import { isHighContrast } from '../../../../platform/theme/common/theme.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -39,7 +42,7 @@ import { IChatViewFactory } from '../../../services/chatView/browser/chatViewFac
 import { NewChatWidget } from './newChatWidget.js';
 import { NewChatInSessionWidget } from './newChatInSessionWidget.js';
 import { SessionInputBanners } from '../../sessionInputBanners/browser/sessionInputBanners.js';
-import { SessionChatInputToolbar } from './sessionChatInputToolbar.js';
+import { SESSION_CHAT_INPUT_TOOLBAR_HEIGHT, SessionChatInputToolbar } from './sessionChatInputToolbar.js';
 import { ResponseSelectionSideChatController } from './responseSelectionSideChatController.js';
 import { ISessionChatPillsDebugService } from './sessionChatInputToolbarDebug.js';
 import { AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING } from './sessionsChatHistory.js';
@@ -48,6 +51,9 @@ import { setupVoiceInputDecorations } from './voiceInputDecorations.js';
 import { INewChatVoiceTargetService } from './newChatVoice.js';
 import { ISessionsChatViewStateService } from './chatViewStateService.js';
 import { ExternalSessionBanner } from './externalSessionBanner.js';
+import { Menus } from '../../../browser/menus.js';
+import { ISessionsChatBackgroundService } from '../../../services/chatBackground/browser/chatBackgroundService.js';
+import { SessionsChatBackgroundRenderer } from './chatBackgroundRenderer.js';
 
 export function shouldShowSessionChatTip(sessionStatus: SessionStatus | undefined): boolean {
 	return sessionStatus === undefined || !isActiveSessionStatus(sessionStatus);
@@ -65,19 +71,26 @@ export class NewChatView extends AbstractChatView {
 	override readonly kind: ChatViewKind;
 
 	private readonly _widget: NewChatWidget | NewChatInSessionWidget;
+	private readonly _isVisibleObs = observableValue(this, true);
 
 	constructor(
 		isNewChatInSession: boolean,
 		options: IChatViewOptions,
-		@IInstantiationService instantiationService: IInstantiationService
+		@IInstantiationService instantiationService: IInstantiationService,
+		@ISessionsChatBackgroundService chatBackgroundService: ISessionsChatBackgroundService,
 	) {
 		super();
 
 		this.element.classList.add('chat-view-new');
+		const backgroundRenderer = this._register(new SessionsChatBackgroundRenderer(this.element));
+		const updateBackground = () => backgroundRenderer.setBackground(chatBackgroundService.getBackground());
+		this._register(chatBackgroundService.onDidChangeBackground(updateBackground));
+		updateBackground();
 		this.kind = isNewChatInSession ? 'newChatInSession' : 'newSession';
+		const widgetOptions = { ...options, petHostPreferred: this._isVisibleObs };
 		this._widget = this._register(isNewChatInSession
-			? instantiationService.createInstance(NewChatInSessionWidget, options)
-			: instantiationService.createInstance(NewChatWidget, options));
+			? instantiationService.createInstance(NewChatInSessionWidget, widgetOptions)
+			: instantiationService.createInstance(NewChatWidget, widgetOptions));
 		this._widget.render(this.element);
 	}
 
@@ -121,6 +134,7 @@ export class NewChatView extends AbstractChatView {
 	}
 
 	override setVisible(visible: boolean): void {
+		this._isVisibleObs.set(visible, undefined);
 		if (this._widget instanceof NewChatWidget) {
 			this._widget.setHostVisible(visible);
 		}
@@ -182,6 +196,8 @@ export class ChatView extends AbstractChatView {
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@ISessionsChatBackgroundService private readonly chatBackgroundService: ISessionsChatBackgroundService,
 		@IChatService private readonly chatService: IChatService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -199,6 +215,10 @@ export class ChatView extends AbstractChatView {
 		super();
 
 		this.element.classList.add('chat-view-chat');
+		const backgroundRenderer = this._register(new SessionsChatBackgroundRenderer(this.element));
+		const updateBackground = () => backgroundRenderer.setBackground(this.chatBackgroundService.getBackground());
+		this._register(this.chatBackgroundService.onDidChangeBackground(updateBackground));
+		updateBackground();
 		this._widgetContainer = $('.chat-view-widget');
 		this.element.appendChild(this._widgetContainer);
 
@@ -228,11 +248,30 @@ export class ChatView extends AbstractChatView {
 				inputEditorMinLines: 2,
 				isSessionsWindow: true,
 				enableFind: true,
+				persistentContentHeight: SESSION_CHAT_INPUT_TOOLBAR_HEIGHT,
 				renderGettingStartedTip: () => shouldShowSessionChatTip(this._currentSessionObs.get()?.status.get()),
 			},
 			this._buildStyles(this._isActive)
 		));
-		this._widget.render(this._widgetContainer);
+		this._widget.render(this._widgetContainer, undefined, this._isActiveObs);
+		const transcript = this._widget.transcriptDomNode;
+		this._register(addDisposableListener(transcript, EventType.CONTEXT_MENU, event => {
+			if (isHighContrast(this.themeService.getColorTheme().type)) {
+				return;
+			}
+			const target = isHTMLElement(event.target) ? event.target : undefined;
+			if (!target || target.closest('.monaco-list-row, .scrollbar')) {
+				return;
+			}
+
+			EventHelper.stop(event, true);
+			const anchor = new StandardMouseEvent(getWindow(transcript), event);
+			this.contextMenuService.showContextMenu({
+				menuId: Menus.SessionChatBackgroundContext,
+				contextKeyService: scopedContextKeyService,
+				getAnchor: () => anchor,
+			});
+		}));
 		this._externalSessionBanner = this._register(scopedInstantiationService.createInstance(
 			ExternalSessionBanner,
 			this.element,
@@ -260,6 +299,10 @@ export class ChatView extends AbstractChatView {
 
 		// Floating status pills above the input.
 		this._chatPills = this._register(instantiationService.createInstance(SessionChatInputToolbar));
+		this._register(this._widget.inputPart.registerChatPetHorizontalPlatformProvider({
+			onDidChange: this._chatPills.onDidChangeChatPetPlatform,
+			getElements: () => this._chatPills.getChatPetPlatformElements(),
+		}));
 		this._register(chatPillsDebugService.register(this._chatPills, this._banners, this._isActiveObs));
 		this._ensureBannersMounted();
 

@@ -20,6 +20,7 @@ import { localize } from '../../../../nls.js';
 import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionStatus } from '../common/session.js';
 import { IActiveSession, ICreateNewChatInSessionOptions, ICreateNewSessionOptions, inheritableSessionTarget, IRecentlyOpenedSessions, ISessionsChangeEvent, ISessionsManagementService, IToggleSessionStickinessEvent } from '../common/sessionsManagement.js';
 import { ISessionsProvidersService } from './sessionsProvidersService.js';
+import { ensureSessionWorktreesTrusted } from './worktreeTrust.js';
 import { ClosedItemHistory } from './closedItemHistory.js';
 import { SessionsNavigation } from './sessionNavigation.js';
 import { SessionsRecencyHistory } from './sessionsRecencyHistory.js';
@@ -824,6 +825,13 @@ export class SessionsService extends Disposable implements ISessionsService {
 		if (!workspace?.requiresWorkspaceTrust) {
 			return true;
 		}
+		// Inherit trust for any isolated worktree VS Code created off a base
+		// repository the user already trusts, before checking folders — so opening
+		// a worktree session does not prompt for a folder whose provenance is
+		// already trusted. This runs here (the imperative open path) because the
+		// reactive mount's equivalent step only runs once the session is active,
+		// i.e. after this gate.
+		await ensureSessionWorktreesTrusted(workspace, this.workspaceTrustManagementService);
 		// Every folder the session operates in must be trusted before it opens, not
 		// just the primary one: the agent — and its tasks, terminals and other
 		// tooling — can run against any of the session's working directories, so we

@@ -477,10 +477,18 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	}
 
 	private async updateInProgressStatus(chatSessionType: string): Promise<void> {
+		const controller = this._itemControllers.get(chatSessionType)?.controller;
+		if (!controller) {
+			return;
+		}
+
 		try {
 			const items: IChatSessionItem[] = [];
 			for await (const result of this.getChatSessionItems([chatSessionType], CancellationToken.None)) {
 				items.push(...result.items);
+			}
+			if (this._itemControllers.get(chatSessionType)?.controller !== controller) {
+				return;
 			}
 			const inProgress = items.filter(item => !item.archived && item.status && isSessionInProgressStatus(item.status));
 			this.reportInProgress(chatSessionType, inProgress.length);
@@ -1156,14 +1164,15 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 				initialRefreshCts.cancel();
 				disposables.dispose();
 
-				const controller = this._itemControllers.get(chatSessionType);
-				if (controller) {
+				const registeredController = this._itemControllers.get(chatSessionType)?.controller;
+				if (registeredController === controller) {
 					this._itemControllers.delete(chatSessionType);
 					this._onDidChangeItemsProviders.fire({ chatSessionType });
-				}
 
-				// Remove any in-progress tracking for this provider since it's no longer available
-				this.updateInProgressStatus(chatSessionType);
+					if (this.inProgressMap.delete(chatSessionType)) {
+						this._onDidChangeInProgress.fire();
+					}
+				}
 			}
 		};
 	}
@@ -1700,7 +1709,7 @@ export async function openChatSession(accessor: ServicesAccessor, openOptions: N
 				if (openOptions.type === AgentSessionProviders.Local) {
 					await view.startNewLocalSession();
 				} else {
-					await view.loadSession(sessionResource);
+					await view.loadSession(sessionResource, 'explicitOverride');
 				}
 				view.focus();
 				break;
@@ -1709,6 +1718,7 @@ export async function openChatSession(accessor: ServicesAccessor, openOptions: N
 				const options: IChatEditorOptions = {
 					override: ChatEditorInput.EditorID,
 					pinned: true,
+					sessionTypeSelectionReason: 'explicitOverride',
 					...(openOptions.type === AgentSessionProviders.Local ? { explicitSessionType: localChatSessionType } : {}),
 					title: {
 						fallback: localize('chatEditorContributionName', "{0}", openOptions.displayName),
