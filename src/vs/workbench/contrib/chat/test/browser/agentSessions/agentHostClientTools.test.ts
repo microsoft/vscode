@@ -576,7 +576,7 @@ suite('AgentHostClientTools', () => {
 				updateToolStream: async () => { },
 				cancelToolCallsForRequest: () => { },
 				flushToolUpdates: () => { },
-				toolSets: observableValue('sets', []),
+				toolSets: observableValue<IToolSet[]>('sets', []),
 				getToolSetsForModel: () => [],
 				getToolSet: () => undefined,
 				getToolSetByName: () => undefined,
@@ -618,10 +618,18 @@ suite('AgentHostClientTools', () => {
 
 			private readonly _liveSubscriptions = new Map<string, { state: SessionState | ChatState; emitter: Emitter<SessionState | ChatState> }>();
 			public dispatchedActions: { channel: string; action: SessionAction | ChatAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction }[] = [];
+			public readonly createSessionCalls: unknown[] = [];
 			public readonly resourceReadUris: URI[] = [];
 			public resourceReadData = '{"task":"build"}';
 			public resourceReadEncoding = ContentEncoding.Utf8;
 			public readonly resourceReadResponses = new Map<string, Promise<{ data: string; encoding: ContentEncoding }>>();
+
+			// Recorded, never served: joining an existing session must never
+			// create or materialize one.
+			override async createSession(params: unknown): Promise<URI> {
+				this.createSessionCalls.push(params);
+				throw new Error('createSession is not available in this test');
+			}
 
 			override async resourceRead(uri: URI) {
 				this.resourceReadUris.push(uri);
@@ -3219,6 +3227,139 @@ suite('AgentHostClientTools', () => {
 			);
 			assert.ok(completionEntry, 'completion for the nested client tool should be dispatched');
 			assert.strictEqual(completionEntry.channel.toString(), subagentChat2, 'completion should target the level-2 subagent chat URI');
+		});
+
+		suite('external session claim', () => {
+
+			const claimedSession = AgentSession.uri('copilot', 'session-1');
+
+			async function claim(handler: AgentHostSessionHandler) {
+				const claimDisposable = await handler.claimExternalSession(claimedSession, CancellationToken.None);
+				disposables.add(claimDisposable);
+				return claimDisposable;
+			}
+
+			/** Waits until the handler has dispatched the tool call's completion. */
+			async function waitForToolCompletion(connection: MockAgentHostConnection, toolCallId: string): Promise<void> {
+				for (let i = 0; i < 200; i++) {
+					if (connection.dispatchedActions.some(entry =>
+						isChatAction(entry.action)
+						&& entry.action.type === ActionType.ChatToolCallComplete
+						&& entry.action.toolCallId === toolCallId)) {
+						return;
+					}
+					await timeout(1);
+				}
+				assert.fail(`client tool ${toolCallId} never completed`);
+			}
+
+			test('publishes the window inventory as an active client of the existing session', async () => {
+				const { handler, connection, toolsService } = createHandlerWithMocks(disposables, [testRunTaskTool]);
+				toolsService.toolSets.set([new class extends mock<IToolSet>() {
+					override readonly id = 'enabled';
+					override readonly deprecated = false;
+					override getTools(): Iterable<IToolData> { return [testRunTaskTool]; }
+				}], undefined);
+
+				await claim(handler);
+
+				const published = connection.dispatchedActions.filter(entry =>
+					isSessionAction(entry.action) && entry.action.type === ActionType.SessionActiveClientSet);
+				assert.strictEqual(published.length, 1, 'the claim should publish exactly one active client');
+				assert.strictEqual(published[0].channel.toString(), claimedSession.toString());
+				const action = published[0].action;
+				assert.ok(isSessionAction(action) && action.type === ActionType.SessionActiveClientSet);
+				assert.strictEqual(action.activeClient.clientId, connection.clientId);
+				assert.deepStrictEqual(
+					action.activeClient.tools?.map(tool => tool.name),
+					['runTask'],
+					'the claimed session should carry the full client tool inventory');
+			});
+
+			test('originates no draft, pending message, turn, or authentication frame', async () => {
+				const { handler, connection } = createHandlerWithMocks(disposables, [testRunTaskTool]);
+
+				await claim(handler);
+
+				assert.deepStrictEqual(
+					connection.dispatchedActions.map(entry => entry.action.type),
+					[ActionType.SessionActiveClientSet],
+					'joining a session must publish nothing but the active client');
+			});
+
+			test('never creates or materializes a session', async () => {
+				const { handler, connection } = createHandlerWithMocks(disposables, [testRunTaskTool]);
+
+				await claim(handler);
+
+				assert.deepStrictEqual(connection.createSessionCalls, []);
+			});
+
+			test('rejects a session that does not belong to this handler', async () => {
+				const { handler, connection } = createHandlerWithMocks(disposables, [testRunTaskTool]);
+
+				await assert.rejects(
+					() => handler.claimExternalSession(URI.parse('other-provider:/session-1'), CancellationToken.None),
+					/does not belong to session type/);
+				assert.deepStrictEqual(connection.dispatchedActions, []);
+			});
+
+			test('refuses to claim the same session twice', async () => {
+				const { handler } = createHandlerWithMocks(disposables, [testRunTaskTool]);
+
+				await claim(handler);
+				await assert.rejects(
+					() => handler.claimExternalSession(claimedSession, CancellationToken.None),
+					/already claimed/);
+			});
+
+			test('publishes the removal when the claim is released', async () => {
+				const { handler, connection } = createHandlerWithMocks(disposables, [testRunTaskTool]);
+
+				(await claim(handler)).dispose();
+
+				const removals = connection.dispatchedActions.filter(entry =>
+					isSessionAction(entry.action) && entry.action.type === ActionType.SessionActiveClientRemoved);
+				assert.strictEqual(removals.length, 1, 'releasing the claim should publish an active-client removal');
+				assert.strictEqual(removals[0].channel.toString(), claimedSession.toString());
+				const action = removals[0].action;
+				assert.ok(isSessionAction(action) && action.type === ActionType.SessionActiveClientRemoved);
+				assert.strictEqual(action.clientId, connection.clientId);
+			});
+
+			test('serves a client tool from the bare claimed session, with no chat model', async () => {
+				const { handler, connection, toolsService } = createHandlerWithMocks(disposables, [testRunTaskTool]);
+
+				await claim(handler);
+				applyRunningClientExecution(connection, buildDefaultChatUri(claimedSession.toString()), 'turn-1', {
+					toolCallId: 'tool-call-1',
+					toolName: 'runTask',
+					displayName: 'Run Task',
+					invocationMessage: 'Run Task',
+					toolInput: '{"task":"build"}',
+				});
+				await waitForToolCompletion(connection, 'tool-call-1');
+
+				assert.strictEqual(toolsService.invokedToolCalls.length, 1);
+				assert.deepStrictEqual(toolsService.invokedToolCalls[0].parameters, { task: 'build' });
+			});
+
+			test('stops serving client tools once the claim is released', async () => {
+				const { handler, connection, toolsService } = createHandlerWithMocks(disposables, [testRunTaskTool]);
+
+				(await claim(handler)).dispose();
+				applyRunningClientExecution(connection, buildDefaultChatUri(claimedSession.toString()), 'turn-1', {
+					toolCallId: 'tool-call-1',
+					toolName: 'runTask',
+					displayName: 'Run Task',
+					invocationMessage: 'Run Task',
+					toolInput: '{"task":"build"}',
+				});
+				await timeout(5);
+				await timeout(5);
+
+				assert.deepStrictEqual(toolsService.invokedToolCalls, []);
+			});
 		});
 	});
 });
