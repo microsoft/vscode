@@ -64,11 +64,8 @@ export class InlineEditProviderFeature {
 	private readonly _yieldToCopilot = this._configurationService.getExperimentBasedConfigObservable(ConfigKey.TeamInternal.InlineEditsYieldToCopilot, this._expService);
 	private readonly _excludedProviders = this._configurationService.getExperimentBasedConfigObservable(ConfigKey.TeamInternal.InlineEditsExcludedProviders, this._expService).map(v => v ? v.split(',').map(v => v.trim()).filter(v => v !== '') : []);
 	private readonly _copilotToken = observableFromEvent(this, this._authenticationService.onDidCopilotTokenChange, () => this._authenticationService.copilotToken);
-	// Read reactively because this is the only strategy-baked value consumed at provider-registration
-	// time. For a fetched `/models` deployment it resolves asynchronously, so there is a brief cold-start
-	// window (typically the `/models` round-trip, ~100ms) where this reads `false` and the separate
-	// completions provider is not yet excluded. It self-corrects the instant `onModelListUpdated` fires.
-	// Local/ExP model configuration resolves synchronously, so it is unaffected.
+	// Read reactively: on a fetched `/models` deployment this resolves async, so a brief cold-start
+	// window can emit completions until `onModelListUpdated` fires and re-registers with the excludes.
 	private readonly _supportsUnifiedCompletions = observableFromEvent(this, this._modelService.onModelListUpdated, () => this._modelService.selectedModelConfiguration().supportsUnifiedCompletions ?? false);
 
 	public readonly inlineEditsEnabled = derived(this, (reader) => {
@@ -166,9 +163,8 @@ export class InlineEditProviderFeature {
 			const provider = this._instantiationService.createInstance(InlineCompletionProviderImpl, model, logger, logContextRecorder, inlineEditDebugComponent, telemetrySender, expectedEditCaptureController);
 
 			const unificationStateValue = unificationState.read(reader);
-			// A model whose strategy bakes in `supportsUnifiedCompletions` runs as the single unified
-			// provider: this stands in for the `modelUnification` deployment toggle so the behavior can
-			// be driven purely from the selected model's prompting strategy.
+			// Unify when the selected model's strategy bakes in `supportsUnifiedCompletions`, or when the
+			// core deployment/ExP `modelUnification` toggle is set.
 			const modelUnification = this._supportsUnifiedCompletions.read(reader) || (unificationStateValue?.modelUnification ?? false);
 			let excludes = this._excludedProviders.read(reader);
 			if (modelUnification) {
