@@ -274,9 +274,11 @@ export class ApplyPatchTool implements ICopilotTool<IApplyPatchToolParams> {
 				path: resolveToolInputPath(file, this.promptPathRepresentationService),
 				movePath: changes.movePath ? resolveToolInputPath(changes.movePath, this.promptPathRepresentationService) : undefined,
 			}));
-			for (const { path, movePath } of fileChanges) {
-				const affectedUris = movePath ? [path, movePath] : [path];
-				for (const uri of affectedUris) {
+			for (const { changes, path, movePath } of fileChanges) {
+				const affectedUris = movePath
+					? [{ uri: path, contents: undefined }, { uri: movePath, contents: changes.newContent ?? '' }]
+					: [{ uri: path, contents: undefined }];
+				for (const { uri, contents } of affectedUris) {
 					const disallowedUriError = getDisallowedEditUriError(uri, this._promptContext?.allowedEditUris, this.promptPathRepresentationService);
 					if (disallowedUriError) {
 						const result = new ExtendedLanguageModelToolResult([
@@ -285,7 +287,7 @@ export class ApplyPatchTool implements ICopilotTool<IApplyPatchToolParams> {
 						result.hasError = true;
 						return result;
 					}
-					await this.instantiationService.invokeFunction(accessor => assertFileNotContentExcluded(accessor, uri));
+					await this.instantiationService.invokeFunction(accessor => assertFileNotContentExcluded(accessor, uri, undefined, contents));
 				}
 			}
 
