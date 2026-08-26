@@ -255,6 +255,39 @@ suite('AgentHostResourceService', () => {
 		});
 	});
 
+	test('check walks only missing-path realpath errors and fails closed otherwise', async () => {
+		const fileService = createStubFileService({
+			realpathReturns: uri => {
+				if (uri.path === '/safe/denied/secret.txt' || uri.path === '/safe/denied') {
+					throw Object.assign(new Error('EACCES'), { code: 'EACCES' });
+				}
+				if (uri.path === '/safe/sym/a/b.txt' || uri.path === '/safe/sym/a') {
+					throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' });
+				}
+				if (uri.path === '/safe/sym') {
+					return URI.file('/outside');
+				}
+				return uri;
+			},
+		});
+		const { service } = createService({
+			'host': {
+				[URI.file('/safe').toString()]: AgentHostAccessMode.ReadWrite,
+			},
+		}, fileService);
+
+		assert.deepStrictEqual({
+			permissionError: await service.check('host', URI.file('/safe/denied/secret.txt'), AgentHostPermissionMode.Write).then(
+				() => 'ok',
+				(error: unknown) => error instanceof Error ? error.message : 'other',
+			),
+			missingThroughSymlink: await service.check('host', URI.file('/safe/sym/a/b.txt'), AgentHostPermissionMode.Write),
+		}, {
+			permissionError: 'EACCES',
+			missingThroughSymlink: false,
+		});
+	});
+
 	test('request resolves immediately when already granted', async () => {
 		const { service } = createService();
 		disposables.add(service.grantImplicitRead('host', URI.file('/plugins/foo')));

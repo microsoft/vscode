@@ -9,6 +9,7 @@ import { CancellationError } from '../../../../base/common/errors.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable, derived, observableValue } from '../../../../base/common/observable.js';
 import { extUri } from '../../../../base/common/resources.js';
+import { hasKey } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
@@ -33,7 +34,7 @@ import {
 } from '../../../../platform/agentHost/common/state/protocol/commands.js';
 import { ROOT_STATE_URI } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IFileService } from '../../../../platform/files/common/files.js';
+import { FileSystemProviderErrorCode, IFileService, toFileSystemProviderErrorCode } from '../../../../platform/files/common/files.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 
@@ -56,6 +57,20 @@ interface IInMemoryGrant {
 
 function normalizeResourceIdentity(identity: AgentHostResourceIdentity): AgentHostResourceIdentity {
 	return identity === LOCAL_AGENT_HOST_RESOURCE_IDENTITY ? identity : normalizeRemoteAgentHostAddress(identity);
+}
+
+function isMissingPathError(error: unknown): boolean {
+	if (!(error instanceof Error)) {
+		return false;
+	}
+	const providerCode = toFileSystemProviderErrorCode(error);
+	if (providerCode === FileSystemProviderErrorCode.FileNotFound || providerCode === FileSystemProviderErrorCode.FileNotADirectory) {
+		return true;
+	}
+	if (!hasKey(error, { code: true }) || typeof error.code !== 'string') {
+		return false;
+	}
+	return error.code === 'ENOENT' || error.code === 'ENOTDIR';
 }
 
 /**
@@ -370,7 +385,14 @@ export class AgentHostResourceService extends Disposable implements IAgentHostRe
 		const suffix: string[] = [];
 		let current = normalized;
 		while (true) {
-			const real = await this._fileService.realpath(current).catch(() => undefined);
+			let real: URI | undefined;
+			try {
+				real = await this._fileService.realpath(current);
+			} catch (error) {
+				if (!isMissingPathError(error)) {
+					throw error;
+				}
+			}
 			if (real) {
 				return suffix.length ? extUri.joinPath(real, ...suffix) : real;
 			}
