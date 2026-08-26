@@ -585,7 +585,7 @@ suite('AgentHostStateManager', () => {
 			type: ActionType.ChatError,
 			turnId: 'turn-1',
 			duration: 1000,
-			error: { errorType: 'failed', message: 'boom' },
+			part: { kind: ResponsePartKind.Error, error: { errorType: 'failed', message: 'boom' } },
 		});
 
 		assert.deepStrictEqual(events, [

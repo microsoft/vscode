@@ -1159,6 +1159,7 @@ export class ChatPetWidget extends Disposable {
 
 	constructor(
 		host: IChatPetWidgetHost,
+		resizeObserverCtor: typeof ResizeObserver | undefined,
 		@IChatPetService private readonly chatPetService: IChatPetService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
@@ -1244,7 +1245,7 @@ export class ChatPetWidget extends Disposable {
 		speechBubbleImage.alt = '';
 		speechBubbleImage.setAttribute('aria-hidden', 'true');
 		this._speechBubble = { container: speechBubbleContainer, image: speechBubbleImage, canvas: speechBubbleCanvas };
-		this._resizeObserver = this._register(new dom.DisposableResizeObserver('ChatPetWidget.dragBounds', () => this._handleHostLayoutChange(), dom.getWindow(this._button.element)));
+		this._resizeObserver = this._register(new dom.DisposableResizeObserver('ChatPetWidget.dragBounds', () => this._handleHostLayoutChange(), dom.getWindow(this._button.element), { resizeObserverCtor }));
 		this._observeHost(host);
 		if (this._getHorizontalBounds() !== undefined) {
 			this._restoreHorizontalPosition();
@@ -1451,6 +1452,7 @@ export class ChatPetWidget extends Disposable {
 				const wasInitialized = this._enablementInitialized;
 				this._enablementInitialized = true;
 				this._enabled = enabled;
+				this._observeHost(this._host.read(undefined));
 				if (enabled) {
 					if (isDead) {
 						this._showRespawnSequence();
@@ -1558,9 +1560,11 @@ export class ChatPetWidget extends Disposable {
 
 	private _observeHost(host: IChatPetWidgetHost): void {
 		const store = new DisposableStore();
-		store.add(this._resizeObserver.observe(host.dragBounds));
-		store.add(this._resizeObserver.observe(host.movementBounds));
-		store.add(this._resizeObserver.observe(host.parent));
+		if (this._enabled) {
+			store.add(this._resizeObserver.observe(host.dragBounds));
+			store.add(this._resizeObserver.observe(host.movementBounds));
+			store.add(this._resizeObserver.observe(host.parent));
+		}
 		store.add(host.onDidChangePlatform(() => this._updatePlatformPosition()));
 		this._hostLayoutDisposables.value = store;
 	}

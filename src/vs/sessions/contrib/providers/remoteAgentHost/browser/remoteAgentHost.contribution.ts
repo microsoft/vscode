@@ -976,10 +976,9 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			connection,
 		));
 
-		const agentRegistration = agentStore.add(this._activeClientService.registerForAgent(sessionType, { includeUserStorage: true }));
-		const syncProvider = agentRegistration.syncProvider;
+		const syncProvider = this._activeClientService.getSyncProvider(sessionType);
 		// The management UI remains ambient while individual sessions use their working-directory scopes.
-		const ambientScope = agentStore.add(agentRegistration.acquireScope([]));
+		const ambientScope = agentStore.add(this._activeClientService.acquireScope(sessionType, []));
 
 		const itemProvider = agentStore.add(this._instantiationService.createInstance(AgentCustomizationItemProvider,
 			sanitized,
@@ -995,7 +994,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 					run: () => pluginController.removeConfiguredPlugin(customization),
 				}];
 			},
-			syncedUri => agentRegistration.getOrigin(syncedUri)
+			syncedUri => this._activeClientService.getOrigin(syncedUri)
 		));
 		itemProvider.setDraftCustomAgents(ambientScope.customAgents);
 		itemProvider.setDraftCustomizations(ambientScope.customizations);
