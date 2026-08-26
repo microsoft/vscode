@@ -176,6 +176,9 @@ export interface ISessionsService {
 	 */
 	openSession(sessionResource: URI, options?: { preserveFocus?: boolean }): Promise<void>;
 
+	/** Place a session to the right of the last visible session and activate it. */
+	openSessionToSide(session: ISession, options?: { preserveFocus?: boolean; chatResource?: URI }): Promise<void>;
+
 	/**
 	 * Whether the given session may be opened, honoring workspace trust. Prompts
 	 * for trust on any untrusted folder the session runs in and resolves to
@@ -813,6 +816,19 @@ export class SessionsService extends Disposable implements ISessionsService {
 		}
 		const sessionData = this._showSession(resolved, options);
 		await this._waitForOpenSessionToLoad(sessionData, token);
+	}
+
+	async openSessionToSide(session: ISession, options?: { preserveFocus?: boolean; chatResource?: URI }): Promise<void> {
+		const visible = this.visibleSessions.get();
+		const lastVisible = visible[visible.length - 1];
+		if (lastVisible && lastVisible.sessionId !== session.sessionId) {
+			this.insertAt(session, lastVisible.sessionId, 'right');
+		}
+		if (options?.chatResource) {
+			await this.openChat(session, options.chatResource, { preserveFocus: options.preserveFocus });
+		} else {
+			await this.openSession(session.resource, { preserveFocus: options?.preserveFocus });
+		}
 	}
 
 	async canOpenSession(session: ISession): Promise<boolean> {

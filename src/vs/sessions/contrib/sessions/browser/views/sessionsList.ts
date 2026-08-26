@@ -37,7 +37,6 @@ import { RENAME_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
-import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { WorkbenchObjectTree } from '../../../../../platform/list/browser/listService.js';
 import { IStyleOverride, defaultButtonStyles, defaultFindWidgetStyles, defaultInputBoxStyles, defaultToggleStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
@@ -115,6 +114,9 @@ export const SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING = 'sessions.list.sh
 export const IsSessionPinnedContext = new RawContextKey<boolean>('sessionItem.isPinned', false);
 export const SessionItemHasBranchNameContext = new RawContextKey<boolean>('sessionItem.hasBranchName', false);
 export const SessionItemStatusContext = new RawContextKey<SessionStatus>('sessionItem.status', SessionStatus.Completed);
+export const SessionChatItemCanRenameContext = new RawContextKey<boolean>('sessionChatItem.canRename', false);
+export const SessionChatItemCanDeleteContext = new RawContextKey<boolean>('sessionChatItem.canDelete', false);
+export const SessionChatItemIsUntitledContext = new RawContextKey<boolean>('sessionChatItem.isUntitled', false);
 /** Whether the focused session item currently belongs to a user group. */
 export const SessionItemInGroupContext = new RawContextKey<boolean>('sessionItem.inGroup', false);
 export const SessionSectionTypeContext = new RawContextKey<string>('sessionSection.type', '');
@@ -177,15 +179,19 @@ export interface ISessionPlaceholder {
 	readonly hover?: string;
 }
 
-interface ISessionChatItem {
-	readonly session: ISession;
-	readonly chat: IChat;
+export class SessionChatItem {
+	constructor(
+		readonly session: ISession,
+		readonly chat: IChat,
+	) { }
 }
 
-export type SessionListItem = ISession | ISessionChatItem | ISessionSection | ISessionGroupItem | ISessionShowMore | ISessionPlaceholder;
+export type ISessionChatItem = SessionChatItem;
+
+export type SessionListItem = ISession | SessionChatItem | ISessionSection | ISessionGroupItem | ISessionShowMore | ISessionPlaceholder;
 
 function isSessionChatItem(item: SessionListItem): item is ISessionChatItem {
-	return 'chat' in item;
+	return item instanceof SessionChatItem;
 }
 
 function getChatTitle(chat: IChat, reader?: IReader): string {
@@ -381,6 +387,8 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 		}
 
 		template.elementDisposables.clear();
+		const chats = getSessionListChats(element.session);
+		template.container.classList.toggle('last-chat', isEqual(chats.at(-1)?.resource, element.chat.resource));
 		template.elementDisposables.add(autorun(reader => {
 			template.title.set(getChatTitle(element.chat, reader), createMatches(node.filterData));
 			const status = element.chat.status.read(reader);
@@ -634,18 +642,8 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		this.renderSession(element, template, createMatches(node.filterData));
 	}
 
-	renderTwistie(_element: SessionListItem, twistieElement: HTMLElement): boolean {
-		twistieElement.style.paddingLeft = '0px';
-		return false;
-	}
-
 	private renderSession(element: ISession, template: ISessionItemTemplate, matches?: IMatch[]): void {
 		template.elementDisposables.clear();
-		template.elementDisposables.add(DOM.addDisposableListener(template.container, DOM.EventType.CLICK, event => {
-			if (event.detail > 1) {
-				event.stopPropagation();
-			}
-		}, true));
 
 		if (this.options.onDidRequestRename) {
 			template.elementDisposables.add(DOM.addDisposableListener(template.title.element, DOM.EventType.DBLCLICK, (event: MouseEvent) => {
@@ -2014,7 +2012,6 @@ export interface ISessionsListControlOptions {
 	 */
 	canOpenSession?(session: ISession): Promise<boolean>;
 	onChatOpen?(session: ISession, chat: IChat, preserveFocus: boolean, sideBySide: boolean): void;
-	onChatOpenToSide?(session: ISession, chat: IChat): void;
 }
 
 /**
@@ -2147,7 +2144,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 		@IWorkbenchAssignmentService private readonly assignmentService: IWorkbenchAssignmentService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
-		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IAgentHostConnectionsService private readonly agentHostConnectionsService: IAgentHostConnectionsService,
 		@IOpenerService private readonly openerService: IOpenerService,
 	) {
@@ -2327,7 +2323,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 				horizontalScrolling: false,
 				multipleSelectionSupport: true,
 				expandOnlyOnTwistieClick: element => isSessionItem(element),
-				indent: 0,
 				findWidgetEnabled: true,
 				defaultFindMode: TreeFindMode.Filter,
 				findWidgetContainer: this.options.findWidgetContainer,
@@ -2365,6 +2360,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 					: 'force-no-twistie',
 			}
 		));
+		this.tree.updateOptions({ indent: 0, defaultIndent: 0, expandOnDoubleClick: false });
 
 		this._register(this.tree.onDidOpen(async e => {
 			const element = e.element;
@@ -2763,7 +2759,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 					collapsible: chats.length > 0,
 					collapsed: ObjectTreeElementCollapseState.PreserveOrExpanded,
 					children: chats.length > 0
-						? chats.map(chat => ({ element: { session, chat } }))
+						? chats.map(chat => ({ element: new SessionChatItem(session, chat) }))
 						: undefined,
 				};
 			});
@@ -3356,53 +3352,24 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	private showChatContextMenu(element: ISessionChatItem, anchor: ITreeContextMenuEvent<SessionListItem | null>['anchor']): void {
-		const actions: IAction[] = [];
 		const capabilities = getChatCapabilities(element.chat, element.session, undefined);
-		if (capabilities.canRename && element.chat.status.get() !== SessionStatus.Untitled) {
-			actions.push(toAction({
-				id: 'sessions.list.renameChat',
-				label: localize('renameChat', "Rename..."),
-				run: () => this.renameChat(element),
-			}));
-		}
-		const onChatOpenToSide = this.options.onChatOpenToSide;
-		if (onChatOpenToSide) {
-			actions.push(toAction({
-				id: 'sessions.list.openChatToSide',
-				label: localize('openChatToSide', "Open to the Side"),
-				run: () => onChatOpenToSide(element.session, element.chat),
-			}));
-		}
-		if (capabilities.canDelete) {
-			if (actions.length > 0) {
-				actions.push(new Separator());
-			}
-			actions.push(toAction({
-				id: 'sessions.list.deleteChat',
-				label: localize('deleteChat', "Delete Chat"),
-				run: () => this._sessionsManagementService.deleteChat(element.session, element.chat.resource),
-			}));
-		}
+		const contextKeyService = this.contextKeyService.createOverlay([
+			[SessionChatItemCanRenameContext.key, capabilities.canRename],
+			[SessionChatItemCanDeleteContext.key, capabilities.canDelete],
+			[SessionChatItemIsUntitledContext.key, element.chat.status.get() === SessionStatus.Untitled],
+		]);
+		const menu = this.menuService.createMenu(Menus.SessionChatItemContext, contextKeyService);
+		const actions = Separator.join(...menu.getActions({ arg: element, shouldForwardArgs: true }).map(([, groupActions]) => groupActions));
 		if (actions.length === 0) {
+			menu.dispose();
 			return;
 		}
 		this.contextMenuService.showContextMenu({
 			getActions: () => actions,
 			getAnchor: () => anchor,
+			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id) ?? undefined,
+			onHide: () => menu.dispose(),
 		});
-	}
-
-	private async renameChat(element: ISessionChatItem): Promise<void> {
-		const currentTitle = getChatTitle(element.chat);
-		const newTitle = await this.quickInputService.input({
-			value: currentTitle,
-			prompt: localize('renameChat.prompt', "New chat title"),
-			validateInput: async value => value.trim() ? undefined : localize('renameChat.empty', "Title cannot be empty"),
-		});
-		const trimmedTitle = newTitle?.trim();
-		if (trimmedTitle && trimmedTitle !== currentTitle) {
-			await this._sessionsManagementService.renameChat(element.session, element.chat.resource, trimmedTitle);
-		}
 	}
 
 	/**

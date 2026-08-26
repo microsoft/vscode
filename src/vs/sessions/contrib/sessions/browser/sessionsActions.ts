@@ -54,6 +54,7 @@ import { logSessionsInteraction, SessionsInteractionSource } from '../../../comm
 import { NEW_SESSION_ACTION_ID } from '../../chat/common/constants.js';
 import { groupSessionsForPicker } from './sessionsPicker.js';
 import { getSessionConversationActionId, getSessionConversationGroupId, SESSION_CONVERSATION_SUBAGENTS_GROUP } from '../../../browser/sessionConversationGroups.js';
+import { ISessionChatItem, SessionChatItemCanDeleteContext, SessionChatItemCanRenameContext, SessionChatItemIsUntitledContext } from './views/sessionsList.js';
 import './media/newSessionActionViewItem.css';
 
 // -- Show Sessions Picker --
@@ -538,6 +539,95 @@ registerAction2(class CloseAllSessionsAction extends Action2 {
 // they win while a multi-chat session is focused, falling back to the
 // session-level commands when the tab strip is not shown.
 const CHAT_TAB_KEYBINDING_WEIGHT = KeybindingWeight.SessionsContrib + 10;
+
+registerAction2(class RenameSessionListChatAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessions.list.renameChat',
+			title: localize2('renameChat', "Rename..."),
+			f1: false,
+			menu: {
+				id: Menus.SessionChatItemContext,
+				group: '1_chat',
+				order: 1,
+				when: ContextKeyExpr.and(SessionChatItemCanRenameContext, SessionChatItemIsUntitledContext.negate()),
+			},
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, context?: ISessionChatItem): Promise<void> {
+		if (!context || !getChatCapabilities(context.chat, context.session, undefined).canRename || context.chat.status.get() === SessionStatus.Untitled) {
+			return;
+		}
+		const quickInputService = accessor.get(IQuickInputService);
+		const sessionsManagementService = accessor.get(ISessionsManagementService);
+		const currentTitle = context.chat.title.get().trim() || localize('untitledChat', "Untitled Chat");
+		const newTitle = await quickInputService.input({
+			value: currentTitle,
+			prompt: localize('renameChat.prompt', "New chat title"),
+			validateInput: async value => value.trim() ? undefined : localize('renameChat.empty', "Title cannot be empty"),
+		});
+		const trimmedTitle = newTitle?.trim();
+		if (trimmedTitle && trimmedTitle !== currentTitle) {
+			await sessionsManagementService.renameChat(context.session, context.chat.resource, trimmedTitle);
+		}
+	}
+});
+
+registerAction2(class OpenSessionListChatToSideAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessions.list.openChatToSide',
+			title: localize2('openChatToSide', "Open to the Side"),
+			f1: false,
+			menu: {
+				id: Menus.SessionChatItemContext,
+				group: '1_chat',
+				order: 2,
+			},
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, context?: ISessionChatItem): Promise<void> {
+		if (!context) {
+			return;
+		}
+		const sessionsService = accessor.get(ISessionsService);
+		const sessionsPartService = accessor.get(ISessionsPartService);
+		if (!await sessionsService.canOpenSession(context.session)) {
+			return;
+		}
+		sessionsService.showSession(context.session.resource);
+		const sessionView = sessionsPartService.getSessionView(context.session.sessionId);
+		if (!sessionView) {
+			throw new Error(`Unable to open chat to the side because session view '${context.session.sessionId}' is not mounted`);
+		}
+		await sessionView.openChatToSide(context.chat.resource);
+	}
+});
+
+registerAction2(class DeleteSessionListChatAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessions.list.deleteChat',
+			title: localize2('deleteChat', "Delete Chat"),
+			f1: false,
+			menu: {
+				id: Menus.SessionChatItemContext,
+				group: '2_delete',
+				order: 1,
+				when: SessionChatItemCanDeleteContext,
+			},
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, context?: ISessionChatItem): Promise<void> {
+		if (!context || !getChatCapabilities(context.chat, context.session, undefined).canDelete) {
+			return;
+		}
+		await accessor.get(ISessionsManagementService).deleteChat(context.session, context.chat.resource);
+	}
+});
 
 // "New Chat in This Session" starts a new chat from the session header's overflow menu.
 const ADD_CHAT_TO_SESSION_ACTION_ID = 'sessions.chatCompositeBar.addChat';

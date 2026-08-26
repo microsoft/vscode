@@ -34,7 +34,6 @@ import { ISessionsProvidersService } from '../../../../services/sessions/browser
 import { computeReorderSortChanges, groupByDate, groupByWorkspace, groupSessionsForList, ISessionSection, limitSessionsForList, SessionSectionRenderer, SessionsFlatList, SessionsList, sortSessions, SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
 import { getSessionSummaryHoverData } from '../../browser/sessionHoverContent.js';
 import { createListHarness, createTestSession } from './sessionsListTestUtils.js';
-import { openSessionMainChat } from '../../browser/views/sessionsView.js';
 import '../../browser/views/sessionsViewActions.js';
 
 function createSession(id: string, opts: {
@@ -866,11 +865,17 @@ suite('Sessions - SessionsList', () => {
 
 			const container = renderSessionChats(session);
 
-			assert.deepStrictEqual(chatRowTitles(container), [
-				'Peer chat',
-				'Forked chat',
-				'Side chat',
-			]);
+			assert.deepStrictEqual(
+				[...container.querySelectorAll<HTMLElement>('.session-chat-item')].map(item => ({
+					title: item.querySelector('.session-chat-title')?.textContent,
+					last: item.classList.contains('last-chat'),
+				})),
+				[
+					{ title: 'Peer chat', last: false },
+					{ title: 'Forked chat', last: false },
+					{ title: 'Side chat', last: true },
+				]
+			);
 		});
 
 		test('updates nested chat rows when the session chat catalog changes', () => {
@@ -972,27 +977,6 @@ suite('Sessions - SessionsList', () => {
 				preserveFocus: false,
 				sideBySide: false,
 			}]);
-		});
-
-		test('selecting a session opens its main chat', async () => {
-			const main = createChat('Main chat');
-			const peer = createChat('Peer chat', ChatOriginKind.User);
-			const base = createTestSession('Session').session;
-			const session: ISession = {
-				...base,
-				chats: constObservable([main, peer]),
-				mainChat: constObservable(main),
-			};
-			const opened: URI[] = [];
-			const sessionsService = new class extends mock<ISessionsService>() {
-				override async openChat(_session: ISession, chatResource: URI): Promise<void> {
-					opened.push(chatResource);
-				}
-			};
-
-			await openSessionMainChat(sessionsService, session);
-
-			assert.deepStrictEqual(opened, [main.resource]);
 		});
 
 		test('opens a nested chat to the side with the session row modifier gesture', () => {

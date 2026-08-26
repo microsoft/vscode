@@ -12,15 +12,20 @@ import { constObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { IMenu, IMenuService, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
-import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IMenu, IMenuService, isIMenuItem, MenuItemAction, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
+import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { ISessionGroup, ISessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
+import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
+import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ChatInteractivity, IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
+import type { SessionView } from '../../../../browser/parts/sessionView.js';
+import { Menus } from '../../../../browser/menus.js';
 import { SessionsGrouping, SessionsList, SessionsSorting } from '../../browser/views/sessionsList.js';
 import { createListHarness, createSession } from './sessionsListTestUtils.js';
+import '../../browser/sessionsActions.js';
 
 class TestContextMenuService extends mock<IContextMenuService>() {
 	override readonly onDidShowContextMenu = Event.None;
@@ -166,6 +171,7 @@ suite('Sessions list context menus', () => {
 	});
 
 	test('chat rows expose capability-gated rename, side-open, and deletion', async () => {
+		assert.strictEqual(MenuRegistry.getMenuItems(Menus.SessionChatItemContext).length, 3);
 		const createChat = (title: string, canRename: boolean, canDelete: boolean): IChat => upcastPartial<IChat>({
 			resource: URI.parse(`test-chat:/${title}`),
 			title: constObservable(title),
@@ -183,53 +189,61 @@ suite('Sessions list context menus', () => {
 			chats: constObservable([main, peer, nonDeletable]),
 			mainChat: constObservable(main),
 		};
-		const contextMenuService = new TestContextMenuService();
 		const renameInputs: string[] = [];
+		const openedToSide: IChat[] = [];
 		const harness = createListHarness(disposables, [session], instantiationService => {
-			instantiationService.stub(IContextMenuService, contextMenuService);
 			instantiationService.stub(IQuickInputService, new class extends mock<IQuickInputService>() {
 				override async input(options?: { value?: string }): Promise<string | undefined> {
 					renameInputs.push(options?.value ?? '');
 					return ' Renamed Peer ';
 				}
 			});
+			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+				override readonly activeSession = constObservable(undefined);
+				override readonly visibleSessions = constObservable([]);
+				override async canOpenSession(): Promise<boolean> { return true; }
+				override showSession(): void { }
+			});
+			instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() {
+				override getSessionView(): SessionView {
+					return upcastPartial<SessionView>({
+						openChatToSide: async (resource: URI) => {
+							const chat = session.chats.get().find(candidate => candidate.resource.toString() === resource.toString());
+							if (chat) {
+								openedToSide.push(chat);
+							}
+						},
+					});
+				}
+			});
 		});
-		const opened: { chat: IChat; preserveFocus: boolean; sideBySide: boolean }[] = [];
-		const openedToSide: IChat[] = [];
-		const container = harness.createContainer();
-		const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
-			grouping: () => SessionsGrouping.Date,
-			sorting: () => SessionsSorting.Created,
-			onSessionOpen: () => { },
-			onChatOpen: (_session, chat, preserveFocus, sideBySide) => opened.push({ chat, preserveFocus, sideBySide }),
-			onChatOpenToSide: (_session, chat) => openedToSide.push(chat),
-		}));
-		list.layout(300, 400);
-		const chatRows = [...container.querySelectorAll<HTMLElement>('.session-chat-item')];
-
-		dispatchContextMenu(chatRows.find(row => row.textContent === 'Peer')!);
-		const peerActions = contextMenuService.delegate!.getActions();
-		await peerActions[0].run();
-		await peerActions[1].run();
-		await peerActions[3].run();
-
-		dispatchContextMenu(chatRows.find(row => row.textContent === 'Read Only')!);
-		const readOnlyActions = contextMenuService.delegate!.getActions();
+		const menuItems = MenuRegistry.getMenuItems(Menus.SessionChatItemContext).filter(isIMenuItem);
+		assert.deepStrictEqual(menuItems.map(item => ({
+			id: item.command.id,
+			group: item.group,
+			order: item.order,
+			when: item.when?.serialize(),
+		})), [
+			{ id: 'sessions.list.renameChat', group: '1_chat', order: 1, when: 'sessionChatItem.canRename && !sessionChatItem.isUntitled' },
+			{ id: 'sessions.list.openChatToSide', group: '1_chat', order: 2, when: undefined },
+			{ id: 'sessions.list.deleteChat', group: '2_delete', order: 1, when: 'sessionChatItem.canDelete' },
+		]);
+		const chatContext = { session, chat: peer };
+		for (const actionId of ['sessions.list.renameChat', 'sessions.list.openChatToSide', 'sessions.list.deleteChat']) {
+			await harness.instantiationService.invokeFunction(CommandsRegistry.getCommand(actionId)!.handler, chatContext);
+		}
+		const readOnlyContext = { session, chat: nonDeletable };
+		await harness.instantiationService.invokeFunction(CommandsRegistry.getCommand('sessions.list.renameChat')!.handler, readOnlyContext);
+		await harness.instantiationService.invokeFunction(CommandsRegistry.getCommand('sessions.list.deleteChat')!.handler, readOnlyContext);
 
 		assert.deepStrictEqual({
-			peerActionIds: peerActions.map(action => action.id),
-			readOnlyActionIds: readOnlyActions.map(action => action.id),
 			renameInputs,
 			renamedChats: harness.managementService.renamedChats,
-			opened,
 			openedToSide,
 			deletedChats: harness.managementService.deletedChats,
 		}, {
-			peerActionIds: ['sessions.list.renameChat', 'sessions.list.openChatToSide', 'vs.actions.separator', 'sessions.list.deleteChat'],
-			readOnlyActionIds: ['sessions.list.openChatToSide'],
 			renameInputs: ['Peer'],
 			renamedChats: [{ session, chatResource: peer.resource, title: 'Renamed Peer' }],
-			opened: [],
 			openedToSide: [peer],
 			deletedChats: [{ session, chatResource: peer.resource }],
 		});

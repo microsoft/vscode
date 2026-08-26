@@ -146,6 +146,7 @@
 	flex-direction: row;
 	height: 100%;
 	box-sizing: border-box;
+	position: relative;
 	padding: 8px 6px 8px 12px;
 
 	&.archived {
@@ -433,6 +434,15 @@
 	}
 }
 
+.monaco-list-row[aria-expanded="true"] .session-item::after {
+	content: '';
+	position: absolute;
+	top: var(--vscode-spacing-size160);
+	bottom: 0;
+	left: var(--vscode-spacing-size200);
+	border-left: var(--vscode-strokeThickness) solid var(--vscode-tree-inactiveIndentGuidesStroke);
+}
+
 .session-chat-item {
 	display: flex;
 	align-items: center;
@@ -451,8 +461,30 @@
 		position: absolute;
 		top: 0;
 		bottom: 0;
-		left: var(--vscode-spacing-size240);
+		left: var(--vscode-spacing-size200);
 		border-left: var(--vscode-strokeThickness) solid var(--vscode-tree-inactiveIndentGuidesStroke);
+	}
+
+	&::after {
+		content: '';
+		position: absolute;
+		top: 50%;
+		left: var(--vscode-spacing-size200);
+		width: var(--vscode-spacing-size240);
+		border-top: var(--vscode-strokeThickness) solid var(--vscode-tree-inactiveIndentGuidesStroke);
+	}
+
+	&.last-chat {
+		&::before {
+			bottom: 50%;
+			width: var(--vscode-spacing-size240);
+			border-bottom: var(--vscode-strokeThickness) solid var(--vscode-tree-inactiveIndentGuidesStroke);
+			border-bottom-left-radius: var(--vscode-cornerRadius-small);
+		}
+
+		&::after {
+			display: none;
+		}
 	}
 
 	.session-chat-icon {
@@ -842,6 +874,10 @@
 		&.quick-chat {
 			align-items: flex-start;
 		}
+	}
+
+	.monaco-list-row[aria-expanded="true"] .session-item::after {
+		top: var(--vscode-spacing-size200);
 	}
 
 	.monaco-list-row .session-chat-twistie.collapsible {
