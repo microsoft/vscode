@@ -326,6 +326,9 @@ export interface IChatWidgetViewOptions {
 	 */
 	isSessionsWindow?: boolean;
 
+	/** Whether this host shows the configured state frame around its chat widget. Defaults to true. */
+	showSessionStateIndicator?: boolean;
+
 	/** Enables the transcript Find widget (`Ctrl/Cmd+F`) for this chat widget. Off by default. */
 	enableFind?: boolean;
 
