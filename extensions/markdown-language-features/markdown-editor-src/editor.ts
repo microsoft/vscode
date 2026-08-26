@@ -44,7 +44,7 @@ interface InitialState {
 	readonly documentVersion: number;
 	readonly readonly: boolean;
 	readonly richLinksEnabled: boolean;
-	readonly linkPresentationRules: readonly { id: string; source: string; flags: string; initialKind: LinkPresentationKind }[];
+	readonly linkPresentationRules: readonly { id: string; source: string; flags: string; kind: LinkPresentationKind }[];
 }
 
 class Editor extends Disposable {

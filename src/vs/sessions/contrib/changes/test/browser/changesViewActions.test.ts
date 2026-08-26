@@ -18,6 +18,8 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
 import { SessionsDiffRenderSideBySideContext } from '../../../editor/common/diffEditorOptionsService.js';
 import { ActiveEditorContext, AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext, TextCompareEditorActiveContext } from '../../../../../workbench/common/contextkeys.js';
+import { ChatPetAchievementId, ChatPetAchievementIds } from '../../../../../workbench/contrib/chat/browser/chatPetAchievements.js';
+import { IChatPetService } from '../../../../../workbench/contrib/chat/browser/chatPetService.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { Menus } from '../../../../browser/menus.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
@@ -26,7 +28,7 @@ import { IActiveSession } from '../../../../services/sessions/common/sessionsMan
 import { ChangesContextKeys, ChangesViewMode } from '../../common/changes.js';
 import { IsPhoneLayoutContext, SessionHasChangesContext, SessionHasWorkspaceContext, SessionIsCreatedContext, SinglePaneDiffEditorInputActiveContext, SinglePaneLayoutEnabledContext } from '../../../../common/contextkeys.js';
 import { SessionChangesEditor } from '../../browser/sessionChangesEditor.js';
-import { CHANGES_HEADER_ACTIONS_ID } from '../../browser/changesView.js';
+import { CHANGES_HEADER_ACTIONS_ID, unlockChatPetCreatePullRequestAchievement } from '../../browser/changesView.js';
 import { SessionsChangesAccessibilityHelp } from '../../browser/sessionsChangesAccessibilityHelp.js';
 import '../../browser/changesViewActions.js';
 
@@ -77,6 +79,33 @@ suite('Changes View Actions', () => {
 			commandId: 'workbench.agentSessions.action.openPullRequest',
 			args: [activeSession],
 		}]);
+	});
+
+	test('Create PR button actions unlock Ship it without drafts or updates', () => {
+		const attemptedUnlocks: ChatPetAchievementId[] = [];
+		const chatPetService = new class extends mock<IChatPetService>() {
+			override unlockAchievement(id: ChatPetAchievementId): boolean {
+				attemptedUnlocks.push(id);
+				return true;
+			}
+		}();
+
+		const results = [
+			'create-pr',
+			'create-pr-auto-merge',
+			'create-pr-auto-squash',
+			'create-pr-auto-rebase',
+			'github.copilot.chat.createPullRequestCopilotCLIAgentSession.createPR',
+			'workbench.action.agentSessions.runSkill.createPR',
+			'create-draft-pr',
+			'workbench.action.agentSessions.runSkill.createDraftPR',
+			'workbench.action.agentSessions.runSkill.updatePR',
+		].map(actionId => unlockChatPetCreatePullRequestAchievement(actionId, chatPetService));
+
+		assert.deepStrictEqual({ results, attemptedUnlocks }, {
+			results: [true, true, true, true, true, true, false, false, false],
+			attemptedUnlocks: Array(6).fill(ChatPetAchievementIds.CreatePullRequest),
+		});
 	});
 
 	test('primary header actions gate themselves to the single-pane Changes editor', () => {

@@ -25,7 +25,7 @@ import { DiskFileSystemProvider } from '../../platform/files/node/diskFileSystem
 import { Schemas } from '../../base/common/network.js';
 import { IFileService } from '../../platform/files/common/files.js';
 import { IProductService } from '../../platform/product/common/productService.js';
-import { IServerEnvironmentService, ServerEnvironmentService, ServerParsedArgs } from './serverEnvironmentService.js';
+import { getRedactedServerParsedArgs, IServerEnvironmentService, ServerEnvironmentService, ServerParsedArgs } from './serverEnvironmentService.js';
 import { ExtensionManagementCLI } from '../../platform/extensionManagement/common/extensionManagementCLI.js';
 import { ILanguagePackService } from '../../platform/languagePacks/common/languagePacks.js';
 import { NativeLanguagePackService } from '../../platform/languagePacks/node/languagePacks.js';
@@ -107,7 +107,7 @@ class CliMain extends Disposable {
 		const logService = new LogService(this._register(loggerService.createLogger('remoteCLI', { name: localize('remotecli', "Remote CLI") })));
 		services.set(ILogService, logService);
 		logService.trace(`Remote configuration data at ${this.remoteDataFolder}`);
-		logService.trace('process arguments:', this.args);
+		logService.trace('process arguments:', getRedactedServerParsedArgs(this.args));
 
 		// Files
 		const fileService = this._register(new FileService(logService));

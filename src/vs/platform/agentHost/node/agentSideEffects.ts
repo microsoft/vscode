@@ -1041,9 +1041,9 @@ export class AgentSideEffects extends Disposable {
 
 		if (action.type === ActionType.ChatError) {
 			const clientContext = this._turnTracker.getClientTelemetryContext(sessionKey, turnId);
-			this._completeTurn(sessionKey, turnId, 'error', { stage: 'provider', error: action.error });
+			this._completeTurn(sessionKey, turnId, 'error', { stage: 'provider', error: action.part.error });
 			this._toolCallTracker.clearSession(sessionKey);
-			this._chatContributions.turnEnd({ session: sessionUri, channel: sessionKey, turnId, reason: { kind: 'error', error: action.error }, clientContext });
+			this._chatContributions.turnEnd({ session: sessionUri, channel: sessionKey, turnId, reason: { kind: 'error', error: action.part.error }, clientContext });
 		}
 	}
 
@@ -1505,7 +1505,7 @@ export class AgentSideEffects extends Disposable {
 						type: ActionType.ChatError,
 						turnId: action.turnId,
 						duration: this._turnDuration(turnStopWatch),
-						error: { errorType: 'noAgent', message: 'No agent found for session' },
+						part: { kind: ResponsePartKind.Error, error: { errorType: 'noAgent', message: 'No agent found for session' } },
 					});
 					return;
 				}
@@ -1883,7 +1883,7 @@ export class AgentSideEffects extends Disposable {
 				type: ActionType.ChatError,
 				turnId,
 				duration: this._turnDuration(turnStopWatch),
-				error,
+				part: { kind: ResponsePartKind.Error, error },
 			});
 			this._completeTurn(turnChannel, turnId, 'error', { stage: 'validation', error });
 			this._toolCallTracker.clearSession(turnChannel);
@@ -1939,7 +1939,7 @@ export class AgentSideEffects extends Disposable {
 				type: ActionType.ChatError,
 				turnId,
 				duration: this._turnDuration(turnStopWatch),
-				error,
+				part: { kind: ResponsePartKind.Error, error },
 			});
 			this._completeTurn(turnChannel, turnId, 'error', failure);
 			this._toolCallTracker.clearSession(turnChannel);
