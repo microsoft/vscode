@@ -23,9 +23,11 @@ function listenerCount(emitter: Emitter<unknown>): number {
 
 class TestTerminalChildProcess implements ITerminalChildProcess {
 	id: number = 0;
+	readonly processExitEmitter = this.processExitIsAuthoritative ? new Emitter<number | undefined>() : undefined;
 	get capabilities() { return []; }
 	constructor(
-		readonly shouldPersist: boolean
+		readonly shouldPersist: boolean,
+		readonly processExitIsAuthoritative: boolean = false,
 	) {
 	}
 	updateProperty(property: any, value: any): Promise<void> {
@@ -38,7 +40,7 @@ class TestTerminalChildProcess implements ITerminalChildProcess {
 
 	onDidChangeProperty = Event.None;
 	onProcessData = Event.None;
-	onProcessExit = Event.None;
+	onProcessExit = this.processExitEmitter?.event ?? Event.None;
 	onProcessReady = Event.None;
 	onProcessTitleChanged = Event.None;
 	onProcessShellTypeChanged = Event.None;
@@ -58,6 +60,8 @@ class TestTerminalChildProcess implements ITerminalChildProcess {
 
 class TestTerminalInstanceService implements Partial<ITerminalInstanceService> {
 	readonly ptyHostRestartEmitter = new Emitter<void>();
+	processExitIsAuthoritative = false;
+	lastProcess: TestTerminalChildProcess | undefined;
 	async getBackend() {
 		return {
 			onPtyHostExit: Event.None,
@@ -75,7 +79,7 @@ class TestTerminalInstanceService implements Partial<ITerminalInstanceService> {
 				env: any,
 				options: any,
 				shouldPersist: boolean
-			) => new TestTerminalChildProcess(shouldPersist),
+			) => this.lastProcess = new TestTerminalChildProcess(shouldPersist, this.processExitIsAuthoritative),
 			getLatency: () => Promise.resolve([]),
 			getShellEnvironment: () => Promise.resolve({})
 		} as unknown as ITerminalBackend;
@@ -125,6 +129,36 @@ suite('Workbench - TerminalProcessManager', () => {
 			await manager.relaunch({}, 80, 24, false);
 			strictEqual(listenerCount(changeCollectionsEmitter), initialListenerCount + 1);
 		}
+	});
+
+	suite('process termination', () => {
+		test('waits for authoritative process exit', async () => {
+			terminalInstanceService.processExitIsAuthoritative = true;
+			await manager.createProcess({}, 80, 24, false);
+
+			const termination = manager.shutdownAndWait(false, 100);
+			terminalInstanceService.lastProcess?.processExitEmitter?.fire(0);
+
+			deepStrictEqual(await termination, { status: 'terminalProcessExited' });
+			terminalInstanceService.lastProcess?.processExitEmitter?.dispose();
+		});
+
+		test('observes authoritative exit after an earlier timeout', async () => {
+			terminalInstanceService.processExitIsAuthoritative = true;
+			await manager.createProcess({}, 80, 24, false);
+
+			deepStrictEqual(await manager.shutdownAndWait(false, 0), { status: 'timeout' });
+			terminalInstanceService.lastProcess?.processExitEmitter?.fire(0);
+			deepStrictEqual(await manager.shutdownAndWait(false, 0), { status: 'terminalProcessExited' });
+			terminalInstanceService.lastProcess?.processExitEmitter?.dispose();
+		});
+
+		test('reports unavailable for non-authoritative process exit', async () => {
+			await manager.createProcess({}, 80, 24, false);
+
+			deepStrictEqual(await manager.shutdownAndWait(false, 100), { status: 'unavailable' });
+			terminalInstanceService.lastProcess?.processExitEmitter?.dispose();
+		});
 	});
 
 	suite('process persistence', () => {

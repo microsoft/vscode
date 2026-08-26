@@ -60,6 +60,7 @@ suite('GetTerminalOutputTool', () => {
 		return {
 			completionPromise: Promise.resolve({ output } as ITerminalExecuteStrategyResult),
 			instance: { instanceId } as ITerminalInstance,
+			detachedFromTerminal: false,
 			getOutput: () => output,
 		};
 	}
@@ -69,6 +70,7 @@ suite('GetTerminalOutputTool', () => {
 		return {
 			completionPromise: Promise.resolve({ output } as ITerminalExecuteStrategyResult),
 			instance: { instanceId } as ITerminalInstance,
+			detachedFromTerminal: false,
 			getOutput: () => currentOutput,
 			setOutput: value => currentOutput = value,
 		};

@@ -635,6 +635,8 @@ export interface IChatTerminalToolInvocationData {
 		original: string;
 		userEdited?: string;
 		toolEdited?: string;
+		/** Command after non-lifecycle rewriting and before terminal detachment. */
+		toolEditedBeforeDetach?: string;
 		// command to show in the chat UI (potentially different from what is actually run in the terminal)
 		forDisplay?: string;
 		// isSandboxWrapped boolean to run in the terminal (potentially different from original command)

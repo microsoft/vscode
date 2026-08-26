@@ -76,8 +76,10 @@ export class KillTerminalTool extends Disposable implements IToolImpl {
 			};
 		}
 
+		RunInTerminalTool.markKilledByTool(args.id);
 		const terminationResult = await execution.instance.terminateProcess();
 		if (terminationResult.status === 'timeout') {
+			RunInTerminalTool.unmarkKilledByTool(args.id);
 			return {
 				content: [{
 					kind: 'text',
@@ -86,7 +88,6 @@ export class KillTerminalTool extends Disposable implements IToolImpl {
 			};
 		}
 
-		RunInTerminalTool.markKilledByTool(args.id);
 		execution.instance.dispose();
 
 		return {

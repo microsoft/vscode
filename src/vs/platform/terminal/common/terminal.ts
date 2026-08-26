@@ -802,6 +802,7 @@ export interface ITerminalChildProcess {
 	readonly onProcessReplayComplete?: Event<void>;
 	readonly onDidChangeProperty: Event<IProcessProperty>;
 	readonly onProcessExit: Event<number | undefined>;
+	/** Whether onProcessExit acknowledges exit from a process-owning backend. */
 	readonly processExitIsAuthoritative?: boolean;
 	readonly onRestoreCommands?: Event<ISerializedCommandDetectionCapability>;
 

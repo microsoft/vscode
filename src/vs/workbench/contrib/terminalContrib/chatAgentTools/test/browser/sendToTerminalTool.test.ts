@@ -63,6 +63,7 @@ suite('SendToTerminalTool', () => {
 		const dataEmitter = store.add(new Emitter<string>());
 		return {
 			completionPromise: Promise.resolve({ output } as ITerminalExecuteStrategyResult),
+			detachedFromTerminal: false,
 			instance: {
 				sendText: async (text: string, shouldExecute: boolean, forceBracketedPasteMode?: boolean) => {
 					sentTexts.push({ text, shouldExecute, forceBracketedPasteMode });

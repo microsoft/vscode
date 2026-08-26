@@ -907,7 +907,7 @@ suite('RunInTerminalTool', () => {
 				isSandboxWrapped: true,
 			});
 
-			const preparedInvocation = await executeToolTest({ command: 'echo hello', mode: 'async' });
+			const preparedInvocation = await executeToolTest({ command: 'echo hello', mode: 'async', detach: true });
 
 			ok(preparedInvocation, 'Expected prepared invocation to be defined');
 			strictEqual((preparedInvocation.invocationMessage as IMarkdownString).value, 'Running `echo hello` in sandbox');
@@ -915,6 +915,74 @@ suite('RunInTerminalTool', () => {
 			const terminalData = preparedInvocation.toolSpecificData as IChatTerminalToolInvocationData;
 			strictEqual(terminalData.commandLine.forDisplay, 'echo hello');
 			strictEqual(terminalData.commandLine.toolEdited, 'nohup sandbox-runtime echo hello & disown');
+		});
+	});
+
+	suite('detach lifecycle', () => {
+		test('ordinary async execution remains managed', async () => {
+			runInTerminalTool.setBackendOs(OperatingSystem.Linux);
+			setConfig(TerminalChatAgentToolsSettingId.DetachBackgroundProcesses, true);
+
+			const preparedInvocation = await executeToolTest({ command: 'node server.js', mode: 'async' });
+			const terminalData = preparedInvocation!.toolSpecificData as IChatTerminalToolInvocationData;
+
+			strictEqual(terminalData.detachedFromTerminal, false);
+			ok(!terminalData.commandLine.toolEdited?.includes('nohup'));
+		});
+
+		test('legacy background mode supports explicit detach', async () => {
+			runInTerminalTool.setBackendOs(OperatingSystem.Linux);
+			setConfig(TerminalChatAgentToolsSettingId.DetachBackgroundProcesses, true);
+
+			const preparedInvocation = await executeToolTest({ command: 'node server.js', isBackground: true, detach: true });
+			const terminalData = preparedInvocation!.toolSpecificData as IChatTerminalToolInvocationData;
+
+			strictEqual(terminalData.detachedFromTerminal, true);
+			ok(terminalData.commandLine.toolEdited?.includes('nohup'));
+		});
+
+		test('rejects detach in resolved sync mode', async () => {
+			setConfig(TerminalChatAgentToolsSettingId.DetachBackgroundProcesses, true);
+
+			const result = await invokeToolTest({ mode: 'sync', detach: true });
+
+			ok(result.toolResultError);
+			ok(result.content[0].kind === 'text' && result.content[0].value.includes('resolved execution mode is async'));
+		});
+
+		test('rejects detach when disabled', async () => {
+			setConfig(TerminalChatAgentToolsSettingId.DetachBackgroundProcesses, false);
+
+			const result = await invokeToolTest({ mode: 'async', detach: true });
+
+			ok(result.toolResultError);
+			ok(result.content[0].kind === 'text' && result.content[0].value.includes('disabled'));
+		});
+
+		test('rejects an unsafe user-edited detach command', async () => {
+			runInTerminalTool.setBackendOs(OperatingSystem.Linux);
+			setConfig(TerminalChatAgentToolsSettingId.DetachBackgroundProcesses, true);
+			const parameters: IRunInTerminalInputParams = {
+				command: 'node server.js',
+				explanation: 'Start server',
+				goal: 'Start server',
+				mode: 'async',
+				detach: true,
+			};
+			const preparedInvocation = await runInTerminalTool.prepareToolInvocation({ parameters } as IToolInvocationPreparationContext, CancellationToken.None);
+			const terminalData = preparedInvocation!.toolSpecificData as IChatTerminalToolInvocationData;
+			terminalData.commandLine.userEdited = 'ssh user@host';
+
+			const result = await runInTerminalTool.invoke({
+				callId: 'test-call',
+				toolId: TerminalToolId.RunInTerminal,
+				parameters,
+				context: { sessionResource: LocalChatSessionUri.forSession('run-in-terminal-test') },
+				toolSpecificData: terminalData,
+			} as IToolInvocation, async () => 0, { report() { } }, CancellationToken.None);
+
+			ok(result.toolResultError);
+			ok(result.content[0].kind === 'text' && result.content[0].value.includes('could not be safely applied'));
 		});
 	});
 

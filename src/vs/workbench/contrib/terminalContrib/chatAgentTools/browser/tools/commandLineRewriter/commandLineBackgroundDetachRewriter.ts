@@ -30,23 +30,13 @@ export class CommandLineBackgroundDetachRewriter extends Disposable implements I
 	}
 
 	rewrite(options: ICommandLineRewriterOptions): ICommandLineRewriterResult | undefined {
-		const isAlreadyDetached = options.os === OperatingSystem.Windows
-			? /^\s*Start-Process\b/i.test(options.commandLine)
-			: /^\s*nohup\b/.test(options.commandLine);
-		if (isAlreadyDetached) {
-			return {
-				rewritten: options.commandLine,
-				reasoning: 'Command is already detached from the terminal',
-				detachedFromTerminal: true,
-			};
+		if (!this._configurationService.getValue(TerminalChatAgentToolsSettingId.DetachBackgroundProcesses)) {
+			return undefined;
 		}
 
 		const trimmedForCheck = options.commandLine.trimEnd();
 		const endsWithBareBackgroundAmp = /(?:^|[^&])&$/.test(trimmedForCheck);
 		if (!options.detachFromTerminal && !endsWithBareBackgroundAmp) {
-			return undefined;
-		}
-		if (options.detachFromTerminal && !this._configurationService.getValue(TerminalChatAgentToolsSettingId.DetachBackgroundProcesses)) {
 			return undefined;
 		}
 
@@ -197,7 +187,7 @@ export class CommandLineBackgroundDetachRewriter extends Disposable implements I
 		}
 
 		// Escape double quotes for PowerShell string
-		const escapedCommand = options.commandLine.replace(/"/g, '\\"');
+		const escapedCommand = options.commandLine.replace(/`/g, '``').replace(/"/g, '`"');
 
 		return {
 			rewritten: `Start-Process -WindowStyle Hidden -FilePath "${options.shell}" -ArgumentList "-NoProfile", "-Command", "${escapedCommand}"`,
