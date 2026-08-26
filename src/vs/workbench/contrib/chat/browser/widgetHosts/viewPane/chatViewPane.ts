@@ -99,6 +99,11 @@ interface IChatViewPaneState extends Partial<IChatModelInputState> {
 	sessionsSidebarWidth?: number;
 }
 
+interface IChatSessionAcquisitionResult {
+	modelRef: IChatModelReference | undefined;
+	localFallbackSelectionReason?: SessionTypeSelectionReason;
+}
+
 type ChatViewPaneOpenedClassification = {
 	owner: 'sbatten';
 	comment: 'Event fired when the chat view pane is opened';
@@ -315,7 +320,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		if (this.chatAgentService.getDefaultAgent(ChatAgentLocation.Chat)) {
 			if (!this._widget?.viewModel && !this.restoringSession) {
 				this.restoringSession =
-					this.acquireTransferredOrPersistedSession(CancellationToken.None, 'ChatViewPane#onDidChangeAgents').then(async modelRef => {
+					this.acquireTransferredOrPersistedSession(CancellationToken.None, 'ChatViewPane#onDidChangeAgents').then(async session => {
 						if (!this._widget) {
 							return; // renderBody has not been called yet
 						}
@@ -327,7 +332,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 						try {
 							this._widget.setVisible(false);
 
-							await this.showModel(CancellationToken.None, modelRef, true, !modelRef);
+							await this.showModel(CancellationToken.None, session.modelRef, true, !session.modelRef, undefined, session.localFallbackSelectionReason);
 						} finally {
 							this._widget.setVisible(wasVisible);
 						}
@@ -1276,8 +1281,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	}
 
 	private async _applyModel(token: CancellationToken): Promise<void> {
-		const modelRef = await this.acquireTransferredOrPersistedSession(token, 'ChatViewPane#applyModel');
-		await this.showModel(token, modelRef, true, !modelRef);
+		const session = await this.acquireTransferredOrPersistedSession(token, 'ChatViewPane#applyModel');
+		await this.showModel(token, session.modelRef, true, !session.modelRef, undefined, session.localFallbackSelectionReason);
 	}
 
 	/**
@@ -1301,7 +1306,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	 * provider (for example when the agent host is enabled), return a new session
 	 * reference for it instead of the built-in local provider.
 	 */
-	private async acquireDefaultNewSession(token: CancellationToken, localFallbackSelectionReason?: SessionTypeSelectionReason): Promise<{ modelRef: IChatModelReference | undefined; localFallbackSelectionReason?: SessionTypeSelectionReason }> {
+	private async acquireDefaultNewSession(token: CancellationToken, localFallbackSelectionReason?: SessionTypeSelectionReason): Promise<IChatSessionAcquisitionResult> {
 		const workspace = this.workspaceContextService.getWorkspace();
 		const defaultTypeAndReason = getDefaultNewChatSessionTypeAndReasonFromServices(this.configurationService, this.chatSessionsService, this.storageService, workspace, this.agentHostEnablementService.enabled.get(), undefined, this.agentHostEnablementService.managedSandboxEnforced.get());
 		if (defaultTypeAndReason.sessionType === localChatSessionType) {
@@ -1329,23 +1334,26 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		}
 	}
 
-	private async acquireTransferredOrPersistedSession(token: CancellationToken, debugOwner: string): Promise<IChatModelReference | undefined> {
+	private async acquireTransferredOrPersistedSession(token: CancellationToken, debugOwner: string): Promise<IChatSessionAcquisitionResult> {
 		const sessionResource = this.getTransferredOrPersistedSessionInfo();
 		if (!sessionResource) {
-			return undefined;
+			return { modelRef: undefined };
 		}
 
 		const modelRef = await this.chatService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, token, debugOwner);
 		if (!modelRef) {
-			return undefined;
+			return {
+				modelRef: undefined,
+				localFallbackSelectionReason: isAgentHostTarget(getChatSessionType(sessionResource)) ? 'agentHostUnavailable' : undefined,
+			};
 		}
 
 		if (this.shouldSkipRestoredLocalSession(sessionResource, modelRef.object)) {
 			modelRef.dispose();
-			return undefined;
+			return { modelRef: undefined };
 		}
 
-		return modelRef;
+		return { modelRef };
 	}
 
 	private shouldSkipRestoredLocalSession(sessionResource: URI, model: IChatModel): boolean {
@@ -1503,6 +1511,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 		return this.progressService.withProgress({ location: ChatViewId, delay: 200 }, async () => {
 			let queue: Promise<void> = Promise.resolve();
+			let didAcquireSession = false;
 
 			// A delay here to avoid blinking because only Cloud sessions are slow, most others are fast
 			const clearWidget = disposableTimeout(() => {
@@ -1518,6 +1527,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 			try {
 				const newModelRef = await this.chatService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, token, 'ChatViewPane#loadSession', sessionTypeSelectionReason);
+				didAcquireSession = !!newModelRef;
 				clearWidget.dispose();
 				await queue;
 
@@ -1544,7 +1554,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				// is not left in a broken state without title or back button.
 				this.logService.error(`Failed to load chat session '${sessionResource.toString()}'`, err);
 				this.notificationService.error(localize('chat.loadSessionFailed', "Failed to open chat session: {0}", toErrorMessage(err)));
-				const localFallbackSelectionReason = isAgentHostTarget(getChatSessionType(sessionResource)) ? 'agentHostUnavailable' : undefined;
+				const localFallbackSelectionReason = !didAcquireSession && isAgentHostTarget(getChatSessionType(sessionResource)) ? 'agentHostUnavailable' : undefined;
 				const result = await this.showModel(token, undefined, true, false, inputBeforeLoad, localFallbackSelectionReason);
 				this.logService.trace(`[ChatViewPane] loadSession done total=${Date.now() - t0}ms uri=${sessionResource.toString()} error=true`);
 				return result;
