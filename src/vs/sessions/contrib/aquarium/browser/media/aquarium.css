@@ -260,8 +260,8 @@
 	display: inline-flex;
 	align-items: center;
 	gap: var(--vscode-spacing-size40);
-	font-size: var(--vscode-agents-fontSize-label2, 11px);
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	font-size: var(--vscode-fontSize-label2, 11px);
+	font-weight: var(--vscode-fontWeight-semiBold);
 	line-height: 1;
 	white-space: nowrap;
 	color: var(--vscode-foreground, #cccccc);
@@ -274,7 +274,7 @@
 /* A died streak badge: a quiet, non-interactive hint that feeding a fish will
  * bring the streak back. Kept subtle (muted, normal weight). */
 .agents-aquarium-toggle-streak.revivable {
-	font-weight: var(--vscode-agents-fontWeight-regular);
+	font-weight: var(--vscode-fontWeight-regular);
 	color: var(--vscode-descriptionForeground, #999999);
 }
 
