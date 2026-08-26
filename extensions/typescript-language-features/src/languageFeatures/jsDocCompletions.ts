@@ -46,7 +46,7 @@ class JsDocCompletionProvider implements vscode.CompletionItemProvider {
 		position: vscode.Position,
 		token: vscode.CancellationToken
 	): Promise<vscode.CompletionItem[] | undefined> {
-		if (!readUnifiedConfig<boolean>('suggest.completeJSDocs', true, { scope: document, fallbackSection: this.language.id })) {
+		if (!readUnifiedConfig<boolean>('suggest.jsdoc.enabled', true, { scope: document, fallbackSection: this.language.id, fallbackSubSectionNameOverride: 'suggest.completeJSDocs' })) {
 			return undefined;
 		}
 

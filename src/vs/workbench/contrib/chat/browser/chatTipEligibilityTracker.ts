@@ -10,7 +10,7 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ChatContextKeys } from '../common/actions/chatContextKeys.js';
-import { AgentFileType, IPromptsService } from '../common/promptSyntax/service/promptsService.js';
+import { AgentInstructionFileType, IPromptsService } from '../common/promptSyntax/service/promptsService.js';
 import { PromptsType } from '../common/promptSyntax/promptTypes.js';
 import { ILanguageModelToolsService } from '../common/tools/languageModelToolsService.js';
 import { TipEligibilityStorageKeys } from './chatTipStorageKeys.js';
@@ -30,7 +30,7 @@ export interface ITipExclusionConfig {
 	/** File-based exclusion configuration. */
 	readonly excludeWhenPromptFilesExist?: {
 		readonly promptType: PromptsType;
-		readonly agentFileType?: AgentFileType;
+		readonly agentFileType?: AgentInstructionFileType;
 		readonly excludeUntilChecked?: boolean;
 	};
 }

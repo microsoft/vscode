@@ -28,6 +28,10 @@
 	flex: 1;
 }
 
+.monaco-editor .zone-widget .zone-widget-container.exception-widget .title .actions .monaco-action-bar .actions-container {
+	justify-content: flex-end;
+}
+
 .monaco-editor .zone-widget .zone-widget-container.exception-widget .description,
 .monaco-editor .zone-widget .zone-widget-container.exception-widget .stack-trace {
 	font-family: var(--monaco-monospace-font);

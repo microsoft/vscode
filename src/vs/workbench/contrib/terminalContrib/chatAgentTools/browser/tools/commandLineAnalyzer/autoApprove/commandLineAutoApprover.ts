@@ -279,7 +279,7 @@ export class CommandLineAutoApprover extends Disposable {
 				);
 			}
 			const sourceTarget = (
-				checkTarget(configInspectValue.workspaceFolder) ? ConfigurationTarget.WORKSPACE_FOLDER
+				checkTarget(configInspectValue.workspaceFolderValue) ? ConfigurationTarget.WORKSPACE_FOLDER
 					: checkTarget(configInspectValue.workspaceValue) ? ConfigurationTarget.WORKSPACE
 						: checkTarget(configInspectValue.userRemoteValue) ? ConfigurationTarget.USER_REMOTE
 							: checkTarget(configInspectValue.userLocalValue) ? ConfigurationTarget.USER_LOCAL

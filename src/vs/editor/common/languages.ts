@@ -404,7 +404,6 @@ export namespace CompletionItemKinds {
 	byKind.set(CompletionItemKind.Value, Codicon.symbolValue);
 	byKind.set(CompletionItemKind.Enum, Codicon.symbolEnum);
 	byKind.set(CompletionItemKind.Constant, Codicon.symbolConstant);
-	byKind.set(CompletionItemKind.Enum, Codicon.symbolEnum);
 	byKind.set(CompletionItemKind.EnumMember, Codicon.symbolEnumMember);
 	byKind.set(CompletionItemKind.Keyword, Codicon.symbolKeyword);
 	byKind.set(CompletionItemKind.Snippet, Codicon.symbolSnippet);
@@ -826,7 +825,7 @@ export class SelectedSuggestionInfo {
 	) {
 	}
 
-	public equals(other: SelectedSuggestionInfo) {
+	public equals(other: SelectedSuggestionInfo): boolean {
 		return Range.lift(this.range).equalsRange(other.range)
 			&& this.text === other.text
 			&& this.completionKind === other.completionKind
@@ -1139,6 +1138,7 @@ export type LifetimeSummary = {
 	editKind: string | undefined;
 	longDistanceHintVisible?: boolean;
 	longDistanceHintDistance?: number;
+	isForAnotherDocument?: boolean;
 };
 
 export interface CodeAction {

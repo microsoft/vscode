@@ -8,6 +8,7 @@ import { ILogService } from '../../platform/log/common/log.js';
 import { Emitter, Event } from '../../base/common/event.js';
 import { VSBuffer } from '../../base/common/buffer.js';
 import { ProcessTimeRunOnceScheduler } from '../../base/common/async.js';
+import { IDisposable } from '../../base/common/lifecycle.js';
 
 function printTime(ms: number): string {
 	let h = 0;
@@ -45,6 +46,7 @@ export class ManagementConnection {
 	private _disposed: boolean;
 	private _disconnectRunner1: ProcessTimeRunOnceScheduler;
 	private _disconnectRunner2: ProcessTimeRunOnceScheduler;
+	private readonly _socketCloseListener: IDisposable;
 
 	constructor(
 		private readonly _logService: ILogService,
@@ -69,11 +71,11 @@ export class ManagementConnection {
 			this._cleanResources();
 		}, this._reconnectionShortGraceTime);
 
-		this.protocol.onDidDispose(() => {
+		Event.once(this.protocol.onDidDispose)(() => {
 			this._log(`The client has disconnected gracefully, so the connection will be disposed.`);
 			this._cleanResources();
 		});
-		this.protocol.onSocketClose(() => {
+		this._socketCloseListener = this.protocol.onSocketClose(() => {
 			this._log(`The client has disconnected, will wait for reconnection ${printTime(this._reconnectionGraceTime)} before disposing...`);
 			// The socket has closed, let's give the renderer a certain amount of time to reconnect
 			this._disconnectRunner1.schedule();
@@ -106,6 +108,7 @@ export class ManagementConnection {
 		this._disposed = true;
 		this._disconnectRunner1.dispose();
 		this._disconnectRunner2.dispose();
+		this._socketCloseListener.dispose();
 		const socket = this.protocol.getSocket();
 		this.protocol.sendDisconnect();
 		this.protocol.dispose();

@@ -7,8 +7,10 @@ import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
 import { Event } from '../../../base/common/event.js';
 import { createDecorator, IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { generateUuid } from '../../../base/common/uuid.js';
-import { IBrowserViewGroupService, IBrowserViewGroupViewEvent } from '../common/browserViewGroup.js';
+import { IBrowserViewGroupFilter, IBrowserViewGroupService } from '../common/browserViewGroup.js';
+import { IBrowserViewCreationContext } from '../common/browserView.js';
 import { BrowserViewGroup } from './browserViewGroup.js';
+import { CDPEvent, CDPRequest, CDPResponse } from '../common/cdp/types.js';
 
 export const IBrowserViewGroupMainService = createDecorator<IBrowserViewGroupMainService>('browserViewGroupMainService');
 
@@ -33,45 +35,38 @@ export class BrowserViewGroupMainService extends Disposable implements IBrowserV
 		super();
 	}
 
-	async createGroup(): Promise<string> {
+	async createGroup(filter: IBrowserViewGroupFilter, targetContext: IBrowserViewCreationContext): Promise<string> {
 		const id = generateUuid();
-		const group = this.instantiationService.createInstance(BrowserViewGroup, id);
+		const group = this.instantiationService.createInstance(BrowserViewGroup, id, filter, targetContext);
 		this.groups.set(id, group);
 
-		// Auto-cleanup when the group disposes itself
 		Event.once(group.onDidDestroy)(() => {
 			this.groups.deleteAndLeak(id);
 		});
 
-		return id;
+		try {
+			await group.activate();
+			return id;
+		} catch (error) {
+			this.groups.deleteAndDispose(id);
+			throw error;
+		}
 	}
 
 	async destroyGroup(groupId: string): Promise<void> {
 		this.groups.deleteAndDispose(groupId);
 	}
 
-	async addViewToGroup(groupId: string, viewId: string): Promise<void> {
-		return this._getGroup(groupId).addView(viewId);
-	}
-
-	async removeViewFromGroup(groupId: string, viewId: string): Promise<void> {
-		return this._getGroup(groupId).removeView(viewId);
-	}
-
-	async getDebugWebSocketEndpoint(groupId: string): Promise<string> {
-		return this._getGroup(groupId).getDebugWebSocketEndpoint();
-	}
-
-	onDynamicDidAddView(groupId: string): Event<IBrowserViewGroupViewEvent> {
-		return this._getGroup(groupId).onDidAddView;
-	}
-
-	onDynamicDidRemoveView(groupId: string): Event<IBrowserViewGroupViewEvent> {
-		return this._getGroup(groupId).onDidRemoveView;
+	async sendCDPMessage(groupId: string, message: CDPRequest): Promise<void> {
+		return this._getGroup(groupId).debugger.sendMessage(message);
 	}
 
 	onDynamicDidDestroy(groupId: string): Event<void> {
 		return this._getGroup(groupId).onDidDestroy;
+	}
+
+	onDynamicCDPMessage(groupId: string): Event<CDPResponse | CDPEvent> {
+		return this._getGroup(groupId).debugger.onMessage;
 	}
 
 	/**
@@ -85,4 +80,3 @@ export class BrowserViewGroupMainService extends Disposable implements IBrowserV
 		return group;
 	}
 }
-

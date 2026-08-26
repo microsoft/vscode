@@ -11,7 +11,7 @@
 	background-color: var(--vscode-editorWidget-background);
 	border: 1px solid var(--vscode-editorWidget-border, var(--vscode-contrastBorder));
 	border-radius: 8px;
-	box-shadow: 0 2px 8px var(--vscode-widget-shadow);
+	box-shadow: var(--vscode-shadow-lg);
 	font-size: 12px;
 	line-height: 1.4;
 	opacity: 0;
@@ -87,6 +87,11 @@
 .chat-explanation-read-indicator:hover {
 	opacity: 0.8;
 	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.chat-explanation-read-indicator > .codicon,
+.chat-explanation-item-read > .codicon {
+	font-size: var(--vscode-codiconFontSize-compact);
 }
 
 .chat-explanation-read-indicator.unread {
@@ -221,7 +226,7 @@
 	border-radius: 3px;
 	color: var(--vscode-foreground);
 	opacity: 0.3;
-	font-size: 12px;
+	font-size: var(--vscode-codiconFontSize-compact);
 }
 
 .chat-explanation-item:hover .chat-explanation-item-read {

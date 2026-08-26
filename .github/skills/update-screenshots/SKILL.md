@@ -1,87 +1,120 @@
 ---
 name: update-screenshots
-description: Download screenshot baselines from the latest CI run and commit them. Use when asked to update, accept, or refresh component screenshot baselines from CI, or after the screenshot-test GitHub Action reports differences. This skill should be run as a subagent.
+description: Update the committed blocks-ci screenshot hashes after the "Screenshots & Tests" check fails, or investigate a screenshot diff reported on a PR. Use when asked to update, accept, or refresh component screenshot baselines from CI. This skill should be run as a subagent.
 ---
 
 # Update Component Screenshots from CI
 
-When asked to update, accept, or refresh screenshot baselines from CI — or when the `Screenshot Tests` GitHub Action has failed with screenshot differences — follow this procedure to download the CI-generated screenshots and commit them as the new baselines.
+Screenshot **images** are not stored in the repository — they live in an external service
+(`hediet-screenshots.azurewebsites.net`), keyed by commit SHA. But a subset of fixtures is
+pinned by **hash** in [`test/componentFixtures/blocks-ci-screenshots.md`](../../../test/componentFixtures/blocks-ci-screenshots.md),
+and that file **is** committed. When those hashes change, CI fails and you must update the file.
 
-## Why CI Screenshots?
+## Two different outcomes, only one of which blocks
 
-Screenshots captured locally may differ from CI due to platform differences (fonts, rendering, DPI). The CI (Linux, ubuntu-latest) is the source of truth. This skill downloads the CI-produced screenshots and commits them as baselines.
+The `Screenshots & Tests` job in [`.github/workflows/component-fixtures.yml`](../../workflows/component-fixtures.yml)
+produces two independent results:
 
-## Prerequisites
+| Result | Blocking? | Action |
+| --- | --- | --- |
+| Screenshot **diff report** (PR comment with before/after images) | No — informational | Review the visuals. Nothing to commit. |
+| **blocks-ci hash mismatch** | **Yes — fails the check** | Update `blocks-ci-screenshots.md` and commit. |
 
-- The `gh` CLI must be authenticated (`gh auth status`).
-- The `Screenshot Tests` GitHub Action must have run and produced a `screenshot-diff` artifact.
+A fixture opts into the blocking gate with `labels: { kind: 'screenshot', blocksCi: true }`.
+Only those fixtures appear in `blocks-ci-screenshots.md`.
 
-## Procedure
+The failure looks like this:
 
-### 1. Find the latest screenshot artifact
-
-If the user provides a specific run ID or PR number, use that. Otherwise, find the latest run:
-
-```bash
-# For a specific PR:
-gh run list --workflow screenshot-test.yml --branch <branch> --limit 5 --json databaseId,status,conclusion,headBranch
-
-# For the current branch:
-gh run list --workflow screenshot-test.yml --branch $(git branch --show-current) --limit 5 --json databaseId,status,conclusion
+```
+##[error]blocks-ci screenshot hashes do not match committed file. See PR comment or job summary for the updated content.
 ```
 
-Pick the most recent run that has a `screenshot-diff` artifact (runs where screenshots matched won't have one).
+## Step 1: Get the expected hashes from CI
 
-### 2. Download the artifact
+> **Never regenerate the hashes locally.** They are hashes of the rendered PNG bytes, produced
+> on `ubuntu-latest`. Rendering on macOS or Windows yields different bytes and therefore
+> different hashes, so locally generated values will fail CI. Always copy the values from the
+> CI job.
 
-```bash
-gh run download <run-id> --name screenshot-diff --dir .tmp/screenshot-diff
-```
+Three surfaces carry the same content — use whichever is handy:
 
-The artifact is uploaded from two paths (`test/componentFixtures/.screenshots/current/` and `test/componentFixtures/.screenshots/report/`), but GitHub Actions strips the common prefix. So the downloaded structure is:
-- `current/` — the CI-captured screenshots (e.g. `current/baseUI/Buttons/Dark.png`)
-- `report/report.json` — structured diff report
-- `report/report.md` — human-readable diff report
-
-### 3. Review the changes
-
-Show the user what changed by reading the markdown report:
+- The **PR comment** titled "blocks-ci screenshots changed" (non-fork PRs only) — contains the
+  full updated file plus a patch.
+- The **job summary**, which gets the identical body and is the only surface fork PRs receive.
+- The **job log**, whose final step prints a unified diff:
 
 ```bash
-cat .tmp/screenshot-diff/report/report.md
+gh api repos/microsoft/vscode/actions/jobs/<JOB_ID>/logs > "$TMPDIR/ci-job-log.txt"
+grep -n '##\[error\]' "$TMPDIR/ci-job-log.txt"
 ```
 
-### 4. Copy CI screenshots to baseline
+Find the failed job id with:
 
 ```bash
-# Remove old baselines and replace with CI screenshots
-rm -rf test/componentFixtures/.screenshots/baseline/
-cp -r .tmp/screenshot-diff/current/ test/componentFixtures/.screenshots/baseline/
+gh pr checks <PR> --json name,link,bucket --jq '.[] | select(.name == "Screenshots & Tests")'
 ```
 
-### 5. Clean up
+## Step 2: Verify the change is intentional before accepting it
+
+This gate exists to catch **unintended** layout regressions, so accepting new hashes without
+looking at the images defeats its purpose. The images are publicly fetchable by hash, so pull
+both the old (committed) and new (from CI) versions and compare:
 
 ```bash
-rm -rf .tmp/screenshot-diff
+curl -sL -o old.png "https://hediet-screenshots.azurewebsites.net/images/<OLD_HASH>"
+curl -sL -o new.png "https://hediet-screenshots.azurewebsites.net/images/<NEW_HASH>"
 ```
 
-### 6. Stage and commit
+Then view them, and localize the change rather than eyeballing full screenshots — the delta is
+often only a pixel or two:
 
 ```bash
-git add test/componentFixtures/.screenshots/baseline/
-git commit -m "update screenshot baselines from CI"
+python3 -c "
+from PIL import Image, ImageChops
+a = Image.open('old.png').convert('RGB'); b = Image.open('new.png').convert('RGB')
+print('diff bbox:', ImageChops.difference(a, b).getbbox())
+"
 ```
 
-### 7. Verify
+Confirm the delta matches what the PR intends. If the fixture is unrelated to the change, or
+the shift is larger than expected, treat it as a regression and fix the code instead of the
+hashes.
 
-Confirm the baselines are updated by listing the files:
+## Step 3: Apply and commit
+
+Edit only the changed lines in `test/componentFixtures/blocks-ci-screenshots.md`, replacing the
+old hash in the image URL with the new one:
+
+```md
+#### editor/inlineChatZoneWidget/InlineChatZoneWidget/Dark
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/<NEW_HASH>)
+```
+
+The file is generated by [`build/lib/screenshotBlocksCi.ts`](../../../build/lib/screenshotBlocksCi.ts)
+and compared **byte-for-byte**, so keep the `<!-- auto-generated by CI — do not edit manually -->`
+header, the `#### <fixtureId>` / image-link pairing, the blank line between entries, and the
+`fixtureId` sort order intact. Verify your edit is the exact inverse of the diff CI reported:
 
 ```bash
-git diff --stat HEAD~1
+git diff test/componentFixtures/blocks-ci-screenshots.md
 ```
 
-## Notes
+Then commit and push. The check re-runs and should pass; hashes on `main` become the new
+baseline after merge.
 
-- If no `screenshot-diff` artifact exists, the screenshots already match the baselines — no update needed.
-- The `--filter` option on the CLI can be used to selectively accept only some fixtures if needed.
-- After committing updated baselines, the next CI run should pass the screenshot comparison.
+## Investigating further
+
+Raw captured images and the manifest for a run are uploaded as an artifact:
+
+```bash
+gh run download <RUN_ID> --name screenshots --dir .tmp/screenshots
+```
+
+`manifest.json` maps each `fixtureId` to its `imageHash` and any render errors.
+
+## Related failures from the same job
+
+The check also fails if a fixture **failed to render** (`Fail if fixtures had errors`) or if the
+Playwright fixture tests failed. Those are genuine bugs — updating hashes will not help. Look
+for `::error::<fixtureId>:` in the log, and download the `playwright-test-results` artifact for
+test failures.

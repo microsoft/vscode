@@ -61,7 +61,7 @@ export class ImplicitProjectConfiguration {
 
 	public readonly target: string | undefined;
 	public readonly module: string | undefined;
-	public readonly checkJs: boolean;
+	public readonly checkJs: boolean | undefined;
 	public readonly experimentalDecorators: boolean;
 	public readonly strictNullChecks: boolean;
 	public readonly strictFunctionTypes: boolean;
@@ -89,8 +89,12 @@ export class ImplicitProjectConfiguration {
 		return configuration.get<string>('js/ts.implicitProjectConfig.module');
 	}
 
-	private static readCheckJs(configuration: vscode.WorkspaceConfiguration): boolean {
-		return configuration.get<boolean>('js/ts.implicitProjectConfig.checkJs', false);
+	private static readCheckJs(configuration: vscode.WorkspaceConfiguration): boolean | undefined {
+		const inspect = configuration.inspect<boolean>('js/ts.implicitProjectConfig.checkJs');
+		if (this.hasValue(inspect)) {
+			return configuration.get<boolean>('js/ts.implicitProjectConfig.checkJs');
+		}
+		return undefined;
 	}
 
 	private static readExperimentalDecorators(configuration: vscode.WorkspaceConfiguration): boolean {
@@ -108,6 +112,25 @@ export class ImplicitProjectConfiguration {
 	private static readImplicitStrict(configuration: vscode.WorkspaceConfiguration): boolean {
 		return configuration.get<boolean>('js/ts.implicitProjectConfig.strict', true);
 	}
+
+	private static hasValue(inspect: ReturnType<vscode.WorkspaceConfiguration['inspect']>): boolean {
+		if (inspect === undefined) {
+			return false;
+		}
+
+		return inspect.globalValue !== undefined
+			|| inspect.workspaceValue !== undefined
+			|| inspect.workspaceFolderValue !== undefined
+			|| inspect.globalLanguageValue !== undefined
+			|| inspect.workspaceLanguageValue !== undefined
+			|| inspect.workspaceFolderLanguageValue !== undefined;
+	}
+}
+
+export interface TsServerHeapProfileConfiguration {
+	readonly enabled: boolean;
+	readonly dir: string | undefined;
+	readonly interval: number | undefined;
 }
 
 export interface TypeScriptServiceConfiguration {
@@ -126,6 +149,9 @@ export interface TypeScriptServiceConfiguration {
 	readonly enableDiagnosticsTelemetry: boolean;
 	readonly enableProjectDiagnostics: boolean;
 	readonly maxTsServerMemory: number;
+	readonly diagnosticDir: string | undefined;
+	readonly heapSnapshot: number;
+	readonly heapProfile: TsServerHeapProfileConfiguration;
 	readonly enablePromptUseWorkspaceTsdk: boolean;
 	readonly useVsCodeWatcher: boolean;
 	readonly watchOptions: Proto.WatchOptions | undefined;
@@ -168,6 +194,9 @@ export abstract class BaseServiceConfigurationProvider implements ServiceConfigu
 			enableDiagnosticsTelemetry: this.readEnableDiagnosticsTelemetry(),
 			enableProjectDiagnostics: this.readEnableProjectDiagnostics(),
 			maxTsServerMemory: this.readMaxTsServerMemory(),
+			diagnosticDir: this.readDiagnosticDir(),
+			heapSnapshot: this.readHeapSnapshot(),
+			heapProfile: this.readHeapProfileConfiguration(),
 			enablePromptUseWorkspaceTsdk: this.readEnablePromptUseWorkspaceTsdk(),
 			useVsCodeWatcher: this.readUseVsCodeWatcher(configuration),
 			watchOptions: this.readWatchOptions(),
@@ -286,6 +315,42 @@ export abstract class BaseServiceConfigurationProvider implements ServiceConfigu
 			return defaultMaxMemory;
 		}
 		return Math.max(memoryInMB, minimumMaxMemory);
+	}
+
+	protected readDiagnosticDir(): string | undefined {
+		const diagnosticDir = readUnifiedConfig<string | undefined>('tsserver.diagnosticDir', undefined, { fallbackSection: 'typescript' });
+		return typeof diagnosticDir === 'string' && diagnosticDir.length > 0 ? diagnosticDir : undefined;
+	}
+
+	protected readHeapSnapshot(): number {
+		const defaultNearHeapLimitSnapshotCount = 0;
+		const nearHeapLimitSnapshotCount = readUnifiedConfig<number>('tsserver.heapSnapshot', defaultNearHeapLimitSnapshotCount, { fallbackSection: 'typescript' });
+		if (!Number.isSafeInteger(nearHeapLimitSnapshotCount)) {
+			return defaultNearHeapLimitSnapshotCount;
+		}
+		return Math.max(nearHeapLimitSnapshotCount, 0);
+	}
+
+	private readHeapProfileConfiguration(): TsServerHeapProfileConfiguration {
+		const defaultHeapProfileConfiguration: TsServerHeapProfileConfiguration = {
+			enabled: false,
+			dir: undefined,
+			interval: undefined,
+		};
+
+		const rawConfig = readUnifiedConfig<{ enabled?: unknown; dir?: unknown; interval?: unknown }>('tsserver.heapProfile', defaultHeapProfileConfiguration, { fallbackSection: 'typescript' });
+
+		const enabled = typeof rawConfig.enabled === 'boolean' ? rawConfig.enabled : false;
+		const dir = typeof rawConfig.dir === 'string' && rawConfig.dir.length > 0 ? rawConfig.dir : undefined;
+		const interval = typeof rawConfig.interval === 'number' && Number.isSafeInteger(rawConfig.interval) && rawConfig.interval > 0
+			? rawConfig.interval
+			: undefined;
+
+		return {
+			enabled,
+			dir,
+			interval,
+		};
 	}
 
 	protected readEnablePromptUseWorkspaceTsdk(): boolean {

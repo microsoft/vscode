@@ -24,11 +24,12 @@ export const enum ProblemCollectorEventKind {
 
 export interface IProblemCollectorEvent {
 	kind: ProblemCollectorEventKind;
+	capturedVariables?: ReadonlyMap<string, string>;
 }
 
 namespace IProblemCollectorEvent {
-	export function create(kind: ProblemCollectorEventKind) {
-		return Object.freeze({ kind });
+	export function create(kind: ProblemCollectorEventKind, capturedVariables?: ReadonlyMap<string, string>) {
+		return Object.freeze({ kind, capturedVariables });
 	}
 }
 
@@ -458,7 +459,7 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 				}
 				const oldLines = Array.from(this.lines);
 				for (const line of oldLines) {
-					await this.processLineInternal(line);
+					await this.processLineInternal(line, false);
 				}
 			});
 
@@ -484,11 +485,13 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 		}
 	}
 
-	protected async processLineInternal(line: string): Promise<void> {
-		if (await this.tryBegin(line) || this.tryFinish(line)) {
+	protected async processLineInternal(line: string, recordLine = true): Promise<void> {
+		if (await this.tryBegin(line, recordLine) || this.tryFinish(line, recordLine)) {
 			return;
 		}
-		this.lines.push(line);
+		if (recordLine) {
+			this.lines.push(line);
+		}
 		const markerMatch = this.tryFindMarker(line);
 		if (!markerMatch) {
 			return;
@@ -512,7 +515,7 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 		this.reportMarkersForCurrentResource();
 	}
 
-	private async tryBegin(line: string): Promise<boolean> {
+	private async tryBegin(line: string, recordLine: boolean): Promise<boolean> {
 		let result = false;
 		for (const background of this.backgroundPatterns) {
 			const start = Date.now();
@@ -528,8 +531,10 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 				this._activeBackgroundMatchers.add(background.key);
 				result = true;
 				this._onDidFindFirstMatch.fire();
-				this.lines = [];
-				this.lines.push(line);
+				if (recordLine) {
+					this.lines = [];
+					this.lines.push(line);
+				}
 				this._onDidStateChange.fire(IProblemCollectorEvent.create(ProblemCollectorEventKind.BackgroundProcessingBegins));
 				this.cleanMarkerCaches();
 				this.resetCurrentResource();
@@ -546,7 +551,7 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 		return result;
 	}
 
-	private tryFinish(line: string): boolean {
+	private tryFinish(line: string, recordLine: boolean): boolean {
 		let result = false;
 		for (const background of this.backgroundPatterns) {
 			const start = Date.now();
@@ -563,9 +568,12 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 				}
 				if (this._activeBackgroundMatchers.delete(background.key)) {
 					this.resetCurrentResource();
-					this._onDidStateChange.fire(IProblemCollectorEvent.create(ProblemCollectorEventKind.BackgroundProcessingEnds));
+					const capturedVariables = matches.groups ? new Map(Object.entries(matches.groups)) : undefined;
+					this._onDidStateChange.fire(IProblemCollectorEvent.create(ProblemCollectorEventKind.BackgroundProcessingEnds, capturedVariables));
 					result = true;
-					this.lines.push(line);
+					if (recordLine) {
+						this.lines.push(line);
+					}
 					const owner = background.matcher.owner;
 					this.cleanMarkers(owner);
 					this.cleanMarkerCaches();

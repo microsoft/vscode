@@ -14,7 +14,6 @@ import { Event, Emitter } from '../../../../base/common/event.js';
 import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
 import { NOTIFICATIONS_TOAST_BORDER, NOTIFICATIONS_BACKGROUND } from '../../../common/theme.js';
 import { IThemeService, Themable } from '../../../../platform/theme/common/themeService.js';
-import { widgetShadow } from '../../../../platform/theme/common/colorRegistry.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { INotificationsToastController } from './notificationsCommands.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -29,6 +28,8 @@ import { mainWindow } from '../../../../base/browser/window.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { DEFAULT_CUSTOM_TITLEBAR_HEIGHT } from '../../../../platform/window/common/window.js';
+import { PendingNotificationToasts } from './pendingNotificationToasts.js';
+import { onDidChangeNotificationRowHeight } from './notificationsViewer.js';
 
 interface INotificationToast {
 	readonly item: INotificationViewItem;
@@ -73,6 +74,7 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 
 	private readonly mapNotificationToToast = new Map<INotificationViewItem, INotificationToast>();
 	private readonly mapNotificationToDisposable = new Map<INotificationViewItem, IDisposable>();
+	private readonly pendingToasts: PendingNotificationToasts<INotificationViewItem>;
 
 	private readonly notificationsToastsVisibleContextKey: IContextKey<boolean>;
 
@@ -94,8 +96,24 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 		super(themeService);
 
 		this.notificationsToastsVisibleContextKey = NotificationsToastsVisibleContext.bindTo(contextKeyService);
+		this.pendingToasts = this._register(new PendingNotificationToasts(
+			item => this.model.notifications.includes(item),
+			(item, other) => item.equals(other),
+			callback => scheduleAtNextAnimationFrame(getWindow(this.container), callback)
+		));
+		this._register(toDisposable(() => this.removeToasts()));
+		this._register(onDidChangeNotificationRowHeight(() => this.updateNotificationHeights()));
 
 		this.registerListeners();
+	}
+
+	private updateNotificationHeights(): void {
+		this.mapNotificationToToast.forEach(({ list }) => list.updateNotificationHeights());
+
+		const maxDimensions = this.computeMaxDimensions();
+		if (maxDimensions.height) {
+			this.layoutContainer(maxDimensions.height);
+		}
 	}
 
 	private registerListeners(): void {
@@ -193,6 +211,10 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 			}
 		}
 
+		if (this.pendingToasts.tryReplace(item)) {
+			return;
+		}
+
 		// Optimization: it is possible that a lot of notifications are being
 		// added in a very short time. To prevent this kind of spam, we protect
 		// against showing too many notifications at once. Since they can always
@@ -203,15 +225,10 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 			return;
 		}
 
-		// Optimization: showing a notification toast can be expensive
-		// because of the associated animation. If the renderer is busy
-		// doing actual work, the animation can cause a lot of slowdown
-		// As such we use `scheduleAtNextAnimationFrame` to push out
-		// the toast until the renderer has time to process it.
-		// (see also https://github.com/microsoft/vscode/issues/107935)
-		const itemDisposables = new DisposableStore();
-		this.mapNotificationToDisposable.set(item, itemDisposables);
-		itemDisposables.add(scheduleAtNextAnimationFrame(getWindow(this.container), () => this.doAddToast(item, itemDisposables)));
+		this.pendingToasts.add(item, (pendingItem, itemDisposables) => {
+			this.mapNotificationToDisposable.set(pendingItem, itemDisposables);
+			this.doAddToast(pendingItem, itemDisposables);
+		});
 	}
 
 	private isElementInNotificationQuarter(element: HTMLElement): boolean {
@@ -396,6 +413,8 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 	private removeToast(item: INotificationViewItem): void {
 		let focusEditor = false;
 
+		this.pendingToasts.remove(item);
+
 		// UI
 		const notificationToast = this.mapNotificationToToast.get(item);
 		if (notificationToast) {
@@ -432,6 +451,9 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 	}
 
 	private removeToasts(): void {
+
+		// Pending
+		this.pendingToasts.clear();
 
 		// Toast
 		this.mapNotificationToToast.clear();
@@ -553,9 +575,6 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 			const backgroundColor = this.getColor(NOTIFICATIONS_BACKGROUND);
 			toast.style.background = backgroundColor ? backgroundColor : '';
 
-			const widgetShadowColor = this.getColor(widgetShadow);
-			toast.style.boxShadow = widgetShadowColor ? `0 0 8px 2px ${widgetShadowColor}` : '';
-
 			const borderColor = this.getColor(NOTIFICATIONS_TOAST_BORDER);
 			toast.style.border = borderColor ? `1px solid ${borderColor}` : '';
 		});
@@ -642,15 +661,20 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 		let singleToastHeightToGive = heightToGive;
 		let multipleToastsHeightToGive = Math.round(heightToGive * 0.618);
 
-		let visibleToasts = 0;
-		for (const toast of this.getToasts(ToastVisibility.HIDDEN_OR_VISIBLE)) {
-
+		const toasts = this.getToasts(ToastVisibility.HIDDEN_OR_VISIBLE);
+		for (const toast of toasts) {
 			// In order to measure the client height, the element cannot have display: none
 			toast.container.style.opacity = '0';
 			this.updateToastVisibility(toast, true);
+		}
 
-			singleToastHeightToGive -= toast.container.offsetHeight;
-			multipleToastsHeightToGive -= toast.container.offsetHeight;
+		const toastHeights = toasts.map(toast => toast.container.offsetHeight);
+		let visibleToasts = 0;
+		for (let i = 0; i < toasts.length; i++) {
+			const toast = toasts[i];
+			const toastHeight = toastHeights[i];
+			singleToastHeightToGive -= toastHeight;
+			multipleToastsHeightToGive -= toastHeight;
 
 			let makeVisible = false;
 			if (visibleToasts === NotificationsToasts.MAX_NOTIFICATIONS) {

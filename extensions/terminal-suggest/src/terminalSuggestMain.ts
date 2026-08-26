@@ -35,14 +35,7 @@ import { getPwshGlobals } from './shell/pwsh';
 import { getZshGlobals } from './shell/zsh';
 import { defaultShellTypeResetChars, getTokenType, shellTypeResetChars, TokenType } from './tokens';
 import type { ICompletionResource } from './types';
-export const enum TerminalShellType {
-	Bash = 'bash',
-	Fish = 'fish',
-	Zsh = 'zsh',
-	PowerShell = 'pwsh',
-	WindowsPowerShell = 'powershell',
-	GitBash = 'gitbash',
-}
+import { TerminalShellType } from './constants';
 
 const isWindows = osIsWindows();
 type ShellGlobalsCacheEntry = {
