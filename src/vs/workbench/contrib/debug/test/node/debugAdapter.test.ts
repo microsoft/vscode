@@ -4,6 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { spawnSync } from 'child_process';
+import { existsSync } from 'fs';
+import { mkdtemp, readFile, rm, writeFile } from 'fs/promises';
+import { tmpdir } from 'os';
+import { join } from '../../../../../base/common/path.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { prepareWindowsBatchCommand } from '../../node/debugAdapter.js';
 
@@ -56,5 +61,59 @@ suite('Debug - Debug Adapter', () => {
 			}),
 			[true, true, true]
 		);
+	});
+
+	test('round-trips Windows batch arguments', async function () {
+		if (process.platform !== 'win32') {
+			this.skip();
+		}
+
+		const testDirectory = await mkdtemp(join(tmpdir(), 'vscode-debug-adapter-'));
+		const adapterPath = join(testDirectory, 'adapter.cmd');
+		const captureScriptPath = join(testDirectory, 'capture.cjs');
+		const outputPath = join(testDirectory, 'arguments.json');
+		const sideEffectPath = join(testDirectory, 'side-effect.txt');
+
+		try {
+			await writeFile(adapterPath, '@echo off\r\n"%VSCODE_TEST_NODE%" "%VSCODE_TEST_CAPTURE_SCRIPT%" "%VSCODE_TEST_OUTPUT%" %*\r\n');
+			await writeFile(captureScriptPath, 'require("fs").writeFileSync(process.argv[2], JSON.stringify(process.argv.slice(3)));');
+
+			const args = [
+				'plain',
+				'with spaces',
+				'',
+				`quote" & echo unexpected>"${sideEffectPath}" & "`,
+				'|<>()^%!',
+				'C:\\path\\',
+				'%PATH:z=z%',
+				'two\\\\"quote'
+			];
+			const result = spawnSync(process.env['ComSpec'] || 'cmd.exe', prepareWindowsBatchCommand(adapterPath, args), {
+				encoding: 'utf8',
+				env: {
+					...process.env,
+					ELECTRON_RUN_AS_NODE: '1',
+					VSCODE_TEST_NODE: process.execPath,
+					VSCODE_TEST_CAPTURE_SCRIPT: captureScriptPath,
+					VSCODE_TEST_OUTPUT: outputPath
+				},
+				windowsVerbatimArguments: true
+			});
+			const capturedArgs = existsSync(outputPath) ? JSON.parse(await readFile(outputPath, 'utf8')) : undefined;
+
+			assert.deepStrictEqual({
+				status: result.status,
+				error: result.error?.message,
+				capturedArgs,
+				sideEffectCreated: existsSync(sideEffectPath)
+			}, {
+				status: 0,
+				error: undefined,
+				capturedArgs: args,
+				sideEffectCreated: false
+			});
+		} finally {
+			await rm(testDirectory, { recursive: true, force: true });
+		}
 	});
 });
