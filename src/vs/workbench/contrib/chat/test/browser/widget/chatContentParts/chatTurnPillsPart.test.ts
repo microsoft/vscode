@@ -26,6 +26,7 @@ suite('ChatTurnPillsContentPart', () => {
 			registerProvider: () => Disposable.None,
 			getChangesForRequest: () => diffs,
 			getFileEditsForRequest: () => undefined,
+			getChangeStatsForRequest: () => undefined,
 			openChangesForRequest: () => { },
 		});
 
@@ -64,5 +65,63 @@ suite('ChatTurnPillsContentPart', () => {
 			{ display: '', files: '2 files changed', additions: '+8', deletions: '-3' },
 			{ display: '', files: '2 files changed', additions: '+8', deletions: '-3' },
 		]);
+	});
+
+	test('renders only authoritative changed-file and line counts', () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const stats = observableValue('turnChangeStats', { files: 2, insertions: 8, deletions: 3 });
+		instantiationService.stub(IChatResponseFileChangesService, {
+			_serviceBrand: undefined,
+			registerProvider: () => Disposable.None,
+			getChangesForRequest: () => observableValue('fallbackTurnChanges', [
+				{ ...emptySessionEntryDiff(URI.file('/outside.md'), URI.file('/outside.md')), added: 100, removed: 50 },
+			]),
+			getFileEditsForRequest: () => {
+				throw new Error('outside-workspace file edits must not be rendered');
+			},
+			getChangeStatsForRequest: () => stats,
+			openChangesForRequest: () => { },
+		});
+
+		const part = store.add(instantiationService.createInstance(
+			ChatTurnPillsContentPart,
+			{
+				kind: 'turnPills',
+				requestId: 'request',
+				sessionResource: URI.parse('vscode-chat-session://agent-host/session'),
+				isLastTurn: true,
+			},
+			{} as IChatContentPartRenderContext,
+		));
+
+		const readState = () => ({
+			display: part.domNode.style.display,
+			files: part.domNode.querySelector('.chat-file-changes-label')?.textContent,
+			additions: part.domNode.querySelector('.insertions')?.textContent,
+			deletions: part.domNode.querySelector('.deletions')?.textContent,
+			hasDisclosure: part.domNode.querySelector('details') !== null,
+			hasPreview: part.domNode.querySelector('.chat-turn-preview') !== null,
+		});
+		const before = readState();
+		stats.set({ files: 0, insertions: 0, deletions: 0 }, undefined);
+
+		assert.deepStrictEqual({ before, after: readState() }, {
+			before: {
+				display: '',
+				files: '2 files changed',
+				additions: '+8',
+				deletions: '-3',
+				hasDisclosure: false,
+				hasPreview: false,
+			},
+			after: {
+				display: 'none',
+				files: '0 files changed',
+				additions: '+0',
+				deletions: '-0',
+				hasDisclosure: false,
+				hasPreview: false,
+			},
+		});
 	});
 });

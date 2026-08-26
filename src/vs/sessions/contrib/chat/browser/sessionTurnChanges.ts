@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { constObservable, derived, IObservable } from '../../../../base/common/observable.js';
+import { constObservable, derived, derivedOpts, IObservable } from '../../../../base/common/observable.js';
 import { extUriBiasedIgnorePathCase, isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
-import { AbstractChatResponseFileChangesService, IChatResponseFileChangesOpenContext } from '../../../../workbench/contrib/chat/browser/chatResponseFileChangesService.js';
+import { AbstractChatResponseFileChangesService, IChatResponseFileChangesOpenContext, IChatResponseFileChangesStats } from '../../../../workbench/contrib/chat/browser/chatResponseFileChangesService.js';
 import { IEditSessionEntryDiff } from '../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
@@ -16,12 +16,19 @@ import { ISessionsService } from '../../../services/sessions/browser/sessionsSer
 import { IChat, ISession, ISessionChangeset, ISessionFileChange, TURN_CHANGES_CHANGESET_ID } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionChangesEditorOptions, ISessionChangesService } from '../../changes/browser/sessionChangesService.js';
+import { IChangesViewService } from '../../changes/common/changesViewService.js';
 
 interface ISessionTransientTurnChanges {
 	readonly id: string;
 	readonly label: string;
 	readonly description: string;
 	readonly changes: IObservable<readonly ISessionFileChange[]>;
+}
+
+const EMPTY_CHANGE_STATS: IChatResponseFileChangesStats = { files: 0, insertions: 0, deletions: 0 };
+
+function changeStatsEqual(a: IChatResponseFileChangesStats, b: IChatResponseFileChangesStats): boolean {
+	return a.files === b.files && a.insertions === b.insertions && a.deletions === b.deletions;
 }
 
 /** Opens response changes in the canonical Agents Changes editor. */
@@ -32,8 +39,40 @@ export class SessionsChatResponseFileChangesService extends AbstractChatResponse
 		@ISessionsService private readonly _sessionsService: ISessionsService,
 		@ISessionChangesService private readonly _sessionChangesService: ISessionChangesService,
 		@IAgentWorkbenchLayoutService private readonly _layoutService: IAgentWorkbenchLayoutService,
+		@IChangesViewService private readonly _changesViewService: IChangesViewService,
 	) {
 		super();
+	}
+
+	override getChangeStatsForRequest(sessionResource: URI, _requestId: string, context: IChatResponseFileChangesOpenContext): IObservable<IChatResponseFileChangesStats> | undefined {
+		if (!context.isLastTurn) {
+			return undefined;
+		}
+		const owner = this._sessionsManagementService.getSessionForChatResource(sessionResource);
+		if (!owner
+			|| !this._isMostRecentChat(owner.session, owner.chat)
+			|| !isEqual(this._changesViewService.activeSessionResourceObs.get(), owner.session.resource)) {
+			return undefined;
+		}
+
+		return derivedOpts<IChatResponseFileChangesStats>({ equalsFn: changeStatsEqual }, reader => {
+			if (!isEqual(this._changesViewService.activeSessionResourceObs.read(reader), owner.session.resource)) {
+				return EMPTY_CHANGE_STATS;
+			}
+			const changeset = this._changesViewService.activeSessionChangesetsObs.read(reader)
+				?.find(candidate => candidate.id === TURN_CHANGES_CHANGESET_ID && candidate.isEnabled.read(reader));
+			if (!changeset || changeset.isLoadingChanges.read(reader)) {
+				return EMPTY_CHANGE_STATS;
+			}
+
+			const changes = changeset.changes.read(reader);
+			let insertions = 0, deletions = 0;
+			for (const change of changes) {
+				insertions += change.insertions;
+				deletions += change.deletions;
+			}
+			return { files: changes.length, insertions, deletions };
+		});
 	}
 
 	override openChangesForRequest(chatResource: URI, requestId: string | undefined, context: IChatResponseFileChangesOpenContext): void {
