@@ -1422,13 +1422,14 @@ suite('AgentHostProtocolClient', () => {
 	test('getSessionStateFile maps the returned host resource', async () => {
 		const { client, transport } = createClient();
 		const session = URI.parse('copilotcli:/session-1');
-		const resultPromise = client.getSessionStateFile(session);
+		const chat = URI.parse(buildChatUri(session, 'peer-1'));
+		const resultPromise = client.getSessionStateFile(session, chat);
 
 		assert.deepStrictEqual(transport.sentMessages[0], {
 			jsonrpc: '2.0',
 			id: 1,
 			method: 'vscode/getAgentHostSessionStateFile',
-			params: { session: session.toString() },
+			params: { session: session.toString(), chat: chat.toString() },
 		});
 
 		transport.fireMessage({

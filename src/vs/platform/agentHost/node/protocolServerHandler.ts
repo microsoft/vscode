@@ -1711,7 +1711,23 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				if (!AgentSession.provider(session)) {
 					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'session must be an Agent Session URI'));
 				}
-				return this._agentService.getSessionStateFile(session).then(resource => ({ resource: resource?.toString() }));
+				const chatParam = params['chat'];
+				let chat: URI | undefined;
+				if (chatParam !== undefined) {
+					if (typeof chatParam !== 'string') {
+						return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'chat must be a URI string'));
+					}
+					try {
+						chat = URI.parse(chatParam, true);
+					} catch {
+						return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'chat must be a valid URI string'));
+					}
+					const parsedChat = parseChatUri(chat);
+					if (!parsedChat || parsedChat.session !== session.toString()) {
+						return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'chat must belong to the requested Agent Session'));
+					}
+				}
+				return this._agentService.getSessionStateFile(session, chat).then(resource => ({ resource: resource?.toString() }));
 			}
 			case CollectAgentHostDebugLogsExtensionMethod: {
 				if (!this._agentService.collectDebugLogs) {

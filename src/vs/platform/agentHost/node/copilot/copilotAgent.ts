@@ -2374,8 +2374,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return processLogsTarget.collectDebugLogs(outputDirectory, false);
 	}
 
-	async getSessionStateFile(session: URI): Promise<URI | undefined> {
-		const resource = URI.file(join(getCopilotHomePath(this._environmentService.userHome.fsPath, process.env), 'session-state', this._sdkConversationId(session), 'events.jsonl'));
+	async getSessionStateFile(session: URI, chat?: URI): Promise<URI | undefined> {
+		const sdkConversationId = chat
+			? this._findChatByUri(chat)?.sessionId ?? this._chatBackings.get(chat.toString())?.sdkSessionId
+			: this._sdkConversationId(session);
+		if (!sdkConversationId) {
+			return undefined;
+		}
+		const resource = URI.file(join(getCopilotHomePath(this._environmentService.userHome.fsPath, process.env), 'session-state', sdkConversationId, 'events.jsonl'));
 		return await this._fileService.exists(resource) ? resource : undefined;
 	}
 

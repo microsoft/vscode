@@ -24,7 +24,7 @@ export interface IAgentHostExtensionCommandMap {
 	'getManagedSettingsDiagnostics': { params: undefined; result: readonly IAgentHostManagedSettingsDiagnostics[] };
 	'diagnosticsFetch': { params: { url: string }; result: IAgentHostNetworkFetchResult };
 	[GetAgentHostSessionStateFileExtensionMethod]: {
-		params: { session: string };
+		params: { session: string; chat?: string };
 		result: { resource?: string };
 	};
 	[CollectAgentHostDebugLogsExtensionMethod]: {

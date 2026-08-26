@@ -149,7 +149,7 @@ class MockAgentService implements IAgentService {
 	readonly listedSessions: IAgentSessionMetadata[] = [];
 	readonly createSessionConfigs: (IAgentCreateSessionConfig | undefined)[] = [];
 	managedSettingsDiagnostics: readonly IAgentHostManagedSettingsDiagnostics[] = [];
-	readonly getSessionStateFileCalls: string[] = [];
+	readonly getSessionStateFileCalls: { session: string; chat: string | undefined }[] = [];
 	readonly collectDebugLogsCalls: { session: string | undefined; chat: string | undefined; kind: 'archive' | 'directory' }[] = [];
 	shutdownCalls = 0;
 	createSessionBarrier: DeferredPromise<void> | undefined;
@@ -228,8 +228,8 @@ class MockAgentService implements IAgentService {
 	async getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo> { return { version: 'test', os: 'test', arch: 'test', proxySettings: {}, proxyEnv: {}, endpoints: [] }; }
 	async getManagedSettingsDiagnostics(): Promise<readonly IAgentHostManagedSettingsDiagnostics[]> { return this.managedSettingsDiagnostics; }
 	async diagnosticsFetch(url: string): Promise<IAgentHostNetworkFetchResult> { return { url }; }
-	async getSessionStateFile(session: URI): Promise<URI | undefined> {
-		this.getSessionStateFileCalls.push(session.toString());
+	async getSessionStateFile(session: URI, chat?: URI): Promise<URI | undefined> {
+		this.getSessionStateFileCalls.push({ session: session.toString(), chat: chat?.toString() });
 		return URI.file('/state/sdk-session/events.jsonl');
 	}
 	async collectDebugLogs(session: URI | undefined, kind: 'archive' | 'directory', chat?: URI) {
@@ -665,9 +665,11 @@ suite('ProtocolServerHandler', () => {
 		const transport = connectClient('client-session-state-file');
 		transport.sent.length = 0;
 		const responsePromise = waitForResponse(transport, 17);
+		const chat = buildChatUri('copilotcli:/session-1', 'peer-1');
 
 		transport.simulateMessage(request(17, 'vscode/getAgentHostSessionStateFile', {
 			session: 'copilotcli:/session-1',
+			chat,
 		}));
 
 		assert.deepStrictEqual({
@@ -679,7 +681,7 @@ suite('ProtocolServerHandler', () => {
 				id: 17,
 				result: { resource: 'file:///state/sdk-session/events.jsonl' },
 			},
-			calls: ['copilotcli:/session-1'],
+			calls: [{ session: 'copilotcli:/session-1', chat }],
 		});
 	});
 

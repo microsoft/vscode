@@ -18,7 +18,8 @@ import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 
 /**
  * Shared implementation of "Open Agent Host State File". Asks the Agent Host
- * connection that owns the session for its provider-owned state file.
+ * connection that owns the session for its provider-owned state file,
+ * optionally targeting a chat within that session.
  *
  * Both the workbench-side action (uses `IChatWidgetService`) and the
  * sessions-app-side action (uses `ISessionsService`) call into
@@ -27,6 +28,7 @@ import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 export async function openAgentHostStateFile(
 	accessor: ServicesAccessor,
 	sessionResource: URI | undefined,
+	backendChatResource?: URI,
 ): Promise<void> {
 	const connectionsService = accessor.get(IAgentHostConnectionsService);
 	const editorService = accessor.get(IEditorService);
@@ -44,7 +46,7 @@ export async function openAgentHostStateFile(
 	}
 
 	try {
-		const stateFile = await sessionResolution.connection.getSessionStateFile(sessionResolution.backendSession);
+		const stateFile = await sessionResolution.connection.getSessionStateFile(sessionResolution.backendSession, backendChatResource);
 		if (!stateFile) {
 			notificationService.info(localize('openAgentHostStateFile.noStateFile', "The active Agent Host session does not expose a state file."));
 			return;

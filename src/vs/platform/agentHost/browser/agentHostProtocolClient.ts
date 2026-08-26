@@ -1134,9 +1134,10 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		return this._sendExtensionRequest('getManagedSettingsDiagnostics');
 	}
 
-	async getSessionStateFile(session: URI): Promise<URI | undefined> {
+	async getSessionStateFile(session: URI, chat?: URI): Promise<URI | undefined> {
 		const result = await this._sendExtensionRequest(GetAgentHostSessionStateFileExtensionMethod, {
 			session: session.toString(),
+			chat: chat?.toString(),
 		});
 		if (!result.resource) {
 			return undefined;
