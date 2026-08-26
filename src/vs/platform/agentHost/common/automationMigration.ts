@@ -6,7 +6,6 @@
 export const AGENT_HOST_AUTOMATION_MIGRATION_CONFIG_KEY = 'vscode.automationMigration';
 export const AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY = 'automationsEnabled';
 export const AGENT_HOST_AUTOMATION_RUN_TIMEOUT_MINUTES_CONFIG_KEY = 'automationRunTimeoutMinutes';
-export const AGENT_HOST_LEGACY_AUTOMATION_META_KEY = 'vscode.legacyAutomation';
 export const AGENT_HOST_LEGACY_AUTOMATION_IMPORT_META_KEY = 'vscode.legacyAutomationImport';
 export const AGENT_HOST_LEGACY_AUTOMATION_IMPORT_PENDING_META_KEY = 'vscode.legacyAutomationImportPending';
 export const AGENT_HOST_AUTOMATION_CATALOG_MIGRATED_META_KEY = 'vscode.migrationCompleted';

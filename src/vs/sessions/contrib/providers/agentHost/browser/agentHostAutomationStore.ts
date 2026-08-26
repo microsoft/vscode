@@ -12,8 +12,8 @@ import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
 import { type IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
-import { AGENT_HOST_AUTOMATION_MIGRATION_CONFIG_KEY, AGENT_HOST_LEGACY_AUTOMATION_IMPORT_META_KEY, AGENT_HOST_LEGACY_AUTOMATION_IMPORT_PENDING_META_KEY, AGENT_HOST_LEGACY_AUTOMATION_META_KEY } from '../../../../../platform/agentHost/common/automationMigration.js';
-import { isAgentHostAutomationCatalogMigrated, isAgentHostLegacyAutomationImport, isAgentHostLegacyAutomationImportPending, readAgentHostLegacyAutomationProjectionMeta, type IAgentHostLegacyAutomationProjectionMeta } from '../../../../../platform/agentHost/common/meta/automationMeta.js';
+import { AGENT_HOST_AUTOMATION_MIGRATION_CONFIG_KEY, AGENT_HOST_LEGACY_AUTOMATION_IMPORT_META_KEY, AGENT_HOST_LEGACY_AUTOMATION_IMPORT_PENDING_META_KEY } from '../../../../../platform/agentHost/common/automationMigration.js';
+import { isAgentHostAutomationCatalogMigrated, isAgentHostLegacyAutomationImport, isAgentHostLegacyAutomationImportPending } from '../../../../../platform/agentHost/common/meta/automationMeta.js';
 import { SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { type IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionType } from '../../../../../platform/agentHost/common/state/sessionActions.js';
@@ -24,7 +24,6 @@ import { IStorageService, StorageScope } from '../../../../../platform/storage/c
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import type { AutomationRunTrigger, AutomationTarget, IAutomationDescriptor, IAutomationRun, IAutomationSchedule } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { type AutomationMutationGuard, type IAutomationRunClaim, type ICreateAutomationOptions, type IGuardedAutomationUpdateResult, serializeAutomationEditableState, type IUpdateAutomationOptions, type IUpdateAutomationRunOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
-import { computeNextRunAt } from '../../../../../workbench/contrib/chat/common/automations/schedule.js';
 import { publishAutomationMigration } from '../../../../../workbench/contrib/chat/common/automations/automationTelemetry.js';
 import type { IAutomation, IAutomationSnapshotImportResult, IGuardedAutomationSnapshotRemovalResult, ISessionsProviderAutomations } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IAutomationStorageService } from '../../../automations/common/automationStorageService.js';
@@ -62,6 +61,7 @@ export interface IAgentHostAutomationBoundaryMapper {
 	fromHost(resource: URI): URI;
 	resourceSchemeForProvider(provider: string): string;
 	providerForSessionScheme?(scheme: string): string;
+	providerForResourceScheme?(scheme: string): string | undefined;
 }
 
 export class AgentHostAutomationStore extends Disposable implements ISessionsProviderAutomations {
@@ -199,7 +199,6 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 			enabled: options.enabled ?? true,
 			createdAt: now.toISOString(),
 			updatedAt: now.toISOString(),
-			nextRunAt: computeNextRunAt(options.schedule, now)?.toISOString(),
 		};
 		const state = await this._createDescriptor(descriptor);
 		return this._requireProjectedAutomation(state);
@@ -256,7 +255,8 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		const existing = this._findAutomationState(snapshot.automation.id);
 		if (existing) {
 			const current = this._requireProjectedAutomation(existing);
-			if (serializeAutomationEditableState(current) !== serializeAutomationEditableState(snapshot.automation)) {
+			const expected = this._canonicalDescriptor(snapshot.automation, existing);
+			if (serializeAutomationEditableState(current) !== serializeAutomationEditableState(expected)) {
 				if (isAgentHostLegacyAutomationImport(existing.definition)) {
 					await this._replaceDescriptor(snapshot.automation, true, importPending);
 					await this._archiveRuns(snapshot.runs);
@@ -295,7 +295,8 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 			return { kind: 'missing' };
 		}
 		const projected = this._requireProjectedAutomation(current);
-		if (serializeAutomationEditableState(projected) !== serializeAutomationEditableState(expected.automation)) {
+		const canonicalExpected = this._canonicalDescriptor(expected.automation, current);
+		if (serializeAutomationEditableState(projected) !== serializeAutomationEditableState(canonicalExpected)) {
 			return { kind: 'conflict', current: { automation: projected, runs: this._projectRunsFor(current.resource) } };
 		}
 		await this.deleteAutomation(expected.automation.id);
@@ -350,6 +351,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		};
 	}
 
+	// Projects an Agent Host session resource into the editor-facing provider scheme.
 	private _projectSessionResource(resource: string): URI {
 		const session = URI.parse(resource);
 		const provider = this._boundaryMapper?.providerForSessionScheme?.(session.scheme) ?? session.scheme;
@@ -567,6 +569,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		}
 	}
 
+	// Projects the Agent Host catalogue into editor-facing Automation descriptors.
 	private _projectAutomations(): IAutomationDescriptor[] {
 		const catalog = this._catalog.value;
 		if (!catalog || catalog instanceof Error) {
@@ -578,6 +581,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 			.sort((first, second) => second.createdAt.localeCompare(first.createdAt));
 	}
 
+	// Projects Agent Host run summaries into editor-facing Automation runs.
 	private _projectRuns(): IAutomationRun[] {
 		const catalog = this._catalog.value;
 		if (!catalog || catalog instanceof Error) {
@@ -589,15 +593,16 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 			.sort((first, second) => second.startedAt.localeCompare(first.startedAt));
 	}
 
+	// Projects one Agent Host Automation's run summaries into editor-facing runs.
 	private _projectRunsFor(resource: string): IAutomationRun[] {
 		return this._findAutomationStateByResource(resource)?.runs.map(run => this._projectRun(run)) ?? [];
 	}
 
+	// Projects Agent Host Automation state into the editor-facing Automation model.
 	private _projectAutomation(state: AutomationState | undefined): IAutomationDescriptor | undefined {
 		if (!state) {
 			return undefined;
 		}
-		const projection = readAgentHostLegacyAutomationProjectionMeta(state.definition);
 		const target = this._projectTarget(state.definition);
 		if (!target) {
 			this._logService.warn(`[AgentHostAutomationStore] Cannot project Automation with no provider: resource=${state.resource}.`);
@@ -609,19 +614,20 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 			id: automationId(state.resource),
 			name: state.definition.title,
 			prompt: state.definition.message.text,
-			schedule: projection?.schedule ?? { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+			schedule: projectSchedule(state.definition.triggers),
 			target,
-			modelId: projection?.modelId ?? this._projectModelId(state.definition.session.model?.id, state.definition.session.provider),
+			modelId: this._projectModelId(state.definition.session.model?.id, state.definition.session.provider),
 			mode: readString(config?.[SessionConfigKey.Mode]),
 			permissionLevel: readString(config?.[SessionConfigKey.AutoApprove]),
 			enabled: state.definition.enabled,
-			createdAt: projection?.createdAt ?? state.createdAt,
-			updatedAt: projection?.updatedAt ?? state.modifiedAt,
+			createdAt: state.createdAt,
+			updatedAt: state.modifiedAt,
 			lastRunAt: newestRun?.lifecycle.createdAt,
-			nextRunAt: state.nextRunAt ?? projection?.nextRunAt,
+			nextRunAt: state.nextRunAt,
 		};
 	}
 
+	// Projects an Agent Host session template into an editor-facing Automation target.
 	private _projectTarget(definition: AutomationDefinition): AutomationTarget | undefined {
 		const provider = definition.session.provider;
 		const directory = definition.session.workingDirectories?.[0];
@@ -643,6 +649,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		};
 	}
 
+	// Projects an Agent Host run summary into the editor-facing Automation run model.
 	private _projectRun(run: AutomationRunSummary): IAutomationRun {
 		const lifecycle = run.lifecycle;
 		const primarySession = run.primarySession ? this._projectSessionResource(run.primarySession) : undefined;
@@ -727,6 +734,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 			throw new Error(`Automation does not exist: ${descriptor.id}`);
 		}
 		const definition = this._definitionFromDescriptor(descriptor, current.definition, imported, importPending);
+		const expected = this._requireProjectedAutomation({ ...current, definition });
 		const state = await this._dispatchAndWait(
 			{
 				type: ActionType.AutomationUpdateRequested,
@@ -744,7 +752,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 				const state = catalog.automations.find(automation => automation.resource === resource);
 				const projected = this._projectAutomation(state);
 				if (projected === undefined
-					|| serializeAutomationEditableState(projected) !== serializeAutomationEditableState(descriptor)) {
+					|| serializeAutomationEditableState(projected) !== serializeAutomationEditableState(expected)) {
 					return false;
 				}
 				// The pending flag lives on definition._meta, which the
@@ -768,6 +776,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 
 	private _definitionFromDescriptor(descriptor: IAutomationDescriptor, existing?: AutomationDefinition, imported = false, importPending?: boolean): AutomationDefinition {
 		const config = { ...existing?.session.config };
+		const provider = descriptor.target.sessionTypeId ?? this._providerFromModelId(descriptor.modelId);
 		setOptional(config, SessionConfigKey.Mode, descriptor.mode);
 		setOptional(config, SessionConfigKey.AutoApprove, descriptor.permissionLevel);
 		if (descriptor.target.kind === 'workspace') {
@@ -777,16 +786,8 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 			setOptional(config, SessionConfigKey.Isolation, undefined);
 			setOptional(config, SessionConfigKey.Branch, undefined);
 		}
-		const projection: IAgentHostLegacyAutomationProjectionMeta = {
-			schedule: descriptor.schedule,
-			createdAt: descriptor.createdAt,
-			updatedAt: descriptor.updatedAt,
-			nextRunAt: descriptor.nextRunAt,
-			modelId: descriptor.modelId,
-		};
 		const meta: Record<string, unknown> = {
 			...existing?._meta,
-			[AGENT_HOST_LEGACY_AUTOMATION_META_KEY]: projection,
 			...((imported || isAgentHostLegacyAutomationImport(existing)) ? { [AGENT_HOST_LEGACY_AUTOMATION_IMPORT_META_KEY]: true } : {}),
 		};
 		if (importPending === true) {
@@ -798,8 +799,8 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 			title: descriptor.name,
 			message: { text: descriptor.prompt, origin: { kind: MessageKind.Automation } },
 			session: {
-				provider: descriptor.target.sessionTypeId,
-				model: descriptor.modelId ? { id: this._toHostModelId(descriptor.modelId, descriptor.target.sessionTypeId) } : undefined,
+				provider,
+				model: descriptor.modelId ? { id: this._toHostModelId(descriptor.modelId, provider) } : undefined,
 				workingDirectories: descriptor.target.kind === 'workspace'
 					? [(this._boundaryMapper?.toHost(descriptor.target.folderUri) ?? descriptor.target.folderUri).toString()]
 					: undefined,
@@ -807,7 +808,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 			},
 			enabled: descriptor.enabled,
 			triggers: scheduleTrigger(descriptor.schedule),
-			_meta: meta,
+			_meta: Object.keys(meta).length > 0 ? meta : undefined,
 		};
 	}
 
@@ -817,16 +818,18 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		if (prefix && modelId.startsWith(prefix)) {
 			return modelId.slice(prefix.length);
 		}
-		if (!provider) {
-			const separator = modelId.indexOf(':');
-			const target = separator > 0 ? modelId.slice(0, separator) : undefined;
-			if (target?.startsWith('agent-host-') || target?.startsWith('remote-')) {
-				return modelId.slice(separator + 1);
-			}
-		}
 		return modelId;
 	}
 
+	private _providerFromModelId(modelId: string | undefined): string | undefined {
+		if (!modelId) {
+			return undefined;
+		}
+		const separator = modelId.indexOf(':');
+		return separator > 0 ? this._boundaryMapper?.providerForResourceScheme?.(modelId.slice(0, separator)) : undefined;
+	}
+
+	// Projects an Agent Host model identifier into the editor-facing provider namespace.
 	private _projectModelId(modelId: string | undefined, provider: string | undefined): string | undefined {
 		if (!modelId) {
 			return undefined;
@@ -834,6 +837,11 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		const resourceScheme = provider ? this._boundaryMapper?.resourceSchemeForProvider(provider) : undefined;
 		const prefix = resourceScheme ? `${resourceScheme}:` : undefined;
 		return prefix && !modelId.startsWith(prefix) ? `${prefix}${modelId}` : modelId;
+	}
+
+	private _canonicalDescriptor(descriptor: IAutomationDescriptor, state: AutomationState): IAutomationDescriptor {
+		const definition = this._definitionFromDescriptor(descriptor, state.definition);
+		return this._requireProjectedAutomation({ ...state, definition });
 	}
 
 	private _applyPatch(current: IAutomationDescriptor, patch: IUpdateAutomationOptions): IAutomationDescriptor {
@@ -856,9 +864,6 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 			permissionLevel: patch.permissionLevel === null ? undefined : patch.permissionLevel ?? current.permissionLevel,
 			enabled,
 			updatedAt: now.toISOString(),
-			nextRunAt: patch.schedule !== undefined || (patch.enabled !== undefined && enabled)
-				? computeNextRunAt(schedule, now)?.toISOString()
-				: current.nextRunAt,
 		};
 	}
 
@@ -1030,6 +1035,44 @@ function isTerminalRun(run: AutomationRunSummary): boolean {
 	return run.lifecycle.status === AutomationRunStatus.Completed
 		|| run.lifecycle.status === AutomationRunStatus.Failed
 		|| run.lifecycle.status === AutomationRunStatus.Cancelled;
+}
+
+// Projects Agent Host triggers into the editor-facing schedule model.
+function projectSchedule(triggers: AutomationDefinition['triggers']): IAutomationSchedule {
+	const trigger = triggers.find(trigger => trigger.kind === AutomationTriggerKind.Schedule);
+	if (!trigger) {
+		return { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 };
+	}
+	const [minuteValue, hourValue, dayOfMonth, month, dayValue, ...remaining] = trigger.schedule.expression.trim().split(/\s+/);
+	if (remaining.length > 0 || dayOfMonth !== '*' || month !== '*') {
+		return { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 };
+	}
+	const scheduleMinute = parseCronValue(minuteValue, 0, 59);
+	if (scheduleMinute === undefined) {
+		return { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 };
+	}
+	if (hourValue === '*' && dayValue === '*') {
+		return { interval: 'hourly', scheduleHour: 0, scheduleMinute, scheduleDay: 0 };
+	}
+	const scheduleHour = parseCronValue(hourValue, 0, 23);
+	if (scheduleHour === undefined) {
+		return { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 };
+	}
+	if (dayValue === '*') {
+		return { interval: 'daily', scheduleHour, scheduleMinute, scheduleDay: 0 };
+	}
+	const scheduleDay = parseCronValue(dayValue, 0, 6);
+	return scheduleDay === undefined
+		? { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 }
+		: { interval: 'weekly', scheduleHour, scheduleMinute, scheduleDay };
+}
+
+function parseCronValue(value: string | undefined, minimum: number, maximum: number): number | undefined {
+	if (!value || !/^\d+$/.test(value)) {
+		return undefined;
+	}
+	const parsed = Number(value);
+	return parsed >= minimum && parsed <= maximum ? parsed : undefined;
 }
 
 function scheduleTrigger(schedule: IAutomationSchedule): AutomationDefinition['triggers'] {

@@ -43,7 +43,7 @@ import { ReconnectableAgentHostAutomationStore } from '../../agentHost/browser/r
 import type { ISessionsProviderAutomations } from '../../../../services/sessions/common/sessionsProvider.js';
 import { AutomationStore } from '../../../automations/browser/automationService.js';
 import { providerAutomationStorageKey } from '../../../automations/common/automationStorageService.js';
-import { remoteAgentHostSessionTypeId } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
+import { remoteAgentHostSessionTypeAuthorityPrefix, remoteAgentHostSessionTypeId } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
 
 /** Storage key prefix for cached session summaries, per remote address. */
 const CACHED_SESSIONS_STORAGE_PREFIX = 'remoteAgentHost.cachedSessions.v2.';
@@ -222,6 +222,10 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 			fromHost: resource => toAgentHostUri(resource, this._connectionAuthority),
 			resourceSchemeForProvider: provider => this.resourceSchemeForProvider(provider),
 			providerForSessionScheme: scheme => this._sessionSchemeAlias?.backend === scheme ? this._sessionSchemeAlias.ui : scheme,
+			providerForResourceScheme: scheme => {
+				const prefix = remoteAgentHostSessionTypeAuthorityPrefix(this._connectionAuthority);
+				return scheme.startsWith(prefix) ? scheme.slice(prefix.length) : undefined;
+			},
 		}));
 		this.automations = this._automationStore;
 

@@ -14,10 +14,10 @@ import { runWithFakedTimers } from '../../../../../../base/test/common/timeTrave
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import type { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
-import { AGENT_HOST_AUTOMATION_MIGRATION_CONFIG_KEY, AGENT_HOST_LEGACY_AUTOMATION_IMPORT_PENDING_META_KEY } from '../../../../../../platform/agentHost/common/automationMigration.js';
+import { AGENT_HOST_AUTOMATION_MIGRATION_CONFIG_KEY, AGENT_HOST_LEGACY_AUTOMATION_IMPORT_META_KEY, AGENT_HOST_LEGACY_AUTOMATION_IMPORT_PENDING_META_KEY } from '../../../../../../platform/agentHost/common/automationMigration.js';
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionType, type ActionEnvelope } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import { AutomationOperation, AutomationRunOriginKind, AutomationRunStatus, MessageKind, type AutomationCatalogState, type AutomationState, type RootState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { AutomationOperation, AutomationRunOriginKind, AutomationRunStatus, AutomationTriggerKind, MessageKind, type AutomationCatalogState, type AutomationState, type RootState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { AUTOMATION_CATALOG_URI, ROOT_STATE_URI, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import type { InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/common/commands.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -330,7 +330,7 @@ suite('AgentHostAutomationStore', () => {
 				id,
 				name: id,
 				prompt: 'Review history.',
-				schedule: { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+				schedule: { interval: 'manual', scheduleHour: 9, scheduleMinute: 30, scheduleDay: 1 },
 				target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'mock' },
 				enabled: true,
 				createdAt: '2026-01-01T00:00:00.000Z',
@@ -360,25 +360,33 @@ suite('AgentHostAutomationStore', () => {
 		const automation = await store.createAutomation({
 			name: 'Review changes',
 			prompt: 'Review the current changes.',
-			schedule: { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+			schedule: { interval: 'daily', scheduleHour: 9, scheduleMinute: 30, scheduleDay: 0 },
 			target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'mock' },
 		});
+		const create = connection.dispatched[0].action;
+		const trigger = create.type === ActionType.AutomationCreateRequested ? create.definition.triggers[0] : undefined;
 
 		assert.deepStrictEqual({
 			subscribedChannel: connection.subscribedChannel,
 			dispatchChannel: connection.dispatched[0].channel,
+			definitionMeta: create.type === ActionType.AutomationCreateRequested ? create.definition._meta : undefined,
+			triggerExpression: trigger?.kind === AutomationTriggerKind.Schedule ? trigger.schedule.expression : undefined,
 			automation: {
 				name: automation.name,
 				prompt: automation.prompt,
+				schedule: automation.schedule,
 				target: automation.target,
 				enabled: automation.enabled,
 			},
 		}, {
 			subscribedChannel: AUTOMATION_CATALOG_URI,
 			dispatchChannel: AUTOMATION_CATALOG_URI,
+			definitionMeta: undefined,
+			triggerExpression: '30 9 * * *',
 			automation: {
 				name: 'Review changes',
 				prompt: 'Review the current changes.',
+				schedule: { interval: 'daily', scheduleHour: 9, scheduleMinute: 30, scheduleDay: 0 },
 				target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'mock' },
 				enabled: true,
 			},
@@ -411,6 +419,31 @@ suite('AgentHostAutomationStore', () => {
 				status: 'complete',
 				resources: [],
 			},
+		});
+	});
+
+	test('canonicalizes irrelevant schedule fields when updating an interval', async () => {
+		const connection = new TestAutomationConnection(true);
+		disposables.add(connection);
+		const storage = disposables.add(new InMemoryStorageService());
+		const automationStorage = new TestAutomationStorageService(storage);
+		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, undefined, new NullLogService(), storage, NullTelemetryService, automationStorage));
+		const automation = await store.createAutomation({
+			name: 'Scheduled review',
+			prompt: 'Review changes.',
+			schedule: { interval: 'daily', scheduleHour: 9, scheduleMinute: 30, scheduleDay: 0 },
+			target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'mock' },
+		});
+
+		const updated = await store.updateAutomation(automation.id, {
+			schedule: { interval: 'manual', scheduleHour: 9, scheduleMinute: 30, scheduleDay: 1 },
+		});
+
+		assert.deepStrictEqual(updated.schedule, {
+			interval: 'manual',
+			scheduleHour: 0,
+			scheduleMinute: 0,
+			scheduleDay: 0,
 		});
 	});
 
@@ -487,6 +520,7 @@ suite('AgentHostAutomationStore', () => {
 			toHost: resource => resource,
 			fromHost: resource => resource,
 			resourceSchemeForProvider: provider => `agent-host-${provider}`,
+			providerForResourceScheme: scheme => scheme.startsWith('agent-host-') ? scheme.slice('agent-host-'.length) : undefined,
 		}, new NullLogService(), storage, NullTelemetryService, automationStorage));
 
 		const automation = await store.createAutomation({
@@ -516,6 +550,7 @@ suite('AgentHostAutomationStore', () => {
 			toHost: resource => resource,
 			fromHost: resource => resource,
 			resourceSchemeForProvider: provider => `agent-host-${provider}`,
+			providerForResourceScheme: scheme => scheme.startsWith('agent-host-') ? scheme.slice('agent-host-'.length) : undefined,
 		}, new NullLogService(), storage, NullTelemetryService, automationStorage));
 		const automation = await store.createAutomation({
 			name: 'Retargeted',
@@ -548,6 +583,7 @@ suite('AgentHostAutomationStore', () => {
 			toHost: resource => resource,
 			fromHost: resource => resource,
 			resourceSchemeForProvider: provider => `agent-host-${provider}`,
+			providerForResourceScheme: scheme => scheme.startsWith('agent-host-') ? scheme.slice('agent-host-'.length) : undefined,
 		}, new NullLogService(), storage, NullTelemetryService, automationStorage));
 		const folderUri = URI.file('/workspace');
 
@@ -570,11 +606,13 @@ suite('AgentHostAutomationStore', () => {
 			.filter(action => action.type === ActionType.AutomationCreateRequested);
 
 		assert.deepStrictEqual({
+			hostProviders: createActions.map(action => action.definition.session.provider),
 			hostModels: createActions.map(action => action.definition.session.model?.id),
 			clientModels: [defaultProvider.modelId, nativeColon.modelId],
 		}, {
+			hostProviders: ['copilotcli', 'copilotcli'],
 			hostModels: ['auto', 'openai/gpt-5:high'],
-			clientModels: ['agent-host-copilotcli:auto', 'openai/gpt-5:high'],
+			clientModels: ['agent-host-copilotcli:auto', 'agent-host-copilotcli:openai/gpt-5:high'],
 		});
 	});
 
@@ -936,15 +974,23 @@ suite('AgentHostAutomationStore', () => {
 		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, legacy, undefined, new NullLogService(), storage, NullTelemetryService, automationStorage));
 
 		await store.completeMigration();
+		const migrationUpdate = [...connection.dispatched].reverse()
+			.map(entry => entry.action)
+			.find(action => action.type === ActionType.AutomationUpdateRequested);
+		const trigger = migrationUpdate?.type === ActionType.AutomationUpdateRequested ? migrationUpdate.changes.triggers?.[0] : undefined;
 
 		assert.deepStrictEqual({
 			legacyAutomations: legacy.automations.get(),
 			migratedNames: store.automations.get().map(candidate => candidate.name),
 			archivedRunIds: store.runs.get().map(run => run.id),
+			definitionMeta: migrationUpdate?.type === ActionType.AutomationUpdateRequested ? migrationUpdate.changes._meta : undefined,
+			triggerExpression: trigger?.kind === AutomationTriggerKind.Schedule ? trigger.schedule.expression : undefined,
 		}, {
 			legacyAutomations: [],
 			migratedNames: ['Scheduled review'],
 			archivedRunIds: [claim.run.id],
+			definitionMeta: { [AGENT_HOST_LEGACY_AUTOMATION_IMPORT_META_KEY]: true },
+			triggerExpression: '30 9 * * *',
 		});
 	});
 

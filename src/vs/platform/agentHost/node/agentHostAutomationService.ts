@@ -24,7 +24,7 @@ import { IAgentHostStateManager, type AgentHostStateManager } from './agentHostS
 import { IAgentHostStorageService } from './agentHostStorageService.js';
 import { nextAutomationCronOccurrence, validateAutomationCron } from './automationCron.js';
 import { AGENT_HOST_AUTOMATION_CATALOG_MIGRATED_META_KEY, AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY, AGENT_HOST_AUTOMATION_RUN_TIMEOUT_MINUTES_CONFIG_KEY } from '../common/automationMigration.js';
-import { readAgentHostLegacyAutomationProjectionMeta, isAgentHostLegacyAutomationImportPending } from '../common/meta/automationMeta.js';
+import { isAgentHostLegacyAutomationImportPending } from '../common/meta/automationMeta.js';
 
 const STORAGE_KEY = 'automations';
 const SCHEDULE_CURSORS_META_KEY = 'vscode.scheduleCursors';
@@ -243,7 +243,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 	private async _handleCreate(action: AutomationCreateRequestedAction): Promise<void> {
 		const catalog = this._requireCatalog();
 		this._validateAutomationResource(action.resource);
-		const definition = normalizeLegacyVsCodeAutomationModel(action.definition);
+		const definition = action.definition;
 		this._validateDefinition(definition);
 		const existing = catalog.automations.find(automation => automation.resource === action.resource);
 		if (existing && equals(existing.definition, definition)) {
@@ -289,10 +289,10 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 
 		let automation: AutomationState = {
 			...existing,
-			definition: normalizeLegacyVsCodeAutomationModel({
+			definition: {
 				...existing.definition,
 				...action.changes,
-			}),
+			},
 			modifiedAt: new Date().toISOString(),
 		};
 		this._validateDefinition(automation.definition);
@@ -420,21 +420,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 			this._logService.error('[AgentHostAutomationService] Automation storage is invalid; automation execution remains unavailable until it is recovered.');
 			return undefined;
 		}
-		let normalizedCount = 0;
-		const automations = stored.catalog.automations.map(automation => {
-			const definition = normalizeLegacyVsCodeAutomationModel(automation.definition);
-			if (definition === automation.definition) {
-				return automation;
-			}
-			normalizedCount++;
-			return { ...automation, definition };
-		});
-		if (normalizedCount > 0) {
-			this._logService.warn(`[AgentHostAutomationService] Normalized ${normalizedCount} legacy VS Code Automation model identifier(s).`);
-		}
-		return normalizedCount > 0
-			? { ...stored, catalog: { ...stored.catalog, automations } }
-			: stored;
+		return stored;
 	}
 
 	private async _persist(
@@ -476,13 +462,10 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 
 	private _withInitialScheduleState(automation: AutomationState, now: Date): AutomationState {
 		const cursors: Record<string, string> = {};
-		const legacyNextRunAt = readLegacyNextRunAt(automation.definition);
 		if (automation.definition.enabled) {
 			for (const trigger of automation.definition.triggers) {
 				if (trigger.kind === AutomationTriggerKind.Schedule) {
-					cursors[trigger.id] = trigger.id === 'schedule' && legacyNextRunAt
-						? legacyNextRunAt
-						: nextAutomationCronOccurrence(trigger.schedule.expression, trigger.schedule.timeZone, now).toISOString();
+					cursors[trigger.id] = nextAutomationCronOccurrence(trigger.schedule.expression, trigger.schedule.timeZone, now).toISOString();
 				}
 			}
 		}
@@ -1093,41 +1076,4 @@ function earliestCursor(cursors: Readonly<Record<string, string>>): string | und
 	return Object.values(cursors)
 		.filter(cursor => Number.isFinite(Date.parse(cursor)))
 		.sort((first, second) => Date.parse(first) - Date.parse(second))[0];
-}
-
-function readLegacyNextRunAt(definition: AutomationDefinition): string | undefined {
-	const nextRunAt = readAgentHostLegacyAutomationProjectionMeta(definition)?.nextRunAt;
-	return typeof nextRunAt === 'string' && Number.isFinite(Date.parse(nextRunAt)) ? nextRunAt : undefined;
-}
-
-function normalizeLegacyVsCodeAutomationModel(definition: AutomationDefinition): AutomationDefinition {
-	const provider = definition.session.provider;
-	const model = definition.session.model;
-	if (!model) {
-		return definition;
-	}
-	const separator = model.id.indexOf(':');
-	if (separator <= 0 || separator === model.id.length - 1) {
-		return definition;
-	}
-	const target = model.id.slice(0, separator);
-	const isProviderTarget = provider !== undefined
-		&& (target === `agent-host-${provider}` || (target.startsWith('remote-') && target.endsWith(`-${provider}`)));
-	const projectedModelId = readAgentHostLegacyAutomationProjectionMeta(definition)?.modelId;
-	const isProjectedDefaultProviderTarget = provider === undefined
-		&& projectedModelId === model.id
-		&& (target.startsWith('agent-host-') || target.startsWith('remote-'));
-	if (!isProviderTarget && !isProjectedDefaultProviderTarget) {
-		return definition;
-	}
-	return {
-		...definition,
-		session: {
-			...definition.session,
-			model: {
-				...model,
-				id: model.id.slice(separator + 1),
-			},
-		},
-	};
 }

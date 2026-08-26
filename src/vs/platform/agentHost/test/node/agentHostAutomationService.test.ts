@@ -12,7 +12,7 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { AGENT_HOST_AUTOMATION_CATALOG_MIGRATED_META_KEY, AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY, AGENT_HOST_AUTOMATION_RUN_TIMEOUT_MINUTES_CONFIG_KEY, AGENT_HOST_LEGACY_AUTOMATION_IMPORT_PENDING_META_KEY, AGENT_HOST_LEGACY_AUTOMATION_META_KEY } from '../../common/automationMigration.js';
+import { AGENT_HOST_AUTOMATION_CATALOG_MIGRATED_META_KEY, AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY, AGENT_HOST_AUTOMATION_RUN_TIMEOUT_MINUTES_CONFIG_KEY, AGENT_HOST_LEGACY_AUTOMATION_IMPORT_PENDING_META_KEY } from '../../common/automationMigration.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { AutomationMisfirePolicy, AutomationOperation, AutomationTriggerKind, type AutomationDefinition } from '../../common/state/protocol/channels-automation/state.js';
 import { AutomationRunOriginKind, AutomationRunStatus, type AutomationRunState } from '../../common/state/protocol/channels-automation-run/state.js';
@@ -131,121 +131,6 @@ suite('AgentHostAutomationService', () => {
 		});
 	});
 
-	test('normalizes persisted VS Code model identifiers before session creation', async () => {
-		const timestamp = new Date().toISOString();
-		storageService.set('automations', {
-			version: 1,
-			catalog: {
-				automations: [
-					{
-						resource: 'ahp-automation:/legacy-model',
-						definition: {
-							...definition(),
-							session: {
-								provider: 'copilotcli',
-								model: { id: 'agent-host-copilotcli:auto' },
-							},
-						},
-						runs: [],
-						operations: [AutomationOperation.Update, AutomationOperation.Remove, AutomationOperation.Run],
-						createdAt: timestamp,
-						modifiedAt: timestamp,
-					},
-					{
-						resource: 'ahp-automation:/remote-model',
-						definition: {
-							...definition(),
-							session: {
-								provider: 'copilotcli',
-								model: { id: 'remote-ssh__example-copilotcli:gpt-5.6-sol' },
-							},
-						},
-						runs: [],
-						operations: [AutomationOperation.Update, AutomationOperation.Remove, AutomationOperation.Run],
-						createdAt: timestamp,
-						modifiedAt: timestamp,
-					},
-					{
-						resource: 'ahp-automation:/native-colon-model',
-						definition: {
-							...definition(),
-							session: {
-								provider: 'copilotcli',
-								model: { id: 'anthropic:claude-sonnet' },
-							},
-						},
-						runs: [],
-						operations: [AutomationOperation.Update, AutomationOperation.Remove, AutomationOperation.Run],
-						createdAt: timestamp,
-						modifiedAt: timestamp,
-					},
-					{
-						resource: 'ahp-automation:/default-provider-model',
-						definition: {
-							...definition(),
-							session: { model: { id: 'agent-host-copilotcli:auto' } },
-							_meta: {
-								[AGENT_HOST_LEGACY_AUTOMATION_META_KEY]: {
-									schedule: { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
-									createdAt: timestamp,
-									updatedAt: timestamp,
-									modelId: 'agent-host-copilotcli:auto',
-								},
-							},
-						},
-						runs: [],
-						operations: [AutomationOperation.Update, AutomationOperation.Remove, AutomationOperation.Run],
-						createdAt: timestamp,
-						modifiedAt: timestamp,
-					},
-				],
-			},
-			runs: [],
-			manualRunRequests: [],
-			migration: { status: 'complete', completedAt: timestamp },
-		});
-		await storageService.whenIdle();
-		const session = URI.parse('mock:/normalized-model');
-		const createdModel = new DeferredPromise<string | undefined>();
-		const service = createService({
-			createSession: async template => {
-				await createdModel.complete(template.model?.id);
-				stateManager.createSession({
-					resource: session.toString(),
-					provider: 'copilotcli',
-					title: '',
-					status: SessionStatus.Idle,
-					createdAt: timestamp,
-					modifiedAt: timestamp,
-				});
-				return session;
-			},
-			startSession: async () => { },
-		});
-
-		await service.runAutomation({
-			channel: 'ahp-automations://catalog',
-			automation: 'ahp-automation:/legacy-model',
-			requestId: 'legacy-model-run',
-		});
-
-		assert.deepStrictEqual({
-			catalogModels: Object.fromEntries(stateManager.getAutomationCatalogState()?.automations.map(automation => [
-				automation.resource,
-				automation.definition.session.model?.id,
-			]) ?? []),
-			createdModel: await createdModel.p,
-		}, {
-			catalogModels: {
-				'ahp-automation:/legacy-model': 'auto',
-				'ahp-automation:/remote-model': 'gpt-5.6-sol',
-				'ahp-automation:/native-colon-model': 'anthropic:claude-sonnet',
-				'ahp-automation:/default-provider-model': 'auto',
-			},
-			createdModel: 'auto',
-		});
-	});
-
 	test('failed catalogue persistence publishes nothing and a retry creates one entry', async () => {
 		const service = createService();
 		await service.completeMigration();
@@ -296,33 +181,6 @@ suite('AgentHostAutomationService', () => {
 			AutomationOperation.Remove,
 			AutomationOperation.Run,
 		]);
-	});
-
-	test('migration preserves the legacy next occurrence for host catch-up evaluation', async () => {
-		const service = createService();
-		const nextRunAt = new Date(Date.now() - 60_000).toISOString();
-		await service.handleCreate({
-			type: ActionType.AutomationCreateRequested,
-			resource: 'ahp-automation:/scheduled-migration',
-			definition: {
-				...definition(),
-				triggers: [{
-					id: 'schedule',
-					kind: AutomationTriggerKind.Schedule,
-					schedule: { expression: '30 9 * * *', timeZone: 'UTC' },
-				}],
-				_meta: {
-					[AGENT_HOST_LEGACY_AUTOMATION_META_KEY]: {
-						schedule: { interval: 'daily', scheduleHour: 9, scheduleMinute: 30, scheduleDay: 0 },
-						createdAt: nextRunAt,
-						updatedAt: nextRunAt,
-						nextRunAt,
-					},
-				},
-			},
-		});
-
-		assert.strictEqual(stateManager.getAutomationCatalogState()?.automations[0].nextRunAt, nextRunAt);
 	});
 
 	test('feature disablement removes run permission and blocks execution in the host', async () => {
