@@ -428,8 +428,47 @@ pre code {
 /** Theming */
 
 pre {
+	position: relative;
 	background-color: var(--vscode-textCodeBlock-background);
 	border: 1px solid var(--vscode-widget-border);
+}
+
+/* Code block copy button */
+.code-block-copy-button {
+	position: absolute;
+	top: 8px;
+	right: 8px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 28px;
+	height: 28px;
+	padding: 0;
+	border: 1px solid var(--vscode-widget-border, rgba(127, 127, 127, 0.35));
+	border-radius: 4px;
+	background-color: var(--vscode-textCodeBlock-background, var(--vscode-editor-background));
+	color: var(--vscode-editor-foreground);
+	cursor: pointer;
+	opacity: 0;
+	transition: opacity 0.15s ease;
+}
+
+pre:hover > .code-block-copy-button,
+.code-block-copy-button:focus {
+	opacity: 1;
+}
+
+.code-block-copy-button:hover {
+	background-color: var(--vscode-toolbar-hoverBackground, rgba(90, 93, 94, 0.31));
+}
+
+.code-block-copy-button:active {
+	background-color: var(--vscode-toolbar-activeBackground, rgba(99, 102, 103, 0.31));
+}
+
+.code-block-copy-button.copied {
+	color: var(--vscode-testing-iconPassed, #73c991);
+	opacity: 1;
 }
 
 .vscode-high-contrast h1 {

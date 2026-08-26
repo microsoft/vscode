@@ -6,21 +6,31 @@
 import { Schemas } from '../../../../../base/common/network.js';
 import { joinPath } from '../../../../../base/common/resources.js';
 import { hasKey } from '../../../../../base/common/types.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
+import { AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES } from '../../../../../platform/agentHost/common/agentService.js';
 import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { INativeEnvironmentService } from '../../../../../platform/environment/common/environment.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
-import { INativeHostService } from '../../../../../platform/native/common/native.js';
-import { IAgentHostDebugLogFile, IAgentHostDebugLogsExportService } from '../../browser/actions/exportAgentHostDebugLogsAction.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
+import { INativeHostService, type INativeZipFile } from '../../../../../platform/native/common/native.js';
+import { createHostArtifactStream, IAgentHostDebugLogFile, IAgentHostDebugLogsExportService, type IAgentHostDebugLogsHostArtifact } from '../../browser/actions/exportAgentHostDebugLogsAction.js';
 
 class NativeAgentHostDebugLogsExportService implements IAgentHostDebugLogsExportService {
 	declare readonly _serviceBrand: undefined;
+	readonly hostArtifactKind = 'archive';
 
 	constructor(
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
+		@IFileService private readonly fileService: IFileService,
+		@INativeEnvironmentService private readonly environmentService: INativeEnvironmentService,
 		@INativeHostService private readonly nativeHostService: INativeHostService,
+		@ILogService private readonly logService: ILogService,
 	) { }
 
-	async save(exportName: string, files: readonly IAgentHostDebugLogFile[]): Promise<boolean> {
+	async save(exportName: string, files: readonly IAgentHostDebugLogFile[], hostArtifact: IAgentHostDebugLogsHostArtifact | undefined): Promise<boolean> {
 		const defaultUri = joinPath(await this.fileDialogService.preferredHome(Schemas.file), `${exportName}.zip`);
 		const saveUri = await this.fileDialogService.showSaveDialog({
 			title: localize('exportDebugLogs.saveDialogTitle', "Export Agent Host Debug Logs"),
@@ -33,11 +43,56 @@ class NativeAgentHostDebugLogsExportService implements IAgentHostDebugLogsExport
 			return false;
 		}
 
-		await this.nativeHostService.createZipFile(saveUri, files.map(file => {
+		const zipFiles: INativeZipFile[] = files.map(file => {
 			return hasKey(file, { contents: true })
 				? file
-				: { path: file.path, source: file.resource, size: file.size };
-		}));
+				: { path: file.path, source: file.resource.scheme === Schemas.vscodeUserData ? file.resource.with({ scheme: Schemas.file }) : file.resource, size: file.size, skipSourceErrors: true };
+		});
+		const zipOptions = { maxEntries: AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES };
+		let hostArchiveIncluded = false;
+		let temporaryHostArchive: URI | undefined;
+		try {
+			if (hostArtifact) {
+				try {
+					const { artifact, readChunk } = hostArtifact;
+					if (artifact.kind !== 'archive') {
+						throw new Error(`Expected an Agent Host debug-log archive, got ${artifact.kind}`);
+					}
+					let localHostArchive = artifact.resource;
+					if (artifact.resource.scheme !== Schemas.file) {
+						// The archive lives on a remote agent host. Stream it down in
+						// bounded chunks rather than pulling the whole thing over in a
+						// single protocol message.
+						localHostArchive = joinPath(this.environmentService.tmpDir, `agent-host-debug-logs-${generateUuid()}.zip`);
+						temporaryHostArchive = localHostArchive;
+						await this.fileService.writeFile(localHostArchive, createHostArtifactStream(artifact, position => readChunk(artifact.resource, position)));
+					}
+					zipFiles.push({ sourceArchive: localHostArchive });
+					hostArchiveIncluded = true;
+				} catch (error) {
+					this.logService.warn(`[ExportAgentHostDebugLogs] Failed to save Agent Host logs: ${error instanceof Error ? error.message : String(error)}; saving client-owned logs only`);
+				}
+			}
+			try {
+				await this.nativeHostService.createZipFile(saveUri, zipFiles, zipOptions);
+			} catch (error) {
+				if (!hostArchiveIncluded) {
+					throw error;
+				}
+				this.logService.warn(`[ExportAgentHostDebugLogs] Failed to merge Agent Host logs: ${error instanceof Error ? error.message : String(error)}; saving client-owned logs only`);
+				await this.nativeHostService.createZipFile(saveUri, zipFiles.slice(0, -1), zipOptions);
+			}
+		} finally {
+			if (temporaryHostArchive) {
+				// Best-effort: the download may have failed before the file was
+				// created, and a cleanup failure must never mask that error.
+				try {
+					await this.fileService.del(temporaryHostArchive);
+				} catch (error) {
+					this.logService.warn(`[ExportAgentHostDebugLogs] Failed to remove temporary host archive: ${error instanceof Error ? error.message : String(error)}`);
+				}
+			}
+		}
 		return true;
 	}
 }

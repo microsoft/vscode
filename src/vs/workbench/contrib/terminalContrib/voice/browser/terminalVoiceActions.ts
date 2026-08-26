@@ -10,8 +10,6 @@ import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/cont
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IExtensionManagementService } from '../../../../../platform/extensionManagement/common/extensionManagement.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { KeyCode } from '../../../../../base/common/keyCodes.js';
-import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { EnablementState, IWorkbenchExtensionEnablementService } from '../../../../services/extensionManagement/common/extensionManagement.js';
 import { HasSpeechProvider, SpeechToTextInProgress } from '../../../speech/common/speechService.js';
 import { IChatSpeechToTextService } from '../../../chat/browser/speechToText/chatSpeechToTextService.js';
@@ -28,13 +26,20 @@ export function registerTerminalVoiceActions() {
 		title: localize2('workbench.action.terminal.startDictation', "Start Dictation in Terminal"),
 		category: VOICE_CATEGORY,
 		precondition: ContextKeyExpr.and(
-			SpeechToTextInProgress.toNegated(),
+			// Keep the toggle available for terminal dictation, but not unrelated speech-to-text sessions.
+			ContextKeyExpr.or(SpeechToTextInProgress.toNegated(), TerminalContextKeys.terminalDictationInProgress),
 			sharedWhenClause.terminalAvailable
 		),
 		f1: true,
 		icon: Codicon.mic,
 		run: async (activeInstance, c, accessor) => {
 			const contextKeyService = accessor.get(IContextKeyService);
+			// Toggle: invoking the command again while dictation is in progress
+			// stops it and keeps the transcribed text, mirroring the chat input.
+			if (TerminalContextKeys.terminalDictationInProgress.getValue(contextKeyService)) {
+				TerminalVoiceSession.getInstance(accessor.get(IInstantiationService)).stop(true);
+				return;
+			}
 			const commandService = accessor.get(ICommandService);
 			const dialogService = accessor.get(IDialogService);
 			const workbenchExtensionEnablementService = accessor.get(IWorkbenchExtensionEnablementService);
@@ -76,10 +81,6 @@ export function registerTerminalVoiceActions() {
 		category: VOICE_CATEGORY,
 		precondition: TerminalContextKeys.terminalDictationInProgress,
 		f1: true,
-		keybinding: {
-			primary: KeyCode.Escape,
-			weight: KeybindingWeight.WorkbenchContrib + 100
-		},
 		run: (activeInstance, c, accessor) => {
 			const instantiationService = accessor.get(IInstantiationService);
 			TerminalVoiceSession.getInstance(instantiationService).stop(true);

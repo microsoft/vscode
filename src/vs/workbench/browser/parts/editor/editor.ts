@@ -33,6 +33,7 @@ export const DEFAULT_EDITOR_PART_OPTIONS: IEditorPartOptions = {
 	showTabs: 'multiple',
 	highlightModifiedTabs: false,
 	tabActionLocation: 'right',
+	tabActionReserveSpace: true,
 	tabActionCloseVisibility: true,
 	tabActionUnpinVisibility: true,
 	showTabIndex: false,
@@ -127,6 +128,7 @@ function validateEditorPartOptions(options: IEditorPartOptions): IEditorPartOpti
 		'wrapTabs': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS['wrapTabs']),
 		'scrollToSwitchTabs': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS['scrollToSwitchTabs']),
 		'highlightModifiedTabs': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS['highlightModifiedTabs']),
+		'tabActionReserveSpace': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS['tabActionReserveSpace']),
 		'tabActionCloseVisibility': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS['tabActionCloseVisibility']),
 		'tabActionUnpinVisibility': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS['tabActionUnpinVisibility']),
 		'showTabIndex': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS['showTabIndex']),
@@ -263,9 +265,12 @@ export interface IEditorGroupViewOptions {
 
 	/**
 	 * Optional menu ids used by the group header and tab bar. When unset the
-	 * workbench uses the shared defaults and renders no full-width header.
+	 * workbench uses the shared defaults and renders no custom header actions.
 	 */
 	readonly menuIds?: IEditorGroupMenuIds;
+
+	/** Shows the full-width group header with its configured actions and breadcrumbs. */
+	readonly showHeader?: boolean;
 }
 
 export interface IEditorGroupMenuIds {
@@ -273,6 +278,8 @@ export interface IEditorGroupMenuIds {
 	readonly headerPrimary?: MenuId;
 	/** Menu whose actions render as the trailing (right) header toolbar. */
 	readonly headerSecondary?: MenuId;
+	/** Menu whose actions render after the trailing header toolbar. */
+	readonly headerLayout?: MenuId;
 	/** Menu whose actions render in the editor-actions toolbar on the tab bar. */
 	readonly editorActions?: MenuId;
 	/** Menu shown when right-clicking the empty tab-bar area. */
@@ -440,6 +447,12 @@ export interface IInternalEditorCloseOptions extends IInternalEditorTitleControl
 	 * Additional context as to why an editor is closed.
 	 */
 	readonly context?: EditorCloseContext;
+
+	/**
+	 * Forces the editor to close even if it declares
+	 * `EditorInputCapabilities.CannotClose`.
+	 */
+	readonly force?: boolean;
 }
 
 export interface IInternalMoveCopyOptions extends IInternalEditorOpenOptions {

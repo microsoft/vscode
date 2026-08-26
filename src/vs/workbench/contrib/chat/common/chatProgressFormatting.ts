@@ -43,6 +43,12 @@ export function formatElapsedTime(ms: number): string {
 	return localize('minutesSeconds', "{0}m {1}s", minutes, seconds);
 }
 
+export function formatChatResponseElapsedTime(elapsedMs: number | undefined): string | undefined {
+	return typeof elapsedMs === 'number' && elapsedMs >= 1000
+		? formatElapsedTime(elapsedMs)
+		: undefined;
+}
+
 export function formatChatRequestTimestamp(timestamp: number | undefined): IFormattedChatRequestTimestamp | undefined {
 	if (timestamp === undefined || !Number.isFinite(timestamp) || timestamp <= 0) {
 		return undefined;

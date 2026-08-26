@@ -6,7 +6,7 @@ rounds:
           type: chat/turnStarted
           turnId: ${turn_0}
           message:
-            text: Read nested/value.txt and reply with its exact contents only.
+            text: Read nested/value.txt and reply with its exact contents only. Use your file tools; do not run a shell command.
             origin:
               kind: user
     serverToClient:
@@ -15,7 +15,7 @@ rounds:
           type: chat/turnStarted
           turnId: ${turn_0}
           message:
-            text: Read nested/value.txt and reply with its exact contents only.
+            text: Read nested/value.txt and reply with its exact contents only. Use your file tools; do not run a shell command.
             origin:
               kind: user
       - channel: ${session_0}
@@ -31,7 +31,7 @@ rounds:
           turnId: ${turn_0}
           part:
             kind: markdown
-            content: I'll read the file.
+            content: I'll read the file for you.
       - channel: ${chat_0}
         action:
           type: chat/toolCallStart

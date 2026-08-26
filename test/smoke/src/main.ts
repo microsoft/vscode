@@ -34,6 +34,7 @@ import { setup as setupChatSessionsTests } from './areas/chat/chatSessions.test'
 import { setup as setupChatModelConfigTests } from './areas/chat/chatModelConfig.test';
 import { setup as setupAccessibilityTests } from './areas/accessibility/accessibility.test';
 import { setup as setupAgentsWindowTests } from './areas/agentsWindow/agentsWindow.test';
+import { setup as setupBrowserViewTests } from './areas/browserView/browserView.test';
 
 const rootPath = path.join(__dirname, '..', '..', '..');
 
@@ -370,14 +371,15 @@ async function setup(): Promise<void> {
 	}
 	await measureAndLog(() => setupRepository(), 'setupRepository', logger);
 
-	// Copy smoke test extension for extension host restart test
 	if (!opts.web && !opts.remote) {
-		const smokeExtPath = path.join(rootPath, 'test', 'smoke', 'extensions', 'vscode-smoketest-ext-host');
-		const dest = path.join(extensionsPath, 'vscode-smoketest-ext-host');
-		if (fs.existsSync(dest)) {
-			fs.rmSync(dest, { recursive: true, force: true });
+		for (const extension of ['vscode-smoketest-ext-host', 'vscode-smoketest-language-pack-de']) {
+			const smokeExtensionPath = path.join(rootPath, 'test', 'smoke', 'extensions', extension);
+			const destination = path.join(extensionsPath, extension);
+			if (fs.existsSync(destination)) {
+				fs.rmSync(destination, { recursive: true, force: true });
+			}
+			fs.cpSync(smokeExtensionPath, destination, { recursive: true });
 		}
-		fs.cpSync(smokeExtPath, dest, { recursive: true });
 	}
 
 	logger.log('Smoketest setup done!\n');
@@ -442,5 +444,6 @@ describe(`VSCode Smoke Tests (${opts.web ? 'Web' : 'Electron'})`, () => {
 	if (!opts.web && !opts.remote) { setupChatSessionsTests(logger); }
 	if (!opts.web && !opts.remote) { setupChatModelConfigTests(logger); }
 	if (!opts.web && !opts.remote) { setupAgentsWindowTests(logger); }
+	if (!opts.web && !opts.remote) { setupBrowserViewTests(logger); }
 	setupAccessibilityTests(logger, opts, quality);
 });

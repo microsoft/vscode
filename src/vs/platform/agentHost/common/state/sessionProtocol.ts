@@ -16,11 +16,17 @@
 export type {
 	JsonRpcErrorResponse,
 	JsonRpcNotification,
-	JsonRpcParseErrorResponse,
 	JsonRpcRequest,
 	JsonRpcResponse,
 	JsonRpcSuccessResponse,
 } from './protocol/messages.js';
+
+/** A JSON-RPC parse error cannot identify the request that failed to parse. */
+export interface JsonRpcParseErrorResponse {
+	readonly jsonrpc: '2.0';
+	readonly id: null;
+	readonly error: JsonRpcErrorResponse['error'];
+}
 
 // Typed message unions
 export type {
@@ -102,6 +108,12 @@ export const AHP_TURN_IN_PROGRESS = -32004 as const;
 export const AHP_UNSUPPORTED_PROTOCOL_VERSION = -32005 as const;
 export const AHP_CONTENT_NOT_FOUND = -32006 as const;
 export const AHP_AUTH_REQUIRED = -32007 as const;
+
+/**
+ * A named resource does not exist on the host. Not always a failure: a client may address a
+ * session it is about to create.
+ */
+export const AHP_NOT_FOUND = -32008 as const;
 
 // ---- Type guards -----------------------------------------------------------
 

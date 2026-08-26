@@ -7,7 +7,9 @@ import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../configuration/common/configuration.js';
-import { AgentHostByokModelsEnabledEnvVar, AgentHostCodexAgentEnabledSettingId, AgentSession, AgentHostOTelEnvVars, buildAgentHostOTelEnv, buildAgentSdkEnv, ClaudePreferAgentHostAgentsSettingId, ClaudePreferAgentHostEditorSettingId, CodexPreferAgentHostEditorSettingId, isAgentEnabled, readAgentHostOTelPolicySettings, sanitizeAgentHostOTelPolicySettings, shouldSurfaceLocalAgentHostProvider } from '../../common/agentService.js';
+import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE, protectedResourcesRequireGitHubCopilotSignIn } from '../../common/agent.js';
+import { AgentHostClaudeAgentEnabledSettingId, AgentHostCodexAgentEnabledSettingId, AgentHostOTelEnvVars, buildAgentHostOTelEnv, CodexPreferAgentHostEditorSettingId, isAgentEnabled, readAgentHostOTelPolicySettings, sanitizeAgentHostOTelPolicySettings, shouldSurfaceLocalAgentHostProvider } from '../../common/agentService.js';
+import type { ProtectedResourceMetadata } from '../../common/state/protocol/state.js';
 import { buildChatUri, buildDefaultChatUri, resolveChatUri } from '../../common/state/sessionState.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 
@@ -74,10 +76,9 @@ suite('shouldSurfaceLocalAgentHostProvider', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('uses provider- and window-specific availability settings', () => {
+	test('surfaces enabled providers and uses window-specific Codex settings', () => {
 		const configurationService = new TestConfigurationService({
-			[ClaudePreferAgentHostAgentsSettingId]: true,
-			[ClaudePreferAgentHostEditorSettingId]: false,
+			[AgentHostClaudeAgentEnabledSettingId]: true,
 			[AgentHostCodexAgentEnabledSettingId]: true,
 			[CodexPreferAgentHostEditorSettingId]: true,
 		});
@@ -90,23 +91,40 @@ suite('shouldSurfaceLocalAgentHostProvider', () => {
 			otherProvider: shouldSurfaceLocalAgentHostProvider('copilot', configurationService, true),
 		}, {
 			agentsClaude: true,
-			editorClaude: false,
+			editorClaude: true,
 			agentsCodex: true,
 			editorCodex: true,
 			otherProvider: true,
 		});
 	});
 
-	test('hides Codex from the Agents window when the provider is disabled', () => {
+	test('surfaces Claude when the setting is absent, matching its default', () => {
+		const configurationService = new TestConfigurationService();
+
+		assert.deepStrictEqual({
+			agentsClaude: shouldSurfaceLocalAgentHostProvider('claude', configurationService, true),
+			editorClaude: shouldSurfaceLocalAgentHostProvider('claude', configurationService, false),
+		}, {
+			agentsClaude: true,
+			editorClaude: true,
+		});
+	});
+
+	test('hides disabled providers in their governed windows', () => {
 		const configurationService = new TestConfigurationService({
+			[AgentHostClaudeAgentEnabledSettingId]: false,
 			[AgentHostCodexAgentEnabledSettingId]: false,
 			[CodexPreferAgentHostEditorSettingId]: true,
 		});
 
 		assert.deepStrictEqual({
+			agentsClaude: shouldSurfaceLocalAgentHostProvider('claude', configurationService, true),
+			editorClaude: shouldSurfaceLocalAgentHostProvider('claude', configurationService, false),
 			agentsCodex: shouldSurfaceLocalAgentHostProvider('codex', configurationService, true),
 			editorCodex: shouldSurfaceLocalAgentHostProvider('codex', configurationService, false),
 		}, {
+			agentsClaude: false,
+			editorClaude: false,
 			agentsCodex: false,
 			editorCodex: true,
 		});
@@ -303,27 +321,45 @@ suite('resolveChatUri', () => {
 	});
 });
 
-suite('buildAgentSdkEnv (BYOK gate forwarding)', () => {
+suite('protectedResourcesRequireGitHubCopilotSignIn', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('forwards byokModelsEnabled=true as the enable env var', () => {
-		const env = buildAgentSdkEnv({ byokModelsEnabled: true }, {});
-		assert.strictEqual(env[AgentHostByokModelsEnabledEnvVar], 'true');
+	const githubCopilotWithoutRequired: ProtectedResourceMetadata = { resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource };
+	const githubCopilotRequiredFalse: ProtectedResourceMetadata = { ...GITHUB_COPILOT_PROTECTED_RESOURCE, required: false };
+	const otherRequiredResource: ProtectedResourceMetadata = { resource: 'https://api.openai.com', required: true };
+
+	test('derives the requirement from advertised protected resources', () => {
+		const scenarios: Record<string, ProtectedResourceMetadata[]> = {
+			// Proxy-mode Copilot / Claude: advertises the resource as required.
+			copilotRequired: [GITHUB_COPILOT_PROTECTED_RESOURCE],
+			// Absent `required` is treated the same as `true`.
+			copilotRequiredAbsent: [githubCopilotWithoutRequired],
+			// An agent that advertises no protected resources at all.
+			noResourcesAdvertised: [],
+			// Codex on OpenAI: advertises the resource but marks it optional.
+			copilotRequiredFalse: [githubCopilotRequiredFalse],
+			// Only unrelated resources are advertised.
+			onlyOtherResource: [otherRequiredResource],
+			// Mixed: an optional GitHub Copilot resource alongside a required other one.
+			optionalCopilotWithOtherRequired: [githubCopilotRequiredFalse, otherRequiredResource],
+		};
+
+		const result = Object.fromEntries(
+			Object.entries(scenarios).map(([name, resources]) => [name, protectedResourcesRequireGitHubCopilotSignIn(resources)]),
+		);
+
+		assert.deepStrictEqual(result, {
+			copilotRequired: true,
+			copilotRequiredAbsent: true,
+			noResourcesAdvertised: false,
+			copilotRequiredFalse: false,
+			onlyOtherResource: false,
+			optionalCopilotWithOtherRequired: false,
+		});
 	});
 
-	test('forwards byokModelsEnabled=false as the disable env var', () => {
-		const env = buildAgentSdkEnv({ byokModelsEnabled: false }, {});
-		assert.strictEqual(env[AgentHostByokModelsEnabledEnvVar], 'false');
-	});
-
-	test('omits the env var when byokModelsEnabled is undefined', () => {
-		const env = buildAgentSdkEnv({}, {});
-		assert.strictEqual(env[AgentHostByokModelsEnabledEnvVar], undefined);
-	});
-
-	test('lets an inherited env var win over the setting (developer override)', () => {
-		const env = buildAgentSdkEnv({ byokModelsEnabled: true }, { [AgentHostByokModelsEnabledEnvVar]: 'false' });
-		assert.strictEqual(env[AgentHostByokModelsEnabledEnvVar], undefined);
+	test('the GitHub repo resource alone does not require Copilot sign-in', () => {
+		assert.strictEqual(protectedResourcesRequireGitHubCopilotSignIn([GITHUB_REPO_PROTECTED_RESOURCE]), false);
 	});
 });

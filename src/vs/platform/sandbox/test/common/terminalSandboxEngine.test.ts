@@ -122,6 +122,7 @@ suite('TerminalSandboxEngine', () => {
 			getUserHome: () => Promise.resolve(URI.file('/home/user')),
 			getSandboxTempDir: () => Promise.resolve(URI.file('/home/user/.test-data/tmp')),
 			getWorkspaceStorageReadRoot: () => Promise.resolve(undefined),
+			getReadRoots: () => [],
 			getWriteRoots: () => [URI.file('/workspace')],
 			onDidChangeRoots: rootsEmitter.event,
 			checkSandboxDependencies: (): Promise<ISandboxDependencyStatus | undefined> => Promise.resolve({ bubblewrapInstalled: true, bubblewrapUsable: true, socatInstalled: true }),
@@ -242,6 +243,24 @@ suite('TerminalSandboxEngine', () => {
 		strictEqual(Object.prototype.hasOwnProperty.call(config, 'allowPty'), false);
 	});
 
+	test('sandbox config includes host read roots without granting write access', async () => {
+		const engine = store.add(instantiationService.createInstance(TerminalSandboxEngine, createHost({
+			getReadRoots: () => [URI.file('/home/user/copilot-terminal-output')],
+		})));
+
+		const configPath = await engine.getSandboxConfigPath();
+		ok(configPath, 'Config path should be defined');
+		const config = JSON.parse(createdFiles.get(configPath)!);
+
+		deepStrictEqual({
+			allowRead: config.filesystem.allowRead.includes('/home/user/copilot-terminal-output'),
+			allowWrite: config.filesystem.allowWrite.includes('/home/user/copilot-terminal-output'),
+		}, {
+			allowRead: true,
+			allowWrite: false,
+		});
+	});
+
 	test('sandbox config respects explicitly disabled PTY access on macOS', async () => {
 		setSandboxSetting(AgentSandboxSettingId.AgentSandboxAdvancedRuntime, { allowPty: false });
 		const host = createHost({ getOS: () => Promise.resolve(OperatingSystem.Macintosh) });
@@ -306,6 +325,18 @@ suite('TerminalSandboxEngine', () => {
 		strictEqual(wrapped.isSandboxWrapped, true);
 		strictEqual(wrapped.requiresAllowNetworkConfirmation, undefined);
 		deepStrictEqual(config.network, { allowedDomains: [], deniedDomains: [] });
+	});
+
+	test('unsandboxed retry preserves the original working directory on Linux', async () => {
+		setSandboxSetting(AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands, true);
+		const engine = store.add(instantiationService.createInstance(TerminalSandboxEngine, createHost()));
+		await engine.getSandboxConfigPath();
+
+		const wrapped = await engine.wrapCommand('pwd', true, 'bash', URI.file('/workspace/with spaces'));
+
+		strictEqual(wrapped.isSandboxWrapped, false);
+		ok(wrapped.command.includes(`/workspace/with spaces`), `Expected the unsandboxed command to include cwd. Actual: ${wrapped.command}`);
+		ok(wrapped.command.includes(`&& pwd`), `Expected the unsandboxed command to change to cwd before execution. Actual: ${wrapped.command}`);
 	});
 
 	test('blocked domains request sandboxed network access before execution when enabled', async () => {

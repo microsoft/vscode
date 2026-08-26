@@ -7,6 +7,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { dirname } from '../../../../../../base/common/resources.js';
 import { IFileService } from '../../../../../files/common/files.js';
 import { detectPluginFormat, readAgentComponents, readSkills, toParsedAgent, toParsedSkill, type INamedPluginResource, type IParsedAgent, type IParsedSkill } from '../../../../../agentPlugins/common/pluginParsers.js';
+import { CustomizationType } from '../../../../common/state/protocol/channels-session/state.js';
 
 /**
  * The `.claude/<sub>` directories one scope (project or user) contributes
@@ -54,6 +55,26 @@ async function excludeNativePluginSkills(skills: readonly INamedPluginResource[]
 	return skills.filter((_, i) => !isPluginDir[i]);
 }
 
+export async function scanClaudeCustomizationScope(
+	scope: URI,
+	fileService: IFileService,
+	includeCommands: boolean = true,
+): Promise<readonly (IParsedAgent | IParsedSkill)[]> {
+	const { agents: agentsDir, skills: skillsDir, commands: commandsDir } = scopeRoots(scope);
+	const [agentResources, skillResources, commandResources] = await Promise.all([
+		readAgentComponents([agentsDir], fileService),
+		readSkills(skillsDir, [skillsDir], fileService),
+		includeCommands ? readAgentComponents([commandsDir], fileService) : [],
+	]);
+	const agents = new Map<string, IParsedAgent>();
+	const skills = new Map<string, IParsedSkill>();
+	collectByName(agents, agentResources.map(toParsedAgent));
+	const standaloneSkills = await excludeNativePluginSkills(skillResources, fileService);
+	collectByName(skills, standaloneSkills.map(toParsedSkill));
+	collectByName(skills, commandResources.map(toParsedSkill));
+	return [...agents.values(), ...skills.values()];
+}
+
 /**
  * Scans a Claude session's `.claude/{agents,skills,commands}` directories
  * (project + user scope) and returns the discovered customizations with
@@ -84,21 +105,9 @@ export async function scanClaudeDiskCustomizations(
 	const skills = new Map<string, IParsedSkill>();
 
 	for (const scope of scopes) {
-		const { agents: agentsDir, skills: skillsDir, commands: commandsDir } = scopeRoots(scope);
-		const [agentRes, skillRes, commandRes] = await Promise.all([
-			readAgentComponents([agentsDir], fileService),
-			// pluginRoot = the skills dir itself, so the readSkills fallback
-			// targets `<skillsDir>/SKILL.md` (a legit single-skill dir), never
-			// an unrelated `<userHome>/SKILL.md`.
-			readSkills(skillsDir, [skillsDir], fileService),
-			readAgentComponents([commandsDir], fileService),
-		]);
-		collectByName(agents, agentRes.map(toParsedAgent));
-		// Skills before commands so a same-named skill wins (spec section 3).
-		// Drop `@skills-dir` plugin dirs first — they surface as plugins (PB-8).
-		const standaloneSkills = await excludeNativePluginSkills(skillRes, fileService);
-		collectByName(skills, standaloneSkills.map(toParsedSkill));
-		collectByName(skills, commandRes.map(toParsedSkill));
+		const discovered = await scanClaudeCustomizationScope(scope, fileService);
+		collectByName(agents, discovered.filter((item): item is IParsedAgent => item.customization.type === CustomizationType.Agent));
+		collectByName(skills, discovered.filter((item): item is IParsedSkill => item.customization.type === CustomizationType.Skill));
 	}
 
 	return [...agents.values(), ...skills.values()];

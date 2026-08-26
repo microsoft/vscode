@@ -72,6 +72,8 @@ export interface IActionListItemInlineToggle {
 	readonly onChange: (checked: boolean) => void;
 	/** Optional accessible/hover title for the switch. Defaults to {@link label}. */
 	readonly title?: string;
+	/** Whether the switch is read-only. */
+	readonly disabled?: boolean;
 }
 
 export interface IActionListItem<T> {
@@ -88,6 +90,10 @@ export interface IActionListItem<T> {
 	 * Optional inline toggle switch rendered on its own row inside the item.
 	 */
 	readonly inlineToggle?: IActionListItemInlineToggle;
+	/**
+	 * Optional toggle switch rendered on the same row as the label.
+	 */
+	readonly standaloneToggle?: IActionListItemInlineToggle;
 	readonly description?: string | IMarkdownString;
 	/**
 	 * Optional accessible description used in place of {@link description} for
@@ -108,6 +114,11 @@ export interface IActionListItem<T> {
 	readonly keybinding?: ResolvedKeybinding;
 	canPreview?: boolean | undefined;
 	readonly hideIcon?: boolean;
+	/**
+	 * CSS classes rendered in the item's icon slot, for icons that are not
+	 * codicons (e.g. themed file icons). Takes precedence over `group.icon`.
+	 */
+	readonly iconClasses?: readonly string[];
 	readonly tooltip?: string;
 	/**
 	 * Optional toolbar actions shown when the item is focused or hovered.
@@ -231,6 +242,7 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 		private readonly _groupTitleByIndex: ReadonlyMap<number, string>,
 		private readonly _linkHandler: ((uri: URI, item: IActionListItem<T>) => void) | undefined,
 		private readonly _hideDefaultKeybindingTooltip: boolean,
+		private readonly _registerStandaloneToggle: (item: IActionListItem<T>, toggle: Toggle) => IDisposable,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 	) { }
@@ -285,7 +297,10 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 		// Clear previous element disposables
 		data.elementDisposables.clear();
 
-		if (element.group?.icon) {
+		if (element.iconClasses?.length) {
+			data.icon.className = ['icon', ...element.iconClasses].join(' ');
+			data.icon.style.color = '';
+		} else if (element.group?.icon) {
 			data.icon.className = ThemeIcon.asClassName(element.group.icon);
 			if (element.group.icon.color) {
 				data.icon.style.color = asCssVariable(element.group.icon.color.id);
@@ -380,30 +395,40 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 
 		// Render optional inline toggle (shown as its own row below the detail)
 		dom.clearNode(data.inlineToggleContainer);
-		if (element.inlineToggle) {
-			const inlineToggle = element.inlineToggle;
+		const toggleConfig = element.standaloneToggle ?? element.inlineToggle;
+		if (toggleConfig) {
 			const toggleLabel = document.createElement('span');
 			toggleLabel.className = 'action-list-item-inline-toggle-label';
-			toggleLabel.textContent = stripNewlines(inlineToggle.label);
-			data.inlineToggleContainer.append(toggleLabel);
+			toggleLabel.textContent = stripNewlines(toggleConfig.label);
+			if (!element.standaloneToggle) {
+				data.inlineToggleContainer.append(toggleLabel);
+			}
 			data.inlineToggleContainer.style.display = '';
-			data.container.classList.add('has-inline-toggle');
+			data.container.classList.toggle('has-inline-toggle', !!element.inlineToggle);
+			data.container.classList.toggle('has-standalone-toggle', !!element.standaloneToggle);
 			const toggle = data.elementDisposables.add(new Toggle({
-				title: inlineToggle.title ?? inlineToggle.label,
-				isChecked: inlineToggle.checked,
+				title: toggleConfig.title ?? toggleConfig.label,
+				isChecked: toggleConfig.checked,
 				actionClassName: 'action-list-inline-switch',
 				notFocusable: false,
 				inputActiveOptionBorder: undefined,
 				inputActiveOptionForeground: undefined,
 				inputActiveOptionBackground: undefined,
 			}));
+			if (toggleConfig.disabled) {
+				toggle.disable();
+			}
 			data.inlineToggleContainer.append(toggle.domNode);
-			data.elementDisposables.add(toggle.onChange(() => inlineToggle.onChange(toggle.checked)));
+			if (element.standaloneToggle) {
+				data.elementDisposables.add(this._registerStandaloneToggle(element, toggle));
+			}
+			data.elementDisposables.add(toggle.onChange(() => toggleConfig.onChange(toggle.checked)));
 			// Keep clicks on the toggle row from selecting the item.
 			data.elementDisposables.add(dom.addDisposableListener(data.inlineToggleContainer, dom.EventType.CLICK, e => e.stopPropagation()));
 		} else {
 			data.inlineToggleContainer.style.display = 'none';
 			data.container.classList.remove('has-inline-toggle');
+			data.container.classList.remove('has-standalone-toggle');
 		}
 
 		const actionTitle = this._keybindingService.lookupKeybinding(acceptSelectedActionCommand)?.getLabel();
@@ -416,6 +441,8 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 			data.container.title = element.tooltip;
 		} else if (element.disabled) {
 			data.container.title = element.label;
+		} else if (element.standaloneToggle) {
+			data.container.title = '';
 		} else if (this._hideDefaultKeybindingTooltip) {
 			data.container.title = '';
 		} else if (actionTitle && previewTitle) {
@@ -583,6 +610,9 @@ export interface IActionListOptions {
 	 */
 	readonly focusFilterOnOpen?: boolean;
 
+	/** Optional action item id to focus when the list opens. */
+	readonly initialFocusItemId?: string;
+
 	/**
 	 * When false, non-submenu items do not reserve space for the submenu chevron.
 	 * Defaults to true for alignment consistency.
@@ -629,6 +659,11 @@ export interface IActionListOptions {
 	readonly className?: string;
 
 	/**
+	 * Optional CSS class name added to the containing action widget.
+	 */
+	readonly widgetClassName?: string;
+
+	/**
 	 * Optional CSS class and duration used to animate the containing action widget
 	 * before the context view is hidden.
 	 */
@@ -650,6 +685,7 @@ export class ActionListWidget<T> extends Disposable {
 	public readonly domNode: HTMLElement;
 
 	private readonly _list: List<IActionListItem<T>>;
+	private _initialFocusItemId: string | undefined;
 
 	protected readonly _actionLineHeight: number;
 	protected readonly _headerLineHeight = 24;
@@ -668,6 +704,7 @@ export class ActionListWidget<T> extends Disposable {
 
 	private readonly _collapsedSections = new Set<string>();
 	private _filterText = '';
+	private _imeSessionInProgress = false;
 	private _suppressHover = false;
 	private _hasLaidOut = false;
 	private readonly _filterInput: HTMLInputElement | undefined;
@@ -676,6 +713,7 @@ export class ActionListWidget<T> extends Disposable {
 	private _headerContainer: HTMLElement | undefined;
 	private readonly _filterCts = this._register(new MutableDisposable<CancellationTokenSource>());
 	private readonly _groupTitleByIndex = new Map<number, string>();
+	private readonly _standaloneToggles = new Map<IActionListItem<T>, Toggle>();
 
 	private readonly _onDidRequestLayout = this._register(new Emitter<void>());
 
@@ -697,6 +735,7 @@ export class ActionListWidget<T> extends Disposable {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
+		this._initialFocusItemId = this._options?.initialFocusItemId;
 		this.domNode = document.createElement('div');
 		this.domNode.classList.add('actionList');
 		if (this._options?.inlineDescription) {
@@ -754,7 +793,14 @@ export class ActionListWidget<T> extends Disposable {
 		const hasAnySubmenuActions = reserveSubmenuSpace && items.some(item => !!item.submenuActions?.length && !item.hover?.content);
 
 		this._list = this._register(new List(user, this.domNode, virtualDelegate, [
-			new ActionItemRenderer<T>(this._supportsPreview, (item) => this._removeItem(item), (item) => this._showSubmenuForItem(item), hasAnySubmenuActions, this._groupTitleByIndex, this._options?.linkHandler, this._options?.hideDefaultKeybindingTooltip ?? false, this._keybindingService, this._openerService),
+			new ActionItemRenderer<T>(this._supportsPreview, (item) => this._removeItem(item), (item) => this._showSubmenuForItem(item), hasAnySubmenuActions, this._groupTitleByIndex, this._options?.linkHandler, this._options?.hideDefaultKeybindingTooltip ?? false, (item, toggle) => {
+				this._standaloneToggles.set(item, toggle);
+				return toDisposable(() => {
+					if (this._standaloneToggles.get(item) === toggle) {
+						this._standaloneToggles.delete(item);
+					}
+				});
+			}, this._keybindingService, this._openerService),
 			new HeaderRenderer(),
 			new SeparatorRenderer(),
 		], {
@@ -784,10 +830,15 @@ export class ActionListWidget<T> extends Disposable {
 						if (element.group?.title) {
 							label = label + ', ' + element.group.title;
 						}
-						if (element.inlineToggle) {
-							label = label + ', ' + (element.inlineToggle.checked
-								? localize('actionList.inlineToggle.on', "{0}, on", element.inlineToggle.label)
-								: localize('actionList.inlineToggle.off', "{0}, off", element.inlineToggle.label));
+						const toggleConfig = element.standaloneToggle ?? element.inlineToggle;
+						if (toggleConfig) {
+							label = element.standaloneToggle
+								? (toggleConfig.checked
+									? localize('actionList.standaloneToggle.on', "{0}, on", toggleConfig.label)
+									: localize('actionList.standaloneToggle.off', "{0}, off", toggleConfig.label))
+								: label + ', ' + (toggleConfig.checked
+									? localize('actionList.inlineToggle.on', "{0}, on", toggleConfig.label)
+									: localize('actionList.inlineToggle.off', "{0}, off", toggleConfig.label));
 						}
 						if (element.disabled) {
 							label = localize({ key: 'customQuickFixWidget.labels', comment: [`Action widget labels for accessibility.`] }, "{0}, Disabled Reason: {1}", label, element.disabled);
@@ -845,10 +896,34 @@ export class ActionListWidget<T> extends Disposable {
 					filterActionBar.push(filterActions, { icon: true, label: false });
 				}
 
-				this._register(dom.addDisposableListener(this._filterInput, 'input', () => {
-					this._filterText = this._filterInput!.value;
+				// While an IME composition is running the input holds intermediate text (e.g. pinyin)
+				// which must not drive the filter: re-filtering splices the list, re-highlights a row and
+				// re-layouts the popup, all of which disrupt the composition and the IME candidate window.
+				// Filter once the composition commits instead.
+				const onFilterValueChanged = () => {
+					const value = this._filterInput!.value;
+					// `compositionend` and the `input` event that follows it both land here (and browsers
+					// disagree on their order), so only filter when the text actually changed.
+					if (this._imeSessionInProgress || value === this._filterText) {
+						return;
+					}
+					this._filterText = value;
 					this._applyOrUpdateFilter();
+				};
+
+				this._register(dom.addDisposableListener(this._filterInput, 'compositionstart', () => {
+					this._imeSessionInProgress = true;
+					// A dynamic filter request issued for the previous value can still be in flight.
+					// Letting it resolve now would splice and re-layout the list underneath the IME
+					// candidate window - the very disruption this guard exists to prevent. The
+					// committed value starts a fresh request from `compositionend`.
+					this._filterCts.value?.cancel();
 				}));
+				this._register(dom.addDisposableListener(this._filterInput, 'compositionend', () => {
+					this._imeSessionInProgress = false;
+					onFilterValueChanged();
+				}));
+				this._register(dom.addDisposableListener(this._filterInput, 'input', onFilterValueChanged));
 			}
 
 			if (this._options?.secondaryHeading) {
@@ -924,7 +999,7 @@ export class ActionListWidget<T> extends Disposable {
 
 		// ArrowRight opens submenu for the focused item and moves focus into it
 		this._register(dom.addDisposableListener(this.domNode, 'keydown', (e: KeyboardEvent) => {
-			if (e.key === 'ArrowRight') {
+			if (e.key === 'ArrowRight' && !e.isComposing) {
 				const focused = this._list.getFocus();
 				if (focused.length > 0) {
 					const element = this._list.element(focused[0]);
@@ -945,7 +1020,7 @@ export class ActionListWidget<T> extends Disposable {
 		if (this._filterInput) {
 			this._register(dom.addDisposableListener(this.domNode, 'keydown', (e: KeyboardEvent) => {
 				if (this._filterInput && !dom.isActiveElement(this._filterInput)
-					&& e.key.length === 1 && e.key !== ' ' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+					&& !e.isComposing && e.key.length === 1 && e.key !== ' ' && !e.ctrlKey && !e.metaKey && !e.altKey) {
 					this._filterInput.focus();
 					this._filterInput.value = e.key;
 					this._filterText = e.key;
@@ -1258,6 +1333,26 @@ export class ActionListWidget<T> extends Disposable {
 	private _focusCheckedOrFirst(): void {
 		this._suppressHover = true;
 		try {
+			const initialFocusItemId = this._initialFocusItemId;
+			this._initialFocusItemId = undefined;
+			if (initialFocusItemId) {
+				for (let i = 0; i < this._list.length; i++) {
+					const element = this._list.element(i);
+					if (element.kind === ActionListItemKind.Action && (element.item as { id?: string })?.id === initialFocusItemId) {
+						this._list.setFocus([i]);
+						this._list.reveal(i);
+						return;
+					}
+				}
+			}
+			const [focusedIndex] = this._list.getFocus();
+			if (focusedIndex !== undefined) {
+				const focusedElement = this._list.element(focusedIndex);
+				if (focusedElement && this.focusCondition(focusedElement)) {
+					this._list.reveal(focusedIndex);
+					return;
+				}
+			}
 			// Try to focus the checked item first
 			for (let i = 0; i < this._list.length; i++) {
 				const element = this._list.element(i);
@@ -1548,6 +1643,15 @@ export class ActionListWidget<T> extends Disposable {
 		}
 
 		const element = e.elements[0];
+		if (element.standaloneToggle) {
+			this._list.setSelection([]);
+			const toggle = this._standaloneToggles.get(element);
+			if (toggle?.enabled) {
+				toggle.checked = !toggle.checked;
+				element.standaloneToggle.onChange(toggle.checked);
+			}
+			return;
+		}
 		if (element.isSectionToggle && element.section) {
 			this._list.setSelection([]);
 			const section = element.section;
@@ -1828,7 +1932,11 @@ export class ActionListWidget<T> extends Disposable {
 
 			// Keyboard navigation in submenu
 			this._submenuDisposables.add(dom.addDisposableListener(submenuWidget.domNode, 'keydown', (e: KeyboardEvent) => {
-				if (e.key === 'ArrowLeft' || e.key === 'Escape') {
+				if (e.key === 'Escape') {
+					dom.EventHelper.stop(e, true);
+					this._hideSubmenu();
+					this.hide();
+				} else if (e.key === 'ArrowLeft') {
 					dom.EventHelper.stop(e, true);
 					this._hideSubmenu();
 					this._list.domFocus();
@@ -2025,6 +2133,7 @@ export class ActionList<T> extends Disposable {
 	private _hasLaidOut = false;
 	private _showAbove: boolean | undefined;
 	private readonly _preferredAnchorPosition: AnchorPosition | undefined;
+	private readonly _widgetClassName: string | undefined;
 
 	get domNode(): HTMLElement {
 		return this._widget.domNode;
@@ -2048,6 +2157,10 @@ export class ActionList<T> extends Disposable {
 
 	get closeAnimation(): IActionListCloseAnimation | undefined {
 		return this._widget.closeAnimation;
+	}
+
+	get widgetClassName(): string | undefined {
+		return this._widgetClassName;
 	}
 
 	/**
@@ -2079,6 +2192,7 @@ export class ActionList<T> extends Disposable {
 		super();
 		this._anchor = anchor;
 		this._preferredAnchorPosition = options?.anchorPosition;
+		this._widgetClassName = options?.widgetClassName;
 
 		this._widget = this._register(instantiationService.createInstance(
 			ActionListWidget<T>,

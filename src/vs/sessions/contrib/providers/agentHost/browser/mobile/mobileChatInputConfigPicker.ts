@@ -21,6 +21,8 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { type ILanguageModelChatMetadataAndIdentifier } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
 import { IChatPhoneInputPresenter } from '../../../../../../workbench/contrib/chat/browser/widget/input/chatPhoneInputPresenter.js';
 import { getModelProviderIcon } from '../../../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelProviderIcons.js';
+import { ChatPetAchievementIds, didExplicitlySwitchChatPetModel } from '../../../../../../workbench/contrib/chat/browser/chatPetAchievements.js';
+import { IChatPetService } from '../../../../../../workbench/contrib/chat/browser/chatPetService.js';
 import { Menus } from '../../../../../browser/menus.js';
 import { SessionUsesCombinedConfigPickerContext, IsPhoneLayoutContext } from '../../../../../common/contextkeys.js';
 import { type IAgentHostSessionsProvider, isAgentHostProvider, isAgentHostProviderId } from '../../../../../common/agentHostSessionsProvider.js';
@@ -31,7 +33,7 @@ import { ISessionContext } from '../../../../../services/sessions/browser/sessio
 import { isWellKnownModeSchema } from '../agentHostPermissionPickerDelegate.js';
 import { getAgentHostModeIcon } from '../agentHostModeIcon.js';
 import { INewChatModelPickerService } from '../../../../chat/browser/newChatModelPicker.js';
-import { ISessionModelSelectionModel } from '../../../../chat/browser/sessionModelSelectionModel.js';
+import { ISessionModelSelection } from '../../../../chat/browser/sessionModelSelection.js';
 import { reportNewChatPickerClosed } from '../../../../chat/browser/newChatPickerTelemetry.js';
 import { createChatPhoneInputSessionContext, createChatPhoneInputTarget, matchesChatPhoneInputTarget } from './mobileChatPhoneInputTarget.js';
 
@@ -79,8 +81,9 @@ class MobileChatInputConfigPicker extends Disposable {
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IChatPhoneInputPresenter private readonly _phonePresenter: IChatPhoneInputPresenter,
 		@INewChatModelPickerService private readonly _newChatModelPickerService: INewChatModelPickerService,
-		@ISessionModelSelectionModel private readonly _selectionModel: ISessionModelSelectionModel,
+		@ISessionModelSelection private readonly _selectionModel: ISessionModelSelection,
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
+		@IChatPetService private readonly _chatPetService: IChatPetService,
 	) {
 		super();
 		this._register(this._newChatModelPickerService.registerModelPicker({
@@ -252,12 +255,17 @@ class MobileChatInputConfigPicker extends Disposable {
 		// Sheet's mode row writes through `setSessionConfigValue`, so
 		// disable the button while a resolve is in flight.
 		const isResolving = ctx.provider.isSessionConfigResolving(ctx.session.sessionId).get();
-		this._slotElement.classList.toggle('disabled', isResolving);
+		this._slotElement.classList.toggle('resolving', isResolving);
 		this._triggerElement.setAttribute('aria-disabled', isResolving ? 'true' : 'false');
 	}
 
 	private _switchToModel(modelIdentifier: string): boolean {
-		return this._selectionModel.selectModel(modelIdentifier);
+		const previousModelIdentifier = this._selectionModel.state.get().currentModel?.identifier;
+		const selected = this._selectionModel.selectModel(modelIdentifier);
+		if (selected && didExplicitlySwitchChatPetModel(previousModelIdentifier, modelIdentifier)) {
+			this._chatPetService.unlockAchievement(ChatPetAchievementIds.ModelSwitch);
+		}
+		return selected;
 	}
 
 	private async _showSheet(): Promise<void> {

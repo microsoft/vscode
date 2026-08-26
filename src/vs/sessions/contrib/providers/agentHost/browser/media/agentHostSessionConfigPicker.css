@@ -31,6 +31,8 @@
 }
 
 .sessions-chat-agent-host-config .sessions-chat-isolation-checkbox.disabled .action-label,
-.sessions-chat-agent-host-config .sessions-chat-isolation-checkbox.disabled .sessions-chat-dropdown-label {
+.sessions-chat-agent-host-config .sessions-chat-isolation-checkbox.disabled .sessions-chat-dropdown-label,
+.sessions-chat-agent-host-config .sessions-chat-isolation-checkbox.resolving .action-label,
+.sessions-chat-agent-host-config .sessions-chat-isolation-checkbox.resolving .sessions-chat-dropdown-label {
 	cursor: default;
 }

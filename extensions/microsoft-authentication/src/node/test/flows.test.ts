@@ -214,6 +214,7 @@ suite('MSAL flow trigger', () => {
 		});
 
 		assert.strictEqual(cachedPca.interactiveRequests[0]?.resource, RESOURCE);
+		assert.strictEqual(cachedPca.interactiveRequests[0]?.responseMode, 'form_post');
 	});
 
 	test('device code flow forwards resource to acquireTokenByDeviceCode', async () => {

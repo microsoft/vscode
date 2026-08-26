@@ -5,6 +5,7 @@
 
 import { ok, strictEqual } from 'assert';
 import { Separator } from '../../../../../../base/common/actions.js';
+import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { constObservable } from '../../../../../../base/common/observable.js';
@@ -36,7 +37,7 @@ import { TestIPCFileSystemProvider } from '../../../../../test/electron-browser/
 import { TerminalToolConfirmationStorageKeys } from '../../../../chat/browser/widget/chatContentParts/toolInvocationParts/chatTerminalToolConfirmationSubPart.js';
 import { IChatService, type IChatSendRequestOptions, type IChatTerminalToolInvocationData } from '../../../../chat/common/chatService/chatService.js';
 import { IChatWidgetService } from '../../../../chat/browser/chat.js';
-import { ChatAgentLocation, ChatPermissionLevel } from '../../../../chat/common/constants.js';
+import { ChatAgentLocation, ChatModeKind, ChatPermissionLevel } from '../../../../chat/common/constants.js';
 import { ChatModel, type IChatRequestModeInfo } from '../../../../chat/common/model/chatModel.js';
 import { LocalChatSessionUri } from '../../../../chat/common/model/chatUri.js';
 import { ChatRequestTextPart } from '../../../../chat/common/requestParser/chatParserTypes.js';
@@ -61,6 +62,7 @@ import { TerminalToolId } from '../../browser/tools/toolIds.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { ILanguageModelsService } from '../../../../chat/common/languageModels.js';
+import { IChatSessionsService } from '../../../../chat/common/chatSessionsService.js';
 
 class TestRunInTerminalTool extends RunInTerminalTool {
 	protected override _osBackend: Promise<OperatingSystem> = Promise.resolve(OperatingSystem.Windows);
@@ -99,6 +101,7 @@ suite('RunInTerminalTool', () => {
 	let createdTerminalInstance: ITerminalInstance;
 	let createTerminalCallCount: number;
 	let chatSessions: Map<string, ChatModel>;
+	let chatSessionContribution: ReturnType<IChatSessionsService['getChatSessionContribution']>;
 
 	let runInTerminalTool: TestRunInTerminalTool;
 
@@ -193,6 +196,7 @@ suite('RunInTerminalTool', () => {
 		chatSessionArchivedEmitter = new Emitter<IAgentSession>();
 		capturedSteeringRequests = [];
 		chatSessions = new Map<string, ChatModel>();
+		chatSessionContribution = undefined;
 
 		instantiationService = workbenchInstantiationService({
 			configurationService: () => configurationService,
@@ -221,6 +225,9 @@ suite('RunInTerminalTool', () => {
 			model: {
 				onDidChangeSessionArchivedState: chatSessionArchivedEmitter.event,
 			} as IAgentSessionsService['model']
+		});
+		instantiationService.stub(IChatSessionsService, {
+			getChatSessionContribution: () => chatSessionContribution,
 		});
 		instantiationService.stub(ITerminalService, {
 			createTerminal: async () => {
@@ -1160,6 +1167,8 @@ suite('RunInTerminalTool', () => {
 			'git status',
 			'git log --oneline',
 			'git show HEAD',
+			'git show --format=%B HEAD',
+			'git show --output-format=text HEAD',
 			'git diff main',
 			'git grep "TODO"',
 
@@ -1176,7 +1185,7 @@ suite('RunInTerminalTool', () => {
 			'Join-Path C:\\Users test',
 			'Start-Sleep 2',
 
-			// PowerShell safe verbs (regex patterns)
+			// Explicit PowerShell cmdlets
 			'Select-Object Name',
 			'Measure-Object Length',
 			'Compare-Object $a $b',
@@ -1252,6 +1261,10 @@ suite('RunInTerminalTool', () => {
 			// git log file output
 			'git log --output=log.txt',
 
+			// git show file output
+			'git show --format=%B --output=message.txt HEAD',
+			'git show --output message.txt HEAD',
+
 			// Dangerous file operations
 			'rm README.md',
 			'rmdir folder',
@@ -1292,6 +1305,13 @@ suite('RunInTerminalTool', () => {
 			'eval "echo hello"',
 			'Invoke-Expression "Get-Date"',
 			'iex "Write-Host test"',
+
+			// Arbitrary PowerShell cmdlets must not be approved by verb alone
+			'Select-Custom',
+			'Measure-Command',
+			'Compare-Custom',
+			'Format-Hex',
+			'Sort-Custom',
 
 			// Commands with dangerous arguments
 			'column -c 10000 file.txt',
@@ -1400,7 +1420,7 @@ suite('RunInTerminalTool', () => {
 				requestAllowNetworkReason: 'Needs registry access while remaining sandboxed',
 			});
 
-			assertConfirmationRequired(result, 'Allow the sandbox to run `bash` command with unrestricted network access.');
+			assertConfirmationRequired(result, 'Allow bash command to access the network?');
 			const terminalData = result?.toolSpecificData as IChatTerminalToolInvocationData;
 			strictEqual(terminalData.requestAllowNetwork, true);
 			strictEqual(terminalData.requestAllowNetworkReason, 'Needs registry access while remaining sandboxed');
@@ -1431,7 +1451,7 @@ suite('RunInTerminalTool', () => {
 
 			const result = await executeToolTest({ command: 'curl https://evil.com' });
 
-			assertConfirmationRequired(result, 'Allow the sandbox to run `bash` command with unrestricted network access.');
+			assertConfirmationRequired(result, 'Allow bash command to access the network?');
 			const terminalData = result?.toolSpecificData as IChatTerminalToolInvocationData;
 			strictEqual(terminalData.requestAllowNetwork, true);
 			strictEqual(terminalData.requestUnsandboxedExecution, false);
@@ -2748,9 +2768,9 @@ suite('RunInTerminalTool', () => {
 		});
 	});
 
-	test('should use the conversation model and preserve previous agent for background completion notifications', async () => {
-		const termId = 'test-completion-model-term';
-		const sessionResource = LocalChatSessionUri.forSession('test-completion-model-session');
+	async function sendBackgroundCompletionNotification(previousAgentId: string): Promise<IChatSendRequestOptions | undefined> {
+		const termId = `test-completion-model-term-${previousAgentId}`;
+		const sessionResource = LocalChatSessionUri.forSession(`test-completion-model-session-${previousAgentId}`);
 		const commandFinishedEmitter = new Emitter<{ exitCode: number | undefined }>();
 		const terminalDisposedEmitter = new Emitter<void>();
 		const inputDataEmitter = new Emitter<string>();
@@ -2765,8 +2785,15 @@ suite('RunInTerminalTool', () => {
 		} as unknown as ITerminalInstance;
 
 		const previousModelId = 'claude-opus-4-8';
-		const previousAgentId = 'local-agent';
-		const previousRequest = { modelId: previousModelId, response: { agent: { id: previousAgentId }, isCanceled: false, onDidChange: Event.None } };
+		const previousTools = { tool1: true };
+		const previousModeInfo: IChatRequestModeInfo = {
+			kind: ChatModeKind.Agent,
+			isBuiltin: true,
+			modeInstructions: undefined,
+			telemetryModeId: 'agent',
+			applyCodeBlockSuggestionId: undefined,
+		};
+		const previousRequest = { modelId: previousModelId, modeInfo: previousModeInfo, userSelectedTools: previousTools, response: { agent: { id: previousAgentId }, isCanceled: false, onDidChange: Event.None } };
 		const chatService = instantiationService.get(IChatService) as unknown as {
 			acquireExistingSession: () => NonNullable<ReturnType<IChatService['acquireExistingSession']>>;
 		};
@@ -2794,8 +2821,23 @@ suite('RunInTerminalTool', () => {
 		commandFinishedEmitter.fire({ exitCode: 0 });
 
 		strictEqual(capturedSteeringRequests.length, 1, 'Expected a completion steering notification');
-		strictEqual(capturedSteeringRequests[0].options?.userSelectedModelId, previousModelId, 'Completion notification should use the conversation model');
-		strictEqual(capturedSteeringRequests[0].options?.agentIdSilent, previousAgentId, 'Completion notification should continue with the previous request agent');
+		return capturedSteeringRequests[0].options;
+	}
+
+	test('should preserve conversation context for background completion notifications', async () => {
+		const options = await sendBackgroundCompletionNotification('local-agent');
+
+		strictEqual(options?.userSelectedModelId, 'claude-opus-4-8', 'Completion notification should use the conversation model');
+		strictEqual(options?.agentIdSilent, 'local-agent', 'Completion notification should continue with the previous request agent');
+		strictEqual(options?.instructionContext?.modeKind, ChatModeKind.Agent, 'Completion notification should collect instructions for the previous mode');
+		strictEqual(options?.instructionContext?.enabledTools?.tool1, true, 'Completion notification should collect instructions for the previous tools');
+	});
+
+	test('should preserve contributed session auto-attach opt-out for background completion notifications', async () => {
+		chatSessionContribution = { autoAttachReferences: false } as ReturnType<IChatSessionsService['getChatSessionContribution']>;
+		const options = await sendBackgroundCompletionNotification('contributed-agent');
+
+		strictEqual(options?.instructionContext, undefined, 'Completion notification should not collect instructions for an opted-out contributed session');
 	});
 
 	test('should dedupe rapid repeated background input-needed notifications', () => {
@@ -3191,7 +3233,7 @@ suite('RunInTerminalTool', () => {
 		suite('getCopilotProfile', () => {
 			(isWindows ? test : test.skip)('should return custom profile when configured', async () => {
 				runInTerminalTool.setBackendOs(OperatingSystem.Windows);
-				const customProfile = Object.freeze({ path: 'C:\\Windows\\System32\\powershell.exe', args: ['-NoProfile'] });
+				const customProfile = Object.freeze({ path: 'C:\\Windows\\System32\\cmd.exe', args: ['/V:ON'] });
 				setConfig(TerminalChatAgentToolsSettingId.TerminalProfileWindows, customProfile);
 
 				const result = await runInTerminalTool.profileFetcher.getCopilotProfile();
@@ -3406,12 +3448,14 @@ suite('ChatAgentToolsContribution - tool registration refresh', () => {
 	let instantiationService: TestInstantiationService;
 	let configurationService: TestConfigurationService;
 	let registeredToolData: Map<string, IToolData>;
+	let pendingToolDataRegistration: DeferredPromise<void> | undefined;
 	let sandboxEnabled: boolean;
 
 	setup(() => {
 		configurationService = new TestConfigurationService();
 		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands, true);
 		registeredToolData = new Map();
+		pendingToolDataRegistration = undefined;
 		sandboxEnabled = false;
 
 		const logService = new NullLogService();
@@ -3486,6 +3530,7 @@ suite('ChatAgentToolsContribution - tool registration refresh', () => {
 			onDidChangeTools: Event.None,
 			registerToolData(toolData: IToolData) {
 				registeredToolData.set(toolData.id, toolData);
+				pendingToolDataRegistration?.complete();
 				return toDisposable(() => registeredToolData.delete(toolData.id));
 			},
 			registerToolImplementation(id: string, tool: IToolImpl) {
@@ -3519,16 +3564,23 @@ suite('ChatAgentToolsContribution - tool registration refresh', () => {
 		});
 	});
 
-	async function flushAsync(): Promise<void> {
-		// Multiple microtask cycles to let async _registerRunInTerminalTool complete
-		for (let i = 0; i < 10; i++) {
-			await new Promise<void>(resolve => setTimeout(resolve, 0));
+	async function waitForToolDataRegistration(trigger: () => void): Promise<void> {
+		const registration = new DeferredPromise<void>();
+		pendingToolDataRegistration = registration;
+		try {
+			trigger();
+			await registration.p;
+		} finally {
+			pendingToolDataRegistration = undefined;
 		}
 	}
 
 	async function createContribution(): Promise<ChatAgentToolsContribution> {
-		const contribution = store.add(instantiationService.createInstance(ChatAgentToolsContribution));
-		await flushAsync();
+		let contribution: ChatAgentToolsContribution | undefined;
+		await waitForToolDataRegistration(() => {
+			contribution = store.add(instantiationService.createInstance(ChatAgentToolsContribution));
+		});
+		ok(contribution);
 		return contribution;
 	}
 
@@ -3545,18 +3597,17 @@ suite('ChatAgentToolsContribution - tool registration refresh', () => {
 		const propertiesBefore = toolDataBefore.inputSchema?.properties as Record<string, object> | undefined;
 		ok(!propertiesBefore?.['requestUnsandboxedExecution'], 'Expected no requestUnsandboxedExecution before enabling sandbox');
 
-		// Enable sandbox and fire config change
-		sandboxEnabled = true;
-		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxEnabledValue.On);
-		configurationService.onDidChangeConfigurationEmitter.fire({
-			affectsConfiguration: (key: string) => key === AgentSandboxSettingId.AgentSandboxEnabled,
-			affectedKeys: new Set([AgentSandboxSettingId.AgentSandboxEnabled]),
-			source: ConfigurationTarget.USER,
-			change: null!,
+		await waitForToolDataRegistration(() => {
+			// Enable sandbox and fire config change
+			sandboxEnabled = true;
+			configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxEnabledValue.On);
+			configurationService.onDidChangeConfigurationEmitter.fire({
+				affectsConfiguration: (key: string) => key === AgentSandboxSettingId.AgentSandboxEnabled,
+				affectedKeys: new Set([AgentSandboxSettingId.AgentSandboxEnabled]),
+				source: ConfigurationTarget.USER,
+				change: null!,
+			});
 		});
-
-		// Wait for async registration
-		await flushAsync();
 
 		const toolDataAfter = registeredToolData.get(TerminalToolId.RunInTerminal);
 		ok(toolDataAfter, 'Expected run_in_terminal tool to still be registered');
@@ -3573,15 +3624,15 @@ suite('ChatAgentToolsContribution - tool registration refresh', () => {
 		const propertiesBefore = toolDataBefore.inputSchema?.properties as Record<string, object> | undefined;
 		ok(propertiesBefore?.['requestUnsandboxedExecution'], 'Expected requestUnsandboxedExecution before disabling unsandboxed commands');
 
-		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands, false);
-		configurationService.onDidChangeConfigurationEmitter.fire({
-			affectsConfiguration: (key: string) => key === AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands,
-			affectedKeys: new Set([AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands]),
-			source: ConfigurationTarget.USER,
-			change: null!,
+		await waitForToolDataRegistration(() => {
+			configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands, false);
+			configurationService.onDidChangeConfigurationEmitter.fire({
+				affectsConfiguration: (key: string) => key === AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands,
+				affectedKeys: new Set([AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands]),
+				source: ConfigurationTarget.USER,
+				change: null!,
+			});
 		});
-
-		await flushAsync();
 
 		const toolDataAfter = registeredToolData.get(TerminalToolId.RunInTerminal);
 		ok(toolDataAfter, 'Expected run_in_terminal tool to still be registered');
@@ -3596,16 +3647,15 @@ suite('ChatAgentToolsContribution - tool registration refresh', () => {
 		const toolDataBefore = registeredToolData.get(TerminalToolId.RunInTerminal);
 		ok(toolDataBefore, 'Expected run_in_terminal tool to be registered');
 
-		// Fire network config change
-		configurationService.onDidChangeConfigurationEmitter.fire({
-			affectsConfiguration: (key: string) => key === AgentNetworkDomainSettingId.AllowedNetworkDomains,
-			affectedKeys: new Set([AgentNetworkDomainSettingId.AllowedNetworkDomains]),
-			source: ConfigurationTarget.USER,
-			change: null!,
+		await waitForToolDataRegistration(() => {
+			// Fire network config change
+			configurationService.onDidChangeConfigurationEmitter.fire({
+				affectsConfiguration: (key: string) => key === AgentNetworkDomainSettingId.AllowedNetworkDomains,
+				affectedKeys: new Set([AgentNetworkDomainSettingId.AllowedNetworkDomains]),
+				source: ConfigurationTarget.USER,
+				change: null!,
+			});
 		});
-
-		// Wait for async registration
-		await flushAsync();
 
 		const toolDataAfter = registeredToolData.get(TerminalToolId.RunInTerminal);
 		ok(toolDataAfter, 'Expected run_in_terminal tool to still be registered after network setting change');

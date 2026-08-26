@@ -17,8 +17,10 @@ export const CODEX_SDK_ROOT = resolveCodexSdkRoot();
 export const CODEX_CONFIG: IAgentHostE2EProviderConfig = {
 	suiteTitle: 'Agent Host E2E — Codex',
 	provider: 'codex',
+	modelProviders: ['copilot'],
 	scheme: 'codex',
 	shellToolName: 'shell',
+	fileOperationStrategy: 'shell',
 	subagentToolNames: [],
 	exitPlanModeToolName: 'exit_plan_mode',
 	enabled: !!CODEX_SDK_ROOT,
@@ -27,11 +29,12 @@ export const CODEX_CONFIG: IAgentHostE2EProviderConfig = {
 	supportsHostTerminalTool: false,
 	supportsSubagents: false,
 	supportsPlanMode: false,
-	supportsMultipleChats: false,
-	supportsChatFork: false,
+	supportsMultipleChats: true,
+	supportsMultipleChatsE2E: false,
+	supportsChatFork: true,
 	supportsChatForkE2E: false,
-	// Codex either duplicates the previous response or has no recorded fixture for
-	// the newer file/shell scenarios; see KNOWN_ISSUES.md.
-	stableNewScenarioResponse: false,
+	supportsSideChats: true,
+	supportsSideChatsE2E: false,
 	shellToolReplayUnstableOnLinux: true,
+	shellToolResultTextUnreliable: true,
 };

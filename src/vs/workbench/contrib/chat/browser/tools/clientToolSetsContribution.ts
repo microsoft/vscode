@@ -58,10 +58,11 @@ export class ClientToolSetsContribution extends Disposable implements IWorkbench
 				referenceName: 'vscodeAutomations',
 				icon: Codicon.watch,
 				description: localize('clientToolSet.automations.description', "Automations"),
-				detail: localize('clientToolSet.automations.detail', "List, configure, and delete scheduled agent automations."),
+				detail: localize('clientToolSet.automations.detail', "List, configure, run, and delete scheduled agent automations."),
 				members: [
 					'listAutomations',
 					'configureAutomation',
+					'runAutomation',
 					'deleteAutomation',
 				],
 			}));
@@ -83,10 +84,7 @@ export class ClientToolSetsContribution extends Disposable implements IWorkbench
 			description: localize('clientToolSet.vscode.description', "VS Code"),
 			detail: localize('clientToolSet.vscode.detail', "Navigate code, manage extensions, and run built-in VS Code commands."),
 			members: [
-				'runTests',
-				'testFailure',
-				'rename',
-				'usages',
+				...(workspaceService.isSessionsWindow ? [] : ['runTests', 'testFailure', 'rename', 'usages']),
 				'toolSearch',
 			],
 		}));

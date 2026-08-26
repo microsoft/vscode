@@ -79,5 +79,5 @@ exchanges:
               tool_use_id: toolcall_1
               content: 'File created successfully at: ${workdir}/second-peer.txt (file state is current in your context — no need to Read it back)'
     response:
-      content: Created `second-peer.txt` containing exactly `SECOND_PEER`.
+      content: Done. Created `second-peer.txt` containing exactly `SECOND_PEER`.
       stopReason: end_turn

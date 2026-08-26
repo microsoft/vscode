@@ -6,7 +6,7 @@ rounds:
           type: chat/turnStarted
           turnId: ${turn_0}
           message:
-            text: Try to read missing.txt. If it does not exist, reply exactly "missing".
+            text: Try to read missing.txt. If it does not exist, reply exactly "missing". Use your file tools; do not run a shell command.
             origin:
               kind: user
     serverToClient:
@@ -15,7 +15,7 @@ rounds:
           type: chat/turnStarted
           turnId: ${turn_0}
           message:
-            text: Try to read missing.txt. If it does not exist, reply exactly "missing".
+            text: Try to read missing.txt. If it does not exist, reply exactly "missing". Use your file tools; do not run a shell command.
             origin:
               kind: user
       - channel: ${session_0}
@@ -30,14 +30,14 @@ rounds:
           type: chat/toolCallStart
           turnId: ${turn_0}
           toolCallId: ${toolCall_0}
-          toolName: bash
+          toolName: view
       - channel: ${chat_0}
         action:
           type: chat/toolCallComplete
           turnId: ${turn_0}
           toolCallId: ${toolCall_0}
           result:
-            success: true
+            success: false
       - channel: ${chat_0}
         action:
           type: chat/responsePart
