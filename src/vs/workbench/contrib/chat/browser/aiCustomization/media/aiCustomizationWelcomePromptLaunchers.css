@@ -222,7 +222,7 @@
 
 .ai-customization-management-editor .welcome-prompts-card-label {
 	font-size: 12px;
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	font-weight: var(--vscode-fontWeight-semiBold);
 	color: var(--vscode-foreground);
 }
 
