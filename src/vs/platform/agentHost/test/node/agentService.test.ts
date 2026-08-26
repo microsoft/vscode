@@ -553,7 +553,7 @@ suite('AgentService (node dispatcher)', () => {
 		});
 
 		suite('failed turn resume', () => {
-			async function createErroredTurn(): Promise<{ session: URI; chat: string }> {
+			async function createErroredTurn(resumable = true): Promise<{ session: URI; chat: string }> {
 				registerTestAgentProvider(service, copilotAgent);
 				const session = await service.createSession({ provider: 'copilot' });
 				const chat = buildDefaultChatUri(session.toString());
@@ -582,7 +582,7 @@ suite('AgentService (node dispatcher)', () => {
 					type: ActionType.ChatError,
 					turnId: 'turn-1',
 					duration: 100,
-					part: createErrorResponsePart({ errorType: 'requestFailed', message: 'failed' }, true),
+					part: createErrorResponsePart({ errorType: 'requestFailed', message: 'failed' }, resumable),
 				});
 				return { session, chat };
 			}
@@ -599,6 +599,28 @@ suite('AgentService (node dispatcher)', () => {
 					activeTurn: getStateManager(service).getChatState(chat)?.activeTurn,
 				}, {
 					rejectionReason: 'The session provider does not support turn resume.',
+					activeTurn: undefined,
+				});
+			});
+
+			test('rejects a non-resumable error without calling the provider', async () => {
+				const { chat } = await createErroredTurn(false);
+				const resumeCalls: string[] = [];
+				copilotAgent.chats.resumeTurn = async (_chat, turnId) => {
+					resumeCalls.push(turnId);
+				};
+				const envelopePromise = Event.toPromise(Event.filter(service.onDidAction, envelope => envelope.origin?.clientSeq === 1));
+
+				service.dispatchAction(chat, { type: ActionType.ChatTurnResume, turnId: 'turn-1' }, 'client-1', 1);
+
+				const envelope = await envelopePromise;
+				assert.deepStrictEqual({
+					rejectionReason: envelope.rejectionReason,
+					resumeCalls,
+					activeTurn: getStateManager(service).getChatState(chat)?.activeTurn,
+				}, {
+					rejectionReason: 'The requested turn is not the latest resumable errored turn.',
+					resumeCalls: [],
 					activeTurn: undefined,
 				});
 			});
