@@ -12,6 +12,7 @@ import { IDefaultAccountService } from '../../../../platform/defaultAccount/comm
 import { ChatConfiguration } from '../../../../workbench/contrib/chat/common/constants.js';
 import { ISessionsBlockedOverlayOptions, SessionsBlockedReason, SessionsPolicyBlockedOverlay } from './sessionsPolicyBlocked.js';
 import { AccountPolicyGateState, AccountPolicyGateUnsatisfiedReason, IAccountPolicyGateService } from '../../../../workbench/services/policies/common/accountPolicyService.js';
+import { ManagedSettingsFreshnessState } from '../../../../platform/policy/common/managedSettingsFreshness.js';
 
 export class SessionsPolicyBlockedContribution extends Disposable implements IWorkbenchContribution {
 
@@ -66,6 +67,11 @@ export class SessionsPolicyBlockedContribution extends Disposable implements IWo
 
 			if (gateInfo.reason === AccountPolicyGateUnsatisfiedReason.PolicyNotResolved) {
 				this.showOverlay({ reason: SessionsBlockedReason.Loading });
+			} else if (gateInfo.reason === AccountPolicyGateUnsatisfiedReason.ManagedSettingsRefresh) {
+				const freshness = gateInfo.managedSettingsFreshness;
+				this.showOverlay(freshness?.state === ManagedSettingsFreshnessState.Blocked
+					? { reason: SessionsBlockedReason.ManagedSettingsRefresh, freshness }
+					: { reason: SessionsBlockedReason.Loading });
 			} else {
 				const accountName = this.defaultAccountService.currentDefaultAccount?.accountName;
 				this.showOverlay({
@@ -83,7 +89,9 @@ export class SessionsPolicyBlockedContribution extends Disposable implements IWo
 
 	private showOverlay(options: ISessionsBlockedOverlayOptions): void {
 		// AccountPolicyGate may need re-render when the account name changes.
-		if (this.currentReason === options.reason && options.reason !== SessionsBlockedReason.AccountPolicyGate) {
+		if (this.currentReason === options.reason
+			&& options.reason !== SessionsBlockedReason.AccountPolicyGate
+			&& options.reason !== SessionsBlockedReason.ManagedSettingsRefresh) {
 			return;
 		}
 		this.overlayRef.clear();
