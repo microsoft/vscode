@@ -903,7 +903,7 @@ export function usageInfoToQuotas(usage: UsageInfo | undefined): IAgentHostQuota
  * The `lookup` callback is responsible for any session-level fallback (e.g.
  * `summary.model?.id` when usage hasn't reported a model yet).
  */
-export function turnsToHistory(backendSession: URI, turns: readonly Turn[], participantId: string, connectionAuthority: string, lookup?: TurnModelLookup, errorContext?: IChatErrorContext, terminalCommandPrefix?: string, resourceUris: IAgentHostResourceUriMapper = createAgentHostResourceUriMapper(connectionAuthority), logicalSessionScheme: string = backendSession.scheme): IChatSessionHistoryItem[] {
+export function turnsToHistory(backendSession: URI, turns: readonly Turn[], participantId: string, connectionAuthority: string, lookup?: TurnModelLookup, errorContext?: IChatErrorContext, terminalCommandPrefix?: string, resourceUris: IAgentHostResourceUriMapper = createAgentHostResourceUriMapper(connectionAuthority), logicalSessionScheme: string = backendSession.scheme, errorDetailsProvider?: (turn: Turn) => IChatResponseErrorDetails | undefined): IChatSessionHistoryItem[] {
 	const history: IChatSessionHistoryItem[] = [];
 	for (const turn of turns) {
 		const rawModelId = turn.usage?.model;
@@ -938,7 +938,7 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 
 		// Response parts — iterate the unified responseParts array
 		const parts: IChatProgress[] = [];
-		// History is settled, so an unresolved row would never flip to "Routed task".
+		// History is settled, so an unresolved row would never flip to a routed one.
 		const autoModeResolution = lookup?.toAutoModeResolution?.(turn.usage);
 		if (autoModeResolution?.resolved) {
 			parts.push(autoModeResolution);
@@ -988,6 +988,8 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 					parts.push(inputRequestResponsePartToProgress(rp, connectionAuthority, resourceUris));
 					break;
 				}
+				case ResponsePartKind.Error:
+					break;
 			}
 		}
 
@@ -998,7 +1000,8 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 		let errorDetails: IChatResponseErrorDetails | undefined;
 		const turnError = getTurnError(turn);
 		if (turnError) {
-			errorDetails = getChatErrorDetailsFromMeta(turnError, errorContext)
+			errorDetails = errorDetailsProvider?.(turn)
+				?? getChatErrorDetailsFromMeta(turnError, errorContext)
 				?? { message: `Error: (${turnError.errorType}) ${turnError.message}` };
 		}
 

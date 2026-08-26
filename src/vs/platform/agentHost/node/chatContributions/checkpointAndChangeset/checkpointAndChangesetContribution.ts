@@ -31,6 +31,9 @@ export class CheckpointAndChangesetContribution extends Disposable implements IA
 		if (turn.reason.kind !== 'success' && turn.reason.kind !== 'error') {
 			return;
 		}
+		if (turn.reason.kind === 'error' && turn.reason.resumable) {
+			return;
+		}
 		if (turn.turnId === undefined) {
 			this._changesets.onTurnComplete(turn.session, turn.turnId, turn.clientContext);
 			return;

@@ -672,7 +672,7 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 			this._muteCell!.classList.toggle('collapsed', !mutePresent);
 			this._muteCell!.classList.toggle('active', muted);
 			this._muteCell!.setAttribute('aria-pressed', String(muted));
-			this._muteIcon!.className = `chat-voice-input-mode-icon ${ThemeIcon.asClassName(muted ? Codicon.micCompact : Codicon.mute)}`;
+			this._muteIcon!.className = `chat-voice-input-mode-icon ${ThemeIcon.asClassName(muted ? Codicon.micCompact : Codicon.micOffCompact)}`;
 			this._updateAriaLabels();
 
 			// Audio-reactive bars only while live (and not hovering the disconnect preview).
