@@ -21,6 +21,7 @@ import { workbenchInstantiationService } from '../../../../../../test/browser/wo
 import { IChatMarkdownAnchorService } from '../../../../browser/widget/chatContentParts/chatMarkdownAnchorService.js';
 import { IChatContentPartRenderContext, InlineTextModelCollection } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
 import { ChatAutomationConfiguredResultSubPart } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatAutomationConfiguredResultSubPart.js';
+import { ChatSessionCreatedResultSubPart } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatSessionCreatedResultSubPart.js';
 import { ChatToolInvocationPart } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatToolInvocationPart.js';
 import { ChatToolConfirmationCarouselPart } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatToolConfirmationCarouselPart.js';
 import { BaseChatToolInvocationSubPart } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatToolInvocationSubPart.js';
@@ -28,7 +29,7 @@ import { ChatToolProgressSubPart } from '../../../../browser/widget/chatContentP
 import { ChatToolStreamingSubPart } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatToolStreamingSubPart.js';
 import { isAskQuestionsToolInvocation, isMcpToolInvocation } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatToolPartUtilities.js';
 import { DiffEditorPool, EditorPool } from '../../../../browser/widget/chatContentParts/chatContentCodePools.js';
-import { IChatAutomationConfiguredData, IChatTerminalToolInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
+import { IChatAutomationConfiguredData, IChatSessionCreatedData, IChatTerminalToolInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
 import { IChatResponseViewModel } from '../../../../common/model/chatViewModel.js';
 import { ToolDataSource, type ToolDataSource as ToolDataSourceType } from '../../../../common/tools/languageModelToolsService.js';
 import { CollapsibleListPool } from '../../../../browser/widget/chatContentParts/chatReferencesContentPart.js';
@@ -311,6 +312,31 @@ suite('ChatToolProgressSubPart', () => {
 		renderToolInvocation(invocation);
 
 		assert.strictEqual(createInstanceStub.firstCall.args[0], ChatAutomationConfiguredResultSubPart);
+	});
+
+	test('renders a created session as a plain title link', () => {
+		const part = disposables.add(instantiationService.createInstance(
+			ChatSessionCreatedResultSubPart,
+			createSerializedToolInvocation({ isComplete: true }),
+			{
+				kind: 'sessionCreated',
+				openLink: 'agent-host-session://copilot/task-a',
+				label: 'Task A',
+			} satisfies IChatSessionCreatedData,
+			createRenderContext(),
+			mockMarkdownRenderer,
+		));
+		const link = part.domNode.querySelector<HTMLAnchorElement>('a.monaco-link');
+
+		assert.deepStrictEqual({
+			text: link?.textContent,
+			href: link?.getAttribute('href'),
+			hasButton: !!part.domNode.querySelector('.monaco-button'),
+		}, {
+			text: 'Task A',
+			href: 'agent-host-session://copilot/task-a',
+			hasButton: false,
+		});
 	});
 
 	test('renders codicon syntax in an automation name as literal text', () => {
