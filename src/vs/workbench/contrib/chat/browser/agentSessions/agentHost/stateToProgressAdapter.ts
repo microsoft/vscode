@@ -18,7 +18,7 @@ import type { ChatInputRequestWithPlanReview, IAgentHostPlanReview } from '../..
 import { getToolKind } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { readToolCallMeta } from '../../../../../../platform/agentHost/common/meta/agentToolCallMeta.js';
 import { getChatErrorDetailsFromMeta, IChatErrorContext } from '../../../common/chatErrorMessages.js';
-import { AGENT_HOST_SCHEME, createAgentHostResourceUriMapper, type IAgentHostResourceUriMapper, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { AGENT_HOST_SCHEME, createAgentHostResourceUriMapper, type IAgentHostResourceUriMapper, toAgentHostContentUri, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { AgentHostElementAttachmentDisplayKind, getElementAttachmentCorrelationId } from '../../../../../../platform/agentHost/common/meta/agentElementAttachments.js';
 import { AgentHostAutoReplyAnswer } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
 import { SessionServerToolName } from '../../../../../../platform/agentHost/common/serverToolNames.js';
@@ -1885,8 +1885,8 @@ function fileEditToExternalEdit(edit: FileEdit, undoStopId: string, connectionAu
 		uri: toAgentHostUri(normalized.resource, connectionAuthority),
 		editKind: normalized.kind as ChatExternalEditKind,
 		originalUri: normalized.kind === FileEditKind.Rename && normalized.beforeUri ? toAgentHostUri(normalized.beforeUri, connectionAuthority) : undefined,
-		beforeContentUri: normalized.beforeContentUri ? toAgentHostUri(normalized.beforeContentUri, connectionAuthority) : undefined,
-		afterContentUri: normalized.afterContentUri ? toAgentHostUri(normalized.afterContentUri, connectionAuthority) : undefined,
+		beforeContentUri: normalized.beforeContentUri ? toAgentHostContentUri(normalized.beforeContentUri, connectionAuthority) : undefined,
+		afterContentUri: normalized.afterContentUri ? toAgentHostContentUri(normalized.afterContentUri, connectionAuthority) : undefined,
 		diff,
 		undoStopId,
 	};
@@ -2261,6 +2261,7 @@ export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationI
 			};
 		} else if (pendingEdits?.length) {
 			const wrap = (uri: URI) => connectionAuthority ? toAgentHostUri(uri, connectionAuthority) : uri;
+			const wrapContent = (uri: URI) => connectionAuthority ? toAgentHostContentUri(uri, connectionAuthority) : uri;
 			const mapped = mapFileEdits(pendingEdits, tc.toolCallId);
 			toolSpecificData = {
 				kind: 'modifiedFilesConfirmation',
@@ -2268,8 +2269,8 @@ export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationI
 				modifiedFiles: mapped.map(edit => {
 					const resource = wrap(edit.resource);
 					const originalResource = edit.originalResource ? wrap(edit.originalResource) : undefined;
-					const modifiedContent = edit.afterContentUri ? wrap(edit.afterContentUri) : undefined;
-					const originalContent = edit.beforeContentUri ? wrap(edit.beforeContentUri) : undefined;
+					const modifiedContent = edit.afterContentUri ? wrapContent(edit.afterContentUri) : undefined;
+					const originalContent = edit.beforeContentUri ? wrapContent(edit.beforeContentUri) : undefined;
 					return {
 						uri: resource,
 						editKind: edit.kind as ChatExternalEditKind,
