@@ -39,7 +39,7 @@ export const SESSION_REFERENCES_PILL_ID = 'sessions.chatPills.references';
  */
 export const sessionReferencesPillOptions: IChatDropdownPillOptions = {
 	widgetId: 'sessionReferences',
-	icon: Codicon.pinned,
+	icon: Codicon.bookmark,
 	title: localize('sessionReferences.title', "References"),
 	summaryLabel: count => count === 1
 		? localize('sessionReferences.countSingle', "1 Reference")
