@@ -85,20 +85,9 @@ export function toAgentHostUri(originalUri: URI, connectionAuthority: string): U
 }
 
 /**
- * Wraps a protocol `ContentRef` URI, tagging it so the filesystem provider
- * knows not to `resourceResolve` it.
- *
- * A `ContentRef` is "a reference to large content stored outside the state
- * tree": it is read with `resourceRead` and carries its own `sizeHint` and
- * `contentType`. It is not a filesystem entry, so it has no `stat` — the
- * protocol's `resourceResolve` is "the combination of POSIX `stat` and
- * `realpath`" and answers only `file` / `directory` / `symlink`.
- *
- * Hosts pick their own content URI shapes (`session-db:`, `git-blob:`,
- * `agenthost-content:`, `ahp-session:/<id>/changeset/turncontent/<sha>`, ...),
- * so the caller — which read the URI out of a `ContentRef` field and therefore
- * knows what it is — records that here rather than leaving the provider to
- * infer it from the scheme.
+ * Wraps a protocol `ContentRef` URI, marking it so the filesystem provider
+ * reads it with `resourceRead` instead of resolving it as a filesystem entry.
+ * Hosts choose their own content URI shapes, so the scheme cannot identify one.
  *
  * A content ref that is already a plain `file:` URI on the local connection
  * stays unwrapped: it addresses a real file and resolves normally.

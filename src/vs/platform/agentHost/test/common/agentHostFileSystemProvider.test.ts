@@ -467,14 +467,8 @@ suite('AgentHostFileSystemProvider - synthetic content schemes', () => {
 		assert.strictEqual(connection.listCalls.length, 0);
 	});
 
-	// A `ContentRef` is read with `resourceRead` and carries its own
-	// `sizeHint`/`contentType`; `resourceResolve` is POSIX stat+realpath over
-	// filesystem entries and has no answer for one. A host is free to pick its
-	// own content URI shape, so the scheme alone cannot identify a content ref:
-	// copilotd publishes `ahp-session:/<id>/changeset/turncontent/<sha>`, which
-	// the host's filesystem resolver rejects as a malformed file path. That
-	// failed the stat the diff editor issues before reading, so the read that
-	// would have succeeded never ran and the diff came up empty.
+	// Regression: the diff editor stats before reading, and a content ref is not
+	// a filesystem entry, so the stat failed and the read never ran.
 	test('stat treats a marked content ref as a read-only file whatever its scheme', async () => {
 		const provider = disposables.add(new AgentHostFileSystemProvider());
 		const connection = new StubConnection();
@@ -509,6 +503,22 @@ suite('AgentHostFileSystemProvider - synthetic content schemes', () => {
 		assert.deepStrictEqual({ path, resolved: connection.resolveCalls.length }, {
 			path: wrapped.path,
 			resolved: 0,
+		});
+	});
+
+	// A content ref whose original URI carries no path wraps to `/`, which is
+	// also how the provider addresses its own synthetic root.
+	test('stat reports a pathless content ref as a file, not the provider root', async () => {
+		const provider = disposables.add(new AgentHostFileSystemProvider());
+		const connection = new StubConnection();
+		disposables.add(provider.registerAuthority('remote', connection));
+		const wrapped = toAgentHostContentUri(URI.parse('agenthost-content://session'), 'remote');
+
+		const stat = await provider.stat(wrapped);
+
+		assert.deepStrictEqual({ wrappedPath: wrapped.path, type: stat.type }, {
+			wrappedPath: '/',
+			type: FileType.File,
 		});
 	});
 

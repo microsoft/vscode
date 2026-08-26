@@ -386,18 +386,10 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 
 	/**
 	 * Whether `resource` addresses a protocol `ContentRef` rather than an entry
-	 * in the host's filesystem.
+	 * in the host's filesystem. See {@link toAgentHostContentUri}.
 	 *
-	 * Content refs are read with `resourceRead` and carry their own `sizeHint`
-	 * and `contentType`; `resourceResolve` is "the combination of POSIX `stat`
-	 * and `realpath`" and answers only `file` / `directory` / `symlink`, none of
-	 * which a content ref is. Asking the host to resolve one fails — copilotd
-	 * rejects it as a malformed file path — and the read that would have
-	 * succeeded never runs. So synthesize a read-only file entry instead.
-	 *
-	 * Wrapped URIs carry the answer (see `toAgentHostContentUri`). The scheme
-	 * check covers content refs minted before that marker existed — notably
-	 * ones persisted in restored editor state.
+	 * The scheme check covers content refs minted before the marker existed,
+	 * such as ones persisted in restored editor state.
 	 */
 	private _isContentRef(resource: URI, decoded: URI): boolean {
 		return isAgentHostContentRefUri(resource)
@@ -408,12 +400,15 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 	async stat(resource: URI): Promise<IStat> {
 		const path = resource.path;
 
-		if (path === '/' || path === '') {
-			return { type: FileType.Directory, mtime: 0, ctime: 0, size: 0, permissions: FilePermission.Readonly };
-		}
+		// Before the synthetic-root check: a content ref whose original URI has
+		// no path is wrapped as `/`, and it is a file, not the provider root.
 		const decoded = this._decodeUri(resource);
 		if (this._isContentRef(resource, decoded)) {
 			return { type: FileType.File, mtime: 0, ctime: 0, size: 0, permissions: FilePermission.Readonly };
+		}
+
+		if (path === '/' || path === '') {
+			return { type: FileType.Directory, mtime: 0, ctime: 0, size: 0, permissions: FilePermission.Readonly };
 		}
 
 		if (decoded.path === '/' || decoded.path === '') {
