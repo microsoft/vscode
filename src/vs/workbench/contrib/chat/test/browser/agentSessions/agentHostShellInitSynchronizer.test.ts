@@ -230,11 +230,11 @@ suite('AgentHostShellInitSynchronizer', () => {
 		assert.deepStrictEqual(dispatched, []);
 	});
 
-	(isWindows ? test.skip : test)('falls back to the zsh activation value under bash', async () => {
+	(isWindows ? test.skip : test)('ignores the zsh activation value under bash', async () => {
 		const { synchronizer, dispatched } = create({
 			collection: collection([{ variable: 'VSCODE_PYTHON_ZSH_ACTIVATE', value: 'activate-zsh', folder: folderA }]),
 		});
 		await register(synchronizer, state());
-		assert.ok(scripts(dispatched)[0].script.includes('activate-zsh'));
+		assert.ok(!scripts(dispatched)[0].script.includes('activate-zsh'));
 	});
 });

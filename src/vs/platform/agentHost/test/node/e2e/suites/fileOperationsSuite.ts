@@ -253,6 +253,43 @@ export function defineFileOperationsTests(context: IAgentHostE2ETestContext): vo
 				responseEndsWithCreated: true,
 			});
 		});
+
+		(portableShellToolReplayEnabled && shellOutputOracleAvailable ? test : test.skip)('shell init script runs before the shell command', async function () {
+			this.timeout(180_000);
+			const workspace = mkdtempSync(join(tmpdir(), 'ahp-shell-init-'));
+			tempDirs.push(workspace);
+			const sessionUri = await createRealSession(context.client, config, 'shell-init-script', createdSessions, URI.file(workspace));
+			// Session config carries script text; the host materializes the file
+			// and registers it through the SDK's `shell.initScripts`.
+			context.client.dispatch({
+				channel: sessionUri,
+				clientSeq: 1,
+				action: {
+					type: ActionType.SessionConfigChanged,
+					config: { [SessionConfigKey.ShellInitSnippets]: [{ shell: 'bash', script: 'export AHP_E2E_INIT_MARKER=init_marker_91\nbuiltin true\n' }] },
+				},
+			});
+			await context.client.waitForNotification(n =>
+				isActionNotification(n, 'session/configChanged') && getActionEnvelope(n).channel === sessionUri,
+				30_000,
+			);
+
+			context.client.beginAhpSnapshotRound();
+			// `node -e` keeps the recorded command platform-neutral; the marker can
+			// only be present if the registered init script ran first.
+			const markerCommand = `node -e "console.log('marker=' + process.env.AHP_E2E_INIT_MARKER)"`;
+			const result = await driveTurnToCompletion(context.client, sessionUri, 'turn-shell-init', `Run exactly this shell command, with no modifications: \`${markerCommand}\`. Then reply with its exact output only.`, 1);
+			assert.match(result.responseText, /marker=init_marker_91/);
+			assertToolCallCompleteText(context.client, {
+				channel: buildDefaultChatUri(sessionUri),
+				turnId: 'turn-shell-init',
+				toolNames: [config.shellToolName],
+				workspace,
+				expected: [/marker=init_marker_91/],
+				success: true,
+			});
+			await assertRecordedAhpSnapshot(this.test!, context.client, BEHAVIOR_SNAPSHOT);
+		});
 	}
 
 	fileOperationTest(context, 'reads an existing text file', async function () {

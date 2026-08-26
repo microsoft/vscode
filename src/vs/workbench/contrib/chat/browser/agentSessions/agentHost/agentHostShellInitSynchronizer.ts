@@ -23,9 +23,11 @@ import { IEnvironmentVariableService } from '../../../../terminal/common/environ
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 
 const PYTHON_ENV_EXTENSION_ID = 'ms-python.vscode-python-envs';
+// Only the variable matching the tool shell: the extension publishes
+// shell-specific activation, so no cross-shell fallback is read.
 const PYTHON_ACTIVATION_VARIABLES: readonly string[] = isWindows
 	? ['VSCODE_PYTHON_PWSH_ACTIVATE']
-	: ['VSCODE_PYTHON_BASH_ACTIVATE', 'VSCODE_PYTHON_ZSH_ACTIVATE'];
+	: ['VSCODE_PYTHON_BASH_ACTIVATE'];
 const TOOL_SHELL: ShellInitScriptShell = isWindows ? 'powershell' : 'bash';
 
 export const IAgentHostShellInitSynchronizer = createDecorator<IAgentHostShellInitSynchronizer>('agentHostShellInitSynchronizer');

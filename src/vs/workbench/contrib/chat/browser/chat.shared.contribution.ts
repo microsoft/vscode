@@ -1564,6 +1564,9 @@ configurationRegistry.registerConfiguration({
 		[AgentHostShellToolInitScriptEnabledSettingId]: {
 			type: 'boolean',
 			markdownDescription: nls.localize('chat.agentHost.shellTool.initScript.enabled', "When enabled, commands run by the agent's shell tool load your shell profile and activate the Python environment selected for the workspace. Python activation requires the Python Environments extension with `#python-envs.terminal.autoActivationType#` set to `shellStartup`."),
+			// Deliberately on by default: agent shell commands should see the
+			// user's profile and selected Python environment like a terminal
+			// would, accepting the per-command profile replay cost.
 			default: true,
 			tags: ['experimental', 'advanced'],
 		},
