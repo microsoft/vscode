@@ -210,8 +210,8 @@ export interface IAgentFeedbackService {
 	 * Resolve the session that owns the given file resource. Returns the
 	 * session that was active when the file's editor was first opened; if the
 	 * file has never been tracked, falls back to the currently active session.
-	 * Returns `undefined` when the file is not in scope for the session (e.g.
-	 * the Output view or files outside the session's workspace folders).
+	 * Returns `undefined` when the file is not eligible for feedback (an
+	 * output-channel resource) or when there is no created session to scope to.
 	 */
 	getSessionForFile(resourceUri: URI): ISession | undefined;
 

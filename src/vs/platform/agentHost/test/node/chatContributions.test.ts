@@ -21,10 +21,11 @@ import { AgentHostLaunchKind, createUnknownAgentHostClientTelemetryContext } fro
 import { createChatMementoKey, createSessionMementoKey, IAgentHostChatContributions, type IAgentHostChatContribution, type IAgentHostChatContributionContext, type IAgentHostChatContributionHost, type IHydrationContext, type IObservedAction, type IOutgoingTurn, type ITurnEnd } from '../../common/agentHostChatContributionsService.js';
 import { AgentHostArtifactToolsConfigKey, AgentHostMarkdownPlanRichLinksEnabledConfigKey, type ISchema, type SchemaDefinition, type SchemaValue } from '../../common/agentHostSchema.js';
 import { withChatSurfaceMeta } from '../../common/meta/agentChatSurfaceMeta.js';
+import { readAgentMessageDelegationMeta, toAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { ChatOriginKind } from '../../common/state/protocol/state.js';
-import { buildChatUri, buildDefaultChatUri, MessageKind, PendingMessageKind, SessionStatus, TurnState, type ISessionGitHubState, type Message, type PendingMessage, type Turn } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, MessageKind, PendingMessageKind, ResponsePartKind, SessionStatus, TurnState, type ISessionGitHubState, type Message, type PendingMessage, type Turn } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostClientConnectionService, IAgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
 import { AgentHostChatContributions } from '../../node/agentHostChatContributionsService.js';
@@ -41,6 +42,7 @@ import { registerBuiltInChatContributions } from '../../node/chatContributions/b
 import { QueueDrainContribution } from '../../node/chatContributions/queueDrain/queueDrainContribution.js';
 import { SessionTitleContribution } from '../../node/chatContributions/sessionTitle/sessionTitleContribution.js';
 import { SideChatContribution } from '../../node/chatContributions/sideChat/sideChatContribution.js';
+import { TurnDelegationContribution } from '../../node/chatContributions/turnDelegation/turnDelegationContribution.js';
 import { injectSideChatContext } from '../../node/chatContributions/sideChat/sideChatContext.js';
 import { ARTIFACT_TOOLS_INSTRUCTION } from '../../node/shared/artifactServerTools.js';
 import { AGENT_HOST_TITLE_SOURCE_USER, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
@@ -594,6 +596,21 @@ function createSessionTitleContributions(disposables: ReturnType<typeof ensureNo
 	return { service, stateManager, database, titleController, session, defaultChat, peerChat };
 }
 
+function createTurnDelegationContributions(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>) {
+	const logService = new NullLogService();
+	const database = new TestSessionDatabase();
+	const sessionDataService = createSessionDataService(database);
+	const services = new ServiceCollection(
+		[ILogService, logService],
+		[ISessionDataService, sessionDataService],
+	);
+	const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
+	const service: IAgentHostChatContributions = disposables.add(new AgentHostChatContributions(logService, instantiationService));
+	disposables.add(service.registerContribution(TurnDelegationContribution));
+	const session = 'copilot:/target';
+	return { service, database, session, chat: buildDefaultChatUri(session) };
+}
+
 function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, observed?: string[], enableSendInstructions = false): { readonly service: AgentHostChatContributions; readonly stateManager: AgentHostStateManager; readonly session: string } {
 	const logService = new NullLogService();
 	const stateManager = disposables.add(new AgentHostStateManager(logService));
@@ -950,7 +967,7 @@ suite('AgentHostChatContributions', () => {
 				actions.push(envelope.action.type);
 			}
 			if (envelope.action.type === ActionType.ChatError) {
-				errorTypes.push(envelope.action.error.errorType);
+				errorTypes.push(envelope.action.part.error.errorType);
 			}
 		}));
 		queue.clearAgent();
@@ -1162,6 +1179,45 @@ suite('AgentHostChatContributions', () => {
 		assert.deepStrictEqual(turns.map(turn => [turn.id, turn.message.text]), [['built-in-hydration-order', 'side question']]);
 	});
 
+	test('persists and restores agent-authored turn delegation through a provider turn id', async () => {
+		const contributions = createTurnDelegationContributions(disposables);
+		const delegation = {
+			sourceSession: 'copilot:/source',
+			sourceChat: buildDefaultChatUri('copilot:/source'),
+			sourceTurnId: 'source-turn',
+		};
+		await contributions.service.outgoingTurn({
+			session: contributions.session,
+			chat: contributions.chat,
+			turnId: 'host-turn',
+			message: {
+				text: 'delegated prompt',
+				origin: { kind: MessageKind.Agent },
+				_meta: toAgentMessageDelegationMeta(delegation),
+			},
+		});
+		const [directlyRestored] = await contributions.service.hydrateTurns(
+			{ session: contributions.session, chat: contributions.chat },
+			[hydrationTurn('host-turn')],
+		);
+		await contributions.database.setTurnEventId('host-turn', 'provider-turn');
+		const [providerRestored] = await contributions.service.hydrateTurns(
+			{ session: contributions.session, chat: contributions.chat },
+			[hydrationTurn('provider-turn')],
+		);
+
+		assert.deepStrictEqual(
+			[directlyRestored, providerRestored].map(turn => ({
+				origin: turn.message.origin,
+				delegation: readAgentMessageDelegationMeta(turn.message),
+			})),
+			[
+				{ origin: { kind: MessageKind.Agent }, delegation },
+				{ origin: { kind: MessageKind.Agent }, delegation },
+			],
+		);
+	});
+
 	test('isolates a throwing contribution', () => {
 		const contributions = disposables.add(createContributions(disposables, ThrowingContribution, FollowingContribution));
 		contributions.turnEnd(turnEnd('throwing'));
@@ -1329,6 +1385,48 @@ suite('AgentHostChatContributions', () => {
 		assert.strictEqual(first.message.text, injectSideChatContext('side question', undefined, 'User request:\nsource question'));
 	});
 
+	test('includes only local context after the active side-chat fork anchor', async () => {
+		const sideChat = createSideChatContributions(disposables);
+		sideChat.stateManager.dispatchServerAction(sideChat.sourceChat, {
+			type: ActionType.ChatTurnStarted,
+			turnId: 'source-concrete',
+			startedAt: '2025-01-01T00:00:00.000Z',
+			message: { text: 'source question', origin: { kind: MessageKind.User } },
+		});
+		sideChat.stateManager.dispatchServerAction(sideChat.sourceChat, {
+			type: ActionType.ChatTurnComplete,
+			turnId: 'source-concrete',
+			duration: 1,
+		});
+		sideChat.stateManager.dispatchServerAction(sideChat.sourceChat, {
+			type: ActionType.ChatTurnStarted,
+			turnId: 'local-turn',
+			startedAt: '2025-01-01T00:00:01.000Z',
+			message: { text: '!command', origin: { kind: MessageKind.User } },
+		});
+		sideChat.stateManager.dispatchServerAction(sideChat.sourceChat, {
+			type: ActionType.ChatTurnComplete,
+			turnId: 'local-turn',
+			duration: 1,
+		});
+		sideChat.localTurns.noteInMemory(sideChat.session, sideChat.sourceChat, 'local-turn', 'source-concrete', 1);
+		sideChat.stateManager.dispatchServerAction(sideChat.sourceChat, {
+			type: ActionType.ChatTurnStarted,
+			turnId: 'source-turn',
+			startedAt: '2025-01-01T00:00:02.000Z',
+			message: { text: 'still running', origin: { kind: MessageKind.User } },
+		});
+
+		const first = await sideChat.service.outgoingTurn({
+			session: sideChat.session,
+			chat: sideChat.sideChat,
+			message: { text: 'side question', origin: { kind: MessageKind.User } },
+			turnId: 'side-turn',
+		});
+
+		assert.strictEqual(first.message.text, injectSideChatContext('side question', undefined, 'User request:\n!command\n\n---\n\nUser request:\nstill running'));
+	});
+
 	test('injects context after failed or cancelled first side-chat attempts', async () => {
 		const reasons: readonly ITurnEnd['reason'][] = [
 			{ kind: 'error', error: { errorType: 'test', message: 'failed' } },
@@ -1354,7 +1452,7 @@ suite('AgentHostChatContributions', () => {
 					type: ActionType.ChatError,
 					turnId: 'first-turn',
 					duration: 1,
-					error: reason.error,
+					part: { kind: ResponsePartKind.Error, error: reason.error },
 				});
 			} else {
 				sideChat.stateManager.dispatchServerAction(sideChat.sideChat, {

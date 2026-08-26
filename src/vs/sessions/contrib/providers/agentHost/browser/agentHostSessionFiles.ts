@@ -67,6 +67,13 @@ export interface ISessionOutputObs {
 	 * chat's AHP chat URI. Ordered by first reference and de-duplicated.
 	 */
 	getChatCustomizations(chatUri: URI): IObservable<readonly ISessionChatCustomization[]>;
+	/**
+	 * Drops the cached observables and parser state held for a chat that no
+	 * longer exists (e.g. a peer chat removed from the session's catalog).
+	 * Without this the per-chat caches would retain one object graph per
+	 * deleted chat for the adapter's lifetime.
+	 */
+	releaseChat(chatUri: URI): void;
 }
 
 /**
@@ -189,7 +196,14 @@ export function createSessionOutputObs(
 		return customizations;
 	};
 
-	return { getLastTurnChanges, getChatCustomizations };
+	const releaseChat = (chatUri: URI): void => {
+		const key = chatUri.toString();
+		outputByChat.delete(key);
+		lastTurnChangesByChat.delete(key);
+		customizationsByChat.delete(key);
+	};
+
+	return { getLastTurnChanges, getChatCustomizations, releaseChat };
 }
 
 /**

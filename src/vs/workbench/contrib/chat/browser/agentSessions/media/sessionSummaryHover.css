@@ -51,6 +51,26 @@ session with no pull requests shows one rule and a quick chat none. */
 	min-width: 0;
 }
 
+.session-summary-hover-link {
+	width: 100%;
+	padding: 0;
+	border: none;
+	background: transparent;
+	color: inherit;
+	font: inherit;
+	text-align: left;
+	cursor: pointer;
+}
+
+.session-summary-hover-link:hover {
+	color: var(--vscode-textLink-foreground);
+}
+
+.session-summary-hover-link:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: var(--vscode-spacing-size20);
+}
+
 .session-summary-hover-text {
 	min-width: 0;
 	overflow-wrap: anywhere;
