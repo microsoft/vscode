@@ -697,7 +697,7 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 				await this.currentFileIconTheme.reload(this.fileIconThemeLoader);
 				this.applyAndSetFileIconTheme(this.currentFileIconTheme);
 			} catch (error) {
-				this.logService.info('Unable to reload {0}: {1}', this.currentFileIconTheme.location?.toString(), error.message);
+				this.logService.warn('Unable to reload {0}: {1}', this.currentFileIconTheme.location?.toString(), errors.toErrorMessage(error));
 			}
 		});
 	}
