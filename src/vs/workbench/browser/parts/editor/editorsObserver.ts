@@ -346,20 +346,21 @@ export class EditorsObserver extends Disposable {
 
 	private async doEnsureOpenedEditorsLimit(limit: number, mostRecentEditors: IEditorIdentifier[], exclude?: IEditorIdentifier): Promise<void> {
 
-		// Check for `excludeDirty` setting and apply it by excluding
-		// any recent editor that is dirty from the opened editors limit
-		let mostRecentEditorsCountingForLimit: IEditorIdentifier[];
-		if (this.editorGroupService.partOptions.limit?.excludeDirty) {
-			mostRecentEditorsCountingForLimit = mostRecentEditors.filter(({ editor }) => {
-				if ((editor.isDirty() && !editor.isSaving()) || editor.hasCapability(EditorInputCapabilities.Scratchpad)) {
-					return false; // not dirty editors (unless in the process of saving) or scratchpads
-				}
+		// Editors that opt out of the limit (e.g. the Agents window's managed
+		// docked tabs) never count towards it and are never auto-closed.
+		const mostRecentEditorsCountingForLimit = mostRecentEditors.filter(({ editor }) => {
+			if (editor.hasCapability(EditorInputCapabilities.ExcludeFromEditorLimit)) {
+				return false;
+			}
 
-				return true;
-			});
-		} else {
-			mostRecentEditorsCountingForLimit = mostRecentEditors;
-		}
+			// Check for `excludeDirty` setting and apply it by excluding
+			// any recent editor that is dirty from the opened editors limit
+			if (this.editorGroupService.partOptions.limit?.excludeDirty && ((editor.isDirty() && !editor.isSaving()) || editor.hasCapability(EditorInputCapabilities.Scratchpad))) {
+				return false; // not dirty editors (unless in the process of saving) or scratchpads
+			}
+
+			return true;
+		});
 
 		if (limit >= mostRecentEditorsCountingForLimit.length) {
 			return; // only if opened editors exceed setting and is valid and enabled

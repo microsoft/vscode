@@ -492,6 +492,15 @@ suite('extractImagesFromChatRequest', () => {
 		assert.deepStrictEqual([...result[0].data.buffer], [7, 8, 9]);
 	});
 
+	test('does not treat a URI-backed image attachment as inline image bytes', () => {
+		const uri = URI.file('/tmp/cat.png');
+		const request = makeRequest([
+			makeImageVariableEntry({ value: uri, references: [{ kind: 'reference', reference: uri }] }),
+		]);
+
+		assert.deepStrictEqual(extractImagesFromChatRequest(request), []);
+	});
+
 	test('uses attachment resource URI when available', () => {
 		const uri = URI.file('/tmp/cat.png');
 		const request = makeRequest([

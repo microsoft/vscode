@@ -13,7 +13,7 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { IV8Profile } from '../../profiling/common/profiling.js';
 import { AuthInfo, Credentials } from '../../request/common/request.js';
 import { IPartsSplash } from '../../theme/common/themeService.js';
-import { IColorScheme, IOpenedAuxiliaryWindow, IOpenedMainWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IPoint, IRectangle, IWindowOpenable } from '../../window/common/window.js';
+import { AgentsWindowOpenSource, IColorScheme, IOpenedAuxiliaryWindow, IOpenedMainWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IPoint, IRectangle, IWindowOpenable } from '../../window/common/window.js';
 
 export interface IToastOptions {
 	readonly id: string;
@@ -38,7 +38,25 @@ export interface IToastResult {
  */
 export type INativeZipFile =
 	| { readonly path: string; readonly contents: string }
-	| { readonly path: string; readonly source: URI; readonly size: number };
+	| {
+		readonly path: string;
+		readonly source: URI;
+		readonly size: number;
+		/** Skip this entry when its source cannot be opened or inspected. */
+		readonly skipSourceErrors?: boolean;
+	}
+	| { readonly sourceArchive: URI };
+
+export interface INativeZipOptions {
+	readonly maxSize?: number;
+	readonly maxEntries: number;
+}
+
+export interface IOpenAgentsWindowOptions {
+	readonly folderUri?: UriComponents;
+	readonly sessionResource?: UriComponents;
+	readonly source?: AgentsWindowOpenSource;
+}
 
 export interface ICPUProperties {
 	model: string;
@@ -225,7 +243,7 @@ export interface ICommonNativeHostService {
 	openWindow(options?: IOpenEmptyWindowOptions): Promise<void>;
 	openWindow(toOpen: IWindowOpenable[], options?: IOpenWindowOptions): Promise<void>;
 
-	openAgentsWindow(options?: { folderUri?: UriComponents; sessionResource?: UriComponents }): Promise<void>;
+	openAgentsWindow(options?: IOpenAgentsWindowOptions): Promise<void>;
 
 	/**
 	 * Registers this window's set of system-wide (OS global) keybindings with the main process,
@@ -380,7 +398,7 @@ export interface ICommonNativeHostService {
 	 * file `source` URI together with the number of leading bytes (`size`) to
 	 * stream from it.
 	 */
-	createZipFile(zipPath: URI, files: INativeZipFile[]): Promise<void>;
+	createZipFile(zipPath: URI, files: INativeZipFile[], options?: INativeZipOptions): Promise<void>;
 
 	// Power
 	getSystemIdleState(idleThreshold: number): Promise<SystemIdleState>;

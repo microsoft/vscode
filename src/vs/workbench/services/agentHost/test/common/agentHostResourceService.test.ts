@@ -16,6 +16,7 @@ import {
 	AgentHostPermissionMode,
 	AgentHostPermissionsSetting,
 	AgentHostLocalFilePermissionsSettingId,
+	LOCAL_AGENT_HOST_RESOURCE_IDENTITY,
 } from '../../../../../platform/agentHost/common/agentHostResourceService.js';
 import { AgentHostResourceService } from '../../common/agentHostResourceService.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
@@ -39,8 +40,8 @@ class CapturingConfigurationService extends TestConfigurationService {
  * unit tests exercise the policy logic without a real filesystem; canonical
  * form == lexically normalized form.
  *
- * `null` realpath responses simulate non-existent paths to drive the
- * `_canonicalize` parent-fallback branch.
+ * `undefined` realpath responses simulate non-existent paths to drive the
+ * `_canonicalize` ancestor walk.
  */
 function createStubFileService(opts?: {
 	realpathReturns?: (uri: URI) => URI | undefined;
@@ -66,6 +67,42 @@ suite('AgentHostResourceService', () => {
 		const { service } = createService();
 		assert.strictEqual(await service.check('host', URI.file('/etc/passwd'), AgentHostPermissionMode.Read), false);
 		assert.strictEqual(await service.check('host', URI.file('/etc/passwd'), AgentHostPermissionMode.Write), false);
+	});
+
+	test('trusted local identity cannot be spoofed by a remote local address', async () => {
+		const { service } = createService();
+		const uri = URI.file('/etc/passwd');
+
+		assert.deepStrictEqual({
+			trustedLocal: await service.check(LOCAL_AGENT_HOST_RESOURCE_IDENTITY, uri, AgentHostPermissionMode.Write),
+			remoteLocal: await service.check('local', uri, AgentHostPermissionMode.Read),
+			normalizedRemoteLocal: await service.check('ws://local', uri, AgentHostPermissionMode.Read),
+		}, {
+			trustedLocal: true,
+			remoteLocal: false,
+			normalizedRemoteLocal: false,
+		});
+	});
+
+	test('remote local address uses the normal permission request flow', async () => {
+		const { service } = createService();
+		const uri = URI.file('/etc/passwd');
+		const promise = service.request('ws://local', { channel: 'ahp-root://', uri: uri.toString(), read: true });
+		await new Promise(resolve => setTimeout(resolve, 0));
+		const [pending] = service.allPending.get();
+
+		assert.deepStrictEqual({
+			address: pending.address,
+			uri: pending.uri.toString(),
+			mode: pending.mode,
+		}, {
+			address: 'local',
+			uri: uri.toString(),
+			mode: AgentHostPermissionMode.Read,
+		});
+
+		pending.deny();
+		await assert.rejects(promise, (err: unknown) => err instanceof CancellationError);
 	});
 
 	test('implicit read grant covers descendants but not parent or sibling', async () => {
@@ -176,6 +213,46 @@ suite('AgentHostResourceService', () => {
 			true,
 			'nonexistent file under a symlinked parent should canonicalize to /real/new.txt',
 		);
+	});
+
+	test('check walks ancestors so nested missing paths through a symlink are denied', async () => {
+		// `/safe/sym` → `/outside`. Intermediate `/safe/sym/a` and leaf
+		// `/safe/sym/a/b.txt` do not exist. One missing component under the
+		// symlink is already denied; two or more used to fall back to the
+		// lexical workspace path and pass the `/safe` grant.
+		const fileService = createStubFileService({
+			realpathReturns: uri => {
+				if (
+					uri.path === '/safe/sym/a/b.txt'
+					|| uri.path === '/safe/sym/a'
+					|| uri.path === '/safe/sym/new.txt'
+					|| uri.path === '/safe/new/dir/file.txt'
+					|| uri.path === '/safe/new/dir'
+					|| uri.path === '/safe/new'
+				) {
+					return undefined;
+				}
+				if (uri.path === '/safe/sym') {
+					return URI.file('/outside');
+				}
+				return uri;
+			},
+		});
+		const { service } = createService({
+			'host': {
+				[URI.file('/safe').toString()]: AgentHostAccessMode.ReadWrite,
+			},
+		}, fileService);
+
+		assert.deepStrictEqual({
+			nestedMissingThroughSymlink: await service.check('host', URI.file('/safe/sym/a/b.txt'), AgentHostPermissionMode.Write),
+			oneLevelMissingThroughSymlink: await service.check('host', URI.file('/safe/sym/new.txt'), AgentHostPermissionMode.Write),
+			nestedMissingInsideGrant: await service.check('host', URI.file('/safe/new/dir/file.txt'), AgentHostPermissionMode.Write),
+		}, {
+			nestedMissingThroughSymlink: false,
+			oneLevelMissingThroughSymlink: false,
+			nestedMissingInsideGrant: true,
+		});
 	});
 
 	test('request resolves immediately when already granted', async () => {
@@ -554,4 +631,3 @@ suite('AgentHostResourceService', () => {
 		assert.strictEqual(await service.check('host', URI.file('/etc/good'), AgentHostPermissionMode.Read), true);
 	});
 });
-

@@ -1,0 +1,24 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-opus-4.8
+      system: ${system}
+      messages:
+        - role: user
+          content: Remember the code word OLD_PEER. Reply exactly "ready".
+    response:
+      content: |-
+        I'll remember the code word OLD_PEER.
+
+        ready
+      stopReason: end_turn
+  - request:
+      model: claude-opus-4.8
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "new".
+    response:
+      content: new
+      stopReason: end_turn

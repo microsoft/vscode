@@ -8,7 +8,7 @@ import { URI } from '../../../base/common/uri.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { IFileService } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentSession } from '../common/agentService.js';
+import { AgentSession } from '../common/agent.js';
 import { ISessionDatabase, ISessionDataService, IWillDeleteSessionDataEvent, SESSION_DB_FILENAME } from '../common/sessionDataService.js';
 import { SessionDatabase } from './sessionDatabase.js';
 
@@ -110,7 +110,7 @@ export class SessionDataService implements ISessionDataService {
 		return this._databases.acquire(key);
 	}
 
-	async deleteSessionData(session: URI): Promise<void> {
+	async deleteSessionData(session: URI, workingDirectories?: readonly string[]): Promise<void> {
 		const dir = this.getSessionDataDir(session);
 		// Fire the will-delete event first so subscribers (notably the
 		// checkpoint service) can perform async cleanup that needs the
@@ -120,6 +120,7 @@ export class SessionDataService implements ISessionDataService {
 		try {
 			this._onWillDeleteSessionData.fire({
 				session,
+				workingDirectories,
 				waitUntil: p => { pending.push(p); },
 			});
 		} catch (err) {

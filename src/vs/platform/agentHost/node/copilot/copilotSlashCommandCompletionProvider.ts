@@ -4,14 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { AgentSession } from '../../common/agentService.js';
+import { AgentSession } from '../../common/agent.js';
 import { CompletionItem, CompletionItemKind, CompletionsParams } from '../../common/state/protocol/commands.js';
 import { Customization, CustomizationType, DirectoryCustomization, MessageAttachmentKind, PluginCustomization, SkillCustomization } from '../../common/state/protocol/state.js';
-import { toCommandCompletionAttachmentMeta } from '../../common/meta/agentCompletionAttachmentMeta.js';
+import { getCompletionAction, toCommandCompletionAttachmentMeta } from '../../common/meta/agentCompletionAttachmentMeta.js';
+import { getCopilotConfigSlashCommandItems, ICopilotConfigSlashCommandState, isCopilotConfigSlashCommand } from '../../common/copilotConfigSlashCommands.js';
 import { CompletionTriggerCharacter, IAgentHostCompletionItemProvider } from '../agentHostCompletions.js';
-import { extractLeadingSlashToken, extractWhitespaceDelimitedSlashToken } from '../agentHostSlashCompletion.js';
+import { extractLeadingSlashToken, extractWhitespaceDelimitedSlashToken, matchesSlashCompletion } from '../agentHostSlashCompletion.js';
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../../common/agentHostFileSystemService.js';
+import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
 import type { CopilotSession } from '@github/copilot-sdk';
+
+export { parseLeadingSlashCommand } from '../../common/agentHostSlashCommand.js';
 
 const HIDDEN_RUNTIME_COMMANDS = new Set<string>(['agent', 'app', 'changelog', 'context', 'copy', 'exit', 'extensions', 'feedback', 'help', 'ide', 'instructions', 'login', 'logout', 'mcp', 'model', 'new', 'plugin', 'rename', 'restart', 'resume', 'sandbox', 'session', 'settings', 'skills', 'statusline', 'streamer-mode', 'subagents', 'tasks', 'terminal-setup', 'theme', 'undo', 'update', 'user', 'voice', 'worktree', 'autopilot', 'yolo', 'cd', 'cwd', 'after', 'before', 'add-dir', 'allow-all', 'list-dirs', 'reset-allowed-tools']);
 
@@ -30,41 +34,16 @@ export interface ICopilotSlashCommandSessionInfo {
 	/** Runtime slash commands discovered from the SDK session. */
 	getRuntimeSlashCommands?(sessionId: string, options?: ICopilotRuntimeSlashCommandQueryOptions): Promise<readonly ICopilotRuntimeSlashCommandInfo[]>;
 	getSessionCustomizations: (session: string) => Promise<readonly Customization[]>;
+	/**
+	 * The session's current config state (`mode` / `autoApprove` axes), used to
+	 * filter config-action slash command completions so only the state-changing
+	 * forms are offered. When omitted, all forms are offered.
+	 */
+	getSessionConfigState?(sessionId: string): ICopilotConfigSlashCommandState | undefined;
 }
 
 export interface ICopilotRuntimeSlashCommandQueryOptions {
 	readonly maxWaitMs?: number;
-}
-
-/**
- * Result of {@link parseLeadingSlashCommand}.
- */
-export interface IParsedLeadingSlashCommand {
-	readonly command: string;
-	/** Trimmed text following the command (empty if none). */
-	readonly rest: string;
-	/** Raw text after the command delimiter (preserves multiline text). */
-	readonly rawRest: string;
-}
-
-/**
- * Parses a Copilot CLI slash command at the very start of `prompt`.
- *
- * Accepts any `/command` token where `command` is a single non-whitespace
- * segment (no leading/trailing spaces, no embedded slash), followed either
- * by end-of-input or by at least one whitespace character.
- */
-export function parseLeadingSlashCommand(prompt: string): IParsedLeadingSlashCommand | undefined {
-	const match = /^\/([^\s/]+)(?:$|\s+([\s\S]*))/.exec(prompt);
-	if (!match) {
-		return undefined;
-	}
-	const rawRest = match[2] ?? '';
-	return {
-		command: match[1],
-		rest: rawRest.trim(),
-		rawRest,
-	};
 }
 
 /**
@@ -74,9 +53,8 @@ export function parseLeadingSlashCommand(prompt: string): IParsedLeadingSlashCom
  *
  * The returned items carry a {@link MessageAttachmentKind.Simple}
  * attachment, which the workbench bridge maps into command/skill completion
- * attachments. Command dispatch happens text-side in
- * `CopilotAgentSession.send` via {@link parseLeadingSlashCommand}, so the
- * feature works whether the user picks the item or types it manually.
+ * attachments. Runtime command dispatch is text-side in `CopilotAgentSession.send`;
+ * client-side config commands also share the same leading slash parser.
  */
 export class CopilotSlashCommandCompletionProvider implements IAgentHostCompletionItemProvider {
 	readonly kinds: ReadonlySet<CompletionItemKind> = new Set([CompletionItemKind.UserMessage]);
@@ -107,20 +85,59 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 		return await this._getRuntimeSlashCommandCompletionInfo(sessionId, typed, leading, returnJustSkills);
 	}
 
-	private async _getKnownSkills(sessionId: string) {
-		const knownCommands = new Set<string>();
+	private async _getKnownSkills(sessionId: string): Promise<{ readonly known: ReadonlySet<string>; readonly syncedContainerNames: ReadonlySet<string> }> {
+		const known = new Set<string>();
+		const syncedContainerNames = new Set<string>();
 		const customizations = await this._sessionInfo.getSessionCustomizations(sessionId) ?? [];
 		for (const c of customizations) {
-			if (c.type === CustomizationType.McpServer || !c.enabled || !c.children) {
+			if (c.type === CustomizationType.McpServer || (c.type === CustomizationType.Plugin ? !isCustomizationEnabled(c) : !c.enabled) || !c.children) {
 				continue;
+			}
+			if (c.type === CustomizationType.Plugin && isSyncedCustomization(c)) {
+				syncedContainerNames.add(c.name.toLowerCase());
 			}
 			for (const child of c.children) {
 				if (child.type === CustomizationType.Skill) {
-					knownCommands.add(this._toSlashCommandCandidate(c, child));
+					known.add(this._toSlashCommandCandidate(c, child).toLowerCase());
 				}
 			}
 		}
-		return knownCommands;
+		return { known, syncedContainerNames };
+	}
+
+	/**
+	 * Whether a runtime skill command duplicates one the generic skill-completion
+	 * provider already surfaces, including the synced bundle's namespaced
+	 * `<bundleName>:<skill>` form (kept when its bare name is reserved).
+	 */
+	private _isKnownSkillDuplicate(name: string, knownSkills: ReadonlySet<string>, syncedContainerNames: ReadonlySet<string>, runtimeCommands: readonly ICopilotRuntimeSlashCommandInfo[]): boolean {
+		const lower = name.toLowerCase();
+		if (knownSkills.has(lower)) {
+			return true;
+		}
+		for (const syncedName of syncedContainerNames) {
+			const prefix = `${syncedName}:`;
+			if (lower.startsWith(prefix)) {
+				const stripped = lower.slice(prefix.length);
+				return knownSkills.has(stripped) && !this._isReservedBareName(stripped, runtimeCommands);
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Whether a bare slash name would be intercepted by something other than a
+	 * bundled skill on send: a Copilot config action, the client-handled
+	 * `compact` / `rubber-duck` commands, or a non-skill runtime command (by name
+	 * or alias).
+	 */
+	private _isReservedBareName(name: string, runtimeCommands: readonly ICopilotRuntimeSlashCommandInfo[]): boolean {
+		if (isCopilotConfigSlashCommand(name) || name === 'compact' || name === 'rubber-duck') {
+			return true;
+		}
+		return runtimeCommands.some(command =>
+			command.kind !== 'skill'
+			&& (command.name?.toLowerCase() === name || !!command.aliases?.some(alias => alias.toLowerCase() === name)));
 	}
 
 	private _toSlashCommandCandidate(container: PluginCustomization | DirectoryCustomization, skill: SkillCustomization): string {
@@ -133,7 +150,7 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 	}
 
 	private async _getRuntimeSlashCommandCompletionInfo(sessionId: string, typed: string, { rangeStart, rangeEnd }: { rangeStart: number; rangeEnd: number }, returnJustSkills: boolean): Promise<CompletionItem[]> {
-		const [runtimeCommands, knownSkills] = await Promise.all([
+		const [runtimeCommands, { known: knownSkills, syncedContainerNames }] = await Promise.all([
 			this._sessionInfo.getRuntimeSlashCommands?.(sessionId, { maxWaitMs: this._runtimeSlashCommandCompletionWaitMs }) ?? [],
 			this._getKnownSkills(sessionId)
 		]);
@@ -149,17 +166,23 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 			if (returnJustSkills && command.kind !== 'skill') {
 				continue;
 			}
-			if (command.kind === 'skill' && knownSkills.has(command.name)) {
-				// This is a known skill, so we don't want to show it in the runtime command completion list.
+			if (command.kind === 'skill' && this._isKnownSkillDuplicate(command.name, knownSkills, syncedContainerNames, runtimeCommands)) {
+				// Already surfaced by the generic skill-completion provider.
 				continue;
 			}
 			if (HIDDEN_RUNTIME_COMMANDS.has(command.name) || command.aliases?.some(alias => HIDDEN_RUNTIME_COMMANDS.has(alias))) {
 				continue;
 			}
+			// Config-action commands (permission/mode toggles) are surfaced below
+			// as workbench-defined items; skip any runtime command that collides
+			// with them (e.g. a runtime `plan`) to avoid duplicate suggestions.
+			if (isCopilotConfigSlashCommand(command.name) || command.aliases?.some(alias => isCopilotConfigSlashCommand(alias))) {
+				continue;
+			}
 			if (!rubberDuckEnabled && command.name === 'rubber-duck') {
 				continue;
 			}
-			if (typed.length > 0 && !command.name.toLowerCase().startsWith(typedLower) && !command.aliases?.some(alias => alias.toLowerCase().startsWith(typedLower))) {
+			if (!matchesSlashCompletion(typedLower, command.name) && !command.aliases?.some(alias => matchesSlashCompletion(typedLower, alias))) {
 				continue;
 			}
 			// Use structured input choices as options; if there are none, emit a single item for the command and surface any free-text hint as a prompt.
@@ -207,7 +230,36 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 				});
 		}
 
-		return completionItems.sort((a, b) => a.insertText.localeCompare(b.insertText));
+		// Prepend workbench-defined config-action commands (permission/mode
+		// toggles). These are not runtime SDK commands; they carry an `action`
+		// bag on their `_meta` that the workbench interprets on accept. Only
+		// offered for leading `/command` tokens (not the whitespace-delimited
+		// skill form).
+		if (!returnJustSkills) {
+			const configState = this._sessionInfo.getSessionConfigState?.(sessionId);
+			for (const item of getCopilotConfigSlashCommandItems(typed, configState)) {
+				completionItems.push({
+					insertText: item.insertText,
+					rangeStart,
+					rangeEnd,
+					attachment: {
+						type: MessageAttachmentKind.Simple,
+						label: item.label,
+						_meta: toCommandCompletionAttachmentMeta({
+							command: item.command,
+							description: item.description,
+							...(item.argumentHint !== undefined ? { argumentHint: item.argumentHint } : {}),
+							action: { applyConfig: item.applyConfig },
+						}),
+					},
+				});
+			}
+		}
+
+		const getSortText = (item: CompletionItem): string => {
+			return getCompletionAction(item.attachment._meta) ? item.attachment.label : item.insertText;
+		};
+		return completionItems.sort((a, b) => getSortText(a).localeCompare(getSortText(b)));
 	}
 }
 

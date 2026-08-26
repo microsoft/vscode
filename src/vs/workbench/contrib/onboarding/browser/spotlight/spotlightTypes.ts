@@ -12,6 +12,11 @@ export const SPOTLIGHT_PRESENTATION_KIND = 'spotlight';
 /** Preferred placement of the callout relative to the spotlighted target. */
 export type SpotlightPlacement = 'above' | 'below' | 'left' | 'right' | 'auto';
 
+/** Behavior when a spotlight target is not rendered when its step is reached. */
+export type SpotlightMissingTargetBehavior =
+	| { readonly kind: 'skip' }
+	| { readonly kind: 'wait'; readonly timeoutMs: number };
+
 /**
  * A single step in a spotlight tour. Steps are pure data; the spotlight
  * presentation turns them into the dim overlay, the cut-out highlight and the
@@ -40,6 +45,12 @@ export interface ISpotlightStep {
 	/** When present and unsatisfied, the step is skipped. */
 	readonly when?: ContextKeyExpression;
 
+	/** Missing-target behavior. Defaults to waiting two seconds before skipping. */
+	readonly missingTarget?: SpotlightMissingTargetBehavior;
+
+	/** Opens or expands the target through its owner before the step begins. */
+	readonly openTarget?: boolean;
+
 	/** Allow the spotlighted element to remain interactive. Defaults to `false`. */
 	readonly allowTargetInteraction?: boolean;
 
@@ -48,6 +59,9 @@ export interface ISpotlightStep {
 	 * itself (rather than a "Next" button). The target is kept interactive.
 	 */
 	readonly advanceOnTargetClick?: boolean;
+
+	/** Hides Next and advances once this context expression becomes satisfied. */
+	readonly advanceWhen?: ContextKeyExpression;
 
 	/** Extra padding (px) around the target when cutting the highlight hole. */
 	readonly padding?: number;

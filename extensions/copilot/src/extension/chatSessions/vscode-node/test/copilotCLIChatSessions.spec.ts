@@ -98,7 +98,7 @@ class TestWorktreeService extends mock<IChatSessionWorktreeService>() {
 	declare readonly _serviceBrand: undefined;
 	override getWorktreeProperties = vi.fn(async (_sessionId: string | vscode.Uri): Promise<ChatSessionWorktreeProperties | undefined> => undefined);
 	override setWorktreeProperties = vi.fn(async () => { });
-	override getWorktreeChanges = vi.fn(async () => []);
+	override getWorktreeChanges = vi.fn<IChatSessionWorktreeService['getWorktreeChanges']>(async () => []);
 	override hasCachedChanges = vi.fn(async () => false);
 	override onDidChangeWorktreeChanges = Event.None;
 }
@@ -507,6 +507,47 @@ describe('CopilotCLIChatSessionContentProvider (additional)', () => {
 
 		const item = await provider.toChatSessionItem(sessionItem);
 		expect(item.label).toBe('Test Session');
+	});
+
+	it('only includes cached changes when explicitly requested', async () => {
+		const { provider, worktreeService } = createProvider();
+		const sessionItem: ICopilotCLISessionItem = {
+			id: 'session-1',
+			label: 'Test Session',
+			timing: undefined,
+			workingDirectory: undefined,
+		};
+		worktreeService.getWorktreeProperties.mockResolvedValue({
+			version: 1,
+			baseCommit: 'base',
+			branchName: 'branch',
+			repositoryPath: '/repository',
+			worktreePath: '/worktree',
+			autoCommit: true,
+		});
+		worktreeService.hasCachedChanges.mockResolvedValue(true);
+		worktreeService.getWorktreeChanges.mockResolvedValue([
+			{
+				uri: vscodeShim.Uri.file('/repository/file'),
+				originalUri: undefined,
+				modifiedUri: vscodeShim.Uri.file('/repository/file'),
+				insertions: 3,
+				deletions: 1,
+			},
+		]);
+
+		const listedItem = await provider.toChatSessionItem(sessionItem);
+		const resolvedItem = await provider.toChatSessionItem(sessionItem, { includeChanges: true });
+
+		expect({
+			listedChanges: listedItem.changes,
+			resolvedChanges: resolvedItem.changes?.length,
+			buildCount: worktreeService.getWorktreeChanges.mock.calls.length,
+		}).toEqual({
+			listedChanges: undefined,
+			resolvedChanges: 1,
+			buildCount: 1,
+		});
 	});
 
 	it('does not call refreshSession when PR detection finds no update', async () => {

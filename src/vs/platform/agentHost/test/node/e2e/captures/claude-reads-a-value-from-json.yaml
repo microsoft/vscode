@@ -9,11 +9,13 @@ exchanges:
           content: Read config.json and reply with the numeric value of "answer" only.
     response:
       content:
+        - type: text
+          text: I'll read the config file.
         - type: tool_use
           id: toolcall_0
           name: Read
           input:
-            file_path: ${workdir}/ahp-coverage-json-${temp}/config.json
+            file_path: ${workdir}/config.json
       stopReason: tool_use
   - request:
       model: claude-opus-4.8
@@ -23,11 +25,12 @@ exchanges:
           content: Read config.json and reply with the numeric value of "answer" only.
         - role: assistant
           content:
-            - type: thinking
+            - type: text
+              text: I'll read the config file.
             - type: tool_use
               name: Read
               input:
-                file_path: ${workdir}/ahp-coverage-json-${temp}/config.json
+                file_path: ${workdir}/config.json
         - role: user
           content:
             - type: tool_result

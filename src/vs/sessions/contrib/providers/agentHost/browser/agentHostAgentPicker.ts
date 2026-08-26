@@ -141,7 +141,7 @@ class AgentHostAgentPickerContribution extends Disposable implements IWorkbenchC
 
 		const factory = (_action: IAction, _options: IActionViewItemOptions, scopedInstantiationService: IInstantiationService) => {
 			const { session } = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionContext));
-			const picker = scopedInstantiationService.createInstance(ModePicker, modePickerModel);
+			const picker = scopedInstantiationService.createInstance(ModePicker, modePickerModel, session);
 			const disposableStore = new DisposableStore();
 
 			disposableStore.add(picker.onDidSelect(mode => {

@@ -76,6 +76,12 @@ suite('MCP Types', () => {
 			assert.strictEqual(McpServerDefinition.equals(def1, def2), false);
 		});
 
+		test('returns false when default cwd differs', () => {
+			const def1 = createBasicDefinition({ defaultCwd: URI.file('/path1') });
+			const def2 = createBasicDefinition({ defaultCwd: URI.file('/path2') });
+			assert.strictEqual(McpServerDefinition.equals(def1, def2), false);
+		});
+
 		test('returns true when roots are both undefined', () => {
 			const def1 = createBasicDefinition({ roots: undefined });
 			const def2 = createBasicDefinition({ roots: undefined });
@@ -106,6 +112,35 @@ suite('MCP Types', () => {
 				}
 			});
 			assert.strictEqual(McpServerDefinition.equals(def1, def2), false);
+		});
+	});
+
+	test('McpServerDefinition serializes default cwd as a URI', () => {
+		const defaultCwd = URI.parse('vscode-remote://ssh-remote+linux/home/test/workspace');
+		const definition: McpServerDefinition = {
+			id: 'test-server',
+			label: 'Test Server',
+			cacheNonce: 'nonce',
+			defaultCwd,
+			launch: {
+				type: McpServerTransportType.Stdio,
+				cwd: undefined,
+				command: 'test-command',
+				args: [],
+				env: {},
+				envFile: undefined,
+				sandbox: undefined
+			},
+		};
+
+		const serialized = McpServerDefinition.toSerialized(definition);
+		const deserialized = McpServerDefinition.fromSerialized(serialized);
+		assert.deepStrictEqual({
+			serialized: serialized.defaultCwd,
+			deserialized: deserialized.defaultCwd?.toString(),
+		}, {
+			serialized: defaultCwd,
+			deserialized: defaultCwd.toString(),
 		});
 	});
 });

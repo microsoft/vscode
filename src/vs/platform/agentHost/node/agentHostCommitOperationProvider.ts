@@ -7,7 +7,7 @@ import { Disposable, DisposableStore, IDisposable } from '../../../base/common/l
 import { localize } from '../../../nls.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import type { IChangesetOperationContribution, IChangesetOperationContext, IChangesetOperationRegistry } from '../common/agentHostChangesetOperationService.js';
-import { ChangesetOperationScope, ChangesetOperationStatus, type ChangesetOperation } from '../common/state/sessionState.js';
+import { ChangesetOperationScope, ChangesetOperationStatus, hasSessionPullRequestForBranch, type ChangesetOperation } from '../common/state/sessionState.js';
 import { AgentHostCommitOperationHandler } from './agentHostCommitOperationHandler.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 
@@ -37,7 +37,7 @@ export class AgentHostCommitOperationContribution extends Disposable implements 
 			return [];
 		}
 
-		if (!gitHubState?.pullRequestUrl && changesetKind !== 'uncommitted') {
+		if (!hasSessionPullRequestForBranch(gitHubState, gitState?.branchName) && changesetKind !== 'uncommitted') {
 			return [];
 		}
 

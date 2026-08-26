@@ -3,6 +3,9 @@ parameters:
     type: string
   - name: VSCODE_CIBUILD
     type: boolean
+  - name: VSCODE_SKIP_FOUNDRY_LOCAL_INSTALL
+    type: boolean
+    default: false
   - name: VSCODE_RUN_ELECTRON_TESTS
     type: boolean
     default: false
@@ -16,10 +19,17 @@ parameters:
 steps:
   - template: ../../common/checkout.yml@self
 
+  - ${{ if eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true) }}:
+    - template: ../../copilot/pull-test-cache.yml@self
+
   - task: NodeTool@0
     inputs:
       versionSource: fromFile
       versionFilePath: .nvmrc
+
+  - ${{ if or(eq(parameters.VSCODE_CIBUILD, true), eq(parameters.VSCODE_SKIP_FOUNDRY_LOCAL_INSTALL, true)) }}:
+    - script: node build/azure-pipelines/common/disableFoundryLocalInstall.ts
+      displayName: Disable Foundry Local Native Install
 
   - template: ../../distro/download-distro.yml@self
 
@@ -73,6 +83,11 @@ steps:
     condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM Authentication
 
+  - ${{ if and(eq(parameters.VSCODE_CIBUILD, false), eq(parameters.VSCODE_SKIP_FOUNDRY_LOCAL_INSTALL, false)) }}:
+    - template: ../../common/foundry-local.yml@self
+      parameters:
+        phase: prepare
+
   - task: PipAuthenticate@1
     inputs:
       artifactFeeds: Monaco/vscode
@@ -104,6 +119,14 @@ steps:
       GYP_DEFINES: "kerberos_use_rtld=false"
     displayName: Install dependencies
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+
+  - ${{ if and(eq(parameters.VSCODE_CIBUILD, false), eq(parameters.VSCODE_SKIP_FOUNDRY_LOCAL_INSTALL, false)) }}:
+    - template: ../../common/foundry-local.yml@self
+      parameters:
+        phase: install
+
+  - script: node build/azure-pipelines/common/checkNativeOptionalDeps.ts
+    displayName: Verify native optional dependency binaries
 
   - script: node build/azure-pipelines/distro/mixin-npm.ts
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
@@ -138,7 +161,14 @@ steps:
 
   - template: ../../common/install-builtin-extensions.yml@self
 
+  - script: node build/npm/electronTypes.ts
+    displayName: Prepare Electron types
+
   - template: ../../common/agent-sdk-produce.yml@self
+    parameters:
+      vscodePlatform: darwin
+
+  - template: ../../common/dictation-runtime-produce.yml@self
     parameters:
       vscodePlatform: darwin
 

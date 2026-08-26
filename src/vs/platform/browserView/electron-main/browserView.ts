@@ -7,7 +7,7 @@ import { screen, WebContentsView, webContents } from 'electron';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
-import { IBrowserViewBounds, IBrowserViewDevToolsStateEvent, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewLoadError, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, IBrowserViewFindInPageResult, IBrowserViewVisibilityEvent, browserViewIsolatedWorldId, browserZoomFactors, browserZoomDefaultIndex, IBrowserViewOwner, IBrowserViewOpenOptions, IBrowserViewPermissionRequestEvent } from '../common/browserView.js';
+import { IBrowserViewAudience, IBrowserViewBounds, IBrowserViewDevToolsStateEvent, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewLoadError, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, IBrowserViewFindInPageResult, IBrowserViewVisibilityEvent, browserViewIsolatedWorldId, browserZoomFactors, browserZoomDefaultIndex, IBrowserViewOwner, IBrowserViewEditorOpenOptions, IBrowserViewPermissionRequestEvent, equalsBrowserViewAudience, isBrowserViewAssociatedResourceNavigation, matchesBrowserViewAudience } from '../common/browserView.js';
 import { BrowserViewEmulator } from './browserViewEmulator.js';
 import { BrowserViewInspector } from './browserViewInspector.js';
 import { IWindowsMainService } from '../../windows/electron-main/windows.js';
@@ -22,6 +22,7 @@ import { IAuxiliaryWindow } from '../../auxiliaryWindow/electron-main/auxiliaryW
 import { SCAN_CODE_STR_TO_EVENT_KEY_CODE } from '../../../base/common/keyCodes.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { logBrowserOpen } from '../common/browserViewTelemetry.js';
+import { URI } from '../../../base/common/uri.js';
 
 enum NewPageLocation {
 	Foreground = 'foreground',
@@ -58,6 +59,7 @@ export class BrowserView extends Disposable {
 	private _ownerWindow: ICodeWindow;
 	private _currentWindow: ICodeWindow | IAuxiliaryWindow | undefined;
 	private _isDisposed = false;
+	private _audiences: readonly IBrowserViewAudience[] = [];
 
 	private _wantsVisibility = false;
 	private _hasBeenLaidOut = false;
@@ -112,11 +114,16 @@ export class BrowserView extends Disposable {
 	private readonly _onDidChangePermissions = this._register(new Emitter<ISerializedBrowserPermissionsSnapshot>());
 	readonly onDidChangePermissions: Event<ISerializedBrowserPermissionsSnapshot> = this._onDidChangePermissions.event;
 
+	private readonly _onDidChangeAudiences = this._register(new Emitter<IBrowserViewAudience[]>());
+	readonly onDidChangeAudiences: Event<IBrowserViewAudience[]> = this._onDidChangeAudiences.event;
+
 	constructor(
 		public readonly id: string,
+		public readonly hostWindowId: number,
 		public readonly owner: IBrowserViewOwner,
+		public readonly associatedResource: URI | undefined,
 		public readonly session: BrowserSession,
-		createChildView: (url: string, electronOptions: Electron.WebContentsViewConstructorOptions | undefined, openOptions: IBrowserViewOpenOptions) => BrowserView,
+		private readonly _createChildView: (url: string, electronOptions: Electron.WebContentsViewConstructorOptions | undefined, editorOptions: IBrowserViewEditorOpenOptions) => BrowserView,
 		openContextMenu: (view: BrowserView, params: Electron.ContextMenuParams) => void,
 		options: Electron.WebContentsViewConstructorOptions | undefined,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
@@ -155,9 +162,9 @@ export class BrowserView extends Disposable {
 		this._view.setBounds({ x: 0, y: 0, width: 1024, height: 768 });
 		this._view.setBackgroundColor('#FFFFFF');
 
-		this._ownerWindow = this.windowsMainService.getWindowById(owner.mainWindowId)!;
+		this._ownerWindow = this.windowsMainService.getWindowById(hostWindowId)!;
 		if (!this._ownerWindow) {
-			throw new Error(`Window with ID ${owner.mainWindowId} not found`);
+			throw new Error(`Window with ID ${hostWindowId} not found`);
 		}
 		this._register(this._ownerWindow.onDidClose(() => this.dispose()));
 		this._register(this._ownerWindow.onWillLoad((e) => {
@@ -197,7 +204,7 @@ export class BrowserView extends Disposable {
 						}
 					})());
 
-					const childView = createChildView(details.url, options, {
+					const childView = this._createChildView(details.url, options, {
 						pinned: true,
 						background: location === NewPageLocation.Background,
 						parentViewId: id,
@@ -223,7 +230,7 @@ export class BrowserView extends Disposable {
 			this.dispose();
 		});
 
-		this.debugger = new BrowserViewDebugger(this, this.logService);
+		this.debugger = new BrowserViewDebugger(this);
 		this.emulator = this._register(new BrowserViewEmulator(this, this.logService));
 		this.inspector = this._register(new BrowserViewInspector(this));
 
@@ -314,11 +321,20 @@ export class BrowserView extends Disposable {
 			}
 		});
 		webContents.on('will-navigate', (event) => {
+			if (this._redirectPinnedNavigation(event.url)) {
+				event.preventDefault();
+				return;
+			}
 			// URL.parse (vs `new URL`) tolerates about:/blob:/empty strings without throwing.
 			const host = URL.parse(event.url)?.host;
 			const currHost = URL.parse(this.webContents.getURL())?.host;
 			if (host !== currHost) {
 				this._lastFavicon = undefined;
+			}
+		});
+		webContents.on('will-redirect', event => {
+			if (this._redirectPinnedNavigation(event.url)) {
+				event.preventDefault();
 			}
 		});
 
@@ -603,11 +619,40 @@ export class BrowserView extends Disposable {
 			storageKeys: { ...this.session.history.storageKeys, ...this.session.permissions.storageKeys },
 			permissions: this.session.permissions.serialize(),
 			browserZoomIndex: this._browserZoomIndex,
-			isElementSelectionActive: this.inspector.isElementSelectionActive,
+			elementSelectionState: this.inspector.elementSelectionState,
 			isRemoteSession: this.session.remote.isRemote,
 			isAreaSelectionActive: this.inspector.isAreaSelectionActive,
-			device: this.emulator.device
+			device: this.emulator.device,
+			audiences: [...this._audiences]
 		};
+	}
+
+	get audiences(): readonly IBrowserViewAudience[] {
+		return this._audiences;
+	}
+
+	setAudience(audience: IBrowserViewAudience, enabled: boolean): void {
+		if (enabled) {
+			if (!this._audiences.some(candidate => equalsBrowserViewAudience(candidate, audience))) {
+				this._audiences = [...this._audiences, audience];
+				this._onDidChangeAudiences.fire([...this._audiences]);
+			}
+		} else {
+			const audiences = this._audiences.filter(candidate => !matchesBrowserViewAudience(candidate, audience));
+			if (audiences.length !== this._audiences.length) {
+				this._audiences = audiences;
+				this._onDidChangeAudiences.fire([...this._audiences]);
+			}
+		}
+	}
+
+	setAudiences(audiences: readonly IBrowserViewAudience[]): void {
+		if (audiences.length === this._audiences.length && audiences.every(audience => this._audiences.some(candidate => equalsBrowserViewAudience(candidate, audience)))) {
+			return;
+		}
+
+		this._audiences = [...audiences];
+		this._onDidChangeAudiences.fire([...this._audiences]);
 	}
 
 	/**
@@ -687,11 +732,27 @@ export class BrowserView extends Disposable {
 	 * Load a URL in this view
 	 */
 	async loadURL(url: string): Promise<void> {
+		if (this._redirectPinnedNavigation(url)) {
+			return;
+		}
 		this._explicitNavigationPending = true;
 		// Wait for the tunnel proxy (if any) to be applied so the navigation
 		// and the requests it triggers flow through the proxy.
 		await this.session.remote.whenReady;
 		await this._view.webContents.loadURL(url);
+	}
+
+	private _redirectPinnedNavigation(url: string): boolean {
+		if (!this.associatedResource || isBrowserViewAssociatedResourceNavigation(this.associatedResource, url)) {
+			return false;
+		}
+
+		logBrowserOpen(this.telemetryService, 'browserLinkForeground');
+		this._createChildView(url, undefined, {
+			pinned: true,
+			parentViewId: this.id
+		});
+		return true;
 	}
 
 	/**

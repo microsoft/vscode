@@ -11,7 +11,7 @@ import {
 	type JsonRpcErrorResponse,
 } from '../../../common/state/sessionProtocol.js';
 import { ROOT_STATE_URI } from '../../../common/state/sessionState.js';
-import { getAgentHostE2ETestTimeout, IServerHandle, nextSessionUri, startServer, TestProtocolClient } from '../serverIntegrationTestHelpers.js';
+import { getAgentHostE2ETestTimeout, IServerHandle, nextSessionUri, startServer, stopServer, TestProtocolClient } from '../serverIntegrationTestHelpers.js';
 
 suite('Protocol WebSocket — Handshake & Errors', function () {
 
@@ -23,8 +23,9 @@ suite('Protocol WebSocket — Handshake & Errors', function () {
 		server = await startServer();
 	});
 
-	suiteTeardown(function () {
-		server.process.kill();
+	suiteTeardown(async function () {
+		this.timeout(getAgentHostE2ETestTimeout(20_000, 50_000));
+		await stopServer(server);
 	});
 
 	setup(async function () {
@@ -38,7 +39,7 @@ suite('Protocol WebSocket — Handshake & Errors', function () {
 	});
 
 	test('handshake returns initialize response with protocol version', async function () {
-		this.timeout(5_000);
+		this.timeout(getAgentHostE2ETestTimeout(5_000, 20_000));
 
 		const result = await client.call<InitializeResult>('initialize', {
 			protocolVersions: [PROTOCOL_VERSION],
@@ -55,17 +56,19 @@ suite('Protocol WebSocket — Handshake & Errors', function () {
 		this.timeout(10_000);
 
 		const raw = new TestProtocolClient(server.port);
-		await raw.connect();
+		try {
+			await raw.connect();
 
-		const responsePromise = raw.waitForRawMessage();
-		raw.sendRaw('this is not valid json{{{');
+			const responsePromise = raw.waitForRawMessage();
+			raw.sendRaw('this is not valid json{{{');
 
-		const response = await responsePromise as JsonRpcErrorResponse;
-		assert.strictEqual(response.jsonrpc, '2.0');
-		assert.strictEqual(response.id, null);
-		assert.strictEqual(response.error.code, JSON_RPC_PARSE_ERROR);
-
-		raw.close();
+			const response = await responsePromise as JsonRpcErrorResponse;
+			assert.strictEqual(response.jsonrpc, '2.0');
+			assert.strictEqual(response.id, null);
+			assert.strictEqual(response.error.code, JSON_RPC_PARSE_ERROR);
+		} finally {
+			raw.close();
+		}
 	});
 
 	test('createSession with invalid provider does not crash server', async function () {

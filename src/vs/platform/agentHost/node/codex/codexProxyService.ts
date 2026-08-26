@@ -9,7 +9,7 @@ import { join } from '../../../../base/common/path.js';
 import { createDecorator } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
 import { CopilotApiError, ICopilotApiService } from '../shared/copilotApiService.js';
-import { buildForwardedChatError, encodeForwardedChatError } from '../shared/forwardedChatError.js';
+import { buildForwardedChatError, encodeForwardedChatError } from '../shared/proxyChatError.js';
 import {
 	ILoopbackProxyHandle,
 	ILoopbackProxyRuntime,
@@ -222,6 +222,17 @@ export class CodexProxyService extends LoopbackProxyServer<ICodexProxyState, str
 		const expected = `Bearer ${runtime.nonce}`;
 		if (typeof authHeader !== 'string' || authHeader !== expected) {
 			writeJsonError(res, 401, 'authentication_error', 'Invalid authentication');
+			return;
+		}
+
+		if (method === 'GET' && pathname === '/v1/models') {
+			// The Codex endpoint expects its own rich `ModelsResponse` schema, not
+			// CAPI's model shape. VS Code already owns CAPI model discovery and
+			// supplies the selected model when starting a turn, so an empty remote
+			// catalog keeps Codex's bundled model metadata while avoiding a noisy
+			// refresh failure on every proxy-backed runtime start.
+			res.writeHead(200, { 'Content-Type': 'application/json' });
+			res.end(JSON.stringify({ models: [] }));
 			return;
 		}
 

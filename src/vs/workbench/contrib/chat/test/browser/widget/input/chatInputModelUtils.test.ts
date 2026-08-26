@@ -4,31 +4,30 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { URI } from '../../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { ExtensionIdentifier } from '../../../../../../../platform/extensions/common/extensions.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../../common/constants.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../../../../common/languageModels.js';
+import { LocalChatSessionUri } from '../../../../common/model/chatUri.js';
 import {
 	filterModelsForSession,
 	findBestMatchingModel,
-	findDefaultModel,
-	findReplacementForProvisionalModel,
 	getAgentHostByokManageModelsIdentifier,
 	hasModelsTargetingSession,
 	isModelHiddenInPicker,
 	isModelSupportedForInlineChat,
+	resolveEditedRequestSelection,
 	isModelSupportedForMode,
 	isModelValidForSession,
+	isNewConversation,
+	isSessionStarted,
 	mergeModelsWithCache,
 	resolveModelFromSyncState,
 	shouldDropAgnosticDraftModel,
-	shouldPersistModelSelection,
 	shouldResetModelToDefault,
 	shouldResetOnModelListChange,
-	shouldRestorePersistedModel,
 	shouldRestorePerTypeModelOnSessionSwitch,
-	shouldSuppressModelPersistenceOnSessionSwitch,
-	shouldWaitForSessionModel,
 } from '../../../../browser/widget/input/chatInputModelUtils.js';
 
 /**
@@ -47,6 +46,19 @@ function computeAvailableModels(
 	const merged = mergeModelsWithCache(liveModels, cachedModels, contributedVendors, resolvedVendors);
 	merged.sort((a, b) => a.metadata.name.localeCompare(b.metadata.name));
 	return filterModelsForSession(merged, sessionType, currentModeKind, location);
+}
+
+/**
+ * The model a reset lands on, mirroring what `ChatInputPart` supplies as the runtime's
+ * `getDeclaredDefaultModel` plus the controller's own `?? models[0]` fallback. Composed here
+ * because these tests assert what a reset *would* pick; the rule itself is exercised against the
+ * real thing in `chatInputModelSelectionController.test.ts`.
+ */
+function findDefaultModel(
+	models: ILanguageModelChatMetadataAndIdentifier[],
+	location: ChatAgentLocation,
+): ILanguageModelChatMetadataAndIdentifier | undefined {
+	return models.find(m => m.metadata.isDefaultForLocation[location]) ?? models[0];
 }
 
 function createModel(
@@ -110,6 +122,15 @@ function createVendorModel(
 	const model = createModel(id, name, { vendor, family: vendor, isBYOK: true, ...overrides });
 	return { identifier: `${vendor}/${id}`, metadata: model.metadata };
 }
+
+// What each surface answers for "can I run this model at all"; the pool and session checks stay in
+// the functions under test, so these tests state only the surface-specific part.
+function supportedHere(location = ChatAgentLocation.Chat, mode = ChatModeKind.Ask) {
+	return (model: ILanguageModelChatMetadataAndIdentifier) =>
+		isModelSupportedForMode(model, mode) && isModelSupportedForInlineChat(model, location);
+}
+
+const anywhere = supportedHere();
 
 suite('ChatInputModelUtils', () => {
 
@@ -301,6 +322,23 @@ suite('ChatInputModelUtils', () => {
 		});
 	});
 
+	suite('isSessionStarted', () => {
+
+		test('only a bound, request-free session counts as unstarted', () => {
+			assert.deepStrictEqual({
+				boundAndEmpty: isSessionStarted(true, false),
+				boundWithRequests: isSessionStarted(true, true),
+				unbound: isSessionStarted(false, false),
+			}, {
+				boundAndEmpty: false,
+				boundWithRequests: true,
+				// A session switch unbinds the model for the duration of an async
+				// load; staying "started" keeps notices out of that window.
+				unbound: true,
+			});
+		});
+	});
+
 	suite('hasModelsTargetingSession', () => {
 
 		test('returns false when session type is undefined', () => {
@@ -423,160 +461,56 @@ suite('ChatInputModelUtils', () => {
 		});
 	});
 
-	suite('findDefaultModel', () => {
-
-		test('returns model marked as default for location', () => {
-			const regular = createModel('gpt', 'GPT');
-			const defaultModel = createDefaultModelForLocation('claude', 'Claude', ChatAgentLocation.Chat);
-			const result = findDefaultModel([regular, defaultModel], ChatAgentLocation.Chat);
-			assert.strictEqual(result?.metadata.id, 'claude');
-		});
-
-		test('falls back to first model when no default for location', () => {
-			const modelA = createModel('gpt', 'GPT');
-			const modelB = createModel('claude', 'Claude');
-			const result = findDefaultModel([modelA, modelB], ChatAgentLocation.Chat);
-			assert.strictEqual(result?.metadata.id, 'gpt');
-		});
-
-		test('returns undefined for empty models array', () => {
-			const result = findDefaultModel([], ChatAgentLocation.Chat);
-			assert.strictEqual(result, undefined);
-		});
-
-		test('returns location-specific default when multiple defaults exist', () => {
-			const chatDefault = createDefaultModelForLocation('chat-default', 'Chat Default', ChatAgentLocation.Chat);
-			const terminalDefault = createDefaultModelForLocation('terminal-default', 'Terminal Default', ChatAgentLocation.Terminal);
-			const result = findDefaultModel([chatDefault, terminalDefault], ChatAgentLocation.Chat);
-			assert.strictEqual(result?.metadata.id, 'chat-default');
-		});
-
-		test('does not pick terminal default when looking for chat default', () => {
-			const terminalDefault = createDefaultModelForLocation('terminal-default', 'Terminal Default', ChatAgentLocation.Terminal);
-			const regular = createModel('gpt', 'GPT');
-			const result = findDefaultModel([terminalDefault, regular], ChatAgentLocation.Chat);
-			// Falls back to first model since none is default for Chat
-			assert.strictEqual(result?.metadata.id, 'terminal-default');
-		});
-
-		test('replaces only the current provisional model when a location default arrives', () => {
-			const provisional = createModel('byok', 'BYOK');
-			const defaultModel = createDefaultModelForLocation('auto', 'Auto', ChatAgentLocation.Chat);
-			assert.deepStrictEqual([
-				findReplacementForProvisionalModel(provisional.identifier, provisional.identifier, [provisional], ChatAgentLocation.Chat)?.identifier,
-				findReplacementForProvisionalModel(provisional.identifier, provisional.identifier, [provisional, defaultModel], ChatAgentLocation.Chat)?.identifier,
-				findReplacementForProvisionalModel(defaultModel.identifier, provisional.identifier, [provisional, defaultModel], ChatAgentLocation.Chat)?.identifier,
-			], [undefined, defaultModel.identifier, undefined]);
-		});
-	});
-
-	suite('shouldRestorePersistedModel', () => {
-
-		test('restores model that was explicitly chosen (not default)', () => {
-			const model = createModel('gpt', 'GPT');
-			const result = shouldRestorePersistedModel('copilot/gpt', false, [model], ChatAgentLocation.Chat);
-			assert.strictEqual(result.shouldRestore, true);
-			assert.strictEqual(result.model?.identifier, 'copilot/gpt');
-		});
-
-		test('restores model that was default and is still default', () => {
-			const model = createDefaultModelForLocation('gpt', 'GPT', ChatAgentLocation.Chat);
-			const result = shouldRestorePersistedModel('copilot/gpt', true, [model], ChatAgentLocation.Chat);
-			assert.strictEqual(result.shouldRestore, true);
-		});
-
-		test('does NOT restore model that was default but is no longer default', () => {
-			const model = createModel('gpt', 'GPT');
-			const result = shouldRestorePersistedModel('copilot/gpt', true, [model], ChatAgentLocation.Chat);
-			assert.strictEqual(result.shouldRestore, false);
-			assert.strictEqual(result.model?.identifier, 'copilot/gpt');
-		});
-
-		test('does NOT restore model that no longer exists', () => {
-			const otherModel = createModel('claude', 'Claude');
-			const result = shouldRestorePersistedModel('copilot/gpt', false, [otherModel], ChatAgentLocation.Chat);
-			assert.strictEqual(result.shouldRestore, false);
-			assert.strictEqual(result.model, undefined);
-		});
-
-		test('handles empty models list', () => {
-			const result = shouldRestorePersistedModel('copilot/gpt', false, [], ChatAgentLocation.Chat);
-			assert.strictEqual(result.shouldRestore, false);
-			assert.strictEqual(result.model, undefined);
-		});
-
-		test('user choice is preserved when default changes to a different model', () => {
-			// User explicitly chose GPT-4o, default used to be Claude, now default is something else
-			const gpt = createModel('gpt-4o', 'GPT-4o');
-			const claude = createModel('claude', 'Claude');
-			const result = shouldRestorePersistedModel('copilot/gpt-4o', false, [gpt, claude], ChatAgentLocation.Chat);
-			assert.strictEqual(result.shouldRestore, true);
-			assert.strictEqual(result.model?.metadata.id, 'gpt-4o');
-		});
-
-		test('default tracking: follows new default when user never explicitly chose', () => {
-			// Old default was GPT-4o (persisted as default), now Claude is the default
-			const gpt = createModel('gpt-4o', 'GPT-4o');
-			const claude = createDefaultModelForLocation('claude', 'Claude', ChatAgentLocation.Chat);
-			const result = shouldRestorePersistedModel('copilot/gpt-4o', true, [gpt, claude], ChatAgentLocation.Chat);
-			// Should NOT restore because GPT-4o is no longer default and was stored as default
-			assert.strictEqual(result.shouldRestore, false);
-		});
-	});
-
 	suite('shouldResetModelToDefault', () => {
 
-		const defaultContext = {
-			location: ChatAgentLocation.Chat,
-			currentModeKind: ChatModeKind.Ask,
-			sessionType: undefined,
-		};
 
-		test('should reset when current model is undefined', () => {
-			assert.strictEqual(shouldResetModelToDefault(undefined, [], defaultContext, []), true);
+		test('does not reset when nothing is selected yet', () => {
+			// Validation must not invent a selection: with an empty catalog there is nothing to
+			// reset to, and with a partly-published one the first arrival is an arbitrary stand-in.
+			const model = createModel('gpt', 'GPT');
+			assert.deepStrictEqual({
+				emptyCatalog: shouldResetModelToDefault(undefined, [], anywhere, [], undefined),
+				partlyPublished: shouldResetModelToDefault(undefined, [model], anywhere, [model], undefined),
+			}, {
+				emptyCatalog: false,
+				partlyPublished: false,
+			});
 		});
 
 		test('should reset when model is no longer available', () => {
 			const model = createModel('gpt', 'GPT');
-			assert.strictEqual(shouldResetModelToDefault(model, [], defaultContext, [model]), true);
+			assert.strictEqual(shouldResetModelToDefault(model, [], anywhere, [model], undefined), true);
 		});
 
 		test('should NOT reset when model is available and compatible', () => {
 			const model = createModel('gpt', 'GPT');
-			assert.strictEqual(shouldResetModelToDefault(model, [model], defaultContext, [model]), false);
+			assert.strictEqual(shouldResetModelToDefault(model, [model], anywhere, [model], undefined), false);
 		});
 
 		test('should reset when model is not supported for current mode', () => {
 			const model = createModel('no-tools', 'No-Tools', {
 				capabilities: { toolCalling: false, agentMode: false },
 			});
-			const context = { ...defaultContext, currentModeKind: ChatModeKind.Agent };
-			assert.strictEqual(shouldResetModelToDefault(model, [model], context, [model]), true);
+			assert.strictEqual(shouldResetModelToDefault(model, [model], supportedHere(ChatAgentLocation.Chat, ChatModeKind.Agent), [model], undefined), true);
 		});
 
 		test('should reset when model is not supported for inline chat', () => {
 			const model = createModel('no-tools', 'No-Tools', {
 				capabilities: { toolCalling: false },
 			});
-			const context = {
-				...defaultContext,
-				location: ChatAgentLocation.EditorInline,
-			};
-			assert.strictEqual(shouldResetModelToDefault(model, [model], context, [model]), true);
+			assert.strictEqual(shouldResetModelToDefault(model, [model], supportedHere(ChatAgentLocation.EditorInline), [model], undefined), true);
 		});
 
 		test('should reset when model is not valid for session', () => {
 			const generalModel = createModel('gpt', 'GPT');
 			const sessionModel = createSessionModel('cloud-gpt', 'Cloud GPT', 'cloud');
 			const allModels = [generalModel, sessionModel];
-			const context = { ...defaultContext, sessionType: 'cloud' };
-			assert.strictEqual(shouldResetModelToDefault(generalModel, [generalModel], context, allModels), true);
+			assert.strictEqual(shouldResetModelToDefault(generalModel, [generalModel], anywhere, allModels, 'cloud'), true);
 		});
 
 		test('should NOT reset session model in matching session', () => {
 			const sessionModel = createSessionModel('cloud-gpt', 'Cloud GPT', 'cloud');
-			const context = { ...defaultContext, sessionType: 'cloud' };
-			assert.strictEqual(shouldResetModelToDefault(sessionModel, [sessionModel], context, [sessionModel]), false);
+			assert.strictEqual(shouldResetModelToDefault(sessionModel, [sessionModel], anywhere, [sessionModel], 'cloud'), false);
 		});
 	});
 
@@ -622,11 +556,7 @@ suite('ChatInputModelUtils', () => {
 			const stateModel = createModel('no-tools', 'No-Tools', {
 				capabilities: { toolCalling: false, agentMode: false },
 			});
-			const result = resolveModelFromSyncState(stateModel, current, [current, stateModel], undefined, {
-				location: ChatAgentLocation.Chat,
-				currentModeKind: ChatModeKind.Agent,
-				sessionType: undefined,
-			});
+			const result = resolveModelFromSyncState(stateModel, current, [current, stateModel], undefined, supportedHere(ChatAgentLocation.Chat, ChatModeKind.Agent));
 			assert.strictEqual(result.action, 'default');
 		});
 
@@ -635,11 +565,7 @@ suite('ChatInputModelUtils', () => {
 			const stateModel = createModel('no-tools', 'No-Tools', {
 				capabilities: { toolCalling: false },
 			});
-			const result = resolveModelFromSyncState(stateModel, current, [current, stateModel], undefined, {
-				location: ChatAgentLocation.EditorInline,
-				currentModeKind: ChatModeKind.Ask,
-				sessionType: undefined,
-			});
+			const result = resolveModelFromSyncState(stateModel, current, [current, stateModel], undefined, supportedHere(ChatAgentLocation.EditorInline, ChatModeKind.Ask));
 			assert.strictEqual(result.action, 'default');
 		});
 
@@ -648,11 +574,7 @@ suite('ChatInputModelUtils', () => {
 			const stateModel = createModel('agent-model', 'Agent Model', {
 				capabilities: { toolCalling: true, agentMode: true },
 			});
-			const result = resolveModelFromSyncState(stateModel, current, [current, stateModel], undefined, {
-				location: ChatAgentLocation.Chat,
-				currentModeKind: ChatModeKind.Agent,
-				sessionType: undefined,
-			});
+			const result = resolveModelFromSyncState(stateModel, current, [current, stateModel], undefined, supportedHere(ChatAgentLocation.Chat, ChatModeKind.Agent));
 			assert.strictEqual(result.action, 'apply');
 		});
 
@@ -803,6 +725,24 @@ suite('ChatInputModelUtils', () => {
 			);
 			assert.deepStrictEqual(result.map(m => m.metadata.id).sort(), ['a-model', 'b-model']);
 		});
+
+		test('evicts cached agent-host entries when the vendor is resolved with zero live models', () => {
+			// The agent-host "empty is transient" grace is scoped to restore *resolution* only
+			// (resolveModelIdentifierFromCatalog); it must NOT relax cache-retention. A resolved
+			// agent-host vendor with no live models is authoritative here, so its cache is evicted
+			// like any other vendor — otherwise a removed/unentitled agent-host model could be
+			// offered from cache (and the input's "no models"/send-blocked state would be masked).
+			const liveCopilot = createModel('gpt', 'GPT');
+			const staleAgentHost = createVendorModel('agent-host-copilotcli', 'gpt-5.6-sol', 'GPT 5.6 Sol');
+			const result = mergeModelsWithCache(
+				[liveCopilot],
+				[staleAgentHost],
+				new Set(['copilot', 'agent-host-copilotcli']),
+				new Set(['copilot', 'agent-host-copilotcli']),
+			);
+			assert.strictEqual(result.length, 1);
+			assert.strictEqual(result[0].metadata.vendor, 'copilot');
+		});
 	});
 
 	suite('model switching scenarios', () => {
@@ -816,21 +756,13 @@ suite('ChatInputModelUtils', () => {
 
 			// In Ask mode, model is fine
 			assert.strictEqual(
-				shouldResetModelToDefault(noToolsModel, allModels, {
-					location: ChatAgentLocation.Chat,
-					currentModeKind: ChatModeKind.Ask,
-					sessionType: undefined,
-				}, allModels),
+				shouldResetModelToDefault(noToolsModel, allModels, supportedHere(ChatAgentLocation.Chat, ChatModeKind.Ask), allModels, undefined),
 				false,
 			);
 
 			// After switching to Agent mode, model should be reset
 			assert.strictEqual(
-				shouldResetModelToDefault(noToolsModel, allModels, {
-					location: ChatAgentLocation.Chat,
-					currentModeKind: ChatModeKind.Agent,
-					sessionType: undefined,
-				}, allModels),
+				shouldResetModelToDefault(noToolsModel, allModels, supportedHere(ChatAgentLocation.Chat, ChatModeKind.Agent), allModels, undefined),
 				true,
 			);
 		});
@@ -871,21 +803,13 @@ suite('ChatInputModelUtils', () => {
 
 			// Initially both available, GPT is selected
 			assert.strictEqual(
-				shouldResetModelToDefault(gpt, [gpt, claude], {
-					location: ChatAgentLocation.Chat,
-					currentModeKind: ChatModeKind.Ask,
-					sessionType: undefined,
-				}, [gpt, claude]),
+				shouldResetModelToDefault(gpt, [gpt, claude], anywhere, [gpt, claude], undefined),
 				false,
 			);
 
 			// GPT is removed from available models
 			assert.strictEqual(
-				shouldResetModelToDefault(gpt, [claude], {
-					location: ChatAgentLocation.Chat,
-					currentModeKind: ChatModeKind.Ask,
-					sessionType: undefined,
-				}, [claude]),
+				shouldResetModelToDefault(gpt, [claude], anywhere, [claude], undefined),
 				true,
 			);
 		});
@@ -910,30 +834,6 @@ suite('ChatInputModelUtils', () => {
 			assert.strictEqual(result.action, 'apply');
 		});
 
-		test('persisted model selection survives when model is still default', () => {
-			const model = createDefaultModelForLocation('gpt-4o', 'GPT-4o', ChatAgentLocation.Chat);
-			const result = shouldRestorePersistedModel('copilot/gpt-4o', true, [model], ChatAgentLocation.Chat);
-			assert.strictEqual(result.shouldRestore, true);
-		});
-
-		test('persisted model selection does NOT restore when a new default is assigned', () => {
-			// GPT-4o was the old default (persisted as default=true), but it's no longer default
-			const gpt4o = createModel('gpt-4o', 'GPT-4o');
-			const newDefault = createDefaultModelForLocation('claude', 'Claude', ChatAgentLocation.Chat);
-			const result = shouldRestorePersistedModel('copilot/gpt-4o', true, [gpt4o, newDefault], ChatAgentLocation.Chat);
-			assert.strictEqual(result.shouldRestore, false);
-		});
-
-		test('user explicit model choice persists even when default changes', () => {
-			// User explicitly picked Claude (persistedAsDefault=false), default was GPT-4o
-			// Now default switches to something else — Claude should still be restored
-			const claude = createModel('claude', 'Claude');
-			const newDefault = createDefaultModelForLocation('new-model', 'New Model', ChatAgentLocation.Chat);
-			const result = shouldRestorePersistedModel('copilot/claude', false, [claude, newDefault], ChatAgentLocation.Chat);
-			assert.strictEqual(result.shouldRestore, true);
-			assert.strictEqual(result.model?.metadata.id, 'claude');
-		});
-
 		test('combining mode switch + session switch validates correctly', () => {
 			const cloudToolModel = createSessionModel('cloud-tool', 'Cloud Tool', 'cloud', {
 				capabilities: { toolCalling: true, agentMode: true },
@@ -945,22 +845,14 @@ suite('ChatInputModelUtils', () => {
 
 			// In cloud session, Agent mode — tool model is valid
 			assert.strictEqual(
-				shouldResetModelToDefault(cloudToolModel, allCloudModels, {
-					location: ChatAgentLocation.Chat,
-					currentModeKind: ChatModeKind.Agent,
-					sessionType: 'cloud',
-				}, allCloudModels),
+				shouldResetModelToDefault(cloudToolModel, allCloudModels, supportedHere(ChatAgentLocation.Chat, ChatModeKind.Agent), allCloudModels, 'cloud'),
 				false,
 			);
 
 			// The no-tool model should be reset in Agent mode
 			// Both filterModelsForSession and shouldResetModelToDefault enforce mode support
 			assert.strictEqual(
-				shouldResetModelToDefault(cloudNoToolModel, allCloudModels, {
-					location: ChatAgentLocation.Chat,
-					currentModeKind: ChatModeKind.Agent,
-					sessionType: 'cloud',
-				}, allCloudModels),
+				shouldResetModelToDefault(cloudNoToolModel, allCloudModels, supportedHere(ChatAgentLocation.Chat, ChatModeKind.Agent), allCloudModels, 'cloud'),
 				true,
 			);
 		});
@@ -1232,44 +1124,24 @@ suite('ChatInputModelUtils', () => {
 
 	suite('checkModelSupported interaction patterns', () => {
 
-		const askContext = {
-			location: ChatAgentLocation.Chat,
-			currentModeKind: ChatModeKind.Ask,
-			sessionType: undefined,
-		};
+		const askContext = anywhere;
+		const agentContext = supportedHere(ChatAgentLocation.Chat, ChatModeKind.Agent);
 
-		const agentContext = {
-			...askContext,
-			currentModeKind: ChatModeKind.Agent,
-		};
-
-		test('initSelectedModel → checkModelSupported: restored model passes Agent check', () => {
+		test('restored model passes Agent compatibility check', () => {
 			const agentModel = createModel('agent-model', 'Agent Model', {
 				capabilities: { toolCalling: true, agentMode: true },
 			});
-
-			// 1. shouldRestorePersistedModel says "restore"
-			const restoreResult = shouldRestorePersistedModel('copilot/agent-model', false, [agentModel], ChatAgentLocation.Chat);
-			assert.strictEqual(restoreResult.shouldRestore, true);
-
-			// 2. Immediately after, checkModelSupported runs with Agent mode
-			assert.strictEqual(shouldResetModelToDefault(agentModel, [agentModel], agentContext, [agentModel]), false);
+			assert.strictEqual(shouldResetModelToDefault(agentModel, [agentModel], agentContext, [agentModel], undefined), false);
 		});
 
-		test('initSelectedModel → checkModelSupported: restored model FAILS Agent check', () => {
+		test('restored model that fails Agent compatibility resets to an Agent model', () => {
 			const askOnlyModel = createModel('ask-only', 'Ask Only', {
 				capabilities: { toolCalling: false, agentMode: false },
 			});
 			const agentModel = createModel('agent-model', 'Agent Model');
 
-			// 1. shouldRestorePersistedModel says "restore"
-			const restoreResult = shouldRestorePersistedModel('copilot/ask-only', false, [askOnlyModel, agentModel], ChatAgentLocation.Chat);
-			assert.strictEqual(restoreResult.shouldRestore, true);
+			assert.strictEqual(shouldResetModelToDefault(askOnlyModel, [askOnlyModel, agentModel], agentContext, [askOnlyModel, agentModel], undefined), true);
 
-			// 2. checkModelSupported runs with Agent mode → should reset
-			assert.strictEqual(shouldResetModelToDefault(askOnlyModel, [askOnlyModel, agentModel], agentContext, [askOnlyModel, agentModel]), true);
-
-			// 3. findDefaultModel picks replacement from models filtered for Agent mode
 			const agentCompatibleModels = filterModelsForSession(
 				[askOnlyModel, agentModel], undefined, ChatModeKind.Agent, ChatAgentLocation.Chat,
 			);
@@ -1284,10 +1156,10 @@ suite('ChatInputModelUtils', () => {
 			const toolModel = createModel('tool', 'Tool');
 
 			// In Ask mode: fine
-			assert.strictEqual(shouldResetModelToDefault(noToolModel, [noToolModel, toolModel], askContext, [noToolModel, toolModel]), false);
+			assert.strictEqual(shouldResetModelToDefault(noToolModel, [noToolModel, toolModel], askContext, [noToolModel, toolModel], undefined), false);
 
 			// Switch to Agent mode: not fine
-			assert.strictEqual(shouldResetModelToDefault(noToolModel, [noToolModel, toolModel], agentContext, [noToolModel, toolModel]), true);
+			assert.strictEqual(shouldResetModelToDefault(noToolModel, [noToolModel, toolModel], agentContext, [noToolModel, toolModel], undefined), true);
 		});
 
 		test('double reset is idempotent', () => {
@@ -1304,7 +1176,7 @@ suite('ChatInputModelUtils', () => {
 			assert.strictEqual(result2?.metadata.id, 'default');
 
 			// Default model continues to pass validation
-			assert.strictEqual(shouldResetModelToDefault(result1!, allModels, askContext, allModels), false);
+			assert.strictEqual(shouldResetModelToDefault(result1!, allModels, askContext, allModels, undefined), false);
 		});
 	});
 
@@ -1355,18 +1227,10 @@ suite('ChatInputModelUtils', () => {
 			const allModels = [generalModel, cloudModel];
 
 			// In cloud session, cloud model is valid
-			assert.strictEqual(shouldResetModelToDefault(cloudModel, [cloudModel], {
-				location: ChatAgentLocation.Chat,
-				currentModeKind: ChatModeKind.Ask,
-				sessionType: 'cloud',
-			}, allModels), false);
+			assert.strictEqual(shouldResetModelToDefault(cloudModel, [cloudModel], supportedHere(ChatAgentLocation.Chat, ChatModeKind.Ask), allModels, 'cloud'), false);
 
 			// Switch to general session — cloud model should be reset
-			assert.strictEqual(shouldResetModelToDefault(cloudModel, [generalModel], {
-				location: ChatAgentLocation.Chat,
-				currentModeKind: ChatModeKind.Ask,
-				sessionType: undefined,
-			}, allModels), true);
+			assert.strictEqual(shouldResetModelToDefault(cloudModel, [generalModel], anywhere, allModels, undefined), true);
 		});
 	});
 
@@ -1404,11 +1268,7 @@ suite('ChatInputModelUtils', () => {
 			});
 
 			// Mode forced this model but we're in Agent mode — should be reset
-			assert.strictEqual(shouldResetModelToDefault(forcedModel, [forcedModel], {
-				location: ChatAgentLocation.Chat,
-				currentModeKind: ChatModeKind.Agent,
-				sessionType: undefined,
-			}, [forcedModel]), true);
+			assert.strictEqual(shouldResetModelToDefault(forcedModel, [forcedModel], supportedHere(ChatAgentLocation.Chat, ChatModeKind.Agent), [forcedModel], undefined), true);
 		});
 	});
 
@@ -1424,51 +1284,19 @@ suite('ChatInputModelUtils', () => {
 			assert.strictEqual(isModelSupportedForInlineChat(partialModel, ChatAgentLocation.EditorInline), true);
 
 			// Combined: should reset because Agent mode fails
-			assert.strictEqual(shouldResetModelToDefault(partialModel, [partialModel], {
-				location: ChatAgentLocation.EditorInline,
-				currentModeKind: ChatModeKind.Agent,
-				sessionType: undefined,
-			}, [partialModel]), true);
+			assert.strictEqual(shouldResetModelToDefault(partialModel, [partialModel], supportedHere(ChatAgentLocation.EditorInline, ChatModeKind.Agent), [partialModel], undefined), true);
 		});
 
 		test('EditorInline + Ask only requires toolCalling', () => {
 			const toolModel = createModel('tool', 'Tool');
-			assert.strictEqual(shouldResetModelToDefault(toolModel, [toolModel], {
-				location: ChatAgentLocation.EditorInline,
-				currentModeKind: ChatModeKind.Ask,
-				sessionType: undefined,
-			}, [toolModel]), false);
+			assert.strictEqual(shouldResetModelToDefault(toolModel, [toolModel], supportedHere(ChatAgentLocation.EditorInline), [toolModel], undefined), false);
 		});
 
 		test('EditorInline + Ask rejects model without toolCalling', () => {
 			const noToolModel = createModel('no-tool', 'No Tool', {
 				capabilities: {},
 			});
-			assert.strictEqual(shouldResetModelToDefault(noToolModel, [noToolModel], {
-				location: ChatAgentLocation.EditorInline,
-				currentModeKind: ChatModeKind.Ask,
-				sessionType: undefined,
-			}, [noToolModel]), true);
-		});
-	});
-
-	suite('findDefaultModel edge cases', () => {
-
-		test('when all models are session-targeted and none is default, first model wins', () => {
-			const m1 = createSessionModel('s1', 'Session 1', 'cloud');
-			const m2 = createSessionModel('s2', 'Session 2', 'cloud');
-			const result = findDefaultModel([m1, m2], ChatAgentLocation.Chat);
-			assert.strictEqual(result?.metadata.id, 's1');
-		});
-
-		test('default for one location does not leak to another', () => {
-			const chatDefault = createDefaultModelForLocation('chat-def', 'Chat Default', ChatAgentLocation.Chat);
-			const noDefault = createModel('no-def', 'No Default');
-
-			// For Chat: chatDefault wins
-			assert.strictEqual(findDefaultModel([noDefault, chatDefault], ChatAgentLocation.Chat)?.metadata.id, 'chat-def');
-			// For Terminal: no model is default, so first model wins
-			assert.strictEqual(findDefaultModel([noDefault, chatDefault], ChatAgentLocation.Terminal)?.metadata.id, 'no-def');
+			assert.strictEqual(shouldResetModelToDefault(noToolModel, [noToolModel], supportedHere(ChatAgentLocation.EditorInline), [noToolModel], undefined), true);
 		});
 	});
 
@@ -1501,21 +1329,6 @@ suite('ChatInputModelUtils', () => {
 			);
 			// GPT still in the list — no reset needed
 			assert.strictEqual(shouldResetOnModelListChange('copilot/gpt', liveModels), false);
-		});
-
-		test('startup: no cache → models arrive late → persisted choice restored', () => {
-			// Step 1: No models available at all
-			const emptyModels = computeAvailableModels([], [], new Set(['copilot']), undefined, ChatModeKind.Ask, ChatAgentLocation.Chat);
-			assert.strictEqual(emptyModels.length, 0);
-
-			// initSelectedModel: model not found, enters _waitForPersistedLanguageModel path
-			const restoreResult = shouldRestorePersistedModel('copilot/gpt', false, emptyModels, ChatAgentLocation.Chat);
-			assert.strictEqual(restoreResult.shouldRestore, false);
-			assert.strictEqual(restoreResult.model, undefined);
-
-			// Step 2: Models arrive via onDidChangeLanguageModels
-			const arrivedModel = createModel('gpt', 'GPT');
-			assert.strictEqual(shouldRestorePersistedModel('copilot/gpt', false, [arrivedModel], ChatAgentLocation.Chat).shouldRestore, true);
 		});
 
 		test('extension reload: selected model flickers out then back', () => {
@@ -1560,18 +1373,10 @@ suite('ChatInputModelUtils', () => {
 			const allModels = [generalDefault, cloudModel];
 
 			// User is in general session with GPT in Agent mode
-			assert.strictEqual(shouldResetModelToDefault(generalDefault, [generalDefault], {
-				location: ChatAgentLocation.Chat,
-				currentModeKind: ChatModeKind.Agent,
-				sessionType: undefined,
-			}, allModels), false);
+			assert.strictEqual(shouldResetModelToDefault(generalDefault, [generalDefault], anywhere, allModels, undefined), false);
 
 			// Switch to cloud session — general model should be reset
-			assert.strictEqual(shouldResetModelToDefault(generalDefault, [cloudModel], {
-				location: ChatAgentLocation.Chat,
-				currentModeKind: ChatModeKind.Agent,
-				sessionType: 'cloud',
-			}, allModels), true);
+			assert.strictEqual(shouldResetModelToDefault(generalDefault, [cloudModel], supportedHere(ChatAgentLocation.Chat, ChatModeKind.Agent), allModels, 'cloud'), true);
 
 			// The default for cloud session should be the cloud model
 			const cloudDefault = findDefaultModel([cloudModel], ChatAgentLocation.Chat);
@@ -1583,22 +1388,13 @@ suite('ChatInputModelUtils', () => {
 			const allModels = [model];
 
 			// Ask mode: fine
-			assert.strictEqual(shouldResetModelToDefault(model, allModels, {
-				location: ChatAgentLocation.Chat, currentModeKind: ChatModeKind.Ask,
-				sessionType: undefined,
-			}, allModels), false);
+			assert.strictEqual(shouldResetModelToDefault(model, allModels, supportedHere(ChatAgentLocation.Chat, ChatModeKind.Ask), allModels, undefined), false);
 
 			// → Agent mode: model has toolCalling, still fine
-			assert.strictEqual(shouldResetModelToDefault(model, allModels, {
-				location: ChatAgentLocation.Chat, currentModeKind: ChatModeKind.Agent,
-				sessionType: undefined,
-			}, allModels), false);
+			assert.strictEqual(shouldResetModelToDefault(model, allModels, supportedHere(ChatAgentLocation.Chat, ChatModeKind.Agent), allModels, undefined), false);
 
 			// → Back to Ask: still fine
-			assert.strictEqual(shouldResetModelToDefault(model, allModels, {
-				location: ChatAgentLocation.Chat, currentModeKind: ChatModeKind.Ask,
-				sessionType: undefined,
-			}, allModels), false);
+			assert.strictEqual(shouldResetModelToDefault(model, allModels, supportedHere(ChatAgentLocation.Chat, ChatModeKind.Ask), allModels, undefined), false);
 		});
 
 		test('rapid mode changes: ask → agent resets incompatible, then agent → ask does not restore', () => {
@@ -1609,25 +1405,16 @@ suite('ChatInputModelUtils', () => {
 			const allModels = [noToolModel, toolModel];
 
 			// Ask mode with noToolModel: fine
-			assert.strictEqual(shouldResetModelToDefault(noToolModel, allModels, {
-				location: ChatAgentLocation.Chat, currentModeKind: ChatModeKind.Ask,
-				sessionType: undefined,
-			}, allModels), false);
+			assert.strictEqual(shouldResetModelToDefault(noToolModel, allModels, supportedHere(ChatAgentLocation.Chat, ChatModeKind.Ask), allModels, undefined), false);
 
 			// → Agent mode: noToolModel fails, reset picks default (toolModel)
-			assert.strictEqual(shouldResetModelToDefault(noToolModel, allModels, {
-				location: ChatAgentLocation.Chat, currentModeKind: ChatModeKind.Agent,
-				sessionType: undefined,
-			}, allModels), true);
+			assert.strictEqual(shouldResetModelToDefault(noToolModel, allModels, supportedHere(ChatAgentLocation.Chat, ChatModeKind.Agent), allModels, undefined), true);
 			const defaultAfterReset = findDefaultModel(allModels, ChatAgentLocation.Chat);
 			assert.strictEqual(defaultAfterReset?.metadata.id, 'tool');
 
 			// → Back to Ask: toolModel is fine in Ask mode, stays as toolModel
 			// The original noToolModel is NOT restored — this is expected and matches ChatInputPart behavior
-			assert.strictEqual(shouldResetModelToDefault(toolModel, allModels, {
-				location: ChatAgentLocation.Chat, currentModeKind: ChatModeKind.Ask,
-				sessionType: undefined,
-			}, allModels), false);
+			assert.strictEqual(shouldResetModelToDefault(toolModel, allModels, supportedHere(ChatAgentLocation.Chat, ChatModeKind.Ask), allModels, undefined), false);
 		});
 
 		// Repro for #321037: on first launch the restored Copilot selection is reset to a BYOK model. The Copilot
@@ -1690,30 +1477,9 @@ suite('ChatInputModelUtils', () => {
 		});
 	});
 
-	/**
-	 * Regression coverage for the "new/reused agent-host chat editor reverts the model to the
-	 * pool default (Auto/Haiku) instead of the remembered per-harness model, AND corrupts the
-	 * persisted per-type key so it's wrong after restart too" bug.
-	 *
-	 * The fix's invariant: switching the input to a session must never WRITE the per-session-type
-	 * model storage key; it may only set the model in-memory and RESTORE it from the key. Only an
-	 * explicit user action (after the switch completes) persists. These tests lock the extracted
-	 * decisions plus a storage-write "ledger" that replays the real session-switch sequence —
-	 * including a NEGATIVE control that reproduces the v1 hazard (persisting during the switch) to
-	 * prove the ledger genuinely catches it rather than being theatre.
-	 *
-	 * NOTE: `ChatInputPart` has 29 DI dependencies and no unit harness, so these tests exercise
-	 * the extracted pure decisions and a faithful sequence simulation, not the DOM wiring.
-	 * Manual repro (pick a model, open a new editor, restart) remains the final gate.
-	 */
-	suite('agent-host per-type model restore on session switch (regression)', () => {
+	suite('agent-host model restore', () => {
 		const sessionType = 'agent-host-claude';
-		const perTypeKey = `chat.currentLanguageModel.panel.${sessionType}`;
-		const generalKey = 'chat.currentLanguageModel.panel';
-
-		// Cross-pool draft model leaked from a prior general chat.
-		const agnosticAuto = createModel('auto', 'Auto'); // `copilot/auto`, no target
-		// The agent-host pool: its own default + the user's picked Opus.
+		const agnosticAuto = createModel('auto', 'Auto');
 		const agentHostHaiku: ILanguageModelChatMetadataAndIdentifier = {
 			...createSessionModel('claude-haiku-4.5', 'Claude Haiku 4.5', sessionType, { isDefaultForLocation: { [ChatAgentLocation.Chat]: true } }),
 			identifier: 'agent-host-claude:claude-haiku-4.5',
@@ -1722,194 +1488,38 @@ suite('ChatInputModelUtils', () => {
 			...createSessionModel('claude-opus-4.8', 'Claude Opus 4.8', sessionType),
 			identifier: 'agent-host-claude:claude-opus-4.8',
 		};
-		const agentHostPool = [agentHostHaiku, agentHostOpus];
 		const allMerged = [agnosticAuto, agentHostHaiku, agentHostOpus];
 
-		suite('predicates', () => {
-			test('suppress persistence for every empty own-pool session switch (regardless of incoming model)', () => {
-				assert.strictEqual(shouldSuppressModelPersistenceOnSessionSwitch(true, true), true);   // fresh own-pool
-				assert.strictEqual(shouldSuppressModelPersistenceOnSessionSwitch(false, true), false);  // non-empty (reopened)
-				assert.strictEqual(shouldSuppressModelPersistenceOnSessionSwitch(true, false), false);  // general/local
-			});
-
-			test('restore per-type model only for a FRESH untitled own-pool session (no incoming model)', () => {
-				assert.strictEqual(shouldRestorePerTypeModelOnSessionSwitch(true, true, false), true);   // fresh untitled
-				assert.strictEqual(shouldRestorePerTypeModelOnSessionSwitch(true, true, true), false);   // carries its own model (transfer/restored)
-				assert.strictEqual(shouldRestorePerTypeModelOnSessionSwitch(false, true, false), false); // non-empty
-				assert.strictEqual(shouldRestorePerTypeModelOnSessionSwitch(true, false, false), false); // general/local
-			});
-
-			test('persist a model selection only when requested AND not during a session switch', () => {
-				assert.strictEqual(shouldPersistModelSelection(true, false), true);   // explicit user pick, no switch
-				assert.strictEqual(shouldPersistModelSelection(true, true), false);   // during a switch → never persist
-				assert.strictEqual(shouldPersistModelSelection(false, false), false); // transient (storeSelection=false)
-			});
-
-			test('drop a cross-pool draft model in either direction; keep an in-pool one', () => {
-				assert.strictEqual(shouldDropAgnosticDraftModel(agnosticAuto, allMerged, sessionType), true);   // general model → agent-host session
-				assert.strictEqual(shouldDropAgnosticDraftModel(agentHostOpus, allMerged, undefined), true);    // agent-host model → general session (reverse leak)
-				assert.strictEqual(shouldDropAgnosticDraftModel(agentHostOpus, allMerged, sessionType), false); // in-pool
-				assert.strictEqual(shouldDropAgnosticDraftModel(undefined, allMerged, sessionType), false);     // no draft model
-			});
+		test('restores a remembered per-type model only for a fresh own-pool draft', () => {
+			assert.deepStrictEqual([
+				shouldRestorePerTypeModelOnSessionSwitch(true, true, false),
+				shouldRestorePerTypeModelOnSessionSwitch(true, true, true),
+				shouldRestorePerTypeModelOnSessionSwitch(false, true, false),
+				shouldRestorePerTypeModelOnSessionSwitch(true, false, false),
+			], [true, false, false, false]);
 		});
 
-		/**
-		 * Faithful storage-write ledger: writes a key only when {@link shouldPersistModelSelection}
-		 * allows, exactly like `chatInputPart.setCurrentLanguageModel`. Returns the in-memory model
-		 * and the storage map so tests can assert both the picker value and the persisted key.
-		 */
-		function runSessionSwitchSequence(opts: {
-			isEmpty: boolean;
-			ownsPool: boolean;
-			hadIncomingModel: boolean;
-			key: string;
-			storedModel: ILanguageModelChatMetadataAndIdentifier | undefined; // persisted per-type value at bind time
-			draftModel: ILanguageModelChatMetadataAndIdentifier | undefined;  // shared agnostic draft's model
-			pool: ILanguageModelChatMetadataAndIdentifier[];                  // models available to this session at bind
-			poolDefault: ILanguageModelChatMetadataAndIdentifier;
-			startingInMemory: ILanguageModelChatMetadataAndIdentifier;        // reused-widget stale model
-			/** When true, reproduce the v1 hazard: never suppress persistence during the bind. */
-			persistDuringSessionSwitch?: boolean;
-		}): { storage: Map<string, string>; inMemory: ILanguageModelChatMetadataAndIdentifier; keyAfterSessionSwitch: string | undefined } {
-			const storage = new Map<string, string>();
-			if (opts.storedModel) {
-				storage.set(opts.key, opts.storedModel.identifier);
-			}
-			let inMemory = opts.startingInMemory;
+		test('a started contributed session is never a new conversation, even before its requests load', () => {
+			const startedAgentHost = URI.parse('agent-host-copilotcli:/933e7602-f84e-431e-8756-c5e85c8f33d0');
+			const untitledAgentHost = URI.parse('agent-host-copilotcli:/untitled-933e7602');
+			const localSession = LocalChatSessionUri.getNewSessionUri();
 
-			const suppress = opts.persistDuringSessionSwitch ? false : shouldSuppressModelPersistenceOnSessionSwitch(opts.isEmpty, opts.ownsPool);
-			const restore = shouldRestorePerTypeModelOnSessionSwitch(opts.isEmpty, opts.ownsPool, opts.hadIncomingModel);
-
-			const setModel = (model: ILanguageModelChatMetadataAndIdentifier, storeSelection: boolean) => {
-				inMemory = model;
-				if (shouldPersistModelSelection(storeSelection, suppress)) {
-					storage.set(opts.key, model.identifier);
-				}
-			};
-
-			// 1. Draft sync during the switch. A cross-pool draft model is stripped, so the switch
-			//    falls back to the pool default; an in-pool draft model would apply as-is.
-			const draftModel = shouldDropAgnosticDraftModel(opts.draftModel, opts.pool, opts.ownsPool ? sessionType : undefined)
-				? undefined
-				: opts.draftModel;
-			if (draftModel) {
-				setModel(draftModel, /*storeSelection*/ true);
-			} else {
-				// _syncFromModel/_setEmptyModelState land on the pool default during the switch.
-				setModel(opts.poolDefault, /*storeSelection*/ true);
-			}
-
-			// Snapshot of the key at the end of the switch, BEFORE the authoritative restore.
-			// The invariant is that a correct (suppressed) switch leaves this equal to the stored
-			// value; the v1 hazard clobbers it here.
-			const keyAfterSessionSwitch = storage.get(opts.key);
-
-			// 2. [CVVM].2 restore (view model now assigned; session type correct).
-			if (restore && opts.storedModel && opts.pool.some(m => m.identifier === opts.storedModel!.identifier)) {
-				setModel(opts.storedModel, /*storeSelection*/ true);
-			}
-
-			return { storage, inMemory, keyAfterSessionSwitch };
-		}
-
-		test('Repro A (copilotcli-style): cross-pool `auto` draft, key=Opus → key stays Opus, picker=Opus', () => {
-			const { storage, inMemory, keyAfterSessionSwitch } = runSessionSwitchSequence({
-				isEmpty: true, ownsPool: true, hadIncomingModel: false,
-				key: perTypeKey, storedModel: agentHostOpus, draftModel: agnosticAuto,
-				pool: agentHostPool, poolDefault: agentHostHaiku, startingInMemory: agnosticAuto,
-			});
-			assert.strictEqual(keyAfterSessionSwitch, agentHostOpus.identifier, 'no write during the switch may reach the per-type key');
-			assert.strictEqual(storage.get(perTypeKey), agentHostOpus.identifier, 'per-type key must not be clobbered during the switch');
-			assert.strictEqual(inMemory.identifier, agentHostOpus.identifier, 'picker must show the remembered Opus');
+			assert.deepStrictEqual([
+				isNewConversation(startedAgentHost, true),
+				isNewConversation(startedAgentHost, false),
+				isNewConversation(untitledAgentHost, true),
+				isNewConversation(untitledAgentHost, false),
+				isNewConversation(localSession, true),
+				isNewConversation(localSession, false),
+			], [false, false, true, false, true, false]);
 		});
 
-		test('Repro B (reused widget): stale in-memory Haiku, key=Opus → key stays Opus, picker=Opus', () => {
-			const { storage, inMemory } = runSessionSwitchSequence({
-				isEmpty: true, ownsPool: true, hadIncomingModel: false,
-				key: perTypeKey, storedModel: agentHostOpus, draftModel: undefined,
-				pool: agentHostPool, poolDefault: agentHostHaiku, startingInMemory: agentHostHaiku,
-			});
-			assert.strictEqual(storage.get(perTypeKey), agentHostOpus.identifier);
-			assert.strictEqual(inMemory.identifier, agentHostOpus.identifier);
-		});
-
-		test('a session that carries its own model (transfer/restored) keeps it and does not clobber the key', () => {
-			const { storage, inMemory } = runSessionSwitchSequence({
-				isEmpty: true, ownsPool: true, hadIncomingModel: true, // has its own model
-				key: perTypeKey, storedModel: agentHostOpus, draftModel: agentHostHaiku,
-				pool: agentHostPool, poolDefault: agentHostHaiku, startingInMemory: agentHostHaiku,
-			});
-			// Suppression still on (empty own-pool) → key not written during the switch; restore skipped → keeps its own Haiku.
-			assert.strictEqual(storage.get(perTypeKey), agentHostOpus.identifier, 'key preserved');
-			assert.strictEqual(inMemory.identifier, agentHostHaiku.identifier, 'incoming model honored in-memory');
-		});
-
-		test('cold pool on session switch: restore is deferred and the key is not clobbered', () => {
-			// Pool empty during the switch (targeted models not loaded). Restore can't resolve yet;
-			// the switch falls to (a suppressed) default and the key stays Opus for the late wait to restore.
-			const { storage } = runSessionSwitchSequence({
-				isEmpty: true, ownsPool: true, hadIncomingModel: false,
-				key: perTypeKey, storedModel: agentHostOpus, draftModel: agnosticAuto,
-				pool: [], poolDefault: agentHostHaiku, startingInMemory: agnosticAuto,
-			});
-			assert.strictEqual(storage.get(perTypeKey), agentHostOpus.identifier);
-		});
-
-		test('reverse leak: an agent-host model in the general draft does not clobber the general key', () => {
-			const generalGpt = createDefaultModelForLocation('gpt', 'GPT', ChatAgentLocation.Chat);
-			const { storage } = runSessionSwitchSequence({
-				isEmpty: true, ownsPool: false, hadIncomingModel: false, // general/local session
-				key: generalKey, storedModel: generalGpt, draftModel: agentHostOpus,
-				pool: [generalGpt], poolDefault: generalGpt, startingInMemory: generalGpt,
-			});
-			// A general session switch is NOT suppressed, but the cross-pool agent-host draft model
-			// is stripped, so the general default (== stored) applies and the general key is not corrupted.
-			assert.strictEqual(storage.get(generalKey), generalGpt.identifier);
-		});
-
-		test('NEGATIVE control: reproducing the v1 hazard (persist during the switch) DOES clobber the key', () => {
-			// Proves the ledger is a genuine guard: with persistence NOT suppressed during the switch
-			// (the v1 behavior), the cross-pool `auto` draft resolves to the pool default and
-			// overwrites the remembered Opus during the switch — exactly the reported corruption.
-			// (The later restore step is what v1's mistimed init defeated; the faithful signal is
-			// the key state at the end of the switch.)
-			const { keyAfterSessionSwitch } = runSessionSwitchSequence({
-				isEmpty: true, ownsPool: true, hadIncomingModel: false,
-				key: perTypeKey, storedModel: agentHostOpus, draftModel: agnosticAuto,
-				pool: agentHostPool, poolDefault: agentHostHaiku, startingInMemory: agnosticAuto,
-				persistDuringSessionSwitch: true,
-			});
-			assert.strictEqual(keyAfterSessionSwitch, agentHostHaiku.identifier, 'v1 clobbers the key to the pool default during the switch');
-			assert.notStrictEqual(keyAfterSessionSwitch, agentHostOpus.identifier);
-		});
-
-		/**
-		 * Cold-restore wait: a restored session persists its own model (e.g. Opus), but at restart
-		 * the agent-host pool loads late. `shouldWaitForSessionModel` decides whether to WAIT for
-		 * the session's own model to arrive instead of persisting a transient pool default (Haiku)
-		 * over it — the second half of the "reverts to Haiku after restart" fix.
-		 */
-		suite('shouldWaitForSessionModel (cold-restore wait)', () => {
-			test('waits when the session model targets this pool but is not loaded yet', () => {
-				// Cold pool: nothing loaded.
-				assert.strictEqual(shouldWaitForSessionModel(agentHostOpus, sessionType, []), true);
-				// Partial pool: the pool default (Haiku) loaded but the remembered Opus has not.
-				assert.strictEqual(shouldWaitForSessionModel(agentHostOpus, sessionType, [agnosticAuto, agentHostHaiku]), true);
-			});
-
-			test('does NOT wait once the session model is available (normal apply path handles it)', () => {
-				assert.strictEqual(shouldWaitForSessionModel(agentHostOpus, sessionType, allMerged), false);
-			});
-
-			test('does NOT wait for a model that does not belong to this session pool (would wait forever)', () => {
-				// A general/cross-pool model in an agent-host session: not our pool → default instead.
-				assert.strictEqual(shouldWaitForSessionModel(agnosticAuto, sessionType, [agentHostHaiku]), false);
-				// A model targeting a DIFFERENT agent-host type.
-				const otherType = { ...agentHostOpus, metadata: { ...agentHostOpus.metadata, targetChatSessionType: 'agent-host-copilotcli' } };
-				assert.strictEqual(shouldWaitForSessionModel(otherType, sessionType, []), false);
-				// No session type at all.
-				assert.strictEqual(shouldWaitForSessionModel(agentHostOpus, undefined, []), false);
-			});
+		test('drops cross-pool draft models in both directions', () => {
+			assert.deepStrictEqual([
+				shouldDropAgnosticDraftModel(agnosticAuto, allMerged, sessionType),
+				shouldDropAgnosticDraftModel(agentHostOpus, allMerged, undefined),
+				shouldDropAgnosticDraftModel(agentHostOpus, allMerged, sessionType),
+			], [true, true, false]);
 		});
 	});
 
@@ -2019,6 +1629,24 @@ suite('ChatInputModelUtils', () => {
 			const hidden = new Set(['openrouter/OpenRouter 2/ai21/jamba-large-1.7']);
 			const result = [visible, hiddenModel].filter(m => !isModelHiddenInPicker(m, id => hidden.has(id)));
 			assert.deepStrictEqual(result.map(m => m.identifier), ['agent-host-copilotcli:anthropic/claude-sonnet-4']);
+		});
+	});
+
+	suite('resolveEditedRequestSelection', () => {
+
+		test('a resubmit uses the inline editor\'s selection, not the composer\'s', () => {
+			// Issue #319743: the inline editor is torn down before the request is built, so its
+			// selection is captured first and must win. Falling back to the composer resubmits with
+			// a model the user did not choose — and bills them for it.
+			assert.deepStrictEqual({
+				edited: resolveEditedRequestSelection('gpt-5.5', 'claude-opus-4.8'),
+				noEditInFlight: resolveEditedRequestSelection(undefined, 'claude-opus-4.8'),
+				editedMatchesComposer: resolveEditedRequestSelection('gpt-5.5', 'gpt-5.5'),
+			}, {
+				edited: 'gpt-5.5',
+				noEditInFlight: 'claude-opus-4.8',
+				editedMatchesComposer: 'gpt-5.5',
+			});
 		});
 	});
 });

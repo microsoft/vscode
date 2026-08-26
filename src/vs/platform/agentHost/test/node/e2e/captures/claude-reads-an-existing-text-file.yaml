@@ -15,7 +15,7 @@ exchanges:
           id: toolcall_0
           name: Read
           input:
-            file_path: ${workdir}/ahp-coverage-read-${temp}/note.txt
+            file_path: ${workdir}/note.txt
       stopReason: tool_use
   - request:
       model: claude-opus-4.8
@@ -30,7 +30,7 @@ exchanges:
             - type: tool_use
               name: Read
               input:
-                file_path: ${workdir}/ahp-coverage-read-${temp}/note.txt
+                file_path: ${workdir}/note.txt
         - role: user
           content:
             - type: tool_result

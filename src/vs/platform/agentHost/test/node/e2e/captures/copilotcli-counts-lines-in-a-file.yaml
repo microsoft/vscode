@@ -6,36 +6,36 @@ exchanges:
       system: ${system}
       messages:
         - role: user
-          content: Count the lines in lines.txt and reply with the number only.
+          content: Count the lines in lines.txt and reply with the number only. Use your file tools; do not run a shell command.
     response:
       content:
         - type: tool_use
           id: toolcall_0
-          name: bash
+          name: view
           input:
-            command: wc -l lines.txt
-            description: Count lines in lines.txt
+            path: ${workdir}/lines.txt
       stopReason: tool_use
   - request:
       model: claude-sonnet-5
       system: ${system}
       messages:
         - role: user
-          content: Count the lines in lines.txt and reply with the number only.
+          content: Count the lines in lines.txt and reply with the number only. Use your file tools; do not run a shell command.
         - role: assistant
           content:
             - type: tool_use
-              name: bash
+              name: view
               input:
-                command: wc -l lines.txt
-                description: Count lines in lines.txt
+                path: ${workdir}/lines.txt
         - role: user
           content:
             - type: tool_result
               tool_use_id: toolcall_0
               content: |-
-                4 lines.txt
-                <shellId: 0 completed with exit code 0>
+                1. one
+                2. two
+                3. three
+                4. four
     response:
       content: '4'
       stopReason: end_turn

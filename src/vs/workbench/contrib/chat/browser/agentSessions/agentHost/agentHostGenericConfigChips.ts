@@ -37,6 +37,7 @@ export class AgentHostGenericConfigChips extends Disposable {
 	private _container: HTMLElement | undefined;
 
 	private readonly _chips = this._register(new DisposableMap<string>());
+	private readonly _chipElements = new Map<string, HTMLElement>();
 
 	/**
 	 * Subscription to the active session's backend state. Maintained for the
@@ -74,6 +75,10 @@ export class AgentHostGenericConfigChips extends Disposable {
 	render(container: HTMLElement): void {
 		this._container = container;
 		this._sync();
+	}
+
+	getCompactableElements(): readonly HTMLElement[] {
+		return Array.from(this._chipElements.values()).filter(element => element.classList.contains('agent-host-chat-input-picker-has-icon'));
 	}
 
 	private _reattach(): void {
@@ -140,7 +145,7 @@ export class AgentHostGenericConfigChips extends Disposable {
 	private _readWorkingDirectory(): URI | undefined {
 		const state = this._subRef.value?.sub.value;
 		if (state && !(state instanceof Error)) {
-			const cwd = state.workingDirectory;
+			const cwd = state.workingDirectories?.[0];
 			return typeof cwd === 'string' ? URI.parse(cwd) : cwd;
 		}
 		const sessionResource = this._widget.viewModel?.sessionResource;
@@ -186,6 +191,7 @@ export class AgentHostGenericConfigChips extends Disposable {
 		for (const property of [...this._chips.keys()]) {
 			if (!desired.has(property)) {
 				this._chips.deleteAndDispose(property);
+				this._chipElements.delete(property);
 			}
 		}
 
@@ -201,10 +207,12 @@ export class AgentHostGenericConfigChips extends Disposable {
 			// in `chat.css` (height, padding, chevron) applies here too.
 			const slot = dom.append(this._container, dom.$('.agent-host-generic-chip-slot.chat-input-picker-item'));
 			chip.render(slot);
+			this._chipElements.set(property, slot);
 			this._chips.set(property, {
 				dispose: () => {
 					chip.dispose();
 					slot.remove();
+					this._chipElements.delete(property);
 				},
 			});
 		}

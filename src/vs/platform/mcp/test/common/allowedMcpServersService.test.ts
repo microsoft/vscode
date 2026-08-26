@@ -9,13 +9,20 @@ import { TestConfigurationService } from '../../../configuration/test/common/tes
 import { AllowedMcpServersService } from '../../common/allowedMcpServersService.js';
 import { IInstallableMcpServer, mcpAccessConfig, mcpAllowedServersConfig, mcpDeniedServersConfig, McpAccessValue } from '../../common/mcpManagement.js';
 import { McpServerType } from '../../common/mcpPlatformTypes.js';
+import { COPILOT_ALLOW_MANAGED_MCP_SERVERS_ONLY_CONFIG } from '../../../policy/common/copilotManagedSettings.js';
+import { IConfigurationValue } from '../../../configuration/common/configuration.js';
 
 suite('AllowedMcpServersService', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createService(config: Record<string, unknown>): AllowedMcpServersService {
+	function createService(config: Record<string, unknown>, policy: Record<string, unknown> = {}): AllowedMcpServersService {
 		const configurationService = new TestConfigurationService(config);
+		const inspect = configurationService.inspect.bind(configurationService);
+		configurationService.inspect = <T>(key: string): IConfigurationValue<T> => ({
+			...inspect<T>(key),
+			policyValue: policy[key] as T | undefined,
+		});
 		return disposables.add(new AllowedMcpServersService(configurationService));
 	}
 
@@ -76,5 +83,29 @@ suite('AllowedMcpServersService', () => {
 
 		const blocked: IInstallableMcpServer = { name: 'anything', config: { type: McpServerType.REMOTE, url: 'https://other.example.org/api' } };
 		assert.notStrictEqual(service.isAllowed(blocked), true);
+	});
+
+	test('managed-only mode ignores user allow entries and uses the policy allowlist', () => {
+		const service = createService({
+			[COPILOT_ALLOW_MANAGED_MCP_SERVERS_ONLY_CONFIG]: true,
+			[mcpAllowedServersConfig]: [{ serverName: 'user-server' }],
+		}, {
+			[mcpAllowedServersConfig]: [{ serverName: 'managed-server' }],
+		});
+
+		assert.strictEqual(service.isServerAllowed({ name: 'managed-server' }), true);
+		assert.notStrictEqual(service.isServerAllowed({ name: 'user-server' }), true);
+	});
+
+	test('managed-only mode blocks all when no managed allowlist exists and preserves lower-layer denies', () => {
+		const service = createService({
+			[COPILOT_ALLOW_MANAGED_MCP_SERVERS_ONLY_CONFIG]: true,
+			[mcpDeniedServersConfig]: [{ serverName: 'denied' }],
+		});
+
+		const denied = service.isServerAllowed({ name: 'denied' });
+		assert.notStrictEqual(denied, true);
+		assert.ok(denied !== true && denied.value.includes('blocked by your organization'));
+		assert.notStrictEqual(service.isServerAllowed({ name: 'other' }), true);
 	});
 });

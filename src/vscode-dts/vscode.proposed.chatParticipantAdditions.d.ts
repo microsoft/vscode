@@ -331,6 +331,11 @@ declare module 'vscode' {
 		 */
 		result?: string;
 
+		/**
+		 * The display name of the model used by the subagent.
+		 */
+		modelName?: string;
+
 		constructor(description?: string, agentName?: string, prompt?: string, result?: string);
 	}
 

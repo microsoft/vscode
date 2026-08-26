@@ -21,6 +21,17 @@ interface ICapturedEnvelope {
 	readonly data: { readonly baseData: { readonly properties: Record<string, string | undefined> } };
 }
 
+class RecordingLogService extends NullLogService {
+	readonly droppedBodyByteCounts: number[] = [];
+
+	override trace(message: string, ..._args: unknown[]): void {
+		const match = /serialized body is (?<bodyByteCount>\d+) bytes/.exec(message);
+		if (match?.groups?.bodyByteCount) {
+			this.droppedBodyByteCounts.push(Number(match.groups.bodyByteCount));
+		}
+	}
+}
+
 class TestInternalSink implements IAgentHostInternalTelemetrySink {
 	readonly contexts: (IAgentHostInternalTelemetryContext | undefined)[] = [];
 	readonly events: { eventName: string; properties: TelemetryProps | undefined; measurements: TelemetryMeasurements | undefined }[] = [];
@@ -41,7 +52,7 @@ suite('AgentHostRestrictedTelemetrySender', () => {
 
 	const commonProperties = {} as ICommonProperties;
 
-	function createSender(): { sender: AgentHostRestrictedTelemetrySender; posts: ICapturedPost[]; envelopes: ICapturedEnvelope[] } {
+	function createSender(logService = new NullLogService()): { sender: AgentHostRestrictedTelemetrySender; posts: ICapturedPost[]; envelopes: ICapturedEnvelope[] } {
 		const posts: ICapturedPost[] = [];
 		const envelopes: ICapturedEnvelope[] = [];
 		const fetchFn = (async (url: string | URL | Request, init?: RequestInit): Promise<Response> => {
@@ -50,7 +61,7 @@ suite('AgentHostRestrictedTelemetrySender', () => {
 			envelopes.push(envelope);
 			return { ok: true, status: 200 } as Response;
 		}) as typeof globalThis.fetch;
-		const sender = new AgentHostRestrictedTelemetrySender(commonProperties, new NullLogService(), 'https://default.example/telemetry', undefined, fetchFn);
+		const sender = new AgentHostRestrictedTelemetrySender(commonProperties, logService, 'https://default.example/telemetry', undefined, fetchFn);
 		return { sender, posts, envelopes };
 	}
 
@@ -92,6 +103,45 @@ suite('AgentHostRestrictedTelemetrySender', () => {
 		}, {
 			posts: [{ url: 'https://session-account.example/telemetry', iKey: GH_ENHANCED_IKEY }],
 			trackingId: 'session-account-tid',
+		});
+	});
+
+	test('oversized enhanced telemetry is not posted when property bytes are below the limit', () => {
+		const logService = new RecordingLogService();
+		const { sender, posts } = createSender(logService);
+		sender.setRestrictedTelemetryEnabled(true);
+
+		const maxPropertyLength = 8192;
+		const maxTelemetryItemBodyLength = maxPropertyLength * 50;
+		const totalPropertyCharacterCount = 407_000;
+		const nonAsciiCharacterCount = 1000;
+		const properties: TelemetryProps = {
+			messagesJSONChunk: 'é'.repeat(nonAsciiCharacterCount) + 'x'.repeat(maxPropertyLength - nonAsciiCharacterCount),
+		};
+		for (let index = 2; index <= 50; index++) {
+			const chunkLength = index < 50 ? maxPropertyLength : totalPropertyCharacterCount - maxPropertyLength * 49;
+			properties[`messagesJSONChunk_${index}`] = 'x'.repeat(chunkLength);
+		}
+
+		const propertyCharacterCount = Object.values(properties).reduce((total, value) => total + (value?.length ?? 0), 0);
+		const propertyByteCount = Object.values(properties).reduce((total, value) => total + Buffer.byteLength(value ?? '', 'utf8'), 0);
+		sender.sendEnhancedGHTelemetryEvent('engine.messages', properties);
+		const serializedBodyByteCount = logService.droppedBodyByteCounts[0];
+
+		assert.deepStrictEqual({
+			propertyCharacterCount,
+			propertyByteCount,
+			propertyCharacterCountBelowLimit: propertyCharacterCount < maxTelemetryItemBodyLength,
+			propertyByteCountBelowLimit: propertyByteCount < maxTelemetryItemBodyLength,
+			serializedBodyByteCountAboveLimit: serializedBodyByteCount !== undefined && serializedBodyByteCount > maxTelemetryItemBodyLength,
+			posts,
+		}, {
+			propertyCharacterCount: 407_000,
+			propertyByteCount: 408_000,
+			propertyCharacterCountBelowLimit: true,
+			propertyByteCountBelowLimit: true,
+			serializedBodyByteCountAboveLimit: true,
+			posts: [],
 		});
 	});
 

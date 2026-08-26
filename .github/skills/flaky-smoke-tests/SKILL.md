@@ -29,6 +29,17 @@ iterations sequentially in one job.
   directory. The artifact is job-scoped, not iteration-scoped:
   `smoke-test-runner.log` can contain multiple iterations, and suite
   directories are not separated by iteration.
+- Do not cancel a platform job while investigating if you still need its logs
+  artifact. Cancellation can skip the publish steps entirely, even when one or
+  more failed iteration task logs are already available. If a validation run
+  has become predictably red, either let the current job finish or queue a
+  single diagnostic iteration and let that job publish before iterating.
+- Later iterations can overwrite or truncate files in the shared logs
+  directory. The final artifact may therefore contain the last iteration's
+  suite directory or runner log but not the failed iteration's detailed
+  diagnostics. Preserve the exact task log, and use a one-iteration diagnostic
+  run when extension-host, renderer, mock-server, screenshot, or trace evidence
+  from the failed attempt is required.
 - The exact iteration task log is authoritative for its failure summary and
   time range. Correlate that range with the job-level artifact.
 - Iterations can see persisted smoke-test state from earlier iterations, such
@@ -138,8 +149,11 @@ Bash:
 jq -r '.value[]' task-log.json > task-log.txt
 ```
 
-The task log provides the concise Mocha failure, stack, active-view dump, and
-the iteration's exact time range even before platform artifacts are published.
+The task log provides the concise Mocha failure, stack, and the iteration's
+exact time range even before platform artifacts are published. Diagnostics
+written through the smoke runner's `Logger` (including
+`dumpFailureDiagnostics`) may exist only in `smoke-test-runner.log`, so do not
+assume they will be present in the Azure task log.
 
 ## 4. Download the Platform Logs Artifact
 
@@ -165,6 +179,8 @@ az pipelines runs artifact download \
 ```
 
 Artifacts are available after the platform job publishes its outputs.
+An absent platform artifact after a canceled run is expected; it is not
+evidence that the artifact name was wrong.
 
 ## 5. Correlate the Failure
 
@@ -208,6 +224,17 @@ Useful files include:
 
 - `window*/exthost/<extension>/<extension>.log`
 - `main.log`, `renderer.log`, and `agenthost.log`
+- `copilot-runtime-logs/process-*.log` — the Copilot runtime (`@github/copilot`
+  CLI) process logs, captured by `dumpFailureDiagnostics` when a Copilot-runtime
+  session fails. Check these first for a **hang or "Timed out waiting for
+  response"**: they are the SDK/CLI's own record (startup, auth, model request,
+  turn lifecycle, panics, out-of-order or protocol errors) and explain a timeout
+  the test error alone does not. A tail is also mirrored into
+  `smoke-test-runner.log`. **Agent Host** sessions (Agents Window / local
+  AgentHost) write a full log run at `trace`; Chat Sessions editor (Copilot CLI /
+  Claude) and Local sessions write only a minimal startup log here (whether the
+  runtime came up), with their detailed diagnostics in `GitHub Copilot Chat.log`.
+  (Claude / Codex sessions use a different runtime and are not captured here.)
 - `playwright-screenshot-*.png`
 - Playwright trace archives
 
@@ -225,6 +252,16 @@ Session-list text and active-view text answer different questions:
   iteration.
 - Reusing a fixed warm-up scenario marker can let a later warm-up wait match an
   earlier response and abandon the actually-running warm-up.
+- Standard smoke suites created through `installAllHandlers` use distinct
+  randomized user-data directories. Do not attribute a setting from the
+  preceding suite to the failing suite without comparing the actual
+  `vscode-userdata:` or `--user-data-dir` paths in their logs. Iterations share
+  broader job state, but sibling suites normally do not share the same profile.
+- A setup change can alter rather than fix the symptom. Re-check the exact
+  stack and the gesture/dispatch/request/rendering chain on every validation
+  run. For example, moving extension enablement before startup can eliminate an
+  editor-open timeout while activating the extension before test settings are
+  written, producing a later request or response timeout instead.
 
 Prefer assertions that establish identity:
 
@@ -312,4 +349,3 @@ Summarize:
 - introducing commit, with why it is causal
 - fix commit
 - focused validation run ID, platforms, iterations, and current result
-
