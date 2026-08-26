@@ -68,6 +68,8 @@ export interface IServerToolGroup {
 	 * group only ever sees its current names.
 	 */
 	readonly legacyToolNames?: ReadonlyMap<string, string>;
+	/** Whether each session keeps the definitions first advertised to it instead of following later enablement changes. */
+	readonly materializeDefinitions?: boolean;
 	/** Whether a contributed tool is currently enabled for advertisement and execution. */
 	isEnabled(toolName: string): boolean;
 	/**
@@ -167,12 +169,14 @@ export class AgentServerToolHost implements IAgentServerToolHost {
 
 	getDefinitionsForSession(sessionUri: URI): readonly IAgentServerToolDefinition[] {
 		const materializedDefinitions = this._stateManager.getSessionState(sessionUri)?.serverTools;
-		if (materializedDefinitions) {
-			return materializedDefinitions.filter(definition => this._groupByToolName.has(definition.name));
-		}
-		return this._stateManager.isEphemeralSession(sessionUri)
-			? this.definitions.filter(definition => definition.enabledForEphemeralSessions)
-			: this.definitions;
+		const isEphemeral = this._stateManager.isEphemeralSession(sessionUri);
+		return this._groups.flatMap(group => {
+			if (materializedDefinitions && group.materializeDefinitions) {
+				return materializedDefinitions.filter(definition => this._groupByToolName.get(definition.name) === group);
+			}
+			const definitions = group.definitions.filter(definition => group.isEnabled(definition.name));
+			return isEphemeral ? definitions.filter(definition => definition.enabledForEphemeralSessions) : definitions;
+		});
 	}
 
 	get toolNames(): readonly string[] {

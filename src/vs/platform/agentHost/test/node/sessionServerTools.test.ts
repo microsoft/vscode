@@ -16,7 +16,7 @@ import { buildChatUri, buildDefaultChatUri, MessageKind, readSessionCreationRefe
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { SessionServerToolName } from '../../common/serverToolNames.js';
 import { withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
-import { AgentServerToolHost } from '../../node/shared/agentServerToolHost.js';
+import { AgentServerToolHost, type IServerToolGroup } from '../../node/shared/agentServerToolHost.js';
 import {
 	applyCreateChatTool,
 	applyCreateSessionTool,
@@ -109,7 +109,7 @@ suite('SessionServerTools', () => {
 				},
 				prompt: { type: 'string', description: 'Initial prompt to send to the new session.' },
 				workspace: { type: 'string', description: 'For `independent` work: unique project name, project/workspace URI, absolute folder path, or working directory from an existing session. Required for `independent` and invalid for `currentSession`.' },
-				title: { type: 'string', description: 'Short title for the new chat or independent session.' },
+				title: { type: 'string', maxLength: 200, description: 'Short title for the new chat or independent session.' },
 				model: { type: 'string', description: 'Optional model ID or display name. Defaults to the current chat\'s model. For `currentSession`, the model must belong to the current session\'s provider; for `independent`, the model selects the new session\'s provider.' },
 			},
 			required: ['relationship', 'prompt', 'title'],
@@ -228,6 +228,62 @@ suite('SessionServerTools', () => {
 			'Renamed chat to "Still enabled".',
 		);
 		assert.ok(host.getDefinitionsForSession(session).some(tool => tool.name === SessionServerToolName.RenameChat));
+		stateManager.dispose();
+	});
+
+	test('re-advertise updates dynamic groups while materialized session tools stay fixed', () => {
+		let sessionToolsEnabled = false;
+		let dynamicToolsEnabled = false;
+		const stateManager = new AgentHostStateManager(new NullLogService());
+		const session = 'copilot:/s1';
+		stateManager.createSession({
+			resource: session,
+			provider: 'copilot',
+			title: 'Session',
+			status: SessionStatus.Idle,
+			createdAt: new Date(0).toISOString(),
+			modifiedAt: new Date(0).toISOString(),
+		});
+		const dynamicGroup: IServerToolGroup = {
+			definitions: [{ name: 'dynamic_tool', description: 'Dynamic tool.', inputSchema: { type: 'object', properties: {} } }],
+			isEnabled: () => dynamicToolsEnabled,
+			execute: () => '',
+		};
+		const host = new AgentServerToolHost(stateManager, [
+			createSessionServerToolGroup(createAccessor({ isActiveAgentTitleGenerationEnabled: () => sessionToolsEnabled })),
+			dynamicGroup,
+		]);
+
+		host.advertise(session);
+		sessionToolsEnabled = true;
+		dynamicToolsEnabled = true;
+		host.advertise(session);
+		const enabledTools = stateManager.getSessionState(session)?.serverTools?.map(tool => tool.name);
+		dynamicToolsEnabled = false;
+		host.advertise(session);
+
+		assert.deepStrictEqual({
+			enabledTools,
+			disabledTools: stateManager.getSessionState(session)?.serverTools?.map(tool => tool.name),
+		}, {
+			enabledTools: [
+				SessionServerToolName.ListSessions,
+				SessionServerToolName.GetCurrentSession,
+				SessionServerToolName.CreateSession,
+				SessionServerToolName.SendMessage,
+				SessionServerToolName.GetSessionContext,
+				SessionServerToolName.DeleteSession,
+				'dynamic_tool',
+			],
+			disabledTools: [
+				SessionServerToolName.ListSessions,
+				SessionServerToolName.GetCurrentSession,
+				SessionServerToolName.CreateSession,
+				SessionServerToolName.SendMessage,
+				SessionServerToolName.GetSessionContext,
+				SessionServerToolName.DeleteSession,
+			],
+		});
 		stateManager.dispose();
 	});
 
@@ -473,6 +529,8 @@ suite('SessionServerTools', () => {
 		assert.throws(() => getCreateSessionArgs({ relationship: 'independent', prompt: 'hi', title: 'Task' }, [], []), /workspace/);
 		assert.throws(() => getCreateSessionArgs({ relationship: 'currentSession', workspace: workspace.toString(), prompt: 'hi', title: 'Task' }, [], []), /workspace/);
 		assert.throws(() => getCreateSessionArgs({ relationship: 'independent', workspace: workspace.toString(), prompt: 'hi' }, [], []), /title/);
+		assert.throws(() => getCreateSessionArgs({ relationship: 'independent', workspace: workspace.toString(), prompt: 'hi', title: ' ' }, [], []), /non-whitespace/);
+		assert.throws(() => getCreateSessionArgs({ relationship: 'independent', workspace: workspace.toString(), prompt: 'hi', title: 'x'.repeat(201) }, [], []), /must not exceed 200/);
 	});
 
 	test('create_session builds config, starts the default chat, and returns an open link', async () => {

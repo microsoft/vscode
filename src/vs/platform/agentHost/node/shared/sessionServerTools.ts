@@ -74,7 +74,7 @@ const createSessionInputSchema: ToolDefinition['inputSchema'] = {
 		},
 		prompt: { type: 'string', description: 'Initial prompt to send to the new session.' },
 		workspace: { type: 'string', description: 'For `independent` work: unique project name, project/workspace URI, absolute folder path, or working directory from an existing session. Required for `independent` and invalid for `currentSession`.' },
-		title: { type: 'string', description: 'Short title for the new chat or independent session.' },
+		title: { type: 'string', maxLength: 200, description: 'Short title for the new chat or independent session.' },
 		model: { type: 'string', description: 'Optional model ID or display name. Defaults to the current chat\'s model. For `currentSession`, the model must belong to the current session\'s provider; for `independent`, the model selects the new session\'s provider.' },
 	},
 	required: ['relationship', 'prompt', 'title'],
@@ -353,7 +353,10 @@ function normalizeProjectSessionTitle(title: string): string {
 	return humanized.replace(/\s+/g, ' ').trim();
 }
 
-export function validateRenameTitle(title: string, toolName: SessionServerToolName.RenameChat): void {
+export function validateRenameTitle(title: string, toolName: SessionServerToolName.CreateSession | SessionServerToolName.RenameChat): void {
+	if (!title.trim()) {
+		throw new Error(`Invalid ${toolName} input: title must contain non-whitespace characters.`);
+	}
 	if (Array.from(title).length > 200) {
 		throw new Error(`Invalid ${toolName} input: title must not exceed 200 characters.`);
 	}
@@ -427,6 +430,7 @@ export function getCreateSessionArgs(rawArgs: unknown, sessions: readonly IAgent
 	const relationship = getCreateSessionRelationship(args);
 	const prompt = getRequiredString(args.prompt, 'prompt', SessionServerToolName.CreateSession);
 	const title = getRequiredString(args.title, 'title', SessionServerToolName.CreateSession);
+	validateRenameTitle(title, SessionServerToolName.CreateSession);
 	const workspace = getOptionalString(args.workspace, 'workspace', SessionServerToolName.CreateSession);
 	const modelName = getOptionalString(args.model, 'model', SessionServerToolName.CreateSession);
 	const model = resolveModel(modelName, models);
@@ -1349,6 +1353,7 @@ export function createSessionServerToolGroup(accessor?: ISessionServerToolAccess
 		definitions: sessionServerToolDefinitions,
 		// Remove after 2026-10-26; self-mapped because its arguments differ from create_session.
 		legacyToolNames: new Map([[SessionServerToolName.CreateChat, SessionServerToolName.CreateChat]]),
+		materializeDefinitions: true,
 		isEnabled(toolName: string): boolean {
 			return toolName !== SessionServerToolName.RenameChat || accessor?.isActiveAgentTitleGenerationEnabled() !== false;
 		},

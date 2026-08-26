@@ -787,7 +787,7 @@
           },
           "title": {
             "type": "string",
-            "description": "Short title for the new chat or independent session."
+            "description": "Short title for the new chat or independent session.\n\n{maxLength: 200}"
           },
           "model": {
             "type": "string",
