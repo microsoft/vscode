@@ -43,9 +43,9 @@ function powerShellBlock(body: readonly string[], failureMessage: string): strin
 /**
  * Creates the single script VS Code registers with the SDK shell tool.
  *
- * Profile loading comes first because Python activation can depend on shell
- * functions such as `conda`. Bash then replays conda's managed block when a
- * stock non-interactive `.bashrc` guard returned before reaching it.
+ * Profile loading comes first so activation runs against the user's shell
+ * setup. Activation is whatever command the Python Environments extension
+ * published for the folder; nothing tool-specific is added here.
  *
  * Every script ends successfully: the runtime reports a nonzero init-script
  * status before every later command, and discards Bash init-script stderr.
@@ -62,13 +62,6 @@ function createBashInitScript(pythonActivation: string | undefined): IShellInitS
 		`if [ -r "$HOME/.bashrc" ]; then`,
 		`\tif ! builtin source "$HOME/.bashrc"; then`,
 		`\t\tprintf '%s\\n' 'copilot shell init: loading ~/.bashrc failed; continuing.'`,
-		`\tfi`,
-		`\tif ! builtin declare -F conda >/dev/null 2>&1; then`,
-		`\t\t__vscode_conda_block="$(sed -n '/^# >>> conda initialize >>>$/,/^# <<< conda initialize <<<$/p' "$HOME/.bashrc" 2>/dev/null)"`,
-		`\t\tif [ -n "$__vscode_conda_block" ] && ! builtin eval "$__vscode_conda_block"; then`,
-		`\t\t\tprintf '%s\\n' 'copilot shell init: conda initialization failed; continuing.'`,
-		`\t\tfi`,
-		`\t\tbuiltin unset __vscode_conda_block`,
 		`\tfi`,
 		`fi`,
 	];

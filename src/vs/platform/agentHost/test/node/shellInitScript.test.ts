@@ -21,11 +21,9 @@ suite('shellInitScript', () => {
 		const { script } = createShellInitScript('bash', ' source /repo/.venv/bin/activate');
 		assert.deepStrictEqual({
 			profileBeforeActivation: script.indexOf(`source "$HOME/.bashrc"`) < script.indexOf('source /repo/.venv/bin/activate'),
-			replaysCondaBlock: script.includes(`/^# >>> conda initialize >>>$/,/^# <<< conda initialize <<<$/p`),
 			endsSuccessfully: script.trimEnd().endsWith('builtin true'),
 		}, {
 			profileBeforeActivation: true,
-			replaysCondaBlock: true,
 			endsSuccessfully: true,
 		});
 	});
@@ -86,19 +84,11 @@ suite('shellInitScript', () => {
 			return stdout.trim().split('\n');
 		}
 
-		test('replays conda initialization skipped by the non-interactive rc guard', async () => {
-			const rc = [
-				`alias conda='builtin echo external-conda'`,
-				'case $- in',
-				'    *i*) ;;',
-				'      *) return;;',
-				'esac',
-				'# >>> conda initialize >>>',
-				'conda() { builtin echo conda-ready; }',
-				'# <<< conda initialize <<<',
-				'',
-			].join('\n');
-			assert.deepStrictEqual(await run(rc, undefined, 'conda'), ['conda-ready']);
+		test('sources the rc before the activation command runs', async () => {
+			assert.deepStrictEqual(
+				await run('export VSCODE_TEST_RC_MARKER=loaded\n', 'builtin echo "activation sees rc=$VSCODE_TEST_RC_MARKER"', 'builtin true'),
+				['activation sees rc=loaded'],
+			);
 		});
 
 		test('reports a failed activation, runs the command, and leaves status zero', async () => {
