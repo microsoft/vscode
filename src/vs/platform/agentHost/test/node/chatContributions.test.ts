@@ -18,7 +18,7 @@ import { IAgentHostChangesetService } from '../../common/agentHostChangesetServi
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
 import { AgentHostLaunchKind, createUnknownAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
-import { createChatMementoKey, createSessionMementoKey, IAgentHostChatContributions, type IAgentHostChatContribution, type IAgentHostChatContributionContext, type IAgentHostChatContributionHost, type IHydrationContext, type IObservedAction, type IOutgoingTurn, type ITurnEnd } from '../../common/agentHostChatContributionsService.js';
+import { createChatMementoKey, createSessionMementoKey, IAgentHostChatContributions, type IAgentHostChatContribution, type IAgentHostChatContributionContext, type IAgentHostChatContributionHost, type IHydrationContext, type IObservedAction, type IOutgoingTurn, type IRestoredChat, type ITurnEnd } from '../../common/agentHostChatContributionsService.js';
 import { AgentHostArtifactToolsConfigKey, AgentHostMarkdownPlanRichLinksEnabledConfigKey, type ISchema, type SchemaDefinition, type SchemaValue } from '../../common/agentHostSchema.js';
 import { withChatSurfaceMeta } from '../../common/meta/agentChatSurfaceMeta.js';
 import { readAgentMessageDelegationMeta, toAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
@@ -468,6 +468,62 @@ class FollowingHydrationContribution extends TestContribution {
 	}
 }
 
+class FirstChatHydrationContribution extends TestContribution {
+	static readonly id = 'firstChatHydration';
+	readonly order = 10;
+
+	onHydrateChat(_context: IHydrationContext, restored: IRestoredChat): IRestoredChat {
+		return { ...restored, title: 'first' };
+	}
+}
+
+class SecondChatHydrationContribution extends TestContribution {
+	static readonly id = 'secondChatHydration';
+	readonly order = 20;
+
+	onHydrateChat(_context: IHydrationContext, restored: IRestoredChat): IRestoredChat {
+		return { ...restored, draft: { text: `${restored.title} draft`, origin: { kind: MessageKind.User } } };
+	}
+}
+
+class AsyncChatHydrationContribution extends TestContribution {
+	static readonly id = 'asyncChatHydration';
+	readonly order = 10;
+
+	async onHydrateChat(_context: IHydrationContext, restored: IRestoredChat): Promise<IRestoredChat> {
+		await Promise.resolve();
+		return { ...restored, title: 'async' };
+	}
+}
+
+class PreviousChatHydrationContribution extends TestContribution {
+	static readonly id = 'previousChatHydration';
+	readonly order = 10;
+
+	onHydrateChat(_context: IHydrationContext, restored: IRestoredChat): IRestoredChat {
+		return { ...restored, title: 'previous', draft: { text: 'previous draft', origin: { kind: MessageKind.User } } };
+	}
+}
+
+class ThrowingChatHydrationContribution extends TestContribution {
+	static readonly id = 'throwingChatHydration';
+	readonly order = 20;
+
+	onHydrateChat(): IRestoredChat {
+		throw new Error('expected');
+	}
+}
+
+class FollowingChatHydrationContribution extends TestContribution {
+	static readonly id = 'followingChatHydration';
+	readonly order = 30;
+
+	onHydrateChat(_context: IHydrationContext, restored: IRestoredChat): IRestoredChat {
+		calls.push(`following:${restored.title}`);
+		return restored;
+	}
+}
+
 class BeforeSideChatHydrationContribution extends TestContribution {
 	static readonly id = 'beforeSideChatHydration';
 	readonly order = 450;
@@ -592,7 +648,7 @@ function createTurnDelegationContributions(disposables: ReturnType<typeof ensure
 	return { service, database, session, chat: buildDefaultChatUri(session) };
 }
 
-function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, observed?: string[], enableSendInstructions = false): { readonly service: AgentHostChatContributions; readonly stateManager: AgentHostStateManager; readonly session: string } {
+function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, observed?: string[], enableSendInstructions = false): { readonly service: AgentHostChatContributions; readonly stateManager: AgentHostStateManager; readonly database: TestSessionDatabase; readonly session: string } {
 	const logService = new NullLogService();
 	const stateManager = disposables.add(new AgentHostStateManager(logService));
 	stateManager.createSession({
@@ -659,7 +715,7 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 	};
 	disposables.add(service.registerHost(host));
 	disposables.add(registerBuiltInChatContributions(service));
-	return { service, stateManager, session: 'agent-host-session://test' };
+	return { service, stateManager, database: usageDatabase, session: 'agent-host-session://test' };
 }
 
 function createQueueDrainContributions(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>) {
@@ -1578,5 +1634,77 @@ suite('AgentHostChatContributions', () => {
 
 		assert.deepStrictEqual(calls, ['following:previous']);
 		assert.deepStrictEqual(turns.map(turn => turn.id), ['previous']);
+	});
+
+	test('threads restored chat state through contributions in order', async () => {
+		const contributions = disposables.add(createContributions(disposables, SecondChatHydrationContribution, FirstChatHydrationContribution));
+
+		const restored = await contributions.hydrateChat(hydrationContext(), {});
+
+		assert.deepStrictEqual(restored, {
+			title: 'first',
+			draft: { text: 'first draft', origin: { kind: MessageKind.User } },
+		});
+	});
+
+	test('awaits asynchronous chat hydration contributions', async () => {
+		const contributions = disposables.add(createContributions(disposables, SecondChatHydrationContribution, AsyncChatHydrationContribution));
+
+		assert.deepStrictEqual(await contributions.hydrateChat(hydrationContext(), {}), {
+			title: 'async',
+			draft: { text: 'async draft', origin: { kind: MessageKind.User } },
+		});
+	});
+
+	test('preserves the previous chat state when a hydration contribution fails', async () => {
+		const contributions = disposables.add(createContributions(disposables, FollowingChatHydrationContribution, ThrowingChatHydrationContribution, PreviousChatHydrationContribution));
+
+		const restored = await contributions.hydrateChat(hydrationContext(), {});
+
+		assert.deepStrictEqual({ calls, restored }, {
+			calls: ['following:previous'],
+			restored: {
+				title: 'previous',
+				draft: { text: 'previous draft', origin: { kind: MessageKind.User } },
+			},
+		});
+	});
+
+	test('skips contributions without an onHydrateChat hook', async () => {
+		const contributions = disposables.add(createContributions(disposables, OrderedFirstContribution));
+		const restored = { title: 'initial' };
+
+		assert.strictEqual(await contributions.hydrateChat(hydrationContext(), restored), restored);
+	});
+
+	test('runs built-in chat hydration contributions in the original sequence', async () => {
+		const contributions = createBuiltInContributions(disposables);
+		const chat = buildChatUri(contributions.session, 'peer');
+		const titleKey = customChatTitleMetadataKey(chat);
+		const draft = { text: 'Restored draft', origin: { kind: MessageKind.User } };
+		await contributions.database.setMetadata(titleKey, 'Restored title');
+		await contributions.database.setChatDraft(URI.parse(chat), draft);
+		const getMetadata = contributions.database.getMetadata.bind(contributions.database);
+		const getChatDraft = contributions.database.getChatDraft.bind(contributions.database);
+		contributions.database.getMetadata = async key => {
+			if (key === titleKey) {
+				calls.push('sessionTitle');
+			}
+			return getMetadata(key);
+		};
+		contributions.database.getChatDraft = async resource => {
+			calls.push('chatDraft');
+			return getChatDraft(resource);
+		};
+
+		const restored = await contributions.service.hydrateChat({ session: contributions.session, chat }, {});
+
+		assert.deepStrictEqual({ calls, restored }, {
+			calls: ['sessionTitle', 'chatDraft'],
+			restored: {
+				title: 'Restored title',
+				draft,
+			},
+		});
 	});
 });
