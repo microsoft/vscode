@@ -74,8 +74,8 @@
 	overflow: hidden;
 	display: flex;
 	align-items: center;
-	font-weight: var(--vscode-agents-fontWeight-regular, 400);
-	font-size: var(--vscode-agents-fontSize-heading3, 13px);
+	font-weight: var(--vscode-fontWeight-regular, 400);
+	font-size: var(--vscode-fontSize-heading3, 13px);
 	color: var(--chat-tab-active-foreground, var(--session-view-foreground));
 	border-radius: var(--vscode-cornerRadius-small);
 	min-height: 22px;

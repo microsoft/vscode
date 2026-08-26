@@ -249,7 +249,7 @@
 
 	.session-details-row {
 		gap: 4px;
-		font-size: var(--vscode-agents-fontSize-label2, 11px);
+		font-size: var(--vscode-fontSize-label2, 11px);
 		line-height: 15px;
 		max-height: 15px;
 		overflow: hidden;
@@ -319,7 +319,7 @@
 	}
 
 	.session-title {
-		font-size: var(--vscode-agents-fontSize-body1, 13px);
+		font-size: var(--vscode-fontSize-body1, 13px);
 	}
 
 	.session-title {
@@ -374,7 +374,7 @@
 				overflow: hidden;
 				white-space: nowrap;
 				text-overflow: ellipsis;
-				font-size: var(--vscode-agents-fontSize-label1, 12px);
+				font-size: var(--vscode-fontSize-label1, 12px);
 			}
 		}
 
@@ -383,7 +383,7 @@
 
 			.monaco-button {
 				padding: 2px 10px;
-				font-size: var(--vscode-agents-fontSize-label1, 12px);
+				font-size: var(--vscode-fontSize-label1, 12px);
 				white-space: nowrap;
 			}
 		}
@@ -419,7 +419,7 @@
 			overflow: hidden;
 			white-space: nowrap;
 			text-overflow: ellipsis;
-			font-size: var(--vscode-agents-fontSize-label1, 12px);
+			font-size: var(--vscode-fontSize-label1, 12px);
 		}
 
 		.session-ci-button {
@@ -427,7 +427,7 @@
 
 			.monaco-button {
 				padding: 2px 10px;
-				font-size: var(--vscode-agents-fontSize-label1, 12px);
+				font-size: var(--vscode-fontSize-label1, 12px);
 				white-space: nowrap;
 			}
 		}
@@ -452,8 +452,8 @@
 	gap: var(--vscode-spacing-size60);
 	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size120) var(--vscode-spacing-size60) var(--vscode-spacing-size360);
 	color: var(--vscode-foreground);
-	font-size: var(--vscode-agents-fontSize-body1);
-	font-weight: var(--vscode-agents-fontWeight-regular);
+	font-size: var(--vscode-fontSize-body1);
+	font-weight: var(--vscode-fontWeight-regular);
 	line-height: 17px;
 
 	&::before {
@@ -518,7 +518,7 @@
 	justify-content: center;
 	align-items: center;
 	padding: 0 10px;
-	font-size: var(--vscode-agents-fontSize-label2, 11px);
+	font-size: var(--vscode-fontSize-label2, 11px);
 	color: var(--vscode-descriptionForeground);
 	min-height: 26px;
 	cursor: pointer;
@@ -549,7 +549,7 @@
 	align-items: center;
 	/* Match .session-item: left padding (12px) + status icon (16px) + .session-main padding (6px). */
 	padding: 0 12px;
-	font-size: var(--vscode-agents-fontSize-label2, 11px);
+	font-size: var(--vscode-fontSize-label2, 11px);
 	color: var(--vscode-descriptionForeground);
 	min-height: 26px;
 	cursor: default;
@@ -568,7 +568,7 @@
 /* Folders show-more/show-less: align with workspace section headers. */
 .session-show-more.session-show-more-folders {
 	justify-content: flex-start;
-	font-weight: var(--vscode-agents-fontWeight-semiBold, 600);
+	font-weight: var(--vscode-fontWeight-semiBold, 600);
 
 	.session-show-more-label {
 		padding: 0;
@@ -586,8 +586,8 @@
 .session-section {
 	display: flex;
 	align-items: center;
-	font-size: var(--vscode-agents-fontSize-label2, 11px);
-	font-weight: var(--vscode-agents-fontWeight-semiBold, 600);
+	font-size: var(--vscode-fontSize-label2, 11px);
+	font-weight: var(--vscode-fontWeight-semiBold, 600);
 	color: var(--vscode-descriptionForeground);
 	padding: 0 10px;
 
@@ -732,7 +732,7 @@
 
 		.monaco-inputbox .input {
 			padding: 0 4px;
-			font-size: var(--vscode-agents-fontSize-label2, 11px);
+			font-size: var(--vscode-fontSize-label2, 11px);
 		}
 	}
 }
@@ -895,7 +895,7 @@
 
 	.session-chat-item {
 		padding: var(--vscode-spacing-size120) var(--vscode-spacing-size120) var(--vscode-spacing-size120) var(--vscode-spacing-size360);
-		font-size: var(--vscode-agents-fontSize-body1);
+		font-size: var(--vscode-fontSize-body1);
 	}
 
 	.session-item .session-icon {

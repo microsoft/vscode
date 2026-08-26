@@ -580,19 +580,12 @@ export function formatTurnResponseDetails(
 /** Converts an agent-host Auto routing result into the shared chat UI part. */
 export function usageInfoToAutoModeResolution(usage: UsageInfo | undefined, resolvedModelName: string | undefined): IChatAutoModeResolutionPart | undefined {
 	const resolution = readUsageInfoMeta(usage).autoModeResolved;
-	if (!resolution || typeof resolution.confidence !== 'number' || !Number.isFinite(resolution.confidence)) {
-		return undefined;
-	}
-	const predictedLabel = resolution.predictedLabel;
-	if (predictedLabel !== 'needs_reasoning' && predictedLabel !== 'no_reasoning' && predictedLabel !== 'fallback') {
+	if (!resolution) {
 		return undefined;
 	}
 	return {
 		kind: 'autoModeResolution',
-		resolvedModel: resolution.chosenModel,
-		resolvedModelName: resolvedModelName ?? resolution.chosenModel,
-		predictedLabel,
-		confidence: Math.max(0, Math.min(1, resolution.confidence)),
+		resolved: { id: resolution.chosenModel, name: resolvedModelName ?? resolution.chosenModel },
 	};
 }
 
@@ -904,8 +897,9 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 
 		// Response parts — iterate the unified responseParts array
 		const parts: IChatProgress[] = [];
+		// History is settled, so an unresolved row would never flip to "Routed task".
 		const autoModeResolution = lookup?.toAutoModeResolution?.(turn.usage);
-		if (autoModeResolution) {
+		if (autoModeResolution?.resolved) {
 			parts.push(autoModeResolution);
 		}
 
@@ -1672,9 +1666,9 @@ function buildSessionCreatedToolData(tc: ToolCallState): IChatSessionCreatedData
 	if (!openLink || !backend) {
 		return undefined;
 	}
-	// A chat-scoped link (create_chat, or send_message targeting a specific chat)
-	// shows the conversation icon; a session-scoped link shows the agent icon.
-	const isChat = isCreateChatTool(tc.toolName) || (isSend && !!parseOpenSessionLinkChatId(openLink));
+	// A chat-scoped link shows the conversation icon; a session-scoped link shows the agent icon.
+	const isChat = isCreateChatTool(tc.toolName)
+		|| ((isCreateSessionTool(tc.toolName) || isSend) && !!parseOpenSessionLinkChatId(openLink));
 	const label = createSessionTitleFromArgs(getInlineToolInput(tc.toolInput)) ?? (backend.path.replace(/^\//, '') || backend.toString());
 	return { kind: 'sessionCreated', openLink, label, isChat };
 }

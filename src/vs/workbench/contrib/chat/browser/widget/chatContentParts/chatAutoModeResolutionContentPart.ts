@@ -3,26 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $ } from '../../../../../../base/browser/dom.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { localize } from '../../../../../../nls.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
+import { autoModeRoutingDetail, autoModeRoutingTitle } from '../../../common/chatAutoModeExplainability.js';
 import { IChatAutoModeResolutionPart } from '../../../common/chatService/chatService.js';
-import { ILanguageModelChatMetadata } from '../../../common/languageModels.js';
 import { IChatRendererContent } from '../../../common/model/chatViewModel.js';
 import { ChatTreeItem } from '../../chat.js';
-import { ChatCollapsibleContentPart } from './chatCollapsibleContentPart.js';
 import { IChatContentPartRenderContext } from './chatContentParts.js';
-import './media/chatAutoModeResolution.css';
+import { ChatThinkingStyleContentPart } from './chatThinkingStyleContentPart.js';
 
 /**
- * A collapsible content part that displays auto-mode model routing resolution.
- * Collapsed: "Routed to <model>"
- * Expanded: Explanation of auto routing + reasoning label with confidence.
+ * Explains Auto's routing decision. Shows "Routing task…" until the router
+ * answers, then "Routed task", which expands to name the chosen model.
  */
-export class ChatAutoModeResolutionContentPart extends ChatCollapsibleContentPart {
+export class ChatAutoModeResolutionContentPart extends ChatThinkingStyleContentPart {
+
+	private readonly isRouting: boolean;
 
 	constructor(
 		private readonly content: IChatAutoModeResolutionPart,
@@ -31,50 +29,38 @@ export class ChatAutoModeResolutionContentPart extends ChatCollapsibleContentPar
 		@IHoverService hoverService: IHoverService,
 		@IConfigurationService configurationService: IConfigurationService,
 	) {
-		super(
-			localize('autoModeResolution.title', "Routed to {0}", content.resolvedModelName),
-			context,
-			undefined,
-			hoverService,
-			configurationService,
-		);
+		super(autoModeRoutingTitle(content), context, undefined, hoverService, configurationService);
+
+		this.isRouting = !content.resolved;
+		this.setThinkingActive(this.isRouting);
+		if (this.isRouting) {
+			// Nothing to explain yet, so this is a status line rather than a disclosure.
+			this.setExpandable(false);
+			this.setShimmerTitle(autoModeRoutingTitle(content));
+		}
 	}
 
 	protected override initContent(): HTMLElement {
-		const wrapper = $('.chat-auto-mode-resolution-content.chat-used-context-list');
-
-		const body = $('.chat-auto-mode-resolution-body');
-
-		const explanation = $('.chat-auto-mode-resolution-explanation');
-		const explanationMd = new MarkdownString(ILanguageModelChatMetadata.getAutoModelDescription());
-		const rendered = this._register(this.chatContentMarkdownRenderer.render(explanationMd));
-		explanation.appendChild(rendered.element);
-		body.appendChild(explanation);
-
-		const detailLine = $('.chat-auto-mode-resolution-detail');
-		let detailText: string;
-		if (this.content.predictedLabel === 'fallback') {
-			detailText = localize('autoModeResolution.fallback', "Unable to resolve");
-		} else {
-			const label = this.content.predictedLabel === 'needs_reasoning'
-				? localize('autoModeResolution.reasoning', "Reasoning")
-				: localize('autoModeResolution.nonReasoning', "Non-reasoning");
-			const confidencePercent = (this.content.confidence * 100).toFixed(0);
-			detailText = localize('autoModeResolution.detail', "{0} - Confidence {1}%", label, confidencePercent);
+		const body = this.createThinkingBody();
+		const detail = autoModeRoutingDetail(this.content);
+		if (detail) {
+			const row = this.createThinkingRow();
+			const rendered = this._register(this.chatContentMarkdownRenderer.render(new MarkdownString(detail)));
+			row.appendChild(rendered.element);
+			body.appendChild(row);
 		}
-		const detailRendered = this._register(this.chatContentMarkdownRenderer.render(new MarkdownString(detailText)));
-		detailLine.appendChild(detailRendered.element);
-		body.appendChild(detailLine);
-
-		wrapper.appendChild(body);
-		return wrapper;
+		return body;
 	}
 
-	hasSameContent(other: IChatRendererContent, _followingContent: IChatRendererContent[], _element: ChatTreeItem): boolean {
-		return other.kind === 'autoModeResolution'
-			&& other.resolvedModel === this.content.resolvedModel
-			&& other.resolvedModelName === this.content.resolvedModelName
-			&& other.confidence === this.content.confidence
-			&& other.predictedLabel === this.content.predictedLabel;
+	hasSameContent(other: IChatRendererContent, _followingContent: IChatRendererContent[], element: ChatTreeItem): boolean {
+		if (other.kind !== 'autoModeResolution') {
+			return false;
+		}
+		// Once the response ends, a row still routing is re-rendered so the
+		// renderer can drop it rather than leave it shimmering forever.
+		if (this.isRouting && element.isComplete) {
+			return false;
+		}
+		return other.resolved?.id === this.content.resolved?.id;
 	}
 }
