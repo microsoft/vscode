@@ -242,10 +242,12 @@ For every provider, migration and discovery partition the same native catalog: m
 
 ### Server-tool creation provenance
 
-Treat a session as the user-visible unit of work. The `create_chat` tool is the
-default for parallel subtasks that should share one workspace, lifecycle, and
-aggregate diff. Use `create_session` only when a delegated task needs an
-independent workspace, worktree or branch, provider, or lifecycle.
+Treat a session as the user-visible unit of work. `create_session` requires a
+relationship: `currentSession` creates a peer chat for tasks in the current plan
+or deliverable, sharing its workspace, lifecycle, and aggregate diff;
+`independent` creates a top-level session for a separate deliverable that needs
+its own workspace, provider, or lifecycle. A title is required for both
+relationships and is applied before the initial prompt starts.
 
 Sessions created by the `create_session` server tool record only the creating
 session, chat, and turn as immutable, provider-neutral creation provenance in

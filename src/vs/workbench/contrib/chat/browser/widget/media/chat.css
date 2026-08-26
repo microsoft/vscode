@@ -1843,6 +1843,14 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: none;
 }
 
+.interactive-session .chat-secondary-toolbar .chat-responsive-picker-container {
+	display: flex;
+	align-items: center;
+	flex: 1 1 0;
+	min-width: 0;
+	gap: 2px;
+}
+
 .interactive-session .chat-secondary-toolbar .chat-secondary-generic-chips {
 	display: flex;
 	align-items: center;
@@ -1850,10 +1858,14 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	gap: 2px;
 }
 
+.interactive-session .chat-secondary-toolbar .chat-secondary-generic-chips:empty {
+	display: none;
+}
+
 .interactive-session .chat-secondary-toolbar .chat-secondary-input-toolbar {
 	overflow: hidden;
 	min-width: 0px;
-	flex: 1 1 0;
+	flex: 0 1 auto;
 	color: var(--vscode-icon-foreground);
 
 	.monaco-action-bar .action-item .codicon {
@@ -1865,16 +1877,19 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 	.chat-input-picker-item {
 		min-width: 0px;
-		overflow: hidden;
+		overflow: visible;
+		flex-shrink: 0;
 
 		.action-label {
 			min-width: 0px;
-			overflow: hidden;
+			overflow: visible;
 			position: relative;
 
 			.chat-input-picker-label {
-				overflow: hidden;
-				text-overflow: ellipsis;
+				flex-shrink: 0;
+				overflow: visible;
+				text-overflow: clip;
+				white-space: nowrap;
 			}
 
 			.codicon + .chat-input-picker-label {
@@ -1945,16 +1960,19 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 	.chat-input-picker-item {
 		min-width: 0px;
-		overflow: hidden;
+		overflow: visible;
+		flex-shrink: 0;
 
 		.action-label {
 			min-width: 0px;
-			overflow: hidden;
+			overflow: visible;
 			position: relative;
 
 			.chat-input-picker-label {
-				overflow: hidden;
-				text-overflow: ellipsis;
+				flex-shrink: 0;
+				overflow: visible;
+				text-overflow: clip;
+				white-space: nowrap;
 			}
 
 			.model-picker-badge {
@@ -2020,11 +2038,12 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
-/* When chevrons are hidden and only showing an icon (no label), size to 22x22 with centered icon */
-.interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.compact:not(:has(.chat-input-picker-label)),
-.interactive-session .chat-input-toolbar .chat-input-picker-item.compact .action-label:not(:has(.chat-input-picker-label)),
-.interactive-session .chat-input-toolbar .chat-sessionPicker-item .action-label.compact:not(:has(.chat-input-picker-label)),
-.interactive-session .chat-secondary-input-toolbar .chat-sessionPicker-item .action-label.compact:not(:has(.chat-input-picker-label)) {
+/* When only the icon remains, keep the expanded control's leading inset so
+ * the glyph does not move as the label disappears. */
+.interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.icon-only,
+.interactive-session .chat-secondary-input-toolbar .chat-input-picker-item .action-label.icon-only,
+.interactive-session .chat-input-toolbar .chat-sessionPicker-item .action-label.icon-only,
+.interactive-session .chat-secondary-input-toolbar .chat-sessionPicker-item .action-label.icon-only {
 	width: 22px;
 	min-width: 22px;
 	height: 22px;
@@ -2037,6 +2056,18 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	.codicon {
 		justify-content: center;
 	}
+}
+
+.interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.icon-only:not(.model-picker-split),
+.interactive-session .chat-input-toolbar .chat-sessionPicker-item .action-label.icon-only {
+	padding-left: var(--vscode-spacing-size60);
+	justify-content: flex-start;
+}
+
+.interactive-session .chat-secondary-input-toolbar .chat-input-picker-item .action-label.icon-only,
+.interactive-session .chat-secondary-input-toolbar .chat-sessionPicker-item .action-label.icon-only {
+	padding-left: var(--vscode-spacing-size80);
+	justify-content: flex-start;
 }
 
 

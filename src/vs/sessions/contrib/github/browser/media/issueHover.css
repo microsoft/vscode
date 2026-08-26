@@ -18,7 +18,7 @@
 	gap: var(--vscode-spacing-size40);
 	min-width: 0;
 	padding: var(--vscode-spacing-size120) var(--vscode-spacing-size160) 0;
-	font-size: var(--vscode-agents-fontSize-body1);
+	font-size: var(--vscode-fontSize-body1);
 	line-height: 1.4;
 }
 
@@ -36,8 +36,8 @@
 
 .sessions-issue-hover-title {
 	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size160) var(--vscode-spacing-size120);
-	font-size: var(--vscode-agents-fontSize-heading2, 18px);
-	font-weight: var(--vscode-agents-fontWeight-semiBold, 600);
+	font-size: var(--vscode-fontSize-heading2, 18px);
+	font-weight: var(--vscode-fontWeight-semiBold, 600);
 	line-height: 1.25;
 	overflow-wrap: anywhere;
 }
@@ -45,7 +45,7 @@
 .sessions-issue-hover-description {
 	padding: var(--vscode-spacing-size120) var(--vscode-spacing-size160);
 	border-top: var(--vscode-strokeThickness) solid var(--vscode-editorHoverWidget-border);
-	font-size: var(--vscode-agents-fontSize-body1);
+	font-size: var(--vscode-fontSize-body1);
 	line-height: 1.4;
 	color: var(--vscode-descriptionForeground);
 	overflow-wrap: anywhere;

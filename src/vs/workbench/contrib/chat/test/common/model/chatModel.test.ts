@@ -662,6 +662,24 @@ suite('Response', () => {
 		await assertSnapshot(response.value);
 	});
 
+	test('resolved Auto routing replaces the row that is still routing', () => {
+		const response = store.add(new Response([]));
+		response.updateContent({ kind: 'autoModeResolution' });
+		response.updateContent({ kind: 'markdownContent', content: new MarkdownString('Working on it.') });
+		response.updateContent({ kind: 'autoModeResolution', resolved: { id: 'gpt-5.4-mini', name: 'GPT-5.4 mini' } });
+		// Later routes each start their own row, including a switch back to a
+		// model used earlier in the turn.
+		response.updateContent({ kind: 'autoModeResolution', resolved: { id: 'gpt-5.5', name: 'GPT-5.5' } });
+		response.updateContent({ kind: 'autoModeResolution', resolved: { id: 'gpt-5.4-mini', name: 'GPT-5.4 mini' } });
+
+		assert.deepStrictEqual(response.value.map(part => part.kind === 'autoModeResolution' ? part : { kind: part.kind }), [
+			{ kind: 'autoModeResolution', resolved: { id: 'gpt-5.4-mini', name: 'GPT-5.4 mini' } },
+			{ kind: 'markdownContent' },
+			{ kind: 'autoModeResolution', resolved: { id: 'gpt-5.5', name: 'GPT-5.5' } },
+			{ kind: 'autoModeResolution', resolved: { id: 'gpt-5.4-mini', name: 'GPT-5.4 mini' } },
+		]);
+	});
+
 	test('system notification remains distinct from later response content', () => {
 		const response = store.add(new Response([]));
 		response.updateContent({ kind: 'systemNotification', content: new MarkdownString('Background command completed') });
