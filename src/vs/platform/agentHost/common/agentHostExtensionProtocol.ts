@@ -7,6 +7,7 @@ import { vEnum, vObj, vOptionalProp, vString, type ValidatorType } from '../../.
 import type { AgentHostDebugLogsArtifactKind, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult } from './agentService.js';
 
 export const CollectAgentHostDebugLogsExtensionMethod = 'vscode/collectAgentHostDebugLogs';
+export const GetAgentHostChatStateFileExtensionMethod = 'vscode/getAgentHostChatStateFile';
 export const GetAgentHostSessionStateFileExtensionMethod = 'vscode/getAgentHostSessionStateFile';
 export const ReadAgentHostDebugLogsChunkExtensionMethod = 'vscode/readAgentHostDebugLogsChunk';
 
@@ -24,7 +25,11 @@ export interface IAgentHostExtensionCommandMap {
 	'getManagedSettingsDiagnostics': { params: undefined; result: readonly IAgentHostManagedSettingsDiagnostics[] };
 	'diagnosticsFetch': { params: { url: string }; result: IAgentHostNetworkFetchResult };
 	[GetAgentHostSessionStateFileExtensionMethod]: {
-		params: { session: string; chat?: string };
+		params: { session: string };
+		result: { resource?: string };
+	};
+	[GetAgentHostChatStateFileExtensionMethod]: {
+		params: { session: string; chat: string };
 		result: { resource?: string };
 	};
 	[CollectAgentHostDebugLogsExtensionMethod]: {

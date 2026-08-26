@@ -676,7 +676,7 @@ suite('ProtocolServerHandler', () => {
 		const responsePromise = waitForResponse(transport, 17);
 		const chat = buildChatUri('copilotcli:/session-1', 'peer-1');
 
-		transport.simulateMessage(request(17, 'vscode/getAgentHostSessionStateFile', {
+		transport.simulateMessage(request(17, 'vscode/getAgentHostChatStateFile', {
 			session: 'copilotcli:/session-1',
 			chat,
 		}));

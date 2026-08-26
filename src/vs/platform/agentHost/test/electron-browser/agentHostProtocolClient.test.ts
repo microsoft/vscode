@@ -1428,7 +1428,7 @@ suite('AgentHostProtocolClient', () => {
 		assert.deepStrictEqual(transport.sentMessages[0], {
 			jsonrpc: '2.0',
 			id: 1,
-			method: 'vscode/getAgentHostSessionStateFile',
+			method: 'vscode/getAgentHostChatStateFile',
 			params: { session: session.toString(), chat: chat.toString() },
 		});
 
@@ -1442,6 +1442,20 @@ suite('AgentHostProtocolClient', () => {
 			(await resultPromise)?.toString(),
 			'vscode-agent-host://test.example__1234/state/sdk-session/events.jsonl?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0',
 		);
+	});
+
+	test('getSessionStateFile returns undefined when an older host does not support chat targeting', async () => {
+		const { client, transport } = createClient();
+		const session = URI.parse('copilotcli:/session-1');
+		const resultPromise = client.getSessionStateFile(session, URI.parse(buildChatUri(session, 'peer-1')));
+
+		transport.fireMessage({
+			jsonrpc: '2.0',
+			id: 1,
+			error: { code: JsonRpcErrorCodes.MethodNotFound, message: 'Method not found' },
+		});
+
+		assert.strictEqual(await resultPromise, undefined);
 	});
 
 	test('getSessionStateFile rejects a non-file host resource', async () => {

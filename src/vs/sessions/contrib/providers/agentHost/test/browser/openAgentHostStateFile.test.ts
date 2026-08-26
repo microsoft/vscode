@@ -186,7 +186,7 @@ suite('Open Agent Host State File', () => {
 		const clientSession = URI.parse('agent-host-copilotcli:/client-session-id');
 		const backendSession = URI.parse('copilotcli:/backend-session-id');
 		const clientPeerChat = clientSession.with({ fragment: 'peer-1' });
-		const backendPeerChat = URI.parse('ahp-chat://peer-1/backend-session');
+		let backendPeerChat: URI | undefined = URI.parse('ahp-chat://peer-1/backend-session');
 		const stateFile = URI.file('/state/sdk-conversation-id/events.jsonl');
 		const calls: { mapped: string[]; resolved: string[]; requested: { session: string; chat: string | undefined }[]; opened: string[]; notifications: string[] } = {
 			mapped: [],
@@ -255,15 +255,37 @@ suite('Open Agent Host State File', () => {
 
 		await new OpenAgentHostStateFileAction().run(instantiationService);
 
-		assert.deepStrictEqual(calls, {
-			mapped: ['agent-host-copilotcli:/client-session-id#peer-1'],
-			resolved: ['agent-host-copilotcli:/client-session-id'],
-			requested: [{
-				session: 'copilotcli:/backend-session-id',
-				chat: 'ahp-chat://peer-1/backend-session',
-			}],
-			opened: ['file:///state/sdk-conversation-id/events.jsonl'],
-			notifications: [],
+		const resolved = {
+			mapped: [...calls.mapped],
+			resolved: [...calls.resolved],
+			requested: [...calls.requested],
+			opened: [...calls.opened],
+			notifications: [...calls.notifications],
+		};
+		backendPeerChat = undefined;
+		for (const values of Object.values(calls)) {
+			values.length = 0;
+		}
+		await new OpenAgentHostStateFileAction().run(instantiationService);
+
+		assert.deepStrictEqual({ resolved, unresolved: calls }, {
+			resolved: {
+				mapped: ['agent-host-copilotcli:/client-session-id#peer-1'],
+				resolved: ['agent-host-copilotcli:/client-session-id'],
+				requested: [{
+					session: 'copilotcli:/backend-session-id',
+					chat: 'ahp-chat://peer-1/backend-session',
+				}],
+				opened: ['file:///state/sdk-conversation-id/events.jsonl'],
+				notifications: [],
+			},
+			unresolved: {
+				mapped: ['agent-host-copilotcli:/client-session-id#peer-1'],
+				resolved: [],
+				requested: [],
+				opened: [],
+				notifications: ['The active Agent Host chat does not expose a state file.'],
+			},
 		});
 	});
 });
