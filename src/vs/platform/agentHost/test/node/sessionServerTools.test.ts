@@ -98,7 +98,7 @@ suite('SessionServerTools', () => {
 		assert.strictEqual(sessionToolRequiresConfirmation(SessionServerToolName.ListSessions), false);
 		assert.strictEqual(sessionToolRequiresConfirmation(SessionServerToolName.GetCurrentSession), false);
 		assert.strictEqual(sessionToolRequiresConfirmation(SessionServerToolName.GetSessionContext), false);
-		assert.deepStrictEqual(Object.keys(sessionServerToolDefinitions.find(def => def.name === SessionServerToolName.CreateSession)?.inputSchema?.properties ?? {}), ['workspace', 'prompt', 'model']);
+		assert.deepStrictEqual(Object.keys(sessionServerToolDefinitions.find(def => def.name === SessionServerToolName.CreateSession)?.inputSchema?.properties ?? {}), ['workspace', 'prompt', 'model', 'baseBranch']);
 		assert.strictEqual(sessionServerToolDefinitions.find(def => def.name === SessionServerToolName.ListSessions)?.inputSchema?.properties?.label, undefined);
 		assert.deepStrictEqual(sessionServerToolDefinitions.slice(4, 5).map(def => ({ name: def.name, required: def.inputSchema?.required })), [
 			{ name: SessionServerToolName.RenameChat, required: ['title'] },
@@ -318,9 +318,10 @@ suite('SessionServerTools', () => {
 
 	test('getCreateSessionArgs resolves workspace by working directory and model by id/name', () => {
 		const sessions = [sessionMeta('s1', SessionStatus.Idle, workspace)];
-		const byId = getCreateSessionArgs({ workspace: workspace.toString(), prompt: 'hi', model: 'gpt-4o' }, sessions, [model]);
+		const byId = getCreateSessionArgs({ workspace: workspace.toString(), prompt: 'hi', model: 'gpt-4o', baseBranch: 'feature/base' }, sessions, [model]);
 		assert.strictEqual(byId.workspace.toString(), workspace.toString());
 		assert.strictEqual(byId.model?.id, 'gpt-4o');
+		assert.strictEqual(byId.baseBranch, 'feature/base');
 		const byName = getCreateSessionArgs({ workspace: workspace.toString(), prompt: 'hi', model: 'GPT-4o' }, sessions, [model]);
 		assert.strictEqual(byName.model?.name, 'GPT-4o');
 	});
@@ -365,6 +366,7 @@ suite('SessionServerTools', () => {
 	test('getCreateSessionArgs throws on invalid input', () => {
 		assert.throws(() => getCreateSessionArgs({ workspace: 'not a uri', prompt: 'hi' }, [], []), /workspace/);
 		assert.throws(() => getCreateSessionArgs({ workspace: workspace.toString(), prompt: 'hi', model: 'nope' }, [], [model]), /model/);
+		assert.throws(() => getCreateSessionArgs({ workspace: workspace.toString(), prompt: 'hi', baseBranch: '' }, [], []), /baseBranch/);
 		assert.throws(() => getCreateSessionArgs({ workspace: workspace.toString() }, [], []), /prompt/);
 	});
 
@@ -446,6 +448,45 @@ suite('SessionServerTools', () => {
 		store.dispose();
 	});
 
+	test('create_session uses an isolated worktree based on the requested branch', async () => {
+		let created: IAgentCreateSessionConfig | undefined;
+		const accessor = createAccessor({
+			getCreationDefaults: () => ({
+				provider: 'copilot',
+				model: { id: 'gpt-inherited' },
+				config: {
+					autoApprove: 'autoApprove',
+					permissions: { allow: ['shell'] },
+					isolation: 'folder',
+					branch: 'main',
+				},
+			}),
+			onCreate: config => { created = config; },
+		});
+
+		await applyCreateSessionTool(accessor, {
+			workspace: workspace.toString(),
+			prompt: 'implement layer two',
+			baseBranch: 'feature/layer-one',
+		}, URI.parse('copilot:/source'));
+
+		assert.deepStrictEqual(createConfigSnapshot(created), {
+			workingDirectories: [workspace],
+			provider: 'copilot',
+			model: { id: 'gpt-inherited' },
+			createdBySession: {
+				session: 'copilot:/source',
+				chat: 'copilot:/source',
+			},
+			config: {
+				autoApprove: 'autoApprove',
+				permissions: { allow: ['shell'] },
+				isolation: 'worktree',
+				branch: 'feature/layer-one',
+			},
+		});
+	});
+
 	test('create_session inherits the calling provider when its model is the provider default', async () => {
 		let created: IAgentCreateSessionConfig | undefined;
 		const accessor = createAccessor({
@@ -488,12 +529,17 @@ suite('SessionServerTools', () => {
 			workspace: 'Remote App',
 			prompt: 'do it',
 			model: 'claude-sonnet',
+			baseBranch: 'feature/copilot-base',
 		}, URI.parse('copilot:/source'));
 
 		assert.deepStrictEqual(createConfigSnapshot(created), {
 			workingDirectories: [remoteProject],
 			provider: 'claude',
 			model: { id: 'claude-sonnet' },
+			config: {
+				isolation: 'worktree',
+				branch: 'feature/copilot-base',
+			},
 			createdBySession: {
 				session: 'copilot:/source',
 				chat: 'copilot:/source',

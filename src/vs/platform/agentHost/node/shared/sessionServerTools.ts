@@ -14,6 +14,7 @@ import type { IAgentServerToolDefinition } from '../../common/agentServerTools.j
 import { buildChatUri, buildDefaultChatUri, getInlineToolInput, getSessionRelatedPullRequestUrls, isDefaultChatUri, isSessionStatusArchived, isSessionStatusRead, parseChatUri, readSessionGitState, readSessionGitHubState, ResponsePartKind, ToolCallStatus, TurnState, withSessionCreationReference, type Message, type ModelSelection, type ResponsePart, type ToolCallState, type ToolDefinition, type Turn, type URI as ProtocolURI } from '../../common/state/sessionState.js';
 import { buildOpenSessionLinkUri, parseOpenSessionLinkChatId, parseOpenSessionLinkUri } from '../../common/openSessionLink.js';
 import { SessionServerToolName } from '../../common/serverToolNames.js';
+import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import type { AgentHostStateManager } from '../agentHostStateManager.js';
 import type { IServerToolDisplay, IServerToolDisplayResult, IServerToolGroup } from './agentServerToolHost.js';
@@ -68,6 +69,7 @@ const createSessionInputSchema: ToolDefinition['inputSchema'] = {
 		workspace: { type: 'string', description: 'Unique project name, project/workspace URI, absolute folder path, or working directory from an existing session. Use `create_chat` instead when the work should share the current session\'s workspace and changes.' },
 		prompt: { type: 'string', description: 'Initial prompt to send to the new session.' },
 		model: { type: 'string', description: 'Optional model ID or display name. Defaults to the current chat\'s model.' },
+		baseBranch: { type: 'string', description: 'Optional base branch for a new isolated worktree. Use this only to stack the session on in-progress work; omit it to use the workspace\'s default session isolation and branch.' },
 	},
 	required: ['workspace', 'prompt'],
 };
@@ -151,7 +153,7 @@ export const sessionServerToolDefinitions: IAgentServerToolDefinition[] = [
 	{
 		name: SessionServerToolName.CreateSession,
 		title: 'Create Session',
-		description: 'Create an independently scoped session and start it with an initial prompt. Use this when work needs a separate workspace, worktree or branch, provider, or lifecycle. For parallel subtasks that should share one workspace and aggregate diff, prefer `create_chat`. The UI shows a "Session Created" confirmation with a button to open it, so reply with a single short sentence confirming the session was created and do NOT print the session URL or tell the user to click a button.',
+		description: 'Create an independently scoped session and start it with an initial prompt. Use this when work needs a separate workspace, worktree or branch, provider, or lifecycle. Pass `baseBranch` only when stacking the new session on in-progress work; it creates an isolated worktree from that branch. For parallel subtasks that should share one workspace and aggregate diff, prefer `create_chat`. The UI shows a "Session Created" confirmation with a button to open it, so reply with a single short sentence confirming the session was created and do NOT print the session URL or tell the user to click a button.',
 		inputSchema: createSessionInputSchema,
 		annotations: { readOnlyHint: false },
 	},
@@ -202,12 +204,14 @@ interface ICreateSessionArgs {
 	readonly workspace?: unknown;
 	readonly prompt?: unknown;
 	readonly model?: unknown;
+	readonly baseBranch?: unknown;
 }
 
 export interface IResolvedCreateSessionArgs {
 	readonly workspace: URI;
 	readonly prompt: string;
 	readonly model?: IAgentModelInfo;
+	readonly baseBranch?: string;
 }
 
 /** Minimal dependency surface needed by the session server-tool group. */
@@ -419,10 +423,12 @@ export function getCreateSessionArgs(rawArgs: unknown, sessions: readonly IAgent
 	const workspace = getRequiredString(args.workspace, 'workspace', SessionServerToolName.CreateSession);
 	const prompt = getRequiredString(args.prompt, 'prompt', SessionServerToolName.CreateSession);
 	const modelName = getOptionalString(args.model, 'model', SessionServerToolName.CreateSession);
+	const baseBranch = getOptionalString(args.baseBranch, 'baseBranch', SessionServerToolName.CreateSession);
 	return {
 		workspace: resolveWorkspace(workspace, sessions),
 		prompt,
 		model: resolveModel(modelName, models),
+		baseBranch,
 	};
 }
 
@@ -695,11 +701,19 @@ export async function applyCreateSessionTool(accessor: ISessionServerToolAccesso
 	const defaults = source ? accessor.getCreationDefaults(source) : undefined;
 	const provider = args.model?.provider ?? defaults?.provider;
 	const inheritsSourceProvider = provider !== undefined && provider === defaults?.provider;
+	const inheritedConfig = inheritsSourceProvider ? defaults?.config : undefined;
+	const sessionConfigValues = args.baseBranch !== undefined
+		? {
+			...inheritedConfig,
+			[SessionConfigKey.Isolation]: 'worktree',
+			[SessionConfigKey.Branch]: args.baseBranch,
+		}
+		: inheritedConfig;
 	const config: IAgentCreateSessionConfig = {
 		workingDirectories: args.workspace ? [args.workspace] : undefined,
 		...(provider !== undefined ? { provider } : {}),
 		...(args.model !== undefined ? { model: { id: args.model.id } } : defaults?.model !== undefined ? { model: defaults.model } : {}),
-		...(inheritsSourceProvider && defaults?.config !== undefined ? { config: defaults.config } : {}),
+		...(sessionConfigValues !== undefined ? { config: sessionConfigValues } : {}),
 		...(currentSession !== undefined && source !== undefined ? {
 			_meta: withSessionCreationReference(undefined, {
 				session: currentSession.toString(),
