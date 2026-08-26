@@ -3363,7 +3363,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 			store.add(autorun(reader => {
 				// The turn's own pick tells us Auto is routing before the host
-				// reports what it landed on, so the row can start as "Routing task…".
+				// reports what it landed on, so the row can start as "Auto routing task".
 				const selectedModelId = turn$.read(reader)?.message?.model?.id;
 				const resolution = this._createTurnModelLookup(opts.sessionResource, selectedModelId, this._hideAutoExplainability.read(reader))
 					.toAutoModeResolution?.(usage$.read(reader));

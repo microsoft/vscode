@@ -897,7 +897,7 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 
 		// Response parts — iterate the unified responseParts array
 		const parts: IChatProgress[] = [];
-		// History is settled, so an unresolved row would never flip to "Routed task".
+		// History is settled, so an unresolved row would never flip to a routed one.
 		const autoModeResolution = lookup?.toAutoModeResolution?.(turn.usage);
 		if (autoModeResolution?.resolved) {
 			parts.push(autoModeResolution);
