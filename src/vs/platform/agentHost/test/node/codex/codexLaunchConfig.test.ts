@@ -63,19 +63,19 @@ suite('CodexLaunchConfig', () => {
 		assert.deepStrictEqual(buildCodexResumeParams('openai', 'thread-a', {}, undefined, {}, undefined, true), {
 			threadId: 'thread-a',
 			modelProvider: 'openai',
-			config: { 'features.image_generation': true },
+			config: { bypass_hook_trust: true, 'features.image_generation': true },
 		});
 		assert.deepStrictEqual(buildCodexResumeParams('vscode-proxy', 'thread-b', { GitHub: { url: 'https://api.githubcopilot.com/mcp/' } }), {
 			threadId: 'thread-b',
 			modelProvider: 'vscode-proxy',
-			config: { 'features.image_generation': false, mcp_servers: { GitHub: { url: 'https://api.githubcopilot.com/mcp/' } } },
+			config: { bypass_hook_trust: true, 'features.image_generation': false, mcp_servers: { GitHub: { url: 'https://api.githubcopilot.com/mcp/' } } },
 		});
 		assert.deepStrictEqual(buildCodexResumeParams('openai', 'thread-c', {}, undefined, {
 			agents: { Reviewer: { description: 'Reviews', config_file: '/tmp/reviewer.toml' } },
 		}, 'Use the selected reviewer instructions.'), {
 			threadId: 'thread-c',
 			modelProvider: 'openai',
-			config: { agents: { Reviewer: { description: 'Reviews', config_file: '/tmp/reviewer.toml' } }, 'features.image_generation': false },
+			config: { bypass_hook_trust: true, agents: { Reviewer: { description: 'Reviews', config_file: '/tmp/reviewer.toml' } }, 'features.image_generation': false },
 			developerInstructions: 'Use the selected reviewer instructions.',
 		});
 		assert.deepStrictEqual(buildCodexResumeParams('custom-provider', 'thread-c', {}, ['/repo-a', '/repo-b']), {
@@ -83,7 +83,7 @@ suite('CodexLaunchConfig', () => {
 			modelProvider: 'custom-provider',
 			cwd: '/repo-a',
 			runtimeWorkspaceRoots: ['/repo-a', '/repo-b'],
-			config: { 'features.image_generation': false },
+			config: { bypass_hook_trust: true, 'features.image_generation': false },
 		});
 	});
 });

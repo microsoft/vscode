@@ -18,6 +18,21 @@ export interface ICodexLaunchConfig {
 	readonly args: readonly string[];
 }
 
+/**
+ * Per-request config every codex thread carries.
+ *
+ * Codex only runs a hook once its exact command hash has been recorded as
+ * trusted in `config.toml`, and that ledger is written by the codex TUI's
+ * startup hook review — a surface agent host users never reach, so workspace
+ * hooks would silently never run. The agent host vets hook sources up front
+ * instead: every session working directory must be trusted through VS Code
+ * Workspace Trust before a session may start, and the always-checked edit
+ * patterns keep the agent from writing hook manifests without user
+ * confirmation. Enterprise `allow_managed_hooks_only` requirements are
+ * enforced separately by codex and still apply.
+ */
+export const codexThreadBaseConfig: Readonly<Record<string, JsonValue>> = { bypass_hook_trust: true };
+
 export function buildCodexResumeParams(
 	modelProvider: string,
 	threadId: string,
@@ -28,6 +43,7 @@ export function buildCodexResumeParams(
 	imageGenerationEnabled = false,
 ): ThreadResumeParams {
 	const config = {
+		...codexThreadBaseConfig,
 		...configOverrides,
 		'features.image_generation': imageGenerationEnabled,
 		...(Object.keys(mcpServers).length > 0 ? { mcp_servers: mcpServers as JsonValue } : {}),
