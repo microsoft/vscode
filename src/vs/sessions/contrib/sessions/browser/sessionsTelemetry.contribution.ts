@@ -7,7 +7,9 @@ import { disposableTimeout } from '../../../../base/common/async.js';
 import { hash } from '../../../../base/common/hash.js';
 import { Disposable, DisposableMap } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
+import { autorun } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
+import { IModelService } from '../../../../editor/common/services/model.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
@@ -19,13 +21,14 @@ import { getExcludes, ISearchConfiguration, ISearchService, QueryType } from '..
 import { AgentFeedbackKind, IAgentFeedbackAddedEvent, IAgentFeedbackConvertedEvent, IAgentFeedbackReplyAddedEvent, IAgentFeedbackService, IAgentFeedbackSubmittedEvent } from '../../agentFeedback/browser/agentFeedbackService.js';
 import { ISessionsTasksService } from '../../chat/browser/sessionsTasksService.js';
 import { IChat, ISession, ISessionWorkspace, SessionStatus } from '../../../services/sessions/common/session.js';
-import { ISendRequestSentEvent, ISessionsChangeEvent, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession, ISendRequestSentEvent, ISessionsChangeEvent, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISendRequestOptions, ISessionsProvider } from '../../../services/sessions/common/sessionsProvider.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { classifySessionWorkspaceTopology, getSessionsTelemetryProviderId, hashSessionIdForTelemetry } from '../../../common/sessionsTelemetry.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionLifecycleSummary, SessionDoneReason, SessionsLifecycleTracker } from './sessionsLifecycleTracker.js';
+import { ITypedCharactersEntry, SessionsTypedCharactersTracker } from './sessionsTypedCharactersTracker.js';
 
 /**
  * Listens to lifecycle events from {@link ISessionsManagementService} and
@@ -45,6 +48,10 @@ export class SessionsTelemetryContribution extends Disposable implements IWorkbe
 	private readonly _workspaceFileCountInFlight = new Map<string, Promise<number>>();
 	/** Persists per-session lifecycle counters for the `agents/sessionSummary` event. */
 	private readonly _lifecycleTracker: SessionsLifecycleTracker;
+	/** Counts characters the user manually types into session workspace folders from this window. */
+	private readonly _typedCharactersTracker: SessionsTypedCharactersTracker;
+	/** The session buffered typing is attributed to. Kept in step with the active session by an autorun. */
+	private _typedCharactersSession: IActiveSession | undefined;
 	/** Listener per provider that waits for the provider's first batch of sessions so we can run a one-time reconciliation against tracked entries. */
 	private readonly _providerReconcileListeners = this._register(new DisposableMap<string>());
 
@@ -61,10 +68,25 @@ export class SessionsTelemetryContribution extends Disposable implements IWorkbe
 		@ISessionsPartService sessionsPartService: ISessionsPartService,
 		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
 		@ISessionsTasksService private readonly _sessionsTasksService: ISessionsTasksService,
+		@IModelService modelService: IModelService,
 	) {
 		super();
 
-		this._lifecycleTracker = this._register(new SessionsLifecycleTracker(this._storageService));
+		this._lifecycleTracker = new SessionsLifecycleTracker(this._storageService);
+		// Registered after the lifecycle tracker is created but before it is
+		// registered: disposing flushes buffered typing, which needs a live
+		// lifecycle tracker to attribute it to.
+		this._typedCharactersTracker = this._register(new SessionsTypedCharactersTracker(entries => this._recordTypedCharacters(entries), modelService));
+		this._register(this._lifecycleTracker);
+		// Buffered typing would otherwise be lost when the window goes away.
+		this._register(this._storageService.onWillSaveState(() => this._typedCharactersTracker.flush()));
+		this._register(autorun(reader => {
+			const active = this._sessionsService.activeSession.read(reader);
+			// Flush before adopting the new session so buffered typing is
+			// still attributed to the one it was typed into.
+			this._typedCharactersTracker.flush();
+			this._typedCharactersSession = active;
+		}));
 
 		this._register(this._sessionsManagementService.onWillSendRequest(session => {
 			// Kick off the workspace file-count fetch now so it has time to
@@ -488,6 +510,8 @@ export class SessionsTelemetryContribution extends Disposable implements IWorkbe
 		if (trackedForProvider.length === 0) {
 			return true;
 		}
+		// Attribute buffered typing before any tracking entry goes away.
+		this._typedCharactersTracker.flush();
 		const liveById = new Map<string, ISession>();
 		for (const session of sessions) {
 			liveById.set(session.sessionId, session);
@@ -507,6 +531,8 @@ export class SessionsTelemetryContribution extends Disposable implements IWorkbe
 	}
 
 	private _fireSessionSummary(session: ISession, reason: SessionDoneReason): void {
+		// Attribute buffered typing before the tracking entry goes away.
+		this._typedCharactersTracker.flush();
 		const summary = this._lifecycleTracker.finalize(session.sessionId, reason, session);
 		if (summary) {
 			this._logSessionSummary(summary);
@@ -515,6 +541,30 @@ export class SessionsTelemetryContribution extends Disposable implements IWorkbe
 
 	private _logSessionSummary(summary: ISessionLifecycleSummary): void {
 		this._telemetryService.publicLog2<ISessionLifecycleSummary, SessionSummaryClassification>('agents/sessionSummary', summary);
+	}
+
+	// -- manually typed characters ---------------------------------------------
+
+	/**
+	 * Adds buffered typing to the session that was active while it happened.
+	 * Only the active session is considered: the user edits the session they
+	 * are looking at, so scanning every known session would cost more than it
+	 * could ever attribute.
+	 */
+	private _recordTypedCharacters(entries: readonly ITypedCharactersEntry[]): void {
+		const session = this._typedCharactersSession;
+		if (!session) {
+			return;
+		}
+		// The working directory — not the folder root — is what isolates a
+		// session: for a worktree session the root is the shared repository
+		// checkout, which the session itself never edits.
+		const folders = session.workspace.get()?.folders ?? [];
+		for (const { resource, characters } of entries) {
+			if (folders.some(folder => this._uriIdentityService.extUri.isEqualOrParent(resource, folder.workingDirectory))) {
+				this._lifecycleTracker.addTypedCharacters(session.sessionId, resource, characters);
+			}
+		}
 	}
 
 	private _getSessionActionPayload(session: ISession): Promise<SessionActionEvent> {
@@ -1455,10 +1505,10 @@ type SessionSummaryClassification = {
 	hasGitRepository: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether any of the workspace folders has a git repository, captured the first time the session was observed in this client.' };
 	isVirtualWorkspace: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the workspace URI uses a non-file scheme (virtual/remote), captured the first time the session was observed in this client.' };
 	isExternal: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the session was discovered in an application other than the current host (an external session).' };
-	isMultiRoot: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the session spans more than one workspace folder, captured the first time the session was observed in this client.' };
-	folderCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of workspace folders in the session, captured the first time the session was observed in this client (browser-projected metadata).' };
-	gitFolderCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of workspace folders backed by a git repository, captured the first time the session was observed in this client.' };
-	nonGitFolderCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of workspace folders not backed by a git repository, captured the first time the session was observed in this client.' };
+	isMultiRoot: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the session spans more than one workspace folder, as last observed in this client.' };
+	folderCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of workspace folders the session had, as last observed in this client (browser-projected metadata).' };
+	gitFolderCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of workspace folders backed by a git repository, as last observed in this client.' };
+	nonGitFolderCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of workspace folders not backed by a git repository, as last observed in this client.' };
 	doneReason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Why the session is considered done: archived/deleted locally in this client, or archivedRemotely/deletedRemotely meaning the user finished the session in another client.' };
 	firstRequestSentInThisClient: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the very first user request the tracker observed for this session was sent from this client.' };
 	hasWorktreeCreatedTask: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether at least one task with runOptions.runOn = "worktreeCreated" was declared for the session at the time the first user request was sent from this client.' };
@@ -1488,6 +1538,8 @@ type SessionSummaryClassification = {
 	sessionRenamed: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of times the user renamed the session in this client.' };
 	fixCIChecks: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of times the user ran the Fix CI Checks action for this session in this client.' };
 	taskRun: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of times the user ran a task from the session toolbar for this session in this client.' };
+	typedCharacters: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of characters the user manually typed into files inside the session\'s workspace folders from the Agents window during the session\'s lifetime. Excludes agent edits, accepted suggestions, pasted text, and typing done for the same folder in a regular window.' };
+	typedFileCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of distinct files inside the session\'s workspace folders that the user manually typed into from the Agents window during the session\'s lifetime. Saturates at 250.' };
 	filesChanged: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of changed files in the session at the moment the summary was emitted.' };
 	linesAdded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total lines added across all changed files in the session at the moment the summary was emitted.' };
 	linesDeleted: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total lines deleted across all changed files in the session at the moment the summary was emitted.' };
