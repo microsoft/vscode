@@ -106,40 +106,60 @@ function matchesMatcher(matcher: IMcpServerMatcher, identity: IMcpServerIdentity
 }
 
 /**
- * Matches a URL against a pattern that may contain `*` wildcards. Matching is case-insensitive,
- * anchored to the whole string, and every non-wildcard character is matched literally.
- *
- * Wildcard reach is region-aware so an authority wildcard cannot swallow the path: a `*` inside
- * the authority region (scheme + `//` + host/port, i.e. everything before the first `/` of the
- * path) matches any run of non-`/` characters, while a `*` in the path/query region matches any
- * run of characters. This prevents patterns like `https://*.example.com/*` from matching a URL
- * whose real host is untrusted, e.g. `https://evil.test/.example.com/tool`.
+ * Matches a URL against a `*` wildcard pattern. HTTP(S) URLs are compared as the WHATWG
+ * network destination so an authority wildcard cannot disagree with `fetch` about the host.
  */
 function matchesUrlPattern(pattern: string, url: string): boolean {
+	const destination = toNetworkDestinationUrl(url);
+	if (destination === undefined) {
+		return false;
+	}
 	const regexSource = buildUrlPatternRegexSource(pattern);
 	try {
-		return new RegExp(regexSource, 'i').test(url);
+		return new RegExp(regexSource, 'i').test(destination);
 	} catch {
 		return false;
 	}
 }
 
+/**
+ * Returns the HTTP(S) destination `fetch` will use, or `undefined` if `url` is not a valid URL.
+ */
+function toNetworkDestinationUrl(url: string): string | undefined {
+	try {
+		const parsed = new URL(url);
+		if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+			return parsed.origin + parsed.pathname + parsed.search;
+		}
+		return url;
+	} catch {
+		return undefined;
+	}
+}
+
 function buildUrlPatternRegexSource(pattern: string): string {
-	// The authority region spans from the start of the pattern up to (but not including) the first
-	// `/` of the path. Wildcards there must not cross a `/` so they cannot consume path segments.
 	const schemeSeparator = pattern.indexOf('://');
 	const authorityStart = schemeSeparator >= 0 ? schemeSeparator + 3 : 0;
-	const pathStart = pattern.indexOf('/', authorityStart);
-	const authorityEnd = pathStart >= 0 ? pathStart : pattern.length;
+	const authorityEnd = findAuthorityEnd(pattern, authorityStart);
 
 	let source = '^';
 	for (let i = 0; i < pattern.length; i++) {
 		const char = pattern[i];
 		if (char === '*') {
-			source += i < authorityEnd ? '[^/]*' : '.*';
+			source += i < authorityEnd ? '[^/@\\\\?#]*' : '.*';
 		} else {
 			source += escapeRegExpCharacters(char);
 		}
 	}
 	return source + '$';
+}
+
+function findAuthorityEnd(pattern: string, authorityStart: number): number {
+	for (let i = authorityStart; i < pattern.length; i++) {
+		const char = pattern[i];
+		if (char === '/' || char === '\\' || char === '?' || char === '#') {
+			return i;
+		}
+	}
+	return pattern.length;
 }

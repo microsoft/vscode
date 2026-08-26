@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { checkMcpServerAllowed, getMcpServerMatchers, IMcpServerMatcher, isMcpServerMatched, McpServerAllowResult } from '../../common/allowedMcpServers.js';
 
@@ -73,6 +74,27 @@ suite('AllowedMcpServers', () => {
 			const matchers: IMcpServerMatcher[] = [{ serverUrl: 'https://mcp.example.com/mcp' }];
 			assert.strictEqual(isMcpServerMatched(matchers, { name: 's', url: 'https://mcp.example.com/mcp' }), true);
 			assert.strictEqual(isMcpServerMatched(matchers, { name: 's', url: 'https://mcp.example.com/mcp/extra' }), false);
+		});
+
+		test('URL patterns match the fetch destination rather than the raw spelling', () => {
+			const matchers: IMcpServerMatcher[] = [{ serverUrl: 'http://*127.0.0.2:*/*' }];
+			const cases: { url: string; allowed: boolean }[] = [
+				{ url: 'http://127.0.0.2:63366/mcp', allowed: true },
+				{ url: 'http://127.0.0.1:63365/mcp', allowed: false },
+				{ url: 'http://127.0.0.1:63365/@127.0.0.2:63366/mcp', allowed: false },
+				{ url: 'http://127.0.0.1:63365\\@127.0.0.2:63366/mcp', allowed: false },
+				{ url: 'http://127.0.0.1:63365\\@127.0.0.2:63366\\mcp', allowed: false },
+				{ url: 'http://127.0.0.2%5C@127.0.0.1:63365/mcp', allowed: false },
+				{ url: 'http://127.0.0.2:80@127.0.0.1:63365/mcp', allowed: false },
+				{ url: 'http://127.0.0.2:63366\\extra/mcp', allowed: true },
+				{ url: 'http://127.0.0.1:63365%5C@127.0.0.2:63366/mcp', allowed: true },
+				{ url: URI.parse('http://127.0.0.1:63365\\@127.0.0.2:63366/mcp').toString(true), allowed: false },
+				{ url: 'not a url', allowed: false },
+			];
+			assert.deepStrictEqual(
+				cases.map(({ url }) => isMcpServerMatched(matchers, { name: 's', url })),
+				cases.map(({ allowed }) => allowed),
+			);
 		});
 
 		test('matches by local command as an ordered argument list', () => {
