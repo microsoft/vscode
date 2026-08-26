@@ -21,6 +21,10 @@ interface CheckResult {
 const root = path.resolve(import.meta.dirname, '../..');
 const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 
+ 
+const args = process.argv.slice(2);
+const shouldFix = args.includes('--fix') || args.includes('--approve');
+
 function parsePendingScripts(output: string): PendingScript[] {
 	const pending: PendingScript[] = [];
 	let inPendingList = false;
@@ -60,16 +64,42 @@ function checkDirectory(directory: string): CheckResult {
 	};
 }
 
+// Otomatik onaylama fonksiyonu
+function approvePendingScripts(directory: string, pending: PendingScript[]): void {
+	for (const item of pending) {
+		console.log(`Approving script for package '${item.package}' in ${path.relative(root, directory) || '.'}...`);
+		const result = spawnSync(npm, ['approve-scripts', item.package], {
+			cwd: directory,
+			encoding: 'utf8',
+			env: { ...process.env, npm_config_loglevel: 'error' }
+		});
+		if (result.error || result.status !== 0) {
+			console.error(`Failed to automatically approve ${item.package}: ${result.error?.message || result.stderr}`);
+		}
+	}
+}
+
 function main(): void {
 	const packageDirectories = dirs
 		.map(dir => path.join(root, dir))
 		.filter(directory => existsSync(path.join(directory, 'package.json')));
 	const results: CheckResult[] = [];
+	
 	for (const directory of packageDirectories) {
 		const result = checkDirectory(directory);
 		if (result.pending.length > 0) {
-			results.push(result);
+			if (shouldFix) {
+				// Eğer --fix veya --approve verilmişse, tespit edilenleri hemen otomatik onayla
+				approvePendingScripts(directory, result.pending);
+			} else {
+				results.push(result);
+			}
 		}
+	}
+
+	if (shouldFix) {
+		console.log('Automatic approval process completed.');
+		return;
 	}
 
 	if (results.length === 0) {
@@ -84,7 +114,7 @@ function main(): void {
 			console.error(`  - ${pending.package} (${pending.scripts})`);
 		}
 	}
-	console.error('\nRun `npm approve-scripts <pkg>` in each directory to review the pending install scripts.');
+	console.error('\nRun with --fix or --approve to automatically approve pending install scripts, or run `npm approve-scripts <pkg>` manually.');
 	process.exitCode = 1;
 }
 
