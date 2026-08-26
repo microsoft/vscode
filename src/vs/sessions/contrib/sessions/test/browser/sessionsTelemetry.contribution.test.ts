@@ -148,7 +148,7 @@ const workspace = createWorkspace(URI.parse('file:///repo'));
 suite('SessionsTelemetryContribution', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function setup(sessions: readonly ISession[], activeSession?: IObservable<IActiveSession | undefined>): { telemetryService: TestTelemetryService; onDidSendRequest: Emitter<ISendRequestSentEvent>; onDidArchiveSession: Emitter<ISession>; onModelAdded: Emitter<ITextModel> } {
+	function setup(sessions: readonly ISession[], activeSession?: IObservable<IActiveSession | undefined>): { telemetryService: TestTelemetryService; storageService: InMemoryStorageService; onDidSendRequest: Emitter<ISendRequestSentEvent>; onDidArchiveSession: Emitter<ISession>; onModelAdded: Emitter<ITextModel> } {
 		const onDidSendRequest = disposables.add(new Emitter<ISendRequestSentEvent>());
 		const onDidArchiveSession = disposables.add(new Emitter<ISession>());
 		const onModelAdded = disposables.add(new Emitter<ITextModel>());
@@ -215,7 +215,7 @@ suite('SessionsTelemetryContribution', () => {
 			modelService,
 		));
 
-		return { telemetryService, onDidSendRequest, onDidArchiveSession, onModelAdded };
+		return { telemetryService, storageService, onDidSendRequest, onDidArchiveSession, onModelAdded };
 	}
 
 	test('logs requestSent for new sessions, new chats, and follow-up messages', async () => {
@@ -329,5 +329,27 @@ suite('SessionsTelemetryContribution', () => {
 		onDidArchiveSession.fire(second);
 
 		assert.deepStrictEqual(telemetryService.sessionSummaries.map(s => (s as { typedCharacters: number }).typedCharacters), [5, 3]);
+	});
+
+	test('typing survives a flush while the session workspace is still hydrating', () => {
+		// Providers resolve `ISession.workspace` asynchronously, so a flush can
+		// land while it is still undefined. That typing must not be dropped.
+		const worktree = URI.file('/repo/worktree');
+		const workspace = observableValue<ISessionWorkspace | undefined>('workspace', undefined);
+		const tracked = { ...session, workspace };
+		const { telemetryService, storageService, onDidSendRequest, onDidArchiveSession, onModelAdded } = setup([tracked], constObservable(upcastPartial<IActiveSession>(tracked)));
+		onDidSendRequest.fire({ session: tracked, chat, isNewSession: true, isNewChat: true, options: { query: 'hi' } });
+
+		const file = disposables.add(createTextModel('', null, undefined, URI.file('/repo/worktree/file.ts')));
+		onModelAdded.fire(file);
+		file.applyEdits([{ range: new Range(1, 1, 1, 1), text: 'abcde' }], false, EditSources.cursor({ kind: 'type', detailedSource: 'keyboard' }));
+
+		// A save-triggered flush arrives before the workspace resolves.
+		void storageService.flush();
+		workspace.set(createWorkspace(worktree, [{ root: URI.file('/repo'), workingDirectory: worktree, name: 'repo', description: undefined }]), undefined);
+
+		onDidArchiveSession.fire(tracked);
+
+		assert.deepStrictEqual(telemetryService.sessionSummaries.map(s => (s as { typedCharacters: number }).typedCharacters), [5]);
 	});
 });

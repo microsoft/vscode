@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { Emitter } from '../../../../../base/common/event.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { TextModel } from '../../../../../editor/common/model/textModel.js';
@@ -14,9 +14,25 @@ import { ITextModel } from '../../../../../editor/common/model.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { EditSources, TextModelEditSource } from '../../../../../editor/common/textModelEditSource.js';
 import { createTextModel } from '../../../../../editor/test/common/testTextModel.js';
-import { ITypedCharactersEntry, SessionsTypedCharactersTracker } from '../../browser/sessionsTypedCharactersTracker.js';
+import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ITypedCharactersEntry, MAX_TYPED_CHARACTERS_RETRIES, SessionsTypedCharactersTracker } from '../../browser/sessionsTypedCharactersTracker.js';
 
 const FILE = URI.file('/repo/worktree/file.ts');
+
+/** Flattens a reported batch to `sessionId`/`resource`/`characters` triples for assertions. */
+interface IReported {
+	readonly sessionId: string;
+	readonly resource: URI;
+	readonly characters: number;
+}
+
+function toReported(entries: readonly ITypedCharactersEntry[]): IReported[] {
+	return entries.map(entry => ({ sessionId: entry.session.sessionId, resource: entry.resource, characters: entry.characters }));
+}
+
+function createSession(sessionId: string): IActiveSession {
+	return upcastPartial<IActiveSession>({ sessionId });
+}
 
 suite('SessionsTypedCharactersTracker', () => {
 
@@ -25,13 +41,18 @@ suite('SessionsTypedCharactersTracker', () => {
 	let onModelAdded: Emitter<ITextModel>;
 	let onModelRemoved: Emitter<ITextModel>;
 	let initialModels: ITextModel[];
-	let reported: ITypedCharactersEntry[][];
+	let reported: IReported[][];
+	let activeSession: IActiveSession | undefined;
+	/** Entries the consumer reports as not-yet-attributable, by resource path. */
+	let deferPaths: Set<string>;
 
 	setup(() => {
 		onModelAdded = disposables.add(new Emitter<ITextModel>());
 		onModelRemoved = disposables.add(new Emitter<ITextModel>());
 		initialModels = [];
 		reported = [];
+		activeSession = createSession('session');
+		deferPaths = new Set();
 	});
 
 	function createTracker(): SessionsTypedCharactersTracker {
@@ -40,7 +61,14 @@ suite('SessionsTypedCharactersTracker', () => {
 			override readonly onModelRemoved = onModelRemoved.event;
 			override getModels() { return initialModels; }
 		}();
-		return disposables.add(new SessionsTypedCharactersTracker(entries => reported.push([...entries]), modelService));
+		return disposables.add(new SessionsTypedCharactersTracker(
+			() => activeSession,
+			entries => {
+				reported.push(toReported(entries));
+				return entries.filter(entry => deferPaths.has(entry.resource.path));
+			},
+			modelService,
+		));
 	}
 
 	function createModel(uri = FILE): TextModel {
@@ -52,22 +80,20 @@ suite('SessionsTypedCharactersTracker', () => {
 		model.applyEdits([{ range: new Range(1, 1, 1, 1), text }], false, source);
 	}
 
-	function flushed(tracker: SessionsTypedCharactersTracker): readonly ITypedCharactersEntry[][] {
-		tracker.flush();
-		return reported;
-	}
+	const typed = () => EditSources.cursor({ kind: 'type', detailedSource: 'keyboard' });
 
 	test('counts only characters the user typed', () => {
 		const model = createModel();
 		initialModels.push(model);
 		const tracker = createTracker();
 
-		edit(model, 'user', EditSources.cursor({ kind: 'type', detailedSource: 'keyboard' }));
+		edit(model, 'user', typed());
 		edit(model, 'pasted', EditSources.cursor({ kind: 'paste', detailedSource: 'keyboard' }));
 		edit(model, 'agent', EditSources.agentHostChatApplyEdits({ modelId: 'm', sessionId: 's', requestId: 'r', harness: 'h' }));
 		edit(model, 'reloaded', EditSources.reloadFromDisk());
+		tracker.flush();
 
-		assert.deepStrictEqual(flushed(tracker), [[{ resource: FILE, characters: 4 }]]);
+		assert.deepStrictEqual(reported, [[{ sessionId: 'session', resource: FILE, characters: 4 }]]);
 	});
 
 	test('accumulates per resource and clears the buffer after reporting', () => {
@@ -76,32 +102,107 @@ suite('SessionsTypedCharactersTracker', () => {
 		const otherModel = createModel(other);
 		initialModels.push(model, otherModel);
 		const tracker = createTracker();
-		const typed = EditSources.cursor({ kind: 'type', detailedSource: 'keyboard' });
 
-		edit(model, 'ab', typed);
-		edit(otherModel, 'xyz', typed);
-		edit(model, 'c', typed);
-
-		assert.deepStrictEqual(flushed(tracker), [[
-			{ resource: FILE, characters: 3 },
-			{ resource: other, characters: 3 },
-		]]);
-
+		edit(model, 'ab', typed());
+		edit(otherModel, 'xyz', typed());
+		edit(model, 'c', typed());
 		tracker.flush();
-		assert.strictEqual(reported.length, 1);
+		tracker.flush();
+
+		assert.deepStrictEqual(reported, [[
+			{ sessionId: 'session', resource: FILE, characters: 3 },
+			{ sessionId: 'session', resource: other, characters: 3 },
+		]]);
+	});
+
+	test('attributes typing to the session that was active while it happened', () => {
+		const model = createModel();
+		initialModels.push(model);
+		const tracker = createTracker();
+
+		edit(model, 'abc', typed());
+		// The user switches sessions before the buffered batch is reported.
+		activeSession = createSession('second');
+		edit(model, 'de', typed());
+		tracker.flush();
+
+		assert.deepStrictEqual(reported, [[
+			{ sessionId: 'session', resource: FILE, characters: 3 },
+			{ sessionId: 'second', resource: FILE, characters: 2 },
+		]]);
+	});
+
+	test('ignores typing while no session is active', () => {
+		const model = createModel();
+		initialModels.push(model);
+		const tracker = createTracker();
+		activeSession = undefined;
+
+		edit(model, 'abc', typed());
+		tracker.flush();
+
+		assert.deepStrictEqual(reported, []);
+	});
+
+	test('retains entries the consumer cannot attribute yet', () => {
+		const model = createModel();
+		initialModels.push(model);
+		const tracker = createTracker();
+		deferPaths.add(FILE.path);
+
+		edit(model, 'abc', typed());
+		tracker.flush();
+		// The workspace resolves, so the retained typing is attributed rather
+		// than lost to the flush that happened while it was hydrating.
+		deferPaths.clear();
+		tracker.flush();
+
+		assert.deepStrictEqual(reported, [
+			[{ sessionId: 'session', resource: FILE, characters: 3 }],
+			[{ sessionId: 'session', resource: FILE, characters: 3 }],
+		]);
+	});
+
+	test('merges characters typed while a deferred entry is outstanding', () => {
+		const model = createModel();
+		initialModels.push(model);
+		const tracker = createTracker();
+		deferPaths.add(FILE.path);
+
+		edit(model, 'abc', typed());
+		tracker.flush();
+		edit(model, 'de', typed());
+		deferPaths.clear();
+		tracker.flush();
+
+		assert.deepStrictEqual(reported[1], [{ sessionId: 'session', resource: FILE, characters: 5 }]);
+	});
+
+	test('gives up on entries that stay unattributable', () => {
+		const model = createModel();
+		initialModels.push(model);
+		const tracker = createTracker();
+		deferPaths.add(FILE.path);
+
+		edit(model, 'abc', typed());
+		for (let i = 0; i < MAX_TYPED_CHARACTERS_RETRIES + 3; i++) {
+			tracker.flush();
+		}
+
+		assert.strictEqual(reported.length, MAX_TYPED_CHARACTERS_RETRIES + 1);
 	});
 
 	test('tracks models added later and stops tracking removed ones', () => {
 		const tracker = createTracker();
 		const model = createModel();
-		const typed = EditSources.cursor({ kind: 'type', detailedSource: 'keyboard' });
 
 		onModelAdded.fire(model);
-		edit(model, 'ab', typed);
+		edit(model, 'ab', typed());
 		onModelRemoved.fire(model);
-		edit(model, 'cde', typed);
+		edit(model, 'cde', typed());
+		tracker.flush();
 
-		assert.deepStrictEqual(flushed(tracker), [[{ resource: FILE, characters: 2 }]]);
+		assert.deepStrictEqual(reported, [[{ sessionId: 'session', resource: FILE, characters: 2 }]]);
 	});
 
 	test('reports buffered characters when disposed', () => {
@@ -109,9 +210,9 @@ suite('SessionsTypedCharactersTracker', () => {
 		initialModels.push(model);
 		const tracker = createTracker();
 
-		edit(model, 'abc', EditSources.cursor({ kind: 'type', detailedSource: 'keyboard' }));
+		edit(model, 'abc', typed());
 		tracker.dispose();
 
-		assert.deepStrictEqual(reported, [[{ resource: FILE, characters: 3 }]]);
+		assert.deepStrictEqual(reported, [[{ sessionId: 'session', resource: FILE, characters: 3 }]]);
 	});
 });

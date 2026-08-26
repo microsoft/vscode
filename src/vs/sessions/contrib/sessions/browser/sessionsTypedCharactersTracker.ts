@@ -5,25 +5,46 @@
 
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { Disposable, DisposableMap, toDisposable } from '../../../../base/common/lifecycle.js';
-import { ResourceMap } from '../../../../base/common/map.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ITextModel } from '../../../../editor/common/model.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
 import { isUserEdit } from '../../../../editor/common/textModelEditSource.js';
 import { IModelContentChangedEvent } from '../../../../editor/common/textModelEvents.js';
+import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 
-/** Characters the user typed into a single resource since the last report. */
+/** Characters the user typed into one resource while `session` was active. */
 export interface ITypedCharactersEntry {
+	/**
+	 * The session that was active while the characters were typed, captured at
+	 * that moment so attribution does not depend on which session is active
+	 * when the buffered batch is eventually reported.
+	 */
+	readonly session: IActiveSession;
 	readonly resource: URI;
 	readonly characters: number;
+}
+
+/** Buffered {@link ITypedCharactersEntry} plus the bookkeeping used to retry it. */
+interface IPendingEntry {
+	readonly session: IActiveSession;
+	readonly resource: URI;
+	characters: number;
+	retries: number;
 }
 
 /** How long typed characters are buffered before they are reported. Exported for tests. */
 export const TYPED_CHARACTERS_REPORT_DELAY = 5000;
 
 /**
+ * How often reporting an entry may be deferred before it is dropped. Bounds
+ * how long typing is retained for a session whose workspace never resolves.
+ * Exported for tests.
+ */
+export const MAX_TYPED_CHARACTERS_RETRIES = 3;
+
+/**
  * Counts the characters the user manually types into the text models of this
- * window and reports them per resource.
+ * window and reports them per resource and originating session.
  *
  * Only models of the window this tracker runs in are observed, which is what
  * scopes the counts to the Agents window: a regular window editing the same
@@ -31,16 +52,23 @@ export const TYPED_CHARACTERS_REPORT_DELAY = 5000;
  * tracker.
  *
  * Typing produces one content change per keystroke, so counts are buffered and
- * reported in batches instead of on every change.
+ * reported in batches instead of on every change. The active session is still
+ * captured per keystroke, so a batch reported after the user switched sessions
+ * stays attributed to the session it was typed into.
  */
 export class SessionsTypedCharactersTracker extends Disposable {
 
-	private readonly _pending = new ResourceMap<number>();
+	private readonly _pending = new Map<string, IPendingEntry>();
 	private readonly _modelListeners = this._register(new DisposableMap<ITextModel>());
 	private readonly _reportScheduler: RunOnceScheduler;
 
+	/**
+	 * @param _report Consumes a batch and returns the entries it could not
+	 * attribute yet, which are retried instead of being dropped.
+	 */
 	constructor(
-		private readonly _report: (entries: readonly ITypedCharactersEntry[]) => void,
+		private readonly _getActiveSession: () => IActiveSession | undefined,
+		private readonly _report: (entries: readonly ITypedCharactersEntry[]) => readonly ITypedCharactersEntry[],
 		@IModelService modelService: IModelService,
 	) {
 		super();
@@ -56,17 +84,27 @@ export class SessionsTypedCharactersTracker extends Disposable {
 		this._register(modelService.onModelRemoved(model => this._modelListeners.deleteAndDispose(model)));
 	}
 
-	/** Reports everything buffered so far. */
+	/** Reports everything buffered so far, retaining whatever the consumer could not attribute yet. */
 	flush(): void {
 		if (this._pending.size === 0) {
 			return;
 		}
-		const entries: ITypedCharactersEntry[] = [];
-		for (const [resource, characters] of this._pending) {
-			entries.push({ resource, characters });
-		}
+		const flushed = new Map(this._pending);
 		this._pending.clear();
-		this._report(entries);
+
+		for (const entry of this._report([...flushed.values()])) {
+			const key = toKey(entry.session.sessionId, entry.resource);
+			const deferred = flushed.get(key);
+			if (!deferred || deferred.retries >= MAX_TYPED_CHARACTERS_RETRIES) {
+				continue;
+			}
+			deferred.retries++;
+			this._add(key, deferred);
+		}
+
+		if (this._pending.size > 0) {
+			this._reportScheduler.schedule();
+		}
 	}
 
 	private _trackModel(model: ITextModel): void {
@@ -78,11 +116,28 @@ export class SessionsTypedCharactersTracker extends Disposable {
 		if (characters === 0) {
 			return;
 		}
-		this._pending.set(model.uri, (this._pending.get(model.uri) ?? 0) + characters);
+		const session = this._getActiveSession();
+		if (!session) {
+			return;
+		}
+		this._add(toKey(session.sessionId, model.uri), { session, resource: model.uri, characters, retries: 0 });
 		if (!this._reportScheduler.isScheduled()) {
 			this._reportScheduler.schedule();
 		}
 	}
+
+	private _add(key: string, entry: IPendingEntry): void {
+		const existing = this._pending.get(key);
+		if (existing) {
+			existing.characters += entry.characters;
+		} else {
+			this._pending.set(key, entry);
+		}
+	}
+}
+
+function toKey(sessionId: string, resource: URI): string {
+	return `${sessionId}\u0000${resource.toString()}`;
 }
 
 /**

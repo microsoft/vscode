@@ -7,7 +7,6 @@ import { disposableTimeout } from '../../../../base/common/async.js';
 import { hash } from '../../../../base/common/hash.js';
 import { Disposable, DisposableMap } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
-import { autorun } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -21,7 +20,7 @@ import { getExcludes, ISearchConfiguration, ISearchService, QueryType } from '..
 import { AgentFeedbackKind, IAgentFeedbackAddedEvent, IAgentFeedbackConvertedEvent, IAgentFeedbackReplyAddedEvent, IAgentFeedbackService, IAgentFeedbackSubmittedEvent } from '../../agentFeedback/browser/agentFeedbackService.js';
 import { ISessionsTasksService } from '../../chat/browser/sessionsTasksService.js';
 import { IChat, ISession, ISessionWorkspace, SessionStatus } from '../../../services/sessions/common/session.js';
-import { IActiveSession, ISendRequestSentEvent, ISessionsChangeEvent, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISendRequestSentEvent, ISessionsChangeEvent, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISendRequestOptions, ISessionsProvider } from '../../../services/sessions/common/sessionsProvider.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
@@ -50,8 +49,6 @@ export class SessionsTelemetryContribution extends Disposable implements IWorkbe
 	private readonly _lifecycleTracker: SessionsLifecycleTracker;
 	/** Counts characters the user manually types into session workspace folders from this window. */
 	private readonly _typedCharactersTracker: SessionsTypedCharactersTracker;
-	/** The session buffered typing is attributed to. Kept in step with the active session by an autorun. */
-	private _typedCharactersSession: IActiveSession | undefined;
 	/** Listener per provider that waits for the provider's first batch of sessions so we can run a one-time reconciliation against tracked entries. */
 	private readonly _providerReconcileListeners = this._register(new DisposableMap<string>());
 
@@ -76,17 +73,14 @@ export class SessionsTelemetryContribution extends Disposable implements IWorkbe
 		// Registered after the lifecycle tracker is created but before it is
 		// registered: disposing flushes buffered typing, which needs a live
 		// lifecycle tracker to attribute it to.
-		this._typedCharactersTracker = this._register(new SessionsTypedCharactersTracker(entries => this._recordTypedCharacters(entries), modelService));
+		this._typedCharactersTracker = this._register(new SessionsTypedCharactersTracker(
+			() => this._sessionsService.activeSession.get(),
+			entries => this._recordTypedCharacters(entries),
+			modelService,
+		));
 		this._register(this._lifecycleTracker);
 		// Buffered typing would otherwise be lost when the window goes away.
 		this._register(this._storageService.onWillSaveState(() => this._typedCharactersTracker.flush()));
-		this._register(autorun(reader => {
-			const active = this._sessionsService.activeSession.read(reader);
-			// Flush before adopting the new session so buffered typing is
-			// still attributed to the one it was typed into.
-			this._typedCharactersTracker.flush();
-			this._typedCharactersSession = active;
-		}));
 
 		this._register(this._sessionsManagementService.onWillSendRequest(session => {
 			// Kick off the workspace file-count fetch now so it has time to
@@ -546,25 +540,33 @@ export class SessionsTelemetryContribution extends Disposable implements IWorkbe
 	// -- manually typed characters ---------------------------------------------
 
 	/**
-	 * Adds buffered typing to the session that was active while it happened.
-	 * Only the active session is considered: the user edits the session they
-	 * are looking at, so scanning every known session would cost more than it
-	 * could ever attribute.
+	 * Attributes a reported batch to the session each entry was typed into and
+	 * returns the entries that could not be attributed yet.
+	 *
+	 * An absent workspace does not mean the file is unrelated: session
+	 * workspaces hydrate asynchronously, so those entries are handed back to be
+	 * retried rather than dropped. A quick chat is workspace-less by product
+	 * intent, so its typing is discarded instead of retried.
 	 */
-	private _recordTypedCharacters(entries: readonly ITypedCharactersEntry[]): void {
-		const session = this._typedCharactersSession;
-		if (!session) {
-			return;
-		}
-		// The working directory — not the folder root — is what isolates a
-		// session: for a worktree session the root is the shared repository
-		// checkout, which the session itself never edits.
-		const folders = session.workspace.get()?.folders ?? [];
-		for (const { resource, characters } of entries) {
+	private _recordTypedCharacters(entries: readonly ITypedCharactersEntry[]): readonly ITypedCharactersEntry[] {
+		const deferred: ITypedCharactersEntry[] = [];
+		for (const entry of entries) {
+			const { session, resource, characters } = entry;
+			const folders = session.workspace.get()?.folders;
+			if (!folders?.length) {
+				if (!session.isQuickChat?.get()) {
+					deferred.push(entry);
+				}
+				continue;
+			}
+			// The working directory — not the folder root — is what isolates a
+			// session: for a worktree session the root is the shared repository
+			// checkout, which the session itself never edits.
 			if (folders.some(folder => this._uriIdentityService.extUri.isEqualOrParent(resource, folder.workingDirectory))) {
 				this._lifecycleTracker.addTypedCharacters(session.sessionId, resource, characters);
 			}
 		}
+		return deferred;
 	}
 
 	private _getSessionActionPayload(session: ISession): Promise<SessionActionEvent> {

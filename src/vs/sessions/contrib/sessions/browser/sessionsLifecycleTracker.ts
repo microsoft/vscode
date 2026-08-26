@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { hash } from '../../../../base/common/hash.js';
+import { hash, StringSHA1 } from '../../../../base/common/hash.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -30,6 +30,29 @@ export const MAX_TRACKED_SESSIONS = 2000;
  * bounded for sessions that touch very many files. Exported for tests.
  */
 export const MAX_TYPED_FILES_PER_SESSION = 250;
+
+/**
+ * Length of the persisted per-file digests.
+ *
+ * A truncated SHA-1 rather than {@link hash}: that is a 32-bit polynomial
+ * string hash whose collisions are structural rather than random, so ordinary
+ * sibling paths collide outright (`.../Aa.ts` and `.../BB.ts` hash equal) and
+ * silently undercount distinct files. 48 bits of a cryptographic digest keeps
+ * the stored rows small while making a collision within the
+ * {@link MAX_TYPED_FILES_PER_SESSION} cap a birthday-bound accident of roughly
+ * one in ten billion.
+ */
+const TYPED_FILE_HASH_LENGTH = 12;
+
+/**
+ * Derives the stored identity of a typed-in file. Only used to tell files
+ * apart when counting; the digest itself is never reported.
+ */
+function hashTypedFilePath(resource: URI): string {
+	const sha1 = new StringSHA1();
+	sha1.update(resource.toString());
+	return sha1.digest().substring(0, TYPED_FILE_HASH_LENGTH);
+}
 
 /** Reason a session is considered "done" and the summary is emitted. */
 export type SessionDoneReason = 'archived' | 'deleted' | 'archivedRemotely' | 'deletedRemotely';
@@ -126,7 +149,7 @@ interface IStoredSessionStats {
 	// Hashes of the distinct files the user typed into. Hashed rather than
 	// stored as paths so persisted state discloses nothing about the user's
 	// file system; only the count is ever reported.
-	typedFileHashes?: number[];
+	typedFileHashes?: string[];
 
 	// End state (refreshed on every interaction)
 	filesChanged: number;
@@ -287,7 +310,7 @@ export class SessionsLifecycleTracker extends Disposable {
 			return;
 		}
 		entry.typedCharacters = (entry.typedCharacters ?? 0) + characters;
-		const fileHash = hash(resource.toString());
+		const fileHash = hashTypedFilePath(resource);
 		const typedFileHashes = entry.typedFileHashes ?? (entry.typedFileHashes = []);
 		if (typedFileHashes.length < MAX_TYPED_FILES_PER_SESSION && !typedFileHashes.includes(fileHash)) {
 			typedFileHashes.push(fileHash);
@@ -520,7 +543,15 @@ export class SessionsLifecycleTracker extends Disposable {
 			if (parsed && typeof parsed === 'object') {
 				for (const [id, value] of Object.entries(parsed as Record<string, unknown>)) {
 					if (value && typeof value === 'object') {
-						map.set(id, value as IStoredSessionStats);
+						const entry = value as IStoredSessionStats;
+						// File identities were briefly persisted as 32-bit
+						// numbers. They cannot be compared against the digests
+						// written now, so drop them rather than double-count
+						// files the user already typed into.
+						if (entry.typedFileHashes?.some(fileHash => typeof fileHash !== 'string')) {
+							entry.typedFileHashes = [];
+						}
+						map.set(id, entry);
 					}
 				}
 			}

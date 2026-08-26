@@ -238,6 +238,42 @@ suite('SessionsLifecycleTracker', () => {
 		assert.strictEqual(summary!.typedCharacters, MAX_TYPED_FILES_PER_SESSION + 13);
 	});
 
+	test('typedFileCount separates paths that collide under a 32-bit string hash', () => {
+		// `hash()` is a polynomial string hash, so these two paths hash equal
+		// and would be counted as a single file.
+		const first = URI.parse('file:///repo/Aa.ts');
+		const second = URI.parse('file:///repo/BB.ts');
+		assert.strictEqual(hash(first.toString()), hash(second.toString()), 'precondition: paths collide under hash()');
+
+		const session = createSession('s1');
+		tracker.recordNewChatRequestSent(session);
+		tracker.addTypedCharacters(session.sessionId, first, 3);
+		tracker.addTypedCharacters(session.sessionId, second, 4);
+
+		const summary = tracker.finalize(session.sessionId, 'archived', session);
+		assert.strictEqual(summary!.typedFileCount, 2);
+		assert.strictEqual(summary!.typedCharacters, 7);
+	});
+
+	test('discards file identities persisted in the superseded numeric format', () => {
+		const session = createSession('s1');
+		tracker.recordNewChatRequestSent(session);
+		tracker.addTypedCharacters(session.sessionId, URI.parse('file:///repo/a.ts'), 5);
+
+		// Rewrite the stored identities the way an earlier build wrote them.
+		const stored = JSON.parse(storage.get(SESSIONS_KEY, StorageScope.APPLICATION)!);
+		stored[session.sessionId].typedFileHashes = [123, 456];
+		storage.store(SESSIONS_KEY, JSON.stringify(stored), StorageScope.APPLICATION, StorageTarget.MACHINE);
+
+		const reloaded = disposables.add(new SessionsLifecycleTracker(storage));
+		reloaded.addTypedCharacters(session.sessionId, URI.parse('file:///repo/a.ts'), 2);
+
+		const summary = reloaded.finalize(session.sessionId, 'archived', session);
+		// Characters survive; only the incomparable identities are dropped.
+		assert.strictEqual(summary!.typedFileCount, 1);
+		assert.strictEqual(summary!.typedCharacters, 7);
+	});
+
 	test('bumpCounter increments distinct counter keys independently', () => {
 		const session = createSession('s1');
 
