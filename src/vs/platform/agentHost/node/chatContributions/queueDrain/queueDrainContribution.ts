@@ -17,7 +17,7 @@ import { AgentHostStateManager, IAgentHostStateManager } from '../../agentHostSt
 import { createAgentChatContext } from '../../agentChatContext.js';
 import { IAgentHostProviderLocator } from '../../agentHostProviderLocator.js';
 import { IAgentHostSessionTitleController } from '../../agentHostSessionTitleController.js';
-import { AgentHostTelemetryReporter, IAgentHostTelemetryReporter } from '../../agentHostTelemetryReporter.js';
+import { AgentHostTelemetryReporter, getMessageOriginTelemetryKind, IAgentHostTelemetryReporter } from '../../agentHostTelemetryReporter.js';
 import { getTurnTelemetryContext } from '../../agentHostTurnTelemetryContext.js';
 import { AgentHostTurnTracker, IAgentHostTurnTracker } from '../../agentHostTurnTracker.js';
 import { AgentHostLocalCommands, IAgentHostLocalCommands } from '../../localCommands/localChatCommand.js';
@@ -155,7 +155,7 @@ export class QueueDrainContribution extends Disposable implements IAgentHostChat
 		const state = this._stateManager.getSessionState(channel);
 		this._telemetryReporter.userMessageSent(agent.id, sender.clientId, sender.clientContext, channel, turnId, state, 'queued', message);
 		const { model, modelTelemetryKind, modelSelectionKind, permissionLevel, interactionMode } = getTurnTelemetryContext(agent, channel, createAgentChatContext(this._stateManager, sessionChannel, channel), state, message.model?.id);
-		this._turnTracker.turnStarted(agent, channel, turnId, model, modelTelemetryKind, modelSelectionKind, permissionLevel, interactionMode, sender.clientContext, sender.clientId);
+		this._turnTracker.turnStarted(agent, channel, turnId, model, modelTelemetryKind, modelSelectionKind, permissionLevel, interactionMode, sender.clientContext, sender.clientId, undefined, undefined, getMessageOriginTelemetryKind(message));
 		host.sendTurnMessage({
 			agent,
 			sessionChannel,

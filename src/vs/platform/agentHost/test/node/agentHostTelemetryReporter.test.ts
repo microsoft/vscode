@@ -11,6 +11,7 @@ import { ITelemetryData, ITelemetryService, TelemetryLevel } from '../../../tele
 import { createUnknownAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { AgentSession } from '../../common/agent.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
+import { toAgentMergeMessageMeta } from '../../common/meta/agentMergeMessageMeta.js';
 import type { Message, ToolDefinition } from '../../common/state/protocol/state.js';
 import { buildSubagentChatUri, MessageKind } from '../../common/state/sessionState.js';
 import { IAgentHostInternalTelemetryContext, IAgentHostRestrictedTelemetry, IAgentHostRestrictedTelemetryContext, TelemetryMeasurements, TelemetryProps } from '../../node/agentHostRestrictedTelemetry.js';
@@ -124,16 +125,18 @@ suite('AgentHostTelemetryReporter', () => {
 		const service = new TestRestrictedTelemetryService();
 		const reporter = new AgentHostTelemetryReporter(service);
 		const agentMessage: Message = { text: 'please take over', origin: { kind: MessageKind.Agent } };
+		const agentMergeMessage: Message = { text: 'fix the failing checks', origin: { kind: MessageKind.SystemNotification }, _meta: toAgentMergeMessageMeta() };
 
 		reporter.userMessageSent('copilot', 'client-1', createUnknownAgentHostClientTelemetryContext(AgentHostClientType.AgentsWindow), session, 'turn-1', undefined, 'direct', agentMessage);
-		reporter.userMessageSent('copilot', 'client-1', createUnknownAgentHostClientTelemetryContext(AgentHostClientType.AgentsWindow), session, 'turn-2', undefined, 'queued', userMessage);
+		reporter.userMessageSent('copilot', undefined, createUnknownAgentHostClientTelemetryContext(AgentHostClientType.Unknown), session, 'turn-2', undefined, 'direct', agentMergeMessage);
+		reporter.userMessageSent('copilot', 'client-1', createUnknownAgentHostClientTelemetryContext(AgentHostClientType.AgentsWindow), session, 'turn-3', undefined, 'queued', userMessage);
 
 		assert.deepStrictEqual({
 			standard: service.standardEvents.map(event => event.data?.messageOriginKind),
 			github: service.githubStandardEvents.map(event => event.properties?.messageOriginKind),
 		}, {
-			standard: ['agent', 'user'],
-			github: ['agent', 'user'],
+			standard: ['agent', 'agentMerge', 'user'],
+			github: ['agent', 'agentMerge', 'user'],
 		});
 	});
 
