@@ -29,8 +29,9 @@ import { mkdtemp, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { CollectAgentHostDebugLogsExtensionMethod, type IAgentHostExtensionCommandMap } from '../../../../common/agentHostExtensionProtocol.js';
 import { readToolCallMeta } from '../../../../common/meta/agentToolCallMeta.js';
-import { MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ROOT_STATE_URI, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, buildDefaultChatUri, getInlineToolInput, type MessageAttachment } from '../../../../common/state/sessionState.js';
+import { MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ROOT_STATE_URI, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, buildDefaultChatUri, getInlineToolInput, getTurnError, type MessageAttachment } from '../../../../common/state/sessionState.js';
 import { ActionType, type ChatErrorAction, type ChatToolCallCompleteAction, type ChatToolCallDeltaAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatUsageAction } from '../../../../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
 import {
@@ -45,6 +46,7 @@ import { COPILOT_CONFIG } from './copilotTestConfiguration.js';
 const RECORD_ONLY = process.env['AGENT_HOST_REPLAY_RECORD'] === '1';
 const RECORD = RECORD_ONLY || process.env['AGENT_HOST_UPDATE_SNAPSHOTS'] === '1';
 const isWindows = process.platform === 'win32';
+type DebugLogsArtifactResult = IAgentHostExtensionCommandMap[typeof CollectAgentHostDebugLogsExtensionMethod]['result'];
 
 defineAgentHostE2ETests(COPILOT_CONFIG);
 
@@ -95,6 +97,27 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 		if (errors.length > 0) {
 			throw new AggregateError(errors, 'Failed to dispose Copilot-specific E2E test resources');
 		}
+	});
+
+	test('materialized Copilot debug collection includes provider log entries', async function () {
+		this.timeout(180_000);
+		const workingDirectory = await mkdtemp(join(tmpdir(), 'ahp-copilot-debug-logs-'));
+		tempDirs.push(workingDirectory);
+		const sessionUri = await createRealSession(client, COPILOT_CONFIG, 'copilot-debug-logs', createdSessions, URI.file(workingDirectory));
+		await driveTurnToCompletion(client, sessionUri, 'turn-copilot-debug-logs', 'Reply exactly "ready".', 1);
+
+		const debugLogs = await client.call<DebugLogsArtifactResult>(CollectAgentHostDebugLogsExtensionMethod, {
+			kind: 'archive',
+			session: sessionUri,
+		});
+
+		assert.deepStrictEqual({
+			providerLogsIncluded: debugLogs.providerLogsIncluded,
+			hasProviderLogEntries: debugLogs.entries.some(entry => !/^agenthost(?:-server)?(?:\.\d+)?\.log$/.test(entry.path)),
+		}, {
+			providerLogsIncluded: true,
+			hasProviderLogEntries: true,
+		});
 	});
 
 	test('client tool reaches ready after start and completes', async function () {
@@ -156,7 +179,7 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 			&& getActionEnvelope(notification).channel === chatUri,
 			90_000,
 		);
-		const liveError = (getActionEnvelope(liveNotification).action as ChatErrorAction).error;
+		const liveError = (getActionEnvelope(liveNotification).action as ChatErrorAction).part.error;
 
 		client = await lease.restart();
 		client.setWorkingDirectory(workingDirectory);
@@ -171,7 +194,7 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 		const restoredTurn = reopened.turns.find(turn => turn.message.text === prompt);
 		assert.deepStrictEqual({
 			state: restoredTurn?.state,
-			error: restoredTurn?.error,
+			error: getTurnError(restoredTurn),
 		}, {
 			state: TurnState.Error,
 			error: liveError,
@@ -699,7 +722,7 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 			);
 			if (isActionNotification(next, 'chat/error')) {
 				const action = getActionEnvelope(next).action as ChatErrorAction;
-				throw new Error(`cd-strip turn failed: ${JSON.stringify(action.error)}`);
+				throw new Error(`cd-strip turn failed: ${JSON.stringify(action.part.error)}`);
 			}
 			if (isActionNotification(next, 'chat/turnComplete')) {
 				break;

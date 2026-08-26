@@ -363,22 +363,24 @@ export class AgentHostResourceService extends Disposable implements IAgentHostRe
 	 * segments and following symlinks so the policy check sees the same
 	 * path the OS will actually open. For URIs that don't exist (e.g. a
 	 * `resourceWrite` for a new file), realpath the deepest existing
-	 * ancestor and re-append the leaf.
+	 * ancestor and re-append the missing suffix.
 	 */
 	private async _canonicalize(uri: URI): Promise<URI> {
 		const normalized = extUri.normalizePath(uri);
-		const real = await this._fileService.realpath(normalized).catch(() => undefined);
-		if (real) {
-			return real;
+		const suffix: string[] = [];
+		let current = normalized;
+		while (true) {
+			const real = await this._fileService.realpath(current).catch(() => undefined);
+			if (real) {
+				return suffix.length ? extUri.joinPath(real, ...suffix) : real;
+			}
+			const parent = extUri.dirname(current);
+			if (extUri.isEqual(parent, current)) {
+				return normalized;
+			}
+			suffix.unshift(extUri.basename(current));
+			current = parent;
 		}
-		const parent = extUri.dirname(normalized);
-		if (extUri.isEqual(parent, normalized)) {
-			return normalized;
-		}
-		const realParent = await this._fileService.realpath(parent).catch(() => undefined);
-		return realParent
-			? extUri.joinPath(realParent, extUri.basename(normalized))
-			: normalized;
 	}
 
 	private async _isCovered(identity: AgentHostResourceIdentity, canonicalUri: URI, mode: AgentHostPermissionMode): Promise<boolean> {

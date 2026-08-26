@@ -27,7 +27,7 @@ import { createChatSectionPill, type IChatDropdownPillOptions } from '../../../.
 /** Presentation of the artifacts pill. */
 export const chatArtifactPillOptions: IChatDropdownPillOptions = {
 	widgetId: 'chatArtifacts',
-	icon: Codicon.archive,
+	icon: Codicon.package,
 	title: localize('chatArtifacts.title', "Artifacts"),
 	summaryLabel: count => localize('chatArtifacts.count', "{0} Artifacts", count),
 	summaryAriaLabel: count => localize('chatArtifacts.show', "Show {0} artifacts", count),

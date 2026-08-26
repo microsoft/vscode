@@ -19,11 +19,11 @@ import { StorageScope, StorageTarget } from '../../../../../../platform/storage/
 import { NullTelemetryServiceShape } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
 import { IHostService } from '../../../../../services/host/browser/host.js';
-import { CHAT_PET_OPEN_ACHIEVEMENTS_COMMAND_ID, chatPetAchievements, ChatPetAccessoryIds, ChatPetAchievementIds, disabledChatPetAchievements, getChatPetAchievement, getChatPetAchievementPresentation, getChatPetCustomizationAchievementIds, getUnlockedChatPetAccessories, isUserAuthoredChatPetCustomization, shouldUnlockChatPetIntegratedBrowserShare } from '../../../browser/chatPetAchievements.js';
+import { CHAT_PET_OPEN_ACHIEVEMENTS_COMMAND_ID, chatPetAchievements, ChatPetAccessoryIds, ChatPetAchievementIds, didExplicitlyEnableChatPetAutopilot, disabledChatPetAchievements, getChatPetAchievement, getChatPetAchievementPresentation, getChatPetCustomizationAchievementIds, getUnlockedChatPetAccessories, isUserAuthoredChatPetCustomization, shouldUnlockChatPetIntegratedBrowserShare } from '../../../browser/chatPetAchievements.js';
 import { ChatPetService, getChatPetVariant } from '../../../browser/chatPetService.js';
 import { getChatPetAccessoryImageSource, hasChatPetAccessoryImageDimensions, hasChatPetBodyImageDimensions } from '../../../browser/widget/chatPetAccessoryRenderer.js';
 import { getChatPetAccessoryRigFrame, getChatPetAccessoryRigPose, getChatPetAccessoryTrack, getChatPetAntennaeOcclusionBounds, getChatPetEyeAccessoryAnchor, getChatPetReducedMotionRigFrame } from '../../../browser/widget/chatPetAccessoryRig.js';
-import { CHAT_PET_ACHIEVEMENT_UNLOCKED_DURATION, CHAT_PET_CONFIRMATION_ATTENTION_DURATION, CHAT_PET_ICON_TRANSFORMATION_CHANCE, CHAT_PET_IDLE_SLEEP_DELAY, CHAT_PET_WALL_IMPACT_DURATION, CHAT_PET_YAPPING_CHANCE, ChatPetBlinkController, ChatPetDirectionChangeController, ChatPetFacingController, ChatPetHopController, ChatPetWidget, advanceChatPetThrow, doesChatPetStateBlink, doesChatPetStateTrackCursor, drawChatPetAchievementStar, getChatPetAnimationFrame, getChatPetBaseState, getChatPetBlinkDelay, getChatPetBuddyName, getChatPetClickInteraction, getChatPetDefaultHorizontalPosition, getChatPetDragPosition, getChatPetEyeAccessoryGazeOffset, getChatPetFallDuration, getChatPetFallTarget, getChatPetFrameDurations, getChatPetGazeDirection, getChatPetHorizontalPosition, getChatPetPlatformTop, getChatPetRelativeHorizontalPosition, getChatPetRenderedState, getChatPetRespawnFrameDurations, getChatPetRestoredHorizontalPosition, getChatPetScale, getChatPetSpeechFrameDurations, getChatPetSpriteName, getChatPetThrowLanding, getChatPetThrowRotation, getChatPetThrowVelocity, getChatPetVerticalOffset, getChatPetWallReboundVelocity, getChatPetWideSpriteHorizontalOffset, isChatPetImageSource, isChatPetKeyboardInteractionEnabled, isChatPetVisible, isChatPetWindowActive, setChatPetWideLayerOffset, shouldPlaceChatPetSpeechBubbleLeft, shouldReserveChatPetSpace, shouldSettleChatPetThrow } from '../../../browser/widget/chatPetWidget.js';
+import { CHAT_PET_ACHIEVEMENT_UNLOCKED_DURATION, CHAT_PET_CONFIRMATION_ATTENTION_DURATION, CHAT_PET_ICON_TRANSFORMATION_CHANCE, CHAT_PET_IDLE_SLEEP_DELAY, CHAT_PET_WALL_IMPACT_DURATION, CHAT_PET_WINDOW_OWNERSHIP_CHANNEL, CHAT_PET_YAPPING_CHANCE, ChatPetBlinkController, ChatPetDirectionChangeController, ChatPetFacingController, ChatPetHopController, ChatPetWidget, IChatPetWidgetHost, advanceChatPetThrow, doesChatPetStateBlink, doesChatPetStateTrackCursor, drawChatPetAchievementStar, getChatPetAnchoredHorizontalPosition, getChatPetAnimationFrame, getChatPetBaseState, getChatPetBlinkDelay, getChatPetBuddyName, getChatPetClickInteraction, getChatPetDefaultHorizontalPosition, getChatPetDragPosition, getChatPetEyeAccessoryGazeOffset, getChatPetFallDuration, getChatPetFallTarget, getChatPetFrameDurations, getChatPetGazeDirection, getChatPetHorizontalAnchor, getChatPetHorizontalPosition, getChatPetPillPlatformTop, getChatPetPlatformTop, getChatPetRelativeHorizontalPosition, getChatPetRenderedState, getChatPetRespawnFrameDurations, getChatPetRestoredHorizontalPosition, getChatPetScale, getChatPetSpeechFrameDurations, getChatPetSpriteName, getChatPetThrowLanding, getChatPetThrowRotation, getChatPetThrowVelocity, getChatPetVerticalOffset, getChatPetWallReboundVelocity, getChatPetWideSpriteHorizontalOffset, isChatPetImageSource, isChatPetKeyboardInteractionEnabled, isChatPetVisible, isChatPetWindowActive, setChatPetWideLayerOffset, shouldClaimChatPetWindowOnConstruction, shouldPlaceChatPetSpeechBubbleLeft, shouldReserveChatPetSpace, shouldSettleChatPetThrow } from '../../../browser/widget/chatPetWidget.js';
 
 suite('ChatPetWidget', () => {
 
@@ -55,6 +55,19 @@ suite('ChatPetWidget', () => {
 			onRequest: () => events.push('request'),
 		});
 		return { controller, events, getLeft: () => left };
+	}
+
+	function createPetHost(parent: HTMLElement, dragBounds: HTMLElement, movementBounds: HTMLElement, hasInput = false): IChatPetWidgetHost {
+		return {
+			parent,
+			dragBounds,
+			movementBounds,
+			model: constObservable(undefined),
+			hasInput: constObservable(hasInput),
+			inputChanged: Event.None,
+			getPlatformTop: () => undefined,
+			onDidChangePlatform: Event.None,
+		};
 	}
 
 	test('runs one timed hop for a single key press', () => {
@@ -91,13 +104,8 @@ suite('ChatPetWidget', () => {
 		}));
 		const service = disposables.add(new ChatPetService(disposables.add(new TestStorageService()), new TestTelemetryService(), new NullLogService()));
 		disposables.add(new ChatPetWidget(
-			parent,
-			dragBounds,
-			movementBounds,
-			constObservable(undefined),
-			constObservable(false),
-			constObservable(true),
-			Event.None,
+			createPetHost(parent, dragBounds, movementBounds),
+			undefined,
 			service,
 			new TestAccessibilityService(),
 			new class extends mock<IContextMenuService>() { }(),
@@ -120,6 +128,171 @@ suite('ChatPetWidget', () => {
 		}, {
 			layers: ['chat-pet-sprite hidden', 'chat-pet-sprite hidden', 'chat-pet-eyes', 'chat-pet-eye-accessory hidden'],
 			achievementPupilHeight: '8px',
+		});
+	});
+
+	test('observes layout bounds only while visible and enabled', () => {
+		const observedTargets = new Set<Element>();
+		class TestResizeObserver implements ResizeObserver {
+			observe(target: Element): void { observedTargets.add(target); }
+			unobserve(target: Element): void { observedTargets.delete(target); }
+			disconnect(): void { observedTargets.clear(); }
+			takeRecords(): ResizeObserverEntry[] { return []; }
+		}
+		const parent = mainWindow.document.createElement('div');
+		const dragBounds = mainWindow.document.createElement('div');
+		const movementBounds = mainWindow.document.createElement('div');
+		mainWindow.document.body.append(parent, dragBounds, movementBounds);
+		disposables.add(toDisposable(() => {
+			parent.remove();
+			dragBounds.remove();
+			movementBounds.remove();
+		}));
+		const service = disposables.add(new ChatPetService(disposables.add(new TestStorageService()), new TestTelemetryService(), new NullLogService()));
+		disposables.add(new ChatPetWidget(
+			createPetHost(parent, dragBounds, movementBounds),
+			TestResizeObserver as unknown as typeof ResizeObserver,
+			service,
+			new TestAccessibilityService(),
+			new class extends mock<IContextMenuService>() { }(),
+			new class extends mock<ICommandService>() { }(),
+			new NullLogService(),
+			new class extends mock<IHostService>() {
+				override readonly hasFocus = true;
+				override readonly onDidChangeFocus = Event.None;
+				override readonly onDidChangeActiveWindow = Event.None;
+			}(),
+		));
+
+		assert.strictEqual(observedTargets.size, 0);
+		service.toggle();
+		assert.deepStrictEqual(observedTargets, new Set([dragBounds, movementBounds, parent]));
+		service.toggle();
+		assert.strictEqual(observedTargets.size, 0);
+	});
+
+	test('stacks the run cycle behind the input', () => {
+		const parent = mainWindow.document.createElement('div');
+		const input = mainWindow.document.createElement('div');
+		const movementBounds = mainWindow.document.createElement('div');
+		parent.append(input);
+		mainWindow.document.body.append(parent, movementBounds);
+		disposables.add(toDisposable(() => {
+			parent.remove();
+			movementBounds.remove();
+		}));
+		const service = disposables.add(new ChatPetService(disposables.add(new TestStorageService()), new TestTelemetryService(), new NullLogService()));
+		service.toggle();
+		disposables.add(new ChatPetWidget(
+			createPetHost(parent, input, movementBounds),
+			undefined,
+			service,
+			new class extends TestAccessibilityService {
+				override isMotionReduced(): boolean { return false; }
+			}(),
+			new class extends mock<IContextMenuService>() { }(),
+			new class extends mock<ICommandService>() { }(),
+			new NullLogService(),
+			new class extends mock<IHostService>() {
+				override readonly hasFocus = true;
+				override readonly onDidChangeFocus = Event.None;
+				override readonly onDidChangeActiveWindow = Event.None;
+			}(),
+		));
+		const overlay = parent.getElementsByClassName('chat-pet-overlay')[0];
+		const button = parent.getElementsByClassName('chat-pet-button')[0] as HTMLElement;
+		const restingZIndex = mainWindow.getComputedStyle(button).zIndex;
+
+		service.setOnTheRun(true);
+		const onTheRun = {
+			onTheRunClass: button.classList.contains('on-the-run'),
+			returningClass: button.classList.contains('returning-from-run'),
+			zIndex: mainWindow.getComputedStyle(button).zIndex,
+		};
+		service.setOnTheRun(false);
+		const returning = {
+			onTheRunClass: button.classList.contains('on-the-run'),
+			returningClass: button.classList.contains('returning-from-run'),
+			zIndex: mainWindow.getComputedStyle(button).zIndex,
+		};
+		const transitionEnd = new mainWindow.Event('transitionend');
+		Object.defineProperty(transitionEnd, 'propertyName', { value: 'transform' });
+		button.dispatchEvent(transitionEnd);
+
+		assert.deepStrictEqual({
+			overlayPrecedesInput: overlay.nextElementSibling === input,
+			restingZIndex,
+			onTheRun,
+			returning,
+			returned: {
+				returningClass: button.classList.contains('returning-from-run'),
+				zIndex: mainWindow.getComputedStyle(button).zIndex,
+			},
+		}, {
+			overlayPrecedesInput: true,
+			restingZIndex: '1',
+			onTheRun: {
+				onTheRunClass: true,
+				returningClass: false,
+				zIndex: 'auto',
+			},
+			returning: {
+				onTheRunClass: false,
+				returningClass: true,
+				zIndex: 'auto',
+			},
+			returned: {
+				returningClass: false,
+				zIndex: '1',
+			},
+		});
+	});
+
+	test('moves one pet instance between chat hosts without respawning it', () => {
+		const firstParent = mainWindow.document.createElement('div');
+		const firstBounds = mainWindow.document.createElement('div');
+		const secondParent = mainWindow.document.createElement('div');
+		const secondBounds = mainWindow.document.createElement('div');
+		const movementBounds = mainWindow.document.createElement('div');
+		mainWindow.document.body.append(firstParent, firstBounds, secondParent, secondBounds, movementBounds);
+		disposables.add(toDisposable(() => {
+			firstParent.remove();
+			firstBounds.remove();
+			secondParent.remove();
+			secondBounds.remove();
+			movementBounds.remove();
+		}));
+		const service = disposables.add(new ChatPetService(disposables.add(new TestStorageService()), new TestTelemetryService(), new NullLogService()));
+		const widget = disposables.add(new ChatPetWidget(
+			createPetHost(firstParent, firstBounds, movementBounds),
+			undefined,
+			service,
+			new TestAccessibilityService(),
+			new class extends mock<IContextMenuService>() { }(),
+			new class extends mock<ICommandService>() { }(),
+			new NullLogService(),
+			new class extends mock<IHostService>() {
+				override readonly hasFocus = true;
+				override readonly onDidChangeFocus = Event.None;
+				override readonly onDidChangeActiveWindow = Event.None;
+			}(),
+		));
+		const button = firstParent.getElementsByClassName('chat-pet-button')[0];
+
+		widget.setHost(createPetHost(secondParent, secondBounds, movementBounds, true));
+
+		assert.deepStrictEqual({
+			firstPetCount: firstParent.getElementsByClassName('chat-pet-button').length,
+			secondPetCount: secondParent.getElementsByClassName('chat-pet-button').length,
+			sameButton: secondParent.getElementsByClassName('chat-pet-button')[0] === button,
+			firstHostClass: firstParent.classList.contains('chat-pet-host'),
+			secondHostClass: secondParent.classList.contains('chat-pet-host'),
+		}, {
+			firstPetCount: 0,
+			secondPetCount: 1,
+			sameButton: true,
+			firstHostClass: false,
+			secondHostClass: true,
 		});
 	});
 
@@ -283,34 +456,93 @@ suite('ChatPetWidget', () => {
 		assert.strictEqual(CHAT_PET_CONFIRMATION_ATTENTION_DURATION, 2_000);
 	});
 
-	test('only shows in the active window but reserves space in each window\'s latest focused chat', () => {
-		assert.deepStrictEqual([
-			{ visible: isChatPetVisible(false, false, false), spaceReserved: shouldReserveChatPetSpace(false, false) },
-			{ visible: isChatPetVisible(false, true, true), spaceReserved: shouldReserveChatPetSpace(false, true) },
-			{ visible: isChatPetVisible(true, false, true), spaceReserved: shouldReserveChatPetSpace(true, false) },
-			{ visible: isChatPetVisible(true, true, false), spaceReserved: shouldReserveChatPetSpace(true, true) },
-			{ visible: isChatPetVisible(true, true, true), spaceReserved: shouldReserveChatPetSpace(true, true) },
-		], [
-			{ visible: false, spaceReserved: false },
-			{ visible: false, spaceReserved: false },
-			{ visible: false, spaceReserved: false },
-			{ visible: false, spaceReserved: true },
-			{ visible: true, spaceReserved: true },
-		]);
+	test('shows the window pet only in the active VS Code window and reserves only its active host', () => {
+		assert.deepStrictEqual({
+			visible: [
+				isChatPetVisible(false, false),
+				isChatPetVisible(true, false),
+				isChatPetVisible(true, true),
+			],
+			spaceReserved: [
+				shouldReserveChatPetSpace(false, false),
+				shouldReserveChatPetSpace(true, false),
+				shouldReserveChatPetSpace(true, true),
+			],
+		}, {
+			visible: [false, false, true],
+			spaceReserved: [false, false, true],
+		});
 	});
 
-	test('tracks the active renderer window independently from application focus', () => {
-		assert.deepStrictEqual([
-			isChatPetWindowActive(false, 1, 1),
-			isChatPetWindowActive(true, 1, 1),
-			isChatPetWindowActive(true, 2, 1),
-			isChatPetWindowActive(true, 1, 2),
-		], [
-			false,
-			true,
-			false,
-			false,
-		]);
+	test('keeps the pet on external-app blur but transfers it to another VS Code window', async () => {
+		const parent = mainWindow.document.createElement('div');
+		const dragBounds = mainWindow.document.createElement('div');
+		const movementBounds = mainWindow.document.createElement('div');
+		mainWindow.document.body.append(parent, dragBounds, movementBounds);
+		disposables.add(toDisposable(() => {
+			parent.remove();
+			dragBounds.remove();
+			movementBounds.remove();
+		}));
+		const hostService = new class extends mock<IHostService>() {
+			override readonly hasFocus = true;
+			override readonly onDidChangeFocus = Event.None;
+			override readonly onDidChangeActiveWindow = Event.None;
+		}();
+		const service = disposables.add(new ChatPetService(disposables.add(new TestStorageService()), new TestTelemetryService(), new NullLogService()));
+		disposables.add(new ChatPetWidget(
+			createPetHost(parent, dragBounds, movementBounds),
+			undefined,
+			service,
+			new TestAccessibilityService(),
+			new class extends mock<IContextMenuService>() { }(),
+			new class extends mock<ICommandService>() { }(),
+			new NullLogService(),
+			hostService,
+		));
+		const button = parent.getElementsByClassName('chat-pet-button')[0];
+		service.toggle();
+		const initiallyHidden = button.classList.contains('hidden');
+		const ownershipChannel = new BroadcastChannel(CHAT_PET_WINDOW_OWNERSHIP_CHANNEL);
+		disposables.add(toDisposable(() => ownershipChannel.close()));
+
+		mainWindow.dispatchEvent(new FocusEvent('blur'));
+		const hiddenAfterExternalBlur = button.classList.contains('hidden');
+		ownershipChannel.postMessage({ windowId: mainWindow.vscodeWindowId + 1 });
+		await new Promise(resolve => mainWindow.setTimeout(resolve, 10));
+		const hiddenAfterWindowTransfer = button.classList.contains('hidden');
+		mainWindow.dispatchEvent(new FocusEvent('focus'));
+		const hiddenAfterReturn = button.classList.contains('hidden');
+
+		assert.deepStrictEqual({
+			initiallyHidden,
+			hiddenAfterExternalBlur,
+			hiddenAfterWindowTransfer,
+			hiddenAfterReturn,
+		}, {
+			initiallyHidden: false,
+			hiddenAfterExternalBlur: false,
+			hiddenAfterWindowTransfer: true,
+			hiddenAfterReturn: false,
+		});
+	});
+
+	test('tracks only the active VS Code renderer window', () => {
+		assert.deepStrictEqual({
+			windowActive: [
+				isChatPetWindowActive(1, 1),
+				isChatPetWindowActive(2, 1),
+				isChatPetWindowActive(1, 2),
+			],
+			claimOnConstruction: [
+				shouldClaimChatPetWindowOnConstruction(true, true),
+				shouldClaimChatPetWindowOnConstruction(true, false),
+				shouldClaimChatPetWindowOnConstruction(false, true),
+			],
+		}, {
+			windowActive: [true, false, false],
+			claimOnConstruction: [true, false, false],
+		});
 	});
 
 	test('blocks keyboard interaction while unavailable or already interacting', () => {
@@ -351,6 +583,32 @@ suite('ChatPetWidget', () => {
 			1,
 			undefined,
 		]);
+	});
+
+	test('preserves the inset from the nearest edge while resizing', () => {
+		const leftAnchor = getChatPetHorizontalAnchor(70, 20, 220);
+		const rightAnchor = getChatPetHorizontalAnchor(170, 20, 220);
+		assert.deepStrictEqual({
+			leftAnchor,
+			rightAnchor,
+			centerAnchor: getChatPetHorizontalAnchor(120, 20, 220),
+			leftNarrow: getChatPetAnchoredHorizontalPosition(leftAnchor, 20, 120),
+			leftClamped: getChatPetAnchoredHorizontalPosition(leftAnchor, 20, 60),
+			leftWide: getChatPetAnchoredHorizontalPosition(leftAnchor, 20, 220),
+			rightNarrow: getChatPetAnchoredHorizontalPosition(rightAnchor, 20, 120),
+			rightClamped: getChatPetAnchoredHorizontalPosition(rightAnchor, 20, 60),
+			rightWide: getChatPetAnchoredHorizontalPosition(rightAnchor, 20, 220),
+		}, {
+			leftAnchor: { edge: 'left', inset: 50 },
+			rightAnchor: { edge: 'right', inset: 50 },
+			centerAnchor: { edge: 'left', inset: 100 },
+			leftNarrow: 70,
+			leftClamped: 60,
+			leftWide: 70,
+			rightNarrow: 70,
+			rightClamped: 20,
+			rightWide: 170,
+		});
 	});
 
 	test('gives dragging precedence over base and transient states', () => {
@@ -431,13 +689,8 @@ suite('ChatPetWidget', () => {
 		const storageService = disposables.add(new TestStorageService());
 		const service = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService()));
 		const widget = disposables.add(new ChatPetWidget(
-			parent,
-			dragBounds,
-			movementBounds,
-			constObservable(undefined),
-			constObservable(false),
-			constObservable(true),
-			Event.None,
+			createPetHost(parent, dragBounds, movementBounds),
+			undefined,
 			service,
 			new TestAccessibilityService(),
 			new class extends mock<IContextMenuService>() { }(),
@@ -544,6 +797,30 @@ suite('ChatPetWidget', () => {
 		});
 	});
 
+	test('resets pet size to the default without changing the position', () => {
+		const storageService = disposables.add(new TestStorageService());
+		const firstWindow = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService()));
+		const secondWindow = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService()));
+		firstWindow.setScale(1.4);
+		firstWindow.setHorizontalPosition(0.3);
+		firstWindow.resetScale();
+		const restartedWindow = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService()));
+
+		assert.deepStrictEqual({
+			firstWindow: firstWindow.scale.get(),
+			secondWindow: secondWindow.scale.get(),
+			restartedWindow: restartedWindow.scale.get(),
+			storedScale: storageService.get('chat.vscodePet.scale', StorageScope.APPLICATION),
+			restartedWindowPosition: restartedWindow.horizontalPosition.get(),
+		}, {
+			firstWindow: 1,
+			secondWindow: 1,
+			restartedWindow: 1,
+			storedScale: undefined,
+			restartedWindowPosition: 0.3,
+		});
+	});
+
 	test('persists idempotent achievements and synchronizes the selected accessory', () => {
 		const storageService = disposables.add(new TestStorageService());
 		const firstService = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService()));
@@ -607,7 +884,7 @@ suite('ChatPetWidget', () => {
 		service.setHorizontalPosition(0.3);
 		storageService.store('chat.vscodePet.achievement.chatFork', true, StorageScope.APPLICATION_SHARED, StorageTarget.USER);
 		storageService.store('chat.vscodePet.achievement.chatFork', true, StorageScope.APPLICATION, StorageTarget.USER);
-		const disabledUnlock = service.unlockAchievement(ChatPetAchievementIds.InstructionPresent);
+		const disabledUnlock = service.unlockAchievement(ChatPetAchievementIds.QueueOrSteeringMessage);
 		service.resetAchievements();
 		storageService.store('chat.vscodePet.achievementCatalogVersion', 3, StorageScope.APPLICATION_SHARED, StorageTarget.USER);
 		const migratedService = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService()));
@@ -781,6 +1058,15 @@ suite('ChatPetWidget', () => {
 		], [false, false, false, true]);
 	});
 
+	test('recognizes only an explicit Interactive to Autopilot switch', () => {
+		assert.deepStrictEqual([
+			didExplicitlyEnableChatPetAutopilot('interactive', 'plan'),
+			didExplicitlyEnableChatPetAutopilot('plan', 'autopilot'),
+			didExplicitlyEnableChatPetAutopilot('interactive', 'autopilot'),
+			didExplicitlyEnableChatPetAutopilot('autopilot', 'autopilot'),
+		], [false, false, true, false]);
+	});
+
 	test('finds customization achievements from user-authored items and MCP servers', () => {
 		assert.deepStrictEqual([
 			getChatPetCustomizationAchievementIds([], [], 0),
@@ -797,11 +1083,13 @@ suite('ChatPetWidget', () => {
 		]);
 	});
 
-	test('defines one unique covered-antennae reward for each achievement', () => {
+	test('defines unique covered-antennae rewards for each achievement', () => {
+		const accessoryIds = chatPetAchievements.flatMap(achievement => achievement.accessories.map(accessory => accessory.id));
 		assert.deepStrictEqual({
 			count: chatPetAchievements.length,
 			achievementIds: chatPetAchievements.map(achievement => achievement.id),
-			accessoryIds: chatPetAchievements.flatMap(achievement => achievement.accessories.map(accessory => accessory.id)),
+			accessoryIds,
+			uniqueAccessoryCount: new Set(accessoryIds).size,
 			atlasNames: chatPetAchievements.flatMap(achievement => achievement.accessories.map(accessory => accessory.atlasName)),
 			atlasCellSizes: chatPetAchievements.flatMap(achievement => achievement.accessories.map(accessory => accessory.atlasCellSize ?? 64)),
 			rewardCounts: chatPetAchievements.map(achievement => achievement.accessories.length),
@@ -810,7 +1098,7 @@ suite('ChatPetWidget', () => {
 			disabledAchievementIds: disabledChatPetAchievements.map(achievement => achievement.id),
 			disabledAccessoryIds: disabledChatPetAchievements.flatMap(achievement => achievement.accessories.map(accessory => accessory.id)),
 		}, {
-			count: 6,
+			count: 14,
 			achievementIds: [
 				ChatPetAchievementIds.RequestRevision,
 				ChatPetAchievementIds.FirstChatMessage,
@@ -818,6 +1106,14 @@ suite('ChatPetWidget', () => {
 				ChatPetAchievementIds.ModelSwitch,
 				ChatPetAchievementIds.McpServerPresent,
 				ChatPetAchievementIds.CustomSkillPresent,
+				ChatPetAchievementIds.AgentsWindowOpened,
+				ChatPetAchievementIds.CreatePullRequest,
+				ChatPetAchievementIds.AgentEditKept,
+				ChatPetAchievementIds.SessionArchived,
+				ChatPetAchievementIds.AgentChangesReviewed,
+				ChatPetAchievementIds.ChatReferenceOpened,
+				ChatPetAchievementIds.UsefulOutputCopied,
+				ChatPetAchievementIds.AutopilotEnabled,
 			],
 			accessoryIds: [
 				ChatPetAccessoryIds.TopHatMonocle,
@@ -826,7 +1122,16 @@ suite('ChatPetWidget', () => {
 				ChatPetAccessoryIds.ConstructionHardHat,
 				ChatPetAccessoryIds.FirefighterHelmet,
 				ChatPetAccessoryIds.Crown,
+				ChatPetAccessoryIds.PropellerHat,
+				ChatPetAccessoryIds.DarkSailorHat,
+				ChatPetAccessoryIds.WhiteChefHat,
+				ChatPetAccessoryIds.SantaHat,
+				ChatPetAccessoryIds.RiceHat,
+				ChatPetAccessoryIds.StrawHat,
+				ChatPetAccessoryIds.PinkPartyHat,
+				ChatPetAccessoryIds.WizardHat,
 			],
+			uniqueAccessoryCount: 14,
 			atlasNames: [
 				'grand-top-hat-monocle',
 				'cowboy-hat',
@@ -834,25 +1139,126 @@ suite('ChatPetWidget', () => {
 				'construction-hard-hat',
 				'firefighter-helmet',
 				'crown',
+				'propeller-hat',
+				'dark-sailor-hat',
+				'white-chef-hat',
+				'santa-hat',
+				'rice-hat',
+				'straw-hat',
+				'pink-party-hat',
+				'wizard-hat',
 			],
-			atlasCellSizes: Array(6).fill(96),
-			rewardCounts: Array(6).fill(1),
+			atlasCellSizes: Array(14).fill(96),
+			rewardCounts: Array(14).fill(1),
 			coversAntennae: true,
 			crownAccessoryId: 'crown',
 			disabledAchievementIds: [
 				ChatPetAchievementIds.InstructionPresent,
 				ChatPetAchievementIds.QueueOrSteeringMessage,
-				ChatPetAchievementIds.AgentsWindowOpened,
 				ChatPetAchievementIds.ChatOutputCopied,
 				ChatPetAchievementIds.ImageRequest,
 			],
 			disabledAccessoryIds: [
 				ChatPetAccessoryIds.SailorHat,
 				ChatPetAccessoryIds.SpinnerHat,
-				ChatPetAccessoryIds.VikingHelmet,
 				ChatPetAccessoryIds.PartyHat,
 				ChatPetAccessoryIds.ArtistBeret,
 			],
+		});
+	});
+
+	test('keeps legacy disabled hats out of the enabled catalog', () => {
+		const enabledAccessoryIds = new Set(chatPetAchievements.flatMap(achievement => achievement.accessories.map(accessory => accessory.id)));
+		const disabledAccessoryIds = new Set(disabledChatPetAchievements.flatMap(achievement => achievement.accessories.map(accessory => accessory.id)));
+		const legacyDisabledAccessoryIds = [
+			ChatPetAccessoryIds.SailorHat,
+			ChatPetAccessoryIds.SpinnerHat,
+			ChatPetAccessoryIds.PartyHat,
+			ChatPetAccessoryIds.ArtistBeret,
+		];
+
+		assert.deepStrictEqual(legacyDisabledAccessoryIds.map(id => ({
+			id,
+			enabled: enabledAccessoryIds.has(id),
+			disabled: disabledAccessoryIds.has(id),
+		})), legacyDisabledAccessoryIds.map(id => ({ id, enabled: false, disabled: true })));
+	});
+
+	test('maps every newly added hat to a distinct achievement', () => {
+		const achievementIds = [
+			ChatPetAchievementIds.SessionArchived,
+			ChatPetAchievementIds.AgentChangesReviewed,
+			ChatPetAchievementIds.ChatReferenceOpened,
+			ChatPetAchievementIds.UsefulOutputCopied,
+			ChatPetAchievementIds.AutopilotEnabled,
+			ChatPetAchievementIds.AgentsWindowOpened,
+			ChatPetAchievementIds.CreatePullRequest,
+			ChatPetAchievementIds.AgentEditKept,
+		];
+
+		assert.deepStrictEqual({
+			firstMessageRewards: getChatPetAchievement(ChatPetAchievementIds.FirstChatMessage).accessories.map(accessory => accessory.id),
+			newAchievements: achievementIds.map(id => {
+				const achievement = getChatPetAchievement(id);
+				return { title: achievement.title, reward: achievement.accessories[0].id };
+			}),
+		}, {
+			firstMessageRewards: [ChatPetAccessoryIds.CowboyHat],
+			newAchievements: [
+				{ title: 'Wrapped Up', reward: ChatPetAccessoryIds.SantaHat },
+				{ title: 'Trust but Verify', reward: ChatPetAccessoryIds.RiceHat },
+				{ title: 'Follow the Trail', reward: ChatPetAccessoryIds.StrawHat },
+				{ title: 'Copy That', reward: ChatPetAccessoryIds.PinkPartyHat },
+				{ title: 'Party Mode', reward: ChatPetAccessoryIds.WizardHat },
+				{ title: 'Mission Control', reward: ChatPetAccessoryIds.PropellerHat },
+				{ title: 'Ship it', reward: ChatPetAccessoryIds.DarkSailorHat },
+				{ title: 'Let it cook', reward: ChatPetAccessoryIds.WhiteChefHat },
+			],
+		});
+	});
+
+	test('rewards keeping agent edits with the white chef hat', () => {
+		const letItCook = getChatPetAchievement(ChatPetAchievementIds.AgentEditKept);
+
+		assert.deepStrictEqual({
+			title: letItCook.title,
+			description: letItCook.description,
+			hint: letItCook.hint,
+			accessoryIds: letItCook.accessories.map(accessory => accessory.id),
+		}, {
+			title: 'Let it cook',
+			description: 'You kept a change prepared by Chat.',
+			hint: 'Give a good idea time to come together.',
+			accessoryIds: [ChatPetAccessoryIds.WhiteChefHat],
+		});
+	});
+
+	test('rewards Create PR with the dark sailor hat and the Agents window with the propeller hat', () => {
+		const shipIt = getChatPetAchievement(ChatPetAchievementIds.CreatePullRequest);
+		const missionControl = getChatPetAchievement(ChatPetAchievementIds.AgentsWindowOpened);
+
+		assert.deepStrictEqual({
+			shipIt: {
+				title: shipIt.title,
+				description: shipIt.description,
+				hint: shipIt.hint,
+				accessoryIds: shipIt.accessories.map(accessory => accessory.id),
+			},
+			missionControl: {
+				title: missionControl.title,
+				accessoryIds: missionControl.accessories.map(accessory => accessory.id),
+			},
+		}, {
+			shipIt: {
+				title: 'Ship it',
+				description: 'You used Create PR in the Agents window.',
+				hint: 'When the changes are ready, send them on their way.',
+				accessoryIds: [ChatPetAccessoryIds.DarkSailorHat],
+			},
+			missionControl: {
+				title: 'Mission Control',
+				accessoryIds: [ChatPetAccessoryIds.PropellerHat],
+			},
 		});
 	});
 
@@ -885,7 +1291,7 @@ suite('ChatPetWidget', () => {
 		});
 	});
 
-	test('does not expose secret achievement copy or locked rewards in presentation data', () => {
+	test('reveals locked hints and rewards without exposing achievement identity or exact requirements', () => {
 		const lockedPresentation = getChatPetAchievementPresentation(chatPetAchievements[0], false);
 		const unlockedAccessories = getUnlockedChatPetAccessories([ChatPetAchievementIds.RequestRevision]);
 		const allUnlockedAccessories = getUnlockedChatPetAccessories(chatPetAchievements.map(achievement => achievement.id));
@@ -893,6 +1299,8 @@ suite('ChatPetWidget', () => {
 		assert.deepStrictEqual({
 			lockedPresentation,
 			lockedSerializationContainsTitle: JSON.stringify(lockedPresentation).includes(chatPetAchievements[0].title),
+			lockedSerializationContainsDescription: JSON.stringify(lockedPresentation).includes(chatPetAchievements[0].description),
+			lockedSerializationContainsExactRequirement: JSON.stringify(lockedPresentation).includes('Edit and resend an earlier chat request.'),
 			lockedSerializationContainsReward: chatPetAchievements[0].accessories.some(accessory => JSON.stringify(lockedPresentation).includes(accessory.label)),
 			unlockedAccessoryIds: unlockedAccessories.map(accessory => accessory.id),
 			allUnlockedAccessoryIds: allUnlockedAccessories.map(accessory => accessory.id),
@@ -900,9 +1308,13 @@ suite('ChatPetWidget', () => {
 			lockedPresentation: {
 				locked: true,
 				id: ChatPetAchievementIds.RequestRevision,
+				hint: 'An earlier request may deserve a second pass.',
+				rewardLabels: ['Grand Top Hat & Monocle'],
 			},
 			lockedSerializationContainsTitle: false,
-			lockedSerializationContainsReward: false,
+			lockedSerializationContainsDescription: false,
+			lockedSerializationContainsExactRequirement: false,
+			lockedSerializationContainsReward: true,
 			unlockedAccessoryIds: [
 				ChatPetAccessoryIds.TopHatMonocle,
 			],
@@ -913,6 +1325,14 @@ suite('ChatPetWidget', () => {
 				ChatPetAccessoryIds.ConstructionHardHat,
 				ChatPetAccessoryIds.FirefighterHelmet,
 				ChatPetAccessoryIds.Crown,
+				ChatPetAccessoryIds.PropellerHat,
+				ChatPetAccessoryIds.DarkSailorHat,
+				ChatPetAccessoryIds.WhiteChefHat,
+				ChatPetAccessoryIds.SantaHat,
+				ChatPetAccessoryIds.RiceHat,
+				ChatPetAccessoryIds.StrawHat,
+				ChatPetAccessoryIds.PinkPartyHat,
+				ChatPetAccessoryIds.WizardHat,
 			],
 		});
 	});
@@ -1661,6 +2081,8 @@ suite('ChatPetWidget', () => {
 			getChatPetFallTarget(50, 151.5, 48, 48, 40, 200, 200, 400),
 			getChatPetFallTarget(50, 152.5, 48, 48, 40, 200, 200, 400),
 			getChatPetFallTarget(50, 220, 48, 48, 40, 200, 200, 400),
+			getChatPetFallTarget(50, 100, 48, 48, 40, 200, 120, 400, 200),
+			getChatPetFallTarget(50, 160, 48, 48, 40, 200, 120, 400, 200),
 		], [
 			{ top: 152, landsOnPlatform: true },
 			{ top: 352, landsOnPlatform: false },
@@ -1668,6 +2090,8 @@ suite('ChatPetWidget', () => {
 			{ top: 352, landsOnPlatform: false },
 			{ top: 152, landsOnPlatform: true },
 			{ top: 352, landsOnPlatform: false },
+			{ top: 352, landsOnPlatform: false },
+			{ top: 152, landsOnPlatform: true },
 			{ top: 352, landsOnPlatform: false },
 		]);
 	});
@@ -1700,7 +2124,7 @@ suite('ChatPetWidget', () => {
 		]);
 	});
 
-	test('ignores passive pills when choosing the active platform', () => {
+	test('uses substantive input surfaces as the platform', () => {
 		assert.deepStrictEqual([
 			getChatPetPlatformTop(100, 160),
 			getChatPetPlatformTop(100, 160, 120),
@@ -1711,6 +2135,29 @@ suite('ChatPetWidget', () => {
 			120,
 			158,
 			110,
+		]);
+	});
+
+	test('uses only the pill under the pet as a raised platform', () => {
+		const pillBounds = [
+			{ left: 10, right: 50, top: 120, width: 40, height: 22 },
+			{ left: 56, right: 96, top: 118, width: 40, height: 24 },
+			{ left: 104, right: 144, top: 116, width: 0, height: 24 },
+		];
+		assert.deepStrictEqual([
+			getChatPetPillPlatformTop(9, pillBounds),
+			getChatPetPillPlatformTop(10, pillBounds),
+			getChatPetPillPlatformTop(50, pillBounds),
+			getChatPetPillPlatformTop(53, pillBounds),
+			getChatPetPillPlatformTop(75, pillBounds),
+			getChatPetPillPlatformTop(120, pillBounds),
+		], [
+			undefined,
+			120,
+			120,
+			undefined,
+			118,
+			undefined,
 		]);
 	});
 

@@ -59,6 +59,7 @@ export class MockAgent implements IAgent {
 	readonly onDidMaterializeChat = Event.None;
 	readonly onDidChangeChatData = Event.None;
 	readonly onDidSpawnChat = Event.None;
+	getTurnDiagnosticSnapshot?: IAgent['getTurnDiagnosticSnapshot'];
 	private readonly _onDidSendMessage = new Emitter<IMockSendMessageCall>();
 	readonly onDidSendMessage = this._onDidSendMessage.event;
 	private readonly _models = observableValue<readonly IAgentModelInfo[]>(this, []);
@@ -1218,7 +1219,7 @@ function _idle(session: URI, sessionStr: string, turnId: string): IAgentActionSi
 
 /** Creates a {@link ActionType.ChatError} signal. */
 function _error(session: URI, sessionStr: string, turnId: string, errorType: string, message: string, stack?: string): IAgentActionSignal {
-	return _action(session, { type: ActionType.ChatError, turnId, duration: 1, error: { errorType, message, stack } });
+	return _action(session, { type: ActionType.ChatError, turnId, duration: 1, part: { kind: ResponsePartKind.Error, error: { errorType, message, stack } } });
 }
 
 /** Creates a {@link ActionType.SessionTitleChanged} signal. */

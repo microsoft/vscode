@@ -39,6 +39,7 @@ export interface IServerToolDisplay {
 export interface IServerToolExecutionContext {
 	readonly sessionUri: URI;
 	readonly chatUri: URI;
+	readonly turnId?: string;
 }
 
 /**
@@ -187,6 +188,7 @@ export class AgentServerToolHost implements IAgentServerToolHost {
 		return {
 			sessionUri: parseRequiredSessionUriFromChatUri(chatUri),
 			chatUri,
+			turnId: this._stateManager.getActiveTurnId(chatUri),
 		};
 	}
 

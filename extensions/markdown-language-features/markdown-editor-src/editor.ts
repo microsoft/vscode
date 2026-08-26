@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AsyncClipboardStrategy, CommentModeController, CommentsModel, EditorController, EditorModel, EditorView, GutterMarker, OffsetRange, Selection, StringEdit, StringReplacement, StringValue, VsCodeV2CommentsView, commands, findNodeOffsetById, vscodeHostKeyboardProfile, vscodeLocalKeyboardProfile, type CodeBlockAstNode, type LinkPresentationKind } from '@vscode/markdown-editor';
+import { AsyncClipboardStrategy, CommentModeController, CommentsModel, CommentsView, EditorController, EditorModel, EditorView, GutterMarker, OffsetRange, Selection, StringEdit, StringReplacement, StringValue, commands, findNodeOffsetById, vscodeHostKeyboardProfile, vscodeLocalKeyboardProfile, type CodeBlockAstNode, type LinkPresentationKind } from '@vscode/markdown-editor';
 import { VirtualizedIframeEmbeddedEditorFactory, type IframeEmbeddedEditorProvider, type IframeEmbeddedEditorProviderSelector, type ResolvedIframeEmbeddedEditor } from '@vscode/markdown-editor/web-editors';
 import { Disposable, autorun, observableValue } from '@vscode/observables';
 import 'katex/dist/katex.min.css';
 import '@vscode/markdown-editor/editor.css';
 import '@vscode/markdown-editor/themes/vscode-default.css';
 import '@vscode/markdown-editor/commentInput.css';
-import '@vscode/markdown-editor/vscodeCommentWidgetV2.css';
+import '@vscode/markdown-editor/commentWidget.css';
 import './markdownEditor.css';
 import { WebviewSyntaxHighlighter } from './syntaxHighlighter';
 import { WebviewLinkPresentationProvider } from './linkPresentationProvider';
@@ -44,7 +44,7 @@ interface InitialState {
 	readonly documentVersion: number;
 	readonly readonly: boolean;
 	readonly richLinksEnabled: boolean;
-	readonly linkPresentationRules: readonly { id: string; source: string; flags: string; initialKind: LinkPresentationKind }[];
+	readonly linkPresentationRules: readonly { id: string; source: string; flags: string; kind: LinkPresentationKind }[];
 }
 
 class Editor extends Disposable {
@@ -60,7 +60,7 @@ class Editor extends Disposable {
 	#embeddedCodeEditorFactory: VirtualizedIframeEmbeddedEditorFactory | undefined;
 
 	readonly #comments = new CommentsModel();
-	#commentsView: VsCodeV2CommentsView | undefined;
+	#commentsView: CommentsView | undefined;
 	/** Whether the workbench feedback store currently accepts new comments for this resource. */
 	readonly #acceptsComments = observableValue<boolean>('acceptsComments', false);
 	// the message secret allows to distinguish vscode sending us a message vs a nested iframe
@@ -281,14 +281,7 @@ class Editor extends Disposable {
 		postEditorFocus();
 
 		// Render comments as the VS Code V2 markdown cards. The card colours come
-		// from the webview's own `--vscode-*` theme variables; `theme` only picks
-		// the light/dark token wrapper. `resolveLine` maps a comment's start offset
-		// to a 1-based line for the card header.
-		const isLight = document.body.classList.contains('vscode-light');
-		this.#commentsView = this._register(new VsCodeV2CommentsView(this.#comments, view, {
-			theme: isLight ? 'light' : 'dark',
-			resolveLine: (offset) => model.sourceText.get().value.slice(0, offset).split('\n').length,
-		}));
+		this.#commentsView = this._register(new CommentsView(this.#comments, view));
 		// The comment input (the gdocs-style "add a comment" affordance) is only
 		// useful when the workbench feedback store will actually accept the comment;
 		// otherwise submitting is a no-op. Mount the controller only while the

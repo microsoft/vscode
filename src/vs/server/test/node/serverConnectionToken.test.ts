@@ -11,7 +11,7 @@ import { connectionTokenCookieName, connectionTokenQueryName } from '../../../ba
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { getRandomTestPath } from '../../../base/test/node/testUtils.js';
 import { MandatoryServerConnectionToken, parseServerConnectionToken, requestHasValidConnectionToken, ServerConnectionToken, ServerConnectionTokenParseError, ServerConnectionTokenType } from '../../node/serverConnectionToken.js';
-import { ServerParsedArgs } from '../../node/serverEnvironmentService.js';
+import { getRedactedServerParsedArgs, ServerParsedArgs } from '../../node/serverEnvironmentService.js';
 
 suite('parseServerConnectionToken', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -93,5 +93,33 @@ suite('requestHasValidConnectionToken', () => {
 		const headers = { cookie: `${connectionTokenCookieName}=valid%20token` };
 
 		assert.strictEqual(requestHasValidConnectionToken(connectionToken, { headers }, new URLSearchParams()), true);
+	});
+});
+
+suite('getRedactedServerParsedArgs', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('redacts connection tokens without changing the original arguments', () => {
+		const args = {
+			'connection-token': 'server-token',
+			'agent-host-bridge-connection-token': 'bridge-token',
+			'agent-host-bridge-port': '9000',
+		} as ServerParsedArgs;
+
+		assert.deepStrictEqual({
+			redactedArgs: getRedactedServerParsedArgs(args),
+			args,
+		}, {
+			redactedArgs: {
+				'connection-token': '<redacted>',
+				'agent-host-bridge-connection-token': '<redacted>',
+				'agent-host-bridge-port': '9000',
+			},
+			args: {
+				'connection-token': 'server-token',
+				'agent-host-bridge-connection-token': 'bridge-token',
+				'agent-host-bridge-port': '9000',
+			},
+		});
 	});
 });

@@ -7,7 +7,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { getMediaMime } from '../../../../base/common/mime.js';
-import { derived, IObservable, IReader } from '../../../../base/common/observable.js';
+import { derived, IObservable } from '../../../../base/common/observable.js';
 import { basename, getComparisonKey } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -23,7 +23,7 @@ import type { IChatPillEntry, IChatPillSection } from '../../../../workbench/bro
 import { openChatTurnFile, previewKind } from '../../../../workbench/contrib/chat/browser/widget/chatTurnPills.js';
 import { ChatConfiguration } from '../../../../workbench/contrib/chat/common/constants.js';
 import type { IImageCarouselCollection } from '../../../../workbench/contrib/imageCarousel/browser/imageCarouselTypes.js';
-import { SessionArtifactKind, SessionFileOperation, type ISessionArtifact, type ISessionFile } from '../../../services/sessions/common/session.js';
+import { SessionArtifactKind, type ISessionArtifact } from '../../../services/sessions/common/session.js';
 import type { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 
 const OPEN_IMAGE_CAROUSEL_COMMAND_ID = 'workbench.action.chat.openImageInCarousel';
@@ -86,6 +86,28 @@ function getImageMimeType(uri: URI): string | undefined {
 	return mimeType?.startsWith('image/') ? mimeType : undefined;
 }
 
+/**
+ * A comparison key for a website URL that ignores origin casing and a trailing
+ * slash, so an artifact and the browser showing it are recognized as the same page.
+ */
+function websiteKey(url: string): string | undefined {
+	const parsed = URL.parse(url);
+	if (!parsed) {
+		return undefined;
+	}
+	const path = parsed.pathname.length > 1 && parsed.pathname.endsWith('/') ? parsed.pathname.slice(0, -1) : parsed.pathname;
+	return `${parsed.protocol}//${parsed.host}${path}${parsed.search}${parsed.hash}`;
+}
+
+/** Whether a website artifact points at a page one of the listed browsers shows. */
+function isShownInBrowser(link: URI | undefined, browserKeys: ReadonlySet<string>): boolean {
+	if (!link || browserKeys.size === 0) {
+		return false;
+	}
+	const key = websiteKey(link.toString());
+	return !!key && browserKeys.has(key);
+}
+
 function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions): IChatPillEntry | undefined {
 	if (artifact.kind === SessionArtifactKind.File) {
 		if (!artifact.uri) {
@@ -129,16 +151,26 @@ function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions): 
 }
 
 /**
- * Builds the artifact sections shown in the pill: the agent-set artifacts plus
- * the previewable files the session wrote outside its workspace, de-duplicated
- * with the agent's own entries winning.
+ * Builds the artifact sections shown in the pill from the agent-set artifacts.
+ * Websites the browsers pill already lists are left out, so the same page is
+ * offered once across the two pills.
  */
-export function buildSessionArtifactSections(artifacts: readonly ISessionArtifact[], externalFiles: readonly ISessionFile[], actions: ISessionArtifactActions, imageCarouselEnabled: boolean): readonly IChatPillSection[] {
+export function buildSessionArtifactSections(artifacts: readonly ISessionArtifact[], actions: ISessionArtifactActions, imageCarouselEnabled: boolean, browserUrls: ReadonlySet<string>): readonly IChatPillSection[] {
 	const entriesByKind = new Map<SessionArtifactKind, IChatPillEntry[]>();
 	const images: ISessionArtifactImage[] = [];
 	const seen = new Set<string>();
+	const browserKeys = new Set<string>();
+	for (const url of browserUrls) {
+		const key = websiteKey(url);
+		if (key) {
+			browserKeys.add(key);
+		}
+	}
 
 	for (const artifact of artifacts) {
+		if (artifact.kind === SessionArtifactKind.Website && isShownInBrowser(artifact.link, browserKeys)) {
+			continue;
+		}
 		const imageMimeType = artifact.uri ? getImageMimeType(artifact.uri) : undefined;
 		if (artifact.kind === SessionArtifactKind.File && artifact.uri && imageMimeType) {
 			if (!seen.has(artifactValueKey(artifact))) {
@@ -155,22 +187,6 @@ export function buildSessionArtifactSections(artifacts: readonly ISessionArtifac
 		const entries = entriesByKind.get(artifact.kind) ?? [];
 		entries.push(entry);
 		entriesByKind.set(artifact.kind, entries);
-	}
-
-	for (const file of externalFiles) {
-		const imageMimeType = getImageMimeType(file.uri);
-		if (file.operation === SessionFileOperation.Deleted || (!previewKind(file.uri) && !imageMimeType) || seen.has(getComparisonKey(file.uri))) {
-			continue;
-		}
-		seen.add(getComparisonKey(file.uri));
-		if (imageMimeType) {
-			images.push({ uri: file.uri, mimeType: imageMimeType });
-			continue;
-		}
-		const entries = entriesByKind.get(SessionArtifactKind.File) ?? [];
-		const label = basename(file.uri);
-		entries.push({ id: file.uri.toString(), label, resource: file.uri, ...sessionArtifactLocation(file.uri, label), open: () => actions.openResource(file.uri) });
-		entriesByKind.set(SessionArtifactKind.File, entries);
 	}
 
 	const sections: IChatPillSection[] = [];
@@ -210,6 +226,8 @@ export class SessionArtifacts extends Disposable {
 
 	constructor(
 		session: IObservable<IActiveSession | undefined>,
+		/** The URLs the browsers pill lists; website artifacts for them are left out. */
+		private readonly _browserUrls: IObservable<ReadonlySet<string>>,
 		@IClipboardService private readonly _clipboardService: IClipboardService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -226,20 +244,19 @@ export class SessionArtifacts extends Disposable {
 			}
 			return buildSessionArtifactSections(
 				current.artifacts?.read(reader) ?? [],
-				this._readExternalFiles(current, reader),
 				this._actions(),
 				imageCarouselEnabled.read(reader),
+				this._browserUrls.read(reader),
 			);
 		});
 	}
 
-	private _readExternalFiles(session: IActiveSession, reader: IReader): readonly ISessionFile[] {
-		return session.externalChanges?.read(reader) ?? [];
-	}
-
 	private _actions(): ISessionArtifactActions {
 		return {
-			openExternal: link => { void this._openerService.open(link, { openExternal: true }); },
+			// Contributed openers make a link behave the same here as in the response
+			// markdown it came from, so a localhost page lands in the integrated
+			// browser rather than the system one.
+			openExternal: link => { void this._openerService.open(link, { openExternal: true, allowContributedOpeners: true, fromUserGesture: true }); },
 			openResource: uri => {
 				if (previewKind(uri)) {
 					void openChatTurnFile({ uri, kind: previewKind(uri)!, created: false }, this._openerService, this._configurationService);

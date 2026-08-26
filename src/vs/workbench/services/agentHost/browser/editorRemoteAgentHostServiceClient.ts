@@ -5,7 +5,7 @@
 
 // Renderer-side `IAgentHostService` that talks to the agent host running on
 // the connected remote, via the remote agent's existing IPC pipe. The
-// underlying `RemoteAgentHostProtocolClient` is created eagerly so callers
+// underlying `AgentHostProtocolClient` is created eagerly so callers
 // can subscribe to `rootState` etc. immediately; the actual transport
 // connection (and AHP handshake) happens asynchronously in the background.
 
@@ -15,11 +15,11 @@ import { autorun, IObservable, ISettableObservable, observableValue, constObserv
 import { URI } from '../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { AgentHostIpcChannels, IAgentCreateChatOptions, IAgentCreateSessionConfig, IAgentHostInspectInfo, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentHostService, IAgentHostSocketInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk } from '../../../../platform/agentHost/common/agentService.js';
+import { AgentHostIpcChannels, IAgentCreateChatRequestOptions, IAgentCreateSessionConfig, IAgentHostInspectInfo, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentHostService, IAgentHostSocketInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk } from '../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostEnablementService } from '../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { AgentHostIpcChannelTransport } from '../../../../platform/agentHost/browser/agentHostIpcChannelTransport.js';
 import { AgentHostClientConnectionKind } from '../../../../platform/agentHost/common/agentHostTelemetry.js';
-import { AgentHostClientState, RemoteAgentHostProtocolClient } from '../../../../platform/agentHost/browser/remoteAgentHostProtocolClient.js';
+import { AgentHostClientState, AgentHostProtocolClient } from '../../../../platform/agentHost/browser/agentHostProtocolClient.js';
 import type { IActiveSubscriptionInfo, IAgentSubscription } from '../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { CompletionsParams, CompletionsResult, ContentEncoding, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../../../platform/agentHost/common/state/protocol/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../../../../platform/agentHost/common/state/protocol/channels-changeset/commands.js';
@@ -31,7 +31,7 @@ import type { InitializeResult } from '../../../../platform/agentHost/common/sta
 import { IRemoteAgentService } from '../../remote/common/remoteAgentService.js';
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
 import { agentsWindowAgentHostClientInfo, editorWindowAgentHostClientInfo } from '../../../../platform/agentHost/common/agentHostClientInfo.js';
-import { agentHostAuthority } from '../../../../platform/agentHost/common/agentHostUri.js';
+import { agentHostAuthority, identityAgentHostResourceUriMapper } from '../../../../platform/agentHost/common/agentHostUri.js';
 import { IAgentHostFileSystemService } from '../common/agentHostFileSystemService.js';
 
 const REMOTE_NOT_SUPPORTED = (op: string) => new Error(`${op} is not supported when the agent host runs on a remote.`);
@@ -58,7 +58,8 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 	readonly authenticationPending: IObservable<boolean> = this._authenticationPending;
 	private _authenticationSettled = false;
 
-	private readonly _protocolClient: RemoteAgentHostProtocolClient | undefined;
+	private readonly _protocolClient: AgentHostProtocolClient | undefined;
+	get resourceUris() { return this._protocolClient?.resourceUris ?? identityAgentHostResourceUriMapper; }
 	private readonly _noopRootState: IAgentSubscription<RootState> = {
 		value: undefined,
 		verifiedValue: undefined,
@@ -93,7 +94,7 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 		const createTransport = () => new AgentHostIpcChannelTransport(connection.getChannel(AgentHostIpcChannels.RemoteProxy), undefined, AgentHostClientConnectionKind.RemoteExtensionHost);
 		const address = `vscode-remote://${connection.remoteAuthority}`;
 		const clientInfo = environmentService.isSessionsWindow ? agentsWindowAgentHostClientInfo : editorWindowAgentHostClientInfo;
-		this._protocolClient = this._register(instantiationService.createInstance(RemoteAgentHostProtocolClient, address, createTransport, undefined, undefined, clientInfo));
+		this._protocolClient = this._register(instantiationService.createInstance(AgentHostProtocolClient, address, createTransport, undefined, undefined, clientInfo));
 		// Resources this client hands out (e.g. debug-log artifacts) are stamped with the
 		// address-derived authority, so register it for reads. The ambient `local` authority
 		// registered elsewhere covers a different URI namespace.
@@ -126,7 +127,7 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 		await this._protocolClient.connect();
 	}
 
-	private _requireClient(): RemoteAgentHostProtocolClient {
+	private _requireClient(): AgentHostProtocolClient {
 		if (!this._protocolClient) {
 			throw new Error('Remote agent host is not enabled or no remote connection is available.');
 		}
@@ -229,8 +230,8 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 		return this._requireClient().getSessionStateFile(session);
 	}
 
-	collectDebugLogs(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind): Promise<IAgentHostDebugLogsArtifact> {
-		return this._requireClient().collectDebugLogs(session, kind);
+	collectDebugLogs(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind, chat?: URI): Promise<IAgentHostDebugLogsArtifact> {
+		return this._requireClient().collectDebugLogs(session, kind, chat);
 	}
 
 	readDebugLogsChunk(resource: URI, position: number): Promise<IAgentHostDebugLogsChunk> {
@@ -265,7 +266,7 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 		return this._requireClient().disposeSession(session);
 	}
 
-	createChat(session: URI, chat: URI, options?: IAgentCreateChatOptions): Promise<void> {
+	createChat(session: URI, chat: URI, options?: IAgentCreateChatRequestOptions): Promise<void> {
 		return this._requireClient().createChat(session, chat, options);
 	}
 

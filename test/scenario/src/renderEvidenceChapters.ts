@@ -24,6 +24,7 @@ interface Capture {
 	status?: string;
 	timestamp?: string;
 	details?: string;
+	blockedOn?: string;
 }
 
 interface Step {
@@ -50,8 +51,62 @@ interface Caption {
 	accent: string;
 }
 
-const ffmpeg = process.env.FFMPEG_PATH ?? 'ffmpeg';
-const ffprobe = process.env.FFPROBE_PATH ?? 'ffprobe';
+/**
+ * Locate ffmpeg or ffprobe.
+ *
+ * A PATH edit only reaches processes started afterwards, so ffmpeg is commonly
+ * installed and still invisible to an editor that was already running. Well
+ * known install locations are probed before giving up, which is the difference
+ * between an annotated recording and a raw one.
+ */
+export function resolveVideoTool(tool: 'ffmpeg' | 'ffprobe'): string | undefined {
+	const override = process.env[`${tool.toUpperCase()}_PATH`];
+	const executable = process.platform === 'win32' ? `${tool}.exe` : tool;
+	const candidates = override ? [override] : [tool, ...installedToolCandidates(executable)];
+	for (const candidate of candidates) {
+		try {
+			execFileSync(candidate, ['-version'], { stdio: 'ignore' });
+			return candidate;
+		} catch {
+			// try the next location
+		}
+	}
+	return undefined;
+}
+
+function installedToolCandidates(executable: string): string[] {
+	const candidates: string[] = [];
+	if (process.platform === 'win32') {
+		const localAppData = process.env.LOCALAPPDATA;
+		if (localAppData) {
+			candidates.push(path.join(localAppData, 'Microsoft', 'WinGet', 'Links', executable));
+			// winget unpacks into Packages/<id>/<build>/bin, so the build directory
+			// carries a version that cannot be hard-coded.
+			const packages = path.join(localAppData, 'Microsoft', 'WinGet', 'Packages');
+			for (const pkg of readDirectories(packages).filter(name => /ffmpeg/iu.test(name))) {
+				for (const build of readDirectories(path.join(packages, pkg))) {
+					candidates.push(path.join(packages, pkg, build, 'bin', executable));
+				}
+			}
+		}
+		candidates.push(
+			path.join(process.env.ProgramData ?? '', 'chocolatey', 'bin', executable),
+			path.join(process.env.ProgramFiles ?? '', 'ffmpeg', 'bin', executable)
+		);
+	} else {
+		candidates.push(`/opt/homebrew/bin/${executable}`, `/usr/local/bin/${executable}`, `/usr/bin/${executable}`);
+	}
+	return candidates.filter(candidate => fs.existsSync(candidate));
+}
+
+function readDirectories(root: string): string[] {
+	try {
+		return fs.readdirSync(root, { withFileTypes: true }).filter(entry => entry.isDirectory()).map(entry => entry.name);
+	} catch {
+		return [];
+	}
+}
+
 const fontCandidates = process.env.CHAPTER_FONT ? [process.env.CHAPTER_FONT] : [
 	'/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
 	'/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
@@ -98,6 +153,11 @@ export function renderChapters(runRoot: string): void {
 	if (!font) {
 		console.log('No usable font was found, so no captions were rendered.');
 		return;
+	}
+	const ffmpeg = resolveVideoTool('ffmpeg');
+	const ffprobe = resolveVideoTool('ffprobe');
+	if (!ffmpeg || !ffprobe) {
+		throw new Error(`${[!ffmpeg && 'ffmpeg', !ffprobe && 'ffprobe'].filter(Boolean).join(' and ')} could not be found`);
 	}
 
 	const videoPath = path.join(runRoot, relativeVideo);
@@ -172,7 +232,7 @@ export function renderChapters(runRoot: string): void {
 			captions.push({
 				from: boundary.at,
 				to: index + 1 < boundaries.length ? boundaries[index + 1].at : duration,
-				eyebrow: `STEP ${index + 1} OF ${boundaries.length}   ${String(step.id ?? '').toUpperCase()}   ${status.toUpperCase()}`,
+				eyebrow: `STEP ${index + 1} OF ${boundaries.length}   ${String(step.id ?? '').toUpperCase()}   ${status.toUpperCase()}${closing?.blockedOn ? ` - NEEDS ${closing.blockedOn.toUpperCase()}` : ''}`,
 				title: wrap(step.title ?? '', columnsFor(titleSize), MAX_TITLE_LINES),
 				details: wrap(closing?.details ?? '', columnsFor(detailSize), MAX_DETAIL_LINES),
 				accent: accentFor(status)
@@ -299,12 +359,21 @@ function wrap(value: string, limit: number, maxLines: number): string[] {
 	return lines;
 }
 
-if (require.main === module) {
+/**
+ * Render captions without letting a presentation step fail a validation run.
+ *
+ * The raw recording is authoritative, so a missing or failing ffmpeg is reported
+ * and otherwise ignored.
+ */
+export function tryRenderChapters(runRoot: string): void {
 	try {
-		renderChapters(path.resolve(process.argv[2] ?? process.env.RUN_ROOT ?? '.'));
+		renderChapters(runRoot);
 	} catch (error) {
-		// Captions are a presentation aid, so never fail a validation run because
-		// the recording could not be annotated. The raw recording is authoritative.
-		console.warn(`Unable to render evidence captions: ${error instanceof Error ? error.message : error}`);
+		const message = error instanceof Error ? error.message : String(error);
+		console.warn(`Unable to render evidence captions: ${message}. The raw recording is unaffected.`);
 	}
+}
+
+if (require.main === module) {
+	tryRenderChapters(path.resolve(process.argv[2] ?? process.env.RUN_ROOT ?? '.'));
 }
