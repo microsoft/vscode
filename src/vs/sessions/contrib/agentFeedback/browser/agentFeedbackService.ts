@@ -19,6 +19,7 @@ import { IChatEditingService } from '../../../../workbench/contrib/chat/common/e
 import { isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { editingEntriesContainResource } from '../../../../workbench/contrib/chat/browser/sessionResourceMatching.js';
 import { changeMatchesResource, getActiveResourceCandidates, IAgentFeedbackContext } from './agentFeedbackEditorUtils.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
@@ -347,6 +348,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		@IChatEditingService private readonly _chatEditingService: IChatEditingService,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@ISessionsService private readonly _sessionsService: ISessionsService,
+		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@ILogService private readonly _logService: ILogService,
@@ -399,7 +401,11 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		}));
 
 		this._register(this._sessionsManagementService.onDidDeleteSession(session => this._forgetSession(session.resource)));
+		// Both the sessions of a provider and the set of providers itself decide
+		// what `getSession` resolves to, and a provider registration does not
+		// surface as a session change.
 		this._register(this._sessionsManagementService.onDidChangeSessions(() => this._lastResolvedSession = undefined));
+		this._register(this._sessionsProvidersService.onDidChangeProviders(() => this._lastResolvedSession = undefined));
 	}
 
 	/**
