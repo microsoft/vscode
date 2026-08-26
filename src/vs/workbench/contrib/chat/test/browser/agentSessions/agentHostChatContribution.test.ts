@@ -50,7 +50,7 @@ import { IAuthenticationMcpUsageService } from '../../../../../services/authenti
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { CHAT_SUBAGENT_RESOURCE_QUERY_PARAM, ChatAIDisabledSettingId, ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../common/constants.js';
-import { ChatRequestQueueKind, ElicitationState, IChatService, IRemotePendingRequest, IChatMarkdownContent, IChatMcpAuthenticationRequired, IChatProgress, IChatSubagentToolInvocationData, IChatTerminalToolInvocationData, IChatToolInputInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, IChatUsage, ToolConfirmKind } from '../../../common/chatService/chatService.js';
+import { ChatErrorLevel, ChatRequestQueueKind, ElicitationState, IChatService, IRemotePendingRequest, IChatMarkdownContent, IChatMcpAuthenticationRequired, IChatProgress, IChatSubagentToolInvocationData, IChatTerminalToolInvocationData, IChatToolInputInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, IChatUsage, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { IChatDebugService } from '../../../common/chatDebugService.js';
 import { IChatEditingService } from '../../../common/editing/chatEditingService.js';
 import { IChatResponseFileChangesService } from '../../../browser/chatResponseFileChangesService.js';
@@ -118,7 +118,7 @@ import { IAgentHostEnablementService } from '../../../../../../platform/agentHos
 type ILegacyTimedChatAction =
 	| { type: 'chat/turnComplete'; turnId: string; endedAt: string }
 	| { type: 'chat/turnCancelled'; turnId: string; endedAt: string }
-	| { type: 'chat/error'; turnId: string; endedAt: string; error: { errorType: string; message: string; stack?: string } };
+	| { type: 'chat/error'; turnId: string; endedAt: string; part: { kind: ResponsePartKind.Error; error: { errorType: string; message: string; stack?: string }; resumable?: true } };
 
 type ChatAction = AgentHostChatAction | ILegacyTimedChatAction;
 type TestActionEnvelope = Omit<ActionEnvelope, 'action'> & { action: SessionAction | ChatAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction };
@@ -126,7 +126,7 @@ type TestActionEnvelope = Omit<ActionEnvelope, 'action'> & { action: SessionActi
 function normalizeTestAction(action: SessionAction | ChatAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction): SessionAction | AgentHostChatAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction {
 	if (hasKey(action, { endedAt: true })) {
 		if (action.type === 'chat/error') {
-			return { type: ActionType.ChatError, turnId: action.turnId, duration: 1000, part: { kind: ResponsePartKind.Error, error: action.error } };
+			return { type: ActionType.ChatError, turnId: action.turnId, duration: 1000, part: action.part };
 		}
 		return {
 			type: action.type === 'chat/turnComplete' ? ActionType.ChatTurnComplete : ActionType.ChatTurnCancelled,
@@ -1094,7 +1094,7 @@ function createByokLanguageModelTestData(groupName?: string): { languageModels: 
 	};
 }
 
-function makeRequest(overrides: Partial<{ message: string; sessionResource: URI; variables: IChatAgentRequest['variables']; userSelectedModelId: string; modelConfiguration: Record<string, unknown>; agentHostSessionConfig: Record<string, string>; agentId: string; requestId: string }> = {}): IChatAgentRequest {
+function makeRequest(overrides: Partial<{ message: string; sessionResource: URI; variables: IChatAgentRequest['variables']; userSelectedModelId: string; modelConfiguration: Record<string, unknown>; agentHostSessionConfig: Record<string, string>; agentId: string; requestId: string; acceptedConfirmationData: unknown[] }> = {}): IChatAgentRequest {
 	return upcastPartial<IChatAgentRequest>({
 		sessionResource: overrides.sessionResource ?? URI.from({ scheme: 'untitled', path: '/chat-1' }),
 		requestId: overrides.requestId ?? 'req-1',
@@ -1105,6 +1105,7 @@ function makeRequest(overrides: Partial<{ message: string; sessionResource: URI;
 		userSelectedModelId: overrides.userSelectedModelId,
 		modelConfiguration: overrides.modelConfiguration,
 		agentHostSessionConfig: overrides.agentHostSessionConfig,
+		acceptedConfirmationData: overrides.acceptedConfirmationData,
 	});
 }
 
@@ -6255,7 +6256,7 @@ suite('AgentHostChatContribution', () => {
 				action: {
 					type: 'chat/error', endedAt: '2025-01-01T00:00:00.000Z',
 					turnId,
-					error: { errorType: 'test_error', message: 'Something went wrong' },
+					part: { kind: ResponsePartKind.Error, error: { errorType: 'test_error', message: 'Something went wrong' } },
 				} as ChatAction,
 				serverSeq: 99,
 				origin: undefined,
@@ -6268,6 +6269,365 @@ suite('AgentHostChatContribution', () => {
 			// than an inline markdown progress part.
 			assert.strictEqual(result.errorDetails?.message, 'Error: (test_error) Something went wrong');
 			assert.ok(!collected.flat().some(p => p.kind === 'markdownContent' && (p as IChatMarkdownContent).content.value.includes('Something went wrong')), 'Error should not be duplicated as a markdown progress part');
+		}));
+
+		test('resumable error offers Try Again and resumes the same turn', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const languageModels = new Map<string, ILanguageModelChatMetadata>([
+				['agent-host-copilot:opus-4.7', upcastPartial<ILanguageModelChatMetadata>({ name: 'Opus 4.7', pricing: '15x' })],
+			]);
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, { languageModels });
+			agentHostService.setRootState({
+				agents: [{
+					provider: 'copilot',
+					displayName: 'Agent Host - Copilot',
+					description: 'test',
+					models: [],
+				}],
+				activeSessions: 1,
+			});
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/retry-turn' });
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, { sessionResource });
+			fire({
+				type: ActionType.ChatResponsePart,
+				turnId,
+				part: { kind: ResponsePartKind.Markdown, id: 'old-part', content: 'partial response' },
+			});
+			fire({
+				type: ActionType.ChatResponsePart,
+				turnId,
+				part: { kind: ResponsePartKind.SystemNotification, content: 'prior notice' },
+			});
+			fire({
+				type: ActionType.ChatUsage,
+				turnId,
+				usage: {
+					inputTokens: 10,
+					outputTokens: 5,
+					model: 'opus-4.7',
+					_meta: {
+						copilotUsage: { totalNanoAiu: 2_000_000_000 },
+						turnTokenTotals: [{ model: 'opus-4.7', inputTokens: 10, cachedTokens: 1, outputTokens: 5 }],
+					},
+				},
+			});
+			fire({
+				type: ActionType.ChatError,
+				turnId,
+				duration: 100,
+				part: { kind: ResponsePartKind.Error, error: { errorType: 'requestFailed', message: 'failed' }, resumable: true },
+			});
+			const failedResult = await turnPromise;
+			const retryButton = failedResult.errorDetails?.confirmationButtons?.at(-1);
+			assert.deepStrictEqual(retryButton, {
+				data: { agentHostResumeTurn: true },
+				label: 'Try Again',
+				resend: true,
+				preserveRequestId: true,
+			});
+
+			agentHostService.dispatchedActions.length = 0;
+			const registered = chatAgentService.registeredAgents.get('agent-host-copilot');
+			assert.ok(registered);
+			const retryProgress: IChatProgress[][] = [];
+			const retryPromise = registered.impl.invoke(
+				makeRequest({
+					sessionResource,
+					requestId: turnId,
+					message: 'original request',
+					acceptedConfirmationData: [retryButton!.data],
+				}),
+				parts => retryProgress.push(parts),
+				[],
+				CancellationToken.None,
+			);
+			await timeout(10);
+
+			const resumeDispatch = agentHostService.dispatchedActions.find(entry => entry.action.type === ActionType.ChatTurnResume);
+			assert.ok(resumeDispatch?.action.type === ActionType.ChatTurnResume);
+			assert.strictEqual(resumeDispatch.action.turnId, turnId);
+			agentHostService.fireAction({
+				channel: resumeDispatch.channel.toString(),
+				action: resumeDispatch.action,
+				serverSeq: 100,
+				origin: { clientId: agentHostService.clientId, clientSeq: resumeDispatch.clientSeq },
+			});
+			agentHostService.fireAction({
+				channel: session,
+				action: {
+					type: ActionType.ChatUsage,
+					turnId,
+					usage: {
+						inputTokens: 20,
+						outputTokens: 8,
+						model: 'opus-4.7',
+						_meta: {
+							copilotUsage: { totalNanoAiu: 6_000_000_000 },
+							turnTokenTotals: [{ model: 'opus-4.7', inputTokens: 30, cachedTokens: 3, outputTokens: 13 }],
+						},
+					},
+				},
+				serverSeq: 101,
+				origin: undefined,
+			});
+			agentHostService.fireAction({
+				channel: session,
+				action: {
+					type: ActionType.ChatResponsePart,
+					turnId,
+					part: { kind: ResponsePartKind.Markdown, id: 'new-part', content: 'continued response' },
+				},
+				serverSeq: 102,
+				origin: undefined,
+			});
+			agentHostService.fireAction({
+				channel: session,
+				action: { type: ActionType.ChatTurnComplete, turnId, duration: 200 },
+				serverSeq: 103,
+				origin: undefined,
+			});
+
+			const retryResult = await retryPromise;
+			const retryUsage = retryProgress.flat().filter((part): part is IChatUsage => part.kind === 'usage').at(-1);
+			assert.deepStrictEqual({
+				details: retryResult.details,
+				errorDetails: retryResult.errorDetails,
+				resumeDispatch: resumeDispatch.action,
+				progress: retryProgress.flat().filter(part => part.kind === 'markdownContent').map(part => (part as IChatMarkdownContent).content.value),
+				systemNotifications: retryProgress.flat().filter(part => part.kind === 'systemNotification').map(part => part.content.value),
+				usage: retryUsage ? {
+					promptTokens: retryUsage.promptTokens,
+					completionTokens: retryUsage.completionTokens,
+					copilotCredits: retryUsage.copilotCredits,
+					modelTotals: retryUsage.modelTotals,
+				} : undefined,
+			}, {
+				details: 'Opus 4.7 • 6 credits',
+				errorDetails: undefined,
+				resumeDispatch: { type: ActionType.ChatTurnResume, turnId },
+				progress: ['partial response', 'continued response'],
+				systemNotifications: ['prior notice'],
+				usage: {
+					promptTokens: 20,
+					completionTokens: 8,
+					copilotCredits: 6,
+					modelTotals: [{ model: 'Opus 4.7', inputTokens: 30, cachedTokens: 3, outputTokens: 13 }],
+				},
+			});
+		}));
+
+		test('interrupted turn offers Keep Going as a warning', async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			agentHostService.setRootState({
+				agents: [{
+					provider: 'copilot',
+					displayName: 'Agent Host - Copilot',
+					description: 'test',
+					models: [],
+				}],
+				activeSessions: 1,
+			});
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/interrupted-turn' });
+			const { turnPromise, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, { sessionResource });
+			fire({
+				type: ActionType.ChatError,
+				turnId,
+				duration: 100,
+				part: {
+					kind: ResponsePartKind.Error,
+					error: {
+						errorType: 'executionInterrupted',
+						message: 'The agent was interrupted before this request finished.',
+					},
+					resumable: true,
+				},
+			});
+
+			assert.deepStrictEqual((await turnPromise).errorDetails, {
+				message: 'The agent was interrupted before this request finished.',
+				isExpectedError: true,
+				level: ChatErrorLevel.Warning,
+				confirmationButtons: [{
+					data: { agentHostResumeTurn: true },
+					label: 'Keep Going',
+					resend: true,
+					preserveRequestId: true,
+				}],
+			});
+		});
+
+		test('a local retry joins a turn concurrently resumed by another client', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			agentHostService.setRootState({
+				agents: [{
+					provider: 'copilot',
+					displayName: 'Agent Host - Copilot',
+					description: 'test',
+					models: [],
+				}],
+				activeSessions: 1,
+			});
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/racing-retry' });
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, { sessionResource });
+			fire({
+				type: ActionType.ChatResponsePart,
+				turnId,
+				part: { kind: ResponsePartKind.Markdown, id: 'old-part', content: 'partial response' },
+			});
+			fire({
+				type: ActionType.ChatError,
+				turnId,
+				duration: 100,
+				part: { kind: ResponsePartKind.Error, error: { errorType: 'requestFailed', message: 'failed' }, resumable: true },
+			});
+			const retryButton = (await turnPromise).errorDetails?.confirmationButtons?.at(-1);
+			assert.ok(retryButton);
+
+			agentHostService.fireAction({
+				channel: session,
+				action: { type: ActionType.ChatTurnResume, turnId },
+				serverSeq: 100,
+				origin: { clientId: 'other-client', clientSeq: 1 },
+			});
+			agentHostService.dispatchedActions.length = 0;
+			const registered = chatAgentService.registeredAgents.get('agent-host-copilot');
+			assert.ok(registered);
+			const retryProgress: IChatProgress[][] = [];
+			const retryPromise = registered.impl.invoke(
+				makeRequest({
+					sessionResource,
+					requestId: turnId,
+					acceptedConfirmationData: [retryButton.data],
+				}),
+				parts => retryProgress.push(parts),
+				[],
+				CancellationToken.None,
+			);
+			await timeout(10);
+			fire({
+				type: ActionType.ChatResponsePart,
+				turnId,
+				part: { kind: ResponsePartKind.Markdown, id: 'new-part', content: 'continued response' },
+			});
+			fire({ type: ActionType.ChatTurnComplete, turnId, duration: 200 });
+
+			const retryResult = await retryPromise;
+			assert.deepStrictEqual({
+				errorDetails: retryResult.errorDetails,
+				resumeDispatches: agentHostService.dispatchedActions.filter(entry => entry.action.type === ActionType.ChatTurnResume).length,
+				progress: retryProgress.flat().filter(part => part.kind === 'markdownContent').map(part => (part as IChatMarkdownContent).content.value),
+			}, {
+				errorDetails: undefined,
+				resumeDispatches: 0,
+				progress: ['partial response', 'continued response'],
+			});
+		}));
+
+		test('a rejected local retry keeps observing a concurrently accepted resume', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			agentHostService.setRootState({
+				agents: [{ provider: 'copilot', displayName: 'Agent Host - Copilot', description: 'test', models: [] }],
+				activeSessions: 1,
+			});
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/rejected-racing-retry' });
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, { sessionResource });
+			fire({
+				type: ActionType.ChatError,
+				turnId,
+				duration: 100,
+				part: { kind: ResponsePartKind.Error, error: { errorType: 'requestFailed', message: 'failed' }, resumable: true },
+			});
+			const retryButton = (await turnPromise).errorDetails?.confirmationButtons?.at(-1);
+			assert.ok(retryButton);
+
+			agentHostService.dispatchedActions.length = 0;
+			const registered = chatAgentService.registeredAgents.get('agent-host-copilot');
+			assert.ok(registered);
+			const retryProgress: IChatProgress[][] = [];
+			const retryPromise = registered.impl.invoke(
+				makeRequest({
+					sessionResource,
+					requestId: turnId,
+					acceptedConfirmationData: [retryButton.data],
+				}),
+				parts => retryProgress.push(parts),
+				[],
+				CancellationToken.None,
+			);
+			await timeout(10);
+			const resumeDispatch = agentHostService.dispatchedActions.find(entry => entry.action.type === ActionType.ChatTurnResume);
+			assert.ok(resumeDispatch?.action.type === ActionType.ChatTurnResume);
+			agentHostService.fireAction({
+				channel: session,
+				action: { type: ActionType.ChatTurnResume, turnId },
+				serverSeq: 100,
+				origin: { clientId: 'other-client', clientSeq: 1 },
+			});
+			agentHostService.fireAction({
+				channel: resumeDispatch.channel.toString(),
+				action: resumeDispatch.action,
+				serverSeq: 101,
+				origin: { clientId: agentHostService.clientId, clientSeq: resumeDispatch.clientSeq },
+				rejectionReason: 'Already resumed',
+			});
+			fire({
+				type: ActionType.ChatResponsePart,
+				turnId,
+				part: { kind: ResponsePartKind.Markdown, id: 'new-part', content: 'continued response' },
+			});
+			fire({ type: ActionType.ChatTurnComplete, turnId, duration: 200 });
+
+			const retryResult = await retryPromise;
+			assert.deepStrictEqual({
+				errorDetails: retryResult.errorDetails,
+				progress: retryProgress.flat().filter(part => part.kind === 'markdownContent').map(part => (part as IChatMarkdownContent).content.value),
+			}, {
+				errorDetails: undefined,
+				progress: ['continued response'],
+			});
+		}));
+
+		test('rejected resume resolves the retry invocation with an error', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			agentHostService.setRootState({
+				agents: [{ provider: 'copilot', displayName: 'Agent Host - Copilot', description: 'test', models: [] }],
+				activeSessions: 1,
+			});
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/rejected-retry' });
+			const { turnPromise, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, { sessionResource });
+			fire({
+				type: ActionType.ChatError,
+				turnId,
+				duration: 100,
+				part: { kind: ResponsePartKind.Error, error: { errorType: 'requestFailed', message: 'failed' }, resumable: true },
+			});
+			const retryButton = (await turnPromise).errorDetails?.confirmationButtons?.at(-1);
+			assert.ok(retryButton);
+
+			agentHostService.dispatchedActions.length = 0;
+			const registered = chatAgentService.registeredAgents.get('agent-host-copilot');
+			assert.ok(registered);
+			const retryPromise = registered.impl.invoke(
+				makeRequest({
+					sessionResource,
+					requestId: turnId,
+					acceptedConfirmationData: [retryButton.data],
+				}),
+				() => { },
+				[],
+				CancellationToken.None,
+			);
+			await timeout(10);
+			const resumeDispatch = agentHostService.dispatchedActions.find(entry => entry.action.type === ActionType.ChatTurnResume);
+			assert.ok(resumeDispatch?.action.type === ActionType.ChatTurnResume);
+			agentHostService.fireAction({
+				channel: resumeDispatch.channel.toString(),
+				action: resumeDispatch.action,
+				serverSeq: 100,
+				origin: { clientId: agentHostService.clientId, clientSeq: resumeDispatch.clientSeq },
+				rejectionReason: 'Already resumed',
+			});
+
+			await assert.rejects(retryPromise, /Already resumed/);
 		}));
 	});
 
@@ -8199,7 +8559,7 @@ suite('AgentHostChatContribution', () => {
 				action: {
 					type: 'chat/error', endedAt: '2025-01-01T00:00:00.000Z',
 					turnId,
-					error: { errorType: 'connection_error', message: 'connection lost' },
+					part: { kind: ResponsePartKind.Error, error: { errorType: 'connection_error', message: 'connection lost' } },
 				} as ChatAction,
 				serverSeq: 99,
 				origin: undefined,

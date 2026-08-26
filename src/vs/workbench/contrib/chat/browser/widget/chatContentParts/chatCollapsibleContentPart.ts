@@ -124,6 +124,11 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 		// Initialize the expanded state based on the subclass's isExpanded() method
 		this._isExpanded.set(this.isExpanded(), undefined);
 
+		// The header only exists now, so re-apply a non-expandable row's state.
+		if (!this._isExpandable) {
+			this.setExpandable(false);
+		}
+
 		this._register(autorun(r => {
 			const expanded = this._isExpanded.read(r);
 			const overrideIcon = this._overrideIcon.read(r);
@@ -176,15 +181,20 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 	 */
 	protected setExpandable(expandable: boolean): void {
 		this._isExpandable = expandable;
+		this._domNode?.classList.toggle('chat-collapsible-not-expandable', !expandable);
 		this._hoverChevron?.classList.toggle('hidden', !expandable);
 		const button = this._collapseButton?.element;
 		if (button) {
 			button.tabIndex = expandable ? 0 : -1;
 			if (expandable) {
+				button.setAttribute('role', 'button');
 				button.removeAttribute('aria-disabled');
 				button.ariaExpanded = String(this.isExpanded());
 			} else {
-				button.setAttribute('aria-disabled', 'true');
+				// A row that cannot expand is a status line, not a disabled button,
+				// so drop the button semantics rather than marking it unavailable.
+				button.removeAttribute('role');
+				button.removeAttribute('aria-disabled');
 				button.removeAttribute('aria-expanded');
 			}
 		}

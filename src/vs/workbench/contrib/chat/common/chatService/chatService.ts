@@ -52,6 +52,10 @@ export interface IChatResponseErrorDetailsConfirmationButton {
 	data: any;
 	label: string;
 	isSecondary?: boolean;
+	/** Replace and resend the request associated with this response instead of adding a new request. */
+	resend?: boolean;
+	/** Reuse the existing request model and identifier when resending. */
+	preserveRequestId?: boolean;
 }
 
 export interface IChatResponseErrorDetails {
@@ -589,8 +593,7 @@ export interface IChatThinkingPart {
 }
 
 /**
- * Explains what the "Auto" model routed a turn to. Rendered as a collapsible
- * row: "Routing task…" while the router is deciding, then "Routed task".
+ * Explains what the "Auto" model routed a turn to, as a single status line.
  *
  * A resolved part replaces the row that is still routing; Auto can route more
  * than once per turn, and each later route gets its own row.
@@ -2026,7 +2029,7 @@ export interface IChatService {
 	setSessionTitle(sessionResource: URI, title: string): void;
 
 	appendProgress(request: IChatRequestModel, progress: IChatProgress): void;
-	resendRequest(request: IChatRequestModel, options?: IChatSendRequestOptions): Promise<void>;
+	resendRequest(request: IChatRequestModel, options?: IChatSendRequestOptions, preserveRequestId?: boolean): Promise<void>;
 	adoptRequest(sessionResource: URI, request: IChatRequestModel): Promise<void>;
 	removeRequest(sessionResource: URI, requestId: string): Promise<void>;
 	cancelCurrentRequestForSession(sessionResource: URI, source?: string): Promise<void>;
