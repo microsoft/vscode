@@ -9,6 +9,7 @@ import { tmpdir } from 'os';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
+import type { ChatErrorAction } from '../../../../common/state/protocol/actions.js';
 import { CompletionItemKind, type CompletionsResult, type ResolveSessionConfigResult, type SessionConfigCompletionsResult, SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
 import type { RootState } from '../../../../common/state/protocol/state.js';
@@ -707,11 +708,7 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 			&& (getActionEnvelope(n).action as { readonly turnId: string }).turnId === turnId,
 			30_000,
 		);
-		const action = getActionEnvelope(failed).action;
-		assert.strictEqual(action.type, ActionType.ChatError);
-		if (action.type !== ActionType.ChatError) {
-			return;
-		}
+		const action = getActionEnvelope(failed).action as ChatErrorAction;
 
 		assert.deepStrictEqual({
 			errorType: action.part.error.errorType,
