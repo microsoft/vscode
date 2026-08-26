@@ -172,6 +172,7 @@ suite('SessionPermissionManager', () => {
 	test('requires confirmation for protected files inside the working directory', async () => {
 		const files = [
 			'.env',
+			'.mcp.json',
 			'package.json',
 			'Cargo.toml',
 			'build.gradle',
@@ -191,7 +192,7 @@ suite('SessionPermissionManager', () => {
 
 	if (!isLinux) {
 		test('requires confirmation for protected files with non-canonical casing', async () => {
-			const files = ['.ENV', 'Package.json', join('.GIT', 'config'), join('.VSCODE', 'settings.json')];
+			const files = ['.ENV', '.MCP.JSON', 'Package.json', join('.GIT', 'config'), join('.VSCODE', 'settings.json')];
 			const results = await Promise.all(files.map(file => permissions.getAutoApproval(writeEvent(join(workDir, file)), sessionUri)));
 			assert.deepStrictEqual(results, files.map(() => undefined));
 		});
@@ -216,6 +217,7 @@ suite('SessionPermissionManager', () => {
 				'**/*': false,
 				'**/*.ts': true,
 				'**/.github/hooks/**': true,
+				'**/.npmrc': true,
 			},
 		});
 
@@ -223,7 +225,9 @@ suite('SessionPermissionManager', () => {
 			await permissions.getAutoApproval(writeEvent(join(workDir, 'src', 'app.ts')), sessionUri),
 			await permissions.getAutoApproval(writeEvent(join(workDir, 'README.md')), sessionUri),
 			await permissions.getAutoApproval(writeEvent(join(workDir, '.github', 'hooks', 'pre-tool.json')), sessionUri),
-		], [ToolCallConfirmationReason.NotNeeded, undefined, undefined]);
+			await permissions.getAutoApproval(writeEvent(join(workDir, '.npmrc')), sessionUri),
+			await permissions.getAutoApproval(writeEvent(join(workDir, 'packages', 'nested', '.npmrc')), sessionUri),
+		], [ToolCallConfirmationReason.NotNeeded, undefined, undefined, undefined, undefined]);
 	});
 
 	test('merges configured edit auto-approve patterns with defaults', () => {
