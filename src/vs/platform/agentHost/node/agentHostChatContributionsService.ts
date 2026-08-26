@@ -8,7 +8,7 @@ import { NKeyMap } from '../../../base/common/map.js';
 import { observableValue, type ISettableObservable } from '../../../base/common/observable.js';
 import { IInstantiationService, type IConstructorSignature } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
-import type { IAgentHostChatContribution, IAgentHostChatContributionContext, IAgentHostChatContributionHost, IAgentHostChatContributions, IChatMementoKey, IHydrationContext, IObservedAction, IOutgoingTurn, IOutgoingTurnContributionResult, ISessionMementoKey, ITurnEnd } from '../common/agentHostChatContributionsService.js';
+import type { IAgentHostChatContribution, IAgentHostChatContributionContext, IAgentHostChatContributionHost, IAgentHostChatContributions, IChatMementoKey, IHydrationContext, IObservedAction, IOutgoingTurn, IOutgoingTurnContributionResult, IRestoredChat, ISessionMementoKey, ITurnEnd } from '../common/agentHostChatContributionsService.js';
 import { isAhpChatChannel, parseRequiredSessionUriFromChatUri, type Turn, type URI as ProtocolURI } from '../common/state/sessionState.js';
 
 type MementoKeySegment = string | boolean | number;
@@ -200,6 +200,22 @@ export class AgentHostChatContributions extends Disposable implements IAgentHost
 			}
 		}
 		return hydratedTurns;
+	}
+
+	async hydrateChat(context: IHydrationContext, restored: IRestoredChat): Promise<IRestoredChat> {
+		let hydrated = restored;
+		for (const registration of this._getOrderedContributions()) {
+			const { contribution } = registration;
+			if (!contribution.onHydrateChat) {
+				continue;
+			}
+			try {
+				hydrated = await contribution.onHydrateChat(context, hydrated);
+			} catch (err) {
+				this._logContributionFailure(registration, err);
+			}
+		}
+		return hydrated;
 	}
 
 	disposeChatState(chat: ProtocolURI): void {

@@ -20,6 +20,7 @@ import { localize } from '../../../../../nls.js';
 import { AgentSession, AuthenticateParams, AuthenticateResult, IAgentSessionMetadata, protectedResourcesRequireGitHubCopilotSignIn } from '../../../../../platform/agentHost/common/agent.js';
 import { AgentMergeSessionOverrides, AgentMergeSessionState, readAgentMergeSessionState } from '../../../../../platform/agentHost/common/agentMerge.js';
 import { IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
+import type { AgentHostUriMapper } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { getCustomizationDisabledReason, isCustomizationEnabled, withCustomizationEnablement } from '../../../../../platform/agentHost/common/customizationEnablement.js';
 import { buildAnnotationsUri } from '../../../../../platform/agentHost/common/annotationsUri.js';
 import { parseGitHubIssueUrl } from '../../../../../platform/agentHost/common/githubIssueReferences.js';
@@ -516,7 +517,7 @@ export interface IAgentHostAdapterOptions {
 	/** Builds the session workspace from session metadata; provider-specific (icon, providerLabel, requiresWorkspaceTrust). */
 	readonly buildWorkspace: (project: IAgentSessionMetadata['project'], workingDirectories: readonly URI[] | undefined, gitHubInfo: IObservable<IGitHubInfo | undefined>, gitState: ISessionGitState | undefined) => ISessionWorkspace | undefined;
 	/** Optional URI mapping for diff entries (remote uses `toAgentHostUri`; local uses identity). */
-	readonly mapDiffUri?: (uri: URI) => URI;
+	readonly mapDiffUri?: AgentHostUriMapper;
 	/**
 	 * GitHub service used to resolve the pull request that targets the
 	 * session's branch and refresh its live state. Optional so tests / hosts
@@ -5790,5 +5791,5 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * Optional URI mapper used when applying diff changes. Subclasses
 	 * override to translate remote diff URIs into agent-host URIs.
 	 */
-	protected _diffUriMapper(): ((uri: URI) => URI) | undefined { return undefined; }
+	protected _diffUriMapper(): AgentHostUriMapper | undefined { return undefined; }
 }
