@@ -6096,7 +6096,10 @@ suite('AgentHostChatContribution', () => {
 		}));
 
 		test('resumable error offers Try Again and resumes the same turn', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const languageModels = new Map<string, ILanguageModelChatMetadata>([
+				['agent-host-copilot:opus-4.7', upcastPartial<ILanguageModelChatMetadata>({ name: 'Opus 4.7', pricing: '15x' })],
+			]);
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, { languageModels });
 			agentHostService.setRootState({
 				agents: [{
 					provider: 'copilot',
@@ -6117,6 +6120,19 @@ suite('AgentHostChatContribution', () => {
 				type: ActionType.ChatResponsePart,
 				turnId,
 				part: { kind: ResponsePartKind.SystemNotification, content: 'prior notice' },
+			});
+			fire({
+				type: ActionType.ChatUsage,
+				turnId,
+				usage: {
+					inputTokens: 10,
+					outputTokens: 5,
+					model: 'opus-4.7',
+					_meta: {
+						copilotUsage: { totalNanoAiu: 2_000_000_000 },
+						turnTokenTotals: [{ model: 'opus-4.7', inputTokens: 10, cachedTokens: 1, outputTokens: 5 }],
+					},
+				},
 			});
 			fire({
 				type: ActionType.ChatError,
@@ -6162,31 +6178,64 @@ suite('AgentHostChatContribution', () => {
 			agentHostService.fireAction({
 				channel: session,
 				action: {
-					type: ActionType.ChatResponsePart,
+					type: ActionType.ChatUsage,
 					turnId,
-					part: { kind: ResponsePartKind.Markdown, id: 'new-part', content: 'continued response' },
+					usage: {
+						inputTokens: 20,
+						outputTokens: 8,
+						model: 'opus-4.7',
+						_meta: {
+							copilotUsage: { totalNanoAiu: 6_000_000_000 },
+							turnTokenTotals: [{ model: 'opus-4.7', inputTokens: 30, cachedTokens: 3, outputTokens: 13 }],
+						},
+					},
 				},
 				serverSeq: 101,
 				origin: undefined,
 			});
 			agentHostService.fireAction({
 				channel: session,
-				action: { type: ActionType.ChatTurnComplete, turnId, duration: 200 },
+				action: {
+					type: ActionType.ChatResponsePart,
+					turnId,
+					part: { kind: ResponsePartKind.Markdown, id: 'new-part', content: 'continued response' },
+				},
 				serverSeq: 102,
+				origin: undefined,
+			});
+			agentHostService.fireAction({
+				channel: session,
+				action: { type: ActionType.ChatTurnComplete, turnId, duration: 200 },
+				serverSeq: 103,
 				origin: undefined,
 			});
 
 			const retryResult = await retryPromise;
+			const retryUsage = retryProgress.flat().filter((part): part is IChatUsage => part.kind === 'usage').at(-1);
 			assert.deepStrictEqual({
+				details: retryResult.details,
 				errorDetails: retryResult.errorDetails,
 				resumeDispatch: resumeDispatch.action,
 				progress: retryProgress.flat().filter(part => part.kind === 'markdownContent').map(part => (part as IChatMarkdownContent).content.value),
 				systemNotifications: retryProgress.flat().filter(part => part.kind === 'systemNotification').map(part => part.content.value),
+				usage: retryUsage ? {
+					promptTokens: retryUsage.promptTokens,
+					completionTokens: retryUsage.completionTokens,
+					copilotCredits: retryUsage.copilotCredits,
+					modelTotals: retryUsage.modelTotals,
+				} : undefined,
 			}, {
+				details: 'Opus 4.7 • 6 credits',
 				errorDetails: undefined,
 				resumeDispatch: { type: ActionType.ChatTurnResume, turnId },
 				progress: ['partial response', 'continued response'],
 				systemNotifications: ['prior notice'],
+				usage: {
+					promptTokens: 20,
+					completionTokens: 8,
+					copilotCredits: 6,
+					modelTotals: [{ model: 'Opus 4.7', inputTokens: 30, cachedTokens: 3, outputTokens: 13 }],
+				},
 			});
 		}));
 
