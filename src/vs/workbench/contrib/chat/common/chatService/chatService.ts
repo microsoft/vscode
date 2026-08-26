@@ -54,7 +54,7 @@ export interface IChatResponseErrorDetailsConfirmationButton {
 	isSecondary?: boolean;
 	/** Replace and resend the request associated with this response instead of adding a new request. */
 	resend?: boolean;
-	/** Keep the existing request identifier when resending. */
+	/** Reuse the existing request model and identifier when resending. */
 	preserveRequestId?: boolean;
 }
 

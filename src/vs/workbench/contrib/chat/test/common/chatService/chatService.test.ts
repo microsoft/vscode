@@ -1152,6 +1152,12 @@ suite('ChatService', () => {
 
 		const firstRequest = model.getRequests()[0];
 		assert.ok(firstRequest, 'Expected the initial request to exist before resend');
+		const structuralChanges: string[] = [];
+		testDisposables.add(model.onDidChange(event => {
+			if (event.kind === 'removeRequest' || event.kind === 'addRequest') {
+				structuralChanges.push(event.kind);
+			}
+		}));
 
 		// Resend the original request: now disabled hooks are present (simulates resend after setup)
 		await testService.resendRequest(firstRequest, undefined, true);
@@ -1162,6 +1168,8 @@ suite('ChatService', () => {
 		const requests = model.getRequests();
 		assert.strictEqual(requests.length, 1, 'Resend should replace the original request');
 		assert.strictEqual(requests[0].id, firstRequest.id, 'Preserved resend should keep the original request id');
+		assert.strictEqual(requests[0], firstRequest, 'Preserved resend should reuse the original request model');
+		assert.deepStrictEqual(structuralChanges, [], 'Preserved resend should not remove and recreate the transcript row');
 		const responseParts2 = requests[0].response?.response.value ?? [];
 		const hasHookHint2 = responseParts2.some(part => part.kind === 'disabledClaudeHooks');
 		assert.ok(hasHookHint2, 'Response should contain the disabledClaudeHooks hint on second request');

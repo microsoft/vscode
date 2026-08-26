@@ -79,7 +79,7 @@ import {
 	type IImageVariableEntry
 } from '../../../common/attachments/chatVariableEntries.js';
 import { coerceImageBuffer } from '../../../common/chatImageExtraction.js';
-import { ChatRequestQueueKind, ConfirmedReason, ElicitationState, IChatProgress, IChatQuestionAnswers, IChatService, IChatToolInvocation, IRemotePendingRequest, ToolConfirmKind, type IChatAutoModeResolutionPart, type IChatMcpAuthenticationRequired, type IChatMcpAuthenticationRequiredServer, type IChatMcpStartingServer, type IChatMultiSelectAnswer, type IChatPlanReviewResult, type IChatResponseErrorDetails, type IChatSingleSelectAnswer, type IChatTerminalToolInvocationData, type IChatToolInvocationSerialized } from '../../../common/chatService/chatService.js';
+import { ChatErrorLevel, ChatRequestQueueKind, ConfirmedReason, ElicitationState, IChatProgress, IChatQuestionAnswers, IChatService, IChatToolInvocation, IRemotePendingRequest, ToolConfirmKind, type IChatAutoModeResolutionPart, type IChatMcpAuthenticationRequired, type IChatMcpAuthenticationRequiredServer, type IChatMcpStartingServer, type IChatMultiSelectAnswer, type IChatPlanReviewResult, type IChatResponseErrorDetails, type IChatSingleSelectAnswer, type IChatTerminalToolInvocationData, type IChatToolInvocationSerialized } from '../../../common/chatService/chatService.js';
 import { isInConversationModelChoice } from '../../../common/modelSelection.js';
 import { IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionRequestHistoryItem, isTerminalCommandPrompt, SessionType, type IChatInputCompletionItem, type IChatInputCompletionsParams, type IChatInputCompletionsResult, type IChatSessionServerRequest } from '../../../common/chatSessionsService.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
@@ -1922,8 +1922,16 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (!error) {
 			return undefined;
 		}
-		const details = getChatErrorDetailsFromMeta(error, this._chatErrorContext())
-			?? { message: localize('agentHost.turnError', "Error: ({0}) {1}", error.errorType, error.message) };
+		const isExecutionInterrupted = error.errorType === 'executionInterrupted';
+		const forwardedDetails = getChatErrorDetailsFromMeta(error, this._chatErrorContext());
+		const details: IChatResponseErrorDetails = isExecutionInterrupted
+			? {
+				...forwardedDetails,
+				message: error.message,
+				isExpectedError: true,
+				level: ChatErrorLevel.Warning,
+			}
+			: forwardedDetails ?? { message: localize('agentHost.turnError', "Error: ({0}) {1}", error.errorType, error.message) };
 		if (!allowResume || errorPart?.resumable !== true || details.responseIsFiltered) {
 			return details;
 		}
@@ -1933,7 +1941,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				...(details.confirmationButtons ?? []),
 				{
 					data: { agentHostResumeTurn: true } satisfies IResumeTurnConfirmationData,
-					label: localize('agentHost.resumeTurn', "Try Again"),
+					label: isExecutionInterrupted
+						? localize('agentHost.continueInterruptedTurn', "Keep Going")
+						: localize('agentHost.resumeTurn', "Try Again"),
 					resend: true,
 					preserveRequestId: true,
 				},
