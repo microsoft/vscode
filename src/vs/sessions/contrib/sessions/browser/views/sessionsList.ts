@@ -2820,6 +2820,16 @@ export class SessionsList extends Disposable implements ISessionsList {
 		return this.tree.getFocus().length > 0 || this.tree.getSelection().length > 0;
 	}
 
+	/** Returns the focused selection while this list owns DOM focus, or `undefined` otherwise. */
+	getFocusedSessions(): readonly ISession[] | undefined {
+		if (!DOM.isAncestorOfActiveElement(this.listContainer)) {
+			return undefined;
+		}
+
+		const focusedSession = this.tree.getFocus().find((item): item is ISession => !!item && isSessionItem(item));
+		return focusedSession ? this.getMultiSelectedSessions(focusedSession) : [];
+	}
+
 	setVisible(visible: boolean): void {
 		if (this.visible === visible) {
 			return;

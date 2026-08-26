@@ -42,6 +42,7 @@ export class TestSessionsManagementService extends mock<ISessionsManagementServi
 	sessions: ISession[];
 	readonly readSessions: ISession[] = [];
 	readonly renamed: { readonly session: ISession; readonly title: string }[] = [];
+	readonly deleted: (readonly ISession[])[] = [];
 	renameError: Error | undefined;
 
 	constructor(sessions: ISession[]) {
@@ -62,6 +63,10 @@ export class TestSessionsManagementService extends mock<ISessionsManagementServi
 		if (this.renameError) {
 			throw this.renameError;
 		}
+	}
+
+	override async deleteSessions(sessions: readonly ISession[]): Promise<void> {
+		this.deleted.push([...sessions]);
 	}
 }
 

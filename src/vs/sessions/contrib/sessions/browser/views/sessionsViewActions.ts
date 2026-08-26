@@ -13,6 +13,7 @@ import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../../p
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { InputFocusedContext } from '../../../../../platform/contextkey/common/contextkeys.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
@@ -20,9 +21,9 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../pla
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { CLOSE_MOBILE_SIDEBAR_DRAWER_COMMAND_ID } from '../../../../browser/workbench.js';
-import { EditorsVisibleContext, EditorAreaFocusContext, IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
+import { EditorsVisibleContext, EditorAreaFocusContext, FocusedViewContext, IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { SessionsCategories } from '../../../../common/categories.js';
-import { RENAME_SESSION_COMMAND_ID, UNARCHIVE_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
+import { DELETE_SESSION_COMMAND_ID, RENAME_SESSION_COMMAND_ID, UNARCHIVE_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { SessionSupportsDeleteContext, SessionSupportsRenameContext, IsNewChatSessionContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsReadContext } from '../../../../common/contextkeys.js';
 import { SessionItemToolbarMenuId, SessionItemContextMenuId, SessionSectionToolbarMenuId, SessionGroupToolbarMenuId, SessionSectionTypeContext, SessionSectionHasNonCloudRepositoryContext, SessionGroupHasVisibleSessionsContext, SessionGroupIsEmptyContext, IsSessionPinnedContext, SessionsGrouping, SessionsSorting, ISessionSection, ISessionGroupItem, NEW_SESSION_FOR_WORKSPACE_ACTION_ID } from './sessionsList.js';
 import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
@@ -964,12 +965,37 @@ class RestoreArchivedSessionAction extends BaseUnarchiveSessionAction {
 	}
 }
 
+function getSessionActionTargets(accessor: ServicesAccessor, context?: ISession | ISession[]): readonly ISession[] {
+	if (context) {
+		return Array.isArray(context) ? context : [context];
+	}
+
+	const focusedSessions = accessor.get(IViewsService).getViewWithId<SessionsView>(SessionsViewId)?.sessionsControl?.getFocusedSessions();
+	if (focusedSessions) {
+		return focusedSessions;
+	}
+
+	const activeSession = accessor.get(ISessionsService).activeSession.get();
+	return activeSession ? [activeSession] : [];
+}
+
 registerAction2(class RenameSessionAction extends Action2 {
 	constructor() {
 		super({
 			id: RENAME_SESSION_COMMAND_ID,
 			title: localize2('renameSession', "Rename..."),
 			icon: Codicon.edit,
+			keybinding: {
+				primary: KeyCode.F2,
+				weight: KeybindingWeight.SessionsContrib,
+				when: ContextKeyExpr.and(
+					IsSessionsWindowContext,
+					ContextKeyExpr.or(
+						ContextKeyExpr.and(FocusedViewContext.isEqualTo(SessionsViewId), InputFocusedContext.toNegated()),
+						ContextKeyExpr.and(ChatContextKeys.inChatSession, SessionSupportsRenameContext),
+					),
+				),
+			},
 			menu: [{
 				id: SessionItemContextMenuId,
 				group: '1_edit',
@@ -984,7 +1010,7 @@ registerAction2(class RenameSessionAction extends Action2 {
 		});
 	}
 	async run(accessor: ServicesAccessor, context?: ISession | ISession[]): Promise<void> {
-		const session = Array.isArray(context) ? context[0] : context;
+		const session = getSessionActionTargets(accessor, context)[0];
 		if (!session || !session.capabilities.get().supportsRename) {
 			return;
 		}
@@ -1012,8 +1038,17 @@ registerAction2(class RenameSessionAction extends Action2 {
 registerAction2(class DeleteSessionAction extends Action2 {
 	constructor() {
 		super({
-			id: 'sessionsViewPane.deleteSession',
+			id: DELETE_SESSION_COMMAND_ID,
 			title: localize2('deleteSession', "Delete..."),
+			keybinding: {
+				primary: KeyCode.Delete,
+				weight: KeybindingWeight.SessionsContrib,
+				when: ContextKeyExpr.and(
+					IsSessionsWindowContext,
+					FocusedViewContext.isEqualTo(SessionsViewId),
+					InputFocusedContext.toNegated(),
+				),
+			},
 			menu: [{
 				id: SessionItemContextMenuId,
 				group: '1_edit',
@@ -1023,10 +1058,7 @@ registerAction2(class DeleteSessionAction extends Action2 {
 		});
 	}
 	async run(accessor: ServicesAccessor, context?: ISession | ISession[]): Promise<void> {
-		if (!context) {
-			return;
-		}
-		const sessions = (Array.isArray(context) ? context : [context]).filter(session => session.capabilities.get().supportsDelete);
+		const sessions = getSessionActionTargets(accessor, context).filter(session => session.capabilities.get().supportsDelete);
 		if (sessions.length === 0) {
 			return;
 		}

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isAncestorOfActiveElement } from '../../../../../base/browser/dom.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { AgentSessionSection, IAgentSession, IAgentSessionSection, IMarshalledAgentSessionContext, isAgentHostAgentSessionItem, isAgentSessionSection, isLocalAgentSessionItem, isMarshalledAgentSessionContext } from './agentSessionsModel.js';
 import { Action2, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
@@ -13,7 +14,7 @@ import { IChatService } from '../../common/chatService/chatService.js';
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { ChatContextKeyExprs, ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { LocalChatSessionUri } from '../../common/model/chatUri.js';
+import { getChatSessionType, LocalChatSessionUri } from '../../common/model/chatUri.js';
 import { IChatEditorOptions } from '../widgetHosts/editor/chatEditor.js';
 import { ChatViewId, IChatWidgetService } from '../chat.js';
 import { ACTIVE_GROUP, AUX_WINDOW_GROUP, PreferredGroup, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
@@ -35,6 +36,7 @@ import { KeybindingWeight } from '../../../../../platform/keybinding/common/keyb
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { coalesce } from '../../../../../base/common/arrays.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IPaneCompositePartService } from '../../../../services/panecomposite/browser/panecomposite.js';
 import { ChatSessionArchiveActionWording, getChatSessionArchiveActionPresentation } from '../../../../../platform/chat/common/sessionArchiveActions.js';
@@ -692,12 +694,24 @@ export class UnpinAgentSessionAction extends BaseAgentSessionAction {
 
 /**
  * Matches every session type that supports renaming: local sessions and all
- * agent-host session types (`agent-host-*` and `remote-*`), mirroring the
- * generic `isAgentHostTarget` check used by the rename action body.
+ * agent-host session types (`agent-host-*` and `remote-*`).
  */
 const renameSupportedSessionTypes = ContextKeyExpr.or(
 	ChatContextKeys.agentSessionType.isEqualTo(AgentSessionProviders.Local),
 	ChatContextKeyExprs.isAgentHostSessionItem,
+);
+
+const renameAgentSessionKeybindingWhen = ContextKeyExpr.or(
+	ContextKeyExpr.and(
+		ChatContextKeys.agentSessionsViewerFocused,
+		renameSupportedSessionTypes,
+	),
+	ContextKeyExpr.and(
+		ChatContextKeys.inChatSession,
+		ChatContextKeys.inQuickChat.negate(),
+		IsSessionsWindowContext.negate(),
+		ChatContextKeys.chatSessionSupportsRename,
+	),
 );
 
 export class RenameAgentSessionAction extends BaseAgentSessionAction {
@@ -713,10 +727,7 @@ export class RenameAgentSessionAction extends BaseAgentSessionAction {
 					primary: KeyCode.Enter
 				},
 				weight: KeybindingWeight.WorkbenchContrib + 1,
-				when: ContextKeyExpr.and(
-					ChatContextKeys.agentSessionsViewerFocused,
-					renameSupportedSessionTypes
-				),
+				when: renameAgentSessionKeybindingWhen,
 			},
 			menu: {
 				id: MenuId.AgentSessionsContext,
@@ -727,22 +738,43 @@ export class RenameAgentSessionAction extends BaseAgentSessionAction {
 		});
 	}
 
+	override async run(accessor: ServicesAccessor, context?: IAgentSession | IMarshalledAgentSessionContext): Promise<void> {
+		const widget = accessor.get(IChatWidgetService).lastFocusedWidget;
+		const viewModel = widget?.viewModel;
+		if (!context && widget && viewModel && isAncestorOfActiveElement(widget.domNode)) {
+			const sessionType = getChatSessionType(viewModel.sessionResource);
+			const isLocalSession = sessionType === AgentSessionProviders.Local;
+			if (!isLocalSession && !accessor.get(IChatSessionsService).sessionSupportsRename(viewModel.sessionResource)) {
+				return;
+			}
+			await this.renameSession(viewModel.sessionResource, viewModel.model.title, !isLocalSession, accessor);
+			return;
+		}
+
+		await super.run(accessor, context);
+	}
+
 	async runWithSessions(sessions: IAgentSession[], accessor: ServicesAccessor): Promise<void> {
 		const session = sessions.at(0);
 		if (!session) {
 			return;
 		}
 
-		const quickInputService = accessor.get(IQuickInputService);
-		const chatService = accessor.get(IChatService);
-		const chatSessionsService = accessor.get(IChatSessionsService);
+		await this.renameSession(session.resource, session.label, isAgentHostAgentSessionItem(session), accessor);
+	}
 
-		const title = await quickInputService.input({ prompt: localize('newChatTitle', "New agent session title"), value: session.label });
+	private async renameSession(sessionResource: URI, currentTitle: string, isContributedSession: boolean, accessor: ServicesAccessor): Promise<void> {
+		const quickInputService = accessor.get(IQuickInputService);
+		const renameTarget = isContributedSession
+			? { type: 'contributed' as const, service: accessor.get(IChatSessionsService) }
+			: { type: 'local' as const, service: accessor.get(IChatService) };
+
+		const title = await quickInputService.input({ prompt: localize('newChatTitle', "New agent session title"), value: currentTitle });
 		if (title) {
-			if (isAgentHostAgentSessionItem(session)) {
-				await chatSessionsService.renameChatSession(session.resource, title, CancellationToken.None);
+			if (renameTarget.type === 'contributed') {
+				await renameTarget.service.renameChatSession(sessionResource, title, CancellationToken.None);
 			} else {
-				chatService.setChatSessionTitle(session.resource, title);
+				renameTarget.service.setChatSessionTitle(sessionResource, title);
 			}
 		}
 	}
