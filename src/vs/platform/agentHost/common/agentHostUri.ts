@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { decodeBase64, encodeBase64, VSBuffer } from '../../../base/common/buffer.js';
+import { decodeBase64, encodeBase64, encodeHex, VSBuffer } from '../../../base/common/buffer.js';
 import { Schemas } from '../../../base/common/network.js';
 import { OperatingSystem } from '../../../base/common/platform.js';
 import { URI } from '../../../base/common/uri.js';
@@ -33,6 +33,19 @@ import type { ResourceLabelFormatter } from '../../label/common/label.js';
  * ```
  */
 export const AGENT_HOST_SCHEME = 'vscode-agent-host';
+
+/**
+ * Maps resource URIs between the Agent Host and its client.
+ */
+export interface IAgentHostResourceUriMapper {
+	fromAgentHost(resource: URI): URI;
+	toAgentHost(resource: URI): URI;
+}
+
+export const identityAgentHostResourceUriMapper: IAgentHostResourceUriMapper = {
+	fromAgentHost: resource => resource,
+	toAgentHost: resource => resource,
+};
 
 /**
  * Query parameter that carries the {@link IAgentHostUriMeta} payload.
@@ -117,6 +130,13 @@ export function fromAgentHostUri(agentHostUri: URI): URI {
 	});
 }
 
+export function createAgentHostResourceUriMapper(connectionAuthority: string): IAgentHostResourceUriMapper {
+	return {
+		fromAgentHost: resource => toAgentHostUri(resource, connectionAuthority),
+		toAgentHost: resource => fromAgentHostUri(resource),
+	};
+}
+
 /**
  * Strips the redundant `ws://` scheme from an address. The transport layer
  * already defaults to `ws://`, so only `wss://` needs to be preserved.
@@ -129,32 +149,28 @@ export function normalizeRemoteAgentHostAddress(address: string): string {
 }
 
 const REMOTE_LOCAL_AGENT_HOST_AUTHORITY = 'remote_local';
+const HEX_AGENT_HOST_AUTHORITY_PREFIX = 'hex-';
 
 /**
  * Encode a remote address into an identifier that is safe for use in
- * both URI schemes and URI authorities, and is collision-free.
+ * both URI schemes and case-insensitive URI authorities without collisions.
  *
- * Four tiers:
- * 1. The reserved ambient authority `local` is escaped for remote hosts.
- * 2. Purely alphanumeric addresses are returned as-is.
- * 3. "Normal" addresses containing only `[a-zA-Z0-9.:-]` get colons
- *    replaced with `__` (double underscore) for human readability.
- *    Addresses containing `_` skip this tier to keep the encoding
- *    collision-free (`__` can only appear from colon replacement).
- * 4. Everything else is url-safe base64-encoded with a `b64-` prefix.
+ * The reserved `local` name becomes `remote_local`; lowercase alphanumeric
+ * addresses pass through; lowercase host-like addresses replace `:` with `__`;
+ * all other values use lowercase hex with a reserved `hex-` prefix.
  */
 export function agentHostAuthority(address: string): string {
 	const normalized = normalizeRemoteAgentHostAddress(address);
 	if (normalized === 'local') {
 		return REMOTE_LOCAL_AGENT_HOST_AUTHORITY;
 	}
-	if (/^[a-zA-Z0-9]+$/.test(normalized)) {
+	if (/^[a-z0-9]+$/.test(normalized)) {
 		return normalized;
 	}
-	if (/^[a-zA-Z0-9.:\-]+$/.test(normalized)) {
+	if (/^[a-z0-9.:\-]+$/.test(normalized) && !/^hex-/i.test(normalized)) {
 		return normalized.replaceAll(':', '__');
 	}
-	return `b64-${encodeBase64(VSBuffer.fromString(normalized), false, true)}`;
+	return `${HEX_AGENT_HOST_AUTHORITY_PREFIX}${encodeHex(VSBuffer.fromString(normalized))}`;
 }
 
 /**

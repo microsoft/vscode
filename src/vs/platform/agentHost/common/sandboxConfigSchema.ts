@@ -7,7 +7,6 @@ import { localize } from '../../../nls.js';
 import { AgentNetworkDomainSettingId } from '../../networkFilter/common/settings.js';
 import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../sandbox/common/settings.js';
 import { createSchema, schemaProperty } from './agentHostSchema.js';
-import type { RootConfigState } from './state/protocol/state.js';
 
 /**
  * Top-level keys the agent host's root config bag exposes for sandboxing.
@@ -17,18 +16,6 @@ import type { RootConfigState } from './state/protocol/state.js';
  */
 export const enum AgentHostSandboxConfigKey {
 	Sandbox = 'sandbox',
-}
-
-/**
- * Transient root-config value published when Copilot's server-managed settings
- * explicitly control sandbox enablement. An absent value means the local
- * Agent Host sandbox preference remains authoritative.
- */
-export const AgentHostCopilotManagedSandboxEnabledConfigKey = 'copilotManagedSandbox.enabled';
-
-export function getAgentHostCopilotManagedSandboxEnabled(config: RootConfigState | undefined): boolean | undefined {
-	const value = config?.values[AgentHostCopilotManagedSandboxEnabledConfigKey];
-	return typeof value === 'boolean' ? value : undefined;
 }
 
 /**

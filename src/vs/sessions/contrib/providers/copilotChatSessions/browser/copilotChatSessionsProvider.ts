@@ -16,6 +16,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { AgentSession } from '../../../../../platform/agentHost/common/agent.js';
 import { getAgentSessionPullRequestUri, IAgentSession } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
 import { getRepositoryName } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsViewer.js';
 import { IAgentSessionsService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
@@ -53,6 +54,9 @@ import { CopilotCLISessionType } from '../../agentHost/browser/baseAgentHostSess
 import { createChangesets } from './copilotChatSessionsChangesets.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IAgentHostEnablementService } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
+import { isCloudSandboxEnabled } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { getWorkbenchContribution } from '../../../../../workbench/common/contributions.js';
+import { CloudSandboxAgentHostContribution, type ICloudSandboxProvisionedSession } from '../../remoteAgentHost/browser/cloudSandboxAgentHostContribution.js';
 
 /** Copilot Cloud session type - cloud-hosted agent. */
 export const CopilotCloudSessionType: ISessionType = {
@@ -63,6 +67,9 @@ export const CopilotCloudSessionType: ISessionType = {
 };
 
 const STORAGE_KEY_ISOLATION_MODE = 'sessions.isolationPicker.selectedMode';
+
+/** Remembers the cloud sandbox choice across new sessions, like the isolation picker above. */
+const STORAGE_KEY_USE_SANDBOX = 'sessions.cloudSandboxPicker.useSandbox';
 
 export type IsolationMode = 'worktree' | 'workspace';
 
@@ -122,6 +129,14 @@ export interface ICopilotChatSession {
 
 	readonly isolationMode: IObservable<IsolationMode | undefined>;
 	setIsolationMode(mode: IsolationMode): void;
+
+	/**
+	 * For cloud sessions: whether the session should run in a GitHub-managed sandbox the client
+	 * drives over the Agent Host Protocol, instead of the server-run cloud agent. Always
+	 * `undefined` for session kinds that have no such choice.
+	 */
+	readonly useSandbox: IObservable<boolean | undefined>;
+	setUseSandbox(useSandbox: boolean): void;
 
 	setModelId(modelId: string | undefined, source: ChatModelSource): void;
 	setMode(chatMode: IChatMode | undefined): void;
@@ -237,6 +252,9 @@ class CopilotCLISession extends Disposable implements ICopilotChatSession {
 
 	private readonly _isolationModeObservable = observableValue<IsolationMode | undefined>(this, 'worktree');
 	readonly isolationMode: IObservable<IsolationMode | undefined> = this._isolationModeObservable;
+
+	/** A local CLI session always runs locally, so it has no cloud sandbox choice to make. */
+	readonly useSandbox: IObservable<boolean | undefined> = constObservable(undefined);
 
 	private readonly _modelIdObservable = observableValue<string | undefined>(this, undefined);
 	readonly modelId: IObservable<string | undefined> = this._modelIdObservable;
@@ -462,6 +480,10 @@ class CopilotCLISession extends Disposable implements ICopilotChatSession {
 		}
 	}
 
+	setUseSandbox(_useSandbox: boolean): void {
+		// A local CLI session has no cloud sandbox choice to make.
+	}
+
 	setModelId(modelId: string | undefined, source: ChatModelSource): void {
 		this._modelId = modelId;
 		// One update: a model and where it came from are only meaningful as a pair, and an
@@ -609,6 +631,8 @@ export class RemoteNewSession extends Disposable implements ICopilotChatSession 
 	readonly gitHubInfo: IObservable<IGitHubInfo | undefined> = constObservable(undefined);
 	readonly branch: IObservable<string | undefined> = constObservable(undefined);
 	readonly isolationMode: IObservable<IsolationMode | undefined> = constObservable(undefined);
+	private readonly _useSandbox = observableValue<boolean | undefined>(this, false);
+	readonly useSandbox: IObservable<boolean | undefined> = this._useSandbox;
 	readonly branches: IObservable<readonly string[]> = constObservable([]);
 	readonly gitRepository?: IGitRepository | undefined;
 
@@ -632,6 +656,16 @@ export class RemoteNewSession extends Disposable implements ICopilotChatSession 
 
 	get project(): ISessionWorkspace | undefined { return this._project; }
 	get selectedModelId(): string | undefined { return this._modelId; }
+
+	/**
+	 * The repository this session targets, as `owner/repo`. A GitHub workspace root carries a ref
+	 * (`/<owner>/<repo>/HEAD`, see {@link CopilotChatSessionsProvider._browseForRepo}), so this
+	 * takes only the first two path segments rather than the whole path.
+	 */
+	get repoNwo(): string | undefined {
+		return this._repoUri ? githubRemoteRepoLabel(this._repoUri) : undefined;
+	}
+
 	get chatMode(): IChatMode | undefined { return undefined; }
 	get query(): string | undefined { return this._query; }
 	get attachedContext(): IChatRequestVariableEntry[] | undefined { return this._attachedContext; }
@@ -648,6 +682,7 @@ export class RemoteNewSession extends Disposable implements ICopilotChatSession 
 		providerId: string,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IStorageService private readonly storageService: IStorageService,
 	) {
 		super();
 		this.sessionId = toSessionId(providerId, resource);
@@ -655,6 +690,7 @@ export class RemoteNewSession extends Disposable implements ICopilotChatSession 
 		this.sessionType = target;
 		this.icon = CopilotCloudSessionType.icon;
 		this.createdAt = new Date();
+		this._useSandbox.set(storageService.getBoolean(STORAGE_KEY_USE_SANDBOX, StorageScope.PROFILE, false), undefined);
 
 		this._updateWhenClauseKeys();
 		this._register(this.chatSessionsService.onDidChangeOptionGroups(() => {
@@ -685,6 +721,14 @@ export class RemoteNewSession extends Disposable implements ICopilotChatSession 
 
 	setIsolationMode(_mode: IsolationMode): void {
 		// No-op for remote sessions
+	}
+
+	setUseSandbox(useSandbox: boolean): void {
+		if (this._useSandbox.get() === useSandbox) {
+			return;
+		}
+		this._useSandbox.set(useSandbox, undefined);
+		this.storageService.store(STORAGE_KEY_USE_SANDBOX, useSandbox, StorageScope.PROFILE, StorageTarget.MACHINE);
 	}
 
 	setBranch(_branch: string | undefined): void {
@@ -904,6 +948,8 @@ class AgentSessionAdapter implements ICopilotChatSession {
 	readonly permissionLevel: IObservable<ChatPermissionLevel> = constObservable(ChatPermissionLevel.Default);
 	readonly branch: IObservable<string | undefined> = constObservable(undefined);
 	readonly isolationMode: IObservable<IsolationMode | undefined> = constObservable(undefined);
+	/** Where a committed session runs is already decided; the choice only exists before the first send. */
+	readonly useSandbox: IObservable<boolean | undefined> = constObservable(undefined);
 	readonly gitRepository?: IGitRepository | undefined;
 	readonly branches: IObservable<readonly string[]> = constObservable([]);
 
@@ -1012,6 +1058,9 @@ class AgentSessionAdapter implements ICopilotChatSession {
 	}
 	setIsolationMode(mode: IsolationMode): void {
 		throw new Error('Method not implemented.');
+	}
+	setUseSandbox(useSandbox: boolean): void {
+		// Where a committed session runs is already decided.
 	}
 	setModelId(modelId: string | undefined, source: ChatModelSource): void {
 		transaction(tx => {
@@ -2032,11 +2081,86 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		return this._toChat(session);
 	}
 
+	/** Test seam: the contribution registry is global, so tests override this with a stub. */
+	protected _getCloudSandboxContribution(): Pick<CloudSandboxAgentHostContribution, 'provisionSession'> {
+		return getWorkbenchContribution<CloudSandboxAgentHostContribution>(CloudSandboxAgentHostContribution.ID);
+	}
+
+	/**
+	 * Commit a cloud new-session into a GitHub-managed sandbox instead of the server-run cloud
+	 * agent: provision the sandbox, then hand the session over to the remote-agent-host provider
+	 * that owns it and send the first turn there.
+	 *
+	 * The committed session belongs to that other provider, which is why this fires
+	 * `onDidReplaceSession` across providers — the same swap {@link _sendFirstChat} performs, just
+	 * landing outside this provider. Mission Control starts no run for the task it creates, so the
+	 * first turn has to be dispatched here rather than being picked up server-side.
+	 */
+	private async _sendFirstChatToSandbox(session: RemoteNewSession, repoNwo: string, options: ISendRequestOptions): Promise<ISession> {
+		session.setTitle((options.title || options.query.split('\n')[0]).substring(0, 100) || localize('new session', "New Session"));
+		session.setStatus(SessionStatus.InProgress);
+		this._sessionCache.set(session.resource.toString(), session);
+		this._invalidateGroupingCaches();
+		const placeholder = this._chatToSession(session);
+		this._onDidChangeSessions.fire({ added: [placeholder], removed: [], changed: [] });
+
+		let provisioned: ICloudSandboxProvisionedSession | undefined;
+		try {
+			provisioned = await this._getCloudSandboxContribution().provisionSession({
+				repoNwo,
+				// No `baseRef`: cloud sessions have no branch picker; Mission Control chooses.
+				prompt: options.query,
+			}, CancellationToken.None);
+
+			// Send into the session's main chat rather than `createNewChat`, which would mint an
+			// *additional* peer chat inside a session that already has one.
+			const chat = provisioned.session.mainChat.get();
+			const committed = await provisioned.provider.sendRequest(provisioned.session.sessionId, chat.resource, options);
+
+			// Retire only once the turn is dispatched; swapping earlier bounces the view home.
+			this._publishSandboxSession(provisioned, { announce: false });
+			this._retirePlaceholder(session, placeholder, committed);
+			return committed;
+		} catch (error) {
+			this.logService.error(`[CopilotChatSessionsProvider] Failed to start cloud sandbox session for ${repoNwo}:`, error);
+			// The sandbox outlives a failed first turn, so list it rather than leaving it invisible.
+			if (provisioned) {
+				this._publishSandboxSession(provisioned);
+			}
+			this._sessionCache.delete(session.resource.toString());
+			this._invalidateGroupingCaches();
+			this._sessionGroupCache.delete(session.sessionId);
+			this._clearCurrentNewSessionIfMatch(session, /* leak */ true);
+			this._onDidChangeSessions.fire({ added: [], removed: [placeholder], changed: [] });
+			session.dispose();
+			throw error;
+		}
+	}
+
+	/** Reveal the sandbox session that {@link CloudSandboxAgentHostContribution.provisionSession} withheld from listings. */
+	private _publishSandboxSession(provisioned: ICloudSandboxProvisionedSession, options?: { announce?: boolean }): void {
+		provisioned.provider.publishWithheldSession(AgentSession.id(provisioned.session.resource), options);
+	}
+
+	/** Retire the optimistic placeholder in favour of the session that now exists. */
+	private _retirePlaceholder(session: RemoteNewSession, placeholder: ISession, committed: ISession): void {
+		this._sessionCache.delete(session.resource.toString());
+		this._invalidateGroupingCaches();
+		this._sessionGroupCache.delete(session.sessionId);
+		this._clearCurrentNewSessionIfMatch(session);
+		this._onDidReplaceSession.fire({ from: placeholder, to: committed });
+	}
+
 	async sendRequest(sessionId: string, chatResource: URI, options: ISendRequestOptions): Promise<ISession> {
 		const newSession = this._newSessions.get(sessionId);
 		if (newSession) {
 			if (!this.uriIdentityService.extUri.isEqual(newSession.mainChat.get().resource, chatResource)) {
 				throw new Error('Chat resource does not match the main chat of the current new session');
+			}
+			// `useSandbox` is persisted, so it can outlive the setting being turned off. Re-check
+			// rather than trust it: falling back to the cloud agent beats a send that must fail.
+			if (newSession instanceof RemoteNewSession && newSession.useSandbox.get() && newSession.repoNwo && isCloudSandboxEnabled(this.configurationService)) {
+				return this._sendFirstChatToSandbox(newSession, newSession.repoNwo, options);
 			}
 			return this._sendFirstChat(newSession, chatResource, options);
 		}

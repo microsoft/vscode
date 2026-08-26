@@ -175,10 +175,6 @@
 	color: var(--vscode-icon-foreground);
 }
 
-.sessions-chat-toolbar-spacer {
-	flex: 1;
-}
-
 /* Voice mode controls (mic / stop / settings / disconnect) */
 .sessions-chat-voice-toolbar {
 	display: flex;
@@ -228,6 +224,7 @@
 .sessions-chat-config-toolbar {
 	display: flex;
 	align-items: center;
+	flex: 1 1 0;
 	min-width: 0;
 	overflow: hidden;
 }
@@ -248,12 +245,35 @@
 	display: flex;
 	align-items: center;
 	min-width: 30px;
-	overflow: hidden;
+	overflow: visible;
 }
 
-/* Prevent the mode picker from shrinking so the model picker label
- * ellipsizes first rather than the mode picker collapsing to icon-only. */
-.sessions-chat-config-toolbar .monaco-action-bar .action-item:has(.sessions-chat-dropdown-label) {
+.sessions-chat-config-toolbar .monaco-action-bar .action-item.compact-picker {
+	box-sizing: border-box;
+	width: 22px;
+	min-width: 22px;
+	padding: 0;
+}
+
+.sessions-chat-config-toolbar .monaco-action-bar .action-item.compact-picker .action-label {
+	box-sizing: border-box;
+	width: 22px;
+	min-width: 22px;
+	padding: 2px 2px 2px 8px;
+	justify-content: flex-start;
+}
+
+.sessions-chat-config-toolbar .monaco-action-bar .action-item.compact-picker .action-label.model-picker-split {
+	padding: 0;
+}
+
+.sessions-chat-config-toolbar .monaco-action-bar .action-item.compact-picker .chat-input-picker-label {
+	display: none;
+}
+
+/* Expanded pickers remain intrinsic; the responsive controller switches them
+ * to compact form instead of allowing their labels to truncate. */
+.sessions-chat-config-toolbar .monaco-action-bar .action-item:not(.compact-picker) {
 	flex-shrink: 0;
 }
 
@@ -269,7 +289,7 @@
 	color: var(--vscode-icon-foreground);
 	white-space: nowrap;
 	min-width: 30px;
-	overflow: hidden;
+	overflow: visible;
 }
 
 .sessions-chat-config-toolbar .action-label:hover {
@@ -282,13 +302,13 @@
 	font-size: var(--vscode-agents-fontSize-label2, 11px);
 }
 
-/* Allow long labels (e.g. the model picker name) to ellipsize when space is tight */
+/* Expanded labels are never truncated; compact mode removes the label. */
 .sessions-chat-config-toolbar .action-label .chat-input-picker-label {
 	margin-left: 4px;
-	overflow: hidden;
-	text-overflow: ellipsis;
+	flex-shrink: 0;
+	overflow: visible;
+	text-overflow: clip;
 	white-space: nowrap;
-	min-width: 0;
 }
 
 /* When the picker has no leading icon (e.g. model picker), drop the icon-to-label gap. */
@@ -655,4 +675,3 @@
 .sessions-chat-attachment-remove:hover {
 	background-color: var(--vscode-toolbar-hoverBackground);
 }
-

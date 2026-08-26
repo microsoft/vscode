@@ -9,6 +9,7 @@ import { formatGitError, getRemoteTrackingRef, GitCheckoutProgressParser, isRetr
 import { buildGitBlobUri } from '../../node/gitDiffContent.js';
 import { URI } from '../../../../base/common/uri.js';
 import { EMPTY_TREE_OBJECT, getBranchCompletions, resolveDiffBaseBranchName } from '../../common/agentHostGitService.js';
+import { needsSessionGitStateRefresh } from '../../common/state/sessionState.js';
 
 suite('AgentHostGitService', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -104,6 +105,7 @@ suite('AgentHostGitService', () => {
 			].join('\n');
 			assert.deepStrictEqual(parseGitStatusV2(out), {
 				branchName: 'main',
+				isDetachedHead: undefined,
 				upstreamBranchName: 'origin/main',
 				outgoingChanges: 0,
 				incomingChanges: 0,
@@ -123,6 +125,7 @@ suite('AgentHostGitService', () => {
 			].join('\n');
 			assert.deepStrictEqual(parseGitStatusV2(out), {
 				branchName: 'feature',
+				isDetachedHead: undefined,
 				upstreamBranchName: 'origin/feature',
 				outgoingChanges: 3,
 				incomingChanges: 2,
@@ -137,6 +140,7 @@ suite('AgentHostGitService', () => {
 			].join('\n');
 			assert.deepStrictEqual(parseGitStatusV2(out), {
 				branchName: undefined,
+				isDetachedHead: true,
 				upstreamBranchName: undefined,
 				outgoingChanges: undefined,
 				incomingChanges: undefined,
@@ -146,6 +150,24 @@ suite('AgentHostGitService', () => {
 
 		test('returns empty object for undefined input', () => {
 			assert.deepStrictEqual(parseGitStatusV2(undefined), {});
+		});
+	});
+
+	suite('needsSessionGitStateRefresh', () => {
+		test('separates a branch-less probe failure from a detached HEAD', () => {
+			assert.deepStrictEqual({
+				neverComputed: needsSessionGitStateRefresh(undefined),
+				// The residue of a failed `git status`, as persisted before the
+				// probe learned to withhold state it could not compute.
+				probeFailureRemnant: needsSessionGitStateRefresh({ baseBranchName: 'main' }),
+				detachedHead: needsSessionGitStateRefresh({ isDetachedHead: true, baseBranchName: 'main' }),
+				onABranch: needsSessionGitStateRefresh({ branchName: 'feature', baseBranchName: 'main' }),
+			}, {
+				neverComputed: true,
+				probeFailureRemnant: true,
+				detachedHead: false,
+				onABranch: false,
+			});
 		});
 	});
 
@@ -278,6 +300,9 @@ suite('AgentHostGitService', () => {
 				'renamed-old.txt',
 				' C copied-new.txt',
 				'copied-old.txt',
+				'AD deleted-index-addition.txt',
+				'RD deleted-rename-destination.txt',
+				'rename-source.txt',
 				' M modified.txt',
 				'',
 			].join('\x00');
@@ -291,6 +316,7 @@ suite('AgentHostGitService', () => {
 				'renamed-old.txt',
 				'copied-new.txt',
 				'copied-old.txt',
+				'rename-source.txt',
 			]);
 		});
 

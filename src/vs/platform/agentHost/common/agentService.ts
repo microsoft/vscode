@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { CancellationToken } from '../../../base/common/cancellation.js';
+import type { VSBuffer } from '../../../base/common/buffer.js';
 import { Event } from '../../../base/common/event.js';
 import { IReference } from '../../../base/common/lifecycle.js';
 import type { IObservable } from '../../../base/common/observable.js';
@@ -14,19 +15,20 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { AgentSandboxSettingId } from '../../sandbox/common/settings.js';
 import type { IActiveSubscriptionInfo, IAgentSubscription } from './state/agentSubscription.js';
 import type { IRemoteWatchHandle } from './agentHostFileSystemProvider.js';
+import type { IAgentHostResourceUriMapper } from './agentHostUri.js';
 import type { IAgentHostClientTelemetryContext } from './agentHostTelemetry.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
 import type { InitializeResult } from './state/protocol/common/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from './state/protocol/channels-changeset/commands.js';
 import type { ActionEnvelope, INotification, IRootConfigChangedAction, SessionAction, ChatAction, TerminalAction, ClientAnnotationsAction, ClientChangesetAction } from './state/sessionActions.js';
-import type { ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMkdirParams, ResourceMkdirResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWatchState, ResourceWriteParams, ResourceWriteResult, CreateResourceWatchParams, CreateResourceWatchResult, IStateSnapshot } from './state/sessionProtocol.js';
+import type { ContentEncoding, ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMkdirParams, ResourceMkdirResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWatchState, ResourceWriteParams, ResourceWriteResult, CreateResourceWatchParams, CreateResourceWatchResult, IStateSnapshot } from './state/sessionProtocol.js';
 import { ComponentToState, StateComponents, type RootState } from './state/sessionState.js';
-import { type AgentProvider, CLAUDE_AGENT_PROVIDER_ID, CODEX_AGENT_PROVIDER_ID, type AuthenticateParams, type AuthenticateResult, type IAgentHostAuthTokenRequest, type IAgentCreateChatOptions, type IAgentCreateSessionConfig, type IAgentSessionMetadata, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IMcpNotification, type IAgentHostNetworkEndpoint, type IAgentHostManagedSettingsSnapshot } from './agent.js';
+import { type AgentProvider, CLAUDE_AGENT_PROVIDER_ID, CODEX_AGENT_PROVIDER_ID, type AuthenticateParams, type AuthenticateResult, type IAgentCreateChatRequestOptions, type IAgentCreateSessionConfig, type IAgentSessionMetadata, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IMcpNotification, type IAgentHostNetworkEndpoint, type IAgentHostManagedSettingsSnapshot } from './agent.js';
 
 // ---- Provider-model re-exports (compatibility) ------------------------------
 // New provider code imports these from agent.ts.
 export type {
-	IAgent, IAgentChats, IAgentChatContext, IAgentCreateChatOptions, IAgentCreateChatForkSource,
+	IAgent, IAgentChats, IAgentChatContext, IAgentCreateChatOptions, IAgentCreateChatRequestOptions, IAgentCreateChatForkSource,
 	IAgentCreateChatSideChatSelection, IAgentCreateChatSideChatSource, IAgentCreateChatResult,
 	IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentChatMetadata, IAgentSessionMetadata,
 	IAgentSessionProjectInfo, IAgentLegacyChat, IAgentChatAdoptionResult, IAgentSpawnedChatParent,
@@ -69,14 +71,53 @@ export const enum AgentHostIpcChannels {
 /** Configuration key that controls whether AHP JSONL logs are written for agent host transports. */
 export const AgentHostAhpJsonlLoggingSettingId = 'chat.agentHost.ahpJsonlLoggingEnabled';
 
+export type AgentHostDebugLogsArtifactKind = 'archive' | 'directory';
+/** Maximum number of files in one Agent Host debug-log artifact. */
+export const AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES = 1000;
+/**
+ * Maximum payload of a single {@link IAgentHostDebugLogsChunk}. Debug-log
+ * artifacts are streamed in chunks of at most this size so a remote agent host
+ * never has to encode a whole archive into one JSON-RPC message.
+ */
+export const AGENT_HOST_DEBUG_LOGS_CHUNK_BYTES = 1024 * 1024;
+
+export interface IAgentHostDebugLogsArtifactEntry {
+	readonly path: string;
+	readonly size: number;
+}
+
+export interface IAgentHostDebugLogsArtifact {
+	readonly kind: AgentHostDebugLogsArtifactKind;
+	readonly resource: URI;
+	readonly providerLogsIncluded: boolean;
+	readonly size: number;
+	readonly uncompressedSize: number;
+	/** Exact regular files staged in the artifact. Paths are relative, normalized, and unique. */
+	readonly entries: readonly IAgentHostDebugLogsArtifactEntry[];
+}
+
+/** One bounded slice of a debug-log artifact, read via `readDebugLogsChunk`. */
+export interface IAgentHostDebugLogsChunk {
+	/** Raw bytes for this slice. Empty once `position` is at or past the end. */
+	readonly data: VSBuffer;
+	/** `true` when this slice reaches the end of the artifact. */
+	readonly eof: boolean;
+}
+
 /** Configuration key controlling automatic OS system proxy discovery for agent-host Copilot sessions. */
 export const AgentHostSystemProxyEnabledSettingId = 'chat.agentHost.systemProxy.enabled';
+
+/** Configuration key controlling the GitHub MCP server in agent-host sessions. */
+export const AgentHostGitHubMcpServerEnabledSettingId = 'chat.agentHost.githubMcpServer.enabled';
 
 /** Configuration key gating active-agent session and chat title generation. */
 export const AgentHostActiveAgentTitleGenerationSettingId = 'chat.agentHost.experimental.activeAgentTitleGeneration';
 
 /** Configuration key enabling rich-link guidance for Markdown plan documents. */
 export const AgentHostMarkdownPlanRichLinksEnabledSettingId = 'chat.agentHost.experimental.markdownPlanRichLinks';
+
+/** Configuration key gating the artifact tools and their agent instruction. */
+export const ArtifactToolsSettingId = 'chat.artifactTools.enabled';
 
 /**
  * Configuration key gating multiple-working-directory support for the Copilot
@@ -146,16 +187,9 @@ export const AgentHostClaudeAgentEnabledSettingId = 'chat.agentHost.claudeAgent.
 export const AgentHostCodexAgentEnabledSettingId = 'chat.agentHost.codexAgent.enabled';
 
 /**
- * Configuration key controlling whether the agent host *wires up* the BYOK
- * ("bring your own key") language-model bridge: the renderer LM handler, the
- * reverse-RPC channel, and the per-connection link to the node-side OpenAI
- * proxy + bridge registry. When `true` (the default), the renderer's BYOK
- * server channel and the per-connection bridge are wired so extension-provided
- * BYOK models are reachable from agent-host sessions. When `false`, the proxy
- * and registry are still constructed but stay inert — the BYOK server channel
- * and the per-connection bridge are not wired, so the registry stays empty and
- * extension-provided BYOK models are never reachable from agent-host sessions.
- * The agent host process must be restarted for changes to take effect.
+ * Configuration key controlling whether extension-provided BYOK ("bring your
+ * own key") models are published and included in new agent-host sessions.
+ * Changes are synchronized to the running agent host.
  */
 export const AgentHostByokModelsEnabledSettingId = 'chat.agentHost.byokModels.enabled';
 
@@ -184,20 +218,11 @@ export const AgentHostClaudeAgentEnabledEnvVar = 'VSCODE_AGENT_HOST_CLAUDE_AGENT
  */
 export const AgentHostCodexAgentEnabledEnvVar = 'VSCODE_AGENT_HOST_CODEX_AGENT_ENABLED';
 
-/**
- * Explicit environment override for {@link AgentHostByokModelsEnabledSettingId}.
- * Accepts `'true'` / `'false'`; when absent or invalid, the synchronized agent
- * host root configuration determines whether BYOK models are enabled.
- */
-export const AgentHostByokModelsEnabledEnvVar = 'VSCODE_AGENT_HOST_BYOK_MODELS_ENABLED';
+/** Overrides the soft cap on resident session roots. Primarily used by integration tests. */
+export const AgentHostSessionResidencyLimitEnvVar = 'VSCODE_AGENT_HOST_SESSION_RESIDENCY_LIMIT';
 
-/**
- * Overrides the grace period (in milliseconds) before an idle, fully
- * unsubscribed session is released from memory. Defaults to 30_000. Primarily a
- * test hook so real-SDK integration tests can force a prompt release without
- * waiting the full production grace; production does not set it.
- */
-export const AgentHostSessionReleaseGraceMsEnvVar = 'VSCODE_AGENT_HOST_SESSION_RELEASE_GRACE_MS';
+/** Overrides the retry delay after a provider temporarily vetoes session release. Primarily used by integration tests. */
+export const AgentHostSessionReleaseRetryMsEnvVar = 'VSCODE_AGENT_HOST_SESSION_RELEASE_RETRY_MS';
 
 /**
  * Resolves the effective enable state for a Claude/Codex provider from the
@@ -221,10 +246,6 @@ export function isAgentEnabled(envValue: string | undefined, defaultEnabled: boo
 		return true;
 	}
 	return defaultEnabled;
-}
-
-export function isAgentHostByokModelsEnabled(envValue: string | undefined, rootConfigValue: boolean | undefined): boolean {
-	return isAgentEnabled(envValue, rootConfigValue ?? false);
 }
 
 /**
@@ -276,13 +297,14 @@ export function getAgentHostCopilotSandboxSettingId(customTerminalToolEnabled: b
 export const CodexPreferAgentHostEditorSettingId = 'chat.editor.codex.preferAgentHost';
 
 export function affectsAgentHostProviderPreference(event: IConfigurationChangeEvent, isSessionsWindow: boolean): boolean {
-	return event.affectsConfiguration(isSessionsWindow ? AgentHostCodexAgentEnabledSettingId : CodexPreferAgentHostEditorSettingId);
+	return event.affectsConfiguration(AgentHostClaudeAgentEnabledSettingId)
+		|| event.affectsConfiguration(isSessionsWindow ? AgentHostCodexAgentEnabledSettingId : CodexPreferAgentHostEditorSettingId);
 }
 
 export function shouldSurfaceLocalAgentHostProvider(provider: AgentProvider, configurationService: IConfigurationService, isSessionsWindow: boolean): boolean {
 	switch (provider) {
 		case CLAUDE_AGENT_PROVIDER_ID:
-			return true;
+			return configurationService.getValue<boolean>(AgentHostClaudeAgentEnabledSettingId) !== false;
 		case CODEX_AGENT_PROVIDER_ID:
 			return configurationService.getValue<boolean>(isSessionsWindow ? AgentHostCodexAgentEnabledSettingId : CodexPreferAgentHostEditorSettingId) === true;
 		default:
@@ -751,11 +773,14 @@ export interface IAgentHostManagementService {
 	 * Local-only compatibility path for chat fields not yet represented by AHP
 	 * `createChat` (`title` and `model`).
 	 */
-	createChatWithExtensions(session: URI, chat: URI, options: IAgentCreateChatOptions): Promise<void>;
+	createChatWithExtensions(session: URI, chat: URI, options: IAgentCreateChatRequestOptions): Promise<void>;
 	shutdown(): Promise<void>;
 	getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo>;
 	getManagedSettingsDiagnostics(): Promise<readonly IAgentHostManagedSettingsDiagnostics[]>;
 	diagnosticsFetch(url: string): Promise<IAgentHostNetworkFetchResult>;
+	getSessionStateFile(session: URI): Promise<URI | undefined>;
+	collectDebugLogs(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind, chat?: URI): Promise<IAgentHostDebugLogsArtifact>;
+	readDebugLogsChunk(resource: URI, position: number): Promise<IAgentHostDebugLogsChunk>;
 	startWebSocketServer(): Promise<IAgentHostSocketInfo>;
 	getInspectInfo(tryEnable: boolean): Promise<IAgentHostInspectInfo | undefined>;
 }
@@ -783,9 +808,6 @@ export interface IAgentService {
 	 */
 	authenticate(params: AuthenticateParams): Promise<AuthenticateResult>;
 
-	/** Return a bearer token previously supplied via {@link authenticate}. */
-	getAuthToken(request: IAgentHostAuthTokenRequest): string | undefined;
-
 	/** List all available sessions from the Copilot CLI. */
 	listSessions(): Promise<IAgentSessionMetadata[]>;
 
@@ -797,7 +819,7 @@ export interface IAgentService {
 	 * registers the chat in the session's catalog so subscribers observe a
 	 * `session/chatAdded` action. The `chat` URI is the client-chosen channel.
 	 */
-	createChat(session: URI, chat: URI, options?: IAgentCreateChatOptions): Promise<void>;
+	createChat(session: URI, chat: URI, options?: IAgentCreateChatRequestOptions): Promise<void>;
 
 	/** Dispose an additional chat created via {@link createChat}. */
 	disposeChat(session: URI, chat: URI): Promise<void>;
@@ -888,6 +910,12 @@ export interface IAgentService {
 	 */
 	diagnosticsFetch(url: string): Promise<IAgentHostNetworkFetchResult>;
 
+	getSessionStateFile?(session: URI): Promise<URI | undefined>;
+
+	collectDebugLogs?(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind, chat?: URI): Promise<IAgentHostDebugLogsArtifact>;
+
+	readDebugLogsChunk?(resource: URI, position: number): Promise<IAgentHostDebugLogsChunk>;
+
 	// ---- Protocol methods (sessions process protocol) ----------------------
 
 	/**
@@ -952,7 +980,7 @@ export interface IAgentService {
 	 * Read stored content by URI from the agent host (e.g. file edit snapshots,
 	 * or reading files from the remote filesystem).
 	 */
-	resourceRead(uri: URI): Promise<ResourceReadResult>;
+	resourceRead(uri: URI, encoding?: ContentEncoding): Promise<ResourceReadResult>;
 
 	/**
 	 * Write content to a file on the agent host's filesystem.
@@ -1011,6 +1039,7 @@ export interface IAgentService {
 export interface IAgentConnection {
 
 	readonly clientId: string;
+	readonly resourceUris: IAgentHostResourceUriMapper;
 
 	// ---- State subscriptions ------------------------------------------------
 	readonly rootState: IAgentSubscription<RootState>;
@@ -1115,12 +1144,22 @@ export interface IAgentConnection {
 	 */
 	diagnosticsFetch(url: string): Promise<IAgentHostNetworkFetchResult>;
 
+	getSessionStateFile(session: URI): Promise<URI | undefined>;
+
+	collectDebugLogs(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind, chat?: URI): Promise<IAgentHostDebugLogsArtifact>;
+
+	/**
+	 * Read one bounded slice of an artifact previously returned by
+	 * {@link collectDebugLogs}. Only artifacts this host produced are readable.
+	 */
+	readDebugLogsChunk(resource: URI, position: number): Promise<IAgentHostDebugLogsChunk>;
+
 	/**
 	 * Create an additional peer chat inside an existing session. `chat` is a
 	 * client-chosen chat URI (see {@link buildChatUri}). The host adds the
 	 * chat to the session's catalog and publishes `session/chatAdded`.
 	 */
-	createChat(session: URI, chat: URI, options?: IAgentCreateChatOptions): Promise<void>;
+	createChat(session: URI, chat: URI, options?: IAgentCreateChatRequestOptions): Promise<void>;
 	/** Dispose an additional chat created via {@link createChat}. */
 	disposeChat(chat: URI): Promise<void>;
 
@@ -1133,7 +1172,7 @@ export interface IAgentConnection {
 
 	// ---- Filesystem operations ----------------------------------------------
 	resourceList(uri: URI): Promise<ResourceListResult>;
-	resourceRead(uri: URI): Promise<ResourceReadResult>;
+	resourceRead(uri: URI, encoding?: ContentEncoding): Promise<ResourceReadResult>;
 	resourceWrite(params: ResourceWriteParams): Promise<ResourceWriteResult>;
 	resourceCopy(params: ResourceCopyParams): Promise<ResourceCopyResult>;
 	resourceDelete(params: ResourceDeleteParams): Promise<ResourceDeleteResult>;

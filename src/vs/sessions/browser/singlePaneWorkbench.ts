@@ -36,7 +36,6 @@ export class SinglePaneWorkbench extends Workbench {
 
 	private _dockedAuxiliaryBarWidth = DockedAuxiliaryBarController.DEFAULT_WIDTH;
 	private _syncingEditorVisibility = false;
-	private _editorWidthAfterDetailAutoHide: number | undefined;
 	private _restoreEqualSplitOnDetailsHide = false;
 	private readonly _memento = new DockedEditorSizeMemento();
 
@@ -263,13 +262,6 @@ export class SinglePaneWorkbench extends Workbench {
 		this._syncEditorVisibility(nodeWidth);
 	}
 
-	protected override _fireDidChangePartVisibility(partId: Parts, visible: boolean, source?: 'resize'): void {
-		if (partId === Parts.AUXILIARYBAR_PART && source !== 'resize') {
-			this._editorWidthAfterDetailAutoHide = undefined;
-		}
-		super._fireDidChangePartVisibility(partId, visible, source);
-	}
-
 	private _syncEditorVisibility(nodeWidth: number): void {
 		if (this._syncingEditorVisibility) {
 			return;
@@ -286,23 +278,8 @@ export class SinglePaneWorkbench extends Workbench {
 
 		this._syncingEditorVisibility = true;
 		try {
-			const detailFitsBesideEditor = nodeWidth >= this._dockedAuxiliaryBarWidth + EDITOR_PART_MINIMUM_WIDTH;
-			if (this.partVisibility.editor && this.partVisibility.auxiliaryBar && !detailFitsBesideEditor) {
-				this._editorWidthAfterDetailAutoHide = nodeWidth;
-				this.setAuxiliaryBarHiddenForResize(true);
-				return;
-			}
-
-			const detailShowThreshold = this._editorWidthAfterDetailAutoHide === undefined
-				? undefined
-				: this._editorWidthAfterDetailAutoHide + this._dockedAuxiliaryBarWidth;
-			if (this.partVisibility.editor && !this.partVisibility.auxiliaryBar && detailShowThreshold !== undefined && nodeWidth >= detailShowThreshold) {
-				this.setAuxiliaryBarHiddenForResize(false);
-				this._editorWidthAfterDetailAutoHide = undefined;
-				return;
-			}
-
-			const editorContentVisible = nodeWidth > this._dockedAuxiliaryBarWidth + SinglePaneWorkbench._EDITOR_CONTENT_VISIBLE_THRESHOLD;
+			const effectiveAuxiliaryBarWidth = DockedAuxiliaryBarController.getEffectiveWidth(this._dockedAuxiliaryBarWidth, nodeWidth);
+			const editorContentVisible = nodeWidth > effectiveAuxiliaryBarWidth + SinglePaneWorkbench._EDITOR_CONTENT_VISIBLE_THRESHOLD;
 
 			// Hide: editor content is visible and the node is squeezed down to the detail
 			// width. Only hide when the detail is visible, so we don't hide when both parts
@@ -334,7 +311,6 @@ export class SinglePaneWorkbench extends Workbench {
 	protected override _applyEditorVisibility(hidden: boolean): void {
 		if (hidden) {
 			this._restoreEqualSplitOnDetailsHide = false;
-			this._editorWidthAfterDetailAutoHide = undefined;
 		}
 
 		// Part sizes are workbench-global, so hiding the side pane must not discard the

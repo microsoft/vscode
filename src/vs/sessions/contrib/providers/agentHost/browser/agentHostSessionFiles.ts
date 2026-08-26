@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { constObservable, derivedOpts, IObservable, mapObservableArrayCached } from '../../../../../base/common/observable.js';
-import { compare as strCompare } from '../../../../../base/common/strings.js';
+import { constObservable, derived, derivedOpts, IObservable } from '../../../../../base/common/observable.js';
 import { getComparisonKey, isEqual, isEqualOrParent } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { normalizeFileEdit } from '../../../../../platform/agentHost/common/fileEditDiff.js';
@@ -12,6 +11,7 @@ import type { FileEdit } from '../../../../../platform/agentHost/common/state/pr
 import {
 	buildDefaultChatUri,
 	type ChatState,
+	type Customization,
 	FileEditKind,
 	ResponsePartKind,
 	type SessionState,
@@ -22,8 +22,9 @@ import {
 	ToolResultContentType,
 } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IChatSessionFileChange2 } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { ISessionFile, ISessionTurnFileChange, ISessionWorkspace, SessionFileOperation, sessionTurnFileChangesEqual } from '../../../../services/sessions/common/session.js';
+import { ISessionChatCustomization, ISessionTurnFileChange, ISessionWorkspace, sessionTurnFileChangesEqual } from '../../../../services/sessions/common/session.js';
 import { createActiveSessionSubscriptionObs } from './agentHostSessionChangesets.js';
+import { createIncrementalChatCustomizationRefsParser, customizationRefsEqual, CustomizationIndex, resolveChatCustomizations, sessionChatCustomizationsEqual, type ICustomizationRef } from './agentHostSessionCustomizations.js';
 import { IAgentHostAdapterOptions } from './baseAgentHostSessionsProvider.js';
 
 /**
@@ -47,16 +48,10 @@ export interface IParsedFileEdit {
 
 /**
  * The observable outputs derived from an agent-host session's live output
- * stream (its chat-state turns). Both are parsed from the same underlying
- * per-chat subscriptions so the stream is only walked once.
+ * stream (its chat-state turns), exposed per chat and computed on demand so a
+ * chat nobody asks about is never subscribed to.
  */
 export interface ISessionOutputObs {
-	/**
-	 * Files created, edited or deleted **outside** the session workspace folders
-	 * during the session (e.g. config files in the user's home directory),
-	 * reduced across every chat and turn.
-	 */
-	readonly externalFiles: IObservable<readonly ISessionFile[]>;
 	/**
 	 * Returns the file changes produced by a specific chat's **last turn** only,
 	 * keyed by that chat's AHP chat URI (the default chat's
@@ -67,23 +62,34 @@ export interface ISessionOutputObs {
 	 * recent request produced.
 	 */
 	getLastTurnChanges(chatUri: URI): IObservable<readonly ISessionTurnFileChange[]>;
+	/**
+	 * Returns the customizations a specific chat used or read, keyed by that
+	 * chat's AHP chat URI. Ordered by first reference and de-duplicated.
+	 */
+	getChatCustomizations(chatUri: URI): IObservable<readonly ISessionChatCustomization[]>;
+	/**
+	 * Drops the cached observables and parser state held for a chat that no
+	 * longer exists (e.g. a peer chat removed from the session's catalog).
+	 * Without this the per-chat caches would retain one object graph per
+	 * deleted chat for the adapter's lifetime.
+	 */
+	releaseChat(chatUri: URI): void;
 }
 
 /**
  * Builds the observable outputs derived from a session's live output stream.
  *
- * The data is parsed from the agent-host chat-state turns: each turn's response
+ * The data is parsed from the agent-host chat-state turns: the turn's response
  * parts are scanned for tool calls, and each tool call's file-edit results (and
- * pending edits) are collected. Two views are produced from the same parse:
+ * pending edits) are collected.
  *
- * - {@link ISessionOutputObs.externalFiles}: edits reduced per file across all
- *   chats/turns so that a file first created and then edited is reported as
- *   {@link SessionFileOperation.Created} while a deleted file is removed; only
- *   files outside the workspace folders are kept.
- * - {@link ISessionOutputObs.getLastTurnChanges}: given a chat's AHP URI, that
- *   chat's last turn's edits reduced per file into
- *   {@link ISessionTurnFileChange | changes} with diff stats and classification
- *   against the session workspace/worktree roots.
+ * Everything is scoped to a single chat and produced on demand: asking for a
+ * chat's {@link ISessionOutputObs.getLastTurnChanges | last-turn changes} or
+ * {@link ISessionOutputObs.getChatCustomizations | customizations} is what
+ * opens that chat's state subscription, so peer chats nobody reads cost
+ * nothing. Only the chat's last turn is ever parsed for file edits — completed
+ * earlier turns are never walked.
+ *
  * Computation only happens for the active, non-archived session: archived
  * sessions never open a live chat-state subscription, so no parsing work is
  * done for them.
@@ -104,106 +110,100 @@ export function createSessionOutputObs(
 	const enabledObs = derivedOpts<boolean>({ equalsFn: (a, b) => a === b }, reader =>
 		isActiveSessionObs.read(reader) && !isArchivedObs.read(reader));
 
-	// Subscribe to the session to discover its chats.
-	const sessionStateObs = createActiveSessionSubscriptionObs<SessionState>(
-		options,
-		enabledObs,
-		StateComponents.Session,
-		constObservable(sessionUri),
-	);
-
-	const lastTurnChangesByChat = new Map<string, IObservable<readonly ISessionTurnFileChange[]>>();
-	const pruneLastTurnChanges = (chatUris: readonly URI[]): readonly URI[] => {
-		const chatKeys = new Set(chatUris.map(uri => uri.toString()));
-		for (const key of lastTurnChangesByChat.keys()) {
-			if (!chatKeys.has(key)) {
-				lastTurnChangesByChat.delete(key);
-			}
+	// One entry per chat the UI has asked about, created on first request. The
+	// entries are inert until read: the chat-state subscription is only opened
+	// while one of the derived values below is observed.
+	interface IChatOutput {
+		readonly lastTurnEdits: IObservable<readonly IParsedFileEdit[]>;
+		readonly customizationRefs: IObservable<readonly ICustomizationRef[]>;
+	}
+	const outputByChat = new Map<string, IChatOutput>();
+	const getChatOutput = (chatUri: URI): IChatOutput => {
+		const key = chatUri.toString();
+		let output = outputByChat.get(key);
+		if (!output) {
+			const chatStateObs = createActiveSessionSubscriptionObs<ChatState>(
+				options,
+				enabledObs,
+				StateComponents.Chat,
+				constObservable(chatUri),
+			);
+			const parseFileEdits = createIncrementalChatFileEditsParser(mapDiffUri);
+			const parseCustomizationRefs = createIncrementalChatCustomizationRefsParser();
+			output = {
+				lastTurnEdits: derivedOpts<readonly IParsedFileEdit[]>({ equalsFn: parsedFileEditsEqual }, reader => {
+					const chatState = chatStateObs.read(reader).read(reader);
+					if (!chatState || chatState instanceof Error) {
+						return [];
+					}
+					return parseFileEdits(chatState);
+				}),
+				// Kept separate from `lastTurnEdits` so a delta that only carries
+				// file edits does not invalidate the customization references,
+				// and vice versa.
+				customizationRefs: derivedOpts<readonly ICustomizationRef[]>({ equalsFn: customizationRefsEqual }, reader => {
+					const chatState = chatStateObs.read(reader).read(reader);
+					if (!chatState || chatState instanceof Error) {
+						return [];
+					}
+					return parseCustomizationRefs(chatState);
+				}),
+			};
+			outputByChat.set(key, output);
 		}
-		return chatUris;
+		return output;
 	};
 
-	// All chat URIs in the session (default chat + any peer chats). File edits
-	// can be produced by any chat, so we union edits across all of them.
-	const chatUrisObs = derivedOpts<readonly URI[]>({ equalsFn: (a, b) => a.length === b.length && a.every((u, i) => isEqual(u, b[i])) }, reader => {
-		if (!enabledObs.read(reader)) {
-			return pruneLastTurnChanges([]);
-		}
-		const sessionState = sessionStateObs.read(reader).read(reader);
-		const defaultChatUri = URI.parse(buildDefaultChatUri(sessionUri));
-		if (!sessionState || sessionState instanceof Error) {
-			return pruneLastTurnChanges([defaultChatUri]);
-		}
-
-		const uris = new Map<string, URI>();
-		uris.set(defaultChatUri.toString(), defaultChatUri);
-		for (const chat of sessionState.chats) {
-			const uri = URI.parse(chat.resource);
-			uris.set(uri.toString(), uri);
-		}
-		return pruneLastTurnChanges([...uris.values()]);
-	});
-
-	// One observable of parsed edits per chat, subscribing to that chat's state.
-	//
-	// Completed turns (`chatState.turns`) are immutable once finalized, so each
-	// is parsed exactly once and memoized by turn id in a closure-scoped cache
-	// that lives for the chat's lifetime. Only the in-progress `activeTurn` is
-	// re-parsed on every streamed delta, making delta updates O(active turn)
-	// rather than O(all turns). The `equalsFn` ensures the downstream reducers
-	// only re-run when the parsed edits actually change (e.g. not for markdown
-	// or reasoning deltas that carry no file edits).
-	const editsPerChatObs = mapObservableArrayCached(undefined, chatUrisObs, (chatUri) => {
-		const chatStateObs = createActiveSessionSubscriptionObs<ChatState>(
-			options,
-			enabledObs,
-			StateComponents.Chat,
-			constObservable(chatUri),
-		);
-		const parse = createIncrementalChatFileEditsParser(mapDiffUri);
-		return {
-			chatUri,
-			edits: derivedOpts<IChatFileEdits>({ equalsFn: chatFileEditsEqual }, reader => {
-				const chatState = chatStateObs.read(reader).read(reader);
-				if (!chatState || chatState instanceof Error) {
-					return { allEdits: [], lastTurnEdits: [] };
-				}
-				return parse(chatState);
-			}),
-		};
-	}, chatUri => chatUri.toString());
-
-	const externalFiles = derivedOpts<readonly ISessionFile[]>({ equalsFn: sessionFilesEqual }, reader => {
-		const workspace = workspaceObs.read(reader);
-		const folderRoots = (workspace?.folders ?? []).map(f => f.workingDirectory);
-
-		const allEdits: IParsedFileEdit[] = [];
-		for (const chatEdits of editsPerChatObs.read(reader)) {
-			allEdits.push(...chatEdits.edits.read(reader).allEdits);
-		}
-
-		return reduceSessionFiles(allEdits, folderRoots);
-	});
-
 	// The active-turn changeset requests this reactively, so reuse one observable per chat.
+	const lastTurnChangesByChat = new Map<string, IObservable<readonly ISessionTurnFileChange[]>>();
 	const getLastTurnChanges = (chatUri: URI): IObservable<readonly ISessionTurnFileChange[]> => {
 		const key = chatUri.toString();
 		let changes = lastTurnChangesByChat.get(key);
 		if (!changes) {
 			changes = derivedOpts<readonly ISessionTurnFileChange[]>({ equalsFn: sessionTurnFileChangesEqual }, reader => {
 				const folderRoots = getWorkspaceAndWorktreeRoots(workspaceObs.read(reader));
-				const chatEdits = editsPerChatObs.read(reader).find(entry => isEqual(entry.chatUri, chatUri));
-				if (chatEdits) {
-					return reduceTurnChanges(chatEdits.edits.read(reader).lastTurnEdits, folderRoots, cache);
-				}
-				return [];
+				return reduceTurnChanges(getChatOutput(chatUri).lastTurnEdits.read(reader), folderRoots, cache);
 			});
 			lastTurnChangesByChat.set(key, changes);
 		}
 		return changes;
 	};
 
-	return { externalFiles, getLastTurnChanges };
+	// The customization tree changes far less often than the output stream, so
+	// it is indexed on its own and the cheap ref lookup re-runs on either change.
+	const sessionStateObs = createActiveSessionSubscriptionObs<SessionState>(
+		options,
+		enabledObs,
+		StateComponents.Session,
+		constObservable(sessionUri),
+	);
+	const customizationsObs = derivedOpts<readonly Customization[] | undefined>({ equalsFn: (a, b) => a === b }, reader => {
+		const sessionState = sessionStateObs.read(reader).read(reader);
+		return !sessionState || sessionState instanceof Error ? undefined : sessionState.customizations;
+	});
+	const customizationIndexObs = derived(reader =>
+		new CustomizationIndex(customizationsObs.read(reader), getWorkspaceAndWorktreeRoots(workspaceObs.read(reader))));
+
+	const customizationsByChat = new Map<string, IObservable<readonly ISessionChatCustomization[]>>();
+	const getChatCustomizations = (chatUri: URI): IObservable<readonly ISessionChatCustomization[]> => {
+		const key = chatUri.toString();
+		let customizations = customizationsByChat.get(key);
+		if (!customizations) {
+			customizations = derivedOpts<readonly ISessionChatCustomization[]>({ equalsFn: sessionChatCustomizationsEqual }, reader =>
+				resolveChatCustomizations(getChatOutput(chatUri).customizationRefs.read(reader), customizationIndexObs.read(reader)));
+			customizationsByChat.set(key, customizations);
+		}
+		return customizations;
+	};
+
+	const releaseChat = (chatUri: URI): void => {
+		const key = chatUri.toString();
+		outputByChat.delete(key);
+		lastTurnChangesByChat.delete(key);
+		customizationsByChat.delete(key);
+	};
+
+	return { getLastTurnChanges, getChatCustomizations, releaseChat };
 }
 
 /**
@@ -225,20 +225,6 @@ export interface IFileEditChatState {
 /** Parses the file edits contained in a single turn's response parts. */
 export type ParseTurnFileEdits = (responseParts: Turn['responseParts']) => readonly IParsedFileEdit[];
 
-/**
- * The file edits parsed from a chat's output stream, split into the full set
- * (across all turns) and the last turn's edits alone.
- */
-export interface IChatFileEdits {
-	/** All file edits across the chat's turns, in stream order. */
-	readonly allEdits: readonly IParsedFileEdit[];
-	/**
-	 * File edits of the chat's last turn only — the in-progress `activeTurn` when
-	 * present, otherwise the most recently completed turn.
-	 */
-	readonly lastTurnEdits: readonly IParsedFileEdit[];
-}
-
 function pushUniqueRoot(roots: URI[], root: URI | undefined): void {
 	if (root && !roots.some(existing => isEqual(existing, root))) {
 		roots.push(root);
@@ -256,17 +242,14 @@ function getWorkspaceAndWorktreeRoots(workspace: ISessionWorkspace | undefined):
 }
 
 /**
- * Creates a stateful parser that turns a chat state into its file edits,
- * **parsing each completed turn at most once**.
+ * Creates a stateful parser that extracts a chat's **last turn** file edits.
  *
- * Completed turns (`chatState.turns`) are immutable once finalized, so each is
- * parsed once and memoized by turn id in the returned closure. Only the
- * in-progress `activeTurn` is re-parsed on every call, making streamed-delta
- * updates O(active turn) rather than O(all turns).
- *
- * Returns both the full edit list (for session-wide reductions) and the last
- * turn's edits alone (for turn-scoped reductions); the active turn is parsed
- * once and reused for both.
+ * The last turn is the in-progress `activeTurn` when streaming, otherwise the
+ * most recently completed turn. Completed turns are immutable once finalized,
+ * so the completed last turn is parsed once and memoized by its id; only the
+ * in-progress turn is re-parsed on every streamed delta. Earlier turns are
+ * never walked, so the cost of a delta is O(last turn) regardless of how long
+ * the chat has been running.
  *
  * @param mapDiffUri Optional URI mapper applied while parsing.
  * @param parseTurn Per-turn parse function. Defaults to {@link parseResponseParts};
@@ -275,48 +258,24 @@ function getWorkspaceAndWorktreeRoots(workspace: ISessionWorkspace | undefined):
 export function createIncrementalChatFileEditsParser(
 	mapDiffUri?: (uri: URI) => URI,
 	parseTurn: ParseTurnFileEdits = responseParts => parseResponseParts(responseParts, mapDiffUri),
-): (chatState: IFileEditChatState) => IChatFileEdits {
-	const completedTurnCache = new Map<string, readonly IParsedFileEdit[]>();
+): (chatState: IFileEditChatState) => readonly IParsedFileEdit[] {
+	let completedLastTurn: { readonly id: string; readonly edits: readonly IParsedFileEdit[] } | undefined;
 
-	return (chatState: IFileEditChatState): IChatFileEdits => {
-		const allEdits: IParsedFileEdit[] = [];
-		const turns: readonly IFileEditTurn[] = chatState.turns ?? [];
-
-		// Evict cache entries for turns that are no longer completed (e.g. a turn
-		// that moved back to `activeTurn`, or a discarded turn) so the cache can't
-		// grow unbounded or return stale data.
-		const completedIds = new Set(turns.map(t => t.id));
-		for (const id of completedTurnCache.keys()) {
-			if (!completedIds.has(id)) {
-				completedTurnCache.delete(id);
-			}
-		}
-
-		for (const turn of turns) {
-			let parsed = completedTurnCache.get(turn.id);
-			if (!parsed) {
-				parsed = parseTurn(turn.responseParts);
-				completedTurnCache.set(turn.id, parsed);
-			}
-			if (parsed.length > 0) {
-				allEdits.push(...parsed);
-			}
-		}
-
-		// The last turn is the in-progress one when streaming, else the most
-		// recently completed turn. The active turn is parsed a single time and
-		// reused for both `allEdits` and `lastTurnEdits`.
-		let lastTurnEdits: readonly IParsedFileEdit[];
+	return (chatState: IFileEditChatState): readonly IParsedFileEdit[] => {
 		if (chatState.activeTurn) {
-			lastTurnEdits = parseTurn(chatState.activeTurn.responseParts);
-			allEdits.push(...lastTurnEdits);
-		} else if (turns.length > 0) {
-			lastTurnEdits = completedTurnCache.get(turns[turns.length - 1].id) ?? [];
-		} else {
-			lastTurnEdits = [];
+			return parseTurn(chatState.activeTurn.responseParts);
 		}
 
-		return { allEdits, lastTurnEdits };
+		const turns: readonly IFileEditTurn[] = chatState.turns ?? [];
+		const lastTurn = turns.length > 0 ? turns[turns.length - 1] : undefined;
+		if (!lastTurn) {
+			completedLastTurn = undefined;
+			return [];
+		}
+		if (completedLastTurn?.id !== lastTurn.id) {
+			completedLastTurn = { id: lastTurn.id, edits: parseTurn(lastTurn.responseParts) };
+		}
+		return completedLastTurn.edits;
 	};
 }
 
@@ -375,97 +334,6 @@ function parseFileEdit(fileEdit: FileEdit, mapDiffUri?: (uri: URI) => URI): IPar
 		insertions: fileEdit.diff?.added ?? 0,
 		deletions: fileEdit.diff?.removed ?? 0,
 	};
-}
-
-interface IMutableSessionFile {
-	operation: SessionFileOperation;
-	originalUri?: URI;
-}
-
-/**
- * Reduces an ordered list of parsed file edits into the final per-file state.
- *
- * Rules:
- * - A file created during the session stays {@link SessionFileOperation.Created}
- *   even if edited afterwards.
- * - A deleted file is removed from the list entirely: a file created or edited
- *   during the session and then deleted nets out, and a pre-existing file that
- *   is deleted is not surfaced.
- * - Renames are modeled as a delete of the source plus a create of the target.
- * - Only files outside every workspace folder root are kept.
- */
-export function reduceSessionFiles(edits: readonly IParsedFileEdit[], folderRoots: readonly URI[]): ISessionFile[] {
-	const byUri = new Map<string, { uri: URI; file: IMutableSessionFile }>();
-
-	const isOutsideWorkspace = (uri: URI): boolean =>
-		!folderRoots.some(root => isEqualOrParent(uri, root));
-
-	const setCreated = (uri: URI): void => {
-		if (!isOutsideWorkspace(uri)) {
-			return;
-		}
-		byUri.set(getComparisonKey(uri), { uri, file: { operation: SessionFileOperation.Created } });
-	};
-
-	const setModified = (uri: URI, originalUri: URI | undefined): void => {
-		if (!isOutsideWorkspace(uri)) {
-			return;
-		}
-		const existing = byUri.get(getComparisonKey(uri));
-		if (existing?.file.operation === SessionFileOperation.Created) {
-			return; // created-then-edited stays created
-		}
-		if (existing?.file.operation === SessionFileOperation.Modified) {
-			// Keep the earliest known original content for the diff.
-			existing.file.originalUri = existing.file.originalUri ?? originalUri;
-			return;
-		}
-		byUri.set(getComparisonKey(uri), { uri, file: { operation: SessionFileOperation.Modified, originalUri } });
-	};
-
-	// A delete removes the file from the list entirely rather than surfacing it
-	// as a deleted entry: a create/edit followed by a delete nets out, and a
-	// pre-existing deleted file simply never appears.
-	const removeFile = (uri: URI): void => {
-		byUri.delete(getComparisonKey(uri));
-	};
-
-	for (const edit of edits) {
-		switch (edit.kind) {
-			case FileEditKind.Create:
-				if (edit.afterUri) {
-					setCreated(edit.afterUri);
-				}
-				break;
-			case FileEditKind.Edit:
-				if (edit.afterUri) {
-					setModified(edit.afterUri, edit.beforeContentUri);
-				}
-				break;
-			case FileEditKind.Delete:
-				if (edit.beforeUri) {
-					removeFile(edit.beforeUri);
-				}
-				break;
-			case FileEditKind.Rename:
-				if (edit.beforeUri) {
-					removeFile(edit.beforeUri);
-				}
-				if (edit.afterUri) {
-					setCreated(edit.afterUri);
-				}
-				break;
-		}
-	}
-
-	const files = [...byUri.values()].map(({ uri, file }): ISessionFile => ({
-		uri,
-		operation: file.operation,
-		originalUri: file.originalUri,
-	}));
-
-	files.sort((a, b) => strCompare(getComparisonKey(a.uri), getComparisonKey(b.uri)));
-	return files;
 }
 
 interface IMutableTurnChange {
@@ -593,25 +461,10 @@ export function reduceTurnChanges(
 	} satisfies ISessionTurnFileChange));
 }
 
-function sessionFilesEqual(a: readonly ISessionFile[], b: readonly ISessionFile[]): boolean {
-	if (a.length !== b.length) {
-		return false;
-	}
-	for (let i = 0; i < a.length; i++) {
-		if (a[i].operation !== b[i].operation
-			|| !isEqual(a[i].uri, b[i].uri)
-			|| !isEqual(a[i].originalUri, b[i].originalUri)) {
-			return false;
-		}
-	}
-	return true;
-}
-
 /**
- * Structural equality over parsed edits, used (via {@link chatFileEditsEqual})
- * as the per-chat observable's `equalsFn` so streamed deltas that carry no
- * file-edit change (e.g. markdown or reasoning content) don't re-run the
- * downstream reducers.
+ * Structural equality over parsed edits, used as the per-chat observable's
+ * `equalsFn` so streamed deltas that carry no file-edit change (e.g. markdown
+ * or reasoning content) don't re-run the downstream reducers.
  */
 function parsedFileEditsEqual(a: readonly IParsedFileEdit[], b: readonly IParsedFileEdit[]): boolean {
 	if (a === b) {
@@ -631,9 +484,4 @@ function parsedFileEditsEqual(a: readonly IParsedFileEdit[], b: readonly IParsed
 		}
 	}
 	return true;
-}
-
-/** Structural equality over a chat's parsed edits (full set and last turn). */
-function chatFileEditsEqual(a: IChatFileEdits, b: IChatFileEdits): boolean {
-	return parsedFileEditsEqual(a.allEdits, b.allEdits) && parsedFileEditsEqual(a.lastTurnEdits, b.lastTurnEdits);
 }

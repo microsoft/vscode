@@ -14,7 +14,7 @@ import { Checkbox } from '../../../../../base/browser/ui/toggle/toggle.js';
 import { Delayer } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, constObservable, IObservable } from '../../../../../base/common/observable.js';
+import { autorun, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { IActionViewItemService, type IActionViewItemFactory } from '../../../../../platform/actions/browser/actionViewItemService.js';
@@ -34,6 +34,7 @@ import { ChatContextKeyExprs, ChatContextKeys } from '../../../../../workbench/c
 import { markOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
 import { type IChatInputPickerOptions } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerActionItem.js';
+import { IChatInputPickerResponsiveState } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerResponsiveLayout.js';
 import { Menus } from '../../../../browser/menus.js';
 import { SessionProviderIdContext, IsPhoneLayoutContext, IsQuickChatSessionContext } from '../../../../common/contextkeys.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
@@ -407,13 +408,16 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			if (!this._isPickable(schema)) {
 				continue;
 			}
-			// A hidden carrier property (see `worktreeBranchTrackProperty` in
+			// Hidden carrier properties (see `worktreeBranchTrackProperty` in
 			// `worktreeIsolation.ts`) consumed only by the host for worktree
 			// isolation, never edited by the user. Its boolean type otherwise
 			// passes `_isPickable` unlike its string/array carrier siblings
 			// (`worktreeBranchPrefix`/`worktreeIncludeFiles`), which are
 			// filtered out because they lack an `enum`.
-			if (property === SessionConfigKey.WorktreeBranchTrack) {
+			if (
+				property === SessionConfigKey.WorktreeBranchTrack ||
+				property === SessionConfigKey.WorktreeCreateNewBranch
+			) {
 				continue;
 			}
 			if (property === SessionConfigKey.Isolation && !schema.enum?.includes('worktree')) {
@@ -986,9 +990,12 @@ class MobileAgentHostSessionConfigPicker extends AgentHostSessionConfigPicker {
 
 interface IConfigPickerWidget extends IDisposable {
 	render(container: HTMLElement): void;
+	showPicker?(anchor: HTMLElement, onHide?: () => void): boolean | void;
 }
 
-export class PickerActionViewItem extends BaseActionViewItem {
+export class PickerActionViewItem extends BaseActionViewItem implements IChatInputPickerResponsiveState {
+	private _compact = false;
+
 	constructor(private readonly _picker: IConfigPickerWidget, disposable?: IDisposable) {
 		super(undefined, { id: '', label: '', enabled: true, class: undefined, tooltip: '', run: () => { } });
 		if (disposable) {
@@ -997,7 +1004,25 @@ export class PickerActionViewItem extends BaseActionViewItem {
 	}
 
 	override render(container: HTMLElement): void {
+		this.element = container;
 		this._picker.render(container);
+		container.classList.toggle('compact-picker', this._compact);
+	}
+
+	isCompact(): boolean {
+		return this._compact;
+	}
+
+	setCompact(compact: boolean): void {
+		this._compact = compact;
+		this.element?.classList.toggle('compact-picker', compact);
+	}
+
+	show(anchor?: HTMLElement): void {
+		const target = anchor ?? this.element;
+		if (target) {
+			this._picker.showPicker?.(target);
+		}
 	}
 
 	override dispose(): void {
@@ -1123,10 +1148,10 @@ class AgentHostSessionConfigPickerContribution extends Disposable implements IWo
 				return undefined;
 			}
 			const { session } = instantiationService.invokeFunction(accessor => accessor.get(ISessionContext));
-			const pickerOptions: IChatInputPickerOptions = {
-				compact: constObservable(true),
+			const pickerOptions = {
+				compact: observableValue<boolean, void>(action, false),
 				listOptions: { minWidth: 255 },
-			};
+			} satisfies IChatInputPickerOptions;
 			return instantiationService.createInstance(
 				AgentHostPermissionPickerActionItem,
 				action,

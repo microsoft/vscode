@@ -25,7 +25,7 @@ import { IWorkspaceSymbol } from '../../../search/common/search.js';
 import { IChatRequestVariableEntry } from '../attachments/chatVariableEntries.js';
 import { IChatRequestVariableValue } from '../attachments/chatVariables.js';
 import { ReadonlyChatSessionOptionsMap } from '../chatSessionsService.js';
-import { ChatAgentLocation, ChatModeKind } from '../constants.js';
+import { ChatAgentLocation, SessionTypeSelectionReason, ChatModeKind } from '../constants.js';
 import { IChatEditingSession } from '../editing/chatEditingService.js';
 import { IChatModel, IChatRequestModeInfo, IChatRequestModel, IChatRequestVariableData, IChatResponseModel, IExportableChatData, ISerializableChatData } from '../model/chatModel.js';
 import type { IChatModelReferenceDebugSnapshot } from '../model/chatModelStore.js';
@@ -300,6 +300,11 @@ export interface IChatProgressMessage {
 export interface IChatSystemNotificationPart {
 	content: IMarkdownString;
 	kind: 'systemNotification';
+	/**
+	 * Icon shown beside the notification. Defaults to a check, which only suits
+	 * notifications that report something completing.
+	 */
+	icon?: ThemeIcon;
 }
 
 export interface IChatTask extends IChatTaskDto {
@@ -761,6 +766,8 @@ export type ChatMcpAppData =
 		kind: 'agentHost';
 		/** URI of the UI resource for rendering (e.g., "ui://weather-server/dashboard") */
 		resourceUri: string;
+		/** Sanitized connection identifier used to resolve App-provided resource URIs. */
+		connectionAuthority: string;
 		/** AHP `mcp://` channel URI for the originating server. */
 		channel: string;
 		/**
@@ -1137,6 +1144,9 @@ export interface IChatSubagentToolInvocationData {
 	isActive?: boolean;
 	activity?: 'markdown' | 'reasoning';
 	description?: string;
+	/** Provider-supplied display name for the subagent type. */
+	agentDisplayName?: string;
+	/** Internal identifier for the subagent type. */
 	agentName?: string;
 	prompt?: string;
 	result?: string;
@@ -1299,6 +1309,18 @@ export interface IChatAgentFeedbackReviewComment {
 }
 
 /**
+ * Links a pull request review thread to the reviewable comment that mirrors it,
+ * so a renderer showing GitHub threads can reveal the local comment. Produced by
+ * {@link AgentFeedbackReviewCommandId.GetPullRequestThreadLinks}.
+ */
+export interface IChatAgentFeedbackPullRequestThreadLink {
+	/** GitHub review thread id the comment mirrors. */
+	readonly pullRequestThreadId: string;
+	/** Comment id to pass to {@link AgentFeedbackReviewCommandId.Reveal}. */
+	readonly commentId: string;
+}
+
+/**
  * Command ids the agent feedback review confirmation renderer (workbench/chat)
  * uses to fetch unreviewed comments and apply the user's selection. They are
  * implemented by the agent feedback feature in `vs/sessions`, keeping the chat
@@ -1311,6 +1333,8 @@ export interface IChatAgentFeedbackReviewComment {
 export const enum AgentFeedbackReviewCommandId {
 	/** `(sessionOrChatResource)` -> `IChatAgentFeedbackReviewComment[]` (the `created` reviewable comments). */
 	GetComments = '_agentFeedbackReview.getComments',
+	/** `(sessionOrChatResource)` -> `IChatAgentFeedbackPullRequestThreadLink[]` for comments mirrored from a pull request review thread. */
+	GetPullRequestThreadLinks = '_agentFeedbackReview.getPullRequestThreadLinks',
 	/** `(sessionOrChatResource, commentId)` -> opens the file and reveals the comment. */
 	Reveal = '_agentFeedbackReview.reveal',
 	/** `(resourceUri, range)` -> resolves the owning session and reveals the comment at that file range. */
@@ -1761,7 +1785,6 @@ export type ChatSendResult =
 export interface ChatSendResultRejected {
 	readonly kind: 'rejected';
 	readonly reason: string;
-	readonly reasonCode?: 'cancelled' | 'providerRemoved';
 	/** Set when the session was replaced before the request was rejected (e.g. untitled -> read-only contributed session). */
 	readonly newSessionResource?: URI;
 }
@@ -1775,8 +1798,6 @@ export interface ChatSendResultSent {
 
 export interface ChatSendResultQueued {
 	readonly kind: 'queued';
-	/** The id of the request model created for this queued message. */
-	readonly requestId: string;
 	/**
 	 * Promise that resolves when the queued message is actually processed.
 	 * Will resolve to a 'sent' or 'rejected' result.
@@ -1989,12 +2010,12 @@ export interface IChatService {
 	 *
 	 * @returns A reference to the session's model, or undefined if the session could not be loaded
 	 */
-	acquireOrLoadSession(sessionResource: URI, location: ChatAgentLocation, token: CancellationToken, debugOwner?: string): Promise<IChatModelReference | undefined>;
+	acquireOrLoadSession(sessionResource: URI, location: ChatAgentLocation, token: CancellationToken, debugOwner?: string, sessionTypeSelectionReason?: SessionTypeSelectionReason): Promise<IChatModelReference | undefined>;
 
 	/**
 	 * Loads a session from exported chat data
 	 */
-	loadSessionFromData(data: IExportableChatData | ISerializableChatData, debugOwner?: string): IChatModelReference;
+	loadSessionFromData(data: IExportableChatData | ISerializableChatData, debugOwner?: string, sessionTypeSelectionReason?: SessionTypeSelectionReason): IChatModelReference;
 
 	getChatModelReferenceDebugInfo(): IChatModelReferenceDebugSnapshot;
 
@@ -2076,6 +2097,11 @@ export interface IChatService {
 	readonly requestInProgressObs: IObservable<boolean>;
 
 	/**
+	 * Returns the contributed session types with a request that is materializing or in progress.
+	 */
+	getPendingRequestSessionTypes(): readonly string[];
+
+	/**
 	 * For tests only!
 	 */
 	setSaveModelsEnabled(enabled: boolean): void;
@@ -2096,6 +2122,7 @@ export interface IChatSessionStartOptions {
 	canUseTools?: boolean;
 	disableBackgroundKeepAlive?: boolean;
 	debugOwner?: string;
+	sessionTypeSelectionReason?: SessionTypeSelectionReason;
 }
 
 export const ChatStopCancellationNoopEventName = 'chat.stopCancellationNoop';

@@ -13,6 +13,7 @@ import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { DisposableStore } from '../../../../../../../base/common/lifecycle.js';
 import { formatTokenCount } from '../../../../../../../base/common/numbers.js';
+import { ThemeIcon } from '../../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../../nls.js';
 import { IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
 import { defaultButtonStyles } from '../../../../../../../platform/theme/browser/defaultStyles.js';
@@ -64,28 +65,20 @@ export function getModelHoverContent(
 
 	if (!isAuto && model.metadata.warningText) {
 		for (const message of Object.values(model.metadata.warningText)) {
-			const warningContainer = dom.$('.chat-model-hover-warning-text');
-			warningContainer.appendChild(renderIcon(Codicon.warning));
-			const warningMd = new MarkdownString(message, { isTrusted: false, supportThemeIcons: true });
-			const rendered = disposables.add(renderMarkdown(warningMd, {
-				actionHandler: link => { void openerService.open(link, { allowCommands: false, fromUserGesture: true }); },
-			}));
-			warningContainer.appendChild(rendered.element);
-			container.appendChild(warningContainer);
+			container.appendChild(createMessageBanner(message, 'chat-model-hover-warning-text', Codicon.warningCompact, disposables, openerService));
+		}
+	}
+
+	if (!isAuto && model.metadata.infoText) {
+		for (const message of Object.values(model.metadata.infoText)) {
+			container.appendChild(createMessageBanner(message, 'chat-model-hover-info-text', Codicon.info, disposables, openerService));
 		}
 	}
 
 	if (promo) {
-		const promoContainer = dom.$('.chat-model-hover-promo-text');
-		promoContainer.appendChild(renderIcon(Codicon.info));
 		const endsAtLabel = ILanguageModelChatMetadata.getPromoEndsAtLabel(promo.endsAt);
 		const promoMessage = endsAtLabel ? promo.message + ' ' + endsAtLabel : promo.message;
-		const promoMd = new MarkdownString(promoMessage, { isTrusted: false, supportThemeIcons: true });
-		const rendered = disposables.add(renderMarkdown(promoMd, {
-			actionHandler: link => { void openerService.open(link, { allowCommands: false, fromUserGesture: true }); },
-		}));
-		promoContainer.appendChild(rendered.element);
-		container.appendChild(promoContainer);
+		container.appendChild(createMessageBanner(promoMessage, 'chat-model-hover-promo-text', Codicon.info, disposables, openerService));
 	}
 
 	let costInfoRendered = false;
@@ -201,6 +194,21 @@ export function getModelHoverContent(
 	}
 
 	return container.children.length > 0 ? { element: container, disposable: disposables } : undefined;
+}
+
+/**
+ * Builds one bordered message banner (an icon plus a rendered markdown message)
+ * for the warning, info and promo notices shown at the top of the hover.
+ */
+function createMessageBanner(message: string, className: string, icon: ThemeIcon, disposables: DisposableStore, openerService: IOpenerService): HTMLElement {
+	const banner = dom.$(`.${className}`);
+	banner.appendChild(renderIcon(icon));
+	const markdown = new MarkdownString(message, { isTrusted: false, supportThemeIcons: true });
+	const rendered = disposables.add(renderMarkdown(markdown, {
+		actionHandler: link => { void openerService.open(link, { allowCommands: false, fromUserGesture: true }); },
+	}));
+	banner.appendChild(rendered.element);
+	return banner;
 }
 
 function appendCostSection(container: HTMLElement, pricing: string): void {

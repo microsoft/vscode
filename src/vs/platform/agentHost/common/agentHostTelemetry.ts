@@ -102,7 +102,7 @@ export function readClientTelemetryLevel(meta: Record<string, unknown> | undefin
 	}
 }
 
-export function telemetryLevelToAgentHostValue(telemetryLevel: TelemetryLevel): TelemetryConfiguration {
+export function telemetryLevelToAgentHostValue(telemetryLevel: TelemetryLevel | undefined): TelemetryConfiguration {
 	switch (telemetryLevel) {
 		case TelemetryLevel.NONE:
 			return TelemetryConfiguration.OFF;
@@ -112,6 +112,8 @@ export function telemetryLevelToAgentHostValue(telemetryLevel: TelemetryLevel): 
 			return TelemetryConfiguration.ERROR;
 		case TelemetryLevel.USAGE:
 			return TelemetryConfiguration.ON;
+		default:
+			return TelemetryConfiguration.OFF;
 	}
 }
 

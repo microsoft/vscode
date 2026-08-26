@@ -10,6 +10,9 @@
 
 # Multi-Chat Architecture
 
+> Node runtime service construction is documented separately in
+> [`node/serviceBootstrapping.md`](node/serviceBootstrapping.md).
+
 > **Status: COMPLETE** (2026-07-01)
 > All waves A–D and gates G-B1, G-C1, G-C2, G-D1 are done. Codex, Claude, and
 > Copilot all use the unified orchestrator path.
@@ -219,13 +222,35 @@ Claude and Codex each use one memoized initial path: resolve/download the SDK, e
 
 If a provider cannot enumerate yet, its initial discovery attempt emits nothing; once ready, it emits the resulting chats through `onDidDiscoverChats`. Registry provenance is projected into `IAgentSessionMetadata._meta` with `readSessionExternal` / `withSessionExternal`, and the normal AHP listSessions round trip carries it to the Sessions provider. There is no external-specific UI behavior.
 
-`listSessions()` coalesces concurrent computations per external-sessions mode, so the burst of calls a multi-window restore produces shares one registry traversal instead of one per window. The shared entry records the registry epoch it started at and is invalidated by every registry mutation, so a caller arriving after a mutation starts a fresh pass; each caller receives its own array.
+`listSessions()` coalesces concurrent computations per external-sessions mode, so the burst of calls a multi-window restore produces shares one registry traversal instead of one per window. The shared entry records the registry epoch it started at and is invalidated by every registry mutation. A computation whose epoch changes restarts against the new registry, so both existing and later callers receive a complete post-mutation snapshot; each caller receives its own array.
 
-Legacy registry migration remains a separate `listChatsToMigrate()` contract. It returns only chats known from non-empty provider session metadata, without external provenance, and is gated by durable per-provider/global migration markers. Agent Host writes `agentHost.workspaceless` as either `true` or `false` into every session it creates. Agent Service classifies each migration candidate itself: marker presence means internal, while absence means a known external chat.
+Legacy registry migration uses the `listChatsToMigrate()` contract. An array is authoritative even when empty, while `undefined` means the catalog is unavailable and must not advance migration markers. Agent Service retries an unavailable registration-time catalog once before listing; persistent unavailability rejects the aggregate `listSessions()` call with a typed provider-catalog error so clients preserve their last successful snapshots. `BaseAgentHostSessionsProvider` retries failures with exponential backoff; `AgentHostSessionListStore` leaves its cache invalid and retries on the next controller, lifecycle, or workspace refresh trigger. Replacement retry ownership is compare-and-swap single-flight: overlapping list computations that observed the same failed attempt await the first caller's installed retry rather than queueing another provider enumeration. Successful providers retain their completed migration state when a sibling provider is unavailable.
+
+Session-list clients treat only a successful return as authoritative. `BaseAgentHostSessionsProvider` and `AgentHostSessionListStore` retain their last successful snapshots when `listSessions()` rejects; a successful empty array still clears the snapshot. This separation prevents transport, authentication, or catalog failures from becoming deletion deltas.
 
 Provider-private discovery helpers name their concrete source: Claude uses `_listClaudeCodeChats()` / `_emitClaudeCodeChats()`, Codex uses `_listCodexChats()` / `_emitCodexChats()`, and Copilot uses `_discoverCopilotChats()` / `_emitCopilotChats()`. Providers filter known session metadata before emitting; Agent Service still performs the authoritative additive registry write and atomic tombstone check. Copilot treats the existence of a per-session database (under `{userDataPath}/agentSessionData`, never the shared Copilot home) as "known", which also keeps peer-chat backings out of the payload; it additionally drops a chat whose SDK context carries no working directory, because `_doResumeSession` requires one and a discovered chat has no other source for it.
 
 For every provider, migration and discovery partition the same native catalog: migration returns known entries as plain metadata, while discovery emits unknown entries with provider-classified provenance (external for Claude and Codex, and for Copilot everything except an unknown legacy extension-host chat, which is emitted as internal and adoptable). The partition is not quite exhaustive for Copilot: a chat whose session database exists but holds none of the metadata keys `listChatsToMigrate` requires is rejected by both halves. That is deliberate — an empty database is how Agent Host records a chat it already touched — and is asserted by `copilotAgent.test.ts`'s "does not discover an extension-host chat with an empty Agent Host database". Central `agent-host.db` remains the durable provenance authority.
+
+### Server-tool creation provenance
+
+Treat a session as the user-visible unit of work. The `create_chat` tool is the
+default for parallel subtasks that should share one workspace, lifecycle, and
+aggregate diff. Use `create_session` only when a delegated task needs an
+independent workspace, worktree or branch, provider, or lifecycle.
+
+Sessions created by the `create_session` server tool record only the creating
+session, chat, and turn as immutable, provider-neutral creation provenance in
+the initial session summary `_meta` bag, before the session is published or its
+first prompt starts. The reference supports related-session placement,
+source identification and session-list presentation; it does not define a
+hierarchy, grant communication privileges, or trigger lifecycle notifications.
+
+`list_sessions` exposes a session's configured project URI separately from its
+primary and additional working directories. `create_session` accepts those URIs
+directly and can resolve a unique project display name, preferring the
+configured project root over a transient worktree. Ambiguous names require an
+explicit project URI.
 
 ---
 
@@ -666,9 +691,9 @@ resource. `AgentSideEffects` does not enumerate chats or fan config values
 through provider hooks.
 
 Both `IAgentHostPromptCache` and `IAgentHostSessionTitleSignal` are constructed
-by `AgentService`, exposed as `agentService.promptCache` /
-`agentService.sessionTitleSignal`, and registered in the `agentHostMain` /
-`agentHostServerMain` DI containers next to `IAgentHostStateManager`.
+and registered by `createAgentServiceComposition`. Consumers resolve their
+service identifiers through constructor injection; `AgentService` neither owns
+nor exposes them.
 
 ### 8g. Seam → provider read it replaces
 

@@ -11,6 +11,7 @@ import { MockChatMLFetcher } from '../../../../platform/chat/test/common/mockCha
 import { CopilotToken, createTestExtendedTokenInfo } from '../../../../platform/authentication/common/copilotToken';
 import { ICopilotTokenManager } from '../../../../platform/authentication/common/copilotTokenManager';
 import { IAutomodeService } from '../../../../platform/endpoint/node/automodeService';
+import { AutoChatEndpoint } from '../../../../platform/endpoint/node/autoChatEndpoint';
 import { IEndpointProvider } from '../../../../platform/endpoint/common/endpointProvider';
 import { CustomDataPartMimeTypes } from '../../../../platform/endpoint/common/endpointTypes';
 import { CopilotChatEndpoint } from '../../../../platform/endpoint/node/copilotChatEndpoint';
@@ -25,7 +26,8 @@ import { Event } from '../../../../util/vs/base/common/event';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { createExtensionTestingServices } from '../../../test/vscode-node/services';
 import { buildUtilityAliasModelInfo, CopilotLanguageModelWrapper, LanguageModelAccess } from '../languageModelAccess';
-import { buildReasoningEffortSchemaProperty, formatPricingLabel, normalizeTokenPrices, pickDefaultReasoningEffort } from '../../common/languageModelAccess';
+import { buildAutoModeTierSchemaProperty, buildReasoningEffortSchemaProperty, formatPricingLabel, normalizeTokenPrices, pickDefaultReasoningEffort } from '../../common/languageModelAccess';
+import { defaultAutoModeTier, selectableAutoModeTiers } from '../../../../platform/endpoint/common/autoModeTiers';
 
 
 suite('CopilotLanguageModelWrapper', () => {
@@ -462,10 +464,11 @@ suite('LanguageModelAccess model info', () => {
 			getCopilotToken: async () => copilotToken,
 			resetCopilotToken: () => { },
 		} as unknown as ICopilotTokenManager);
+		const autoPickerEndpoint = new DeferredPromise<IChatEndpoint>();
 		testingServiceCollection.define(IAutomodeService, {
 			_serviceBrand: undefined,
 			resolveAutoModeEndpoint: async () => lunaEndpoint,
-			resolveAutoModePickerEndpoint: async () => lunaEndpoint,
+			resolveAutoModePickerEndpoint: () => autoPickerEndpoint.p,
 			getAutoPickerMetadata: () => ({ discountRange: { low: 0, high: 0 } }),
 			areAutoModeTiersSupported: () => false,
 			onDidChangeAutoModeTierSupport: Event.None,
@@ -481,10 +484,12 @@ suite('LanguageModelAccess model info', () => {
 			getEmbeddingsEndpoint: async () => { throw new Error('Not implemented in test'); },
 		} as unknown as IEndpointProvider);
 		const accessor = testingServiceCollection.createTestingAccessor();
+		autoPickerEndpoint.complete(accessor.get(IInstantiationService).createInstance(AutoChatEndpoint, lunaEndpoint, '', 0, { low: 0, high: 0 }));
 		const extensionContext = accessor.get(IVSCodeExtensionContext);
 		const version = accessor.get(IEnvService).getVersion();
 		await extensionContext.globalState.update('lmBaseCount/gpt-5.6-luna', { extensionVersion: version, baseCount: 0 });
 		await extensionContext.globalState.update('lmBaseCount/some-hidden-model', { extensionVersion: version, baseCount: 0 });
+		await extensionContext.globalState.update('lmBaseCount/auto', { extensionVersion: version, baseCount: 0 });
 		const languageModelAccess = accessor.get(IInstantiationService).createInstance(LanguageModelAccess);
 		try {
 			const testAccess = languageModelAccess as unknown as {
@@ -527,6 +532,7 @@ suite('LanguageModelAccess model info', () => {
 			languageModelAccess.dispose();
 			await extensionContext.globalState.update('lmBaseCount/gpt-5.6-luna', undefined);
 			await extensionContext.globalState.update('lmBaseCount/some-hidden-model', undefined);
+			await extensionContext.globalState.update('lmBaseCount/auto', undefined);
 		}
 	});
 });
@@ -669,6 +675,23 @@ suite('reasoning effort schema', () => {
 		assert.strictEqual(prop.default, 'low', 'expected first advertised level, never undefined');
 		assert.deepStrictEqual(prop.enum, ['low', 'high']);
 		assert.strictEqual(prop.group, 'navigation');
+	});
+});
+
+suite('auto mode tier schema', () => {
+	// The picker renders `title` as the group header and `enumItemLabels` as the
+	// rows, so this descriptor is the user-visible wording for Auto routing. The
+	// tier values stay the wire enum the service expects.
+	test('names the group "Optimize for" and labels the selectable tiers', () => {
+		assert.deepStrictEqual(buildAutoModeTierSchemaProperty(selectableAutoModeTiers, defaultAutoModeTier), {
+			type: 'string',
+			title: 'Optimize for',
+			enum: ['eco', 'balanced', 'max'],
+			enumItemLabels: ['Efficiency', 'Balance', 'Intelligence'],
+			enumDescriptions: ['Cheaper models for everyday tasks', 'Balances capability and cost', 'Most capable models, higher cost'],
+			default: 'balanced',
+			group: 'navigation',
+		});
 	});
 });
 

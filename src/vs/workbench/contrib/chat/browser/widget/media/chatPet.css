@@ -38,9 +38,7 @@
 	cursor: grabbing;
 }
 
-.chat-pet-button.dragging,
-.chat-pet-button.falling,
-.chat-pet-button.throwing,
+.chat-pet-button,
 .chat-pet-respawn-effect {
 	z-index: 1;
 }
@@ -138,16 +136,46 @@
 	display: none;
 }
 
-.chat-pet-button[data-facing='left'] .chat-pet-sprite {
+.chat-pet-eye-accessory {
+	position: absolute;
+	bottom: 0;
+	left: 0;
+	display: block;
+	width: 48px;
+	height: 48px;
+	overflow: hidden;
+	image-rendering: pixelated;
+	pointer-events: none;
+}
+
+.chat-pet-eye-accessory.hidden {
+	display: none;
+}
+
+.chat-pet-eye-accessory-canvas {
+	display: block;
+	height: 48px;
+	image-rendering: pixelated;
+	pointer-events: none;
+}
+
+.chat-pet-button[data-facing='left'] .chat-pet-sprite,
+.chat-pet-button[data-facing='left'] .chat-pet-eye-accessory {
 	right: 0;
 	left: auto;
 }
 
-.chat-pet-button[data-facing='left'] .chat-pet-sprite > .chat-pet-canvas {
+.chat-pet-button[data-facing='left'] .chat-pet-sprite > .chat-pet-canvas,
+.chat-pet-button[data-facing='left'] .chat-pet-eye-accessory-canvas {
 	transform: scaleX(-1);
 }
 
-.chat-pet-button[data-facing='left'][data-state='sing'] .chat-pet-sprite > .chat-pet-canvas {
+.chat-pet-button[data-facing='left'] .chat-pet-eye-accessory.fixed-orientation .chat-pet-eye-accessory-canvas {
+	transform: none;
+}
+
+.chat-pet-button[data-facing='left'][data-state='sing'] .chat-pet-sprite > .chat-pet-canvas,
+.chat-pet-button[data-facing='left'][data-state='sing'] .chat-pet-eye-accessory-canvas {
 	transform: none;
 }
 
@@ -205,28 +233,38 @@
 	display: none;
 }
 
-.chat-pet-button[data-state='complete'] .chat-pet-sprite {
+.chat-pet-button[data-state='complete'] .chat-pet-sprite,
+.chat-pet-button[data-state='complete'] .chat-pet-eye-accessory {
 	transform-origin: 50% 60%;
 	animation: chat-pet-complete-motion 960ms steps(1, end);
 }
 
-.chat-pet-button[data-state='jump'][data-hop-direction='left'] .chat-pet-sprite > .chat-pet-canvas {
+.chat-pet-button[data-state='jump'][data-hop-direction='left'] .chat-pet-sprite > .chat-pet-canvas,
+.chat-pet-button[data-state='jump'][data-hop-direction='left'] .chat-pet-eye-accessory-canvas {
 	transform: scaleX(-1);
 }
 
-.chat-pet-button[data-state='jump'][data-hop-direction='right'] .chat-pet-sprite > .chat-pet-canvas {
+.chat-pet-button[data-state='jump'][data-hop-direction='right'] .chat-pet-sprite > .chat-pet-canvas,
+.chat-pet-button[data-state='jump'][data-hop-direction='right'] .chat-pet-eye-accessory-canvas {
 	transform: none;
 }
 
 .chat-pet-button[data-state='yapping'] .chat-pet-sprite,
-.chat-pet-button[data-state='yapping'] .chat-pet-eyes {
+.chat-pet-button[data-state='yapping'] .chat-pet-eyes,
+.chat-pet-button[data-state='yapping'] .chat-pet-eye-accessory {
 	transform-origin: 30% 80%;
 	animation: chat-pet-yapping-fall 480ms steps(4, end) forwards;
 }
 
-.chat-pet-button[data-state='yappingMouthOpen'] .chat-pet-sprite {
+.chat-pet-button[data-state='yappingMouthOpen'] .chat-pet-sprite,
+.chat-pet-button[data-state='yappingMouthOpen'] .chat-pet-eye-accessory {
 	transform-origin: 30% 80%;
 	transform: translateY(calc(-1 * var(--vscode-spacing-size40))) rotate(-90deg);
+}
+
+.chat-pet-button.on-the-run,
+.chat-pet-button.returning-from-run {
+	z-index: auto;
 }
 
 .chat-pet-button.on-the-run {
@@ -242,7 +280,8 @@
 }
 
 .chat-pet-button.dragging .chat-pet-sprite,
-.chat-pet-button.dragging .chat-pet-eyes {
+.chat-pet-button.dragging .chat-pet-eyes,
+.chat-pet-button.dragging .chat-pet-eye-accessory {
 	transform: none;
 	animation: none;
 }
@@ -302,6 +341,7 @@
 
 .chat-pet-button[data-state='idle'] .chat-pet-eye,
 .chat-pet-button[data-state='rendering'] .chat-pet-eye,
+.chat-pet-button[data-state='achievementUnlocked'] .chat-pet-eye,
 .chat-pet-button[data-state='clapping'] .chat-pet-eye,
 .chat-pet-button[data-state='yapping'] .chat-pet-eye,
 .chat-pet-button[data-state='typing'] .chat-pet-eye,
@@ -311,6 +351,7 @@
 
 .chat-pet-button[data-state='idle'] .chat-pet-pupil,
 .chat-pet-button[data-state='rendering'] .chat-pet-pupil,
+.chat-pet-button[data-state='achievementUnlocked'] .chat-pet-pupil,
 .chat-pet-button[data-state='clapping'] .chat-pet-pupil,
 .chat-pet-button[data-state='yapping'] .chat-pet-pupil,
 .chat-pet-button[data-state='typing'] .chat-pet-pupil,
@@ -333,6 +374,7 @@
 
 .chat-pet-button[data-state='idle'] .chat-pet-eyes.blink .chat-pet-pupil,
 .chat-pet-button[data-state='rendering'] .chat-pet-eyes.blink .chat-pet-pupil,
+.chat-pet-button[data-state='achievementUnlocked'] .chat-pet-eyes.blink .chat-pet-pupil,
 .chat-pet-button[data-state='clapping'] .chat-pet-eyes.blink .chat-pet-pupil,
 .chat-pet-button[data-state='yapping'] .chat-pet-eyes.blink .chat-pet-pupil,
 .chat-pet-button[data-state='typing'] .chat-pet-eyes.blink .chat-pet-pupil,
@@ -507,7 +549,9 @@
 .monaco-workbench.monaco-reduce-motion .chat-pet-button.dragging.soft-resisting,
 .monaco-workbench.monaco-reduce-motion .chat-pet-button.dragging.resisting,
 .monaco-workbench.monaco-reduce-motion .chat-pet-button[data-state='complete'] .chat-pet-sprite,
+.monaco-workbench.monaco-reduce-motion .chat-pet-button[data-state='complete'] .chat-pet-eye-accessory,
 .monaco-workbench.monaco-reduce-motion .chat-pet-button[data-state='yapping'] .chat-pet-sprite,
+.monaco-workbench.monaco-reduce-motion .chat-pet-button[data-state='yapping'] .chat-pet-eye-accessory,
 .monaco-workbench.monaco-reduce-motion .chat-pet-button[data-state='searching'],
 .monaco-workbench.monaco-reduce-motion .chat-pet-button[data-state='searchingDown'],
 .monaco-workbench.monaco-reduce-motion .chat-pet-eyes,
@@ -516,7 +560,8 @@
 }
 
 .monaco-workbench.monaco-reduce-motion .chat-pet-button[data-state='yapping'] .chat-pet-sprite,
-.monaco-workbench.monaco-reduce-motion .chat-pet-button[data-state='yapping'] .chat-pet-eyes {
+.monaco-workbench.monaco-reduce-motion .chat-pet-button[data-state='yapping'] .chat-pet-eyes,
+.monaco-workbench.monaco-reduce-motion .chat-pet-button[data-state='yapping'] .chat-pet-eye-accessory {
 	transform: translateY(calc(-1 * var(--vscode-spacing-size40))) rotate(-90deg);
 }
 

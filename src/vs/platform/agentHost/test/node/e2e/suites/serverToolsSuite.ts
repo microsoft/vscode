@@ -18,6 +18,7 @@ import type { ListSessionsResult, SubscribeResult } from '../../../../common/sta
 import { ActionType, NotificationType, type ChatToolCallCompleteAction, type ChatToolCallStartAction, type SessionAddedParams, type StateAction } from '../../../../common/state/sessionActions.js';
 import {
 	buildDefaultChatUri,
+	readSessionCreationReference,
 	ROOT_STATE_URI,
 	type AnnotationsState,
 	type ChatState,
@@ -178,7 +179,7 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 			type: ActionType.AnnotationsSet,
 			annotation: {
 				id: options.id,
-				turnId: 'seed-feedback',
+				origin: { session: sessionUri, chat: buildDefaultChatUri(sessionUri), turnId: 'seed-feedback' },
 				resource: options.resource,
 				range: { start: { line: 1, character: 2 }, end: { line: 1, character: 8 } },
 				resolved: options.resolved ?? false,
@@ -865,6 +866,8 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 		}, 30_000);
 		const child = (childAdded.params as SessionAddedParams).summary;
 		createdSessions.push(child.resource);
+		const creationReference = readSessionCreationReference(child._meta);
+		assert.ok(creationReference, 'child SessionAdded summary should include its creating turn');
 		const childRequest = await retry(async () => {
 			const requests = context.observedModelRequestBodies
 				.map(summarizeAnthropicRequest)
@@ -881,11 +884,17 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 			provider: child.provider,
 			messages: childState.turns.map(turn => turn.message.text),
 			childRequestModel: childRequest.model,
+			creationReference,
 		}, {
 			sawPendingConfirmation: true,
 			provider: model.provider,
 			messages: [childPrompt],
 			childRequestModel: model.id,
+			creationReference: {
+				session: session.sessionUri,
+				chat: session.chatUri,
+				turnId: 'turn-create-session',
+			},
 		});
 	}, supportsProviderModelSessionCreation);
 

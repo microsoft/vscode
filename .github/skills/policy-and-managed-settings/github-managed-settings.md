@@ -81,7 +81,7 @@ the schema's nested
 
 | Schema property (path) | Type in schema | Composition (`x-composition.strategy`) |
 |------------------------|----------------|----------------------------------------|
-| `permissions.disableBypassPermissionsMode` | string enum `"disable"` | most-restrictive-wins (sticky once set) |
+| `permissions.disableBypassPermissionsMode` | string enum `"disable"` \| `"allow-auto-only"` | most-restrictive-wins (sticky once set) |
 | `model` | string (`auto`, a model family name, or a full model id) | — |
 | `permissions.model` | string (legacy location for `model`) | — |
 | `forceRemoteSettingsRefresh` | boolean | MDM wins; controls the server cache rather than a configuration setting |
@@ -222,6 +222,32 @@ delivery slot for the managed value.
 | `projectManagedSettings(values, definitions, onWarn?)` | Keeps only declared keys whose runtime value **matches the declared type**. Undeclared keys and type mismatches are **dropped (validated, never coerced)**, with an optional warning. |
 | `pickManagedSettings(nativeMdm, server, file)` | Merges the channels **per key** by precedence (native MDM → server → file): the highest-precedence channel that sets a key wins, lower channels fill in keys the higher ones leave unset, and every contribution is recorded for provenance. **The extension point when adding a new channel** — extend the `ManagedSettingsChannel` union, the `MANAGED_SETTINGS_CHANNELS` order, and this function together. |
 | `managedSettingValue(key)` | Builds the standard pass-through `value` callback `policyData => policyData.managedSettings?.[key]`. Use for the common "lock to the managed value, else fall through" case (see [Declaring a managed setting](#declaring-a-managed-setting-on-a-policy)). |
+| `thirdPartyAgentEnabledValue(policyData)` | Shared `value` callback for the third-party harness policies (see [Governance presence](#governance-presence-disables-the-third-party-harnesses)). |
+
+### Governance presence disables the third-party harnesses
+
+`IPolicyData.managedSettingsActive` is `true` when **any** channel supplies **any** managed
+setting — i.e. the user is governed at all, independent of which keys were set. It is set in
+`AccountPolicyService.getPolicyData` from `pickManagedSettings(...).activeSources`, and unlike
+`IPolicyData.managedSettings` it is **not** projected onto the keys VS Code declares, so it also
+reflects runtime-owned keys VS Code never reads.
+
+The `Claude3PIntegration` and `Codex3PIntegration` policies both use
+`thirdPartyAgentEnabledValue`, which forces its setting to `false` when the account disables
+chat preview features **or** when `managedSettingsActive` is `true`. Rationale: managed settings
+are composed and enforced by the Copilot runtime and never reach the Claude or Codex harnesses,
+so leaving those harnesses available would hand a governed user an ungoverned path around every
+control the enterprise set. This mirrors the runtime-owned `sandbox.enabled` floor retiring the
+local harness (`IAgentHostEnablementService.managedSandboxEnforced`).
+
+Invariants:
+
+- The rule keys off **presence**, not a value, so the policies deliberately declare **no**
+  `managedSettings` keys — they must not be added to the native MDM watcher schema.
+- `AccountPolicyService.resolvePolicyValue` probes for this presence dependence (re-evaluating
+  the callback with `managedSettingsActive: false`) so **Developer: Policy Diagnostics**
+  attributes the value to the governing channel rather than to the account.
+- The `value` callback stays pure and deterministic — attribution evaluates it more than once.
 
 ### Normalization: the structured-key descriptor table
 

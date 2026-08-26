@@ -61,6 +61,9 @@ jobs:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Prepare Electron types
+        run: node build/npm/electronTypes.ts
+
       - name: Type check /build/ scripts
         run: npm run typecheck
         working-directory: build
