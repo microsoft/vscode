@@ -94,5 +94,4 @@
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/5e062c87a7d50ae1860c37515d839ab5dadb50b459ef7ce3eaa218023b8777e7)
 
 #### sessions/accountMenu/petAchievementBadges/chatPetAchievementBadges/AllBadges/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/dd7319172114dcad18e007713680405401f99f2fb500b9f0ca64ed299565ea39)
-
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/fe4b95bf8348637bba9f8c0dda791924e6c67fd7b5d173398f9b2c0bfc9f7071)
