@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IManagedHoverContent } from '../../../../base/browser/ui/hover/hover.js';
+import { IManagedHoverContent, IManagedHoverOptions } from '../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { $ } from '../../../../base/browser/dom.js';
+import { toAction } from '../../../../base/common/actions.js';
 import { arrayEquals } from '../../../../base/common/equals.js';
 import { Emitter } from '../../../../base/common/event.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, derivedOpts, IObservable } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -18,6 +19,7 @@ import { localize, localize2 } from '../../../../nls.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { Action2, MenuItemAction, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
@@ -162,12 +164,12 @@ class CopyPullRequestUrlAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, session?: IActiveSession | ISession | ISession[]): Promise<void> {
+	override async run(accessor: ServicesAccessor, sessionOrContext?: IActiveSession | ISession | ISession[] | PullRequestActionContext): Promise<void> {
 		const clipboardService = accessor.get(IClipboardService);
 		const sessionsService = accessor.get(ISessionsService);
 
-		const targetSession = (Array.isArray(session) ? session[0] : session) ?? sessionsService.activeSession.get();
-		const pullRequest = getSessionPullRequest(targetSession);
+		const target = (Array.isArray(sessionOrContext) ? sessionOrContext[0] : sessionOrContext) ?? sessionsService.activeSession.get();
+		const pullRequest = target instanceof PullRequestActionContext ? target.pullRequest : getSessionPullRequest(target);
 		if (!pullRequest) {
 			return;
 		}
@@ -187,12 +189,13 @@ export class OpenPullRequestActionViewItem extends ChatPillActionViewItem {
 	private readonly _pullRequestRefsObs: IObservable<readonly IGitHubPullRequestRef[]>;
 	private readonly _pullRequestIdentitiesObs: IObservable<readonly IPullRequestIdentity[]>;
 	private readonly _pullRequestsObs: IObservable<readonly IResolvedSessionPullRequest[]>;
-	private _pullRequestList: GitHubReferenceList<IPullRequestListEntry> | undefined;
+	private readonly _pullRequestList = this._register(new MutableDisposable<GitHubReferenceList<IPullRequestListEntry>>());
 
 	constructor(
 		action: MenuItemAction,
 		options: IActionViewItemOptions,
 		@ISessionContext sessionContext: ISessionContext,
+		@ICommandService private readonly _commandService: ICommandService,
 		@IGitHubService private readonly _gitHubService: IGitHubService,
 		@IPullRequestIconCache private readonly _pullRequestIconCache: IPullRequestIconCache,
 		@IOpenerService private readonly _openerService: IOpenerService,
@@ -285,14 +288,14 @@ export class OpenPullRequestActionViewItem extends ChatPillActionViewItem {
 
 		this._register(autorun(reader => {
 			const pullRequests = this._pullRequestsObs.read(reader);
-			this._pullRequestList?.update(this._getPullRequestListEntries(pullRequests));
+			this._pullRequestList.value?.update(this._getPullRequestListEntries(pullRequests));
 			this.updateLabel();
 			this.updateTooltip();
 		}));
 	}
 
 	protected override hasOpenDropdown(): boolean {
-		return !!this._pullRequestList;
+		return !!this._pullRequestList.value;
 	}
 
 	protected override onDidClickButton(): void {
@@ -350,6 +353,23 @@ export class OpenPullRequestActionViewItem extends ChatPillActionViewItem {
 		};
 	}
 
+	protected override getHoverOptions(): IManagedHoverOptions | undefined {
+		const pullRequests = this._pullRequestsObs.get();
+		if (pullRequests.length !== 1) {
+			return undefined;
+		}
+
+		const ref = pullRequests[0].ref;
+		return {
+			actions: [{
+				commandId: CopyPullRequestUrlAction.ID,
+				label: localize('agentSessions.pullRequestHover.copyLink', "Copy Link"),
+				iconClass: ThemeIcon.asClassName(Codicon.copy),
+				run: () => this._copyPullRequestLink(ref),
+			}],
+		};
+	}
+
 	protected override getTooltip(): string {
 		const pullRequests = this._pullRequestsObs.get();
 		if (pullRequests.length > 1) {
@@ -361,13 +381,17 @@ export class OpenPullRequestActionViewItem extends ChatPillActionViewItem {
 			: localize('agentSessions.openPullRequest.tooltip', "Open Pull Request");
 	}
 
+	private _copyPullRequestLink(ref: IGitHubPullRequestRef): void {
+		this._commandService.executeCommand(CopyPullRequestUrlAction.ID, new PullRequestActionContext(ref));
+	}
+
 	private _showPullRequestPicker(pullRequests: readonly IResolvedSessionPullRequest[]): void {
 		const target = this.button?.element;
 		if (!target) {
 			return;
 		}
 
-		const list = new GitHubReferenceList(this._getPullRequestListEntries(pullRequests), entry => {
+		const list = this._pullRequestList.value = new GitHubReferenceList(this._getPullRequestListEntries(pullRequests), entry => {
 			this._hoverService.hideHover();
 			this.actionRunner.run(this._action, new PullRequestActionContext(entry));
 		});
@@ -378,7 +402,6 @@ export class OpenPullRequestActionViewItem extends ChatPillActionViewItem {
 				this._hoverService.hideHover();
 			}
 		};
-		this._pullRequestList = list;
 
 		const hover = this._hoverService.showInstantHover({
 			content: list.element,
@@ -388,13 +411,13 @@ export class OpenPullRequestActionViewItem extends ChatPillActionViewItem {
 			appearance: { showPointer: false, skipFadeInAnimation: true },
 			trapFocus: true,
 			onDidHide: () => {
-				if (this._pullRequestList === list) {
-					this._pullRequestList = undefined;
+				if (this._pullRequestList.value === list) {
+					this._pullRequestList.clear();
 				}
 			},
 		}, true);
 		if (!hover) {
-			this._pullRequestList = undefined;
+			this._pullRequestList.clear();
 		}
 	}
 
@@ -411,6 +434,12 @@ export class OpenPullRequestActionViewItem extends ChatPillActionViewItem {
 			icon,
 			uri: ref.uri,
 			ariaLabel: getPullRequestAriaLabel(ref, pullRequest, status),
+			toolbarActions: [toAction({
+				id: CopyPullRequestUrlAction.ID,
+				label: localize('agentSessions.pullRequestList.copyLink', "Copy Pull Request Link"),
+				class: ThemeIcon.asClassName(Codicon.copy),
+				run: () => this._copyPullRequestLink(ref),
+			})],
 		}));
 	}
 }

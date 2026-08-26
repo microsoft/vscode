@@ -4,11 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { toAction } from '../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { DisposableStore, IDisposable, ImmortalReference, IReference, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, IObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { GitHubPullRequestModel } from '../../browser/models/githubPullRequestModel.js';
 import { GitHubPullRequestCIModel } from '../../browser/models/githubPullRequestCIModel.js';
@@ -26,10 +28,10 @@ import { ISessionsService } from '../../../../services/sessions/browser/sessions
 
 suite('GitHubReferenceList', () => {
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('updates rows in place so focus is preserved', () => {
-		const list = new GitHubReferenceList<IGitHubReferenceListEntry>([{
+		const list = disposables.add(new GitHubReferenceList<IGitHubReferenceListEntry>([{
 			number: 12345,
 			title: undefined,
 			icon: Codicon.gitPullRequest,
@@ -39,7 +41,7 @@ suite('GitHubReferenceList', () => {
 			title: 'Short number',
 			icon: Codicon.gitPullRequest,
 			ariaLabel: 'Pull Request #1: Short number',
-		}], () => { });
+		}], () => { }));
 		document.body.appendChild(list.element);
 
 		try {
@@ -70,6 +72,55 @@ suite('GitHubReferenceList', () => {
 				iconClasses: ['sessions-github-reference-list-entry-icon', 'codicon', 'codicon-git-pull-request-draft'],
 				initialNumberWidth: 'calc(5ch + 1em)',
 				numberWidth: 'calc(1ch + 1em)',
+			});
+		} finally {
+			list.element.remove();
+		}
+	});
+
+	test('renders the entry actions in an action bar that does not select the row', () => {
+		const events: string[] = [];
+		const copyAction = (target: string) => toAction({
+			id: 'test.copyLink',
+			label: 'Copy Pull Request Link',
+			class: ThemeIcon.asClassName(Codicon.copy),
+			run: () => events.push(`copy:${target}`),
+		});
+		const list = disposables.add(new GitHubReferenceList<IGitHubReferenceListEntry>([{
+			number: 1,
+			title: 'Fix the thing',
+			icon: Codicon.gitPullRequest,
+			toolbarActions: [copyAction('first')],
+		}], () => events.push('select')));
+		document.body.appendChild(list.element);
+
+		try {
+			// The row actions are revealed by row focus, matching the chat pill dropdown rows.
+			list.element.querySelector('button')!.focus();
+			const actionLabel = list.element.querySelector<HTMLElement>('.sessions-github-reference-list-entry-actions .action-label')!;
+			actionLabel.focus();
+
+			// A state update keeps the focused action, but it runs against the latest entry.
+			list.update([{
+				number: 1,
+				title: 'Fix the thing',
+				icon: Codicon.gitPullRequestDraft,
+				toolbarActions: [copyAction('second')],
+			}]);
+			actionLabel.click();
+
+			assert.deepStrictEqual({
+				events,
+				sameAction: list.element.querySelector('.sessions-github-reference-list-entry-actions .action-label') === actionLabel,
+				focused: document.activeElement === actionLabel,
+				ariaLabel: actionLabel.getAttribute('aria-label'),
+				iconClasses: [...actionLabel.classList],
+			}, {
+				events: ['copy:second'],
+				sameAction: true,
+				focused: true,
+				ariaLabel: 'Copy Pull Request Link',
+				iconClasses: ['action-label', 'codicon', 'codicon-copy'],
 			});
 		} finally {
 			list.element.remove();

@@ -14,6 +14,9 @@
 
 .sessions-github-reference-list-item {
 	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+	padding-right: var(--vscode-spacing-size40);
 }
 
 .sessions-github-reference-list-entry {
@@ -61,4 +64,19 @@
 	overflow: hidden;
 	white-space: nowrap;
 	text-overflow: ellipsis;
+}
+
+/* Entry actions - revealed on row hover/focus, like the chat pill dropdown rows */
+.sessions-github-reference-list-entry-actions {
+	flex-shrink: 0;
+	visibility: hidden;
+}
+
+.sessions-github-reference-list-item:hover .sessions-github-reference-list-entry-actions,
+.sessions-github-reference-list-item:focus-within .sessions-github-reference-list-entry-actions {
+	visibility: visible;
+}
+
+.sessions-github-reference-list-entry-actions .monaco-action-bar .action-label:not(.disabled):hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
 }
