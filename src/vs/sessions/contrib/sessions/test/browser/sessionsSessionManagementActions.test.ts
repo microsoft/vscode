@@ -13,25 +13,24 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { ContextKeyValue, IContext } from '../../../../../platform/contextkey/common/contextkey.js';
 import { InputFocusedContext } from '../../../../../platform/contextkey/common/contextkeys.js';
-import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
-import { TestDialogService } from '../../../../../platform/dialogs/test/common/testDialogService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { RawWorkbenchListFocusContextKey } from '../../../../../platform/list/browser/listService.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { FocusedViewContext, IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { IView } from '../../../../../workbench/common/views.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
-import { DELETE_SESSION_COMMAND_ID, RENAME_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
+import { ARCHIVE_SESSION_COMMAND_ID, RENAME_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { SessionActiveChatIsDeletableContext, SessionSupportsRenameContext, SessionsFocusContext } from '../../../../common/contextkeys.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISession } from '../../../../services/sessions/common/session.js';
+import { ArchiveSessionAction } from '../../browser/views/sessionsViewActions.js';
 import { SessionsList } from '../../browser/views/sessionsList.js';
 import { SessionsView, SessionsViewId } from '../../browser/views/sessionsView.js';
 import { createTestSession, TestSessionsManagementService } from './sessionsListTestUtils.js';
 import '../../browser/sessionsActions.js';
-import '../../browser/views/sessionsViewActions.js';
 
 const DELETE_CHAT_COMMAND_ID = 'sessions.chatCompositeBar.deleteChat';
 
@@ -48,17 +47,22 @@ function getKeybindingRule(commandId: string, keyCode: KeyCode) {
 suite('Sessions - Session management actions', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('scopes Rename and Delete keybindings to their Agents Window surfaces', () => {
+	test('scopes Rename and Archive keybindings to their Agents Window surfaces', () => {
 		const renameRule = getKeybindingRule(RENAME_SESSION_COMMAND_ID, KeyCode.F2);
-		const deleteSessionRule = getKeybindingRule(DELETE_SESSION_COMMAND_ID, KeyCode.Delete);
+		const archiveSessionRule = getKeybindingRule(ARCHIVE_SESSION_COMMAND_ID, KeyCode.Delete);
+		const deleteSessionRule = getKeybindingRule('sessionsViewPane.deleteSession', KeyCode.Delete);
 		const deleteChatRule = getKeybindingRule(DELETE_CHAT_COMMAND_ID, KeyCode.Delete);
 		assert.ok(renameRule?.when);
-		assert.ok(deleteSessionRule?.when);
+		assert.ok(archiveSessionRule?.when);
 		assert.ok(deleteChatRule?.when);
 
 		const evaluate = (rule: NonNullable<typeof renameRule>, values: Record<string, ContextKeyValue>) => rule.when?.evaluate(context(values)) ?? true;
 		const sessionsWindow = { [IsSessionsWindowContext.key]: true };
-		const sessionsList = { ...sessionsWindow, [FocusedViewContext.key]: SessionsViewId };
+		const sessionsList = {
+			...sessionsWindow,
+			[FocusedViewContext.key]: SessionsViewId,
+			[RawWorkbenchListFocusContextKey.key]: true,
+		};
 		const chatTranscript = {
 			...sessionsWindow,
 			[ChatContextKeys.inChatSession.key]: true,
@@ -74,10 +78,11 @@ suite('Sessions - Session management actions', () => {
 			renameInChatInput: evaluate(renameRule, { ...chatTranscript, [ChatContextKeys.inChatInput.key]: true, [InputFocusedContext.key]: true }),
 			renameUnsupportedChat: evaluate(renameRule, { ...chatTranscript, [SessionSupportsRenameContext.key]: false }),
 			renameOutsideAgentsWindow: evaluate(renameRule, { [ChatContextKeys.inChatSession.key]: true, [SessionSupportsRenameContext.key]: true }),
-			deleteWeight: deleteSessionRule.weight1,
-			deleteInList: evaluate(deleteSessionRule, sessionsList),
-			deleteInListFindInput: evaluate(deleteSessionRule, { ...sessionsList, [InputFocusedContext.key]: true }),
-			deleteInTranscript: evaluate(deleteSessionRule, chatTranscript),
+			archiveWeight: archiveSessionRule.weight1,
+			archiveInList: evaluate(archiveSessionRule, sessionsList),
+			archiveInListFindInput: evaluate(archiveSessionRule, { ...sessionsList, [InputFocusedContext.key]: true }),
+			archiveInTranscript: evaluate(archiveSessionRule, chatTranscript),
+			deleteSessionHasKeybinding: !!deleteSessionRule,
 			deleteChatInList: evaluate(deleteChatRule, { ...sessionsList, [SessionActiveChatIsDeletableContext.key]: true }),
 			deleteChatInTranscript: evaluate(deleteChatRule, { ...chatTranscript, [SessionActiveChatIsDeletableContext.key]: true }),
 			deleteChatInInput: evaluate(deleteChatRule, { ...chatTranscript, [SessionActiveChatIsDeletableContext.key]: true, [InputFocusedContext.key]: true }),
@@ -89,10 +94,11 @@ suite('Sessions - Session management actions', () => {
 			renameInChatInput: true,
 			renameUnsupportedChat: false,
 			renameOutsideAgentsWindow: false,
-			deleteWeight: KeybindingWeight.SessionsContrib,
-			deleteInList: true,
-			deleteInListFindInput: false,
-			deleteInTranscript: false,
+			archiveWeight: KeybindingWeight.SessionsContrib,
+			archiveInList: true,
+			archiveInListFindInput: false,
+			archiveInTranscript: false,
+			deleteSessionHasKeybinding: false,
 			deleteChatInList: false,
 			deleteChatInTranscript: true,
 			deleteChatInInput: false,
@@ -114,7 +120,6 @@ suite('Sessions - Session management actions', () => {
 		instantiationService.stub(IQuickInputService, upcastPartial<IQuickInputService>({
 			input: async () => 'Renamed',
 		}));
-		instantiationService.stub(IDialogService, new TestDialogService({ confirmed: true }));
 
 		return { instantiationService, managementService };
 	}
@@ -125,26 +130,28 @@ suite('Sessions - Session management actions', () => {
 		const listHarness = createActionHarness([listSession], listActiveSession);
 		const activeSession = createTestSession('Active chat').session;
 		const chatHarness = createActionHarness(undefined, activeSession);
-		const deleteCapabilities = createTestSession('Delete target');
-		deleteCapabilities.capabilities.set({ supportsMultipleChats: false, supportsRename: true, supportsDelete: true }, undefined);
-		const deleteHarness = createActionHarness([deleteCapabilities.session], listActiveSession);
+		const archiveSession = createTestSession('Archive target').session;
+		const archivedSession = createTestSession('Already archived', { isArchived: true }).session;
+		const archiveHarness = createActionHarness([archiveSession, archivedSession], listActiveSession);
+		const inactiveArchiveHarness = createActionHarness(undefined, listActiveSession);
 		const renameHandler = CommandsRegistry.getCommand(RENAME_SESSION_COMMAND_ID)?.handler;
-		const deleteHandler = CommandsRegistry.getCommand(DELETE_SESSION_COMMAND_ID)?.handler;
 		assert.ok(renameHandler);
-		assert.ok(deleteHandler);
 
 		await renameHandler(listHarness.instantiationService);
 		await renameHandler(chatHarness.instantiationService);
-		await deleteHandler(deleteHarness.instantiationService);
+		await archiveHarness.instantiationService.invokeFunction(accessor => new ArchiveSessionAction().run(accessor));
+		await inactiveArchiveHarness.instantiationService.invokeFunction(accessor => new ArchiveSessionAction().run(accessor));
 
 		assert.deepStrictEqual({
 			listRename: listHarness.managementService.renamed.map(({ session, title }) => ({ sessionId: session.sessionId, title })),
 			chatRename: chatHarness.managementService.renamed.map(({ session, title }) => ({ sessionId: session.sessionId, title })),
-			deleted: deleteHarness.managementService.deleted.map(sessions => sessions.map(session => session.sessionId)),
+			archived: archiveHarness.managementService.archived.map(session => session.sessionId),
+			inactiveArchived: inactiveArchiveHarness.managementService.archived,
 		}, {
 			listRename: [{ sessionId: listSession.sessionId, title: 'Renamed' }],
 			chatRename: [{ sessionId: activeSession.sessionId, title: 'Renamed' }],
-			deleted: [[deleteCapabilities.session.sessionId]],
+			archived: [archiveSession.sessionId],
+			inactiveArchived: [],
 		});
 	});
 });

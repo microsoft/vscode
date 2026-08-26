@@ -12,7 +12,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IInputOptions, IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
-import { DELETE_SESSION_COMMAND_ID, RENAME_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
+import { ARCHIVE_SESSION_COMMAND_ID, RENAME_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { SessionView } from '../../../../browser/parts/sessionView.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
@@ -278,7 +278,8 @@ suite('Sessions rename', () => {
 				hasContextMenu: content.includes('open its context menu'),
 				hasChatFocus: content.includes('chat transcript or input'),
 				hasRenameKeybinding: content.includes(`<keybinding:${RENAME_SESSION_COMMAND_ID}>`),
-				hasDeleteKeybinding: content.includes(`<keybinding:${DELETE_SESSION_COMMAND_ID}>`),
+				hasArchiveKeybinding: content.includes(`<keybinding:${ARCHIVE_SESSION_COMMAND_ID}>`),
+				hasPermanentDelete: content.includes('open its context menu and choose Delete'),
 				hasPetAchievements: content.includes('View Achievements'),
 				activeElement: mainWindow.document.activeElement,
 				fallbackFocusCount: fallbackFocusCount(),
@@ -287,7 +288,8 @@ suite('Sessions rename', () => {
 				hasContextMenu: true,
 				hasChatFocus: true,
 				hasRenameKeybinding: true,
-				hasDeleteKeybinding: true,
+				hasArchiveKeybinding: true,
+				hasPermanentDelete: true,
 				hasPetAchievements: true,
 				activeElement: origin,
 				fallbackFocusCount: 0,
