@@ -1541,7 +1541,7 @@ export class CopilotAgentSession extends Disposable {
 			type: ActionType.ChatError,
 			turnId: turn.id,
 			duration: turn.duration,
-			error,
+			part: { kind: ResponsePartKind.Error, error },
 		});
 		this._clearActiveTurn();
 		return turn.id;
@@ -3283,8 +3283,10 @@ export class CopilotAgentSession extends Disposable {
 			// (`requestSandboxBypass`) are an elevation of privilege and must
 			// fall through to the normal confirmation flow — otherwise enabling
 			// `sandbox.allowBypass` would let the model escape the sandbox with no
-			// prompt at all.
-			if (!managedApprovalRequired && isShellRequest && !requestSandboxBypass && await this._isShellSandboxedByDefault()) {
+			// prompt at all. A file-scoped surface (editor inline chat) is
+			// likewise excluded: the sandbox contains a command to the workspace,
+			// not to that surface's one file, so it can still edit other files.
+			if (!managedApprovalRequired && !this._launchPlan.hasScopedEditSurface && isShellRequest && !requestSandboxBypass && await this._isShellSandboxedByDefault()) {
 				// Session may have been disposed while we awaited the engine
 				// check; if so the deferred has already been settled and
 				// removed, so leave it alone.
@@ -4768,7 +4770,7 @@ export class CopilotAgentSession extends Disposable {
 				type: ActionType.ChatError,
 				turnId: this._turnId,
 				duration: turn?.duration ?? 0,
-				error: buildChatErrorInfoFromCopilotSdkFields(e.data),
+				part: { kind: ResponsePartKind.Error, error: buildChatErrorInfoFromCopilotSdkFields(e.data) },
 			});
 		}));
 

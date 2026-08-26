@@ -87,13 +87,13 @@ function readProfileImageReference(value: unknown): ICodexProfileImageReference 
 	const reference = value as Partial<ICodexProfileImageReference>;
 	if (typeof reference.contentType !== 'string'
 		|| !SUPPORTED_CODEX_PROFILE_IMAGE_MEDIA_TYPES.has(reference.contentType)
-		|| !isProfileImageResourceUri(reference.uri, reference.contentType)
 		|| typeof reference.sizeHint !== 'number'
 		|| !Number.isInteger(reference.sizeHint)
 		|| reference.sizeHint <= 0
 		|| reference.sizeHint > MAX_CODEX_PROFILE_IMAGE_BYTES
 		|| typeof reference.nonce !== 'string'
-		|| !/^[a-f0-9]{64}$/.test(reference.nonce)) {
+		|| !/^[a-f0-9]{64}$/.test(reference.nonce)
+		|| !isProfileImageResourceUri(reference.uri, reference.contentType, reference.nonce)) {
 		return undefined;
 	}
 	return {
@@ -104,7 +104,7 @@ function readProfileImageReference(value: unknown): ICodexProfileImageReference 
 	};
 }
 
-function isProfileImageResourceUri(value: unknown, contentType: string): value is string {
+function isProfileImageResourceUri(value: unknown, contentType: string, nonce: string): value is string {
 	if (typeof value !== 'string') {
 		return false;
 	}
@@ -113,7 +113,7 @@ function isProfileImageResourceUri(value: unknown, contentType: string): value i
 		const extension = contentType === 'image/jpeg' ? 'jpg' : contentType.slice('image/'.length);
 		return uri.scheme === CODEX_PROFILE_IMAGE_SCHEME
 			&& !uri.authority
-			&& uri.path === `/profile.${extension}`
+			&& uri.path === `/profile-${nonce}.${extension}`
 			&& !uri.query
 			&& !uri.fragment;
 	} catch {

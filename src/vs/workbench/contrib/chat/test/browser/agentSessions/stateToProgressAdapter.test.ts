@@ -21,6 +21,7 @@ import { ChatRequestOriginKind } from '../../../common/chatRequestOrigin.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind, type IChatMarkdownContent, type IChatTerminalToolInvocationData, type IChatThinkingPart, type IChatUsage } from '../../../common/chatService/chatService.js';
 import { isToolResultInputOutputDetails, type IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, completedToolCallToSerialized, containsAutomaticReplyAnswer, createInputRequestCarousel, messageAttachmentsToVariableData, shouldObserveSubagentChat, toolCallStateToInvocation as rawToolCallStateToInvocation, toolCallStateToPreparedInvocation as rawToolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, formatTurnResponseDetails, rewriteAgentHostLinkTarget, rewriteMarkdownLinks, type TurnModelLookup } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
+import { getQuotaReset } from '../../../../../services/chat/common/chatEntitlementService.js';
 
 // ---- Helper factories -------------------------------------------------------
 
@@ -367,6 +368,67 @@ suite('stateToProgressAdapter', () => {
 			});
 		});
 
+		test('created session annotates only its first request with the creating turn', () => {
+			const firstTurn = createTurn({
+				id: 'turn-1',
+				message: {
+					text: 'Hello',
+					origin: { kind: MessageKind.User },
+					_meta: toAgentMessageDelegationMeta({
+						sourceSession: 'copilot:/creator',
+						sourceChat: 'ahp-chat://default/Y29waWxvdDovY3JlYXRvcg',
+						sourceTurnId: 'creating-turn',
+					}),
+				},
+			});
+			const history = rawTurnsToHistory(
+				URI.parse('copilot:/created'),
+				[firstTurn, createTurn({ id: 'turn-2' })],
+				'agent-host-copilot',
+				'local',
+			);
+
+			assert.deepStrictEqual([
+				history[0].type === 'request' ? history[0].origin : undefined,
+				history[2].type === 'request' ? history[2].origin : undefined,
+			], [{
+				kind: ChatRequestOriginKind.Delegation,
+				sourceSessionResource: URI.parse('agent-host-session://copilot/creator?turn=creating-turn'),
+				delegationScope: 'session',
+			}, undefined]);
+		});
+
+		test('created session maps an aliased backend source to its logical provider', () => {
+			const turn = createTurn({
+				message: {
+					text: 'Hello',
+					origin: { kind: MessageKind.User },
+					_meta: toAgentMessageDelegationMeta({
+						sourceSession: 'ahp-session:/creator',
+						sourceChat: 'ahp-chat://default/YWhwLXNlc3Npb246L2NyZWF0b3I',
+					}),
+				},
+			});
+
+			const history = rawTurnsToHistory(
+				URI.parse('ahp-session:/created'),
+				[turn],
+				'copilot',
+				'remote',
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				'copilot',
+			);
+
+			assert.deepStrictEqual(history[0].type === 'request' ? history[0].origin : undefined, {
+				kind: ChatRequestOriginKind.Delegation,
+				sourceSessionResource: URI.parse('agent-host-session://copilot/creator'),
+				delegationScope: 'session',
+			});
+		});
+
 		test('thread coordination tools restore deterministic target-session chips', () => {
 			const createLink = 'agent-host-session://codex/created-thread';
 			const sendLink = 'agent-host-session://codex/target-thread';
@@ -593,6 +655,7 @@ suite('stateToProgressAdapter', () => {
 					mcpAppData: {
 						kind: 'agentHost',
 						resourceUri: 'ui://github-mcp-server/pr-write',
+						connectionAuthority: 'local',
 						serverId: 'github-customization',
 						channel: 'mcp://copilot/session/GitHub',
 					},
@@ -1081,7 +1144,7 @@ suite('stateToProgressAdapter', () => {
 		test('error turn produces error details in history', () => {
 			const turn = createTurn({
 				state: TurnState.Error,
-				error: { errorType: 'test', message: 'boom' },
+				responseParts: [{ kind: ResponsePartKind.Error, error: { errorType: 'test', message: 'boom' } }],
 			});
 
 			const history = turnsToHistory(URI.file('/'), [turn], 'p');
@@ -1095,11 +1158,14 @@ suite('stateToProgressAdapter', () => {
 		test('forwarded quota error turn produces quota-exceeded error details', () => {
 			const turn = createTurn({
 				state: TurnState.Error,
-				error: {
-					errorType: 'quota',
-					message: 'raw',
-					_meta: { chatError: { fetchError: { type: 'quotaExceeded', capiError: { code: 'quota_exceeded' } } } },
-				},
+				responseParts: [{
+					kind: ResponsePartKind.Error,
+					error: {
+						errorType: 'quota',
+						message: 'raw',
+						_meta: { chatError: { fetchError: { type: 'quotaExceeded', capiError: { code: 'quota_exceeded' } } } },
+					},
+				}],
 			});
 
 			const history = turnsToHistory(URI.file('/'), [turn], 'p');
@@ -1471,6 +1537,7 @@ suite('stateToProgressAdapter', () => {
 				mcpAppData: {
 					kind: 'agentHost',
 					resourceUri: 'ui://docs/app',
+					connectionAuthority: 'local',
 					serverId: 'docs-customization',
 					channel: 'mcp://copilot/test-session-1/docs',
 				},
@@ -2321,6 +2388,29 @@ suite('stateToProgressAdapter', () => {
 			});
 		});
 
+		test('gives each Agent Merge notice an icon that matches what it reports', () => {
+			const notice = (kind: AgentSystemNotificationKind) => activeTurnToProgress(URI.file('/'), createActiveTurnState([{
+				kind: ResponsePartKind.SystemNotification,
+				content: 'Agent Merge changed state',
+				_meta: toAgentSystemNotificationMeta({ kind }),
+			}]), undefined)[0];
+
+			assert.deepStrictEqual({
+				enabled: notice(AgentSystemNotificationKind.AgentMergeEnabled),
+				disabled: notice(AgentSystemNotificationKind.AgentMergeDisabled),
+				// An unrecognized kind must still render, using the default check.
+				unknown: activeTurnToProgress(URI.file('/'), createActiveTurnState([{
+					kind: ResponsePartKind.SystemNotification,
+					content: 'Agent Merge changed state',
+					_meta: { kind: 'somethingNewer' },
+				}]), undefined)[0],
+			}, {
+				enabled: { kind: 'systemNotification', content: new MarkdownString('Agent Merge changed state'), icon: Codicon.gitMerge },
+				disabled: { kind: 'systemNotification', content: new MarkdownString('Agent Merge changed state'), icon: Codicon.circleSlash },
+				unknown: { kind: 'systemNotification', content: new MarkdownString('Agent Merge changed state') },
+			});
+		});
+
 		test('produces thinking progress for reasoning', () => {
 			const result = activeTurnToProgress(URI.file('/'), createActiveTurnState([
 				{ kind: ResponsePartKind.Reasoning, id: 'r-1', content: 'Let me think about this...' },
@@ -3086,6 +3176,7 @@ suite('stateToProgressAdapter', () => {
 				mcpAppData: {
 					kind: 'agentHost',
 					resourceUri: 'ui://docs/app',
+					connectionAuthority: 'local',
 					serverId: 'docs-customization',
 					channel: 'mcp://copilot/test-session-1/docs',
 				},
@@ -3208,7 +3299,8 @@ suite('stateToProgressAdapter', () => {
 					unlimited: false,
 					entitlement: 300,
 					quotaRemaining: 225,
-					resetAt: Date.parse('2026-07-01T00:00:00.000Z'),
+					// `resetAt` is epoch seconds, not milliseconds.
+					resetAt: Date.parse('2026-07-01T00:00:00.000Z') / 1000,
 				},
 				chat: {
 					percentRemaining: 100,
@@ -3261,6 +3353,29 @@ suite('stateToProgressAdapter', () => {
 			});
 
 			assert.strictEqual(result, undefined);
+		});
+
+		test('produces a resetAt the entitlement service resolves back to the reported date', () => {
+			// `getQuotaReset` treats `resetAt` as epoch seconds, so a snapshot mapped from an ISO
+			// date must round-trip to that same instant rather than a far-future one.
+			const result = usageInfoToQuotas({
+				_meta: {
+					quotaSnapshots: {
+						premium_interactions: {
+							isUnlimitedEntitlement: false,
+							entitlementRequests: 300,
+							usedRequests: 75,
+							remainingPercentage: 75,
+							resetDate: '2026-07-01T00:00:00.000Z',
+						},
+					},
+				},
+			});
+
+			assert.deepStrictEqual(getQuotaReset(result?.premiumChat, { resetDate: result?.resetDate }), {
+				date: new Date('2026-07-01T00:00:00.000Z'),
+				hasTime: true,
+			});
 		});
 	});
 

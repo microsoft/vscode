@@ -659,7 +659,7 @@
     },
     {
       "name": "list_sessions",
-      "description": "List sessions and their compact metadata (status, activity, working directory, project, worktree changes, git/GitHub info, timestamps). Pass `session` to fetch a single known session by URI. By default archived sessions are omitted. Optionally filter by `status`, `workspace`, `withChanges`, `unread`, `withPullRequest`, `includeArchived`, `createdAfter`, or `createdBefore`.",
+      "description": "List sessions and their compact metadata (status, activity, working directory, project, worktree changes, git/GitHub info, timestamps). Each result includes `session` for identity and tool inputs and `openLink` for clickable Markdown links; do not use `session` as a link target. Pass `session` to fetch a single known session by URI. By default archived sessions are omitted. Optionally filter by `status`, `workspace`, `withChanges`, `unread`, `withPullRequest`, `includeArchived`, `createdAfter`, or `createdBefore`.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -708,14 +708,6 @@
           "createdBefore": {
             "type": "string",
             "description": "Only return sessions created at or before this time (ISO-8601 timestamp)."
-          },
-          "parentSession": {
-            "type": "string",
-            "description": "Only return sessions created by this parent session URI or open-session link."
-          },
-          "label": {
-            "type": "string",
-            "description": "Only return sessions with this orchestration label."
           }
         }
       },
@@ -749,22 +741,6 @@
           "model": {
             "type": "string",
             "description": "Optional model ID or display name. Defaults to the current chat's model."
-          },
-          "coordinateWithCreator": {
-            "type": "boolean",
-            "description": "Allow the child to identify and contact the session that created it. Set false for an independent child that must not send messages or create chats in its creator. Defaults to true."
-          },
-          "notifyOnIdle": {
-            "type": "string",
-            "enum": [
-              "once",
-              "always"
-            ],
-            "description": "Wake the creator when the child needs input, becomes idle, or errors, either once or after every work cycle."
-          },
-          "label": {
-            "type": "string",
-            "description": "Optional label used to group and filter related child sessions."
           }
         },
         "required": [

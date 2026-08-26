@@ -26,7 +26,7 @@ import { buildDefaultChatUri, buildSubagentChatUri, MessageKind, PendingMessageK
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
 import { IAgentHostChatContributions } from '../../common/agentHostChatContributionsService.js';
 import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
-import { AgentHostLocalTurns } from '../../node/agentHostLocalTurns.js';
+import { AgentHostLocalTurns, IAgentHostLocalTurns } from '../../node/agentHostLocalTurns.js';
 import { AgentHostLocalCommands, IAgentHostLocalCommands } from '../../node/localCommands/localChatCommand.js';
 import { AgentHostChatContributions } from '../../node/agentHostChatContributionsService.js';
 import { registerBuiltInChatContributions } from '../../node/chatContributions/builtInChatContributions.js';
@@ -232,14 +232,16 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		services.set(IAgentHostTelemetryReporter, telemetryReporter);
 		const turnTracker = disposables.add(instantiationService.createInstance(AgentHostTurnTracker));
 		services.set(IAgentHostTurnTracker, turnTracker);
-		const localCommands = disposables.add(instantiationService.createInstance(AgentHostLocalCommands, new AgentHostLocalTurns(sessionDataService, logService)));
+		const localTurns = new AgentHostLocalTurns(sessionDataService, logService);
+		services.set(IAgentHostLocalTurns, localTurns);
+		const localCommands = disposables.add(instantiationService.createInstance(AgentHostLocalCommands));
 		services.set(IAgentHostLocalCommands, localCommands);
 		disposables.add(registerBuiltInChatContributions(chatContributions));
 		sideEffects = disposables.add(instantiationService.createInstance(AgentSideEffects, stateManager, customizationEnablementService, {
 			getAgent: () => agent,
 			agents: agentList,
 			sessionDataService,
-			localTurns: new AgentHostLocalTurns(sessionDataService, logService),
+			localTurns,
 		}));
 		// Wire the agent's progress signals through side-effects (this is how
 		// progress actions reach the state manager in production).
@@ -292,7 +294,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 			devDeviceId: 'client-dev-device-id',
 		};
 		startTurn('t-client', 'hello', undefined, defaultChatUri, clientContext);
-		fire({ type: ActionType.ChatError, turnId: 't-client', duration: 100, error: { errorType: 'providerFailed', message: 'failed' } });
+		fire({ type: ActionType.ChatError, turnId: 't-client', duration: 100, part: { kind: ResponsePartKind.Error, error: { errorType: 'providerFailed', message: 'failed' } } });
 
 		assert.deepStrictEqual([completedEvents()[0], failedEvents()[0]].map(event => {
 			const data = event.data as Record<string, unknown>;
@@ -558,7 +560,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		startTurn('turn-success');
 		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-success', duration: 1000 });
 		startTurn('turn-error');
-		fire({ type: ActionType.ChatError, turnId: 'turn-error', duration: 1000, error: { errorType: 'oops', message: 'fail' } });
+		fire({ type: ActionType.ChatError, turnId: 'turn-error', duration: 1000, part: { kind: ResponsePartKind.Error, error: { errorType: 'oops', message: 'fail' } } });
 		startTurn('turn-cancelled');
 		fire({ type: ActionType.ChatTurnCancelled, turnId: 'turn-cancelled', duration: 1000 });
 
@@ -752,7 +754,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 	test('emits result=error on ChatError', () => {
 		setupSession();
 		startTurn('turn-1');
-		fire({ type: ActionType.ChatError, turnId: 'turn-1', duration: 1000, error: { errorType: 'oops', message: 'fail' } });
+		fire({ type: ActionType.ChatError, turnId: 'turn-1', duration: 1000, part: { kind: ResponsePartKind.Error, error: { errorType: 'oops', message: 'fail' } } });
 
 		const events = completedEvents();
 		assert.strictEqual(events.length, 1);
@@ -767,14 +769,17 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 			type: ActionType.ChatError,
 			turnId: 'turn-1',
 			duration: 1000,
-			error: {
-				errorType: 'quota',
-				message: 'quota exceeded',
-				_meta: {
-					chatError: {
-						fetchError: {
-							requestId: 'provider-request-id',
-							serverRequestId: 'service-request-id',
+			part: {
+				kind: ResponsePartKind.Error,
+				error: {
+					errorType: 'quota',
+					message: 'quota exceeded',
+					_meta: {
+						chatError: {
+							fetchError: {
+								requestId: 'provider-request-id',
+								serverRequestId: 'service-request-id',
+							},
 						},
 					},
 				},
@@ -809,7 +814,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		startTurn('subagent-complete', 'hello', undefined, subagentChatUri);
 		fire({ type: ActionType.ChatTurnComplete, turnId: 'subagent-complete', duration: 1000 }, subagentChatUri);
 		startTurn('subagent-failed', 'hello', undefined, subagentChatUri);
-		fire({ type: ActionType.ChatError, turnId: 'subagent-failed', duration: 1000, error: { errorType: 'oops', message: 'fail' } }, subagentChatUri);
+		fire({ type: ActionType.ChatError, turnId: 'subagent-failed', duration: 1000, part: { kind: ResponsePartKind.Error, error: { errorType: 'oops', message: 'fail' } } }, subagentChatUri);
 
 		assert.deepStrictEqual({
 			completed: completedEvents().map(event => {

@@ -194,7 +194,7 @@ suite('ChatToolProgressSubPart', () => {
 			linkPresentationRules: [],
 			registerLinkPresentationProvider: () => ({ dispose() { } }),
 			registerExtensionLinkPresentationProvider: () => ({ dispose() { } }),
-			getLinkPresentationRule: () => ({ id: 'test-session-links', uriPattern: /^agent-host-session:/, initialKind: 'session' }),
+			getLinkPresentationRule: () => ({ id: 'test-session-links', uriPattern: /^agent-host-session:/, kind: 'session' }),
 			createLinkPresentationWatcher: () => ({ presentation: sessionLinkPresentation, dispose() { } }),
 		});
 
