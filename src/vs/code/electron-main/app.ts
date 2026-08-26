@@ -430,7 +430,12 @@ export class CodeApplication extends Disposable {
 			}
 
 			if (uri.scheme === Schemas.vscodeManagedRemoteResource) {
-				for (let frame: WebFrameMain | null | undefined = details.frame; frame; frame = frame.parent) {
+				let frame: WebFrameMain | null | undefined = details.frame;
+				if (!frame || frame.isDestroyed()) {
+					this.logService.error('Blocked vscode-managed-remote-resource request', details.url);
+					return callback({ cancel: true });
+				}
+				for (; frame; frame = frame.parent) {
 					if (frame.isDestroyed() || frame.url.startsWith(`${Schemas.vscodeWebview}://`)) {
 						this.logService.error('Blocked vscode-managed-remote-resource request', details.url);
 						return callback({ cancel: true });
@@ -841,7 +846,7 @@ export class CodeApplication extends Disposable {
 				return callback(notFound());
 			}
 
-			if (request.referrer.startsWith(`${Schemas.vscodeWebview}://`)) {
+			if (!request.referrer || request.referrer.startsWith(`${Schemas.vscodeWebview}://`)) {
 				return callback(notFound());
 			}
 
