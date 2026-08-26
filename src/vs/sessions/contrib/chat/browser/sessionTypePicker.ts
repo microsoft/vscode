@@ -401,8 +401,12 @@ export class SessionTypePicker extends Disposable {
 	 * the override can decide where to anchor (or that it doesn't need
 	 * anchoring at all, e.g. for a bottom sheet).
 	 */
-	protected _showPicker(): void {
-		if (!this._triggerElement || this.actionWidgetService.isVisible) {
+	showPicker(anchor?: HTMLElement): void {
+		this._showPicker(anchor);
+	}
+
+	protected _showPicker(anchor = this._triggerElement): void {
+		if (!anchor || this.actionWidgetService.isVisible) {
 			return;
 		}
 
@@ -498,7 +502,11 @@ export class SessionTypePicker extends Disposable {
 				this.actionWidgetService.hide();
 				this._handleSelectedSessionType(item);
 			},
-			onHide: () => { triggerElement.focus(); },
+			onHide: () => {
+				if (triggerElement?.isConnected) {
+					triggerElement.focus();
+				}
+			},
 		};
 
 		this.actionWidgetService.show<ISessionTypePickerItem>(
@@ -506,7 +514,7 @@ export class SessionTypePicker extends Disposable {
 			false,
 			groupedItems,
 			delegate,
-			this._triggerElement,
+			anchor,
 			undefined,
 			[],
 			{

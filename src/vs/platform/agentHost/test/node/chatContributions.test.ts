@@ -25,7 +25,7 @@ import { readAgentMessageDelegationMeta, toAgentMessageDelegationMeta } from '..
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { ChatOriginKind } from '../../common/state/protocol/state.js';
-import { buildChatUri, buildDefaultChatUri, MessageKind, PendingMessageKind, SessionStatus, TurnState, type ISessionGitHubState, type Message, type PendingMessage, type Turn } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, MessageKind, PendingMessageKind, ResponsePartKind, SessionStatus, TurnState, type ISessionGitHubState, type Message, type PendingMessage, type Turn } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostClientConnectionService, IAgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
 import { AgentHostChatContributions } from '../../node/agentHostChatContributionsService.js';
@@ -36,7 +36,6 @@ import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.j
 import { AgentHostLocalTurns, IAgentHostLocalTurns } from '../../node/agentHostLocalTurns.js';
 import { AgentHostTelemetryReporter, IAgentHostTelemetryReporter } from '../../node/agentHostTelemetryReporter.js';
 import { AgentHostTurnTracker, IAgentHostTurnTracker } from '../../node/agentHostTurnTracker.js';
-import { GitHubReferencesContribution } from '../../node/chatContributions/githubReferences/githubReferencesContribution.js';
 import { AgentHostLocalCommands, IAgentHostLocalCommands } from '../../node/localCommands/localChatCommand.js';
 import { registerBuiltInChatContributions } from '../../node/chatContributions/builtInChatContributions.js';
 import { QueueDrainContribution } from '../../node/chatContributions/queueDrain/queueDrainContribution.js';
@@ -99,7 +98,6 @@ class RecordingGitStateService implements IAgentHostGitStateService {
 	declare readonly _serviceBrand: undefined;
 	readonly onDidRefreshSessionGitState = Event.None;
 	readonly onDidChangeSessionGitHubState = Event.None;
-	readonly attachedGitHubReferences: { session: string; text: string }[] = [];
 
 	constructor(private readonly _observed: string[] | undefined) { }
 
@@ -109,9 +107,6 @@ class RecordingGitStateService implements IAgentHostGitStateService {
 	async recordSessionMerge(_sessionKey: string, _commit: string): Promise<void> { }
 	async attachSessionGitHubPullRequest(_sessionKey: string, _workingDirectory?: URI): Promise<void> {
 		this._observed?.push('githubReferences');
-	}
-	async attachSessionGitHubReferences(session: string, text: string): Promise<void> {
-		this.attachedGitHubReferences.push({ session, text });
 	}
 }
 
@@ -514,20 +509,6 @@ function createContributions(disposables: ReturnType<typeof ensureNoDisposablesA
 		disposables.add(service.registerContribution(contribution));
 	}
 	return service;
-}
-
-function createGitHubReferencesContributions(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>): { service: IAgentHostChatContributions; gitStateService: RecordingGitStateService } {
-	const logService = new NullLogService();
-	const stateManager = disposables.add(new AgentHostStateManager(logService));
-	const gitStateService = new RecordingGitStateService(undefined);
-	const instantiationService = disposables.add(new InstantiationService(new ServiceCollection(
-		[ILogService, logService],
-		[IAgentHostStateManager, stateManager],
-		[IAgentHostGitStateService, gitStateService],
-	), /*strict*/ true));
-	const service: IAgentHostChatContributions = disposables.add(new AgentHostChatContributions(logService, instantiationService));
-	disposables.add(service.registerContribution(GitHubReferencesContribution));
-	return { service, gitStateService };
 }
 
 function createSideChatContributions(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, inheritedTurnId?: string, selectionText?: string) {
@@ -967,7 +948,7 @@ suite('AgentHostChatContributions', () => {
 				actions.push(envelope.action.type);
 			}
 			if (envelope.action.type === ActionType.ChatError) {
-				errorTypes.push(envelope.action.error.errorType);
+				errorTypes.push(envelope.action.part.error.errorType);
 			}
 		}));
 		queue.clearAgent();
@@ -1239,16 +1220,6 @@ suite('AgentHostChatContributions', () => {
 		assert.deepStrictEqual(calls, ['followingOutgoingTurn']);
 	});
 
-	test('attaches GitHub references from outgoing messages', async () => {
-		const { service, gitStateService } = createGitHubReferencesContributions(disposables);
-		await service.outgoingTurn(outgoingTurn('github-references', 'Fix microsoft/vscode#42'));
-
-		assert.deepStrictEqual(gitStateService.attachedGitHubReferences, [{
-			session: 'agent-host-session://test',
-			text: 'Fix microsoft/vscode#42',
-		}]);
-	});
-
 	test('propagates the terminal outcome reason', () => {
 		const contributions = disposables.add(createContributions(disposables, ReasonContribution));
 		contributions.turnEnd(turnEnd('reason', { kind: 'cancelled' }));
@@ -1452,7 +1423,7 @@ suite('AgentHostChatContributions', () => {
 					type: ActionType.ChatError,
 					turnId: 'first-turn',
 					duration: 1,
-					error: reason.error,
+					part: { kind: ResponsePartKind.Error, error: reason.error },
 				});
 			} else {
 				sideChat.stateManager.dispatchServerAction(sideChat.sideChat, {

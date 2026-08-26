@@ -1347,7 +1347,8 @@ export function createSessionServerToolGroup(accessor?: ISessionServerToolAccess
 	let sentMessageCount = 0;
 	const group: IServerToolGroup = {
 		definitions: sessionServerToolDefinitions,
-		legacyToolNames: [SessionServerToolName.CreateChat],
+		// Remove after 2026-10-26; self-mapped because its arguments differ from create_session.
+		legacyToolNames: new Map([[SessionServerToolName.CreateChat, SessionServerToolName.CreateChat]]),
 		isEnabled(toolName: string): boolean {
 			return toolName !== SessionServerToolName.RenameChat || accessor?.isActiveAgentTitleGenerationEnabled() !== false;
 		},

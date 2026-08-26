@@ -669,6 +669,7 @@ suite('stateToProgressAdapter', () => {
 					mcpAppData: {
 						kind: 'agentHost',
 						resourceUri: 'ui://github-mcp-server/pr-write',
+						connectionAuthority: 'local',
 						serverId: 'github-customization',
 						channel: 'mcp://copilot/session/GitHub',
 					},
@@ -1157,7 +1158,7 @@ suite('stateToProgressAdapter', () => {
 		test('error turn produces error details in history', () => {
 			const turn = createTurn({
 				state: TurnState.Error,
-				error: { errorType: 'test', message: 'boom' },
+				responseParts: [{ kind: ResponsePartKind.Error, error: { errorType: 'test', message: 'boom' } }],
 			});
 
 			const history = turnsToHistory(URI.file('/'), [turn], 'p');
@@ -1171,11 +1172,14 @@ suite('stateToProgressAdapter', () => {
 		test('forwarded quota error turn produces quota-exceeded error details', () => {
 			const turn = createTurn({
 				state: TurnState.Error,
-				error: {
-					errorType: 'quota',
-					message: 'raw',
-					_meta: { chatError: { fetchError: { type: 'quotaExceeded', capiError: { code: 'quota_exceeded' } } } },
-				},
+				responseParts: [{
+					kind: ResponsePartKind.Error,
+					error: {
+						errorType: 'quota',
+						message: 'raw',
+						_meta: { chatError: { fetchError: { type: 'quotaExceeded', capiError: { code: 'quota_exceeded' } } } },
+					},
+				}],
 			});
 
 			const history = turnsToHistory(URI.file('/'), [turn], 'p');
@@ -1547,6 +1551,7 @@ suite('stateToProgressAdapter', () => {
 				mcpAppData: {
 					kind: 'agentHost',
 					resourceUri: 'ui://docs/app',
+					connectionAuthority: 'local',
 					serverId: 'docs-customization',
 					channel: 'mcp://copilot/test-session-1/docs',
 				},
@@ -3185,6 +3190,7 @@ suite('stateToProgressAdapter', () => {
 				mcpAppData: {
 					kind: 'agentHost',
 					resourceUri: 'ui://docs/app',
+					connectionAuthority: 'local',
 					serverId: 'docs-customization',
 					channel: 'mcp://copilot/test-session-1/docs',
 				},

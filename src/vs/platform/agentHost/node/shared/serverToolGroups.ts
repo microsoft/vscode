@@ -74,9 +74,16 @@ export function getServerToolDisplay(toolName: string, args: unknown, result?: I
 				return group.getDisplay(def.name, args, result);
 			}
 		}
-		for (const legacyToolName of group.legacyToolNames ?? []) {
-			if (matchesServerToolName(toolName, legacyToolName)) {
-				return group.getDisplay(legacyToolName, args, result);
+	}
+	// Only once no advertised tool matched: a restored call made under a name
+	// that has since been renamed still gets the display of its replacement.
+	for (const group of serverToolGroupsForDisplay) {
+		if (!group.getDisplay) {
+			continue;
+		}
+		for (const [legacyName, currentName] of group.legacyToolNames ?? []) {
+			if (matchesServerToolName(toolName, legacyName)) {
+				return group.getDisplay(currentName, args, result);
 			}
 		}
 	}
