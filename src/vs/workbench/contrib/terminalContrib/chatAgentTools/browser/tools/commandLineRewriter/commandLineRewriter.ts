@@ -19,6 +19,7 @@ export interface ICommandLineRewriterOptions {
 	shell: string;
 	os: OperatingSystem;
 	isBackground?: boolean;
+	detachFromTerminal?: boolean;
 	requestUnsandboxedExecution?: boolean;
 	sandboxPrecheckInputs?: ITerminalSandboxPrecheckInputs;
 	requestAllowNetwork?: boolean;
@@ -34,4 +35,5 @@ export interface ICommandLineRewriterResult {
 	requiresAllowNetworkConfirmation?: boolean;
 	blockedDomains?: string[];
 	deniedDomains?: string[];
+	detachedFromTerminal?: boolean;
 }

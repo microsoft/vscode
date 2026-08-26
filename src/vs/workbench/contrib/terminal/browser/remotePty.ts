@@ -11,6 +11,8 @@ import { IRemoteAgentService } from '../../../services/remote/common/remoteAgent
 import { hasKey } from '../../../../base/common/types.js';
 
 export class RemotePty extends BasePty implements ITerminalChildProcess {
+	readonly processExitIsAuthoritative = true;
+
 	private readonly _startBarrier: Barrier;
 
 	constructor(

@@ -61,22 +61,40 @@ export class KillTerminalTool extends Disposable implements IToolImpl {
 		// Get the final output before killing
 		const finalOutput = execution.getOutput();
 
-		// Mark as killed by this tool so the onDisposed handler in
-		// _registerCompletionNotification skips the redundant steering
-		// message (the agent receives output through this tool result).
-		RunInTerminalTool.markKilledByTool(args.id);
-
-		// Dispose the terminal instance (this kills the process)
-		execution.instance.dispose();
-
 		const outputSummary = finalOutput
 			? `Final output before termination:\n${finalOutput}`
 			: 'No output was captured.';
 
+		if (execution.detachedFromTerminal) {
+			RunInTerminalTool.markKilledByTool(args.id);
+			execution.instance.dispose();
+			return {
+				content: [{
+					kind: 'text',
+					value: `Closed terminal ${args.id}, but detached-process termination is unconfirmed. ${outputSummary}`
+				}]
+			};
+		}
+
+		const terminationResult = await execution.instance.terminateProcess();
+		if (terminationResult.status === 'timeout') {
+			return {
+				content: [{
+					kind: 'text',
+					value: `Termination was requested for terminal ${args.id}, but terminal-child exit was not acknowledged before the timeout. ${outputSummary}`
+				}]
+			};
+		}
+
+		RunInTerminalTool.markKilledByTool(args.id);
+		execution.instance.dispose();
+
 		return {
 			content: [{
 				kind: 'text',
-				value: `Successfully killed persistent terminal ${args.id}. ${outputSummary}`
+				value: terminationResult.status === 'terminalProcessExited'
+					? `Managed terminal child process exited. ${outputSummary}`
+					: `Closed terminal ${args.id}, but terminal-child termination is unconfirmed because authoritative exit acknowledgement is unavailable. ${outputSummary}`
 			}]
 		};
 	}

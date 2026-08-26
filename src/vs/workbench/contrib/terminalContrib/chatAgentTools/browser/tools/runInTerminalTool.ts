@@ -451,7 +451,7 @@ export async function createRunInTerminalToolData(
 		toolReferenceName: TOOL_REFERENCE_NAME,
 		legacyToolReferenceFullNames: LEGACY_TOOL_REFERENCE_FULL_NAMES,
 		displayName: localize('runInTerminalTool.displayName', 'Run in Terminal'),
-		modelDescription: `${modelDescription}\n\nExecution mode:\n- mode='sync' (strongly preferred): waits for the command to complete and returns full output inline. Use for ALL one-shot commands (builds, tests, installs, compilation, scripts). Omit timeout to let the command run to completion — the tool handles idle detection and input prompts automatically.\n- mode='async': waits for an initial idle/output signal from the command, then returns a terminal ID and output snapshot while the process continues running. Use ONLY for processes that must keep running indefinitely (servers, watchers, daemons). Timeout caps how long to wait for the initial idle/output signal.\n\nTimeout parameter: Usually omit timeout entirely for sync commands — the tool returns automatically on completion, input-needed, or cancellation. Only set a timeout as a safety net for commands you suspect might hang. Use 0 to explicitly indicate no timeout.\n\nSync output is final: When a sync command completes, the full output is returned inline — do NOT call ${TerminalToolId.GetTerminalOutput} afterward. Only use ${TerminalToolId.GetTerminalOutput} if the tool result explicitly indicates the command was moved to background, timed out, or needs input. Do NOT tell the user to check the terminal panel — all command output is already included in the tool result.\n\nTerminal notifications: When an async command finishes or a sync command times out, you will be automatically notified on your next turn with the exit code and terminal output. You will also be notified if the terminal needs input. Do NOT poll or sleep to wait for completion.`,
+		modelDescription: `${modelDescription}\n\nExecution mode:\n- mode='sync' (strongly preferred): waits for the command to complete and returns full output inline. Use for ALL one-shot commands (builds, tests, installs, compilation, scripts). Omit timeout to let the command run to completion — the tool handles idle detection and input prompts automatically.\n- mode='async': waits for an initial idle/output signal, then returns a terminal ID and output snapshot while VS Code continues managing the process. Use ONLY for processes that must keep running indefinitely (servers, watchers, daemons). Timeout caps how long to wait for the initial signal.\n- detach=true is valid only with resolved async mode and explicitly detaches the process so it can survive terminal and VS Code shutdown. A detached process is no longer managed, so ${TerminalToolId.KillTerminal} can close its terminal handle but cannot confirm that the detached process terminated.\n\nTimeout parameter: Usually omit timeout entirely for sync commands — the tool returns automatically on completion, input-needed, or cancellation. Only set a timeout as a safety net for commands you suspect might hang. Use 0 to explicitly indicate no timeout.\n\nSync output is final: When a sync command completes, the full output is returned inline — do NOT call ${TerminalToolId.GetTerminalOutput} afterward. Only use ${TerminalToolId.GetTerminalOutput} if the tool result explicitly indicates the command was moved to background, timed out, or needs input. Do NOT tell the user to check the terminal panel — all command output is already included in the tool result.\n\nTerminal notifications: When an async command finishes or a sync command times out, you will be automatically notified on your next turn with the exit code and terminal output. You will also be notified if the terminal needs input. Do NOT poll or sleep to wait for completion.`,
 		userDescription: localize('runInTerminalTool.userDescription', 'Run commands in the terminal'),
 		source: ToolDataSource.Internal,
 		icon: Codicon.terminal,
@@ -472,6 +472,10 @@ export async function createRunInTerminalToolData(
 				isBackground: {
 					type: 'boolean',
 					description: 'Legacy execution mode flag. Deprecated in favor of "mode". If true, equivalent to mode=async. If false, equivalent to mode=sync.'
+				},
+				detach: {
+					type: 'boolean',
+					description: 'Explicitly detach an async process so it survives terminal and VS Code shutdown. Defaults to false, requires resolved mode=async, and prevents kill_terminal from confirming process termination.'
 				},
 				timeout: {
 					type: 'number',
@@ -496,6 +500,7 @@ interface IStoredTerminalAssociation {
 	id: string;
 	shellIntegrationQuality: ShellIntegrationQuality;
 	isBackground?: boolean;
+	detach?: boolean;
 }
 
 export interface IRunInTerminalInputParams {
@@ -620,6 +625,7 @@ export interface IActiveTerminalExecution {
 	 * The terminal instance associated with this execution.
 	 */
 	readonly instance: ITerminalInstance;
+	readonly detachedFromTerminal: boolean;
 
 	/**
 	 * Gets the current output from the terminal.
@@ -675,6 +681,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	private readonly _largeOutputFileWriter: LargeOutputFileWriter;
 
 	private readonly _commandLineRewriters: ICommandLineRewriter[];
+	private readonly _backgroundDetachRewriter: CommandLineBackgroundDetachRewriter;
 	private readonly _commandLineAnalyzers: ICommandLineAnalyzer[];
 	private readonly _commandLinePresenters: ICommandLinePresenter[];
 	private readonly _outputAnalyzers: IOutputAnalyzer[];
@@ -894,7 +901,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		// BackgroundDetachRewriter must come after SandboxRewriter so that nohup/Start-Process
 		// wraps the entire sandbox runtime, keeping both the sandbox and the child process alive
 		// through VS Code shutdown.
-		this._commandLineRewriters.push(this._register(this._instantiationService.createInstance(CommandLineBackgroundDetachRewriter)));
+		this._backgroundDetachRewriter = this._register(this._instantiationService.createInstance(CommandLineBackgroundDetachRewriter));
+		this._commandLineRewriters.push(this._backgroundDetachRewriter);
 		// PreventHistoryRewriter must be last so the leading space is applied to the final
 		// command, including any sandbox wrapping.
 		this._commandLineRewriters.push(this._register(this._instantiationService.createInstance(CommandLinePreventHistoryRewriter)));
@@ -1063,6 +1071,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			shell,
 			os,
 			isBackground: executionOptions.persistentSession,
+			detachFromTerminal: args.detach === true && executionOptions.mode === 'async' && this._configurationService.getValue(TerminalChatAgentToolsSettingId.DetachBackgroundProcesses) === true,
 			requestUnsandboxedExecution: allowUnsandboxedCommands ? requiresUnsandboxConfirmation : false,
 			requestUnsandboxedExecutionReason,
 			requestAllowNetwork: explicitAllowNetworkRequest,
@@ -1091,6 +1100,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			cwd,
 			language,
 			isBackground: executionOptions.persistentSession,
+			detachedFromTerminal: rewriteResult.detachedFromTerminal,
 			requestUnsandboxedExecution: requiresUnsandboxConfirmation,
 			requestUnsandboxedExecutionReason,
 			requestAllowNetwork: requiresAllowNetworkConfirmation,
@@ -1352,6 +1362,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		shell: string;
 		os: OperatingSystem;
 		isBackground: boolean;
+		detachFromTerminal: boolean;
 		requestUnsandboxedExecution: boolean;
 		requestUnsandboxedExecutionReason?: string;
 		requestAllowNetwork: boolean;
@@ -1366,6 +1377,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		requiresAllowNetworkConfirmation: boolean;
 		requestAllowNetworkReason: string | undefined;
 		blockedDomains: string[] | undefined;
+		detachedFromTerminal: boolean;
 	}> {
 		let rewrittenCommand = commandLine;
 		let forDisplayCommand: string | undefined = undefined;
@@ -1375,6 +1387,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		let requiresAllowNetworkConfirmation = false;
 		let requestAllowNetworkReason = options.requestAllowNetwork ? options.requestAllowNetworkReason : undefined;
 		let blockedDomains: string[] | undefined;
+		let detachedFromTerminal = false;
 
 		for (const rewriter of this._commandLineRewriters) {
 			const rewriteResult = await rewriter.rewrite({
@@ -1383,6 +1396,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				shell: options.shell,
 				os: options.os,
 				isBackground: options.isBackground,
+				detachFromTerminal: options.detachFromTerminal,
 				requestUnsandboxedExecution: requiresUnsandboxConfirmation,
 				requestAllowNetwork: options.requestAllowNetwork,
 				sandboxPrecheckInputs: options.sandboxPrecheckInputs,
@@ -1410,6 +1424,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 						requestUnsandboxedExecutionReason = blockedDomainReason;
 					}
 				}
+				detachedFromTerminal = rewriteResult.detachedFromTerminal ?? detachedFromTerminal;
 				this._logService.info(`RunInTerminalTool: Command rewritten by ${rewriter.constructor.name}: ${rewriteResult.reasoning}`);
 			}
 		}
@@ -1423,6 +1438,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			requiresAllowNetworkConfirmation,
 			requestAllowNetworkReason: requiresAllowNetworkConfirmation ? requestAllowNetworkReason : undefined,
 			blockedDomains,
+			detachedFromTerminal,
 		};
 	}
 
@@ -1674,6 +1690,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			shell,
 			os,
 			isBackground: options.isBackground,
+			detachFromTerminal: options.args.detach === true,
 			requestUnsandboxedExecution,
 			requestUnsandboxedExecutionReason: requestUnsandboxedExecution ? options.retryReason : undefined,
 			requestAllowNetwork,
@@ -1711,6 +1728,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				forDisplay: retryRewriteResult.forDisplayCommand ?? normalizeTerminalCommandForDisplay(retryRewriteResult.rewrittenCommand ?? options.args.command),
 				isSandboxWrapped: retryRewriteResult.isSandboxWrapped,
 			},
+			detachedFromTerminal: retryRewriteResult.detachedFromTerminal,
 			requestUnsandboxedExecution: requestUnsandboxedExecution || (requestAllowNetwork ? false : undefined),
 			requestUnsandboxedExecutionReason: requestUnsandboxedExecution ? rewrittenRetryReason : undefined,
 			requestAllowNetwork: requestAllowNetwork || undefined,
@@ -1730,6 +1748,18 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			toolSpecificData: retryToolSpecificData,
 		}, options.countTokens, options.progress, options.token);
 	}
+	private _getDetachInputError(command: string, message: string): IToolResult {
+		return {
+			toolResultError: message,
+			toolResultDetails: {
+				input: command,
+				output: [{ type: 'embed', isText: true, value: message }],
+				isError: true,
+			},
+			content: [{ kind: 'text', value: message }],
+		};
+	}
+
 	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
 		const toolSpecificData = invocation.toolSpecificData as IChatTerminalToolInvocationData | undefined;
 		if (!toolSpecificData) {
@@ -1750,6 +1780,35 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		}
 
 		const args = invocation.parameters as IRunInTerminalInputParams;
+		const executionOptions = this._resolveExecutionOptions(args);
+		if (args.detach === true && executionOptions.mode !== 'async') {
+			return this._getDetachInputError(args.command, localize('runInTerminal.detach.asyncOnly', "Error: detach=true is valid only when the resolved execution mode is async."));
+		}
+		if (args.detach === true && this._configurationService.getValue(TerminalChatAgentToolsSettingId.DetachBackgroundProcesses) !== true) {
+			return this._getDetachInputError(args.command, localize('runInTerminal.detach.disabled', "Error: detach=true is disabled by the terminal chat setting for detaching background processes."));
+		}
+
+		let command = toolSpecificData.commandLine.userEdited ?? toolSpecificData.commandLine.toolEdited ?? toolSpecificData.commandLine.original;
+		const [finalOs, finalShell] = await Promise.all([
+			this._osBackend,
+			this._profileFetcher.getCopilotShell(),
+		]);
+		const lifecycleRewriteResult = this._backgroundDetachRewriter.rewrite({
+			commandLine: command,
+			cwd: toolSpecificData.cwd ? URI.revive(toolSpecificData.cwd) : undefined,
+			shell: finalShell,
+			os: finalOs,
+			isBackground: executionOptions.persistentSession,
+			detachFromTerminal: args.detach === true,
+		});
+		if (args.detach === true && lifecycleRewriteResult?.detachedFromTerminal !== true) {
+			return this._getDetachInputError(args.command, localize('runInTerminal.detach.unsafe', "Error: detach=true could not be safely applied to the final command. The command was not executed."));
+		}
+		if (lifecycleRewriteResult) {
+			command = lifecycleRewriteResult.rewritten;
+		}
+		toolSpecificData.detachedFromTerminal = lifecycleRewriteResult?.detachedFromTerminal === true;
+
 		const allowUnsandboxedCommands = this._getAllowToRunUnsandboxedCommands(args);
 		const sandboxPrecheckInputs = this._getSandboxPrecheckInputs(invocation.context.sessionResource, invocation.chatRequestId);
 		const isSandboxEnabled = await this._terminalSandboxService.isEnabled(sandboxPrecheckInputs);
@@ -1882,7 +1941,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			this._logService.info('RunInTerminalTool: Bubblewrap remediation and capability recheck succeeded, proceeding with command execution');
 		}
 
-		const executionOptions = this._resolveExecutionOptions(args);
 		this._logService.debug(`RunInTerminalTool: Invoking with options ${JSON.stringify(args)}`);
 		let toolResultMessage: string | IMarkdownString | undefined;
 		if (args.timeout !== undefined && (Number.isNaN(args.timeout) || args.timeout < 0)) {
@@ -1906,7 +1964,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		// Subagent-initiated terminals cannot receive steering messages; the subagent
 		// runs in its own tool-calling loop and should poll with get_terminal_output.
 		const shouldSendNotifications = !invocation.subAgentInvocationId;
-		const command = toolSpecificData.commandLine.userEdited ?? toolSpecificData.commandLine.toolEdited ?? toolSpecificData.commandLine.original;
 		const didUserEditCommand = (
 			toolSpecificData.commandLine.userEdited !== undefined &&
 			toolSpecificData.commandLine.userEdited !== toolSpecificData.commandLine.original
@@ -2042,7 +2099,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				termId,
 				toolTerminal,
 				commandDetection!,
-				executionOptions.persistentSession
+				executionOptions.persistentSession,
+				toolSpecificData.detachedFromTerminal === true
 			);
 			this._logService.info(`RunInTerminalTool: Using \`${execution.strategy.type}\` execute strategy for command \`${command}\``);
 			store.add(execution);
@@ -3399,6 +3457,7 @@ class ActiveTerminalExecution extends Disposable implements IActiveTerminalExecu
 		toolTerminal: IToolTerminal,
 		commandDetection: ICommandDetectionCapability,
 		isBackground: boolean,
+		readonly detachedFromTerminal: boolean,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
@@ -3471,6 +3530,7 @@ class ActiveTerminalExecution extends Disposable implements IActiveTerminalExecu
 
 class RestoredTerminalExecution extends Disposable implements IActiveTerminalExecution {
 	readonly completionPromise: Promise<ITerminalExecuteStrategyResult> = Promise.resolve({ output: undefined, error: 'restoredTerminalExecutionNotAwaitable' });
+	readonly detachedFromTerminal = true;
 
 	constructor(
 		readonly instance: ITerminalInstance,

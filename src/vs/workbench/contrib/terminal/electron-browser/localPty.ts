@@ -11,6 +11,8 @@ import { BasePty } from '../common/basePty.js';
  * created on the local pty host.
  */
 export class LocalPty extends BasePty implements ITerminalChildProcess {
+	readonly processExitIsAuthoritative = true;
+
 	constructor(
 		id: number,
 		shouldPersist: boolean,

@@ -682,6 +682,7 @@ export interface IChatTerminalToolInvocationData {
 	terminalCommandId?: string;
 	/** Whether the terminal command was started as a background execution */
 	isBackground?: boolean;
+	detachedFromTerminal?: boolean;
 	/** Whether adding a persistent terminal auto-approve rule can suppress future prompts for this confirmation. */
 	autoApproveRuleResolvable?: boolean;
 	/** Whether the command was explicitly approved to run outside the sandbox */

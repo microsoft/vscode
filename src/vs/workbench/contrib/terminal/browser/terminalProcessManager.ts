@@ -18,7 +18,7 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { ISerializedCommandDetectionCapability, TerminalCapability } from '../../../../platform/terminal/common/capabilities/capabilities.js';
 import { NaiveCwdDetectionCapability } from '../../../../platform/terminal/common/capabilities/naiveCwdDetectionCapability.js';
 import { TerminalCapabilityStore } from '../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
-import { FlowControlConstants, ITerminalLaunchResult, IProcessDataEvent, IProcessProperty, IProcessPropertyMap, IProcessReadyEvent, IReconnectionProperties, IShellLaunchConfig, ITerminalBackend, ITerminalChildProcess, ITerminalDimensions, ITerminalEnvironment, ITerminalLaunchError, ITerminalLogService, ITerminalProcessOptions, ProcessPropertyType, TerminalSettingId } from '../../../../platform/terminal/common/terminal.js';
+import { FlowControlConstants, ITerminalLaunchResult, IProcessDataEvent, IProcessProperty, IProcessPropertyMap, IProcessReadyEvent, IReconnectionProperties, IShellLaunchConfig, ITerminalBackend, ITerminalChildProcess, ITerminalDimensions, ITerminalEnvironment, ITerminalLaunchError, ITerminalLogService, ITerminalProcessOptions, ProcessPropertyType, TerminalSettingId, type TerminalTerminationResult } from '../../../../platform/terminal/common/terminal.js';
 import { TerminalRecorder } from '../../../../platform/terminal/common/terminalRecorder.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
 import { EnvironmentVariableInfoChangesActive, EnvironmentVariableInfoStale } from './environmentVariableInfo.js';
@@ -44,7 +44,7 @@ import { shouldUseEnvironmentVariableCollection } from '../../../../platform/ter
 import { TerminalContribSettingId } from '../terminalContribExports.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { BugIndicatingError } from '../../../../base/common/errors.js';
-import type { MaybePromise } from '../../../../base/common/async.js';
+import { raceTimeout, type MaybePromise } from '../../../../base/common/async.js';
 import { isString } from '../../../../base/common/types.js';
 
 const enum ProcessConstants {
@@ -86,6 +86,10 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 
 	private _isDisposed: boolean = false;
 	private _process: ITerminalChildProcess | null = null;
+	private _authoritativeExitProcess: ITerminalChildProcess | null = null;
+	private _authoritativeProcessExitAcknowledged = false;
+	private _authoritativeProcessExitPromise: Promise<void> | undefined;
+	private _resolveAuthoritativeProcessExit: (() => void) | undefined;
 	private _processType: ProcessType = ProcessType.Process;
 	private _preLaunchInputQueue: string[] = [];
 	private _initialCwd: string | undefined;
@@ -220,6 +224,25 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			this._processListeners = undefined;
 		}
 		super.dispose();
+	}
+
+	async shutdownAndWait(immediate: boolean = false, timeoutMs: number = 5000): Promise<TerminalTerminationResult> {
+		if (this._authoritativeProcessExitAcknowledged) {
+			return { status: 'terminalProcessExited' };
+		}
+
+		const process = this._process;
+		if (!process) {
+			return { status: 'unavailable' };
+		}
+
+		process.shutdown(immediate);
+		if (!process.processExitIsAuthoritative || !this._authoritativeProcessExitPromise) {
+			return { status: 'unavailable' };
+		}
+
+		const didExit = await raceTimeout(this._authoritativeProcessExitPromise.then(() => true), timeoutMs);
+		return didExit ? { status: 'terminalProcessExited' } : { status: 'timeout' };
 	}
 
 	private _createPtyProcessReadyPromise(): Promise<void> {
@@ -362,6 +385,11 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		}
 
 		this._process = newProcess;
+		this._authoritativeExitProcess = newProcess;
+		this._authoritativeProcessExitAcknowledged = false;
+		this._authoritativeProcessExitPromise = new Promise<void>(resolve => {
+			this._resolveAuthoritativeProcessExit = resolve;
+		});
 		this._setProcessState(ProcessState.Launching);
 
 		// Add any capabilities inherent to the backend
@@ -391,7 +419,14 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 					this._preLaunchInputQueue.length = 0;
 				}
 			}),
-			newProcess.onProcessExit(exitCode => this._onExit(exitCode)),
+			newProcess.onProcessExit(exitCode => {
+				if (newProcess.processExitIsAuthoritative && this._authoritativeExitProcess === newProcess) {
+					this._authoritativeProcessExitAcknowledged = true;
+					this._resolveAuthoritativeProcessExit?.();
+					this._resolveAuthoritativeProcessExit = undefined;
+				}
+				this._onExit(exitCode);
+			}),
 			newProcess.onDidChangeProperty(({ type, value }) => {
 				switch (type) {
 					case ProcessPropertyType.HasChildProcesses:

@@ -85,6 +85,7 @@ const generalShellTypeMap = new Map<string, GeneralShellType>([
 export class TerminalProcess extends Disposable implements ITerminalChildProcess {
 	readonly id = 0;
 	readonly shouldPersist = false;
+	readonly processExitIsAuthoritative = true;
 
 	private _properties: IProcessPropertyMap = {
 		cwd: '',
