@@ -15,6 +15,7 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { adoptLegacyCopilotCliResource } from '../../../browser/agentSessions/agentHost/agentHostLegacyMigration.js';
 import { COPILOT_CLI_AGENT_PROVIDER, COPILOT_CLI_EH_SCHEME, COPILOT_CLI_LOCAL_AH_SCHEME } from '../../../browser/copilotCliEventsUri.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 
@@ -24,6 +25,17 @@ const migrationOn: IConfigurationService = new TestConfigurationService({ [ChatC
 suite('AgentHost legacy Copilot CLI migration', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+	/** Records probe outcomes so each path's telemetry can be asserted. */
+	let outcomes: string[];
+	let telemetry: ITelemetryService;
+	setup(() => {
+		outcomes = [];
+		telemetry = new class extends mock<ITelemetryService>() {
+			override publicLog2<E, C>(_name: string, data?: E): void {
+				outcomes.push((data as { outcome: string }).outcome);
+			}
+		};
+	});
 	const RAW_ID = 'sess-abc';
 	const legacyResource = URI.from({ scheme: COPILOT_CLI_EH_SCHEME, path: `/${RAW_ID}` });
 	const twinResource = URI.from({ scheme: COPILOT_CLI_LOCAL_AH_SCHEME, path: `/${RAW_ID}` });
@@ -58,11 +70,11 @@ suite('AgentHost legacy Copilot CLI migration', () => {
 	test('redirects to the agent-host twin once the subscription carries state', async () => {
 		const { connection, subscribed } = createConnection('adopted');
 
-		const resolved = await adoptLegacyCopilotCliResource(connection, legacyResource, new NullLogService(), migrationOn);
+		const resolved = await adoptLegacyCopilotCliResource(connection, legacyResource, new NullLogService(), migrationOn, telemetry, 'open');
 
 		assert.deepStrictEqual(
-			{ resolved: resolved?.toString(), subscribed: subscribed.map(s => s.toString()) },
-			{ resolved: twinResource.toString(), subscribed: [backendChannel.toString()] },
+			{ resolved: resolved?.toString(), subscribed: subscribed.map(s => s.toString()), outcomes },
+			{ resolved: twinResource.toString(), subscribed: [backendChannel.toString()], outcomes: ['adopted'] },
 		);
 	});
 
@@ -88,43 +100,44 @@ suite('AgentHost legacy Copilot CLI migration', () => {
 			}
 		};
 
-		assert.strictEqual(await adoptLegacyCopilotCliResource(connection, legacyResource, new NullLogService(), migrationOn), undefined);
+		assert.strictEqual(await adoptLegacyCopilotCliResource(connection, legacyResource, new NullLogService(), migrationOn, telemetry, 'open'), undefined);
 	});
 
 	test('retries after a refusal instead of pinning the session to the legacy path', async () => {
 		const { connection, subscribed } = createConnection('refused');
 
-		const first = await adoptLegacyCopilotCliResource(connection, legacyResource, new NullLogService(), migrationOn);
-		const second = await adoptLegacyCopilotCliResource(connection, legacyResource, new NullLogService(), migrationOn);
+		const first = await adoptLegacyCopilotCliResource(connection, legacyResource, new NullLogService(), migrationOn, telemetry, 'open');
+		const second = await adoptLegacyCopilotCliResource(connection, legacyResource, new NullLogService(), migrationOn, telemetry, 'open');
 
 		// The host reports every restore failure as SessionNotFound, so a refusal
 		// cannot be told apart from a transient one and must not be remembered.
 		assert.deepStrictEqual(
-			{ first, second, subscribes: subscribed.length },
-			{ first: undefined, second: undefined, subscribes: 2 },
+			{ first, second, subscribes: subscribed.length, outcomes },
+			{ first: undefined, second: undefined, subscribes: 2, outcomes: ['declined', 'declined'] },
 		);
 	});
 
 	test('never probes a resource that is not a legacy Copilot CLI session', async () => {
 		const { connection, subscribed } = createConnection('adopted');
 
-		const resolved = await adoptLegacyCopilotCliResource(connection, twinResource, new NullLogService(), migrationOn);
+		const resolved = await adoptLegacyCopilotCliResource(connection, twinResource, new NullLogService(), migrationOn, telemetry, 'open');
 
-		assert.deepStrictEqual({ resolved, subscribed }, { resolved: undefined, subscribed: [] });
+		// Not a migration opportunity at all, so it must not even be counted.
+		assert.deepStrictEqual({ resolved, subscribed, outcomes }, { resolved: undefined, subscribed: [], outcomes: [] });
 	});
 
 	test('does nothing while the migration setting is off', async () => {
 		const { connection, subscribed } = createConnection('adopted');
 		const migrationOff: IConfigurationService = new TestConfigurationService();
 
-		const resolved = await adoptLegacyCopilotCliResource(connection, legacyResource, new NullLogService(), migrationOff);
+		const resolved = await adoptLegacyCopilotCliResource(connection, legacyResource, new NullLogService(), migrationOff, telemetry, 'open');
 
 		// The host restores a session whether or not it adopts it, so without this
 		// gate a user who never opted in would still be moved onto the agent host.
-		assert.deepStrictEqual({ resolved, subscribed }, { resolved: undefined, subscribed: [] });
+		assert.deepStrictEqual({ resolved, subscribed, outcomes }, { resolved: undefined, subscribed: [], outcomes: ['settingDisabled'] });
 	});
 
 	test('declines without probing when there is no connection', async () => {
-		assert.strictEqual(await adoptLegacyCopilotCliResource(undefined, legacyResource, new NullLogService(), migrationOn), undefined);
+		assert.strictEqual(await adoptLegacyCopilotCliResource(undefined, legacyResource, new NullLogService(), migrationOn, telemetry, 'open'), undefined);
 	});
 });

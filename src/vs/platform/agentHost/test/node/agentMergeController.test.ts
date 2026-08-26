@@ -12,13 +12,15 @@ import { mock } from '../../../../base/test/common/mock.js';
 import { AgentMergeConfigKey, agentMergeRootConfigSchema, readAgentMergeSessionState } from '../../common/agentMerge.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, platformRootSchema, platformSessionSchema } from '../../common/agentHostSchema.js';
 import { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
+import { AgentSystemNotificationKind } from '../../common/meta/agentSystemNotificationMeta.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType } from '../../common/state/protocol/common/actions.js';
 import { SessionStatus, buildDefaultChatUri, MessageKind, withSessionGitState, type SessionSummary } from '../../common/state/sessionState.js';
 import { IGitHubService } from '../../../github/common/githubService.js';
+import { PullRequestSnapshot } from '../../../github/common/githubPullRequestService.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
-import { AgentMergeController, parsePullRequestUrl } from '../../node/agentMergeController.js';
+import { AgentMergeController, firstCredentialFailure, isSamlEnforcementError, parsePullRequestUrl } from '../../node/agentMergeController.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 
 let sessionCounter = 0;
@@ -42,6 +44,7 @@ suite('AgentMergeController', () => {
 			{
 				startTurn: () => false,
 				cancelTurn: () => { },
+				postNotice: () => { },
 				getAutonomousSessionConfig: () => ({
 					[SessionConfigKey.Mode]: 'autopilot',
 					[SessionConfigKey.AutoApprove]: 'assisted',
@@ -242,6 +245,7 @@ suite('AgentMergeController', () => {
 			{
 				startTurn: () => false,
 				cancelTurn: () => { },
+				postNotice: () => { },
 				getAutonomousSessionConfig: () => ({}),
 			},
 			stateManager,
@@ -306,6 +310,7 @@ suite('AgentMergeController', () => {
 			{
 				startTurn: () => false,
 				cancelTurn: () => { },
+				postNotice: () => { },
 				getAutonomousSessionConfig: () => ({}),
 			},
 			stateManager,
@@ -353,6 +358,7 @@ suite('AgentMergeController', () => {
 		readonly stateManager: AgentHostStateManager;
 		readonly configurationService: AgentConfigurationService;
 		readonly session: string;
+		readonly notices: { readonly kind: AgentSystemNotificationKind; readonly content: string }[];
 	} {
 		const logService = new NullLogService();
 		const stateManager = disposables.add(new AgentHostStateManager(logService));
@@ -363,10 +369,12 @@ suite('AgentMergeController', () => {
 			override readonly onDidChangeSessionGitHubState = Event.None;
 		}();
 		const endpointService = disposables.add(new AgentHostGitHubEndpointService(configurationService, logService));
+		const notices: { kind: AgentSystemNotificationKind; content: string }[] = [];
 		disposables.add(new AgentMergeController(
 			{
 				startTurn: () => false,
 				cancelTurn: () => { },
+				postNotice: (_session, kind, content) => notices.push({ kind, content }),
 				getAutonomousSessionConfig: () => configurationService.getRootValue(platformRootSchema, AgentHostAutoApprovePolicyRestrictedConfigKey) === true
 					? { [SessionConfigKey.Mode]: 'autopilot' }
 					: {
@@ -387,8 +395,95 @@ suite('AgentMergeController', () => {
 			schema: platformSessionSchema.toProtocol(),
 			values: {},
 		});
-		return { stateManager, configurationService, session };
+		return { stateManager, configurationService, session, notices };
 	}
+
+	test('announces enablement once it captures a branch, and again on the branch that turned it off', async () => {
+		const logService = new NullLogService();
+		const stateManager = disposables.add(new AgentHostStateManager(logService));
+		const configurationService = disposables.add(new AgentConfigurationService(stateManager, logService));
+		configurationService.updateRootConfig({ [AgentMergeConfigKey.Enabled]: true });
+		const session = `copilot:/agent-merge-controller-${++sessionCounter}`;
+		const gitStateService = new class extends mock<IAgentHostGitStateService>() {
+			override readonly onDidRefreshSessionGitState = Event.None;
+			override readonly onDidChangeSessionGitHubState = Event.None;
+			override async attachSessionGitHubPullRequest(): Promise<void> { }
+		}();
+		const endpointService = disposables.add(new AgentHostGitHubEndpointService(configurationService, logService));
+		const notices: { kind: AgentSystemNotificationKind; content: string }[] = [];
+		disposables.add(new AgentMergeController(
+			{
+				startTurn: () => false,
+				cancelTurn: () => { },
+				postNotice: (_session, kind, content) => notices.push({ kind, content }),
+				getAutonomousSessionConfig: () => ({}),
+			},
+			stateManager,
+			configurationService,
+			gitStateService,
+			new class extends mock<IGitHubService>() { }(),
+			endpointService,
+			logService,
+		));
+		stateManager.createSession(summary(session));
+		stateManager.setSessionConfig(session, {
+			schema: platformSessionSchema.toProtocol(),
+			values: {},
+		});
+		stateManager.setSessionMeta(session, withSessionGitState(undefined, { branchName: 'feature', baseBranchName: 'main' }));
+		const captured = new Promise<void>(resolve => {
+			disposables.add(stateManager.onDidChangeSessionConfig(event => {
+				if (event.session.toString() === session && readAgentMergeSessionState(event.current?.values)?.target) {
+					resolve();
+				}
+			}));
+		});
+		configurationService.updateSessionConfig(session, { [SessionConfigKey.AgentMerge]: { enabled: true } });
+		stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
+		await captured;
+		const afterEnable = [...notices];
+
+		// The checkout moves to an unrelated branch, which is what silently
+		// stopped Agent Merge before it explained itself.
+		stateManager.setSessionMeta(session, withSessionGitState(undefined, { branchName: 'main', baseBranchName: 'main' }));
+		await timeout(0);
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			afterEnable,
+			notices,
+			enabled: readAgentMergeSessionState(configurationService.getSessionConfigValues(session))?.enabled,
+		}, {
+			afterEnable: [{ kind: AgentSystemNotificationKind.AgentMergeEnabled, content: 'Agent Merge is on and watching `feature`.' }],
+			notices: [
+				{ kind: AgentSystemNotificationKind.AgentMergeEnabled, content: 'Agent Merge is on and watching `feature`.' },
+				{ kind: AgentSystemNotificationKind.AgentMergeDisabled, content: 'Agent Merge was turned off because the checked-out branch changed from `feature` to `main`.' },
+			],
+			enabled: false,
+		});
+	});
+
+	test('reports a self-disable once, and reports a user disable separately', () => {
+		const { stateManager, configurationService, session, notices } = createControllerHarness(disposables);
+		configurationService.updateSessionConfig(session, { [SessionConfigKey.AgentMerge]: { enabled: true } });
+		stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
+		// Archiving disables from inside the controller; the re-entrant sync its
+		// own config write triggers must not add a second, reasonless notice.
+		stateManager.dispatchServerAction(session, { type: ActionType.SessionIsArchivedChanged, isArchived: true });
+		const afterSelfDisable = [...notices];
+
+		stateManager.dispatchServerAction(session, { type: ActionType.SessionIsArchivedChanged, isArchived: false });
+		configurationService.updateSessionConfig(session, { [SessionConfigKey.AgentMerge]: { enabled: true } });
+		configurationService.updateSessionConfig(session, { [SessionConfigKey.AgentMerge]: { enabled: false } });
+
+		assert.deepStrictEqual({ afterSelfDisable, notices }, {
+			afterSelfDisable: [{ kind: AgentSystemNotificationKind.AgentMergeDisabled, content: 'Agent Merge was turned off because this session was archived.' }],
+			notices: [
+				{ kind: AgentSystemNotificationKind.AgentMergeDisabled, content: 'Agent Merge was turned off because this session was archived.' },
+				{ kind: AgentSystemNotificationKind.AgentMergeDisabled, content: 'Agent Merge was turned off for this session.' },
+			],
+		});
+	});
 
 	test('resolves the API host a credential must match for every GitHub deployment', () => {
 		assert.deepStrictEqual({
@@ -409,6 +504,33 @@ suite('AgentMergeController', () => {
 			parsed: { owner: 'octo', repo: 'repo', number: 42, apiHost: 'api.tenant.ghe.com' },
 			notAPullRequest: undefined,
 			notAUrl: undefined,
+		});
+	});
+
+	test('detects a refused gate fragment so a credential can be requested from the snapshot', () => {
+		const saml = 'GitHub GraphQL request failed: Resource protected by organization SAML enforcement. You must grant your OAuth token access to this organization.';
+		const ready = { status: 'ready', complete: true, value: {} };
+		const snapshot = (overrides: object) => ({ core: ready, topLevelComments: ready, submittedReviews: ready, reviewThreads: ready, checks: ready, mergeability: ready, ...overrides }) as unknown as PullRequestSnapshot;
+
+		assert.deepStrictEqual({
+			// Only the first refresh of a subscription throws; every later failure is
+			// recorded here, which is the state the SAML scenario actually reaches.
+			refused: firstCredentialFailure(snapshot({ checks: { status: 'error', complete: false, error: { kind: 'authorization', statusCode: 200, message: saml } } })),
+			signedOut: firstCredentialFailure(snapshot({ core: { status: 'error', complete: false, error: { kind: 'authentication', message: 'Bad credentials' } } }))?.id,
+			// A failure the user cannot fix by authorizing must not prompt.
+			serverError: firstCredentialFailure(snapshot({ checks: { status: 'error', complete: false, error: { kind: 'server', message: 'boom' } } })),
+			stillLoading: firstCredentialFailure(snapshot({ mergeability: { status: 'loading', complete: false } })),
+			healthy: firstCredentialFailure(snapshot({})),
+			saml: isSamlEnforcementError(saml),
+			notSaml: isSamlEnforcementError('Bad credentials'),
+		}, {
+			refused: { id: 'checks:authorization', kind: 'authorization', message: saml },
+			signedOut: 'core:authentication',
+			serverError: undefined,
+			stillLoading: undefined,
+			healthy: undefined,
+			saml: true,
+			notSaml: false,
 		});
 	});
 });

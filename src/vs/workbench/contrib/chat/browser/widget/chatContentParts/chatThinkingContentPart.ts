@@ -24,7 +24,8 @@ import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/m
 import { extractCodeblockUrisFromText } from '../../../common/widget/annotations.js';
 import { basename, getComparisonKey } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { ChatCollapsibleContentPart } from './chatCollapsibleContentPart.js';
+import { ChatThinkingStyleContentPart, createThinkingIcon } from './chatThinkingStyleContentPart.js';
+export { createThinkingIcon };
 import { renderFileWidgets } from './chatInlineAnchorWidget.js';
 import { localize } from '../../../../../../nls.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
@@ -38,6 +39,7 @@ import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
 import { ChatMessageRole, ILanguageModelsService } from '../../../common/languageModels.js';
 import './media/chatThinkingContent.css';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { getCompactCodicon } from '../../chatIcons.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { extractImagesFromToolInvocationOutputDetails } from '../../../common/chatImageExtraction.js';
@@ -158,15 +160,9 @@ export function getToolInvocationIcon(toolId: string, registeredIcon?: ThemeIcon
 	return Codicon.tools;
 }
 
-export function createThinkingIcon(icon: ThemeIcon): HTMLElement {
-	const iconElement = $('span.chat-thinking-icon');
-	iconElement.classList.add(...ThemeIcon.asClassNameArray(icon));
-	return iconElement;
-}
-
 function setThinkingIcon(iconElement: HTMLElement, icon: ThemeIcon): void {
 	iconElement.className = 'chat-thinking-icon';
-	iconElement.classList.add(...ThemeIcon.asClassNameArray(icon));
+	iconElement.classList.add(...ThemeIcon.asClassNameArray(getCompactCodicon(icon)));
 }
 
 function extractTitleFromThinkingContent(content: string): string | undefined {
@@ -361,7 +357,7 @@ export function buildPhrasePool(defaults: string[], configurationService: IConfi
 	return [...defaults];
 }
 
-export class ChatThinkingContentPart extends ChatCollapsibleContentPart implements IChatContentPart {
+export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implements IChatContentPart {
 
 	private static _codeBlockRendererSync(_languageId: string, text: string, _raw?: string): HTMLElement {
 		const codeElement = $('code');
@@ -420,7 +416,6 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	private isUpdatingDimensions: boolean = false;
 	private lastKnownContentHeight: number = 0;
 	private lastKnownScrollTop: number = 0;
-	private titleShimmerSpan: HTMLElement | undefined;
 	private titleDetailContainer: HTMLElement | undefined;
 	private lastRenderedTitle: ChatThinkingTitle | undefined;
 	private collapsedTitleBeforeExpansion: ChatThinkingTitle | undefined;
@@ -528,7 +523,6 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		}
 
 		const node = this.domNode;
-		node.classList.add('chat-thinking-box');
 		if (this._hoverChevron) {
 			this._register(addDisposableListener(this._hoverChevron, EventType.CLICK, event => {
 				EventHelper.stop(event, true);
@@ -547,11 +541,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		}
 
 		if (!this.fixedScrollingMode && !this.streamingCompleted && !this.element.isComplete && this._collapseButton) {
-			const labelElement = this._collapseButton.labelElement;
-			labelElement.textContent = '';
-			this.titleShimmerSpan = $('span.chat-thinking-title-shimmer');
-			this.titleShimmerSpan.textContent = extractedTitle;
-			labelElement.appendChild(this.titleShimmerSpan);
+			this.setShimmerTitle(extractedTitle);
 		}
 
 		if (this.fixedScrollingMode) {
@@ -572,22 +562,6 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			}
 			for (const result of this.retiredSummaryRowResults) {
 				result.dispose();
-			}
-		}));
-
-		// override for codicon chevron in the collapsible part
-		this._register(autorun(r => {
-			const isExpanded = this.expanded.read(r);
-			if (this._collapseButton) {
-				if (this.streamingCompleted || this.element.isComplete) {
-					this._collapseButton.icon = Codicon.check;
-				} else if (!this.fixedScrollingMode) {
-					if (isExpanded) {
-						this._collapseButton.icon = Codicon.chevronDown;
-					} else {
-						this._collapseButton.icon = Codicon.circleFilled;
-					}
-				}
 			}
 		}));
 
@@ -687,8 +661,15 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	}
 
 	// @TODO: @justschen Convert to template for each setting?
+	protected override getThinkingIcon(_active: boolean, expanded: boolean): ThemeIcon {
+		if (this.streamingCompleted || this.element.isComplete) {
+			return Codicon.checkCompact;
+		}
+		return !this.fixedScrollingMode && expanded ? Codicon.chevronDownCompact : Codicon.circleFilledCompact;
+	}
+
 	protected override initContent(): HTMLElement {
-		this.wrapper = $('.chat-used-context-list.chat-thinking-collapsible');
+		this.wrapper = this.createThinkingBody();
 		if (!this.streamingCompleted) {
 			this.wrapper.classList.add('chat-thinking-streaming');
 		}
@@ -704,13 +685,10 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		}
 
 		if (!this.streamingCompleted && !this.element.isComplete) {
-			this.workingSpinnerElement = $('.chat-thinking-item.chat-thinking-spinner-item');
-			const spinnerIcon = createThinkingIcon(Codicon.circleFilled);
-			this.workingSpinnerElement.appendChild(spinnerIcon);
-			this.workingSpinnerLabel = $('span.chat-thinking-spinner-label');
-			this.workingSpinnerLabel.textContent = this.getRandomWorkingMessage(WorkingMessageCategory.Thinking);
-			this.workingSpinnerElement.appendChild(this.workingSpinnerLabel);
-			this.wrapper.appendChild(this.workingSpinnerElement);
+			const spinner = this.createThinkingSpinnerRow(this.getRandomWorkingMessage(WorkingMessageCategory.Thinking));
+			this.workingSpinnerElement = spinner.row;
+			this.workingSpinnerLabel = spinner.label;
+			this.wrapper.appendChild(spinner.row);
 			this.updateWorkingSpinnerVisibility();
 		}
 
@@ -971,14 +949,13 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		}
 
 		// Multi-header reasoning summaries render each header section as its own
-		// row so the dropdown reads as a list. Fixed-scrolling keeps its single
-		// auto-scrolling block. Sibling rows need an attached container so their
+		// row so the dropdown reads as a list. Sibling rows need an attached container so their
 		// insertion isn't a no-op, so a detached (lazy) container falls through to
 		// single-block rendering until it is materialized. A block drops its leading
 		// header only when that header is the tracked title owner, so a grouped block
 		// never drops a header that isn't surfaced as the title.
 		const dropLeadingHeader = this.droppedSummaryHeader !== undefined && extractTitleFromThinkingContent(cleanedContent) === this.droppedSummaryHeader;
-		const summaryRows = this.fixedScrollingMode ? undefined : splitReasoningSummaryRows(cleanedContent, dropLeadingHeader);
+		const summaryRows = splitReasoningSummaryRows(cleanedContent, dropLeadingHeader);
 		if (summaryRows && this.textContainer?.parentNode) {
 			this.renderSummaryRows(summaryRows);
 			return;
@@ -1097,8 +1074,11 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			return;
 		}
 		const trimmed = value.trim();
-		if (!this.fixedScrollingMode && splitReasoningSummaryRows(trimmed, true)) {
+		if (splitReasoningSummaryRows(trimmed, true)) {
 			this.droppedSummaryHeader = extractTitleFromThinkingContent(trimmed);
+			if (this.fixedScrollingMode && this.droppedSummaryHeader && this.currentTitle !== this.droppedSummaryHeader) {
+				this.setTitle(this.droppedSummaryHeader);
+			}
 		}
 	}
 
@@ -1111,7 +1091,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		this.clearTitleDetail();
 		const labelElement = this._collapseButton.labelElement;
 		labelElement.textContent = '';
-		this.titleShimmerSpan = undefined;
+		this.forgetShimmerTitle();
 
 		const firstSpaceIndex = displayTitle.indexOf(' ');
 		if (firstSpaceIndex === -1) {
@@ -1489,7 +1469,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		}
 
 		if (this._collapseButton) {
-			this._collapseButton.icon = Codicon.check;
+			this._collapseButton.icon = Codicon.checkCompact;
 		}
 
 		// Update scroll dimensions now that streaming is complete
@@ -1915,7 +1895,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 		this.flushPendingExternalResources();
 
 		if (this._collapseButton) {
-			this._collapseButton.icon = Codicon.check;
+			this._collapseButton.icon = Codicon.checkCompact;
 			this.setFinalizedTitle(finalLabel);
 		}
 
@@ -2667,7 +2647,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 				labelElement.appendChild(plainSpan);
 				this._collapseButton.element.ariaLabel = titleValue;
 			}
-			this.titleShimmerSpan = undefined;
+			this.forgetShimmerTitle();
 			this.currentTitle = titleValue;
 			return;
 		}
@@ -2682,13 +2662,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 
 		const labelElement = this._collapseButton.labelElement;
 
-		// Ensure the persistent shimmer span exists
-		if (!this.titleShimmerSpan || !this.titleShimmerSpan.parentElement) {
-			labelElement.textContent = '';
-			this.titleShimmerSpan = $('span.chat-thinking-title-shimmer');
-			labelElement.appendChild(this.titleShimmerSpan);
-		}
-		this.titleShimmerSpan.textContent = localize('chat.thinking.shimmer', "{0}: ", this.defaultTitle);
+		this.setShimmerTitle(localize('chat.thinking.shimmer', "{0}: ", this.defaultTitle));
 
 		// Dispose previous detail rendering
 		this._titleDetailRendered.clear();

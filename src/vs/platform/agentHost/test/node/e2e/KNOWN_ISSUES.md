@@ -486,6 +486,23 @@ A capture that genuinely cannot be refreshed goes in `STALE_RECORDED_REQUEST_EXC
   Remove the entry from `STALE_RECORDED_REQUEST_EXCEPTIONS` and re-record once the fork defect is fixed.
 ## Suspected product bugs
 
+### Copilot session debug export omits provider log entries
+
+A user can export debug logs for a completed Copilot session to diagnose provider behavior. The export reports that provider logs were included, but its manifest contains only Agent Host process logs, so the provider-specific evidence needed for troubleshooting is absent.
+
+- Test: `materialized Copilot debug collection includes provider log entries`.
+- Scope: Copilot sessions on all platforms.
+- Expected: a session-scoped debug export reports `providerLogsIncluded: true` and lists at least one provider log in addition to the Agent Host process log.
+- Observed: the export reports `providerLogsIncluded: true`, but every manifest entry is an Agent Host process log.
+- Gate: the scenario requires `AGENT_HOST_RUN_KNOWN_ISSUES=1` in fixture-recording mode.
+- Reproduce:
+
+  ```bash
+  AGENT_HOST_RUN_KNOWN_ISSUES=1 AGENT_HOST_UPDATE_SNAPSHOTS=1 ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts \
+    --grep "materialized Copilot debug collection includes provider log entries"
+  ```
+
 ### Resource reads ignore the requested base64 encoding
 
 A client can request arbitrary file bytes from the Agent Host in base64 so binary data remains lossless. The host always reports UTF-8 instead, and bytes that are not valid UTF-8 cannot be reconstructed by the client.
@@ -591,21 +608,21 @@ A client can request arbitrary file bytes from the Agent Host in base64 so binar
 
   Substitute `codexAgentHostE2E.integrationTest.ts` to reproduce the Codex variant.
 
-### Claude `create_chat` server-tool turns do not complete
+### Claude current-session creation turns do not complete
 
 - Tests:
-  - `server tool: create_chat defaults to the invoking session and starts its local prompt`
-  - `server tool: create_chat applies an explicit peer title`
+  - `server tool: create_session currentSession starts a prompt in a peer chat`
+  - `server tool: create_session currentSession applies an explicit peer title`
 - Scope: Claude.
 - Expected: after confirmation, the host creates the peer chat, starts the local `/rename` prompt there, returns the tool result, and completes the invoking turn.
 - Observed: the confirmation is accepted, but the invoking turn never reaches tool completion or `chat/turnComplete`.
-- Gate: `supportsServerToolCreateChat` in `serverToolsSuite.ts`.
+- Gate: `supportsCurrentSessionCreation` in `serverToolsSuite.ts`.
 - Reproduce:
 
   ```bash
   AGENT_HOST_REPLAY_RECORD=1 ./scripts/test-integration.sh --run \
     src/vs/platform/agentHost/test/node/e2e/providers/claudeAgentHostE2E.integrationTest.ts \
-    --grep "server tool: create_chat defaults"
+    --grep "server tool: create_session currentSession starts"
   ```
 
 ### Claude omits important tool details when reading another session's transcript
@@ -846,11 +863,11 @@ Use the affected provider command with `--grep "<exact test title>"` and tempora
 
 ### Codex model-backed multiple-chat recording
 
-- Tests: the model-backed peer-chat and fork scenarios in `multiChatSuite.ts`.
-- Scope: Codex recording and strict replay only. Codex advertises `multipleChats.fork`; host-only capability checks and conformance catalog/lifecycle scenarios run.
-- Expected: focused `AGENT_HOST_UPDATE_SNAPSHOTS=1` recording produces Codex peer/fork captures that replay without cache misses.
-- Observed: on the current live recording path, even the existing simple Codex recording fails before producing a usable model response; peer turns report a CAPI malformed authorization-header error. No fixtures are accepted or hand-edited.
-- Gate: `supportsMultipleChatsE2E: false` and `supportsChatForkE2E: false`.
+- Tests: the model-backed peer-chat and fork scenarios in `multiChatSuite.ts`, and `side chat receives bounded source context without copied history`.
+- Scope: Codex recording and strict replay only. Codex advertises `multipleChats.fork` and `multipleChats.sideChat`; host-only capability checks and conformance catalog/lifecycle scenarios run.
+- Expected: focused `AGENT_HOST_UPDATE_SNAPSHOTS=1` recording produces Codex peer/fork/side-chat captures that replay without cache misses.
+- Observed: on the current live recording path, even the existing simple Codex recording fails before producing a usable model response; peer turns report a CAPI malformed authorization-header error. The side-chat scenario shares that recording path and has no accepted capture. No fixtures are accepted or hand-edited.
+- Gate: `supportsMultipleChatsE2E: false`, `supportsChatForkE2E: false`, and `supportsSideChatsE2E: false`.
 - Reproduce:
 
   ```bash
@@ -858,6 +875,10 @@ Use the affected provider command with `--grep "<exact test title>"` and tempora
   AGENT_HOST_UPDATE_SNAPSHOTS=1 ./scripts/test-integration.sh --run \
     src/vs/platform/agentHost/test/node/e2e/providers/codexAgentHostE2E.integrationTest.ts \
     --grep "peer chat completes a simple turn"
+
+  AGENT_HOST_UPDATE_SNAPSHOTS=1 ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/providers/codexAgentHostE2E.integrationTest.ts \
+    --grep "side chat receives bounded source context without copied history"
   ```
 
 ## Test-design limitations
@@ -882,7 +903,7 @@ A test that checks only its final dispatch can miss an earlier action that was e
 |---|---|---|---|
 | Model-backed multiple chats | `supportsMultipleChatsE2E` | Codex | Capability and conformance scenarios run; provider/model peer turns skip until focused Codex captures can be recorded. |
 | Provider-backed fork parity | `supportsChatForkE2E` | Claude, Codex | Fork capability remains advertised; model-backed fork-context assertions skip. |
-| Side chats | `supportsSideChats` | Codex | Provider-owned hidden-context and restore scenarios skip; ordinary peer chats and chat forks still run. |
+| Side-chat context parity | `supportsSideChatsE2E` | Codex | Side-chat capability remains advertised; model-backed hidden-context assertions skip pending focused Codex captures. |
 | Subagents | `supportsSubagents` | Codex | Subagent routing and reopen scenarios skip. |
 | Streaming file creation | `streamingFileCreateToolName` | Codex | Argument-delta coverage requires a native file-creation tool; shell-backed file behavior is covered separately. |
 | Plan mode | `supportsPlanMode` | Codex | The plan-mode scenario skips. Claude's use of the same gate is the prompt limitation above. |

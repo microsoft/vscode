@@ -64,7 +64,6 @@
 		"agentsCard.border": "#00000000",
 		// modern ui
 		"surface.border": "#00000000",
-		"modernActivityBar.background": "#00000000",
 	},
 	"tokenColors": [
 		{

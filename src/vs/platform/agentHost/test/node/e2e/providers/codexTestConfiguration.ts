@@ -33,6 +33,8 @@ export const CODEX_CONFIG: IAgentHostE2EProviderConfig = {
 	supportsMultipleChatsE2E: false,
 	supportsChatFork: true,
 	supportsChatForkE2E: false,
+	supportsSideChats: true,
+	supportsSideChatsE2E: false,
 	shellToolReplayUnstableOnLinux: true,
 	shellToolResultTextUnreliable: true,
 };

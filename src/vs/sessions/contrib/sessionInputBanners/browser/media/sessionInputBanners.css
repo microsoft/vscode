@@ -76,7 +76,7 @@
 }
 
 .session-input-banner .session-input-banner-action {
-	font-size: var(--vscode-agents-fontSize-label2);
+	font-size: var(--vscode-fontSize-label2);
 	padding: 0 8px;
 	min-width: unset;
 	width: auto;

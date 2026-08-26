@@ -23,6 +23,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { fromNow } from '../../../../../base/common/date.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
+import { isEqual } from '../../../../../base/common/resources.js';
 import { localize } from '../../../../../nls.js';
 import { MenuId, IMenuService, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
@@ -44,8 +45,9 @@ import { chartsOrange } from '../../../../../platform/theme/common/colors/charts
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId, getChatSessionArchivedSectionLabel, getChatSessionArchiveActionWording } from '../../../../../platform/chat/common/sessionArchiveActions.js';
-import { getSessionStatusMessage, getSessionWorkspaceKind, GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionWorkspace, SessionStatus, SessionWorkspaceKind } from '../../../../services/sessions/common/session.js';
+import { ChatInteractivity, ChatOriginKind, getChatCapabilities, getSessionStatusMessage, getSessionWorkspaceKind, GITHUB_REMOTE_FILE_SCHEME, IChat, isActiveSessionStatus, ISession, ISessionWorkspace, SessionStatus, SessionWorkspaceKind } from '../../../../services/sessions/common/session.js';
 import { AgentSessionApprovalModel, agentSessionApprovalId, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { IVoicePlaybackService } from '../../../../../workbench/contrib/chat/common/voicePlaybackService.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
@@ -78,18 +80,22 @@ import { IWorkbenchAssignmentService } from '../../../../../workbench/services/a
 // eslint-disable-next-line no-restricted-imports
 import { IAgentSessionsService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
+import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { buildOpenSessionLinkUri } from '../../../../../platform/agentHost/common/openSessionLink.js';
 import { LocalSelectionTransfer } from '../../../../../platform/dnd/browser/dnd.js';
-import { DraggedSessionIdentifier, SessionsDataTransfers } from '../../../../browser/dnd.js';
+import { DraggedSessionIdentifier, fillSessionChatDragData, SessionsDataTransfers } from '../../../../browser/dnd.js';
 import { IDragAndDropData } from '../../../../../base/browser/dnd.js';
 import { ElementsDragAndDropData, ListViewTargetSector } from '../../../../../base/browser/ui/list/listView.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { buildSessionHoverContent } from '../sessionHoverContent.js';
+import { getSessionSummaryHoverData } from '../sessionHoverContent.js';
+import { SessionSummaryHoverWidget } from '../../../../../workbench/contrib/chat/browser/agentSessions/sessionSummaryHover.js';
 import { SessionStatusIcon } from '../../../../browser/sessionStatusIcon.js';
 import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
 import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../automationsConstants.js';
 import { Menus } from '../../../../browser/menus.js';
+import { getSessionConversationStatusAriaLabel } from '../../../../browser/sessionConversationGroups.js';
 
 const $ = DOM.$;
 
@@ -109,6 +115,9 @@ export const SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING = 'sessions.list.sh
 export const IsSessionPinnedContext = new RawContextKey<boolean>('sessionItem.isPinned', false);
 export const SessionItemHasBranchNameContext = new RawContextKey<boolean>('sessionItem.hasBranchName', false);
 export const SessionItemStatusContext = new RawContextKey<SessionStatus>('sessionItem.status', SessionStatus.Completed);
+export const SessionChatItemCanRenameContext = new RawContextKey<boolean>('sessionChatItem.canRename', false);
+export const SessionChatItemCanDeleteContext = new RawContextKey<boolean>('sessionChatItem.canDelete', false);
+export const SessionChatItemIsUntitledContext = new RawContextKey<boolean>('sessionChatItem.isUntitled', false);
 /** Whether the focused session item currently belongs to a user group. */
 export const SessionItemInGroupContext = new RawContextKey<boolean>('sessionItem.inGroup', false);
 export const SessionSectionTypeContext = new RawContextKey<string>('sessionSection.type', '');
@@ -171,7 +180,33 @@ export interface ISessionPlaceholder {
 	readonly hover?: string;
 }
 
-export type SessionListItem = ISession | ISessionSection | ISessionGroupItem | ISessionShowMore | ISessionPlaceholder;
+export class SessionChatItem {
+	constructor(
+		readonly session: ISession,
+		readonly chat: IChat,
+	) { }
+}
+
+export type ISessionChatItem = SessionChatItem;
+
+export type SessionListItem = ISession | SessionChatItem | ISessionSection | ISessionGroupItem | ISessionShowMore | ISessionPlaceholder;
+
+function isSessionChatItem(item: SessionListItem): item is ISessionChatItem {
+	return item instanceof SessionChatItem;
+}
+
+function getChatTitle(chat: IChat, reader?: IReader): string {
+	return chat.title.read(reader).trim() || localize('untitledChat', "Untitled Chat");
+}
+
+function getSessionListChats(session: ISession, reader?: IReader): readonly IChat[] {
+	const mainChat = session.mainChat.read(reader);
+	return session.chats.read(reader).filter(chat =>
+		!isEqual(chat.resource, mainChat.resource) &&
+		chat.origin?.kind !== ChatOriginKind.Tool &&
+		chat.interactivity.read(reader) !== ChatInteractivity.Hidden
+	);
+}
 
 function isSessionGroupItem(item: SessionListItem): item is ISessionGroupItem {
 	return 'group' in item;
@@ -211,7 +246,7 @@ function isSessionPlaceholder(item: SessionListItem): item is ISessionPlaceholde
 }
 
 function isSessionItem(item: SessionListItem): item is ISession {
-	return !isSessionGroupItem(item) && !isSessionSection(item) && !isSessionShowMore(item) && !isSessionPlaceholder(item);
+	return !isSessionChatItem(item) && !isSessionGroupItem(item) && !isSessionSection(item) && !isSessionShowMore(item) && !isSessionPlaceholder(item);
 }
 
 const SHOW_MORE_FOLDERS_LABEL = '__more_folders__';
@@ -231,6 +266,8 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 	private static readonly ITEM_HEIGHT = 54;
 	/** Quick-chat rows are single-line — see the `.session-item.quick-chat` rules in `sessionsList.css`. */
 	private static readonly ITEM_HEIGHT_QUICK_CHAT = 28;
+	private static readonly CHAT_ITEM_HEIGHT = 28;
+	private static readonly CHAT_ITEM_HEIGHT_PHONE = 44;
 	/**
 	 * Phone layout uses a taller row so the inline action toolbar can
 	 * meet the 44px minimum touch target without overflowing. Sized to
@@ -252,6 +289,9 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 	) { }
 
 	getHeight(element: SessionListItem): number {
+		if (isSessionChatItem(element)) {
+			return this._isPhone() ? SessionsTreeDelegate.CHAT_ITEM_HEIGHT_PHONE : SessionsTreeDelegate.CHAT_ITEM_HEIGHT;
+		}
 		if (isSessionSection(element) || isSessionGroupItem(element)) {
 			return SessionsTreeDelegate.SECTION_HEIGHT;
 		}
@@ -287,6 +327,9 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 	}
 
 	getTemplateId(element: SessionListItem): string {
+		if (isSessionChatItem(element)) {
+			return SessionChatItemRenderer.TEMPLATE_ID;
+		}
 		if (isSessionGroupItem(element)) {
 			return SessionGroupRenderer.TEMPLATE_ID;
 		}
@@ -300,6 +343,75 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 			return SessionPlaceholderRenderer.TEMPLATE_ID;
 		}
 		return SessionItemRenderer.TEMPLATE_ID;
+	}
+}
+
+//#endregion
+
+//#region Chat Item Renderer
+
+interface ISessionChatItemTemplate {
+	readonly container: HTMLElement;
+	readonly statusIcon: SessionStatusIcon;
+	readonly title: HighlightedLabel;
+	readonly disposables: DisposableStore;
+	readonly elementDisposables: DisposableStore;
+}
+
+class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, ISessionChatItemTemplate> {
+	static readonly TEMPLATE_ID = 'session-chat-item';
+	readonly templateId = SessionChatItemRenderer.TEMPLATE_ID;
+	readonly rowClassName = 'session-list-inset-row';
+
+	constructor(
+		private readonly hoverService: IHoverService,
+		private readonly instantiationService: IInstantiationService,
+	) { }
+
+	renderTemplate(container: HTMLElement): ISessionChatItemTemplate {
+		const disposables = new DisposableStore();
+		const elementDisposables = disposables.add(new DisposableStore());
+		container.classList.add('session-chat-item');
+
+		const iconContainer = DOM.append(container, $('.session-chat-icon'));
+		iconContainer.setAttribute('aria-hidden', 'true');
+		const statusIcon = disposables.add(this.instantiationService.createInstance(SessionStatusIcon, iconContainer));
+		const title = disposables.add(new HighlightedLabel(DOM.append(container, $('.session-chat-title'))));
+
+		return { container, statusIcon, title, disposables, elementDisposables };
+	}
+
+	renderElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionChatItemTemplate): void {
+		const element = node.element;
+		if (!isSessionChatItem(element)) {
+			return;
+		}
+
+		template.elementDisposables.clear();
+		const chats = getSessionListChats(element.session);
+		template.container.classList.toggle('last-chat', isEqual(chats.at(-1)?.resource, element.chat.resource));
+		template.elementDisposables.add(autorun(reader => {
+			template.title.set(getChatTitle(element.chat, reader), createMatches(node.filterData));
+			const status = element.chat.status.read(reader);
+			template.statusIcon.setStatus(
+				isActiveSessionStatus(status) ? status : SessionStatus.Completed,
+				true,
+				false,
+				undefined,
+				element.chat.resource,
+			);
+		}));
+		template.elementDisposables.add(this.hoverService.setupDelayedHover(template.title.element, () => ({
+			content: getChatTitle(element.chat),
+		}), { groupId: 'sessions-list' }));
+	}
+
+	disposeElement(_node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionChatItemTemplate): void {
+		template.elementDisposables.clear();
+	}
+
+	disposeTemplate(template: ISessionChatItemTemplate): void {
+		template.disposables.dispose();
 	}
 }
 
@@ -426,10 +538,27 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		private readonly markdownRendererService: IMarkdownRendererService,
 		private readonly hoverService: IHoverService,
 		private readonly sessionsProvidersService: ISessionsProvidersService,
+		private readonly sessionsManagementService: ISessionsManagementService,
+		private readonly agentHostConnectionsService: IAgentHostConnectionsService,
+		private readonly openerService: IOpenerService,
 		// TEMPORARY — see the note on the `IAgentSessionsService` import above (#320480).
 		private readonly agentSessionsService: IAgentSessionsService,
 		private readonly _voicePlaybackService: IVoicePlaybackService,
 	) {
+	}
+
+	private getCreatorHoverData(session: ISession): { readonly title: string; readonly onOpen: () => void } | undefined {
+		const creationReference = session.createdBySession?.get();
+		if (!creationReference) {
+			return undefined;
+		}
+		const creator = this.sessionsManagementService.getSession(creationReference.session);
+		const resolved = this.agentHostConnectionsService.resolveSessionResource(creationReference.session);
+		if (!creator || !resolved) {
+			return undefined;
+		}
+		const target = buildOpenSessionLinkUri(resolved.backendSession, creationReference.chat?.fragment, creationReference.turnId);
+		return { title: creator.title.get(), onOpen: () => this.openerService.open(target).catch(onUnexpectedError) };
 	}
 
 	renderTemplate(container: HTMLElement): ISessionItemTemplate {
@@ -548,9 +677,9 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		this.agentSessionsService.model.observeSession(element.resource);
 
 		if (this.options.showHover) {
-			// Rich hover on the row showing folder, branch, diff stats and provider.
+			// Rich hover on the row: the same widget session pills use in chat output.
 			template.elementDisposables.add(this.hoverService.setupDelayedHover(template.container, () => ({
-				content: buildSessionHoverContent(element, this.sessionsProvidersService),
+				content: new SessionSummaryHoverWidget(getSessionSummaryHoverData(element, this.sessionsProvidersService, this.getCreatorHoverData(element))).domNode,
 				appearance: { showPointer: true },
 				position: { hoverPosition: HoverPosition.RIGHT, forcePosition: true },
 				persistence: { hideOnHover: false },
@@ -883,7 +1012,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		}));
 	}
 
-	disposeElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionItemTemplate): void {
+	disposeElement(_node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionItemTemplate): void {
 		template.elementDisposables.clear();
 	}
 
@@ -1003,11 +1132,11 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		const toolbar = disposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, toolbarContainer, SessionSectionToolbarMenuId, {
 			menuOptions: { shouldForwardArgs: true },
 			actionViewItemProvider: (action, options) => {
-				actionViewItemDisposables.clear();
-
 				if (action.id !== NEW_SESSION_FOR_WORKSPACE_ACTION_ID || !(action instanceof MenuItemAction)) {
 					return undefined;
 				}
+
+				actionViewItemDisposables.clear();
 
 				const dropdownActions = getFlatContextMenuActions(this.menuService.getMenuActions(
 					Menus.SessionSectionNewSession,
@@ -1417,6 +1546,15 @@ class SessionsAccessibilityProvider {
 	}
 
 	getAriaLabel(element: SessionListItem): string | IObservable<string> | null {
+		if (isSessionChatItem(element)) {
+			return derived(this, reader => localize(
+				'sessionChatItemAria',
+				"{0}, chat, updated {1}, {2}",
+				getChatTitle(element.chat, reader),
+				fromNow(element.chat.updatedAt.read(reader), true),
+				getSessionConversationStatusAriaLabel(element.chat.status.read(reader)),
+			));
+		}
 		if (isSessionGroupItem(element)) {
 			return `${element.group.name}, ${element.sessions.length}`;
 		}
@@ -1566,10 +1704,17 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 		if (isSessionPlaceholder(element)) {
 			return null;
 		}
+		if (isSessionChatItem(element)) {
+			return element.chat.resource.toString();
+		}
 		return element.resource.toString();
 	}
 
 	getDragLabel(elements: SessionListItem[]): string | undefined {
+		const chatItem = elements.find(isSessionChatItem);
+		if (chatItem) {
+			return getChatTitle(chatItem.chat);
+		}
 		const groupItem = elements.find(isSessionGroupItem);
 		if (groupItem) {
 			return groupItem.group.name;
@@ -1589,7 +1734,13 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 	}
 
 	onDragStart(data: IDragAndDropData, originalEvent: DragEvent): void {
-		const sessions = this.toSessions(data instanceof ElementsDragAndDropData ? data.elements as SessionListItem[] : []);
+		const elements = data instanceof ElementsDragAndDropData ? data.elements as SessionListItem[] : [];
+		const chatItem = elements.find(isSessionChatItem);
+		if (chatItem) {
+			fillSessionChatDragData(originalEvent, chatItem.session.sessionId, chatItem.chat.resource);
+			return;
+		}
+		const sessions = this.toSessions(elements);
 		if (sessions.length === 0) {
 			return;
 		}
@@ -1858,6 +2009,15 @@ export interface ISessionsListControlOptions {
 	readonly sorting: () => SessionsSorting;
 	readonly findWidgetContainer?: HTMLElement;
 	onSessionOpen(resource: URI, preserveFocus: boolean, sideBySide: boolean): void;
+
+	/**
+	 * Gate invoked before a session is opened (before mark-read, activation, and
+	 * folder mount). Return `false` to refuse the open — e.g. the session's folder
+	 * is not trusted — leaving the current session/empty slot untouched. When
+	 * omitted, opens are not gated.
+	 */
+	canOpenSession?(session: ISession): Promise<boolean>;
+	onChatOpen?(session: ISession, chat: IChat, preserveFocus: boolean, sideBySide: boolean): void;
 }
 
 /**
@@ -1926,6 +2086,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 	private readonly listContainer: HTMLElement;
 	private readonly tree: WorkbenchObjectTree<SessionListItem, FuzzyScore>;
 	private sessions: ISession[] = [];
+	private readonly sessionChatsObserver = this._register(new MutableDisposable());
+	private readonly activeSessionUpdate = this._register(new MutableDisposable());
 	private readonly automationSessions = observableValue<readonly ISession[]>(this, []);
 	private visible = true;
 	private readonly excludedSessionTypes: Set<string>;
@@ -1988,6 +2150,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 		@IWorkbenchAssignmentService private readonly assignmentService: IWorkbenchAssignmentService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@IAgentHostConnectionsService private readonly agentHostConnectionsService: IAgentHostConnectionsService,
+		@IOpenerService private readonly openerService: IOpenerService,
 	) {
 		super();
 
@@ -2063,12 +2227,16 @@ export class SessionsList extends Disposable implements ISessionsList {
 			markdownRendererService,
 			hoverService,
 			sessionsProvidersService,
+			this._sessionsManagementService,
+			this.agentHostConnectionsService,
+			this.openerService,
 			agentSessionsService,
 			voicePlaybackService,
 		);
 
 		const showMoreRenderer = new SessionShowMoreRenderer();
 		const placeholderRenderer = new SessionPlaceholderRenderer(hoverService);
+		const chatRenderer = new SessionChatItemRenderer(hoverService, instantiationService);
 		const selectHeader = (element: ISessionSection | ISessionGroupItem, event: MouseEvent) => {
 			this.tree.setFocus([element], event);
 			this.tree.setSelection([element], event);
@@ -2095,6 +2263,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			delegate,
 			[
 				sessionRenderer,
+				chatRenderer,
 				sectionRenderer,
 				groupRenderer,
 				showMoreRenderer,
@@ -2131,6 +2300,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 						if (isSessionPlaceholder(element)) {
 							return `placeholder:${element.sectionId}`;
 						}
+						if (isSessionChatItem(element)) {
+							return `chat:${element.session.sessionId}:${element.chat.resource.toString()}`;
+						}
 						return element.resource.toString();
 					},
 					getGroupId: (element: SessionListItem) => {
@@ -2146,6 +2318,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 						if (isSessionPlaceholder(element)) {
 							return NotSelectableGroupId;
 						}
+						if (isSessionChatItem(element)) {
+							return 3;
+						}
 						// Use a distinct group for archived (done) sessions so that
 						// multi-selection cannot span the workspace and done sections.
 						return element.isArchived.get() ? 2 : 1;
@@ -2153,7 +2328,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				},
 				horizontalScrolling: false,
 				multipleSelectionSupport: true,
-				indent: 0,
+				expandOnlyOnTwistieClick: element => isSessionItem(element),
 				findWidgetEnabled: true,
 				defaultFindMode: TreeFindMode.Filter,
 				findWidgetContainer: this.options.findWidgetContainer,
@@ -2178,16 +2353,22 @@ export class SessionsList extends Disposable implements ISessionsList {
 						if (isSessionPlaceholder(element)) {
 							return element.label;
 						}
+						if (isSessionChatItem(element)) {
+							return getChatTitle(element.chat);
+						}
 						return element.title.get();
 					}
 				},
 				overrideStyles: this.options.overrideStyles,
 				renderIndentGuides: RenderIndentGuides.None,
-				twistieAdditionalCssClass: () => 'force-no-twistie',
+				twistieAdditionalCssClass: element => isSessionItem(element) && getSessionListChats(element).length > 0
+					? 'session-chat-twistie'
+					: 'force-no-twistie',
 			}
 		));
+		this.tree.updateOptions({ indent: 0, defaultIndent: 0, expandOnDoubleClick: false });
 
-		this._register(this.tree.onDidOpen(e => {
+		this._register(this.tree.onDidOpen(async e => {
 			const element = e.element;
 			if (!element) {
 				return;
@@ -2208,12 +2389,32 @@ export class SessionsList extends Disposable implements ISessionsList {
 			if (isSessionPlaceholder(element)) {
 				return;
 			}
+			if (isSessionChatItem(element)) {
+				if (this.options.canOpenSession && !(await this.options.canOpenSession(element.session))) {
+					return;
+				}
+				this.markRead(element.session);
+				const isLeftClick = DOM.isMouseEvent(e.browserEvent) && e.browserEvent.button === 0;
+				const preserveFocus = isLeftClick ? false : (e.editorOptions.preserveFocus ?? false);
+				if (this.options.onChatOpen) {
+					this.options.onChatOpen(element.session, element.chat, preserveFocus, e.sideBySide);
+				} else {
+					this._sessionsService.openChat(element.session, element.chat.resource, { preserveFocus }).catch(onUnexpectedError);
+				}
+				return;
+			}
 			if (isSessionSection(element) && element.id === AUTOMATIONS_SECTION_ID) {
 				this.tree.setSelection([]);
 				this.commandService.executeCommand('sessionsView.manageAutomations');
 				return;
 			}
 			if (!isSessionSection(element) && !isSessionGroupItem(element)) {
+				// Gate the open on workspace trust before any side effect (mark-read,
+				// activation, folder mount). A refused open leaves the current
+				// session (or empty new-session slot) untouched.
+				if (this.options.canOpenSession && !(await this.options.canOpenSession(element))) {
+					return;
+				}
 				this.markRead(element);
 				// A deliberate left mouse click on a session should move keyboard
 				// focus into the chat input so the user can start typing right
@@ -2256,11 +2457,15 @@ export class SessionsList extends Disposable implements ISessionsList {
 			if (!e.affectsSome(phoneKeys)) {
 				return;
 			}
-			for (const session of this.sessions) {
-				if (this.tree.hasElement(session)) {
-					this.tree.updateElementHeight(session, delegate.getHeight(session));
+			const updateNodeHeights = (node: ITreeNode<SessionListItem | null, FuzzyScore>): void => {
+				if (node.element && (isSessionItem(node.element) || isSessionChatItem(node.element))) {
+					this.tree.updateElementHeight(node.element, delegate.getHeight(node.element));
 				}
-			}
+				for (const child of node.children) {
+					updateNodeHeights(child);
+				}
+			};
+			updateNodeHeights(this.tree.getNode());
 		}));
 
 		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
@@ -2354,10 +2559,14 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 		// Re-render when the active session changes.
 		this._register(autorun(reader => {
-			this._sessionsService.activeSession.read(reader);
-			if (this.visible) {
-				this.update();
-			}
+			const activeSession = this._sessionsService.activeSession.read(reader);
+			activeSession?.activeChat.read(reader);
+			this.activeSessionUpdate.value = DOM.scheduleAtNextAnimationFrame(DOM.getWindow(this.listContainer), () => {
+				if (this.visible) {
+					this.update();
+					this.syncActiveChatSelection(activeSession);
+				}
+			});
 		}));
 
 		// Resolve the per-group session limit from the experiment service and
@@ -2372,6 +2581,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		}));
 
 		this.refresh();
+		this.syncActiveChatSelection(this._sessionsService.activeSession.get());
 	}
 
 	/**
@@ -2394,6 +2604,16 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	refresh(): void {
 		this.sessions = this._sessionsManagementService.getSessions();
+		let initialized = false;
+		this.sessionChatsObserver.value = autorun(reader => {
+			for (const session of this.sessions) {
+				getSessionListChats(session, reader);
+			}
+			if (initialized && this.visible) {
+				this.update();
+			}
+			initialized = true;
+		});
 		this.automationSessions.set(this.sessions, undefined);
 		for (const session of this.sessions) {
 			this._sessionsListModelService.migrateLegacyReadState(session);
@@ -2544,7 +2764,17 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const sessionGroupLimit = this.sessionGroupLimit.get();
 
 		const toSessionChildren = (sessions: readonly ISession[]): IObjectTreeElement<SessionListItem>[] =>
-			sessions.map(session => ({ element: session as SessionListItem }));
+			sessions.map(session => {
+				const chats = getSessionListChats(session);
+				return {
+					element: session as SessionListItem,
+					collapsible: chats.length > 0,
+					collapsed: ObjectTreeElementCollapseState.PreserveOrExpanded,
+					children: chats.length > 0
+						? chats.map(chat => ({ element: new SessionChatItem(session, chat) }))
+						: undefined,
+				};
+			});
 
 		const renderSessionChildren = (sessions: readonly ISession[], sectionId: string, sectionLabel: string, enabled: boolean): IObjectTreeElement<SessionListItem>[] => {
 			const limited = limitSessionsForList(sessions, sessionGroupLimit, {
@@ -2722,6 +2952,27 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 		this.tree.setChildren(null, children);
 		this._onDidUpdate.fire();
+	}
+
+	private syncActiveChatSelection(activeSession: IActiveSession | undefined): void {
+		if (!activeSession) {
+			return;
+		}
+		const session = this.sessions.find(candidate => candidate.sessionId === activeSession.sessionId);
+		if (!session || !this.tree.hasElement(session)) {
+			return;
+		}
+		const activeChat = activeSession.activeChat.get();
+		const chatItem = this.tree.getNode(session).children
+			.map(node => node.element)
+			.find(element => !!element && isSessionChatItem(element) && this.uriIdentityService.extUri.isEqual(element.chat.resource, activeChat.resource));
+		if (!chatItem || !isSessionChatItem(chatItem)) {
+			this.tree.setSelection([session]);
+			return;
+		}
+		this.tree.expand(session);
+		this.tree.reveal(chatItem, 0.5);
+		this.tree.setSelection([chatItem]);
 	}
 
 	getVisibleSessions(): readonly ISession[] {
@@ -3041,6 +3292,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	private onContextMenu(e: ITreeContextMenuEvent<SessionListItem | null>): void {
 		const element = e.element;
+		if (element && isSessionChatItem(element)) {
+			this.showChatContextMenu(element, e.anchor);
+			return;
+		}
 		if (!element || isSessionSection(element) || isSessionShowMore(element) || isSessionPlaceholder(element)) {
 			this.showCreateGroupContextMenu(e.anchor);
 			return;
@@ -3104,6 +3359,27 @@ export class SessionsList extends Disposable implements ISessionsList {
 			getAnchor: () => e.anchor,
 			getKeyBinding: (action) => this.keybindingService.lookupKeybinding(action.id) ?? undefined,
 			onHide: () => disposables.dispose(),
+		});
+	}
+
+	private showChatContextMenu(element: ISessionChatItem, anchor: ITreeContextMenuEvent<SessionListItem | null>['anchor']): void {
+		const capabilities = getChatCapabilities(element.chat, element.session, undefined);
+		const contextKeyService = this.contextKeyService.createOverlay([
+			[SessionChatItemCanRenameContext.key, capabilities.canRename],
+			[SessionChatItemCanDeleteContext.key, capabilities.canDelete],
+			[SessionChatItemIsUntitledContext.key, element.chat.status.get() === SessionStatus.Untitled],
+		]);
+		const menu = this.menuService.createMenu(Menus.SessionChatItemContext, contextKeyService);
+		const actions = Separator.join(...menu.getActions({ arg: element, shouldForwardArgs: true }).map(([, groupActions]) => groupActions));
+		if (actions.length === 0) {
+			menu.dispose();
+			return;
+		}
+		this.contextMenuService.showContextMenu({
+			getActions: () => actions,
+			getAnchor: () => anchor,
+			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id) ?? undefined,
+			onHide: () => menu.dispose(),
 		});
 	}
 
@@ -3816,6 +4092,8 @@ export class SessionsFlatList extends Disposable {
 		@IHoverService hoverService: IHoverService,
 		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
 		@IVoicePlaybackService voicePlaybackService: IVoicePlaybackService,
+		@IAgentHostConnectionsService agentHostConnectionsService: IAgentHostConnectionsService,
+		@IOpenerService openerService: IOpenerService,
 	) {
 		super();
 
@@ -3850,6 +4128,9 @@ export class SessionsFlatList extends Disposable {
 			markdownRendererService,
 			hoverService,
 			sessionsProvidersService,
+			this._sessionsManagementService,
+			agentHostConnectionsService,
+			openerService,
 			agentSessionsService,
 			voicePlaybackService,
 		);

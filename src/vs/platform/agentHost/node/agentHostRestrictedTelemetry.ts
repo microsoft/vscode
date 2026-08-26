@@ -137,7 +137,7 @@ export interface IAgentHostRestrictedTelemetry {
 	setCommonProperty(name: string, value: string | boolean): void;
 	/** Overrides the POST endpoint with the user's CAPI `endpoints.telemetry`; falsy restores the default. */
 	setRestrictedTelemetryEndpoint(endpointUrl: string | undefined): void;
-	/** Enables enhanced GH telemetry once the token opts in (`rt=1`); off by default and on flip/logout. */
+	/** Enables enhanced GH telemetry once the authenticated account opts in; off by default and on flip/logout. */
 	setRestrictedTelemetryEnabled(enabled: boolean): void;
 	/** Sets the internal-user identity and enables the internal sink only for staff accounts. */
 	setInternalTelemetryContext(context: IAgentHostInternalTelemetryContext | undefined): void;
@@ -153,10 +153,8 @@ export class AgentHostRestrictedTelemetrySender implements IAgentHostRestrictedT
 	private readonly _commonProps: TelemetryProps;
 
 	/**
-	 * Whether the current Copilot token opts into enhanced/restricted telemetry (`rt=1`). Off by
-	 * default so the sole writer to the restricted table never emits for public users — a hard
-	 * safety boundary that holds even if the enclosing service's gate is bypassed. Mirrors the
-	 * Copilot extension, which only creates the restricted reporter for opted-in users.
+	 * Whether `/copilot_internal/user` enables enhanced/restricted telemetry. Off by default so
+	 * the sole writer to the restricted table never emits for public users.
 	 */
 	private _restrictedTelemetryEnabled = false;
 	private _internalTelemetryEnabled = false;
@@ -185,8 +183,8 @@ export class AgentHostRestrictedTelemetrySender implements IAgentHostRestrictedT
 	sendEnhancedGHTelemetryEvent(eventName: string, properties?: TelemetryProps, measurements?: TelemetryMeasurements): void {
 		// Hard safety boundary: enhanced/restricted telemetry is the pipeline that may carry prompt
 		// and tool content, so the only writer to the restricted table refuses to emit unless the
-		// user's token opted in (`rt=1`). This holds even if a caller reaches the sender without the
-		// service-level `rt`/telemetry-level gate.
+		// authenticated account opted in. This holds even if a caller reaches the sender without the
+		// service-level restricted-telemetry gate.
 		if (!this._restrictedTelemetryEnabled) {
 			return;
 		}
@@ -226,9 +224,8 @@ export class AgentHostRestrictedTelemetrySender implements IAgentHostRestrictedT
 	}
 
 	setCopilotTrackingId(trackingId: string | undefined): void {
-		// `copilot_trackingId` is the current account's Copilot token `tid` claim. Exact runtime
-		// targets use their immutable per-session context instead; this mutable value remains for
-		// the pre-existing account-scoped reporters.
+		// Exact runtime targets use their immutable per-session context; this mutable value remains
+		// for the pre-existing account-scoped reporters.
 		this._commonProps.copilot_trackingId = trackingId || undefined;
 	}
 

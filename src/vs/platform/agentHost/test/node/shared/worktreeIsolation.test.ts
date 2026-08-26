@@ -18,13 +18,9 @@ import { SessionConfigKey } from '../../../common/sessionConfigKeys.js';
 import { AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, MessageKind, ResponsePartKind, TurnState, type Turn } from '../../../common/state/sessionState.js';
 import { AgentBranchNameGenerator, IAgentBranchNameGenerator } from '../../../node/shared/agentBranchNameGenerator.js';
 import { ICopilotApiService } from '../../../node/shared/copilotApiService.js';
-import { buildWorktreeFailureNotification, normalizeWorktreeFailureDiagnostic, SessionWorkingDirectoryMissingError, WorktreeIsolation, getWorktreeName, getWorktreesRoot } from '../../../node/shared/worktreeIsolation.js';
+import { buildWorktreeFailureNotification, normalizeWorktreeFailureDiagnostic, NullAgentHostWorktreeIsolation, SessionWorkingDirectoryMissingError, WorktreeIsolation, getWorktreeName, getWorktreesRoot } from '../../../node/shared/worktreeIsolation.js';
 import { TestSessionDatabase, createNoopGitService, createSessionDataService } from '../../common/sessionTestHelpers.js';
 
-/**
- * Minimal {@link ICopilotApiService} stub for constructing {@link WorktreeIsolation}
- * in tests. Tests inject their own branch-name generator, so its methods are never called.
- */
 function createNullCopilotApiService(): ICopilotApiService {
 	return {
 		_serviceBrand: undefined,
@@ -41,6 +37,37 @@ function createNullCopilotApiService(): ICopilotApiService {
 suite('WorktreeIsolation', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('null implementation preserves folder-only behavior', async () => {
+		const isolation = new NullAgentHostWorktreeIsolation();
+		const session = URI.parse('copilot:/session');
+		const workingDirectory = URI.file('/workspace');
+		const turns: Turn[] = [];
+
+		assert.deepStrictEqual({
+			supported: isolation.supported,
+			pending: isolation.isWorkingDirectoryPending('session'),
+			resolved: await isolation.resolveOnFirstSend({ sessionUri: session, sessionId: 'session', workingDirectory, config: undefined }),
+			config: await isolation.resolveIsolationConfig({ workingDirectory, config: undefined }),
+			branches: await isolation.branchCompletions(workingDirectory),
+			resumed: await isolation.resolveWorkingDirectoryForResume(session, 'session', workingDirectory),
+			restoredTurnsSame: await isolation.applyRestoreAnnouncement(session, turns) === turns,
+			deletion: await isolation.prepareSessionDeletion(session, 'session'),
+			adopted: await isolation.adoptExistingWorktreeMetadata(session, workingDirectory),
+			project: await isolation.resolveWorktreeProject(session),
+		}, {
+			supported: false,
+			pending: false,
+			resolved: undefined,
+			config: undefined,
+			branches: { items: [] },
+			resumed: workingDirectory,
+			restoredTurnsSame: true,
+			deletion: undefined,
+			adopted: false,
+			project: undefined,
+		});
+	});
 
 	let repoRoot: URI;
 	let worktreesRoot: URI;
@@ -99,7 +126,6 @@ suite('WorktreeIsolation', () => {
 		return disposableStore.add(new WorktreeIsolation(
 			branchNameGenerator,
 			options?.gitService ?? createGitService(),
-			createNullCopilotApiService(),
 			createSessionDataService(db),
 			new NullLogService(),
 		));
@@ -152,17 +178,17 @@ suite('WorktreeIsolation', () => {
 		const noCommits = await isolation.resolveIsolationConfig({ workingDirectory: repoRoot, config: undefined });
 
 		assert.deepStrictEqual({
-			noRepo: { enum: noRepo.isolationProperty.protocol.enum, value: noRepo.isolationValue, branch: noRepo.branchProperty, prefix: noRepo.worktreeBranchPrefixProperty, includeFiles: noRepo.worktreeIncludeFilesProperty, branchTrack: noRepo.worktreeBranchTrackProperty },
-			repoWorktree: { enum: repoWorktree.isolationProperty.protocol.enum, value: repoWorktree.isolationValue, branchDefault: repoWorktree.branchDefault, branchReadOnly: repoWorktree.branchProperty?.protocol.readOnly, prefixReadOnly: repoWorktree.worktreeBranchPrefixProperty?.protocol.readOnly, includeFilesReadOnly: repoWorktree.worktreeIncludeFilesProperty?.protocol.readOnly, branchTrackReadOnly: repoWorktree.worktreeBranchTrackProperty?.protocol.readOnly },
+			noRepo: { enum: noRepo.isolationProperty.protocol.enum, value: noRepo.isolationValue, branch: noRepo.branchProperty, prefix: noRepo.worktreeBranchPrefixProperty, includeFiles: noRepo.worktreeIncludeFilesProperty, branchTrack: noRepo.worktreeBranchTrackProperty, createNewBranch: noRepo.worktreeCreateNewBranchProperty },
+			repoWorktree: { enum: repoWorktree.isolationProperty.protocol.enum, value: repoWorktree.isolationValue, branchDefault: repoWorktree.branchDefault, branchReadOnly: repoWorktree.branchProperty?.protocol.readOnly, prefixReadOnly: repoWorktree.worktreeBranchPrefixProperty?.protocol.readOnly, includeFilesReadOnly: repoWorktree.worktreeIncludeFilesProperty?.protocol.readOnly, branchTrackReadOnly: repoWorktree.worktreeBranchTrackProperty?.protocol.readOnly, createNewBranchReadOnly: repoWorktree.worktreeCreateNewBranchProperty?.protocol.readOnly },
 			repoWorktreeSelected: { branchDefault: repoWorktreeSelected.branchDefault, branchValue: repoWorktreeSelected.branchValue, branchEnum: repoWorktreeSelected.branchProperty?.protocol.enum },
-			repoFolder: { value: repoFolder.isolationValue, branchDefault: repoFolder.branchDefault, branchReadOnly: repoFolder.branchProperty?.protocol.readOnly, hasPrefix: !!repoFolder.worktreeBranchPrefixProperty, hasIncludeFiles: !!repoFolder.worktreeIncludeFilesProperty, hasBranchTrack: !!repoFolder.worktreeBranchTrackProperty },
-			noCommits: { enum: noCommits.isolationProperty.protocol.enum, value: noCommits.isolationValue, branch: noCommits.branchProperty, prefix: noCommits.worktreeBranchPrefixProperty, includeFiles: noCommits.worktreeIncludeFilesProperty, branchTrack: noCommits.worktreeBranchTrackProperty },
+			repoFolder: { value: repoFolder.isolationValue, branchDefault: repoFolder.branchDefault, branchReadOnly: repoFolder.branchProperty?.protocol.readOnly, hasPrefix: !!repoFolder.worktreeBranchPrefixProperty, hasIncludeFiles: !!repoFolder.worktreeIncludeFilesProperty, hasBranchTrack: !!repoFolder.worktreeBranchTrackProperty, hasCreateNewBranch: !!repoFolder.worktreeCreateNewBranchProperty },
+			noCommits: { enum: noCommits.isolationProperty.protocol.enum, value: noCommits.isolationValue, branch: noCommits.branchProperty, prefix: noCommits.worktreeBranchPrefixProperty, includeFiles: noCommits.worktreeIncludeFilesProperty, branchTrack: noCommits.worktreeBranchTrackProperty, createNewBranch: noCommits.worktreeCreateNewBranchProperty },
 		}, {
-			noRepo: { enum: ['folder'], value: 'folder', branch: undefined, prefix: undefined, includeFiles: undefined, branchTrack: undefined },
-			repoWorktree: { enum: ['folder', 'worktree'], value: 'worktree', branchDefault: 'main', branchReadOnly: false, prefixReadOnly: true, includeFilesReadOnly: true, branchTrackReadOnly: true },
+			noRepo: { enum: ['folder'], value: 'folder', branch: undefined, prefix: undefined, includeFiles: undefined, branchTrack: undefined, createNewBranch: undefined },
+			repoWorktree: { enum: ['folder', 'worktree'], value: 'worktree', branchDefault: 'main', branchReadOnly: false, prefixReadOnly: true, includeFilesReadOnly: true, branchTrackReadOnly: true, createNewBranchReadOnly: true },
 			repoWorktreeSelected: { branchDefault: 'main', branchValue: 'feature', branchEnum: ['main'] },
-			repoFolder: { value: 'folder', branchDefault: 'feature', branchReadOnly: true, hasPrefix: true, hasIncludeFiles: true, hasBranchTrack: true },
-			noCommits: { enum: ['folder'], value: 'folder', branch: undefined, prefix: undefined, includeFiles: undefined, branchTrack: undefined },
+			repoFolder: { value: 'folder', branchDefault: 'feature', branchReadOnly: true, hasPrefix: true, hasIncludeFiles: true, hasBranchTrack: true, hasCreateNewBranch: true },
+			noCommits: { enum: ['folder'], value: 'folder', branch: undefined, prefix: undefined, includeFiles: undefined, branchTrack: undefined, createNewBranch: undefined },
 		});
 	});
 
@@ -202,6 +228,49 @@ suite('WorktreeIsolation', () => {
 			branchDefault: 'main',
 			branchEnum: ['main'],
 			startPoint: 'origin/main',
+		});
+	});
+
+	test('checks out an existing selected branch and uses the default branch as the diff base', async () => {
+		const gitService = createGitService();
+		gitService.getDefaultBranch = async () => ({ name: 'main', startPoint: 'origin/main' });
+		const isolation = createIsolation(disposables, {
+			gitService,
+			branchNameGenerator: { generateBranchName: async () => { throw new Error('should not generate a branch'); } },
+		});
+
+		const worktree = await isolation.resolveWorkingDirectory({
+			sessionUri,
+			sessionId,
+			workingDirectory: repoRoot,
+			config: {
+				[SessionConfigKey.Isolation]: 'worktree',
+				[SessionConfigKey.Branch]: 'feature',
+				[SessionConfigKey.WorktreeBranchTrack]: true,
+				[SessionConfigKey.WorktreeCreateNewBranch]: false,
+			},
+		});
+
+		assert.deepStrictEqual({
+			worktree: worktree?.toString(),
+			addWorktreeArgs: addWorktreeCalls.map(call => ({
+				commitish: call.commitish,
+				newBranchName: call.newBranchName,
+				track: call.track,
+				preferRemoteBranch: call.preferRemoteBranch,
+			})),
+			branchName: await db.getMetadata('copilot.worktree.branchName'),
+			diffBaseBranch: await db.getMetadata('agentHost.diffBaseBranch'),
+		}, {
+			worktree: URI.joinPath(worktreesRoot, 'feature').toString(),
+			addWorktreeArgs: [{
+				commitish: 'feature',
+				newBranchName: undefined,
+				track: true,
+				preferRemoteBranch: false,
+			}],
+			branchName: 'feature',
+			diffBaseBranch: 'origin/main',
 		});
 	});
 
