@@ -153,7 +153,7 @@ suite('Chat Pet Achievements Editor', () => {
 			override readonly enabled = constObservable(true);
 			override readonly unlockedAchievements = constObservable<readonly ChatPetAchievementId[]>([
 				ChatPetAchievementIds.FirstChatMessage,
-				ChatPetAchievementIds.SessionArchived,
+				ChatPetAchievementIds.AgentChangesReviewed,
 			]);
 			override readonly unseenAchievements = constObservable<readonly ChatPetAchievementId[]>([]);
 			override readonly selectedAccessory = selectedAccessory;
@@ -177,30 +177,30 @@ suite('Chat Pet Achievements Editor', () => {
 		));
 
 		const unlockedCards = Array.from(parent.querySelectorAll<HTMLElement>('.chat-pet-achievement-card.monaco-button:not(.locked)'));
-		const santaCard = parent.querySelector<HTMLElement>(`[data-accessory-id="${ChatPetAccessoryIds.SantaHat}"]`);
-		assert.ok(santaCard);
-		santaCard.click();
+		const riceHatCard = parent.querySelector<HTMLElement>(`[data-accessory-id="${ChatPetAccessoryIds.RiceHat}"]`);
+		assert.ok(riceHatCard);
+		riceHatCard.click();
 
 		assert.deepStrictEqual({
 			unlockedCardIds: unlockedCards.map(card => card.dataset.accessoryId),
 			firstMessageTitleCount: Array.from(parent.querySelectorAll('h3')).filter(title => title.textContent === 'Welcome to the Wild West').length,
-			wrappedUpTitleCount: Array.from(parent.querySelectorAll('h3')).filter(title => title.textContent === 'Wrapped Up').length,
+			trustButVerifyTitleCount: Array.from(parent.querySelectorAll('h3')).filter(title => title.textContent === 'Trust but Verify').length,
 			selected,
-			santaSelected: santaCard.getAttribute('aria-pressed'),
-			santaAriaLabel: santaCard.getAttribute('aria-label'),
-			santaState: santaCard.querySelector('.chat-pet-achievement-state')?.textContent,
+			riceHatSelected: riceHatCard.getAttribute('aria-pressed'),
+			riceHatAriaLabel: riceHatCard.getAttribute('aria-label'),
+			riceHatState: riceHatCard.querySelector('.chat-pet-achievement-state')?.textContent,
 		}, {
 			unlockedCardIds: [
 				'none',
 				ChatPetAccessoryIds.CowboyHat,
-				ChatPetAccessoryIds.SantaHat,
+				ChatPetAccessoryIds.RiceHat,
 			],
 			firstMessageTitleCount: 1,
-			wrappedUpTitleCount: 1,
-			selected: ChatPetAccessoryIds.SantaHat,
-			santaSelected: 'true',
-			santaAriaLabel: 'Wrapped Up. Reward: Santa Hat. Wearing',
-			santaState: 'Wearing',
+			trustButVerifyTitleCount: 1,
+			selected: ChatPetAccessoryIds.RiceHat,
+			riceHatSelected: 'true',
+			riceHatAriaLabel: 'Trust but Verify. Reward: Rice Hat. Wearing',
+			riceHatState: 'Wearing',
 		});
 	});
 

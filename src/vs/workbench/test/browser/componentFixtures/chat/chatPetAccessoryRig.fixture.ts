@@ -79,10 +79,6 @@ const productionAccessoryPreviews: readonly IChatPetProductionAccessoryPreview[]
 		shape: 'Pink leaning party cone with a gold pom',
 	},
 	{
-		accessoryId: ChatPetAccessoryIds.SantaHat,
-		shape: 'Long red stocking cap with white trim and pom',
-	},
-	{
 		accessoryId: ChatPetAccessoryIds.BaseballCap,
 		shape: 'Paneled red crown with a long side-facing bill',
 	},
