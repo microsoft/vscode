@@ -76,6 +76,36 @@ suite('AllowedMcpServers', () => {
 			assert.strictEqual(isMcpServerMatched(matchers, { name: 's', url: 'https://mcp.example.com/mcp/extra' }), false);
 		});
 
+		test('HTTP(S) patterns match default ports and origin-only spellings', () => {
+			const originOnly: IMcpServerMatcher[] = [{ serverUrl: 'https://mcp.example.com' }];
+			const defaultPort: IMcpServerMatcher[] = [{ serverUrl: 'https://mcp.example.com:443/*' }];
+			const anyPort: IMcpServerMatcher[] = [{ serverUrl: 'http://127.0.0.2:*/*' }];
+			const denyDefaultPort: IMcpServerMatcher[] = [{ serverUrl: 'https://blocked.example:443/*' }];
+			assert.deepStrictEqual([
+				isMcpServerMatched(originOnly, { name: 's', url: 'https://mcp.example.com' }),
+				isMcpServerMatched(originOnly, { name: 's', url: 'https://mcp.example.com/' }),
+				isMcpServerMatched(originOnly, { name: 's', url: 'https://mcp.example.com/extra' }),
+				isMcpServerMatched(defaultPort, { name: 's', url: 'https://mcp.example.com/mcp' }),
+				isMcpServerMatched(defaultPort, { name: 's', url: 'https://mcp.example.com:443/mcp' }),
+				isMcpServerMatched(anyPort, { name: 's', url: 'http://127.0.0.2/mcp' }),
+				isMcpServerMatched(anyPort, { name: 's', url: 'http://127.0.0.2:80/mcp' }),
+				isMcpServerMatched(anyPort, { name: 's', url: 'http://127.0.0.2:63366/mcp' }),
+				checkMcpServerAllowed(undefined, denyDefaultPort, { name: 's', url: 'https://blocked.example:443/mcp' }),
+				checkMcpServerAllowed(undefined, denyDefaultPort, { name: 's', url: 'https://blocked.example/mcp' }),
+			], [
+				true,
+				true,
+				false,
+				true,
+				true,
+				true,
+				true,
+				true,
+				McpServerAllowResult.Denied,
+				McpServerAllowResult.Denied,
+			]);
+		});
+
 		test('URL patterns match the fetch destination rather than the raw spelling', () => {
 			const matchers: IMcpServerMatcher[] = [{ serverUrl: 'http://*127.0.0.2:*/*' }];
 			const cases: { url: string; allowed: boolean }[] = [

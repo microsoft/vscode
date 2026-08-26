@@ -114,9 +114,16 @@ function matchesUrlPattern(pattern: string, url: string): boolean {
 	if (destination === undefined) {
 		return false;
 	}
-	const regexSource = buildUrlPatternRegexSource(pattern);
+	if (!pattern.includes('*')) {
+		const expected = toNetworkDestinationUrl(pattern);
+		return expected !== undefined && expected.toLowerCase() === destination.toLowerCase();
+	}
+	const normalizedPattern = toNetworkDestinationPattern(pattern);
+	if (normalizedPattern === undefined) {
+		return false;
+	}
 	try {
-		return new RegExp(regexSource, 'i').test(destination);
+		return new RegExp(buildUrlPatternRegexSource(normalizedPattern), 'i').test(destination);
 	} catch {
 		return false;
 	}
@@ -137,6 +144,67 @@ function toNetworkDestinationUrl(url: string): string | undefined {
 	}
 }
 
+function toNetworkDestinationPattern(pattern: string): string | undefined {
+	const schemeSeparator = pattern.indexOf('://');
+	if (schemeSeparator < 0) {
+		return pattern;
+	}
+	const scheme = pattern.slice(0, schemeSeparator).toLowerCase();
+	if (scheme !== 'http' && scheme !== 'https') {
+		return pattern;
+	}
+
+	const rest = pattern.slice(schemeSeparator + 3);
+	const authorityEnd = findAuthorityEnd(rest, 0);
+	let authority = rest.slice(0, authorityEnd);
+	const userinfoEnd = authority.lastIndexOf('@');
+	if (userinfoEnd >= 0) {
+		authority = authority.slice(userinfoEnd + 1);
+	}
+
+	const hostAndPort = splitHostAndPort(authority);
+	if (hostAndPort === undefined) {
+		return undefined;
+	}
+	const defaultPort = scheme === 'https' ? '443' : '80';
+	const port = hostAndPort.port === defaultPort ? undefined : hostAndPort.port;
+
+	let afterAuthority = rest.slice(authorityEnd).replace(/\\/g, '/');
+	const hash = afterAuthority.indexOf('#');
+	if (hash >= 0) {
+		afterAuthority = afterAuthority.slice(0, hash);
+	}
+	if (!afterAuthority) {
+		afterAuthority = '/';
+	} else if (afterAuthority.startsWith('?')) {
+		afterAuthority = `/${afterAuthority}`;
+	}
+
+	return `${scheme}://${hostAndPort.host}${port !== undefined ? `:${port}` : ''}${afterAuthority}`;
+}
+
+function splitHostAndPort(authority: string): { host: string; port: string | undefined } | undefined {
+	if (authority.startsWith('[')) {
+		const close = authority.indexOf(']');
+		if (close === -1) {
+			return undefined;
+		}
+		if (authority[close + 1] === ':') {
+			return { host: authority.slice(0, close + 1), port: authority.slice(close + 2) };
+		}
+		if (close + 1 < authority.length) {
+			return undefined;
+		}
+		return { host: authority, port: undefined };
+	}
+
+	const colon = authority.lastIndexOf(':');
+	if (colon >= 0) {
+		return { host: authority.slice(0, colon), port: authority.slice(colon + 1) };
+	}
+	return authority ? { host: authority, port: undefined } : undefined;
+}
+
 function buildUrlPatternRegexSource(pattern: string): string {
 	const schemeSeparator = pattern.indexOf('://');
 	const authorityStart = schemeSeparator >= 0 ? schemeSeparator + 3 : 0;
@@ -145,7 +213,10 @@ function buildUrlPatternRegexSource(pattern: string): string {
 	let source = '^';
 	for (let i = 0; i < pattern.length; i++) {
 		const char = pattern[i];
-		if (char === '*') {
+		if (i < authorityEnd && char === ':' && pattern[i + 1] === '*') {
+			source += '(:[^/@\\\\?#]*)?';
+			i++;
+		} else if (char === '*') {
 			source += i < authorityEnd ? '[^/@\\\\?#]*' : '.*';
 		} else {
 			source += escapeRegExpCharacters(char);
