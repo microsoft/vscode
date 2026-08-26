@@ -951,17 +951,18 @@ suite('ProtocolServerHandler', () => {
 		assert.strictEqual(envelope.origin.clientSeq, 1);
 	});
 
-	test('unsupported chat working-directory actions are rejected, not dispatched', () => {
+	test('unsupported chat actions are rejected, not dispatched', () => {
 		stateManager.createSession(makeSessionSummary());
 		stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
 
-		const cases: readonly { readonly type: ActionType; readonly channel: string }[] = [
-			{ type: ActionType.ChatWorkingDirectorySet, channel: defaultChatUri },
-			{ type: ActionType.ChatWorkingDirectoryRemoved, channel: defaultChatUri },
+		const cases: readonly { readonly action: ChatAction; readonly channel: string }[] = [
+			{ action: { type: ActionType.ChatWorkingDirectorySet, directory: 'file:///tmp/extra-root' }, channel: defaultChatUri },
+			{ action: { type: ActionType.ChatWorkingDirectoryRemoved, directory: 'file:///tmp/extra-root' }, channel: defaultChatUri },
+			{ action: { type: ActionType.ChatTurnResume, turnId: 'turn-1' }, channel: defaultChatUri },
 		];
 
-		for (const [index, { type, channel }] of cases.entries()) {
-			const clientId = `wd-client-${index}`;
+		for (const [index, { action, channel }] of cases.entries()) {
+			const clientId = `unsupported-client-${index}`;
 			const clientSeq = 100 + index;
 			const transport = connectClient(clientId, [sessionUri, defaultChatUri]);
 			transport.sent.length = 0;
@@ -970,20 +971,20 @@ suite('ProtocolServerHandler', () => {
 			transport.simulateMessage(notification('dispatchAction', {
 				channel,
 				clientSeq,
-				action: { type, directory: 'file:///tmp/extra-root' },
+				action,
 			}));
 
 			// No dispatch: the gate intercepts before reaching the agent service,
 			// so the reducer never runs and synchronized state is untouched.
-			assert.deepStrictEqual(agentService.handledActions, [], `${type} must not be dispatched`);
+			assert.deepStrictEqual(agentService.handledActions, [], `${action.type} must not be dispatched`);
 
 			// Exactly one rejection envelope, preserving the original origin so the
 			// client can reconcile its optimistic action.
 			const actionMsgs = findNotifications(transport.sent, 'action');
-			assert.strictEqual(actionMsgs.length, 1, `${type} should emit exactly one envelope`);
+			assert.strictEqual(actionMsgs.length, 1, `${action.type} should emit exactly one envelope`);
 			const envelope = actionMsgs[0].params as unknown as { action: { type: string }; origin: { clientId: string; clientSeq: number }; rejectionReason?: string };
-			assert.strictEqual(envelope.action.type, type);
-			assert.ok(envelope.rejectionReason, `${type} envelope should carry a rejectionReason`);
+			assert.strictEqual(envelope.action.type, action.type);
+			assert.ok(envelope.rejectionReason, `${action.type} envelope should carry a rejectionReason`);
 			assert.strictEqual(envelope.origin.clientId, clientId);
 			assert.strictEqual(envelope.origin.clientSeq, clientSeq);
 		}

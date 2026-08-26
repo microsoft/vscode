@@ -15,9 +15,10 @@ import { IGitHubService } from '../../github/common/githubService.js';
 import { PullRequestRef, PullRequestSnapshot, PullRequestSubscription } from '../../github/common/githubPullRequestService.js';
 import { GitHubRequestError } from '../../github/common/githubTransport.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentMergeConfigKey, AgentMergeConfiguration, AgentMergeSessionState, AgentMergeTarget, agentMergeGateFragments, agentMergeRootConfigSchema, defaultAgentMergeConfiguration, evaluateAgentMerge, readAgentMergeSessionState, resolveAgentMergeConfiguration } from '../common/agentMerge.js';
+import { AgentMergeConfigKey, AgentMergeConfiguration, AgentMergeDisableReason, AgentMergeSessionState, AgentMergeTarget, agentMergeDisableReasons, agentMergeDisabledNotice, agentMergeEnabledNotice, agentMergeGateFragments, agentMergeRootConfigSchema, defaultAgentMergeConfiguration, evaluateAgentMerge, readAgentMergeSessionState, resolveAgentMergeConfiguration } from '../common/agentMerge.js';
 import { buildAgentMergePrompt } from '../common/agentMergePrompt.js';
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
+import { AgentSystemNotificationKind } from '../common/meta/agentSystemNotificationMeta.js';
 import { deriveGitHubEndpoints } from '../common/githubEndpoints.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { ActionType } from '../common/state/protocol/common/actions.js';
@@ -40,6 +41,11 @@ const indeterminateObservationGap = 2 * backstopInterval;
 export interface IAgentMergeControllerOptions {
 	readonly startTurn: (session: string, turnId: string, prompt: string) => boolean;
 	readonly cancelTurn: (session: string, turnId: string) => void;
+	/**
+	 * Posts an Agent Merge state change into the session transcript. The notice
+	 * is client-visible only; it must never become part of the agent's context.
+	 */
+	readonly postNotice: (session: string, kind: AgentSystemNotificationKind, content: string) => void;
 	readonly getAutonomousSessionConfig: (session: string, config: Readonly<Record<string, unknown>>) => Record<string, unknown> | undefined;
 }
 
@@ -89,6 +95,13 @@ export class AgentMergeController extends Disposable {
 	/** Sessions kept resident so their monitoring survives with no client subscriber. */
 	private readonly _heldSessions = new Set<string>();
 
+	/**
+	 * Sessions this controller is monitoring in the current host lifetime. Only a
+	 * session in this set can produce the "turned off" notice, so the re-entrant
+	 * sync that {@link _disable} triggers cannot post a second, reasonless one.
+	 */
+	private readonly _monitoredSessions = new Set<string>();
+
 	constructor(
 		private readonly _options: IAgentMergeControllerOptions,
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
@@ -113,7 +126,10 @@ export class AgentMergeController extends Disposable {
 			}
 			void this._completeTurn(event.session);
 		}));
-		this._register(this._stateManager.onDidRemoveSession(session => this._stopRuntime(session)));
+		this._register(this._stateManager.onDidRemoveSession(session => {
+			this._monitoredSessions.delete(session);
+			this._stopRuntime(session);
+		}));
 		this._register(this._gitStateService.onDidRefreshSessionGitState(session => this._schedule(session, 0)));
 		this._register(this._gitStateService.onDidChangeSessionGitHubState(session => this._schedule(session, 0)));
 		this._register(this._configurationService.onDidRootConfigChange(() => {
@@ -215,6 +231,13 @@ export class AgentMergeController extends Disposable {
 			if (this._runtimes.has(session) || agentMerge?.injectedConfiguration) {
 				this._logService.info(`[AgentMergeController] Stopping disabled session: session=${session}`);
 			}
+			// A session still marked monitored reached this branch because
+			// something outside the controller — the user, or another client —
+			// turned Agent Merge off. Self-disables clear the mark first and
+			// report their own reason.
+			if (this._monitoredSessions.delete(session) && state) {
+				this._postNotice(session, AgentSystemNotificationKind.AgentMergeDisabled, agentMergeDisabledNotice());
+			}
 			if (agentMerge?.injectedConfiguration) {
 				this._restoreInjectedConfiguration(session, agentMerge);
 			}
@@ -222,7 +245,7 @@ export class AgentMergeController extends Disposable {
 			return;
 		}
 		if (isSessionStatusArchived(state.status)) {
-			this._disable(session, agentMerge, 'the session was archived');
+			this._disable(session, agentMerge, agentMergeDisableReasons.sessionArchived());
 			return;
 		}
 		if (!this._isFeatureEnabled()) {
@@ -251,6 +274,7 @@ export class AgentMergeController extends Disposable {
 		if (!runtime) {
 			runtime = new AgentMergeRuntime(session, () => this._queueEvaluation(session));
 			this._runtimes.set(session, runtime);
+			this._monitoredSessions.add(session);
 			this._logService.info(`[AgentMergeController] Started session runtime: session=${session}, hasTarget=${agentMerge.target !== undefined}, overrides=${formatOverrideKeys(agentMerge)}`);
 		}
 		this._schedule(session, 0);
@@ -364,11 +388,14 @@ export class AgentMergeController extends Disposable {
 			const now = new Date().toISOString();
 			target = { branchName, enabledAt: now, commentWatermark: now };
 			this._logService.info(`[AgentMergeController] Captured session branch and feedback watermark: session=${session}`);
+			// Announce only on the first capture: a resumed session already has a
+			// target, so restarting the host must not repeat the notice.
+			this._postNotice(session, AgentSystemNotificationKind.AgentMergeEnabled, agentMergeEnabledNotice(branchName));
 			this._updateAgentMergeState(session, agentMerge, { target });
 			return;
 		}
 		if (target.branchName !== branchName) {
-			this._disable(session, agentMerge, `branch changed from ${target.branchName} to ${branchName}`);
+			this._disable(session, agentMerge, agentMergeDisableReasons.branchChanged(target.branchName, branchName));
 			return;
 		}
 
@@ -378,7 +405,7 @@ export class AgentMergeController extends Disposable {
 		}
 		const refreshedState = this._stateManager.getSessionState(session);
 		if (!this._hasTargetBranch(refreshedState, target.branchName)) {
-			this._disable(session, agentMerge, 'the checked-out branch changed while pull request state was refreshing');
+			this._disable(session, agentMerge, agentMergeDisableReasons.branchChangedWhileRefreshing());
 			return;
 		}
 		const gitHubState = readSessionGitHubState(refreshedState?._meta);
@@ -395,13 +422,13 @@ export class AgentMergeController extends Disposable {
 			return;
 		}
 		if (pullRequestUrl && pullRequestUrl.toLowerCase() !== target.pullRequestUrl.toLowerCase()) {
-			this._disable(session, agentMerge, 'the session became associated with a different pull request');
+			this._disable(session, agentMerge, agentMergeDisableReasons.differentPullRequest());
 			return;
 		}
 
 		const parsed = parsePullRequestUrl(target.pullRequestUrl);
 		if (!parsed) {
-			this._disable(session, agentMerge, 'the associated pull request URL is invalid');
+			this._disable(session, agentMerge, agentMergeDisableReasons.invalidPullRequestUrl());
 			return;
 		}
 		const ref = await this._resolveRef(parsed, runtime.abortController.signal);
@@ -409,7 +436,7 @@ export class AgentMergeController extends Disposable {
 			return;
 		}
 		if (!ref) {
-			this._disable(session, agentMerge, 'the bound pull request belongs to a different GitHub host than the signed-in account');
+			this._disable(session, agentMerge, agentMergeDisableReasons.differentGitHubHost());
 			return;
 		}
 		const subscription = await this._ensureSubscription(session, runtime, ref);
@@ -428,13 +455,13 @@ export class AgentMergeController extends Disposable {
 			case 'indeterminate':
 				this._reportBlockedCredential(session, runtime, snapshot);
 				if (this._isIndeterminateBudgetExhausted(session, runtime, gate.cause)) {
-					this._disable(session, agentMerge, `the pull request state could not be evaluated for ${Math.round(maximumIndeterminateDuration / 60_000)} minutes: ${gate.reason}`);
+					this._disable(session, agentMerge, agentMergeDisableReasons.indeterminate(Math.round(maximumIndeterminateDuration / 60_000), gate.reason));
 					return;
 				}
 				runtime.backstopScheduler.schedule();
 				return;
 			case 'terminal':
-				this._disable(session, agentMerge, 'the pull request is closed or merged');
+				this._disable(session, agentMerge, agentMergeDisableReasons.pullRequestClosed());
 				return;
 			case 'noWork':
 				runtime.backstopScheduler.schedule();
@@ -454,7 +481,7 @@ export class AgentMergeController extends Disposable {
 				const totalPromptCount = (agentMerge.totalPromptCount ?? 0) + 1;
 				if (repeatedPromptCount >= maximumRepeatedPromptCount || totalPromptCount > maximumTotalPromptCount) {
 					this._logService.warn(`[AgentMergeController] Repair attempt budget exhausted: session=${session}, repeatedAttempts=${repeatedPromptCount}, totalAttempts=${totalPromptCount}`);
-					this._disable(session, agentMerge, 'the same pull request blockers remained after repeated repair attempts');
+					this._disable(session, agentMerge, agentMergeDisableReasons.repairBudgetExhausted());
 					return;
 				}
 				const turnId = generateUuid();
@@ -698,7 +725,7 @@ export class AgentMergeController extends Disposable {
 		}
 		const result = await this._gitHubService.mutations.merge(preparation, { method, authorization }, runtime.abortController.signal);
 		this._logService.info(`[AgentMergeController] Pull request merged natively: session=${session}, method=${method}, outcome=${result.outcome}`);
-		this._disable(session, currentState, 'the pull request was merged');
+		this._disable(session, currentState, agentMergeDisableReasons.pullRequestMerged());
 	}
 
 	private async _completeTurn(session: string): Promise<void> {
@@ -737,9 +764,13 @@ export class AgentMergeController extends Disposable {
 		});
 	}
 
-	private _disable(session: string, current: AgentMergeSessionState, reason: string): void {
-		this._logService.info(`[AgentMergeController] Disabling Agent Merge for ${session}: ${reason}`);
+	private _disable(session: string, current: AgentMergeSessionState, reason: AgentMergeDisableReason): void {
+		this._logService.info(`[AgentMergeController] Disabling Agent Merge for ${session}: ${reason.log}`);
 		this._activeTurns.delete(session);
+		// Claim the transition before the config write re-enters `_doSyncSession`,
+		// so the reasoned notice below is the only one the user sees.
+		this._monitoredSessions.delete(session);
+		this._postNotice(session, AgentSystemNotificationKind.AgentMergeDisabled, reason.notice);
 		const patch: Record<string, unknown> = {
 			[SessionConfigKey.AgentMerge]: {
 				enabled: false,
@@ -750,6 +781,18 @@ export class AgentMergeController extends Disposable {
 		this._addInjectedConfigurationRestore(patch, session, current);
 		this._configurationService.updateSessionConfig(session, patch);
 		this._stopRuntime(session);
+	}
+
+	/**
+	 * Reports an Agent Merge state change in the session transcript. A failure to
+	 * announce must never interrupt monitoring, so the notice is best-effort.
+	 */
+	private _postNotice(session: string, kind: AgentSystemNotificationKind, content: string): void {
+		try {
+			this._options.postNotice(session, kind, content);
+		} catch (error) {
+			this._logService.warn(`[AgentMergeController] Failed to post an Agent Merge notice: session=${session}`, error);
+		}
 	}
 
 	private _addInjectedConfigurationRestore(patch: Record<string, unknown>, session: string, agentMerge: AgentMergeSessionState): void {

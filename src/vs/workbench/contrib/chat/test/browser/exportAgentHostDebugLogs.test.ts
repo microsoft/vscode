@@ -14,7 +14,7 @@ import { buildChatUri, buildDefaultChatUri, getSessionChatResource } from '../..
 import { FileService } from '../../../../../platform/files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { collectRotatedLogFiles, createHostArtifactStream, getAgentHostDebugLogsExportName, toActiveAgentHostSession } from '../../browser/actions/exportAgentHostDebugLogsAction.js';
+import { collectRotatedLogFiles, createHostArtifactStream, findOutputChannelLogFiles, getAgentHostDebugLogsExportName, resolveAgentHostDebugLogsChat, toActiveAgentHostSession } from '../../browser/actions/exportAgentHostDebugLogsAction.js';
 
 function artifactOfSize(size: number): IAgentHostDebugLogsArtifact {
 	return {
@@ -118,6 +118,19 @@ suite('toActiveAgentHostSession', () => {
 			missing: undefined,
 		});
 	});
+
+	test('continues without an active chat when session state is unavailable', () => {
+		const activeSession = toActiveAgentHostSession(URI.parse('remote-test-copilotcli:/session-1#side-chat'), 'Side chat', 'Session one');
+		assert.ok(activeSession);
+
+		assert.deepStrictEqual({
+			unavailable: resolveAgentHostDebugLogsChat(activeSession, undefined),
+			failed: resolveAgentHostDebugLogsChat(activeSession, new Error('disconnected')),
+		}, {
+			unavailable: { backendChat: undefined, sessionTitle: 'Session one' },
+			failed: { backendChat: undefined, sessionTitle: 'Session one' },
+		});
+	});
 });
 
 suite('collectRotatedLogFiles', () => {
@@ -170,6 +183,26 @@ suite('collectRotatedLogFiles', () => {
 			allInline: true,
 			totalSize: 6,
 		});
+	});
+
+	test('finds the newest matching output channel backing files', async () => {
+		const fileService = disposables.add(new FileService(new NullLogService()));
+		disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+		const windowLogs = URI.file('/logs/window1');
+		const oldOutput = URI.joinPath(windowLogs, 'output_20260825T080000');
+		const newOutput = URI.joinPath(windowLogs, 'output_20260825T090000');
+		await Promise.all([fileService.createFolder(oldOutput), fileService.createFolder(newOutput)]);
+		await Promise.all([
+			fileService.writeFile(URI.joinPath(oldOutput, 'agentHost.otlp.remote.log'), VSBuffer.fromString('old')),
+			fileService.writeFile(URI.joinPath(newOutput, 'agentHost.otlp.remote.log'), VSBuffer.fromString('new')),
+			fileService.writeFile(URI.joinPath(newOutput, 'unrelated.log'), VSBuffer.fromString('unrelated')),
+		]);
+
+		const files = await findOutputChannelLogFiles(windowLogs, new Set(['agentHost.otlp.remote.log']), fileService);
+
+		assert.deepStrictEqual(files.map(file => file.toString()), [
+			'file:///logs/window1/output_20260825T090000/agentHost.otlp.remote.log',
+		]);
 	});
 
 	test('collects local user data logs as resources', async () => {

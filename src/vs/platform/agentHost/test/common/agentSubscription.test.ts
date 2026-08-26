@@ -10,9 +10,10 @@ import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
 import { ActionType, type ActionEnvelope, type ClientChangesetAction } from '../../common/state/sessionActions.js';
-import { AutomationOperation, AutomationRunOriginKind, AutomationRunStatus, ChangesetStatus, MessageKind, SessionLifecycle, SessionStatus, TerminalClaimKind, TerminalLifecycleStatus, TurnState, type AnnotationsState, type AutomationCatalogState, type AutomationRunState, type ChangesetState, type RootState, type SessionState, type SessionSummary, type TerminalState } from '../../common/state/protocol/state.js';
-import { AUTOMATION_CATALOG_URI, buildDefaultChatUri, createChatState, createDefaultChatSummary, ROOT_STATE_URI, StateComponents, type ChatState } from '../../common/state/sessionState.js';
+import { AutomationOperation, AutomationRunOriginKind, AutomationRunStatus, ChangesetStatus, MessageKind, ResponsePartKind, SessionLifecycle, SessionStatus, TerminalClaimKind, TerminalLifecycleStatus, TurnState, type AnnotationsState, type AutomationCatalogState, type AutomationRunState, type ChangesetState, type ErrorInfo, type RootState, type SessionState, type SessionSummary, type TerminalState, type Turn } from '../../common/state/protocol/state.js';
+import { AUTOMATION_CATALOG_URI, buildDefaultChatUri, createChatState, createDefaultChatSummary, getTurnError, ROOT_STATE_URI, StateComponents, type ChatState } from '../../common/state/sessionState.js';
 import { AgentSubscriptionManager, AutomationCatalogSubscription, AutomationRunSubscription, ChangesetStateSubscription, ChatStateSubscription, isActionEnvelopeRelevantToSubscriptionUris, RootStateSubscription, SessionStateSubscription, TerminalStateSubscription } from '../../common/state/agentSubscription.js';
+import { normalizeLegacyActionEnvelope, readLegacyTurnError } from '../../common/state/legacyProtocolCompatibility.js';
 
 // Helpers
 
@@ -624,6 +625,83 @@ suite('ChatStateSubscription', () => {
 	function createSub(uri: string = chatUri, clientId: string = 'c1'): ChatStateSubscription {
 		return disposables.add(new ChatStateSubscription(uri, clientId, () => ++seq, noop));
 	}
+
+	function makeLegacyErrorTurn(error: ErrorInfo): Turn & { readonly error: ErrorInfo } {
+		return {
+			id: 'turn-1',
+			message: { text: 'hello', origin: { kind: MessageKind.User } },
+			responseParts: [],
+			usage: undefined,
+			state: TurnState.Error,
+			error,
+		};
+	}
+
+	test('normalizes legacy live errors to durable response parts', () => {
+		const error: ErrorInfo = { errorType: 'LegacyError', message: 'legacy failure' };
+		const envelope = normalizeLegacyActionEnvelope({
+			channel: chatUri,
+			serverSeq: 1,
+			origin: undefined,
+			action: {
+				type: ActionType.ChatError,
+				turnId: 'turn-1',
+				duration: 1000,
+				error,
+			},
+		});
+
+		assert.deepStrictEqual(envelope.action, {
+			type: ActionType.ChatError,
+			turnId: 'turn-1',
+			duration: 1000,
+			part: { kind: ResponsePartKind.Error, error },
+		});
+	});
+
+	test('normalizes legacy loaded turn errors to durable response parts', () => {
+		const error: ErrorInfo = { errorType: 'LegacyError', message: 'legacy failure' };
+		const envelope = normalizeLegacyActionEnvelope({
+			channel: chatUri,
+			serverSeq: 1,
+			origin: undefined,
+			action: {
+				type: ActionType.ChatTurnsLoaded,
+				turns: [makeLegacyErrorTurn(error)],
+			},
+		});
+
+		assert.deepStrictEqual(envelope.action, {
+			type: ActionType.ChatTurnsLoaded,
+			turns: [{
+				id: 'turn-1',
+				message: { text: 'hello', origin: { kind: MessageKind.User } },
+				responseParts: [{ kind: ResponsePartKind.Error, error }],
+				usage: undefined,
+				state: TurnState.Error,
+			}],
+		});
+	});
+
+	test('normalizes legacy snapshot errors to durable response parts', () => {
+		const error: ErrorInfo = { errorType: 'LegacyError', message: 'legacy failure' };
+		const legacyTurn = makeLegacyErrorTurn(error);
+		const sub = createSub();
+
+		sub.handleSnapshot(makeChatState(chatUri, undefined, { turns: [legacyTurn] }), 0);
+
+		assert.deepStrictEqual({
+			legacyError: getTurnError(legacyTurn),
+			error: getTurnError(sub.verifiedValue?.turns[0]),
+			responseParts: sub.verifiedValue?.turns[0].responseParts,
+			legacyField: sub.verifiedValue?.turns[0] && readLegacyTurnError(sub.verifiedValue.turns[0]),
+		}, {
+			legacyError: error,
+			error,
+			responseParts: [{ kind: ResponsePartKind.Error, error }],
+			legacyField: undefined,
+		});
+	});
 
 	test('server terminal turn action drops stale optimistic turn start', () => {
 		const sub = createSub();

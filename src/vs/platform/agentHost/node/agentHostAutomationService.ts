@@ -836,7 +836,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 						createdAt: current.lifecycle.createdAt,
 						...(current.lifecycle.status === AutomationRunStatus.Running ? { startedAt: current.lifecycle.startedAt } : {}),
 						completedAt,
-						error: action.error,
+						error: action.part.error,
 					};
 					break;
 			}

@@ -157,7 +157,8 @@ export interface InitializeParams extends BaseParams {
 	 *
 	 * The server selects one entry and returns it as `InitializeResult.protocolVersion`.
 	 * If the server cannot speak any of the offered versions, it MUST return
-	 * error code `-32005` (`UnsupportedProtocolVersion`).
+	 * error code `-32005` (`UnsupportedProtocolVersion`) with required
+	 * `UnsupportedProtocolVersionErrorData` containing `supportedVersions`.
 	 */
 	protocolVersions: string[];
 	/** Unique client identifier */
@@ -221,7 +222,8 @@ export interface ClientCapabilities {
  * `protocolVersions` list. The client and server MUST use this version for
  * the rest of the connection. If the server cannot speak any of the offered
  * versions it MUST return error code `-32005` (`UnsupportedProtocolVersion`)
- * instead of a result.
+ * with required `UnsupportedProtocolVersionErrorData` containing
+ * `supportedVersions`, instead of a result.
  */
 export interface InitializeResult {
 	/**
@@ -374,6 +376,7 @@ export interface PingParams extends BaseParams {
  * Discriminant for reconnect result types.
  *
  * @category Commands
+ * @exhaustive
  */
 export const enum ReconnectResultType {
 	Replay = 'replay',
@@ -563,6 +566,7 @@ export interface DispatchActionParams {
  * Encoding of fetched content data.
  *
  * @category Commands
+ * @exhaustive
  */
 export const enum ContentEncoding {
 	Base64 = 'base64',
@@ -653,6 +657,7 @@ export interface ResourceReadResult {
  *   the file — use `truncate` to overwrite bytes in place.
  *
  * @category Commands
+ * @exhaustive
  */
 export const enum ResourceWriteMode {
 	Truncate = 'truncate',
@@ -967,6 +972,7 @@ export interface ResourceMoveResult {
  * Discriminant for {@link ResourceResolveResult.type}.
  *
  * @category Commands
+ * @nonexhaustive
  */
 export const enum ResourceType {
 	File = 'file',

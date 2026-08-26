@@ -300,6 +300,11 @@ export interface IChatProgressMessage {
 export interface IChatSystemNotificationPart {
 	content: IMarkdownString;
 	kind: 'systemNotification';
+	/**
+	 * Icon shown beside the notification. Defaults to a check, which only suits
+	 * notifications that report something completing.
+	 */
+	icon?: ThemeIcon;
 }
 
 export interface IChatTask extends IChatTaskDto {
@@ -761,6 +766,8 @@ export type ChatMcpAppData =
 		kind: 'agentHost';
 		/** URI of the UI resource for rendering (e.g., "ui://weather-server/dashboard") */
 		resourceUri: string;
+		/** Sanitized connection identifier used to resolve App-provided resource URIs. */
+		connectionAuthority: string;
 		/** AHP `mcp://` channel URI for the originating server. */
 		channel: string;
 		/**

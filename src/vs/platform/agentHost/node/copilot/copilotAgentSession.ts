@@ -1541,7 +1541,7 @@ export class CopilotAgentSession extends Disposable {
 			type: ActionType.ChatError,
 			turnId: turn.id,
 			duration: turn.duration,
-			error,
+			part: { kind: ResponsePartKind.Error, error },
 		});
 		this._clearActiveTurn();
 		return turn.id;
@@ -4770,7 +4770,7 @@ export class CopilotAgentSession extends Disposable {
 				type: ActionType.ChatError,
 				turnId: this._turnId,
 				duration: turn?.duration ?? 0,
-				error: buildChatErrorInfoFromCopilotSdkFields(e.data),
+				part: { kind: ResponsePartKind.Error, error: buildChatErrorInfoFromCopilotSdkFields(e.data) },
 			});
 		}));
 

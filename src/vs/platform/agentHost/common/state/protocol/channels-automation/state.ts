@@ -25,6 +25,7 @@ import type { FetchAutomationRunsParams, ListAutomationTriggerDefinitionsParams,
  * operations describe what is allowed for this particular automation now.
  *
  * @category Automation State
+ * @nonexhaustive
  */
 export const enum AutomationOperation {
 	/** Replace editable fields using {@link AutomationUpdateRequestedAction | `automation/updateRequested`}. */
@@ -80,6 +81,7 @@ export interface AutomationSchedule {
  * unavailable.
  *
  * @category Automation State
+ * @nonexhaustive
  */
 export const enum AutomationMisfirePolicy {
 	/** Discard missed occurrences and wait for the next future occurrence. */
@@ -95,6 +97,7 @@ export const enum AutomationMisfirePolicy {
  * Discriminant for automatic trigger definitions.
  *
  * @category Automation State
+ * @exhaustive
  */
 export const enum AutomationTriggerKind {
 	/** A portable recurring {@link AutomationSchedule}. */
