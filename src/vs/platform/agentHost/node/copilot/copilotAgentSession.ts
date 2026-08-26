@@ -2025,6 +2025,17 @@ export class CopilotAgentSession extends Disposable {
 			wrapper.dispose();
 			throw new CancellationError();
 		}
+		const samplingInterest = await wrapper.session.rpc.eventLog.registerInterest({ eventType: 'sampling.requested' });
+		if (this._store.isDisposed) {
+			await wrapper.session.rpc.eventLog.releaseInterest({ handle: samplingInterest.handle });
+			wrapper.dispose();
+			throw new CancellationError();
+		}
+		this._register(toDisposable(() => {
+			void wrapper.session.rpc.eventLog.releaseInterest({ handle: samplingInterest.handle }).catch(error => {
+				this._logService.error(error, `[Copilot:${this.sessionId}] Failed to release sampling event interest`);
+			});
+		}));
 		this._wrapper = this._register(wrapper);
 		this._register(this._customizationEnablementService.onDidChange(event => {
 			if (!event.sessions.includes(this._ownerSessionUri.toString())) {
@@ -3100,6 +3111,17 @@ export class CopilotAgentSession extends Disposable {
 			throw new Error(`sampling/createMessage ${result.action}${result.error ? `: ${result.error}` : ''}`);
 		} finally {
 			this._pendingMcpSamplings.delete(requestId);
+		}
+	}
+
+	private async _rejectSamplingRequest(requestId: string): Promise<void> {
+		try {
+			const result = await this._wrapper.session.rpc.ui.handlePendingSampling({ requestId });
+			if (!result.success) {
+				this._logService.warn(`[Copilot:${this.sessionId}] Sampling request was no longer pending: requestId=${requestId}`);
+			}
+		} catch (error) {
+			this._logService.error(error, `[Copilot:${this.sessionId}] Failed to reject sampling request: requestId=${requestId}`);
 		}
 	}
 
@@ -4249,6 +4271,10 @@ export class CopilotAgentSession extends Disposable {
 				// Wait for the full message boundary; clearing on an earlier tool delta would duplicate assembled markdown.
 				this._beginToolCallRound(parentToolCallId);
 			}
+		}));
+
+		this._register(wrapper.onSamplingRequested(e => {
+			void this._rejectSamplingRequest(e.data.requestId);
 		}));
 
 		// TODO@connor4312: Remove this correlation once the SDK permission callback includes auto-approval data.
