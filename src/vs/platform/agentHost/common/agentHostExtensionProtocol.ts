@@ -13,13 +13,21 @@ export const ReadAgentHostDebugLogsChunkExtensionMethod = 'vscode/readAgentHostD
 
 const AgentHostChatStateFileCapabilityMetaKey = 'vscode.getAgentHostSessionStateFile.chat';
 
-export function getAgentHostExtensionInitializeResultMeta(): Record<string, unknown> {
+export interface IAgentHostExtensionInitializeResultMeta extends Record<string, unknown> {
+	readonly [AgentHostChatStateFileCapabilityMetaKey]?: true;
+}
+
+export interface IAgentHostExtensionInitializeResult extends InitializeResult {
+	readonly _meta?: IAgentHostExtensionInitializeResultMeta;
+}
+
+export function getAgentHostExtensionInitializeResultMeta(): IAgentHostExtensionInitializeResultMeta {
 	return { [AgentHostChatStateFileCapabilityMetaKey]: true };
 }
 
-export function supportsAgentHostChatStateFile(result: InitializeResult | undefined): boolean {
-	// eslint-disable-next-line local/code-no-untyped-meta-access -- sanctioned reader for the namespaced Agent Host capability slot.
-	return result?._meta?.[AgentHostChatStateFileCapabilityMetaKey] === true;
+export function supportsAgentHostChatStateFile(result: IAgentHostExtensionInitializeResult | undefined): boolean {
+	const meta = result?._meta;
+	return meta?.[AgentHostChatStateFileCapabilityMetaKey] === true;
 }
 
 export const collectAgentHostDebugLogsParamsValidator = vObj({

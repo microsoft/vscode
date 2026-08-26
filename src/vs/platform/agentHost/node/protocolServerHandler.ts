@@ -20,7 +20,7 @@ import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportK
 import { AgentSession, type IAgentCreateChatRequestOptions, type IMcpNotification } from '../common/agent.js';
 import { isManagedSettingsPermissions } from '../common/agentHostManagedSettings.js';
 import { type IAgentService } from '../common/agentService.js';
-import { collectAgentHostDebugLogsParamsValidator, CollectAgentHostDebugLogsExtensionMethod, getAgentHostExtensionInitializeResultMeta, GetAgentHostSessionStateFileExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod } from '../common/agentHostExtensionProtocol.js';
+import { collectAgentHostDebugLogsParamsValidator, CollectAgentHostDebugLogsExtensionMethod, getAgentHostExtensionInitializeResultMeta, GetAgentHostSessionStateFileExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod, type IAgentHostExtensionInitializeResult } from '../common/agentHostExtensionProtocol.js';
 import { isActionEnvelopeRelevantToSubscriptionUris } from '../common/state/agentSubscription.js';
 import { ChatSourceKind } from '../common/state/protocol/channels-chat/commands.js';
 import type { CommandMap } from '../common/state/protocol/messages.js';
@@ -573,7 +573,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		params: InitializeParams,
 		transport: IProtocolTransport,
 		disposables: DisposableStore,
-	): { client: IConnectedClient; response: unknown } {
+	): { client: IConnectedClient; response: IAgentHostExtensionInitializeResult } {
 		const offered = Array.isArray(params.protocolVersions) ? params.protocolVersions : [];
 		this._logService.info(`[ProtocolServer] Initialize: clientId=${params.clientId}, protocolVersions=[${offered.join(', ')}]`);
 
@@ -653,7 +653,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 					_meta: getAgentHostExtensionInitializeResultMeta(),
 					snapshots,
 					defaultDirectory: this._config.defaultDirectory,
-					completionTriggerCharacters: this._config.completionTriggerCharacters,
+					completionTriggerCharacters: this._config.completionTriggerCharacters ? [...this._config.completionTriggerCharacters] : undefined,
 					terminalCommandPrefix: this._config.terminalCommandPrefix,
 					telemetry: this._config.otlpLogEmitter ? { logs: OTLP_LOGS_CHANNEL_TEMPLATE } : undefined,
 				},
