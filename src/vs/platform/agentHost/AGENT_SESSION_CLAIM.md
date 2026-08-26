@@ -139,9 +139,10 @@ without tearing the other down. The claim also binds the hydrated subscription t
 the active-client entry, so later inventory or remote state changes re-reconcile
 rather than publishing once and going stale.
 
-Releasing the claim publishes the active-client removal and drops its references.
-That removal is best effort: it also runs during shutdown, where the connection
-may already be gone, and a failure to say goodbye must not take the window down.
+Releasing the last holder publishes the active-client removal. A claim released
+while a chat is still open drops only its own references. Removal is best
+effort: it also runs during shutdown, where the connection may already be gone,
+and a failure to say goodbye must not take the window down.
 
 ## Client tool approval
 

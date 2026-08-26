@@ -3460,6 +3460,9 @@ suite('AgentHostClientTools', () => {
 				await whenToolCompleted(connection, 'tool-call-1');
 
 				assert.strictEqual(toolsService.invokedToolCalls.length, 1, 'releasing the claim must not tear down the chat\'s watcher');
+				const removals = connection.dispatchedActions.filter(entry =>
+					isSessionAction(entry.action) && entry.action.type === ActionType.SessionActiveClientRemoved);
+				assert.deepStrictEqual(removals, [], 'the shared active client must survive while the chat holds it');
 			});
 
 			test('the claim keeps working after a chat on the same session closes', async () => {
