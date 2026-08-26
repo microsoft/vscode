@@ -921,6 +921,168 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
+		test('shows nested chat connectors only while hovering the parent or a child', () => {
+			const main = createChat('Main chat');
+			const firstPeer = createChat('First peer', ChatOriginKind.User);
+			const secondPeer = createChat('Second peer', ChatOriginKind.User);
+			const base = createTestSession('Session').session;
+			const session: ISession = {
+				...base,
+				chats: constObservable([main, firstPeer, secondPeer]),
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			};
+			const container = renderSessionChats(session);
+			const parent = container.querySelector<HTMLElement>('.session-item');
+			const parentRow = parent?.closest('.monaco-list-row');
+			const children = [...container.querySelectorAll<HTMLElement>('.session-chat-item')];
+			const childRows = children.map(child => child.closest<HTMLElement>('.monaco-list-row'));
+			assert.ok(parent);
+			assert.ok(parentRow);
+			assert.ok(parentRow.querySelector('.monaco-tl-twistie'));
+			assert.ok(childRows.every(row => row));
+
+			const snapshot = () => ({
+				parent: {
+					hasNestedChats: parentRow.classList.contains('session-parent-chat-row'),
+					connectorsActive: parentRow.classList.contains('nested-chat-connectors-active'),
+				},
+				children: children.map(child => child.classList.contains('nested-chat-connectors-active')),
+				lastChildren: children.map(child => child.classList.contains('last-session-chat-item')),
+			});
+			const atRest = snapshot();
+			parentRow.dispatchEvent(new MouseEvent('mouseenter'));
+			const parentHovered = snapshot();
+			parentRow.dispatchEvent(new MouseEvent('mouseleave'));
+			childRows[0]?.dispatchEvent(new MouseEvent('mouseenter'));
+			const childHovered = snapshot();
+			childRows[0]?.dispatchEvent(new MouseEvent('mouseleave'));
+
+			assert.deepStrictEqual({ atRest, parentHovered, childHovered, afterHover: snapshot() }, {
+				atRest: { parent: { hasNestedChats: true, connectorsActive: false }, children: [false, false], lastChildren: [false, true] },
+				parentHovered: { parent: { hasNestedChats: true, connectorsActive: true }, children: [true, true], lastChildren: [false, true] },
+				childHovered: { parent: { hasNestedChats: true, connectorsActive: true }, children: [true, true], lastChildren: [false, true] },
+				afterHover: { parent: { hasNestedChats: true, connectorsActive: false }, children: [false, false], lastChildren: [false, true] },
+			});
+		});
+
+		test('selects only the revealed nested chat', () => {
+			const main = createChat('Main chat');
+			const peer = createChat('Peer chat', ChatOriginKind.User);
+			const base = createTestSession('Session').session;
+			const session: ISession = {
+				...base,
+				chats: constObservable([main, peer]),
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			};
+			const harness = createListHarness(disposables, [session]);
+			const container = harness.createContainer();
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => SessionsGrouping.Date,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+			}));
+			list.layout(300, 400);
+
+			list.reveal(session.resource, peer.resource);
+
+			const isHighlighted = (element: Element | null | undefined) => {
+				const row = element?.closest('.monaco-list-row');
+				return row?.classList.contains('focused') || row?.classList.contains('selected');
+			};
+			assert.deepStrictEqual({
+				parentHighlighted: isHighlighted(container.querySelector('.session-item')),
+				childHighlighted: isHighlighted(container.querySelector('.session-chat-item')),
+				childSelected: container.querySelector('.session-chat-item')?.closest('.monaco-list-row')?.classList.contains('selected'),
+				parentConnectorActive: container.querySelector('.session-item')?.closest('.monaco-list-row')?.classList.contains('nested-chat-connectors-active'),
+				childConnectorActive: container.querySelector('.session-chat-item')?.classList.contains('nested-chat-connectors-active'),
+			}, {
+				parentHighlighted: false,
+				childHighlighted: true,
+				childSelected: true,
+				parentConnectorActive: true,
+				childConnectorActive: true,
+			});
+
+			const outside = document.createElement('button');
+			document.body.append(outside);
+			outside.focus();
+			outside.remove();
+
+			assert.strictEqual(container.querySelector('.session-chat-item')?.closest('.monaco-list-row')?.classList.contains('selected'), true);
+
+			list.reveal(session.resource, main.resource);
+
+			assert.deepStrictEqual({
+				parentHighlighted: isHighlighted(container.querySelector('.session-item')),
+				childHighlighted: isHighlighted(container.querySelector('.session-chat-item')),
+				parentConnectorActive: container.querySelector('.session-item')?.closest('.monaco-list-row')?.classList.contains('nested-chat-connectors-active'),
+				childConnectorActive: container.querySelector('.session-chat-item')?.classList.contains('nested-chat-connectors-active'),
+			}, {
+				parentHighlighted: true,
+				childHighlighted: false,
+				parentConnectorActive: true,
+				childConnectorActive: true,
+			});
+		});
+
+		test('preserves the selected nested chat family while focus moves', () => {
+			const createNestedSession = (title: string) => {
+				const main = createChat(`${title} main`);
+				const peer = createChat(`${title} peer`, ChatOriginKind.User);
+				const base = createTestSession(title).session;
+				const session: ISession = {
+					...base,
+					chats: constObservable([main, peer]),
+					mainChat: constObservable(main),
+					capabilities: constObservable({ supportsMultipleChats: true }),
+				};
+				return session;
+			};
+			const first = createNestedSession('First session');
+			const second = createNestedSession('Second session');
+			const sessions = [first, second];
+			const harness = createListHarness(disposables, sessions);
+			const container = harness.createContainer();
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => SessionsGrouping.Date,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+			}));
+			list.layout(300, 400);
+
+			const parentRows = [...container.querySelectorAll<HTMLElement>('.session-item')]
+				.map(item => item.closest<HTMLElement>('.monaco-list-row'))
+				.filter(row => row !== null)
+				.sort((left, right) => parseFloat(left.style.top) - parseFloat(right.style.top));
+			const selectedTitle = parentRows[0].querySelector('.session-title')?.textContent;
+			const selected = sessions.find(session => session.title.get() === selectedTitle);
+			assert.ok(selected);
+			list.reveal(selected.resource, selected.mainChat.get().resource);
+
+			parentRows[1].dispatchEvent(new MouseEvent('contextmenu', { button: 2, bubbles: true }));
+
+			const selectedParentRow = parentRows.find(row => row.querySelector('.session-title')?.textContent === selectedTitle);
+			const focusedParentRow = parentRows.find(row => row.classList.contains('focused'));
+			const focusedTitle = focusedParentRow?.querySelector('.session-title')?.textContent;
+			const focusedChild = [...container.querySelectorAll<HTMLElement>('.session-chat-item')]
+				.find(item => item.querySelector('.session-chat-title')?.textContent === `${focusedTitle} peer`);
+			assert.deepStrictEqual({
+				selectedParentSelected: selectedParentRow?.classList.contains('selected'),
+				selectedFamilyActive: selectedParentRow?.classList.contains('nested-chat-connectors-active'),
+				focusedAnotherFamily: focusedParentRow !== selectedParentRow,
+				focusedFamilyActive: focusedParentRow?.classList.contains('nested-chat-connectors-active'),
+				focusedChildActive: focusedChild?.classList.contains('nested-chat-connectors-active'),
+			}, {
+				selectedParentSelected: true,
+				selectedFamilyActive: true,
+				focusedAnotherFamily: true,
+				focusedFamilyActive: true,
+				focusedChildActive: true,
+			});
+		});
+
 		test('opens the selected nested chat', () => {
 			const main = createChat('Main chat');
 			const peer = createChat('Peer chat', ChatOriginKind.User);
@@ -1101,6 +1263,22 @@ suite('Sessions - SessionsList', () => {
 				expanded: 'false',
 				isCollapsed: true,
 				visibleChats: [],
+			});
+
+			const parentRow = multiChatItem.closest<HTMLElement>('.monaco-list-row');
+			parentRow?.dispatchEvent(new MouseEvent('mouseenter'));
+			assert.strictEqual(mainWindow.getComputedStyle(parentRow, '::after').opacity, '0');
+
+			twistie.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
+			assert.strictEqual(mainWindow.getComputedStyle(parentRow, '::after').opacity, '1');
+			assert.deepStrictEqual({
+				expanded: parentRow?.getAttribute('aria-expanded'),
+				visibleChats: chatRowTitles(container),
+				childrenConnectorsActive: [...container.querySelectorAll('.session-chat-item')].map(child => child.classList.contains('nested-chat-connectors-active')),
+			}, {
+				expanded: 'true',
+				visibleChats: ['Peer chat'],
+				childrenConnectorsActive: [true],
 			});
 		});
 	});

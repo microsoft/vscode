@@ -14,6 +14,39 @@
 		width: calc(100% - 20px);
 	}
 
+	&.sessions-list-hierarchical .monaco-list-row.session-list-inset-row {
+		box-sizing: border-box;
+		border-block: var(--vscode-spacing-size20) solid transparent;
+		background-clip: padding-box;
+	}
+
+	&.sessions-list-hierarchical .monaco-list-row.session-chat-row {
+		border-block-width: 0;
+	}
+
+	&.sessions-list-hierarchical .monaco-list-row.session-parent-chat-row {
+		border-bottom-width: 0;
+	}
+
+	&.sessions-list-hierarchical .monaco-list-row.session-chat-row.last-session-chat-row {
+		border-bottom-width: var(--vscode-spacing-size20);
+	}
+
+	&.sessions-list-hierarchical .monaco-list-row.session-parent-chat-row::after {
+		content: '';
+		position: absolute;
+		top: calc(var(--vscode-spacing-size20) + var(--vscode-spacing-size80) + var(--vscode-spacing-size160));
+		bottom: 0;
+		left: var(--vscode-spacing-size200);
+		border-left: var(--vscode-strokeThickness) solid var(--vscode-chat-requestBorder, var(--vscode-tree-inactiveIndentGuidesStroke));
+		opacity: 0;
+		pointer-events: none;
+	}
+
+	&.sessions-list-hierarchical .monaco-list-row.session-parent-chat-row[aria-expanded='true'].nested-chat-connectors-active::after {
+		opacity: 1;
+	}
+
 	/* Suppressed while selected so the selection highlight is not overpainted. */
 	.monaco-list-row:not(.selected):not(.focused):not(:hover):has(.session-item.needs-input) {
 		animation: session-needs-input-accent-pulse 3s ease-in-out infinite;
@@ -449,10 +482,31 @@
 	&::before {
 		content: '';
 		position: absolute;
+		top: 50%;
+		bottom: calc(-1 * var(--vscode-strokeThickness));
+		left: var(--vscode-spacing-size200);
+		border-left: var(--vscode-strokeThickness) solid transparent;
+	}
+
+	&::after {
+		content: '';
+		position: absolute;
 		top: 0;
-		bottom: 0;
-		left: var(--vscode-spacing-size240);
-		border-left: var(--vscode-strokeThickness) solid var(--vscode-tree-inactiveIndentGuidesStroke);
+		left: var(--vscode-spacing-size200);
+		width: var(--vscode-spacing-size240);
+		height: 50%;
+		border-bottom: var(--vscode-strokeThickness) solid transparent;
+		border-left: var(--vscode-strokeThickness) solid transparent;
+		border-bottom-left-radius: var(--vscode-cornerRadius-small);
+	}
+
+	&.last-session-chat-item::before {
+		display: none;
+	}
+
+	&.nested-chat-connectors-active::before,
+	&.nested-chat-connectors-active::after {
+		border-color: var(--vscode-chat-requestBorder, var(--vscode-tree-inactiveIndentGuidesStroke));
 	}
 
 	.session-chat-icon {
@@ -835,6 +889,11 @@
 		 * of the title-row flow so a 44px tap target doesn't inflate
 		 * the title line-height or shift the details row down). */
 		position: relative;
+
+	}
+
+	&.sessions-list-hierarchical .monaco-list-row.session-parent-chat-row::after {
+		top: calc(var(--vscode-spacing-size20) + var(--vscode-spacing-size100) + var(--vscode-spacing-size200));
 
 		/* Quick chats keep the icon/title top-aligned (same as desktop) so an
 		 * approval/CI row growing the main column taller doesn't center the

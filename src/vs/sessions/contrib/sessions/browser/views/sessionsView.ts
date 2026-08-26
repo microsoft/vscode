@@ -227,15 +227,19 @@ export class SessionsView extends ViewPane {
 						this.layoutService.setPartHidden(true, Parts.SIDEBAR_PART);
 					}
 				};
+				const session = this.sessionsManagementService.getSession(resource);
 				if (sideBySide) {
 					// Alt-click: open the session to the right of the last visible session in the grid.
-					const session = this.sessionsManagementService.getSession(resource);
 					if (session) {
-						openSessionToTheSide(this.sessionsService, session, { preserveFocus }).then(onOpened).catch(onUnexpectedError);
+						openSessionToTheSide(this.sessionsService, session, { preserveFocus, chatResource: session.mainChat.get().resource }).then(onOpened).catch(onUnexpectedError);
 						return;
 					}
 				}
-				this.sessionsService.openSession(resource, { preserveFocus }).then(onOpened).catch(onUnexpectedError);
+				if (session) {
+					this.sessionsService.openChat(session, session.mainChat.get().resource, { preserveFocus }).then(onOpened).catch(onUnexpectedError);
+				} else {
+					this.sessionsService.openSession(resource, { preserveFocus }).then(onOpened).catch(onUnexpectedError);
+				}
 			},
 			canOpenSession: session => this.sessionsService.canOpenSession(session),
 			onChatOpen: (session, chat, preserveFocus, sideBySide) => {
@@ -325,7 +329,8 @@ export class SessionsView extends ViewPane {
 		this._register(autorun(reader => {
 			const activeSession = this.sessionsService.activeSession.read(reader);
 			if (activeSession) {
-				if (!sessionsControl.reveal(activeSession.resource)) {
+				const activeChat = activeSession.activeChat.read(reader);
+				if (!sessionsControl.reveal(activeSession.resource, activeChat.resource)) {
 					sessionsControl.clearFocus();
 				}
 			} else {
@@ -425,7 +430,7 @@ export class SessionsView extends ViewPane {
 	private restoreLastSelectedSession(): void {
 		const activeSession = this.sessionsService.activeSession.get();
 		if (activeSession && this.sessionsControl) {
-			this.sessionsControl.reveal(activeSession.resource);
+			this.sessionsControl.reveal(activeSession.resource, activeSession.activeChat.get().resource);
 		}
 	}
 
