@@ -7,7 +7,7 @@ import assert from 'assert';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ExtUri } from '../../../../../base/common/resources.js';
-import { constObservable, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -33,6 +33,7 @@ import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionStatus } fro
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { computeReorderSortChanges, groupByDate, groupByWorkspace, groupSessionsForList, ISessionSection, limitSessionsForList, SessionSectionRenderer, SessionsFlatList, SessionsList, sortSessions, SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
+import { AgentSessionApprovalKind, AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { getSessionSummaryHoverData } from '../../browser/sessionHoverContent.js';
 import { createListHarness, createTestSession } from './sessionsListTestUtils.js';
 import '../../browser/views/sessionsViewActions.js';
@@ -1287,6 +1288,131 @@ suite('Sessions - SessionsList', () => {
 				isCollapsed: true,
 				visibleChats: [],
 			});
+		});
+
+		function createApprovalModel(approvals: ReadonlyMap<string, IAgentSessionApprovalInfo>): AgentSessionApprovalModel {
+			return new class extends mock<AgentSessionApprovalModel>() {
+				override getApproval(resource: URI): IObservable<IAgentSessionApprovalInfo | undefined> {
+					return constObservable(approvals.get(resource.toString()));
+				}
+			}();
+		}
+
+		function terminalApproval(chat: IChat, command: string): IAgentSessionApprovalInfo {
+			return { approvalId: chat.resource.toString(), kind: AgentSessionApprovalKind.Terminal, label: command, languageId: 'shellscript', since: new Date(), confirm: () => { } };
+		}
+
+		function renderSessionChatsWithApprovals(session: ISession, approvalModel: AgentSessionApprovalModel): { container: HTMLElement; list: SessionsList } {
+			const harness = createListHarness(disposables, [session]);
+			const container = harness.createContainer();
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => SessionsGrouping.Date,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+				approvalModel,
+			}));
+			list.layout(400, 400);
+			return { container, list };
+		}
+
+		function approvalRowFor(container: HTMLElement, title: string): HTMLElement | undefined {
+			return [...container.querySelectorAll<HTMLElement>('.session-chat-item')]
+				.find(item => item.querySelector('.session-chat-title')?.textContent === title)
+				?.querySelector<HTMLElement>('.session-approval-row') ?? undefined;
+		}
+
+		test('renders a pending approval on the owning chat row only, not on its siblings', () => {
+			const main = createChat('Main chat');
+			const withApproval = createChat('Task A', ChatOriginKind.User);
+			const withoutApproval = createChat('Task B', ChatOriginKind.User);
+			const base = createTestSession('Session').session;
+			const session: ISession = {
+				...base,
+				chats: constObservable([main, withApproval, withoutApproval]),
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			};
+			const approvals = new Map([[withApproval.resource.toString(), terminalApproval(withApproval, 'npm run build')]]);
+			const { container } = renderSessionChatsWithApprovals(session, createApprovalModel(approvals));
+
+			const taskA = approvalRowFor(container, 'Task A');
+			const taskB = approvalRowFor(container, 'Task B');
+			assert.deepStrictEqual({
+				taskAVisible: taskA?.classList.contains('visible'),
+				taskAHasAllow: taskA?.querySelector('.session-approval-button .monaco-button')?.textContent,
+				taskBVisible: taskB?.classList.contains('visible'),
+				sessionRowApprovalVisible: container.querySelector<HTMLElement>('.session-item .session-approval-row')?.classList.contains('visible'),
+			}, {
+				taskAVisible: true,
+				taskAHasAllow: 'Allow',
+				taskBVisible: false,
+				sessionRowApprovalVisible: false,
+			});
+		});
+
+		test('renders the main chat approval on the session row, not on any chat row', () => {
+			const main = createChat('Main chat');
+			const peer = createChat('Task A', ChatOriginKind.User);
+			const base = createTestSession('Session').session;
+			const session: ISession = {
+				...base,
+				chats: constObservable([main, peer]),
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			};
+			const approvals = new Map([[main.resource.toString(), terminalApproval(main, 'git push --force')]]);
+			const { container } = renderSessionChatsWithApprovals(session, createApprovalModel(approvals));
+
+			assert.deepStrictEqual({
+				sessionRowApprovalVisible: container.querySelector<HTMLElement>('.session-item .session-approval-row')?.classList.contains('visible'),
+				chatRowApprovalVisible: approvalRowFor(container, 'Task A')?.classList.contains('visible'),
+			}, {
+				sessionRowApprovalVisible: true,
+				chatRowApprovalVisible: false,
+			});
+		});
+
+		test('reserves extra row height for a chat with a pending approval', () => {
+			const main = createChat('Main chat');
+			const withApproval = createChat('Task A', ChatOriginKind.User);
+			const withoutApproval = createChat('Task B', ChatOriginKind.User);
+			const base = createTestSession('Session').session;
+			const session: ISession = {
+				...base,
+				chats: constObservable([main, withApproval, withoutApproval]),
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			};
+			const approvals = new Map([[withApproval.resource.toString(), terminalApproval(withApproval, 'npm run build')]]);
+			const { container } = renderSessionChatsWithApprovals(session, createApprovalModel(approvals));
+
+			const rowHeight = (title: string) => [...container.querySelectorAll<HTMLElement>('.session-chat-item')]
+				.find(item => item.querySelector('.session-chat-title')?.textContent === title)
+				?.closest<HTMLElement>('.monaco-list-row')?.style.height;
+
+			const heights = { taskA: rowHeight('Task A'), taskB: rowHeight('Task B') };
+			assert.ok(heights.taskA && heights.taskB && parseInt(heights.taskA) > parseInt(heights.taskB), `expected Task A (${heights.taskA}) taller than Task B (${heights.taskB})`);
+		});
+
+		test('confirms the chat approval when its Allow button is clicked', () => {
+			const main = createChat('Main chat');
+			const peer = createChat('Task A', ChatOriginKind.User);
+			const base = createTestSession('Session').session;
+			const session: ISession = {
+				...base,
+				chats: constObservable([main, peer]),
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			};
+			let confirmed = 0;
+			const approval: IAgentSessionApprovalInfo = { ...terminalApproval(peer, 'npm run build'), confirm: () => { confirmed++; } };
+			const { container } = renderSessionChatsWithApprovals(session, createApprovalModel(new Map([[peer.resource.toString(), approval]])));
+
+			const allow = approvalRowFor(container, 'Task A')?.querySelector<HTMLElement>('.session-approval-button .monaco-button');
+			assert.ok(allow);
+			allow.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+			assert.strictEqual(confirmed, 1);
 		});
 	});
 
