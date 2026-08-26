@@ -74,6 +74,10 @@ export async function openSessionToTheSide(sessionsService: ISessionsService, se
 	}
 }
 
+export function openSessionMainChat(sessionsService: ISessionsService, session: ISession, options?: { preserveFocus?: boolean }): Promise<void> {
+	return sessionsService.openChat(session, session.mainChat.get().resource, options);
+}
+
 export const SessionsViewFilterSubMenu = new MenuId('SessionsViewPaneFilterSubMenu');
 export const SessionsViewFilterOptionsSubMenu = new MenuId('SessionsViewPaneFilterOptionsSubMenu');
 export const SessionsViewGroupingContext = new RawContextKey<string>('sessionsViewPane.grouping', SessionsGrouping.Workspace);
@@ -227,15 +231,18 @@ export class SessionsView extends ViewPane {
 						this.layoutService.setPartHidden(true, Parts.SIDEBAR_PART);
 					}
 				};
+				const session = this.sessionsManagementService.getSession(resource);
+				if (!session) {
+					onUnexpectedError(new Error(`Unable to open session because '${resource.toString()}' is not available`));
+					return;
+				}
+				const mainChat = session.mainChat.get();
 				if (sideBySide) {
 					// Alt-click: open the session to the right of the last visible session in the grid.
-					const session = this.sessionsManagementService.getSession(resource);
-					if (session) {
-						openSessionToTheSide(this.sessionsService, session, { preserveFocus }).then(onOpened).catch(onUnexpectedError);
-						return;
-					}
+					openSessionToTheSide(this.sessionsService, session, { preserveFocus, chatResource: mainChat.resource }).then(onOpened).catch(onUnexpectedError);
+					return;
 				}
-				this.sessionsService.openSession(resource, { preserveFocus }).then(onOpened).catch(onUnexpectedError);
+				openSessionMainChat(this.sessionsService, session, { preserveFocus }).then(onOpened).catch(onUnexpectedError);
 			},
 			canOpenSession: session => this.sessionsService.canOpenSession(session),
 			onChatOpen: (session, chat, preserveFocus, sideBySide) => {

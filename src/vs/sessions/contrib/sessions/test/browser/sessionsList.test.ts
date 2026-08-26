@@ -27,12 +27,14 @@ import { IAutomationService } from '../../../../../workbench/contrib/chat/common
 import { getSessionChatDragData, isSessionChatDrag, SessionsDataTransfers } from '../../../../browser/dnd.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
 import { ISessionsListModelService } from '../../../../services/sessions/browser/sessionsListModelService.js';
+import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
-import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { computeReorderSortChanges, groupByDate, groupByWorkspace, groupSessionsForList, ISessionSection, limitSessionsForList, SessionSectionRenderer, SessionsFlatList, SessionsList, sortSessions, SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
 import { getSessionSummaryHoverData } from '../../browser/sessionHoverContent.js';
 import { createListHarness, createTestSession } from './sessionsListTestUtils.js';
+import { openSessionMainChat } from '../../browser/views/sessionsView.js';
 import '../../browser/views/sessionsViewActions.js';
 
 function createSession(id: string, opts: {
@@ -847,7 +849,7 @@ suite('Sessions - SessionsList', () => {
 			return [...container.querySelectorAll<HTMLElement>('.session-chat-title')].map(element => element.textContent ?? '');
 		}
 
-		test('shows non-main user-facing chats and excludes the main chat, subagents, side chats, and hidden chats', () => {
+		test('shows non-main and side chats and excludes the main chat, subagents, and hidden chats', () => {
 			const main = createChat('Main chat');
 			const peer = createChat('Peer chat', ChatOriginKind.User);
 			const fork = createChat('Forked chat', ChatOriginKind.Fork);
@@ -867,6 +869,7 @@ suite('Sessions - SessionsList', () => {
 			assert.deepStrictEqual(chatRowTitles(container), [
 				'Peer chat',
 				'Forked chat',
+				'Side chat',
 			]);
 		});
 
@@ -971,6 +974,27 @@ suite('Sessions - SessionsList', () => {
 			}]);
 		});
 
+		test('selecting a session opens its main chat', async () => {
+			const main = createChat('Main chat');
+			const peer = createChat('Peer chat', ChatOriginKind.User);
+			const base = createTestSession('Session').session;
+			const session: ISession = {
+				...base,
+				chats: constObservable([main, peer]),
+				mainChat: constObservable(main),
+			};
+			const opened: URI[] = [];
+			const sessionsService = new class extends mock<ISessionsService>() {
+				override async openChat(_session: ISession, chatResource: URI): Promise<void> {
+					opened.push(chatResource);
+				}
+			};
+
+			await openSessionMainChat(sessionsService, session);
+
+			assert.deepStrictEqual(opened, [main.resource]);
+		});
+
 		test('opens a nested chat to the side with the session row modifier gesture', () => {
 			const main = createChat('Main chat');
 			const peer = createChat('Peer chat', ChatOriginKind.User);
@@ -996,6 +1020,87 @@ suite('Sessions - SessionsList', () => {
 				preserveFocus: false,
 				sideBySide: true,
 			}]);
+		});
+
+		test('coalesces restored active chat selection without flashing the parent session', async () => {
+			const main = createChat('Main chat');
+			const first = createChat('First chat', ChatOriginKind.User);
+			const second = createChat('Second chat', ChatOriginKind.User);
+			const side = createChat('Side chat', ChatOriginKind.SideChat);
+			const activeChat = observableValue<IChat>('active-chat', first);
+			const base = createTestSession('Session').session;
+			const session: ISession = {
+				...base,
+				chats: constObservable([main, first, second, side]),
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			};
+			const activeSession = upcastPartial<IActiveSession>({
+				...session,
+				activeChat,
+				sticky: constObservable(false),
+				isCreated: constObservable(true),
+				visibleChatTabs: constObservable([main, first, second, side]),
+			});
+			const harness = createListHarness(disposables, [session], instantiationService => {
+				instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+					override readonly activeSession = constObservable(activeSession);
+					override readonly visibleSessions = constObservable([activeSession]);
+				});
+			});
+			const container = harness.createContainer();
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => SessionsGrouping.Date,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+			}));
+			list.layout(300, 400);
+			const initiallySelected = container.querySelector('.monaco-list-row.selected .session-chat-title')?.textContent;
+			const twistie = container.querySelector<HTMLElement>('.session-chat-twistie');
+			assert.ok(twistie);
+			twistie.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
+			const focusTarget = mainWindow.document.createElement('button');
+			mainWindow.document.body.appendChild(focusTarget);
+			disposables.add({ dispose: () => focusTarget.remove() });
+			focusTarget.focus();
+
+			activeChat.set(main, undefined);
+			const selectionDuringRestore = container.querySelector('.monaco-list-row.selected .session-chat-title')?.textContent;
+			const parentDuringRestore = container.querySelector('.monaco-list-row.selected .session-title')?.textContent;
+			activeChat.set(second, undefined);
+			const selectionBeforeFrame = container.querySelector('.monaco-list-row.selected .session-chat-title')?.textContent;
+			const parentBeforeFrame = container.querySelector('.monaco-list-row.selected .session-title')?.textContent;
+			await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+			const selectedChat = container.querySelector('.monaco-list-row.selected .session-chat-title')?.textContent;
+			activeChat.set(side, undefined);
+			await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+			const selectedSideChat = container.querySelector('.monaco-list-row.selected .session-chat-title')?.textContent;
+			activeChat.set(main, undefined);
+			await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+
+			assert.deepStrictEqual({
+				initiallySelected,
+				selectionDuringRestore,
+				parentDuringRestore,
+				selectionBeforeFrame,
+				parentBeforeFrame,
+				selectedChat,
+				selectedSideChat,
+				mainSelection: container.querySelector('.monaco-list-row.selected .session-title')?.textContent,
+				expanded: twistie.closest('.monaco-list-row')?.getAttribute('aria-expanded'),
+				activeElement: mainWindow.document.activeElement,
+			}, {
+				initiallySelected: 'First chat',
+				selectionDuringRestore: undefined,
+				parentDuringRestore: undefined,
+				selectionBeforeFrame: undefined,
+				parentBeforeFrame: undefined,
+				selectedChat: 'Second chat',
+				selectedSideChat: 'Side chat',
+				mainSelection: 'Session',
+				expanded: 'true',
+				activeElement: focusTarget,
+			});
 		});
 
 		test('drags a nested chat with the chat-group payload instead of a session payload', () => {

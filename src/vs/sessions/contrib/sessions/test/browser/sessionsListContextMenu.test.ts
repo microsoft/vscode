@@ -16,6 +16,7 @@ import { IMenu, IMenuService, MenuItemAction } from '../../../../../platform/act
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
+import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { ISessionGroup, ISessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
 import { ChatInteractivity, IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { SessionsGrouping, SessionsList, SessionsSorting } from '../../browser/views/sessionsList.js';
@@ -164,18 +165,18 @@ suite('Sessions list context menus', () => {
 		});
 	});
 
-	test('chat rows open to the side and expose capability-gated deletion', async () => {
-		const createChat = (title: string, canDelete: boolean): IChat => upcastPartial<IChat>({
+	test('chat rows expose capability-gated rename, side-open, and deletion', async () => {
+		const createChat = (title: string, canRename: boolean, canDelete: boolean): IChat => upcastPartial<IChat>({
 			resource: URI.parse(`test-chat:/${title}`),
 			title: constObservable(title),
 			updatedAt: constObservable(new Date()),
 			status: constObservable(SessionStatus.Completed),
 			interactivity: constObservable(ChatInteractivity.Full),
-			capabilities: constObservable({ canRename: true, canDelete }),
+			capabilities: constObservable({ canRename, canDelete }),
 		});
-		const main = createChat('Session', true);
-		const peer = createChat('Peer', true);
-		const nonDeletable = createChat('Read Only', false);
+		const main = createChat('Session', true, true);
+		const peer = createChat('Peer', true, true);
+		const nonDeletable = createChat('Read Only', false, false);
 		const { session: baseSession } = createSession('Session');
 		const session: ISession = {
 			...baseSession,
@@ -183,8 +184,15 @@ suite('Sessions list context menus', () => {
 			mainChat: constObservable(main),
 		};
 		const contextMenuService = new TestContextMenuService();
+		const renameInputs: string[] = [];
 		const harness = createListHarness(disposables, [session], instantiationService => {
 			instantiationService.stub(IContextMenuService, contextMenuService);
+			instantiationService.stub(IQuickInputService, new class extends mock<IQuickInputService>() {
+				override async input(options?: { value?: string }): Promise<string | undefined> {
+					renameInputs.push(options?.value ?? '');
+					return ' Renamed Peer ';
+				}
+			});
 		});
 		const opened: { chat: IChat; preserveFocus: boolean; sideBySide: boolean }[] = [];
 		const openedToSide: IChat[] = [];
@@ -202,7 +210,8 @@ suite('Sessions list context menus', () => {
 		dispatchContextMenu(chatRows.find(row => row.textContent === 'Peer')!);
 		const peerActions = contextMenuService.delegate!.getActions();
 		await peerActions[0].run();
-		await peerActions[2].run();
+		await peerActions[1].run();
+		await peerActions[3].run();
 
 		dispatchContextMenu(chatRows.find(row => row.textContent === 'Read Only')!);
 		const readOnlyActions = contextMenuService.delegate!.getActions();
@@ -210,12 +219,16 @@ suite('Sessions list context menus', () => {
 		assert.deepStrictEqual({
 			peerActionIds: peerActions.map(action => action.id),
 			readOnlyActionIds: readOnlyActions.map(action => action.id),
+			renameInputs,
+			renamedChats: harness.managementService.renamedChats,
 			opened,
 			openedToSide,
 			deletedChats: harness.managementService.deletedChats,
 		}, {
-			peerActionIds: ['sessions.list.openChatToSide', 'vs.actions.separator', 'sessions.list.deleteChat'],
+			peerActionIds: ['sessions.list.renameChat', 'sessions.list.openChatToSide', 'vs.actions.separator', 'sessions.list.deleteChat'],
 			readOnlyActionIds: ['sessions.list.openChatToSide'],
+			renameInputs: ['Peer'],
+			renamedChats: [{ session, chatResource: peer.resource, title: 'Renamed Peer' }],
 			opened: [],
 			openedToSide: [peer],
 			deletedChats: [{ session, chatResource: peer.resource }],

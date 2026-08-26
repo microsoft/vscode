@@ -10,8 +10,7 @@ import { localize } from '../../nls.js';
 import { ChatOriginKind, IChat, SessionStatus } from '../services/sessions/common/session.js';
 
 export const SESSION_CONVERSATION_CHATS_GROUP = '1_chats';
-export const SESSION_CONVERSATION_SIDE_CHATS_GROUP = '2_sidechats';
-export const SESSION_CONVERSATION_SUBAGENTS_GROUP = '3_subagents';
+export const SESSION_CONVERSATION_SUBAGENTS_GROUP = '2_subagents';
 
 export function getSessionConversationActionId(sessionId: string, chatResource: URI): string {
 	return `sessions.openChat.${sessionId}.${hash(chatResource.toString())}`;
@@ -39,7 +38,7 @@ export function getSessionConversationStatusAriaLabel(status: SessionStatus): st
 /** Returns the contributed menu group for a chat in the scoped session. */
 export function getSessionConversationGroupId(chat: IChat, activeChat: IChat, extUri: IExtUri): string | undefined {
 	if (chat.origin?.kind === ChatOriginKind.SideChat) {
-		return SESSION_CONVERSATION_SIDE_CHATS_GROUP;
+		return undefined;
 	}
 	if (chat.origin?.kind === ChatOriginKind.Tool) {
 		const activeChatScope = activeChat.origin?.kind === ChatOriginKind.Tool && activeChat.origin.parentChat

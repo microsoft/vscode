@@ -283,6 +283,29 @@ suite('Sessions - ChatGroupsView', () => {
 		});
 	});
 
+	test('opening an existing main-group tab to the side moves it into its own group', async () => {
+		const { view } = createHarness(disposables);
+		const main = createChat('main');
+		const secondary = createChat('secondary');
+		const session = new TestActiveSession([main, secondary]);
+		view.setSession(session, options);
+
+		await view.openChatInNewGroup(secondary.resource);
+		const afterSplit = Array.from(view.element.querySelectorAll('.chat-group-view'))
+			.map(group => Array.from(group.querySelectorAll<HTMLElement>('.chat-composite-bar-tab')).map(tab => tab.dataset.chatResource));
+		await view.openChatInNewGroup(secondary.resource);
+
+		assert.deepStrictEqual({
+			afterSplit,
+			groupCountAfterRepeatedOpen: view.groupCount.get(),
+			activeChat: session.activeChat.get().resource.toString(),
+		}, {
+			afterSplit: [[main.resource.toString()], [secondary.resource.toString()]],
+			groupCountAfterRepeatedOpen: 2,
+			activeChat: secondary.resource.toString(),
+		});
+	});
+
 	test('dropping a hidden subagent on an edge opens it in a new group', async () => {
 		const { view } = createHarness(disposables);
 		const main = createChat('main');

@@ -517,10 +517,9 @@ export class ChatGroupsView extends Themable {
 	}
 
 	/**
-	 * Opens a chat in a group beside the active one ("open to the side"). If the
-	 * chat is already shown in a group, that group is focused instead of creating
-	 * a duplicate; otherwise a new group is created to the right of the active
-	 * group and the chat is shown there.
+	 * Opens a chat in a group beside its current group ("open to the side"). A
+	 * chat already sharing a group is moved into a new group to its right. A chat
+	 * already alone in its own group is focused without creating a duplicate.
 	 */
 	async openChatInNewGroup(resource: URI): Promise<void> {
 		if (!this._session || !this._grid || !this._currentSessionStore) {
@@ -530,6 +529,10 @@ export class ChatGroupsView extends Themable {
 
 		const existing = this._groups.find(g => g.resourceIds.get().includes(id));
 		if (existing) {
+			if (existing.resourceIds.get().length > 1) {
+				this._splitChatIntoNewGroup(resource, existing, existing, 'right');
+				return;
+			}
 			existing.activeResourceId.set(id, undefined);
 			this._setActiveGroup(existing);
 			await this._sessionsService.openChat(this._session, resource);

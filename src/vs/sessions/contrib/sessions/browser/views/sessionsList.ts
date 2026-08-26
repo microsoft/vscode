@@ -37,6 +37,7 @@ import { RENAME_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { WorkbenchObjectTree } from '../../../../../platform/list/browser/listService.js';
 import { IStyleOverride, defaultButtonStyles, defaultFindWidgetStyles, defaultInputBoxStyles, defaultToggleStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
@@ -196,7 +197,6 @@ function getSessionListChats(session: ISession, reader?: IReader): readonly ICha
 	return session.chats.read(reader).filter(chat =>
 		!isEqual(chat.resource, mainChat.resource) &&
 		chat.origin?.kind !== ChatOriginKind.Tool &&
-		chat.origin?.kind !== ChatOriginKind.SideChat &&
 		chat.interactivity.read(reader) !== ChatInteractivity.Hidden
 	);
 }
@@ -2084,6 +2084,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	private readonly tree: WorkbenchObjectTree<SessionListItem, FuzzyScore>;
 	private sessions: ISession[] = [];
 	private readonly sessionChatsObserver = this._register(new MutableDisposable());
+	private readonly activeSessionUpdate = this._register(new MutableDisposable());
 	private readonly automationSessions = observableValue<readonly ISession[]>(this, []);
 	private visible = true;
 	private readonly excludedSessionTypes: Set<string>;
@@ -2146,6 +2147,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		@IWorkbenchAssignmentService private readonly assignmentService: IWorkbenchAssignmentService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IAgentHostConnectionsService private readonly agentHostConnectionsService: IAgentHostConnectionsService,
 		@IOpenerService private readonly openerService: IOpenerService,
 	) {
@@ -2315,7 +2317,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 							return NotSelectableGroupId;
 						}
 						if (isSessionChatItem(element)) {
-							return NotSelectableGroupId;
+							return 3;
 						}
 						// Use a distinct group for archived (done) sessions so that
 						// multi-selection cannot span the workspace and done sections.
@@ -2551,10 +2553,13 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 		// Re-render when the active session changes.
 		this._register(autorun(reader => {
-			this._sessionsService.activeSession.read(reader);
-			if (this.visible) {
-				this.update();
-			}
+			const activeSession = this._sessionsService.activeSession.read(reader);
+			activeSession?.activeChat.read(reader);
+			this.activeSessionUpdate.value = DOM.scheduleAtNextAnimationFrame(DOM.getWindow(this.listContainer), () => {
+				if (this.visible) {
+					this.update();
+				}
+			});
 		}));
 
 		// Resolve the per-group session limit from the experiment service and
@@ -2938,7 +2943,29 @@ export class SessionsList extends Disposable implements ISessionsList {
 		}
 
 		this.tree.setChildren(null, children);
+		this.syncActiveChatSelection(activeSession);
 		this._onDidUpdate.fire();
+	}
+
+	private syncActiveChatSelection(activeSession: IActiveSession | undefined): void {
+		if (!activeSession) {
+			return;
+		}
+		const session = this.sessions.find(candidate => candidate.sessionId === activeSession.sessionId);
+		if (!session || !this.tree.hasElement(session)) {
+			return;
+		}
+		const activeChat = activeSession.activeChat.get();
+		const chatItem = this.tree.getNode(session).children
+			.map(node => node.element)
+			.find(element => !!element && isSessionChatItem(element) && this.uriIdentityService.extUri.isEqual(element.chat.resource, activeChat.resource));
+		if (!chatItem || !isSessionChatItem(chatItem)) {
+			this.tree.setSelection([session]);
+			return;
+		}
+		this.tree.expand(session);
+		this.tree.reveal(chatItem, 0.5);
+		this.tree.setSelection([chatItem]);
 	}
 
 	getVisibleSessions(): readonly ISession[] {
@@ -3330,6 +3357,14 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	private showChatContextMenu(element: ISessionChatItem, anchor: ITreeContextMenuEvent<SessionListItem | null>['anchor']): void {
 		const actions: IAction[] = [];
+		const capabilities = getChatCapabilities(element.chat, element.session, undefined);
+		if (capabilities.canRename && element.chat.status.get() !== SessionStatus.Untitled) {
+			actions.push(toAction({
+				id: 'sessions.list.renameChat',
+				label: localize('renameChat', "Rename..."),
+				run: () => this.renameChat(element),
+			}));
+		}
 		const onChatOpenToSide = this.options.onChatOpenToSide;
 		if (onChatOpenToSide) {
 			actions.push(toAction({
@@ -3338,7 +3373,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				run: () => onChatOpenToSide(element.session, element.chat),
 			}));
 		}
-		if (getChatCapabilities(element.chat, element.session, undefined).canDelete) {
+		if (capabilities.canDelete) {
 			if (actions.length > 0) {
 				actions.push(new Separator());
 			}
@@ -3355,6 +3390,19 @@ export class SessionsList extends Disposable implements ISessionsList {
 			getActions: () => actions,
 			getAnchor: () => anchor,
 		});
+	}
+
+	private async renameChat(element: ISessionChatItem): Promise<void> {
+		const currentTitle = getChatTitle(element.chat);
+		const newTitle = await this.quickInputService.input({
+			value: currentTitle,
+			prompt: localize('renameChat.prompt', "New chat title"),
+			validateInput: async value => value.trim() ? undefined : localize('renameChat.empty', "Title cannot be empty"),
+		});
+		const trimmedTitle = newTitle?.trim();
+		if (trimmedTitle && trimmedTitle !== currentTitle) {
+			await this._sessionsManagementService.renameChat(element.session, element.chat.resource, trimmedTitle);
+		}
 	}
 
 	/**
