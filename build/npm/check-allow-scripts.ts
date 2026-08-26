@@ -21,9 +21,8 @@ interface CheckResult {
 const root = path.resolve(import.meta.dirname, '../..');
 const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 
- 
 const args = process.argv.slice(2);
-const shouldFix = args.includes('--fix') || args.includes('--approve');
+const specificPackage = args.find(arg => !arg.startsWith('--'));
 
 function parsePendingScripts(output: string): PendingScript[] {
 	const pending: PendingScript[] = [];
@@ -64,18 +63,18 @@ function checkDirectory(directory: string): CheckResult {
 	};
 }
 
-// Otomatik onaylama fonksiyonu
-function approvePendingScripts(directory: string, pending: PendingScript[]): void {
-	for (const item of pending) {
-		console.log(`Approving script for package '${item.package}' in ${path.relative(root, directory) || '.'}...`);
-		const result = spawnSync(npm, ['approve-scripts', item.package], {
-			cwd: directory,
-			encoding: 'utf8',
-			env: { ...process.env, npm_config_loglevel: 'error' }
-		});
-		if (result.error || result.status !== 0) {
-			console.error(`Failed to automatically approve ${item.package}: ${result.error?.message || result.stderr}`);
-		}
+function approvePackage(directory: string, packageName: string): void {
+	console.log(`Approving script for specified package '${packageName}' in ${path.relative(root, directory) || '.'}...`);
+	const result = spawnSync(npm, ['approve-scripts', packageName], {
+		cwd: directory,
+		encoding: 'utf8',
+		env: { ...process.env, npm_config_loglevel: 'error' }
+	});
+	if (result.error) {
+		throw new Error(`Failed to automatically approve ${packageName}: ${result.error.message}`);
+	}
+	if (result.status !== 0) {
+		throw new Error(`npm approve-scripts failed for ${packageName}:\n${result.stderr}`);
 	}
 }
 
@@ -88,18 +87,15 @@ function main(): void {
 	for (const directory of packageDirectories) {
 		const result = checkDirectory(directory);
 		if (result.pending.length > 0) {
-			if (shouldFix) {
-				// Eğer --fix veya --approve verilmişse, tespit edilenleri hemen otomatik onayla
-				approvePendingScripts(directory, result.pending);
-			} else {
-				results.push(result);
+			if (specificPackage) {
+				const match = result.pending.find(p => p.package === specificPackage);
+				if (match) {
+					approvePackage(directory, specificPackage);
+					continue;
+				}
 			}
+			results.push(result);
 		}
-	}
-
-	if (shouldFix) {
-		console.log('Automatic approval process completed.');
-		return;
 	}
 
 	if (results.length === 0) {
@@ -114,7 +110,7 @@ function main(): void {
 			console.error(`  - ${pending.package} (${pending.scripts})`);
 		}
 	}
-	console.error('\nRun with --fix or --approve to automatically approve pending install scripts, or run `npm approve-scripts <pkg>` manually.');
+	console.error('\nTo approve a specific package safely, run with the package name or use `npm approve-scripts <pkg>`.');
 	process.exitCode = 1;
 }
 
