@@ -123,10 +123,12 @@ export interface IAhpTerminalCommandSource extends IDisposable {
 export interface IChatTerminalToolProgressPart {
 	readonly elementIndex: number;
 	readonly contentIndex: number;
+	readonly terminalToolSessionId: string | undefined;
 	focusTerminal(): Promise<void>;
 	toggleOutputFromKeyboard(): Promise<void>;
 	toggleOutputFromAction(): Promise<void>;
 	continueInBackground(): void;
+	markContinuedInBackground(): void;
 	focusOutput(): void;
 	getCommandAndOutputAsText(): string | undefined;
 }
