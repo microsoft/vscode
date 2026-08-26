@@ -11,7 +11,7 @@ import { StopWatch } from '../../../../../base/common/stopwatch.js';
 import { URI } from '../../../../../base/common/uri.js';
 import * as nls from '../../../../../nls.js';
 import { agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
-import { RemoteAgentHostProtocolClient } from '../../../../../platform/agentHost/browser/remoteAgentHostProtocolClient.js';
+import { AgentHostProtocolClient } from '../../../../../platform/agentHost/browser/agentHostProtocolClient.js';
 import { type AgentProvider, type AuthenticateParams, type AuthenticateResult } from '../../../../../platform/agentHost/common/agent.js';
 import { type IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
 import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostEntry, IRemoteAgentHostService, type IRemoteAgentHostSSHConnection, RemoteAgentHostAutoConnectSettingId, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId, RemoteAgentHostsSettingId, getEntryAddress } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
@@ -31,7 +31,7 @@ import { INotificationService } from '../../../../../platform/notification/commo
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
 import { registerAction2 } from '../../../../../platform/actions/common/actions.js';
-import { OpenSessionEventsFileAction } from '../../agentHost/browser/openSessionEventsFileActions.js';
+import { OpenAgentHostStateFileAction } from '../../agentHost/browser/openAgentHostStateFileAction.js';
 import { authenticateProtectedResources, AgentHostAuthenticationRecovery, AgentHostAuthTokenCache, resolveAuthenticationInteractively } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostAuth.js';
 import { AgentHostLanguageModelProvider, agentHostProviderSupportsAutoModel } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostLanguageModelProvider.js';
 import { AgentHostSessionHandler } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostSessionHandler.js';
@@ -834,13 +834,13 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		// Bridge the host's OTLP logs channel into a dedicated workbench
 		// Output channel (`Agent Host (${name})`). Concrete clients
 		// returned by `IRemoteAgentHostService.getConnection` are always
-		// `RemoteAgentHostProtocolClient` instances — `IAgentConnection`
+		// `AgentHostProtocolClient` instances — `IAgentConnection`
 		// erases the concrete type, so cast here at the integration
 		// point rather than polluting that interface with OTLP-specific
 		// surface.
 		store.add(this._instantiationService.createInstance(
 			RemoteAgentHostLogForwarder,
-			connection as RemoteAgentHostProtocolClient,
+			connection as AgentHostProtocolClient,
 			address,
 			name || address,
 		));
@@ -976,10 +976,9 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			connection,
 		));
 
-		const agentRegistration = agentStore.add(this._activeClientService.registerForAgent(sessionType, { includeUserStorage: true }));
-		const syncProvider = agentRegistration.syncProvider;
+		const syncProvider = this._activeClientService.getSyncProvider(sessionType);
 		// The management UI remains ambient while individual sessions use their working-directory scopes.
-		const ambientScope = agentStore.add(agentRegistration.acquireScope([]));
+		const ambientScope = agentStore.add(this._activeClientService.acquireScope(sessionType, []));
 
 		const itemProvider = agentStore.add(this._instantiationService.createInstance(AgentCustomizationItemProvider,
 			sanitized,
@@ -995,7 +994,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 					run: () => pluginController.removeConfiguredPlugin(customization),
 				}];
 			},
-			syncedUri => agentRegistration.getOrigin(syncedUri)
+			syncedUri => this._activeClientService.getOrigin(syncedUri)
 		));
 		itemProvider.setDraftCustomAgents(ambientScope.customAgents);
 		itemProvider.setDraftCustomizations(ambientScope.customizations);
@@ -1132,7 +1131,7 @@ registerSingleton(IRemoteAgentHostConnectionCustomizationService, RemoteAgentHos
 
 registerWorkbenchContribution2(RemoteAgentHostContribution.ID, RemoteAgentHostContribution, WorkbenchPhase.AfterRestored);
 
-registerAction2(OpenSessionEventsFileAction);
+registerAction2(OpenAgentHostStateFileAction);
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	properties: {
@@ -1156,7 +1155,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		// `CLOUD_SANDBOX_AGENT_SLUG`.
 		[CloudSandboxEnabledSettingId]: {
 			type: 'boolean',
-			description: nls.localize('chat.agentHost.cloudSandbox.enabled', "Enable connecting to Copilot cloud sandbox sessions over a live Agent Host Protocol relay. When enabled, opening a Copilot cloud session connects to its sandbox for slash commands and a responsive, steerable experience instead of only polling logs."),
+			description: nls.localize('chat.agentHost.cloudSandbox.enabled', "Enable Copilot cloud sandbox sessions over a live Agent Host Protocol relay, for slash commands and a responsive, steerable experience instead of only polling logs. Adds a Sandbox option when starting a cloud session, and connects to the sandbox when opening one."),
 			default: false,
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental', 'advanced'],

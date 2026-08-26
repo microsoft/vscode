@@ -13,8 +13,9 @@ import type { IChannel, IServerChannel } from '../../../../../base/parts/ipc/com
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IAgentHostEnablementService } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IWorkbenchEnvironmentService } from '../../../environment/common/environmentService.js';
-import { AgentHostClientState, RemoteAgentHostProtocolClient } from '../../../../../platform/agentHost/browser/remoteAgentHostProtocolClient.js';
+import { AgentHostClientState, AgentHostProtocolClient } from '../../../../../platform/agentHost/browser/agentHostProtocolClient.js';
 import { editorWindowAgentHostClientInfo } from '../../../../../platform/agentHost/common/agentHostClientInfo.js';
+import { agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -22,6 +23,7 @@ import { NullLogService, ILogService } from '../../../../../platform/log/common/
 import type { RemoteAgentConnectionContext, IRemoteAgentEnvironment } from '../../../../../platform/remote/common/remoteAgentEnvironment.js';
 import type { PersistentConnectionEvent } from '../../../../../platform/remote/common/remoteAgentConnection.js';
 import { EditorRemoteAgentHostServiceClient } from '../../browser/editorRemoteAgentHostServiceClient.js';
+import { IAgentHostFileSystemService } from '../../common/agentHostFileSystemService.js';
 import { IRemoteAgentService, type IRemoteAgentConnection } from '../../../remote/common/remoteAgentService.js';
 import { TestRemoteAgentService } from '../../../../test/browser/workbenchTestServices.js';
 
@@ -105,14 +107,23 @@ suite('EditorRemoteAgentHostServiceClient', () => {
 			},
 			dispose: () => { },
 		};
+		const registeredAuthorities: string[] = [];
 		const agentHostEnabled = observableValue('agentHostEnabled', false);
 		const instantiationService = disposables.add(new TestInstantiationService(new ServiceCollection(
 			[IRemoteAgentService, remoteAgentService],
-			[IAgentHostEnablementService, { _serviceBrand: undefined, enabled: agentHostEnabled }],
+			[IAgentHostEnablementService, { _serviceBrand: undefined, enabled: agentHostEnabled, managedSandboxEnforced: constObservable(false) }],
 			[ILogService, new NullLogService()],
 			[IWorkbenchEnvironmentService, { isSessionsWindow: false }],
+			[IAgentHostFileSystemService, {
+				_serviceBrand: undefined,
+				registerAuthority: (authority: string) => {
+					registeredAuthorities.push(authority);
+					return Disposable.None;
+				},
+				ensureSyncedCustomizationProvider: () => { },
+			}],
 		)));
-		instantiationService.stubInstance(RemoteAgentHostProtocolClient, protocolClient);
+		instantiationService.stubInstance(AgentHostProtocolClient, protocolClient);
 		instantiationService.set(IInstantiationService, instantiationService);
 		const createInstanceSpy = sinon.spy(instantiationService, 'createInstance');
 
@@ -128,15 +139,17 @@ suite('EditorRemoteAgentHostServiceClient', () => {
 		onDidChangeConnectionState.fire(AgentHostClientState.Connected);
 		await started;
 
-		const protocolClientCall = createInstanceSpy.getCalls().find(call => call.args[0] === RemoteAgentHostProtocolClient);
+		const protocolClientCall = createInstanceSpy.getCalls().find(call => call.args[0] === AgentHostProtocolClient);
 		assert.deepStrictEqual({
 			beforeReady,
 			afterReady: connectCalls,
 			clientInfo: protocolClientCall?.args[5],
+			registeredAuthorities,
 		}, {
 			beforeReady: 0,
 			afterReady: 1,
 			clientInfo: editorWindowAgentHostClientInfo,
+			registeredAuthorities: [agentHostAuthority('vscode-remote://ssh-remote+test')],
 		});
 	});
 });

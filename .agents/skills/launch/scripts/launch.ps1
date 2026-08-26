@@ -16,6 +16,8 @@ $sourceUserDataDir = ''
 $repo = ''
 $cloneExtensions = $false
 $full = $false
+$skipPreLaunch = $false
+$disableWorkspaceTrust = $false
 if ($null -eq $cliArgs) {
 	$cliArgs = @()
 }
@@ -39,22 +41,65 @@ function Get-UsableNode([string]$repoPath) {
 	}
 
 	$setupMessage = "Run in PowerShell from $repoPath`: fnm env --use-on-cd --shell powershell | Out-String | Invoke-Expression; fnm use"
-	if ($null -eq $command) {
-		throw "Node.js $requiredVersion or newer is required on PATH. $setupMessage"
+	if ($null -ne $command) {
+		try {
+			$version = & $command.Source --version 2>$null
+			if ($LASTEXITCODE -ne 0 -or $version -notmatch '^v(?<version>\d+\.\d+\.\d+)') {
+				throw 'could not determine its version'
+			}
+			if ([version]$Matches.version -lt [version]$requiredVersion) {
+				throw "found $version"
+			}
+			return $command.Source
+		} catch {
+			# Fall through to fnm fallback
+		}
 	}
 
-	try {
-		$version = & $command.Source --version 2>$null
-		if ($LASTEXITCODE -ne 0 -or $version -notmatch '^v(?<version>\d+\.\d+\.\d+)') {
-			throw 'could not determine its version'
+	# Fallback: Check fnm directories (most recent first)
+	$fnmBase = Join-Path $env:USERPROFILE 'AppData\Local\fnm_multishells'
+	if (Test-Path $fnmBase) {
+		$fnmDirs = Get-ChildItem $fnmBase -Directory -ErrorAction SilentlyContinue | Sort-Object -Property CreationTime -Descending
+		foreach ($dir in $fnmDirs) {
+			$nodePath = Join-Path $dir.FullName 'node.exe'
+			if (Test-Path $nodePath) {
+				try {
+					$version = & $nodePath --version 2>$null
+					if ($LASTEXITCODE -eq 0 -and $version -match '^v(?<version>\d+\.\d+\.\d+)') {
+						if ([version]$Matches.version -ge [version]$requiredVersion) {
+							return $nodePath
+						}
+					}
+				} catch { }
+			}
 		}
-		if ([version]$Matches.version -lt [version]$requiredVersion) {
-			throw "found $version"
-		}
-		return $command.Source
-	} catch {
-		throw "Node.js $requiredVersion or newer is required on PATH ($($_.Exception.Message)). $setupMessage"
 	}
+
+	throw "Node.js $requiredVersion or newer is required on PATH. $setupMessage"
+}
+
+function Get-SourceSharedDataDir([string]$repoPath) {
+	if ($env:CODE_OSS_DEV_AUTHED_SHARED_DATA_DIR) {
+		return $env:CODE_OSS_DEV_AUTHED_SHARED_DATA_DIR
+	}
+
+	# Mirrors IEnvironmentService.appSharedDataHome, minus the --shared-data-dir
+	# branch (that one names the *destination*, not the source we copy from):
+	# VSCODE_PORTABLE\shared-data, else ~/<product.sharedDataFolderName>.
+	if ($env:VSCODE_PORTABLE) {
+		return Join-Path $env:VSCODE_PORTABLE 'shared-data'
+	}
+
+	$folderName = '.vscode-oss-shared'
+	$productJson = Join-Path $repoPath 'product.json'
+	if (Test-Path -LiteralPath $productJson -PathType Leaf) {
+		$product = Get-Content -LiteralPath $productJson -Raw | ConvertFrom-Json
+		if ($product.PSObject.Properties['sharedDataFolderName']) {
+			$folderName = $product.sharedDataFolderName
+		}
+	}
+
+	return Join-Path $env:USERPROFILE $folderName
 }
 
 function Get-FreePort {
@@ -92,6 +137,8 @@ function Test-ExcludedPath([string]$relativePath) {
 		'/logs',
 		'/Cache', '/Code Cache', '/CachedData', '/component_crx_cache',
 		'/GPUCache', '/ShaderCache', '/Dawn*Cache',
+		'Partitions/vscode-browser/Cache', 'Partitions/vscode-browser/Code Cache',
+		'Partitions/vscode-browser/GPUCache', 'Partitions/vscode-browser/Dawn*Cache',
 		'/Backups', '/blob_storage', '/BrowserMetrics', '/Crashpad',
 		'/Session Storage',
 		'/Singleton*',
@@ -171,14 +218,13 @@ function Assert-AuthCriticalProfileFiles([string]$destination) {
 	}
 }
 
-function Test-SourceHasGitHubAuthenticationSecret([string]$node, [string]$source, [string]$temporaryDb) {
-	$sourceDb = Join-Path $source 'User\globalStorage\state.vscdb'
-	if (-not (Test-Path -LiteralPath $sourceDb -PathType Leaf)) {
-		return $null
+function Test-DbHasGitHubAuthenticationSecret([string]$node, [string]$db, [string]$temporaryDb) {
+	if (-not (Test-Path -LiteralPath $db -PathType Leaf)) {
+		return $false
 	}
 
 	try {
-		[IO.File]::Copy($sourceDb, $temporaryDb, $true)
+		[IO.File]::Copy($db, $temporaryDb, $true)
 		$script = @'
 import { DatabaseSync } from 'node:sqlite';
 
@@ -204,6 +250,33 @@ try {
 	} finally {
 		Remove-Item -LiteralPath $temporaryDb -Force -ErrorAction SilentlyContinue
 	}
+}
+
+function Test-SourceHasGitHubAuthenticationSecret([string]$node, [string]$source, [string]$sharedSource, [string]$temporaryDb) {
+	# On Windows the GitHub session is APPLICATION_SHARED scoped, so it lives in
+	# the shared-data-dir rather than the profile - see useSharedStorage in
+	# src/vs/platform/secrets/common/secrets.ts. Older profiles may still hold it
+	# in globalStorage, and both directories get copied, so either one counts.
+	$databases = @(
+		(Join-Path $sharedSource 'sharedStorage\state.vscdb'),
+		(Join-Path $source 'User\globalStorage\state.vscdb')
+	)
+
+	$undetermined = $false
+	foreach ($db in $databases) {
+		$result = Test-DbHasGitHubAuthenticationSecret $node $db $temporaryDb
+		if ($result -eq $true) {
+			return $true
+		}
+		if ($null -eq $result) {
+			$undetermined = $true
+		}
+	}
+
+	if ($undetermined) {
+		return $null
+	}
+	return $false
 }
 
 function Get-JsoncCodeMask([string]$text) {
@@ -287,11 +360,11 @@ function Ensure-SimpleDialogSetting([string]$settingsFile) {
 
 	$lastBrace = $maskedText.LastIndexOf('}')
 	if ($lastBrace -eq -1) {
-		throw "settings.json has no closing brace — refusing to clobber it: $settingsFile"
+		throw "settings.json has no closing brace - refusing to clobber it: $settingsFile"
 	}
 	$firstBrace = $maskedText.IndexOf('{')
 	if ($firstBrace -eq -1 -or $firstBrace -ge $lastBrace) {
-		throw "settings.json has no opening brace — refusing to clobber it: $settingsFile"
+		throw "settings.json has no opening brace - refusing to clobber it: $settingsFile"
 	}
 
 	# Whether a leading comma is needed depends only on real content, so decide
@@ -395,6 +468,14 @@ for ($index = 0; $index -lt $cliArgs.Count; $index++) {
 			$full = $true
 			continue
 		}
+		'--skip-prelaunch' {
+			$skipPreLaunch = $true
+			continue
+		}
+		'--disable-workspace-trust' {
+			$disableWorkspaceTrust = $true
+			continue
+		}
 		'--' {
 			for ($forwardIndex = $index + 1; $forwardIndex -lt $cliArgs.Count; $forwardIndex++) {
 				$extraArgs.Add($cliArgs[$forwardIndex])
@@ -409,6 +490,7 @@ for ($index = 0; $index -lt $cliArgs.Count; $index++) {
 }
 
 try {
+	$launchStopwatch = [Diagnostics.Stopwatch]::StartNew()
 	if ([string]::IsNullOrWhiteSpace($repo)) {
 		$candidateRepo = (Get-Location).Path
 		if (Test-Path -LiteralPath (Join-Path $candidateRepo 'scripts\code.bat') -PathType Leaf) {
@@ -452,7 +534,22 @@ try {
 	$logFile = Join-Path $runDir 'code.log'
 	New-Item -ItemType Directory -Force -Path $runDir, $sharedDataDir | Out-Null
 	[IO.File]::WriteAllText($logFile, '', [Text.UTF8Encoding]::new($false))
-	$hasGitHubAuthenticationSecret = Test-SourceHasGitHubAuthenticationSecret $node $sourceUserDataDir (Join-Path $runDir 'auth-preflight.vscdb')
+	$sourceSharedDataDir = Get-SourceSharedDataDir $repo
+	if (Test-Path -LiteralPath $sourceSharedDataDir -PathType Container) {
+		# On Windows the GitHub session is APPLICATION_SHARED scoped, so it lives here
+		# and not in the profile - see useSharedStorage in
+		# src/vs/platform/secrets/common/secrets.ts. Without this copy the launched
+		# instance always prompts for sign-in.
+		Write-LaunchError "[launch.ps1] copying shared data: $sourceSharedDataDir -> $sharedDataDir"
+		Copy-ProfileDirectory $sourceSharedDataDir $sharedDataDir $false
+	} else {
+		# Not necessarily fatal: profiles predating the APPLICATION_SHARED migration
+		# still hold the secret in globalStorage, and ApplicationSharedStorageMain
+		# falls back to application storage. State the fact and let the preflight
+		# below decide whether a sign-in is actually coming.
+		Write-LaunchError "[launch.ps1] no shared-data-dir at $sourceSharedDataDir; nothing to seed"
+	}
+	$hasGitHubAuthenticationSecret = Test-SourceHasGitHubAuthenticationSecret $node $sourceUserDataDir $sourceSharedDataDir (Join-Path $runDir 'auth-preflight.vscdb')
 	if ($hasGitHubAuthenticationSecret -eq $false) {
 		Write-LaunchError "[launch.ps1] WARNING: source profile $sourceUserDataDir has no stored GitHub session; the launched instance will prompt you to sign in."
 		Write-LaunchError 'To fix once and for all, launch Code OSS directly against the source profile (no copy), sign in, then close it:'
@@ -479,6 +576,7 @@ try {
 	$settingsFile = Join-Path $destinationUdd 'User\settings.json'
 	Ensure-SimpleDialogSetting $settingsFile
 	Write-LaunchError "[launch.ps1] ensured files.simpleDialog.enable=true in $settingsFile"
+	$profileReadyMs = $launchStopwatch.ElapsedMilliseconds
 
 	$launchArgs = [System.Collections.Generic.List[string]]::new()
 	if ($agents) {
@@ -491,53 +589,51 @@ try {
 	$launchArgs.Add("--inspect-extensions=$extHostPort")
 	$launchArgs.Add("--inspect=$mainPort")
 	$launchArgs.Add("--inspect-agenthost=$agentHostPort")
+	if ($disableWorkspaceTrust) {
+		$launchArgs.Add('--disable-workspace-trust')
+	}
 	foreach ($argument in $extraArgs) {
 		$launchArgs.Add($argument)
 	}
 
 	Write-LaunchError "[launch.ps1] launching: $codeBat $($launchArgs -join ' ')"
 	Write-LaunchError "[launch.ps1] logs: $logFile"
-	Write-LaunchError '[launch.ps1] running pre-launch (ensures electron + compiled output + built-ins)...'
-	Push-Location -LiteralPath $repo
-	try {
-		& $node 'build/lib/preLaunch.ts' *>> $logFile
-		$preLaunchExitCode = $LASTEXITCODE
-	} finally {
-		Pop-Location
-	}
-	if ($preLaunchExitCode -ne 0) {
-		Write-LaunchError '[launch.ps1] pre-launch FAILED. Log tail:'
-		Write-LogTail $logFile
-		exit 1
-	}
-
-	$process = Start-Code $codeBat $launchArgs.ToArray() $logFile
-	Write-LaunchError "[launch.ps1] waiting for CDP on port $cdpPort (timeout 90s)..."
-	$ready = $false
-	for ($second = 1; $second -le 90; $second++) {
-		if ($process.HasExited) {
-			Write-LaunchError "[launch.ps1] code.bat (PID $($process.Id)) exited before CDP came up. Log tail:"
+	if ($skipPreLaunch) {
+		Write-LaunchError '[launch.ps1] skipping pre-launch by request'
+	} else {
+		Write-LaunchError '[launch.ps1] running pre-launch (ensures electron + compiled output + built-ins)...'
+		Push-Location -LiteralPath $repo
+		try {
+			& $node 'build/lib/preLaunch.ts' *>> $logFile
+			$preLaunchExitCode = $LASTEXITCODE
+		} finally {
+			Pop-Location
+		}
+		if ($preLaunchExitCode -ne 0) {
+			Write-LaunchError '[launch.ps1] pre-launch FAILED. Log tail:'
 			Write-LogTail $logFile
 			exit 1
 		}
-
-		try {
-			$request = [Net.WebRequest]::Create("http://127.0.0.1:$cdpPort/json/version")
-			$request.Timeout = 1000
-			$response = $request.GetResponse()
-			$response.Close()
-			$ready = $true
-			Write-LaunchError "[launch.ps1] CDP ready after ${second}s"
-			break
-		} catch {
-			Start-Sleep -Seconds 1
-		}
 	}
-	if (-not $ready) {
-		Write-LaunchError "[launch.ps1] timed out waiting for CDP on port $cdpPort. Log tail:"
+	$preLaunchReadyMs = $launchStopwatch.ElapsedMilliseconds
+
+	$process = Start-Code $codeBat $launchArgs.ToArray() $logFile
+	Write-LaunchError "[launch.ps1] waiting for CDP on port $cdpPort (timeout 90s)..."
+	$waitForCdp = Join-Path $PSScriptRoot 'waitForCdp.ts'
+	$readyMs = & $node $waitForCdp $process.Id $cdpPort
+	$readyStatus = $LASTEXITCODE
+	if ($readyStatus -eq 0) {
+		Write-LaunchError "[launch.ps1] CDP ready after ${readyMs}ms"
+	} else {
+		switch ($readyStatus) {
+			1 { Write-LaunchError "[launch.ps1] timed out waiting for CDP on port $cdpPort. Log tail:" }
+			2 { Write-LaunchError "[launch.ps1] code.bat (PID $($process.Id)) exited before CDP came up. Log tail:" }
+			default { Write-LaunchError "[launch.ps1] failed while waiting for CDP on port $cdpPort. Log tail:" }
+		}
 		Write-LogTail $logFile
 		exit 1
 	}
+	$launchReadyMs = $launchStopwatch.ElapsedMilliseconds
 
 	[PSCustomObject]@{
 		pid = $process.Id
@@ -552,6 +648,12 @@ try {
 		logFile = $logFile
 		repo = $repo
 		agents = [bool]$agents
+		timings = [PSCustomObject]@{
+			profileMs = $profileReadyMs
+			preLaunchMs = $preLaunchReadyMs - $profileReadyMs
+			cdpReadyMs = $launchReadyMs - $preLaunchReadyMs
+			totalMs = $launchReadyMs
+		}
 	} | ConvertTo-Json -Compress
 } catch {
 	Write-LaunchError "[launch.ps1] $($_.Exception.Message)"

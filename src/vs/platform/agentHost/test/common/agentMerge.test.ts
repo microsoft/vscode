@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { AgentMergeConfiguration, evaluateAgentMerge, readAgentMergeSessionState } from '../../common/agentMerge.js';
+import { AgentMergeConfiguration, evaluateAgentMerge, getNonMergeSessionConfigValues, readAgentMergeSessionState } from '../../common/agentMerge.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { PullRequestSnapshot } from '../../../github/common/githubPullRequestService.js';
 
@@ -146,6 +146,27 @@ suite('Agent Merge gate', () => {
 		});
 	});
 
+	test('names the fragment holding evaluation back and why', () => {
+		const failing = readySnapshot();
+		assert.deepStrictEqual([
+			evaluateAgentMerge({
+				...failing,
+				checks: {
+					status: 'error',
+					complete: false,
+					error: { kind: 'authorization', statusCode: 200, message: 'Resource protected by organization SAML enforcement.' },
+				},
+			}, configuration, '2026-08-02T00:00:00.000Z'),
+			evaluateAgentMerge({
+				...failing,
+				mergeability: { status: 'loading', complete: false },
+			}, configuration, '2026-08-02T00:00:00.000Z'),
+		], [
+			{ kind: 'indeterminate', reason: 'Pull request checks could not be loaded (authorization): Resource protected by organization SAML enforcement.', cause: 'checks:authorization' },
+			{ kind: 'indeterminate', reason: 'Pull request mergeability state is incomplete or stale (status=loading, complete=false)', cause: 'mergeability:incomplete' },
+		]);
+	});
+
 	test('keeps client and controller state in separate config values', () => {
 		assert.deepStrictEqual(readAgentMergeSessionState({
 			[SessionConfigKey.AgentMerge]: { enabled: true, overrides: { fixCI: false } },
@@ -169,6 +190,48 @@ suite('Agent Merge gate', () => {
 			},
 			lastPromptFingerprint: 'fingerprint',
 		});
+	});
+
+	test('returns pre-merge picker values when merge-injected values are active', () => {
+		const values = {
+			[SessionConfigKey.AgentMerge]: { enabled: true },
+			[SessionConfigKey.AgentMergeController]: {
+				injectedConfiguration: {
+					previous: {
+						autoApprove: 'default',
+						mode: 'interactive',
+						permissionMode: 'acceptEdits',
+					},
+					applied: {
+						autoApprove: 'assisted',
+						mode: 'autopilot',
+						permissionMode: 'auto',
+					},
+				},
+			},
+			autoApprove: 'assisted',
+			mode: 'autopilot',
+			permissionMode: 'auto',
+			permissions: { allow: ['shell'] },
+		};
+		assert.deepStrictEqual(getNonMergeSessionConfigValues(values), {
+			[SessionConfigKey.AgentMerge]: { enabled: true },
+			[SessionConfigKey.AgentMergeController]: values[SessionConfigKey.AgentMergeController],
+			autoApprove: 'default',
+			mode: 'interactive',
+			permissionMode: 'acceptEdits',
+			permissions: { allow: ['shell'] },
+		});
+	});
+
+	test('leaves session config unchanged when merge is disabled', () => {
+		const values = {
+			[SessionConfigKey.AgentMerge]: { enabled: false },
+			autoApprove: 'autoApprove',
+			mode: 'plan',
+			permissionMode: 'plan',
+		};
+		assert.deepStrictEqual(getNonMergeSessionConfigValues(values), values);
 	});
 });
 

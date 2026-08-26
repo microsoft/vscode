@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../nls.js';
-import type { ToolDefinition, URI } from '../../common/state/sessionState.js';
+import type { IAgentServerToolDefinition } from '../../common/agentServerTools.js';
 import type { AgentHostStateManager } from '../agentHostStateManager.js';
 import type { IServerToolDisplay, IServerToolDisplayResult, IServerToolGroup } from './agentServerToolHost.js';
 
@@ -12,7 +12,7 @@ export const readAgentMergeCIToolName = 'readAgentMergeCI';
 export const replyToAgentMergeReviewThreadToolName = 'replyToAgentMergeReviewThread';
 export const rerunAgentMergeWorkflowToolName = 'rerunAgentMergeWorkflow';
 
-const definitions: readonly ToolDefinition[] = [
+const definitions: readonly IAgentServerToolDefinition[] = [
 	{
 		name: readAgentMergeCIToolName,
 		title: 'Read Agent Merge CI',
@@ -62,17 +62,17 @@ export function createAgentMergeServerToolGroup(accessor?: IAgentMergeToolAccess
 	return {
 		definitions,
 		isEnabled: toolName => accessor?.isEnabled() === true && definitions.some(definition => definition.name === toolName),
-		execute: (_stateManager: AgentHostStateManager, sessionUri: URI, toolName: string, rawArgs: unknown) => {
+		execute: (_stateManager: AgentHostStateManager, context, toolName: string, rawArgs: unknown) => {
 			if (!accessor) {
 				throw new Error('Agent Merge tools are not available without an Agent Merge controller.');
 			}
 			switch (toolName) {
 				case readAgentMergeCIToolName:
-					return accessor.readFailedCI(sessionUri);
+					return accessor.readFailedCI(context.sessionUri);
 				case replyToAgentMergeReviewThreadToolName: {
 					const args = asRecord(rawArgs, toolName);
 					return accessor.replyToReviewThread(
-						sessionUri,
+						context.sessionUri,
 						requiredString(args.threadId, 'threadId', toolName),
 						requiredString(args.body, 'body', toolName),
 						optionalBoolean(args.resolve, 'resolve', toolName) ?? true,
@@ -81,7 +81,7 @@ export function createAgentMergeServerToolGroup(accessor?: IAgentMergeToolAccess
 				case rerunAgentMergeWorkflowToolName: {
 					const args = asRecord(rawArgs, toolName);
 					return accessor.rerunFailedWorkflow(
-						sessionUri,
+						context.sessionUri,
 						requiredString(args.runId, 'runId', toolName),
 						optionalBoolean(args.failedJobsOnly, 'failedJobsOnly', toolName) ?? true,
 					);

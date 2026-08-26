@@ -163,11 +163,22 @@ suite('FeedbackInputWidget', () => {
 				showContextMenu: delegate => contextMenuDelegate = delegate,
 			},
 		}));
-		widget.inputElement.value = 'Feedback';
-		widget.updateActionEnabled();
-
 		const dropdown = widget.domNode.querySelector<HTMLElement>('.monaco-dropdown .dropdown-label');
 		assert.ok(dropdown);
+		dropdown.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
+		const enterEvent = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true });
+		Object.defineProperty(enterEvent, 'keyCode', { get: () => 13 });
+		dropdown.dispatchEvent(enterEvent);
+		assert.deepStrictEqual({
+			ariaDisabled: dropdown.querySelector('.action-label')?.getAttribute('aria-disabled'),
+			contextMenuShown: contextMenuDelegate !== undefined,
+		}, {
+			ariaDisabled: 'true',
+			contextMenuShown: false,
+		});
+
+		widget.inputElement.value = 'Feedback';
+		widget.updateActionEnabled();
 		dropdown.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
 		assert.ok(contextMenuDelegate);
 

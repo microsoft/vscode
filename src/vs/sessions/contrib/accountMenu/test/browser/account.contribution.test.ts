@@ -9,8 +9,10 @@ import { isIMenuItem, MenuRegistry } from '../../../../../platform/actions/commo
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { CHAT_SETUP_ACTION_ID } from '../../../../../workbench/contrib/chat/browser/actions/chatActions.js';
+import { ChatPetAchievementIds } from '../../../../../workbench/contrib/chat/browser/chatPetAchievements.js';
 import { Menus } from '../../../../browser/menus.js';
 import { shouldShowAccountPanelSummary } from '../../browser/account.contribution.js';
+import { getSessionsChatPetAchievementBadges } from '../../browser/chatPetAchievementBadges.js';
 
 suite('Sessions - Account Menu', () => {
 
@@ -51,6 +53,51 @@ suite('Sessions - Account Menu', () => {
 			signedOut: false,
 			unavailable: true,
 			loading: false,
+		});
+	});
+
+	test('shows unlocked badges first while the pet is enabled', () => {
+		assert.deepStrictEqual({
+			disabled: getSessionsChatPetAchievementBadges(false, [ChatPetAchievementIds.FirstChatMessage]),
+			empty: getSessionsChatPetAchievementBadges(true, [])?.map(badge => ({ id: badge.achievement.id, unlocked: badge.unlocked })),
+			partial: getSessionsChatPetAchievementBadges(true, [
+				ChatPetAchievementIds.IntegratedBrowserShared,
+				ChatPetAchievementIds.FirstChatMessage,
+			])?.map(badge => ({ id: badge.achievement.id, unlocked: badge.unlocked })),
+		}, {
+			disabled: undefined,
+			empty: [
+				{ id: ChatPetAchievementIds.RequestRevision, unlocked: false },
+				{ id: ChatPetAchievementIds.FirstChatMessage, unlocked: false },
+				{ id: ChatPetAchievementIds.IntegratedBrowserShared, unlocked: false },
+				{ id: ChatPetAchievementIds.ModelSwitch, unlocked: false },
+				{ id: ChatPetAchievementIds.McpServerPresent, unlocked: false },
+				{ id: ChatPetAchievementIds.CustomSkillPresent, unlocked: false },
+				{ id: ChatPetAchievementIds.AgentsWindowOpened, unlocked: false },
+				{ id: ChatPetAchievementIds.CreatePullRequest, unlocked: false },
+				{ id: ChatPetAchievementIds.AgentEditKept, unlocked: false },
+				{ id: ChatPetAchievementIds.SessionArchived, unlocked: false },
+				{ id: ChatPetAchievementIds.AgentChangesReviewed, unlocked: false },
+				{ id: ChatPetAchievementIds.ChatReferenceOpened, unlocked: false },
+				{ id: ChatPetAchievementIds.UsefulOutputCopied, unlocked: false },
+				{ id: ChatPetAchievementIds.AutopilotEnabled, unlocked: false },
+			],
+			partial: [
+				{ id: ChatPetAchievementIds.FirstChatMessage, unlocked: true },
+				{ id: ChatPetAchievementIds.IntegratedBrowserShared, unlocked: true },
+				{ id: ChatPetAchievementIds.RequestRevision, unlocked: false },
+				{ id: ChatPetAchievementIds.ModelSwitch, unlocked: false },
+				{ id: ChatPetAchievementIds.McpServerPresent, unlocked: false },
+				{ id: ChatPetAchievementIds.CustomSkillPresent, unlocked: false },
+				{ id: ChatPetAchievementIds.AgentsWindowOpened, unlocked: false },
+				{ id: ChatPetAchievementIds.CreatePullRequest, unlocked: false },
+				{ id: ChatPetAchievementIds.AgentEditKept, unlocked: false },
+				{ id: ChatPetAchievementIds.SessionArchived, unlocked: false },
+				{ id: ChatPetAchievementIds.AgentChangesReviewed, unlocked: false },
+				{ id: ChatPetAchievementIds.ChatReferenceOpened, unlocked: false },
+				{ id: ChatPetAchievementIds.UsefulOutputCopied, unlocked: false },
+				{ id: ChatPetAchievementIds.AutopilotEnabled, unlocked: false },
+			],
 		});
 	});
 });

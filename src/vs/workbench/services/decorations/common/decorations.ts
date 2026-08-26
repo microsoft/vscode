@@ -13,6 +13,16 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 
 export const IDecorationsService = createDecorator<IDecorationsService>('IFileDecorationsService');
 
+/**
+ * Stable marker class set on a label alongside the generated, per-color
+ * {@link IDecoration.labelClassName}. Because that class carries a hashed
+ * suffix, styling "labels that carry a decoration color" would otherwise need a
+ * `[class*="..."]` substring match. Substring matches on `class` make every
+ * class mutation in the workbench pay style invalidation, so use this marker
+ * instead.
+ */
+export const DECORATION_LABEL_COLOR_CLASS = 'monaco-decoration-itemColor';
+
 export interface IDecorationData {
 	readonly weight?: number;
 	readonly color?: ColorIdentifier;

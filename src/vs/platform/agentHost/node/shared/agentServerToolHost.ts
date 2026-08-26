@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
+import type { IAgentServerToolDefinition, IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { ActionType } from '../../common/state/protocol/common/actions.js';
-import type { StringOrMarkdown, ToolDefinition, URI } from '../../common/state/sessionState.js';
+import { parseRequiredSessionUriFromChatUri, type StringOrMarkdown, type ToolDefinition, type URI } from '../../common/state/sessionState.js';
 import type { AgentHostStateManager } from '../agentHostStateManager.js';
 
 /**
@@ -36,6 +36,12 @@ export interface IServerToolDisplay {
 	readonly pastTenseMessage?: StringOrMarkdown;
 }
 
+export interface IServerToolExecutionContext {
+	readonly sessionUri: URI;
+	readonly chatUri: URI;
+	readonly turnId?: string;
+}
+
 /**
  * A group of related server tools owned and executed by the agent host. Each
  * group bundles the {@link ToolDefinition}s it advertises with an executor
@@ -52,7 +58,7 @@ export interface IServerToolDisplay {
  */
 export interface IServerToolGroup {
 	/** Tool definitions this group advertises on the session's `serverTools`. */
-	readonly definitions: readonly ToolDefinition[];
+	readonly definitions: readonly IAgentServerToolDefinition[];
 	/** Whether a contributed tool is currently enabled for advertisement and execution. */
 	isEnabled(toolName: string): boolean;
 	/**
@@ -65,12 +71,12 @@ export interface IServerToolGroup {
 	canRequireConfirmation?(toolName: string): boolean;
 	/**
 	 * Whether {@link toolName} needs to prompt for the invocation currently
-	 * being made against {@link sessionUri}. Implement this for
+	 * being made in {@link IServerToolExecutionContext.chatUri}. Implement this for
 	 * state-dependent confirmation (e.g. nothing to confirm yet) while keeping
 	 * {@link canRequireConfirmation} stable for provider allow-lists. Absent
 	 * falls back to {@link canRequireConfirmation}.
 	 */
-	requiresConfirmation?(stateManager: AgentHostStateManager, sessionUri: URI, toolName: string): boolean;
+	requiresConfirmation?(stateManager: AgentHostStateManager, context: IServerToolExecutionContext, toolName: string): boolean;
 	/**
 	 * Executes {@link toolName} (one of this group's {@link definitions})
 	 * against the session's state, dispatching any resulting actions through
@@ -80,7 +86,7 @@ export interface IServerToolGroup {
 	 * @throws if {@link toolName} is not owned by this group or the arguments
 	 * are invalid.
 	 */
-	execute(stateManager: AgentHostStateManager, sessionUri: URI, toolName: string, rawArgs: unknown): string | Promise<string>;
+	execute(stateManager: AgentHostStateManager, context: IServerToolExecutionContext, toolName: string, rawArgs: unknown): string | Promise<string>;
 
 	/**
 	 * Display strings for {@link toolName} (one of this group's
@@ -127,8 +133,14 @@ export class AgentServerToolHost implements IAgentServerToolHost {
 		}
 	}
 
-	get definitions(): readonly ToolDefinition[] {
+	get definitions(): readonly IAgentServerToolDefinition[] {
 		return this._groups.flatMap(group => group.definitions.filter(definition => group.isEnabled(definition.name)));
+	}
+
+	getDefinitionsForSession(sessionUri: URI): readonly IAgentServerToolDefinition[] {
+		return this._stateManager.isEphemeralSession(sessionUri)
+			? this.definitions.filter(definition => definition.enabledForEphemeralSessions)
+			: this.definitions;
 	}
 
 	get toolNames(): readonly string[] {
@@ -142,7 +154,7 @@ export class AgentServerToolHost implements IAgentServerToolHost {
 		}
 		this._stateManager.dispatchServerAction(sessionUri, {
 			type: ActionType.SessionServerToolsChanged,
-			tools: [...this.definitions],
+			tools: this._toProtocolDefinitions(this.getDefinitionsForSession(sessionUri)),
 		});
 	}
 
@@ -151,29 +163,41 @@ export class AgentServerToolHost implements IAgentServerToolHost {
 		return group?.isEnabled(toolName) === true && (group.canRequireConfirmation?.(toolName) ?? false);
 	}
 
-	requiresConfirmation(sessionUri: URI, toolName: string): boolean {
+	requiresConfirmation(chatUri: URI, toolName: string): boolean {
 		const group = this._groupByToolName.get(toolName);
-		if (group && !this._isEnabledForSession(group, sessionUri, toolName)) {
+		if (group && !this._isEnabledForSession(group, chatUri, toolName)) {
 			return false;
 		}
-		return group?.requiresConfirmation?.(this._stateManager, sessionUri, toolName)
+		return group?.requiresConfirmation?.(this._stateManager, this._executionContext(chatUri), toolName)
 			?? group?.canRequireConfirmation?.(toolName)
 			?? false;
 	}
 
-	executeTool(sessionUri: URI, toolName: string, rawArgs: unknown): string | Promise<string> {
+	executeTool(chatUri: URI, toolName: string, rawArgs: unknown): string | Promise<string> {
 		const group = this._groupByToolName.get(toolName);
 		if (!group) {
 			throw new Error(`Unknown server tool: ${toolName}`);
 		}
-		if (!this._isEnabledForSession(group, sessionUri, toolName)) {
+		if (!this._isEnabledForSession(group, chatUri, toolName)) {
 			throw new Error(`Server tool "${toolName}" is disabled.`);
 		}
-		return group.execute(this._stateManager, sessionUri, toolName, rawArgs);
+		return group.execute(this._stateManager, this._executionContext(chatUri), toolName, rawArgs);
 	}
 
-	private _isEnabledForSession(group: IServerToolGroup, sessionUri: URI, toolName: string): boolean {
-		const advertisedTools = this._stateManager.getSessionState(sessionUri)?.serverTools;
+	private _executionContext(chatUri: URI): IServerToolExecutionContext {
+		return {
+			sessionUri: parseRequiredSessionUriFromChatUri(chatUri),
+			chatUri,
+			turnId: this._stateManager.getActiveTurnId(chatUri),
+		};
+	}
+
+	private _toProtocolDefinitions(definitions: readonly IAgentServerToolDefinition[]): ToolDefinition[] {
+		return definitions.map(({ enabledForEphemeralSessions: _enabledForEphemeralSessions, ...definition }) => definition);
+	}
+
+	private _isEnabledForSession(group: IServerToolGroup, chatUri: URI, toolName: string): boolean {
+		const advertisedTools = this._stateManager.getSessionState(chatUri)?.serverTools;
 		return advertisedTools
 			? advertisedTools.some(tool => tool.name === toolName)
 			: group.isEnabled(toolName);

@@ -443,7 +443,7 @@
 		"terminal.ansiBrightCyan": "#78ffff",
 		"terminal.ansiBrightWhite": "#ffffff",
 		// modern ui
-		"surface.border": "#00000000",
+		"surface.border": "#2b2b4a",
 		"modernActivityBar.activeBackground": "#08286b",
 		"modernActivityBar.hoverBackground": "#08286b87",
 	},

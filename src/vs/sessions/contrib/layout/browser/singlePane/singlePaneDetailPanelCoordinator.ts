@@ -18,7 +18,7 @@ import { SESSIONS_FILES_CONTAINER_ID } from '../../../files/browser/files.contri
 
 export const enum DetailPanelTarget {
 	Hidden,
-	BrowserHidden,
+	EditorHidden,
 	Changes,
 	ChangesForced,
 	Files,
@@ -87,7 +87,7 @@ export class SinglePaneDetailPanelCoordinator extends Disposable {
 				await this._viewsService.openViewContainer(SESSIONS_FILES_CONTAINER_ID, false);
 				return;
 			case DetailPanelTarget.Hidden:
-			case DetailPanelTarget.BrowserHidden:
+			case DetailPanelTarget.EditorHidden:
 			case DetailPanelTarget.Preserve:
 				return;
 		}

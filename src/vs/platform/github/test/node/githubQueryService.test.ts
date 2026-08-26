@@ -31,6 +31,7 @@ const policy: GitHubEntityPollingPolicy = {
 	maximumDormantEntries: 2,
 	visible: 10,
 	background: 100,
+	failureBackoff: { immediateRetries: 0, base: 30, maximum: 300, jitter: 0 },
 	jitter: 0,
 };
 
@@ -144,6 +145,152 @@ suite('GitHubQueryService', () => {
 		));
 		return { account, ref, clock, credentials, service };
 	}
+
+	function graphQLRepository(): object {
+		return {
+			id: 'R1',
+			owner: { id: 'U1', login: 'octo' },
+			name: 'repo',
+			nameWithOwner: 'octo/repo',
+			primaryLanguage: { name: 'TypeScript' },
+			stargazerCount: 42,
+			defaultBranchRef: { name: 'main' },
+			isPrivate: false,
+			description: 'Repository',
+			url: 'https://example.test/octo/repo',
+			isArchived: false,
+			isFork: false,
+		};
+	}
+
+	function graphQLIssue(): object {
+		return {
+			id: 'I7',
+			number: 7,
+			title: 'Issue',
+			body: 'Body',
+			url: 'https://example.test/octo/repo/issues/7',
+			state: 'CLOSED',
+			stateReason: 'NOT_PLANNED',
+			author: null,
+			assignees: { nodes: [{ id: 'U3', login: 'assignee' }] },
+			labels: { nodes: [{ name: 'bug' }] },
+			createdAt: '2026-08-18T00:00:00Z',
+			updatedAt: '2026-08-18T01:00:00Z',
+			closedAt: '2026-08-18T02:00:00Z',
+		};
+	}
+
+	test('hydrates repository and issue resources in one GraphQL request', async () => {
+		await withServer(async server => {
+			server.enqueue(gitHubGraphQLStep({
+				queryIncludes: 'HydrateGitHubResources',
+				assert: request => assert.deepStrictEqual(request.graphQl?.variables, {
+					owner0: 'octo',
+					repo0: 'repo',
+					owner1: 'octo',
+					repo1: 'repo',
+					number1: 7,
+				}),
+				response: gitHubGraphQLResponse({
+					r0: graphQLRepository(),
+					r1: {
+						issue: graphQLIssue(),
+					},
+				}),
+			}));
+			const { account, service } = setup(server);
+			const repositoryRef = { ...account, owner: 'octo', repo: 'repo' };
+			const issueRef = { ...account, owner: 'octo', repo: 'repo', number: 7 };
+			const repository = service.subscribeRepository(repositoryRef, { priority: 'visible' });
+			const issue = service.subscribeIssue(issueRef, { priority: 'visible' });
+
+			await service.hydrateResources([
+				{ kind: 'repository', ref: repositoryRef },
+				{ kind: 'issue', ref: issueRef },
+			], signal());
+			await service.hydrateResources([
+				{ kind: 'repository', ref: repositoryRef },
+				{ kind: 'issue', ref: issueRef },
+			], signal());
+
+			assert.deepStrictEqual({
+				repository: repository.resource.state.get().value,
+				issue: issue.resource.state.get().value,
+			}, {
+				repository: {
+					id: 'R1',
+					owner: { id: 'U1', login: 'octo' },
+					name: 'repo',
+					nameWithOwner: 'octo/repo',
+					language: 'TypeScript',
+					stars: 42,
+					defaultBranch: 'main',
+					private: false,
+					description: 'Repository',
+					url: 'https://example.test/octo/repo',
+					archived: false,
+					fork: false,
+				},
+				issue: {
+					id: 'I7',
+					number: 7,
+					title: 'Issue',
+					body: 'Body',
+					url: 'https://example.test/octo/repo/issues/7',
+					state: 'closed',
+					stateReason: 'not_planned',
+					author: { login: 'ghost' },
+					assignees: [{ id: 'U3', login: 'assignee' }],
+					labels: ['bug'],
+					createdAt: '2026-08-18T00:00:00Z',
+					updatedAt: '2026-08-18T01:00:00Z',
+					closedAt: '2026-08-18T02:00:00Z',
+				},
+			});
+			server.assertSatisfied();
+		});
+	});
+
+	test('does not overwrite a newer REST refresh with stale hydration data', async () => {
+		await withServer(async server => {
+			const hydrationStarted = new DeferredPromise<void>();
+			const releaseHydration = new DeferredPromise<void>();
+			const refreshStarted = new DeferredPromise<void>();
+			const releaseRefresh = new DeferredPromise<void>();
+			server.enqueue(
+				gitHubGraphQLStep({
+					queryIncludes: 'HydrateGitHubResources',
+					assert: async () => hydrationStarted.complete(),
+					waitFor: releaseHydration.p,
+					response: gitHubGraphQLResponse({ r0: graphQLRepository() }),
+				}),
+				gitHubRestStep({
+					method: 'GET',
+					path: '/repos/octo/repo',
+					assert: async () => refreshStarted.complete(),
+					waitFor: releaseRefresh.p,
+					response: gitHubJsonResponse(repositoryResponse('new-owner/new-repo')),
+				}),
+			);
+			const { account, service } = setup(server);
+			const ref = { ...account, owner: 'octo', repo: 'repo' };
+			const repository = service.subscribeRepository(ref, { priority: 'visible' });
+			const hydration = service.hydrateResources([{ kind: 'repository', ref }], signal());
+			await hydrationStarted.p;
+
+			const refresh = repository.refresh();
+			await releaseHydration.complete();
+			await hydration;
+			await refreshStarted.p;
+			assert.strictEqual(repository.resource.state.get().status, 'loading');
+			await releaseRefresh.complete();
+			await refresh;
+
+			assert.strictEqual(repository.resource.state.get().value?.nameWithOwner, 'new-owner/new-repo');
+			server.assertSatisfied();
+		});
+	});
 
 	test('shares repository and issue resources, canonicalizes aliases, and stops terminal issue polling', async () => {
 		await withServer(async server => {
@@ -802,6 +949,75 @@ suite('GitHubQueryService', () => {
 			assert.deepStrictEqual(await transientCapabilities.service.getRecentAssignedIssues(transientCapabilities.ref, signal()), []);
 
 			assert.strictEqual(server.requests.length, 3);
+			server.assertSatisfied();
+		});
+	});
+
+	test('spaces out retries the longer an entity keeps failing', async () => {
+		await withServer(async server => {
+			const { clock, ref, service } = setup(server);
+			server.enqueue(...Array.from({ length: 3 }, () => gitHubRestStep({
+				method: 'GET',
+				path: '/repos/octo/repo',
+				response: gitHubJsonResponse({ message: 'Not Found' }, { status: 404 }),
+			})));
+			const subscription = service.subscribeRepository(ref, { priority: 'visible' });
+
+			await assert.rejects(() => subscription.refresh());
+			const firstRetryAt = clock.nextDueTime;
+			clock.advanceTo(firstRetryAt!);
+			await assert.rejects(() => subscription.refresh());
+			const secondRetryAt = clock.nextDueTime;
+			clock.advanceTo(secondRetryAt!);
+			await assert.rejects(() => subscription.refresh());
+
+			// The visible cadence is 10ms, so a failure must never be retried at it.
+			assert.deepStrictEqual({
+				firstRetryAt,
+				secondRetryAt,
+				thirdRetryAt: clock.nextDueTime,
+				requestCount: server.requests.length,
+			}, {
+				firstRetryAt: 30,
+				secondRetryAt: 90,
+				thirdRetryAt: 210,
+				requestCount: 3,
+			});
+			subscription.dispose();
+			server.assertSatisfied();
+		});
+	});
+
+	test('jitters a failure retry that the poll cadence, not the backoff, decides', async () => {
+		await withServer(async server => {
+			// A background entity polls far slower than the first backoff steps,
+			// so the cadence wins. It still has to be spread: credential
+			// invalidation and rate-limit releases fail whole batches at the very
+			// same instant, and an unjittered retry keeps them phase-locked.
+			const jittered = disposables.add(new FakeGitHubScheduler({ now: 0, jitterValues: [7] }));
+			const credentials = disposables.add(new TestCredentialService({ host: new URL(server.apiBaseUrl).host, accountId: '101' }));
+			const transport = disposables.add(new GitHubTransport(nodeFetch));
+			const service = disposables.add(new GitHubQueryService(
+				jittered,
+				{ ...policy, failureBackoff: { ...policy.failureBackoff, jitter: 10 } },
+				credentials,
+				transport,
+				server.createEndpointService(),
+				new TestCapabilitiesService(),
+				new NullLogService(),
+			));
+			server.enqueue(gitHubRestStep({
+				method: 'GET',
+				path: '/repos/octo/repo',
+				response: gitHubJsonResponse({ message: 'Not Found' }, { status: 404 }),
+			}));
+			const subscription = service.subscribeRepository({ host: new URL(server.apiBaseUrl).host, accountId: '101', owner: 'octo', repo: 'repo' }, { priority: 'background' });
+
+			await assert.rejects(() => subscription.refresh());
+
+			// The background cadence is 100ms and the first backoff step is 30ms.
+			assert.strictEqual(jittered.nextDueTime, 107);
+			subscription.dispose();
 			server.assertSatisfied();
 		});
 	});
