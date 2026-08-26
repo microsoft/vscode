@@ -36,7 +36,6 @@ interface IConfiguration extends IWindowsConfiguration {
 			enabled?: boolean;
 			claudeAgent?: { enabled?: boolean };
 			codexAgent?: { enabled?: boolean };
-			byokModels?: { enabled?: boolean };
 			otel?: {
 				enabled?: boolean;
 				exporterType?: string;
@@ -70,7 +69,6 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 		'telemetry.feedback.enabled',
 		'chat.extensionUnification.enabled',
 		'chat.agentHost.claudeAgent.enabled',
-		'chat.agentHost.byokModels.enabled',
 		'chat.editor.codex.preferAgentHost',
 		'chat.agentHost.otel.enabled',
 		'chat.agentHost.otel.exporterType',
@@ -95,7 +93,6 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 	private readonly telemetryFeedbackEnabled = new ChangeObserver('boolean');
 	private readonly extensionUnificationEnabled = new ChangeObserver('boolean');
 	private readonly agentHostClaudeAgentEnabled = new ChangeObserver('boolean');
-	private readonly agentHostByokModelsEnabled = new ChangeObserver('boolean');
 	private readonly editorCodexPreferAgentHost = new ChangeObserver('boolean');
 	private readonly agentHostOTelEnabled = new ChangeObserver('boolean');
 	private readonly agentHostOTelExporterType = new ChangeObserver('string');
@@ -194,9 +191,6 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 
 		// Extension Unification (only when turning on)
 		processChanged(this.extensionUnificationEnabled.handleChange(config.chat?.extensionUnification?.enabled) && config.chat?.extensionUnification?.enabled === true);
-
-		// Agent Host
-		processChanged(this.agentHostByokModelsEnabled.handleChange(config.chat?.agentHost?.byokModels?.enabled));
 
 		// Agent provider registration and implementation preferences are read at spawn.
 		processChanged(this.agentHostClaudeAgentEnabled.handleChange(config.chat?.agentHost?.claudeAgent?.enabled));

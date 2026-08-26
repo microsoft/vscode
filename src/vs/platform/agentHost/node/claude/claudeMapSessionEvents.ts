@@ -307,8 +307,15 @@ function mapAssistantCanonical(
 	registry: SubagentRegistry,
 	clientToolOwner?: (toolName: string) => string | undefined,
 ): AgentSignal[] {
+	const completedSignal: AgentSignal = {
+		kind: 'model_call_completed',
+		resource: chat,
+		turnId,
+		modelCallId: message.message.id,
+	};
+	const completedSignals = message.aborted ? [] : [completedSignal];
 	if (parentToolUseId === null) {
-		const top: AgentSignal[] = [];
+		const top: AgentSignal[] = [...completedSignals];
 		for (const block of message.message.content) {
 			if (block.type !== 'tool_use' || !SUBAGENT_SPAWNING_TOOL_NAMES.has(block.name)) {
 				continue;
@@ -317,7 +324,7 @@ function mapAssistantCanonical(
 		}
 		return top;
 	}
-	return emitInnerAssistantSignals(message, chat, turnId, state, parentToolUseId, registry, clientToolOwner);
+	return [...completedSignals, ...emitInnerAssistantSignals(message, chat, turnId, state, parentToolUseId, registry, clientToolOwner)];
 }
 
 /**
@@ -491,9 +498,12 @@ function mapResult(
 				type: ActionType.ChatError,
 				turnId,
 				duration: typeof turnDuration === 'number' && Number.isFinite(turnDuration) ? Math.max(0, turnDuration) : 0,
-				error: {
-					errorType: message.subtype,
-					...extractForwardedErrorInfo(errorText),
+				part: {
+					kind: ResponsePartKind.Error,
+					error: {
+						errorType: message.subtype,
+						...extractForwardedErrorInfo(errorText),
+					},
 				},
 			},
 		});

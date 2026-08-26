@@ -39,6 +39,7 @@
 		"surface.border": "#252526",
 		"modernActivityBar.activeBackground": "#1E1E1E",
 		"modernActivityBar.hoverBackground": "#1E1E1E66",
+		"modernActivityBar.border": "#00000000"
 	},
 	"tokenColors": [
 		{

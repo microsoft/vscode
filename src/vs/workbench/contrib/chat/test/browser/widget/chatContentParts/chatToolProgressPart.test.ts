@@ -9,7 +9,7 @@ import { Event } from '../../../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../../base/common/observable.js';
 import { IRenderedMarkdown, MarkdownRenderOptions, renderAsPlaintext, renderMarkdown } from '../../../../../../../base/browser/markdownRenderer.js';
-import { IMarkdownString } from '../../../../../../../base/common/htmlContent.js';
+import { IMarkdownString, MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
@@ -97,7 +97,7 @@ suite('ChatToolProgressSubPart', () => {
 		source?: ToolDataSourceType;
 		toolId?: string;
 		isComplete?: boolean;
-		invocationMessage?: string;
+		invocationMessage?: string | IMarkdownString;
 	} = {}): IChatToolInvocationSerialized {
 		return {
 			presentation: undefined,
@@ -118,7 +118,7 @@ suite('ChatToolProgressSubPart', () => {
 	function createToolInvocation(options: {
 		source?: ToolDataSourceType;
 		toolId?: string;
-		invocationMessage?: string;
+		invocationMessage?: string | IMarkdownString;
 		progressMessage?: string;
 	} = {}): IChatToolInvocation {
 		const source = options.source ?? ToolDataSource.Internal;
@@ -220,7 +220,7 @@ suite('ChatToolProgressSubPart', () => {
 		assert.strictEqual(part.hasSameContent(invocation, [], {} as never), false);
 	});
 
-	test('confirmation carousel reports the active subagent and invokes its reference action', () => {
+	test('confirmation carousel reports the active subagent title and invokes its reference action', () => {
 		const createPendingInvocation = (toolCallId: string): IChatToolInvocation => ({
 			...createToolInvocation(),
 			toolCallId,
@@ -245,8 +245,8 @@ suite('ChatToolProgressSubPart', () => {
 			throw new Error('External tool parts should be reused');
 		}, []));
 		disposables.add(carousel.onDidChangeActiveSubagent(id => active.push(id)));
-		carousel.addToolInvocation(createPendingInvocation('first'), 'subagent-one', 'one', id => revealed.push(id), 'Open one Chat', createExternalPart());
-		carousel.addToolInvocation(createPendingInvocation('second'), 'subagent-two', 'two', id => revealed.push(id), 'Open two Chat', createExternalPart());
+		carousel.addToolInvocation(createPendingInvocation('first'), 'subagent-one', 'Inspect auth flow', id => revealed.push(id), 'Open Inspect auth flow Chat', createExternalPart());
+		carousel.addToolInvocation(createPendingInvocation('second'), 'subagent-two', 'Review current branch', id => revealed.push(id), 'Open Review current branch Chat', createExternalPart());
 
 		carousel.activateFirstToolForSubagent('subagent-two');
 		const agentLabel = carousel.domNode.querySelector<HTMLButtonElement>('.chat-tool-carousel-agent-label');
@@ -255,11 +255,13 @@ suite('ChatToolProgressSubPart', () => {
 		assert.deepStrictEqual({
 			active,
 			revealed,
+			text: agentLabel?.textContent,
 			label: agentLabel?.title,
 		}, {
 			active: ['subagent-one', 'subagent-two'],
 			revealed: ['subagent-two'],
-			label: 'Open two Chat',
+			text: '\u2014 Review current branch',
+			label: 'Open Review current branch Chat',
 		});
 	});
 
@@ -457,7 +459,7 @@ suite('ChatToolProgressSubPart', () => {
 			const shimmerText = part.domNode.querySelector<HTMLElement>('.chat-progress-shimmer-text');
 			return {
 				shimmer: !!part.domNode.querySelector('.shimmer-progress'),
-				spinner: !!part.domNode.querySelector('.codicon-loading'),
+				spinner: !!part.domNode.querySelector('.codicon-loading, .codicon-loading-compact'),
 				shimmerText: shimmerText?.textContent,
 				// A negative animation-delay keeps the sweep continuous across streaming rerenders.
 				shimmerPhaseSynced: (shimmerText?.style.animationDelay ?? '').endsWith('ms'),
@@ -545,7 +547,29 @@ suite('ChatToolProgressSubPart', () => {
 			new Set<string>()
 		));
 
-		assert.strictEqual(part.domNode.querySelector('.codicon-loading'), null);
+		assert.strictEqual(part.domNode.querySelector('.codicon-loading, .codicon-loading-compact'), null);
+	});
+
+	test('renders markdown file pills in regular tool messages', () => {
+		const invocationMessage = new MarkdownString('Edit [](claudeAgent.ts)');
+		invocationMessage.baseUri = URI.file('/workspace/');
+		const tool = createToolInvocation({ toolId: 'edit', invocationMessage });
+		const markdownRenderer: IMarkdownRenderer = {
+			render: (markdown, options) => renderMarkdown(markdown, options),
+		};
+
+		const part = disposables.add(instantiationService.createInstance(
+			ChatToolProgressSubPart,
+			tool,
+			createRenderContext(false),
+			markdownRenderer,
+			new Set<string>()
+		));
+
+		assert.strictEqual(
+			part.domNode.querySelector<HTMLElement>('.chat-inline-anchor-widget .icon-label')?.textContent,
+			'claudeAgent.ts'
+		);
 	});
 
 	test('does not add shimmer styling for non-MCP tool progress', () => {

@@ -21,14 +21,18 @@ import { IProductService } from '../../../../../platform/product/common/productS
 import { AgentSession, type AgentSignal, type IAgentChatContext, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentMaterializeChatEvent } from '../../../common/agent.js';
 import { buildChatUri, buildDefaultChatUri } from '../../../common/state/sessionState.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
+import { CustomizationType, McpServerStatus } from '../../../common/state/protocol/channels-session/state.js';
 import type { IAgentServerToolHost } from '../../../common/agentServerTools.js';
 import { ISessionDataService, type ISessionDatabase } from '../../../common/sessionDataService.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../../common/agentHostCheckpointService.js';
 import { IAgentHostOTelService } from '../../../common/otel/agentHostOTelService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../../node/agentConfigurationService.js';
-import { AgentHostStateManager } from '../../../node/agentHostStateManager.js';
+import { IAgentHostWorktreeIsolation, NullAgentHostWorktreeIsolation } from '../../../node/shared/worktreeIsolation.js';
+import { IAgentHostCustomizationEnablementService } from '../../../node/agentHostCustomizationEnablementService.js';
+import { AgentHostStateManager, IAgentHostStateManager } from '../../../node/agentHostStateManager.js';
 import { IAgentHostSessionTitleSignal } from '../../../node/agentHostSessionTitleSignal.js';
 import { IAgentHostGitHubEndpointService } from '../../../node/agentHostGitHubEndpointService.js';
+import { IAgentHostProxyResolver } from '../../../node/agentHostProxyResolver.js';
 import { IAgentSdkDownloader } from '../../../node/agentSdkDownloader.js';
 import { CodexAgent, toCodexModelSelectionId } from '../../../node/codex/codexAgent.js';
 import { CodexAppServerClient, type ICodexAppServerTransport } from '../../../node/codex/codexAppServerClient.js';
@@ -36,6 +40,8 @@ import { ICodexProxyService } from '../../../node/codex/codexProxyService.js';
 import { ICopilotApiService } from '../../../node/shared/copilotApiService.js';
 import { createSessionDataService, TestSessionDatabase } from '../../common/sessionTestHelpers.js';
 import { createTestGitHubEndpointService } from '../testGitHubEndpointService.js';
+import { createNoopCustomizationEnablementService } from '../testCustomizationEnablementService.js';
+import { createTestAgentHostProxyResolver } from '../agentServiceTestUtils.js';
 
 const COPILOT_TEST_MODEL = toCodexModelSelectionId('vscode-proxy', 'gpt-test');
 
@@ -48,6 +54,7 @@ interface ITestWireRequest {
 		readonly numTurns?: number;
 		readonly input?: readonly { readonly type: string; readonly text?: string; readonly text_elements?: readonly object[] }[];
 		readonly additionalContext?: Readonly<Record<string, { readonly kind: string; readonly value: string }>>;
+		readonly dynamicTools?: readonly { readonly name: string }[];
 	};
 }
 
@@ -174,11 +181,15 @@ async function createAgent(disposables: Pick<DisposableStore, 'add'>, options: I
 	disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
 	const stateManager = disposables.add(new AgentHostStateManager(logService));
 	const configurationService = disposables.add(new AgentConfigurationService(stateManager, logService));
+	instantiationService.stub(IAgentHostStateManager, stateManager);
+	instantiationService.stub(IAgentHostCustomizationEnablementService, createNoopCustomizationEnablementService());
 	instantiationService.stub(ISessionDataService, options.sessionStore?.service ?? { _serviceBrand: undefined });
 	instantiationService.stub(ICopilotApiService, { _serviceBrand: undefined, models: async () => models });
 	instantiationService.stub(ICodexProxyService, { _serviceBrand: undefined });
 	instantiationService.stub(IAgentConfigurationService, configurationService);
+	instantiationService.stub(IAgentHostWorktreeIsolation, new NullAgentHostWorktreeIsolation());
 	instantiationService.stub(IAgentHostGitHubEndpointService, createTestGitHubEndpointService());
+	instantiationService.stub(IAgentHostProxyResolver, createTestAgentHostProxyResolver());
 	instantiationService.stub(IAgentSdkDownloader, {
 		_serviceBrand: undefined,
 		onDidDownloadProgress: Event.None,
@@ -243,6 +254,7 @@ function createRecordingServerToolHost(advertised: string[]): IAgentServerToolHo
 		definitions: [],
 		toolNames: [],
 		advertise: session => advertised.push(session.toString()),
+		getDefinitionsForSession: () => [],
 		canRequireConfirmation: () => false,
 		requiresConfirmation: () => false,
 		executeTool: () => '',
@@ -255,6 +267,7 @@ function createThrowingAdvertiseServerToolHost(message: string): IAgentServerToo
 		definitions: [],
 		toolNames: [],
 		advertise: () => { throw new Error(message); },
+		getDefinitionsForSession: () => [],
 		canRequireConfirmation: () => false,
 		requiresConfirmation: () => false,
 		executeTool: () => '',
@@ -264,23 +277,22 @@ function createThrowingAdvertiseServerToolHost(message: string): IAgentServerToo
 const PEER_TEST_TOOL_NAME = 'peer_test_tool';
 
 /**
- * Records the exact scope Codex hands {@link IAgentServerToolHost.requiresConfirmation}
- * and {@link IAgentServerToolHost.executeTool} for a single server tool
- * ({@link PEER_TEST_TOOL_NAME}). `advertise` is inert here: only the
- * execute/confirmation scope is under test.
+ * Records the exact chat channel Codex hands the server-tool host for a single
+ * server tool ({@link PEER_TEST_TOOL_NAME}).
  */
-function createRecordingCallScopeServerToolHost(calls: { readonly method: 'requiresConfirmation' | 'executeTool'; readonly scope: string }[]): IAgentServerToolHost {
+function createRecordingChatServerToolHost(calls: { readonly method: 'requiresConfirmation' | 'executeTool'; readonly chatUri: string }[]): IAgentServerToolHost {
 	return {
 		definitions: [{ name: PEER_TEST_TOOL_NAME, description: 'test', inputSchema: { type: 'object' } }],
 		toolNames: [PEER_TEST_TOOL_NAME],
 		advertise: () => { },
+		getDefinitionsForSession: () => [{ name: PEER_TEST_TOOL_NAME, description: 'test', inputSchema: { type: 'object' } }],
 		canRequireConfirmation: () => false,
-		requiresConfirmation: (scope, toolName) => {
-			calls.push({ method: 'requiresConfirmation', scope: scope.toString() });
+		requiresConfirmation: (chatUri, toolName) => {
+			calls.push({ method: 'requiresConfirmation', chatUri: chatUri.toString() });
 			return false;
 		},
-		executeTool: (scope, toolName) => {
-			calls.push({ method: 'executeTool', scope: scope.toString() });
+		executeTool: (chatUri, _toolName, _rawArgs) => {
+			calls.push({ method: 'executeTool', chatUri: chatUri.toString() });
 			return 'tool result';
 		},
 	};
@@ -312,6 +324,12 @@ function readNextMessage(stream: PassThrough): Promise<{ readonly id?: number; r
 suite('CodexAgent createChat', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('advertises chat fork and side-chat support', async () => {
+		const agent = await createAgent(disposables);
+
+		assert.deepStrictEqual(agent.getDescriptor().capabilities?.multipleChats, { fork: true, sideChat: true });
+	});
 
 	test('fresh: binds the exact target chat during creation, never leaving the runtime unbound', async () => {
 		const agent = await createAgent(disposables);
@@ -564,6 +582,10 @@ suite('CodexAgent createChat', () => {
 
 			const forked = await forking;
 			const newThreadId = 'forked-thread';
+			const forkInventory = await readNextRequest(peer.outbound);
+			assert.strictEqual(forkInventory.method, 'mcpServerStatus/list');
+			assert.strictEqual(forkInventory.params.threadId, newThreadId);
+			peer.push({ id: forkInventory.id, result: { data: [], nextCursor: null } });
 
 			assert.deepStrictEqual({
 				provisional: forked.provisional,
@@ -590,10 +612,18 @@ suite('CodexAgent createChat', () => {
 			// Exact chat binding is directly usable: sending on the forked chat
 			// resolves through the binding creation recorded.
 			const sending = agent.chats.sendMessage(forkChat, 'hello', undefined, undefined, 'turn-2');
+			const unsubscribe = await readNextRequest(peer.outbound);
+			assert.strictEqual(unsubscribe.method, 'thread/unsubscribe');
+			assert.strictEqual(unsubscribe.params.threadId, newThreadId);
+			peer.push({ id: unsubscribe.id, result: {} });
 			const resume = await readNextRequest(peer.outbound);
 			assert.strictEqual(resume.method, 'thread/resume');
 			assert.strictEqual(resume.params.threadId, newThreadId);
 			peer.push({ id: resume.id, result: { thread: { id: newThreadId, cwd: folder.fsPath }, cwd: folder.fsPath } });
+			const resumeInventory = await readNextRequest(peer.outbound);
+			assert.strictEqual(resumeInventory.method, 'mcpServerStatus/list');
+			assert.strictEqual(resumeInventory.params.threadId, newThreadId);
+			peer.push({ id: resumeInventory.id, result: { data: [], nextCursor: null } });
 			const turn = await readNextRequest(peer.outbound);
 			peer.push({ id: turn.id, result: {} });
 			await sending;
@@ -626,8 +656,16 @@ suite('CodexAgent createChat', () => {
 				config: {},
 			});
 			const start = await readNextRequest(peer.outbound);
+			const connection = agent['_connection'];
+			assert.strictEqual(connection.kind, 'ready');
+			if (connection.kind !== 'ready') {
+				throw new Error('Expected ready Codex connection');
+			}
+			agent['_handleMcpStartupStatus'](connection.client, 'additional-thread', 'early-mcp', 'starting', null);
+			assert.strictEqual(agent['_pendingMcpStartupStatuses'].has('additional-thread'), true);
 			peer.push({ id: start.id, result: { thread: { id: 'additional-thread', cwd: folder.fsPath } } });
 			const created = await creating;
+			const earlyMcpState = agent['_mcpInventory'].forThread('additional-thread').get('early-mcp')?.state.kind;
 
 			// A repeated create for the same chat must hand the exact same
 			// backing back; a second thread/start here would orphan the first.
@@ -635,6 +673,10 @@ suite('CodexAgent createChat', () => {
 				workingDirectories: [folder],
 				model: { id: COPILOT_TEST_MODEL },
 			});
+			agent['_mcpInventory'].setState('session-thread', 'default-mcp', { kind: McpServerStatus.Ready });
+			agent['_mcpInventory'].setState('additional-thread', 'peer-mcp', { kind: McpServerStatus.Ready });
+			agent['_fetchSkillHookContainers'] = async () => [];
+			const peerCustomizations = await agent.getChatCustomizations(additionalChat, { configurationResource: sessionUri, resource: additionalChat });
 
 			assert.deepStrictEqual({
 				started: { method: start.method, cwd: start.params.cwd },
@@ -647,6 +689,9 @@ suite('CodexAgent createChat', () => {
 				recreatedBackingSession: recreated?.backingSession?.toString(),
 				boundSessionId: agent['_sessionIdByChatUri'].get(additionalChat.toString()),
 				sessionRuntimeUntouched: agent['_sessions'].get('session-additional')?.threadId,
+				earlyMcpState,
+				peerMcp: peerCustomizations.filter(customization => customization.type === CustomizationType.McpServer).map(customization => customization.name),
+				configurationResource: agent['_sessions'].get('additional-thread')?.configurationResource.toString(),
 			}, {
 				started: { method: 'thread/start', cwd: folder.fsPath },
 				backingSession: AgentSession.uri('codex', 'additional-thread').toString(),
@@ -655,6 +700,9 @@ suite('CodexAgent createChat', () => {
 				recreatedBackingSession: AgentSession.uri('codex', 'additional-thread').toString(),
 				boundSessionId: 'additional-thread',
 				sessionRuntimeUntouched: 'session-thread',
+				earlyMcpState: McpServerStatus.Starting,
+				peerMcp: ['early-mcp', 'peer-mcp'],
+				configurationResource: sessionUri.toString(),
 			});
 		} finally {
 			peer.dispose();
@@ -779,6 +827,75 @@ suite('CodexAgent createChat', () => {
 			});
 			peer.push({ id: turn.id, result: {} });
 			await sending;
+		} finally {
+			peer.dispose();
+		}
+	});
+
+	test('prewarmed draft stays provisional while its launch config changes before first send', async () => {
+		const sessionStore = createTestSessionStore();
+		const agent = await createAgent(disposables, { sdkResolvableWithoutDownload: true, sessionStore });
+		const peer = disposables.add(createTestPeer());
+		connectPeer(agent, peer);
+
+		try {
+			const sessionUri = AgentSession.uri('codex', 'session-prewarm-restart');
+			const chat = URI.parse(buildDefaultChatUri(sessionUri));
+			const folder = URI.file('/repo/prewarm-restart');
+			const context = { configurationResource: sessionUri, resource: chat };
+			const materialized: string[] = [];
+			disposables.add(agent.onDidMaterializeChat(e => materialized.push(e.chat.toString())));
+
+			await createSessionBackedChat(agent, chat, context, {
+				workingDirectories: [folder],
+				model: { id: COPILOT_TEST_MODEL },
+			});
+			const prewarmStart = await readNextRequest(peer.outbound);
+			peer.push({ id: prewarmStart.id, result: { thread: { id: 'prewarmed-thread', cwd: folder.fsPath } } });
+			await new Promise(resolve => setImmediate(resolve));
+
+			const activeClient = agent.getOrCreateActiveClient(chat, context, { clientId: 'client-1' });
+			activeClient.tools = [{ name: 'client_tool', description: 'client tool', inputSchema: { type: 'object' } }];
+			const changingAgent = agent.chats.changeAgent(chat, undefined, context);
+			const unsubscribe = await readNextRequest(peer.outbound);
+			peer.push({ id: unsubscribe.id, result: {} });
+			const restartedThread = await readNextRequest(peer.outbound);
+			peer.push({ id: restartedThread.id, result: { thread: { id: 'restarted-thread', cwd: folder.fsPath } } });
+			await changingAgent;
+			await new Promise(resolve => setImmediate(resolve));
+			const beforeSend = [...materialized];
+			const persistedBeforeSend = await agent['_metadataStore'].read(sessionUri);
+
+			const sending = agent.chats.sendMessage(chat, 'hello', [folder], undefined, 'turn-1', undefined, undefined, context);
+			const turn = await readNextRequest(peer.outbound);
+			peer.push({ id: turn.id, result: {} });
+			await sending;
+			await new Promise(resolve => setImmediate(resolve));
+			const persistedAfterSend = await agent['_metadataStore'].read(sessionUri);
+
+			assert.deepStrictEqual({
+				beforeSend,
+				afterSend: materialized,
+				persistedThreadBeforeSend: persistedBeforeSend.threadId,
+				persistedThreadAfterSend: persistedAfterSend.threadId,
+				restartedDynamicTools: restartedThread.params.dynamicTools?.map(tool => tool.name),
+				requests: [prewarmStart, unsubscribe, restartedThread, turn].map(request => ({
+					method: request.method,
+					threadId: request.params.threadId,
+				})),
+			}, {
+				beforeSend: [],
+				afterSend: [chat.toString()],
+				persistedThreadBeforeSend: undefined,
+				persistedThreadAfterSend: 'restarted-thread',
+				restartedDynamicTools: ['client_tool'],
+				requests: [
+					{ method: 'thread/start', threadId: undefined },
+					{ method: 'thread/unsubscribe', threadId: 'prewarmed-thread' },
+					{ method: 'thread/start', threadId: undefined },
+					{ method: 'turn/start', threadId: 'restarted-thread' },
+				],
+			});
 		} finally {
 			peer.dispose();
 		}
@@ -1195,10 +1312,10 @@ suite('CodexAgent exact chat routing', () => {
 		}
 	});
 
-	test('a peer chat\'s server-tool call routes execute/confirmation through the host-addressed scope, never the peer runtime\'s own thread identity', async () => {
+	test('a peer chat\'s server-tool call uses its exact Agent Host chat channel', async () => {
 		const agent = await createAgent(disposables, { sdkResolvableWithoutDownload: true });
-		const calls: { readonly method: 'requiresConfirmation' | 'executeTool'; readonly scope: string }[] = [];
-		agent.setServerToolHost(createRecordingCallScopeServerToolHost(calls));
+		const calls: { readonly method: 'requiresConfirmation' | 'executeTool'; readonly chatUri: string }[] = [];
+		agent.setServerToolHost(createRecordingChatServerToolHost(calls));
 		const peer = disposables.add(createTestPeer());
 		connectPeer(agent, peer);
 
@@ -1252,8 +1369,8 @@ suite('CodexAgent exact chat routing', () => {
 				// session nor the chat channel — must never reach the host.
 				peerRuntimeUri: AgentSession.uri('codex', 'peer-thread').toString(),
 				calls: [
-					{ method: 'requiresConfirmation', scope: sessionUri.toString() },
-					{ method: 'executeTool', scope: sessionUri.toString() },
+					{ method: 'requiresConfirmation', chatUri: peerChat.toString() },
+					{ method: 'executeTool', chatUri: peerChat.toString() },
 				],
 				toolSucceeded: true,
 			});
@@ -1323,6 +1440,42 @@ suite('CodexAgent chat backing durability', () => {
 		});
 	});
 
+	test('persists the app-server turn id for restored turn metadata', async () => {
+		const sessionStore = createTestSessionStore();
+		const session = AgentSession.uri('codex', 'turn-id-mapping');
+		const chat = URI.parse(buildDefaultChatUri(session));
+		const folder = URI.file('/repo/turn-id-mapping');
+		const agent = await createAgent(disposables, { sdkResolvableWithoutDownload: true, sessionStore });
+		const peer = disposables.add(createTestPeer());
+		connect(agent, peer);
+
+		try {
+			await materializeSession(agent, peer, session, chat, folder, 'codex-thread');
+			const codexSession = agent['_sessions'].get(AgentSession.id(session))!;
+			agent['_handleTurnStartedNotification'](codexSession, {
+				threadId: 'codex-thread',
+				turn: {
+					id: 'app-turn-1',
+					items: [],
+					itemsView: 'full',
+					status: 'inProgress',
+					error: null,
+					startedAt: null,
+					completedAt: null,
+					durationMs: null,
+				},
+			});
+			await new Promise(resolve => setImmediate(resolve));
+
+			assert.deepStrictEqual(sessionStore.databaseFor(session).setTurnEventIdCalls, [{
+				turnId: 'turn-1',
+				eventId: 'app-turn-1',
+			}]);
+		} finally {
+			peer.dispose();
+		}
+	});
+
 	test('the materialize receipt re-keys the chat backing onto the runtime, so a restored session stays addressable', async () => {
 		const sessionStore = createTestSessionStore();
 		const session = AgentSession.uri('codex', 'host-session');
@@ -1352,6 +1505,8 @@ suite('CodexAgent chat backing durability', () => {
 			assert.strictEqual(read.params.threadId, 'codex-thread');
 			secondPeer.push({ id: read.id, result: { thread: { id: 'codex-thread', cwd: folder.fsPath, modelProvider: 'vscode-proxy', turns: [] } } });
 			await restoring;
+			const restoreInventory = await readNextRequest(secondPeer.outbound);
+			secondPeer.push({ id: restoreInventory.id, result: { data: [], nextCursor: null } });
 			await second.materializeChat(chat, { configurationResource: session, resource: chat }, receipt.result?.providerData);
 
 			// Drive a turn on the restored chat and fail it at `turn/start`, so
@@ -1359,8 +1514,12 @@ suite('CodexAgent chat backing durability', () => {
 			// bound to. A runtime restored under an id nothing addresses it by
 			// cannot find its own binding and drops the turn instead.
 			const resending = second.chats.sendMessage(chat, 'again', [folder], undefined, 'turn-2', undefined, undefined, { configurationResource: session, resource: chat });
+			const unsubscribe = await readNextRequest(secondPeer.outbound);
+			secondPeer.push({ id: unsubscribe.id, result: {} });
 			const resume = await readNextRequest(secondPeer.outbound);
 			secondPeer.push({ id: resume.id, result: { thread: { id: 'codex-thread', cwd: folder.fsPath }, cwd: folder.fsPath } });
+			const inventory = await readNextRequest(secondPeer.outbound);
+			secondPeer.push({ id: inventory.id, result: { data: [], nextCursor: null } });
 			const turn = await readNextRequest(secondPeer.outbound);
 			secondPeer.push({ id: turn.id, error: { code: -32000, message: 'turn rejected' } });
 			await resending;
@@ -1372,6 +1531,7 @@ suite('CodexAgent chat backing durability', () => {
 				restoredThreadId: restored?.threadId,
 				restoredSessionUri: restored?.sessionUri.toString(),
 				restoredChatChannel: restored?.chatChannel?.toString(),
+				unsubscribe: { method: unsubscribe.method, threadId: unsubscribe.params.threadId },
 				resume: { method: resume.method, threadId: resume.params.threadId },
 				turnActions: signals.flatMap(signal => signal.kind === 'action'
 					? [{ resource: signal.resource.toString(), type: signal.action.type }]
@@ -1385,6 +1545,7 @@ suite('CodexAgent chat backing durability', () => {
 				restoredThreadId: 'codex-thread',
 				restoredSessionUri: session.toString(),
 				restoredChatChannel: chat.toString(),
+				unsubscribe: { method: 'thread/unsubscribe', threadId: 'codex-thread' },
 				resume: { method: 'thread/resume', threadId: 'codex-thread' },
 				turnActions: [
 					{ resource: chat.toString(), type: ActionType.ChatError },
@@ -1415,6 +1576,8 @@ suite('CodexAgent chat backing durability', () => {
 			const read = await readNextRequest(peer.outbound);
 			peer.push({ id: read.id, result: { thread: { id: 'backing-thread', cwd: '/repo/addressed', turns: [] } } });
 			const metadata = await restoring;
+			const inventory = await readNextRequest(peer.outbound);
+			peer.push({ id: inventory.id, result: { data: [], nextCursor: null } });
 
 			const restored = agent['_sessions'].get('backing-runtime');
 			assert.deepStrictEqual({
@@ -1506,6 +1669,9 @@ suite('CodexAgent chat backing durability', () => {
 			});
 
 			const coldMetadata = await restoring;
+			const inventory = await readNextRequest(peer.outbound);
+			assert.strictEqual(inventory.method, 'mcpServerStatus/list');
+			peer.push({ id: inventory.id, result: { data: [], nextCursor: null } });
 			// The first lookup registers a live runtime. The second must retain
 			// the title without another app-server request: that server may be
 			// blocked waiting on the very dynamic tool call requesting metadata.

@@ -24,7 +24,7 @@ import { IExperimentationService } from '../../../../platform/telemetry/common/n
 import { IWorkspaceService } from '../../../../platform/workspace/common/workspaceService';
 import { createServiceIdentifier } from '../../../../util/common/services';
 import { coalesce } from '../../../../util/vs/base/common/arrays';
-import { disposableTimeout, raceCancellation, raceCancellationError, SequencerByKey } from '../../../../util/vs/base/common/async';
+import { disposableTimeout, Limiter, raceCancellation, raceCancellationError, SequencerByKey } from '../../../../util/vs/base/common/async';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
 import { Emitter, Event } from '../../../../util/vs/base/common/event';
 import { Lazy } from '../../../../util/vs/base/common/lazy';
@@ -55,6 +55,16 @@ import { ICopilotCLIMCPHandler, McpServerMappings, remapCustomAgentTools } from 
 
 const COPILOT_CLI_WORKSPACE_JSON_FILE_KEY = 'github.copilot.cli.workspaceSessionFile';
 const AGENT_HOST_COPILOT_CLIENT_NAME = 'vscode-agent-host';
+
+/**
+ * How many persisted sessions may be turned into list items concurrently.
+ *
+ * Building a list item can stream a session's whole event log to derive a title, so an
+ * unbounded fan-out over a large session history reads hundreds of event logs at once and
+ * can exhaust the extension host's memory.
+ */
+const SESSION_LIST_MAX_PARALLELISM = 10;
+
 export const COPILOT_CLI_CHAT_PANEL_SYSTEM_MESSAGE = 'You are an AI assistant using Copilot CLI runtime in VS Code. You help users with software engineering tasks. When asked about your identity, you must state that you are an AI assistant using Copilot CLI runtime in VS Code.';
 
 type SDKPackage = Awaited<ReturnType<ICopilotCLISDK['getPackage']>>;
@@ -149,7 +159,6 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 	private _bridgeProcessor: CopilotCliBridgeSpanProcessor | undefined;
 	/** Whether we've attempted to install the bridge (only try once). */
 	private _bridgeInstalled = false;
-	private showExternalSessions: boolean;
 	private _customAgentLookupChanged: boolean = false;
 	private _customAgentLookupRebuild: Promise<void> | undefined;
 	private readonly _customAgentLookup = new Map<string, [ChatCustomAgent, Lazy<Promise<string>>]>();
@@ -178,12 +187,6 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		@IVSCodeExtensionContext private readonly _vscodeExtensionContext?: IVSCodeExtensionContext,
 	) {
 		super();
-		this.showExternalSessions = this.configurationService.getConfig(ConfigKey.Advanced.CLIShowExternalSessions);
-		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(ConfigKey.Advanced.CLIShowExternalSessions.fullyQualifiedId)) {
-				this.showExternalSessions = this.configurationService.getConfig(ConfigKey.Advanced.CLIShowExternalSessions);
-			}
-		}));
 		this._register(this._promptsService.onDidChangeCustomAgents(() => {
 			this._customAgentLookupChanged = true;
 			if (this._cachedSessionItems.size > 0) {
@@ -449,8 +452,9 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 				: new Set<string>();
 
 			// Convert SessionMetadata to ICopilotCLISession
+			const limiter = new Limiter<ICopilotCLISessionItem | undefined>(SESSION_LIST_MAX_PARALLELISM);
 			const diskSessions: ICopilotCLISessionItem[] = coalesce(await Promise.all(
-				sessionMetadataList.map(async (metadata): Promise<ICopilotCLISessionItem | undefined> => {
+				sessionMetadataList.map(metadata => limiter.queue(async (): Promise<ICopilotCLISessionItem | undefined> => {
 					const sanitizedSessionId = metadata.sessionId.replace(/[^a-zA-Z0-9_.-]/g, '-');
 					if (metadata.clientName === AGENT_HOST_COPILOT_CLIENT_NAME || agentHostOwnedSessionIds.has(sanitizedSessionId)) {
 						return;
@@ -473,7 +477,7 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 						timing: { created: startTime, startTime, endTime },
 						workingDirectory
 					};
-				})
+				}))
 			));
 
 			const diskSessionIds = new Set(diskSessions.map(s => s.id));
@@ -668,12 +672,6 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 			return true;
 		}
 
-		if (!this.showExternalSessions) {
-			const sessionOrigin = await this._chatSessionMetadataStore.getSessionOrigin(sessionId);
-			if (sessionOrigin !== 'vscode') {
-				return false;
-			}
-		}
 		// If we're in an empty workspace then show all sessions.
 		if (this.workspaceService.getWorkspaceFolders().length === 0) {
 			return true;
@@ -1076,6 +1074,7 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		}
 
 		let firstUserMessage: string | undefined;
+		let eventsFileUnreadable = false;
 		try {
 			const events = await raceCancellation(readSessionEventsFile(sessionId, 'user.message'), token);
 			if (events?.length) {
@@ -1083,10 +1082,21 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 				firstUserMessage = events.find((msg: SessionEvent) => msg.type === 'user.message')?.data.content;
 			}
 		} catch (error) {
+			eventsFileUnreadable = true;
 			this.logService.warn(`[CopilotCLISession] Failed to get session title for session ${sessionId}: ${error}`);
 		}
 
-		if (!firstUserMessage) {
+		// Don't cache a title derived from a cancelled read, otherwise the empty result is
+		// stored and every later lookup returns it instead of re-reading the event log.
+		if (token.isCancellationRequested) {
+			return firstUserMessage;
+		}
+
+		// Only fall back to the SDK when the event log could not be read at all. The SDK reads
+		// that same log, and the scan above already covers the whole file whenever it finds no
+		// user message, so going through the SDK would open a full session and deserialize the
+		// entire history just to rediscover that there is no title to derive.
+		if (!firstUserMessage && eventsFileUnreadable) {
 			try {
 				const { events } = await this.getChatHistoryImpl({ sessionId, workspace: emptyWorkspaceInfo() }, token);
 				firstUserMessage = events.find((msg: SessionEvent) => msg.type === 'user.message')?.data.content;

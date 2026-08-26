@@ -13,11 +13,11 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IWorkspaceContextService, Workspace, toWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
-import { ChatConfiguration, ChatPermissionLevel, getChatPermissionLevelFromDefaultConfiguration, getComputedDefaultSessionResource, getComputedDefaultSessionType, getDefaultNewChatSessionResource, getDefaultNewChatSessionType, IDefaultNewChatSessionTypeOptions, isEditorLocalAgentEnabled, isNewChatSessionTypeUsable, isVisibleEditorChatSessionType, recordUserSelectedSessionType, resolveDefaultNewChatSessionType } from '../../common/constants.js';
+import { ChatConfiguration, ChatPermissionLevel, getChatPermissionLevelFromDefaultConfiguration, getComputedDefaultSessionResource, getComputedDefaultSessionType, getDefaultNewChatSessionResource, getDefaultNewChatSessionType, IDefaultNewChatSessionTypeOptions, isEditorLocalAgentEnabled, isNewChatSessionTypeUsable, isVisibleEditorChatSessionType, recordUserSelectedSessionType, resolveDefaultNewChatSessionType, resolveDefaultNewChatSessionTypeWithReason } from '../../common/constants.js';
 import { localChatSessionType, SessionType, IChatSessionsExtensionPoint, IChatSessionsService } from '../../common/chatSessionsService.js';
 import { MockChatSessionsService } from './mockChatSessionsService.js';
 import { TestContextService, TestStorageService } from '../../../../test/common/workbenchTestServices.js';
-import { getRememberedSessionType } from '../../common/chatSessionTypePreference.js';
+import { getRememberedSessionType, storeUserSelectedSessionType } from '../../common/chatSessionTypePreference.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 
 suite('ChatConfiguration defaults', () => {
@@ -59,8 +59,25 @@ suite('ChatConfiguration defaults', () => {
 		accessor.set(IChatSessionsService, chatSessionsService);
 		accessor.set(IStorageService, storageService);
 		accessor.set(IWorkspaceContextService, new TestContextService(workspace));
-		accessor.set(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: constObservable(agentHostEnabled) });
+		accessor.set(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: constObservable(agentHostEnabled), managedSandboxEnforced: constObservable(false) });
 		return resolveDefaultNewChatSessionType(accessor, options);
+	}
+
+	function resolveSessionTypeWithReason(
+		configurationService: IConfigurationService,
+		chatSessionsService: IChatSessionsService,
+		storageService: IStorageService,
+		workspace: Workspace,
+		agentHostEnabled: boolean,
+		options?: IDefaultNewChatSessionTypeOptions,
+	) {
+		const accessor = disposables.add(new TestInstantiationService());
+		accessor.set(IConfigurationService, configurationService);
+		accessor.set(IChatSessionsService, chatSessionsService);
+		accessor.set(IStorageService, storageService);
+		accessor.set(IWorkspaceContextService, new TestContextService(workspace));
+		accessor.set(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: constObservable(agentHostEnabled), managedSandboxEnforced: constObservable(false) });
+		return resolveDefaultNewChatSessionTypeWithReason(accessor, options);
 	}
 
 	test('default permission configuration maps setting values to Agent Host values', () => {
@@ -535,6 +552,140 @@ suite('ChatConfiguration defaults', () => {
 			remoteRepositories: true,
 			customVirtual: true,
 			mixed: false,
+		});
+	});
+
+	test('managed sandbox floor hides the local harness and defaults to the Copilot SDK', () => {
+		const configurationService = new TestConfigurationService();
+		const chatSessionsService = createChatSessionsService(SessionType.AgentHostCopilot, SessionType.AgentHostClaude);
+		const storageService = disposables.add(new TestStorageService());
+
+		// `chat.editor.localAgent.enabled` and `chat.defaultToCopilotHarness` are left at their
+		// defaults: an enterprise-mandated sandbox floor implies both.
+		assert.deepStrictEqual({
+			localEnabled: isEditorLocalAgentEnabled(configurationService, localWorkspace, true),
+			localVisible: isVisibleEditorChatSessionType(localChatSessionType, configurationService, chatSessionsService, localWorkspace, true),
+			localUsable: isNewChatSessionTypeUsable(localChatSessionType, configurationService, chatSessionsService, localWorkspace, true, true),
+			computed: getComputedDefaultSessionType(configurationService, chatSessionsService, localWorkspace, true, true),
+			rememberedAware: getDefaultNewChatSessionType(configurationService, chatSessionsService, storageService, localWorkspace, true, undefined, true),
+			fromLocal: getDefaultNewChatSessionType(configurationService, chatSessionsService, storageService, localWorkspace, true, { currentSessionType: localChatSessionType }, true),
+		}, {
+			localEnabled: false,
+			localVisible: false,
+			localUsable: false,
+			computed: SessionType.AgentHostCopilot,
+			rememberedAware: SessionType.AgentHostCopilot,
+			fromLocal: SessionType.AgentHostCopilot,
+		});
+	});
+
+	test('managed sandbox floor reaches the New Chat entry points and overrides remembered local', () => {
+		const configurationService = new TestConfigurationService();
+		const chatSessionsService = createChatSessionsService(SessionType.AgentHostCopilot);
+		const storageService = disposables.add(new TestStorageService());
+
+		// A local harness remembered from before the floor was mandated must not keep winning:
+		// otherwise the picker hides local while New Chat keeps opening local sessions.
+		storeUserSelectedSessionType(storageService, localChatSessionType);
+
+		assert.deepStrictEqual({
+			remembered: getDefaultNewChatSessionType(configurationService, chatSessionsService, storageService, localWorkspace, true, undefined, true),
+			resource: getChatSessionType(getDefaultNewChatSessionResource(configurationService, chatSessionsService, storageService, localWorkspace, true, undefined, true)),
+		}, {
+			remembered: SessionType.AgentHostCopilot,
+			resource: SessionType.AgentHostCopilot,
+		});
+	});
+
+	test('managed sandbox floor does not override remembered Claude and Codex selections', () => {
+		const configurationService = new TestConfigurationService();
+		const chatSessionsService = createChatSessionsService(SessionType.AgentHostCopilot, SessionType.AgentHostClaude, SessionType.AgentHostCodex);
+		const storageService = disposables.add(new TestStorageService());
+
+		const currentCodex = getDefaultNewChatSessionType(configurationService, chatSessionsService, storageService, localWorkspace, true, { currentSessionType: SessionType.AgentHostCodex }, true);
+		recordUserSelectedSessionType(storageService, configurationService, chatSessionsService, localWorkspace, SessionType.AgentHostClaude, true);
+
+		assert.deepStrictEqual({
+			currentCodex,
+			rememberedClaude: getDefaultNewChatSessionType(configurationService, chatSessionsService, storageService, localWorkspace, true, { currentSessionType: localChatSessionType }, true),
+		}, {
+			currentCodex: SessionType.AgentHostCodex,
+			rememberedClaude: SessionType.AgentHostClaude,
+		});
+	});
+
+	test('no managed sandbox floor leaves the harness settings in charge', () => {
+		const configurationService = new TestConfigurationService();
+		const chatSessionsService = createChatSessionsService(SessionType.AgentHostCopilot);
+		const storageService = disposables.add(new TestStorageService());
+
+		assert.deepStrictEqual({
+			localEnabled: isEditorLocalAgentEnabled(configurationService, localWorkspace, false),
+			computed: getComputedDefaultSessionType(configurationService, chatSessionsService, localWorkspace, true, false),
+			resolved: getDefaultNewChatSessionType(configurationService, chatSessionsService, storageService, localWorkspace, true, { currentSessionType: localChatSessionType }, false),
+		}, {
+			localEnabled: true,
+			computed: localChatSessionType,
+			resolved: localChatSessionType,
+		});
+	});
+
+	test('managed sandbox floor keeps local when Agent Host is disabled', () => {
+		const configurationService = new TestConfigurationService();
+		const chatSessionsService = createChatSessionsService(SessionType.AgentHostClaude);
+		const storageService = disposables.add(new TestStorageService());
+
+		assert.deepStrictEqual({
+			visible: isVisibleEditorChatSessionType(localChatSessionType, configurationService, chatSessionsService, localWorkspace, true, false),
+			usable: isNewChatSessionTypeUsable(localChatSessionType, configurationService, chatSessionsService, localWorkspace, false, true),
+			computed: getComputedDefaultSessionType(configurationService, chatSessionsService, localWorkspace, false, true),
+			resolved: getDefaultNewChatSessionType(configurationService, chatSessionsService, storageService, localWorkspace, false, { currentSessionType: localChatSessionType }, true),
+		}, {
+			visible: true,
+			usable: true,
+			computed: localChatSessionType,
+			resolved: localChatSessionType,
+		});
+	});
+
+	test('virtual workspace keeps local available when the sandbox floor is managed', () => {
+		const configurationService = new TestConfigurationService();
+		const chatSessionsService = createChatSessionsService(SessionType.AgentHostCopilot);
+		const workspace = createWorkspace(URI.parse('vscode-vfs://github/microsoft/vscode'));
+
+		assert.deepStrictEqual({
+			localEnabled: isEditorLocalAgentEnabled(configurationService, workspace, true),
+			computed: getComputedDefaultSessionType(configurationService, chatSessionsService, workspace, true, true),
+		}, {
+			localEnabled: true,
+			computed: localChatSessionType,
+		});
+	});
+
+	test('new chat default resolver reports every selection reason', () => {
+		const configurationService = new TestConfigurationService();
+		const preferenceConfigurationService = new TestConfigurationService({
+			[ChatConfiguration.EditorPreferCopilotHarness]: true,
+		});
+		const chatSessionsService = createChatSessionsService(SessionType.AgentHostCopilot, SessionType.AgentHostClaude);
+		const storageService = disposables.add(new TestStorageService());
+		const rememberedStorageService = disposables.add(new TestStorageService());
+		storeUserSelectedSessionType(rememberedStorageService, SessionType.AgentHostClaude);
+
+		assert.deepStrictEqual({
+			explicit: resolveSessionTypeWithReason(configurationService, chatSessionsService, storageService, localWorkspace, true, { explicitOverride: SessionType.AgentHostClaude }),
+			virtual: resolveSessionTypeWithReason(configurationService, chatSessionsService, storageService, createWorkspace(URI.parse('vscode-vfs://github/microsoft/vscode')), true),
+			remembered: resolveSessionTypeWithReason(configurationService, chatSessionsService, rememberedStorageService, localWorkspace, true),
+			current: resolveSessionTypeWithReason(configurationService, chatSessionsService, storageService, localWorkspace, true, { currentSessionType: SessionType.AgentHostClaude }),
+			copilotPreference: resolveSessionTypeWithReason(preferenceConfigurationService, chatSessionsService, storageService, localWorkspace, true, { currentSessionType: localChatSessionType }),
+			computed: resolveSessionTypeWithReason(configurationService, chatSessionsService, storageService, localWorkspace, true),
+		}, {
+			explicit: { sessionType: SessionType.AgentHostClaude, selectionReason: 'explicitOverride' },
+			virtual: { sessionType: localChatSessionType, selectionReason: 'virtualWorkspace' },
+			remembered: { sessionType: SessionType.AgentHostClaude, selectionReason: 'rememberedSelection' },
+			current: { sessionType: SessionType.AgentHostClaude, selectionReason: 'currentSession' },
+			copilotPreference: { sessionType: SessionType.AgentHostCopilot, selectionReason: 'copilotPreference' },
+			computed: { sessionType: localChatSessionType, selectionReason: 'computedDefault' },
 		});
 	});
 

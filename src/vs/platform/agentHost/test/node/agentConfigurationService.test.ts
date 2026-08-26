@@ -11,8 +11,9 @@ import { join } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { createSchema, schemaProperty } from '../../common/agentHostSchema.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostAutoReplyEnabledConfigKey, AgentHostEditAutoApprovePatternsConfigKey, AgentHostExternalSessionsMode, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostProxyConfigKey, AgentHostShowExternalSessionsConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, clientOwnedApprovalRootConfigKeys, createSchema, platformRootSchema, schemaProperty } from '../../common/agentHostSchema.js';
 import { AGENT_CUSTOMIZATION_SETTINGS_META_KEY, getAgentCustomizationSettingsEntries } from '../../common/agentCustomizationSettings.js';
+import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import type { RootConfigState } from '../../common/state/protocol/state.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { buildChatUri, buildSubagentSessionUri, SessionStatus, type SessionSummary } from '../../common/state/sessionState.js';
@@ -261,6 +262,86 @@ suite('AgentConfigurationService', () => {
 		const persisted = JSON.parse(fs.readFileSync(resource.fsPath, 'utf8')) as Record<string, unknown>;
 		assert.strictEqual(persisted['test.account'], undefined);
 		assert.deepStrictEqual(localManager.rootState.config?.values['test.account'], { status: 'signedIn' });
+		fs.rmSync(directory, { recursive: true, force: true });
+	});
+
+	test('loads manually configured proxy settings from persisted Agent Host config', () => {
+		const directory = fs.mkdtempSync(join(os.tmpdir(), 'agent-config-'));
+		const resource = URI.file(join(directory, 'agent-host-config.json'));
+		fs.writeFileSync(resource.fsPath, JSON.stringify({
+			[AgentHostProxyConfigKey.Proxy]: 'http://proxy.example:8080',
+			[AgentHostProxyConfigKey.NoProxy]: ['localhost'],
+		}));
+		const localManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const localService = disposables.add(new AgentConfigurationService(localManager, new NullLogService(), resource));
+
+		assert.deepStrictEqual({
+			proxy: localService.getRootConfigValues?.()[AgentHostProxyConfigKey.Proxy],
+			noProxy: localService.getRootConfigValues?.()[AgentHostProxyConfigKey.NoProxy],
+		}, {
+			proxy: 'http://proxy.example:8080',
+			noProxy: ['localhost'],
+		});
+		fs.rmSync(directory, { recursive: true, force: true });
+	});
+
+	test('restores persisted platform root settings when the host restarts', async () => {
+		const directory = fs.mkdtempSync(join(os.tmpdir(), 'agent-config-'));
+		const resource = URI.file(join(directory, 'agent-host-config.json'));
+		const firstManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const firstService = disposables.add(new AgentConfigurationService(firstManager, new NullLogService(), resource));
+		firstService.updateRootConfig({
+			[AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.Last30Days,
+			[AgentHostMcpServersConfigKey]: { operatorServer: { command: 'node' } },
+		});
+		await firstService.whenIdle();
+
+		const restartedManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const restartedService = disposables.add(new AgentConfigurationService(restartedManager, new NullLogService(), resource));
+
+		assert.deepStrictEqual({
+			showExternalSessions: restartedService.getRootValue(platformRootSchema, AgentHostShowExternalSessionsConfigKey),
+			mcpServers: restartedService.getRootValue(platformRootSchema, AgentHostMcpServersConfigKey),
+		}, {
+			showExternalSessions: AgentHostExternalSessionsMode.Last30Days,
+			mcpServers: { operatorServer: { command: 'node' } },
+		});
+		fs.rmSync(directory, { recursive: true, force: true });
+	});
+
+	test('does not restore client-owned approval settings when the host restarts', async () => {
+		const directory = fs.mkdtempSync(join(os.tmpdir(), 'agent-config-'));
+		const resource = URI.file(join(directory, 'agent-host-config.json'));
+		const firstManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const firstService = disposables.add(new AgentConfigurationService(firstManager, new NullLogService(), resource));
+		// A permissive snapshot that a user, workspace, or policy could tighten
+		// while the host is stopped.
+		firstService.updateRootConfig({
+			[SessionConfigKey.Permissions]: { allow: ['revoked-rule'], deny: [] },
+			[AgentHostGlobalAutoApproveEnabledConfigKey]: true,
+			[AgentHostAutoApprovePolicyRestrictedConfigKey]: false,
+			[AgentHostTerminalAutoApproveEnabledConfigKey]: true,
+			[AgentHostTerminalAutoApproveRulesConfigKey]: { rm: true },
+			[AgentHostEditAutoApprovePatternsConfigKey]: { '**/*': true },
+			[AgentHostAutoReplyEnabledConfigKey]: true,
+		});
+		await firstService.whenIdle();
+
+		const persisted = JSON.parse(fs.readFileSync(resource.fsPath, 'utf8')) as Record<string, unknown>;
+		const restartedManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const restartedService = disposables.add(new AgentConfigurationService(restartedManager, new NullLogService(), resource));
+		const restored = restartedService.getRootConfigValues();
+
+		assert.deepStrictEqual({
+			persistedKeys: [...clientOwnedApprovalRootConfigKeys].filter(key => persisted[key] !== undefined).sort(),
+			// The state manager seeds empty permissions; nothing else survives.
+			restoredKeys: [...clientOwnedApprovalRootConfigKeys].filter(key => restored[key] !== undefined).sort(),
+			permissions: restored[SessionConfigKey.Permissions],
+		}, {
+			persistedKeys: [...clientOwnedApprovalRootConfigKeys].sort(),
+			restoredKeys: [SessionConfigKey.Permissions],
+			permissions: { allow: [], deny: [] },
+		});
 		fs.rmSync(directory, { recursive: true, force: true });
 	});
 

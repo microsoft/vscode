@@ -692,7 +692,7 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 			action: {
 				type: ActionType.ChatTurnStarted,
 				turnId,
-				startedAt: '2025-01-01T00:00:00.000Z',
+				startedAt: new Date().toISOString(),
 				message: {
 					text: 'This turn must fail before contacting a model.',
 					origin: { kind: MessageKind.User },
@@ -707,11 +707,15 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 			&& (getActionEnvelope(n).action as { readonly turnId: string }).turnId === turnId,
 			30_000,
 		);
-		const action = getActionEnvelope(failed).action as { readonly error: { readonly errorType: string; readonly message: string } };
+		const action = getActionEnvelope(failed).action;
+		assert.strictEqual(action.type, ActionType.ChatError);
+		if (action.type !== ActionType.ChatError) {
+			return;
+		}
 
 		assert.deepStrictEqual({
-			errorType: action.error.errorType,
-			mentionsModel: /model/i.test(action.error.message),
+			errorType: action.part.error.errorType,
+			mentionsModel: /model/i.test(action.part.error.message),
 		}, {
 			errorType: config.provider === 'copilotcli' ? 'sendFailed' : config.provider === 'claude' ? 'success' : 'modelSelectionFailed',
 			mentionsModel: true,

@@ -6,6 +6,7 @@
 import { timeout } from '../../../base/common/async.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { vArray, vObj, vString, vUnknown } from '../../../base/common/validation.js';
+import { TelemetryConfiguration } from '../../telemetry/common/telemetry.js';
 import { getAgentHostEndpointIdentityKey, IAgentHostEndpointMetadata, parseAgentHostEndpointRegistry } from '../common/agentHostEndpointRegistry.js';
 
 /**
@@ -19,6 +20,18 @@ export function validateShellToken(value: string, label: string): string {
 		throw new Error(`Unsafe ${label} value for shell interpolation: ${JSON.stringify(value)}`);
 	}
 	return value;
+}
+
+export function validateAgentHostTelemetryLevel(value: unknown): TelemetryConfiguration {
+	switch (value) {
+		case TelemetryConfiguration.OFF:
+		case TelemetryConfiguration.CRASH:
+		case TelemetryConfiguration.ERROR:
+		case TelemetryConfiguration.ON:
+			return value;
+		default:
+			throw new Error(`Unsafe telemetry level for shell interpolation: ${JSON.stringify(value)}`);
+	}
 }
 
 /**
@@ -127,8 +140,8 @@ export function shellEscape(s: string): string {
  * build them via {@link getRemoteCLIBin} / {@link getRemoteCLIDataDir}
  * which validate their components.
  */
-export function buildAgentHostBaseCommand(cliBin: string, cliDataDir: string): string {
-	return `${cliBin} --cli-data-dir ${cliDataDir} agent host --port 0`;
+export function buildAgentHostBaseCommand(cliBin: string, cliDataDir: string, telemetryLevel: TelemetryConfiguration): string {
+	return `${cliBin} --cli-data-dir ${cliDataDir} --telemetry-level ${validateAgentHostTelemetryLevel(telemetryLevel)} agent host --port 0`;
 }
 
 export function resolveRemotePlatform(unameS: string, unameM: string): { os: string; arch: string } | undefined {
@@ -345,11 +358,11 @@ export function buildAgentEndpointsCommand(cliBin: string, cliDataDir: string, u
  * genuinely new process/registry entry every time this command runs,
  * leaving all existing standalone/editor entries untouched.
  */
-export function buildAgentHostSpawnCommand(cliBin: string, cliDataDir: string, userDataPath: string, idleTimeoutSec = 300): string {
+export function buildAgentHostSpawnCommand(cliBin: string, cliDataDir: string, userDataPath: string, telemetryLevel: TelemetryConfiguration, idleTimeoutSec = 300): string {
 	if (!Number.isSafeInteger(idleTimeoutSec) || idleTimeoutSec <= 0) {
 		throw new Error(`Unsafe idle timeout value for shell interpolation: ${JSON.stringify(idleTimeoutSec)}`);
 	}
-	return `${buildAgentHostBaseCommand(cliBin, cliDataDir)} --new-instance --user-data-dir ${shellEscape(userDataPath)} --idle-timeout ${idleTimeoutSec}`;
+	return `${buildAgentHostBaseCommand(cliBin, cliDataDir, telemetryLevel)} --new-instance --user-data-dir ${shellEscape(userDataPath)} --idle-timeout ${idleTimeoutSec}`;
 }
 
 /**

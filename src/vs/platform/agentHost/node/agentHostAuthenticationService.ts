@@ -3,8 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Emitter, Event } from '../../../base/common/event.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { ILogService } from '../../log/common/log.js';
 import type { AuthenticateParams, AuthenticateResult, IAgent, IAgentHostAuthTokenRequest } from '../common/agent.js';
+
+export interface IAgentHostAuthTokenChangeEvent {
+	readonly resource: string;
+	readonly scopes: readonly string[];
+	readonly token: string | undefined;
+}
+
+export const IAgentHostAuthenticationService = createDecorator<IAgentHostAuthenticationService>('agentHostAuthenticationService');
+
+export interface IAgentHostAuthenticationService {
+	readonly _serviceBrand: undefined;
+	readonly onDidChangeAuthToken: Event<IAgentHostAuthTokenChangeEvent>;
+	getAuthToken(request: IAgentHostAuthTokenRequest): string | undefined;
+}
 
 interface IStoredAuthToken {
 	readonly resource: string;
@@ -12,19 +29,24 @@ interface IStoredAuthToken {
 	readonly token: string;
 }
 
-export class AgentHostAuthenticationService {
+export class AgentHostAuthenticationService extends Disposable implements IAgentHostAuthenticationService {
 
+	declare readonly _serviceBrand: undefined;
 	private readonly _tokens = new Map<string, IStoredAuthToken>();
+	private readonly _onDidChangeAuthToken = this._register(new Emitter<IAgentHostAuthTokenChangeEvent>());
+	readonly onDidChangeAuthToken = this._onDidChangeAuthToken.event;
 
 	constructor(
 		private readonly _logService: ILogService,
-	) { }
+	) {
+		super();
+	}
 
 	async authenticate(params: AuthenticateParams, providers: Iterable<IAgent>): Promise<AuthenticateResult> {
 		this._logService.trace(`[AgentHostAuthenticationService] authenticate called: resource=${params.resource}`);
 		const providerList = [...providers];
 		// Multiple providers may share the same protected resource (e.g.
-		// both Copilot CLI and Claude consume the GitHub Copilot token).
+		// both Copilot CLI and Claude consume the Copilot-scoped OAuth credential).
 		// Fan out to every matching provider in parallel; the request is
 		// considered authenticated if at least one accepts. Provider
 		// failures are isolated -- one provider rejecting (e.g. proxy
@@ -68,6 +90,7 @@ export class AgentHostAuthenticationService {
 		}
 		const scopes = this._normalizeScopes(params.scopes);
 		const key = this._key(params.resource, scopes);
+		const previousToken = this._tokens.get(key)?.token;
 		if (!authenticated && !rejected) {
 			authenticated = this._tokens.get(key)?.token === params.token;
 		}
@@ -77,6 +100,10 @@ export class AgentHostAuthenticationService {
 			this._tokens.delete(key);
 		} else if (authenticated) {
 			this._tokens.set(key, { resource: params.resource, scopes, token: params.token });
+		}
+		const token = this._tokens.get(key)?.token;
+		if (previousToken !== token) {
+			this._onDidChangeAuthToken.fire({ resource: params.resource, scopes, token });
 		}
 		return { authenticated };
 	}
