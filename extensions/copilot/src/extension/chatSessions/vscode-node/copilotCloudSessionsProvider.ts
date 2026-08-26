@@ -204,6 +204,8 @@ const DEFAULT_REPOSITORY_ID = '___vscode_repository_default___';
 
 const SEEN_DELEGATION_PROMPT_KEY = 'seenDelegationPromptBefore';
 const OPEN_REPOSITORY_COMMAND_ID = 'github.copilot.chat.cloudSessions.openRepository';
+const OPEN_ISSUE_COMMAND_ID = 'github.copilot.chat.cloudSessions.openIssue';
+const OPEN_PULL_REQUEST_COMMAND_ID = 'github.copilot.chat.cloudSessions.openPullRequest';
 const CLEAR_CACHES_COMMAND_ID = 'github.copilot.chat.cloudSessions.clearCaches';
 const CREATE_PULL_REQUEST_FOR_TASK_COMMAND_ID = 'github.copilot.chat.cloudSessions.createPullRequestForTask';
 const OPEN_PULL_REQUEST_FOR_TASK_COMMAND_ID = 'github.copilot.chat.cloudSessions.openPullRequestForTask';
@@ -614,6 +616,109 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 			});
 		};
 		this._register(vscode.commands.registerCommand(OPEN_REPOSITORY_COMMAND_ID, openRepositoryCommand));
+
+		type GitHubContextQuickPickItem = vscode.QuickPickItem & {
+			readonly selection: {
+				readonly repoId: string;
+				readonly url: string;
+				readonly label: string;
+			};
+		};
+		const openGitHubContext = (kind: 'issue' | 'pullRequest', repoId?: string): Promise<GitHubContextQuickPickItem['selection'] | undefined> => {
+			const quickPick = vscode.window.createQuickPick<GitHubContextQuickPickItem>();
+			const quickPickDisposables = new DisposableStore();
+			quickPick.placeholder = repoId
+				? (kind === 'issue'
+					? l10n.t('Search issues in {0}...', repoId)
+					: l10n.t('Search pull requests in {0}...', repoId))
+				: (kind === 'issue'
+					? l10n.t('Search for an issue...')
+					: l10n.t('Search for a pull request...'));
+			quickPick.matchOnDescription = true;
+			quickPick.matchOnDetail = true;
+			quickPick.busy = true;
+			quickPick.show();
+
+			let searchTimeout: ReturnType<typeof setTimeout> | undefined;
+			let searchGeneration = 0;
+			return new Promise(resolve => {
+				let resolved = false;
+				const doResolve = (value: GitHubContextQuickPickItem['selection'] | undefined) => {
+					if (!resolved) {
+						resolved = true;
+						resolve(value);
+					}
+				};
+				const search = async (query: string, generation: number) => {
+					quickPick.busy = true;
+					try {
+						const qualifier = kind === 'issue' ? 'is:issue' : 'is:pr';
+						const repositoryScope = repoId ? `repo:${repoId}` : '';
+						const scope = query ? `${query} ${repositoryScope}` : (repositoryScope || 'involves:@me');
+						const results = await this._octoKitService.searchIssuesAndPullRequests(`${scope} ${qualifier}`, {});
+						if (generation !== searchGeneration) {
+							return;
+						}
+						quickPick.items = results
+							.filter(result => result.isPullRequest === (kind === 'pullRequest'))
+							.map(result => ({
+								label: `#${result.number} ${result.title}`,
+								description: `${result.owner}/${result.repository}`,
+								selection: {
+									repoId: `${result.owner}/${result.repository}`,
+									url: result.url,
+									label: `${result.owner}/${result.repository}#${result.number}`,
+								},
+							}));
+					} catch (error) {
+						this.logService.error(`Error searching GitHub ${kind === 'issue' ? 'issues' : 'pull requests'}: ${error}`);
+						if (generation === searchGeneration) {
+							quickPick.items = [];
+						}
+					} finally {
+						if (generation === searchGeneration) {
+							quickPick.busy = false;
+						}
+					}
+				};
+				void search('', ++searchGeneration);
+				quickPickDisposables.add(quickPick.onDidChangeValue(value => {
+					if (searchTimeout) {
+						clearTimeout(searchTimeout);
+					}
+					const query = value.trim();
+					if (query.length < 2) {
+						if (query.length === 0) {
+							void search('', ++searchGeneration);
+						} else {
+							searchGeneration++;
+							quickPick.items = [];
+							quickPick.busy = false;
+						}
+						return;
+					}
+					const generation = ++searchGeneration;
+					searchTimeout = setTimeout(() => {
+						void search(query, generation);
+					}, 300);
+				}));
+				quickPickDisposables.add(quickPick.onDidAccept(() => {
+					doResolve(quickPick.selectedItems[0]?.selection);
+					quickPick.hide();
+				}));
+				quickPickDisposables.add(quickPick.onDidHide(() => {
+					if (searchTimeout) {
+						clearTimeout(searchTimeout);
+					}
+					searchGeneration++;
+					quickPickDisposables.dispose();
+					quickPick.dispose();
+					doResolve(undefined);
+				}));
+			});
+		};
+		this._register(vscode.commands.registerCommand(OPEN_ISSUE_COMMAND_ID, (repoId?: string) => openGitHubContext('issue', repoId)));
+		this._register(vscode.commands.registerCommand(OPEN_PULL_REQUEST_COMMAND_ID, (repoId?: string) => openGitHubContext('pullRequest', repoId)));
 
 		this._register(vscode.commands.registerCommand(CLEAR_CACHES_COMMAND_ID, () => {
 			this.logService.debug('copilotCloudSessionsProvider#clearCaches: clearing all cloud agent caches');

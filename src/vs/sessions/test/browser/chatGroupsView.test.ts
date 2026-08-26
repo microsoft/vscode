@@ -172,7 +172,7 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, tabsReplaceHea
 
 suite('Sessions - ChatGroupsView', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
-	const options = { renderSessionTypePickerInControls: constObservable(false) };
+	const options = {};
 
 	test('opens a session with an active child chat after initial layout', () => {
 		const { view, chatViewFactory } = createHarness(disposables);

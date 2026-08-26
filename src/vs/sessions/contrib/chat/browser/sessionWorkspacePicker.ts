@@ -13,7 +13,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { disposableTimeout } from '../../../../base/common/async.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
-import { autorun } from '../../../../base/common/observable.js';
+import { autorun, IObservable } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem, IActionListOptions } from '../../../../platform/actionWidget/browser/actionList.js';
@@ -29,7 +29,7 @@ import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uri
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_LOCAL, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../services/sessions/common/session.js';
+import { IGitHubInfo, ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_GITHUB, SESSION_WORKSPACE_GROUP_LOCAL, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../services/sessions/common/session.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsRecentWorkspacesService, isWorktreeWorkspaceUri } from '../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { IAgentHostSessionsProvider, isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
@@ -71,6 +71,7 @@ export interface IWorkspacePickerItem {
 	/** The resolved workspace (used for unavailable-provider checks). */
 	readonly providerId?: string;
 	readonly browseActionIndex?: number;
+	readonly browseActionMode?: 'change' | 'add';
 	readonly checked?: boolean;
 	/** Command to execute when this item is selected. */
 	readonly commandId?: string;
@@ -94,9 +95,24 @@ export interface IWorkspacePickerGroupAction {
 	readonly hideWorkspaceItems?: boolean;
 }
 
-interface IBrowsedWorkspaceSelection {
+export interface IWorkspacePickerTrigger {
+	readonly label?: string;
+	readonly ariaLabel: string;
+	readonly icon: ThemeIcon;
+	readonly group?: string;
+	readonly attachesContext?: boolean;
+	readonly hideWhenWorkspaceSelected?: boolean;
+	readonly hideWhenNoGitHubRepository?: boolean;
+	readonly selectedWorkspace?: ISessionWorkspace;
+}
+
+interface IResolvedBrowseSelection {
 	readonly workspace: ISessionWorkspace;
 	readonly providerId: string;
+}
+
+interface IBrowsedWorkspaceSelection extends IResolvedBrowseSelection {
+	readonly action: ISessionWorkspaceBrowseAction;
 }
 
 interface IRestoredWorkspaceSelection {
@@ -118,6 +134,10 @@ export class WorkspacePicker extends Disposable {
 	readonly onDidSelectWorkspace: Event<URI | undefined> = this._onDidSelectWorkspace.event;
 	protected readonly _onDidChangeSelection = this._register(new Emitter<void>());
 	readonly onDidChangeSelection: Event<void> = this._onDidChangeSelection.event;
+	private readonly _onDidSelectContext = this._register(new Emitter<ISessionWorkspace>());
+	readonly onDidSelectContext: Event<ISessionWorkspace> = this._onDidSelectContext.event;
+	private readonly _onDidSelectFolderContext = this._register(new Emitter<URI>());
+	readonly onDidSelectFolderContext: Event<URI> = this._onDidSelectFolderContext.event;
 
 	private _selectedFolderUri: URI | undefined;
 	private _selectedResolved: IResolvedFolderWorkspace | undefined;
@@ -141,12 +161,17 @@ export class WorkspacePicker extends Disposable {
 	 * and we fall back.
 	 */
 	private readonly _connectionStatusWatch = this._register(new MutableDisposable());
+	private readonly _gitHubInfoWatch = this._register(new MutableDisposable());
 	private readonly _localBrowseAction: ISessionWorkspaceBrowseAction = {
 		label: localize('workspacePicker.browseSelectLocal', "Select..."),
 		group: SESSION_WORKSPACE_GROUP_LOCAL,
 		icon: Codicon.folderOpened,
 		providerId: '',
 		run: async () => (await this._browseForLocalFolder())?.workspace,
+	};
+	private readonly _localAddBrowseAction: ISessionWorkspaceBrowseAction = {
+		...this._localBrowseAction,
+		label: localize('workspacePicker.browseAddLocal', "Add Folder..."),
 	};
 
 	/**
@@ -157,9 +182,23 @@ export class WorkspacePicker extends Disposable {
 	protected _triggerElement: HTMLElement | undefined;
 	/** All live trigger elements. Label updates fan out to every entry. */
 	private readonly _triggerElements = new Set<HTMLElement>();
+	private readonly _triggerOptions = new Map<HTMLElement, IWorkspacePickerTrigger>();
+	private readonly _contextSelections = new Map<string, ISessionWorkspace[]>();
 	private readonly _renderDisposables = this._register(new DisposableStore());
+	private readonly _additionalRepositoryTriggerDisposables = this._register(new DisposableStore());
+	private readonly _additionalRepositorySelections = new Map<string, ISessionWorkspace>();
+	private readonly _additionalFolderTriggerDisposables = this._register(new DisposableStore());
+	private readonly _additionalFolderSelections = new Map<string, IResolvedFolderWorkspace>();
 	private readonly _tabbedWidget: TabbedActionListWidget;
 	private readonly _pickerGroupContext: IContextKey<string>;
+	private _activeTriggerElement: HTMLElement | undefined;
+	private _categoryRow: HTMLElement | undefined;
+	private _folderTriggerOptions: IWorkspacePickerTrigger | undefined;
+	private _repositoryTriggerOptions: IWorkspacePickerTrigger | undefined;
+	private _repositoryTriggerSlot: HTMLElement | undefined;
+	private _repositoryContextTriggerSlot: HTMLElement | undefined;
+	protected _directPickerGroup: string | undefined;
+	protected _directPickerAttachesContext: boolean | undefined;
 
 	/**
 	 * Currently active workspace tab (a group label contributed by a
@@ -252,14 +291,20 @@ export class WorkspacePicker extends Disposable {
 					this._selectedResolved = undefined;
 					this._preselectionSource = NewSessionWorkspacePreselectionSource.None;
 					this._connectionStatusWatch.clear();
+					this._gitHubInfoWatch.clear();
 					this._updateTriggerLabel();
 					this._onDidChangeSelection.fire();
 					this._onDidSelectWorkspace.fire(undefined);
 				} else {
 					this._selectedResolved = reresolved;
+					this._watchSelectedGitHubInfo();
 				}
 			}
 			this._restoreAutomaticSelection();
+			const activeTrigger = this._activeTriggerElement;
+			if (activeTrigger && (this.actionWidgetService.isVisible || this._tabbedWidget.isVisible)) {
+				this.showPicker(true, activeTrigger, this._directPickerGroup, this._directPickerAttachesContext);
+			}
 		}));
 
 		// VS Code's recent-workspace history is loaded asynchronously.
@@ -302,11 +347,49 @@ export class WorkspacePicker extends Disposable {
 		return slot;
 	}
 
+	renderCategoryTriggers(container: HTMLElement, triggers: readonly IWorkspacePickerTrigger[], label?: string): HTMLElement {
+		this._renderDisposables.clear();
+		this._additionalRepositoryTriggerDisposables.clear();
+		this._additionalFolderTriggerDisposables.clear();
+		const row = dom.append(container, dom.$('.sessions-workspace-category-picker'));
+		this._categoryRow = row;
+		this._renderDisposables.add({ dispose: () => row.remove() });
+		this._renderDisposables.add({
+			dispose: () => {
+				this._categoryRow = undefined;
+				this._folderTriggerOptions = undefined;
+				this._repositoryTriggerOptions = undefined;
+				this._repositoryTriggerSlot = undefined;
+				this._repositoryContextTriggerSlot = undefined;
+			},
+		});
+		if (label) {
+			const rowLabel = dom.append(row, dom.$('span.sessions-workspace-category-picker-label'));
+			rowLabel.textContent = label;
+		}
+		for (const options of triggers) {
+			const slot = dom.append(row, dom.$('.sessions-chat-picker-slot.sessions-workspace-category-picker-slot'));
+			if (options.group === SESSION_WORKSPACE_GROUP_LOCAL) {
+				this._folderTriggerOptions = options;
+			} else if (options.group === SESSION_WORKSPACE_GROUP_GITHUB && options.attachesContext === false) {
+				this._repositoryTriggerOptions = options;
+				this._repositoryTriggerSlot = slot;
+			} else if (options.group === SESSION_WORKSPACE_GROUP_GITHUB && options.attachesContext === true) {
+				this._repositoryContextTriggerSlot = slot;
+			}
+			this._renderDisposables.add(this._addTrigger(slot, options));
+		}
+		this._renderAdditionalFolderTriggers();
+		this._renderAdditionalRepositoryTriggers();
+
+		return row;
+	}
+
 	/**
 	 * Shared trigger-creation core for {@link render}. Wires up the click /
 	 * keyboard / touch handlers and the per-trigger lifecycle.
 	 */
-	private _addTrigger(slot: HTMLElement): IDisposable {
+	private _addTrigger(slot: HTMLElement, options?: IWorkspacePickerTrigger): IDisposable {
 		const triggerDisposables = new DisposableStore();
 
 		const trigger = dom.append(slot, dom.$('a.action-label'));
@@ -316,31 +399,35 @@ export class WorkspacePicker extends Disposable {
 		trigger.setAttribute('aria-expanded', 'false');
 
 		this._triggerElements.add(trigger);
+		if (options) {
+			this._triggerOptions.set(trigger, options);
+		}
 		this._triggerElement = trigger;
 		this._renderTriggerLabel(trigger);
 		// Onboarding spotlight target — id is referenced by the "new session" tour
 		// in vs/sessions/contrib/onboardingTours.
 		triggerDisposables.add(markOnboardingTarget(trigger, 'sessions.newSession.workspacePicker', {
-			open: () => this.showPicker(false, trigger),
+			open: () => this.showPicker(false, trigger, options?.group, options?.attachesContext),
 		}));
 
 		triggerDisposables.add(touch.Gesture.addTarget(trigger));
 		[dom.EventType.CLICK, touch.EventType.Tap].forEach(eventType => {
 			triggerDisposables.add(dom.addDisposableListener(trigger, eventType, (e) => {
 				dom.EventHelper.stop(e, true);
-				this.showPicker(false, trigger);
+				this.showPicker(false, trigger, options?.group, options?.attachesContext);
 			}));
 		});
 		triggerDisposables.add(dom.addDisposableListener(trigger, dom.EventType.KEY_DOWN, (e) => {
 			if (e.key === 'Enter' || e.key === ' ') {
 				dom.EventHelper.stop(e, true);
-				this.showPicker(false, trigger);
+				this.showPicker(false, trigger, options?.group, options?.attachesContext);
 			}
 		}));
 
 		triggerDisposables.add({
 			dispose: () => {
 				this._triggerElements.delete(trigger);
+				this._triggerOptions.delete(trigger);
 				if (this._triggerElement === trigger) {
 					// Demote to any other live trigger so subclasses that read
 					// `_triggerElement` (e.g. WebWorkspacePicker's mobile sheet
@@ -364,14 +451,35 @@ export class WorkspacePicker extends Disposable {
 	 *               Pass through when more than one trigger is live and the
 	 *               popup should align with the one the user actually clicked.
 	 */
-	showPicker(force = false, anchor?: HTMLElement): void {
+	showPicker(force = false, anchor?: HTMLElement, preferredGroup?: string, attachesContext?: boolean): void {
 		const triggerElement = anchor ?? this._triggerElement;
 		if (!triggerElement) {
 			return;
 		}
 		const alreadyVisible = this.actionWidgetService.isVisible || this._tabbedWidget.isVisible;
-		if (!force && alreadyVisible) {
-			return;
+		if (alreadyVisible) {
+			if (this._activeTriggerElement === triggerElement) {
+				if (!force) {
+					this._hidePicker();
+					return;
+				}
+			}
+			this._hidePicker();
+		}
+		this._activeTriggerElement = triggerElement;
+		this._setDirectPickerFilter(preferredGroup, attachesContext);
+		if (preferredGroup === SESSION_WORKSPACE_GROUP_GITHUB && attachesContext === false && !this._getCurrentRepositoryId()) {
+			const repositoryActions = this._getAllBrowseActions();
+			if (repositoryActions.length === 1) {
+				this._activeTriggerElement = undefined;
+				triggerElement.setAttribute('aria-expanded', 'false');
+				void this._dispatchPickerItem({ browseActionIndex: 0 }).finally(() => {
+					this._directPickerGroup = undefined;
+					this._directPickerAttachesContext = undefined;
+					triggerElement.focus();
+				});
+				return;
+			}
 		}
 
 		const tabs = this._showTabs() ? this._getAvailableTabs() : [];
@@ -380,7 +488,7 @@ export class WorkspacePicker extends Disposable {
 		// workspace. The user-pick latch is reset on every selection change,
 		// so picking a tab during one open of the picker doesn't permanently
 		// override auto-tab.
-		if (tabs.length > 0) {
+		if (preferredGroup === undefined && tabs.length > 0) {
 			const selectedGroup = this._selectedResolved?.workspace.group;
 			if (!this._userPickedTab && selectedGroup && tabs.some(t => t.id === selectedGroup)) {
 				this._activeTab = selectedGroup;
@@ -390,12 +498,21 @@ export class WorkspacePicker extends Disposable {
 			}
 		}
 
-		const tabbed = tabs.length > 1;
-		if (tabbed) {
+		if (preferredGroup !== undefined) {
+			this._showFlatPicker(triggerElement);
+		} else if (tabs.length > 1) {
 			this._showTabbedPicker(tabs, triggerElement);
 		} else {
 			this._activeTab = undefined;
 			this._showFlatPicker(triggerElement);
+		}
+	}
+
+	protected _setDirectPickerFilter(group: string | undefined, attachesContext: boolean | undefined): void {
+		this._directPickerGroup = group;
+		this._directPickerAttachesContext = attachesContext;
+		if (group !== undefined) {
+			this._selectWorkspaceGroup(group);
 		}
 	}
 
@@ -443,11 +560,16 @@ export class WorkspacePicker extends Disposable {
 	private _buildDelegate(triggerElement: HTMLElement, hide: () => void): IActionListDelegate<IWorkspacePickerItem> {
 		return {
 			onSelect: (item) => {
-				hide();
 				void this._dispatchPickerItem(item);
+				hide();
 			},
 			onHide: () => {
 				triggerElement.setAttribute('aria-expanded', 'false');
+				if (this._activeTriggerElement === triggerElement) {
+					this._activeTriggerElement = undefined;
+					this._directPickerGroup = undefined;
+					this._directPickerAttachesContext = undefined;
+				}
 				triggerElement.focus();
 			},
 		};
@@ -557,7 +679,44 @@ export class WorkspacePicker extends Disposable {
 			if (generation !== this._selectionGeneration) {
 				return false;
 			}
-			this._selectFolder(folderUri, true, selection.providerId);
+			const action = selection.action;
+			if (action?.attachesContext) {
+				if (action.group) {
+					const key = `${action.group}:context`;
+					const contexts = this._contextSelections.get(key) ?? [];
+					if (!contexts.some(context => context.uri.toString() === selection.workspace.uri.toString())) {
+						this._contextSelections.set(key, [...contexts, selection.workspace]);
+					}
+					this._updateTriggerLabel();
+				}
+				this._onDidSelectContext.fire(selection.workspace);
+				if (this._selectedFolderUri) {
+					return true;
+				}
+			}
+			if (action?.group === SESSION_WORKSPACE_GROUP_GITHUB && action.attachesContext !== true && item.browseActionMode === 'add') {
+				const selectedRepository = this._getRepositoryId(selection.workspace);
+				const currentRepository = this._getCurrentRepositoryId();
+				if (selectedRepository && selectedRepository !== currentRepository) {
+					if (!this._additionalRepositorySelections.has(selectedRepository)) {
+						this._additionalRepositorySelections.set(selectedRepository, selection.workspace);
+						this.recentWorkspacesService.addRecentWorkspace(folderUri, selection.providerId, false);
+						this._renderAdditionalRepositoryTriggers();
+						this._onDidSelectContext.fire(selection.workspace);
+					}
+					return true;
+				}
+			}
+			if (action === this._localAddBrowseAction) {
+				this._attachAdditionalFolder(folderUri, selection.providerId);
+				return true;
+			}
+			const relatedWorkspace = this._findRelatedLocalWorkspace(selection.workspace);
+			this._selectFolder(
+				relatedWorkspace?.workspace.folders[0]?.root ?? folderUri,
+				true,
+				relatedWorkspace?.providerId ?? selection.providerId,
+			);
 			return true;
 		} else if (item.folderUri) {
 			if (item.providerId && !await this._connectProviderOnDemand(item.providerId)) {
@@ -576,6 +735,59 @@ export class WorkspacePicker extends Disposable {
 			return true;
 		}
 		return false;
+	}
+
+	private _attachAdditionalFolder(folderUri: URI, providerId: string | undefined): boolean {
+		if (!this._selectedFolderUri || this.uriIdentityService.extUri.isEqual(this._selectedFolderUri, folderUri)) {
+			return false;
+		}
+		const resolved = this._resolveFolder(folderUri, providerId);
+		if (resolved?.workspace.group !== SESSION_WORKSPACE_GROUP_LOCAL) {
+			return false;
+		}
+		const key = this.uriIdentityService.extUri.getComparisonKey(folderUri);
+		if (!this._additionalFolderSelections.has(key)) {
+			this._additionalFolderSelections.set(key, resolved);
+			this.recentWorkspacesService.addRecentWorkspace(folderUri, providerId, false);
+			this._renderAdditionalFolderTriggers();
+			this._onDidSelectFolderContext.fire(folderUri);
+		}
+		return true;
+	}
+
+	private _findRelatedLocalWorkspace(workspace: ISessionWorkspace): IResolvedFolderWorkspace | undefined {
+		const repositoryId = this._getRepositoryId(workspace);
+		if (!repositoryId) {
+			return undefined;
+		}
+		const matchesRepository = (candidate: IResolvedFolderWorkspace) =>
+			candidate.workspace.group === SESSION_WORKSPACE_GROUP_LOCAL
+			&& this._getRepositoryId(candidate.workspace) === repositoryId;
+		if (this._selectedResolved && matchesRepository(this._selectedResolved)) {
+			return this._selectedResolved;
+		}
+		return this._getRecentWorkspaces().find(matchesRepository);
+	}
+
+	private _getRepositoryId(workspace: ISessionWorkspace): string | undefined {
+		const info = workspace.folders
+			.map(folder => folder.gitRepository?.gitHubInfo.get())
+			.find(candidate => candidate !== undefined);
+		if (info) {
+			return `${info.owner}/${info.repo}`.toLowerCase();
+		}
+		if (workspace.group !== SESSION_WORKSPACE_GROUP_GITHUB) {
+			return undefined;
+		}
+		const pathSegments = workspace.folders[0]?.root.path.split('/').filter(Boolean);
+		return pathSegments?.[0] && pathSegments[1]
+			? `${pathSegments[0]}/${pathSegments[1]}`.toLowerCase()
+			: undefined;
+	}
+
+	private _getCurrentRepositoryId(): string | undefined {
+		const workspace = this._getSelectedRepositoryWorkspace();
+		return workspace && this._getRepositoryId(workspace);
 	}
 
 	/**
@@ -632,6 +844,10 @@ export class WorkspacePicker extends Disposable {
 		if (this.actionWidgetService.isVisible) {
 			this.actionWidgetService.hide();
 		}
+		this._activeTriggerElement?.setAttribute('aria-expanded', 'false');
+		this._activeTriggerElement = undefined;
+		this._directPickerGroup = undefined;
+		this._directPickerAttachesContext = undefined;
 	}
 
 	/**
@@ -681,6 +897,7 @@ export class WorkspacePicker extends Disposable {
 		const resolved = this._resolveFolder(folderUri, providerIdHint ?? storedProviderId);
 		this._selectedFolderUri = folderUri;
 		this._selectedResolved = resolved;
+		this._watchSelectedGitHubInfo();
 		this._preselectionSource = source;
 		if (persist && this._shouldPersistSelection()) {
 			this.recentWorkspacesService.addRecentWorkspace(folderUri, resolved?.providerId, true);
@@ -703,7 +920,47 @@ export class WorkspacePicker extends Disposable {
 	private _applySelection(resolved: IResolvedFolderWorkspace | undefined, source = NewSessionWorkspacePreselectionSource.None): void {
 		this._selectedResolved = resolved;
 		this._selectedFolderUri = resolved?.workspace.folders[0]?.root;
+		this._watchSelectedGitHubInfo();
 		this._preselectionSource = resolved ? source : NewSessionWorkspacePreselectionSource.None;
+	}
+
+	private _watchSelectedGitHubInfo(): void {
+		const store = new DisposableStore();
+		this._gitHubInfoWatch.value = store;
+		const observed = new Set<IObservable<IGitHubInfo | undefined>>();
+		for (const workspace of this._getSelectedRepositoryWorkspaceCandidates()) {
+			for (const folder of workspace.folders) {
+				const gitHubInfo = folder.gitRepository?.gitHubInfo;
+				if (gitHubInfo && !observed.has(gitHubInfo)) {
+					observed.add(gitHubInfo);
+					store.add(autorun(reader => {
+						gitHubInfo.read(reader);
+						this._updateTriggerLabel();
+					}));
+				}
+			}
+		}
+	}
+
+	private _getSelectedRepositoryWorkspace(): ISessionWorkspace | undefined {
+		return this._getSelectedRepositoryWorkspaceCandidates().find(workspace => this._getRepositoryId(workspace) !== undefined);
+	}
+
+	private _getSelectedRepositoryWorkspaceCandidates(): ISessionWorkspace[] {
+		if (!this._selectedResolved || !this._selectedFolderUri) {
+			return [];
+		}
+		const candidates = [this._selectedResolved.workspace];
+		for (const provider of this.sessionsProvidersService.getProviders()) {
+			if (provider.id === this._selectedResolved.providerId) {
+				continue;
+			}
+			const workspace = provider.resolveWorkspace(this._selectedFolderUri);
+			if (workspace?.group === SESSION_WORKSPACE_GROUP_LOCAL) {
+				candidates.push(workspace);
+			}
+		}
+		return candidates;
 	}
 
 	/**
@@ -739,11 +996,12 @@ export class WorkspacePicker extends Disposable {
 		}
 
 		try {
-			if (action === this._localBrowseAction) {
-				return await this._browseForLocalFolder();
+			if (action === this._localBrowseAction || action === this._localAddBrowseAction) {
+				const selection = await this._browseForLocalFolder();
+				return selection ? { ...selection, action } : undefined;
 			}
-			const workspace = await action.run();
-			return workspace ? { workspace, providerId: action.providerId } : undefined;
+			const workspace = await action.run(this._getSelectedRepositoryWorkspace() ?? this._selectedResolved?.workspace);
+			return workspace ? { workspace, providerId: action.providerId, action } : undefined;
 		} catch {
 			// browse action was cancelled or failed
 		}
@@ -763,12 +1021,17 @@ export class WorkspacePicker extends Disposable {
 		const all = this.sessionsProvidersService.getProviders().flatMap(p => p.browseActions);
 		const hasLocalSupport = this.sessionsProvidersService.getProviders().some(p => p.supportsLocalWorkspaces);
 		if (hasLocalSupport) {
-			all.unshift(this._localBrowseAction);
+			all.unshift(...(this._selectedFolderUri
+				? [this._localAddBrowseAction]
+				: [this._localBrowseAction]));
 		}
 		if (!this._isTabFiltered()) {
 			return all;
 		}
-		return all.filter(a => a.group === this._activeTab);
+		return all.filter(a =>
+			a.group === this._activeTab
+			&& (this._directPickerAttachesContext === undefined || Boolean(a.attachesContext) === this._directPickerAttachesContext)
+		);
 	}
 
 	/**
@@ -776,7 +1039,7 @@ export class WorkspacePicker extends Disposable {
 	 * provider is rediscovered later by the management service when the
 	 * session is created — no provider quick-pick is needed here.
 	 */
-	private async _browseForLocalFolder(): Promise<IBrowsedWorkspaceSelection | undefined> {
+	private async _browseForLocalFolder(): Promise<IResolvedBrowseSelection | undefined> {
 		const localProviders = this.sessionsProvidersService.getProviders().filter(p => p.supportsLocalWorkspaces);
 		if (localProviders.length === 0) {
 			return undefined;
@@ -805,7 +1068,8 @@ export class WorkspacePicker extends Disposable {
 
 	/** True when the picker is currently scoped to a single tab. */
 	protected _isTabFiltered(): boolean {
-		return this._showTabs() && !!this._activeTab && this._getAvailableTabs().length > 1;
+		return this._directPickerGroup !== undefined
+			|| (this._showTabs() && !!this._activeTab && this._getAvailableTabs().length > 1);
 	}
 
 	/**
@@ -830,7 +1094,9 @@ export class WorkspacePicker extends Disposable {
 		// Own recents first, then VS Code recents (merged and deduplicated by the service)
 		const recentWorkspaces = workspaceGroupAction?.hideWorkspaceItems
 			? []
-			: this._getRecentWorkspaces()
+			: this._directPickerAttachesContext === true
+				? []
+				: this._getRecentWorkspaces()
 				.filter(w => providerIds.has(w.providerId))
 				.filter(w => !tabFilter || tabFilter(w));
 
@@ -840,14 +1106,18 @@ export class WorkspacePicker extends Disposable {
 			if (!folderUri) {
 				continue;
 			}
-			const selected = this._isSelectedFolder(folderUri);
+			const repositoryId = this._getRepositoryId(workspace);
+			const selected = this._isSelectedFolder(folderUri)
+				|| (repositoryId !== undefined && repositoryId === this._getCurrentRepositoryId());
+			const attached = this._additionalFolderSelections.has(this.uriIdentityService.extUri.getComparisonKey(folderUri))
+				|| (repositoryId !== undefined && this._additionalRepositorySelections.has(repositoryId));
 			items.push({
 				kind: ActionListItemKind.Action,
 				label: workspace.label,
 				description: workspace.description,
 				group: { title: '', icon: workspace.icon },
 				disabled: this._isProviderUnavailable(providerId),
-				item: { folderUri, providerId, checked: selected || undefined },
+				item: { folderUri, providerId, checked: selected || attached || undefined },
 				onRemove: () => this._removeRecentWorkspace(folderUri),
 			});
 		}
@@ -858,6 +1128,10 @@ export class WorkspacePicker extends Disposable {
 		// in the Manage submenu on the Remote tab.
 		const remoteProviders = allProviders.filter(isAgentHostProvider).filter(p => p.connectionStatus !== undefined);
 		const includeRemoteProviders = this._activeTab === SESSION_WORKSPACE_GROUP_REMOTE;
+		const includeClearWorkspace = this._selectedFolderUri !== undefined
+			&& this._directPickerGroup !== undefined
+			&& this._directPickerAttachesContext !== true
+			&& (this._activeTab === SESSION_WORKSPACE_GROUP_LOCAL || this._activeTab === SESSION_WORKSPACE_GROUP_GITHUB);
 
 		if (items.length > 0 && (workspaceGroupAction || allBrowseActions.length > 0)) {
 			items.push({ kind: ActionListItemKind.Separator, label: '' });
@@ -889,15 +1163,39 @@ export class WorkspacePicker extends Disposable {
 				|| (!!connectionStatus
 					&& !RemoteAgentHostConnectionStatus.isConnected(connectionStatus)
 					&& !agentHostProvider?.canConnectOnDemand);
+			const isRepositoryAction = action.group === SESSION_WORKSPACE_GROUP_GITHUB && action.attachesContext !== true;
+			if (isRepositoryAction && this._getCurrentRepositoryId()) {
+				items.push({
+						kind: ActionListItemKind.Action,
+						label: localize('workspacePicker.addRepository', "Add Repository..."),
+						description: action.description,
+						group: { title: '', icon: action.icon },
+						disabled: isUnavailable,
+						item: { browseActionIndex: index, browseActionMode: 'add' },
+					});
+			} else {
+				items.push({
+					kind: ActionListItemKind.Action,
+					label: action.label,
+					description: action.description,
+					group: { title: '', icon: action.icon },
+					disabled: isUnavailable,
+					item: { browseActionIndex: index },
+				});
+			}
+		});
+
+		if (includeClearWorkspace) {
+			if (items.length > 0 && items[items.length - 1].kind !== ActionListItemKind.Separator) {
+				items.push({ kind: ActionListItemKind.Separator, label: '' });
+			}
 			items.push({
 				kind: ActionListItemKind.Action,
-				label: localize('workspacePicker.browseSelectAction', "Select..."),
-				description: action.description,
-				group: { title: '', icon: action.icon },
-				disabled: isUnavailable,
-				item: { browseActionIndex: index },
+				label: localize('workspacePicker.clearWorkspace', "Clear Workspace"),
+				group: { title: '', icon: Codicon.close },
+				item: { run: () => this.clearSelection() },
 			});
-		});
+		}
 
 		// Inline "Manage" entries: dynamic remote provider rows (scoped to
 		// the Remote tab) + menu-contributed actions (filtered by the
@@ -958,6 +1256,16 @@ export class WorkspacePicker extends Disposable {
 			}
 		}
 
+		if (items.length === 0 && this._directPickerGroup === SESSION_WORKSPACE_GROUP_GITHUB) {
+			items.push({
+				kind: ActionListItemKind.Action,
+				label: localize('workspacePicker.githubLoading', "GitHub repositories are still loading"),
+				group: { title: '', icon: Codicon.loading },
+				disabled: true,
+				item: {},
+			});
+		}
+
 		return items;
 	}
 
@@ -976,7 +1284,84 @@ export class WorkspacePicker extends Disposable {
 		}
 	}
 
+	private _renderAdditionalRepositoryTriggers(): void {
+		this._additionalRepositoryTriggerDisposables.clear();
+		if (!this._categoryRow || !this._repositoryTriggerOptions) {
+			return;
+		}
+		for (const workspace of this._additionalRepositorySelections.values()) {
+			const slot = dom.$('.sessions-chat-picker-slot.sessions-workspace-category-picker-slot');
+			this._categoryRow.insertBefore(slot, this._repositoryContextTriggerSlot ?? null);
+			this._additionalRepositoryTriggerDisposables.add({ dispose: () => slot.remove() });
+			this._additionalRepositoryTriggerDisposables.add(this._addTrigger(slot, {
+				...this._repositoryTriggerOptions,
+				label: workspace.label,
+				selectedWorkspace: workspace,
+			}));
+		}
+	}
+
+	private _renderAdditionalFolderTriggers(): void {
+		this._additionalFolderTriggerDisposables.clear();
+		if (!this._categoryRow || !this._folderTriggerOptions) {
+			return;
+		}
+		for (const selection of this._additionalFolderSelections.values()) {
+			const slot = dom.$('.sessions-chat-picker-slot.sessions-workspace-category-picker-slot');
+			this._categoryRow.insertBefore(slot, this._repositoryTriggerSlot ?? null);
+			this._additionalFolderTriggerDisposables.add({ dispose: () => slot.remove() });
+			this._additionalFolderTriggerDisposables.add(this._addTrigger(slot, {
+				...this._folderTriggerOptions,
+				label: selection.workspace.label,
+				selectedWorkspace: selection.workspace,
+			}));
+		}
+	}
+
 	protected _renderTriggerLabel(trigger: HTMLElement): void {
+		const options = this._triggerOptions.get(trigger);
+		if (options) {
+			const workspace = this._selectedResolved?.workspace;
+			const isSelectedCategory = options.attachesContext !== true
+				&& options.group !== undefined
+				&& options.group === workspace?.group;
+			const contextCount = options.group && options.attachesContext
+				? this._contextSelections.get(`${options.group}:context`)?.length ?? 0
+				: 0;
+			const repositoryWorkspace = this._getSelectedRepositoryWorkspace();
+			const relatedGitHubInfo = options.group === SESSION_WORKSPACE_GROUP_GITHUB && options.attachesContext === false
+				? repositoryWorkspace?.folders.map(folder => folder.gitRepository?.gitHubInfo.get()).find(info => info !== undefined)
+				: undefined;
+			const selectedWorkspace = options.selectedWorkspace;
+			const hideForSelectedWorkspace = workspace !== undefined && options.hideWhenWorkspaceSelected === true;
+			const hideForMissingGitHubRepository = workspace !== undefined
+				&& options.hideWhenNoGitHubRepository === true
+				&& this._getCurrentRepositoryId() === undefined;
+			trigger.parentElement?.toggleAttribute('hidden', hideForSelectedWorkspace || hideForMissingGitHubRepository);
+			trigger.setAttribute('aria-label', options.ariaLabel);
+			trigger.classList.toggle('selected', selectedWorkspace !== undefined || isSelectedCategory || contextCount > 0 || relatedGitHubInfo !== undefined);
+			const icon = selectedWorkspace?.icon
+				?? (contextCount > 0 ? Codicon.attach : undefined)
+				?? (relatedGitHubInfo ? Codicon.repo : (isSelectedCategory && workspace ? workspace.icon : options.icon));
+			let iconElement = trigger.querySelector<HTMLElement>(':scope > .codicon');
+			if (!iconElement) {
+				iconElement = renderIcon(icon);
+				trigger.prepend(iconElement);
+			}
+			iconElement.className = ThemeIcon.asClassName(icon);
+			const label = selectedWorkspace?.label
+				?? (contextCount > 0 ? localize('workspacePicker.attachedContextCount', "Attached {0}", contextCount) : undefined)
+				?? (relatedGitHubInfo ? `${relatedGitHubInfo.owner}/${relatedGitHubInfo.repo}` : (isSelectedCategory && workspace ? workspace.label : options.label));
+			let labelSpan = trigger.querySelector<HTMLElement>(':scope > .sessions-chat-dropdown-label');
+			if (label) {
+				labelSpan ??= dom.append(trigger, dom.$('span.sessions-chat-dropdown-label'));
+				labelSpan.textContent = label;
+			} else {
+				labelSpan?.remove();
+			}
+			return;
+		}
+
 		dom.clearNode(trigger);
 		const workspace = this._selectedResolved?.workspace;
 		const label = workspace ? workspace.label : localize('pickWorkspace', "workspace");
