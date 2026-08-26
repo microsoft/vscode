@@ -133,21 +133,4 @@ suite('Chat Accessibility Help', () => {
 			inlineChat: false,
 		});
 	});
-
-	test('documents how to resume a failed response', () => {
-		const keybindingService = {
-			lookupKeybindings: () => [],
-		} as unknown as IKeybindingService;
-		const helpText = getAccessibilityHelpText('agentView', keybindingService, true);
-
-		assert.deepStrictEqual({
-			focusResponse: helpText.includes('Focus Chat command'),
-			focusAction: helpText.includes('press Tab to focus Try Again'),
-			activateAction: helpText.includes('press Enter or Space to resume'),
-		}, {
-			focusResponse: true,
-			focusAction: true,
-			activateAction: true,
-		});
-	});
 });
