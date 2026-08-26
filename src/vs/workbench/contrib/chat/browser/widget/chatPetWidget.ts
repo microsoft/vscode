@@ -67,7 +67,6 @@ const DIZZY_STATE_DURATION = 2_200;
 const WAKE_STATE_DURATION = 880;
 const DIZZY_DIRECTION_CHANGE_COUNT = 8;
 const DIZZY_DIRECTION_CHANGE_MAX_INTERVAL = 600;
-const SEARCH_INTERVAL = 10_000;
 const RESPAWN_EFFECT_DURATION = 800;
 const RESPAWN_EFFECT_REDUCED_MOTION_DURATION = 400;
 const DRAG_THRESHOLD = 2;
@@ -1138,7 +1137,6 @@ export class ChatPetWidget extends Disposable {
 	private readonly _idleScheduler = this._register(new RunOnceScheduler(() => this._idleExpired.set(true, undefined), CHAT_PET_IDLE_SLEEP_DELAY));
 	private readonly _confirmationAttentionScheduler = this._register(new RunOnceScheduler(() => this._confirmationAttentionExpired.set(true, undefined), CHAT_PET_CONFIRMATION_ATTENTION_DURATION));
 	private readonly _transientScheduler = this._register(new RunOnceScheduler(() => this._transientState.set(undefined, undefined), TRANSIENT_STATE_DURATION));
-	private readonly _searchScheduler: RunOnceScheduler;
 	private readonly _clickSuppressionScheduler = this._register(new RunOnceScheduler(() => this._suppressNextPointerClick = false, 0));
 	private readonly _spriteAnimation = this._register(new MutableDisposable());
 	private readonly _speechAnimation = this._register(new MutableDisposable());
@@ -1213,7 +1211,6 @@ export class ChatPetWidget extends Disposable {
 		this._host = observableValue(this, host);
 		this._variant = this.chatPetService.variant.get();
 		this._selectedAccessory = this.chatPetService.selectedAccessory.get();
-		this._searchScheduler = this._register(new RunOnceScheduler(() => this._trySearch(), SEARCH_INTERVAL));
 		this.parent.classList.add('chat-pet-host');
 		this._overlay = dom.$(`.${CHAT_PET_OVERLAY_CLASS}`);
 		this.parent.prepend(this._overlay);
@@ -1305,8 +1302,6 @@ export class ChatPetWidget extends Disposable {
 				this._finishDisable();
 			} else if (event.animationName === 'chat-pet-yapping-fall' && !this._isDragging.get() && event.target === this._activeSprite?.container && this._button.element.dataset.state === 'yapping') {
 				this._transientState.set('yappingMouthOpen', undefined);
-			} else if (event.animationName === 'chat-pet-search-down' && this._button.element.dataset.state === 'searchingDown') {
-				this._transientState.set(undefined, undefined);
 			} else if ((event.animationName === 'chat-pet-eye-blink' || event.animationName === 'chat-pet-tall-eye-blink') && event.target === this._pupils[0]) {
 				this._blinkController.onAnimationComplete();
 			}
@@ -1511,7 +1506,6 @@ export class ChatPetWidget extends Disposable {
 			if (!enabled) {
 				this._hopController.cancel();
 				this._idleScheduler.cancel();
-				this._searchScheduler.cancel();
 				this._transientScheduler.cancel();
 				if (transientState !== undefined) {
 					this._transientState.set(undefined, undefined);
@@ -1525,7 +1519,6 @@ export class ChatPetWidget extends Disposable {
 			if (isDead) {
 				this._hopController.cancel();
 				this._idleScheduler.cancel();
-				this._searchScheduler.cancel();
 				this._transientScheduler.cancel();
 				this._showRespawnSequence();
 				return;
@@ -1534,14 +1527,9 @@ export class ChatPetWidget extends Disposable {
 			if (onTheRun) {
 				this._hopController.cancel();
 				this._idleScheduler.cancel();
-				if (!this._searchScheduler.isScheduled()) {
-					this._searchScheduler.schedule();
-				}
-				const state = transientState === 'searching' || transientState === 'searchingDown' ? transientState : 'onTheRun';
-				this._renderState(state, variantChanged);
+				this._renderState('onTheRun', variantChanged);
 				return;
 			}
-			this._searchScheduler.cancel();
 
 			if (this._busy) {
 				this._idleScheduler.cancel();
@@ -2544,19 +2532,6 @@ export class ChatPetWidget extends Disposable {
 		}
 	}
 
-	private _trySearch(): void {
-		if (!this._enabled || !this.chatPetService.onTheRun.get()) {
-			return;
-		}
-		if (this._motionReduced) {
-			this._searchScheduler.schedule();
-			return;
-		}
-		this._transientState.set('searching', undefined);
-		this._renderState('searching', true);
-		this._searchScheduler.schedule();
-	}
-
 	private _wake(): void {
 		const wasSleeping = this._idleExpired.get() || this._renderedState === 'sleep';
 		this._idleExpired.set(false, undefined);
@@ -2876,14 +2851,7 @@ export class ChatPetWidget extends Disposable {
 		}
 		if (state === 'jump') {
 			this._hopController.onAnimationComplete();
-			return;
 		}
-		if (state !== 'searching' || !this.chatPetService.onTheRun.get()) {
-			return;
-		}
-		this._transientState.set('searchingDown', undefined);
-		this._button.element.dataset.state = 'searchingDown';
-		this._renderedState = 'searchingDown';
 	}
 
 	private _startSpriteAnimation(source: ChatPetSpriteSource, sprite: ChatPetSpriteElement, animationDisposable: MutableDisposable<IDisposable>, onComplete?: () => void, reverse = false, onFrame?: (frameIndex: number) => void, state?: ChatPetState): void {

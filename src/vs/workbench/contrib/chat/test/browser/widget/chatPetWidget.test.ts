@@ -248,6 +248,47 @@ suite('ChatPetWidget', () => {
 		});
 	});
 
+	test('keeps the on-the-run pet still', () => {
+		const clock = sinon.useFakeTimers();
+		const parent = mainWindow.document.createElement('div');
+		const input = mainWindow.document.createElement('div');
+		const movementBounds = mainWindow.document.createElement('div');
+		parent.append(input);
+		mainWindow.document.body.append(parent, movementBounds);
+		const storageService = new TestStorageService();
+		const service = new ChatPetService(storageService, new TestTelemetryService(), new NullLogService());
+		service.toggle();
+		const widget = new ChatPetWidget(
+			createPetHost(parent, input, movementBounds),
+			undefined,
+			service,
+			new class extends TestAccessibilityService {
+				override isMotionReduced(): boolean { return false; }
+			}(),
+			new class extends mock<IContextMenuService>() { }(),
+			new class extends mock<ICommandService>() { }(),
+			new NullLogService(),
+			new class extends mock<IHostService>() {
+				override readonly hasFocus = true;
+				override readonly onDidChangeFocus = Event.None;
+				override readonly onDidChangeActiveWindow = Event.None;
+			}(),
+		);
+		try {
+			service.setOnTheRun(true);
+			clock.tick(10_000);
+
+			assert.strictEqual(Reflect.get(widget, '_transientState').get(), undefined);
+		} finally {
+			widget.dispose();
+			service.dispose();
+			storageService.dispose();
+			parent.remove();
+			movementBounds.remove();
+			clock.restore();
+		}
+	});
+
 	test('moves one pet instance between chat hosts without respawning it', () => {
 		const firstParent = mainWindow.document.createElement('div');
 		const firstBounds = mainWindow.document.createElement('div');
