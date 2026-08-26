@@ -256,7 +256,6 @@ suite('ModelPickerConfiguration', () => {
 
 		await selection;
 
-		// The single-section path should not perform the normal refresh afterward.
 		assert.strictEqual(result.calls.hide, 1);
 		assert.strictEqual(result.calls.updateItems, 0);
 	});
