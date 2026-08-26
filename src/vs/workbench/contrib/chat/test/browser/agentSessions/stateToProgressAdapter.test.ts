@@ -400,12 +400,12 @@ suite('stateToProgressAdapter', () => {
 				kind: 'sessionCreated',
 				openLink: createLink,
 				label: 'Remember this word: capybara',
-				isChat: false,
+				fullTitle: 'Remember this word: capybara',
 			}, {
 				kind: 'sessionCreated',
 				openLink: sendLink,
 				label: 'foo',
-				isChat: false,
+				fullTitle: 'foo',
 			}]);
 		});
 

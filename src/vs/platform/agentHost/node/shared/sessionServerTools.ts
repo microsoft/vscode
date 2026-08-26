@@ -155,7 +155,7 @@ export const sessionServerToolDefinitions: IAgentServerToolDefinition[] = [
 	{
 		name: SessionServerToolName.CreateSession,
 		title: 'Create Session',
-		description: 'Create an independently scoped session and start it with an initial prompt. Use this when work needs a separate workspace, worktree or branch, provider, or lifecycle. For parallel subtasks that should share one workspace and aggregate diff, prefer `create_chat`. The UI shows a "Session Created" confirmation with a button to open it, so reply with a single short sentence confirming the session was created and do NOT print the session URL or tell the user to click a button.',
+		description: 'Create an independently scoped session and start it with an initial prompt. Use this when work needs a separate workspace, worktree or branch, provider, or lifecycle. For parallel subtasks that should share one workspace and aggregate diff, prefer `create_chat`. The UI shows the created session as a link, so reply with a single short sentence confirming the session was created and do NOT print the session URL or tell the user to click the link.',
 		inputSchema: createSessionInputSchema,
 		annotations: { readOnlyHint: false },
 	},
@@ -780,8 +780,8 @@ export async function applyCreateSessionTool(accessor: ISessionServerToolAccesso
 /**
  * Builds the model-facing `create_session` result. Keeps the machine-readable
  * `agent-host-session://` link (parsed client-side to render the deterministic
- * "Session Created" confirmation + button) but omits the raw backend session
- * URI so the model has nothing ugly to echo, and tells it to reply briefly.
+ * linked session title) but omits the raw backend session URI so the model has
+ * nothing ugly to echo, and tells it to reply briefly.
  */
 export function formatCreateSessionResult(result: ICreateSessionResult): string {
 	return `Session created (${result.openLink}). Reply with one short sentence confirming the session was created; do not print the URL or mention a button.`;

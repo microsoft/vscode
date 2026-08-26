@@ -7,12 +7,13 @@ import assert from 'assert';
 import * as sinon from 'sinon';
 import { Event } from '../../../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../../../base/common/lifecycle.js';
-import { observableValue } from '../../../../../../../base/common/observable.js';
+import { ISettableObservable, observableValue } from '../../../../../../../base/common/observable.js';
 import { IRenderedMarkdown, MarkdownRenderOptions, renderAsPlaintext, renderMarkdown } from '../../../../../../../base/browser/markdownRenderer.js';
 import { IMarkdownString, MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
+import { ILinkPresentation, ILinkPresentationService } from '../../../../../../../platform/dataChannel/common/dataChannel.js';
 import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
 import { IMarkdownRenderer } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
@@ -55,6 +56,7 @@ suite('ChatToolProgressSubPart', () => {
 	let mockHoverService: IHoverService;
 	let mockConfigurationService: TestConfigurationService;
 	let mockEditorPool: EditorPool;
+	let sessionLinkPresentation: ISettableObservable<ILinkPresentation | undefined>;
 
 	function createRenderContext(isComplete: boolean = false): IChatContentPartRenderContext {
 		const mockElement: Partial<IChatResponseViewModel> = {
@@ -184,6 +186,17 @@ suite('ChatToolProgressSubPart', () => {
 			isHovered: () => false,
 		} as unknown as IHoverService;
 		instantiationService.stub(IHoverService, mockHoverService);
+
+		sessionLinkPresentation = observableValue<ILinkPresentation | undefined>('sessionLinkPresentation', undefined);
+		instantiationService.stub(ILinkPresentationService, {
+			_serviceBrand: undefined,
+			onDidChangeLinkPresentationRules: Event.None,
+			linkPresentationRules: [],
+			registerLinkPresentationProvider: () => ({ dispose() { } }),
+			registerExtensionLinkPresentationProvider: () => ({ dispose() { } }),
+			getLinkPresentationRule: () => ({ id: 'test-session-links', uriPattern: /^agent-host-session:/, initialKind: 'session' }),
+			createLinkPresentationWatcher: () => ({ presentation: sessionLinkPresentation, dispose() { } }),
+		});
 
 		mockEditorPool = {} as EditorPool;
 	});
@@ -315,13 +328,28 @@ suite('ChatToolProgressSubPart', () => {
 	});
 
 	test('renders a created session as a plain title link', () => {
+		const updateHover = sinon.spy();
+		const setupManagedHoverStub = sinon.stub(mockHoverService, 'setupManagedHover').returns({
+			dispose() { },
+			show() { },
+			hide() { },
+			update: updateHover,
+		});
+		disposables.add(toDisposable(() => setupManagedHoverStub.restore()));
+		const runningTitle = 'Weather question session with a detailed title that is longer than sixty characters';
+		sessionLinkPresentation.set({
+			kind: 'session',
+			title: runningTitle,
+			status: { kind: 'pending', label: 'Working' },
+		}, undefined);
 		const part = disposables.add(instantiationService.createInstance(
 			ChatSessionCreatedResultSubPart,
 			createSerializedToolInvocation({ isComplete: true }),
 			{
 				kind: 'sessionCreated',
 				openLink: 'agent-host-session://copilot/task-a',
-				label: 'Task A',
+				label: 'Implement Task A for the current session…',
+				fullTitle: 'Implement Task A for the current session and validate all of its behavior',
 			} satisfies IChatSessionCreatedData,
 			createRenderContext(),
 			mockMarkdownRenderer,
@@ -331,11 +359,28 @@ suite('ChatToolProgressSubPart', () => {
 		assert.deepStrictEqual({
 			text: link?.textContent,
 			href: link?.getAttribute('href'),
+			hoverTitle: updateHover.lastCall.args[0],
+			role: link?.getAttribute('role'),
 			hasButton: !!part.domNode.querySelector('.monaco-button'),
 		}, {
-			text: 'Task A',
+			text: `${runningTitle.slice(0, 57)}…`,
 			href: 'agent-host-session://copilot/task-a',
+			hoverTitle: runningTitle,
+			role: null,
 			hasButton: false,
+		});
+
+		sessionLinkPresentation.set({
+			kind: 'session',
+			title: 'Finished weather session',
+			status: { kind: 'success', label: 'Completed' },
+		}, undefined);
+		assert.deepStrictEqual({
+			text: link?.textContent,
+			hoverTitle: updateHover.lastCall.args[0],
+		}, {
+			text: 'Finished weather session',
+			hoverTitle: 'Finished weather session',
 		});
 	});
 

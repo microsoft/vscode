@@ -25,9 +25,8 @@ import { ChatViewPaneTarget, IChatWidgetService } from '../../chat.js';
 /**
  * Editor-window counterpart to the Agents window's
  * `OpenSessionLinkOpenerContribution`: handles `agent-host-session://` links
- * (surfaced by the `create_session` / `create_chat` server tools and rendered as
- * the "Open Session" pill) so the pill's button also works in the regular
- * editor-window chat.
+ * surfaced by the `create_session` / `create_chat` server tools, so the linked
+ * session title also works in the regular editor-window chat.
  *
  * The link carries the backend session URI (`<provider>:/<rawId>`); sessions
  * created from an editor-window chat run on the window's ambient/local host,

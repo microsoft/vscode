@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../../../base/browser/dom.js';
+import { getDefaultHoverDelegate } from '../../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { autorun } from '../../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../../base/common/uri.js';
+import { ILinkPresentationService } from '../../../../../../../platform/dataChannel/common/dataChannel.js';
 import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
 import { IMarkdownRenderer } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
-import { Link } from '../../../../../../../platform/opener/browser/link.js';
 import { IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
 import { IChatSessionCreatedData, IChatToolInvocation, IChatToolInvocationSerialized } from '../../../../common/chatService/chatService.js';
 import { IChatCodeBlockInfo } from '../../../chat.js';
@@ -16,8 +18,8 @@ import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
 import '../media/chatSessionCreatedResult.css';
 
 /**
- * Renders the title of a completed `create_session` / `create_chat` tool call
- * as a link to the created session. The link comes from the tool call's
+ * Renders the target title of a completed `create_session`, `create_chat`, or
+ * `send_message` tool call as a link. The link comes from the tool call's
  * structured {@link IChatSessionCreatedData} rather than the model's prose.
  */
 export class ChatSessionCreatedResultSubPart extends BaseChatToolInvocationSubPart {
@@ -30,22 +32,36 @@ export class ChatSessionCreatedResultSubPart extends BaseChatToolInvocationSubPa
 		private readonly data: IChatSessionCreatedData,
 		_context: IChatContentPartRenderContext,
 		_renderer: IMarkdownRenderer,
+		@ILinkPresentationService linkPresentationService: ILinkPresentationService,
 		@IHoverService hoverService: IHoverService,
 		@IOpenerService private readonly openerService: IOpenerService,
 	) {
 		super(toolInvocation);
 
 		this.domNode = dom.$('.chat-open-session-result');
-		this._register(new Link(
-			this.domNode,
-			{ label: this.data.label, href: this.data.openLink, title: this.data.label },
-			{
-				opener: href => {
-					void this.openerService.open(URI.parse(href), { fromUserGesture: true, allowContributedOpeners: true });
-				},
-			},
-			hoverService,
-			this.openerService,
+		const link = dom.append(this.domNode, dom.$('a.monaco-link', { href: this.data.openLink }, this.data.label));
+		const hover = this._register(hoverService.setupManagedHover(
+			getDefaultHoverDelegate('mouse'),
+			link,
+			this.data.fullTitle ?? this.data.label,
 		));
+		this._register(dom.addDisposableListener(link, dom.EventType.CLICK, event => {
+			dom.EventHelper.stop(event, true);
+			void this.openerService.open(URI.parse(this.data.openLink), { fromUserGesture: true, allowContributedOpeners: true });
+		}));
+
+		const resource = URI.parse(this.data.openLink);
+		const rule = linkPresentationService.getLinkPresentationRule(resource);
+		const watcher = rule ? linkPresentationService.createLinkPresentationWatcher(rule.id, resource) : undefined;
+		if (watcher) {
+			this._register(watcher);
+			this._register(autorun(reader => {
+				const presentation = watcher.presentation.read(reader);
+				const fullTitle = presentation?.title ?? this.data.fullTitle ?? this.data.label;
+				const label = fullTitle.length > 60 ? `${fullTitle.slice(0, 57)}…` : fullTitle;
+				link.textContent = label;
+				hover.update(fullTitle);
+			}));
+		}
 	}
 }
