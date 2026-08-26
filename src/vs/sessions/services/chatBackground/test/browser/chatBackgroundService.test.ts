@@ -247,9 +247,9 @@ suite('Sessions Chat Background Service', () => {
 		const selectedImages = Array.from({ length: 6 }, (_, index) => URI.file(`/textures/recent-${index + 1}.png`));
 		const initialRecents = service.getRecentBackgroundImages();
 		for (const image of selectedImages) {
-			await service.setBackgroundImage(image);
+			await service.setBackground(image);
 		}
-		await service.setBackgroundImage(selectedImages[2]);
+		await service.setBackground(selectedImages[2]);
 		const restoredService = disposables.add(new SessionsChatBackgroundService(new TestConfigurationService(), new TestThemeService(), disposables.add(new MockContextKeyService()), storageService));
 
 		assert.deepStrictEqual({
@@ -267,17 +267,17 @@ suite('Sessions Chat Background Service', () => {
 		});
 	});
 
-	test('updates the image for the active color theme and the shared layout', async () => {
+	test('updates the background for the active color theme and the shared layout', async () => {
 		const image = URI.file('/textures/kirby.png');
 		const configurationService = new CapturingConfigurationService();
 		const themeService = new TestThemeService();
 		const service = disposables.add(new SessionsChatBackgroundService(configurationService, themeService, disposables.add(new MockContextKeyService()), disposables.add(new InMemoryStorageService())));
 
-		await service.setBackgroundImage(image);
-		await service.setBackgroundPreset(AGENT_SESSIONS_CHAT_BACKGROUND_CODICONS_PRESET);
+		await service.setBackground(image);
+		await service.setBackground(AGENT_SESSIONS_CHAT_BACKGROUND_CODICONS_PRESET);
 		await service.clearBackground();
 		themeService.setTheme(new TestColorTheme({}, ColorScheme.LIGHT));
-		await service.setBackgroundImage(image);
+		await service.setBackground(image);
 		await service.setBackgroundImageLayout('bottom-right');
 
 		assert.deepStrictEqual(configurationService.updates, [{

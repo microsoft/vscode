@@ -68,8 +68,7 @@ export interface ISessionsChatBackgroundService {
 	getConfiguredBackgroundImage(): URI | undefined;
 	getRecentBackgroundImages(): readonly URI[];
 	getBackgroundImageLayout(): ChatBackgroundImageLayout;
-	setBackgroundImage(image: URI): Promise<void>;
-	setBackgroundPreset(preset: SessionsChatBackgroundPreset): Promise<void>;
+	setBackground(background: URI | SessionsChatBackgroundPreset): Promise<void>;
 	clearBackground(): Promise<void>;
 	setBackgroundImageLayout(layout: ChatBackgroundImageLayout, persist?: boolean): Promise<void>;
 }
@@ -154,15 +153,12 @@ export class SessionsChatBackgroundService extends Disposable implements ISessio
 		return images.slice(0, MAX_RECENT_BACKGROUND_IMAGES);
 	}
 
-	async setBackgroundImage(image: URI): Promise<void> {
+	async setBackground(background: URI | SessionsChatBackgroundPreset): Promise<void> {
 		const setting = this.getBackgroundImageSetting(this.themeService.getColorTheme().type);
-		await this.configurationService.updateValue(setting, image.toString(), ConfigurationTarget.USER);
-		this.storeRecentBackgroundImage(image);
-	}
-
-	async setBackgroundPreset(preset: SessionsChatBackgroundPreset): Promise<void> {
-		const setting = this.getBackgroundImageSetting(this.themeService.getColorTheme().type);
-		await this.configurationService.updateValue(setting, preset, ConfigurationTarget.USER);
+		await this.configurationService.updateValue(setting, URI.isUri(background) ? background.toString() : background, ConfigurationTarget.USER);
+		if (URI.isUri(background)) {
+			this.storeRecentBackgroundImage(background);
+		}
 	}
 
 	async clearBackground(): Promise<void> {

@@ -250,12 +250,12 @@ class SetChatBackgroundAction extends Action2 {
 			return;
 		}
 		if (backgroundType.kind === 'codicons') {
-			await backgroundService.setBackgroundPreset(AGENT_SESSIONS_CHAT_BACKGROUND_CODICONS_PRESET);
+			await backgroundService.setBackground(AGENT_SESSIONS_CHAT_BACKGROUND_CODICONS_PRESET);
 			status(localize('chat.agentSessions.setBackground.codicons', "Chat background set to Codicons."));
 			return;
 		}
 		if (backgroundType.kind === 'recentImage') {
-			await backgroundService.setBackgroundImage(backgroundType.image);
+			await backgroundService.setBackground(backgroundType.image);
 			status(localize('chat.agentSessions.setBackground.recentImage', "Chat background image set to {0}.", backgroundType.label));
 			return;
 		}
@@ -278,7 +278,7 @@ class SetChatBackgroundAction extends Action2 {
 			return;
 		}
 
-		await backgroundService.setBackgroundImage(image);
+		await backgroundService.setBackground(image);
 		status(localize('chat.agentSessions.setBackground.image', "Chat background image set."));
 	}
 }
