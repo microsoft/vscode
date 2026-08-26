@@ -543,25 +543,27 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 	protected readonly identityProvider?: IIdentityProvider<T>;
 	private readonly autoExpandSingleChildren: boolean;
 
-	private readonly nodeAccessHistory: T[] = [];
+	private readonly nodeAccessHistory = new Set<T>();
 	private readonly MAX_RETAINED_NODES = 50000;
-	private gcInterval: any;
+	private gcInterval: ReturnType<typeof setInterval> | undefined;
 
 	private markNodeAccessed(element: T): void {
-		const index = this.nodeAccessHistory.indexOf(element);
-		if (index > -1) {
-			this.nodeAccessHistory.splice(index, 1);
+		if (this.nodeAccessHistory.has(element)) {
+			this.nodeAccessHistory.delete(element);
 		}
-		this.nodeAccessHistory.push(element);
+		this.nodeAccessHistory.add(element);
 	}
 
 	private performGarbageCollection(): void {
-		if (this.nodeAccessHistory.length <= this.MAX_RETAINED_NODES) {
+		if (this.nodeAccessHistory.size <= this.MAX_RETAINED_NODES) {
 			return;
 		}
-		const nodesToRemove = this.nodeAccessHistory.length - this.MAX_RETAINED_NODES;
-		const elementsToEvict = this.nodeAccessHistory.splice(0, nodesToRemove);
-		for (const element of elementsToEvict) {
+		const nodesToRemove = this.nodeAccessHistory.size - this.MAX_RETAINED_NODES;
+		let evictedCount = 0;
+		for (const element of this.nodeAccessHistory) {
+			if (evictedCount >= nodesToRemove) {
+				break;
+			}
 			try {
 				if (this.hasNode(element) && this.isExpanded(element)) {
 					this.collapse(element, true);
@@ -569,6 +571,8 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 			} catch (e) {
 				// Node might have already been removed
 			}
+			this.nodeAccessHistory.delete(element);
+			evictedCount++;
 		}
 	}
 
@@ -1437,7 +1441,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 
 	dispose(): void {
 		clearInterval(this.gcInterval);
-		this.nodeAccessHistory.length = 0;
+		this.nodeAccessHistory.clear();
 		this._onDidRender.dispose();
 		this._onDidChangeNodeSlowState.dispose();
 		this.disposables.dispose();
