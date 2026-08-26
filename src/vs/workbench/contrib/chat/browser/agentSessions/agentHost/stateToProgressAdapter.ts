@@ -1669,11 +1669,12 @@ function buildSessionCreatedToolData(tc: ToolCallState): IChatSessionCreatedData
 	if (!openLink || !backend) {
 		return undefined;
 	}
+	const fullTitle = createSessionTitleFromArgs(getInlineToolInput(tc.toolInput)) ?? (backend.path.replace(/^\//, '') || backend.toString());
+	const label = fullTitle.length > 60 ? `${fullTitle.slice(0, 57)}…` : fullTitle;
 	// A chat-scoped link shows the conversation icon; a session-scoped link shows the agent icon.
 	const isChat = isCreateChatTool(tc.toolName)
 		|| ((isCreateSessionTool(tc.toolName) || isSend) && !!parseOpenSessionLinkChatId(openLink));
-	const label = createSessionTitleFromArgs(getInlineToolInput(tc.toolInput)) ?? (backend.path.replace(/^\//, '') || backend.toString());
-	return { kind: 'sessionCreated', openLink, label, isChat };
+	return { kind: 'sessionCreated', openLink, label, fullTitle, ...(isChat ? { isChat: true } : {}) };
 }
 
 function buildGeneratedImageToolData(tc: ToolCallState): IChatGeneratedImageData | undefined {
@@ -1730,7 +1731,7 @@ function createSessionTitleFromArgs(toolInput: string | undefined): string | und
 		if (!firstLine) {
 			return undefined;
 		}
-		return firstLine.length > 60 ? `${firstLine.slice(0, 57)}…` : firstLine;
+		return firstLine;
 	} catch {
 		return undefined;
 	}
@@ -2713,7 +2714,7 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 	const hasMcpAppData = invocation.toolSpecificData?.kind === 'input' && !!invocation.toolSpecificData.mcpAppData;
 	// The generic raw input/output details (the expandable JSON blob) are
 	// suppressed for tool kinds that render their own bespoke UI — the subagent
-	// card and the `sessionCreated` "Open Session" pill — so we don't duplicate
+	// card and the `sessionCreated` linked session title — so we don't duplicate
 	// the result underneath them. Search results and separately-rendered file
 	// edits are likewise excluded.
 	const resultDetails = !isTerminal

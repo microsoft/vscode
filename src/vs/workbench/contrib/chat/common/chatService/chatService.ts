@@ -1209,18 +1209,19 @@ export interface IChatToolResourcesInvocationData {
 }
 
 /**
- * Tool-specific data for a completed `create_session` / `create_chat`
- * agent-host tool call. Carries a clickable link so the renderer can show a
- * deterministic confirmation + "open" button instead of relying on the model
- * to echo a markdown link.
+ * Tool-specific data for a completed `create_session`, `create_chat`, or
+ * `send_message` agent-host tool call. Carries a clickable link so the renderer
+ * can show the target title without relying on the model to echo a markdown link.
  */
 export interface IChatSessionCreatedData {
 	readonly kind: 'sessionCreated';
 	/** The `agent-host-session://` link that opens the created/owning session. */
 	readonly openLink: string;
-	/** Label for the button (e.g. the session title / prompt). */
+	/** The session title / prompt shown as the link label. */
 	readonly label: string;
-	/** Whether this is a `create_chat` result (vs `create_session`); selects the pill icon. */
+	/** The unabbreviated session title / prompt shown when hovering over the link. */
+	readonly fullTitle?: string;
+	/** Whether the link targets a specific chat rather than its owning session. */
 	readonly isChat?: boolean;
 }
 
