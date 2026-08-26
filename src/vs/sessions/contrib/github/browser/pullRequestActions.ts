@@ -70,6 +70,19 @@ class PullRequestActionContext {
 	constructor(readonly pullRequest: IGitHubPullRequestRef) { }
 }
 
+function isPullRequestActionContext(target: unknown): target is PullRequestActionContext {
+	if (!target || typeof target !== 'object') {
+		return false;
+	}
+
+	const candidate = target as { readonly pullRequest?: IGitHubPullRequestRef };
+	return !!candidate.pullRequest &&
+		typeof candidate.pullRequest.owner === 'string' &&
+		typeof candidate.pullRequest.repo === 'string' &&
+		typeof candidate.pullRequest.number === 'number' &&
+		URI.isUri(candidate.pullRequest.uri);
+}
+
 class OpenPullRequestAction extends Action2 {
 	static readonly ID = OPEN_PULL_REQUEST_ACTION_ID;
 
@@ -98,7 +111,7 @@ class OpenPullRequestAction extends Action2 {
 		const sessionsService = accessor.get(ISessionsService);
 
 		const target = (Array.isArray(sessionOrContext) ? sessionOrContext[0] : sessionOrContext) ?? sessionsService.activeSession.get();
-		const pullRequest = target instanceof PullRequestActionContext ? target.pullRequest : getSessionPullRequest(target);
+		const pullRequest = isPullRequestActionContext(target) ? target.pullRequest : getSessionPullRequest(target);
 		if (!pullRequest) {
 			return;
 		}
@@ -169,7 +182,7 @@ class CopyPullRequestUrlAction extends Action2 {
 		const sessionsService = accessor.get(ISessionsService);
 
 		const target = (Array.isArray(sessionOrContext) ? sessionOrContext[0] : sessionOrContext) ?? sessionsService.activeSession.get();
-		const pullRequest = target instanceof PullRequestActionContext ? target.pullRequest : getSessionPullRequest(target);
+		const pullRequest = isPullRequestActionContext(target) ? target.pullRequest : getSessionPullRequest(target);
 		if (!pullRequest) {
 			return;
 		}

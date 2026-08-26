@@ -117,7 +117,7 @@ export class GitHubReferenceList<T extends IGitHubReferenceListEntry> extends Di
 	 */
 	private _updateRowActions(row: IGitHubReferenceListRow<T>): void {
 		const actions = row.entry.toolbarActions ?? [];
-		const actionsKey = actions.map(action => `${action.id}\u0000${action.label}\u0000${action.class}`).join('\u0001');
+		const actionsKey = actions.map(action => `${action.id}\u0000${action.label}\u0000${action.tooltip}\u0000${action.class}\u0000${action.enabled}\u0000${action.checked}`).join('\u0001');
 		if (row.actionsKey === actionsKey) {
 			return;
 		}
@@ -128,8 +128,11 @@ export class GitHubReferenceList<T extends IGitHubReferenceListEntry> extends Di
 			row.actionBar.push(actions.map((action, index) => toAction({
 				id: action.id,
 				label: action.label,
+				tooltip: action.tooltip,
 				class: action.class,
-				run: () => row.entry.toolbarActions?.[index]?.run(),
+				enabled: action.enabled,
+				checked: action.checked,
+				run: (...args: unknown[]) => row.entry.toolbarActions?.[index]?.run(...args),
 			})), { icon: true, label: false });
 		}
 	}

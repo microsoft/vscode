@@ -60,6 +60,19 @@ class IssueActionContext {
 	constructor(readonly issue: IGitHubIssueRef) { }
 }
 
+function isIssueActionContext(target: unknown): target is IssueActionContext {
+	if (!target || typeof target !== 'object') {
+		return false;
+	}
+
+	const candidate = target as { readonly issue?: IGitHubIssueRef };
+	return !!candidate.issue &&
+		typeof candidate.issue.owner === 'string' &&
+		typeof candidate.issue.repo === 'string' &&
+		typeof candidate.issue.number === 'number' &&
+		URI.isUri(candidate.issue.uri);
+}
+
 class OpenIssueAction extends Action2 {
 	static readonly ID = OPEN_ISSUE_ACTION_ID;
 
@@ -86,7 +99,7 @@ class OpenIssueAction extends Action2 {
 		const urlService = accessor.get(IURLService);
 
 		const target = (Array.isArray(sessionOrContext) ? sessionOrContext[0] : sessionOrContext) ?? sessionsService.activeSession.get();
-		const issue = target instanceof IssueActionContext ? target.issue : getSessionIssues(target)[0];
+		const issue = isIssueActionContext(target) ? target.issue : getSessionIssues(target)[0];
 		if (!issue) {
 			return;
 		}
@@ -135,7 +148,7 @@ class CopyIssueUrlAction extends Action2 {
 		const sessionsService = accessor.get(ISessionsService);
 
 		const target = (Array.isArray(sessionOrContext) ? sessionOrContext[0] : sessionOrContext) ?? sessionsService.activeSession.get();
-		const issue = target instanceof IssueActionContext ? target.issue : getSessionIssues(target)[0];
+		const issue = isIssueActionContext(target) ? target.issue : getSessionIssues(target)[0];
 		if (!issue) {
 			return;
 		}

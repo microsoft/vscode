@@ -124,6 +124,67 @@ suite('GitHubReferenceList', () => {
 			list.element.remove();
 		}
 	});
+
+	test('row action toolbar preserves tooltip/enablement/checked presentation', () => {
+		const events: string[] = [];
+		const copyAction = (target: string, enabled: boolean, checked: boolean, tooltip: string) => toAction({
+			id: 'test.copyLink',
+			label: 'Copy Pull Request Link',
+			tooltip,
+			enabled,
+			checked,
+			class: ThemeIcon.asClassName(Codicon.copy),
+			run: () => events.push(`copy:${target}`),
+		});
+		const list = disposables.add(new GitHubReferenceList<IGitHubReferenceListEntry>([{
+			number: 1,
+			title: 'Fix the thing',
+			icon: Codicon.gitPullRequest,
+			toolbarActions: [copyAction('first', false, false, 'Cannot copy')],
+		}], () => events.push('select')));
+		document.body.appendChild(list.element);
+
+		try {
+			const actionLabel = list.element.querySelector<HTMLElement>('.sessions-github-reference-list-entry-actions .action-label')!;
+			actionLabel.click();
+			const beforeUpdate = {
+				events: [...events],
+				ariaDisabled: actionLabel.getAttribute('aria-disabled'),
+				ariaLabel: actionLabel.getAttribute('aria-label'),
+				checkedClass: actionLabel.classList.contains('checked'),
+			};
+
+			list.update([{
+				number: 1,
+				title: 'Fix the thing',
+				icon: Codicon.gitPullRequest,
+				toolbarActions: [copyAction('second', true, true, 'Copy pull request URL')],
+			}]);
+
+			const updatedActionLabel = list.element.querySelector<HTMLElement>('.sessions-github-reference-list-entry-actions .action-label')!;
+			updatedActionLabel.click();
+			assert.deepStrictEqual({
+				beforeUpdate,
+				events,
+				ariaDisabled: updatedActionLabel.getAttribute('aria-disabled'),
+				ariaLabel: updatedActionLabel.getAttribute('aria-label'),
+				checkedClass: updatedActionLabel.classList.contains('checked'),
+			}, {
+				beforeUpdate: {
+					events: [],
+					ariaDisabled: 'true',
+					ariaLabel: 'Cannot copy',
+					checkedClass: false,
+				},
+				events: ['copy:second'],
+				ariaDisabled: null,
+				ariaLabel: 'Copy pull request URL',
+				checkedClass: true,
+			});
+		} finally {
+			list.element.remove();
+		}
+	});
 });
 
 suite('GitHubPullRequestPollingContribution', () => {
