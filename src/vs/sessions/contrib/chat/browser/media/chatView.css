@@ -28,7 +28,7 @@
 	z-index: -1;
 	overflow: hidden;
 	pointer-events: none;
-	color: color-mix(in srgb, var(--vscode-foreground) 14%, transparent);
+	color: color-mix(in srgb, var(--vscode-foreground) 10%, transparent);
 }
 
 .chat-view > .sessions-chat-codicon-background[hidden] {
