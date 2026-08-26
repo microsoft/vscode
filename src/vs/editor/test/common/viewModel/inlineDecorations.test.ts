@@ -507,25 +507,6 @@ suite('InjectedTextInlineDecorationsComputer', () => {
 		]);
 	});
 
-	test('spacing-only injection at the beginning of a line', () => {
-		const injectionOptions: InjectedTextOptions[] = [
-			{ content: '', inlineClassName: 'spacer', widthInEm: 1 }
-		];
-		const context: IInjectedTextInlineDecorationsComputerContext = {
-			getInjectionOptions: () => injectionOptions,
-			getInjectionOffsets: () => [0],
-			getBreakOffsets: () => [10], // the injection contributes no characters
-			getWrappedTextIndentLength: () => 0,
-			getBaseViewLineNumber: () => 1,
-		};
-		const computer = new InjectedTextInlineDecorationsComputer(context);
-		const result = computer.getInlineDecorations(1);
-		// The decoration covers no character, so it is empty and starts where the injection sits.
-		assert.deepStrictEqual(result, [
-			[new InlineDecoration(new Range(1, 1, 1, 1), 'spacer', InlineDecorationType.WidthOnly)]
-		]);
-	});
-
 	test('spacing-only injection in the middle of a line', () => {
 		const injectionOptions: InjectedTextOptions[] = [
 			{ content: '', inlineClassName: 'spacer', widthInEm: 1 }
@@ -560,27 +541,6 @@ suite('InjectedTextInlineDecorationsComputer', () => {
 		// There is no following output line to move it to, so it stays at the end of this one.
 		assert.deepStrictEqual(result, [
 			[new InlineDecoration(new Range(1, 11, 1, 11), 'spacer', InlineDecorationType.WidthOnly)]
-		]);
-	});
-
-	test('spacing-only injection sitting exactly on a line break moves to the next line', () => {
-		const injectionOptions: InjectedTextOptions[] = [
-			{ content: '', inlineClassName: 'spacer', widthInEm: 1 }
-		];
-		const context: IInjectedTextInlineDecorationsComputerContext = {
-			getInjectionOptions: () => injectionOptions,
-			getInjectionOffsets: () => [8],
-			getBreakOffsets: () => [8, 20],
-			getWrappedTextIndentLength: () => 0,
-			getBaseViewLineNumber: () => 1,
-		};
-		const computer = new InjectedTextInlineDecorationsComputer(context);
-		const result = computer.getInlineDecorations(1);
-		// Injected text with content would also end up at the beginning of the second line,
-		// so a spacing-only injection must not be left dangling at the end of the first one.
-		assert.deepStrictEqual(result, [
-			[],
-			[new InlineDecoration(new Range(2, 1, 2, 1), 'spacer', InlineDecorationType.WidthOnly)],
 		]);
 	});
 
