@@ -44,10 +44,17 @@
 }
 
 .monaco-workbench.agent-sessions-workbench .part.sessionspart .chat-view.has-chat-background .interactive-item-container.interactive-response {
-	background: color-mix(in srgb, var(--session-view-background) 96%, transparent);
-	border: var(--vscode-strokeThickness) solid color-mix(in srgb, var(--vscode-editorWidget-border, var(--vscode-widget-border)) 70%, transparent);
+	/* Match the response padding so wide content remains fully backed before the fade. */
+	background: linear-gradient(
+		to right,
+		transparent,
+		color-mix(in srgb, var(--session-view-background) 88%, transparent) var(--vscode-spacing-size320),
+		color-mix(in srgb, var(--session-view-background) 88%, transparent) calc(100% - var(--vscode-spacing-size320)),
+		transparent
+	);
+	border: 0;
 	border-radius: var(--vscode-cornerRadius-medium);
-	box-shadow: 0 var(--vscode-spacing-size80) var(--vscode-spacing-size240) color-mix(in srgb, var(--vscode-widget-shadow) 18%, transparent);
+	box-shadow: none;
 	padding-bottom: var(--vscode-spacing-size160);
 	overflow: hidden;
 }

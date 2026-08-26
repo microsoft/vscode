@@ -237,11 +237,12 @@ suite('Sessions - Chat View', () => {
 		});
 	});
 
-	test('applies a lightly translucent treatment without backdrop blur to the complete assistant response', () => {
+	test('applies a borderless translucent side fade to the complete assistant response', () => {
 		const workbench = dom.$('.monaco-workbench.agent-sessions-workbench');
 		workbench.style.setProperty('--session-view-background', '#ffffff');
 		workbench.style.setProperty('--vscode-cornerRadius-medium', '6px');
 		workbench.style.setProperty('--vscode-spacing-size160', '16px');
+		workbench.style.setProperty('--vscode-spacing-size320', '32px');
 		const part = dom.append(workbench, dom.$('.part.sessionspart'));
 		const chatView = dom.append(part, dom.$('.chat-view.has-chat-background'));
 		const session = dom.append(chatView, dom.$('.interactive-session'));
@@ -257,9 +258,12 @@ suite('Sessions - Chat View', () => {
 		const responseStyle = dom.getWindow(response).getComputedStyle(response);
 		assert.deepStrictEqual({
 			responseBackgroundColor: responseStyle.backgroundColor,
+			responseBackgroundImage: responseStyle.backgroundImage,
 			responseBackdropFilter: responseStyle.getPropertyValue('backdrop-filter'),
 			responseWebkitBackdropFilter: responseStyle.getPropertyValue('-webkit-backdrop-filter') || 'none',
+			responseBorderStyle: responseStyle.borderStyle,
 			responseBorderRadius: responseStyle.borderRadius,
+			responseBoxShadow: responseStyle.boxShadow,
 			responseOverflow: responseStyle.overflow,
 			responsePaddingBottom: responseStyle.paddingBottom,
 			valueBackgroundColor: dom.getWindow(value).getComputedStyle(value).backgroundColor,
@@ -268,10 +272,13 @@ suite('Sessions - Chat View', () => {
 			plainResponseBorderStyle: dom.getWindow(plainResponse).getComputedStyle(plainResponse).borderStyle,
 			plainResponsePaddingBottom: dom.getWindow(plainResponse).getComputedStyle(plainResponse).paddingBottom,
 		}, {
-			responseBackgroundColor: 'color(srgb 1 1 1 / 0.96)',
+			responseBackgroundColor: 'rgba(0, 0, 0, 0)',
+			responseBackgroundImage: 'linear-gradient(to right, rgba(0, 0, 0, 0), color(srgb 1 1 1 / 0.88) 32px, color(srgb 1 1 1 / 0.88) calc(100% - 32px), rgba(0, 0, 0, 0))',
 			responseBackdropFilter: 'none',
 			responseWebkitBackdropFilter: 'none',
+			responseBorderStyle: 'none',
 			responseBorderRadius: '6px',
+			responseBoxShadow: 'none',
 			responseOverflow: 'hidden',
 			responsePaddingBottom: '16px',
 			valueBackgroundColor: 'rgba(0, 0, 0, 0)',
