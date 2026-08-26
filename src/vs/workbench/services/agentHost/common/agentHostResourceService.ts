@@ -7,6 +7,7 @@ import { DeferredPromise } from '../../../../base/common/async.js';
 import { VSBuffer, decodeBase64 } from '../../../../base/common/buffer.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { ResourceSet } from '../../../../base/common/map.js';
 import { IObservable, derived, observableValue } from '../../../../base/common/observable.js';
 import { extUri } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -28,6 +29,7 @@ import {
 import { normalizeRemoteAgentHostAddress } from '../../../../platform/agentHost/common/agentHostUri.js';
 import {
 	ContentEncoding,
+	DirectoryEntry,
 	ResourceCopyParams, ResourceDeleteParams, ResourceMkdirParams, ResourceMoveParams,
 	ResourceRequestParams, ResourceResolveParams, ResourceResolveResult, ResourceType, ResourceWriteParams,
 } from '../../../../platform/agentHost/common/state/protocol/commands.js';
@@ -43,6 +45,7 @@ interface IInternalPendingRequest extends IPendingResourceRequest {
 
 interface IInMemoryGrant {
 	readonly identity: AgentHostResourceIdentity;
+	readonly uri: URI;
 	/**
 	 * Resolves to the realpath'd URI for the grant. Stored as a promise so
 	 * `grantImplicitRead` can return synchronously while the realpath lookup
@@ -101,7 +104,15 @@ export class AgentHostResourceService extends Disposable implements IAgentHostRe
 	// ---- Gated FS operations ------------------------------------------------
 
 	async list(identity: AgentHostResourceIdentity, uri: URI): Promise<IResourceListResult> {
-		await this._gate(identity, uri, AgentHostPermissionMode.Read, { channel: ROOT_STATE_URI, uri: uri.toString(), read: true });
+		const normalized = normalizeResourceIdentity(identity);
+		const canonical = await this._canonicalize(uri);
+		if (!await this._isCovered(normalized, canonical, AgentHostPermissionMode.Read)) {
+			const entries = await this._getGrantedChildren(normalized, extUri.normalizePath(uri));
+			if (entries) {
+				return { entries };
+			}
+			throw new AgentHostResourcePermissionError({ channel: ROOT_STATE_URI, uri: uri.toString(), read: true });
+		}
 		const stat = await this._fileService.resolve(uri);
 		if (!stat.isDirectory) {
 			throw new Error(`Resource is not a directory: ${uri.toString()}`);
@@ -254,6 +265,7 @@ export class AgentHostResourceService extends Disposable implements IAgentHostRe
 		);
 		this._inMemoryGrants.set(handle, {
 			identity: normalizeResourceIdentity(identity),
+			uri: lexical,
 			realpath,
 			mode: AgentHostAccessMode.Read,
 		});
@@ -412,6 +424,51 @@ export class AgentHostResourceService extends Disposable implements IAgentHostRe
 		return realpaths.some(uri => extUri.isEqualOrParent(canonicalUri, uri));
 	}
 
+	private async _getGrantedChildren(identity: AgentHostResourceIdentity, directory: URI): Promise<DirectoryEntry[] | undefined> {
+		if (identity === LOCAL_AGENT_HOST_RESOURCE_IDENTITY) {
+			return undefined;
+		}
+		const grantUris = [...this._readPersistedGrants(identity)]
+			.filter(grant => grant.mode === AgentHostAccessMode.Read || grant.mode === AgentHostAccessMode.ReadWrite)
+			.map(grant => grant.uri);
+		for (const grant of this._inMemoryGrants.values()) {
+			if (grant.identity === identity) {
+				grantUris.push(grant.uri);
+			}
+		}
+
+		const grantedChildren = new ResourceSet(uri => extUri.getComparisonKey(uri));
+		for (const grantUri of grantUris) {
+			if (extUri.isEqual(directory, grantUri) || !extUri.isEqualOrParent(grantUri, directory)) {
+				continue;
+			}
+			const relativePath = extUri.relativePath(directory, grantUri);
+			const segments = relativePath?.split('/').filter(Boolean);
+			if (!segments?.length) {
+				continue;
+			}
+
+			const name = segments[0];
+			const childUri = extUri.joinPath(directory, name);
+			grantedChildren.add(childUri);
+		}
+
+		if (grantedChildren.size === 0) {
+			return undefined;
+		}
+
+		const stat = await this._fileService.resolve(directory);
+		if (!stat.isDirectory) {
+			throw new Error(`Resource is not a directory: ${directory.toString()}`);
+		}
+		return (stat.children ?? [])
+			.filter(child => grantedChildren.has(extUri.joinPath(directory, child.name)))
+			.map(child => ({
+				name: child.name,
+				type: child.isDirectory ? 'directory' : 'file',
+			}));
+	}
+
 	private _enqueue(address: string, canonicalUri: URI, mode: AgentHostPermissionMode): Promise<void> {
 		const existing = this._pending.get().find(r =>
 			r.address === address && r.mode === mode && extUri.isEqual(r.uri, canonicalUri));
@@ -444,6 +501,7 @@ export class AgentHostResourceService extends Disposable implements IAgentHostRe
 
 		this._inMemoryGrants.set(generateUuid(), {
 			identity: request.address,
+			uri: request.uri,
 			realpath: Promise.resolve(request.uri),
 			mode: accessMode,
 		});
