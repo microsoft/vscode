@@ -47,7 +47,6 @@ const nullGitStateService: IAgentHostGitStateService = {
 	async setSessionGitHubState() { },
 	async recordSessionMerge() { },
 	async attachSessionGitHubPullRequest() { },
-	async attachSessionGitHubReferences() { },
 };
 
 suite('AgentHostContributions', () => {

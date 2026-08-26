@@ -192,6 +192,8 @@ export class SessionOpenTelemetryService extends Disposable implements ISessionO
 			activeAttempt.modelBindFailedChatResource = chatResource;
 		} else if (isEqual(activeAttempt.chatResource, chatResource)) {
 			this._finish(activeAttempt, 'failure');
+		} else {
+			activeAttempt.modelBindFailedChatResource = chatResource;
 		}
 	}
 

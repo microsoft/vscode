@@ -52,16 +52,9 @@ import { INewChatVoiceTargetService } from './newChatVoice.js';
 import { ISessionsChatViewStateService } from './chatViewStateService.js';
 import { ExternalSessionBanner } from './externalSessionBanner.js';
 import { Menus } from '../../../browser/menus.js';
-import { ISessionsChatBackground, ISessionsChatBackgroundService } from '../../../services/chatBackground/browser/chatBackgroundService.js';
+import { ISessionsChatBackgroundService } from '../../../services/chatBackground/browser/chatBackgroundService.js';
+import { SessionsChatBackgroundRenderer } from './chatBackgroundRenderer.js';
 import { ISessionOpenTelemetryService } from '../../../services/sessions/browser/sessionOpenTelemetryService.js';
-
-export function applySessionsChatBackground(element: HTMLElement, background: ISessionsChatBackground | undefined): void {
-	element.classList.toggle('has-chat-background-image', !!background);
-	element.style.backgroundImage = background?.backgroundImage ?? '';
-	element.style.backgroundRepeat = background?.backgroundRepeat ?? '';
-	element.style.backgroundSize = background?.backgroundSize ?? '';
-	element.style.backgroundPosition = background?.backgroundPosition ?? '';
-}
 
 export function shouldShowSessionChatTip(sessionStatus: SessionStatus | undefined): boolean {
 	return sessionStatus === undefined || !isActiveSessionStatus(sessionStatus);
@@ -90,7 +83,8 @@ export class NewChatView extends AbstractChatView {
 		super();
 
 		this.element.classList.add('chat-view-new');
-		const updateBackground = () => applySessionsChatBackground(this.element, chatBackgroundService.getBackground());
+		const backgroundRenderer = this._register(new SessionsChatBackgroundRenderer(this.element));
+		const updateBackground = () => backgroundRenderer.setBackground(chatBackgroundService.getBackground());
 		this._register(chatBackgroundService.onDidChangeBackground(updateBackground));
 		updateBackground();
 		this.kind = isNewChatInSession ? 'newChatInSession' : 'newSession';
@@ -224,7 +218,8 @@ export class ChatView extends AbstractChatView {
 		this._register(toDisposable(() => this._reportModelUnbound()));
 
 		this.element.classList.add('chat-view-chat');
-		const updateBackground = () => applySessionsChatBackground(this.element, this.chatBackgroundService.getBackground());
+		const backgroundRenderer = this._register(new SessionsChatBackgroundRenderer(this.element));
+		const updateBackground = () => backgroundRenderer.setBackground(this.chatBackgroundService.getBackground());
 		this._register(this.chatBackgroundService.onDidChangeBackground(updateBackground));
 		updateBackground();
 		this._widgetContainer = $('.chat-view-widget');

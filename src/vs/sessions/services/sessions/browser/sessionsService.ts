@@ -182,6 +182,9 @@ export interface ISessionsService {
 	 */
 	openSession(sessionResource: URI, options?: IOpenSessionOptions): Promise<void>;
 
+	/** Place a session to the right of the last visible session and activate it. */
+	openSessionToSide(session: ISession, options?: IOpenSessionOptions & { chatResource?: URI }): Promise<void>;
+
 	/**
 	 * Whether the given session may be opened, honoring workspace trust. Prompts
 	 * for trust on any untrusted folder the session runs in and resolves to
@@ -191,8 +194,10 @@ export interface ISessionsService {
 
 	/**
 	 * Open a specific chat within a session and show it in the grid.
+	 * When `options.preserveFocus` is set, the chat is shown without moving
+	 * keyboard focus into it.
 	 */
-	openChat(session: ISession, chatUri: URI): Promise<void>;
+	openChat(session: ISession, chatUri: URI, options?: IOpenSessionOptions): Promise<void>;
 
 	/**
 	 * Close a chat from the session view. The chat is hidden from the tab strip
@@ -725,12 +730,31 @@ export class SessionsService extends Disposable implements ISessionsService {
 		return this._visibility.setActive(session, preserveFocus);
 	}
 
-	async openChat(session: ISession, chatUri: URI): Promise<void> {
+	async openChat(session: ISession, chatUri: URI, options?: IOpenSessionOptions): Promise<void> {
 		const t0 = Date.now();
 		this._cancelRestore();
 		const token = this._startOpenSession();
+		if (options?.source) {
+			await this.sessionOpenTelemetryService.withOpenRequest(options.source, token, telemetryAttempt =>
+				this._openChat(session, chatUri, options.preserveFocus, token, t0, telemetryAttempt));
+			return;
+		}
+		await this._openChat(session, chatUri, options?.preserveFocus, token, t0);
+	}
+
+	private async _openChat(session: ISession, chatUri: URI, preserveFocus: boolean | undefined, token: CancellationToken, startTime: number, telemetryAttempt?: ISessionOpenTelemetryAttempt): Promise<void> {
+		if (telemetryAttempt) {
+			this.sessionOpenTelemetryService.sessionResolved(
+				telemetryAttempt,
+				session.resource,
+				session.providerId,
+				this.activeSession.get()?.sessionId === session.sessionId,
+				session.loading.get(),
+			);
+			this.sessionOpenTelemetryService.sessionActivated(telemetryAttempt, chatUri);
+		}
 		this.logService.trace(`[SessionsView] openChat start uri=${chatUri.toString()} provider=${session.providerId}`);
-		this._activate(session);
+		this._activate(session, preserveFocus);
 		if (!await this._waitForSessionToLoad(session, token)) {
 			this.logService.trace(`[SessionsView] openChat cancelled while waiting for session to load uri=${chatUri.toString()}`);
 			return;
@@ -748,13 +772,19 @@ export class SessionsService extends Disposable implements ISessionsService {
 				this._setChatClosedState(session, chat, false);
 			}
 		}
+		if (telemetryAttempt) {
+			if (chat) {
+				this.sessionOpenTelemetryService.sessionActivated(telemetryAttempt, chat.resource);
+			}
+			this.sessionOpenTelemetryService.sessionLoaded(telemetryAttempt);
+		}
 
 		if (chat && chat.status.get() === SessionStatus.Untitled) {
-			this.logService.trace(`[SessionsView] openChat done total=${Date.now() - t0}ms uri=${chatUri.toString()} path=untitled`);
+			this.logService.trace(`[SessionsView] openChat done total=${Date.now() - startTime}ms uri=${chatUri.toString()} path=untitled`);
 			return;
 		}
 
-		this.logService.trace(`[SessionsView] openChat done total=${Date.now() - t0}ms uri=${chatUri.toString()}`);
+		this.logService.trace(`[SessionsView] openChat done total=${Date.now() - startTime}ms uri=${chatUri.toString()}`);
 	}
 
 	async closeChat(session: IActiveSession, chat: IChat, options?: ICloseChatOptions): Promise<void> {
@@ -828,6 +858,19 @@ export class SessionsService extends Disposable implements ISessionsService {
 			this._showSession(sessionData, options);
 			await this._waitForOpenSessionToLoad(sessionData, token, telemetryAttempt);
 		});
+	}
+
+	async openSessionToSide(session: ISession, options?: IOpenSessionOptions & { chatResource?: URI }): Promise<void> {
+		const visible = this.visibleSessions.get();
+		const lastVisible = visible[visible.length - 1];
+		if (lastVisible && lastVisible.sessionId !== session.sessionId) {
+			this.insertAt(session, lastVisible.sessionId, 'right');
+		}
+		if (options?.chatResource) {
+			await this.openChat(session, options.chatResource, { preserveFocus: options.preserveFocus, source: options.source });
+		} else {
+			await this.openSession(session.resource, { preserveFocus: options?.preserveFocus, source: options?.source });
+		}
 	}
 
 	async canOpenSession(session: ISession): Promise<boolean> {
