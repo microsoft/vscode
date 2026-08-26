@@ -13,7 +13,7 @@ import type { SessionMode } from '../common/agentHostSchema.js';
 import { getTelemetryChatSessionId } from '../common/agentTelemetryCorrelation.js';
 import { readAgentErrorTelemetryMeta } from '../common/meta/agentErrorMeta.js';
 import { isAgentMergeMessage } from '../common/meta/agentMergeMessageMeta.js';
-import type { ErrorInfo, Message, MessageKind, SessionInputRequestKind, ToolDefinition } from '../common/state/protocol/state.js';
+import { MessageKind, type ErrorInfo, type Message, type SessionInputRequestKind, type ToolDefinition } from '../common/state/protocol/state.js';
 import { ActionType } from '../common/state/sessionActions.js';
 import { isAhpChatChannel, isSubagentChatUri, isSubagentSession, parseRequiredSessionUriFromChatUri, type ISessionWithDefaultChat } from '../common/state/sessionState.js';
 import type { ToolInvokedResult } from './agentHostToolCallTracker.js';
@@ -34,7 +34,12 @@ export type AgentHostMessageOriginTelemetryKind = MessageKind | 'agentMerge';
 
 /** Classifies the actor that produced a turn's message for telemetry. */
 export function getMessageOriginTelemetryKind(message: Message): AgentHostMessageOriginTelemetryKind {
-	return isAgentMergeMessage(message) ? 'agentMerge' : message.origin.kind;
+	// The marker only counts on the origin the host stamps it with, so a client
+	// cannot dress a user message up as automated merge work.
+	if (message.origin.kind === MessageKind.SystemNotification && isAgentMergeMessage(message)) {
+		return 'agentMerge';
+	}
+	return message.origin.kind;
 }
 
 export interface IAgentHostInitiatorTelemetry {
