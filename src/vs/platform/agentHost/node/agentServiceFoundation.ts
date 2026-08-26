@@ -19,34 +19,10 @@ import { AgentHostGitHubEndpointService, IAgentHostGitHubEndpointService } from 
 import { AgentHostProxyResolver, IAgentHostProxyResolver } from './agentHostProxyResolver.js';
 import { AgentHostRequestService } from './agentHostRequestService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
-import type { IArtifactServerToolAccessor } from './shared/artifactServerTools.js';
-import type { ISessionServerToolAccessor } from './shared/sessionServerTools.js';
 import { hostBuildInfoFromProduct } from '../common/state/sessionState.js';
 
 export class AgentServiceCallbackAdapter implements IAgentServiceCallbackBinder {
 	private callbacks: IAgentServiceCallbacks | undefined;
-
-	readonly sessionServerToolAccessor: ISessionServerToolAccessor = {
-		isActiveAgentTitleGenerationEnabled: () => this.value.sessionServerToolAccessor.isActiveAgentTitleGenerationEnabled(),
-		listSessions: () => this.value.sessionServerToolAccessor.listSessions(),
-		getSession: session => this.value.sessionServerToolAccessor.getSession(session),
-		createSession: config => this.value.sessionServerToolAccessor.createSession(config),
-		getModels: () => this.value.sessionServerToolAccessor.getModels(),
-		getCreationDefaults: source => this.value.sessionServerToolAccessor.getCreationDefaults(source),
-		startPrompt: (session, chat, prompt, delegation) => this.value.sessionServerToolAccessor.startPrompt(session, chat, prompt, delegation),
-		createChat: (session, chat, options) => this.value.sessionServerToolAccessor.createChat(session, chat, options),
-		renameChat: (session, chat, title) => this.value.sessionServerToolAccessor.renameChat(session, chat, title),
-		reportToolError: (toolName, error) => this.value.sessionServerToolAccessor.reportToolError(toolName, error),
-		deleteSession: session => this.value.sessionServerToolAccessor.deleteSession(session),
-		getChatContext: (session, chatId) => this.value.sessionServerToolAccessor.getChatContext(session, chatId),
-		getSessionSpawnDepth: session => this.value.sessionServerToolAccessor.getSessionSpawnDepth(session),
-		setSessionSpawnDepth: (session, depth) => this.value.sessionServerToolAccessor.setSessionSpawnDepth(session, depth),
-	};
-
-	readonly artifactServerToolAccessor: IArtifactServerToolAccessor = {
-		isEnabled: () => this.value.artifactServerToolAccessor.isEnabled(),
-		persist: (session, artifacts) => this.value.artifactServerToolAccessor.persist(session, artifacts),
-	};
 
 	bind(callbacks: IAgentServiceCallbacks): void {
 		if (this.callbacks) {

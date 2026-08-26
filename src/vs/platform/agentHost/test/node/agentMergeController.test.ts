@@ -10,6 +10,7 @@ import { NullLogService } from '../../../log/common/log.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { AgentMergeConfigKey, agentMergeRootConfigSchema, readAgentMergeSessionState } from '../../common/agentMerge.js';
+import type { IAgent } from '../../common/agent.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, platformRootSchema, platformSessionSchema } from '../../common/agentHostSchema.js';
 import { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
 import { AgentSystemNotificationKind } from '../../common/meta/agentSystemNotificationMeta.js';
@@ -21,9 +22,23 @@ import { PullRequestSnapshot } from '../../../github/common/githubPullRequestSer
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
 import { AgentMergeController, firstCredentialFailure, isSamlEnforcementError, parsePullRequestUrl } from '../../node/agentMergeController.js';
+import type { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 
 let sessionCounter = 0;
+
+function createProviderService(getAutonomousSessionConfig: NonNullable<IAgent['getAutonomousSessionConfig']>): IAgentHostProviderService {
+	const provider = new class extends mock<IAgent>() {
+		override getAutonomousSessionConfig(config: Readonly<Record<string, unknown>>): Record<string, unknown> | undefined {
+			return getAutonomousSessionConfig(config);
+		}
+	}();
+	return new class extends mock<IAgentHostProviderService>() {
+		override getProviderForSession(): IAgent {
+			return provider;
+		}
+	}();
+}
 
 suite('AgentMergeController', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -45,16 +60,16 @@ suite('AgentMergeController', () => {
 				startTurn: () => false,
 				cancelTurn: () => { },
 				postNotice: () => { },
-				getAutonomousSessionConfig: () => ({
-					[SessionConfigKey.Mode]: 'autopilot',
-					[SessionConfigKey.AutoApprove]: 'assisted',
-				}),
 			},
 			stateManager,
 			configurationService,
 			gitStateService,
 			new class extends mock<IGitHubService>() { }(),
 			endpointService,
+			createProviderService(() => ({
+				[SessionConfigKey.Mode]: 'autopilot',
+				[SessionConfigKey.AutoApprove]: 'assisted',
+			})),
 			logService,
 		));
 		const session = 'copilot:/agent-merge-controller';
@@ -246,13 +261,13 @@ suite('AgentMergeController', () => {
 				startTurn: () => false,
 				cancelTurn: () => { },
 				postNotice: () => { },
-				getAutonomousSessionConfig: () => ({}),
 			},
 			stateManager,
 			configurationService,
 			gitStateService,
 			new class extends mock<IGitHubService>() { }(),
 			endpointService,
+			createProviderService(() => ({})),
 			logService,
 		));
 		stateManager.createSession(summary(session));
@@ -311,13 +326,13 @@ suite('AgentMergeController', () => {
 				startTurn: () => false,
 				cancelTurn: () => { },
 				postNotice: () => { },
-				getAutonomousSessionConfig: () => ({}),
 			},
 			stateManager,
 			configurationService,
 			gitStateService,
 			new class extends mock<IGitHubService>() { }(),
 			endpointService,
+			createProviderService(() => ({})),
 			logService,
 		));
 		for (const [session, gitState] of [
@@ -375,18 +390,18 @@ suite('AgentMergeController', () => {
 				startTurn: () => false,
 				cancelTurn: () => { },
 				postNotice: (_session, kind, content) => notices.push({ kind, content }),
-				getAutonomousSessionConfig: () => configurationService.getRootValue(platformRootSchema, AgentHostAutoApprovePolicyRestrictedConfigKey) === true
-					? { [SessionConfigKey.Mode]: 'autopilot' }
-					: {
-						[SessionConfigKey.Mode]: 'autopilot',
-						[SessionConfigKey.AutoApprove]: 'assisted',
-					},
 			},
 			stateManager,
 			configurationService,
 			gitStateService,
 			new class extends mock<IGitHubService>() { }(),
 			endpointService,
+			createProviderService(() => configurationService.getRootValue(platformRootSchema, AgentHostAutoApprovePolicyRestrictedConfigKey) === true
+				? { [SessionConfigKey.Mode]: 'autopilot' }
+				: {
+					[SessionConfigKey.Mode]: 'autopilot',
+					[SessionConfigKey.AutoApprove]: 'assisted',
+				}),
 			logService,
 		));
 		const session = `copilot:/agent-merge-controller-${++sessionCounter}`;
@@ -416,13 +431,13 @@ suite('AgentMergeController', () => {
 				startTurn: () => false,
 				cancelTurn: () => { },
 				postNotice: (_session, kind, content) => notices.push({ kind, content }),
-				getAutonomousSessionConfig: () => ({}),
 			},
 			stateManager,
 			configurationService,
 			gitStateService,
 			new class extends mock<IGitHubService>() { }(),
 			endpointService,
+			createProviderService(() => ({})),
 			logService,
 		));
 		stateManager.createSession(summary(session));
