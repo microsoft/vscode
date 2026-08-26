@@ -12884,7 +12884,7 @@ suite('AgentService (node dispatcher)', () => {
 		test('inactive subscription is not registered after provider release', () => {
 			return runWithFakedTimers({ useFakeTimers: true }, async () => {
 				const agent = new DelayedReleaseMockAgent('copilot');
-				service.registerProvider(agent);
+				registerTestAgentProvider(service, agent);
 				const { session } = await createAgentSession(agent);
 				agent.sessionMessages = [
 					{ type: 'message', session, role: 'user', messageId: 'msg-1', content: 'Hello', toolRequests: [] },
@@ -12907,7 +12907,7 @@ suite('AgentService (node dispatcher)', () => {
 		});
 
 		test('failed subscription removes its subscriber registration', async () => {
-			service.registerProvider(copilotAgent);
+			registerTestAgentProvider(service, copilotAgent);
 			const missingSession = URI.parse('copilot:/missing-session');
 
 			await assert.rejects(service.subscribe(missingSession, 'client-1'));
@@ -12919,7 +12919,7 @@ suite('AgentService (node dispatcher)', () => {
 		test('unsubscribe after service disposal does not schedule GC', () => {
 			return runWithFakedTimers({ useFakeTimers: true }, async () => {
 				const agent = new MockAgent('copilot');
-				service.registerProvider(agent);
+				registerTestAgentProvider(service, agent);
 				const session = await service.createSession({ provider: 'copilot' });
 				service.addSubscriber(session, 'client-1');
 

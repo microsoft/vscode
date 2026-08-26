@@ -104,7 +104,7 @@ const openSessionAtIndex = async (accessor: ServicesAccessor, sessionIndex: unkn
 		return;
 	}
 	if (await sessionsService.canOpenSession(target)) {
-		await sessionsService.openChat(target, target.mainChat.get().resource);
+		await sessionsService.openChat(target, target.mainChat.get().resource, { source: 'sessionsList' });
 	}
 };
 
@@ -165,7 +165,7 @@ const navigateSessionInList = async (accessor: ServicesAccessor, direction: 'pre
 	const target = visible[targetIndex];
 	if (target) {
 		if (await sessionsService.canOpenSession(target)) {
-			await sessionsService.openChat(target, target.mainChat.get().resource);
+			await sessionsService.openChat(target, target.mainChat.get().resource, { source: 'navigation' });
 		}
 	}
 };
@@ -1155,7 +1155,7 @@ registerAction2(class OpenSessionToTheSideAction extends Action2 {
 		}
 
 		const lastRequested = sessions[sessions.length - 1];
-		await sessionsService.openSessionToSide(lastRequested);
+		await sessionsService.openSessionToSide(lastRequested, { source: 'sessionsList' });
 
 		const visibleAfterOpen = sessionsService.visibleSessions.get();
 		const opened = visibleAfterOpen.find(s => s?.sessionId === lastRequested.sessionId);
