@@ -219,6 +219,67 @@ Themed icons using `registerIcon(id, codicon, label)`:
 
 **Registration:** Import `./aiCustomization/aiCustomization.contribution.js` in `chat.contribution.ts`
 
+## Permissions Area
+
+The management editor's sidebar has two groups: `CUSTOMIZATIONS` (what shapes the agent) and
+`PERMISSIONS` (what governs it). The permissions group is gated by
+`chat.customizations.permissions.enabled` (default `false`) and contributes three sections —
+Terminal, Files and Network.
+
+### Render-only contract
+
+**The Copilot runtime is the source of truth for permissions.** It owns the rule DSL, the matcher,
+and the precedence between managed policy, configured rules, location grants and session grants.
+Everything under `browser/aiCustomization/permissions/` and `common/permissions/` exists to
+*display* the provenance the runtime reports.
+
+Consequently:
+
+- No code here decides whether an operation is permitted, and none of it re-implements matching.
+- `chatPermissionRuleSyntax.ts` only splits `Kind(argument)` for display; it must never drive a
+  decision.
+- Domains exist only for the rule families the runtime accepts — `Shell`/`Bash`/`PowerShell`,
+  `Read`, `Edit`/`Write`, `Domain`. MCP servers and built-in tools are governed by different
+  contracts and deliberately have no domain until the runtime can report rules for them.
+
+### Files
+
+```
+common/permissions/
+├── chatPermissions.ts               # Rule, scope, effect, ceiling and snapshot types
+├── chatPermissionRuleSyntax.ts      # Display-only rule splitting
+└── chatPermissionSnapshotService.ts # Provider interface
+
+browser/permissions/
+└── chatPermissionSnapshotService.ts # Current implementation (managed scope only)
+
+browser/aiCustomization/permissions/
+├── chatPermissionDomainRegistry.ts  # IChatPermissionDomain + registry
+├── chatPermissionDomains.ts         # The Terminal / Files / Network domains
+├── chatPermissionsSectionWidget.ts  # One generic widget for any domain
+├── chatPermissions.contribution.ts  # Registers the sections
+└── media/chatPermissions.css
+```
+
+### Snapshot states
+
+`ChatPermissionSnapshot` is `loading | unavailable | error | available`. `unavailable` is a distinct
+state on purpose: rendering an empty rule list when the runtime was never consulted would assert
+"nothing governs this agent", which is the opposite of the truth in a fail-closed enterprise
+deployment. For the same reason, an `available` snapshot carries `resolvedScopes`, and the widget
+names the layers it could not read rather than omitting them silently.
+
+The runtime currently exposes no read API for its full effective rule set — only the managed slice,
+via the managed-settings diagnostics probe. `browser/permissions/chatPermissionSnapshotService.ts`
+therefore reports only `ChatPermissionScope.Managed`. When the runtime gains an
+effective-permissions projection, **that file is the only thing that changes**.
+
+### Adding a domain
+
+Add an entry to `CHAT_PERMISSION_DOMAINS` and a section id to
+`AICustomizationManagementSection` / `AI_CUSTOMIZATION_PERMISSION_SECTIONS`. The section widget is
+generic, so no UI changes are required.
+
 ---
 
 *Update this file when making architectural changes to the AI Customization view.*

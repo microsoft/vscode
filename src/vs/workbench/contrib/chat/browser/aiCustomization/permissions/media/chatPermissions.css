@@ -1,0 +1,153 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/*
+ * Permission sections reuse the customization sections' chrome — the panel container,
+ * `.section-title-header`, `.list-search-and-button-container` and
+ * `.ai-customization-group-header` are all styled in aiCustomizationManagement.css, which lists
+ * `.chat-permissions-section` alongside the other widgets so the two stay identical by
+ * construction. Only what is specific to a permission rule lives here.
+ */
+
+.chat-permissions-section {
+	min-height: 0;
+}
+
+.chat-permissions-section .chat-permissions-list {
+	flex: 1;
+	min-height: 0;
+	overflow-y: auto;
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size20);
+}
+
+/* Rule rows */
+
+.chat-permissions-section .chat-permissions-rule {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size100);
+	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size80);
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.chat-permissions-section .chat-permissions-rule:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+.chat-permissions-section .chat-permissions-rule-pattern {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size60);
+	flex: 1;
+	min-width: 0;
+}
+
+.chat-permissions-section .chat-permissions-rule-lock,
+.chat-permissions-section .chat-permissions-rule-kind {
+	flex-shrink: 0;
+	color: var(--vscode-descriptionForeground);
+}
+
+.chat-permissions-section .chat-permissions-rule-argument {
+	font-family: var(--monaco-monospace-font);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+/* A family-wide rule has no pattern, so its stand-in reads as prose rather than as code. */
+.chat-permissions-section .chat-permissions-rule-all {
+	color: var(--vscode-descriptionForeground);
+	font-style: italic;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+/*
+ * A rule a higher-authority layer overrides. Both the pattern and its verdict are de-emphasized:
+ * the stated effect does not apply, so showing it at full strength would misrepresent it.
+ */
+.chat-permissions-section .chat-permissions-rule.shadowed .chat-permissions-rule-kind,
+.chat-permissions-section .chat-permissions-rule.shadowed .chat-permissions-rule-argument,
+.chat-permissions-section .chat-permissions-rule.shadowed .chat-permissions-rule-all {
+	text-decoration: line-through;
+	opacity: 0.7;
+}
+
+.chat-permissions-section .chat-permissions-rule.shadowed .chat-permissions-rule-effect {
+	opacity: 0.5;
+}
+
+.chat-permissions-section .chat-permissions-rule-override {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+	flex-shrink: 0;
+	padding: 0 var(--vscode-spacing-size60);
+	border-radius: var(--vscode-cornerRadius-small);
+	background-color: var(--vscode-badge-background);
+	color: var(--vscode-badge-foreground);
+	font-size: var(--vscode-agents-fontSize-label3);
+}
+
+.chat-permissions-section .chat-permissions-rule-effect {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+	flex-shrink: 0;
+	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size80);
+	border: var(--vscode-strokeThickness) solid var(--vscode-widget-border, transparent);
+	border-radius: var(--vscode-cornerRadius-small);
+	font-size: var(--vscode-agents-fontSize-label3);
+}
+
+.chat-permissions-section .chat-permissions-effect-deny {
+	color: var(--vscode-list-errorForeground, var(--vscode-editorError-foreground));
+}
+
+.chat-permissions-section .chat-permissions-effect-ask {
+	color: var(--vscode-list-warningForeground, var(--vscode-editorWarning-foreground));
+}
+
+.chat-permissions-section .chat-permissions-effect-allow {
+	color: var(--vscode-descriptionForeground);
+}
+
+/* Banner and status */
+
+.chat-permissions-section .chat-permissions-banner {
+	display: flex;
+	align-items: flex-start;
+	gap: var(--vscode-spacing-size100);
+	margin-bottom: var(--vscode-spacing-size80);
+	padding: var(--vscode-spacing-size120);
+	background-color: var(--vscode-textBlockQuote-background, transparent);
+	border: var(--vscode-strokeThickness) solid var(--vscode-widget-border, transparent);
+	border-radius: var(--vscode-cornerRadius-medium);
+	box-sizing: border-box;
+}
+
+.chat-permissions-section .chat-permissions-banner-icon {
+	flex-shrink: 0;
+	color: var(--vscode-descriptionForeground);
+}
+
+.chat-permissions-section .chat-permissions-banner.is-warning .chat-permissions-banner-icon {
+	color: var(--vscode-list-warningForeground, var(--vscode-editorWarning-foreground, var(--vscode-descriptionForeground)));
+}
+
+.chat-permissions-section .chat-permissions-banner-text {
+	line-height: 1.45;
+}
+
+.chat-permissions-section .chat-permissions-status,
+.chat-permissions-section .chat-permissions-empty-group {
+	padding: var(--vscode-spacing-size80);
+	color: var(--vscode-descriptionForeground);
+	line-height: 1.45;
+}
