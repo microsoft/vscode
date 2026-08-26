@@ -204,7 +204,6 @@ export class CopilotGitHubTelemetryForwarder {
 
 	constructor(
 		private readonly _isRestrictedTelemetryEnabled: () => boolean,
-		private readonly _getVSCodeAssignmentContext: () => string | undefined,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) { }
 
@@ -233,14 +232,6 @@ export class CopilotGitHubTelemetryForwarder {
 			} else {
 				delete data.turnId;
 			}
-		}
-
-		// VS Code's TAS assignment context, scoped to forwarded Copilot CLI
-		// events only — deliberately not a telemetry-service-wide experiment
-		// property, so Claude/Codex/host events stay unstamped.
-		const assignmentContext = this._getVSCodeAssignmentContext();
-		if (assignmentContext) {
-			data['abexp.assignmentcontext'] = assignmentContext;
 		}
 
 		if (event.features) {

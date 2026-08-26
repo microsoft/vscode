@@ -198,7 +198,7 @@ import { ChatVariablesService } from './attachments/chatVariables.js';
 import { ChatImageCarouselService, IChatImageCarouselService } from './chatImageCarouselService.js';
 import { ChatOutputRendererService, IChatOutputRendererService } from './chatOutputItemRenderer.js';
 import { ChatCompatibilityNotifier, ChatExtensionPointHandler } from './chatParticipant.contribution.js';
-import { ChatPetAchievementsAccessibilityHelp, ChatPetContextContribution, ChatPetCustomizationAchievementContribution } from './chatPetAchievements.contribution.js';
+import { ChatPetAchievementsAccessibilityHelp, ChatPetContextContribution, ChatPetCustomizationAchievementContribution, ChatPetEditingAchievementContribution } from './chatPetAchievements.contribution.js';
 import { ChatPetService, IChatPetService } from './chatPetService.js';
 import { ChatPetWidgetService, IChatPetWidgetService } from './widget/chatPetWidgetService.js';
 import { ChatPromoNotificationContribution } from './chatPromoNotification.js';
@@ -565,7 +565,7 @@ configurationRegistry.registerConfiguration({
 		[ChatConfiguration.CollapseCompletedResponses]: {
 			type: 'boolean',
 			description: nls.localize('chat.agent.collapseCompletedResponses', "Controls whether completed chat responses collapse intermediate work while keeping the final response visible."),
-			default: product.quality !== 'stable',
+			default: true,
 		},
 		'chat.detectParticipant.enabled': {
 			type: 'boolean',
@@ -575,7 +575,7 @@ configurationRegistry.registerConfiguration({
 		[ChatConfiguration.ExperimentalStickyScrollEnabled]: {
 			type: 'boolean',
 			description: nls.localize('chat.experimental.stickyScroll.enabled', "Controls whether chat requests use experimental tree-based sticky scroll instead of the sticky prompt header."),
-			default: product.quality === 'insider',
+			default: true,
 			tags: ['experimental'],
 		},
 		[ChatConfiguration.InlineReferencesStyle]: {
@@ -3093,6 +3093,7 @@ registerWorkbenchContribution2(ChatReferenceAttachmentWidgetContribution.ID, Cha
 registerWorkbenchContribution2(TranscriptContextAttachmentWidgetContribution.ID, TranscriptContextAttachmentWidgetContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatPetContextContribution.ID, ChatPetContextContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatPetCustomizationAchievementContribution.ID, ChatPetCustomizationAchievementContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(ChatPetEditingAchievementContribution.ID, ChatPetEditingAchievementContribution, WorkbenchPhase.AfterRestored);
 
 registerChatActions();
 registerChatAccessibilityActions();

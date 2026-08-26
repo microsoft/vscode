@@ -339,21 +339,21 @@ function toGitHubIssueRefs(issueUrls: readonly string[] | undefined): readonly I
 /**
  * Maps session pull request URLs to references, preserving recency order.
  *
- * `titles` and `createdLinks` are keyed by {@link linkKey}; a URL missing from
- * either simply carries no title / is not marked as created by the session.
+ * `titles` is keyed by {@link linkKey}; a URL missing from it simply carries no
+ * title. Every pull request published here belongs to the session — it either
+ * produced it or its branch relates to it — so all are marked as such.
  */
-function toGitHubPullRequestRefs(pullRequestUrls: readonly string[] | undefined, titles: ReadonlyMap<string, string>, createdLinks: ReadonlySet<string>): readonly IGitHubPullRequestRef[] | undefined {
+function toGitHubPullRequestRefs(pullRequestUrls: readonly string[] | undefined, titles: ReadonlyMap<string, string>): readonly IGitHubPullRequestRef[] | undefined {
 	const refs: IGitHubPullRequestRef[] = [];
 	for (const url of pullRequestUrls ?? []) {
 		const reference = parseGitHubPullRequestUrl(url);
 		if (reference) {
-			const key = linkKey(url);
-			const title = titles.get(key);
+			const title = titles.get(linkKey(url));
 			refs.push({
 				...reference,
 				uri: URI.parse(url),
 				...(title ? { title } : {}),
-				...(createdLinks.has(key) ? { createdByThisSession: true } : {}),
+				createdByThisSession: true,
 			});
 		}
 	}
@@ -361,8 +361,8 @@ function toGitHubPullRequestRefs(pullRequestUrls: readonly string[] | undefined,
 }
 
 /**
- * The GitHub info for a session, plus the promoted artifact links it surfaced.
- * Anything it could not surface stays in the artifacts pill.
+ * The GitHub info for a session, plus the links its pills actually surfaced.
+ * Anything they could not surface stays in the artifacts or references pill.
  */
 interface IGitHubPromotion {
 	readonly info: IGitHubInfo | undefined;
@@ -372,13 +372,11 @@ interface IGitHubPromotion {
 function toGitHubPromotion(meta: SessionMeta | undefined): IGitHubPromotion {
 	const state = readSessionGitHubState(meta);
 	const gitState = readSessionGitState(meta);
-	const { createdPullRequestUrls, referencedPullRequestUrls, pullRequestTitles, issueUrls } = partitionSessionArtifacts(meta);
+	const { pullRequestUrls, pullRequestTitles, issueUrls } = partitionSessionArtifacts(meta);
 
-	// Pull requests this session created outrank discovered ones for the main
-	// slot; referenced ones are listed and polled but never become main.
-	const mainEligibleUrls = dedupeLinks(createdPullRequestUrls, getSessionRelatedPullRequestUrls(state));
-	const mainEligible = new Set(mainEligibleUrls.map(linkKey));
-	const allPullRequests = toGitHubPullRequestRefs(dedupeLinks(mainEligibleUrls, referencedPullRequestUrls), pullRequestTitles, mainEligible);
+	// Only pull requests the session produced are promoted, so the ones it
+	// recorded lead the discovered ones and the first is the main pull request.
+	const allPullRequests = toGitHubPullRequestRefs(dedupeLinks(pullRequestUrls, getSessionRelatedPullRequestUrls(state)), pullRequestTitles);
 	const repository = state?.owner && state.repo
 		? { owner: state.owner, repo: state.repo }
 		: gitState?.githubOwner && gitState.githubRepo
@@ -389,20 +387,22 @@ function toGitHubPromotion(meta: SessionMeta | undefined): IGitHubPromotion {
 		return { info: undefined, surfacedLinks: new Set() };
 	}
 
-	// A session carries one repository, so a reference from another repository
-	// would be polled against the wrong coordinates. Leave those as artifacts.
+	// A session carries one repository, so a link from another repository would
+	// be polled against the wrong coordinates. Leave those in their own pill.
 	const belongsToRepository = (ref: { readonly owner: string; readonly repo: string }) =>
 		ref.owner.toLowerCase() === repository.owner.toLowerCase() && ref.repo.toLowerCase() === repository.repo.toLowerCase();
 
 	const pullRequests = allPullRequests?.filter(belongsToRepository);
-	const pullRequest = pullRequests?.find(ref => mainEligible.has(linkKey(ref.uri.toString())));
-	const issues = toGitHubIssueRefs(dedupeLinks(state?.issueUrls, issueUrls))?.filter(belongsToRepository);
+	const pullRequest = pullRequests?.at(0);
+	const issues = toGitHubIssueRefs(dedupeLinks(issueUrls))?.filter(belongsToRepository);
 
-	const promotedLinks = new Set([...createdPullRequestUrls, ...referencedPullRequestUrls, ...issueUrls].map(linkKey));
+	// Everything the GitHub pills actually render, whichever source produced it.
+	// An entry standing for one of these links is left out of the artifacts and
+	// references pills, so the user is offered it exactly once.
 	const surfacedLinks = new Set([
 		...(pullRequests ?? []).map(ref => linkKey(ref.uri.toString())),
 		...(issues ?? []).map(ref => linkKey(ref.uri.toString())),
-	].filter(link => promotedLinks.has(link)));
+	]);
 
 	return {
 		info: {
@@ -4890,11 +4890,25 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 		const sessionUri = cached.backendUri;
 		const ref = connection.getSubscription(StateComponents.Session, sessionUri, 'BaseAgentHostSessionsProvider.summary');
+		// Do not cache failures, so a later pin can retry sessions addressed before host creation.
+		if (ref.object.value instanceof Error) {
+			ref.dispose();
+			return;
+		}
 		const store = new DisposableStore();
 		store.add(ref);
 		store.add(ref.object.onDidChange(state => {
 			this._applySessionStateUpdate(sessionId, state);
 		}));
+		// A subscribe that fails after this point settles via `onDidError`, never `onDidChange`.
+		const onDidError = ref.object.onDidError;
+		if (onDidError) {
+			store.add(onDidError(() => {
+				if (this._sessionStateSubscriptions.get(sessionId) === store) {
+					this._sessionStateSubscriptions.deleteAndDispose(sessionId);
+				}
+			}));
+		}
 		this._sessionStateSubscriptions.set(sessionId, store);
 
 		const value = ref.object.value;

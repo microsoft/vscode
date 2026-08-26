@@ -401,7 +401,7 @@ function getSubagentChatResource(tc: ToolCallState, subagentContent: ToolResultS
  * scoping — two sessions exposing the same upstream MCP server therefore
  * get distinct webview origins (assuming distinct customization ids).
  */
-function getMcpAppData(tc: ToolCallState, _sessionResource: URI): ChatMcpAppData | undefined {
+function getMcpAppData(tc: ToolCallState, connectionAuthority: string): ChatMcpAppData | undefined {
 	if (tc.contributor?.kind !== ToolCallContributorKind.MCP) {
 		return undefined;
 	}
@@ -420,6 +420,7 @@ function getMcpAppData(tc: ToolCallState, _sessionResource: URI): ChatMcpAppData
 	return {
 		kind: 'agentHost',
 		resourceUri,
+		connectionAuthority,
 		serverId: tc.contributor.customizationId,
 		channel: channelValue,
 	};
@@ -434,8 +435,8 @@ function getToolRawInput(tc: ToolCallState): unknown {
 	}
 }
 
-function buildMcpAppToolInputData(tc: ToolCallState, sessionResource: URI, existingRawInput?: unknown): IChatToolInputInvocationData | undefined {
-	const mcpAppData = getMcpAppData(tc, sessionResource);
+function buildMcpAppToolInputData(tc: ToolCallState, connectionAuthority: string, existingRawInput?: unknown): IChatToolInputInvocationData | undefined {
+	const mcpAppData = getMcpAppData(tc, connectionAuthority);
 	if (!mcpAppData) {
 		return undefined;
 	}
@@ -451,7 +452,7 @@ function isSameMcpAppData(a: ChatMcpAppData | undefined, b: ChatMcpAppData | und
 		return false;
 	}
 	if (a?.kind === 'agentHost' && b?.kind === 'agentHost') {
-		return a.serverId === b.serverId && a.channel === b.channel;
+		return a.serverId === b.serverId && a.channel === b.channel && a.connectionAuthority === b.connectionAuthority;
 	}
 	if (a?.kind === 'local' && b?.kind === 'local') {
 		return a.serverDefinitionId === b.serverDefinitionId && a.collectionId === b.collectionId;
@@ -1797,7 +1798,7 @@ export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentIn
 	} else {
 		toolSpecificData = buildSessionCreatedToolData(tc) ?? buildGeneratedImageToolData(tc) ?? buildAutomationConfiguredToolData(tc);
 		if (!toolSpecificData) {
-			toolSpecificData = buildMcpAppToolInputData(tc, sessionResource);
+			toolSpecificData = buildMcpAppToolInputData(tc, connectionAuthority);
 		}
 	}
 
@@ -2357,7 +2358,7 @@ export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationI
 	} else if (getToolKind(tc) === 'search') {
 		invocation.toolSpecificData = { kind: 'search' };
 	} else if (tc.status !== ToolCallStatus.Streaming) {
-		invocation.toolSpecificData = buildMcpAppToolInputData(tc, sessionResource);
+		invocation.toolSpecificData = buildMcpAppToolInputData(tc, connectionAuthority);
 	}
 
 	return invocation;
@@ -2541,7 +2542,7 @@ export function updateRunningToolSpecificData(existing: ChatToolInvocation, tc: 
 	// for non-MCP tools (search, terminal, …), so those fall through to the
 	// handling below.
 	const existingInput = existing.toolSpecificData?.kind === 'input' ? existing.toolSpecificData : undefined;
-	const nextInput = buildMcpAppToolInputData(tc, sessionResource, existingInput?.rawInput);
+	const nextInput = buildMcpAppToolInputData(tc, connectionAuthority, existingInput?.rawInput);
 	if (nextInput) {
 		if (!existingInput || !isSameMcpAppData(existingInput.mcpAppData, nextInput.mcpAppData)) {
 			existing.toolSpecificData = nextInput;
@@ -2683,7 +2684,7 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 	if (isCompleted) {
 		const mcpAppInput = buildMcpAppToolInputData(
 			tc,
-			backendSession,
+			connectionAuthority,
 			invocation.toolSpecificData?.kind === 'input' ? invocation.toolSpecificData.rawInput : undefined,
 		);
 		if (mcpAppInput) {
