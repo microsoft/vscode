@@ -431,6 +431,7 @@ suite('stateToProgressAdapter', () => {
 
 		test('thread coordination tools restore deterministic target-session chips', () => {
 			const createLink = 'agent-host-session://codex/created-thread';
+			const createChatLink = 'agent-host-session://codex/source-thread?chat=peer';
 			const sendLink = 'agent-host-session://codex/target-thread';
 			const turn = createTurn({
 				responseParts: [{
@@ -440,6 +441,14 @@ suite('stateToProgressAdapter', () => {
 						toolName: 'create_session',
 						toolInput: JSON.stringify({ prompt: 'Remember this word: capybara' }),
 						content: [{ type: ToolResultContentType.Text, text: createLink }],
+					}),
+				}, {
+					kind: ResponsePartKind.ToolCall,
+					toolCall: createCompletedToolCall({
+						toolCallId: 'create-current',
+						toolName: 'create_session',
+						toolInput: JSON.stringify({ relationship: 'currentSession', prompt: 'Parallel task' }),
+						content: [{ type: ToolResultContentType.Text, text: createChatLink }],
 					}),
 				}, {
 					kind: ResponsePartKind.ToolCall,
@@ -463,6 +472,11 @@ suite('stateToProgressAdapter', () => {
 				openLink: createLink,
 				label: 'Remember this word: capybara',
 				isChat: false,
+			}, {
+				kind: 'sessionCreated',
+				openLink: createChatLink,
+				label: 'Parallel task',
+				isChat: true,
 			}, {
 				kind: 'sessionCreated',
 				openLink: sendLink,
