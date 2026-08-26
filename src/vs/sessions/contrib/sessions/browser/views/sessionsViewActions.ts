@@ -27,7 +27,7 @@ import { SessionSupportsDeleteContext, SessionSupportsRenameContext, IsNewChatSe
 import { SessionItemToolbarMenuId, SessionItemContextMenuId, SessionSectionToolbarMenuId, SessionGroupToolbarMenuId, SessionSectionTypeContext, SessionSectionHasNonCloudRepositoryContext, SessionGroupHasVisibleSessionsContext, SessionGroupIsEmptyContext, IsSessionPinnedContext, SessionsGrouping, SessionsSorting, ISessionSection, ISessionGroupItem, NEW_SESSION_FOR_WORKSPACE_ACTION_ID } from './sessionsList.js';
 import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
-import { IsWorkspaceGroupCappedContext, SessionsViewFilterOptionsSubMenu, SessionsViewFilterSubMenu, SessionsViewGroupingContext, SessionsViewId, SessionsView, SessionsViewSortingContext, openSessionToTheSide } from './sessionsView.js';
+import { IsWorkspaceGroupCappedContext, SessionsViewFilterOptionsSubMenu, SessionsViewFilterSubMenu, SessionsViewGroupingContext, SessionsViewId, SessionsView, SessionsViewSortingContext } from './sessionsView.js';
 import { Menus } from '../../../../browser/menus.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
@@ -85,7 +85,7 @@ function digitToKeyCode(digit: number): KeyCode {
 	}
 }
 
-const openSessionAtIndex = (accessor: ServicesAccessor, sessionIndex: unknown): void => {
+const openSessionAtIndex = async (accessor: ServicesAccessor, sessionIndex: unknown): Promise<void> => {
 	if (typeof sessionIndex !== 'number') {
 		return;
 	}
@@ -103,7 +103,9 @@ const openSessionAtIndex = (accessor: ServicesAccessor, sessionIndex: unknown): 
 	if (!target) {
 		return;
 	}
-	sessionsService.openSession(target.resource);
+	if (await sessionsService.canOpenSession(target)) {
+		await sessionsService.openChat(target, target.mainChat.get().resource);
+	}
 };
 
 CommandsRegistry.registerCommand({
@@ -162,7 +164,9 @@ const navigateSessionInList = async (accessor: ServicesAccessor, direction: 'pre
 
 	const target = visible[targetIndex];
 	if (target) {
-		await sessionsService.openSession(target.resource);
+		if (await sessionsService.canOpenSession(target)) {
+			await sessionsService.openChat(target, target.mainChat.get().resource);
+		}
 	}
 };
 
@@ -1151,7 +1155,7 @@ registerAction2(class OpenSessionToTheSideAction extends Action2 {
 		}
 
 		const lastRequested = sessions[sessions.length - 1];
-		await openSessionToTheSide(sessionsService, lastRequested);
+		await sessionsService.openSessionToSide(lastRequested);
 
 		const visibleAfterOpen = sessionsService.visibleSessions.get();
 		const opened = visibleAfterOpen.find(s => s?.sessionId === lastRequested.sessionId);

@@ -140,6 +140,14 @@ export interface IAgentChatMetadata {
 	readonly _meta?: SessionMeta;
 }
 
+/** Identifies metadata reads that may initialize an otherwise lazy provider. */
+export interface IAgentChatMetadataOptions {
+	/** A session restore needs authoritative provider data and may start its runtime. */
+	readonly activation?: 'restore';
+	/** Stable host-owned timestamps a lazy provider may use for passive catalogue metadata. */
+	readonly registryFallback?: Pick<IAgentChatMetadata, 'startTime' | 'modifiedTime'>;
+}
+
 /** A provider chat ready to be registered as an Agent Host session. */
 export interface IAgentDiscoveredChat extends IAgentChatMetadata {
 	readonly external: boolean;
@@ -1206,8 +1214,8 @@ export interface IAgent {
 
 	// ---- Metadata -----------------------------------------------------------
 
-	/** Retrieve metadata for an exact registered chat. */
-	getChatMetadata(chat: URI, context: URI | IAgentChatContext, providerData?: string): Promise<IAgentChatMetadata | undefined>;
+	/** Retrieve metadata for an exact registered chat. Ambient catalogue reads never set {@link IAgentChatMetadataOptions.activation}. */
+	getChatMetadata(chat: URI, context: URI | IAgentChatContext, providerData?: string, options?: IAgentChatMetadataOptions): Promise<IAgentChatMetadata | undefined>;
 
 	// ---- Authentication and diagnostics ------------------------------------
 

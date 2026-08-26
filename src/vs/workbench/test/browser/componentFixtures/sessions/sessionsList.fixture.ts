@@ -74,6 +74,9 @@ function createWorkspace(label: string): ISessionWorkspace {
 function createSession(spec: ISessionSpec): ISession {
 	const updatedAt = new Date(Date.now() - spec.minutesAgo * 60 * 1000);
 	const description: IMarkdownString | undefined = spec.description ? new MarkdownString(spec.description) : undefined;
+	const mainChat = new class extends mock<IChat>() {
+		override readonly resource = URI.parse(`vscode-session://session/${spec.id}/chat/main`);
+	}();
 	return new class extends mock<ISession>() {
 		override readonly sessionId = spec.id;
 		override readonly resource = URI.parse(`vscode-session://session/${spec.id}`);
@@ -92,6 +95,7 @@ function createSession(spec: ISessionSpec): ISession {
 		override readonly changesSummary: IObservable<ISessionChangesSummary | undefined> = constObservable(spec.changesSummary);
 		override readonly description: IObservable<IMarkdownString | undefined> = constObservable(description);
 		override readonly chats: IObservable<readonly IChat[]> = constObservable([]);
+		override readonly mainChat: IObservable<IChat> = constObservable(mainChat);
 		override readonly capabilities = constObservable({ supportsMultipleChats: false });
 	}();
 }
