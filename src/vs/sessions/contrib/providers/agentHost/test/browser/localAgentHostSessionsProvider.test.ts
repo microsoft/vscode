@@ -2588,9 +2588,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 	});
 
 	test('subscribes to the session channel for a catalogue published relative to the session', async () => {
-		// A Copilot host publishes `changeset/uncommitted` rather than a full URI. Used verbatim
-		// that parses to `file:///changeset/uncommitted`, which addresses the client's own disk —
-		// the host answers NotFound and the changes view stays empty.
+		// Verbatim, `changeset/uncommitted` parses to `file:///changeset/uncommitted`.
 		const activeSession = observableValue<IActiveSession | undefined>('test.activeSession', undefined);
 		const provider = createProvider(disposables, agentHost, undefined, { activeSession });
 		const sessionTypeId = provider.sessionTypes[0].id;

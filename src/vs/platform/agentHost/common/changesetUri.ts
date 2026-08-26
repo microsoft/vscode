@@ -124,11 +124,9 @@ const URI_SCHEME_PREFIX = /^[a-zA-Z][a-zA-Z0-9+.\-]*:/;
  * Resolve a {@link Changeset.uriTemplate} from a session's catalogue into a
  * subscribable URI template.
  *
- * AHP describes the template as itself subscribable, but a Copilot host
- * publishes it relative to the session channel (`changeset/branch`), and using
- * that verbatim addresses the client's own filesystem rather than the host.
- * Templates that already carry a scheme are returned unchanged, so hosts that
- * publish absolute templates are unaffected.
+ * A host may publish the template relative to the session channel
+ * (`changeset/branch`); used verbatim that addresses the client's own
+ * filesystem. Templates that already carry a scheme are returned unchanged.
  */
 export function resolveChangesetUriTemplate(sessionUri: URI, uriTemplate: string): string {
 	if (URI_SCHEME_PREFIX.test(uriTemplate)) {

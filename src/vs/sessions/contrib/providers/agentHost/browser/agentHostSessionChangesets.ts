@@ -96,8 +96,7 @@ export function createChangesets(
 
 	for (const catalogueEntry of changesets) {
 		const isDefault = catalogueEntry === defaultChangeset;
-		// A catalogue entry may advertise its URI relative to the session channel, so resolve it
-		// before use — parsed verbatim, a relative template addresses the local filesystem.
+		// A relative template parses to a local filesystem path, so resolve before use.
 		const changeset = {
 			...catalogueEntry,
 			uriTemplate: resolveChangesetUriTemplate(sessionUri.toString(), catalogueEntry.uriTemplate),
