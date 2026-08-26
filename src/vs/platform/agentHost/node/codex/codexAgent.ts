@@ -36,7 +36,7 @@ import { ActionType, isChatAction, type SessionAction, type ChatAction } from '.
 import { parseLeadingSlashCommand } from '../../common/agentHostSlashCommand.js';
 import type { ConfigSchema, ModelSelection, ProtectedResourceMetadata, ToolDefinition, AgentSelection } from '../../common/state/protocol/state.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
-import { buildDefaultChatUri, chatStorageUri, isDefaultChatUri, parseRequiredSessionUriFromChatUri, withSessionWorkspaceless, CustomizationType, type ClientPluginCustomization, type DirectoryCustomization, type ISessionFolderPickerDecision, type McpServerCustomization, type MessageAttachment, type PendingMessage, type ChatInputAnswer, ChatInputResponseKind, type PluginCustomization, type PolicyState, type ToolCallResult, ToolResultContentType, type Turn, ResponsePartKind } from '../../common/state/sessionState.js';
+import { buildDefaultChatUri, chatStorageUri, createErrorResponsePart, isDefaultChatUri, parseRequiredSessionUriFromChatUri, withSessionWorkspaceless, CustomizationType, type ClientPluginCustomization, type DirectoryCustomization, type ISessionFolderPickerDecision, type McpServerCustomization, type MessageAttachment, type PendingMessage, type ChatInputAnswer, ChatInputResponseKind, type PluginCustomization, type PolicyState, type ToolCallResult, ToolResultContentType, type Turn, ResponsePartKind } from '../../common/state/sessionState.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { ActiveClientToolSet } from '../activeClientState.js';
 import { McpCustomizationController } from '../shared/mcpCustomizationController.js';
@@ -3809,7 +3809,7 @@ export class CodexAgent extends Disposable implements IAgent {
 					type: ActionType.ChatError,
 					turnId,
 					duration,
-					part: { kind: ResponsePartKind.Error, error: { errorType: 'CodexDisconnected', message: 'Codex app-server disconnected; session must restart.' } },
+					part: createErrorResponsePart({ errorType: 'CodexDisconnected', message: 'Codex app-server disconnected; session must restart.' }),
 				});
 				this._fire(session.sessionUri, { type: ActionType.ChatTurnComplete, turnId, duration });
 			}
@@ -5410,7 +5410,7 @@ export class CodexAgent extends Disposable implements IAgent {
 				type: ActionType.ChatError,
 				turnId: effectiveTurnId,
 				duration,
-				part: { kind: ResponsePartKind.Error, error: { errorType: 'CodexMaterializeFailed', message } },
+				part: createErrorResponsePart({ errorType: 'CodexMaterializeFailed', message }),
 			});
 			this._fire(sessionUri, { type: ActionType.ChatTurnComplete, turnId: effectiveTurnId, duration });
 			return;
@@ -5452,7 +5452,7 @@ export class CodexAgent extends Disposable implements IAgent {
 					type: ActionType.ChatError,
 					turnId: effectiveTurnId,
 					duration,
-					part: { kind: ResponsePartKind.Error, error: { errorType: 'CodexMaterializeFailed', message } },
+					part: createErrorResponsePart({ errorType: 'CodexMaterializeFailed', message }),
 				});
 				this._fire(sessionUri, { type: ActionType.ChatTurnComplete, turnId: effectiveTurnId, duration });
 				return;
@@ -5476,13 +5476,10 @@ export class CodexAgent extends Disposable implements IAgent {
 				type: ActionType.ChatError,
 				turnId: effectiveTurnId,
 				duration,
-				part: {
-					kind: ResponsePartKind.Error,
-					error: {
-						errorType: 'CodexResumeFailed',
-						message: err instanceof Error ? err.message : String(err),
-					},
-				},
+				part: createErrorResponsePart({
+					errorType: 'CodexResumeFailed',
+					message: err instanceof Error ? err.message : String(err),
+				}),
 			});
 			this._fire(sessionUri, { type: ActionType.ChatTurnComplete, turnId: effectiveTurnId, duration });
 			return;
@@ -5559,7 +5556,7 @@ export class CodexAgent extends Disposable implements IAgent {
 				type: ActionType.ChatError,
 				turnId: effectiveTurnId,
 				duration,
-				part: { kind: ResponsePartKind.Error, error: { errorType: isCompactCommand ? 'CodexCompactionError' : 'CodexTurnError', ...extractForwardedErrorInfo(message) } },
+				part: createErrorResponsePart({ errorType: isCompactCommand ? 'CodexCompactionError' : 'CodexTurnError', ...extractForwardedErrorInfo(message) }),
 			});
 			this._fire(sessionUri, { type: ActionType.ChatTurnComplete, turnId: effectiveTurnId, duration });
 		} finally {

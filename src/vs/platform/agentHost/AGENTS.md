@@ -119,8 +119,11 @@ Agents do **not** maintain the chat catalog, persist membership, know whether a 
 ### Orchestrator layer
 
 **`AgentService` (`node/agentService.ts`):**
-- Owns the `(session, chat)` → `(agent, session URI, chat URI)` mapping.
-- Owns `_providers`, `_sessionToProvider`, and `_findProviderForSession` (which falls back through the session URI's scheme when a session was restored without an `AgentService.createSession` call in this process lifetime).
+- Resolves the `(session, chat)` → `(agent, session URI, chat URI)` mapping for
+  orchestration.
+- Uses `IAgentHostProviderService` for provider ownership and session routing. Its
+  `getProviderForSession` path falls back through the session URI's scheme when
+  a restored session was not associated in this process lifetime.
 - Owns `AgentSessionRegistry`, the durable source of truth for which sessions exist. `listSessions` enumerates the registry, hydrates each initial chat through `IAgent.getChatMetadata`, and applies the existing DB/state overlays.
 - Dispatches user-driven chat lifecycle (`createChat`, `disposeChat`) to `chats.*`.
 - Disposes every catalog chat in stable order (peers first, initial chat last); releases every catalog chat on idle eviction.
@@ -187,13 +190,18 @@ A session URI (`ahp-copilot://`, `ahp-claude://`, …) identifies a session. A c
 The default chat URI is derived from the AH session URI, but its provider identity is opaque `providerData`. Claude and Copilot mint independent SDK ids, return them from `createChat`, and restore them through `materializeChat`; equality with the AH session id is never assumed and there is no identity-reuse bind fallback. Codex persists its explicit thread mapping. AH never depends on provider identity reuse for ownership or enumeration.
 
 **I4 — Single catalog path (spawn channel).**
-Both user-driven chats (`AgentService.createChat` → `addChat`) and harness-spawned chats (`AgentService._onChatSpawned` → `addChat`) go through `AgentHostStateManager.addChat`. The spawn-channel listener is registered **before** `AgentSideEffects` during `registerProvider` (`node/agentService.ts:registerProvider`) to guarantee the chat exists in the catalog before any turn actions arrive for it (DR1 deterministic sequencing).
+Both user-driven chats (`AgentService.createChat` → `addChat`) and harness-spawned chats (`AgentService._onChatSpawned` → `addChat`) go through `AgentHostStateManager.addChat`. `AgentService` installs the spawn-channel listener **before** the `AgentSideEffects` listener through the provider service's synchronous initializer to guarantee the chat exists in the catalog before any turn actions arrive for it (DR1 deterministic sequencing).
 
 **I5 — Orchestrator peer-chat catalog is the restore source of truth (with one-time legacy migration).**
 The orchestrator persists additional chats in `PEER_CHATS_METADATA_KEY` and the initial chat's opaque backing in `defaultChatProviderData`. Restore materializes both through the same provider-data contract — `materializeChat` is the *only* way a default chat is re-attached. When a native catalog session has no persisted blob, the provider recovers its backing from the provider-native session id in the Agent Host session URI and returns canonical provider data, which the host persists additively for later restores; an already-canonical blob is never rewritten. A missing additional-chat catalog triggers the one-time `listLegacyChatBackings` migration. Harness-spawned chats remain transient and are re-derived from tool-origin state. `_persistDefaultChatBacking`'s two writes — the `defaultChatProviderData` blob and the default chat's own `_markChatBacking` call (I7) — are independent: a failure persisting the blob is logged and swallowed rather than skipping the backing marker, since the marker is what keeps the default chat's backing session out of the top-level list and must not be held hostage to an unrelated write's success.
 
-**I6 — `_findProviderForSession` not `_sessionToProvider`.**
-The `_sessionToProvider` map is populated only by `AgentService.createSession`. A restored session (alive in the state manager after a host restart but never created in this process) is absent from it. `_findProviderForSession` (`node/agentService.ts:AgentService._findProviderForSession`) falls back to the session URI scheme, which is what makes restored sessions work.
+**I6 — Route through `IAgentHostProviderService`.**
+The provider service's explicit session association is populated only by
+`AgentService.createSession`. A restored session (alive in the state manager
+after a host restart but never created in this process) is absent from it, so
+restore re-associates the durable `AgentSessionRegistry` provider before
+lookup. For unregistered provider-native sessions, `getProviderForSession`
+falls back to the session URI scheme. Do not read the association map directly.
 
 **I7 — A peer chat's backing SDK session must never surface as a top-level session.**
 Some agents store all SDK conversations in one catalog. `IAgentCreateChatResult.backingSession` lets the orchestrator mark any internal chat backing, including the default Claude backing, so continual external-chat discovery never registers it as a top-level AH session. Providers own native enumeration and push candidates through `onDidDiscoverChats`; Agent Host reconciles those candidates against its registry and suppresses separately enumerable internal backings. Existing AH-created rows retain their provenance. Marking a backing session is a durable metadata write on the backing session's own DB (`_markChatBacking`); a transient failure is retried once, and if it keeps failing the session is suppressed from listing/discovery in-process (`_unpersistedChatBackings`) rather than failing the chat creation that triggered it.
@@ -322,11 +330,12 @@ graph LR
 sequenceDiagram
     participant UI as Sessions UI
     participant AS as AgentService
+    participant PS as AgentHostProviderService
     participant A as IAgent.chats
     participant SM as AgentHostStateManager
 
     UI->>AS: createChat(session, chatUri, options?)
-    AS->>AS: _findProviderForSession(session)
+    AS->>PS: getProviderForSession(session)
     AS->>A: chats.createChat(chatUri, session, convOptions)
     A-->>AS: IAgentCreateChatResult { providerData?, backingSession? }
     AS->>SM: addChat(session, chatUri, { providerData })
@@ -434,7 +443,7 @@ graph TD
     B{isAhpChatChannel?}
     C["chatChannel = channel\nsessionChannel = parseRequiredSessionUriFromChatUri(channel)"]
     D["sessionChannel = channel\nchatChannel = undefined"]
-    E["agent = _findProviderForSession(sessionChannel)"]
+    E["agent = providerService.getProviderForSession(sessionChannel)"]
     F["session = sessionChannel (session URI)\nchat = chatChannel (concrete chat channel URI)"]
     A --> B
     B -->|yes| C
