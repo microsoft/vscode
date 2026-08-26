@@ -77,6 +77,7 @@ export class PointerEventHandler extends MouseHandler {
 		// preventDefault() on the tap suppresses compatibility mouse events. Emit
 		// down/up so contributions (e.g. the inline fold placeholder) see the tap.
 		const editorMouseEvent = new EditorMouseEvent(event, false, this.viewHelper.viewDomNode);
+		editorMouseEvent.detail = event.tapCount;
 		const target = this._createMouseTarget(editorMouseEvent, false);
 		this.viewController.emitMouseDown({ event: editorMouseEvent, target });
 		this.viewController.emitMouseUp({ event: editorMouseEvent, target });
