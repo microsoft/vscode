@@ -733,66 +733,51 @@
     },
     {
       "name": "create_session",
-      "description": "Create an independently scoped session and start it with an initial prompt. Use this when work needs a separate workspace, worktree or branch, provider, or lifecycle. For parallel subtasks that should share one workspace and aggregate diff, prefer `create_chat`. The UI shows a \"Session Created\" confirmation with a button to open it, so reply with a single short sentence confirming the session was created and do NOT print the session URL or tell the user to click a button.",
+      "description": "Create delegated work and start it with an initial prompt. Set `relationship` to `currentSession` when the task belongs to the current plan or deliverable; this creates a new chat that shares the current session's workspace, lifecycle, and aggregate diff. Set it to `independent` only for a separate deliverable that needs its own workspace, provider, or top-level lifecycle. The UI shows the created chat or session as a link, so reply with a single short sentence and do NOT print the session URL or tell the user to click the link.",
       "input_schema": {
         "type": "object",
         "properties": {
-          "workspace": {
+          "relationship": {
             "type": "string",
-            "description": "Unique project name, project/workspace URI, absolute folder path, or working directory from an existing session. Use `create_chat` instead when the work should share the current session's workspace and changes."
+            "enum": [
+              "currentSession",
+              "independent"
+            ],
+            "description": "Whether this work belongs to the current session or is independently managed. Use `currentSession` for tasks from the current plan or deliverable, including parallel or delegated tasks. Use `independent` only for a separate deliverable that needs its own workspace and top-level lifecycle."
           },
           "prompt": {
             "type": "string",
             "description": "Initial prompt to send to the new session."
           },
-          "model": {
+          "workspace": {
             "type": "string",
-            "description": "Optional model ID or display name. Defaults to the current chat's model."
-          }
-        },
-        "required": [
-          "workspace",
-          "prompt"
-        ]
-      }
-    },
-    {
-      "name": "create_chat",
-      "description": "Add a new chat to an existing session and start it with an initial prompt. Prefer this for parallel subtasks that should remain part of one user-visible unit of work, sharing the session's workspace, lifecycle, and aggregate diff. Omit `session` to add the chat to the current session; otherwise pass a session URI from `list_sessions`. Optionally pass a `model` to use for the chat (defaults to the current chat's model). The UI shows a \"Chat Created\" confirmation with a button to open the session, so reply with a single short sentence and do NOT print the session URL or tell the user to click a button.",
-      "input_schema": {
-        "type": "object",
-        "properties": {
-          "session": {
-            "type": "string",
-            "description": "Optional session to add the chat to: a session URI from `list_sessions` or an `agent-host-session://` link. Defaults to the current session when omitted."
-          },
-          "prompt": {
-            "type": "string",
-            "description": "Initial prompt to send to the new chat."
+            "description": "For `independent` work: unique project name, project/workspace URI, absolute folder path, or working directory from an existing session. Required for `independent` and invalid for `currentSession`."
           },
           "title": {
             "type": "string",
-            "description": "Optional title for the new chat."
+            "description": "Short title for the new chat or independent session.\n\n{maxLength: 200}"
           },
           "model": {
             "type": "string",
-            "description": "Optional model ID or display name. Defaults to the current chat's model."
+            "description": "Optional model ID or display name. Defaults to the current chat's model. For `currentSession`, the model must belong to the current session's provider; for `independent`, the model selects the new session's provider."
           }
         },
         "required": [
-          "prompt"
+          "relationship",
+          "prompt",
+          "title"
         ]
       }
     },
     {
       "name": "send_message",
-      "description": "Send a message to an existing session or chat, starting a new turn there. Provide a session URI from `list_sessions` or an `agent-host-session://` link (a `create_chat` link targets that specific chat). The message is delivered asynchronously — this tool does not wait for or return the reply. The UI shows a confirmation with a button to open the target, so reply with a single short sentence and do NOT print the URL or tell the user to click a button.",
+      "description": "Send a message to an existing session or chat, starting a new turn there. Provide a session URI from `list_sessions` or an `agent-host-session://` link; a link carrying a chat id targets that specific chat. The message is delivered asynchronously — this tool does not wait for or return the reply. The UI shows a confirmation with a button to open the target, so reply with a single short sentence and do NOT print the URL or tell the user to click a button.",
       "input_schema": {
         "type": "object",
         "properties": {
           "session": {
             "type": "string",
-            "description": "The session or chat to message: a session URI from `list_sessions`, or an `agent-host-session://` link (from `create_session`/`create_chat`; a `create_chat` link targets that specific chat)."
+            "description": "The session or chat to message: a session URI from `list_sessions`, or an `agent-host-session://` link. A link carrying a chat id targets that specific chat."
           },
           "message": {
             "type": "string",
@@ -813,7 +798,7 @@
         "properties": {
           "session": {
             "type": "string",
-            "description": "The session or chat to read: a session URI from `list_sessions`, or an `agent-host-session://` link (a `create_chat` link targets that specific chat)."
+            "description": "The session or chat to read: a session URI from `list_sessions`, or an `agent-host-session://` link. A link carrying a chat id targets that specific chat."
           },
           "detail": {
             "type": "string",
