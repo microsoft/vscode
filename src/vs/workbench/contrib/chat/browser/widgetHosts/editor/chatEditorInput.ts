@@ -267,7 +267,7 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 
 			if (!this.model && isUntitledChatSession(this._sessionResource) && getChatSessionType(this._sessionResource) !== localChatSessionType) {
 				this.logService.warn(`[ChatEditorInput] Falling back to a local chat session because ${this._sessionResource.toString()} could not be acquired`);
-				this.modelRef.value = this.chatService.startNewLocalSession(ChatAgentLocation.Chat, { canUseTools: !inputType, debugOwner: 'ChatEditorInput#resolveUntitledFallback' });
+				this.modelRef.value = this.chatService.startNewLocalSession(ChatAgentLocation.Chat, { canUseTools: !inputType, debugOwner: 'ChatEditorInput#resolveUntitledFallback', sessionTypeSelectionReason: isAgentHostTarget(getChatSessionType(this._sessionResource)) ? 'agentHostUnavailable' : undefined });
 			}
 
 			if (this.shouldReplaceEmptyLocalSession(this._sessionResource)) {
@@ -311,7 +311,7 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 						this._sessionResource = defaultResource;
 					} else {
 						this.logService.warn(`[ChatEditorInput] Falling back to a local chat session because ${defaultResource.toString()} could not be acquired`);
-						this.modelRef.value = this.chatService.startNewLocalSession(ChatAgentLocation.Chat, { canUseTools: !inputType, debugOwner: 'ChatEditorInput#resolveUntitledFallback' });
+						this.modelRef.value = this.chatService.startNewLocalSession(ChatAgentLocation.Chat, { canUseTools: !inputType, debugOwner: 'ChatEditorInput#resolveUntitledFallback', sessionTypeSelectionReason: isAgentHostTarget(getChatSessionType(defaultResource)) ? 'agentHostUnavailable' : undefined });
 					}
 				}
 			}

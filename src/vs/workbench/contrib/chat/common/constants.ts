@@ -371,6 +371,8 @@ export type SessionTypeSelectionReason =
 	| 'currentSession'
 	/** The Copilot harness preference replaced a local current session. */
 	| 'copilotPreference'
+	/** An intended Agent Host session could not be acquired, so Local was used. */
+	| 'agentHostUnavailable'
 	/** Settings and available capabilities determined the default type. */
 	| 'computedDefault';
 
