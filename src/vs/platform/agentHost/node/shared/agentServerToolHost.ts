@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
+import type { IAgentServerToolDefinition, IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { ActionType } from '../../common/state/protocol/common/actions.js';
 import { parseRequiredSessionUriFromChatUri, type StringOrMarkdown, type ToolDefinition, type URI } from '../../common/state/sessionState.js';
 import type { AgentHostStateManager } from '../agentHostStateManager.js';
@@ -39,6 +39,7 @@ export interface IServerToolDisplay {
 export interface IServerToolExecutionContext {
 	readonly sessionUri: URI;
 	readonly chatUri: URI;
+	readonly turnId?: string;
 }
 
 /**
@@ -57,7 +58,7 @@ export interface IServerToolExecutionContext {
  */
 export interface IServerToolGroup {
 	/** Tool definitions this group advertises on the session's `serverTools`. */
-	readonly definitions: readonly ToolDefinition[];
+	readonly definitions: readonly IAgentServerToolDefinition[];
 	/** Whether a contributed tool is currently enabled for advertisement and execution. */
 	isEnabled(toolName: string): boolean;
 	/**
@@ -132,8 +133,14 @@ export class AgentServerToolHost implements IAgentServerToolHost {
 		}
 	}
 
-	get definitions(): readonly ToolDefinition[] {
+	get definitions(): readonly IAgentServerToolDefinition[] {
 		return this._groups.flatMap(group => group.definitions.filter(definition => group.isEnabled(definition.name)));
+	}
+
+	getDefinitionsForSession(sessionUri: URI): readonly IAgentServerToolDefinition[] {
+		return this._stateManager.isEphemeralSession(sessionUri)
+			? this.definitions.filter(definition => definition.enabledForEphemeralSessions)
+			: this.definitions;
 	}
 
 	get toolNames(): readonly string[] {
@@ -147,7 +154,7 @@ export class AgentServerToolHost implements IAgentServerToolHost {
 		}
 		this._stateManager.dispatchServerAction(sessionUri, {
 			type: ActionType.SessionServerToolsChanged,
-			tools: [...this.definitions],
+			tools: this._toProtocolDefinitions(this.getDefinitionsForSession(sessionUri)),
 		});
 	}
 
@@ -181,7 +188,12 @@ export class AgentServerToolHost implements IAgentServerToolHost {
 		return {
 			sessionUri: parseRequiredSessionUriFromChatUri(chatUri),
 			chatUri,
+			turnId: this._stateManager.getActiveTurnId(chatUri),
 		};
+	}
+
+	private _toProtocolDefinitions(definitions: readonly IAgentServerToolDefinition[]): ToolDefinition[] {
+		return definitions.map(({ enabledForEphemeralSessions: _enabledForEphemeralSessions, ...definition }) => definition);
 	}
 
 	private _isEnabledForSession(group: IServerToolGroup, chatUri: URI, toolName: string): boolean {

@@ -9,7 +9,7 @@ import { constObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IInputOptions, IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { RENAME_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
@@ -19,7 +19,8 @@ import { ISessionsService } from '../../../../services/sessions/browser/sessions
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { SessionsChatAccessibilityHelp } from '../../../chat/browser/sessionsChatAccessibilityHelp.js';
 import { SessionsFlatList, SessionsGrouping, SessionsList, SessionsSorting } from '../../browser/views/sessionsList.js';
-import { createListHarness, createTestSession, TestSessionsManagementService } from './sessionsListTestUtils.js';
+import { createListHarness, createTestSession, TestCommandService, TestSessionsManagementService } from './sessionsListTestUtils.js';
+import '../../browser/sessionsActions.js';
 import '../../browser/views/sessionsViewActions.js';
 
 class TestQuickInputService extends mock<IQuickInputService>() {
@@ -208,6 +209,60 @@ suite('Sessions rename', () => {
 		});
 	});
 
+	suite('session header action', () => {
+		function createHeaderHarness(inlineRename: boolean | undefined) {
+			const instantiationService = disposables.add(new TestInstantiationService());
+			const commandService = new TestCommandService();
+			const sessionData = createTestSession('Existing');
+			let inlineRenameCalls = 0;
+			instantiationService.stub(ICommandService, commandService);
+			instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() {
+				override getSessionView() {
+					if (inlineRename === undefined) {
+						return undefined;
+					}
+					return new class extends mock<SessionView>() {
+						override startTitleEditing(): boolean {
+							inlineRenameCalls++;
+							return inlineRename;
+						}
+					};
+				}
+			});
+			const handler = CommandsRegistry.getCommand('sessions.sessionHeader.rename')?.handler;
+			assert.ok(handler);
+			return { handler, instantiationService, commandService, session: sessionData.session, inlineRenameCalls: () => inlineRenameCalls };
+		}
+
+		test('renames inline in the header and only prompts when that is not possible', async () => {
+			const inline = createHeaderHarness(true);
+			await inline.handler(inline.instantiationService, inline.session);
+
+			// The header cannot show the title (e.g. the chat tabs row replaced it).
+			const headerUnavailable = createHeaderHarness(false);
+			await headerUnavailable.handler(headerUnavailable.instantiationService, headerUnavailable.session);
+
+			// The session is not shown in the sessions part at all.
+			const noView = createHeaderHarness(undefined);
+			await noView.handler(noView.instantiationService, noView.session);
+
+			const withoutSession = createHeaderHarness(true);
+			await withoutSession.handler(withoutSession.instantiationService, undefined);
+
+			assert.deepStrictEqual({
+				inline: { calls: inline.inlineRenameCalls(), prompts: inline.commandService.calls },
+				headerUnavailable: { calls: headerUnavailable.inlineRenameCalls(), prompts: headerUnavailable.commandService.calls },
+				noView: { calls: noView.inlineRenameCalls(), prompts: noView.commandService.calls },
+				withoutSession: { calls: withoutSession.inlineRenameCalls(), prompts: withoutSession.commandService.calls },
+			}, {
+				inline: { calls: 1, prompts: [] },
+				headerUnavailable: { calls: 1, prompts: [{ commandId: RENAME_SESSION_COMMAND_ID, args: [headerUnavailable.session] }] },
+				noView: { calls: 0, prompts: [{ commandId: RENAME_SESSION_COMMAND_ID, args: [noView.session] }] },
+				withoutSession: { calls: 0, prompts: [] },
+			});
+		});
+	});
+
 	suite('accessibility help', () => {
 		function createHelpProvider(origin: HTMLElement, removeOrigin = false) {
 			const instantiationService = disposables.add(new TestInstantiationService());
@@ -245,11 +300,13 @@ suite('Sessions rename', () => {
 			assert.deepStrictEqual({
 				hasDoubleClick: content.includes('double-click its title'),
 				hasContextMenu: content.includes('open its context menu'),
+				hasPetAchievements: content.includes('View Achievements'),
 				activeElement: mainWindow.document.activeElement,
 				fallbackFocusCount: fallbackFocusCount(),
 			}, {
 				hasDoubleClick: true,
 				hasContextMenu: true,
+				hasPetAchievements: true,
 				activeElement: origin,
 				fallbackFocusCount: 0,
 			});

@@ -8,7 +8,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { readAgentMessageDelegationMeta } from '../../../common/meta/agentMessageDelegationMeta.js';
 import { SessionServerToolName } from '../../../common/serverToolNames.js';
 import { replayThreadToTurns } from '../../../node/codex/codexReplayMapper.js';
-import { MessageKind, ResponsePartKind, ToolCallStatus, ToolResultContentType, TurnState, type ModelSelection } from '../../../common/state/sessionState.js';
+import { getTurnError, MessageKind, ResponsePartKind, ToolCallStatus, ToolResultContentType, TurnState, type ModelSelection } from '../../../common/state/sessionState.js';
 
 suite('codexReplayMapper', () => {
 
@@ -475,7 +475,7 @@ suite('codexReplayMapper', () => {
 				startedAt: null, completedAt: null, durationMs: null,
 			}],
 		} as never);
-		assert.deepStrictEqual(turns.map(turn => ({ state: turn.state, error: turn.error })), [{
+		assert.deepStrictEqual(turns.map(turn => ({ state: turn.state, error: getTurnError(turn) })), [{
 			state: TurnState.Error,
 			error: { errorType: 'CodexError', message: 'oops' },
 		}]);

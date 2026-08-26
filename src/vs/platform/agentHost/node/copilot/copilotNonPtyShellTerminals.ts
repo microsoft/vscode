@@ -90,7 +90,7 @@ export interface INonPtyShellToolCompletion {
  * under the emit cap, a rolling tail past the large-output threshold); this
  * class preserves the streamed transcript across those lossy rewrites.
  *
- * Created once per session and disposed with it, matching the pty-backed
+ * Created once per chat and disposed with it, matching the pty-backed
  * `ShellManager` lifecycle.
  */
 export class NonPtyShellTerminalStreams extends Disposable {
@@ -99,6 +99,7 @@ export class NonPtyShellTerminalStreams extends Disposable {
 
 	constructor(
 		private readonly _sessionUri: URI,
+		private readonly _chatUri: URI,
 		@IAgentHostTerminalManager private readonly _terminalManager: IAgentHostTerminalManager,
 	) {
 		super();
@@ -210,9 +211,7 @@ export class NonPtyShellTerminalStreams extends Disposable {
 				}
 			}
 		}
-		if (result.exitCode !== undefined) {
-			this._finalize(stream, result.exitCode);
-		}
+		this._finalize(stream, result.exitCode);
 		return {
 			uri: stream.uri,
 			result,
@@ -235,7 +234,7 @@ export class NonPtyShellTerminalStreams extends Disposable {
 		}
 	}
 
-	private _finalize(stream: INonPtyShellStream, exitCode: number): void {
+	private _finalize(stream: INonPtyShellStream, exitCode: number | undefined): void {
 		if (stream.finalized) {
 			return;
 		}
@@ -256,6 +255,7 @@ export class NonPtyShellTerminalStreams extends Disposable {
 		const claim: TerminalSessionClaim = {
 			kind: TerminalClaimKind.Session,
 			session: this._sessionUri.toString(),
+			chat: this._chatUri.toString(),
 			toolCallId,
 		};
 		this._terminalManager.createOutputTerminal(stream.uri, { title: stream.title, claim });

@@ -5,7 +5,7 @@
 
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { ILogService } from '../../log/common/log.js';
-import { AGENT_SDK_SETUP_DOWNLOAD_REQUEST_KEY, AgentSdkDownloadStatus, IAgentSdkSetupInfo, agentSdkSetupStatusKey, isAgentSdkSetupRequestFor } from '../common/agentSdkSetup.js';
+import { AGENT_SDK_SETUP_DOWNLOAD_REQUEST_KEY, AGENT_SDK_SETUP_RELOAD_REQUEST_KEY, AgentSdkDownloadStatus, IAgentSdkSetupInfo, agentSdkSetupStatusKey, isAgentSdkSetupRequestFor } from '../common/agentSdkSetup.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { IAgentSdkDownloader, IAgentSdkPackage } from './agentSdkDownloader.js';
 
@@ -33,14 +33,14 @@ export interface IAgentSdkSetupChannelAgent {
 
 /**
  * One agent's side of the SDK setup channel: publishes whether its SDK is on
- * disk, and performs the download the workbench asks for. Every agent needs the
- * same nonce handling, latching and publish ordering, so only the calls in
- * {@link IAgentSdkSetupChannelAgent} differ.
+ * disk, performs the download the workbench asks for, and looks again when it
+ * asks for that. Every agent needs the same nonce handling, latching and publish
+ * ordering, so only the calls in {@link IAgentSdkSetupChannelAgent} differ.
  */
 export class AgentSdkSetupChannel extends Disposable {
 
-	/** Consumed request nonce, so a root-config change we caused isn't re-handled. */
-	private _lastRequest: string | undefined;
+	/** Consumed request nonce per request key, so a root-config change we caused isn't re-handled. */
+	private readonly _lastRequests = new Map<string, string>();
 
 	/**
 	 * Latched while the *explicit* download runs. {@link IAgentSdkSetupChannelAgent.isSdkLocal}
@@ -80,13 +80,27 @@ export class AgentSdkSetupChannel extends Disposable {
 	}
 
 	private _handleRequest(): void {
-		const request = this._configurationService.getRootConfigValues?.()[AGENT_SDK_SETUP_DOWNLOAD_REQUEST_KEY];
-		if (!isAgentSdkSetupRequestFor(request, this._agent.id) || request.request === this._lastRequest) {
-			return;
+		const values = this._configurationService.getRootConfigValues?.() ?? {};
+		if (this._takeRequest(values, AGENT_SDK_SETUP_DOWNLOAD_REQUEST_KEY)) {
+			void this._download();
 		}
-		this._lastRequest = request.request;
-		this._configurationService.updateRootConfig({ [AGENT_SDK_SETUP_DOWNLOAD_REQUEST_KEY]: undefined });
-		void this._download();
+		if (this._takeRequest(values, AGENT_SDK_SETUP_RELOAD_REQUEST_KEY)) {
+			this._logService.info(`[AgentSdkSetup] ${this._agent.id}: reloading the agent's configuration at the user's request`);
+			// Nothing to publish: the SDK is already on disk either way, and what the
+			// banner reads is the catalog the re-look republishes.
+			void this._lookAgain();
+		}
+	}
+
+	/** Claim one request addressed to this agent, clearing the key so a repeat press still lands. */
+	private _takeRequest(values: Readonly<Record<string, unknown>>, key: string): boolean {
+		const request = values[key];
+		if (!isAgentSdkSetupRequestFor(request, this._agent.id) || request.request === this._lastRequests.get(key)) {
+			return false;
+		}
+		this._lastRequests.set(key, request.request);
+		this._configurationService.updateRootConfig({ [key]: undefined });
+		return true;
 	}
 
 	/**
@@ -110,12 +124,21 @@ export class AgentSdkSetupChannel extends Disposable {
 			this._downloadInFlight = false;
 			progressInterest.dispose();
 		}
+		await this._lookAgain();
+	}
+
+	/**
+	 * Re-read the world: the tail of a download, and the whole of a reload. Both
+	 * gestures change exactly what these two calls see — one puts the SDK on disk,
+	 * the other follows a `claude login` the app could not observe.
+	 */
+	private async _lookAgain(): Promise<void> {
 		// Chat discovery deferred itself while there was no SDK to read the catalog
 		// from; this is the one moment that can change.
 		this._agent.restartChatDiscovery();
-		// Second, not first: the refresh is what asks the fresh SDK about the account,
-		// so announcing `ready` ahead of it would show "no account found" to a user
-		// who has one for as long as enumeration takes.
+		// Second, not first: the refresh is what asks the SDK about the account, so
+		// announcing `ready` ahead of it would show "no account found" to a user who
+		// has one for as long as enumeration takes.
 		await this._agent.refreshModels();
 	}
 }

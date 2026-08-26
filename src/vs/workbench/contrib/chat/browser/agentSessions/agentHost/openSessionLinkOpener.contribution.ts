@@ -13,7 +13,7 @@ import { isEqual } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
 import { LOCAL_AGENT_HOST_SCHEME_PREFIX } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
-import { AGENT_HOST_SESSION_LINK_PATTERN, AgentSessionLinkStatus, createAgentSessionLinkPresentation, parseOpenSessionLinkUri } from '../../../../../../platform/agentHost/common/openSessionLink.js';
+import { AGENT_HOST_SESSION_LINK_PATTERN, AgentSessionLinkStatus, buildAgentSessionLinkPresentation, parseOpenSessionLinkUri } from '../../../../../../platform/agentHost/common/openSessionLink.js';
 import { ILinkPresentation, ILinkPresentationService, ILinkPresentationWatcher } from '../../../../../../platform/dataChannel/common/dataChannel.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
@@ -21,6 +21,9 @@ import { IWorkbenchContribution } from '../../../../../common/contributions.js';
 import { ChatSessionStatus, IChatSessionItem, IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { getChatSessionType } from '../../../common/model/chatUri.js';
 import { ChatViewPaneTarget, IChatWidgetService } from '../../chat.js';
+import { getAgentChangesSummary } from '../agentSessionsModel.js';
+import { ISessionSummaryHoverData } from '../sessionSummaryHover.js';
+import { ISessionSummaryHoverService } from '../sessionSummaryHoverService.js';
 
 /**
  * Editor-window counterpart to the Agents window's
@@ -48,6 +51,7 @@ export class AgentHostOpenSessionLinkOpenerContribution extends Disposable imple
 		@IChatSessionsService private readonly _chatSessionsService: IChatSessionsService,
 		@ILinkPresentationService linkPresentationService: ILinkPresentationService,
 		@ILogService logService: ILogService,
+		@ISessionSummaryHoverService sessionSummaryHoverService: ISessionSummaryHoverService,
 	) {
 		super();
 		this._register(openerService.registerOpener({
@@ -56,7 +60,7 @@ export class AgentHostOpenSessionLinkOpenerContribution extends Disposable imple
 		this._register(linkPresentationService.registerLinkPresentationProvider({
 			id: 'workbench.agentSessionLinkPresentation',
 			uriPattern: AGENT_HOST_SESSION_LINK_PATTERN,
-			initialKind: 'session',
+			kind: 'session',
 		}, {
 			createLinkPresentationWatcher: resource => {
 				const clientResource = toClientSessionResource(resource);
@@ -66,6 +70,27 @@ export class AgentHostOpenSessionLinkOpenerContribution extends Disposable imple
 				return new WorkbenchAgentSessionLinkPresentationWatcher(clientResource, this._chatSessionsService, logService);
 			},
 		}));
+		// The editor window's adapter onto the shared session hover. It resolves
+		// the same chat session item the pill's presentation comes from, so the
+		// hover shows what this window knows — title, workspace, branch and
+		// changes — while the worktree and pull requests, which only the Agents
+		// window's session model carries, are simply absent.
+		this._register(sessionSummaryHoverService.registerProvider({
+			provideSessionSummaryHoverData: async (resource, token) => {
+				const item = await this._findChatSessionItem(resource, token);
+				return item ? toSessionSummaryHoverData(item) : undefined;
+			},
+		}));
+	}
+
+	private async _findChatSessionItem(resource: URI, token: CancellationToken): Promise<IChatSessionItem | undefined> {
+		const clientResource = toClientSessionResource(resource);
+		if (!clientResource) {
+			return undefined;
+		}
+		const chatSessionType = getChatSessionType(clientResource);
+		await this._chatSessionsService.activateChatSessionItemProvider(chatSessionType);
+		return findChatSessionItem(this._chatSessionsService, chatSessionType, clientResource, token);
 	}
 
 	private async _open(resource: URI | string): Promise<boolean> {
@@ -134,16 +159,30 @@ class WorkbenchAgentSessionLinkPresentationWatcher extends Disposable implements
 
 	private async _resolve(token: CancellationToken): Promise<ILinkPresentation | undefined> {
 		await this._providerReady;
-		for await (const group of this._chatSessionsService.getChatSessionItems([this._chatSessionType], token)) {
-			const item = group.items.find(candidate =>
-				isEqual(candidate.resource, this._clientResource)
-				|| !!candidate.legacyResource && isEqual(candidate.legacyResource, this._clientResource));
-			if (item) {
-				return toSessionLinkPresentation(item);
-			}
-		}
-		return undefined;
+		const item = await findChatSessionItem(this._chatSessionsService, this._chatSessionType, this._clientResource, token);
+		return item ? toSessionLinkPresentation(item) : undefined;
 	}
+}
+
+/**
+ * The chat session item behind {@link clientResource}, or `undefined` when this
+ * window's providers do not surface it.
+ */
+async function findChatSessionItem(
+	chatSessionsService: IChatSessionsService,
+	chatSessionType: string,
+	clientResource: URI,
+	token: CancellationToken,
+): Promise<IChatSessionItem | undefined> {
+	for await (const group of chatSessionsService.getChatSessionItems([chatSessionType], token)) {
+		const item = group.items.find(candidate =>
+			isEqual(candidate.resource, clientResource)
+			|| !!candidate.legacyResource && isEqual(candidate.legacyResource, clientResource));
+		if (item) {
+			return item;
+		}
+	}
+	return undefined;
 }
 
 function toClientSessionResource(resource: URI | string): URI | undefined {
@@ -160,7 +199,31 @@ function toClientSessionResource(resource: URI | string): URI | undefined {
 
 function toSessionLinkPresentation(item: IChatSessionItem): ILinkPresentation {
 	const description = typeof item.description === 'string' ? item.description : item.description?.value;
-	return createAgentSessionLinkPresentation(item.label, description, chatSessionStatusName(item.status));
+	return buildAgentSessionLinkPresentation(item.label, description, chatSessionStatusName(item.status));
+}
+
+/**
+ * Maps a chat session item onto the shared session hover data.
+ *
+ * The editor window only knows a session through its item, so the hover is
+ * necessarily thinner than the Agents window's: the worktree path and the
+ * session's pull requests have no representation here and are left out rather
+ * than guessed at. Everything the item does carry — the workspace or worktree
+ * path, the branch and the change counts — is surfaced through the same widget.
+ */
+function toSessionSummaryHoverData(item: IChatSessionItem): ISessionSummaryHoverData {
+	const metadata = item.metadata;
+	const changes = getAgentChangesSummary(item.changes);
+	const worktree = metadata?.worktreePath;
+	return {
+		title: item.label,
+		location: {
+			workspace: metadata?.repositoryPath ?? metadata?.workingDirectoryPath,
+			worktree,
+			branch: metadata?.branchName ?? metadata?.branch,
+			changes: changes && (changes.insertions > 0 || changes.deletions > 0) ? changes : undefined,
+		},
+	};
 }
 
 function chatSessionStatusName(status: ChatSessionStatus | undefined): AgentSessionLinkStatus {

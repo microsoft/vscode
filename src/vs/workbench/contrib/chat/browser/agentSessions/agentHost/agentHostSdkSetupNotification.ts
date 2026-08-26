@@ -5,6 +5,7 @@
 
 import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { Event } from '../../../../../../base/common/event.js';
+import { createCommandUri, escapeMarkdownSyntaxTokens, IMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { localize } from '../../../../../../nls.js';
 import { AgentHostAllowSignedOutWhenUsableSettingId, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { LOCAL_AGENT_HOST_SCHEME_PREFIX } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
@@ -84,25 +85,39 @@ export function getAgentSdkSetupStateToReport(previous: AgentSdkSetupState | und
 
 // #region Banner
 
+/** Trusted for the commands its links address, and nothing else. */
+function setupMarkdown(value: string): MarkdownString {
+	return new MarkdownString(value, { isTrusted: { enabledCommands: [AGENT_SDK_SETUP_OPEN_DOCS_COMMAND_ID, AGENT_SDK_SETUP_RELOAD_COMMAND_ID] } });
+}
+
 /**
  * The "no account" second line: one whole sentence per combination of routes,
  * never assembled from localized fragments, because clause order is not stable
- * across languages. The GitHub clause is unconditional — every agent behind this
- * banner reaches models through our Copilot proxy once signed in, which is
- * workbench knowledge rather than something an agent could declare.
+ * across languages. The routes share one "or" list, ranked as the buttons rank
+ * them and led by the unconditional GitHub clause: reaching models through our
+ * Copilot proxy is workbench knowledge, not something an agent declares.
  */
-function noAccountDescription(setup: IAgentSdkSetupInfo, displayName: string): string {
-	const provider = setup.signInProviderName;
-	if (provider && setup.setupDocsUrl) {
-		return localize('agentHost.sdkSetup.noAccountDescription.all', "Sign in to GitHub to use GitHub Copilot models, sign in to {0} to use your {0} subscription, or read the instructions for other ways to set up {1}.", provider, displayName);
+function noAccountDescription(setup: IAgentSdkSetupInfo, displayName: string): IMarkdownString {
+	// Both nouns are the host's, and this string is trusted for two commands, so
+	// they are escaped rather than interpolated raw: `[]()` in a name would
+	// otherwise synthesize a link to either one.
+	const name = escapeMarkdownSyntaxTokens(displayName);
+	const provider = setup.signInProviderName && escapeMarkdownSyntaxTokens(setup.signInProviderName);
+	// `command:` hrefs, so a link in the copy takes the same route a button would —
+	// funnel step and URL validation included. Both carry the agent id and nothing
+	// else: the docs command resolves the URL from the agent's own declaration.
+	const reload = createCommandUri(AGENT_SDK_SETUP_RELOAD_COMMAND_ID, setup.agent).toString();
+	const docs = setup.setupDocsUrl ? createCommandUri(AGENT_SDK_SETUP_OPEN_DOCS_COMMAND_ID, setup.agent).toString() : undefined;
+	if (provider && docs) {
+		return setupMarkdown(localize('agentHost.sdkSetup.noAccountDescription.all', "Sign in to GitHub to use GitHub Copilot models, sign in to {2} to use your {2} subscription, or [reload the configuration]({1}) if you have set up {0} elsewhere. For other ways to set up {0}, [learn more]({3}) on their docs.", name, reload, provider, docs));
 	}
 	if (provider) {
-		return localize('agentHost.sdkSetup.noAccountDescription.signIn', "Sign in to GitHub to use GitHub Copilot models, or sign in to {0} to use your {0} subscription.", provider);
+		return setupMarkdown(localize('agentHost.sdkSetup.noAccountDescription.signIn', "Sign in to GitHub to use GitHub Copilot models, sign in to {2} to use your {2} subscription, or [reload the configuration]({1}) if you have set up {0} elsewhere.", name, reload, provider));
 	}
-	if (setup.setupDocsUrl) {
-		return localize('agentHost.sdkSetup.noAccountDescription.docs', "Sign in to GitHub to use GitHub Copilot models, or read the instructions for other ways to set up {0}.", displayName);
+	if (docs) {
+		return setupMarkdown(localize('agentHost.sdkSetup.noAccountDescription.docs', "Sign in to GitHub to use GitHub Copilot models or [reload the configuration]({1}) if you have set up {0} elsewhere. For other ways to set up {0}, [learn more]({2}) on their docs.", name, reload, docs));
 	}
-	return localize('agentHost.sdkSetup.noAccountDescription', "Sign in to GitHub to use GitHub Copilot models.");
+	return setupMarkdown(localize('agentHost.sdkSetup.noAccountDescription', "Sign in to GitHub to use GitHub Copilot models or [reload the configuration]({1}) if you have set up {0} elsewhere.", name, reload));
 }
 
 /**
@@ -197,9 +212,6 @@ export function createAgentSdkSetupNotification(setup: IAgentSdkSetupInfo, displ
 		};
 	}
 	const actions: IChatInputNotificationAction[] = [];
-	if (setup.setupDocsUrl) {
-		actions.push(action(localize('agentHost.sdkSetup.docsAction', "Setup Instructions"), AGENT_SDK_SETUP_OPEN_DOCS_COMMAND_ID));
-	}
 	if (setup.signInProviderName) {
 		actions.push(action(localize('agentHost.sdkSetup.signInAction', "Sign in to {0}", setup.signInProviderName), AGENT_SDK_SETUP_SIGN_IN_COMMAND_ID));
 	}
@@ -220,6 +232,7 @@ export function createAgentSdkSetupNotification(setup: IAgentSdkSetupInfo, displ
 
 export const AGENT_SDK_SETUP_DOWNLOAD_COMMAND_ID = 'workbench.action.chat.agentHost.downloadAgentSdk';
 export const AGENT_SDK_SETUP_OPEN_DOCS_COMMAND_ID = 'workbench.action.chat.agentHost.openAgentSetupDocs';
+export const AGENT_SDK_SETUP_RELOAD_COMMAND_ID = 'workbench.action.chat.agentHost.reloadAgentConfiguration';
 export const AGENT_SDK_SETUP_GITHUB_SIGN_IN_COMMAND_ID = 'workbench.action.chat.agentHost.signInToGitHubForAgent';
 export const AGENT_SDK_SETUP_SIGN_IN_COMMAND_ID = 'workbench.action.chat.agentHost.signInToAgent';
 
@@ -239,6 +252,7 @@ function registerAgentSdkSetupCommand(id: string, run: (setupService: IAgentSdkS
 
 registerAgentSdkSetupCommand(AGENT_SDK_SETUP_DOWNLOAD_COMMAND_ID, (setupService, agent) => setupService.requestDownload(agent));
 registerAgentSdkSetupCommand(AGENT_SDK_SETUP_OPEN_DOCS_COMMAND_ID, (setupService, agent) => setupService.openSetupDocs(agent));
+registerAgentSdkSetupCommand(AGENT_SDK_SETUP_RELOAD_COMMAND_ID, (setupService, agent) => setupService.requestReload(agent));
 registerAgentSdkSetupCommand(AGENT_SDK_SETUP_GITHUB_SIGN_IN_COMMAND_ID, (setupService, agent) => setupService.signInToGitHub(agent));
 registerAgentSdkSetupCommand(AGENT_SDK_SETUP_SIGN_IN_COMMAND_ID, (setupService, agent) => setupService.signIn(agent));
 

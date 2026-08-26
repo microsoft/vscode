@@ -27,10 +27,12 @@ import { ISessionDataService, type ISessionDatabase } from '../../../common/sess
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../../common/agentHostCheckpointService.js';
 import { IAgentHostOTelService } from '../../../common/otel/agentHostOTelService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../../node/agentConfigurationService.js';
+import { IAgentHostWorktreeIsolation, NullAgentHostWorktreeIsolation } from '../../../node/shared/worktreeIsolation.js';
 import { IAgentHostCustomizationEnablementService } from '../../../node/agentHostCustomizationEnablementService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../../node/agentHostStateManager.js';
 import { IAgentHostSessionTitleSignal } from '../../../node/agentHostSessionTitleSignal.js';
 import { IAgentHostGitHubEndpointService } from '../../../node/agentHostGitHubEndpointService.js';
+import { IAgentHostProxyResolver } from '../../../node/agentHostProxyResolver.js';
 import { IAgentSdkDownloader } from '../../../node/agentSdkDownloader.js';
 import { CodexAgent, toCodexModelSelectionId } from '../../../node/codex/codexAgent.js';
 import { CodexAppServerClient, type ICodexAppServerTransport } from '../../../node/codex/codexAppServerClient.js';
@@ -39,6 +41,7 @@ import { ICopilotApiService } from '../../../node/shared/copilotApiService.js';
 import { createSessionDataService, TestSessionDatabase } from '../../common/sessionTestHelpers.js';
 import { createTestGitHubEndpointService } from '../testGitHubEndpointService.js';
 import { createNoopCustomizationEnablementService } from '../testCustomizationEnablementService.js';
+import { createTestAgentHostProxyResolver } from '../agentServiceTestUtils.js';
 
 const COPILOT_TEST_MODEL = toCodexModelSelectionId('vscode-proxy', 'gpt-test');
 
@@ -51,6 +54,7 @@ interface ITestWireRequest {
 		readonly numTurns?: number;
 		readonly input?: readonly { readonly type: string; readonly text?: string; readonly text_elements?: readonly object[] }[];
 		readonly additionalContext?: Readonly<Record<string, { readonly kind: string; readonly value: string }>>;
+		readonly dynamicTools?: readonly { readonly name: string }[];
 	};
 }
 
@@ -183,7 +187,9 @@ async function createAgent(disposables: Pick<DisposableStore, 'add'>, options: I
 	instantiationService.stub(ICopilotApiService, { _serviceBrand: undefined, models: async () => models });
 	instantiationService.stub(ICodexProxyService, { _serviceBrand: undefined });
 	instantiationService.stub(IAgentConfigurationService, configurationService);
+	instantiationService.stub(IAgentHostWorktreeIsolation, new NullAgentHostWorktreeIsolation());
 	instantiationService.stub(IAgentHostGitHubEndpointService, createTestGitHubEndpointService());
+	instantiationService.stub(IAgentHostProxyResolver, createTestAgentHostProxyResolver());
 	instantiationService.stub(IAgentSdkDownloader, {
 		_serviceBrand: undefined,
 		onDidDownloadProgress: Event.None,
@@ -248,6 +254,7 @@ function createRecordingServerToolHost(advertised: string[]): IAgentServerToolHo
 		definitions: [],
 		toolNames: [],
 		advertise: session => advertised.push(session.toString()),
+		getDefinitionsForSession: () => [],
 		canRequireConfirmation: () => false,
 		requiresConfirmation: () => false,
 		executeTool: () => '',
@@ -260,6 +267,7 @@ function createThrowingAdvertiseServerToolHost(message: string): IAgentServerToo
 		definitions: [],
 		toolNames: [],
 		advertise: () => { throw new Error(message); },
+		getDefinitionsForSession: () => [],
 		canRequireConfirmation: () => false,
 		requiresConfirmation: () => false,
 		executeTool: () => '',
@@ -277,6 +285,7 @@ function createRecordingChatServerToolHost(calls: { readonly method: 'requiresCo
 		definitions: [{ name: PEER_TEST_TOOL_NAME, description: 'test', inputSchema: { type: 'object' } }],
 		toolNames: [PEER_TEST_TOOL_NAME],
 		advertise: () => { },
+		getDefinitionsForSession: () => [{ name: PEER_TEST_TOOL_NAME, description: 'test', inputSchema: { type: 'object' } }],
 		canRequireConfirmation: () => false,
 		requiresConfirmation: (chatUri, toolName) => {
 			calls.push({ method: 'requiresConfirmation', chatUri: chatUri.toString() });
@@ -315,6 +324,12 @@ function readNextMessage(stream: PassThrough): Promise<{ readonly id?: number; r
 suite('CodexAgent createChat', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('advertises chat fork and side-chat support', async () => {
+		const agent = await createAgent(disposables);
+
+		assert.deepStrictEqual(agent.getDescriptor().capabilities?.multipleChats, { fork: true, sideChat: true });
+	});
 
 	test('fresh: binds the exact target chat during creation, never leaving the runtime unbound', async () => {
 		const agent = await createAgent(disposables);
@@ -812,6 +827,75 @@ suite('CodexAgent createChat', () => {
 			});
 			peer.push({ id: turn.id, result: {} });
 			await sending;
+		} finally {
+			peer.dispose();
+		}
+	});
+
+	test('prewarmed draft stays provisional while its launch config changes before first send', async () => {
+		const sessionStore = createTestSessionStore();
+		const agent = await createAgent(disposables, { sdkResolvableWithoutDownload: true, sessionStore });
+		const peer = disposables.add(createTestPeer());
+		connectPeer(agent, peer);
+
+		try {
+			const sessionUri = AgentSession.uri('codex', 'session-prewarm-restart');
+			const chat = URI.parse(buildDefaultChatUri(sessionUri));
+			const folder = URI.file('/repo/prewarm-restart');
+			const context = { configurationResource: sessionUri, resource: chat };
+			const materialized: string[] = [];
+			disposables.add(agent.onDidMaterializeChat(e => materialized.push(e.chat.toString())));
+
+			await createSessionBackedChat(agent, chat, context, {
+				workingDirectories: [folder],
+				model: { id: COPILOT_TEST_MODEL },
+			});
+			const prewarmStart = await readNextRequest(peer.outbound);
+			peer.push({ id: prewarmStart.id, result: { thread: { id: 'prewarmed-thread', cwd: folder.fsPath } } });
+			await new Promise(resolve => setImmediate(resolve));
+
+			const activeClient = agent.getOrCreateActiveClient(chat, context, { clientId: 'client-1' });
+			activeClient.tools = [{ name: 'client_tool', description: 'client tool', inputSchema: { type: 'object' } }];
+			const changingAgent = agent.chats.changeAgent(chat, undefined, context);
+			const unsubscribe = await readNextRequest(peer.outbound);
+			peer.push({ id: unsubscribe.id, result: {} });
+			const restartedThread = await readNextRequest(peer.outbound);
+			peer.push({ id: restartedThread.id, result: { thread: { id: 'restarted-thread', cwd: folder.fsPath } } });
+			await changingAgent;
+			await new Promise(resolve => setImmediate(resolve));
+			const beforeSend = [...materialized];
+			const persistedBeforeSend = await agent['_metadataStore'].read(sessionUri);
+
+			const sending = agent.chats.sendMessage(chat, 'hello', [folder], undefined, 'turn-1', undefined, undefined, context);
+			const turn = await readNextRequest(peer.outbound);
+			peer.push({ id: turn.id, result: {} });
+			await sending;
+			await new Promise(resolve => setImmediate(resolve));
+			const persistedAfterSend = await agent['_metadataStore'].read(sessionUri);
+
+			assert.deepStrictEqual({
+				beforeSend,
+				afterSend: materialized,
+				persistedThreadBeforeSend: persistedBeforeSend.threadId,
+				persistedThreadAfterSend: persistedAfterSend.threadId,
+				restartedDynamicTools: restartedThread.params.dynamicTools?.map(tool => tool.name),
+				requests: [prewarmStart, unsubscribe, restartedThread, turn].map(request => ({
+					method: request.method,
+					threadId: request.params.threadId,
+				})),
+			}, {
+				beforeSend: [],
+				afterSend: [chat.toString()],
+				persistedThreadBeforeSend: undefined,
+				persistedThreadAfterSend: 'restarted-thread',
+				restartedDynamicTools: ['client_tool'],
+				requests: [
+					{ method: 'thread/start', threadId: undefined },
+					{ method: 'thread/unsubscribe', threadId: 'prewarmed-thread' },
+					{ method: 'thread/start', threadId: undefined },
+					{ method: 'turn/start', threadId: 'restarted-thread' },
+				],
+			});
 		} finally {
 			peer.dispose();
 		}
@@ -1354,6 +1438,42 @@ suite('CodexAgent chat backing durability', () => {
 			corruptDefault: undefined,
 			sessions: [],
 		});
+	});
+
+	test('persists the app-server turn id for restored turn metadata', async () => {
+		const sessionStore = createTestSessionStore();
+		const session = AgentSession.uri('codex', 'turn-id-mapping');
+		const chat = URI.parse(buildDefaultChatUri(session));
+		const folder = URI.file('/repo/turn-id-mapping');
+		const agent = await createAgent(disposables, { sdkResolvableWithoutDownload: true, sessionStore });
+		const peer = disposables.add(createTestPeer());
+		connect(agent, peer);
+
+		try {
+			await materializeSession(agent, peer, session, chat, folder, 'codex-thread');
+			const codexSession = agent['_sessions'].get(AgentSession.id(session))!;
+			agent['_handleTurnStartedNotification'](codexSession, {
+				threadId: 'codex-thread',
+				turn: {
+					id: 'app-turn-1',
+					items: [],
+					itemsView: 'full',
+					status: 'inProgress',
+					error: null,
+					startedAt: null,
+					completedAt: null,
+					durationMs: null,
+				},
+			});
+			await new Promise(resolve => setImmediate(resolve));
+
+			assert.deepStrictEqual(sessionStore.databaseFor(session).setTurnEventIdCalls, [{
+				turnId: 'turn-1',
+				eventId: 'app-turn-1',
+			}]);
+		} finally {
+			peer.dispose();
+		}
 	});
 
 	test('the materialize receipt re-keys the chat backing onto the runtime, so a restored session stays addressable', async () => {

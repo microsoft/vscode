@@ -169,6 +169,18 @@ export interface ISessionDatabase extends IDisposable {
 	getTurnUsages(): Promise<Map<string, string>>;
 
 	/**
+	 * Persists the JSON-serialized delegation metadata for an agent-authored turn.
+	 * Idempotent — last writer wins per turn.
+	 */
+	setTurnDelegation(turnId: string, delegation: string): Promise<void>;
+
+	/**
+	 * Returns every persisted turn delegation, keyed by both the turn's own id
+	 * and its provider event id when one has been recorded.
+	 */
+	getTurnDelegations(): Promise<Map<string, string>>;
+
+	/**
 	 * Associates a git checkpoint ref (e.g. `refs/agents/<sid>/checkpoints/turn/N`)
 	 * with a turn. Idempotent — last writer wins per turn.
 	 */
@@ -289,6 +301,12 @@ export interface ISessionDatabase extends IDisposable {
 	 * Atomically store multiple metadata key-value pairs.
 	 */
 	setMetadataValues(values: Readonly<Record<string, string>>): Promise<void>;
+
+	/**
+	 * Atomically stores metadata values only when `key` is absent. Values named
+	 * by `copies` are read from their source keys and copied when present.
+	 */
+	setMetadataValuesIfAbsent(key: string, values: Readonly<Record<string, string>>, copies?: Readonly<Record<string, string>>): Promise<boolean>;
 
 	/**
 	 * Store or clear the draft for a chat in this session.
