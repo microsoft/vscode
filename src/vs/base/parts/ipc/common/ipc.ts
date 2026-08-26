@@ -119,12 +119,13 @@ export class ChunkingProtocolAdapter implements IMessagePassingProtocol, IDispos
 	private readonly _onMessage = new Emitter<VSBuffer>();
 	readonly onMessage: Event<VSBuffer> = this._onMessage.event;
 
-	private protocolListener: IDisposable;
-	private incomingBuffers = new Map<number, VSBuffer[]>();
+	private readonly disposables = new DisposableStore();
+	private readonly incomingBuffers = new Map<number, VSBuffer[]>();
 	private nextMessageId = 1;
 
-	constructor(private protocol: IMessagePassingProtocol) {
-		this.protocolListener = this.protocol.onMessage(msg => this.handleIncomingMessage(msg));
+	constructor(private readonly protocol: IMessagePassingProtocol) {
+		this.disposables.add(this._onMessage);
+		this.disposables.add(this.protocol.onMessage(msg => this.handleIncomingMessage(msg)));
 	}
 
 	public send(buffer: VSBuffer): void {
@@ -176,7 +177,7 @@ export class ChunkingProtocolAdapter implements IMessagePassingProtocol, IDispos
 					const fullMessage = VSBuffer.concat(chunks);
 					this.incomingBuffers.delete(messageId);
 					
-					// Yield to event loop for massive messages
+					// Yield to event loop for massive messages to prevent I/O blocking
 					setTimeout(() => this._onMessage.fire(fullMessage), 0);
 				}
 			}
@@ -184,8 +185,7 @@ export class ChunkingProtocolAdapter implements IMessagePassingProtocol, IDispos
 	}
 
 	public dispose(): void {
-		this.protocolListener.dispose();
-		this._onMessage.dispose();
+		this.disposables.dispose();
 		this.incomingBuffers.clear();
 	}
 }
