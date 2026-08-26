@@ -275,7 +275,7 @@ Learn more about [GitHub Copilot](https://docs.github.com/copilot/using-github-c
 				}
 
 				if (isRecoveryAttempt) {
-					this.logService.info("[ChatAgentService/FailedRequest] Detected a chat recovery attempt. Sending telemetry event 'chatFixOfPreviousFailedRequest'.");
+					this.logService.info('[ChatAgentService/FailedRequest] Detected a chat recovery attempt. Sending telemetry event \'chatFixOfPreviousFailedRequest\'.');
 					this.telemetryService.sendMSFTTelemetryEvent('chatFixOfPreviousFailedRequest', { modelId: request.model?.id });
 				}
 

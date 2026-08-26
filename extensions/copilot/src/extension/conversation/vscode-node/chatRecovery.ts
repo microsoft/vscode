@@ -26,7 +26,7 @@ export function arePromptsSimilar(previousPrompt: string, currentPrompt: string)
  * Determines whether the current chat request is an attempt to recover from a previous failed request.
  */
 export function isChatRecoveryAttempt(previousRequest: ChatRequestTurn2 | undefined, previousResponse: ChatResponseTurn | undefined, request: vscode.ChatRequest): boolean {
-	if ((!previousRequest && !previousResponse) || !request || request.permissionLevel === "autopilot" || request.subAgentInvocationId || request.isSystemInitiated) {
+	if ((!previousRequest && !previousResponse) || request.permissionLevel === 'autopilot' || request.subAgentInvocationId || request.isSystemInitiated) {
 		return false;
 	}
 	// If the request is a rerun, it is a recovery attempt.
@@ -68,5 +68,6 @@ export function isChatRecoveryAttempt(previousRequest: ChatRequestTurn2 | undefi
 	if (someFilesHaveBadDiagnostics) {
 		return true;
 	}
+	// Tool f
 	return false;
 }
