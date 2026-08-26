@@ -13,7 +13,7 @@ import { isEqual } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
 import { LOCAL_AGENT_HOST_SCHEME_PREFIX } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
-import { AGENT_HOST_SESSION_LINK_PATTERN, AgentSessionLinkStatus, createAgentSessionLinkPresentation, parseOpenSessionLinkUri } from '../../../../../../platform/agentHost/common/openSessionLink.js';
+import { AGENT_HOST_SESSION_LINK_PATTERN, AgentSessionLinkStatus, buildAgentSessionLinkPresentation, parseOpenSessionLinkUri } from '../../../../../../platform/agentHost/common/openSessionLink.js';
 import { ILinkPresentation, ILinkPresentationService, ILinkPresentationWatcher } from '../../../../../../platform/dataChannel/common/dataChannel.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
@@ -28,9 +28,8 @@ import { ISessionSummaryHoverService } from '../sessionSummaryHoverService.js';
 /**
  * Editor-window counterpart to the Agents window's
  * `OpenSessionLinkOpenerContribution`: handles `agent-host-session://` links
- * (surfaced by the `create_session` / `create_chat` server tools and rendered as
- * the "Open Session" pill) so the pill's button also works in the regular
- * editor-window chat.
+ * surfaced by the `create_session` / `create_chat` server tools, so the linked
+ * session title also works in the regular editor-window chat.
  *
  * The link carries the backend session URI (`<provider>:/<rawId>`); sessions
  * created from an editor-window chat run on the window's ambient/local host,
@@ -60,7 +59,7 @@ export class AgentHostOpenSessionLinkOpenerContribution extends Disposable imple
 		this._register(linkPresentationService.registerLinkPresentationProvider({
 			id: 'workbench.agentSessionLinkPresentation',
 			uriPattern: AGENT_HOST_SESSION_LINK_PATTERN,
-			initialKind: 'session',
+			kind: 'session',
 		}, {
 			createLinkPresentationWatcher: resource => {
 				const clientResource = toClientSessionResource(resource);
@@ -199,7 +198,7 @@ function toClientSessionResource(resource: URI | string): URI | undefined {
 
 function toSessionLinkPresentation(item: IChatSessionItem): ILinkPresentation {
 	const description = typeof item.description === 'string' ? item.description : item.description?.value;
-	return createAgentSessionLinkPresentation(item.label, description, chatSessionStatusName(item.status));
+	return buildAgentSessionLinkPresentation(item.label, description, chatSessionStatusName(item.status));
 }
 
 /**

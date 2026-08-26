@@ -43,6 +43,7 @@ import { ClaudeSdkPackage } from './claude/claudeAgentSdkService.js';
 import { CodexAgent, CodexSdkPackage } from './codex/codexAgent.js';
 import { createCodexProviderConfiguration } from './codex/codexProviderConfiguration.js';
 import { IAgentSdkDownloader, type IAgentSdkDownloadProgress } from './agentSdkDownloader.js';
+import { IAgentHostProviderService } from './agentHostProviderService.js';
 import { AgentHostCodexEnabledConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
 import { AgentModelRefreshScheduler, MODEL_REFRESH_INTERVAL_MS } from './agentModelRefreshScheduler.js';
 import { AgentHostClaudeAgentEnabledEnvVar, AgentHostClaudeSdkRootEnvVar, AgentHostCodexAgentEnabledEnvVar, AgentHostCodexAgentSdkRootEnvVar, isAgentEnabled } from '../common/agentService.js';
@@ -209,6 +210,7 @@ async function main(): Promise<void> {
 		sessionDataService: accessor.get(ISessionDataService),
 		telemetryService: accessor.get(ITelemetryService),
 		agentSdkDownloader: accessor.get(IAgentSdkDownloader),
+		providerService: accessor.get(IAgentHostProviderService),
 		stateManager: accessor.get(IAgentHostStateManager),
 		completions: accessor.get(IAgentHostCompletions),
 		customizationEnablementService: accessor.get(IAgentHostCustomizationEnablementService),
@@ -218,6 +220,7 @@ async function main(): Promise<void> {
 		fileService,
 		sessionDataService,
 		agentSdkDownloader,
+		providerService,
 		stateManager,
 		completions,
 		customizationEnablementService,
@@ -228,8 +231,7 @@ async function main(): Promise<void> {
 	let sdkDownloadProgress: Event<IAgentSdkDownloadProgress> | undefined;
 	if (!options.quiet) {
 		sdkDownloadProgress = runtime.sdkDownloadProgress;
-		const copilotAgent = disposables.add(instantiationService.createInstance(CopilotAgent));
-		agentService.registerProvider(copilotAgent);
+		providerService.registerProvider(instantiationService.createInstance(CopilotAgent));
 		log('CopilotAgent registered');
 		// Claude and Codex providers are gated on two things:
 		//  1. The user-facing enable toggle (`chat.agentHost.<x>Agent.enabled`,
@@ -245,8 +247,7 @@ async function main(): Promise<void> {
 		//     `node_modules` in dev; built/shipped installs use the env-var
 		//     override or `product.agentSdks.codex`.
 		if (isAgentEnabled(process.env[AgentHostClaudeAgentEnabledEnvVar], true) && (!environmentService.isBuilt || agentSdkDownloader.isAvailable(ClaudeSdkPackage))) {
-			const claudeAgent = disposables.add(instantiationService.createInstance(ClaudeAgent));
-			agentService.registerProvider(claudeAgent);
+			providerService.registerProvider(instantiationService.createInstance(ClaudeAgent));
 			log('ClaudeAgent registered');
 		}
 		if (!environmentService.isBuilt || agentSdkDownloader.isAvailable(CodexSdkPackage)) {
@@ -259,8 +260,7 @@ async function main(): Promise<void> {
 				const enabledByRootConfig = agentConfigurationService.getRootValue(platformRootSchema, AgentHostCodexEnabledConfigKey) === true;
 				if (enabledByEnv || enabledByRootConfig) {
 					codexRegistered = true;
-					const codexAgent = disposables.add(instantiationService.createInstance(CodexAgent));
-					agentService.registerProvider(codexAgent);
+					providerService.registerProvider(instantiationService.createInstance(CodexAgent));
 					log('CodexAgent registered');
 				}
 			};
@@ -289,8 +289,7 @@ async function main(): Promise<void> {
 	if (options.enableMockAgent) {
 		// Dynamic import to avoid bundling test code in production
 		import('../test/node/mockAgent.js').then(({ ScriptedMockAgent }) => {
-			const mockAgent = disposables.add(new ScriptedMockAgent());
-			agentService.registerProvider(mockAgent);
+			providerService.registerProvider(new ScriptedMockAgent());
 		}).catch(err => {
 			logService.error('[AgentHostServer] Failed to load mock agent', err);
 		});

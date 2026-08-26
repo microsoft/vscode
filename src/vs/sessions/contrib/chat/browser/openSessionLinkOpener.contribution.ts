@@ -10,7 +10,7 @@ import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IAgentHostConnectionsService } from '../../../../platform/agentHost/common/agentHostConnectionsService.js';
-import { AGENT_HOST_SESSION_LINK_PATTERN, AgentSessionLinkStatus, createAgentSessionLinkPresentation, parseOpenSessionLinkChatId, parseOpenSessionLinkUri } from '../../../../platform/agentHost/common/openSessionLink.js';
+import { AGENT_HOST_CHAT_LINK_PATTERN, AGENT_HOST_SESSION_ONLY_LINK_PATTERN, AgentSessionLinkStatus, buildAgentSessionLinkPresentation, parseOpenSessionLinkChatId, parseOpenSessionLinkUri } from '../../../../platform/agentHost/common/openSessionLink.js';
 import { ILinkPresentation, ILinkPresentationService, ILinkPresentationWatcher } from '../../../../platform/dataChannel/common/dataChannel.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
@@ -50,10 +50,17 @@ export class OpenSessionLinkOpenerContribution extends Disposable implements IWo
 		}));
 		this._register(linkPresentationService.registerLinkPresentationProvider({
 			id: 'sessions.agentSessionLinkPresentation',
-			uriPattern: AGENT_HOST_SESSION_LINK_PATTERN,
-			initialKind: 'session',
+			uriPattern: AGENT_HOST_SESSION_ONLY_LINK_PATTERN,
+			kind: 'session',
 		}, {
-			createLinkPresentationWatcher: resource => new AgentSessionLinkPresentationWatcher(resource, this._sessionsManagementService, this._connectionsService),
+			createLinkPresentationWatcher: resource => new AgentSessionLinkPresentationWatcher(resource, 'session', this._sessionsManagementService, this._connectionsService),
+		}));
+		this._register(linkPresentationService.registerLinkPresentationProvider({
+			id: 'sessions.agentChatLinkPresentation',
+			uriPattern: AGENT_HOST_CHAT_LINK_PATTERN,
+			kind: 'chat',
+		}, {
+			createLinkPresentationWatcher: resource => new AgentSessionLinkPresentationWatcher(resource, 'chat', this._sessionsManagementService, this._connectionsService),
 		}));
 		// A session pill in chat output gets the same hover as the sessions list,
 		// built from the live session this window already owns.
@@ -83,7 +90,7 @@ export class OpenSessionLinkOpenerContribution extends Disposable implements IWo
 			await this._sessionsService.openChat(session, chatResource);
 			return true;
 		}
-		await this._sessionsService.openSession(session.resource);
+		await this._sessionsService.openSession(session.resource, { source: 'link' });
 		return true;
 	}
 }
@@ -93,6 +100,7 @@ class AgentSessionLinkPresentationWatcher extends Disposable implements ILinkPre
 
 	constructor(
 		resource: URI,
+		kind: 'session' | 'chat',
 		sessionsManagementService: ISessionsManagementService,
 		connectionsService: IAgentHostConnectionsService,
 	) {
@@ -107,7 +115,7 @@ class AgentSessionLinkPresentationWatcher extends Disposable implements ILinkPre
 				const session = backendSession
 					? findSession(backendSession, sessionsManagementService, connectionsService)
 					: undefined;
-				return session ? readSessionState(session, chatId, reader) : undefined;
+				return session ? readSessionState(session, chatId, reader, kind) : undefined;
 			},
 		);
 	}
@@ -117,15 +125,16 @@ export function readSessionState(
 	session: ISessionLinkState,
 	chatId: string | undefined,
 	reader: IReader,
+	kind: 'session' | 'chat' = chatId ? 'chat' : 'session',
 ): ILinkPresentation {
 	const chat = findChat(session, chatId, reader);
 	const sessionTitle = session.title.read(reader);
 	const description = session.description.read(reader)?.value;
-	return createAgentSessionLinkPresentation(
+	return buildAgentSessionLinkPresentation(
 		chat?.title.read(reader) ?? (chatId ? localize('agentChatLink.unresolvedTitle', "Chat · {0}", sessionTitle) : sessionTitle),
 		description,
 		sessionStatusName(chat?.status.read(reader) ?? session.status.read(reader)),
-		chatId ? 'chat' : 'session',
+		kind,
 	);
 }
 

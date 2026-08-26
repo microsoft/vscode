@@ -32,6 +32,7 @@ Each contribution has its own subfolder so its implementation, helpers, and test
 ## Completed `onAction` extractions
 
 - `sessionTitle` (order 400) persists user-renamed titles, updates chat titles, and cascades default-chat titles to the owning session.
+- `chatDraft` (order 600) persists chat drafts. Its trigger moved from `onDidEmitEnvelope` to `onAction`, narrowing it from client-and-server dispatch to client dispatch only. That is deliberate: `ChatDraftChangedAction` is a `ClientChatAction` that nothing in production server-dispatches, and `onAction` runs after the reject-and-return guards in `_dispatchActionNow`, so a rejected draft is no longer written.
 
 ## Completed `onHydrateTurns` extractions
 
@@ -40,10 +41,44 @@ Each contribution has its own subfolder so its implementation, helpers, and test
 - `worktreeAnnouncement` (order 200) — restores the isolated-worktree notice for default chats through `IAgentHostWorktreeIsolation`.
 - Hydration reuses the spaced 100-series independently from turn-end and outgoing-turn hooks, because ordering is per hook.
 
+## Completed `onHydrateChat` extractions
+
+`onHydrateChat` is the fifth hook. It restores host-owned chat state — today a title and a
+draft — from persistence *before* a chat is registered in the session catalog.
+
+- `sessionTitle` (order 400) restores the user-set custom chat title it persists in `onAction`.
+- `chatDraft` (order 600) restores the draft it persists in `onAction`.
+- Both keys are disjoint, so their relative order is nominal today; they declare it anyway.
+
+It is a separate hook from `onHydrateTurns` because the two fire at different lifecycle
+moments, not because they carry different payloads:
+
+| | `onHydrateTurns` | `onHydrateChat` |
+|---|---|---|
+| Call site | `_getChatMessages`, after `provider.chats.getMessages` | `_doRestoreSession`, `_restorePeerChatsFromCatalog`, subagent discovery |
+| For peer chats | Lazy, on first content request | Eager, at catalog registration |
+| Needs a provider | Yes | No — a metadata-only database read |
+
+Fusing them would force drafts and titles to be read lazily, so a restored peer chat tab
+would render untitled until it was opened, and the subagent site registers a title with no
+turn hydration at all. Adding a `{ kind: 'summary' | 'turns' }` discriminant to one hook was
+rejected for the same reason: the discriminant guidance covers payload variants *within* one
+moment, the way `TurnEndReason` discriminates outcomes of a single turn ending.
+
+`onHydrateChat` reuses `IHydrationContext` verbatim and copies `hydrateTurns`' dispatch
+semantics — threading accumulator, per-hook ordering, and failure isolation that preserves
+the previous value. `IRestoredChat` is an object from the start, like `ISendContribution`, so
+the next host-owned restorable field does not need a sixth hook.
+
+The `meta.model` overlay in `_doRestoreSession` deliberately stays in `AgentService`: it seeds
+the draft's model from `IAgent`-supplied session metadata, so it is provider-shaped, and
+moving it would mean putting provider metadata into `IHydrationContext` for one consumer.
+
 ## Known coverage gaps
 
 - `onTurnEnd` fires from the agent signal path and from local command completion, but not for a client dispatched cancellation or for failures that report `ChatError` directly (missing provider, read-only or archived chat, a send that throws). This matches the call sites the previous `_markSessionUnread` had, so it is not a regression, but a contribution cannot yet rely on seeing every terminal outcome. Unifying admission behind `onIncomingRequest` is the point at which these paths can report through one route.
 - Mementos with extra key segments must be deleted with `deleteMemento` when their segment value goes out of use. Setting the value to `undefined` keeps the entry until the owning chat or session is disposed.
+- `onHydrateChat` runs *before* its chat is registered in the catalog, and chat mementos are evicted by chat disposal. A contribution that took a chat memento during hydration for a chat that then failed to register would leak that entry. Neither `chatDraft` nor `sessionTitle` takes a memento, so this is currently theoretical.
 
 ## Future hooks
 
