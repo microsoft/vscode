@@ -34,7 +34,6 @@ const nullGitStateService = new class implements IAgentHostGitStateService {
 	async setSessionGitHubState(_sessionKey: string, _state: ISessionGitHubState): Promise<void> { }
 	async recordSessionMerge(): Promise<void> { }
 	async attachSessionGitHubPullRequest(): Promise<void> { }
-	async attachSessionGitHubReferences(): Promise<void> { }
 };
 
 suite('AgentHostMergeOperationContribution', () => {

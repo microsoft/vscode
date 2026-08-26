@@ -40,8 +40,8 @@ class CapturingConfigurationService extends TestConfigurationService {
  * unit tests exercise the policy logic without a real filesystem; canonical
  * form == lexically normalized form.
  *
- * `null` realpath responses simulate non-existent paths to drive the
- * `_canonicalize` parent-fallback branch.
+ * `undefined` realpath responses simulate non-existent paths to drive the
+ * `_canonicalize` ancestor walk.
  */
 function createStubFileService(opts?: {
 	realpathReturns?: (uri: URI) => URI | undefined;
@@ -213,6 +213,46 @@ suite('AgentHostResourceService', () => {
 			true,
 			'nonexistent file under a symlinked parent should canonicalize to /real/new.txt',
 		);
+	});
+
+	test('check walks ancestors so nested missing paths through a symlink are denied', async () => {
+		// `/safe/sym` → `/outside`. Intermediate `/safe/sym/a` and leaf
+		// `/safe/sym/a/b.txt` do not exist. One missing component under the
+		// symlink is already denied; two or more used to fall back to the
+		// lexical workspace path and pass the `/safe` grant.
+		const fileService = createStubFileService({
+			realpathReturns: uri => {
+				if (
+					uri.path === '/safe/sym/a/b.txt'
+					|| uri.path === '/safe/sym/a'
+					|| uri.path === '/safe/sym/new.txt'
+					|| uri.path === '/safe/new/dir/file.txt'
+					|| uri.path === '/safe/new/dir'
+					|| uri.path === '/safe/new'
+				) {
+					return undefined;
+				}
+				if (uri.path === '/safe/sym') {
+					return URI.file('/outside');
+				}
+				return uri;
+			},
+		});
+		const { service } = createService({
+			'host': {
+				[URI.file('/safe').toString()]: AgentHostAccessMode.ReadWrite,
+			},
+		}, fileService);
+
+		assert.deepStrictEqual({
+			nestedMissingThroughSymlink: await service.check('host', URI.file('/safe/sym/a/b.txt'), AgentHostPermissionMode.Write),
+			oneLevelMissingThroughSymlink: await service.check('host', URI.file('/safe/sym/new.txt'), AgentHostPermissionMode.Write),
+			nestedMissingInsideGrant: await service.check('host', URI.file('/safe/new/dir/file.txt'), AgentHostPermissionMode.Write),
+		}, {
+			nestedMissingThroughSymlink: false,
+			oneLevelMissingThroughSymlink: false,
+			nestedMissingInsideGrant: true,
+		});
 	});
 
 	test('request resolves immediately when already granted', async () => {

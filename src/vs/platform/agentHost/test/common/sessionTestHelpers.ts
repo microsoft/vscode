@@ -418,7 +418,6 @@ export function createNoopGitStateService(): IAgentHostGitStateService {
 		setSessionGitHubState: async (_sessionKey: string, _state: ISessionGitHubState) => { },
 		recordSessionMerge: async (_sessionKey: string, _commit: string) => { },
 		attachSessionGitHubPullRequest: async (_sessionKey: string, _workingDirectory?: URI) => { },
-		attachSessionGitHubReferences: async (_sessionKey: string, _text: string) => { },
 	};
 }
 

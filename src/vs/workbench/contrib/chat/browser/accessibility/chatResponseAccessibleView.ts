@@ -17,6 +17,7 @@ import { ServicesAccessor } from '../../../../../platform/instantiation/common/i
 import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { migrateLegacyTerminalToolSpecificData } from '../../common/chat.js';
+import { autoModeRoutingDetail, autoModeRoutingTitle } from '../../common/chatAutoModeExplainability.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatAgentFeedbackReviewConfirmationData, IChatAutomationConfigurationData, IChatAutomationConfiguredData, IChatExtensionsContent, IChatGeneratedImageData, IChatModifiedFilesConfirmationData, IChatPullRequestContent, IChatSearchToolInvocationData, IChatSessionCreatedData, IChatSimpleToolInvocationData, IChatSubagentToolInvocationData, IChatTerminalToolInvocationData, IChatTodoListContent, IChatToolInputInvocationData, IChatToolInvocation, IChatToolResourcesInvocationData, ILegacyChatTerminalToolInvocationData, IToolResultOutputDetailsSerialized, isLegacyChatTerminalToolInvocationData } from '../../common/chatService/chatService.js';
 import { IChatResponseViewModel, isResponseVM } from '../../common/model/chatViewModel.js';
@@ -473,14 +474,12 @@ export function getChatResponsePlaintextParts(item: IChatResponseViewModel, incl
 				break;
 			}
 			case 'autoModeResolution': {
-				if (part.predictedLabel === 'fallback') {
-					contentParts.push({ partIndex, text: localize('autoModeResolutionA11yFallback', "Routed to {0}. Unable to resolve.", part.resolvedModelName) });
-				} else {
-					const label = part.predictedLabel === 'needs_reasoning'
-						? localize('autoModeResolutionA11yReasoning', "Reasoning")
-						: localize('autoModeResolutionA11yNonReasoning', "Non-reasoning");
-					contentParts.push({ partIndex, text: localize('autoModeResolutionA11y', "Routed to {0}. {1} - Confidence {2}%", part.resolvedModelName, label, (part.confidence * 100).toFixed(0)) });
+				// Matches the renderer: a row that never resolved is dropped once
+				// the response ends, so it must not linger in the text either.
+				if (!part.resolved && item.isComplete) {
+					break;
 				}
+				contentParts.push({ partIndex, text: autoModeRoutingDetail(part) ?? autoModeRoutingTitle(part) });
 				break;
 			}
 		}

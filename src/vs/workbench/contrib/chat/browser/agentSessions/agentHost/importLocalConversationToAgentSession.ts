@@ -229,6 +229,9 @@ export function importedTurnsFromChatModel(model: IChatModel): Turn[] {
 	for (const request of model.getRequests()) {
 		const responseParts = responsePartsFromRequest(request);
 		const outcome = turnOutcomeFromRequest(request);
+		if (outcome.error) {
+			responseParts.push({ kind: ResponsePartKind.Error, error: outcome.error });
+		}
 		if (request.isSystemInitiated) {
 			// Not a genuine user message; append its output to the previous
 			// turn so the agent's continued work is preserved without surfacing
@@ -239,7 +242,6 @@ export function importedTurnsFromChatModel(model: IChatModel): Turn[] {
 			if (previous) {
 				previous.responseParts.push(...responseParts);
 				previous.state = outcome.state;
-				previous.error = outcome.error;
 			}
 			continue;
 		}
@@ -249,9 +251,7 @@ export function importedTurnsFromChatModel(model: IChatModel): Turn[] {
 			responseParts,
 			usage: undefined,
 			state: outcome.state,
-			...(outcome.error ? { error: outcome.error } : {}),
 		} satisfies Turn);
 	}
 	return turns;
 }
-

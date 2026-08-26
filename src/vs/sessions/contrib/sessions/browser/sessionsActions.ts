@@ -13,6 +13,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuRegistry, MenuId, registerAction2, MenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { InputFocusedContext } from '../../../../platform/contextkey/common/contextkeys.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
@@ -26,9 +27,9 @@ import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/l
 import { getQuickNavigateHandler, inQuickPickContext } from '../../../../workbench/browser/quickaccess.js';
 import { Menus } from '../../../browser/menus.js';
 import { SessionsCategories } from '../../../common/categories.js';
-import { CanGoBackContext, CanGoForwardContext, SessionProviderIdContext, MultipleSessionsVisibleContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionsFocusContext, SessionSupportsMultipleChatsContext, SessionsWelcomeVisibleContext, SessionIdContext, SessionHasMultipleCommittedChatsContext, SessionHasMultipleOpenChatsContext, SessionsPickerVisibleContext, SessionActiveChatIsClosableContext, SessionActiveChatIsDeletableContext, SessionChatsPickerVisibleContext, SessionActiveChatHasSubagentsContext, SessionsTitleBarNewSessionEnabledContext, SessionsEditorScopeContext, SessionsHasClosedItemContext, IsQuickChatSessionContext } from '../../../common/contextkeys.js';
+import { CanGoBackContext, CanGoForwardContext, SessionProviderIdContext, MultipleSessionsVisibleContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionsFocusContext, SessionSupportsMultipleChatsContext, SessionSupportsRenameContext, SessionsWelcomeVisibleContext, SessionIdContext, SessionHasMultipleCommittedChatsContext, SessionHasMultipleOpenChatsContext, SessionsPickerVisibleContext, SessionActiveChatIsClosableContext, SessionActiveChatIsDeletableContext, SessionChatsPickerVisibleContext, SessionActiveChatHasSubagentsContext, SessionsTitleBarNewSessionEnabledContext, SessionsEditorScopeContext, SessionsHasClosedItemContext, IsQuickChatSessionContext } from '../../../common/contextkeys.js';
 import { ANY_AGENT_HOST_PROVIDER_RE } from '../../../common/agentHostSessionsProvider.js';
-import { CLOSE_CHAT_COMMAND_ID, FOCUS_ACTIVE_SESSION_COMMAND_ID, FOCUS_NEXT_CHAT_GROUP_COMMAND_ID, FOCUS_PREVIOUS_CHAT_GROUP_COMMAND_ID, MOVE_CHAT_TO_NEXT_GROUP_COMMAND_ID, MOVE_CHAT_TO_PREVIOUS_GROUP_COMMAND_ID, SPLIT_CHAT_GROUP_DOWN_COMMAND_ID, SPLIT_CHAT_GROUP_RIGHT_COMMAND_ID } from '../../../common/sessionCommands.js';
+import { CLOSE_CHAT_COMMAND_ID, FOCUS_ACTIVE_SESSION_COMMAND_ID, FOCUS_NEXT_CHAT_GROUP_COMMAND_ID, FOCUS_PREVIOUS_CHAT_GROUP_COMMAND_ID, MOVE_CHAT_TO_NEXT_GROUP_COMMAND_ID, MOVE_CHAT_TO_PREVIOUS_GROUP_COMMAND_ID, RENAME_SESSION_COMMAND_ID, SPLIT_CHAT_GROUP_DOWN_COMMAND_ID, SPLIT_CHAT_GROUP_RIGHT_COMMAND_ID } from '../../../common/sessionCommands.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ChatOriginKind, getChatCapabilities, getUntitledSessionTitle, IChat, ISession, SessionStatus } from '../../../services/sessions/common/session.js';
@@ -52,7 +53,8 @@ import { agentsNewSessionButtonBackground, agentsNewSessionButtonBorder, agentsN
 import { logSessionsInteraction, SessionsInteractionSource } from '../../../common/sessionsTelemetry.js';
 import { NEW_SESSION_ACTION_ID } from '../../chat/common/constants.js';
 import { groupSessionsForPicker } from './sessionsPicker.js';
-import { getSessionConversationActionId, getSessionConversationGroupId } from '../../../browser/sessionConversationGroups.js';
+import { getSessionConversationActionId, getSessionConversationGroupId, SESSION_CONVERSATION_SUBAGENTS_GROUP } from '../../../browser/sessionConversationGroups.js';
+import { ISessionChatItem, SessionChatItemCanDeleteContext, SessionChatItemCanRenameContext, SessionChatItemIsUntitledContext } from './views/sessionsList.js';
 import './media/newSessionActionViewItem.css';
 
 // -- Show Sessions Picker --
@@ -537,6 +539,95 @@ registerAction2(class CloseAllSessionsAction extends Action2 {
 // they win while a multi-chat session is focused, falling back to the
 // session-level commands when the tab strip is not shown.
 const CHAT_TAB_KEYBINDING_WEIGHT = KeybindingWeight.SessionsContrib + 10;
+
+registerAction2(class RenameSessionListChatAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessions.list.renameChat',
+			title: localize2('renameChat', "Rename..."),
+			f1: false,
+			menu: {
+				id: Menus.SessionChatItemContext,
+				group: '1_chat',
+				order: 1,
+				when: ContextKeyExpr.and(SessionChatItemCanRenameContext, SessionChatItemIsUntitledContext.negate()),
+			},
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, context?: ISessionChatItem): Promise<void> {
+		if (!context || !getChatCapabilities(context.chat, context.session, undefined).canRename || context.chat.status.get() === SessionStatus.Untitled) {
+			return;
+		}
+		const quickInputService = accessor.get(IQuickInputService);
+		const sessionsManagementService = accessor.get(ISessionsManagementService);
+		const currentTitle = context.chat.title.get().trim() || localize('untitledChat', "Untitled Chat");
+		const newTitle = await quickInputService.input({
+			value: currentTitle,
+			prompt: localize('renameChat.prompt', "New chat title"),
+			validateInput: async value => value.trim() ? undefined : localize('renameChat.empty', "Title cannot be empty"),
+		});
+		const trimmedTitle = newTitle?.trim();
+		if (trimmedTitle && trimmedTitle !== currentTitle) {
+			await sessionsManagementService.renameChat(context.session, context.chat.resource, trimmedTitle);
+		}
+	}
+});
+
+registerAction2(class OpenSessionListChatToSideAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessions.list.openChatToSide',
+			title: localize2('openChatToSide', "Open to the Side"),
+			f1: false,
+			menu: {
+				id: Menus.SessionChatItemContext,
+				group: '1_chat',
+				order: 2,
+			},
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, context?: ISessionChatItem): Promise<void> {
+		if (!context) {
+			return;
+		}
+		const sessionsService = accessor.get(ISessionsService);
+		const sessionsPartService = accessor.get(ISessionsPartService);
+		if (!await sessionsService.canOpenSession(context.session)) {
+			return;
+		}
+		sessionsService.showSession(context.session.resource);
+		const sessionView = sessionsPartService.getSessionView(context.session.sessionId);
+		if (!sessionView) {
+			throw new Error(`Unable to open chat to the side because session view '${context.session.sessionId}' is not mounted`);
+		}
+		await sessionView.openChatToSide(context.chat.resource);
+	}
+});
+
+registerAction2(class DeleteSessionListChatAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessions.list.deleteChat',
+			title: localize2('deleteChat', "Delete Chat"),
+			f1: false,
+			menu: {
+				id: Menus.SessionChatItemContext,
+				group: '2_delete',
+				order: 1,
+				when: SessionChatItemCanDeleteContext,
+			},
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, context?: ISessionChatItem): Promise<void> {
+		if (!context || !getChatCapabilities(context.chat, context.session, undefined).canDelete) {
+			return;
+		}
+		await accessor.get(ISessionsManagementService).deleteChat(context.session, context.chat.resource);
+	}
+});
 
 // "New Chat in This Session" starts a new chat from the session header's overflow menu.
 const ADD_CHAT_TO_SESSION_ACTION_ID = 'sessions.chatCompositeBar.addChat';
@@ -1312,7 +1403,7 @@ export class SessionConversationActionsContribution extends Disposable implement
 			scopedToSession,
 			SessionIsCreatedContext,
 			SessionIsArchivedContext.negate(),
-			ContextKeyExpr.or(ContextKeyExpr.and(SessionSupportsMultipleChatsContext, SessionHasMultipleCommittedChatsContext), SessionActiveChatHasSubagentsContext),
+			SessionActiveChatHasSubagentsContext,
 		);
 
 		const allChats = session.chats.read(reader);
@@ -1361,7 +1452,7 @@ export class SessionConversationActionsContribution extends Disposable implement
 				return;
 			}
 			const group = getSessionConversationGroupId(chat, activeChat, extUri);
-			if (group) {
+			if (group === SESSION_CONVERSATION_SUBAGENTS_GROUP) {
 				registerOpen(chat, group, index);
 			}
 		});
@@ -1379,7 +1470,7 @@ MenuRegistry.appendMenuItem(Menus.SessionBarToolbar, {
 	when: ContextKeyExpr.and(
 		SessionIsCreatedContext,
 		SessionIsArchivedContext.negate(),
-		ContextKeyExpr.or(ContextKeyExpr.and(SessionSupportsMultipleChatsContext, SessionHasMultipleCommittedChatsContext), SessionActiveChatHasSubagentsContext),
+		SessionActiveChatHasSubagentsContext,
 	),
 });
 
@@ -1430,20 +1521,33 @@ registerAction2(class RenameSessionHeaderAction extends Action2 {
 		super({
 			id: 'sessions.sessionHeader.rename',
 			title: localize2('renameSessionHeader', "Rename..."),
+			icon: Codicon.edit,
 			menu: [{
 				id: Menus.SessionHeaderContext,
 				group: '2_edit',
 				order: 1,
 				when: ContextKeyExpr.regex(SessionProviderIdContext.key, ANY_AGENT_HOST_PROVIDER_RE),
+			}, {
+				id: Menus.SessionBarToolbar,
+				group: 'secondary/1_session',
+				order: 20,
+				when: ContextKeyExpr.and(SessionIsCreatedContext, SessionSupportsRenameContext, SessionIsArchivedContext.negate()),
 			}],
 		});
 	}
 
-	override run(accessor: ServicesAccessor, session: IActiveSession | undefined): void {
+	override async run(accessor: ServicesAccessor, session: IActiveSession | undefined): Promise<void> {
 		if (!session) {
 			return;
 		}
-		accessor.get(ISessionsPartService).getSessionView(session.sessionId)?.startTitleEditing();
+		// Renaming in the header title is the lightest-weight affordance, but it
+		// is only available while the header shows the title (e.g. not while the
+		// single-group chat tabs row replaces it); prompt for the new title when
+		// it cannot be used.
+		if (accessor.get(ISessionsPartService).getSessionView(session.sessionId)?.startTitleEditing()) {
+			return;
+		}
+		await accessor.get(ICommandService).executeCommand(RENAME_SESSION_COMMAND_ID, session);
 	}
 });
 
