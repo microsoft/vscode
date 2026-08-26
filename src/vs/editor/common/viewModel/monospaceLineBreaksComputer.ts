@@ -8,7 +8,7 @@ import * as strings from '../../../base/common/strings.js';
 import { WrappingIndent, IComputedEditorOptions, EditorOption } from '../config/editorOptions.js';
 import { CharacterClassifier } from '../core/characterClassifier.js';
 import { FontInfo } from '../config/fontInfo.js';
-import { LineInjectedText } from '../textModelEvents.js';
+import { FixedWidthInjectedTextRange, LineInjectedText } from '../textModelEvents.js';
 import { InjectedTextOptions } from '../model.js';
 import { ILineBreaksComputerFactory, ILineBreaksComputer, ModelLineProjectionData, ILineBreaksComputerContext } from '../modelLineProjectionData.js';
 
@@ -46,7 +46,7 @@ export class MonospaceLineBreaksComputerFactory implements ILineBreaksComputerFa
 					if (previousLineBreakData && !previousLineBreakData.injectionOptions && !injectedText && !isLineFeedWrappingEnabled) {
 						result[i] = createLineBreaksFromPreviousLineBreaks(this.classifier, previousLineBreakData, lineText, tabSize, wrappingColumn, columnsForFullWidthChar, wrappingIndent, wordBreak);
 					} else {
-						result[i] = createLineBreaks(this.classifier, lineText, injectedText, tabSize, wrappingColumn, columnsForFullWidthChar, fontInfo.fontSize / fontInfo.typicalHalfwidthCharacterWidth, wrappingIndent, wordBreak, isLineFeedWrappingEnabled);
+						result[i] = createLineBreaks(this.classifier, lineText, injectedText, tabSize, wrappingColumn, columnsForFullWidthChar, fontInfo, wrappingIndent, wordBreak, isLineFeedWrappingEnabled);
 					}
 				}
 				arrPool1.length = 0;
@@ -356,9 +356,9 @@ function createLineBreaksFromPreviousLineBreaks(classifier: WrappingCharacterCla
 	return previousBreakingData;
 }
 
-function createLineBreaks(classifier: WrappingCharacterClassifier, _lineText: string, injectedTexts: LineInjectedText[] | null, tabSize: number, firstLineBreakColumn: number, columnsForFullWidthChar: number, columnsPerEm: number, wrappingIndent: WrappingIndent, wordBreak: 'normal' | 'keepAll', wrapOnEscapedLineFeeds: boolean): ModelLineProjectionData | null {
+function createLineBreaks(classifier: WrappingCharacterClassifier, _lineText: string, injectedTexts: LineInjectedText[] | null, tabSize: number, firstLineBreakColumn: number, columnsForFullWidthChar: number, fontInfo: FontInfo, wrappingIndent: WrappingIndent, wordBreak: 'normal' | 'keepAll', wrapOnEscapedLineFeeds: boolean): ModelLineProjectionData | null {
 	const lineText = LineInjectedText.applyInjectedText(_lineText, injectedTexts);
-	const injectedTextWidthsInEm = LineInjectedText.getFixedWidthInjectedTextRanges(injectedTexts);
+	const fixedWidthRanges = LineInjectedText.getFixedWidthInjectedTextRanges(injectedTexts);
 
 	let injectionOptions: InjectedTextOptions[] | null;
 	let injectionOffsets: number[] | null;
@@ -391,91 +391,109 @@ function createLineBreaks(classifier: WrappingCharacterClassifier, _lineText: st
 
 	const isKeepAll = (wordBreak === 'keepAll');
 	const wrappedTextIndentLength = computeWrappedTextIndentLength(lineText, tabSize, firstLineBreakColumn, columnsForFullWidthChar, wrappingIndent);
-	const wrappedLineBreakColumn = firstLineBreakColumn - wrappedTextIndentLength;
+
+	// The wrapping decision is taken in pixels, because injected text can request an arbitrary
+	// width via `widthInEm` which does not map to a whole number of columns.
+	const typicalHalfwidthCharacterWidth = fontInfo.typicalHalfwidthCharacterWidth;
+	const wrappedLineBreakPixelWidth = (firstLineBreakColumn - wrappedTextIndentLength) * typicalHalfwidthCharacterWidth;
 
 	const breakingOffsets: number[] = [];
 	const breakingOffsetsVisibleColumn: number[] = [];
 	let breakingOffsetsCount: number = 0;
 	let breakOffset = 0;
 	let breakOffsetVisibleColumn = 0;
+	let breakOffsetPixelWidth = 0;
 
-	let breakingColumn = firstLineBreakColumn;
+	let breakingPixelWidth = firstLineBreakColumn * typicalHalfwidthCharacterWidth;
 	let fixedWidthRangeIndex = 0;
-	const firstFixedWidthRange = injectedTextWidthsInEm.length > 0 ? injectedTextWidthsInEm[0] : null;
+	const firstFixedWidthRange = fixedWidthRanges.length > 0 ? fixedWidthRanges[0] : null;
 	const startsWithFixedWidth = firstFixedWidthRange && firstFixedWidthRange.startOffset === 0;
 
 	let prevCharCode: number;
+	let prevCharCodeClass: CharacterClass;
 	let visibleColumn: number;
+	let currentLinePixelWidth: number;
 	let startOffset: number;
 	if (startsWithFixedWidth) {
-		// The line starts with injected text of a specific width
-		prevCharCode = lineText.charCodeAt(firstFixedWidthRange.endOffset - 1);
-		visibleColumn = firstFixedWidthRange.widthInEm * columnsPerEm;
+		prevCharCode = CharCode.Null;
+		prevCharCodeClass = CharacterClass.NONE;
+		visibleColumn = computeFixedWidthRangeColumnWidth(lineText, firstFixedWidthRange, 0, tabSize, columnsForFullWidthChar);
+		currentLinePixelWidth = firstFixedWidthRange.widthInEm * fontInfo.fontSize;
 		startOffset = firstFixedWidthRange.endOffset;
 		fixedWidthRangeIndex++;
 	} else {
 		prevCharCode = lineText.charCodeAt(0);
 		visibleColumn = computeCharWidth(prevCharCode, 0, tabSize, columnsForFullWidthChar);
+		currentLinePixelWidth = computeCharPixelWidth(prevCharCode, 0, tabSize, fontInfo);
 		startOffset = 1;
 		if (strings.isHighSurrogate(prevCharCode)) {
 			// A surrogate pair must always be considered as a single unit, so it is never to be broken
 			visibleColumn += 1;
+			currentLinePixelWidth += typicalHalfwidthCharacterWidth;
 			prevCharCode = lineText.charCodeAt(1);
 			startOffset++;
 		}
+		prevCharCodeClass = classifier.get(prevCharCode);
 	}
-	let prevCharCodeClass = classifier.get(prevCharCode);
 
 	for (let i = startOffset; i < len; i++) {
-		const fixedWidthRange = injectedTextWidthsInEm.length > 0 && fixedWidthRangeIndex < injectedTextWidthsInEm.length ? injectedTextWidthsInEm[fixedWidthRangeIndex] : null;
+		const fixedWidthRange = fixedWidthRanges.length > 0 && fixedWidthRangeIndex < fixedWidthRanges.length ? fixedWidthRanges[fixedWidthRangeIndex] : null;
 		const charStartOffset = i;
 		let charCode = lineText.charCodeAt(i);
 		let charCodeClass: CharacterClass;
 		let charWidth: number;
+		let charPixelWidth: number;
 		let wrapEscapedLineFeed = false;
 
 		if (fixedWidthRange && fixedWidthRange.startOffset === i) {
+			charCode = CharCode.Null;
+			charCodeClass = CharacterClass.NONE;
+			charWidth = computeFixedWidthRangeColumnWidth(lineText, fixedWidthRange, visibleColumn, tabSize, columnsForFullWidthChar);
+			charPixelWidth = fixedWidthRange.widthInEm * fontInfo.fontSize;
 			i = fixedWidthRange.endOffset - 1;
-			charCode = lineText.charCodeAt(i);
-			charCodeClass = classifier.get(charCode);
-			charWidth = fixedWidthRange.widthInEm * columnsPerEm;
 			fixedWidthRangeIndex++;
 		} else if (strings.isHighSurrogate(charCode)) {
 			// A surrogate pair must always be considered as a single unit, so it is never to be broken
 			i++;
 			charCodeClass = CharacterClass.NONE;
 			charWidth = 2;
+			charPixelWidth = 2 * typicalHalfwidthCharacterWidth;
 		} else {
 			charCodeClass = classifier.get(charCode);
 			charWidth = computeCharWidth(charCode, visibleColumn, tabSize, columnsForFullWidthChar);
+			charPixelWidth = computeCharPixelWidth(charCode, visibleColumn, tabSize, fontInfo);
 		}
 
 		// literal \n shall trigger a softwrap
 		if (wrapOnEscapedLineFeeds && isEscapedLineBreakAtPosition(lineText, i)) {
 			breakOffset = charStartOffset;
 			breakOffsetVisibleColumn = visibleColumn;
+			breakOffsetPixelWidth = currentLinePixelWidth;
 			wrapEscapedLineFeed = true;
 		} else if (canBreak(prevCharCode, prevCharCodeClass, charCode, charCodeClass, isKeepAll)) {
 			breakOffset = charStartOffset;
 			breakOffsetVisibleColumn = visibleColumn;
+			breakOffsetPixelWidth = currentLinePixelWidth;
 		}
 
 		visibleColumn += charWidth;
+		currentLinePixelWidth += charPixelWidth;
 
-		// check if adding character at `i` will go over the breaking column
-		if (visibleColumn > breakingColumn || wrapEscapedLineFeed) {
+		// check if adding character at `i` will go over the breaking width
+		if (currentLinePixelWidth > breakingPixelWidth || wrapEscapedLineFeed) {
 			// We need to break at least before character at `i`:
 
-			if (breakOffset === 0 || visibleColumn - breakOffsetVisibleColumn > wrappedLineBreakColumn) {
+			if (breakOffset === 0 || currentLinePixelWidth - breakOffsetPixelWidth > wrappedLineBreakPixelWidth) {
 				// Cannot break at `breakOffset`, must break at `i`
 				breakOffset = charStartOffset;
 				breakOffsetVisibleColumn = visibleColumn - charWidth;
+				breakOffsetPixelWidth = currentLinePixelWidth - charPixelWidth;
 			}
 
 			breakingOffsets[breakingOffsetsCount] = breakOffset;
 			breakingOffsetsVisibleColumn[breakingOffsetsCount] = breakOffsetVisibleColumn;
 			breakingOffsetsCount++;
-			breakingColumn = breakOffsetVisibleColumn + wrappedLineBreakColumn;
+			breakingPixelWidth = breakOffsetPixelWidth + wrappedLineBreakPixelWidth;
 			breakOffset = 0;
 		}
 
@@ -510,6 +528,37 @@ function computeCharWidth(charCode: number, visibleColumn: number, tabSize: numb
 
 function tabCharacterWidth(visibleColumn: number, tabSize: number): number {
 	return (tabSize - (visibleColumn % tabSize));
+}
+
+/**
+ * The width in pixels a character occupies. Used for the wrapping decision, which must reason
+ * in real widths because injected text can request an arbitrary width via `widthInEm`.
+ */
+function computeCharPixelWidth(charCode: number, visibleColumn: number, tabSize: number, fontInfo: FontInfo): number {
+	if (charCode === CharCode.Tab) {
+		return tabCharacterWidth(visibleColumn, tabSize) * fontInfo.typicalHalfwidthCharacterWidth;
+	}
+	if (strings.isFullWidthCharacter(charCode)) {
+		return fontInfo.typicalFullwidthCharacterWidth;
+	}
+	if (charCode < 32) {
+		// when using `editor.renderControlCharacters`, the substitutions are often wide
+		return fontInfo.typicalFullwidthCharacterWidth;
+	}
+	return fontInfo.typicalHalfwidthCharacterWidth;
+}
+
+/**
+ * The number of columns the characters of a fixed width injected text range occupy. `widthInEm`
+ * is deliberately ignored here: `visibleColumn` only drives tab expansion, which must stay in
+ * sync with the line rendering, and the rendering does not know about `widthInEm`.
+ */
+function computeFixedWidthRangeColumnWidth(lineText: string, range: FixedWidthInjectedTextRange, visibleColumn: number, tabSize: number, columnsForFullWidthChar: number): number {
+	let width = 0;
+	for (let i = range.startOffset; i < range.endOffset; i++) {
+		width += computeCharWidth(lineText.charCodeAt(i), visibleColumn + width, tabSize, columnsForFullWidthChar);
+	}
+	return width;
 }
 
 /**

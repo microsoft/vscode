@@ -146,7 +146,7 @@ suite('Editor ViewModel - MonospaceLineBreaksComputer', () => {
 			breakOffsetsVisibleColumn: lineBreakData?.breakOffsetsVisibleColumn
 		}, {
 			breakOffsets: [4, 7],
-			breakOffsetsVisibleColumn: [4, 8]
+			breakOffsetsVisibleColumn: [4, 7]
 		});
 	});
 
@@ -161,7 +161,7 @@ suite('Editor ViewModel - MonospaceLineBreaksComputer', () => {
 			breakOffsetsVisibleColumn: lineBreakData?.breakOffsetsVisibleColumn
 		}, {
 			breakOffsets: [8, 11],
-			breakOffsetsVisibleColumn: [5, 8]
+			breakOffsetsVisibleColumn: [8, 11]
 		});
 	});
 
@@ -177,7 +177,7 @@ suite('Editor ViewModel - MonospaceLineBreaksComputer', () => {
 			breakOffsetsVisibleColumn: lineBreakData?.breakOffsetsVisibleColumn
 		}, {
 			breakOffsets: [4, 8],
-			breakOffsetsVisibleColumn: [4, 9]
+			breakOffsetsVisibleColumn: [4, 8]
 		});
 	});
 
@@ -192,22 +192,44 @@ suite('Editor ViewModel - MonospaceLineBreaksComputer', () => {
 			breakOffsetsVisibleColumn: lineBreakData?.breakOffsetsVisibleColumn
 		}, {
 			breakOffsets: [3, 4, 7],
-			breakOffsetsVisibleColumn: [3, 9, 12]
+			breakOffsetsVisibleColumn: [3, 4, 7]
 		});
 	});
 
-	test('uses fixed injected text width when computing following tab stops', () => {
+	test('wraps before a tab that no longer fits after fixed-width injected text', () => {
 		const factory = new MonospaceLineBreaksComputerFactory('', '');
 		const lineBreakData = getLineBreakData(factory, 4, 4, 2, WrappingIndent.None, 'normal', false, 'ab\tcd', null, [
 			new LineInjectedText(0, 1, 3, { content: '\xa0', widthInEm: 0.75 }, 0)
 		]);
 
+		// `ab` plus a 0.75em wide injection fills 2.75 columns worth of pixels, so the tab (which
+		// expands from character column 3 to character column 4) no longer fits and the line wraps
+		// right before it.
 		assert.deepStrictEqual({
 			breakOffsets: lineBreakData?.breakOffsets,
 			breakOffsetsVisibleColumn: lineBreakData?.breakOffsetsVisibleColumn
 		}, {
-			breakOffsets: [4, 6],
-			breakOffsetsVisibleColumn: [4, 6]
+			breakOffsets: [3, 6],
+			breakOffsetsVisibleColumn: [3, 6]
+		});
+	});
+
+	test('expands a tab following fixed-width injected text from the character column', () => {
+		const factory = new MonospaceLineBreaksComputerFactory('', '');
+		const lineBreakData = getLineBreakData(factory, 4, 10, 2, WrappingIndent.None, 'normal', false, 'ab\tcdefgh', null, [
+			new LineInjectedText(0, 1, 3, { content: '\xa0', widthInEm: 1.5 }, 0)
+		]);
+
+		// The injection counts as a single character column, so the tab at character column 3 expands
+		// to character column 4 and the whole line spans 10 columns. Were the 1.5em width to leak into
+		// the column accumulator, the injection would count as 3 columns and the tab would expand to
+		// character column 8 instead.
+		assert.deepStrictEqual({
+			breakOffsets: lineBreakData?.breakOffsets,
+			breakOffsetsVisibleColumn: lineBreakData?.breakOffsetsVisibleColumn
+		}, {
+			breakOffsets: [4, 10],
+			breakOffsetsVisibleColumn: [4, 10]
 		});
 	});
 
@@ -234,7 +256,7 @@ suite('Editor ViewModel - MonospaceLineBreaksComputer', () => {
 		assert.deepStrictEqual(a.breakOffsets, b.breakOffsets);
 		assert.deepStrictEqual(a.wrappedTextIndentLength, b.wrappedTextIndentLength);
 		for (let i = 0; i < a.breakOffsetsVisibleColumn.length; i++) {
-			const diff = a.breakOffsetsVisibleColumn[i] - b.breakOffsetsVisibleColumn[i];
+			const diff = Math.abs(a.breakOffsetsVisibleColumn[i] - b.breakOffsetsVisibleColumn[i]);
 			assert.ok(diff < 0.001);
 		}
 	}
