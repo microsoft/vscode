@@ -7,6 +7,7 @@ import * as vscode from 'vscode';
 import { computeLevenshteinDistance } from '../../../util/vs/base/common/diff/diff';
 import { isEqual } from '../../../util/vs/base/common/resources';
 import { ChatRequestTurn2, ChatResponseTurn } from '../../../vscodeTypes';
+import { MergeConflictParser } from '../../git/vscode/mergeConflictParser';
 import { PreviousEditCodeStep } from '../../intents/node/editCodeStep';
 import { WorkingSetEntryState } from '../../prompt/common/intents';
 
@@ -49,6 +50,11 @@ export function isChatRecoveryAttempt(previousRequest: ChatRequestTurn2 | undefi
 	if (previousResponse?.result.errorDetails) {
 		return true;
 	}
+	// If the previous response was not an expected error, it is likely that the user is attempting to recover from it.
+	const previousFailure = previousResponse?.result.errorDetails?.isExpectedError === false;
+	if (previousFailure) {
+		return true;
+	}
 	const editStep = previousResponse ? PreviousEditCodeStep.fromChatResultMetaData(previousResponse.result) : undefined;
 	const changedFiles = editStep?.workingSet.filter(entry => entry.state !== WorkingSetEntryState.Initial) ?? [];
 	// All files were rejected or modified, which strongly suggests that the previous request was not successful.
@@ -68,6 +74,13 @@ export function isChatRecoveryAttempt(previousRequest: ChatRequestTurn2 | undefi
 	if (someFilesHaveBadDiagnostics) {
 		return true;
 	}
-	// Tool f
+	// Files have merge conflicts
+	const someFilesHaveMergeConflicts = changedFiles.some(entry => {
+		const document = vscode.workspace.textDocuments.find(document => isEqual(document.uri, entry.document.uri));
+		return document !== undefined && MergeConflictParser.scanDocument(document).length > 0;
+	});
+	if (someFilesHaveMergeConflicts) {
+		return true;
+	}
 	return false;
 }
