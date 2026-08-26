@@ -17,6 +17,7 @@ import { IOpenerService } from '../../../../../platform/opener/common/opener.js'
 import { IOpenURLOptions, IURLService } from '../../../../../platform/url/common/url.js';
 import { IExtensionService } from '../../../../../workbench/services/extensions/common/extensions.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISession, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import '../../browser/issueActions.js';
 
@@ -160,7 +161,7 @@ suite('Issue Actions', () => {
 		};
 		instantiationService.stub(IClipboardService, clipboardService);
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly activeSession = constObservable(session);
+			override readonly activeSession = constObservable<IActiveSession | undefined>(session as IActiveSession);
 		});
 
 		await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('workbench.agentSessions.action.copyIssueUrl')!.handler(accessor));
@@ -169,12 +170,8 @@ suite('Issue Actions', () => {
 	});
 
 	test('Copy Issue URL uses an explicit contextual issue', async () => {
-		const firstIssueUri = URI.parse('https://github.com/owner/repo/issues/7');
 		const secondIssueUri = URI.parse('https://github.com/upstream/project/issues/11');
-		const session = createSessionWithIssue(firstIssueUri, [
-			{ owner: 'owner', repo: 'repo', number: 7, uri: firstIssueUri },
-			{ owner: 'upstream', repo: 'project', number: 11, uri: secondIssueUri },
-		]);
+		const secondIssue = { owner: 'upstream', repo: 'project', number: 11, uri: secondIssueUri };
 		const instantiationService = new TestInstantiationService();
 		const clipboardService = new class extends mock<IClipboardService>() {
 			readonly writes: string[] = [];
@@ -187,7 +184,7 @@ suite('Issue Actions', () => {
 			override readonly activeSession = constObservable(undefined);
 		});
 
-		await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('workbench.agentSessions.action.copyIssueUrl')!.handler(accessor, { issue: session.workspace.get()!.folders[0].gitRepository!.gitHubInfo.get().issues![1] }));
+		await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('workbench.agentSessions.action.copyIssueUrl')!.handler(accessor, { issue: secondIssue }));
 
 		assert.deepStrictEqual(clipboardService.writes, [secondIssueUri.toString(true)]);
 	});

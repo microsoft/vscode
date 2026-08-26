@@ -197,12 +197,8 @@ suite('Pull Request Actions', () => {
 	});
 
 	test('Copy Pull Request URL uses an explicit contextual pull request', async () => {
-		const firstPullRequestUri = URI.parse('https://github.com/owner/repo/pull/1');
 		const secondPullRequestUri = URI.parse('https://github.com/upstream/project/pull/7');
-		const session = createSessionWithPullRequest(firstPullRequestUri, [
-			{ owner: 'owner', repo: 'repo', number: 1, uri: firstPullRequestUri },
-			{ owner: 'upstream', repo: 'project', number: 7, uri: secondPullRequestUri },
-		]);
+		const secondPullRequest = { owner: 'upstream', repo: 'project', number: 7, uri: secondPullRequestUri };
 
 		const instantiationService = new TestInstantiationService();
 		const clipboardService = new class extends mock<IClipboardService>() {
@@ -216,7 +212,7 @@ suite('Pull Request Actions', () => {
 			override readonly activeSession = constObservable(undefined);
 		});
 
-		await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('workbench.agentSessions.action.copyPullRequestUrl')!.handler(accessor, { pullRequest: session.workspace.get()!.folders[0].gitRepository!.gitHubInfo.get().pullRequests![1] }));
+		await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('workbench.agentSessions.action.copyPullRequestUrl')!.handler(accessor, { pullRequest: secondPullRequest }));
 
 		assert.deepStrictEqual(clipboardService.writes, [secondPullRequestUri.toString(true)]);
 	});
