@@ -446,11 +446,6 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		if (terminalToolSessionId) {
 			if (this._terminalData.isPty === false) {
 				this._attachOutputSource();
-				this._register(this._terminalChatService.onDidRegisterOutputSource(sessionId => {
-					if (sessionId === terminalToolSessionId) {
-						this._attachOutputSource();
-					}
-				}));
 			}
 		}
 		let pastTenseMessage: string | undefined;
@@ -1081,6 +1076,12 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			}
 		}
 		return this._terminalInstance;
+	}
+
+	public didRegisterOutputSource(terminalToolSessionId: string): void {
+		if (this._terminalData.isPty === false && this._terminalData.terminalToolSessionId === terminalToolSessionId) {
+			this._attachOutputSource();
+		}
 	}
 
 	private _attachOutputSource(): void {
