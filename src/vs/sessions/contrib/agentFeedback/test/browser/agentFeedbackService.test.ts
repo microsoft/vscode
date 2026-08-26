@@ -21,7 +21,7 @@ import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IEditorService, IVisibleEditorsChangeEvent } from '../../../../../workbench/services/editor/common/editorService.js';
-import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { whenChatWidgetForSession } from '../../../chat/browser/chatWidgetUtils.js';
 import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
@@ -60,6 +60,7 @@ suite('AgentFeedbackService - Ordering', () => {
 		});
 		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 			override onDidDeleteSession = onDidDeleteSession.event;
+			override onDidChangeSessions = Event.None;
 			override getSession(_resource: URI) { return undefined; }
 		});
 		instantiationService.stub(ISessionsService, { activeSession: observableValue<IActiveSession | undefined>('activeSession', undefined) } as unknown as ISessionsService);
@@ -368,11 +369,14 @@ suite('AgentFeedbackService - getSessionForFile', () => {
 	let visiblePanes: any[];
 	let activeSessionObs: ISettableObservable<IActiveSession | undefined>;
 	let sessions: Map<string, ISession>;
+	let sessionsChangedEmitter: Emitter<ISessionsChangeEvent>;
 
 	let sessionS1: URI;
 	let sessionS2: URI;
 	let fileA: URI;
 	let fileB: URI;
+	/** Number of `ISessionsManagementService.getSession` lookups performed so far. */
+	let managementLookups: number;
 
 	function pane(...resources: URI[]): any {
 		// Single resource: a plain editor input with `.resource`.
@@ -414,6 +418,8 @@ suite('AgentFeedbackService - getSessionForFile', () => {
 		visiblePanes = [];
 		activeSessionObs = observableValue<IActiveSession | undefined>('activeSession', undefined);
 		sessions = new Map<string, ISession>();
+		sessionsChangedEmitter = store.add(new Emitter<ISessionsChangeEvent>());
+		managementLookups = 0;
 
 		const instantiationService = store.add(new TestInstantiationService());
 
@@ -425,7 +431,11 @@ suite('AgentFeedbackService - getSessionForFile', () => {
 		});
 		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 			override onDidDeleteSession = Event.None;
-			override getSession(resource: URI) { return sessions.get(resource.toString()); }
+			override onDidChangeSessions = sessionsChangedEmitter.event;
+			override getSession(resource: URI) {
+				managementLookups++;
+				return sessions.get(resource.toString());
+			}
 		});
 		instantiationService.stub(ISessionsService, { activeSession: activeSessionObs } as unknown as ISessionsService);
 
@@ -608,6 +618,70 @@ suite('AgentFeedbackService - getSessionForFile', () => {
 		assert.strictEqual(service.getSessionForFile(fileB)?.resource.toString(), sessionS1.toString());
 	});
 
+	test('resolves files of the active session without a management-service lookup', () => {
+		setActiveSession(sessions.get(sessionS1.toString())!);
+		setVisibleEditors([pane(fileA)]);
+
+		managementLookups = 0;
+		const trackedFile = service.getSessionForFile(fileA);
+		const untrackedFile = service.getSessionForFile(fileB);
+
+		assert.deepStrictEqual({
+			trackedFile: trackedFile?.resource.toString(),
+			untrackedFile: untrackedFile?.resource.toString(),
+			managementLookups,
+		}, {
+			trackedFile: sessionS1.toString(),
+			untrackedFile: sessionS1.toString(),
+			managementLookups: 0,
+		});
+	});
+
+	test('looks a non-active session up once until the sessions change', () => {
+		setActiveSession(sessions.get(sessionS1.toString())!);
+		setVisibleEditors([pane(fileA)]);
+		setActiveSession(sessions.get(sessionS2.toString())!);
+
+		managementLookups = 0;
+		service.getSessionForFile(fileA);
+		service.getSessionForFile(fileA);
+		const lookupsBeforeChange = managementLookups;
+
+		sessionsChangedEmitter.fire({ added: [], removed: [], changed: [] });
+		sessions.delete(sessionS1.toString());
+
+		assert.deepStrictEqual({
+			lookupsBeforeChange,
+			sessionAfterChange: service.getSessionForFile(fileA)?.resource.toString(),
+			lookupsAfterChange: managementLookups - lookupsBeforeChange,
+		}, {
+			lookupsBeforeChange: 1,
+			sessionAfterChange: undefined,
+			lookupsAfterChange: 1,
+		});
+	});
+
+	test('remembers that a session is unknown to the management service', () => {
+		setActiveSession(sessions.get(sessionS1.toString())!);
+		setVisibleEditors([pane(fileA)]);
+		setActiveSession(sessions.get(sessionS2.toString())!);
+		sessions.delete(sessionS1.toString());
+
+		managementLookups = 0;
+		const first = service.getSessionForFile(fileA);
+		const second = service.getSessionForFile(fileA);
+
+		assert.deepStrictEqual({
+			first,
+			second,
+			managementLookups,
+		}, {
+			first: undefined,
+			second: undefined,
+			managementLookups: 1,
+		});
+	});
+
 	test('returns undefined when the active session has Untitled status', () => {
 		sessions.set(sessionS1.toString(), makeSession(sessionS1, SessionStatus.Untitled));
 		setActiveSession(sessions.get(sessionS1.toString())!);
@@ -670,6 +744,7 @@ suite('AgentFeedbackService - State', () => {
 		});
 		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 			override onDidDeleteSession = Event.None;
+			override onDidChangeSessions = Event.None;
 			override getSession(_resource: URI) {
 				return sessionProviderId
 					? { providerId: sessionProviderId, sessionId: 'session-1' } as unknown as ISession
@@ -774,6 +849,7 @@ suite('AgentFeedbackService - Submit (agent host)', () => {
 		});
 		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 			override onDidDeleteSession = Event.None;
+			override onDidChangeSessions = Event.None;
 			override getSession(_resource: URI) {
 				return { providerId: LOCAL_AGENT_HOST_PROVIDER_ID, sessionId: 'session-1' } as unknown as ISession;
 			}
