@@ -78,6 +78,7 @@ interface ITestWireRequest {
 
 const COPILOT_TEST_MODEL = toCodexModelSelectionId('vscode-proxy', 'gpt-test');
 const OPENAI_TEST_MODEL = toCodexModelSelectionId('openai', 'gpt-5.6-sol');
+const PLUGIN_SKILLS_ROOT = URI.file('/plugin/skills').fsPath;
 
 interface ITestPeer {
 	readonly transport: ICodexAppServerTransport;
@@ -1513,7 +1514,7 @@ suite('CodexAgent prewarm eviction', () => {
 			runtime: entry.sessionId,
 		}, {
 			requestsWhileFirstPending: 1,
-			requests: [['/plugin/skills'], []],
+			requests: [[PLUGIN_SKILLS_ROOT], []],
 			runtime: AgentSession.id(session),
 		});
 	});
@@ -1556,8 +1557,8 @@ suite('CodexAgent prewarm eviction', () => {
 		await agent['_ensureConnection']();
 
 		assert.deepStrictEqual(rootsByConnection, [
-			[['/plugin/skills']],
-			[['/plugin/skills']],
+			[[PLUGIN_SKILLS_ROOT]],
+			[[PLUGIN_SKILLS_ROOT]],
 		]);
 	});
 

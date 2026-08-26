@@ -251,19 +251,20 @@ class TransientRegistryWriteDatabase implements IAgentHostDatabase {
 		this._remainingRegistryWriteFailures = count;
 	}
 
-	async registerSession(session: string, sessionOptions: { provider: string; startTime: number; source: 'explicit' | 'restore' | 'discovery' }, registerOptions: { checkTombstone: boolean }): Promise<boolean> {
+	async registerSession(session: string, sessionOptions: IAgentHostDatabaseSessionOptions, registerOptions: IAgentHostDatabaseRegisterOptions): Promise<boolean> {
 		this._beforeWrite();
 		if (registerOptions.checkTombstone && this._tombstones.has(session)) {
 			return false;
 		}
-		const { provider, startTime, source } = sessionOptions;
+		const { provider, startTime, modifiedTime = startTime, source } = sessionOptions;
 		const existing = this._sessions.get(session);
-		const inserted = { session, provider, startTime, external: source === 'discovery', source };
-		this._sessions.set(session, source === 'explicit'
+		const inserted = { session, provider, startTime, modifiedTime, external: source === 'discovery', source };
+		const next: IAgentHostDatabaseSession = source === 'explicit'
 			? { ...inserted, startTime: existing?.startTime ?? startTime }
 			: existing && source === 'discovery'
 				? { ...existing, external: true, source: 'discovery' }
-				: existing ?? inserted);
+				: existing ?? inserted;
+		this._sessions.set(session, { ...next, modifiedTime: Math.max(existing?.modifiedTime ?? modifiedTime, modifiedTime) });
 		if (!registerOptions.checkTombstone) {
 			this._tombstones.delete(session);
 		}
@@ -295,6 +296,16 @@ class TransientRegistryWriteDatabase implements IAgentHostDatabase {
 				});
 			}
 		}
+	}
+
+	async updateSessionModifiedTime(session: string, modifiedTime: number): Promise<boolean> {
+		this._beforeWrite();
+		const existing = this._sessions.get(session);
+		if (!existing || existing.modifiedTime >= modifiedTime) {
+			return false;
+		}
+		this._sessions.set(session, { ...existing, modifiedTime });
+		return true;
 	}
 
 	async listSessions(): Promise<readonly IAgentHostDatabaseSession[]> {
@@ -381,9 +392,11 @@ class TestAgentHostOrchestratorDatabase implements IAgentHostDatabase {
 		if (registerOptions.checkTombstone && this._tombstones.has(session)) {
 			return false;
 		}
-		const { provider, startTime, source } = sessionOptions;
+		const { provider, startTime, modifiedTime = startTime, source } = sessionOptions;
 		const existing = this._sessions.get(session);
-		this._sessions.set(session, existing ?? { session, provider, startTime, external: source === 'discovery', source });
+		this._sessions.set(session, existing
+			? { ...existing, modifiedTime: Math.max(existing.modifiedTime, modifiedTime) }
+			: { session, provider, startTime, modifiedTime, external: source === 'discovery', source });
 		if (!registerOptions.checkTombstone) {
 			this._tombstones.delete(session);
 		}
@@ -402,6 +415,15 @@ class TestAgentHostOrchestratorDatabase implements IAgentHostDatabase {
 	}
 
 	async updateSessionExternal(): Promise<void> { }
+
+	async updateSessionModifiedTime(session: string, modifiedTime: number): Promise<boolean> {
+		const existing = this._sessions.get(session);
+		if (!existing || existing.modifiedTime >= modifiedTime) {
+			return false;
+		}
+		this._sessions.set(session, { ...existing, modifiedTime });
+		return true;
+	}
 
 	async listSessions(): Promise<readonly IAgentHostDatabaseSession[]> {
 		return [...this._sessions.values()];
@@ -2991,7 +3013,7 @@ suite('AgentService (node dispatcher)', () => {
 			})), [{ session: external.toString(), external: true, source: 'discovery' }]);
 		});
 
-		test('rediscovery does not overwrite durable unread state for an existing external session', async () => {
+		test('rediscovery advances recency without overwriting durable unread state for an existing external session', async () => {
 			const db = new TestSessionDatabase();
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new MockAgent('copilot'));
@@ -3000,10 +3022,18 @@ suite('AgentService (node dispatcher)', () => {
 			svc.registerProvider(agent);
 			await svc.listSessions();
 			await db.setMetadata(AH_META_IS_READ_DB_KEY, '');
+			const rediscoveredModifiedTime = Date.now() + 60_000;
 
-			await (svc as unknown as { _registerDiscoveredChats(provider: IAgent, chats: readonly IAgentDiscoveredChat[]): Promise<boolean> })._registerDiscoveredChats(agent, [discoveredChat(session)]);
+			await (svc as unknown as { _registerDiscoveredChats(provider: IAgent, chats: readonly IAgentDiscoveredChat[]): Promise<boolean> })._registerDiscoveredChats(agent, [discoveredChat(session, true, rediscoveredModifiedTime)]);
+			const registered = await (svc as unknown as { _sessionRegistry: AgentSessionRegistry })._sessionRegistry.get(session);
 
-			assert.strictEqual(await db.getMetadata(AH_META_IS_READ_DB_KEY), '');
+			assert.deepStrictEqual({
+				isRead: await db.getMetadata(AH_META_IS_READ_DB_KEY),
+				modifiedTime: registered?.modifiedTime,
+			}, {
+				isRead: '',
+				modifiedTime: rediscoveredModifiedTime,
+			});
 		});
 
 		testWithExternalSessionClock('discovery does not ingest external sessions older than 30 days', async () => {
@@ -3146,6 +3176,7 @@ suite('AgentService (node dispatcher)', () => {
 				session: AgentSession.uri('copilot', id),
 				provider: 'copilot',
 				startTime,
+				modifiedTime: startTime,
 				external: false,
 				source: 'restore',
 			});
@@ -3224,6 +3255,7 @@ suite('AgentService (node dispatcher)', () => {
 				session: AgentSession.uri('copilot', `local-${index}`),
 				provider: 'copilot',
 				startTime,
+				modifiedTime: startTime,
 				external: false,
 				source: 'restore',
 			}));
@@ -3263,7 +3295,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			const initial = recentIds();
 			for (const id of ['local-first', 'local-second']) {
-				locals.push({ session: AgentSession.uri('copilot', id), provider: 'copilot', startTime: at(17), external: false, source: 'restore' });
+				locals.push({ session: AgentSession.uri('copilot', id), provider: 'copilot', startTime: at(17), modifiedTime: at(17), external: false, source: 'restore' });
 			}
 			const afterLocalSessionsCreated = recentIds();
 			// Invalidation is synchronous; read before the queued reconciliation re-snapshots.
@@ -4068,8 +4100,8 @@ suite('AgentService (node dispatcher)', () => {
 			const internal = AgentSession.uri('copilot', 'legacy-internal');
 			const external = AgentSession.uri('claude', 'legacy-external');
 			const database = new TransientRegistryWriteDatabase();
-			database.addSessionWithoutExternal({ session: internal.toString(), provider: 'copilot', startTime: 1, external: false, source: 'explicit' });
-			database.addSessionWithoutExternal({ session: external.toString(), provider: 'claude', startTime: 2, external: false, source: 'explicit' });
+			database.addSessionWithoutExternal({ session: internal.toString(), provider: 'copilot', startTime: 1, modifiedTime: 1, external: false, source: 'explicit' });
+			database.addSessionWithoutExternal({ session: external.toString(), provider: 'claude', startTime: 2, modifiedTime: 2, external: false, source: 'explicit' });
 			const sessionData = createPerSessionDataService();
 			await sessionData.database(internal).setMetadata(AH_META_WORKSPACELESS_DB_KEY, 'false');
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionData.service, { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, database));
@@ -4118,6 +4150,7 @@ suite('AgentService (node dispatcher)', () => {
 				database = new AgentHostDatabase(path);
 				const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, database));
 				const agent = disposables.add(new MockAgent('copilot'));
+				agent.sessionMetadataOverrides = { startTime: 1, modifiedTime: 1 };
 				const session = AgentSession.uri('copilot', 'legacy-real-database');
 				(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(session), session);
 				svc.registerProvider(agent);
@@ -4125,7 +4158,12 @@ suite('AgentService (node dispatcher)', () => {
 				await svc.restoreSession(session);
 				const entries = await (svc as unknown as { _sessionRegistry: AgentSessionRegistry })._sessionRegistry.list();
 
-				assert.deepStrictEqual(entries.map(entry => ({ external: entry.external, source: entry.source })), [{ external: true, source: 'discovery' }]);
+				assert.deepStrictEqual(entries.map(entry => ({
+					startTime: entry.startTime,
+					modifiedTime: entry.modifiedTime,
+					external: entry.external,
+					source: entry.source,
+				})), [{ startTime: 1, modifiedTime: 1, external: true, source: 'discovery' }]);
 			} finally {
 				if (legacyDatabase) {
 					await new Promise<void>(resolve => legacyDatabase!.close(() => resolve()));
@@ -5007,7 +5045,7 @@ suite('AgentService (node dispatcher)', () => {
 			assert.ok((await svc.listSessions()).some(s => s.session.toString() === session.toString()));
 		});
 
-		test('listSessions lets a lazy provider opt into the registry fallback', async () => {
+		test('listSessions preserves the last live modified time when a lazy provider becomes inactive', async () => {
 			class InactiveMetadataAgent extends MockAgent {
 				metadataAvailable = true;
 				override async getChatMetadata(chat: URI, context: URI | IAgentChatContext, _providerData?: string, options?: IAgentChatMetadataOptions): Promise<IAgentChatMetadata | undefined> {
@@ -5023,10 +5061,25 @@ suite('AgentService (node dispatcher)', () => {
 			const session = await svc.createSession({ provider: 'copilot' });
 			const registered = (await svc.listSessions()).find(candidate => candidate.session.toString() === session.toString());
 			assert.ok(registered);
+			const modifiedTime = Date.now() + 60_000;
+			const modifiedAt = new Date(modifiedTime).toISOString();
+			const chat = URI.parse(buildDefaultChatUri(session));
+			const summaryChanged = Event.toPromise(Event.filter(
+				getStateManager(svc).onDidChangeSessionSummary,
+				event => event.session === session.toString() && event.changes.modifiedAt === modifiedAt,
+			));
+			getStateManager(svc).dispatchServerAction(chat.toString(), {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				startedAt: modifiedAt,
+				message: { text: 'hello', origin: { kind: MessageKind.User } },
+			});
+			await summaryChanged;
+			await (svc as unknown as { _sessionModifiedTimeWrites: Promise<void> })._sessionModifiedTimeWrites;
 
 			// Model a lazy provider before explicit activation: no live state and no
-			// provider round-trip. The registry timestamp keeps the row stable until
-			// opening the session activates authoritative metadata reads.
+			// provider round-trip. The registry keeps the last live timestamp until
+			// opening the session activates authoritative metadata reads again.
 			getStateManager(svc).deleteSession(session.toString());
 			agent.metadataAvailable = false;
 			const fallback = (await svc.listSessions()).find(candidate => candidate.session.toString() === session.toString());
@@ -5038,12 +5091,52 @@ suite('AgentService (node dispatcher)', () => {
 				startTime: fallback.startTime,
 				modifiedTime: fallback.modifiedTime,
 				repeatedStartTime: fallbackAgain?.startTime,
+				repeatedModifiedTime: fallbackAgain?.modifiedTime,
 			}, {
 				session,
 				startTime: fallback.startTime,
-				modifiedTime: fallback.startTime,
+				modifiedTime,
 				repeatedStartTime: fallback.startTime,
+				repeatedModifiedTime: modifiedTime,
 			});
+		});
+
+		testWithExternalSessionClock('lazy provider fallback filters and sorts external sessions by their last modified time', async () => {
+			class InactiveMetadataAgent extends MockAgent {
+				override async getChatMetadata(chat: URI, _context: URI | IAgentChatContext, _providerData?: string, options?: IAgentChatMetadataOptions): Promise<IAgentChatMetadata | undefined> {
+					return options?.registryFallback ? { chat, ...options.registryFallback } : undefined;
+				}
+			}
+			const svc = createExternalSessionService();
+			const agent = disposables.add(new InactiveMetadataAgent('copilot'));
+			svc.registerProvider(agent);
+			const registry = (svc as unknown as { _sessionRegistry: AgentSessionRegistry })._sessionRegistry;
+			const now = Date.now();
+			const day = 24 * 60 * 60 * 1000;
+			const oldRecentlyUsed = AgentSession.uri('copilot', 'old-recently-used');
+			const newLessRecentlyUsed = AgentSession.uri('copilot', 'new-less-recently-used');
+			await registry.register(oldRecentlyUsed, {
+				provider: 'copilot',
+				startTime: now - 10 * day,
+				modifiedTime: now - 5 * 60 * 1000,
+				source: 'discovery',
+			} as IAgentHostDatabaseSessionOptions, { checkTombstone: true });
+			await registry.register(newLessRecentlyUsed, {
+				provider: 'copilot',
+				startTime: now - 30 * 60 * 1000,
+				modifiedTime: now - 30 * 60 * 1000,
+				source: 'discovery',
+			} as IAgentHostDatabaseSessionOptions, { checkTombstone: true });
+
+			const listed = await svc.listSessions(AgentHostExternalSessionsMode.Last24Hours);
+
+			assert.deepStrictEqual(listed.map(session => ({
+				id: AgentSession.id(session.session),
+				modifiedTime: session.modifiedTime,
+			})), [
+				{ id: 'old-recently-used', modifiedTime: now - 5 * 60 * 1000 },
+				{ id: 'new-less-recently-used', modifiedTime: now - 30 * 60 * 1000 },
+			]);
 		});
 
 		test('listSessions does not synthesize registry metadata for other providers', async () => {
