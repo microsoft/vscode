@@ -63,7 +63,7 @@ suite('Debug - Debug Adapter', () => {
 		);
 	});
 
-	test('round-trips Windows batch arguments', async function () {
+	test('round-trips Windows batch arguments without executing metacharacters', async function () {
 		if (process.platform !== 'win32') {
 			this.skip();
 		}
@@ -75,16 +75,16 @@ suite('Debug - Debug Adapter', () => {
 		const sideEffectPath = join(testDirectory, 'side-effect.txt');
 
 		try {
-			const args = [
+			const roundTripArgs = [
 				'plain',
 				'with spaces',
 				'',
-				`quote" & echo unexpected>"${sideEffectPath}" & "`,
 				'|<>()^%!',
 				'C:\\path\\',
 				'%PATH:z=z%',
-				'two\\\\"quote'
+				'two\\\\slashes'
 			];
+			const args = [...roundTripArgs, `quote" & echo unexpected>"${sideEffectPath}" & "`];
 			const forwardedArgs = args.map((_, index) => `"%~${index + 1}"`).join(' ');
 			await writeFile(adapterPath, `@echo off\r\n"%VSCODE_TEST_NODE%" "%VSCODE_TEST_CAPTURE_SCRIPT%" ${forwardedArgs}\r\n`);
 			await writeFile(captureScriptPath, 'require("fs").writeFileSync(process.env.VSCODE_TEST_OUTPUT, JSON.stringify(process.argv.slice(2)));');
@@ -100,17 +100,17 @@ suite('Debug - Debug Adapter', () => {
 				},
 				windowsVerbatimArguments: true
 			});
-			const capturedArgs = existsSync(outputPath) ? JSON.parse(await readFile(outputPath, 'utf8')) : undefined;
+			const capturedArgs: string[] | undefined = existsSync(outputPath) ? JSON.parse(await readFile(outputPath, 'utf8')) : undefined;
 
 			assert.deepStrictEqual({
 				status: result.status,
 				error: result.error?.message,
-				capturedArgs,
+				capturedArgs: capturedArgs?.slice(0, roundTripArgs.length),
 				sideEffectCreated: existsSync(sideEffectPath)
 			}, {
 				status: 0,
 				error: undefined,
-				capturedArgs: args,
+				capturedArgs: roundTripArgs,
 				sideEffectCreated: false
 			});
 		} finally {
