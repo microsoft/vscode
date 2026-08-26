@@ -123,9 +123,8 @@ export interface UsageInfoMeta {
 		[key: string]: unknown;
 	};
 	/**
-	 * Per-category account quota snapshots from the model-call usage event, keyed by quota type
-	 * (`premium_models` — or `premium_interactions` on older backends — plus `chat`,
-	 * `completions`, and the `session`/`weekly` rate limits).
+	 * Per-category account quota snapshots from the model-call usage event. Keyed by quota type:
+	 * `premium_models` (or `premium_interactions` on older backends), `chat`, `session`, `weekly`.
 	 */
 	quotaSnapshots?: {
 		[quotaType: string]: {

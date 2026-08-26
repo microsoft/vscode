@@ -276,9 +276,15 @@ suite('ChatInputNotificationWidget', () => {
 		assert.strictEqual(widget.domNode.querySelector('.chat-input-notification-header')?.textContent, 'Credits at 88%');
 	});
 
+	test('hides BYOK-gated notifications for an agent-host copy of a BYOK model', () => {
+		const { widget, notificationService } = createWidget({ delegate: { selectedLanguageModel: constObservable(makeBridgedByokModel()) } });
+		showNotification(notificationService, { id: 'ordinary', message: 'Ordinary notification', actions: [] });
+		showNotification(notificationService, { id: 'quota', message: 'Credits at 88%', actions: [], hideForByokModels: true });
+
+		assert.strictEqual(widget.domNode.querySelector('.chat-input-notification-header')?.textContent, 'Ordinary notification');
+	});
+
 	test('BYOK gating is per input, so one input can hide what another shows', () => {
-		// One notification reaches every input; an agent-host session on a Copilot-served
-		// model still shows it while a BYOK panel hides it. #332787
 		const byokInput = createWidget({ delegate: { selectedLanguageModel: constObservable(makeModel('customendpoint', true)) } });
 		const agentHostInput = createWidget({ delegate: { selectedLanguageModel: constObservable(makeModel('agent-host-copilotcli', false)) } });
 		const rendered = (widget: ChatInputNotificationWidget) => widget.domNode.querySelector('.chat-input-notification-header')?.textContent;
@@ -469,6 +475,19 @@ suite('ChatInputNotificationWidget', () => {
 		return {
 			identifier: `${vendor}/test-model`,
 			metadata: { id: 'test-model', vendor, family: 'test-model', isBYOK } as ILanguageModelChatMetadata,
+		};
+	}
+
+	/** An agent-host copy of an extension BYOK model: `byokModelIdentifier` set, `isBYOK` unset. */
+	function makeBridgedByokModel(): ILanguageModelChatMetadataAndIdentifier {
+		return {
+			identifier: 'agent-host-copilotcli:openrouter/aion-labs/aion-3.0',
+			metadata: {
+				id: 'openrouter/aion-labs/aion-3.0',
+				vendor: 'agent-host-copilotcli',
+				family: 'openrouter/aion-labs/aion-3.0',
+				byokModelIdentifier: 'openrouter/OpenRouter 2/aion-labs/aion-3.0',
+			} as ILanguageModelChatMetadata,
 		};
 	}
 
