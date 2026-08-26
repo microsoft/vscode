@@ -177,30 +177,30 @@ suite('Chat Pet Achievements Editor', () => {
 		));
 
 		const unlockedCards = Array.from(parent.querySelectorAll<HTMLElement>('.chat-pet-achievement-card.monaco-button:not(.locked)'));
-		const riceHatCard = parent.querySelector<HTMLElement>(`[data-accessory-id="${ChatPetAccessoryIds.RiceHat}"]`);
-		assert.ok(riceHatCard);
-		riceHatCard.click();
+		const bambooHatCard = parent.querySelector<HTMLElement>(`[data-accessory-id="${ChatPetAccessoryIds.BambooHat}"]`);
+		assert.ok(bambooHatCard);
+		bambooHatCard.click();
 
 		assert.deepStrictEqual({
 			unlockedCardIds: unlockedCards.map(card => card.dataset.accessoryId),
 			firstMessageTitleCount: Array.from(parent.querySelectorAll('h3')).filter(title => title.textContent === 'Welcome to the Wild West').length,
 			trustButVerifyTitleCount: Array.from(parent.querySelectorAll('h3')).filter(title => title.textContent === 'Trust but Verify').length,
 			selected,
-			riceHatSelected: riceHatCard.getAttribute('aria-pressed'),
-			riceHatAriaLabel: riceHatCard.getAttribute('aria-label'),
-			riceHatState: riceHatCard.querySelector('.chat-pet-achievement-state')?.textContent,
+			bambooHatSelected: bambooHatCard.getAttribute('aria-pressed'),
+			bambooHatAriaLabel: bambooHatCard.getAttribute('aria-label'),
+			bambooHatState: bambooHatCard.querySelector('.chat-pet-achievement-state')?.textContent,
 		}, {
 			unlockedCardIds: [
 				'none',
 				ChatPetAccessoryIds.CowboyHat,
-				ChatPetAccessoryIds.RiceHat,
+				ChatPetAccessoryIds.BambooHat,
 			],
 			firstMessageTitleCount: 1,
 			trustButVerifyTitleCount: 1,
-			selected: ChatPetAccessoryIds.RiceHat,
-			riceHatSelected: 'true',
-			riceHatAriaLabel: 'Trust but Verify. Reward: Rice Hat. Wearing',
-			riceHatState: 'Wearing',
+			selected: ChatPetAccessoryIds.BambooHat,
+			bambooHatSelected: 'true',
+			bambooHatAriaLabel: 'Trust but Verify. Reward: Bamboo Hat. Wearing',
+			bambooHatState: 'Wearing',
 		});
 	});
 

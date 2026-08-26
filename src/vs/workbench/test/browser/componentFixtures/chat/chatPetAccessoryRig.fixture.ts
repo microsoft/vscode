@@ -71,8 +71,8 @@ const productionAccessoryPreviews: readonly IChatPetProductionAccessoryPreview[]
 		shape: 'Tall golden crown with a red band and asymmetric brim',
 	},
 	{
-		accessoryId: ChatPetAccessoryIds.RiceHat,
-		shape: 'Wide tiered conical hat with warm gold shading',
+		accessoryId: ChatPetAccessoryIds.BambooHat,
+		shape: 'Wide tiered bamboo hat with warm gold shading',
 	},
 	{
 		accessoryId: ChatPetAccessoryIds.PinkPartyHat,
