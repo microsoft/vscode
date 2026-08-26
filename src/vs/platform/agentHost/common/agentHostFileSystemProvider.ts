@@ -389,7 +389,9 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 	 * in the host's filesystem. See {@link toAgentHostContentUri}.
 	 *
 	 * The scheme check covers content refs minted before the marker existed,
-	 * such as ones persisted in restored editor state.
+	 * such as ones persisted in restored editor state. It can go once those
+	 * have aged out — and the marker itself can go if `resourceResolve` grows
+	 * a way for a host to report a resource as readable but not resolvable.
 	 */
 	private _isContentRef(resource: URI, decoded: URI): boolean {
 		return isAgentHostContentRefUri(resource)
