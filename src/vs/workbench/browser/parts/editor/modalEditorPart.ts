@@ -293,6 +293,15 @@ export class ModalEditorPart {
 		editorPart.create(editorPartContainer);
 
 		disposables.add(Event.once(editorPart.onWillClose)(() => disposables.dispose()));
+		// Capture close keybindings before focused controls can stop propagation.
+		disposables.add(addDisposableListener(modalElement, EventType.KEY_DOWN, e => {
+			const event = new StandardKeyboardEvent(e);
+			const resolved = this.keybindingService.softDispatch(event, event.target);
+			if (resolved.kind === ResultKind.KbFound && resolved.commandId === CLOSE_MODAL_EDITOR_COMMAND_ID) {
+				EventHelper.stop(event, true);
+				void editorPart.close();
+			}
+		}, true));
 		disposables.add(Event.runAndSubscribe(editorPart.onDidChangeNavigation, ((navigation: IModalEditorNavigation | undefined) => {
 			if (navigation && navigation.total > 1) {
 				show(navigationContainer);
