@@ -145,6 +145,7 @@ class TouchHandler extends MouseHandler {
 		this.viewHelper.focusTextArea();
 
 		const editorMouseEvent = new EditorMouseEvent(event, false, this.viewHelper.viewDomNode);
+		editorMouseEvent.detail = event.tapCount;
 		const target = this._createMouseTarget(editorMouseEvent, false);
 
 		if (target.position) {
@@ -173,8 +174,8 @@ export class PointerHandler extends Disposable {
 	constructor(context: ViewContext, viewController: ViewController, viewHelper: IPointerHandlerHelper) {
 		super();
 		// Pointer events + Gesture on iOS and all Android (phones and tablets).
-		// Restricting Android to isMobile left tablets on TouchHandler, which
-		// never forwarded taps to folding.
+		// Previously Android tablets used TouchHandler only, which did not emit
+		// synthetic mouse down/up for taps, so folding never saw unfold gestures.
 		const usePointerHandler = platform.isIOS || platform.isAndroid;
 		if (usePointerHandler && BrowserFeatures.pointerEvents) {
 			this.handler = this._register(new PointerEventHandler(context, viewController, viewHelper));
