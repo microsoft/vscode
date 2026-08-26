@@ -4406,7 +4406,7 @@ export class AgentService extends Disposable implements IAgentService {
 			const sessionArchived = ((sessionState?.status ?? 0) & SessionStatus.IsArchived) === SessionStatus.IsArchived;
 			const turn = chatState?.turns.at(-1);
 			const errorPart = getErrorResponsePart(turn);
-			const provider = this._findProviderForSession(sessionChannel);
+			const provider = this._providerService.getProviderForSession(sessionChannel);
 			if (chatState?.activeTurn) {
 				this._stateManager.rejectClientAction(channel, action, origin, 'Cannot resume while a turn is active.');
 				return;

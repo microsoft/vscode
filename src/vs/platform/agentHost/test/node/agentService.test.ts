@@ -554,7 +554,7 @@ suite('AgentService (node dispatcher)', () => {
 
 		suite('failed turn resume', () => {
 			async function createErroredTurn(): Promise<{ session: URI; chat: string }> {
-				service.registerProvider(copilotAgent);
+				registerTestAgentProvider(service, copilotAgent);
 				const session = await service.createSession({ provider: 'copilot' });
 				const chat = buildDefaultChatUri(session.toString());
 				const stateManager = getStateManager(service);
