@@ -5056,7 +5056,7 @@ suite('AgentService (node dispatcher)', () => {
 			}
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new InactiveMetadataAgent('copilot'));
-			svc.registerProvider(agent);
+			registerTestAgentProvider(svc, agent);
 
 			const session = await svc.createSession({ provider: 'copilot' });
 			const registered = (await svc.listSessions()).find(candidate => candidate.session.toString() === session.toString());
@@ -5109,7 +5109,7 @@ suite('AgentService (node dispatcher)', () => {
 			}
 			const svc = createExternalSessionService();
 			const agent = disposables.add(new InactiveMetadataAgent('copilot'));
-			svc.registerProvider(agent);
+			registerTestAgentProvider(svc, agent);
 			const registry = (svc as unknown as { _sessionRegistry: AgentSessionRegistry })._sessionRegistry;
 			const now = Date.now();
 			const day = 24 * 60 * 60 * 1000;
@@ -5148,7 +5148,7 @@ suite('AgentService (node dispatcher)', () => {
 			}
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new MissingMetadataAgent('copilot'));
-			svc.registerProvider(agent);
+			registerTestAgentProvider(svc, agent);
 
 			const session = await svc.createSession({ provider: 'copilot' });
 			getStateManager(svc).deleteSession(session.toString());
@@ -6921,7 +6921,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new LazyMetadataAgent('codex'));
-			svc.registerProvider(agent);
+			registerTestAgentProvider(svc, agent);
 			const session = await svc.createSession({ provider: agent.id });
 			await svc.listSessions();
 			agent.ambientReads = 0;
