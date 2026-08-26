@@ -18,7 +18,7 @@ import { FileSystemProviderErrorCode, toFileSystemProviderErrorCode } from '../.
 import { ConfigurationTarget, ConfigurationTargetToString, IConfigurationService } from '../../configuration/common/configuration.js';
 import { AgentSession, IAgentCreateChatRequestOptions, IAgentCreateSessionConfig, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification } from '../common/agent.js';
 import { AGENT_HOST_DEBUG_LOGS_CHUNK_BYTES, AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES, IAgentConnection, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk } from '../common/agentService.js';
-import { CollectAgentHostDebugLogsExtensionMethod, GetAgentHostChatStateFileExtensionMethod, GetAgentHostSessionStateFileExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod, type IAgentHostExtensionCommandMap } from '../common/agentHostExtensionProtocol.js';
+import { CollectAgentHostDebugLogsExtensionMethod, GetAgentHostSessionStateFileExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod, supportsAgentHostChatStateFile, type IAgentHostExtensionCommandMap } from '../common/agentHostExtensionProtocol.js';
 import { AMBIENT_AGENT_HOST_AUTHORITY } from '../common/agentHostConnectionsService.js';
 import { createRemoteWatchHandle, type IRemoteWatchHandle } from '../common/agentHostFileSystemProvider.js';
 import { AgentSubscriptionManager, type IActiveSubscriptionInfo, type IAgentSubscription } from '../common/state/agentSubscription.js';
@@ -1134,24 +1134,14 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	}
 
 	async getSessionStateFile(session: URI, chat?: URI): Promise<URI | undefined> {
-		let result: { resource?: string };
-		if (chat && !isDefaultChatUri(chat)) {
-			try {
-				result = await this._sendExtensionRequest(GetAgentHostChatStateFileExtensionMethod, {
-					session: session.toString(),
-					chat: chat.toString(),
-				});
-			} catch (error) {
-				if (error instanceof ProtocolError && error.code === JsonRpcErrorCodes.MethodNotFound) {
-					return undefined;
-				}
-				throw error;
-			}
-		} else {
-			result = await this._sendExtensionRequest(GetAgentHostSessionStateFileExtensionMethod, {
-				session: session.toString(),
-			});
+		const targetChat = chat && !isDefaultChatUri(chat) ? chat : undefined;
+		if (targetChat && !supportsAgentHostChatStateFile(this._initializeResult.get())) {
+			return undefined;
 		}
+		const result = await this._sendExtensionRequest(GetAgentHostSessionStateFileExtensionMethod, {
+			session: session.toString(),
+			chat: targetChat?.toString(),
+		});
 		if (!result.resource) {
 			return undefined;
 		}

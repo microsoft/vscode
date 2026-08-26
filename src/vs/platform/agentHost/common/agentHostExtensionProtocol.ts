@@ -5,11 +5,22 @@
 
 import { vEnum, vObj, vOptionalProp, vString, type ValidatorType } from '../../../base/common/validation.js';
 import type { AgentHostDebugLogsArtifactKind, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult } from './agentService.js';
+import type { InitializeResult } from './state/protocol/common/commands.js';
 
 export const CollectAgentHostDebugLogsExtensionMethod = 'vscode/collectAgentHostDebugLogs';
-export const GetAgentHostChatStateFileExtensionMethod = 'vscode/getAgentHostChatStateFile';
 export const GetAgentHostSessionStateFileExtensionMethod = 'vscode/getAgentHostSessionStateFile';
 export const ReadAgentHostDebugLogsChunkExtensionMethod = 'vscode/readAgentHostDebugLogsChunk';
+
+const AgentHostChatStateFileCapabilityMetaKey = 'vscode.getAgentHostSessionStateFile.chat';
+
+export function getAgentHostExtensionInitializeResultMeta(): Record<string, unknown> {
+	return { [AgentHostChatStateFileCapabilityMetaKey]: true };
+}
+
+export function supportsAgentHostChatStateFile(result: InitializeResult | undefined): boolean {
+	// eslint-disable-next-line local/code-no-untyped-meta-access -- sanctioned reader for the namespaced Agent Host capability slot.
+	return result?._meta?.[AgentHostChatStateFileCapabilityMetaKey] === true;
+}
 
 export const collectAgentHostDebugLogsParamsValidator = vObj({
 	session: vOptionalProp(vString()),
@@ -25,11 +36,7 @@ export interface IAgentHostExtensionCommandMap {
 	'getManagedSettingsDiagnostics': { params: undefined; result: readonly IAgentHostManagedSettingsDiagnostics[] };
 	'diagnosticsFetch': { params: { url: string }; result: IAgentHostNetworkFetchResult };
 	[GetAgentHostSessionStateFileExtensionMethod]: {
-		params: { session: string };
-		result: { resource?: string };
-	};
-	[GetAgentHostChatStateFileExtensionMethod]: {
-		params: { session: string; chat: string };
+		params: { session: string; chat?: string };
 		result: { resource?: string };
 	};
 	[CollectAgentHostDebugLogsExtensionMethod]: {

@@ -407,8 +407,15 @@ suite('ProtocolServerHandler', () => {
 			assert.fail('should have sent initialize response');
 		}
 		const result = resp.result as InitializeResult;
-		assert.strictEqual(result.protocolVersion, PROTOCOL_VERSION);
-		assert.strictEqual(result.serverSeq, stateManager.serverSeq);
+		assert.deepStrictEqual({
+			protocolVersion: result.protocolVersion,
+			serverSeq: result.serverSeq,
+			meta: result._meta,
+		}, {
+			protocolVersion: PROTOCOL_VERSION,
+			serverSeq: stateManager.serverSeq,
+			meta: { 'vscode.getAgentHostSessionStateFile.chat': true },
+		});
 	});
 
 	test('applies telemetry disablement before reporting the client connection', () => {
@@ -676,7 +683,7 @@ suite('ProtocolServerHandler', () => {
 		const responsePromise = waitForResponse(transport, 17);
 		const chat = buildChatUri('copilotcli:/session-1', 'peer-1');
 
-		transport.simulateMessage(request(17, 'vscode/getAgentHostChatStateFile', {
+		transport.simulateMessage(request(17, 'vscode/getAgentHostSessionStateFile', {
 			session: 'copilotcli:/session-1',
 			chat,
 		}));

@@ -20,7 +20,7 @@ import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportK
 import { AgentSession, type IAgentCreateChatRequestOptions, type IMcpNotification } from '../common/agent.js';
 import { isManagedSettingsPermissions } from '../common/agentHostManagedSettings.js';
 import { type IAgentService } from '../common/agentService.js';
-import { collectAgentHostDebugLogsParamsValidator, CollectAgentHostDebugLogsExtensionMethod, GetAgentHostChatStateFileExtensionMethod, GetAgentHostSessionStateFileExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod } from '../common/agentHostExtensionProtocol.js';
+import { collectAgentHostDebugLogsParamsValidator, CollectAgentHostDebugLogsExtensionMethod, getAgentHostExtensionInitializeResultMeta, GetAgentHostSessionStateFileExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod } from '../common/agentHostExtensionProtocol.js';
 import { isActionEnvelopeRelevantToSubscriptionUris } from '../common/state/agentSubscription.js';
 import { ChatSourceKind } from '../common/state/protocol/channels-chat/commands.js';
 import type { CommandMap } from '../common/state/protocol/messages.js';
@@ -650,6 +650,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				response: {
 					protocolVersion: negotiated,
 					serverSeq: this._stateManager.serverSeq,
+					_meta: getAgentHostExtensionInitializeResultMeta(),
 					snapshots,
 					defaultDirectory: this._config.defaultDirectory,
 					completionTriggerCharacters: this._config.completionTriggerCharacters,
@@ -1747,8 +1748,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				return this._agentService.getManagedSettingsDiagnostics();
 			case 'diagnosticsFetch':
 				return this._agentService.diagnosticsFetch((params as { url: string }).url);
-			case GetAgentHostSessionStateFileExtensionMethod:
-			case GetAgentHostChatStateFileExtensionMethod: {
+			case GetAgentHostSessionStateFileExtensionMethod: {
 				if (!this._agentService.getSessionStateFile) {
 					return undefined;
 				}
@@ -1768,9 +1768,9 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				if (!AgentSession.provider(session)) {
 					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'session must be an Agent Session URI'));
 				}
-				const chatParam = method === GetAgentHostChatStateFileExtensionMethod ? params['chat'] : undefined;
+				const chatParam = params['chat'];
 				let chat: URI | undefined;
-				if (method === GetAgentHostChatStateFileExtensionMethod) {
+				if (chatParam !== undefined) {
 					if (typeof chatParam !== 'string') {
 						return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'chat must be a URI string'));
 					}
