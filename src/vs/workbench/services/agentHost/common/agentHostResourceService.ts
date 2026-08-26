@@ -17,6 +17,7 @@ import {
 	AgentHostAccessMode,
 	AgentHostLocalFilePermissionsSettingId,
 	AgentHostPermissionMode,
+	type AgentHostPermissionGrant,
 	AgentHostPermissionsSetting,
 	AgentHostResourceIdentity,
 	AgentHostResourcePermissionError,
@@ -41,6 +42,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 
 interface IInternalPendingRequest extends IPendingResourceRequest {
 	readonly deferred: DeferredPromise<void>;
+	readonly lexicalUri: URI;
 }
 
 interface IInMemoryGrant {
@@ -55,6 +57,16 @@ interface IInMemoryGrant {
 	 */
 	readonly realpath: Promise<URI>;
 	readonly mode: AgentHostAccessMode;
+}
+
+function getGrantMode(grant: AgentHostPermissionGrant | undefined): AgentHostAccessMode | undefined {
+	if (grant === AgentHostAccessMode.Read || grant === AgentHostAccessMode.ReadWrite) {
+		return grant;
+	}
+	if (typeof grant === 'object' && grant !== null && (grant.mode === AgentHostAccessMode.Read || grant.mode === AgentHostAccessMode.ReadWrite)) {
+		return grant.mode;
+	}
+	return undefined;
 }
 
 function normalizeResourceIdentity(identity: AgentHostResourceIdentity): AgentHostResourceIdentity {
@@ -232,7 +244,8 @@ export class AgentHostResourceService extends Disposable implements IAgentHostRe
 
 	async request(identity: AgentHostResourceIdentity, params: ResourceRequestParams): Promise<void> {
 		const normalized = normalizeResourceIdentity(identity);
-		const canonical = await this._canonicalize(URI.parse(params.uri));
+		const lexical = extUri.normalizePath(URI.parse(params.uri));
+		const canonical = await this._canonicalize(lexical);
 		if (normalized === LOCAL_AGENT_HOST_RESOURCE_IDENTITY) {
 			return;
 		}
@@ -240,10 +253,10 @@ export class AgentHostResourceService extends Disposable implements IAgentHostRe
 		const wantsRead = params.read === true || !wantsWrite;
 
 		if (wantsRead && !await this._isCovered(normalized, canonical, AgentHostPermissionMode.Read)) {
-			await this._enqueue(normalized, canonical, AgentHostPermissionMode.Read);
+			await this._enqueue(normalized, canonical, lexical, AgentHostPermissionMode.Read);
 		}
 		if (wantsWrite && !await this._isCovered(normalized, canonical, AgentHostPermissionMode.Write)) {
-			await this._enqueue(normalized, canonical, AgentHostPermissionMode.Write);
+			await this._enqueue(normalized, canonical, lexical, AgentHostPermissionMode.Write);
 		}
 	}
 
@@ -430,7 +443,7 @@ export class AgentHostResourceService extends Disposable implements IAgentHostRe
 		}
 		const grantUris = [...this._readPersistedGrants(identity)]
 			.filter(grant => grant.mode === AgentHostAccessMode.Read || grant.mode === AgentHostAccessMode.ReadWrite)
-			.map(grant => grant.uri);
+			.map(grant => grant.lexicalUri);
 		for (const grant of this._inMemoryGrants.values()) {
 			if (grant.identity === identity) {
 				grantUris.push(grant.uri);
@@ -469,7 +482,7 @@ export class AgentHostResourceService extends Disposable implements IAgentHostRe
 			}));
 	}
 
-	private _enqueue(address: string, canonicalUri: URI, mode: AgentHostPermissionMode): Promise<void> {
+	private _enqueue(address: string, canonicalUri: URI, lexicalUri: URI, mode: AgentHostPermissionMode): Promise<void> {
 		const existing = this._pending.get().find(r =>
 			r.address === address && r.mode === mode && extUri.isEqual(r.uri, canonicalUri));
 		if (existing) {
@@ -481,6 +494,7 @@ export class AgentHostResourceService extends Disposable implements IAgentHostRe
 			id: generateUuid(),
 			address,
 			uri: canonicalUri,
+			lexicalUri,
 			mode,
 			deferred,
 			allow: () => this._resolve(request, 'memory'),
@@ -501,13 +515,13 @@ export class AgentHostResourceService extends Disposable implements IAgentHostRe
 
 		this._inMemoryGrants.set(generateUuid(), {
 			identity: request.address,
-			uri: request.uri,
+			uri: request.lexicalUri,
 			realpath: Promise.resolve(request.uri),
 			mode: accessMode,
 		});
 
 		if (scope === 'persist') {
-			void this._persistGrant(request.address, request.uri, request.mode).catch(err => {
+			void this._persistGrant(request.address, request.uri, request.lexicalUri, request.mode).catch(err => {
 				this._logService.warn('[AgentHostResourceService] Failed to persist grant', err);
 			});
 		}
@@ -523,25 +537,35 @@ export class AgentHostResourceService extends Disposable implements IAgentHostRe
 		}
 	}
 
-	private *_readPersistedGrants(address: string): Iterable<{ uri: URI; mode: AgentHostAccessMode }> {
+	private *_readPersistedGrants(address: string): Iterable<{ uri: URI; lexicalUri: URI; mode: AgentHostAccessMode }> {
 		const forAddress = this._configurationService
 			.getValue<AgentHostPermissionsSetting>(AgentHostLocalFilePermissionsSettingId)?.[address];
 		if (!forAddress) {
 			return;
 		}
-		for (const [uriStr, mode] of Object.entries(forAddress)) {
-			if (mode !== AgentHostAccessMode.Read && mode !== AgentHostAccessMode.ReadWrite) {
+		for (const [uriStr, grant] of Object.entries(forAddress)) {
+			const mode = getGrantMode(grant);
+			if (!mode) {
 				continue;
 			}
 			try {
-				yield { uri: URI.parse(uriStr), mode };
+				const uri = URI.parse(uriStr);
+				let lexicalUri = uri;
+				if (typeof grant === 'object' && typeof grant.lexicalUri === 'string') {
+					try {
+						lexicalUri = URI.parse(grant.lexicalUri);
+					} catch {
+						// Fall back to the canonical URI for malformed lexical metadata.
+					}
+				}
+				yield { uri, lexicalUri, mode };
 			} catch {
 				// Ignore malformed URI keys.
 			}
 		}
 	}
 
-	private async _persistGrant(address: string, uri: URI, mode: AgentHostPermissionMode): Promise<void> {
+	private async _persistGrant(address: string, uri: URI, lexicalUri: URI, mode: AgentHostPermissionMode): Promise<void> {
 		const requested: AgentHostAccessMode = mode === AgentHostPermissionMode.Write
 			? AgentHostAccessMode.ReadWrite
 			: AgentHostAccessMode.Read;
@@ -554,12 +578,19 @@ export class AgentHostResourceService extends Disposable implements IAgentHostRe
 		}
 
 		const { target, value } = this._inspectScopedSetting();
-		const forAddress: Record<string, AgentHostAccessMode> = { ...(value[address] ?? {}) };
+		const forAddress: Record<string, AgentHostPermissionGrant> = { ...(value[address] ?? {}) };
 		const uriKey = uri.toString();
-		if (forAddress[uriKey] === AgentHostAccessMode.ReadWrite) {
+		const existing = forAddress[uriKey];
+		if (getGrantMode(existing) === AgentHostAccessMode.ReadWrite) {
 			return;
 		}
-		forAddress[uriKey] = requested;
+		if (typeof existing === 'object') {
+			forAddress[uriKey] = { mode: requested, lexicalUri: existing.lexicalUri };
+		} else if (!extUri.isEqual(uri, lexicalUri)) {
+			forAddress[uriKey] = { mode: requested, lexicalUri: lexicalUri.toString() };
+		} else {
+			forAddress[uriKey] = requested;
+		}
 
 		await this._configurationService.updateValue(
 			AgentHostLocalFilePermissionsSettingId,

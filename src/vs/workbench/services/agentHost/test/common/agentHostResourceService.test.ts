@@ -205,6 +205,51 @@ suite('AgentHostResourceService', () => {
 		});
 	});
 
+	test('persisted grants project through the original lexical symlink path', async () => {
+		const fileService = {
+			realpath: async (resource: URI) => resource.path.startsWith('/safe/link')
+				? URI.file('/real' + resource.path.slice('/safe/link'.length))
+				: resource,
+			resolve: async (resource: URI) => ({
+				resource,
+				isFile: false,
+				isDirectory: true,
+				isSymbolicLink: false,
+				children: resource.path === '/safe'
+					? [{ name: 'link', isDirectory: true }]
+					: [{ name: 'file.txt', isDirectory: false }],
+			}),
+		} as unknown as IFileService;
+		const { service, config } = createService(undefined, fileService);
+		const lexicalUri = URI.file('/safe/link/file.txt');
+		const canonicalUri = URI.file('/real/file.txt');
+		const promise = service.request('host', { channel: 'ahp-root://', uri: lexicalUri.toString(), read: true });
+		await new Promise(resolve => setTimeout(resolve, 0));
+		service.allPending.get()[0].allowAlways();
+		await promise;
+
+		const persisted = config.lastUpdate?.value as AgentHostPermissionsSetting;
+		assert.deepStrictEqual(persisted, {
+			'host': {
+				[canonicalUri.toString()]: {
+					mode: AgentHostAccessMode.Read,
+					lexicalUri: lexicalUri.toString(),
+				},
+			},
+		});
+
+		const { service: restoredService } = createService(persisted, fileService);
+		assert.deepStrictEqual({
+			safe: await restoredService.list('host', URI.file('/safe')),
+			link: await restoredService.list('host', URI.file('/safe/link')),
+			read: await restoredService.check('host', lexicalUri, AgentHostPermissionMode.Read),
+		}, {
+			safe: { entries: [{ name: 'link', type: 'directory' }] },
+			link: { entries: [{ name: 'file.txt', type: 'file' }] },
+			read: true,
+		});
+	});
+
 	test('list does not project grants from another host', async () => {
 		const { service } = createService({
 			'host-a': {
