@@ -3099,7 +3099,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	needed in the standalone checkpoint summary is redundant here. */
 .interactive-session .chat-turn-pills-part .chat-file-changes-label {
 	margin-right: 0;
-	flex: none;
+	flex: 1 1 auto;
+	min-width: 0;
 }
 
 /* Per-row action bar in the changed-files list (e.g. the "Preview" action). The

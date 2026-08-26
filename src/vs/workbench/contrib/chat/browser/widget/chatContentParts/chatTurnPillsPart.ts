@@ -108,7 +108,7 @@ export class ChatTurnPillsContentPart extends Disposable implements IChatContent
 			removedLabel.textContent = `-${deletions}`;
 			counts.setAttribute('aria-label', localize(
 				'chat.turnChanges.viewAllAccessible',
-				'View changes for {0}, {1} lines added, {2} lines deleted',
+				'View all file changes: {0}, {1} lines added, {2} lines deleted',
 				fileCountLabel,
 				insertions,
 				deletions

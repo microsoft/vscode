@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { constObservable, derived, derivedOpts, IObservable } from '../../../../base/common/observable.js';
+import { constObservable, derived, derivedObservableWithCache, IObservable, IReader } from '../../../../base/common/observable.js';
 import { extUriBiasedIgnorePathCase, isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
@@ -25,8 +25,6 @@ interface ISessionTransientTurnChanges {
 	readonly changes: IObservable<readonly ISessionFileChange[]>;
 }
 
-const EMPTY_CHANGE_STATS: IChatResponseFileChangesStats = { files: 0, insertions: 0, deletions: 0 };
-
 function changeStatsEqual(a: IChatResponseFileChangesStats, b: IChatResponseFileChangesStats): boolean {
 	return a.files === b.files && a.insertions === b.insertions && a.deletions === b.deletions;
 }
@@ -44,34 +42,49 @@ export class SessionsChatResponseFileChangesService extends AbstractChatResponse
 		super();
 	}
 
-	override getChangeStatsForRequest(sessionResource: URI, _requestId: string, context: IChatResponseFileChangesOpenContext): IObservable<IChatResponseFileChangesStats> | undefined {
+	override getChangeStatsForRequest(sessionResource: URI, requestId: string, context: IChatResponseFileChangesOpenContext): IObservable<IChatResponseFileChangesStats> | undefined {
 		if (!context.isLastTurn) {
 			return undefined;
 		}
 		const owner = this._sessionsManagementService.getSessionForChatResource(sessionResource);
 		if (!owner
-			|| !this._isMostRecentChat(owner.session, owner.chat)
 			|| !isEqual(this._changesViewService.activeSessionResourceObs.get(), owner.session.resource)) {
 			return undefined;
 		}
+		const requestChanges = this.getChangesForRequest(sessionResource, requestId);
 
-		return derivedOpts<IChatResponseFileChangesStats>({ equalsFn: changeStatsEqual }, reader => {
-			if (!isEqual(this._changesViewService.activeSessionResourceObs.read(reader), owner.session.resource)) {
-				return EMPTY_CHANGE_STATS;
+		return derivedObservableWithCache<IChatResponseFileChangesStats>(this, (reader, lastValue) => {
+			const readRequestStats = (): IChatResponseFileChangesStats => {
+				const changes = requestChanges?.read(reader) ?? [];
+				let insertions = 0, deletions = 0;
+				for (const change of changes) {
+					insertions += change.added;
+					deletions += change.removed;
+				}
+				return { files: changes.length, insertions, deletions };
+			};
+			let stats: IChatResponseFileChangesStats;
+			if (!isEqual(this._changesViewService.activeSessionResourceObs.read(reader), owner.session.resource)
+				|| !this._isMostRecentChat(owner.session, owner.chat, reader)) {
+				stats = readRequestStats();
+			} else {
+				const changeset = this._changesViewService.activeSessionChangesetsObs.read(reader)
+					?.find(candidate => candidate.id === TURN_CHANGES_CHANGESET_ID && candidate.isEnabled.read(reader));
+				if (!changeset) {
+					stats = readRequestStats();
+				} else if (changeset.isLoadingChanges.read(reader)) {
+					return lastValue ?? readRequestStats();
+				} else {
+					const changes = changeset.changes.read(reader);
+					let insertions = 0, deletions = 0;
+					for (const change of changes) {
+						insertions += change.insertions;
+						deletions += change.deletions;
+					}
+					stats = { files: changes.length, insertions, deletions };
+				}
 			}
-			const changeset = this._changesViewService.activeSessionChangesetsObs.read(reader)
-				?.find(candidate => candidate.id === TURN_CHANGES_CHANGESET_ID && candidate.isEnabled.read(reader));
-			if (!changeset || changeset.isLoadingChanges.read(reader)) {
-				return EMPTY_CHANGE_STATS;
-			}
-
-			const changes = changeset.changes.read(reader);
-			let insertions = 0, deletions = 0;
-			for (const change of changes) {
-				insertions += change.insertions;
-				deletions += change.deletions;
-			}
-			return { files: changes.length, insertions, deletions };
+			return lastValue && changeStatsEqual(lastValue, stats) ? lastValue : stats;
 		});
 	}
 
@@ -141,12 +154,12 @@ export class SessionsChatResponseFileChangesService extends AbstractChatResponse
 		});
 	}
 
-	private _isMostRecentChat(session: ISession, chat: IChat): boolean {
-		const mostRecentChat = session.chats.get().reduce<IChat | undefined>(
-			(latest, candidate) => !latest || candidate.updatedAt.get().getTime() > latest.updatedAt.get().getTime() ? candidate : latest,
+	private _isMostRecentChat(session: ISession, chat: IChat, reader?: IReader): boolean {
+		const mostRecentChat = session.chats.read(reader).reduce<IChat | undefined>(
+			(latest, candidate) => !latest || candidate.updatedAt.read(reader).getTime() > latest.updatedAt.read(reader).getTime() ? candidate : latest,
 			undefined,
 		);
-		return isEqual(mostRecentChat?.resource ?? session.mainChat.get().resource, chat.resource);
+		return isEqual(mostRecentChat?.resource ?? session.mainChat.read(reader).resource, chat.resource);
 	}
 
 	private _getSessionFileChanges(session: ISession, chatResource: URI, requestId: string): IObservable<readonly ISessionFileChange[]> | undefined {

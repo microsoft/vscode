@@ -99,6 +99,7 @@ suite('ChatTurnPillsContentPart', () => {
 			files: part.domNode.querySelector('.chat-file-changes-label')?.textContent,
 			additions: part.domNode.querySelector('.insertions')?.textContent,
 			deletions: part.domNode.querySelector('.deletions')?.textContent,
+			ariaLabel: part.domNode.querySelector('.chat-file-changes-counts')?.getAttribute('aria-label'),
 			hasDisclosure: part.domNode.querySelector('details') !== null,
 			hasPreview: part.domNode.querySelector('.chat-turn-preview') !== null,
 		});
@@ -111,6 +112,7 @@ suite('ChatTurnPillsContentPart', () => {
 				files: '2 files changed',
 				additions: '+8',
 				deletions: '-3',
+				ariaLabel: 'View all file changes: 2 files changed, 8 lines added, 3 lines deleted',
 				hasDisclosure: false,
 				hasPreview: false,
 			},
@@ -119,6 +121,7 @@ suite('ChatTurnPillsContentPart', () => {
 				files: '0 files changed',
 				additions: '+0',
 				deletions: '-0',
+				ariaLabel: 'View all file changes: 0 files changed, 0 lines added, 0 lines deleted',
 				hasDisclosure: false,
 				hasPreview: false,
 			},
