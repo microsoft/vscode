@@ -120,9 +120,17 @@ export class ModelPickerConfiguration {
 			return;
 		}
 
+		const sectionCount = items.filter(item => item.kind === ActionListItemKind.Header).length;
+
 		const previouslyFocusedElement = dom.getActiveElement();
 		const delegate = {
 			onSelect: async (action: IActionWidgetDropdownAction) => {
+				if (sectionCount === 1) {
+					const actionResult = action.run();
+					this._actionWidgetService.hide();
+					await actionResult;
+					return;
+				}
 				this._actionWidgetService.focusItemById(action.id);
 				await action.run();
 				this._actionWidgetService.updateItems(this._buildItems(), action.id);
