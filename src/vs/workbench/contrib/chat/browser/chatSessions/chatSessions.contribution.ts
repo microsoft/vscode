@@ -1251,7 +1251,11 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		await controllerData.controller.deleteChatSessionItem(sessionResource, token);
 
 		const sessionData = this._sessions.get(sessionResource) ?? this._sessions.get(this._resolveResource(sessionResource));
-		sessionData?.session.dispose();
+		if (sessionData) {
+			this._sessions.delete(sessionData.resource);
+			sessionData.dispose();
+			sessionData.session.dispose();
+		}
 	}
 
 	private _getChatSessionItemController(sessionResource: URI) {

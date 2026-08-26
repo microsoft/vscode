@@ -362,15 +362,13 @@ suite('ChatSessionsService - deletion lifecycle', () => {
 		store.add(service.registerChatSessionContentProvider(sessionType, {
 			provideChatSessionContent: async sessionResource => {
 				counters.provided++;
-				const onWillDispose = store.add(new Emitter<void>());
 				const disposable = store.add(toDisposable(() => {
 					counters.disposed++;
-					onWillDispose.fire();
 				}));
 				return {
 					sessionResource,
 					history: [],
-					onWillDispose: onWillDispose.event,
+					onWillDispose: Event.None,
 					dispose: () => disposable.dispose(),
 				};
 			},
