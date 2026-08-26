@@ -25,17 +25,14 @@ class TestTelemetryService implements ITelemetryService {
 	readonly devDeviceId = 'devDeviceId';
 	readonly firstSessionDate = 'firstSessionDate';
 	readonly events: CapturedEvent[] = [];
-	readonly experimentProperties: ITelemetryData = {};
 
 	publicLog(eventName: string, data?: ITelemetryData): void {
-		this.events.push({ eventName, data: { ...data, ...this.experimentProperties } });
+		this.events.push({ eventName, data });
 	}
 	publicLogError(): void { }
 	publicLog2(): void { }
 	publicLogError2(): void { }
-	setExperimentProperty(name: string, value: string): void {
-		this.experimentProperties[name] = value;
-	}
+	setExperimentProperty(): void { }
 	setCommonProperty(): void { }
 }
 
@@ -44,7 +41,7 @@ suite('CopilotGitHubTelemetryForwarder', () => {
 
 	test('forwards a standard event to VS Code telemetry', () => {
 		const telemetryService = new TestTelemetryService();
-		const forwarder = new CopilotGitHubTelemetryForwarder(() => false, () => undefined, telemetryService);
+		const forwarder = new CopilotGitHubTelemetryForwarder(() => false, telemetryService);
 
 		forwarder.forward({
 			sessionId: 'notification-session',
@@ -96,7 +93,7 @@ suite('CopilotGitHubTelemetryForwarder', () => {
 	test('gates restricted events on the restricted telemetry option', () => {
 		const telemetryService = new TestTelemetryService();
 		let restrictedTelemetryEnabled = false;
-		const forwarder = new CopilotGitHubTelemetryForwarder(() => restrictedTelemetryEnabled, () => undefined, telemetryService);
+		const forwarder = new CopilotGitHubTelemetryForwarder(() => restrictedTelemetryEnabled, telemetryService);
 		const notification: GitHubTelemetryNotification = {
 			sessionId: 'session',
 			restricted: true,
@@ -126,66 +123,9 @@ suite('CopilotGitHubTelemetryForwarder', () => {
 		}]);
 	});
 
-	test('stamps VS Code assignment context independently of the runtime context', () => {
-		const telemetryService = new TestTelemetryService();
-		const forwarder = new CopilotGitHubTelemetryForwarder(() => false, () => 'experiment:1;experiment:2', telemetryService);
-
-		forwarder.forward({
-			sessionId: 'session',
-			restricted: false,
-			event: {
-				kind: 'response.success',
-				properties: {},
-				metrics: {},
-				exp_assignment_context: 'runtime-context',
-			},
-		});
-
-		assert.deepStrictEqual(telemetryService.events, [{
-			eventName: 'copilotSdk/response.success',
-			data: {
-				created_at: undefined,
-				model_call_id: undefined,
-				exp_assignment_context: 'runtime-context',
-				session_id: 'session',
-				sdk_session_id: 'session',
-				copilot_tracking_id: undefined,
-				kind: 'response.success',
-				restricted: false,
-				'abexp.assignmentcontext': 'experiment:1;experiment:2',
-				vscode_assignment_context: 'experiment:1;experiment:2',
-			},
-		}]);
-	});
-
-	test('preserves VS Code assignment context when the runtime context overwrites the standard property', () => {
-		const telemetryService = new TestTelemetryService();
-		telemetryService.setExperimentProperty('abexp.assignmentcontext', 'runtime:1');
-		const forwarder = new CopilotGitHubTelemetryForwarder(() => false, () => 'vscode:1', telemetryService);
-
-		forwarder.forward({
-			sessionId: 'session',
-			restricted: false,
-			event: {
-				kind: 'response.success',
-				properties: {},
-				metrics: {},
-				exp_assignment_context: 'runtime:1',
-			},
-		});
-
-		assert.deepStrictEqual({
-			assignmentContext: telemetryService.events[0].data?.['abexp.assignmentcontext'],
-			vscodeAssignmentContext: telemetryService.events[0].data?.vscode_assignment_context,
-		}, {
-			assignmentContext: 'runtime:1',
-			vscodeAssignmentContext: 'vscode:1',
-		});
-	});
-
 	test('adds Agent Host turn correlation only to response events', () => {
 		const telemetryService = new TestTelemetryService();
-		const forwarder = new CopilotGitHubTelemetryForwarder(() => false, () => undefined, telemetryService);
+		const forwarder = new CopilotGitHubTelemetryForwarder(() => false, telemetryService);
 		const notification = (kind: string, properties: Record<string, string> = {}, metrics: Record<string, number> = {}): GitHubTelemetryNotification => ({
 			sessionId: 'session',
 			restricted: false,
@@ -214,7 +154,7 @@ suite('CopilotGitHubTelemetryForwarder', () => {
 
 	test('forwards tool_call_executed outcome and token-count columns', () => {
 		const telemetryService = new TestTelemetryService();
-		const forwarder = new CopilotGitHubTelemetryForwarder(() => false, () => undefined, telemetryService);
+		const forwarder = new CopilotGitHubTelemetryForwarder(() => false, telemetryService);
 
 		forwarder.forward({
 			sessionId: 'session',
