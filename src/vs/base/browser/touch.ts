@@ -255,7 +255,7 @@ export class Gesture extends Disposable {
 
 	private onTouchCancel(e: TouchEvent): void {
 		// The gesture was interrupted by the UA (e.g. native scroll takeover), so it ends silently:
-		// forget the touch without dispatching tap, contextmenu or inertia.
+		// no tap, contextmenu or inertia dispatch, but consumers still learn that the gesture ended.
 		for (let i = 0, len = e.changedTouches.length; i < len; i++) {
 			const touch = e.changedTouches.item(i);
 
@@ -263,7 +263,15 @@ export class Gesture extends Disposable {
 				continue;
 			}
 
+			const data = this.activeTouches[touch.identifier];
+			this.dispatchEvent(this.newGestureEvent(EventType.End, data.initialTarget));
 			delete this.activeTouches[touch.identifier];
+		}
+
+		if (this.dispatched) {
+			e.preventDefault();
+			e.stopPropagation();
+			this.dispatched = false;
 		}
 	}
 
