@@ -24,5 +24,8 @@ export class SessionsChatPetAchievementContribution extends Disposable implement
 				chatPetService.unlockAchievement(ChatPetAchievementIds.ImageRequest);
 			}
 		}));
+		this._register(sessionsManagementService.onDidArchiveSession(() => {
+			chatPetService.unlockAchievement(ChatPetAchievementIds.SessionArchived);
+		}));
 	}
 }

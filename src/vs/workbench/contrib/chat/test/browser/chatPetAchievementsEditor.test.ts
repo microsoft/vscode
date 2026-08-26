@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
-import { constObservable } from '../../../../../base/common/observable.js';
+import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
@@ -140,6 +140,67 @@ suite('Chat Pet Achievements Editor', () => {
 				hint: '12px',
 				reward: '12px',
 			},
+		});
+	});
+
+	test('renders each unlocked hat as its own achievement card', () => {
+		const parent = mainWindow.document.createElement('div');
+		mainWindow.document.body.appendChild(parent);
+		store.add(toDisposable(() => parent.remove()));
+		const selectedAccessory = observableValue<ChatPetAccessoryId | undefined>(store, undefined);
+		let selected: ChatPetAccessoryId | undefined;
+		const chatPetService = new class extends mock<IChatPetService>() {
+			override readonly enabled = constObservable(true);
+			override readonly unlockedAchievements = constObservable<readonly ChatPetAchievementId[]>([
+				ChatPetAchievementIds.FirstChatMessage,
+				ChatPetAchievementIds.SessionArchived,
+			]);
+			override readonly unseenAchievements = constObservable<readonly ChatPetAchievementId[]>([]);
+			override readonly selectedAccessory = selectedAccessory;
+			override readonly variant = constObservable<ChatPetVariant>('stable');
+
+			override markAchievementSeen(): boolean {
+				return false;
+			}
+
+			override setAccessory(accessory: ChatPetAccessoryId | undefined): void {
+				selected = accessory;
+				selectedAccessory.set(accessory, undefined);
+			}
+		}();
+		store.add(new ChatPetAchievementsWidget(
+			parent,
+			() => { },
+			chatPetService,
+			new TestThemeService(),
+			store.add(new NullLogService()),
+		));
+
+		const unlockedCards = Array.from(parent.querySelectorAll<HTMLElement>('.chat-pet-achievement-card.monaco-button:not(.locked)'));
+		const santaCard = parent.querySelector<HTMLElement>(`[data-accessory-id="${ChatPetAccessoryIds.SantaHat}"]`);
+		assert.ok(santaCard);
+		santaCard.click();
+
+		assert.deepStrictEqual({
+			unlockedCardIds: unlockedCards.map(card => card.dataset.accessoryId),
+			firstMessageTitleCount: Array.from(parent.querySelectorAll('h3')).filter(title => title.textContent === 'Welcome to the Wild West').length,
+			wrappedUpTitleCount: Array.from(parent.querySelectorAll('h3')).filter(title => title.textContent === 'Wrapped Up').length,
+			selected,
+			santaSelected: santaCard.getAttribute('aria-pressed'),
+			santaAriaLabel: santaCard.getAttribute('aria-label'),
+			santaState: santaCard.querySelector('.chat-pet-achievement-state')?.textContent,
+		}, {
+			unlockedCardIds: [
+				'none',
+				ChatPetAccessoryIds.CowboyHat,
+				ChatPetAccessoryIds.SantaHat,
+			],
+			firstMessageTitleCount: 1,
+			wrappedUpTitleCount: 1,
+			selected: ChatPetAccessoryIds.SantaHat,
+			santaSelected: 'true',
+			santaAriaLabel: 'Wrapped Up. Reward: Santa Hat. Wearing',
+			santaState: 'Wearing',
 		});
 	});
 
