@@ -152,9 +152,8 @@ export class ChatPetWidgetCoordinator extends Disposable {
 	}
 
 	private createDormantHost(): IChatPetWidgetHost {
-		// The parked host must live in the main window realm: auxiliary windows
-		// forbid `createElement` on their own document so that `instanceof
-		// HTMLElement` keeps working.
+		// Auxiliary windows forbid `createElement` on their own document, so the
+		// parked host is created in the main window realm.
 		const parent = dom.$('div');
 		return {
 			parent,
