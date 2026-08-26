@@ -5,7 +5,7 @@
 
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { LRUCache } from '../../../../../../base/common/map.js';
-import { constObservable, derived, derivedOpts, IObservable, mapObservableArrayCached, observableFromEvent } from '../../../../../../base/common/observable.js';
+import { constObservable, derived, derivedObservableWithCache, derivedOpts, IObservable, mapObservableArrayCached, observableFromEvent } from '../../../../../../base/common/observable.js';
 import { getComparisonKey, isEqual, isEqualOrParent } from '../../../../../../base/common/resources.js';
 import { isDefined } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -29,11 +29,18 @@ import {
 	type SessionState,
 	type ToolCallState
 } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IEditSessionEntryDiff } from '../../../common/editing/chatEditingService.js';
 import { IChatResponseFileChangesProvider, IChatResponseFileEdit } from '../../chatResponseFileChangesService.js';
 
 const SUBSCRIPTION_OWNER = 'AgentHostResponseFileChangesProvider';
 const REQUEST_CACHE_CAPACITY = 1000;
+
+/**
+ * Where a turn's diffs came from, for tracing. `retained` means every source
+ * was momentarily empty and the previous result was kept instead.
+ */
+type TurnDiffSource = 'unsupported' | 'changeset' | 'authoritativeEmpty' | 'response' | 'retained';
 
 function uriArrayEquals(a: readonly URI[], b: readonly URI[]): boolean {
 	return a.length === b.length && a.every((uri, index) => isEqual(uri, b[index]));
@@ -67,6 +74,11 @@ function getToolCallFileEdits(toolCall: ToolCallState): ISessionFileDiff[] {
  * lazily inside the returned observable (so they exist only while a summary is
  * actually observing the diffs) and the per-request observables are memoized so
  * repeated lookups share one subscription.
+ *
+ * The per-request diffs are monotonic: a turn that has reported changes keeps
+ * them, because every recompute, resubscribe and reconnect passes through a
+ * window where the client can see no files and consumers hide themselves when
+ * a turn reports nothing.
  */
 export class AgentHostResponseFileChangesProvider extends Disposable implements IChatResponseFileChangesProvider {
 
@@ -77,7 +89,8 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 		private readonly _connection: IAgentConnection,
 		private readonly _connectionAuthority: string,
 		private readonly _resolveBackendSession: (sessionResource: URI) => URI | undefined,
-		private readonly _resolveBackendChat?: (sessionResource: URI) => URI | undefined,
+		private readonly _resolveBackendChat: ((sessionResource: URI) => URI | undefined) | undefined,
+		private readonly _logService: ILogService,
 	) {
 		super();
 	}
@@ -136,17 +149,40 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 		const changesetStateObs = this._subscribe<ChangesetState>(StateComponents.Changeset, turnChangesetUriObs);
 		const responseFileEditsObs = this._createFileEditDiffsObservable(backendSession, backendChat, requestId);
 
-		return derived(reader => {
+		let lastSource: TurnDiffSource | undefined;
+		const select = (source: TurnDiffSource, diffs: readonly IEditSessionEntryDiff[], status?: ChangesetStatus): readonly IEditSessionEntryDiff[] => {
+			if (source !== lastSource) {
+				lastSource = source;
+				this._logService.trace(`[AgentHostResponseFileChanges] ${backendSession.toString()} turn ${requestId}: diffs from '${source}' (files=${diffs.length}, changesetStatus=${status ?? 'none'})`);
+			}
+			return diffs;
+		};
+
+		// Recomputes restart from `{ status: Computing, files: [] }`, so an empty
+		// changeset only means "this turn changed nothing" while `Ready` and
+		// before anything has been shown.
+		return derivedObservableWithCache<readonly IEditSessionEntryDiff[]>(this, (reader, lastValue) => {
+			const retained = lastValue ?? [];
 			if (!turnChangesetUriObs.read(reader)) {
-				return [];
+				return select('unsupported', retained);
 			}
+
 			const changesetState = changesetStateObs.read(reader).read(reader);
-			if (changesetState && !(changesetState instanceof Error) && changesetState.status === ChangesetStatus.Ready) {
-				return changesetState.files
-					.map(file => this._changesetFileToEntryDiff(file))
-					.filter(isDefined);
+			const changeset = changesetState instanceof Error ? undefined : changesetState;
+			const changesetDiffs = changeset?.files
+				.map(file => this._changesetFileToEntryDiff(file))
+				.filter(isDefined);
+			if (changesetDiffs?.length) {
+				return select('changeset', changesetDiffs, changeset?.status);
 			}
-			return responseFileEditsObs.read(reader);
+			if (changeset?.status === ChangesetStatus.Ready && retained.length === 0) {
+				return select('authoritativeEmpty', [], changeset.status);
+			}
+
+			const responseDiffs = responseFileEditsObs.read(reader);
+			return responseDiffs.length
+				? select('response', responseDiffs, changeset?.status)
+				: select('retained', retained, changeset?.status);
 		});
 	}
 
