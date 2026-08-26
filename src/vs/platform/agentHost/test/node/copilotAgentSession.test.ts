@@ -85,6 +85,9 @@ import { createTestGitHubEndpointService } from './testGitHubEndpointService.js'
 class MockCopilotSession {
 	readonly sessionId = 'test-session-1';
 	readonly sendRequests: unknown[] = [];
+	readonly sendMessagesRequests: unknown[] = [];
+	sendMessagesError: Error | undefined;
+	sendMessagesGate: Promise<void> | undefined;
 	sendGate: Promise<void> | undefined;
 	readonly modeSetCalls: Array<{ mode: 'interactive' | 'plan' | 'autopilot' }> = [];
 	readonly permissionModeSetCalls: PermissionAllowAllMode[] = [];
@@ -266,6 +269,13 @@ class MockCopilotSession {
 	}
 
 	readonly rpc = {
+		sendMessages: async (request: unknown) => {
+			this.sendMessagesRequests.push(request);
+			if (this.sendMessagesError) {
+				throw this.sendMessagesError;
+			}
+			await this.sendMessagesGate;
+		},
 		debug: {
 			collectLogs: async (params: Parameters<CopilotSession['rpc']['debug']['collectLogs']>[0]) => {
 				this.collectLogsCalls.push(params);
@@ -702,6 +712,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	isLaunchTokenCurrent?: () => boolean;
 	onTurnEnded?: () => void;
 	modelId?: string;
+	enableDevelopmentErrorInjection?: boolean;
 	resume?: boolean;
 	initializeEnablementSession?: (session: string) => Promise<void>;
 	beforeLaunch?: () => void;
@@ -959,6 +970,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			platform: options?.platform ?? 'linux',
 			isLaunchTokenCurrent: options?.isLaunchTokenCurrent,
 			onTurnEnded: options?.onTurnEnded,
+			enableDevelopmentErrorInjection: options?.enableDevelopmentErrorInjection ?? true,
 		},
 	));
 
@@ -1434,6 +1446,26 @@ suite('CopilotAgentSession', () => {
 		} as SessionEventPayload<'session.error'>['data']);
 		await session.getMessages();
 		assert.strictEqual(getEventsCalls, 3, 'memo should be invalidated after a session error');
+	});
+
+	test('describes an interrupted restored request without exposing Agent Host terminology', async () => {
+		const { session, mockSession } = await createAgentSession(disposables, { resume: true });
+		mockSession.messages = [
+			{ type: 'user.message', id: 'interrupted-turn', data: { interactionId: 'message-1', content: 'Keep working' } },
+			{ type: 'assistant.turn_start', data: { turnId: 'sdk-turn' } },
+			{ type: 'assistant.message', data: { messageId: 'message-2', content: 'Partial response' } },
+		] as SessionEvent[];
+
+		const turn = (await session.getMessages())[0];
+
+		assert.deepStrictEqual(turn.responseParts.at(-1), {
+			kind: ResponsePartKind.Error,
+			error: {
+				errorType: 'executionInterrupted',
+				message: 'The agent was interrupted before this request finished.',
+			},
+			resumable: true,
+		});
 	});
 
 	test('falls back to file reference when reading a symbol Resource attachment fails', async () => {
@@ -5496,6 +5528,410 @@ suite('CopilotAgentSession', () => {
 		});
 	});
 
+	suite('failed turn resume', () => {
+
+		test('the development $error path uses raw sendMessages even with attachments', async () => {
+			const { session, mockSession } = await createAgentSession(disposables);
+
+			await session.send('$error', [{
+				type: MessageAttachmentKind.Simple,
+				label: 'context',
+				modelRepresentation: 'attached context',
+			}], 'turn-error');
+
+			assert.deepStrictEqual({
+				sendRequests: mockSession.sendRequests,
+				sendMessagesRequests: mockSession.sendMessagesRequests,
+			}, {
+				sendRequests: [],
+				sendMessagesRequests: [{
+					messages: [{ prompt: '$error' }],
+					requestHeaders: { Authorization: '******' },
+				}],
+			});
+		});
+
+		test('the development $error-ui path emits a resumable error even with attachments', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+
+			await session.send('$error-ui', [{
+				type: MessageAttachmentKind.Simple,
+				label: 'context',
+				modelRepresentation: 'attached context',
+			}], 'turn-error');
+
+			assert.deepStrictEqual({
+				sendRequests: mockSession.sendRequests,
+				sendMessagesRequests: mockSession.sendMessagesRequests,
+				actions: getActions(signals).map(action => action.type === ActionType.ChatError ? { ...action, duration: 0 } : action),
+			}, {
+				sendRequests: [],
+				sendMessagesRequests: [],
+				actions: [{
+					type: ActionType.ChatError,
+					turnId: 'turn-error',
+					duration: 0,
+					part: {
+						kind: ResponsePartKind.Error,
+						error: {
+							errorType: 'developmentRecoverableError',
+							message: 'Injected recoverable development error (1/1).',
+						},
+						resumable: true,
+					},
+				}],
+			});
+		});
+
+		test('the development $error-ui path can repeat failures before succeeding in the same turn', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+
+			await session.send('$error-ui:2', undefined, 'turn-error');
+			await session.resume('turn-error');
+			await session.resume('turn-error');
+
+			assert.deepStrictEqual({
+				sendRequests: mockSession.sendRequests,
+				sendMessagesRequests: mockSession.sendMessagesRequests,
+				actions: getActions(signals).map(action => ({
+					type: action.type,
+					turnId: action.type === ActionType.ChatError || action.type === ActionType.ChatResponsePart || action.type === ActionType.ChatTurnComplete ? action.turnId : undefined,
+					error: action.type === ActionType.ChatError ? action.part.error.message : undefined,
+					content: action.type === ActionType.ChatResponsePart && action.part.kind === ResponsePartKind.Markdown ? action.part.content : undefined,
+				})),
+			}, {
+				sendRequests: [],
+				sendMessagesRequests: [],
+				actions: [
+					{ type: ActionType.ChatError, turnId: 'turn-error', error: 'Injected recoverable development error (1/2).', content: undefined },
+					{ type: ActionType.ChatError, turnId: 'turn-error', error: 'Injected recoverable development error (2/2).', content: undefined },
+					{ type: ActionType.ChatResponsePart, turnId: 'turn-error', error: undefined, content: 'Recovered after 2 injected failure(s).' },
+					{ type: ActionType.ChatTurnComplete, turnId: 'turn-error', error: undefined, content: undefined },
+				],
+			});
+		});
+
+		test('the development $error-ui-tool path preserves a completed tool call across failure and resume', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+
+			await session.send('$error-ui-tool', undefined, 'turn-error');
+			await session.resume('turn-error');
+
+			assert.deepStrictEqual({
+				sendRequests: mockSession.sendRequests,
+				sendMessagesRequests: mockSession.sendMessagesRequests,
+				actions: getActions(signals).map(action => ({
+					type: action.type,
+					toolCallId: action.type === ActionType.ChatToolCallStart || action.type === ActionType.ChatToolCallReady || action.type === ActionType.ChatToolCallComplete ? action.toolCallId : undefined,
+					error: action.type === ActionType.ChatError ? action.part.error.message : undefined,
+					content: action.type === ActionType.ChatResponsePart && action.part.kind === ResponsePartKind.Markdown ? action.part.content : undefined,
+				})),
+			}, {
+				sendRequests: [],
+				sendMessagesRequests: [],
+				actions: [
+					{ type: ActionType.ChatToolCallStart, toolCallId: 'turn-error-development-tool', error: undefined, content: undefined },
+					{ type: ActionType.ChatToolCallReady, toolCallId: 'turn-error-development-tool', error: undefined, content: undefined },
+					{ type: ActionType.ChatToolCallComplete, toolCallId: 'turn-error-development-tool', error: undefined, content: undefined },
+					{ type: ActionType.ChatError, toolCallId: undefined, error: 'Injected recoverable development error (1/1).', content: undefined },
+					{ type: ActionType.ChatResponsePart, toolCallId: undefined, error: undefined, content: 'Recovered after 1 injected failure(s).' },
+					{ type: ActionType.ChatTurnComplete, toolCallId: undefined, error: undefined, content: undefined },
+				],
+			});
+		});
+
+		test('development error helpers can be disabled for product builds', async () => {
+			const disabled = await createAgentSession(disposables, { enableDevelopmentErrorInjection: false });
+
+			await disabled.session.send('$error-ui-tool', undefined, 'turn-error');
+
+			assert.deepStrictEqual({
+				actions: getActions(disabled.signals),
+				sendRequests: disabled.mockSession.sendRequests,
+				sendMessagesRequests: disabled.mockSession.sendMessagesRequests,
+			}, {
+				actions: [],
+				sendRequests: [{ prompt: '$error-ui-tool', attachments: undefined }],
+				sendMessagesRequests: [],
+			});
+		});
+
+		test('resumes the same turn with zero SDK messages', async () => {
+			const { session, mockSession } = await createAgentSession(disposables);
+
+			await session.resume('turn-1', 'plan', 'client-1');
+
+			assert.deepStrictEqual({
+				sendRequests: mockSession.sendRequests,
+				sendMessagesRequests: mockSession.sendMessagesRequests,
+				modeSetCalls: mockSession.modeSetCalls,
+			}, {
+				sendRequests: [],
+				sendMessagesRequests: [{ messages: [] }],
+				modeSetCalls: [{ mode: 'plan' }],
+			});
+		});
+
+		test('clears the active turn when the continuation connection closes', async () => {
+			const { session, mockSession } = await createAgentSession(disposables);
+			mockSession.sendMessagesError = new Error('Connection closed during continuation');
+
+			await assert.rejects(() => session.resume('turn-1'), /Connection closed/);
+
+			assert.deepStrictEqual({
+				active: session.hasActiveTurn,
+				sendMessagesRequests: mockSession.sendMessagesRequests,
+			}, {
+				active: false,
+				sendMessagesRequests: [{ messages: [] }],
+			});
+		});
+
+		for (const timing of ['before', 'after'] as const) {
+			test(`ignores a stale idle ${timing} zero-message continuation resolves`, async () => {
+				const gate = new DeferredPromise<void>();
+				const { session, mockSession, signals } = await createAgentSession(disposables);
+				if (timing === 'before') {
+					mockSession.sendMessagesGate = gate.p;
+				}
+
+				const resumePromise = session.resume('turn-1');
+				await timeout(0);
+				if (timing === 'before') {
+					mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+					gate.complete();
+				}
+				await resumePromise;
+				if (timing === 'after') {
+					mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+				}
+				const beforeProviderStart = {
+					active: session.hasActiveTurn,
+					terminalActions: getActions(signals).filter(action => action.type === ActionType.ChatTurnComplete || action.type === ActionType.ChatError),
+				};
+
+				mockSession.fire('assistant.turn_start', { turnId: 'sdk-turn-2' } as SessionEventPayload<'assistant.turn_start'>['data']);
+				mockSession.fire('assistant.message', {
+					messageId: 'm2',
+					content: 'Recovered response',
+					toolRequests: [],
+				} as SessionEventPayload<'assistant.message'>['data']);
+				mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+
+				assert.deepStrictEqual({
+					beforeProviderStart,
+					active: session.hasActiveTurn,
+					actions: getActions(signals).filter(action => action.type === ActionType.ChatResponsePart || action.type === ActionType.ChatTurnComplete).map(action => action.type),
+				}, {
+					beforeProviderStart: { active: true, terminalActions: [] },
+					active: false,
+					actions: [ActionType.ChatResponsePart, ActionType.ChatTurnComplete],
+				});
+			});
+		}
+
+		test('cancellation before the provider turn starts clears the resumed turn', async () => {
+			const abortGate = new DeferredPromise<void>();
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			await session.resume('turn-1');
+			mockSession.abortGate = abortGate.p;
+
+			const abortPromise = session.abort();
+			await timeout(0);
+			mockSession.fire('abort', { reason: 'user_abort' } as SessionEventPayload<'abort'>['data']);
+			mockSession.fire('session.idle', { aborted: true } as SessionEventPayload<'session.idle'>['data']);
+			const activeAfterIdle = session.hasActiveTurn;
+			abortGate.complete();
+			await abortPromise;
+
+			assert.deepStrictEqual({
+				active: session.hasActiveTurn,
+				activeAfterIdle,
+				abortCalls: mockSession.abortCalls,
+				actions: getActions(signals),
+			}, {
+				active: false,
+				activeAfterIdle: false,
+				abortCalls: 1,
+				actions: [],
+			});
+		});
+
+		test('cancellation after provider start but before content clears without completing', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			await session.resume('turn-1');
+			mockSession.fire('assistant.turn_start', { turnId: 'sdk-turn-2' } as SessionEventPayload<'assistant.turn_start'>['data']);
+
+			await session.abort();
+			mockSession.fire('abort', { reason: 'user_abort' } as SessionEventPayload<'abort'>['data']);
+			mockSession.fire('session.idle', { aborted: true } as SessionEventPayload<'session.idle'>['data']);
+
+			assert.deepStrictEqual({
+				active: session.hasActiveTurn,
+				actions: getActions(signals),
+			}, {
+				active: false,
+				actions: [],
+			});
+		});
+
+		test('quarantines late cancelled events until the next provider turn starts', async () => {
+			const abortGate = new DeferredPromise<void>();
+			const logService = new CapturingLogService();
+			const { session, mockSession, signals } = await createAgentSession(disposables, { logService });
+			await session.resume('turn-1');
+			mockSession.fire('assistant.turn_start', { turnId: 'sdk-turn-2' } as SessionEventPayload<'assistant.turn_start'>['data']);
+			mockSession.abortGate = abortGate.p;
+			const abortPromise = session.abort();
+			await timeout(0);
+
+			mockSession.fire('assistant.message_delta', {
+				deltaContent: 'Late response delta before idle',
+			} as SessionEventPayload<'assistant.message_delta'>['data']);
+			mockSession.fire('assistant.message', {
+				messageId: 'late-message-before-idle',
+				content: 'Late response before idle',
+				toolRequests: [],
+			} as SessionEventPayload<'assistant.message'>['data']);
+			mockSession.fire('session.idle', { aborted: true } as SessionEventPayload<'session.idle'>['data']);
+			abortGate.complete();
+			await abortPromise;
+			const fireLateTurnEvents = (suffix: string) => {
+				mockSession.fire('assistant.message', {
+					messageId: `late-message-${suffix}`,
+					content: `Late response ${suffix}`,
+					toolRequests: [],
+				} as SessionEventPayload<'assistant.message'>['data']);
+				mockSession.fire('assistant.tool_call_delta', {
+					toolCallId: `late-tool-${suffix}`,
+					toolName: 'bash',
+					inputDelta: '{"command":"echo late"}',
+				});
+				mockSession.fire('tool.execution_start', {
+					toolCallId: `late-tool-${suffix}`,
+					toolName: 'bash',
+					arguments: { command: 'echo late' },
+				} as SessionEventPayload<'tool.execution_start'>['data']);
+				mockSession.fire('session.error', {
+					errorType: 'LateError',
+					message: `Late error ${suffix}`,
+				} as SessionEventPayload<'session.error'>['data']);
+				mockSession.fire('subagent.started', {
+					toolCallId: `late-subagent-${suffix}`,
+					agentName: 'late-agent',
+					agentDisplayName: 'Late Agent',
+					agentDescription: 'Late cancelled subagent',
+				} as SessionEventPayload<'subagent.started'>['data'], { agentId: `late-agent-${suffix}` });
+			};
+			fireLateTurnEvents('after-idle');
+			mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+
+			session.resetTurnState('turn-2');
+			fireLateTurnEvents('after-next-turn-reset');
+			const beforeProviderStart = {
+				active: session.hasActiveTurn,
+				actions: getActions(signals),
+			};
+
+			mockSession.fire('assistant.turn_start', { turnId: 'sdk-turn-3' } as SessionEventPayload<'assistant.turn_start'>['data']);
+			mockSession.fire('assistant.message', {
+				messageId: 'valid-message',
+				content: 'Valid next response',
+				toolRequests: [],
+			} as SessionEventPayload<'assistant.message'>['data']);
+			mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+
+			assert.deepStrictEqual({
+				beforeProviderStart,
+				activeAfterCompletion: session.hasActiveTurn,
+				actionsAfterCompletion: getActions(signals).map(action => action.type),
+				subagentSignals: signals.filter(signal => signal.kind === 'subagent_started' || signal.kind === 'subagent_resumed'),
+				droppedResponseLogged: logService.errors.some(error => /after cancellation/i.test(String(error.first))),
+			}, {
+				beforeProviderStart: { active: true, actions: [] },
+				activeAfterCompletion: false,
+				actionsAfterCompletion: [ActionType.ChatResponsePart, ActionType.ChatTurnComplete],
+				subagentSignals: [],
+				droppedResponseLogged: true,
+			});
+		});
+
+		test('inline commands complete while cancelled provider events remain quarantined', async () => {
+			const logService = new CapturingLogService();
+			const { session, mockSession, signals } = await createAgentSession(disposables, { logService });
+			await session.resume('turn-1');
+			mockSession.fire('assistant.turn_start', { turnId: 'sdk-turn-2' } as SessionEventPayload<'assistant.turn_start'>['data']);
+			await session.abort();
+			mockSession.fire('session.idle', { aborted: true } as SessionEventPayload<'session.idle'>['data']);
+
+			await session.send('/compact', undefined, 'turn-compact-after-cancel');
+			mockSession.fire('assistant.message', {
+				messageId: 'late-cancelled-message',
+				content: 'Late cancelled response',
+				toolRequests: [],
+			} as SessionEventPayload<'assistant.message'>['data']);
+
+			assert.deepStrictEqual({
+				active: session.hasActiveTurn,
+				actions: getActions(signals).map(action => action.type),
+				droppedResponseLogged: logService.errors.some(error => /after cancellation/i.test(String(error.first))),
+			}, {
+				active: false,
+				actions: [ActionType.ChatResponsePart, ActionType.ChatTurnComplete],
+				droppedResponseLogged: true,
+			});
+		});
+
+		test('turn-starting system notifications establish a trusted post-cancellation boundary', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			await session.resume('turn-1');
+			mockSession.fire('assistant.turn_start', { turnId: 'sdk-turn-2' } as SessionEventPayload<'assistant.turn_start'>['data']);
+			await session.abort();
+			mockSession.fire('session.idle', { aborted: true } as SessionEventPayload<'session.idle'>['data']);
+
+			mockSession.fire('system.notification', {
+				content: '<system_notification>\nAgent "agent-a" has finished processing and is now idle.\n</system_notification>',
+				kind: { type: 'agent_idle', agentId: 'agent-a', agentType: 'general-purpose', description: 'Investigate the issue' },
+			} as SessionEventPayload<'system.notification'>['data']);
+			mockSession.fire('assistant.message_delta', {
+				deltaContent: 'Reading the background agent result now.',
+			} as SessionEventPayload<'assistant.message_delta'>['data']);
+			mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+
+			assert.deepStrictEqual({
+				active: session.hasActiveTurn,
+				actions: getActions(signals).map(action => action.type),
+			}, {
+				active: false,
+				actions: [ActionType.ChatTurnStarted, ActionType.ChatResponsePart, ActionType.ChatTurnComplete],
+			});
+		});
+
+		test('a root user-message echo establishes the boundary for a no-op replacement turn', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			await session.resume('turn-1');
+			mockSession.fire('assistant.turn_start', { turnId: 'sdk-turn-2' } as SessionEventPayload<'assistant.turn_start'>['data']);
+			await session.abort();
+			mockSession.fire('session.idle', { aborted: true } as SessionEventPayload<'session.idle'>['data']);
+
+			await session.send('next request', undefined, 'turn-2');
+			mockSession.fire('user.message', {
+				content: 'next request',
+				interactionId: 'interaction-turn-2',
+				source: 'user',
+			} as SessionEventPayload<'user.message'>['data']);
+			mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+
+			assert.deepStrictEqual({
+				active: session.hasActiveTurn,
+				actions: getActions(signals).map(action => action.type),
+			}, {
+				active: false,
+				actions: [ActionType.ChatTurnComplete],
+			});
+		});
+	});
+
 	// ---- system.notification ----
 
 	suite('system.notification', () => {
@@ -7405,23 +7841,20 @@ suite('CopilotAgentSession', () => {
 			assert.ok(isAction(signals[0], ActionType.ChatError));
 			if (isAction(signals[0], ActionType.ChatError)) {
 				const action = signals[0].action as ChatErrorAction;
-				assert.deepStrictEqual(action.part, {
-					kind: ResponsePartKind.Error,
-					error: {
-						errorType: 'TestError',
-						message: 'something went wrong',
-						stack: 'Error: something went wrong',
-						_meta: {
-							chatError: {
-								fetchError: {
-									type: 'failed',
-									reason: 'something went wrong',
-									requestId: 'provider-request-id',
-									serverRequestId: 'service-request-id',
-									capiError: {
-										code: 'test-code',
-										message: 'something went wrong',
-									},
+				assert.deepStrictEqual(action.part.error, {
+					errorType: 'TestError',
+					message: 'something went wrong',
+					stack: 'Error: something went wrong',
+					_meta: {
+						chatError: {
+							fetchError: {
+								type: 'failed',
+								reason: 'something went wrong',
+								requestId: 'provider-request-id',
+								serverRequestId: 'service-request-id',
+								capiError: {
+									code: 'test-code',
+									message: 'something went wrong',
 								},
 							},
 						},

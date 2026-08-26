@@ -41,7 +41,7 @@ import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AgentMergeConfigKey, readAgentMergeSessionState } from '../../common/agentMerge.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { ActionType, ActionEnvelope, NotificationType, type INotification } from '../../common/state/sessionActions.js';
-import { AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, readSessionEhcliAdopted, AH_META_IS_ARCHIVED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, isDefaultChatUri, isMessageHiddenFromTranscript, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionCreationReference, readSessionEhcliAdoptable, readSessionExternal, readSessionGitHubState, readSessionMultiRootMetadata, readSessionFolderPickerDecision, readSessionSourceControlState, withSessionEhcliAdoptable, withSessionExternal, withSessionMultiRootMetadata, ChatOriginKind, type ChangesetState, type ISessionFolderPickerDecision, type ISessionWithDefaultChat, type MarkdownResponsePart, type SessionState, type SessionSummary, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
+import { AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, readSessionEhcliAdopted, AH_META_IS_ARCHIVED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, createErrorResponsePart, customizationId, isDefaultChatUri, isMessageHiddenFromTranscript, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionCreationReference, readSessionEhcliAdoptable, readSessionExternal, readSessionGitHubState, readSessionMultiRootMetadata, readSessionFolderPickerDecision, readSessionSourceControlState, withSessionEhcliAdoptable, withSessionExternal, withSessionMultiRootMetadata, ChatOriginKind, type ChangesetState, type ISessionFolderPickerDecision, type ISessionWithDefaultChat, type MarkdownResponsePart, type SessionState, type SessionSummary, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
 import { ChatInteractivity, type MessageAttachment } from '../../common/state/protocol/state.js';
 import { isHostSnapshotAttachment, toHostSnapshotAttachmentMeta } from '../../common/meta/agentSnapshotAttachmentMeta.js';
 import { readAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
@@ -550,6 +550,253 @@ suite('AgentService (node dispatcher)', () => {
 		test('registers a provider successfully', () => {
 			registerTestAgentProvider(service, copilotAgent);
 			// No throw - success
+		});
+
+		suite('failed turn resume', () => {
+			async function createErroredTurn(): Promise<{ session: URI; chat: string }> {
+				registerTestAgentProvider(service, copilotAgent);
+				const session = await service.createSession({ provider: 'copilot' });
+				const chat = buildDefaultChatUri(session.toString());
+				const stateManager = getStateManager(service);
+				stateManager.dispatchServerAction(chat, {
+					type: ActionType.ChatTurnStarted,
+					turnId: 'turn-1',
+					startedAt: '2026-08-11T00:00:00.000Z',
+					message: { text: 'hello', origin: { kind: MessageKind.User } },
+				});
+				stateManager.dispatchServerAction(chat, {
+					type: ActionType.ChatUsage,
+					turnId: 'turn-1',
+					usage: {
+						inputTokens: 10,
+						outputTokens: 5,
+						model: 'model-1',
+						_meta: {
+							cost: 1,
+							copilotUsage: { totalNanoAiu: 2 },
+							turnTokenTotals: [{ model: 'model-1', inputTokens: 10, cachedTokens: 1, outputTokens: 5 }],
+						},
+					},
+				});
+				stateManager.dispatchServerAction(chat, {
+					type: ActionType.ChatError,
+					turnId: 'turn-1',
+					duration: 100,
+					part: createErrorResponsePart({ errorType: 'requestFailed', message: 'failed' }, true),
+				});
+				return { session, chat };
+			}
+
+			test('rejects resumable state when the provider cannot continue', async () => {
+				const { chat } = await createErroredTurn();
+				const envelopePromise = Event.toPromise(Event.filter(service.onDidAction, envelope => envelope.origin?.clientSeq === 1));
+
+				service.dispatchAction(chat, { type: ActionType.ChatTurnResume, turnId: 'turn-1' }, 'client-1', 1);
+
+				const envelope = await envelopePromise;
+				assert.deepStrictEqual({
+					rejectionReason: envelope.rejectionReason,
+					activeTurn: getStateManager(service).getChatState(chat)?.activeTurn,
+				}, {
+					rejectionReason: 'The session provider does not support turn resume.',
+					activeTurn: undefined,
+				});
+			});
+
+			test('rejects resume after the session is archived', async () => {
+				const { session, chat } = await createErroredTurn();
+				copilotAgent.chats.resumeTurn = async () => { };
+				getStateManager(service).dispatchServerAction(session.toString(), {
+					type: ActionType.SessionIsArchivedChanged,
+					isArchived: true,
+				});
+				const envelopePromise = Event.toPromise(Event.filter(service.onDidAction, envelope => envelope.origin?.clientSeq === 1));
+
+				service.dispatchAction(chat, { type: ActionType.ChatTurnResume, turnId: 'turn-1' }, 'client-1', 1);
+
+				const envelope = await envelopePromise;
+				assert.strictEqual(envelope.rejectionReason, 'Cannot resume a read-only or archived chat.');
+			});
+
+			test('accepts only one racing resume before provider side effects', async () => {
+				const { chat } = await createErroredTurn();
+				const calls: Array<{ chat: string; turnId: string }> = [];
+				copilotAgent.chats.resumeTurn = async (resource, turnId) => {
+					calls.push({ chat: resource.toString(), turnId });
+				};
+				const envelopes: ActionEnvelope[] = [];
+				disposables.add(service.onDidAction(envelope => {
+					if (envelope.origin?.clientSeq === 1 || envelope.origin?.clientSeq === 2) {
+						envelopes.push(envelope);
+					}
+				}));
+
+				service.dispatchAction(chat, { type: ActionType.ChatTurnResume, turnId: 'turn-1' }, 'client-1', 1);
+				service.dispatchAction(chat, { type: ActionType.ChatTurnResume, turnId: 'turn-1' }, 'client-2', 2);
+				await timeout(0);
+
+				assert.deepStrictEqual({
+					calls,
+					envelopes: envelopes.map(envelope => ({ clientSeq: envelope.origin?.clientSeq, rejectionReason: envelope.rejectionReason })),
+					activeTurnId: getStateManager(service).getChatState(chat)?.activeTurn?.id,
+				}, {
+					calls: [{ chat, turnId: 'turn-1' }],
+					envelopes: [
+						{ clientSeq: 1, rejectionReason: undefined },
+						{ clientSeq: 2, rejectionReason: 'Cannot resume while a turn is active.' },
+					],
+					activeTurnId: 'turn-1',
+				});
+			});
+
+			test('preserves cumulative logical-turn duration and usage', async () => {
+				const { chat } = await createErroredTurn();
+				copilotAgent.chats.resumeTurn = async () => { };
+				service.dispatchAction(chat, { type: ActionType.ChatTurnResume, turnId: 'turn-1' }, 'client-1', 1);
+				copilotAgent.fireProgress({
+					kind: 'action',
+					resource: URI.parse(chat),
+					action: {
+						type: ActionType.ChatUsage,
+						turnId: 'turn-1',
+						usage: {
+							inputTokens: 20,
+							outputTokens: 8,
+							model: 'model-1',
+							_meta: {
+								cost: 3,
+								copilotUsage: { totalNanoAiu: 4 },
+								turnTokenTotals: [{ model: 'model-1', inputTokens: 20, cachedTokens: 2, outputTokens: 8 }],
+							},
+						},
+					},
+				});
+				copilotAgent.fireProgress({
+					kind: 'action',
+					resource: URI.parse(chat),
+					action: { type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 50 },
+				});
+
+				const turn = getStateManager(service).getChatState(chat)?.turns.at(-1);
+				assert.deepStrictEqual({
+					id: turn?.id,
+					duration: turn?.duration,
+					usage: turn?.usage,
+				}, {
+					id: 'turn-1',
+					duration: 150,
+					usage: {
+						inputTokens: 20,
+						outputTokens: 8,
+						model: 'model-1',
+						_meta: {
+							cost: 4,
+							copilotUsage: { totalNanoAiu: 6 },
+							turnTokenTotals: [{ model: 'model-1', inputTokens: 30, cachedTokens: 3, outputTokens: 13 }],
+						},
+					},
+				});
+			});
+
+			test('accumulates duration and usage across repeated failed continuations', async () => {
+				const { chat } = await createErroredTurn();
+				copilotAgent.chats.resumeTurn = async () => { };
+				const failContinuation = (clientSeq: number, duration: number, usage: { inputTokens: number; outputTokens: number; cost: number; nanoAiu: number; cachedTokens: number }, message: string) => {
+					service.dispatchAction(chat, { type: ActionType.ChatTurnResume, turnId: 'turn-1' }, `client-${clientSeq}`, clientSeq);
+					copilotAgent.fireProgress({
+						kind: 'action',
+						resource: URI.parse(chat),
+						action: {
+							type: ActionType.ChatUsage,
+							turnId: 'turn-1',
+							usage: {
+								inputTokens: usage.inputTokens,
+								outputTokens: usage.outputTokens,
+								model: 'model-1',
+								_meta: {
+									cost: usage.cost,
+									copilotUsage: { totalNanoAiu: usage.nanoAiu },
+									turnTokenTotals: [{
+										model: 'model-1',
+										inputTokens: usage.inputTokens,
+										cachedTokens: usage.cachedTokens,
+										outputTokens: usage.outputTokens,
+									}],
+								},
+							},
+						},
+					});
+					copilotAgent.fireProgress({
+						kind: 'action',
+						resource: URI.parse(chat),
+						action: {
+							type: ActionType.ChatError,
+							turnId: 'turn-1',
+							duration,
+							part: createErrorResponsePart({ errorType: 'requestFailed', message }, true),
+						},
+					});
+				};
+
+				failContinuation(1, 50, { inputTokens: 20, outputTokens: 8, cost: 3, nanoAiu: 4, cachedTokens: 2 }, 'failed again');
+				failContinuation(2, 25, { inputTokens: 30, outputTokens: 10, cost: 5, nanoAiu: 6, cachedTokens: 3 }, 'failed a third time');
+
+				const state = getStateManager(service).getChatState(chat);
+				const turn = state?.turns.at(-1);
+				assert.deepStrictEqual({
+					turnCount: state?.turns.length,
+					id: turn?.id,
+					duration: turn?.duration,
+					errorMessages: turn?.responseParts
+						.filter(part => part.kind === ResponsePartKind.Error)
+						.map(part => part.error.message),
+					usage: turn?.usage,
+				}, {
+					turnCount: 1,
+					id: 'turn-1',
+					duration: 175,
+					errorMessages: ['failed', 'failed again', 'failed a third time'],
+					usage: {
+						inputTokens: 30,
+						outputTokens: 10,
+						model: 'model-1',
+						_meta: {
+							cost: 9,
+							copilotUsage: { totalNanoAiu: 12 },
+							turnTokenTotals: [{ model: 'model-1', inputTokens: 60, cachedTokens: 6, outputTokens: 23 }],
+						},
+					},
+				});
+			});
+
+			test('finalizes the same turn with another resumable error when continuation fails immediately', async () => {
+				const { chat } = await createErroredTurn();
+				copilotAgent.chats.resumeTurn = async () => {
+					throw new Error('continuation failed');
+				};
+				service.dispatchAction(chat, { type: ActionType.ChatTurnResume, turnId: 'turn-1' }, 'client-1', 1);
+				await Event.toPromise(Event.filter(service.onDidAction, envelope =>
+					envelope.action.type === ActionType.ChatError && !envelope.origin));
+
+				const state = getStateManager(service).getChatState(chat);
+				const turn = state?.turns.at(-1);
+				assert.deepStrictEqual({
+					turnCount: state?.turns.length,
+					id: turn?.id,
+					state: turn?.state,
+					errors: turn?.responseParts.filter(part => part.kind === ResponsePartKind.Error),
+					durationAtLeastInitial: (turn?.duration ?? 0) >= 100,
+				}, {
+					turnCount: 1,
+					id: 'turn-1',
+					state: TurnState.Error,
+					errors: [
+						createErrorResponsePart({ errorType: 'requestFailed', message: 'failed' }, true),
+						createErrorResponsePart({ errorType: 'sendFailed', message: 'Error: continuation failed' }, true),
+					],
+					durationAtLeastInitial: true,
+				});
+			});
 		});
 
 		test('forwards the exact chat URI encoded in an MCP channel', async () => {
@@ -12637,7 +12884,7 @@ suite('AgentService (node dispatcher)', () => {
 		test('inactive subscription is not registered after provider release', () => {
 			return runWithFakedTimers({ useFakeTimers: true }, async () => {
 				const agent = new DelayedReleaseMockAgent('copilot');
-				service.registerProvider(agent);
+				registerTestAgentProvider(service, agent);
 				const { session } = await createAgentSession(agent);
 				agent.sessionMessages = [
 					{ type: 'message', session, role: 'user', messageId: 'msg-1', content: 'Hello', toolRequests: [] },
@@ -12660,7 +12907,7 @@ suite('AgentService (node dispatcher)', () => {
 		});
 
 		test('failed subscription removes its subscriber registration', async () => {
-			service.registerProvider(copilotAgent);
+			registerTestAgentProvider(service, copilotAgent);
 			const missingSession = URI.parse('copilot:/missing-session');
 
 			await assert.rejects(service.subscribe(missingSession, 'client-1'));
@@ -12672,7 +12919,7 @@ suite('AgentService (node dispatcher)', () => {
 		test('unsubscribe after service disposal does not schedule GC', () => {
 			return runWithFakedTimers({ useFakeTimers: true }, async () => {
 				const agent = new MockAgent('copilot');
-				service.registerProvider(agent);
+				registerTestAgentProvider(service, agent);
 				const session = await service.createSession({ provider: 'copilot' });
 				service.addSubscriber(session, 'client-1');
 
