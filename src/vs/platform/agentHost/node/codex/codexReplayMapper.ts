@@ -206,6 +206,9 @@ function replayTurnToTurn(codexTurn: CodexTurn, model: ModelSelection | undefine
 	if (!userText && parts.length === 0) {
 		return undefined;
 	}
+	if (codexTurn.status === 'failed' && codexTurn.error) {
+		parts.push({ kind: ResponsePartKind.Error, error: mapCodexTurnError(codexTurn.error) });
+	}
 	return {
 		id: codexTurn.id,
 		...codexTurnTiming(codexTurn),
@@ -218,7 +221,6 @@ function replayTurnToTurn(codexTurn: CodexTurn, model: ModelSelection | undefine
 		responseParts: parts,
 		usage: model ? { model: model.id } : undefined,
 		state: turnStateFromStatus(codexTurn.status),
-		...(codexTurn.status === 'failed' && codexTurn.error ? { error: mapCodexTurnError(codexTurn.error) } : {}),
 	};
 }
 

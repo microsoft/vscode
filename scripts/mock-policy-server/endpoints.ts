@@ -86,11 +86,92 @@ declare var MOCK_POLICY_ENDPOINTS: EndpointDef[];
 				{
 					id: 'disable-bypass-permissions',
 					label: 'Disable bypass permissions',
-					description: 'Disables bypass permissions mode.',
+					description: 'Blocks all escalation to bypass-permissions ("allow-all"/"yolo") mode, including auto-approval.',
 					status: 200,
 					body: {
 						permissions: {
 							disableBypassPermissionsMode: 'disable'
+						}
+					}
+				},
+				{
+					id: 'allow-auto-only',
+					label: 'Allow auto-approval only',
+					description: 'Blocks full allow-all bypass but still permits advisory auto-approval (LLM safety recommendations with normal prompt paths).',
+					status: 200,
+					body: {
+						permissions: {
+							disableBypassPermissionsMode: 'allow-auto-only'
+						}
+					}
+				},
+				{
+					id: 'deny-dangerous-commands',
+					label: 'Deny dangerous shell/file operations',
+					description: 'Blocks specific shell commands, workspace-scoped file writes, and a domain outright. A single leading slash means the workspace root in the managed permission syntax.',
+					status: 200,
+					body: {
+						permissions: {
+							deny: [
+								'Shell(rm -rf *)',
+								'Shell(curl *)',
+								'Write(/.github/workflows/**)',
+								'Domain(evil.example.com)'
+							]
+						}
+					}
+				},
+				{
+					id: 'workspace-scoped-paths',
+					label: 'Workspace-scoped paths',
+					description: 'Demonstrates paths relative to the workspace root: /src/** and /test/** match only inside the workspace, while /package.json targets that workspace file.',
+					status: 200,
+					body: {
+						permissions: {
+							ask: [
+								'Write(/src/**)',
+								'Write(/test/**)'
+							],
+							deny: [
+								'Write(/package.json)'
+							]
+						}
+					}
+				},
+				{
+					id: 'ask-before-publish',
+					label: 'Ask before publishing or deploying',
+					description: 'Requires human approval for package publish/deploy commands and writes anywhere under the user home directory, including workspaces located there. It does not cover paths outside the home directory.',
+					status: 200,
+					body: {
+						permissions: {
+							ask: [
+								'Shell(npm publish *)',
+								'Shell(git push *)',
+								'Write(~/**)'
+							]
+						}
+					}
+				},
+				{
+					id: 'lockdown-allowlist',
+					label: 'Lockdown: allow only an approved set',
+					description: 'Intersects with any other managed allow list, so only requests every managed source admits run without prompting. Combine with deny/ask for defense in depth.',
+					status: 200,
+					body: {
+						permissions: {
+							disableBypassPermissionsMode: 'disable',
+							allow: [
+								'Read(**)',
+								'Shell(git status)',
+								'Shell(git diff *)',
+								'Domain(github.com)',
+								'Domain(*.githubusercontent.com)'
+							],
+							deny: [
+								'Write(/.github/workflows/**)',
+								'Write(~/.ssh/**)'
+							]
 						}
 					}
 				},

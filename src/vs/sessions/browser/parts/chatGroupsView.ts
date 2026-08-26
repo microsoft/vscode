@@ -90,6 +90,7 @@ export class ChatGroupsView extends Themable {
 	private _mainChatResource: IObservable<string> | undefined;
 	private _sessionActive = true;
 	private _sessionVisible = true;
+	private readonly _singleGroupTabsReplaceHeader = observableValue(this, false);
 
 	/** While restoring a persisted layout: routes (late-loading) chats back to their saved groups. */
 	private _restoreAssignment: Map<string, number> | undefined;
@@ -111,6 +112,10 @@ export class ChatGroupsView extends Themable {
 		@IStorageService private readonly _storageService: IStorageService,
 	) {
 		super(themeService);
+	}
+
+	setSingleGroupTabsReplaceHeader(enabled: boolean): void {
+		this._singleGroupTabsReplaceHeader.set(enabled, undefined);
 	}
 
 	/** Sets (or clears) the session whose chats this view partitions into groups. */
@@ -280,7 +285,7 @@ export class ChatGroupsView extends Themable {
 			}
 			return session.shouldShowChatTabs.read(reader);
 		});
-		const showSessionActions = derived(reader => this._groupCount.read(reader) === 1 && tabsVisible.read(reader));
+		const showSessionActions = derived(reader => this._singleGroupTabsReplaceHeader.read(reader) && this._groupCount.read(reader) === 1 && tabsVisible.read(reader));
 
 		const view = store.add(this._instantiationService.createInstance(ChatGroupView));
 		const entry: IGroupEntry = { id, view, resourceIds, activeResourceId, chats, tabsVisible };

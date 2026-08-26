@@ -83,14 +83,14 @@ interface IChatCompositeBarHarness {
 	readonly tabs: readonly HTMLElement[];
 }
 
-function createHarness(disposables: Pick<DisposableStore, 'add'>, isQuickChat = false): IChatCompositeBarHarness {
+function createHarness(disposables: Pick<DisposableStore, 'add'>, options?: { readonly isQuickChat?: boolean }): IChatCompositeBarHarness {
 	const store = disposables.add(new DisposableStore());
 	const instantiationService = workbenchInstantiationService(undefined, store);
 	const commandService = new TestCommandService();
 	const sessionsService = new TestSessionsService();
 	const mainChat = createChat('main', 'Main Chat');
 	const secondaryChat = createChat('secondary', 'Secondary Chat');
-	const session = createSession([mainChat, secondaryChat], mainChat, isQuickChat);
+	const session = createSession([mainChat, secondaryChat], mainChat, options?.isQuickChat);
 
 	instantiationService.stub(ICommandService, commandService);
 	instantiationService.stub(ISessionsService, sessionsService);
@@ -136,16 +136,18 @@ suite('Sessions - ChatCompositeBar', () => {
 				hasActions: tab.querySelector(':scope > .chat-composite-bar-tab-actions') !== null,
 				ariaLabel: tab.getAttribute('aria-label'),
 			})),
+			hasMetadataRow: tabs[0].closest('.session-chat-tabs-bar')?.querySelector('.chat-composite-bar-meta-row') !== null,
 		}, {
 			tabs: [
 				{ hasSharedPresentation: true, hasFill: true, hasLabel: true, hasActions: false, ariaLabel: 'Main Chat, State: Completed' },
 				{ hasSharedPresentation: true, hasFill: true, hasLabel: true, hasActions: true, ariaLabel: 'Secondary Chat, State: Completed' },
 			],
+			hasMetadataRow: false,
 		});
 	});
 
 	test('hides New Chat for workspace-less sessions', () => {
-		const { bar } = createHarness(disposables, true);
+		const { bar } = createHarness(disposables, { isQuickChat: true });
 
 		assert.strictEqual(bar.element.querySelector('.chat-composite-bar-new-chat')?.classList.contains('hidden'), true);
 	});

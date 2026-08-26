@@ -7,7 +7,7 @@ import assert from 'assert';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import type { IAgentSdkSetupInfo } from '../../../../../../platform/agentHost/common/agentSdkSetup.js';
-import { AGENT_SDK_SETUP_DOWNLOAD_COMMAND_ID, AGENT_SDK_SETUP_GITHUB_SIGN_IN_COMMAND_ID, AGENT_SDK_SETUP_OPEN_DOCS_COMMAND_ID, AGENT_SDK_SETUP_SIGN_IN_COMMAND_ID, agentSdkSetupNotificationId, createAgentSdkSetupNotification, getAgentDisplayNames, getAgentSdkSetupState, getAgentSdkSetupStateToReport, hasAgentSdkSetupNotification, type IAgentSdkSetupStateInputs } from '../../../browser/agentSessions/agentHost/agentHostSdkSetupNotification.js';
+import { AGENT_SDK_SETUP_DOWNLOAD_COMMAND_ID, AGENT_SDK_SETUP_GITHUB_SIGN_IN_COMMAND_ID, AGENT_SDK_SETUP_OPEN_DOCS_COMMAND_ID, AGENT_SDK_SETUP_RELOAD_COMMAND_ID, AGENT_SDK_SETUP_SIGN_IN_COMMAND_ID, agentSdkSetupNotificationId, createAgentSdkSetupNotification, getAgentDisplayNames, getAgentSdkSetupState, getAgentSdkSetupStateToReport, hasAgentSdkSetupNotification, type IAgentSdkSetupStateInputs } from '../../../browser/agentSessions/agentHost/agentHostSdkSetupNotification.js';
 import type { AgentSdkSetupState } from '../../../../../services/agentHost/browser/agentSdkSetupService.js';
 import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, type IChatInputNotification, type IChatInputNotificationAction, type IChatInputNotificationService } from '../../../browser/widget/input/chatInputNotificationService.js';
 import { SessionType } from '../../../common/chatSessionsService.js';
@@ -97,9 +97,11 @@ suite('Agent SDK setup banner', () => {
 				both: buttons(codex, 'Codex'),
 				neither: buttons({ agent: 'some-future-agent', download: 'ready' }, 'Future'),
 			}, {
-				docsOnly: [AGENT_SDK_SETUP_OPEN_DOCS_COMMAND_ID, AGENT_SDK_SETUP_GITHUB_SIGN_IN_COMMAND_ID],
+				// Docs are a link in the description, never a button — so declaring a
+				// docs URL and declaring nothing produce the same row of buttons.
+				docsOnly: [AGENT_SDK_SETUP_GITHUB_SIGN_IN_COMMAND_ID],
 				signInOnly: [AGENT_SDK_SETUP_SIGN_IN_COMMAND_ID, AGENT_SDK_SETUP_GITHUB_SIGN_IN_COMMAND_ID],
-				both: [AGENT_SDK_SETUP_OPEN_DOCS_COMMAND_ID, AGENT_SDK_SETUP_SIGN_IN_COMMAND_ID, AGENT_SDK_SETUP_GITHUB_SIGN_IN_COMMAND_ID],
+				both: [AGENT_SDK_SETUP_SIGN_IN_COMMAND_ID, AGENT_SDK_SETUP_GITHUB_SIGN_IN_COMMAND_ID],
 				neither: [AGENT_SDK_SETUP_GITHUB_SIGN_IN_COMMAND_ID],
 			});
 		});
@@ -114,12 +116,22 @@ suite('Agent SDK setup banner', () => {
 			assert.deepStrictEqual(notification.actions.map(action => action.label), ['Sign in to ChatGPT', 'Sign in to GitHub']);
 		});
 
-		test('the routes named in the copy are the ones the agent declared', () => {
+		test('the routes named in the copy are the ones the agent declared, ranked as the buttons rank them', () => {
 			// One whole sentence per combination rather than joined clauses, since a
 			// translator reorders them freely. GitHub appears in all four: every agent
 			// behind this banner reaches models through our proxy once signed in.
-			const noAccount = (setup: Omit<IAgentSdkSetupInfo, 'agent' | 'download'>) =>
-				createAgentSdkSetupNotification({ agent: 'claude', download: 'ready', ...setup }, 'Claude', 'noAccount')?.description;
+			const noAccount = (setup: Omit<IAgentSdkSetupInfo, 'agent' | 'download'>) => {
+				const description = createAgentSdkSetupNotification({ agent: 'claude', download: 'ready', ...setup }, 'Claude', 'noAccount')?.description;
+				return typeof description === 'string' ? description : description?.value;
+			};
+			// Leads every variant, as the primary button does.
+			const gitHub = 'Sign in to GitHub to use GitHub Copilot models';
+			// Unconditional: setup finished in a terminal has no completion signal, so
+			// every agent needs the "look again" route whatever else it declares.
+			const reload = `[reload the configuration](command:${AGENT_SDK_SETUP_RELOAD_COMMAND_ID}?%255B%2522claude%2522%255D) if you have set up Claude elsewhere.`;
+			// The agent id, like every button carries — the command resolves the URL
+			// from the agent's own declaration rather than trusting the banner's copy.
+			const docs = `For other ways to set up Claude, [learn more](command:${AGENT_SDK_SETUP_OPEN_DOCS_COMMAND_ID}?%255B%2522claude%2522%255D) on their docs.`;
 
 			assert.deepStrictEqual({
 				gitHubOnly: noAccount({}),
@@ -127,11 +139,35 @@ suite('Agent SDK setup banner', () => {
 				signIn: noAccount({ signInProviderName: 'ChatGPT' }),
 				both: noAccount({ setupDocsUrl: 'https://example.test/claude', signInProviderName: 'ChatGPT' }),
 			}, {
-				gitHubOnly: 'Sign in to GitHub to use GitHub Copilot models.',
-				docs: 'Sign in to GitHub to use GitHub Copilot models, or read the instructions for other ways to set up Claude.',
-				signIn: 'Sign in to GitHub to use GitHub Copilot models, or sign in to ChatGPT to use your ChatGPT subscription.',
-				both: 'Sign in to GitHub to use GitHub Copilot models, sign in to ChatGPT to use your ChatGPT subscription, or read the instructions for other ways to set up Claude.',
+				gitHubOnly: `${gitHub} or ${reload}`,
+				docs: `${gitHub} or ${reload} ${docs}`,
+				signIn: `${gitHub}, sign in to ChatGPT to use your ChatGPT subscription, or ${reload}`,
+				both: `${gitHub}, sign in to ChatGPT to use your ChatGPT subscription, or ${reload} ${docs}`,
 			});
+		});
+
+		test('a name carrying markdown is escaped, so the host cannot forge a third link', () => {
+			// Both nouns arrive from the host, and this description is trusted for two
+			// commands — an unescaped `[]()` in either would render as a link to one of
+			// them instead of as the name.
+			const description = createAgentSdkSetupNotification(
+				{ agent: 'claude', download: 'ready', setupDocsUrl: 'https://example.test/claude', signInProviderName: 'Chat[G]PT' },
+				'Claude [x](command:evil)',
+				'noAccount',
+			)?.description;
+			const name = 'Claude \\[x\\]\\(command:evil\\)';
+
+			assert.strictEqual(typeof description === 'string' ? description : description?.value,
+				`Sign in to GitHub to use GitHub Copilot models, sign in to Chat\\[G\\]PT to use your Chat\\[G\\]PT subscription, or [reload the configuration](command:${AGENT_SDK_SETUP_RELOAD_COMMAND_ID}?%255B%2522claude%2522%255D) if you have set up ${name} elsewhere. For other ways to set up ${name}, [learn more](command:${AGENT_SDK_SETUP_OPEN_DOCS_COMMAND_ID}?%255B%2522claude%2522%255D) on their docs.`);
+		});
+
+		test('the copy is trusted for its own two commands alone, so its links render and reach nothing else', () => {
+			// Untrusted markdown renders a `command:` link as inert text, which would
+			// leave both routes with no affordance at all now that neither has a button.
+			const description = createAgentSdkSetupNotification({ agent: 'claude', download: 'ready', setupDocsUrl: 'https://example.test/claude' }, 'Claude', 'noAccount')?.description;
+
+			assert.ok(description !== undefined && typeof description !== 'string');
+			assert.deepStrictEqual(description.isTrusted, { enabledCommands: [AGENT_SDK_SETUP_OPEN_DOCS_COMMAND_ID, AGENT_SDK_SETUP_RELOAD_COMMAND_ID] });
 		});
 
 		test('the banner cannot be dismissed, since it is the only route to a working agent', () => {

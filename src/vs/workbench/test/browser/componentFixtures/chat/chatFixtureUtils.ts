@@ -52,6 +52,7 @@ import { IVoiceModeOnboardingService } from '../../../../contrib/agentsVoice/bro
 import { IChatAccessibilityService, IChatWidget, IChatWidgetService } from '../../../../contrib/chat/browser/chat.js';
 import { IChatResponseFileChangesService } from '../../../../contrib/chat/browser/chatResponseFileChangesService.js';
 import { IChatPetService } from '../../../../contrib/chat/browser/chatPetService.js';
+import { ChatPetWidgetService, IChatPetWidgetService } from '../../../../contrib/chat/browser/widget/chatPetWidgetService.js';
 import { IChatOutputRendererService } from '../../../../contrib/chat/browser/chatOutputItemRenderer.js';
 import { IAiEditTelemetryService } from '../../../../contrib/editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
 import { EditSuggestionId } from '../../../../../editor/common/textModelEditSource.js';
@@ -204,11 +205,20 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 		override readonly variant = observableValue('chatPetVariant', 'stable' as const);
 		override readonly onTheRun = observableValue('chatPetOnTheRun', false);
 		override readonly scale = observableValue('chatPetScale', 1);
+		override readonly unlockedAchievements = observableValue('chatPetUnlockedAchievements', []);
+		override readonly unseenAchievements = observableValue('chatPetUnseenAchievements', []);
+		override readonly selectedAccessory = observableValue('chatPetSelectedAccessory', undefined);
+		override readonly onDidUnlockAchievement = Event.None;
 		override readonly horizontalPosition = observableValue<number | undefined>('chatPetHorizontalPosition', undefined);
 		override toggle() { return false; }
 		override setVariant() { }
 		override setOnTheRun() { }
 		override setScale(scale: number) { this.scale.set(scale, undefined); }
+		override resetScale() { this.scale.set(1, undefined); }
+		override unlockAchievement() { return false; }
+		override markAchievementSeen() { return false; }
+		override setAccessory() { }
+		override resetAchievements() { }
 		override setHorizontalPosition(position: number) { this.horizontalPosition.set(position, undefined); }
 	}());
 	reg.defineInstance(IChatWidgetService, new class extends mock<IChatWidgetService>() {
@@ -223,6 +233,7 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 		override getWidgetsByLocations() { return []; }
 		override register() { return { dispose() { } }; }
 	}());
+	reg.define(IChatPetWidgetService, ChatPetWidgetService);
 	reg.defineInstance(IChatAccessibilityService, new class extends mock<IChatAccessibilityService>() {
 		override acceptRequest() { }
 		override disposeRequest() { }

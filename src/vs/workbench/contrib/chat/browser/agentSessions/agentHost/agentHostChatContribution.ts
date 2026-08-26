@@ -284,7 +284,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			name: agentId,
 			displayName: agent.displayName,
 			description: agent.description,
-			locations: agent.provider === 'copilotcli' ? [ChatAgentLocation.Chat, ChatAgentLocation.Terminal] : undefined,
+			locations: agent.provider === 'copilotcli' ? [ChatAgentLocation.Chat, ChatAgentLocation.Terminal, ChatAgentLocation.EditorInline] : undefined,
 			customAgentTarget: this._isSessionsWindow ? undefined : Target.GitHubCopilot,
 			canDelegate: true,
 			requiresCustomModels: true,
@@ -312,13 +312,12 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			},
 		}));
 
-		const agentRegistration = store.add(this._activeClientService.registerForAgent(sessionType));
-		const syncProvider = agentRegistration.syncProvider;
+		const syncProvider = this._activeClientService.getSyncProvider(sessionType);
 		// The management UI remains ambient while individual sessions use their working-directory scopes.
-		const ambientScope = store.add(agentRegistration.acquireScope([]));
+		const ambientScope = store.add(this._activeClientService.acquireScope(sessionType, []));
 
 		const itemProvider = store.add(this._instantiationService.createInstance(AgentCustomizationItemProvider, 'local', undefined,
-			syncedUri => agentRegistration.getOrigin(syncedUri)));
+			syncedUri => this._activeClientService.getOrigin(syncedUri)));
 		itemProvider.setDraftCustomAgents(ambientScope.customAgents);
 		itemProvider.setDraftCustomizations(ambientScope.customizations);
 		// `[Agent Host]` suffix disambiguates from the extension-host Copilot CLI harness, which uses the same displayName.

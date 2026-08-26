@@ -16,10 +16,12 @@ import { hasKey, type Mutable } from '../../../../base/common/types.js';
 import { URI as ResourceURI } from '../../../../base/common/uri.js';
 import type { IProductService } from '../../../product/common/productService.js';
 import { readToolCallMeta } from '../meta/agentToolCallMeta.js';
+import { readLegacyTurnError } from './legacyProtocolCompatibility.js';
 import {
 	ResponsePartKind,
 	SessionStatus,
 	ToolCallStatus,
+	TurnState,
 	SessionLifecycle,
 	TerminalState,
 	ToolResultContentType,
@@ -30,6 +32,7 @@ import {
 	type ChangesetState,
 	type ChatState,
 	type ChatSummary,
+	type ErrorInfo,
 	type PendingMessage,
 	type Turn,
 	type AnnotationsState,
@@ -57,26 +60,20 @@ export {
 	PendingMessageKind,
 	PolicyState,
 	ResponsePartKind,
-	ChatInputAnswerState as SessionInputAnswerState,
-	ChatInputAnswerValueKind as SessionInputAnswerValueKind,
-	ChatInputQuestionKind as SessionInputQuestionKind,
-	ChatInputRequestPurpose,
-	ChatInputResponseKind as SessionInputResponseKind,
 	ChatInteractivity,
 	ChatOriginKind,
 	SessionLifecycle,
 	SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus,
 	ToolResultContentType,
-	TurnState, type ActiveTurn, type AgentCustomization, type AgentCapabilities, type AgentInfo, type AgentSelection, type Annotation, type AnnotationEntry, type AnnotationsState, type AnnotationsSummary, type Changeset, type ChangesetFile,
+	TurnState, type ActiveTurn, type AgentCustomization, type AgentCapabilities, type AgentInfo, type AgentSelection, type Annotation, type AnnotationEntry, type AnnotationOrigin, type AnnotationsState, type AnnotationsSummary, type Changeset, type ChangesetFile,
 	type ChangesetOperation, type ChangesetState, type ChatState, type ChatSummary, type ChatOrigin, type ChildCustomization, type ClientPluginCustomization, type ConfigPropertySchema,
 	type ConfigSchema,
 	type ContentRef, type Customization, type CustomizationDegradedState,
 	type CustomizationErrorState, type CustomizationLoadedState, type CustomizationLoadingState, type CustomizationLoadState, type DirectoryCustomization, type ErrorInfo, type HookCustomization, type FileEdit as ISessionFileDiff, type ToolResultEmbeddedResourceContent as IToolResultBinaryContent, type MarkdownResponsePart, type McpServerCustomization, type MessageAttachment,
-	type MessageResourceAttachment, type MessageEmbeddedResourceAttachment, type MessageAnnotationsAttachment, type MessageChatAttachment, type ModelSelection, type PendingMessage, type PluginCustomization, type ProjectInfo, type PromptCustomization, type ReasoningResponsePart,
+	type MessageResourceAttachment, type MessageEmbeddedResourceAttachment, type MessageAnnotationsAttachment, type MessageChatAttachment, type ModelSelection, type PendingMessage, type PluginCustomization, type ProjectInfo, type PromptCustomization, type ReasoningResponsePart, type ErrorResponsePart,
 	type ResponsePart,
 	type RootState, type RuleCustomization, type SessionActiveClient,
-	type SessionConfigState, type ChatInputAnswer as SessionInputAnswer,
-	type ChatInputOption as SessionInputOption, type ChatInputQuestion as SessionInputQuestion, type ChatInputRequest as SessionInputRequest, type SessionModelInfo,
+	type SessionConfigState, type SessionModelInfo,
 	type SessionState,
 	type SessionSummary, type SkillCustomization, type Snapshot, type StringOrMarkdown, type TerminalState, type TextRange,
 	type ToolAnnotations,
@@ -158,6 +155,12 @@ export interface UsageInfoMeta {
 	 * what a completed turn consumed in aggregate.
 	 */
 	turnTokenTotals?: readonly ITurnTokenTotal[];
+	/** Per-model token totals for this turn only, excluding descendant sub-agents (sum a tree without double-counting). */
+	directTurnTokenTotals?: readonly ITurnTokenTotal[];
+	/** Copilot usage for this turn only. The root's {@link copilotUsage} stays inclusive of descendants. */
+	directCopilotUsage?: {
+		readonly totalNanoAiu?: number;
+	};
 	[key: string]: unknown;
 }
 
@@ -284,6 +287,17 @@ export function readUsageInfoMeta(usage: UsageInfo | undefined): UsageInfoMeta {
 	const turnTokenTotals = readTurnTokenTotals(meta['turnTokenTotals']);
 	if (turnTokenTotals) {
 		result.turnTokenTotals = turnTokenTotals;
+	}
+	const directTurnTokenTotals = readTurnTokenTotals(meta['directTurnTokenTotals']);
+	if (directTurnTokenTotals) {
+		result.directTurnTokenTotals = directTurnTokenTotals;
+	}
+	const directCopilotUsage = meta['directCopilotUsage'];
+	if (directCopilotUsage && typeof directCopilotUsage === 'object' && !Array.isArray(directCopilotUsage)) {
+		const totalNanoAiu = (directCopilotUsage as Record<string, unknown>)['totalNanoAiu'];
+		if (typeof totalNanoAiu === 'number') {
+			result.directCopilotUsage = { totalNanoAiu };
+		}
 	}
 	return result;
 }
@@ -437,7 +451,7 @@ export {
 // Canonical chat-input type names (the protocol renamed the former
 // `SessionInput*` types to `ChatInput*` when input requests moved onto the
 // chat channel). Re-exported here so consumers can import them from the glue
-// layer alongside the legacy `SessionInput*` aliases above.
+// layer.
 export {
 	ChatInputAnswerState,
 	ChatInputAnswerValueKind,
@@ -918,6 +932,14 @@ export function createActiveTurn(id: string, message: Message, startedAt: string
 	};
 }
 
+export function getTurnError(turn: Turn | undefined): ErrorInfo | undefined {
+	if (turn?.state !== TurnState.Error) {
+		return undefined;
+	}
+	const part = turn.responseParts[turn.responseParts.length - 1];
+	return part?.kind === ResponsePartKind.Error ? part.error : readLegacyTurnError(turn);
+}
+
 export const enum StateComponents {
 	Root,
 	Session,
@@ -1040,6 +1062,12 @@ export function parseRequiredSessionUriFromChatUri(uri: ProtocolURI | ResourceUR
 /** Returns `true` when `uri` is the default chat of its session. */
 export function isDefaultChatUri(uri: ProtocolURI | ResourceURI): boolean {
 	return parseChatUri(uri)?.chatId === DEFAULT_CHAT_ID;
+}
+
+export function getSessionChatResource(state: Pick<SessionState, 'defaultChat'> & { readonly chats: readonly Pick<ChatSummary, 'resource'>[] }, chatId: string): ProtocolURI | undefined {
+	return chatId === DEFAULT_CHAT_ID
+		? state.defaultChat ?? state.chats.find(chat => isDefaultChatUri(chat.resource))?.resource
+		: state.chats.find(chat => parseChatUri(chat.resource)?.chatId === chatId)?.resource;
 }
 
 /**
@@ -1736,60 +1764,47 @@ export function withSessionSpawnDepth(meta: SessionSummaryMeta | undefined, dept
 	return { ...meta, [SESSION_META_SPAWN_DEPTH_KEY]: depth };
 }
 
-export type SessionIdleNotification = 'once' | 'always';
-export type SessionCreatorNotificationState = 'waitingForCompletion' | 'notified';
+export const SESSION_META_CREATED_BY_SESSION_KEY = 'agentHost/createdBySession';
+export const AH_META_CREATED_BY_SESSION_DB_KEY = 'agentHost.createdBySession';
 
-export interface ISessionOrchestration {
-	readonly parentSession: string;
-	readonly creatorSession: string;
-	readonly label?: string;
-	readonly coordinateWithCreator: boolean;
-	readonly notifyOnIdle?: SessionIdleNotification;
-	/** Durable delivery state used to wait for a work outcome and deduplicate replayed statuses. */
-	readonly creatorNotificationState?: SessionCreatorNotificationState;
+export interface ISessionCreationReference {
+	readonly session: string;
+	readonly chat?: string;
+	readonly turnId?: string;
 }
 
-export const SESSION_META_ORCHESTRATION_KEY = 'agentHost/orchestration';
-export const AH_META_ORCHESTRATION_DB_KEY = 'agentHost.orchestration';
+export function readSessionCreationReference(meta: SessionSummaryMeta | undefined): ISessionCreationReference | undefined {
+	return parseSessionCreationReferenceValue(meta?.[SESSION_META_CREATED_BY_SESSION_KEY]);
+}
 
-export function readSessionOrchestration(meta: SessionSummaryMeta | undefined): ISessionOrchestration | undefined {
-	const value = meta?.[SESSION_META_ORCHESTRATION_KEY];
+function parseSessionCreationReferenceValue(value: unknown): ISessionCreationReference | undefined {
 	if (!value || typeof value !== 'object') {
 		return undefined;
 	}
 	const candidate = value as { [key: string]: unknown };
-	if (typeof candidate.parentSession !== 'string' || typeof candidate.coordinateWithCreator !== 'boolean') {
+	if (typeof candidate.session !== 'string') {
 		return undefined;
 	}
-	const creatorSession = typeof candidate.creatorSession === 'string' ? candidate.creatorSession : candidate.parentSession;
-	const label = typeof candidate.label === 'string' ? candidate.label : undefined;
-	const notifyOnIdle = candidate.notifyOnIdle === 'once' || candidate.notifyOnIdle === 'always' ? candidate.notifyOnIdle : undefined;
-	const creatorNotificationState = candidate.creatorNotificationState === 'waitingForCompletion' || candidate.creatorNotificationState === 'notified'
-		? candidate.creatorNotificationState
-		: undefined;
 	return {
-		parentSession: candidate.parentSession,
-		creatorSession,
-		coordinateWithCreator: candidate.coordinateWithCreator,
-		...(label !== undefined ? { label } : {}),
-		...(notifyOnIdle !== undefined ? { notifyOnIdle } : {}),
-		...(creatorNotificationState !== undefined ? { creatorNotificationState } : {}),
+		session: candidate.session,
+		...(typeof candidate.chat === 'string' ? { chat: candidate.chat } : {}),
+		...(typeof candidate.turnId === 'string' ? { turnId: candidate.turnId } : {}),
 	};
 }
 
-export function parseSessionOrchestration(value: string | undefined): ISessionOrchestration | undefined {
-	if (value === undefined) {
+export function parseSessionCreationReference(value: string | undefined): ISessionCreationReference | undefined {
+	if (!value) {
 		return undefined;
 	}
 	try {
-		return readSessionOrchestration({ [SESSION_META_ORCHESTRATION_KEY]: JSON.parse(value) });
+		return readSessionCreationReference({ [SESSION_META_CREATED_BY_SESSION_KEY]: JSON.parse(value) });
 	} catch {
 		return undefined;
 	}
 }
 
-export function withSessionOrchestration(meta: SessionSummaryMeta | undefined, orchestration: ISessionOrchestration): SessionSummaryMeta {
-	return { ...meta, [SESSION_META_ORCHESTRATION_KEY]: orchestration };
+export function withSessionCreationReference(meta: SessionSummaryMeta | undefined, creationReference: ISessionCreationReference): SessionSummaryMeta {
+	return { ...meta, [SESSION_META_CREATED_BY_SESSION_KEY]: creationReference };
 }
 
 /**
@@ -1902,6 +1917,44 @@ export function readSessionEhcliAdoptable(meta: SessionSummaryMeta | undefined):
 /** Returns a new {@link SessionSummaryMeta} with the adoptable-legacy marker set. */
 export function withSessionEhcliAdoptable(meta: SessionSummaryMeta | undefined): SessionSummaryMeta {
 	return { ...meta, [SESSION_META_EHCLI_ADOPTABLE_KEY]: true };
+}
+
+/**
+ * Session-DB key recording that a session was adopted from a legacy Copilot CLI
+ * (extension-host) chat. Unlike {@link SESSION_META_EHCLI_ADOPTABLE_KEY} this
+ * survives adoption, so consumers can keep treating the session as legacy for
+ * the rest of its life — a migrated session must not change how it is listed.
+ */
+export const AH_META_EHCLI_ADOPTED_DB_KEY = 'agentHost.ehcliAdopted';
+
+/** `_meta` key mirroring {@link AH_META_EHCLI_ADOPTED_DB_KEY} on a summary. */
+export const SESSION_META_EHCLI_ADOPTED_KEY = 'ehcliAdopted';
+
+/** Whether the session was adopted from a legacy Copilot CLI chat. */
+export function readSessionEhcliAdopted(meta: SessionSummaryMeta | undefined): boolean {
+	return meta?.[SESSION_META_EHCLI_ADOPTED_KEY] === true;
+}
+
+/** Returns a copy of `meta` with the adopted-legacy provenance marker updated. */
+export function withSessionEhcliAdopted(meta: SessionSummaryMeta | undefined, adopted: boolean): SessionSummaryMeta | undefined {
+	const next: { [key: string]: unknown } = { ...meta };
+	if (adopted) {
+		next[SESSION_META_EHCLI_ADOPTED_KEY] = true;
+	} else {
+		delete next[SESSION_META_EHCLI_ADOPTED_KEY];
+	}
+	return Object.keys(next).length > 0 ? next : undefined;
+}
+
+/**
+ * Whether a session should be matched against a workspace folder by its project
+ * (repository) root in addition to its working directories. True only for
+ * legacy Copilot CLI sessions, which run out of a worktree outside the
+ * repository; agent-host-native worktree sessions are deliberately not surfaced
+ * in a window opened on their source repository.
+ */
+export function readSessionMatchesByProjectRoot(meta: SessionSummaryMeta | undefined): boolean {
+	return readSessionEhcliAdoptable(meta) || readSessionEhcliAdopted(meta);
 }
 
 // ---- RootState _meta accessors ---------------------------------------------

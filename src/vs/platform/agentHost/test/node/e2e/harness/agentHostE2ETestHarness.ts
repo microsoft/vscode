@@ -30,7 +30,7 @@ import {
 	type ChatErrorAction, type ChatToolCallCompleteAction, type ChatToolCallStartAction,
 } from '../../../../common/state/sessionActions.js';
 import { CopilotCliConfigKey } from '../../../../common/copilotCliConfig.js';
-import { AgentHostSessionReleaseGraceMsEnvVar } from '../../../../common/agentService.js';
+import { AgentHostSessionResidencyLimitEnvVar } from '../../../../common/agentService.js';
 import { CapiReplayMode, type ICapiReplayResponse } from './capiReplayProxy.js';
 import {
 	fetchSessionWithChat, getActionEnvelope, getAgentHostE2ETestTimeout, isActionNotification, IServerHandle, stopServer, TestProtocolClient,
@@ -344,6 +344,8 @@ export interface IAgentHostE2EProviderConfig {
 	readonly supportsSubagents: boolean;
 	/** Whether the provider supports creating side chats from a source turn. */
 	readonly supportsSideChats?: boolean;
+	/** Whether committed replay fixtures cover side-chat behavior for this provider. */
+	readonly supportsSideChatsE2E?: boolean;
 	/**
 	 * When set, shell-dependent replay tests are skipped on Linux because this
 	 * provider completes recorded shell-tool turns without emitting tool-call
@@ -521,7 +523,7 @@ export async function driveChatTurnToCompletion(c: TestProtocolClient, chat: str
 		action: {
 			type: ActionType.ChatTurnStarted,
 			turnId,
-			startedAt: '2025-01-01T00:00:00.000Z',
+			startedAt: new Date().toISOString(),
 			message: { text, origin: { kind: MessageKind.User } },
 		},
 	}));
@@ -538,7 +540,7 @@ export async function driveTurnWithModelToCompletion(c: TestProtocolClient, sess
 		action: {
 			type: ActionType.ChatTurnStarted,
 			turnId,
-			startedAt: '2025-01-01T00:00:00.000Z',
+			startedAt: new Date().toISOString(),
 			message: { text, origin: { kind: MessageKind.User }, model: { id: model } },
 		},
 	}));
@@ -582,7 +584,7 @@ async function driveTurn(c: TestProtocolClient, chat: string, turnId: string, cl
 
 		if (isActionNotification(notification, 'chat/error')) {
 			const action = getActionEnvelope(notification).action as ChatErrorAction;
-			throw new Error(`Session error while driving ${turnId}: ${action.error.errorType}: ${action.error.message}`);
+			throw new Error(`Session error while driving ${turnId}: ${action.part.error.errorType}: ${action.part.error.message}`);
 		}
 
 		if (isActionNotification(notification, 'chat/toolCallReady')) {
@@ -879,7 +881,7 @@ export class AgentHostE2EServerLease {
 			codexHomeDir,
 			homeDir: dataDir,
 			userDataDir: join(dataDir, 'user-data'),
-			env: { [AgentHostSessionReleaseGraceMsEnvVar]: '0' },
+			env: { [AgentHostSessionResidencyLimitEnvVar]: '0' },
 		};
 		// Server reuse is a replay-only optimization: recording writes one fixture
 		// per proxy and so needs a fresh proxy (hence a fresh server) per test.

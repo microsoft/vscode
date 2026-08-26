@@ -730,6 +730,8 @@ export const MODERN_ACTIVITY_BAR_HOVER_BACKGROUND = registerColor('modernActivit
 
 export const MODERN_ACTIVITY_BAR_HOVER_FOREGROUND = registerColor('modernActivityBar.hoverForeground', MODERN_TAB_HOVER_FOREGROUND, localize('modernActivityBarHoverForeground', "Foreground color of Activity bar items in the default side position when hovering and the modern UI is enabled."));
 
+export const MODERN_ACTIVITY_BAR_BORDER = registerColor('modernActivityBar.border', SURFACE_BORDER, localize('modernActivityBarBorder', "Border color of the Activity bar in the default side position when the modern UI is enabled."));
+
 // < --- Title Bar --- >
 
 export const TITLE_BAR_ACTIVE_FOREGROUND = registerColor('titleBar.activeForeground', {

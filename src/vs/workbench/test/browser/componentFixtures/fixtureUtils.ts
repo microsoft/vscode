@@ -106,6 +106,8 @@ import { ISessionsManagementService } from '../../../../sessions/services/sessio
 // eslint-disable-next-line local/code-import-patterns
 import { ISessionsService } from '../../../../sessions/services/sessions/browser/sessionsService.js';
 // eslint-disable-next-line local/code-import-patterns
+import { ISessionChangesStatsCache, SessionChangesStatsCache } from '../../../../sessions/services/sessions/common/sessionChangesStatsCache.js';
+// eslint-disable-next-line local/code-import-patterns
 import { ICodeReviewService, PRReviewStateKind } from '../../../../sessions/contrib/codeReview/browser/codeReviewService.js';
 import { constObservable } from '../../../../base/common/observable.js';
 
@@ -685,6 +687,10 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 		activeSession: constObservable(undefined),
 	});
 
+	// The real cache: it only reads and writes the (null) storage service, and
+	// the changes pill it feeds reads it directly.
+	define(ISessionChangesStatsCache, SessionChangesStatsCache);
+
 	definePartialInstance(ICodeReviewService, {
 		_serviceBrand: undefined,
 		getPRReviewState: () => constObservable({ kind: PRReviewStateKind.None }),
@@ -879,6 +885,7 @@ export interface ComponentFixtureOptions {
 	labels?: ThemedFixtureGroupLabels;
 	virtualTime?: { enabled?: boolean; durationMs?: number; teardownDrainMs?: number };
 	additionalThemes?: readonly ComponentFixtureAdditionalTheme[];
+	expectedVisualDescriptions?: readonly string[];
 }
 
 type ThemedFixtures = ReturnType<typeof defineFixtureVariants>;
@@ -910,6 +917,7 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 		isolation: 'none',
 		displayMode: { type: 'component' },
 		background: themeVariant.background,
+		expectedVisualDescriptions: options.expectedVisualDescriptions,
 		inputSchema: fixtureInputSchema,
 		inputControls: {
 			reverseStylesheets: { placement: 'toolbar', label: 'Reverse Stylesheets' },
