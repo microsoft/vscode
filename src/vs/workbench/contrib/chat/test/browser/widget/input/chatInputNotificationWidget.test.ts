@@ -21,6 +21,7 @@ import { workbenchInstantiationService } from '../../../../../../test/browser/wo
 import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotification, IChatInputNotificationService } from '../../../../browser/widget/input/chatInputNotificationService.js';
 import { ChatInputPart } from '../../../../browser/widget/input/chatInputPart.js';
 import { ChatInputNotificationWidget, IChatInputNotificationDelegate } from '../../../../browser/widget/input/chatInputNotificationWidget.js';
+import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../../../../common/languageModels.js';
 import { localChatSessionType, SessionType } from '../../../../common/chatSessionsService.js';
 import { getChatSessionType } from '../../../../common/model/chatUri.js';
 
@@ -245,6 +246,56 @@ suite('ChatInputNotificationWidget', () => {
 		});
 	});
 
+	test('reactively hides notifications that opt out of BYOK models', () => {
+		const selectedLanguageModel = observableValue<ILanguageModelChatMetadataAndIdentifier | undefined>('selectedLanguageModel', undefined);
+		const { widget, notificationService } = createWidget({ delegate: { selectedLanguageModel } });
+		showNotification(notificationService, { id: 'ordinary', message: 'Ordinary notification', actions: [] });
+		showNotification(notificationService, { id: 'quota', message: 'Credits at 88%', actions: [], hideForByokModels: true });
+
+		const rendered = () => widget.domNode.querySelector('.chat-input-notification-header')?.textContent;
+		// An unresolved selection must not withhold the notification.
+		const unresolved = rendered();
+		selectedLanguageModel.set(makeModel('copilot', false), undefined);
+		const copilot = rendered();
+		selectedLanguageModel.set(makeModel('customendpoint', true), undefined);
+		const byok = rendered();
+		selectedLanguageModel.set(makeModel('copilot', false), undefined);
+
+		assert.deepStrictEqual({ unresolved, copilot, byok, backToCopilot: rendered() }, {
+			unresolved: 'Credits at 88%',
+			copilot: 'Credits at 88%',
+			byok: 'Ordinary notification',
+			backToCopilot: 'Credits at 88%',
+		});
+	});
+
+	test('an input without its own model selection still renders BYOK-gated notifications', () => {
+		const { widget, notificationService } = createWidget({ delegate: {} });
+		showNotification(notificationService, { id: 'quota', message: 'Credits at 88%', actions: [], hideForByokModels: true });
+
+		assert.strictEqual(widget.domNode.querySelector('.chat-input-notification-header')?.textContent, 'Credits at 88%');
+	});
+
+	test('BYOK gating is per input, so one input can hide what another shows', () => {
+		// One notification reaches every input; an agent-host session on a Copilot-served
+		// model still shows it while a BYOK panel hides it. #332787
+		const byokInput = createWidget({ delegate: { selectedLanguageModel: constObservable(makeModel('customendpoint', true)) } });
+		const agentHostInput = createWidget({ delegate: { selectedLanguageModel: constObservable(makeModel('agent-host-copilotcli', false)) } });
+		const rendered = (widget: ChatInputNotificationWidget) => widget.domNode.querySelector('.chat-input-notification-header')?.textContent;
+
+		for (const { notificationService } of [byokInput, agentHostInput]) {
+			showNotification(notificationService, { id: 'quota', message: 'Credits at 88%', actions: [], hideForByokModels: true });
+		}
+
+		assert.deepStrictEqual({
+			byok: rendered(byokInput.widget),
+			agentHost: rendered(agentHostInput.widget),
+		}, {
+			byok: undefined,
+			agentHost: 'Credits at 88%',
+		});
+	});
+
 	test('standard workbench defers notifications for the first session only', () => {
 		const deferredNotificationsEnabled = observableValue('deferredNotificationsEnabled', true);
 		let hasSessions = false;
@@ -412,6 +463,13 @@ suite('ChatInputNotificationWidget', () => {
 		}
 		const widget = store.add(instantiationService.createInstance(ChatInputNotificationWidget, options.delegate));
 		return { notificationService, widget };
+	}
+
+	function makeModel(vendor: string, isBYOK: boolean): ILanguageModelChatMetadataAndIdentifier {
+		return {
+			identifier: `${vendor}/test-model`,
+			metadata: { id: 'test-model', vendor, family: 'test-model', isBYOK } as ILanguageModelChatMetadata,
+		};
 	}
 
 	function clickAction(widget: ChatInputNotificationWidget): void {
