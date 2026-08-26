@@ -16,10 +16,12 @@ import { hasKey, type Mutable } from '../../../../base/common/types.js';
 import { URI as ResourceURI } from '../../../../base/common/uri.js';
 import type { IProductService } from '../../../product/common/productService.js';
 import { readToolCallMeta } from '../meta/agentToolCallMeta.js';
+import { readLegacyTurnError } from './legacyProtocolCompatibility.js';
 import {
 	ResponsePartKind,
 	SessionStatus,
 	ToolCallStatus,
+	TurnState,
 	SessionLifecycle,
 	TerminalState,
 	ToolResultContentType,
@@ -30,6 +32,7 @@ import {
 	type ChangesetState,
 	type ChatState,
 	type ChatSummary,
+	type ErrorInfo,
 	type PendingMessage,
 	type Turn,
 	type AnnotationsState,
@@ -57,10 +60,6 @@ export {
 	PendingMessageKind,
 	PolicyState,
 	ResponsePartKind,
-	ChatInputAnswerState as SessionInputAnswerState,
-	ChatInputAnswerValueKind as SessionInputAnswerValueKind,
-	ChatInputQuestionKind as SessionInputQuestionKind,
-	ChatInputResponseKind as SessionInputResponseKind,
 	ChatInteractivity,
 	ChatOriginKind,
 	SessionLifecycle,
@@ -71,11 +70,10 @@ export {
 	type ConfigSchema,
 	type ContentRef, type Customization, type CustomizationDegradedState,
 	type CustomizationErrorState, type CustomizationLoadedState, type CustomizationLoadingState, type CustomizationLoadState, type DirectoryCustomization, type ErrorInfo, type HookCustomization, type FileEdit as ISessionFileDiff, type ToolResultEmbeddedResourceContent as IToolResultBinaryContent, type MarkdownResponsePart, type McpServerCustomization, type MessageAttachment,
-	type MessageResourceAttachment, type MessageEmbeddedResourceAttachment, type MessageAnnotationsAttachment, type MessageChatAttachment, type ModelSelection, type PendingMessage, type PluginCustomization, type ProjectInfo, type PromptCustomization, type ReasoningResponsePart,
+	type MessageResourceAttachment, type MessageEmbeddedResourceAttachment, type MessageAnnotationsAttachment, type MessageChatAttachment, type ModelSelection, type PendingMessage, type PluginCustomization, type ProjectInfo, type PromptCustomization, type ReasoningResponsePart, type ErrorResponsePart,
 	type ResponsePart,
 	type RootState, type RuleCustomization, type SessionActiveClient,
-	type SessionConfigState, type ChatInputAnswer as SessionInputAnswer,
-	type ChatInputOption as SessionInputOption, type ChatInputQuestion as SessionInputQuestion, type ChatInputRequest as SessionInputRequest, type SessionModelInfo,
+	type SessionConfigState, type SessionModelInfo,
 	type SessionState,
 	type SessionSummary, type SkillCustomization, type Snapshot, type StringOrMarkdown, type TerminalState, type TextRange,
 	type ToolAnnotations,
@@ -453,7 +451,7 @@ export {
 // Canonical chat-input type names (the protocol renamed the former
 // `SessionInput*` types to `ChatInput*` when input requests moved onto the
 // chat channel). Re-exported here so consumers can import them from the glue
-// layer alongside the legacy `SessionInput*` aliases above.
+// layer.
 export {
 	ChatInputAnswerState,
 	ChatInputAnswerValueKind,
@@ -934,6 +932,14 @@ export function createActiveTurn(id: string, message: Message, startedAt: string
 	};
 }
 
+export function getTurnError(turn: Turn | undefined): ErrorInfo | undefined {
+	if (turn?.state !== TurnState.Error) {
+		return undefined;
+	}
+	const part = turn.responseParts[turn.responseParts.length - 1];
+	return part?.kind === ResponsePartKind.Error ? part.error : readLegacyTurnError(turn);
+}
+
 export const enum StateComponents {
 	Root,
 	Session,
@@ -1056,6 +1062,12 @@ export function parseRequiredSessionUriFromChatUri(uri: ProtocolURI | ResourceUR
 /** Returns `true` when `uri` is the default chat of its session. */
 export function isDefaultChatUri(uri: ProtocolURI | ResourceURI): boolean {
 	return parseChatUri(uri)?.chatId === DEFAULT_CHAT_ID;
+}
+
+export function getSessionChatResource(state: Pick<SessionState, 'defaultChat'> & { readonly chats: readonly Pick<ChatSummary, 'resource'>[] }, chatId: string): ProtocolURI | undefined {
+	return chatId === DEFAULT_CHAT_ID
+		? state.defaultChat ?? state.chats.find(chat => isDefaultChatUri(chat.resource))?.resource
+		: state.chats.find(chat => parseChatUri(chat.resource)?.chatId === chatId)?.resource;
 }
 
 /**
@@ -1479,11 +1491,6 @@ export interface ISessionGitHubState {
 	/** Pull requests explicitly associated through user intent, most recent first. */
 	readonly associatedPullRequestUrls?: readonly string[];
 	/**
-	 * URLs of the GitHub issues referenced by the session's user messages, in
-	 * order of first appearance.
-	 */
-	readonly issueUrls?: readonly string[];
-	/**
 	 * The name of the branch the most recent {@link pullRequestUrls} entry was found (or created) for.
 	 * A pull request always relates to a branch: when the working copy switches
 	 * to a different branch the host keeps reporting the known pull request but
@@ -1569,17 +1576,6 @@ export function withInitialSessionPullRequest(gitHubState: ISessionGitHubState |
 			...(pullRequestUrl ? [pullRequestUrl] : []),
 			...(gitHubState?.initialPullRequestUrls ?? [])
 		])
-	};
-}
-
-/** Returns state that records a user-referenced pull request without changing checkout PR state. */
-export function withMostRecentReferencedSessionPullRequest(gitHubState: ISessionGitHubState | undefined, pullRequestUrl: string): ISessionGitHubState {
-	const associatedPullRequestUrls = normalizeSessionPullRequestUrls([
-		pullRequestUrl,
-		...(gitHubState?.associatedPullRequestUrls ?? [])
-	]);
-	return {
-		associatedPullRequestUrls,
 	};
 }
 
@@ -1684,7 +1680,6 @@ export function readSessionGitHubState(meta: SessionSummaryMeta | undefined): IS
 		pullRequestUrls?: readonly string[];
 		initialPullRequestUrls?: readonly string[];
 		associatedPullRequestUrls?: readonly string[];
-		issueUrls?: readonly string[];
 		pullRequestBranchName?: string;
 	} = {};
 
@@ -1707,7 +1702,6 @@ export function readSessionGitHubState(meta: SessionSummaryMeta | undefined): IS
 			result.associatedPullRequestUrls = associatedPullRequestUrls;
 		}
 	}
-	if (Array.isArray(raw['issueUrls'])) { result.issueUrls = raw['issueUrls'].filter((url): url is string => typeof url === 'string'); }
 	if (typeof raw['pullRequestBranchName'] === 'string') { result.pullRequestBranchName = raw['pullRequestBranchName']; }
 	return result;
 }
@@ -1752,60 +1746,47 @@ export function withSessionSpawnDepth(meta: SessionSummaryMeta | undefined, dept
 	return { ...meta, [SESSION_META_SPAWN_DEPTH_KEY]: depth };
 }
 
-export type SessionIdleNotification = 'once' | 'always';
-export type SessionCreatorNotificationState = 'waitingForCompletion' | 'notified';
+export const SESSION_META_CREATED_BY_SESSION_KEY = 'agentHost/createdBySession';
+export const AH_META_CREATED_BY_SESSION_DB_KEY = 'agentHost.createdBySession';
 
-export interface ISessionOrchestration {
-	readonly parentSession: string;
-	readonly creatorSession: string;
-	readonly label?: string;
-	readonly coordinateWithCreator: boolean;
-	readonly notifyOnIdle?: SessionIdleNotification;
-	/** Durable delivery state used to wait for a work outcome and deduplicate replayed statuses. */
-	readonly creatorNotificationState?: SessionCreatorNotificationState;
+export interface ISessionCreationReference {
+	readonly session: string;
+	readonly chat?: string;
+	readonly turnId?: string;
 }
 
-export const SESSION_META_ORCHESTRATION_KEY = 'agentHost/orchestration';
-export const AH_META_ORCHESTRATION_DB_KEY = 'agentHost.orchestration';
+export function readSessionCreationReference(meta: SessionSummaryMeta | undefined): ISessionCreationReference | undefined {
+	return parseSessionCreationReferenceValue(meta?.[SESSION_META_CREATED_BY_SESSION_KEY]);
+}
 
-export function readSessionOrchestration(meta: SessionSummaryMeta | undefined): ISessionOrchestration | undefined {
-	const value = meta?.[SESSION_META_ORCHESTRATION_KEY];
+function parseSessionCreationReferenceValue(value: unknown): ISessionCreationReference | undefined {
 	if (!value || typeof value !== 'object') {
 		return undefined;
 	}
 	const candidate = value as { [key: string]: unknown };
-	if (typeof candidate.parentSession !== 'string' || typeof candidate.coordinateWithCreator !== 'boolean') {
+	if (typeof candidate.session !== 'string') {
 		return undefined;
 	}
-	const creatorSession = typeof candidate.creatorSession === 'string' ? candidate.creatorSession : candidate.parentSession;
-	const label = typeof candidate.label === 'string' ? candidate.label : undefined;
-	const notifyOnIdle = candidate.notifyOnIdle === 'once' || candidate.notifyOnIdle === 'always' ? candidate.notifyOnIdle : undefined;
-	const creatorNotificationState = candidate.creatorNotificationState === 'waitingForCompletion' || candidate.creatorNotificationState === 'notified'
-		? candidate.creatorNotificationState
-		: undefined;
 	return {
-		parentSession: candidate.parentSession,
-		creatorSession,
-		coordinateWithCreator: candidate.coordinateWithCreator,
-		...(label !== undefined ? { label } : {}),
-		...(notifyOnIdle !== undefined ? { notifyOnIdle } : {}),
-		...(creatorNotificationState !== undefined ? { creatorNotificationState } : {}),
+		session: candidate.session,
+		...(typeof candidate.chat === 'string' ? { chat: candidate.chat } : {}),
+		...(typeof candidate.turnId === 'string' ? { turnId: candidate.turnId } : {}),
 	};
 }
 
-export function parseSessionOrchestration(value: string | undefined): ISessionOrchestration | undefined {
-	if (value === undefined) {
+export function parseSessionCreationReference(value: string | undefined): ISessionCreationReference | undefined {
+	if (!value) {
 		return undefined;
 	}
 	try {
-		return readSessionOrchestration({ [SESSION_META_ORCHESTRATION_KEY]: JSON.parse(value) });
+		return readSessionCreationReference({ [SESSION_META_CREATED_BY_SESSION_KEY]: JSON.parse(value) });
 	} catch {
 		return undefined;
 	}
 }
 
-export function withSessionOrchestration(meta: SessionSummaryMeta | undefined, orchestration: ISessionOrchestration): SessionSummaryMeta {
-	return { ...meta, [SESSION_META_ORCHESTRATION_KEY]: orchestration };
+export function withSessionCreationReference(meta: SessionSummaryMeta | undefined, creationReference: ISessionCreationReference): SessionSummaryMeta {
+	return { ...meta, [SESSION_META_CREATED_BY_SESSION_KEY]: creationReference };
 }
 
 /**

@@ -50,6 +50,7 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
 import { TOTAL_SESSIONS_KEY } from '../../sessions/browser/sessionsLifecycleTracker.js';
 import { INewSessionComposerService, NewSessionWorkspacePreselectionSource } from './newSessionComposerService.js';
+import { Menus } from '../../../browser/menus.js';
 
 // #region --- New Chat Widget ---
 
@@ -109,7 +110,7 @@ export class NewChatWidget extends Disposable {
 	private readonly _workspacePickerVisibleKey: IContextKey<boolean>;
 
 	constructor(
-		private readonly options: IChatViewOptions,
+		private readonly options: IChatViewOptions & { readonly petHostPreferred?: IObservable<boolean> },
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
@@ -219,6 +220,7 @@ export class NewChatWidget extends Disposable {
 			renderSessionTypePickerInControls: this._renderHarnessPickerInControls,
 			supportsBackground: true,
 			deferredNotificationsEnabled,
+			petHostPreferred: this.options.petHostPreferred,
 		});
 		this._register(toDisposable(() => newChatInput.saveState()));
 		this._newChatInput = this._register(newChatInput);
@@ -360,6 +362,8 @@ export class NewChatWidget extends Disposable {
 			petAction.checked = this.chatPetService.enabled.get();
 			const anchor = new StandardMouseEvent(dom.getWindow(element), e);
 			this.contextMenuService.showContextMenu({
+				menuId: Menus.SessionChatBackgroundContext,
+				contextKeyService: this.contextKeyService,
 				getAnchor: () => anchor,
 				getActions: () => [aquariumAction, petAction],
 				getCheckedActionsRepresentation: () => 'checkbox',

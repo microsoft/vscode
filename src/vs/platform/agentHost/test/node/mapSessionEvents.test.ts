@@ -8,7 +8,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { AgentSession } from '../../common/agent.js';
-import { MessageAttachmentKind, MessageKind, ResponsePartKind, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, type ResponsePart, type StringOrMarkdown, type ToolCallResponsePart, type ToolResultContent } from '../../common/state/sessionState.js';
+import { getTurnError, MessageAttachmentKind, MessageKind, ResponsePartKind, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, type ResponsePart, type StringOrMarkdown, type ToolCallResponsePart, type ToolResultContent } from '../../common/state/sessionState.js';
 import { appendSdkToolResultContent, mapSessionEvents as mapSessionEventsWithRouting, type IMapSessionEventsOptions } from '../../node/copilot/mapSessionEvents.js';
 import { toSessionEvents, type ISessionEvent } from './copilotTestEvents.js';
 
@@ -26,12 +26,12 @@ suite('mapSessionEvents — history replay', () => {
 		return parts.map(p => p.kind === ResponsePartKind.Markdown || p.kind === ResponsePartKind.SystemNotification ? { kind: p.kind, content: p.content } : { kind: p.kind });
 	}
 
-	test('task_complete with a summary renders as a markdown part, not a tool call', async () => {
+	test('task_complete renders the input summary when tool output is truncated', async () => {
 		const events: ISessionEvent[] = [
 			{ type: 'user.message', data: { interactionId: 'm1', content: 'hi' } },
 			{ type: 'assistant.message', data: { messageId: 'm2', content: 'Working on it.', toolRequests: [{ toolCallId: 'tc-1', name: 'task_complete' }] } },
 			{ type: 'tool.execution_start', data: { toolCallId: 'tc-1', toolName: 'task_complete', arguments: { summary: 'Done. All good.' } } },
-			{ type: 'tool.execution_complete', data: { toolCallId: 'tc-1', success: true } },
+			{ type: 'tool.execution_complete', data: { toolCallId: 'tc-1', success: true, result: { content: 'Output too large to read at once (11.3 KB). Saved to: /tmp/task-complete.txt' } } },
 		];
 
 		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events));
@@ -752,7 +752,7 @@ suite('mapSessionEvents — history replay', () => {
 			id: turn.id,
 			state: turn.state,
 			duration: turn.duration,
-			error: turn.error,
+			error: getTurnError(turn),
 			parts: partKinds(turn.responseParts),
 		})), [{
 			id: 'user-event',
@@ -780,6 +780,7 @@ suite('mapSessionEvents — history replay', () => {
 			parts: [
 				{ kind: ResponsePartKind.Markdown, content: 'Working on it.' },
 				{ kind: ResponsePartKind.Markdown, content: 'Late completion.' },
+				{ kind: ResponsePartKind.Error },
 			],
 		}]);
 	});
@@ -1048,9 +1049,9 @@ suite('mapSessionEvents — subagent routing', () => {
 
 		assert.deepStrictEqual({
 			parentState: turns[0].state,
-			parentError: turns[0].error,
+			parentError: getTurnError(turns[0]),
 			subagentState: subagentTurn?.state,
-			subagentError: subagentTurn?.error,
+			subagentError: getTurnError(subagentTurn),
 			subagentParts: partKinds(subagentTurn?.responseParts ?? []),
 		}, {
 			parentState: TurnState.Complete,
@@ -1073,6 +1074,7 @@ suite('mapSessionEvents — subagent routing', () => {
 			},
 			subagentParts: [
 				{ kind: ResponsePartKind.Markdown, content: 'Partial result.' },
+				{ kind: ResponsePartKind.Error },
 			],
 		});
 	});

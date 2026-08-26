@@ -15,7 +15,7 @@ import { autorun, IObservable, ISettableObservable, observableValue, constObserv
 import { URI } from '../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { AgentHostIpcChannels, IAgentCreateChatOptions, IAgentCreateSessionConfig, IAgentHostInspectInfo, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentHostService, IAgentHostSocketInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk } from '../../../../platform/agentHost/common/agentService.js';
+import { AgentHostIpcChannels, IAgentCreateChatRequestOptions, IAgentCreateSessionConfig, IAgentHostInspectInfo, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentHostService, IAgentHostSocketInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk } from '../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostEnablementService } from '../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { AgentHostIpcChannelTransport } from '../../../../platform/agentHost/browser/agentHostIpcChannelTransport.js';
 import { AgentHostClientConnectionKind } from '../../../../platform/agentHost/common/agentHostTelemetry.js';
@@ -31,7 +31,7 @@ import type { InitializeResult } from '../../../../platform/agentHost/common/sta
 import { IRemoteAgentService } from '../../remote/common/remoteAgentService.js';
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
 import { agentsWindowAgentHostClientInfo, editorWindowAgentHostClientInfo } from '../../../../platform/agentHost/common/agentHostClientInfo.js';
-import { agentHostAuthority } from '../../../../platform/agentHost/common/agentHostUri.js';
+import { agentHostAuthority, identityAgentHostResourceUriMapper } from '../../../../platform/agentHost/common/agentHostUri.js';
 import { IAgentHostFileSystemService } from '../common/agentHostFileSystemService.js';
 
 const REMOTE_NOT_SUPPORTED = (op: string) => new Error(`${op} is not supported when the agent host runs on a remote.`);
@@ -59,6 +59,7 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 	private _authenticationSettled = false;
 
 	private readonly _protocolClient: AgentHostProtocolClient | undefined;
+	get resourceUris() { return this._protocolClient?.resourceUris ?? identityAgentHostResourceUriMapper; }
 	private readonly _noopRootState: IAgentSubscription<RootState> = {
 		value: undefined,
 		verifiedValue: undefined,
@@ -229,8 +230,8 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 		return this._requireClient().getSessionStateFile(session);
 	}
 
-	collectDebugLogs(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind): Promise<IAgentHostDebugLogsArtifact> {
-		return this._requireClient().collectDebugLogs(session, kind);
+	collectDebugLogs(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind, chat?: URI): Promise<IAgentHostDebugLogsArtifact> {
+		return this._requireClient().collectDebugLogs(session, kind, chat);
 	}
 
 	readDebugLogsChunk(resource: URI, position: number): Promise<IAgentHostDebugLogsChunk> {
@@ -265,7 +266,7 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 		return this._requireClient().disposeSession(session);
 	}
 
-	createChat(session: URI, chat: URI, options?: IAgentCreateChatOptions): Promise<void> {
+	createChat(session: URI, chat: URI, options?: IAgentCreateChatRequestOptions): Promise<void> {
 		return this._requireClient().createChat(session, chat, options);
 	}
 

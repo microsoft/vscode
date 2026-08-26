@@ -43,7 +43,8 @@
 		"modernActivityBar.activeBackground": "#e4e6f122",
 		"modernActivityBar.hoverBackground": "#E8E8E822",
 		"modernActivityBar.activeForeground": "#FFF",
-		"modernActivityBar.hoverForeground": "#FFF"
+		"modernActivityBar.hoverForeground": "#FFF",
+		"modernActivityBar.border": "#2C2C2C"
 	},
 	"tokenColors": [
 		{

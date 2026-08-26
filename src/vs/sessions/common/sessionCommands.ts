@@ -19,6 +19,9 @@ export const RENAME_SESSION_COMMAND_ID = 'sessionsViewPane.renameSession';
 /** Closes a chat tab. Registered in `sessionsActions.ts`. */
 export const CLOSE_CHAT_COMMAND_ID = 'sessions.chatCompositeBar.closeChat';
 
+/** Focuses the active session. Registered in `sessionsActions.ts`. */
+export const FOCUS_ACTIVE_SESSION_COMMAND_ID = 'sessions.focusActiveSession';
+
 export const FOCUS_PREVIOUS_CHAT_GROUP_COMMAND_ID = 'sessions.focusPreviousChatGroup';
 
 export const FOCUS_NEXT_CHAT_GROUP_COMMAND_ID = 'sessions.focusNextChatGroup';

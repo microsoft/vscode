@@ -81,7 +81,7 @@ the schema's nested
 
 | Schema property (path) | Type in schema | Composition (`x-composition.strategy`) |
 |------------------------|----------------|----------------------------------------|
-| `permissions.disableBypassPermissionsMode` | string enum `"disable"` | most-restrictive-wins (sticky once set) |
+| `permissions.disableBypassPermissionsMode` | string enum `"disable"` \| `"allow-auto-only"` | most-restrictive-wins (sticky once set) |
 | `model` | string (`auto`, a model family name, or a full model id) | — |
 | `permissions.model` | string (legacy location for `model`) | — |
 | `forceRemoteSettingsRefresh` | boolean | MDM wins; controls the server cache rather than a configuration setting |

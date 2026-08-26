@@ -44,7 +44,7 @@ import { ACCOUNTS_AVATAR_SETTING, IAuthenticationService } from '../../../../wor
 import { URI } from '../../../../base/common/uri.js';
 import { IChatDashboardService } from '../../../browser/chatDashboardService.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
-import { createCodexAccountMenuActions, hasSignedInCodexChatGPTAccount, ICodexAccountService, shouldShowCodexAccount } from '../../../../workbench/services/agentHost/browser/codexAccountService.js';
+import { createCodexAccountMenuActions, hasSignedInCodexChatGPTAccount, ICodexAccountService, shouldShowCodexAccount, type ICodexAccountViewInfo } from '../../../../workbench/services/agentHost/browser/codexAccountService.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { MANAGE_CHAT_COMMAND_ID } from '../../../../workbench/contrib/chat/common/constants.js';
 import { AICustomizationManagementCommands } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
@@ -177,7 +177,10 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 	private container: HTMLElement | undefined;
 	private avatarElement: HTMLImageElement | undefined;
 	private iconElement: HTMLElement | undefined;
+	private codexAvatarElement: HTMLImageElement | undefined;
 	private codexIconElement: HTMLElement | undefined;
+	private codexPanelAvatarElement: HTMLImageElement | undefined;
+	private codexPanelIconElement: HTMLElement | undefined;
 	private labelElement: HTMLElement | undefined;
 	private badgeElement: HTMLElement | undefined;
 	private accountName: string | undefined;
@@ -189,6 +192,10 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 	private avatarRequestCounter = 0;
 	private currentAvatarUrl: string | undefined;
 	private loadedAvatarUrl: string | undefined;
+	private codexAvatarRequestCounter = 0;
+	private currentCodexAvatarUrl: string | undefined;
+	private loadedCodexAvatarUrl: string | undefined;
+	private lastCodexAccount: ICodexAccountViewInfo;
 	private lastState: ReturnType<typeof getAccountTitleBarState>;
 	private isMenuVisible = false;
 	private lastBadgeKey: string | undefined;
@@ -196,6 +203,7 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 	private readonly copilotDashboardStore = this._register(new MutableDisposable<DisposableStore>());
 	private readonly clickPanelDisposable = this._register(new MutableDisposable<DisposableStore>());
 	private readonly avatarLoadDisposable = this._register(new MutableDisposable());
+	private readonly codexAvatarLoadDisposable = this._register(new MutableDisposable());
 	/** Whether the conditional-auth opt-in permits signed-out operation. */
 	private readonly allowSignedOutWhenUsable: IObservable<boolean>;
 
@@ -214,6 +222,7 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super(undefined, action, options);
+		this.lastCodexAccount = this.codexAccountService.account;
 		this.allowSignedOutWhenUsable = observeAllowSignedOutWhenUsable(configurationService);
 		this.lastState = getAccountTitleBarState({
 			isAccountLoading: true,
@@ -229,8 +238,12 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		this._register(this.chatEntitlementService.onDidChangeSentiment(() => this.renderState()));
 		this._register(this.chatEntitlementService.onDidChangeQuotaExceeded(() => this.renderState()));
 		this._register(this.chatEntitlementService.onDidChangeQuotaRemaining(() => this.renderState()));
-		this._register(this.codexAccountService.onDidChangeAccount(() => {
-			this.clickPanelDisposable.clear();
+		this._register(this.codexAccountService.onDidChangeAccount(account => {
+			if (hasCodexAccountPanelContentChanged(this.lastCodexAccount, account)) {
+				this.clickPanelDisposable.clear();
+			}
+			this.lastCodexAccount = account;
+			this.refreshCodexAvatar();
 			this.renderState();
 		}));
 		this._register(this.configurationService.onDidChangeConfiguration(event => {
@@ -240,6 +253,7 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 			}
 			if (event.affectsConfiguration(ACCOUNTS_AVATAR_SETTING)) {
 				this.refreshAvatar();
+				this.refreshCodexAvatar();
 			}
 		}));
 		// A signed-out user sees either a quiet "Sign In" (the opt-in is on, so signing
@@ -247,6 +261,7 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		// setting switches between them while the window is open.
 		this._register(runOnChange(this.allowSignedOutWhenUsable, () => this.renderState()));
 		this.refreshAccount();
+		this.refreshCodexAvatar();
 	}
 
 	override setFocusable(_focusable: boolean): void {
@@ -266,6 +281,9 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		this.avatarElement.decoding = 'async';
 		this.avatarElement.referrerPolicy = 'no-referrer';
 		this.iconElement = append(container, $('.sessions-account-titlebar-widget-icon'));
+		this.codexAvatarElement = append(container, $('img.sessions-account-titlebar-widget-codex-avatar', { alt: localize('chatGPTAvatarAltFallback', "ChatGPT profile image"), draggable: 'false' })) as HTMLImageElement;
+		this.codexAvatarElement.decoding = 'async';
+		this.codexAvatarElement.referrerPolicy = 'no-referrer';
 		this.codexIconElement = append(container, $('.sessions-account-titlebar-widget-codex-icon'));
 		this.codexIconElement.classList.add(...ThemeIcon.asClassNameArray(Codicon.openai));
 		this.labelElement = append(container, $('span.sessions-account-titlebar-widget-label'));
@@ -302,7 +320,7 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 	}
 
 	private renderState(): void {
-		if (!this.container || !this.avatarElement || !this.iconElement || !this.codexIconElement || !this.labelElement || !this.badgeElement) {
+		if (!this.container || !this.avatarElement || !this.iconElement || !this.codexAvatarElement || !this.codexIconElement || !this.labelElement || !this.badgeElement) {
 			return;
 		}
 
@@ -341,6 +359,8 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		const shouldShowDotBadge = !!badgeKey && badgeKey !== this.dismissedBadgeKey;
 		const loadedAvatarUrl = !this.isAccountLoading ? this.loadedAvatarUrl : undefined;
 		const hasLoadedAvatar = !!loadedAvatarUrl;
+		const loadedCodexAvatarUrl = hasChatGPTAccount ? this.loadedCodexAvatarUrl : undefined;
+		const hasLoadedCodexAvatar = !!loadedCodexAvatarUrl;
 		const titleBarIcon = state.dotBadge ? Codicon.account : state.icon;
 
 		this.avatarElement.classList.toggle('visible', hasLoadedAvatar);
@@ -356,13 +376,23 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		this.iconElement.className = `sessions-account-titlebar-widget-icon ${ThemeIcon.asClassName(titleBarIcon)}`;
 		this.iconElement.classList.toggle('hidden', hasLoadedAvatar);
 		this.container.classList.toggle('has-chatgpt-account', hasChatGPTAccount);
-		this.codexIconElement.classList.toggle('visible', hasChatGPTAccount);
+		this.codexAvatarElement.classList.toggle('visible', hasLoadedCodexAvatar);
+		this.codexAvatarElement.alt = this.getCodexAvatarAltText();
+		if (loadedCodexAvatarUrl) {
+			if (this.codexAvatarElement.src !== loadedCodexAvatarUrl) {
+				this.codexAvatarElement.src = loadedCodexAvatarUrl;
+			}
+		} else {
+			this.codexAvatarElement.removeAttribute('src');
+		}
+		this.codexIconElement.classList.toggle('visible', hasChatGPTAccount && !hasLoadedCodexAvatar);
 		this.labelElement.textContent = '';
 		this.badgeElement.textContent = '';
 		this.badgeElement.classList.toggle('dot-badge', shouldShowDotBadge);
 		this.badgeElement.classList.toggle('dot-badge-warning', shouldShowDotBadge && state.dotBadge === 'warning');
 		this.badgeElement.classList.toggle('dot-badge-error', shouldShowDotBadge && state.dotBadge === 'error');
 		this.badgeElement.style.display = shouldShowDotBadge ? '' : 'none';
+		this.renderCodexPanelAvatar();
 	}
 
 	private getAvatarAltText(hasLoadedAvatar: boolean): string {
@@ -371,6 +401,29 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		}
 
 		return localize('accountAvatarAltFallback', "Account profile image");
+	}
+
+	private getCodexAvatarAltText(): string {
+		return this.codexAccountService.account.email
+			? localize('chatGPTAvatarAlt', "ChatGPT profile image for {0}", this.codexAccountService.account.email)
+			: localize('chatGPTAvatarAltFallback', "ChatGPT profile image");
+	}
+
+	private renderCodexPanelAvatar(): void {
+		if (!this.codexPanelAvatarElement || !this.codexPanelIconElement) {
+			return;
+		}
+		const avatarUrl = this.loadedCodexAvatarUrl;
+		this.codexPanelAvatarElement.classList.toggle('hidden', !avatarUrl);
+		this.codexPanelIconElement.classList.toggle('hidden', !!avatarUrl);
+		this.codexPanelAvatarElement.alt = this.getCodexAvatarAltText();
+		if (avatarUrl) {
+			if (this.codexPanelAvatarElement.src !== avatarUrl) {
+				this.codexPanelAvatarElement.src = avatarUrl;
+			}
+		} else {
+			this.codexPanelAvatarElement.removeAttribute('src');
+		}
 	}
 
 	private refreshAvatar(): void {
@@ -416,6 +469,57 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 			clearHandlers();
 		};
 		this.avatarLoadDisposable.value = toDisposable(() => {
+			clearHandlers();
+			image.src = '';
+		});
+		image.src = avatarUrl;
+		this.renderState();
+	}
+
+	private refreshCodexAvatar(): void {
+		const account = this.codexAccountService.account;
+		const avatarUrl = this.configurationService.getValue<boolean>(ACCOUNTS_AVATAR_SETTING) && account.status === 'signedIn'
+			? account.profileImageDataUri
+			: undefined;
+		if (avatarUrl === this.currentCodexAvatarUrl) {
+			return;
+		}
+
+		this.currentCodexAvatarUrl = avatarUrl;
+		this.loadedCodexAvatarUrl = undefined;
+		this.codexAvatarLoadDisposable.clear();
+		const requestId = ++this.codexAvatarRequestCounter;
+
+		if (!avatarUrl) {
+			this.renderState();
+			return;
+		}
+
+		const image = new Image();
+		image.referrerPolicy = 'no-referrer';
+		const clearHandlers = () => {
+			image.onload = null;
+			image.onerror = null;
+		};
+		image.onload = () => {
+			if (requestId !== this.codexAvatarRequestCounter) {
+				return;
+			}
+
+			this.loadedCodexAvatarUrl = avatarUrl;
+			this.renderState();
+			clearHandlers();
+		};
+		image.onerror = () => {
+			if (requestId !== this.codexAvatarRequestCounter) {
+				return;
+			}
+
+			this.loadedCodexAvatarUrl = undefined;
+			this.renderState();
+			clearHandlers();
+		};
+		this.codexAvatarLoadDisposable.value = toDisposable(() => {
 			clearHandlers();
 			image.src = '';
 		});
@@ -568,8 +672,25 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 				'aria-label': localize('chatGPTAccountSectionLabel', "ChatGPT account")
 			}));
 			const accountIdentity = append(accountSection, $('.sessions-account-titlebar-panel-provider-identity'));
+			const avatar = append(accountIdentity, $('img.sessions-account-titlebar-panel-provider-avatar', {
+				alt: this.getCodexAvatarAltText(),
+				draggable: 'false',
+			})) as HTMLImageElement;
+			avatar.decoding = 'async';
+			avatar.referrerPolicy = 'no-referrer';
 			const accountIcon = append(accountIdentity, $('span.sessions-account-titlebar-panel-provider-icon', { 'aria-hidden': 'true' }));
 			accountIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.openai));
+			this.codexPanelAvatarElement = avatar;
+			this.codexPanelIconElement = accountIcon;
+			this.renderCodexPanelAvatar();
+			panelStore.add(toDisposable(() => {
+				if (this.codexPanelAvatarElement === avatar) {
+					this.codexPanelAvatarElement = undefined;
+				}
+				if (this.codexPanelIconElement === accountIcon) {
+					this.codexPanelIconElement = undefined;
+				}
+			}));
 			const accountName = append(accountIdentity, $('.sessions-account-titlebar-panel-provider-name'));
 			accountName.textContent = codexAccount.email ?? localize('chatGPTAccountName', "ChatGPT");
 			const accountActions = append(accountIdentity, $('.sessions-account-titlebar-panel-provider-actions'));
@@ -901,6 +1022,18 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 
 		return dashboardElement;
 	}
+}
+
+function hasCodexAccountPanelContentChanged(previous: ICodexAccountViewInfo, current: ICodexAccountViewInfo): boolean {
+	return previous.status !== current.status
+		|| previous.email !== current.email
+		|| previous.planType !== current.planType
+		|| previous.requiresOpenaiAuth !== current.requiresOpenaiAuth
+		|| previous.authUrl !== current.authUrl
+		|| previous.authUrlNonce !== current.authUrlNonce
+		|| previous.rateLimit?.usedPercent !== current.rateLimit?.usedPercent
+		|| previous.rateLimit?.windowDurationMins !== current.rateLimit?.windowDurationMins
+		|| previous.rateLimit?.resetsAt !== current.rateLimit?.resetsAt;
 }
 
 // --- Register custom view item --- //
