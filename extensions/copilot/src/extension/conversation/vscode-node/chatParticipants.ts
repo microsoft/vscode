@@ -18,7 +18,7 @@ import { DisposableStore, IDisposable } from '../../../util/vs/base/common/lifec
 import { autorun } from '../../../util/vs/base/common/observableInternal';
 import { generateUuid } from '../../../util/vs/base/common/uuid';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
-import { ChatRequest, ChatRequestTurn, ChatRequestTurn2 } from '../../../vscodeTypes';
+import { ChatRequest } from '../../../vscodeTypes';
 import { Intent, agentsToCommands } from '../../common/constants';
 import { ICopilotChatResultIn } from '../../prompt/common/conversation';
 import { getSwitchToAutoOnRateLimitConfirmation, isContinueOnError } from '../../prompt/common/specialRequestTypes';
@@ -29,9 +29,7 @@ import { ChatSummarizerProvider } from '../../prompt/node/summarizer';
 import { ChatTitleProvider } from '../../prompt/node/title';
 import { IUserFeedbackService } from './userActions';
 import { getAdditionalWelcomeMessage } from './welcomeMessageProvider';
-import { computeLevenshteinDistance } from '../../../util/vs/base/common/diff/diff';
-import { PreviousEditCodeStep } from '../../intents/node/editCodeStep';
-import { WorkingSetEntryState } from '../../prompt/common/intents';
+import { isChatRecoveryAttempt } from './chatRecovery';
 
 export class ChatAgentService implements IChatAgentService {
 	declare readonly _serviceBrand: undefined;
@@ -206,53 +204,12 @@ Learn more about [GitHub Copilot](https://docs.github.com/copilot/using-github-c
 		return defaultAgent;
 	}
 
-	private isChatRecoveryAttempt(request: vscode.ChatRequest, response: vscode.ChatResult, context: vscode.ChatContext): boolean {
-		// Autopilot can revise its own trajectory without the user attempting a recovery.
-		if (request.permissionLevel === 'autopilot') {
-			return false;
-		}
-		const sentRequests = context.history.filter((turn): turn is ChatRequestTurn2 => turn instanceof ChatRequestTurn);
-		const previousRequest = sentRequests.at(-1);
-		// Editing and resubmitting a prompt strongly indicates that the prior request needed correction.
-		if (request.editedRequestId) {
-			return true;
-		}
-		// If the previous request was another model
-		if (previousRequest?.modelId && previousRequest.modelId !== request.model.id) {
-			return true;
-		}
-		// A substantially repeated prompt suggests that the previous response did not resolve it.
-		if (previousRequest) {
-			const previousPrompt = previousRequest.prompt.toLowerCase();
-			const currentPrompt = request.prompt.toLowerCase();
-			const maximumLength = Math.max(previousPrompt.length, currentPrompt.length);
-			const similarity = maximumLength === 0
-				? 1
-				: 1 - computeLevenshteinDistance(previousPrompt, currentPrompt) / maximumLength;
-			if (similarity >= 0.8) {
-				return true;
-			}
-		}
-		const editStep = PreviousEditCodeStep.fromChatResultMetaData(response);
-		const allFilesRejected = editStep?.workingSet
-			.every(entry => entry.state === WorkingSetEntryState.Rejected);
-		// All files were rejected, which strongly suggests that the previous request was not successful.
-		if (allFilesRejected) {
-			return true;
-		}
-		// Files have bad diagnostics
-		const someFilesHaveBadDiagnostics = editStep?.workingSet
-			.some(entry => vscode.languages.getDiagnostics(entry.document.uri).some(diagnostic => diagnostic.severity === vscode.DiagnosticSeverity.Error));
-		if (someFilesHaveBadDiagnostics) {
-			return true;
-		}
-		return false;
-	}
-
 	private getChatParticipantHandler(id: string, name: string, defaultIntentIdOrGetter: IntentOrGetter): vscode.ChatExtendedRequestHandler {
 		return async (request, context, stream, token): Promise<vscode.ChatResult> => {
 			markChatExt(request.sessionId, ChatExtPerfMark.WillHandleParticipant);
 			try {
+				const isRecoveryAttempt = isChatRecoveryAttempt(request, context);
+
 				// If we need to switch to the base model, this function will handle it
 				// Otherwise it just returns the same request passed into it
 				request = await this.switchToBaseModel(request, stream);
@@ -315,7 +272,7 @@ Learn more about [GitHub Copilot](https://docs.github.com/copilot/using-github-c
 					}
 				}
 
-				if (this.isChatRecoveryAttempt(request, result, context)) {
+				if (isRecoveryAttempt) {
 					this.logService.info("[ChatAgentService/FailedRequest] Detected a chat recovery attempt. Sending telemetry event 'chatFixOfPreviousFailedRequest'.");
 					this.telemetryService.sendMSFTTelemetryEvent('chatFixOfPreviousFailedRequest', { modelId: request.model?.id });
 				}
