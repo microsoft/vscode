@@ -44,6 +44,7 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 	private _contentElement?: HTMLElement;
 	private _contentInitialized = false;
 	private _animationContainer: HTMLElement | undefined;
+	private _isExpandable = true;
 	private ariaLabel: string;
 
 	public get icon(): ThemeIcon | undefined {
@@ -160,9 +161,36 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 	}
 
 	protected toggleExpanded(): void {
+		if (!this._isExpandable) {
+			return;
+		}
 		const value = this._isExpanded.get();
 		this._domNode?.dispatchEvent(new CustomEvent(ChatCollapsibleContentPart.userToggleEvent, { bubbles: true }));
 		this._isExpanded.set(!value, undefined);
+	}
+
+	/**
+	 * Turns the row into a plain status line: it no longer toggles, and it drops
+	 * the affordances that would otherwise promise expansion — including its
+	 * place in the tab order, so it is not a focusable dead control.
+	 */
+	protected setExpandable(expandable: boolean): void {
+		this._isExpandable = expandable;
+		this._hoverChevron?.classList.toggle('hidden', !expandable);
+		const button = this._collapseButton?.element;
+		if (button) {
+			button.tabIndex = expandable ? 0 : -1;
+			if (expandable) {
+				button.removeAttribute('aria-disabled');
+				button.ariaExpanded = String(this.isExpanded());
+			} else {
+				button.setAttribute('aria-disabled', 'true');
+				button.removeAttribute('aria-expanded');
+			}
+		}
+		if (!expandable) {
+			this.setExpanded(false);
+		}
 	}
 
 	protected abstract initContent(): HTMLElement;
@@ -195,7 +223,7 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 
 	private updateAriaLabel(element: HTMLElement, label: string, expanded?: boolean): void {
 		element.ariaLabel = label;
-		element.ariaExpanded = String(expanded);
+		element.ariaExpanded = this._isExpandable ? String(expanded) : null;
 	}
 
 	addDisposable(disposable: IDisposable): void {
