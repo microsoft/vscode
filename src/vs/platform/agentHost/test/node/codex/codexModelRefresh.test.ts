@@ -202,6 +202,59 @@ suite('CodexAgent model refresh', () => {
 		});
 	});
 
+	test('queues a fresh model refresh when Codex activates during an ambient refresh', async () => {
+		const copilotModels = [{ id: 'copilot-model', name: 'Copilot Model', supported_endpoints: ['/responses'] }] as CCAModel[];
+		const ambientRefreshStarted = new DeferredPromise<void>();
+		const ambientCodexRefreshFinished = new DeferredPromise<void>();
+		const releaseAmbientRefresh = new DeferredPromise<void>();
+		let copilotRefreshes = 0;
+		const agent = createAgent(disposables, async () => {
+			copilotRefreshes++;
+			if (copilotRefreshes === 1) {
+				await ambientRefreshStarted.complete();
+				await releaseAmbientRefresh.p;
+			}
+			return copilotModels;
+		}, { [AgentHostConfigKey.AllowSignedOutWhenUsable]: true });
+		agent['_githubToken'] = 'token';
+		agent['_refreshProviderConfiguration'] = async () => { };
+		const refreshCodexModels = agent['_refreshCodexModels'].bind(agent);
+		let codexRefreshes = 0;
+		agent['_refreshCodexModels'] = async () => {
+			const result = await refreshCodexModels();
+			codexRefreshes++;
+			if (codexRefreshes === 1) {
+				await ambientCodexRefreshFinished.complete();
+			}
+			return result;
+		};
+		const requests: string[] = [];
+		const connection = createChatGPTConnection(undefined, requests);
+		agent['_ensureConnection'] = async () => {
+			agent['_connection'] = connection as never;
+			return connection as never;
+		};
+
+		const ambientRefresh = agent.refreshModels();
+		await Promise.all([ambientRefreshStarted.p, ambientCodexRefreshFinished.p]);
+		agent['_activate']();
+		const activatedRefresh = agent.refreshModels();
+		await releaseAmbientRefresh.complete();
+		await Promise.all([ambientRefresh, activatedRefresh]);
+
+		assert.deepStrictEqual({
+			copilotRefreshes,
+			codexRefreshes,
+			enumerations: requests.filter(method => method === 'model/list').length,
+			providers: agent.models.get().map(model => model.provider),
+		}, {
+			copilotRefreshes: 2,
+			codexRefreshes: 2,
+			enumerations: 1,
+			providers: ['copilot', 'chatgpt'],
+		});
+	});
+
 	test('an explicit session restore activates metadata reads while ambient listing stays passive', async () => {
 		const ctx = createAgentContext(disposables, async () => []);
 		const session = AgentSession.uri('codex', 'restore-activation');

@@ -2094,6 +2094,9 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 		this._activated = true;
 		this._logService.info('[Codex] Activating app-server after explicit Codex use');
+		// Deliberately queue rather than coalesce: an ambient refresh already in
+		// flight may have observed the inactive state and skipped Codex models.
+		void this._queueModelRefresh();
 		void this._refreshProviderConfiguration();
 		if (this._onDidDiscoverChats.hasListeners()) {
 			void this._startCodexChatDiscovery();
