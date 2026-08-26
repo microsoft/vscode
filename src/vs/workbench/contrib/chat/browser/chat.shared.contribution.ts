@@ -565,7 +565,7 @@ configurationRegistry.registerConfiguration({
 		[ChatConfiguration.CollapseCompletedResponses]: {
 			type: 'boolean',
 			description: nls.localize('chat.agent.collapseCompletedResponses', "Controls whether completed chat responses collapse intermediate work while keeping the final response visible."),
-			default: product.quality !== 'stable',
+			default: true,
 		},
 		'chat.detectParticipant.enabled': {
 			type: 'boolean',
@@ -575,7 +575,7 @@ configurationRegistry.registerConfiguration({
 		[ChatConfiguration.ExperimentalStickyScrollEnabled]: {
 			type: 'boolean',
 			description: nls.localize('chat.experimental.stickyScroll.enabled', "Controls whether chat requests use experimental tree-based sticky scroll instead of the sticky prompt header."),
-			default: product.quality === 'insider',
+			default: true,
 			tags: ['experimental'],
 		},
 		[ChatConfiguration.InlineReferencesStyle]: {
