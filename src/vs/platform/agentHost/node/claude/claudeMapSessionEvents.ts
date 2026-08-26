@@ -498,9 +498,12 @@ function mapResult(
 				type: ActionType.ChatError,
 				turnId,
 				duration: typeof turnDuration === 'number' && Number.isFinite(turnDuration) ? Math.max(0, turnDuration) : 0,
-				error: {
-					errorType: message.subtype,
-					...extractForwardedErrorInfo(errorText),
+				part: {
+					kind: ResponsePartKind.Error,
+					error: {
+						errorType: message.subtype,
+						...extractForwardedErrorInfo(errorText),
+					},
 				},
 			},
 		});

@@ -19,9 +19,10 @@ export const IAgentHostProviderService = createDecorator<IAgentHostProviderServi
 export interface IAgentHostProviderService {
 	readonly _serviceBrand: undefined;
 	readonly agents: IObservable<readonly IAgent[]>;
+	readonly onDidRegisterProvider: Event<IAgent>;
 	readonly onMcpNotification: Event<IMcpNotification>;
 
-	registerProviderInitializer(initializer: (provider: IAgent) => void): IDisposable;
+	registerProviderInitializer(initializer: (provider: IAgent) => IDisposable): IDisposable;
 	registerProvider(provider: IAgent): void;
 	resolveProvider(provider?: AgentProvider): IAgent | undefined;
 	getProvider(provider: AgentProvider): IAgent | undefined;
@@ -42,10 +43,14 @@ export class AgentHostProviderService extends Disposable implements IAgentHostPr
 	private readonly _sessionToProvider = new Map<string, AgentProvider>();
 	private readonly _agents: ISettableObservable<readonly IAgent[]> = observableValue(this, []);
 	readonly agents: IObservable<readonly IAgent[]> = this._agents;
+	private readonly _onDidRegisterProvider = this._register(new Emitter<IAgent>());
+	readonly onDidRegisterProvider = this._onDidRegisterProvider.event;
 	private readonly _onMcpNotification = this._register(new Emitter<IMcpNotification>());
 	readonly onMcpNotification = this._onMcpNotification.event;
-	private readonly _providerInitializers = new Set<(provider: IAgent) => void>();
+	private readonly _providerInitializers = new Set<(provider: IAgent) => IDisposable>();
+	private readonly _authenticationReplays = new Map<AgentProvider, Promise<void>>();
 	private _defaultProvider: AgentProvider | undefined;
+	private _shutdownPromise: Promise<void> | undefined;
 
 	constructor(
 		@IAgentHostAuthenticationController private readonly _authenticationController: IAgentHostAuthenticationController,
@@ -55,7 +60,7 @@ export class AgentHostProviderService extends Disposable implements IAgentHostPr
 		this._register(toDisposable(() => this._providerInitializers.clear()));
 	}
 
-	registerProviderInitializer(initializer: (provider: IAgent) => void): IDisposable {
+	registerProviderInitializer(initializer: (provider: IAgent) => IDisposable): IDisposable {
 		if (this._providers.size > 0) {
 			throw new Error('Provider initializers must be registered before providers');
 		}
@@ -64,6 +69,9 @@ export class AgentHostProviderService extends Disposable implements IAgentHostPr
 	}
 
 	registerProvider(provider: IAgent): void {
+		if (this._shutdownPromise) {
+			throw new Error('Cannot register an agent provider after shutdown has started');
+		}
 		if (this._providers.has(provider.id)) {
 			throw new Error(`Agent provider already registered: ${provider.id}`);
 		}
@@ -78,7 +86,7 @@ export class AgentHostProviderService extends Disposable implements IAgentHostPr
 			this._providers.set(provider.id, provider);
 			this._providerRegistrations.set(provider.id, registrations);
 			for (const initializer of this._providerInitializers) {
-				initializer(provider);
+				registrations.add(initializer(provider));
 			}
 			if (!this._defaultProvider) {
 				this._defaultProvider = provider.id;
@@ -90,9 +98,15 @@ export class AgentHostProviderService extends Disposable implements IAgentHostPr
 			this._defaultProvider = previousDefaultProvider;
 			throw error;
 		}
-		void Promise.resolve()
-			.then(() => this._providers.get(provider.id) === provider ? this._authenticationController.replay(provider) : undefined)
+		this._onDidRegisterProvider.fire(provider);
+		const replay = this._authenticationController.replay(provider)
 			.catch(error => this._logService.error(error, `[AgentHostProviderService] Failed to replay authentication for provider '${provider.id}'`));
+		this._authenticationReplays.set(provider.id, replay);
+		void replay.then(() => {
+			if (this._authenticationReplays.get(provider.id) === replay) {
+				this._authenticationReplays.delete(provider.id);
+			}
+		});
 	}
 
 	resolveProvider(provider?: AgentProvider): IAgent | undefined {
@@ -148,8 +162,13 @@ export class AgentHostProviderService extends Disposable implements IAgentHostPr
 		return provider.handleMcpRequest(route.chatUri, route.serverName, method, params);
 	}
 
-	async shutdown(): Promise<void> {
+	shutdown(): Promise<void> {
+		return this._shutdownPromise ??= this._shutdown();
+	}
+
+	private async _shutdown(): Promise<void> {
 		try {
+			await Promises.settled([...this._authenticationReplays.values()]);
 			await Promises.settled([...this._providers.values()].map(provider => provider.shutdown()));
 		} finally {
 			this._sessionToProvider.clear();

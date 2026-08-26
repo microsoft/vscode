@@ -1049,6 +1049,40 @@ suite('ModernUIContribution', () => {
 		});
 	});
 
+	test('default density top panel keeps the outer bottom gutter when maximized', () => {
+		const root = document.createElement('div');
+		root.className = 'monaco-workbench modern-ui floating-panels';
+		root.style.setProperty('--vscode-spacing-size40', '4px');
+		root.style.setProperty('--vscode-spacing-sizeNone', '0px');
+		document.body.appendChild(root);
+		store.add(toDisposable(() => root.remove()));
+
+		const panel = appendElement(root, 'part panel top');
+		const maximizedPanel = appendElement(root, 'part panel top floating-part-outer-bottom');
+		const targetWindow = getWindow(root);
+
+		assert.deepStrictEqual({
+			panelBottomMargin: targetWindow.getComputedStyle(panel).marginBottom,
+			maximizedPanelBottomMargin: targetWindow.getComputedStyle(maximizedPanel).marginBottom,
+		}, {
+			panelBottomMargin: '0px',
+			maximizedPanelBottomMargin: '4px',
+		});
+	});
+
+	test('compact auxiliary window editors keep their outer radius', () => {
+		const root = document.createElement('div');
+		root.className = 'monaco-workbench modern-ui modern-ui-compact';
+		root.style.setProperty('--vscode-cornerRadius-large', '8px');
+		document.body.appendChild(root);
+		store.add(toDisposable(() => root.remove()));
+
+		const grid = appendElement(root, 'monaco-grid-view');
+		const editor = appendElement(grid, 'part editor');
+
+		assert.deepStrictEqual(getWindow(editor).getComputedStyle(editor).borderRadius, '8px');
+	});
+
 	test('compact density rounds only the panel cluster exterior', () => {
 		const root = document.createElement('div');
 		root.className = 'monaco-workbench modern-ui modern-ui-compact floating-panels';
@@ -1069,6 +1103,7 @@ suite('ModernUIContribution', () => {
 		const editor = appendElement(grid, 'part editor floating-editor-outer-left floating-editor-outer-top');
 		const editorContent = appendElement(editor, 'content');
 		const webviewOverlayContent = appendElement(root, 'webview-overlay-content webview-overlay-outer-left webview-overlay-outer-top');
+		const modalWebviewOverlayContent = appendElement(root, 'webview-overlay-content webview-overlay-modal');
 		const targetWindow = getWindow(root);
 		const activityBarStyle = targetWindow.getComputedStyle(activityBar);
 		const sideBarStyle = targetWindow.getComputedStyle(sideBar);
@@ -1077,6 +1112,7 @@ suite('ModernUIContribution', () => {
 		const editorStyle = targetWindow.getComputedStyle(editor);
 		const editorContentStyle = targetWindow.getComputedStyle(editorContent);
 		const webviewOverlayContentStyle = targetWindow.getComputedStyle(webviewOverlayContent);
+		const modalWebviewOverlayContentStyle = targetWindow.getComputedStyle(modalWebviewOverlayContent);
 
 		assert.deepStrictEqual({
 			activityBar: {
@@ -1109,6 +1145,7 @@ suite('ModernUIContribution', () => {
 			},
 			editorContentRadius: editorContentStyle.borderRadius,
 			webviewOverlayCorners: [webviewOverlayContentStyle.borderTopLeftRadius, webviewOverlayContentStyle.borderTopRightRadius, webviewOverlayContentStyle.borderBottomRightRadius, webviewOverlayContentStyle.borderBottomLeftRadius],
+			modalWebviewOverlayRadius: modalWebviewOverlayContentStyle.borderRadius,
 		}, {
 			activityBar: {
 				corners: ['8px', '0px', '0px', '8px'],
@@ -1140,6 +1177,7 @@ suite('ModernUIContribution', () => {
 			},
 			editorContentRadius: '0px',
 			webviewOverlayCorners: ['8px', '0px', '0px', '0px'],
+			modalWebviewOverlayRadius: '8px',
 		});
 	});
 

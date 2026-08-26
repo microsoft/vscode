@@ -105,6 +105,7 @@ suite('ChatPetWidget', () => {
 		const service = disposables.add(new ChatPetService(disposables.add(new TestStorageService()), new TestTelemetryService(), new NullLogService()));
 		disposables.add(new ChatPetWidget(
 			createPetHost(parent, dragBounds, movementBounds),
+			undefined,
 			service,
 			new TestAccessibilityService(),
 			new class extends mock<IContextMenuService>() { }(),
@@ -130,6 +131,46 @@ suite('ChatPetWidget', () => {
 		});
 	});
 
+	test('observes layout bounds only while visible and enabled', () => {
+		const observedTargets = new Set<Element>();
+		class TestResizeObserver implements ResizeObserver {
+			observe(target: Element): void { observedTargets.add(target); }
+			unobserve(target: Element): void { observedTargets.delete(target); }
+			disconnect(): void { observedTargets.clear(); }
+			takeRecords(): ResizeObserverEntry[] { return []; }
+		}
+		const parent = mainWindow.document.createElement('div');
+		const dragBounds = mainWindow.document.createElement('div');
+		const movementBounds = mainWindow.document.createElement('div');
+		mainWindow.document.body.append(parent, dragBounds, movementBounds);
+		disposables.add(toDisposable(() => {
+			parent.remove();
+			dragBounds.remove();
+			movementBounds.remove();
+		}));
+		const service = disposables.add(new ChatPetService(disposables.add(new TestStorageService()), new TestTelemetryService(), new NullLogService()));
+		disposables.add(new ChatPetWidget(
+			createPetHost(parent, dragBounds, movementBounds),
+			TestResizeObserver as unknown as typeof ResizeObserver,
+			service,
+			new TestAccessibilityService(),
+			new class extends mock<IContextMenuService>() { }(),
+			new class extends mock<ICommandService>() { }(),
+			new NullLogService(),
+			new class extends mock<IHostService>() {
+				override readonly hasFocus = true;
+				override readonly onDidChangeFocus = Event.None;
+				override readonly onDidChangeActiveWindow = Event.None;
+			}(),
+		));
+
+		assert.strictEqual(observedTargets.size, 0);
+		service.toggle();
+		assert.deepStrictEqual(observedTargets, new Set([dragBounds, movementBounds, parent]));
+		service.toggle();
+		assert.strictEqual(observedTargets.size, 0);
+	});
+
 	test('stacks the run cycle behind the input', () => {
 		const parent = mainWindow.document.createElement('div');
 		const input = mainWindow.document.createElement('div');
@@ -144,6 +185,7 @@ suite('ChatPetWidget', () => {
 		service.toggle();
 		disposables.add(new ChatPetWidget(
 			createPetHost(parent, input, movementBounds),
+			undefined,
 			service,
 			new class extends TestAccessibilityService {
 				override isMotionReduced(): boolean { return false; }
@@ -223,6 +265,7 @@ suite('ChatPetWidget', () => {
 		const service = disposables.add(new ChatPetService(disposables.add(new TestStorageService()), new TestTelemetryService(), new NullLogService()));
 		const widget = disposables.add(new ChatPetWidget(
 			createPetHost(firstParent, firstBounds, movementBounds),
+			undefined,
 			service,
 			new TestAccessibilityService(),
 			new class extends mock<IContextMenuService>() { }(),
@@ -449,6 +492,7 @@ suite('ChatPetWidget', () => {
 		const service = disposables.add(new ChatPetService(disposables.add(new TestStorageService()), new TestTelemetryService(), new NullLogService()));
 		disposables.add(new ChatPetWidget(
 			createPetHost(parent, dragBounds, movementBounds),
+			undefined,
 			service,
 			new TestAccessibilityService(),
 			new class extends mock<IContextMenuService>() { }(),
@@ -646,6 +690,7 @@ suite('ChatPetWidget', () => {
 		const service = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService()));
 		const widget = disposables.add(new ChatPetWidget(
 			createPetHost(parent, dragBounds, movementBounds),
+			undefined,
 			service,
 			new TestAccessibilityService(),
 			new class extends mock<IContextMenuService>() { }(),
@@ -748,6 +793,30 @@ suite('ChatPetWidget', () => {
 			secondWindowPosition: 0.3,
 			dismissed: false,
 			restartedWindow: 1.4,
+			restartedWindowPosition: 0.3,
+		});
+	});
+
+	test('resets pet size to the default without changing the position', () => {
+		const storageService = disposables.add(new TestStorageService());
+		const firstWindow = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService()));
+		const secondWindow = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService()));
+		firstWindow.setScale(1.4);
+		firstWindow.setHorizontalPosition(0.3);
+		firstWindow.resetScale();
+		const restartedWindow = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService()));
+
+		assert.deepStrictEqual({
+			firstWindow: firstWindow.scale.get(),
+			secondWindow: secondWindow.scale.get(),
+			restartedWindow: restartedWindow.scale.get(),
+			storedScale: storageService.get('chat.vscodePet.scale', StorageScope.APPLICATION),
+			restartedWindowPosition: restartedWindow.horizontalPosition.get(),
+		}, {
+			firstWindow: 1,
+			secondWindow: 1,
+			restartedWindow: 1,
+			storedScale: undefined,
 			restartedWindowPosition: 0.3,
 		});
 	});

@@ -169,7 +169,7 @@ Production and targeted graph tests still resolve the real implementations.
 
 **Why it exists:** callback-dependent services are constructed before
 `AgentService`, while session restore, server-tool operations, and changeset
-liveness are still owned by `AgentService`.
+eviction are still owned by `AgentService`.
 
 Cross-cutting turn behavior now belongs in `IAgentHostChatContributions`; do not
 add callbacks for behavior expressible through its lifecycle hooks.
@@ -178,7 +178,7 @@ add callbacks for behavior expressible through its lifecycle hooks.
 responsibility should move to a narrower owning service.
 
 **Exit condition:** extract session operations/restoration, server-tool
-ownership, turn dispatch, and subscription liveness so consumers inject those
+ownership, turn dispatch, and changeset eviction so consumers inject those
 owners directly. Contributions reduce the cross-cutting behavior that those
 services must own, but the remaining callback queries and commands need service
 owners rather than contribution hooks. Then delete the adapter and binder

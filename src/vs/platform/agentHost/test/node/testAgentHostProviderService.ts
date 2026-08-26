@@ -15,6 +15,7 @@ export function createTestAgentHostProviderService(getProviderForSession: (sessi
 	return {
 		_serviceBrand: undefined,
 		agents,
+		onDidRegisterProvider: Event.None,
 		onMcpNotification: Event.None,
 		registerProviderInitializer: () => Disposable.None,
 		registerProvider: () => { throw new Error('Not implemented'); },

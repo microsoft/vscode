@@ -12,7 +12,7 @@ import { AgentHostClientType } from '../../../common/agentHostClientInfo.js';
 import { createUnknownAgentHostClientTelemetryContext } from '../../../common/agentHostTelemetry.js';
 import { IAgentHostChatContributions, createChatMementoKey, type IAgentHostChatContribution, type IAgentHostChatContributionContext, type IAgentHostChatContributionHost, type IObservedAction, type IQueuedMessageSender, type ITurnEnd } from '../../../common/agentHostChatContributionsService.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
-import { isAhpChatChannel, parseRequiredSessionUriFromChatUri, PendingMessageKind, type Message, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
+import { isAhpChatChannel, parseRequiredSessionUriFromChatUri, PendingMessageKind, ResponsePartKind, type Message, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../agentHostStateManager.js';
 import { createAgentChatContext } from '../../agentChatContext.js';
 import { IAgentHostProviderService } from '../../agentHostProviderService.js';
@@ -147,7 +147,7 @@ export class QueueDrainContribution extends Disposable implements IAgentHostChat
 				type: ActionType.ChatError,
 				turnId,
 				duration: Math.max(0, turnStopWatch.elapsed()),
-				error: { errorType: 'noAgent', message: 'No agent found for session' },
+				part: { kind: ResponsePartKind.Error, error: { errorType: 'noAgent', message: 'No agent found for session' } },
 			});
 			return;
 		}

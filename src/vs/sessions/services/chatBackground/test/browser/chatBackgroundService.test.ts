@@ -12,7 +12,7 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ColorScheme } from '../../../../../platform/theme/common/theme.js';
 import { TestColorTheme, TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
-import { SessionsChatBackgroundAvailableContext } from '../../../../common/contextkeys.js';
+import { SessionsChatBackgroundAvailableContext, SessionsChatBackgroundImageConfiguredContext } from '../../../../common/contextkeys.js';
 import { AGENT_SESSIONS_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING, AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_SETTING, AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_SETTING, chatBackgroundImageLayoutValues, ChatBackgroundImageLayout, ISessionsChatBackground, SessionsChatBackgroundService } from '../../browser/chatBackgroundService.js';
 
 class CapturingConfigurationService extends TestConfigurationService {
@@ -38,14 +38,17 @@ suite('Sessions Chat Background Service', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('does not return a background without a configured image', () => {
-		const service = disposables.add(new SessionsChatBackgroundService(new TestConfigurationService(), new TestThemeService(), disposables.add(new MockContextKeyService())));
+		const contextKeyService = disposables.add(new MockContextKeyService());
+		const service = disposables.add(new SessionsChatBackgroundService(new TestConfigurationService(), new TestThemeService(), contextKeyService));
 
 		assert.deepStrictEqual({
 			background: service.getBackground(),
 			image: service.getConfiguredBackgroundImage(),
+			configured: contextKeyService.getContextKeyValue(SessionsChatBackgroundImageConfiguredContext.key),
 		}, {
 			background: undefined,
 			image: undefined,
+			configured: false,
 		});
 	});
 
@@ -69,6 +72,7 @@ suite('Sessions Chat Background Service', () => {
 			size: darkBackground?.backgroundSize,
 			position: darkBackground?.backgroundPosition,
 			available: contextKeyService.getContextKeyValue(SessionsChatBackgroundAvailableContext.key),
+			configured: contextKeyService.getContextKeyValue(SessionsChatBackgroundImageConfiguredContext.key),
 		};
 		themeService.setTheme(new TestColorTheme({}, ColorScheme.LIGHT));
 		const lightBackground = service.getBackground();
@@ -79,11 +83,13 @@ suite('Sessions Chat Background Service', () => {
 			size: lightBackground?.backgroundSize,
 			position: lightBackground?.backgroundPosition,
 			available: contextKeyService.getContextKeyValue(SessionsChatBackgroundAvailableContext.key),
+			configured: contextKeyService.getContextKeyValue(SessionsChatBackgroundImageConfiguredContext.key),
 		};
 		themeService.setTheme(new TestColorTheme({}, ColorScheme.HIGH_CONTRAST_DARK));
 		const highContrast = {
 			background: service.getBackground(),
 			available: contextKeyService.getContextKeyValue(SessionsChatBackgroundAvailableContext.key),
+			configured: contextKeyService.getContextKeyValue(SessionsChatBackgroundImageConfiguredContext.key),
 		};
 		themeService.setTheme(new TestColorTheme({}, ColorScheme.DARK));
 		const restoredAvailability = contextKeyService.getContextKeyValue(SessionsChatBackgroundAvailableContext.key);
@@ -95,13 +101,15 @@ suite('Sessions Chat Background Service', () => {
 			light,
 			highContrast,
 			unsupportedUri: service.getBackground(),
+			unsupportedConfigured: contextKeyService.getContextKeyValue(SessionsChatBackgroundImageConfiguredContext.key),
 			restoredAvailability,
 			changes,
 		}, {
-			dark: { image: true, cssImage: true, repeat: 'no-repeat', size: 'auto', position: 'center center', available: true },
-			light: { image: true, cssImage: true, repeat: 'no-repeat', size: 'auto', position: 'center center', available: true },
-			highContrast: { background: undefined, available: false },
+			dark: { image: true, cssImage: true, repeat: 'no-repeat', size: 'auto', position: 'center center', available: true, configured: true },
+			light: { image: true, cssImage: true, repeat: 'no-repeat', size: 'auto', position: 'center center', available: true, configured: true },
+			highContrast: { background: undefined, available: false, configured: true },
 			unsupportedUri: undefined,
+			unsupportedConfigured: false,
 			restoredAvailability: true,
 			changes: 4,
 		});
@@ -143,24 +151,34 @@ suite('Sessions Chat Background Service', () => {
 		});
 	});
 
-	test('stores an image for the active color theme', async () => {
+	test('updates the image for the active color theme and the shared layout', async () => {
 		const image = URI.file('/textures/kirby.png');
 		const configurationService = new CapturingConfigurationService();
 		const themeService = new TestThemeService();
 		const service = disposables.add(new SessionsChatBackgroundService(configurationService, themeService, disposables.add(new MockContextKeyService())));
 
 		await service.setBackgroundImage(image);
+		await service.clearBackgroundImage();
 		themeService.setTheme(new TestColorTheme({}, ColorScheme.LIGHT));
 		await service.setBackgroundImage(image);
+		await service.setBackgroundImageLayout('bottom-right');
 
 		assert.deepStrictEqual(configurationService.updates, [{
 			key: AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_SETTING,
 			value: image.toString(),
 			target: ConfigurationTarget.USER,
 		}, {
+			key: AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_SETTING,
+			value: undefined,
+			target: ConfigurationTarget.USER,
+		}, {
 			key: AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_SETTING,
 			value: image.toString(),
 			target: ConfigurationTarget.USER,
+		}, {
+			key: AGENT_SESSIONS_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING,
+			value: 'bottom-right',
+			target: ConfigurationTarget.APPLICATION,
 		}]);
 	});
 });

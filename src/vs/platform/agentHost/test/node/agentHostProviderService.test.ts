@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../base/common/async.js';
 import { Emitter } from '../../../../base/common/event.js';
+import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
@@ -18,9 +20,11 @@ import { MockAgent } from './mockAgent.js';
 class TestAuthenticationService extends AgentHostAuthenticationService {
 	readonly replayedProviders: IAgent[] = [];
 	readonly authenticateCalls: { params: AuthenticateParams; providers: readonly IAgent[] }[] = [];
+	replayGate: DeferredPromise<void> | undefined;
 
 	override async replay(provider: IAgent): Promise<void> {
 		this.replayedProviders.push(provider);
+		await this.replayGate?.p;
 	}
 
 	override async authenticate(params: AuthenticateParams, providers: Iterable<IAgent>) {
@@ -75,30 +79,39 @@ suite('AgentHostProviderService', () => {
 		const { service, authentication } = createService();
 		const provider = new TestProvider('copilot');
 		const initializations: string[] = [];
+		const registrations: string[] = [];
+		let initializerDisposed = false;
 		disposables.add(service.registerProviderInitializer(registered => {
 			assert.strictEqual(service.getProvider(registered.id), provider);
 			assert.deepStrictEqual(service.agents.get(), []);
 			initializations.push(registered.id);
+			return toDisposable(() => initializerDisposed = true);
+		}));
+		disposables.add(service.onDidRegisterProvider(registered => {
+			assert.deepStrictEqual(service.agents.get().map(agent => agent.id), ['copilot']);
+			registrations.push(registered.id);
 		}));
 
 		service.registerProvider(provider);
 		await Promise.resolve();
-		assert.throws(() => service.registerProviderInitializer(() => { }), /before providers/);
+		assert.throws(() => service.registerProviderInitializer(() => Disposable.None), /before providers/);
 
 		assert.deepStrictEqual({
 			initializations,
+			registrations,
 			agents: service.agents.get().map(agent => agent.id),
 			defaultProvider: service.resolveProvider()?.id,
 			replayedProviders: authentication.replayedProviders.map(agent => agent.id),
 		}, {
 			initializations: ['copilot'],
+			registrations: ['copilot'],
 			agents: ['copilot'],
 			defaultProvider: 'copilot',
 			replayedProviders: ['copilot'],
 		});
 
 		service.dispose();
-		assert.strictEqual(provider.disposeCount, 1);
+		assert.deepStrictEqual({ providerDisposeCount: provider.disposeCount, initializerDisposed }, { providerDisposeCount: 1, initializerDisposed: true });
 	});
 
 	test('rejects duplicate providers without taking ownership of the duplicate', () => {
@@ -115,6 +128,8 @@ suite('AgentHostProviderService', () => {
 	test('rolls back a provider when registration setup throws', async () => {
 		const { service, authentication } = createService();
 		const provider = new TestProvider('copilot');
+		let initializerDisposed = false;
+		disposables.add(service.registerProviderInitializer(() => toDisposable(() => initializerDisposed = true)));
 		disposables.add(service.registerProviderInitializer(() => {
 			throw new Error('initialization failed');
 		}));
@@ -127,12 +142,14 @@ suite('AgentHostProviderService', () => {
 			defaultProvider: service.resolveProvider(),
 			disposeCount: provider.disposeCount,
 			replayedProviders: authentication.replayedProviders,
+			initializerDisposed,
 		}, {
 			provider: undefined,
 			agents: [],
 			defaultProvider: undefined,
 			disposeCount: 1,
 			replayedProviders: [],
+			initializerDisposed: true,
 		});
 	});
 
@@ -201,5 +218,29 @@ suite('AgentHostProviderService', () => {
 			authenticateProviders: ['first', 'second'],
 			shutdownCounts: [1, 1],
 		});
+	});
+
+	test('waits for authentication replay before shutdown', async () => {
+		const { service, authentication } = createService();
+		const provider = new TestProvider('copilot');
+		authentication.replayGate = new DeferredPromise<void>();
+		service.registerProvider(provider);
+
+		const shutdown = service.shutdown();
+		await Promise.resolve();
+		assert.deepStrictEqual({
+			replayedProviders: authentication.replayedProviders.map(provider => provider.id),
+			shutdownCount: provider.shutdownCount,
+		}, {
+			replayedProviders: ['copilot'],
+			shutdownCount: 0,
+		});
+		const lateProvider = new TestProvider('late');
+		assert.throws(() => service.registerProvider(lateProvider), /shutdown has started/);
+		lateProvider.dispose();
+
+		authentication.replayGate.complete();
+		await shutdown;
+		assert.strictEqual(provider.shutdownCount, 1);
 	});
 });

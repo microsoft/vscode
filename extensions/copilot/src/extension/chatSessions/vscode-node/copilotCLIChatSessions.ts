@@ -182,11 +182,6 @@ export class CopilotCLIChatSessionContentProvider extends Disposable implements 
 				await refreshSessions();
 			}
 		));
-		this._register(configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(ConfigKey.Advanced.CLIShowExternalSessions.fullyQualifiedId)) {
-				void refreshSessions();
-			}
-		}));
 		this._register(this._workspaceFolderService.onDidChangeWorkspaceFolderChanges(e => {
 			this.refreshSession({ reason: 'update', sessionId: e.sessionId });
 		}));
