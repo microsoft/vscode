@@ -95,8 +95,6 @@ suite('GitHubReferenceList', () => {
 		document.body.appendChild(list.element);
 
 		try {
-			// The row actions are revealed by row focus, matching the chat pill dropdown rows.
-			list.element.querySelector('button')!.focus();
 			const actionLabel = list.element.querySelector<HTMLElement>('.sessions-github-reference-list-entry-actions .action-label')!;
 			actionLabel.focus();
 
