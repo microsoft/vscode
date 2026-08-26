@@ -295,11 +295,23 @@ export class SessionHeader extends Disposable {
 		return !!this._session && (this._session.capabilities.get().supportsRename ?? false);
 	}
 
-	startTitleEditing(): void {
-		if (!this._isTitleEditable() || this._renameInput) {
-			return;
+	/**
+	 * Starts an inline rename of the session title. Returns `false` when the
+	 * header cannot host it — the header is hidden (e.g. while the single-group
+	 * chat tabs row replaces it) or the session cannot be renamed — so callers
+	 * can fall back to another rename affordance.
+	 */
+	startTitleEditing(): boolean {
+		if (!this._visible || !this._isTitleEditable()) {
+			return false;
+		}
+		if (this._renameInput) {
+			this._renameInput.focus();
+			this._renameInput.select();
+			return true;
 		}
 		this._startTitleEditing();
+		return true;
 	}
 
 	/**

@@ -218,7 +218,7 @@ export class ChatPetWidgetService extends Disposable implements IChatPetWidgetSe
 	) {
 		super();
 		this.coordinator = this._register(new ChatPetWidgetCoordinator(
-			host => instantiationService.createInstance(ChatPetWidget, host),
+			host => instantiationService.createInstance(ChatPetWidget, host, undefined),
 			chatWidgetService,
 			Event.map(dom.onWillUnregisterWindow, window => dom.getWindowId(window)),
 		));
