@@ -153,12 +153,13 @@ export class AgentHostFolderPickerActionItem extends ChatInputPickerActionViewIt
 		dom.reset(
 			element,
 			...renderLabelWithIcons(`$(folder-compact)`),
-			dom.$('span.chat-input-picker-label', undefined, label),
+			...(!this.pickerOptions.compact.get() ? [dom.$('span.chat-input-picker-label', undefined, label)] : []),
 		);
 		// Set the aria label after the visible text is in place: the base class
 		// derives it from `element.textContent`, so labeling first would lag one
 		// selection behind.
 		this.setAriaLabelAttributes(element);
+		element.ariaLabel = label;
 		return null;
 	}
 

@@ -238,6 +238,9 @@ export class ChatSessionPickerActionItem extends ActionWidgetDropdownActionViewI
 		const domChildren = [];
 		element.classList.add('chat-session-option-picker');
 		const group = this.delegate.getOptionGroup();
+		const compact = this._pickerOptions?.compact.get() ?? false;
+		element.classList.toggle('compact', compact);
+		const label = this.currentOption?.name ?? group?.description ?? localize('chat.sessionPicker.label', "Pick Option");
 		// If the current option is the default and has an icon, collapse the text and show only the icon
 		const isDefaultWithIcon = this.currentOption?.default && this.currentOption?.icon;
 
@@ -245,12 +248,13 @@ export class ChatSessionPickerActionItem extends ActionWidgetDropdownActionViewI
 			domChildren.push(renderIcon(getCompactCodicon(this.currentOption.icon)));
 		}
 
-		if (!isDefaultWithIcon) {
-			domChildren.push(dom.$('span.chat-session-option-label', undefined, this.currentOption?.name ?? group?.description ?? localize('chat.sessionPicker.label', "Pick Option")));
+		if (!isDefaultWithIcon && (!compact || !this.currentOption?.icon)) {
+			domChildren.push(dom.$('span.chat-session-option-label', undefined, label));
 		}
 
 		dom.reset(element, ...domChildren);
 		this.setAriaLabelAttributes(element);
+		element.ariaLabel = label;
 		return null;
 	}
 

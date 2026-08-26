@@ -387,7 +387,9 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 
 		const labelElements = [];
 		labelElements.push(...renderLabelWithIcons(`$(${getCompactCodicon(icon).id})`));
-		labelElements.push(dom.$('span.chat-input-picker-label', undefined, label));
+		if (!this.pickerOptions.compact.get()) {
+			labelElements.push(dom.$('span.chat-input-picker-label', undefined, label));
+		}
 
 		dom.reset(element, ...labelElements);
 		element.classList.toggle('warning', !ext && (level === ChatPermissionLevel.Autopilot || level === ChatPermissionLevel.Assisted));
