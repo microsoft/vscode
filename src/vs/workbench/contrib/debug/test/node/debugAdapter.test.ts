@@ -85,16 +85,15 @@ suite('Debug - Debug Adapter', () => {
 				'%PATH:z=z%',
 				'two\\\\"quote'
 			];
-			const captureCommands = args.map((_, index) => `set "VSCODE_TEST_CAPTURED_${index}=%~${index + 1}"`).join('\r\n');
-			await writeFile(adapterPath, `@echo off\r\n${captureCommands}\r\n"%VSCODE_TEST_NODE%" "%VSCODE_TEST_CAPTURE_SCRIPT%"\r\n`);
-			await writeFile(captureScriptPath, 'require("fs").writeFileSync(process.env.VSCODE_TEST_OUTPUT, JSON.stringify(Array.from({ length: Number(process.env.VSCODE_TEST_ARGUMENT_COUNT) }, (_, index) => process.env["VSCODE_TEST_CAPTURED_" + index])));');
+			const forwardedArgs = args.map((_, index) => `"%~${index + 1}"`).join(' ');
+			await writeFile(adapterPath, `@echo off\r\n"%VSCODE_TEST_NODE%" "%VSCODE_TEST_CAPTURE_SCRIPT%" ${forwardedArgs}\r\n`);
+			await writeFile(captureScriptPath, 'require("fs").writeFileSync(process.env.VSCODE_TEST_OUTPUT, JSON.stringify(process.argv.slice(2)));');
 
 			const result = spawnSync(process.env['ComSpec'] || 'cmd.exe', prepareWindowsBatchCommand(adapterPath, args), {
 				encoding: 'utf8',
 				env: {
 					...process.env,
 					ELECTRON_RUN_AS_NODE: '1',
-					VSCODE_TEST_ARGUMENT_COUNT: String(args.length),
 					VSCODE_TEST_NODE: process.execPath,
 					VSCODE_TEST_CAPTURE_SCRIPT: captureScriptPath,
 					VSCODE_TEST_OUTPUT: outputPath
