@@ -593,20 +593,16 @@ export interface IChatThinkingPart {
 }
 
 /**
- * A progress part representing an auto-mode model routing resolution.
- * Shown as a collapsible widget in the chat stream: collapsed displays
- * "Routed to <model>", expanded shows routing details and confidence.
+ * Explains what the "Auto" model routed a turn to. Rendered as a collapsible
+ * row: "Routing task…" while the router is deciding, then "Routed task".
+ *
+ * A resolved part replaces the row that is still routing; Auto can route more
+ * than once per turn, and each later route gets its own row.
  */
 export interface IChatAutoModeResolutionPart {
 	kind: 'autoModeResolution';
-	/** The model ID that was selected by the router */
-	resolvedModel: string;
-	/** The user-facing display name of the resolved model */
-	resolvedModelName: string;
-	/** The router's classification label */
-	predictedLabel: 'needs_reasoning' | 'no_reasoning' | 'fallback';
-	/** Confidence score (0-1) from the router */
-	confidence: number;
+	/** The model the router picked, or `undefined` while routing is in flight. */
+	resolved?: { readonly id: string; readonly name: string };
 }
 
 /**

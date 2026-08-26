@@ -608,21 +608,21 @@ A client can request arbitrary file bytes from the Agent Host in base64 so binar
 
   Substitute `codexAgentHostE2E.integrationTest.ts` to reproduce the Codex variant.
 
-### Claude `create_chat` server-tool turns do not complete
+### Claude current-session creation turns do not complete
 
 - Tests:
-  - `server tool: create_chat defaults to the invoking session and starts its local prompt`
-  - `server tool: create_chat applies an explicit peer title`
+  - `server tool: create_session currentSession starts a prompt in a peer chat`
+  - `server tool: create_session currentSession applies an explicit peer title`
 - Scope: Claude.
 - Expected: after confirmation, the host creates the peer chat, starts the local `/rename` prompt there, returns the tool result, and completes the invoking turn.
 - Observed: the confirmation is accepted, but the invoking turn never reaches tool completion or `chat/turnComplete`.
-- Gate: `supportsServerToolCreateChat` in `serverToolsSuite.ts`.
+- Gate: `supportsCurrentSessionCreation` in `serverToolsSuite.ts`.
 - Reproduce:
 
   ```bash
   AGENT_HOST_REPLAY_RECORD=1 ./scripts/test-integration.sh --run \
     src/vs/platform/agentHost/test/node/e2e/providers/claudeAgentHostE2E.integrationTest.ts \
-    --grep "server tool: create_chat defaults"
+    --grep "server tool: create_session currentSession starts"
   ```
 
 ### Claude omits important tool details when reading another session's transcript

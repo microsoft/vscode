@@ -11213,15 +11213,19 @@ suite('AgentService (node dispatcher)', () => {
 			const sessionUrisBeforeCreation = new Set(getStateManager(localService).getSessionUris());
 
 			await agent.serverToolHost!.executeTool(sourceChat.toString(), SessionServerToolName.CreateSession, {
+				relationship: 'independent',
 				workspace: URI.file('/workspace').toString(),
 				prompt: 'new session',
+				title: 'New Session',
 			});
 			const createdSessionUri = getStateManager(localService).getSessionUris().find(uri => !sessionUrisBeforeCreation.has(uri));
 			const delegatedMessage = createdSessionUri
 				? getStateManager(localService).getChatState(buildDefaultChatUri(createdSessionUri))?.activeTurn?.message
 				: undefined;
-			await agent.serverToolHost!.executeTool(sourceChat.toString(), SessionServerToolName.CreateChat, {
+			await agent.serverToolHost!.executeTool(sourceChat.toString(), SessionServerToolName.CreateSession, {
+				relationship: 'currentSession',
 				prompt: 'new chat',
+				title: 'New Chat',
 			});
 
 			assert.deepStrictEqual({
@@ -11251,7 +11255,7 @@ suite('AgentService (node dispatcher)', () => {
 						[CodexSessionConfigKey.PermissionsPreset]: 'full-access',
 					},
 				},
-				chatOptions: { model: { id: 'source-model' } },
+				chatOptions: { title: 'New Chat', model: { id: 'source-model' } },
 			});
 		});
 
@@ -11329,8 +11333,10 @@ suite('AgentService (node dispatcher)', () => {
 			}, 'test-client', 1);
 
 			await agent.serverToolHost!.executeTool(sourceChat, SessionServerToolName.CreateSession, {
+				relationship: 'independent',
 				workspace: URI.file('/workspace').toString(),
 				prompt: 'new session',
+				title: 'New Session',
 			});
 
 			assert.deepStrictEqual(agent.createSessionConfigs.at(-1)?.config, {
@@ -11385,8 +11391,10 @@ suite('AgentService (node dispatcher)', () => {
 			}, 'test-client', 1);
 
 			await agent.serverToolHost!.executeTool(sourceChat, SessionServerToolName.CreateSession, {
+				relationship: 'independent',
 				workspace: URI.file('/workspace').toString(),
 				prompt: 'new session',
+				title: 'New Session',
 			});
 
 			assert.strictEqual(agent.createSessionConfigs.at(-1)?.model, undefined);

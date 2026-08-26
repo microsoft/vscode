@@ -1181,7 +1181,7 @@ export class AgentService extends Disposable implements IAgentService {
 
 	/**
 	 * Starts a turn requested by the session orchestration server tools
-	 * (`create_session`, `create_chat`, `send_message`) by dispatching a
+	 * (`create_session`, `send_message`) by dispatching a
 	 * `ChatTurnStarted` and routing it through the same side-effects path a
 	 * client-initiated turn takes (which sends the message to the provider).
 	 */
