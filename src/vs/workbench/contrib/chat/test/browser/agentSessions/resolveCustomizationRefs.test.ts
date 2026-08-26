@@ -7,6 +7,7 @@ import assert from 'assert';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { ResourceSet } from '../../../../../../base/common/map.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -57,10 +58,16 @@ function makeConfigurationResolverService(resolutions: Record<string, string> = 
 	} as unknown as IConfigurationResolverService;
 }
 
-function makePromptsService(files: ReadonlyMap<string, readonly IPromptPath[]>): IPromptsService {
+function makePromptsService(
+	files: ReadonlyMap<string, readonly IPromptPath[]>,
+	disabledPromptFiles: ReadonlyMap<PromptsType, ResourceSet> = new Map(),
+): IPromptsService {
 	return {
 		async listPromptFilesForStorage(type: PromptsType, storage: PromptsStorage): Promise<readonly IPromptPath[]> {
 			return files.get(`${type}/${storage}`) ?? [];
+		},
+		getDisabledPromptFiles(type: PromptsType): ResourceSet {
+			return disabledPromptFiles.get(type) ?? new ResourceSet();
 		},
 	} as unknown as IPromptsService;
 }
@@ -249,6 +256,35 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 		);
 
 		assert.deepStrictEqual(bundler.received[0].map(f => f.uri.toString()), [enabled.toString()]);
+	});
+
+	test('omits user-disabled built-in skills from the bundle', async () => {
+		const enabled = URI.file('/builtin/create-pr/SKILL.md');
+		const disabled = URI.file('/builtin/merge/SKILL.md');
+		const promptsService = makePromptsService(
+			new Map([
+				[`${PromptsType.skill}/${BUILTIN_STORAGE}`, [
+					makePromptPath(enabled, PromptsType.skill, PromptsStorage.builtIn),
+					makePromptPath(disabled, PromptsType.skill, PromptsStorage.builtIn),
+				]],
+			]),
+			new Map([[PromptsType.skill, new ResourceSet([disabled])]]),
+		);
+		const bundler = new FakeBundler();
+
+		await resolveCustomizationRefs(
+			makeFileService(),
+			promptsService,
+			new FakeSyncProvider(),
+			makeAgentPluginService(),
+			makeMcpService(),
+			makeConfigurationResolverService(),
+			bundler as unknown as SyncedCustomizationBundler,
+			SessionType.CopilotCLI,
+			undefined,
+		);
+
+		assert.deepStrictEqual(bundler.received[0].map(file => file.uri.toString()), [enabled.toString()]);
 	});
 
 	test('combines built-in skills with user files in a single bundle', async () => {

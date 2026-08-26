@@ -120,6 +120,10 @@ export enum PromptsStorage {
 	builtIn = 'builtin',
 }
 
+export function isUserToggleableCustomization(type: PromptsType, storage: PromptsStorage): boolean {
+	return type === PromptsType.skill && storage === PromptsStorage.builtIn;
+}
+
 /**
  * Represents a prompt path with its type.
  * This is used for both prompt files and prompt source folders.

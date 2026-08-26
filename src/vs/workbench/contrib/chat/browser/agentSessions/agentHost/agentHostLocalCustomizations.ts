@@ -15,7 +15,7 @@ import { ExtensionIdentifier } from '../../../../../../platform/extensions/commo
 import { IMcpServerConfiguration, McpServerType } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { AICustomizationSource, AICustomizationSources } from '../../../common/aiCustomizationWorkspaceService.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
-import { IPromptsService, matchesSessionType, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
+import { IPromptsService, isUserToggleableCustomization, matchesSessionType, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { type ICustomizationSyncProvider } from '../../../common/customizationHarnessService.js';
 import { IAgentPlugin, IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 import { MCP_PLUGIN_COLLECTION_ID_PREFIX } from '../../../../mcp/common/discovery/pluginMcpDiscovery.js';
@@ -111,11 +111,13 @@ export async function enumerateLocalCustomizationsForHarness(
 		? [PromptsStorage.user, ...SYNCABLE_STORAGE_SOURCES]
 		: SYNCABLE_STORAGE_SOURCES;
 	for (const type of SYNCABLE_PROMPT_TYPES) {
+		const userDisabled = promptsService.getDisabledPromptFiles(type);
 		const lists = await Promise.all(
 			storageSources.map(storage => promptsService.listPromptFilesForStorage(type, storage, token)),
 		);
 		for (let i = 0; i < lists.length; i++) {
 			const source = storageSources[i];
+			const userToggleable = isUserToggleableCustomization(type, source);
 			for (const file of lists[i]) {
 				if (matchesSessionType(file.sessionTypes, sessionType) && !seenUris.has(file.uri)) {
 					seenUris.add(file.uri);
@@ -125,7 +127,7 @@ export async function enumerateLocalCustomizationsForHarness(
 						source,
 						pluginUri: file.pluginUri,
 						extensionId: file.extension?.identifier.value,
-						disabled: syncProvider.isDisabled(file.uri),
+						disabled: syncProvider.isDisabled(file.uri) || (userToggleable && userDisabled.has(file.uri)),
 					});
 				}
 			}
