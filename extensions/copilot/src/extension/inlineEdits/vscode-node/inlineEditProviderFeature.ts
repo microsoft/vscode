@@ -64,6 +64,11 @@ export class InlineEditProviderFeature {
 	private readonly _yieldToCopilot = this._configurationService.getExperimentBasedConfigObservable(ConfigKey.TeamInternal.InlineEditsYieldToCopilot, this._expService);
 	private readonly _excludedProviders = this._configurationService.getExperimentBasedConfigObservable(ConfigKey.TeamInternal.InlineEditsExcludedProviders, this._expService).map(v => v ? v.split(',').map(v => v.trim()).filter(v => v !== '') : []);
 	private readonly _copilotToken = observableFromEvent(this, this._authenticationService.onDidCopilotTokenChange, () => this._authenticationService.copilotToken);
+	// Read reactively because this is the only strategy-baked value consumed at provider-registration
+	// time. For a fetched `/models` deployment it resolves asynchronously, so there is a brief cold-start
+	// window (typically the `/models` round-trip, ~100ms) where this reads `false` and the separate
+	// completions provider is not yet excluded. It self-corrects the instant `onModelListUpdated` fires.
+	// Local/ExP model configuration resolves synchronously, so it is unaffected.
 	private readonly _supportsUnifiedCompletions = observableFromEvent(this, this._modelService.onModelListUpdated, () => this._modelService.selectedModelConfiguration().supportsUnifiedCompletions ?? false);
 
 	public readonly inlineEditsEnabled = derived(this, (reader) => {
