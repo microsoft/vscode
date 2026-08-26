@@ -6,17 +6,18 @@
 import * as vscode from 'vscode';
 import { computeLevenshteinDistance } from '../../../util/vs/base/common/diff/diff';
 import { isEqual } from '../../../util/vs/base/common/resources';
-import { ChatRequestTurn, ChatRequestTurn2, ChatResponseTurn } from '../../../vscodeTypes';
+import { ChatRequestTurn2, ChatResponseTurn } from '../../../vscodeTypes';
 import { PreviousEditCodeStep } from '../../intents/node/editCodeStep';
 import { WorkingSetEntryState } from '../../prompt/common/intents';
 
 export function arePromptsSimilar(previousPrompt: string, currentPrompt: string): boolean {
-	const normalizedPreviousPrompt = previousPrompt.toLowerCase();
-	const normalizedCurrentPrompt = currentPrompt.toLowerCase();
+	const normalizedPreviousPrompt = previousPrompt.trim().replace(/\s+/g, ' ').toLowerCase();
+	const normalizedCurrentPrompt = currentPrompt.trim().replace(/\s+/g, ' ').toLowerCase();
+	if (!normalizedPreviousPrompt || !normalizedCurrentPrompt) {
+		return false;
+	}
 	const maximumLength = Math.max(normalizedPreviousPrompt.length, normalizedCurrentPrompt.length);
-	const similarity = maximumLength === 0
-		? 1
-		: 1 - computeLevenshteinDistance(normalizedPreviousPrompt, normalizedCurrentPrompt) / maximumLength;
+	const similarity = 1 - computeLevenshteinDistance(normalizedPreviousPrompt, normalizedCurrentPrompt) / maximumLength;
 
 	return similarity >= 0.8;
 }
@@ -24,14 +25,14 @@ export function arePromptsSimilar(previousPrompt: string, currentPrompt: string)
 /**
  * Determines whether the current chat request is an attempt to recover from a previous failed request.
  */
-export function isChatRecoveryAttempt(request: vscode.ChatRequest, context: vscode.ChatContext): boolean {
-	// Autopilot can revise its own trajectory without the user attempting a recovery.
-	if (request.permissionLevel === 'autopilot') {
+export function isChatRecoveryAttempt(previousRequest: ChatRequestTurn2 | undefined, previousResponse: ChatResponseTurn | undefined, request: vscode.ChatRequest): boolean {
+	if ((!previousRequest && !previousResponse) || !request || request.permissionLevel === "autopilot" || request.subAgentInvocationId || request.isSystemInitiated) {
 		return false;
 	}
-
-	const sentRequests = context.history.filter((turn): turn is ChatRequestTurn2 => turn instanceof ChatRequestTurn);
-	const previousRequest = sentRequests.at(-1);
+	// If the request is a rerun, it is a recovery attempt.
+	if (request.attempt > 0) {
+		return true;
+	}
 	// Editing and resubmitting a prompt strongly indicates that the prior request needed correction.
 	if (request.editedRequestId) {
 		return true;
@@ -44,18 +45,20 @@ export function isChatRecoveryAttempt(request: vscode.ChatRequest, context: vsco
 	if (previousRequest && arePromptsSimilar(previousRequest.prompt, request.prompt)) {
 		return true;
 	}
-
-	const sentResponses = context.history.filter((turn): turn is ChatResponseTurn => turn instanceof ChatResponseTurn);
-	const previousResponse = sentResponses.at(-1);
+	// If the previous response had an error, it is likely that the user is attempting to recover from it.
+	if (previousResponse?.result.errorDetails) {
+		return true;
+	}
 	const editStep = previousResponse ? PreviousEditCodeStep.fromChatResultMetaData(previousResponse.result) : undefined;
 	const changedFiles = editStep?.workingSet.filter(entry => entry.state !== WorkingSetEntryState.Initial) ?? [];
 	// All files were rejected or modified, which strongly suggests that the previous request was not successful.
-	const allFilesRejected = changedFiles.length > 0 && changedFiles.every(entry =>
+	const allChangedFilesRejectedOrModified = changedFiles.length > 0 && changedFiles.every(entry =>
 		request.editedFileEvents?.some(event =>
-			event.eventKind !== vscode.ChatRequestEditedFileEventKind.Keep && isEqual(event.uri, entry.document.uri)
+			(event.eventKind === vscode.ChatRequestEditedFileEventKind.Undo || event.eventKind === vscode.ChatRequestEditedFileEventKind.UserModification)
+			&& isEqual(event.uri, entry.document.uri)
 		) === true
 	);
-	if (allFilesRejected) {
+	if (allChangedFilesRejectedOrModified) {
 		return true;
 	}
 	// Files have bad diagnostics

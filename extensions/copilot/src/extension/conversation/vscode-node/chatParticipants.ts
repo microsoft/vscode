@@ -18,7 +18,7 @@ import { DisposableStore, IDisposable } from '../../../util/vs/base/common/lifec
 import { autorun } from '../../../util/vs/base/common/observableInternal';
 import { generateUuid } from '../../../util/vs/base/common/uuid';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
-import { ChatRequest } from '../../../vscodeTypes';
+import { ChatRequest, ChatRequestTurn, ChatRequestTurn2, ChatResponseTurn } from '../../../vscodeTypes';
 import { Intent, agentsToCommands } from '../../common/constants';
 import { ICopilotChatResultIn } from '../../prompt/common/conversation';
 import { getSwitchToAutoOnRateLimitConfirmation, isContinueOnError } from '../../prompt/common/specialRequestTypes';
@@ -208,7 +208,9 @@ Learn more about [GitHub Copilot](https://docs.github.com/copilot/using-github-c
 		return async (request, context, stream, token): Promise<vscode.ChatResult> => {
 			markChatExt(request.sessionId, ChatExtPerfMark.WillHandleParticipant);
 			try {
-				const isRecoveryAttempt = isChatRecoveryAttempt(request, context);
+				const sentRequests = context.history.filter((turn): turn is ChatRequestTurn2 => turn instanceof ChatRequestTurn);
+				const sentResponses = context.history.filter((turn): turn is ChatResponseTurn => turn instanceof ChatResponseTurn);
+				const isRecoveryAttempt = isChatRecoveryAttempt(sentRequests.at(-1), sentResponses.at(-1), request);
 
 				// If we need to switch to the base model, this function will handle it
 				// Otherwise it just returns the same request passed into it
