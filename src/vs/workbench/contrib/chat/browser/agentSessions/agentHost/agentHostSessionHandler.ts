@@ -870,7 +870,6 @@ class ActiveClientEntry extends Disposable {
 	private readonly _stateSubscription = this._register(new MutableDisposable<IDisposable>());
 	private readonly _publishDelayer: Delayer<void>;
 	private _backendSession: URI | undefined;
-	private _observedBackendSession: URI | undefined;
 	private _claimRequested = false;
 	private _lastPublished: SessionActiveClient | undefined;
 
@@ -945,13 +944,7 @@ class ActiveClientEntry extends Disposable {
 					return;
 				}
 				const activeClient = this._activeClient.get();
-				const sessionState = this._getSessionState(backendSession);
-				if (sessionState) {
-					this._observedBackendSession = backendSession;
-				} else if (this._observedBackendSession && isEqual(this._observedBackendSession, backendSession)) {
-					return;
-				}
-				const existing = sessionState?.activeClients.find(client => client.clientId === activeClient.clientId);
+				const existing = this._getSessionState(backendSession)?.activeClients.find(client => client.clientId === activeClient.clientId);
 				if (!existing && !this._claimRequested) {
 					return;
 				}

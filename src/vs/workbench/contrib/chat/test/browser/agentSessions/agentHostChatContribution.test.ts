@@ -300,11 +300,6 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		return this._liveSubscriptions.has(resource);
 	}
 
-	removeSessionState(resource: string): void {
-		this.sessionStates.delete(resource);
-		this._liveSubscriptions.delete(resource);
-	}
-
 	async subscribe(resource: URI): Promise<IStateSnapshot> {
 		const resourceStr = resource.toString();
 		const existingState = this.sessionStates.get(resourceStr);
@@ -12305,7 +12300,7 @@ suite('AgentHostChatContribution', () => {
 			);
 		});
 
-		test('does not republish activeClientSet after backend session state is removed', async () => {
+		test('does not republish activeClientSet after the chat session is disposed', async () => {
 			const { instantiationService, agentHostService, chatAgentService, seedActiveClient } = createTestServices(disposables);
 			const customizations = observableValue<readonly ClientPluginCustomization[]>('customizations', []);
 			disposables.add(seedActiveClient('agent-host-copilot', { customizations }));
@@ -12325,7 +12320,7 @@ suite('AgentHostChatContribution', () => {
 			await turn.turnPromise;
 
 			agentHostService.dispatchedActions.length = 0;
-			agentHostService.removeSessionState(AgentSession.uri('copilot', 'disposed-session').toString());
+			turn.chatSession.dispose();
 			customizations.set([
 				{ type: CustomizationType.Plugin, id: 'file:///plugin', uri: 'file:///plugin', name: 'Plugin', enablement: [{ kind: CustomizationEnablementKind.Global, enabled: true }] },
 			], undefined);
