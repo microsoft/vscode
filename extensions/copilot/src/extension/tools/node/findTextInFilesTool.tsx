@@ -31,6 +31,7 @@ import { ToolName } from '../common/toolNames';
 import { CopilotToolMode, ICopilotTool, ToolRegistry } from '../common/toolsRegistry';
 import { checkCancellation, InputGlobResult, inputGlobToPattern, patternContainsWorkspaceFolderPath } from './toolUtils';
 import { IExperimentationService } from '../../../lib/node/chatLibMain';
+import { IGrepResultService } from './grepResultService';
 
 interface IFindTextInFilesToolParams {
 	query: string;
@@ -70,6 +71,7 @@ export class FindTextInFilesTool implements ICopilotTool<IFindTextInFilesToolPar
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IPromptPathRepresentationService private readonly promptPathRepresentationService: IPromptPathRepresentationService,
 		@IExperimentationService private readonly experimentationService: IExperimentationService,
+		@IGrepResultService private readonly grepResultService: IGrepResultService,
 	) { }
 
 	async invoke(options: vscode.LanguageModelToolInvocationOptions<IFindTextInFilesToolParams>, token: CancellationToken) {
@@ -185,6 +187,9 @@ Then if you want to include those files you can call the tool again by setting "
 		const groupedMatches = this.createGroupedFileMatches(results, maxResults);
 		if (!groupedMatches) {
 			return this.errorResult(noMatchInstructions ? `No matches found. ${noMatchInstructions}` : 'No matches found.');
+		}
+		if (options.chatRequestId !== undefined) {
+			this.grepResultService.addGrepResult(options.chatRequestId, groupedMatches);
 		}
 		const prompt = await renderPromptElementJSON(this.instantiationService,
 			FindTextInFilesGrepResult,
