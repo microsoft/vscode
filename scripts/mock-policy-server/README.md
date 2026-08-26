@@ -12,7 +12,7 @@ npm run mock-policy-server
 
 Open `http://127.0.0.1:3000`. Managed settings is mocked by default. Use the
 switch beside each endpoint tab to choose mock or passthrough. Presets apply
-immediately; status and JSON edits auto-save.
+immediately; response behavior, status, and JSON edits auto-save.
 
 The GUI opens on the **Policies** workspace. Select **Setup** in the header to
 open a modal that guides you through either connection method:
@@ -91,9 +91,38 @@ curl -X POST "$BASE/api/state" \
   ]}'
 ```
 
-A preset sets its status and body and enables mocking. Explicit `status`, `body`,
-or `active` values in the same update override the preset. Invalid requests are
-rejected before any endpoint changes.
+A preset sets the status and body and enables mocking. Response behavior is
+configured independently with `mode`, including when a preset and mode are sent
+in the same update. Explicit `status`, `body`, or `active` values override the
+preset. Invalid requests are rejected before any endpoint changes. Supported
+response modes are `json`, `malformed-json`, `disconnect`, and `timeout`.
+
+### Test fail-closed managed-settings refresh
+
+First serve a successful policy that enables the forced-refresh requirement and
+sync it into VS Code. Then configure an HTTP error preset or a failing response
+behavior and sync again. Seeding the requirement first mirrors a real deployment
+where the cached control self-perpetuates through an outage.
+
+```sh
+curl -X POST "$BASE/api/state" \
+  -H 'Content-Type: application/json' \
+  -d '{"endpoint":"managedSettings","preset":"customization-lockdown"}'
+
+# Run "Developer: Sync Account Policy" in VS Code, then choose one:
+curl -X POST "$BASE/api/state" -H 'Content-Type: application/json' \
+  -d '{"endpoint":"managedSettings","preset":"server-error"}'
+curl -X POST "$BASE/api/state" -H 'Content-Type: application/json' \
+  -d '{"endpoint":"managedSettings","mode":"malformed-json","status":200}'
+curl -X POST "$BASE/api/state" -H 'Content-Type: application/json' \
+  -d '{"endpoint":"managedSettings","mode":"disconnect"}'
+curl -X POST "$BASE/api/state" -H 'Content-Type: application/json' \
+  -d '{"endpoint":"managedSettings","mode":"timeout"}'
+```
+
+These configurations exercise HTTP error, malformed response, immediate network
+failure, and client-timeout paths respectively. Clear the policy cache if the
+request does not appear in **Live Requests**.
 
 | Method | Route | Purpose |
 | --- | --- | --- |

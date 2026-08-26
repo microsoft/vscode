@@ -256,6 +256,17 @@ h2 {
 	min-width: 0;
 }
 
+.response-configuration {
+	display: flex;
+	flex-direction: column;
+	gap: 20px;
+	min-width: 0;
+}
+
+.response-configuration[hidden] {
+	display: none;
+}
+
 .section-block {
 	background: var(--surface);
 	border: 1px solid var(--border);
