@@ -65,7 +65,7 @@ export async function openSessionToTheSide(sessionsService: ISessionsService, se
 	if (lastVisible && lastVisible.sessionId !== session.sessionId) {
 		sessionsService.insertAt(session, lastVisible.sessionId, 'right');
 	}
-	await sessionsService.openSession(session.resource, options);
+	await sessionsService.openSession(session.resource, { ...options, source: 'sessionsList' });
 }
 
 export const SessionsViewFilterSubMenu = new MenuId('SessionsViewPaneFilterSubMenu');
@@ -228,7 +228,7 @@ export class SessionsView extends ViewPane {
 						return;
 					}
 				}
-				this.sessionsService.openSession(resource, { preserveFocus }).then(onOpened).catch(onUnexpectedError);
+				this.sessionsService.openSession(resource, { preserveFocus, source: 'sessionsList' }).then(onOpened).catch(onUnexpectedError);
 			},
 			canOpenSession: session => this.sessionsService.canOpenSession(session),
 		}));

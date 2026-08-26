@@ -25,6 +25,7 @@ import type { ActiveClientToolSet } from '../activeClientState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostManagedSettingsService } from '../agentHostManagedSettingsService.js';
 import { IAgentHostTerminalManager } from '../agentHostTerminalManager.js';
+import { IAgentHostSessionOpenTelemetry } from '../agentHostSessionOpenTelemetry.js';
 import { IByokLmBridgeRegistry } from '../byokLmBridgeRegistry.js';
 import { IByokLmProxyService, type IByokLmProxyHandle } from './byokLmProxyService.js';
 import type { ICopilotMcpServerInfo, ICopilotPluginInfo } from './copilotAgent.js';
@@ -542,6 +543,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		@IByokLmProxyService private readonly _byokLmProxyService: IByokLmProxyService,
 		@IByokLmBridgeRegistry private readonly _byokLmBridgeRegistry: IByokLmBridgeRegistry,
 		@IAgentHostOTelService private readonly _otelService: IAgentHostOTelService,
+		@IAgentHostSessionOpenTelemetry private readonly _sessionOpenTelemetry: IAgentHostSessionOpenTelemetry,
 	) { }
 
 	async launch(plan: CopilotSessionLaunchPlan, runtime: ICopilotSessionRuntime): Promise<CopilotSessionWrapper> {
@@ -553,10 +555,11 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 
 		let fallbackPlan = plan;
 		let fallbackConfig = config;
+		const session = AgentSession.uri('copilotcli', plan.sessionId);
 		try {
 			const stopWatch = new StopWatch();
 			this._logService.trace(`[Copilot:${plan.sessionId}] Calling SDK resumeSession...`);
-			const raw = await this._withTraceContext(plan.sessionId, () => plan.client.resumeSession(plan.sessionId, config));
+			const raw = await this._resumeSession(session, plan, config);
 			this._logService.trace(`[Copilot:${plan.sessionId}] SDK resumeSession succeeded after ${stopWatch.elapsed()}ms`);
 			return this._finalizeSession(raw, sandboxConfig, plan.sessionId, plan.fallback.model?.id);
 		} catch (err) {
@@ -569,7 +572,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 				fallbackConfig = { ...config, agent: undefined };
 				this._logService.warn(`[Copilot:${plan.sessionId}] Stored custom agent '${plan.resolvedAgentName}' was not found; retrying resume without a custom agent`);
 				try {
-					const raw = await this._withTraceContext(fallbackPlan.sessionId, () => fallbackPlan.client.resumeSession(fallbackPlan.sessionId, fallbackConfig));
+					const raw = await this._resumeSession(session, fallbackPlan, fallbackConfig);
 					return this._finalizeSession(raw, sandboxConfig, plan.sessionId, fallbackPlan.fallback.model?.id);
 				} catch (retryErr) {
 					resumeError = retryErr;
@@ -592,9 +595,17 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 				longContextWindow: fallbackPlan.fallback.longContextWindow,
 				freeLongContext: fallbackPlan.fallback.freeLongContext,
 			}, fallbackConfig, sandboxConfig);
+			this._sessionOpenTelemetry.sdkResumeFallbackCreated(session);
 			this._logService.info(`[Copilot:${plan.sessionId}] Fallback createSession succeeded`);
 			return wrapper;
 		}
+	}
+
+	private _resumeSession(session: URI, plan: ICopilotResumeSessionLaunchPlan, config: ResumeSessionConfig): Promise<CopilotSessionWrapper['session']> {
+		return this._sessionOpenTelemetry.withSdkResume(
+			session,
+			() => this._withTraceContext(plan.sessionId, () => plan.client.resumeSession(plan.sessionId, config)),
+		);
 	}
 
 	private _withTraceContext<T>(sessionId: string, fn: () => T): T {

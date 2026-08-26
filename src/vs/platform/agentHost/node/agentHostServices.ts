@@ -51,6 +51,7 @@ import { AgentHostPromptCache, IAgentHostPromptCache } from './agentHostPromptCa
 import { AgentHostReviewService } from './agentHostReviewService.js';
 import { AgentHostSubscriptionService } from './agentHostSubscriptionService.js';
 import { AgentHostSessionTitleSignal, IAgentHostSessionTitleSignal } from './agentHostSessionTitleSignal.js';
+import { AgentHostSessionOpenTelemetry, IAgentHostSessionOpenTelemetry } from './agentHostSessionOpenTelemetry.js';
 import { AgentHostStorageService, IAgentHostStorageService } from './agentHostStorageService.js';
 import { AgentHostTerminalManager, IAgentHostTerminalManager } from './agentHostTerminalManager.js';
 import { AgentHostTelemetryReporter, IAgentHostTelemetryReporter } from './agentHostTelemetryReporter.js';
@@ -97,6 +98,7 @@ export function registerAgentHostCoreServices(services: ServiceCollection, input
 	registerService(services, IAgentHostCheckpointService, new SyncDescriptor(AgentHostCheckpointService));
 	registerService(services, IAgentHostPromptCache, new SyncDescriptor(AgentHostPromptCache));
 	registerService(services, IAgentHostSessionTitleSignal, new SyncDescriptor(AgentHostSessionTitleSignal));
+	registerService(services, IAgentHostSessionOpenTelemetry, new SyncDescriptor(AgentHostSessionOpenTelemetry));
 	registerService(services, IAgentHostChangesetSubscriptionService, new SyncDescriptor(AgentHostChangesetSubscriptionService));
 	registerService(services, IAgentHostSubscriptionService, new SyncDescriptor(AgentHostSubscriptionService));
 	registerService(services, IAgentHostChangesetOperationService, new SyncDescriptor(AgentHostChangesetOperationService));

@@ -57,6 +57,7 @@ import { IAgentHostSubscriptionService, resolveAgentHostSession } from '../commo
 import { AgentSideEffects, type IAgentSideEffectsOptions } from './agentSideEffects.js';
 import { AgentHostLocalTurns } from './agentHostLocalTurns.js';
 import { AgentSessionResidency } from './agentSessionResidency.js';
+import { IAgentHostSessionOpenTelemetry, type IAgentHostSessionOpenTelemetryScope } from './agentHostSessionOpenTelemetry.js';
 import { AgentServerToolHost } from './shared/agentServerToolHost.js';
 import { type IChatContextSnapshot, type IRenameTitleResult, type ISessionCreationDefaults, type ISessionServerToolAccessor, validateRenameTitle } from './shared/sessionServerTools.js';
 import { AGENT_HOST_TITLE_SOURCE_AGENT, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, persistSessionMetadata, persistSessionMetadataValues, SESSION_ARTIFACTS_KEY, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from './shared/persistSessionMetadata.js';
@@ -583,6 +584,7 @@ export class AgentService extends Disposable implements IAgentService {
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
 		@IAgentHostGitService private readonly _gitService: IAgentHostGitService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IAgentHostSessionOpenTelemetry private readonly _sessionOpenTelemetry: IAgentHostSessionOpenTelemetry,
 		@IAgentHostChatContributions private readonly _chatContributions: IAgentHostChatContributions,
 		@IAgentHostSubscriptionService private readonly _subscriptions: IAgentHostSubscriptionService,
 		@INetworkDiagnosticsService private readonly _networkDiagnostics: INetworkDiagnosticsService,
@@ -3835,7 +3837,8 @@ export class AgentService extends Disposable implements IAgentService {
 	async subscribe(resource: URI, clientId: string): Promise<IStateSnapshot> {
 		this._logService.trace(`[AgentService] subscribe: ${resource.toString()}`);
 		const resourceStr = resource.toString();
-		try {
+		const subscribe = async (telemetry: IAgentHostSessionOpenTelemetryScope): Promise<IStateSnapshot> => {
+			const restoreSession = (session: URI) => this.restoreSession(session, joinedRestore => telemetry.restoreStarted(joinedRestore));
 			await this._sessionResidency.waitForRelease(resource);
 			// Register after an in-flight release settles so a successful release
 			// can evict cached state and this subscribe reconstructs it. The
@@ -3845,14 +3848,15 @@ export class AgentService extends Disposable implements IAgentService {
 			// Check for terminal state
 			const terminalState = this._terminalManager.getTerminalState(resourceStr);
 			if (terminalState) {
+				telemetry.setServedFromMemory(true);
 				return { resource: resourceStr, state: terminalState, fromSeq: this._stateManager.serverSeq };
 			}
 
 			let snapshot = this._stateManager.getSnapshot(resourceStr);
-			const servedFromMemory = !!snapshot;
+			telemetry.setServedFromMemory(!!snapshot);
 			const parsedChangeset = parseChangesetUri(resourceStr);
 			if (snapshot && parsedChangeset && !this._stateManager.getSessionState(parsedChangeset.sessionUri)) {
-				await this._changesetCoordinator.restoreSessionIfChangesetSubscription(resource, s => this.restoreSession(s));
+				await this._changesetCoordinator.restoreSessionIfChangesetSubscription(resource, restoreSession);
 				snapshot = this._stateManager.getSnapshot(resourceStr);
 			}
 			const parsedAnnotations = parseAnnotationsUri(resourceStr);
@@ -3875,7 +3879,7 @@ export class AgentService extends Disposable implements IAgentService {
 						if (parsedSubagentParent) {
 							await this._restoreSubagentSession(parsedChatSession, parsedSubagentParent.parentSession);
 						} else {
-							await this.restoreSession(parentUri);
+							await restoreSession(parentUri);
 						}
 					}
 					snapshot = this._stateManager.getSnapshot(resourceStr);
@@ -3900,7 +3904,7 @@ export class AgentService extends Disposable implements IAgentService {
 					// owns its URI shape, the unknown-id early throw, and turn
 					// / static seeding). Other URIs fall through to the
 					// subagent / session-default path below.
-					const handled = await this._changesetCoordinator.tryHandleSubscribe(resource, s => this.restoreSession(s));
+					const handled = await this._changesetCoordinator.tryHandleSubscribe(resource, restoreSession);
 					if (handled) {
 						snapshot = this._stateManager.getSnapshot(resourceStr);
 					} else {
@@ -3909,7 +3913,7 @@ export class AgentService extends Disposable implements IAgentService {
 						if (parsedSubagent) {
 							await this._restoreSubagentSession(resourceStr, parsedSubagent.parentSession);
 						} else {
-							await this.restoreSession(resource);
+							await restoreSession(resource);
 						}
 						snapshot = this._stateManager.getSnapshot(resourceStr);
 					}
@@ -3938,8 +3942,12 @@ export class AgentService extends Disposable implements IAgentService {
 				void this._gitStateService.refreshSessionGitState(resourceStr, workingDirectory);
 			}
 
-			this._logService.trace(`[AgentService] subscribe done: ${resourceStr} (servedFromMemory=${servedFromMemory})`);
+			this._logService.trace(`[AgentService] subscribe done: ${resourceStr} (servedFromMemory=${telemetry.servedFromMemory})`);
+			telemetry.restoreCompleted();
 			return snapshot;
+		};
+		try {
+			return await this._sessionOpenTelemetry.withSubscription(resource, subscribe);
 		} catch (err) {
 			this.unsubscribe(resource, clientId);
 			throw err;
@@ -4637,7 +4645,7 @@ export class AgentService extends Disposable implements IAgentService {
 		return { entries };
 	}
 
-	async restoreSession(session: URI): Promise<void> {
+	async restoreSession(session: URI, onRestoreStart?: (joinedRestore: boolean) => void): Promise<void> {
 		const sessionStr = session.toString();
 		this._cancelPendingSessionGc(session);
 		this._sessionResidency.touch(session);
@@ -4645,6 +4653,7 @@ export class AgentService extends Disposable implements IAgentService {
 
 		const inFlight = this._restoreSessionInFlight.get(sessionStr);
 		if (inFlight) {
+			onRestoreStart?.(true);
 			this._logService.trace(`[AgentService] restoreSession: joining in-flight restore for ${sessionStr}`);
 			return inFlight;
 		}
@@ -4655,6 +4664,7 @@ export class AgentService extends Disposable implements IAgentService {
 			return;
 		}
 
+		onRestoreStart?.(false);
 		this._logService.trace(`[AgentService] restoreSession start: ${sessionStr}`);
 		const restore = this._doRestoreSession(session, sessionStr);
 		this._restoreSessionInFlight.set(sessionStr, restore);

@@ -103,7 +103,7 @@ const openSessionAtIndex = (accessor: ServicesAccessor, sessionIndex: unknown): 
 	if (!target) {
 		return;
 	}
-	sessionsService.openSession(target.resource);
+	sessionsService.openSession(target.resource, { source: 'sessionsList' });
 };
 
 CommandsRegistry.registerCommand({
@@ -162,7 +162,7 @@ const navigateSessionInList = async (accessor: ServicesAccessor, direction: 'pre
 
 	const target = visible[targetIndex];
 	if (target) {
-		await sessionsService.openSession(target.resource);
+		await sessionsService.openSession(target.resource, { source: 'navigation' });
 	}
 };
 

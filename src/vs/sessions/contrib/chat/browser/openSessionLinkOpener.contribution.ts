@@ -83,7 +83,7 @@ export class OpenSessionLinkOpenerContribution extends Disposable implements IWo
 			await this._sessionsService.openChat(session, chatResource);
 			return true;
 		}
-		await this._sessionsService.openSession(session.resource);
+		await this._sessionsService.openSession(session.resource, { source: 'link' });
 		return true;
 	}
 }

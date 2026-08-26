@@ -163,7 +163,7 @@ class SelectAgentsFolderContribution extends Disposable implements IWorkbenchCon
 
 		// `openSession` cancels any in-flight restore before activating the
 		// target, so a single call wins the race — no retry/verify needed.
-		await this.sessionsService.openSession(sessionResource);
+		await this.sessionsService.openSession(sessionResource, { source: 'chat' });
 	}
 
 	private async waitForSessionAvailable(sessionResource: URI, timeoutMs = 15_000): Promise<boolean> {

@@ -658,7 +658,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 				return;
 			}
 		}
-		this.sessionsService.openSession(resource, { preserveFocus }).catch(onUnexpectedError);
+		this.sessionsService.openSession(resource, { preserveFocus, source: 'sessionsList' }).catch(onUnexpectedError);
 	}
 
 	private _showSessionsPicker(): void {
