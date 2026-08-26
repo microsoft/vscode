@@ -119,15 +119,6 @@ class NoopGitStateService implements IAgentHostGitStateService {
 	async setSessionGitHubState(_sessionKey: string, _state: ISessionGitHubState): Promise<void> { }
 	async recordSessionMerge(_sessionKey: string, _commit: string): Promise<void> { }
 	async attachSessionGitHubPullRequest(_sessionKey: string, _workingDirectory?: URI): Promise<void> { }
-	async attachSessionGitHubReferences(_sessionKey: string, _text: string): Promise<void> { }
-}
-
-class RecordingGitStateService extends NoopGitStateService {
-	readonly attachedGitHubReferences: { session: string; text: string }[] = [];
-
-	override async attachSessionGitHubReferences(session: string, text: string): Promise<void> {
-		this.attachedGitHubReferences.push({ session, text });
-	}
 }
 
 class NoopWorktreeIsolation extends NullAgentHostWorktreeIsolation { }
@@ -1269,36 +1260,6 @@ suite('AgentSideEffects', () => {
 			const errorAction = envelopes.find(e => e.action.type === ActionType.ChatError);
 			assert.ok(errorAction, 'should dispatch a chat error for a read-only chat');
 			assert.deepStrictEqual(agent.sendMessageCalls, []);
-		});
-
-		test('does not attach GitHub references for read-only or archived messages', () => {
-			setupSession();
-			const gitStateService = new RecordingGitStateService();
-			const referenceSideEffects = createTestSideEffects(disposables, stateManager, {
-				getAgent: () => agent,
-				agents: agentList,
-				sessionDataService: createNullSessionDataService(),
-				hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess,
-				gitStateService,
-			});
-			const readOnlyChat = buildChatUri(sessionUri, 'peer-ro');
-			stateManager.addChat(sessionUri.toString(), readOnlyChat, { interactivity: ChatInteractivity.ReadOnly });
-
-			referenceSideEffects.handleAction(readOnlyChat, {
-				type: ActionType.ChatTurnStarted,
-				startedAt: '2025-01-01T00:00:00.000Z',
-				turnId: 'read-only-turn',
-				message: { text: 'Fix microsoft/vscode#42', origin: { kind: MessageKind.User } },
-			});
-			stateManager.dispatchServerAction(sessionUri.toString(), { type: ActionType.SessionIsArchivedChanged, isArchived: true });
-			referenceSideEffects.handleAction(defaultChatUri, {
-				type: ActionType.ChatTurnStarted,
-				startedAt: '2025-01-01T00:00:00.000Z',
-				turnId: 'archived-turn',
-				message: { text: 'Fix microsoft/vscode#43', origin: { kind: MessageKind.User } },
-			});
-
-			assert.deepStrictEqual(gitStateService.attachedGitHubReferences, []);
 		});
 	});
 
@@ -3040,33 +3001,6 @@ suite('AgentSideEffects', () => {
 				senderClientId: 'client-editor',
 				clientType: 'editor_window',
 			});
-		});
-
-		test('attaches GitHub references when sending a queued message', async () => {
-			setupSession();
-			const gitStateService = new RecordingGitStateService();
-			const referenceSideEffects = createTestSideEffects(disposables, stateManager, {
-				getAgent: () => agent,
-				agents: agentList,
-				sessionDataService: createNullSessionDataService(),
-				hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess,
-				gitStateService,
-			});
-			const action = {
-				type: ActionType.ChatPendingMessageSet as const,
-				kind: PendingMessageKind.Queued,
-				id: 'q-github-reference',
-				message: { text: 'Fix microsoft/vscode#42', origin: { kind: MessageKind.User } },
-			};
-			stateManager.dispatchClientAction(defaultChatUri, action, { clientId: 'test', clientSeq: 1 });
-			referenceSideEffects.handleAction(defaultChatUri, action);
-
-			await waitForSendMessageCalls(1);
-
-			assert.deepStrictEqual(gitStateService.attachedGitHubReferences, [{
-				session: sessionUri.toString(),
-				text: 'Fix microsoft/vscode#42',
-			}]);
 		});
 
 		test('parses queued protocol attachment URI strings before passing them to the agent', async () => {
