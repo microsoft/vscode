@@ -1381,7 +1381,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		}
 
 		// One holder, released by the dispose callback below or the construction
-		// `catch` — never both. A claim may hold the same entry concurrently.
+		// `catch` — never both. A claim may hold the same entry too.
 		this._retainActiveClientEntry(sessionResource);
 
 		// For new sessions, defer backend session creation until the first request
@@ -2239,18 +2239,18 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 	/**
 	 * Records one holder of a session resource's {@link ActiveClientEntry}: a
-	 * chat and a claim address the same resource, so the entry outlives
-	 * whichever is released first.
+	 * chat and a claim address the same resource, so it outlives either alone.
 	 */
 	private _retainActiveClientEntry(sessionResource: URI): void {
 		this._activeClientHolders.set(sessionResource, (this._activeClientHolders.get(sessionResource) ?? 0) + 1);
 	}
 
-	private _disposeActiveClientEntry(sessionResource: URI): void {
+	/** Releases one holder; returns whether that was the last one. */
+	private _disposeActiveClientEntry(sessionResource: URI): boolean {
 		const remaining = (this._activeClientHolders.get(sessionResource) ?? 1) - 1;
 		if (remaining > 0) {
 			this._activeClientHolders.set(sessionResource, remaining);
-			return;
+			return false;
 		}
 		this._activeClientHolders.delete(sessionResource);
 		const entry = this._activeClientEntries.get(sessionResource);
@@ -2258,6 +2258,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			this._activeClientEntries.delete(sessionResource);
 			entry.dispose();
 		}
+		return true;
 	}
 
 	// ---- External session claim ---------------------------------------------
@@ -2274,9 +2275,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 * {@link provideChatSessionContent} it never creates a session — one that has
 	 * not hydrated is a hard failure — and opens no chat model, so nothing
 	 * dispatches a draft, pending message, or turn. Its one watcher,
-	 * {@link _watchForSessionInputNeeded}, already runs from a bare session
-	 * subscription; that watcher, the active-client entry, and the subscription
-	 * are shared with any chat on the same session and reference-counted.
+	 * {@link _watchForSessionInputNeeded}, runs from a bare session subscription;
+	 * it, the active-client entry, and the subscription are shared with any chat
+	 * on the same session and reference-counted.
 	 */
 	async claimExternalSession(backendSession: URI, token: CancellationToken): Promise<IDisposable> {
 		const sessionKey = backendSession.toString();
@@ -2291,7 +2292,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		}
 
 		// Hold before awaiting so a concurrent chat teardown cannot release the
-		// shared subscription underneath us.
+		// shared subscription.
 		this._externalClaims.add(sessionKey);
 		const store = new DisposableStore();
 		try {
@@ -2307,8 +2308,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				throw new Error(`Agent host session ${sessionKey} does not exist`);
 			}
 
-			// Arm tool serving before publishing, so a request the host queues
-			// the instant it sees this client is already watched for.
+			// Arm tool serving before publishing, so a request queued the instant
+			// the host sees this client is already watched for.
 			this._watchForSessionInputNeeded(backendSession, sessionResource, AgentHostSessionHandler.EXTERNAL_CLAIM_REF);
 			store.add(toDisposable(() => this._releaseInputNeededRef(backendSession, AgentHostSessionHandler.EXTERNAL_CLAIM_REF)));
 
@@ -2318,8 +2319,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			// state changes re-reconcile instead of publishing only once.
 			this._configureActiveClientReconciliation(sessionResource, backendSession, subscription);
 			store.add(toDisposable(() => {
-				this._publishActiveClientRemoval(backendSession);
-				this._disposeActiveClientEntry(sessionResource);
+				// Only the last holder leaves: an open chat keeps this client.
+				if (this._disposeActiveClientEntry(sessionResource)) {
+					this._publishActiveClientRemoval(backendSession);
+				}
 			}));
 			await raceCancellation(entry.whenSettled(), token);
 			if (token.isCancellationRequested) {
@@ -2338,9 +2341,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	}
 
 	/**
-	 * Tells the host this client is leaving; the host's disconnect-based removal
-	 * would not fire while the window stays open. Best effort, because this also
-	 * runs during shutdown where the connection may already be gone.
+	 * Tells the host this client is leaving; its disconnect-based removal would
+	 * not fire while the window stays open. Best effort: this also runs during
+	 * shutdown, where the connection may already be gone.
 	 */
 	private _publishActiveClientRemoval(backendSession: URI): void {
 		if (this._store.isDisposed) {
@@ -2360,8 +2363,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 * The locally-derived approval for a claimed session's client tools, or
 	 * `undefined` for every ordinary session. A claimed session has no chat that
 	 * could answer a confirmation, so the evaluation launch approves instead;
-	 * this is deliberately *not* read from the host's confirmation state. See
-	 * `AGENT_SESSION_CLAIM.md`.
+	 * deliberately *not* read from the host's confirmation state. Read per call,
+	 * so it starts and stops exactly with the claim.
 	 */
 	private _externalClaimToolApproval(backendSession: URI): ConfirmedReason | undefined {
 		return this._externalClaims.has(backendSession.toString())
@@ -2369,18 +2372,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			: undefined;
 	}
 
-	/** Drops the claim's hold and, if nothing else needs it, its subscription. */
+	/** Drops the claim's hold and, if nothing else needs them, its subscriptions. */
 	private _releaseExternalClaim(sessionUri: string): void {
 		this._externalClaims.delete(sessionUri);
-		if (this._hasOtherSessionHold(sessionUri)) {
-			return;
-		}
-		const ref = this._sessionSubscriptions.get(sessionUri);
-		if (ref) {
-			this._sessionSubscriptions.delete(sessionUri);
-			ref.dispose();
-			this._workingDirectoryRegistrations.deleteAndDispose(sessionUri);
-		}
+		this._releaseSharedSessionSubscriptions(sessionUri);
 	}
 
 	// ---- Server-initiated turn detection ------------------------------------
@@ -2517,8 +2512,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	private _watchForSessionInputNeeded(backendSession: URI, sessionResource: URI, refKey?: string): void {
 		// Record which backend session this resource's reference belongs to so
 		// teardown can release it even after provisional state is cleared. A
-		// caller with its own `refKey` (the claim) owns its reference directly:
-		// it can share a session resource with an open chat.
+		// caller with its own `refKey` (the claim) owns its reference directly.
 		if (refKey === undefined) {
 			this._inputNeededWatcherBackends.set(sessionResource, backendSession);
 		}
@@ -2538,10 +2532,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const state = observableFromSubscription(this, sessionSub);
 		const store = new DisposableStore();
 		this._inputNeededWatchers.set(sessionKey, { store, refs: new Set([ref]) });
-		// Bound once per backend session: a claimed session has no chat surface
-		// that could answer a confirmation, so the launch's evaluation policy is
-		// what approves its client tools. See `_externalClaimToolApproval`.
-		const claimApproval = this._externalClaimToolApproval(backendSession);
 
 		// Requests that we own should be 'invoked' when pending confirmation immediately because
 		// we handle showing their UI directly. For simplicity in later tool call flows, rewrite them.
@@ -2668,7 +2658,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 						void this._executeClientTool(
 							request,
 							contextSessionResource,
-							claimApproval,
+							// Re-read per call: the watcher outlives any single
+							// holder, so approval tracks the claim itself.
+							this._externalClaimToolApproval(backendSession),
 							execution.source.token,
 							() => requestGeneration === generation && (invocationStarted || equals(request$.read(undefined), request)),
 							() => {
@@ -2689,7 +2681,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					};
 					if (claimant) {
 						execute(claimant);
-					} else if (claimApproval || !this._clientToolRequiresConfirmation(request.toolCall)) {
+					} else if (this._externalClaimToolApproval(backendSession) || !this._clientToolRequiresConfirmation(request.toolCall)) {
 						execute(undefined);
 					} else if (!unobservedTimer.value) {
 						const requestGeneration = generation;
@@ -6613,6 +6605,14 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		}
 		// Keep the shared session subscription alive while any sibling chat of
 		// the same backend session is still active or hydrating.
+		this._releaseSharedSessionSubscriptions(sessionUri);
+	}
+
+	/**
+	 * Tears down the subscriptions shared by every holder of a backend session,
+	 * once no chat and no claim still needs them.
+	 */
+	private _releaseSharedSessionSubscriptions(sessionUri: string): void {
 		if (this._hasOtherSessionHold(sessionUri)) {
 			return;
 		}

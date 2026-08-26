@@ -23,9 +23,8 @@ import {
 import { INativeWorkbenchEnvironmentService } from '../../../../../workbench/services/environment/electron-browser/environmentService.js';
 
 /**
- * Terminal guard for a whole claim — handler readiness, session hydration, and
- * the active-client settle. Each of those waits is event-driven; this only turns
- * a wait that will never end into a failure, and is never a success condition.
+ * Terminal guard for a whole claim — readiness, hydration, and the settle. Each
+ * wait is event-driven; this only turns one that will never end into a failure.
  */
 export const AGENT_SESSION_CLAIM_BUDGET_MS = 60_000;
 const BUDGET_EXCEEDED_OUTCOME = 'budgetExceeded';
@@ -37,7 +36,7 @@ const SPENT_CLAIM_STORAGE_PREFIX = 'agentHost.sessionClaim.spent.';
  * The private launch path for claiming an existing remote Agent Host session.
  * Inert unless this window was started with the private, unlisted
  * `--agent-session-claim-hash` argument: the command is registered at runtime,
- * only when gated, so an ordinary window has no such command at all.
+ * only when gated, so an ordinary window has no such command.
  */
 export class AgentSessionClaimContribution extends Disposable implements IWorkbenchContribution {
 
@@ -55,25 +54,24 @@ export class AgentSessionClaimContribution extends Disposable implements IWorkbe
 		super();
 
 		const commitment = parseAgentSessionClaimCommitment(environmentService.args[AGENT_SESSION_CLAIM_HASH_ARG]);
-		// A reload re-runs this constructor with the same argv, so the spent
-		// marker — not the argument — is what makes a claim once-per-launch.
+		// A reload re-runs this with the same argv, so the spent marker — not the
+		// argument — is what makes a claim once-per-launch.
 		if (!commitment || this._storageService.getBoolean(SPENT_CLAIM_STORAGE_PREFIX + commitment, StorageScope.APPLICATION, false)) {
 			return;
 		}
 		this._commitment = commitment;
 		this._register(CommandsRegistry.registerCommand({
 			id: AGENT_SESSION_CLAIM_COMMAND_ID,
-			// No `metadata` on purpose: an undescribed command is excluded from
-			// the Command Palette, and no menu contributes it anywhere.
+			// No `metadata`: an undescribed command is excluded from the Command
+			// Palette, and no menu contributes it anywhere.
 			handler: (_accessor, ...args: unknown[]) => this._claimExternalSession(args[0]),
 		}));
 		this._logService.info('[AgentSessionClaim] Claim command registered for this launch');
 	}
 
 	private async _claimExternalSession(rawRequest: unknown): Promise<void> {
-		// Consume the gate first, before parsing and before any side effect:
-		// the claim is one-use even when it fails, so a wrong or malformed
-		// attempt cannot be retried against the same commitment.
+		// Consume the gate first, before parsing and before any side effect: the
+		// claim is one-use even when it fails.
 		const commitment = this._commitment;
 		this._commitment = undefined;
 		if (!commitment) {
@@ -92,21 +90,24 @@ export class AgentSessionClaimContribution extends Disposable implements IWorkbe
 		}
 
 		// Driven by the registry's registration event, so a race with
-		// `RemoteAgentHostContribution` waits rather than failing.
+		// `RemoteAgentHostContribution` waits rather than fails.
 		const pending = new DisposableStore();
 		const budget = pending.add(new CancellationTokenSource());
 		let budgetExceeded = false;
-		pending.add(disposableTimeout(() => {
-			budgetExceeded = true;
-			budget.cancel();
-		}, AGENT_SESSION_CLAIM_BUDGET_MS));
+		pending.add(disposableTimeout(() => { budgetExceeded = true; budget.cancel(); }, AGENT_SESSION_CLAIM_BUDGET_MS));
 		try {
 			const readiness = await agentSessionClaimTargets.whenTargetReady(request.sessionType, budget.token);
 			if (readiness.outcome !== AgentSessionClaimReadiness.Ready) {
-				throw new Error(`Agent session claim ${budgetExceeded ? BUDGET_EXCEEDED_OUTCOME : readiness.outcome}: no handler registered for ${request.sessionType}`);
+				throw new Error(`Agent session claim ${readiness.outcome}: no handler registered for ${request.sessionType}`);
 			}
 			this._claim.value = await readiness.target(URI.parse(request.sessionUri), budget.token);
 			this._logService.info(`[AgentSessionClaim] Claimed ${request.sessionUri}`);
+		} catch (err) {
+			// Classified once: the guard can interrupt readiness, hydration, or
+			// the settle, and must read the same whichever it was.
+			throw budgetExceeded
+				? new Error(`Agent session claim ${BUDGET_EXCEEDED_OUTCOME}: ${request.sessionType} did not become claimable within ${AGENT_SESSION_CLAIM_BUDGET_MS}ms`)
+				: err;
 		} finally {
 			pending.dispose();
 		}

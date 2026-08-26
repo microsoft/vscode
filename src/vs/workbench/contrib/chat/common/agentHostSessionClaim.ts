@@ -11,20 +11,16 @@ import { URI } from '../../../../base/common/uri.js';
 /**
  * One-shot admission of an *already existing* remote Agent Host session into an
  * Agents Window, for an evaluation controller that drives every turn itself.
- *
  * The controller and its bridge own the whole secret lifecycle; VS Code is told
  * only a **commitment** — a SHA-256 over the exact claim it will accept — on a
  * private, unlisted launch argument, so argv carries nothing secret. The bridge
  * later presents the pre-image, which pins the session type, session URI, and
- * bridge identity as well as the nonce.
- *
- * See `src/vs/platform/agentHost/AGENT_SESSION_CLAIM.md`.
+ * bridge identity as well as the nonce. See `AGENT_SESSION_CLAIM.md`.
  */
 
 /**
- * Private, unlisted Electron launch argument carrying the hex SHA-256
- * commitment. Non-secret by construction: it is a one-way hash of a claim the
- * holder must already know in full.
+ * Private, unlisted launch argument carrying the hex SHA-256 commitment.
+ * Non-secret: a one-way hash of a claim the holder must already know in full.
  */
 export const AGENT_SESSION_CLAIM_HASH_ARG = 'agent-session-claim-hash';
 
@@ -46,6 +42,13 @@ const REQUEST_KEYS: readonly (keyof IAgentSessionClaimRequest)[] = [
 
 const COMMITMENT_PATTERN = /^[0-9a-f]{64}$/;
 
+/**
+ * Non-empty printable ASCII, so the canonical encoding's length prefix is
+ * portable: for ASCII a JS string's `length` is its UTF-8 byte length, and a
+ * controller in another language prefixes the same numbers.
+ */
+const FIELD_PATTERN = /^[\x20-\x7E]+$/;
+
 /** Returns {@link value} when it is a hex SHA-256 digest. */
 export function parseAgentSessionClaimCommitment(value: string | undefined): string | undefined {
 	return typeof value === 'string' && COMMITMENT_PATTERN.test(value) ? value : undefined;
@@ -53,9 +56,9 @@ export function parseAgentSessionClaimCommitment(value: string | undefined): str
 
 /**
  * Validates the shape of an untrusted command argument: exactly these fields,
- * each a non-empty string, so nothing can be smuggled past a future reader. The
- * session URI must re-serialize to itself with a lowercase scheme, because the
- * host's registry is keyed by the exact string.
+ * each non-empty printable ASCII (see {@link FIELD_PATTERN}), so nothing can be
+ * smuggled past a future reader. The session URI must re-serialize to itself
+ * with a lowercase scheme, because the host's registry keys on the exact string.
  */
 export function parseAgentSessionClaimRequest(raw: unknown): IAgentSessionClaimRequest | undefined {
 	if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
@@ -67,7 +70,7 @@ export function parseAgentSessionClaimRequest(raw: unknown): IAgentSessionClaimR
 	}
 	for (const key of REQUEST_KEYS) {
 		const value = candidate[key];
-		if (typeof value !== 'string' || value.length === 0) {
+		if (typeof value !== 'string' || !FIELD_PATTERN.test(value)) {
 			return undefined;
 		}
 	}
@@ -86,8 +89,8 @@ export function parseAgentSessionClaimRequest(raw: unknown): IAgentSessionClaimR
 /**
  * Hashes the claim into the commitment the launch argument carries. The encoding
  * is netstring-style — each field prefixed with its length and a colon — so no
- * combination of field contents can produce the same bytes as a different one;
- * a plain separator would let a crafted `sessionUri` shift the field split.
+ * combination of field contents can produce the same bytes as a different one.
+ * Fields are ASCII, so the prefix is equally a character and a byte count.
  */
 export async function computeAgentSessionClaimCommitment(request: IAgentSessionClaimRequest): Promise<string> {
 	const canonical = REQUEST_KEYS.map(key => `${request[key].length}:${request[key]}`).join('');
@@ -95,10 +98,7 @@ export async function computeAgentSessionClaimCommitment(request: IAgentSessionC
 	return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
 }
 
-/**
- * Joins an existing backend session as an additional active client. Rejects when
- * the session does not exist; never creates one. Disposing ends the claim.
- */
+/** Joins an existing session as an active client; never creates one. */
 export type AgentSessionClaimTarget = (backendSession: URI, token: CancellationToken) => Promise<IDisposable>;
 
 /** Why a readiness wait ended. A closed vocabulary, safe to log and assert on. */
@@ -113,9 +113,8 @@ export type AgentSessionClaimReadinessResult =
 	| { readonly outcome: AgentSessionClaimReadiness.Cancelled };
 
 /**
- * The programmatic Agent Host session handlers a claim can be served by, keyed
- * by exact session type. A registry rather than a service because it has one
- * writer, one reader, and no state worth injecting.
+ * The Agent Host session handlers a claim can be served by, keyed by exact
+ * session type. A registry rather than a service: one writer, one reader.
  */
 class AgentSessionClaimTargetRegistry {
 
@@ -141,9 +140,8 @@ class AgentSessionClaimTargetRegistry {
 
 	/**
 	 * Resolves as soon as {@link sessionType} has a handler, driven purely by
-	 * {@link onDidRegisterTarget}: it schedules nothing and polls nothing, so an
-	 * already-registered handler resolves with no clock involved. The caller
-	 * supplies whatever deadline it wants through {@link token}.
+	 * {@link onDidRegisterTarget}: it schedules nothing and polls nothing. The
+	 * caller supplies whatever deadline it wants through {@link token}.
 	 */
 	whenTargetReady(sessionType: string, token: CancellationToken): Promise<AgentSessionClaimReadinessResult> {
 		const target = this._targets.get(sessionType);

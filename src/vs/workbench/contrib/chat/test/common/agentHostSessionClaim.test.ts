@@ -109,6 +109,17 @@ suite('agentHostSessionClaim', () => {
 			assert.strictEqual(parseAgentSessionClaimRequest([REQUEST]), undefined);
 		});
 
+		test('rejects a non-ASCII field so the length prefix is byte-exact', () => {
+			// A controller computing the same commitment in Python prefixes UTF-8
+			// byte lengths; restricting fields to ASCII makes that identical to
+			// JavaScript's UTF-16 `length`.
+			for (const key of Object.keys(REQUEST) as (keyof IAgentSessionClaimRequest)[]) {
+				assert.strictEqual(parseAgentSessionClaimRequest({ ...REQUEST, [key]: 'caf\u00e9' }), undefined, key);
+				assert.strictEqual(parseAgentSessionClaimRequest({ ...REQUEST, [key]: '\u{1F600}' }), undefined, key);
+			}
+			assert.strictEqual(parseAgentSessionClaimRequest({ ...REQUEST, nonce: 'has\ttab' }), undefined);
+		});
+
 		test('rejects a session URI that is not its own canonical form', () => {
 			for (const sessionUri of [
 				'copilot:/session-abc?x=1',

@@ -3402,6 +3402,47 @@ suite('AgentHostClientTools', () => {
 				assert.strictEqual(completion.action.result.success, false, 'it must still be denied, not run');
 			}));
 
+			/** Applies a confirmable client-tool request against the claimed session. */
+			function applyConfirmableTool(connection: MockAgentHostConnection): void {
+				applyRunningClientExecution(connection, buildDefaultChatUri(claimedSession.toString()), 'turn-1', {
+					toolCallId: 'tool-call-1',
+					toolName: 'deleteAll',
+					displayName: 'Delete Everything',
+					invocationMessage: 'Delete Everything',
+					toolInput: '{}',
+				});
+			}
+
+			test('a claim taken after a chat installed the watcher still approves', async () => {
+				const { handler, connection, toolsService } = createHandlerWithMocks(disposables, [testConfirmTool]);
+
+				// The chat creates the shared watcher first; the claim arrives
+				// afterwards and must still apply to it.
+				await handler.provideChatSessionContent(URI.parse('agent-host-copilotcli:/session-1'), CancellationToken.None);
+				await claim(handler);
+				applyConfirmableTool(connection);
+				await whenToolCompleted(connection, 'tool-call-1');
+
+				assert.strictEqual(toolsService.invokedToolCalls.length, 1, 'approval must not be fixed at watcher creation');
+			});
+
+			test('releasing the claim restores ordinary confirmation for a surviving chat', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const { handler, connection, toolsService } = createHandlerWithMocks(disposables, [testConfirmTool]);
+
+				const claimDisposable = await claim(handler);
+				await handler.provideChatSessionContent(URI.parse('agent-host-copilotcli:/session-1'), CancellationToken.None);
+				claimDisposable.dispose();
+
+				applyConfirmableTool(connection);
+				await timeout(UNOBSERVED_CLIENT_TOOL_GRACE_MS + 1);
+
+				assert.deepStrictEqual(toolsService.invokedToolCalls, [], 'approval must end with the claim');
+				const completion = connection.dispatchedActions.find(entry =>
+					isChatAction(entry.action) && entry.action.type === ActionType.ChatToolCallComplete);
+				assert.ok(completion && isChatAction(completion.action) && completion.action.type === ActionType.ChatToolCallComplete);
+				assert.strictEqual(completion.action.result.success, false, 'the chat falls back to ordinary denial');
+			}));
+
 			test('a chat opened on the claimed session keeps working after the claim is released', async () => {
 				const { handler, connection, toolsService } = createHandlerWithMocks(disposables, [testRunTaskTool]);
 

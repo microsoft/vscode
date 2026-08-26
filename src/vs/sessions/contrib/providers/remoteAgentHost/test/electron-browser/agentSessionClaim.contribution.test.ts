@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { CancellationError } from '../../../../../../base/common/errors.js';
 import { DisposableStore, toDisposable, type IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
@@ -216,15 +217,30 @@ suite('AgentSessionClaimContribution', () => {
 		assert.deepStrictEqual(history, [], 'the budget guard must never be a success condition');
 	});
 
-	test('reports budgetExceeded when no handler ever registers', async () => {
+	test('reports budgetExceeded when the budget fires waiting for a handler', async () => {
 		targetRegistration?.dispose();
 		await gated();
 		await runWithFakedTimers({ useFakeTimers: true }, async () => {
 			await assert.rejects(
 				() => claimCommand().run({ ...REQUEST }),
-				/budgetExceeded: no handler registered for remote-127-0-0-1-9001-copilot/);
+				/budgetExceeded: remote-127-0-0-1-9001-copilot did not become claimable/);
 		});
 		assert.deepStrictEqual(claimedSessions, []);
+	});
+
+	test('reports budgetExceeded when the budget fires during the claim itself', async () => {
+		targetRegistration?.dispose();
+		// A handler that is registered but only ends when cancelled, exactly as
+		// the real one does: the guard has to interrupt the claim itself rather
+		// than the readiness wait.
+		store.add(agentSessionClaimTargets.register(SESSION_TYPE, (_session, token) =>
+			new Promise((_resolve, reject) => store.add(token.onCancellationRequested(() => reject(new CancellationError()))))));
+		await gated();
+		await runWithFakedTimers({ useFakeTimers: true }, async () => {
+			await assert.rejects(
+				() => claimCommand().run({ ...REQUEST }),
+				/budgetExceeded: remote-127-0-0-1-9001-copilot did not become claimable/);
+		});
 	});
 
 	test('the budget guard is released once the claim succeeds', async () => {

@@ -52,8 +52,12 @@ a colon — so no combination of field contents can produce the same bytes as a
 different combination. A plain separator would let a crafted `sessionUri`
 impersonate a different `nonce`/`sessionType` split.
 
-The request must carry exactly the five fields, each a non-empty string; unknown
-or missing fields are rejected rather than ignored. The session URI must
+The request must carry exactly the five fields, each non-empty **printable
+ASCII**; unknown or missing fields are rejected rather than ignored. The ASCII
+restriction is what makes the length prefix portable: for ASCII a JavaScript
+string's `length` equals its UTF-8 byte length, so a controller computing the
+same commitment in Python prefixes the same numbers without mirroring UTF-16
+semantics. The session URI must
 re-serialize to itself with a lowercase scheme, because the host's registry is
 keyed by the exact string; the handler then re-checks that it round-trips
 through the named session type.
@@ -62,10 +66,10 @@ The commitment is compared with `===`. Both sides are non-secret at that point �
 the commitment is a public one-way hash and the pre-image is what the caller just
 supplied — and a timing-leaked prefix of a hash does not help forge the rest.
 
-The bridge's id and version are pinned *by the commitment*. There is no separate
-check that the extension is installed at that version: it would not add a
-guarantee, because any caller that can produce the pre-image has already been
-told it by the controller.
+The bridge's id and version are pinned *by the commitment*, and by nothing else:
+the product does not check that the extension is installed at that version,
+because it would not add a guarantee — any caller that can produce the pre-image
+was told it by the controller.
 
 ## One use
 
@@ -77,9 +81,15 @@ a handler that never appears all burn it.
 
 The spent marker is what survives a window reload, which would otherwise
 re-arm the in-memory gate from the same unchanged argv. It is keyed by the
-commitment, so a new run with a new commitment is unaffected. Without the launch
-argument the command is never registered, so an ordinary window has nothing to
-invoke.
+commitment, so a new run with a new commitment is unaffected.
+
+Its scope is the profile: markers accumulate in the evaluation profile's
+application storage and are discarded with it, which is why an ephemeral profile
+per run is the real boundary. Two windows sharing a profile share the marker, so
+a second window launched with the same commitment finds it already spent — that
+is the intended outcome for a duplicate launch, and it also means a genuinely
+concurrent second claim needs its own commitment. Without the launch argument the
+command is never registered, so an ordinary window has nothing to invoke.
 
 ## Racing the handler
 
@@ -97,9 +107,16 @@ driven by the subscription's own change/error events and by observable state.
 
 `AGENT_SESSION_CLAIM_BUDGET_MS` is the single named budget covering all three
 waits, and it exists only as a terminal failure guard — never as a success
-condition. When it fires, the claim fails with the fixed-vocabulary outcome
-`budgetExceeded`; a cancellation from anywhere else reports `cancelled`. On
-success the guard is disposed without ever firing.
+condition. When it fires the claim fails with the fixed-vocabulary outcome
+`budgetExceeded`, classified once around the whole operation so it reads the
+same whether the guard interrupted readiness, hydration, or the settle; a
+cancellation from anywhere else reports `cancelled`. On success the guard is
+disposed without ever firing.
+
+One pre-existing debounce sits inside this path: the active-client entry
+coalesces republishes over `ACTIVE_CLIENT_RECONCILIATION_DEBOUNCE_MS` (5ms).
+That is signal scheduling, not readiness — `whenSettled` observes the resulting
+state and resolves on it, so nothing here treats elapsed time as an outcome.
 
 ## Claim
 
@@ -139,6 +156,11 @@ sandboxed. The approval is locally derived and deliberately *not* read from the
 host's confirmation state, so the server still cannot approve its own tool calls,
 and it is unreachable for any session this window was not launched to claim —
 including an ordinary chat session open in the same window.
+
+It is evaluated per tool call rather than captured when the watcher is created,
+so it starts and stops exactly with the claim: a claim taken after a chat already
+installed the shared watcher still applies, and releasing the claim restores
+ordinary confirmation for a chat that outlives it.
 
 This is a real capability grant: for the claimed session, the full evaluation
 inventory runs without prompting. It is safe only because of the operational
@@ -187,9 +209,9 @@ enforces. The design is only as strong as they are.
   the protocol level a claimed window can do whatever its connection token
   allows — the claim restricts what the window *does*, not what it *could* do.
 - **Caller attribution.** VS Code does not tell a command handler which
-  extension invoked it. The bridge's id and version are pinned by the commitment
-  and checked against what is installed, but knowledge of the pre-image remains
-  the only proof of the caller.
+  extension invoked it. The bridge's id and version are pinned by the commitment,
+  but nothing verifies which extension actually called: knowledge of the
+  pre-image is the only proof of the caller.
 - **Token scope.** Any credential the controller forwards through the ordinary
   authentication flow is an ordinary bearer token to the host; nothing binds it
   to this claim or session beyond its own lifetime and scopes.
