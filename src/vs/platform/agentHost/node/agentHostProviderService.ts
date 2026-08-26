@@ -224,8 +224,10 @@ export class AgentHostProviderService extends Disposable implements IAgentHostPr
 
 	private async _shutdown(): Promise<void> {
 		try {
-			await Promises.settled([...this._authenticationReplays.values()]);
-			await Promises.settled([...this._providers.values()].map(provider => provider.shutdown()));
+			await Promise.all([
+				Promises.settled([...this._authenticationReplays.values()]),
+				Promises.settled([...this._providers.values()].map(async provider => provider.shutdown())),
+			]);
 		} finally {
 			this._sessionToProvider.clear();
 		}

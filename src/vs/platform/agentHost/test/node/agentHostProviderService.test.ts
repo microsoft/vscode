@@ -296,7 +296,7 @@ suite('AgentHostProviderService', () => {
 		});
 	});
 
-	test('waits for authentication replay before shutdown', async () => {
+	test('starts provider shutdown while authentication replay is in flight', async () => {
 		const { service, authentication } = createService();
 		const provider = new TestProvider('copilot');
 		authentication.replayGate = new DeferredPromise<void>();
@@ -309,7 +309,7 @@ suite('AgentHostProviderService', () => {
 			shutdownCount: provider.shutdownCount,
 		}, {
 			replayedProviders: ['copilot'],
-			shutdownCount: 0,
+			shutdownCount: 1,
 		});
 		const lateProvider = new TestProvider('late');
 		assert.throws(() => service.registerProvider(lateProvider), /shutdown has started/);
