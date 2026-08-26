@@ -180,7 +180,14 @@ export class MicrosoftGalleryAccountProvider extends AbstractGalleryAccountProvi
 		return this.productService.extensionsGallery?.accessScopes;
 	}
 
+	/** The resource the marketplace last advertised, if it gates its requests at all. */
+	private protectedResource: IMarketplaceProtectedResource | undefined;
+
 	protected override async doGetAccount(protectedResource?: IMarketplaceProtectedResource): Promise<IExtensionGalleryAccount | undefined> {
+		if (protectedResource) {
+			// Remembered so an interactive sign-in can consent to the same resource.
+			this.protectedResource = protectedResource;
+		}
 		const session = await this.getSession(protectedResource);
 		if (!session) {
 			this.setAccountStatus(ExtensionGalleryAccountStatus.SignedOut);
@@ -286,6 +293,7 @@ export class MicrosoftGalleryAccountProvider extends AbstractGalleryAccountProvi
 			}
 			const session = await this.authenticationService.createSession('microsoft', scopes, account ? { account } : undefined);
 			this.storePreferredAccountId(session.account.id);
+			await this.consentToProtectedResource(session);
 		};
 
 		const accounts = await this.authenticationService.getAccounts('microsoft');
@@ -307,6 +315,33 @@ export class MicrosoftGalleryAccountProvider extends AbstractGalleryAccountProvi
 			return; // cancelled
 		}
 		await chooseAccount(pick.account);
+	}
+
+	/**
+	 * Consents to the marketplace's resource while the user is already signing in. The access check
+	 * cannot prompt, so without this a user whose tenant has not pre-consented would authenticate
+	 * and still be sent back to the sign-in prompt. Tries silently first; failure is not fatal.
+	 */
+	private async consentToProtectedResource(session: AuthenticationSession): Promise<void> {
+		const protectedResource = this.protectedResource;
+		if (!protectedResource) {
+			return;
+		}
+		if (await this.getResourceSession(session, protectedResource)) {
+			return;
+		}
+		const resourceScopes = protectedResource.scopes.length ? [...protectedResource.scopes] : this.scopes;
+		if (!resourceScopes) {
+			return;
+		}
+		try {
+			await this.authenticationService.createSession('microsoft', resourceScopes, {
+				account: session.account,
+				authorizationServer: URI.parse(protectedResource.authorizationServer)
+			});
+		} catch (error) {
+			this.logService.error('[Marketplace] Unable to consent to the marketplace resource during sign-in', error);
+		}
 	}
 
 	private readPreferredAccountId(): string | undefined {
