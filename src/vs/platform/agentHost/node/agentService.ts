@@ -1344,13 +1344,18 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	/**
-	 * Registry metadata for one session. Returns `undefined` when the agent
-	 * cannot describe the session yet; {@link listSessions} still overlays
-	 * active provisional sessions from state-manager data.
+	 * Registry metadata for one session. The host offers its stable timestamps
+	 * as a fallback, but the provider decides whether a passive metadata miss
+	 * means "not initialized yet" or "not found".
 	 */
-	private async _registeredSessionMetadata(agent: IAgent, session: URI, external: boolean): Promise<IAgentSessionMetadata | undefined> {
+	private async _registeredSessionMetadata(agent: IAgent, session: URI, external: boolean, fallback?: Pick<IRegisteredSession, 'startTime'>): Promise<IAgentSessionMetadata | undefined> {
 		const chat = URI.parse(buildDefaultChatUri(session));
-		const metadata = await agent.getChatMetadata(chat, this._chatContext(session, chat), await this._readDefaultChatProviderData(session));
+		const metadata = await agent.getChatMetadata(
+			chat,
+			this._chatContext(session, chat),
+			await this._readDefaultChatProviderData(session),
+			fallback ? { registryFallback: { startTime: fallback.startTime, modifiedTime: fallback.startTime } } : undefined,
+		);
 		if (!metadata) {
 			return undefined;
 		}
@@ -1370,7 +1375,7 @@ export class AgentService extends Disposable implements IAgentService {
 		const liveSummary = this._stateManager.getSessionSummary(session.toString());
 		if (liveSummary) {
 			const metadata = (liveSummary.workingDirectories === undefined && agent
-				? await this._registeredSessionMetadata(agent, session, registered.external)
+				? await this._registeredSessionMetadata(agent, session, registered.external, registered)
 				: undefined) ?? {
 				session,
 				startTime: registered.startTime,
@@ -1381,7 +1386,7 @@ export class AgentService extends Disposable implements IAgentService {
 		if (!agent) {
 			return undefined;
 		}
-		return this._registeredSessionMetadata(agent, session, registered.external);
+		return this._registeredSessionMetadata(agent, session, registered.external, registered);
 	}
 
 	private _withLiveSessionMetadata(metadata: IAgentSessionMetadata, liveSummary: SessionSummary): IAgentSessionMetadata {
@@ -1962,7 +1967,7 @@ export class AgentService extends Disposable implements IAgentService {
 				return undefined;
 			}
 			try {
-				return await this._registeredSessionMetadata(agent, session, external);
+				return await this._registeredSessionMetadata(agent, session, external, registeredSession);
 			} catch (err) {
 				this._logService.warn(`[AgentService] listSessions: failed to read metadata for ${session}`, err);
 				return undefined;
@@ -5737,7 +5742,7 @@ export class AgentService extends Disposable implements IAgentService {
 		const sessionStr = session.toString();
 		const chat = URI.parse(buildDefaultChatUri(session));
 		try {
-			const metadata = await agent.getChatMetadata(chat, this._chatContext(session, chat), await this._readDefaultChatProviderData(session));
+			const metadata = await agent.getChatMetadata(chat, this._chatContext(session, chat), await this._readDefaultChatProviderData(session), { activation: 'restore' });
 			return await this._withWorktreeProject(session, metadata ? this._toSessionMetadata(metadata) : undefined);
 		} catch (err) {
 			if (err instanceof ProtocolError) {

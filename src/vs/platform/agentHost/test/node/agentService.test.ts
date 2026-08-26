@@ -27,7 +27,7 @@ import { hasKey } from '../../../../base/common/types.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
-import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, SubagentChatSignal, resolveAgentChatContext, type IAgent, type IAgentChatAdoptionResult, type IAgentChatContext, type IAgentChatDataChange, type IAgentChatMetadata, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentDiscoveredChat, type IAgentLegacyChat, type IAgentMaterializeChatEvent, type IAgentSessionMetadata, type IAgentSpawnChatEvent } from '../../common/agent.js';
+import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, SubagentChatSignal, resolveAgentChatContext, type IAgent, type IAgentChatAdoptionResult, type IAgentChatContext, type IAgentChatDataChange, type IAgentChatMetadata, type IAgentChatMetadataOptions, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentDiscoveredChat, type IAgentLegacyChat, type IAgentMaterializeChatEvent, type IAgentSessionMetadata, type IAgentSpawnChatEvent } from '../../common/agent.js';
 import { IConnectionTrackerService } from '../../common/agentService.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostExternalSessionsMode, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostShowExternalSessionsConfigKey } from '../../common/agentHostSchema.js';
@@ -5007,6 +5007,63 @@ suite('AgentService (node dispatcher)', () => {
 			assert.ok((await svc.listSessions()).some(s => s.session.toString() === session.toString()));
 		});
 
+		test('listSessions lets a lazy provider opt into the registry fallback', async () => {
+			class InactiveMetadataAgent extends MockAgent {
+				metadataAvailable = true;
+				override async getChatMetadata(chat: URI, context: URI | IAgentChatContext, _providerData?: string, options?: IAgentChatMetadataOptions): Promise<IAgentChatMetadata | undefined> {
+					return this.metadataAvailable
+						? super.getChatMetadata(chat, context)
+						: options?.registryFallback ? { chat, ...options.registryFallback } : undefined;
+				}
+			}
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new InactiveMetadataAgent('copilot'));
+			svc.registerProvider(agent);
+
+			const session = await svc.createSession({ provider: 'copilot' });
+			const registered = (await svc.listSessions()).find(candidate => candidate.session.toString() === session.toString());
+			assert.ok(registered);
+
+			// Model a lazy provider before explicit activation: no live state and no
+			// provider round-trip. The registry timestamp keeps the row stable until
+			// opening the session activates authoritative metadata reads.
+			getStateManager(svc).deleteSession(session.toString());
+			agent.metadataAvailable = false;
+			const fallback = (await svc.listSessions()).find(candidate => candidate.session.toString() === session.toString());
+			const fallbackAgain = (await svc.listSessions()).find(candidate => candidate.session.toString() === session.toString());
+
+			assert.ok(fallback);
+			assert.deepStrictEqual({
+				session: fallback.session,
+				startTime: fallback.startTime,
+				modifiedTime: fallback.modifiedTime,
+				repeatedStartTime: fallbackAgain?.startTime,
+			}, {
+				session,
+				startTime: fallback.startTime,
+				modifiedTime: fallback.startTime,
+				repeatedStartTime: fallback.startTime,
+			});
+		});
+
+		test('listSessions does not synthesize registry metadata for other providers', async () => {
+			class MissingMetadataAgent extends MockAgent {
+				metadataAvailable = true;
+				override async getChatMetadata(chat: URI, context: URI | IAgentChatContext): Promise<IAgentChatMetadata | undefined> {
+					return this.metadataAvailable ? super.getChatMetadata(chat, context) : undefined;
+				}
+			}
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new MissingMetadataAgent('copilot'));
+			svc.registerProvider(agent);
+
+			const session = await svc.createSession({ provider: 'copilot' });
+			getStateManager(svc).deleteSession(session.toString());
+			agent.metadataAvailable = false;
+
+			assert.strictEqual((await svc.listSessions()).some(candidate => candidate.session.toString() === session.toString()), false);
+		});
+
 		test('session registry stays in parity with listSessions across create/delete', async () => {
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = new MockAgent('copilot');
@@ -6753,6 +6810,43 @@ suite('AgentService (node dispatcher)', () => {
 			}
 			assert.deepStrictEqual(await db.getChatDraft(chat), expected);
 		}
+
+		test('marks only an explicit restore as an activating metadata read', async () => {
+			class LazyMetadataAgent extends MockAgent {
+				ambientReads = 0;
+				restoreReads = 0;
+
+				override async getChatMetadata(chat: URI, context: URI | IAgentChatContext, _providerData?: string, options?: IAgentChatMetadataOptions): Promise<IAgentChatMetadata | undefined> {
+					if (options?.activation === 'restore') {
+						this.restoreReads++;
+					} else {
+						this.ambientReads++;
+					}
+					return super.getChatMetadata(chat, context);
+				}
+			}
+
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new LazyMetadataAgent('codex'));
+			svc.registerProvider(agent);
+			const session = await svc.createSession({ provider: agent.id });
+			await svc.listSessions();
+			agent.ambientReads = 0;
+			agent.restoreReads = 0;
+			getStateManager(svc).deleteSession(session.toString());
+
+			await svc.listSessions();
+			const readsAfterAmbientListing = { ambient: agent.ambientReads, restore: agent.restoreReads };
+			await svc.restoreSession(session);
+
+			assert.deepStrictEqual({
+				readsAfterAmbientListing,
+				readsAfterRestore: { ambient: agent.ambientReads, restore: agent.restoreReads },
+			}, {
+				readsAfterAmbientListing: { ambient: 1, restore: 0 },
+				readsAfterRestore: { ambient: 1, restore: 1 },
+			});
+		});
 
 		test('waits for initial provider migration before restoring a session', async () => {
 			class DelayedMigrationAgent extends MockAgent {
