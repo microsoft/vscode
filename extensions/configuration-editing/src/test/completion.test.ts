@@ -202,18 +202,18 @@ suite('Completions in settings.json', () => {
 			const content = [
 				'{',
 				'  "files.exclude": {',
-				'    |',
+				'    "**/node_modules": |',
 				'  }',
 				'}',
 			].join('\n');
 			const resultText = [
 				'{',
 				'  "files.exclude": {',
-				'    "**/*.${1:extension}": true',
+				'    "**/node_modules": true',
 				'  }',
 				'}',
 			].join('\n');
-			const expected = { label: 'Files by Extension', resultText };
+			const expected = { label: 'true', resultText };
 			await testCompletion(testFile, 'jsonc', content, expected);
 		}
 		{
