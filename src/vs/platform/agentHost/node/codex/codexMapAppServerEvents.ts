@@ -1239,7 +1239,7 @@ export function mapTurnCompleted(
 				type: ActionType.ChatError,
 				turnId,
 				duration,
-				error: mapCodexTurnError(params.turn.error),
+				part: { kind: ResponsePartKind.Error, error: mapCodexTurnError(params.turn.error) },
 			},
 			{
 				type: ActionType.ChatTurnComplete,

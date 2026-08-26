@@ -573,6 +573,35 @@ suite('ChatService', () => {
 		await assertSnapshot(toSnapshotExportData(chatModel2));
 	});
 
+	test('loadSessionFromData applies creation metadata to the model and telemetry', async () => {
+		const providerInvokedEvents: Record<string, unknown>[] = [];
+		instantiationService.stub(ITelemetryService, {
+			...NullTelemetryService,
+			publicLog2(eventName: string, data: Record<string, unknown> | undefined): void {
+				if (eventName === 'interactiveSessionProviderInvoked' && data) {
+					providerInvokedEvents.push(data);
+				}
+			}
+		});
+		const testService = createChatService();
+		const sourceRef = startSessionModel(testService);
+		const forkedData = sourceRef.object.toJSON();
+		forkedData.sessionId = 'forked-session';
+
+		const forkedRef = testDisposables.add(testService.loadSessionFromData(forkedData, 'ChatServiceTest#forkedSession', 'currentSession'));
+		const response = await testService.sendRequest(forkedRef.object.sessionResource, 'hello');
+		ChatSendResult.assertSent(response);
+		await response.data.responseCompletePromise;
+
+		assert.deepStrictEqual({
+			modelSelectionReason: forkedRef.object.sessionTypeSelectionReason,
+			telemetrySelectionReasons: providerInvokedEvents.map(event => event.sessionTypeSelectionReason),
+		}, {
+			modelSelectionReason: 'currentSession',
+			telemetrySelectionReasons: ['currentSession'],
+		});
+	});
+
 	test('can deserialize with response', async () => {
 		let serializedChatData: ISerializableChatData;
 		testDisposables.add(chatAgentService.registerAgentImplementation(chatAgentWithMarkdownId, chatAgentWithMarkdown));
@@ -1668,10 +1697,19 @@ suite('ChatService', () => {
 		assert.strictEqual(ref, undefined, 'Should return undefined when no provider is registered');
 	});
 
-	test('sendRequest on untitled remote session propagates initialSessionOptions to new model', async () => {
+	test('sendRequest on untitled remote session propagates creation metadata to new model', async () => {
 		const remoteScheme = 'remoteProvider';
 		const untitledResource = URI.from({ scheme: remoteScheme, path: '/untitled-test-session' });
 		const realResource = URI.from({ scheme: remoteScheme, path: '/real-session-123' });
+		const providerInvokedEvents: Record<string, unknown>[] = [];
+		instantiationService.stub(ITelemetryService, {
+			...NullTelemetryService,
+			publicLog2(eventName: string, data: Record<string, unknown> | undefined): void {
+				if (eventName === 'interactiveSessionProviderInvoked' && data) {
+					providerInvokedEvents.push(data);
+				}
+			}
+		});
 
 		// Set up the mock chat sessions service
 		const mockSessionsService = new MockChatSessionsService();
@@ -1713,7 +1751,7 @@ suite('ChatService', () => {
 		const testService = createChatService();
 
 		// Load the untitled session to create the initial model
-		const untitledRef = await testService.acquireOrLoadSession(untitledResource, ChatAgentLocation.Chat, CancellationToken.None);
+		const untitledRef = await testService.acquireOrLoadSession(untitledResource, ChatAgentLocation.Chat, CancellationToken.None, undefined, 'rememberedSelection');
 		assert.ok(untitledRef, 'Should load untitled session');
 		testDisposables.add(untitledRef);
 
@@ -1725,13 +1763,18 @@ suite('ChatService', () => {
 		// The new model (with real resource) should have initialSessionOptions set
 		const newModel = testService.getSession(realResource) as ChatModel;
 		assert.ok(newModel, 'New model should exist at the real resource');
-		assert.deepStrictEqual(
-			ChatSessionOptionsMap.toStrValueArray(mockSessionsService.getSessionOptions(realResource)),
-			[
+		assert.deepStrictEqual({
+			sessionOptions: ChatSessionOptionsMap.toStrValueArray(mockSessionsService.getSessionOptions(realResource)),
+			modelSelectionReason: newModel.sessionTypeSelectionReason,
+			telemetrySelectionReasons: providerInvokedEvents.map(event => event.sessionTypeSelectionReason),
+		}, {
+			sessionOptions: [
 				{ optionId: 'model', value: 'claude-3.5-sonnet' },
 				{ optionId: 'repo', value: 'my-repo' },
-			]
-		);
+			],
+			modelSelectionReason: 'rememberedSelection',
+			telemetrySelectionReasons: ['rememberedSelection'],
+		});
 	});
 
 	suite('untitled session materialization is idempotent/serialized (avoids duplicate sessions)', () => {
@@ -2120,7 +2163,7 @@ suite('ChatService', () => {
 		testDisposables.add(chatAgentService.registerAgentImplementation(sessionType, { async invoke() { return {}; } }));
 
 		const testService = createChatService();
-		const ref = await testService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None);
+		const ref = await testService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None, undefined, 'computedDefault');
 		assert.ok(ref);
 		testDisposables.add(ref);
 
@@ -2135,12 +2178,13 @@ suite('ChatService', () => {
 			sessionType: event.sessionType,
 			isAgentHostSession: event.isAgentHostSession,
 			requestIndex: event.requestIndex,
+			sessionTypeSelectionReason: event.sessionTypeSelectionReason,
 			isVirtualWorkspace: event.isVirtualWorkspace,
 			settingDefaultToCopilotHarness: event.settingDefaultToCopilotHarness,
 			settingPreferCopilotHarness: event.settingPreferCopilotHarness,
 			settingLocalAgentEnabled: event.settingLocalAgentEnabled,
 			hasRequestId: typeof event.requestId === 'string',
-		})), [{ sessionType: 'remote-agent-host', isAgentHostSession: true, requestIndex: 0, isVirtualWorkspace: true, settingDefaultToCopilotHarness: true, settingPreferCopilotHarness: true, settingLocalAgentEnabled: false, hasRequestId: true }, { sessionType: 'remote-agent-host', isAgentHostSession: true, requestIndex: 1, isVirtualWorkspace: true, settingDefaultToCopilotHarness: true, settingPreferCopilotHarness: true, settingLocalAgentEnabled: false, hasRequestId: true }]);
+		})), [{ sessionType: 'remote-agent-host', isAgentHostSession: true, requestIndex: 0, sessionTypeSelectionReason: 'computedDefault', isVirtualWorkspace: true, settingDefaultToCopilotHarness: true, settingPreferCopilotHarness: true, settingLocalAgentEnabled: false, hasRequestId: true }, { sessionType: 'remote-agent-host', isAgentHostSession: true, requestIndex: 1, sessionTypeSelectionReason: 'computedDefault', isVirtualWorkspace: true, settingDefaultToCopilotHarness: true, settingPreferCopilotHarness: true, settingLocalAgentEnabled: false, hasRequestId: true }]);
 	});
 
 	test('user action telemetry distinguishes agent host sessions from local sessions', () => {

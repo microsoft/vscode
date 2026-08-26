@@ -89,6 +89,7 @@ import { ChatInputNotificationWidget } from '../../../../workbench/contrib/chat/
 import { ChatInputNoticeHost, ChatInputNoticeLane } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputNoticeHost.js';
 import { registerChatInputOnboardingHosts } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputOnboardingHosts.js';
 import { IChatInputNoticeHubService } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputNoticeHub.js';
+import { ChatInputPickerResponsiveLayout, IChatInputPickerResponsiveLayoutItem } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerResponsiveLayout.js';
 import { chatInputStackClass, chatInputStackSlotClass, ChatInputStackSlot, refreshChatInputStack, setChatInputStackSlot } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputStack.js';
 import { IChatSubmitRequestHandlerService } from '../../../../workbench/contrib/chat/browser/chatSubmitRequestHandlerService.js';
 import { INewChatModelPickerService, NewChatModelPickerService } from './newChatModelPicker.js';
@@ -114,6 +115,7 @@ import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actio
 import { DictationDownloadRing, getDictationDownloadHoverMarkdown, getDictationPreparingLabel } from '../../../../workbench/contrib/chat/browser/speechToText/dictationDownloadRing.js';
 import { IVoiceSessionController } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceSessionController.js';
 import { IChatPetWidgetService } from '../../../../workbench/contrib/chat/browser/widget/chatPetWidgetService.js';
+import { getChatPetStackPlatformTop } from '../../../../workbench/contrib/chat/browser/widget/chatPetWidget.js';
 import { IVoiceModeOnboardingService } from '../../../../workbench/contrib/agentsVoice/browser/voiceModeOnboarding.js';
 import { AGENTS_VOICE_ENABLED } from '../../../../workbench/contrib/agentsVoice/common/agentsVoice.js';
 import { animatePromptTyping, IPromptTypingAnimation } from './promptTypingAnimation.js';
@@ -130,6 +132,41 @@ const STORAGE_KEY_DRAFT_STATE = 'sessions.draftState';
 const MIN_EDITOR_HEIGHT = 50;
 const MAX_EDITOR_HEIGHT = 200;
 const NEW_CHAT_INPUT_FONT_FAMILY = 'system-ui, -apple-system, sans-serif';
+
+function getLabeledPickerResponsiveItems(container: HTMLElement): IChatInputPickerResponsiveLayoutItem[] {
+	const elements = new Map<HTMLElement, HTMLElement | undefined>();
+	const actionItemLabelCounts = new Map<HTMLElement, number>();
+	const visit = (element: HTMLElement, pickerSlot: HTMLElement | undefined, actionItem: HTMLElement | undefined): void => {
+		const currentPickerSlot = element.classList.contains('sessions-chat-picker-slot') ? element : pickerSlot;
+		const currentActionItem = element.classList.contains('action-item') ? element : actionItem;
+		if (element.classList.contains('sessions-chat-dropdown-label')) {
+			const pickerElement = currentPickerSlot ?? currentActionItem;
+			if (pickerElement) {
+				elements.set(pickerElement, currentActionItem);
+				if (currentActionItem) {
+					actionItemLabelCounts.set(currentActionItem, (actionItemLabelCounts.get(currentActionItem) ?? 0) + 1);
+				}
+			}
+		}
+		for (const child of element.children) {
+			if (dom.isHTMLElement(child)) {
+				visit(child, currentPickerSlot, currentActionItem);
+			}
+		}
+	};
+	visit(container, undefined, undefined);
+
+	return Array.from(elements, ([element, actionItem]) => ({
+		element,
+		isCompact: () => element.classList.contains('compact-picker'),
+		setCompact: compact => {
+			element.classList.toggle('compact-picker', compact);
+			if (actionItem && actionItem !== element && actionItemLabelCounts.get(actionItem) === 1) {
+				actionItem.classList.toggle('compact-picker', compact);
+			}
+		},
+	}));
+}
 
 /** True while focus is in an Agents window composer that supports dictation. */
 const SessionsChatInputHasDictationFocus = new RawContextKey<boolean>('sessionsChatInputHasDictationFocus', false, localize('sessionsChatInputHasDictationFocus', "True when focus is in an Agents window chat composer that supports dictation."));
@@ -312,17 +349,22 @@ function getRandomChatInputPlaceholder(): string {
 // #region --- New Chat Widget ---
 
 export class NewChatInputWidget extends Disposable implements IHistoryNavigationWidget, INewSessionComposer {
-	private static readonly compactModelPickerWidth = 280;
 
 	readonly sessionTypePicker: SessionTypePicker;
 
 	/** Arbitrates which notice occupies the area above this input. */
 	readonly noticeHost = this._register(new ChatInputNoticeHost(() => this.focus()));
 	private _gettingStartedTipContainer: HTMLElement | undefined;
+	private _hostNoticeContainer: HTMLElement | undefined;
 
 	/** The canonical notice slot, directly above this input. */
 	get gettingStartedTipContainerElement(): HTMLElement | undefined {
 		return this._gettingStartedTipContainer;
+	}
+
+	/** Notice slot for the composer's host, so its content docks inside this stack. */
+	get hostNoticeContainerElement(): HTMLElement | undefined {
+		return this._hostNoticeContainer;
 	}
 
 
@@ -384,6 +426,8 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	private readonly _modelSelection: SessionModelSelection;
 	private readonly _canSendRequest: IObservable<boolean>;
 	private readonly _compactModelPicker = observableValue(this, false);
+	private _primaryPickerResponsiveLayout: ChatInputPickerResponsiveLayout | undefined;
+	private _secondaryPickerResponsiveLayout: ChatInputPickerResponsiveLayout | undefined;
 
 	// Input state
 	private _draftState: IDraftState | undefined = {
@@ -561,6 +605,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		// Getting-started tip: the canonical notice slot, directly above and
 		// attached to the input, matching the workbench chat input.
 		this._gettingStartedTipContainer = dom.append(chatInputContainer, dom.$(`.chat-getting-started-tip-container.${chatInputStackSlotClass}`));
+		this._hostNoticeContainer = dom.append(chatInputContainer, dom.$(`.chat-input-host-notice-container.${chatInputStackSlotClass}`));
 
 		this._promptOptionsWidget.value = this.instantiationService.createInstance(NewSessionPromptOptionsWidget, chatInputContainer, {
 			selectOption: async (option, expectedInput, animate) => {
@@ -606,7 +651,8 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			model: constObservable(undefined),
 			hasInput: inputHasContent,
 			inputChanged: this._editor.onDidChangeModelContent,
-			getPlatformTop: () => undefined,
+			// Stand on the notice docked above the input, not on the input itself.
+			getPlatformTop: () => getChatPetStackPlatformTop(chatInputContainer, inputArea),
 			onDidChangePlatform: Event.None,
 		}, this.options.petHostPreferred, this.onDidFocus));
 		this._createInputToolbar(inputArea);
@@ -649,6 +695,11 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 				return undefined;
 			},
 		}));
+
+		this._secondaryPickerResponsiveLayout = this._register(new ChatInputPickerResponsiveLayout('NewChatInput.secondaryPicker', newChatBottomContainer, {
+			getItems: () => getLabeledPickerResponsiveItems(newChatBottomContainer),
+		}));
+		this._secondaryPickerResponsiveLayout.layout();
 
 		// Restore draft input state from storage
 		this._restoreState();
@@ -967,7 +1018,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		// Session config pickers (such as model) — rendered via MenuWorkbenchToolBar
 		// Visibility controlled by context keys (isActiveSessionBackgroundProvider, isNewChatSession)
 		const configContainer = dom.append(toolbar, dom.$('.sessions-chat-config-toolbar'));
-		this._register(this._scopedInstantiationService.createInstance(MenuWorkbenchToolBar, configContainer, Menus.NewSessionConfig, {
+		const configToolbar = this._register(this._scopedInstantiationService.createInstance(MenuWorkbenchToolBar, configContainer, Menus.NewSessionConfig, {
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 			actionViewItemProvider: (action) => {
 				if (action.id === 'sessions.modelPicker') {
@@ -977,8 +1028,6 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 				return undefined;
 			},
 		}));
-
-		dom.append(toolbar, dom.$('.sessions-chat-toolbar-spacer'));
 
 		// Dictation mic button. Shares the STT service, mic
 		// device, and gating (backend support + `dictation.enabled`)
@@ -1043,6 +1092,32 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			this._register(sendButton.onDidClick(e => this._send(!!this.options.supportsBackground && !!(e as MouseEvent | KeyboardEvent | undefined)?.altKey)));
 		}
 		updateVoiceInputActionBorder();
+
+		this._primaryPickerResponsiveLayout = this._register(new ChatInputPickerResponsiveLayout('NewChatInput.primaryPicker', configContainer, {
+			getItems: () => {
+				const items: IChatInputPickerResponsiveLayoutItem[] = [];
+				for (let index = 0; index < configToolbar.getItemsLength(); index++) {
+					const element = configToolbar.getItemElement(index);
+					if (!element) {
+						continue;
+					}
+					items.push({
+						element,
+						isCompact: () => element.classList.contains('compact-picker'),
+						setCompact: (compact: boolean) => {
+							element.classList.toggle('compact-picker', compact);
+							if (configToolbar.getItemAction(index)?.id === 'sessions.modelPicker') {
+								this._compactModelPicker.set(compact, undefined);
+							}
+						},
+					});
+				}
+				return items;
+			},
+			hasOverflow: () => configToolbar.hasOverflow(),
+			relayout: () => configToolbar.relayout(),
+		}));
+		this._primaryPickerResponsiveLayout.layout();
 	}
 
 	private _createVoiceInputModePill(toolbar: HTMLElement, inputContainer: HTMLElement): void {
@@ -1435,9 +1510,10 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		}
 	}
 
-	layout(_height: number, width: number): void {
-		this._compactModelPicker.set(width < NewChatInputWidget.compactModelPickerWidth, undefined);
+	layout(_height: number, _width: number): void {
 		this._editor?.layout();
+		this._primaryPickerResponsiveLayout?.layout();
+		this._secondaryPickerResponsiveLayout?.layout();
 	}
 
 	focus(): void {

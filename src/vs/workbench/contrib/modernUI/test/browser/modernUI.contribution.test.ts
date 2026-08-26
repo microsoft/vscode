@@ -7,12 +7,17 @@ import assert from 'assert';
 import { getWindow } from '../../../../../base/browser/dom.js';
 import { Orientation } from '../../../../../base/browser/ui/sash/sash.js';
 import { Pane } from '../../../../../base/browser/ui/splitview/paneview.js';
+import { DeferredPromise } from '../../../../../base/common/async.js';
 import { Color } from '../../../../../base/common/color.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ConfigurationTarget } from '../../../../../platform/configuration/common/configuration.js';
+import { isIMenuItem, isISubmenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
+import { ContextKeyExpression, ContextKeyValue } from '../../../../../platform/contextkey/common/contextkey.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { editorBackground, Extensions as ColorRegistryExtensions, IColorRegistry, listHoverBackground, listHoverForeground, listInactiveSelectionBackground, listInactiveSelectionForeground, oneOf, opaque } from '../../../../../platform/theme/common/colorRegistry.js';
 import { foreground } from '../../../../../platform/theme/common/colors/baseColors.js';
@@ -112,6 +117,92 @@ suite('ModernUIContribution', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const colorRegistry = Registry.as<IColorRegistry>(ColorRegistryExtensions.ColorContribution);
 	const themingRegistry = Registry.as<IThemingRegistry>(ThemeServiceExtensions.ThemingContribution);
+
+	test('shows layout density options in the Settings menu only when Modern UI is enabled', () => {
+		const parent = MenuRegistry.getMenuItems(MenuId.GlobalActivity)
+			.filter(isISubmenuItem)
+			.find(item => (typeof item.title === 'string' ? item.title : item.title.value) === 'Layout Density');
+		const options = parent ? MenuRegistry.getMenuItems(parent.submenu).filter(isIMenuItem) : [];
+		const context = (modernUI: boolean, density: ModernUIDensity) => ({
+			getValue: <T extends ContextKeyValue = ContextKeyValue>(key: string) => (
+				key === `config.${LayoutSettings.MODERN_UI}` ? modernUI
+					: key === `config.${LayoutSettings.MODERN_UI_DENSITY}` ? density
+						: undefined
+			) as T,
+		});
+
+		assert.deepStrictEqual({
+			parent: parent && {
+				group: parent.group,
+				order: parent.order,
+				visibleWhenEnabled: parent.when?.evaluate(context(true, ModernUIDensity.Default)),
+				visibleWhenDisabled: parent.when?.evaluate(context(false, ModernUIDensity.Default)),
+			},
+			options: options.map(item => ({
+				title: typeof item.command.title === 'string' ? item.command.title : item.command.title.value,
+				checkedForDefault: getToggledExpression(item.command.toggled)?.evaluate(context(true, ModernUIDensity.Default)),
+				checkedForCompact: getToggledExpression(item.command.toggled)?.evaluate(context(true, ModernUIDensity.Compact)),
+			})),
+		}, {
+			parent: {
+				group: '2_configuration',
+				order: 8,
+				visibleWhenEnabled: true,
+				visibleWhenDisabled: false,
+			},
+			options: [
+				{ title: 'Default', checkedForDefault: true, checkedForCompact: false },
+				{ title: 'Compact', checkedForDefault: false, checkedForCompact: true },
+			],
+		});
+	});
+
+	function getToggledExpression(toggled: ContextKeyExpression | { condition: ContextKeyExpression } | undefined): ContextKeyExpression | undefined {
+		return toggled ? (toggled as { condition?: ContextKeyExpression }).condition ?? toggled as ContextKeyExpression : undefined;
+	}
+
+	test('updates the layout density from the Settings menu', async () => {
+		const updates: { key: string; value: unknown }[] = [];
+		const updateComplete = new DeferredPromise<void>();
+		const configurationService = new class extends TestConfigurationService {
+			override updateValue(key: string, value: unknown): Promise<void> {
+				updates.push({ key, value });
+				return updateComplete.p;
+			}
+		}();
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IConfigurationService, configurationService);
+		const parent = MenuRegistry.getMenuItems(MenuId.GlobalActivity)
+			.filter(isISubmenuItem)
+			.find(item => (typeof item.title === 'string' ? item.title : item.title.value) === 'Layout Density');
+		assert.ok(parent);
+		const compactOption = MenuRegistry.getMenuItems(parent.submenu)
+			.filter(isIMenuItem)
+			.find(item => item.command.id === 'workbench.action.setLayoutDensity.compact');
+		assert.ok(compactOption);
+		const command = CommandsRegistry.getCommand(compactOption.command.id);
+		assert.ok(command);
+
+		let commandCompleted = false;
+		const commandCompletion = Promise.resolve(instantiationService.invokeFunction(accessor => command.handler(accessor))).then(() => commandCompleted = true);
+		await Promise.resolve();
+		const commandCompletedBeforeUpdate = commandCompleted;
+		updateComplete.complete();
+		await commandCompletion;
+
+		assert.deepStrictEqual({
+			updates,
+			commandCompletedBeforeUpdate,
+			commandCompleted,
+		}, {
+			updates: [{
+				key: LayoutSettings.MODERN_UI_DENSITY,
+				value: ModernUIDensity.Compact,
+			}],
+			commandCompletedBeforeUpdate: false,
+			commandCompleted: true,
+		});
+	});
 
 	test('applies startup density and relayouts when density or enablement changes', async () => {
 		const configurationService = new TestConfigurationService({
@@ -1049,6 +1140,40 @@ suite('ModernUIContribution', () => {
 		});
 	});
 
+	test('default density top panel keeps the outer bottom gutter when maximized', () => {
+		const root = document.createElement('div');
+		root.className = 'monaco-workbench modern-ui floating-panels';
+		root.style.setProperty('--vscode-spacing-size40', '4px');
+		root.style.setProperty('--vscode-spacing-sizeNone', '0px');
+		document.body.appendChild(root);
+		store.add(toDisposable(() => root.remove()));
+
+		const panel = appendElement(root, 'part panel top');
+		const maximizedPanel = appendElement(root, 'part panel top floating-part-outer-bottom');
+		const targetWindow = getWindow(root);
+
+		assert.deepStrictEqual({
+			panelBottomMargin: targetWindow.getComputedStyle(panel).marginBottom,
+			maximizedPanelBottomMargin: targetWindow.getComputedStyle(maximizedPanel).marginBottom,
+		}, {
+			panelBottomMargin: '0px',
+			maximizedPanelBottomMargin: '4px',
+		});
+	});
+
+	test('compact auxiliary window editors keep their outer radius', () => {
+		const root = document.createElement('div');
+		root.className = 'monaco-workbench modern-ui modern-ui-compact';
+		root.style.setProperty('--vscode-cornerRadius-large', '8px');
+		document.body.appendChild(root);
+		store.add(toDisposable(() => root.remove()));
+
+		const grid = appendElement(root, 'monaco-grid-view');
+		const editor = appendElement(grid, 'part editor');
+
+		assert.deepStrictEqual(getWindow(editor).getComputedStyle(editor).borderRadius, '8px');
+	});
+
 	test('compact density rounds only the panel cluster exterior', () => {
 		const root = document.createElement('div');
 		root.className = 'monaco-workbench modern-ui modern-ui-compact floating-panels';
@@ -1069,6 +1194,7 @@ suite('ModernUIContribution', () => {
 		const editor = appendElement(grid, 'part editor floating-editor-outer-left floating-editor-outer-top');
 		const editorContent = appendElement(editor, 'content');
 		const webviewOverlayContent = appendElement(root, 'webview-overlay-content webview-overlay-outer-left webview-overlay-outer-top');
+		const modalWebviewOverlayContent = appendElement(root, 'webview-overlay-content webview-overlay-modal');
 		const targetWindow = getWindow(root);
 		const activityBarStyle = targetWindow.getComputedStyle(activityBar);
 		const sideBarStyle = targetWindow.getComputedStyle(sideBar);
@@ -1077,6 +1203,7 @@ suite('ModernUIContribution', () => {
 		const editorStyle = targetWindow.getComputedStyle(editor);
 		const editorContentStyle = targetWindow.getComputedStyle(editorContent);
 		const webviewOverlayContentStyle = targetWindow.getComputedStyle(webviewOverlayContent);
+		const modalWebviewOverlayContentStyle = targetWindow.getComputedStyle(modalWebviewOverlayContent);
 
 		assert.deepStrictEqual({
 			activityBar: {
@@ -1109,6 +1236,7 @@ suite('ModernUIContribution', () => {
 			},
 			editorContentRadius: editorContentStyle.borderRadius,
 			webviewOverlayCorners: [webviewOverlayContentStyle.borderTopLeftRadius, webviewOverlayContentStyle.borderTopRightRadius, webviewOverlayContentStyle.borderBottomRightRadius, webviewOverlayContentStyle.borderBottomLeftRadius],
+			modalWebviewOverlayRadius: modalWebviewOverlayContentStyle.borderRadius,
 		}, {
 			activityBar: {
 				corners: ['8px', '0px', '0px', '8px'],
@@ -1140,6 +1268,7 @@ suite('ModernUIContribution', () => {
 			},
 			editorContentRadius: '0px',
 			webviewOverlayCorners: ['8px', '0px', '0px', '0px'],
+			modalWebviewOverlayRadius: '8px',
 		});
 	});
 

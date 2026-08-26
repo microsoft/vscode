@@ -21,7 +21,7 @@ import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { IAgentHostAuthenticationService } from './agentHostAuthenticationService.js';
 import { AgentHostChangesetCoordinator } from './agentHostChangesetCoordinator.js';
 import { IAgentHostCompletions } from './agentHostCompletions.js';
-import { IAgentHostCustomizationEnablementService, supportsCustomizationEnablementWorktreeBinding } from './agentHostCustomizationEnablementService.js';
+import { IAgentHostCustomizationEnablementService } from './agentHostCustomizationEnablementService.js';
 import { AgentHostDebugLogsCollector } from './agentHostDebugLogs.js';
 import { AgentHostDatabase } from './agentHostDatabase.js';
 import { AgentHostLocalTurns } from './agentHostLocalTurns.js';
@@ -32,10 +32,10 @@ import { AgentMergeTools } from './agentMergeTools.js';
 import { AgentService, type IAgentServiceCollaborators, type IAgentServiceCore, type IAgentServiceOptions } from './agentService.js';
 import { AgentSessionRegistry } from './agentSessionRegistry.js';
 import { AgentSideEffects } from './agentSideEffects.js';
-import { SessionCoordinationService } from './sessionCoordination.js';
 import { AgentServerToolHost } from './shared/agentServerToolHost.js';
 import { buildServerToolGroups } from './shared/serverToolGroups.js';
 import { type IAgentServiceFoundation } from './agentServiceFoundation.js';
+import { IAgentHostProviderService } from './agentHostProviderService.js';
 
 export interface IAgentServiceComposition {
 	readonly agentService: AgentService;
@@ -45,6 +45,7 @@ export interface IAgentServiceComposition {
 	readonly customizationEnablementService: IAgentHostCustomizationEnablementService;
 	readonly checkpointService: IAgentHostCheckpointService;
 	readonly completions: IAgentHostCompletions;
+	readonly providerService: IAgentHostProviderService;
 	readonly agents: IObservable<readonly IAgent[]>;
 	readonly onDidStartTurn: Event<string>;
 	setContributions(contributions: IDisposable): void;
@@ -81,7 +82,8 @@ export function createAgentServiceComposition(
 		const debugLogsCollector = options.debugLogsEnvironment
 			? owned.add(new AgentHostDebugLogsCollector(options.debugLogsEnvironment, logService))
 			: undefined;
-		const { callbackAdapter, agents, stateManager, configurationService, authenticationService, gitHubEndpointService } = foundation;
+		const { callbackAdapter, stateManager, configurationService, authenticationService, gitHubEndpointService } = foundation;
+		const providerService = accessor.get(IAgentHostProviderService);
 		const sessionRegistry = owned.add(new AgentSessionRegistry(orchestratorDatabase));
 		const core: IAgentServiceCore = {
 			disposables: owned,
@@ -91,22 +93,23 @@ export function createAgentServiceComposition(
 			sessionRegistry,
 			stateManager,
 			configurationService,
-			agents,
 			callbackBinder: callbackAdapter,
 		};
 		// AgentService subscribes after this graph is complete, so collaborator constructors must not emit state-manager events.
 		const customizationEnablementService = accessor.get(IAgentHostCustomizationEnablementService);
-		if (!supportsCustomizationEnablementWorktreeBinding(customizationEnablementService)) {
-			throw new Error('AgentService requires customization enablement worktree binding support');
-		}
 		const gitStateService = accessor.get(IAgentHostGitStateService);
 		const agentMergeController = owned.add(instantiationService.createInstance(AgentMergeController, {
 			startTurn: (session, turnId, prompt) => callbackAdapter.value.startAgentMergeTurn(session, turnId, prompt),
 			cancelTurn: (session, turnId) => callbackAdapter.value.cancelAgentMergeTurn(session, turnId),
+			postNotice: (session, kind, content) => callbackAdapter.value.postAgentMergeNotice(session, kind, content),
 			getAutonomousSessionConfig: (session, config) => callbackAdapter.value.getAutonomousSessionConfig(session, config),
 		}));
+		// Resolve this even before first use so its session-data deletion listener
+		// always removes checkpoint refs before the database disappears.
 		const checkpointService = accessor.get(IAgentHostCheckpointService);
 		const changesetOperationService = accessor.get(IAgentHostChangesetOperationService);
+		// Resolve this even before first use so its session-data deletion listener
+		// always removes reviewed refs before the database disappears.
 		const reviewService = accessor.get(IAgentHostReviewService);
 		const changesets = accessor.get(IAgentHostChangesetService);
 		const changesetCoordinator = owned.add(instantiationService.createInstance(AgentHostChangesetCoordinator));
@@ -120,23 +123,13 @@ export function createAgentServiceComposition(
 			stateManager,
 			customizationEnablementService,
 			{
-				getAgent: session => callbackAdapter.value.getAgent(session),
+				getAgent: session => providerService.getProviderForSession(session),
 				sessionDataService,
 				localTurns,
-				agents,
+				agents: providerService.agents,
 				hostLaunchKind: options.hostLaunchKind ?? AgentHostLaunchKind.Unknown,
 				resolveWorkingDirectoryBeforeSend: params => callbackAdapter.value.resolveWorkingDirectoryBeforeSend(params),
 				resolveChatAttachmentTurns: resource => callbackAdapter.value.resolveChatAttachmentTurns(resource),
-			},
-		));
-		const sessionCoordination = owned.add(new SessionCoordinationService(
-			stateManager,
-			sessionDataService,
-			logService,
-			{
-				getSessionMetadata: session => callbackAdapter.value.getSessionMetadata(session),
-				restoreSession: session => callbackAdapter.value.restoreSession(session),
-				handleAction: (chat, action) => sideEffects.handleAction(chat, action),
 			},
 		));
 		const agentMergeTools = instantiationService.createInstance(
@@ -151,7 +144,6 @@ export function createAgentServiceComposition(
 
 		const collaborators: IAgentServiceCollaborators = {
 			gitHubEndpointService,
-			customizationEnablementService,
 			gitStateService,
 			agentMergeController,
 			checkpointService,
@@ -163,10 +155,9 @@ export function createAgentServiceComposition(
 			terminalManager,
 			localTurns,
 			sideEffects,
-			sessionCoordination,
 			serverToolHost,
 		};
-		agentService = instantiationService.createInstance(AgentService, core, collaborators);
+		agentService = instantiationService.createInstance(AgentService, core, collaborators, options);
 		for (const disposable of additionalDisposables) {
 			owned.add(disposable);
 		}
@@ -178,7 +169,8 @@ export function createAgentServiceComposition(
 			customizationEnablementService,
 			checkpointService,
 			completions,
-			agents,
+			providerService,
+			agents: providerService.agents,
 			onDidStartTurn: sideEffects.onDidStartTurn,
 			setContributions: value => {
 				if (contributions.value) {

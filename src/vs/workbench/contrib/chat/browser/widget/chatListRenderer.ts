@@ -46,6 +46,7 @@ import { isDark } from '../../../../../platform/theme/common/theme.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { parseRemoteAgentHostSessionTypeAuthority } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
+import { parseAgentMergePrompt } from '../../../../../platform/agentHost/common/agentMergePrompt.js';
 import { isCreateChatTool, isCreateSessionTool, isSendMessageTool } from '../../../../../platform/agentHost/common/openSessionLink.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { CodiconActionViewItem } from '../../../notebook/browser/view/cellParts/cellActionView.js';
@@ -79,6 +80,7 @@ import { ChatRestoreCheckpointActionViewItem } from './chatRestoreCheckpointActi
 import { ChatAgentHover, getChatAgentHoverOptions } from './chatAgentHover.js';
 import { ChatContentMarkdownRenderer } from './chatContentMarkdownRenderer.js';
 import { ChatAgentCommandContentPart } from './chatContentParts/chatAgentCommandContentPart.js';
+import { ChatAgentMergeContentPart } from './chatContentParts/chatAgentMergeContentPart.js';
 import { ChatAnonymousRateLimitedPart } from './chatContentParts/chatAnonymousRateLimitedPart.js';
 import { ChatAttachmentsContentPart } from './chatContentParts/chatAttachmentsContentPart.js';
 import { ChatAutoModeResolutionContentPart } from './chatContentParts/chatAutoModeResolutionContentPart.js';
@@ -2483,6 +2485,16 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 		templateData.renderedParts = [];
 
+		// Agent Merge drives its turns with a machine-facing state block, which
+		// gets summarized instead of being shown to the user verbatim.
+		const agentMerge = element.systemInitiatedLabel === undefined ? parseAgentMergePrompt(element.messageText) : undefined;
+		if (agentMerge) {
+			const agentMergePart = this.instantiationService.createInstance(ChatAgentMergeContentPart, agentMerge, element.sessionResource, this.chatContentMarkdownRenderer);
+			templateData.elementDisposables.add(agentMergePart);
+			templateData.value.appendChild(agentMergePart.domNode);
+			return;
+		}
+
 		const label = element.systemInitiatedLabel ?? element.messageText;
 		const notificationPart = this.instantiationService.createInstance(
 			ChatSystemNotificationContentPart,
@@ -3541,6 +3553,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			} else if (content.kind === 'externalEdit') {
 				return this.renderExternalEdit(content, context, templateData);
 			} else if (content.kind === 'autoModeResolution') {
+				// A row that never resolved (cancelled or errored turn) has nothing
+				// left to say, so drop it instead of leaving a stuck "Routing task…".
+				if (!content.resolved && context.element.isComplete) {
+					return this.renderNoContent(other => other.kind === content.kind && !other.resolved);
+				}
 				return this.instantiationService.createInstance(ChatAutoModeResolutionContentPart, content, context, this.chatContentMarkdownRenderer);
 			}
 

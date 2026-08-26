@@ -19,6 +19,7 @@ import { ISessionDataService } from '../../../common/sessionDataService.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
 import { SessionStatus } from '../../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../../../node/agentConfigurationService.js';
+import { IAgentHostWorktreeIsolation, NullAgentHostWorktreeIsolation } from '../../../node/shared/worktreeIsolation.js';
 import { IAgentHostCustomizationEnablementService } from '../../../node/agentHostCustomizationEnablementService.js';
 import { AgentHostSessionTitleSignal, IAgentHostSessionTitleSignal } from '../../../node/agentHostSessionTitleSignal.js';
 import { AgentHostStateManager } from '../../../node/agentHostStateManager.js';
@@ -73,6 +74,7 @@ function createTestContext(disposables: Pick<DisposableStore, 'add'>): { stateMa
 		onDidRootConfigChange: Event.None,
 		getRootValue: () => undefined,
 	});
+	instantiationService.stub(IAgentHostWorktreeIsolation, new NullAgentHostWorktreeIsolation());
 	instantiationService.stub(IAgentHostCustomizationEnablementService, createNoopCustomizationEnablementService());
 	instantiationService.stub(IAgentSdkDownloader, new RecordingAgentSdkDownloader());
 	instantiationService.stub(IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE);
@@ -83,7 +85,8 @@ function createTestContext(disposables: Pick<DisposableStore, 'add'>): { stateMa
 	instantiationService.stub(IProductService, { _serviceBrand: undefined, version: '1.0.0-test' } as IProductService);
 	instantiationService.stub(INativeEnvironmentService, { userHome: URI.file('/tmp') });
 	instantiationService.stub(ILogService, logService);
-	disposables.add(instantiationService.createInstance(CodexAgent));
+	const agent = disposables.add(instantiationService.createInstance(CodexAgent));
+	agent['_probeAccountAtStartup'] = async () => { };
 	return { stateManager, otelService };
 }
 
