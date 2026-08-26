@@ -106,12 +106,6 @@ Changes to that item shape must remain aligned across:
 
 New fields should be optional unless the proposal explicitly introduces a breaking version.
 
-## Enabling and disabling built-in skills
-
-Built-in discovery and user enablement are separate stores. Discovery determines which built-in items exist; enablement records the user's disabled set. Item projection combines both and keeps the built-in source distinct from extension and user storage.
-
-Harness filtering must happen before enablement presentation so an item hidden from a harness cannot be reintroduced by its stored enablement state.
-
 ## Feature gating
 
 Customization surfaces are hidden when AI features are disabled. Contributions use `ChatContextKeys.enabled` for declarative visibility and the applicable entitlement state for programmatic hiding.

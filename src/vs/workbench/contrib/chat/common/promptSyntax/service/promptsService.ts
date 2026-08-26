@@ -121,20 +121,6 @@ export enum PromptsStorage {
 }
 
 /**
- * Whether the AI Customizations UI offers Enable/Disable affordances for a
- * customization with the given type and storage — and therefore whether a user
- * who disables it can turn it back on again.
- *
- * Gate any behaviour that *hides* a customization because it is in
- * {@link IPromptsService.getDisabledPromptFiles} on this predicate; that store
- * is shared with surfaces that own a separate unhide affordance. See
- * "Enabling and Disabling Built-in Skills" in `src/vs/sessions/AI_CUSTOMIZATIONS.md`.
- */
-export function isUserToggleableCustomization(type: PromptsType, storage: PromptsStorage): boolean {
-	return type === PromptsType.skill && storage === PromptsStorage.builtIn;
-}
-
-/**
  * Represents a prompt path with its type.
  * This is used for both prompt files and prompt source folders.
  */
