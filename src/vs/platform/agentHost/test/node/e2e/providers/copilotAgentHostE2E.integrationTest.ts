@@ -31,7 +31,7 @@ import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { CollectAgentHostDebugLogsExtensionMethod, type IAgentHostExtensionCommandMap } from '../../../../common/agentHostExtensionProtocol.js';
 import { readToolCallMeta } from '../../../../common/meta/agentToolCallMeta.js';
-import { MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ROOT_STATE_URI, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, buildDefaultChatUri, getInlineToolInput, type MessageAttachment } from '../../../../common/state/sessionState.js';
+import { MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ROOT_STATE_URI, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, buildDefaultChatUri, getInlineToolInput, getTurnError, type MessageAttachment } from '../../../../common/state/sessionState.js';
 import { ActionType, type ChatErrorAction, type ChatToolCallCompleteAction, type ChatToolCallDeltaAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatUsageAction } from '../../../../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
 import {
@@ -179,7 +179,7 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 			&& getActionEnvelope(notification).channel === chatUri,
 			90_000,
 		);
-		const liveError = (getActionEnvelope(liveNotification).action as ChatErrorAction).error;
+		const liveError = (getActionEnvelope(liveNotification).action as ChatErrorAction).part.error;
 
 		client = await lease.restart();
 		client.setWorkingDirectory(workingDirectory);
@@ -194,7 +194,7 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 		const restoredTurn = reopened.turns.find(turn => turn.message.text === prompt);
 		assert.deepStrictEqual({
 			state: restoredTurn?.state,
-			error: restoredTurn?.error,
+			error: getTurnError(restoredTurn),
 		}, {
 			state: TurnState.Error,
 			error: liveError,
@@ -722,7 +722,7 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 			);
 			if (isActionNotification(next, 'chat/error')) {
 				const action = getActionEnvelope(next).action as ChatErrorAction;
-				throw new Error(`cd-strip turn failed: ${JSON.stringify(action.error)}`);
+				throw new Error(`cd-strip turn failed: ${JSON.stringify(action.part.error)}`);
 			}
 			if (isActionNotification(next, 'chat/turnComplete')) {
 				break;

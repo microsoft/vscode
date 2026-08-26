@@ -47,9 +47,14 @@
   "contributes": {
     "linkPresentationProviders": [
       {
-        "id": "markdown.linkPresentations",
-        "initialKind": "resource",
-        "uriPattern": "^(?:(?:file|vscode-remote|vscode-vfs):[^?#]*|commit:[^?#]+|https?://[^\\s?#]+/(?:commit|-/commit)/[^/?#]+|https://github\\.com/[^/?#]+/[^/?#]+(?:/(?:issues/[^/?#]+|pull/[^/?#]+|tree/[^?#]+|blob/[^?#]+))?|(?!(?:[a-z][a-z0-9+.-]*:|#))[^?#]+)(?:[?#].*)?$"
+        "id": "markdown.gitCommitLinkPresentations",
+        "kind": "commit",
+        "uriPattern": "^(?:commit:[^?#]+|https?://[^\\s?#]+/(?:commit|-/commit)/[^/?#]+)(?:[?#].*)?$"
+      },
+      {
+        "id": "markdown.workspaceFileLinkPresentations",
+        "kind": "file",
+        "uriPattern": "^(?:(?:file|vscode-remote|vscode-vfs):[^?#]*|(?!(?:[a-z][a-z0-9+.-]*:|#))[^?#]+)(?:[?#].*)?$"
       }
     ],
     "notebookRenderer": [
@@ -1271,7 +1276,7 @@
         "properties": {
           "markdown.experimental.richLinks.enabled": {
             "type": "boolean",
-            "default": false,
+            "default": true,
             "description": "%configuration.markdown.experimental.richLinks.enabled%",
             "scope": "window",
             "tags": [

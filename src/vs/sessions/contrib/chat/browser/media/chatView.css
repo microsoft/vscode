@@ -242,3 +242,7 @@
 .agent-sessions-workbench .interactive-session .chat-input-toolbars .chat-sessionPicker-container {
 	display: none;
 }
+
+.agent-sessions-workbench .interactive-session .compact-picker .sessions-chat-dropdown-label {
+	display: none;
+}

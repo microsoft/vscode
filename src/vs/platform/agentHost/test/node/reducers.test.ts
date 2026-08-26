@@ -104,7 +104,6 @@ suite('chatReducer – summaryStatus with tool call confirmations and input requ
 			responseParts: [],
 			usage: undefined,
 			state: TurnState.Complete,
-			error: undefined,
 		});
 	});
 
