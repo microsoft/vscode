@@ -8,7 +8,7 @@ import { Disposable, DisposableStore, MutableDisposable } from '../../../../base
 import { URI } from '../../../../base/common/uri.js';
 import { IFileService } from '../../../files/common/files.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
-import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
+import { StrictServiceCollection } from '../../../instantiation/common/strictServiceCollection.js';
 import { ILogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
@@ -136,13 +136,15 @@ export function createTestAgentService(
 	hostLaunchKind = AgentHostLaunchKind.Unknown,
 	storageResource?: URI,
 	orchestratorDatabase?: IAgentHostDatabase,
+	sessionResidencyLimit?: number,
+	sessionReleaseRetryMs?: number,
 ): AgentService {
 	const effectiveFileMonitorService = fileMonitorService ?? new AgentHostFileMonitorService(fileService, logService);
 	const clientConnectionService = new AgentHostClientConnectionService();
 	const proxyResolver = createTestAgentHostProxyResolver(fetchFn);
 	const foundationDisposables = new DisposableStore();
 	const worktreeIsolation = foundationDisposables.add(new MutableTestAgentHostWorktreeIsolation());
-	const services = new ServiceCollection(
+	const services = new StrictServiceCollection(
 		[ILogService, logService],
 		[IFileService, fileService],
 		[ISessionDataService, sessionDataService],
@@ -161,6 +163,8 @@ export function createTestAgentService(
 		hostLaunchKind,
 		storageResource,
 		orchestratorDatabase,
+		sessionResidencyLimit,
+		sessionReleaseRetryMs,
 	};
 	const foundation = createAgentServiceFoundation({
 		services,

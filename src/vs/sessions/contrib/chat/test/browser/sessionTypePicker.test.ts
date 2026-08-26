@@ -107,10 +107,6 @@ class TestSessionTypePicker extends SessionTypePicker {
 	pick(p: IPickedSessionType): void {
 		this._handleSelectedSessionType(p);
 	}
-
-	showPicker(): void {
-		this._showPicker();
-	}
 }
 
 function createPicker(

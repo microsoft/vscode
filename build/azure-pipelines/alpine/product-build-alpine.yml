@@ -201,6 +201,9 @@ jobs:
 
       - template: ../common/install-builtin-extensions.yml@self
 
+      - script: node build/npm/electronTypes.ts
+        displayName: Prepare Electron types
+
       - template: ../common/agent-sdk-produce.yml@self
         parameters:
           vscodePlatform: alpine

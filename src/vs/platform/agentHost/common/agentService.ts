@@ -218,13 +218,11 @@ export const AgentHostClaudeAgentEnabledEnvVar = 'VSCODE_AGENT_HOST_CLAUDE_AGENT
  */
 export const AgentHostCodexAgentEnabledEnvVar = 'VSCODE_AGENT_HOST_CODEX_AGENT_ENABLED';
 
-/**
- * Overrides the grace period (in milliseconds) before an idle, fully
- * unsubscribed session is released from memory. Defaults to 30_000. Primarily a
- * test hook so real-SDK integration tests can force a prompt release without
- * waiting the full production grace; production does not set it.
- */
-export const AgentHostSessionReleaseGraceMsEnvVar = 'VSCODE_AGENT_HOST_SESSION_RELEASE_GRACE_MS';
+/** Overrides the soft cap on resident session roots. Primarily used by integration tests. */
+export const AgentHostSessionResidencyLimitEnvVar = 'VSCODE_AGENT_HOST_SESSION_RESIDENCY_LIMIT';
+
+/** Overrides the retry delay after a provider temporarily vetoes session release. Primarily used by integration tests. */
+export const AgentHostSessionReleaseRetryMsEnvVar = 'VSCODE_AGENT_HOST_SESSION_RELEASE_RETRY_MS';
 
 /**
  * Resolves the effective enable state for a Claude/Codex provider from the
@@ -299,13 +297,14 @@ export function getAgentHostCopilotSandboxSettingId(customTerminalToolEnabled: b
 export const CodexPreferAgentHostEditorSettingId = 'chat.editor.codex.preferAgentHost';
 
 export function affectsAgentHostProviderPreference(event: IConfigurationChangeEvent, isSessionsWindow: boolean): boolean {
-	return event.affectsConfiguration(isSessionsWindow ? AgentHostCodexAgentEnabledSettingId : CodexPreferAgentHostEditorSettingId);
+	return event.affectsConfiguration(AgentHostClaudeAgentEnabledSettingId)
+		|| event.affectsConfiguration(isSessionsWindow ? AgentHostCodexAgentEnabledSettingId : CodexPreferAgentHostEditorSettingId);
 }
 
 export function shouldSurfaceLocalAgentHostProvider(provider: AgentProvider, configurationService: IConfigurationService, isSessionsWindow: boolean): boolean {
 	switch (provider) {
 		case CLAUDE_AGENT_PROVIDER_ID:
-			return true;
+			return configurationService.getValue<boolean>(AgentHostClaudeAgentEnabledSettingId) !== false;
 		case CODEX_AGENT_PROVIDER_ID:
 			return configurationService.getValue<boolean>(isSessionsWindow ? AgentHostCodexAgentEnabledSettingId : CodexPreferAgentHostEditorSettingId) === true;
 		default:

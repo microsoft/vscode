@@ -632,8 +632,7 @@
 
 /* The chip row scrolls horizontally, so we never want to collapse labels
  * to icon-only — keep them visible regardless of viewport width. This
- * overrides the desktop `@container (max-width: 330px)` query that
- * hides `.sessions-chat-dropdown-label` to make icon-only chips. */
+ * overrides the desktop collision-driven compact state. */
 .agent-sessions-workbench.phone-layout .new-chat-widget-container .new-chat-bottom-container .action-label .sessions-chat-dropdown-label {
 	display: inline;
 	margin-left: 4px;

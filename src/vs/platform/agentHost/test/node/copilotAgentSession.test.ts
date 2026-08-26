@@ -689,6 +689,8 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	serverToolHost?: IAgentServerToolHost;
 	/** Whether the launch plan represents an ephemeral session. */
 	isEphemeral?: boolean;
+	/** Whether the owning chat surface is scoped to editing a single file. */
+	hasScopedEditSurface?: boolean;
 	/** Platform used to compute the SDK sandbox policy. Defaults to `'linux'` so sandbox tests are deterministic. */
 	platform?: NodeJS.Platform;
 	githubToken?: string;
@@ -762,6 +764,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		shellManager: undefined,
 		githubToken: options?.githubToken,
 		isEphemeral: options?.isEphemeral,
+		hasScopedEditSurface: options?.hasScopedEditSurface,
 	};
 	const model = options?.modelId ? { id: options.modelId } : undefined;
 	const launchPlan: CopilotSessionLaunchPlan = options?.resume
@@ -4300,6 +4303,26 @@ suite('CopilotAgentSession', () => {
 			assert.strictEqual(signals.length, 0);
 		});
 
+		test('does not auto-approve a sandboxed shell command for a file-scoped surface', async () => {
+			// The sandbox contains a command to the workspace, not to inline
+			// chat's single target file, so it must still prompt.
+			const { session, runtime, signals, waitForSignal } = await createAgentSession(disposables, {
+				rootValues: { [AgentHostSandboxConfigKey.Sandbox]: { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On } },
+				hasScopedEditSurface: true,
+			});
+
+			const resultPromise = runtime.handlePermissionRequest({
+				kind: 'shell',
+				toolCallId: 'tc-scoped-sandboxed',
+				fullCommandText: 'cat ~/something.txt',
+			});
+
+			await waitForSignal(s => s.kind === 'pending_confirmation' && s.state.toolCallId === 'tc-scoped-sandboxed');
+			assert.strictEqual(signals.length, 1);
+			assert.ok(session.respondToPermissionRequest('tc-scoped-sandboxed', true));
+			assert.strictEqual((await resultPromise).kind, 'approve-once');
+		});
+
 		test('does not auto-approve a shell command that opted out of the sandbox', async () => {
 			const { session, runtime, signals, waitForSignal } = await createAgentSession(disposables, {
 				rootValues: { [AgentHostSandboxConfigKey.Sandbox]: { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On } },
@@ -6709,7 +6732,7 @@ suite('CopilotAgentSession', () => {
 			}
 		});
 
-		test('live task_complete emits root markdown instead of a tool call', async () => {
+		test('live task_complete emits the input summary when tool output is truncated', async () => {
 			const { mockSession, signals } = await createAgentSession(disposables);
 
 			mockSession.fire('tool.execution_start', {
@@ -6720,7 +6743,7 @@ suite('CopilotAgentSession', () => {
 			mockSession.fire('tool.execution_complete', {
 				toolCallId: 'tc-task-complete',
 				success: true,
-				result: { content: 'Completed the requested work.' },
+				result: { content: 'Output too large to read at once (11.3 KB). Saved to: /tmp/task-complete.txt' },
 			} as SessionEventPayload<'tool.execution_complete'>['data']);
 
 			const actions = getActions(signals);
@@ -7382,20 +7405,23 @@ suite('CopilotAgentSession', () => {
 			assert.ok(isAction(signals[0], ActionType.ChatError));
 			if (isAction(signals[0], ActionType.ChatError)) {
 				const action = signals[0].action as ChatErrorAction;
-				assert.deepStrictEqual(action.error, {
-					errorType: 'TestError',
-					message: 'something went wrong',
-					stack: 'Error: something went wrong',
-					_meta: {
-						chatError: {
-							fetchError: {
-								type: 'failed',
-								reason: 'something went wrong',
-								requestId: 'provider-request-id',
-								serverRequestId: 'service-request-id',
-								capiError: {
-									code: 'test-code',
-									message: 'something went wrong',
+				assert.deepStrictEqual(action.part, {
+					kind: ResponsePartKind.Error,
+					error: {
+						errorType: 'TestError',
+						message: 'something went wrong',
+						stack: 'Error: something went wrong',
+						_meta: {
+							chatError: {
+								fetchError: {
+									type: 'failed',
+									reason: 'something went wrong',
+									requestId: 'provider-request-id',
+									serverRequestId: 'service-request-id',
+									capiError: {
+										code: 'test-code',
+										message: 'something went wrong',
+									},
 								},
 							},
 						},

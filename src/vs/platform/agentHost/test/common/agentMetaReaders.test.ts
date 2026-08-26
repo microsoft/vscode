@@ -126,8 +126,8 @@ suite('Agent host _meta readers', () => {
 
 		test('reads and writes editor inline metadata', () => {
 			assert.deepStrictEqual(
-				readChatSurfaceMeta({ _meta: withChatSurfaceMeta(undefined, { surface: 'editorInline', languageId: 'typescript' }) }),
-				{ surface: 'editorInline', languageId: 'typescript' },
+				readChatSurfaceMeta({ _meta: withChatSurfaceMeta(undefined, { surface: 'editorInline', languageId: 'typescript', targetUri: 'file:///workspace/inline.ts' }) }),
+				{ surface: 'editorInline', languageId: 'typescript', targetUri: 'file:///workspace/inline.ts' },
 			);
 			assert.deepStrictEqual(
 				readChatSurfaceMeta({ _meta: withChatSurfaceMeta(undefined, { surface: 'editorInline' }) }),
@@ -135,8 +135,12 @@ suite('Agent host _meta readers', () => {
 			);
 			assert.strictEqual(readChatSurfaceMeta({ _meta: { 'vscode.chat.surface': { surface: 'editorInline', languageId: 1 } } }), undefined);
 			assert.deepStrictEqual(
-				withChatSurfaceMeta({ existing: 'value' }, { surface: 'editorInline', languageId: 'typescript' }),
-				{ existing: 'value', 'vscode.chat.surface': { surface: 'editorInline', languageId: 'typescript' } },
+				readChatSurfaceMeta({ _meta: { 'vscode.chat.surface': { surface: 'editorInline', targetUri: 1 } } }),
+				{ surface: 'editorInline' },
+			);
+			assert.deepStrictEqual(
+				withChatSurfaceMeta({ existing: 'value' }, { surface: 'editorInline', languageId: 'typescript', targetUri: 'file:///workspace/inline.ts' }),
+				{ existing: 'value', 'vscode.chat.surface': { surface: 'editorInline', languageId: 'typescript', targetUri: 'file:///workspace/inline.ts' } },
 			);
 		});
 	});

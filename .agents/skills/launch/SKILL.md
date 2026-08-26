@@ -100,9 +100,11 @@ Excluded (transient, regenerable, or known-not-needed):
 - `User/History/` - local file edit history
 - `CachedExtensionVSIXs` - backup VSIXs (hundreds of MB)
 - `logs`
-- Chromium caches: `Cache`, `Code Cache`, `CachedData`, `GPUCache`, `ShaderCache`, `Dawn*Cache`, `component_crx_cache`
+- Chromium caches at the profile root: `Cache`, `Code Cache`, `CachedData`, `GPUCache`, `ShaderCache`, `Dawn*Cache`, `component_crx_cache`; and under the persistent integrated-browser partition: `Cache`, `Code Cache`, `GPUCache`, `Dawn*Cache`
 - `Backups`, `blob_storage`, `BrowserMetrics`, `Crashpad`, `Session Storage`
 - `Singleton*`, `*.lock`, `*.sock` (would conflict with the source instance)
+
+The persistent integrated-browser partition keeps website state such as cookies, local and session storage, IndexedDB, WebStorage, service workers, and preferences; only its regenerable caches are excluded.
 
 `extensions/` defaults to a **fresh empty directory** - fastest and conflict-free, but the launched instance starts with no third-party extensions installed. Pass `--clone-extensions` to copy the source extensions dir into the temp profile so the new instance is independent of the source. Pass `--full` to skip all excludes if you suspect the slim copy is missing something you need.
 
@@ -156,6 +158,8 @@ $pid = $info.pid
 ## Drive the UI with @playwright/cli
 
 Use the dynamic `cdpPort` from the launch JSON. The normal loop is: attach, confirm the target, snapshot, interact, then re-snapshot after meaningful UI changes.
+
+If you are unsure about Playwright CLI syntax, run `npx @playwright/cli --help` or `npx @playwright/cli <command> --help` instead of guessing option names.
 
 > **Always pick a unique `PW_SESSION` name and pass it as `-s=$PW_SESSION`** on every `npx @playwright/cli ...` call. The CLI is backed by a persistent daemon (`cliDaemon.js`) keyed by session name; if two shells both omit `-s=`, they share the implicit `"default"` session and the most-recently-attached CDP "wins" for every subsequent command from either shell. The launch skill is built around isolation (per-instance UDD, ports, shared-data-dir), and this pattern keeps that isolation intact at the Playwright-driving layer too. **A note on the alternative `PLAYWRIGHT_CLI_SESSION` env var:** it's documented in the package README and works correctly for `open`-style workflows, but it interacts poorly with `attach --cdp=...` (the daemon ends up with both `--cdp=...` and `--endpoint=<env-value>`, and the latter wins, causing a `connect ENOENT` failure). Confirmed against `@playwright/cli@0.1.13`. Explicit `-s=NAME` works in all modes.
 
