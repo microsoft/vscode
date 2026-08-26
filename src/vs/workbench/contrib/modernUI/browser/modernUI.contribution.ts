@@ -87,8 +87,8 @@ for (let index = 0; index < layoutDensityOptions.length; index++) {
 			});
 		}
 
-		override run(accessor: ServicesAccessor): void {
-			accessor.get(IConfigurationService).updateValue(LayoutSettings.MODERN_UI_DENSITY, option.density);
+		override run(accessor: ServicesAccessor): Promise<void> {
+			return accessor.get(IConfigurationService).updateValue(LayoutSettings.MODERN_UI_DENSITY, option.density);
 		}
 	});
 }

@@ -7,6 +7,7 @@ import assert from 'assert';
 import { getWindow } from '../../../../../base/browser/dom.js';
 import { Orientation } from '../../../../../base/browser/ui/sash/sash.js';
 import { Pane } from '../../../../../base/browser/ui/splitview/paneview.js';
+import { DeferredPromise } from '../../../../../base/common/async.js';
 import { Color } from '../../../../../base/common/color.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
@@ -15,7 +16,7 @@ import { isIMenuItem, isISubmenuItem, MenuId, MenuRegistry } from '../../../../.
 import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
-import { ContextKeyValue } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpression, ContextKeyValue } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { editorBackground, Extensions as ColorRegistryExtensions, IColorRegistry, listHoverBackground, listHoverForeground, listInactiveSelectionBackground, listInactiveSelectionForeground, oneOf, opaque } from '../../../../../platform/theme/common/colorRegistry.js';
@@ -139,8 +140,8 @@ suite('ModernUIContribution', () => {
 			},
 			options: options.map(item => ({
 				title: typeof item.command.title === 'string' ? item.command.title : item.command.title.value,
-				checkedForDefault: item.command.toggled?.evaluate(context(true, ModernUIDensity.Default)),
-				checkedForCompact: item.command.toggled?.evaluate(context(true, ModernUIDensity.Compact)),
+				checkedForDefault: getToggledExpression(item.command.toggled)?.evaluate(context(true, ModernUIDensity.Default)),
+				checkedForCompact: getToggledExpression(item.command.toggled)?.evaluate(context(true, ModernUIDensity.Compact)),
 			})),
 		}, {
 			parent: {
@@ -156,12 +157,17 @@ suite('ModernUIContribution', () => {
 		});
 	});
 
+	function getToggledExpression(toggled: ContextKeyExpression | { condition: ContextKeyExpression } | undefined): ContextKeyExpression | undefined {
+		return toggled ? (toggled as { condition?: ContextKeyExpression }).condition ?? toggled as ContextKeyExpression : undefined;
+	}
+
 	test('updates the layout density from the Settings menu', async () => {
 		const updates: { key: string; value: unknown }[] = [];
+		const updateComplete = new DeferredPromise<void>();
 		const configurationService = new class extends TestConfigurationService {
 			override updateValue(key: string, value: unknown): Promise<void> {
 				updates.push({ key, value });
-				return Promise.resolve();
+				return updateComplete.p;
 			}
 		}();
 		const instantiationService = store.add(new TestInstantiationService());
@@ -177,12 +183,25 @@ suite('ModernUIContribution', () => {
 		const command = CommandsRegistry.getCommand(compactOption.command.id);
 		assert.ok(command);
 
-		await instantiationService.invokeFunction(accessor => command.handler(accessor));
+		let commandCompleted = false;
+		const commandCompletion = Promise.resolve(instantiationService.invokeFunction(accessor => command.handler(accessor))).then(() => commandCompleted = true);
+		await Promise.resolve();
+		const commandCompletedBeforeUpdate = commandCompleted;
+		updateComplete.complete();
+		await commandCompletion;
 
-		assert.deepStrictEqual(updates, [{
-			key: LayoutSettings.MODERN_UI_DENSITY,
-			value: ModernUIDensity.Compact,
-		}]);
+		assert.deepStrictEqual({
+			updates,
+			commandCompletedBeforeUpdate,
+			commandCompleted,
+		}, {
+			updates: [{
+				key: LayoutSettings.MODERN_UI_DENSITY,
+				value: ModernUIDensity.Compact,
+			}],
+			commandCompletedBeforeUpdate: false,
+			commandCompleted: true,
+		});
 	});
 
 	test('applies startup density and relayouts when density or enablement changes', async () => {
