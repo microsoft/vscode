@@ -185,37 +185,6 @@
 	height: 100%;
 }
 
-.chat-composite-bar-new-chat {
-	display: flex;
-	align-items: center;
-	flex-shrink: 0;
-}
-
-.chat-composite-bar-new-chat.hidden {
-	display: none;
-}
-
-.chat-composite-bar-new-chat .action-item .action-label {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	width: var(--editor-group-tab-height, var(--vscode-spacing-size240));
-	height: var(--editor-group-tab-height, var(--vscode-spacing-size240));
-	padding: 0;
-	border-radius: var(--vscode-cornerRadius-small);
-	color: var(--chat-tab-inactive-foreground, currentColor);
-}
-
-.chat-composite-bar-new-chat .action-item .action-label:hover {
-	background-color: var(--vscode-toolbar-hoverBackground);
-	color: var(--chat-tab-active-foreground);
-}
-
-.chat-composite-bar-new-chat .action-item .action-label:focus-visible {
-	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
-	outline-offset: calc(-1 * var(--vscode-strokeThickness));
-}
-
 .session-chat-tabs-actions {
 	display: flex;
 	align-items: center;
