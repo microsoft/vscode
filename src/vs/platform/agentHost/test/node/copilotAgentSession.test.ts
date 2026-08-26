@@ -122,6 +122,9 @@ class MockCopilotSession {
 	readonly mcpDisableCalls: Array<{ serverName: string }> = [];
 	readonly mcpStartServerCalls: Array<{ serverName: string }> = [];
 	readonly mcpStopServerCalls: Array<{ serverName: string }> = [];
+	readonly samplingResponses: Parameters<CopilotSession['rpc']['ui']['handlePendingSampling']>[0][] = [];
+	readonly registeredEventInterests: string[] = [];
+	readonly releasedEventInterests: string[] = [];
 	mcpDisableGate: Promise<unknown> | undefined;
 	mcpStopServerGate: Promise<unknown> | undefined;
 	compactResult: { success: boolean; tokensRemoved: number; messagesRemoved: number; contextWindow?: { currentTokens: number; tokenLimit: number; messagesLength: number } } = { success: true, tokensRemoved: 0, messagesRemoved: 0 };
@@ -303,6 +306,22 @@ class MockCopilotSession {
 				this.operationLog.push('permissions.setMode');
 				this.permissionModeSetCalls.push(mode);
 				return { success: this.permissionModeSetSuccess, enabled: mode === 'allow-all', mode };
+			},
+		},
+		eventLog: {
+			registerInterest: async ({ eventType }: { eventType: string }) => {
+				this.registeredEventInterests.push(eventType);
+				return { handle: `interest-${this.registeredEventInterests.length}` };
+			},
+			releaseInterest: async ({ handle }: { handle: string }) => {
+				this.releasedEventInterests.push(handle);
+				return { success: true };
+			},
+		},
+		ui: {
+			handlePendingSampling: async (params: Parameters<CopilotSession['rpc']['ui']['handlePendingSampling']>[0]) => {
+				this.samplingResponses.push(params);
+				return { success: true };
 			},
 		},
 		gitHubAuth: {
@@ -6341,6 +6360,28 @@ Use the attached image as context.
 	// ---- event mapping ----
 
 	suite('event mapping', () => {
+
+		test('sampling requests are rejected when no sampling provider is available', async () => {
+			const { mockSession, session } = await createAgentSession(disposables);
+			mockSession.fire('sampling.requested', {
+				requestId: 'sampling-1',
+				mcpRequestId: 'mcp-1',
+				serverName: 'test-server',
+			});
+			await timeout(0);
+			session.dispose();
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				registeredEventInterests: mockSession.registeredEventInterests,
+				releasedEventInterests: mockSession.releasedEventInterests,
+				samplingResponses: mockSession.samplingResponses,
+			}, {
+				registeredEventInterests: ['sampling.requested'],
+				releasedEventInterests: ['interest-1'],
+				samplingResponses: [{ requestId: 'sampling-1' }],
+			});
+		});
 
 		test('tool_start event is mapped for non-hidden tools', async () => {
 			const { mockSession, signals } = await createAgentSession(disposables);
