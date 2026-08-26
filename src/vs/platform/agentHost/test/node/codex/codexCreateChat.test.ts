@@ -2408,7 +2408,7 @@ suite('CodexAgent chat backing durability', () => {
 			}
 
 			assert.deepStrictEqual(signals.flatMap(signal => signal.kind === 'action'
-				? [{ type: signal.action.type, errorType: signal.action.type === ActionType.ChatError ? signal.action.error.errorType : undefined }]
+				? [{ type: signal.action.type, errorType: signal.action.type === ActionType.ChatError ? signal.action.part.error.errorType : undefined }]
 				: []), [
 				{ type: ActionType.ChatError, errorType: 'CodexDisconnected' },
 				{ type: ActionType.ChatTurnComplete, errorType: undefined },
