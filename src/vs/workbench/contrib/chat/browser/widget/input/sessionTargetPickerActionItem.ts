@@ -376,7 +376,9 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 
 		const labelElements = [];
 		labelElements.push(...renderLabelWithIcons(`$(${getCompactCodicon(icon).id})`));
-		if (!this.pickerOptions.compact.get()) {
+		const compact = this.pickerOptions.compact.get();
+		element.classList.toggle('icon-only', compact);
+		if (!compact) {
 			labelElements.push(dom.$('span.chat-input-picker-label', undefined, label));
 		}
 

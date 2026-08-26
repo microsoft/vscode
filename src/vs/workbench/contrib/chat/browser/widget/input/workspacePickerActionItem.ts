@@ -109,9 +109,11 @@ export class WorkspacePickerActionItem extends ChatInputPickerActionViewItem {
 		const label = currentWorkspace
 			? currentWorkspace.label || basename(currentWorkspace.uri)
 			: localize('selectWorkspace', "Workspace");
+		const compact = this.pickerOptions.compact.get();
+		element.classList.toggle('icon-only', compact);
 
 		labelElements.push(...renderLabelWithIcons(`$(folder-compact)`));
-		if (!this.pickerOptions.compact.get()) {
+		if (!compact) {
 			labelElements.push(dom.$('span.chat-input-picker-label', undefined, label));
 		}
 

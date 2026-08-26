@@ -243,6 +243,7 @@ export class ChatSessionPickerActionItem extends ActionWidgetDropdownActionViewI
 		const label = this.currentOption?.name ?? group?.description ?? localize('chat.sessionPicker.label', "Pick Option");
 		// If the current option is the default and has an icon, collapse the text and show only the icon
 		const isDefaultWithIcon = this.currentOption?.default && this.currentOption?.icon;
+		element.classList.toggle('icon-only', compact && !!this.currentOption?.icon);
 
 		if (this.currentOption?.icon) {
 			domChildren.push(renderIcon(getCompactCodicon(this.currentOption.icon)));

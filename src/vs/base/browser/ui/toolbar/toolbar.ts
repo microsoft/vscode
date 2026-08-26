@@ -31,7 +31,7 @@ export interface IToolBarResponsiveBehaviorOptions {
 	readonly actionMinWidth?: number;
 	readonly getActionMinWidth?: (action: IAction) => number | undefined;
 	readonly allowOverflow?: boolean | (() => boolean);
-	readonly getOverflowAction?: (action: IAction) => IAction;
+	readonly getOverflowAction?: (action: IAction, getAnchor: () => HTMLElement | undefined) => IAction;
 	readonly observedElement?: HTMLElement;
 	readonly getAvailableWidth?: () => number;
 }
@@ -586,7 +586,10 @@ export class ToolBar extends Disposable {
 		}
 
 		// Update overflow menu
-		const hiddenActions = this.hiddenActions.map(action => this.options.responsiveBehavior?.getOverflowAction?.(action) ?? action);
+		const hiddenActions = this.hiddenActions.map(action => this.options.responsiveBehavior?.getOverflowAction?.(
+			action,
+			() => this.toggleMenuActionViewItem?.element,
+		) ?? action);
 		if (this.originalSecondaryActions.length > 0 || hiddenActions.length > 0) {
 			const secondaryActions = this.originalSecondaryActions.slice(0);
 			this.toggleMenuAction.menuActions = Separator.join(hiddenActions, secondaryActions);

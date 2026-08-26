@@ -72,7 +72,7 @@ suite('Sessions - Chat View', () => {
 			iconEscapes: iconBounds.left < itemBounds.left || iconBounds.right > itemBounds.right,
 		}, {
 			labelOffset: 0,
-			iconOffset: 7,
+			iconOffset: 8,
 			iconEscapes: false,
 		});
 	});

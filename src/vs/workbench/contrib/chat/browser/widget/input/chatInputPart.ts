@@ -57,6 +57,7 @@ import { SuggestController } from '../../../../../../editor/contrib/suggest/brow
 import { localize } from '../../../../../../nls.js';
 import { IAccessibilityService } from '../../../../../../platform/accessibility/common/accessibility.js';
 import { MenuWorkbenchButtonBar } from '../../../../../../platform/actions/browser/buttonbar.js';
+import { IActionViewItemService, type IActionViewItemFactory } from '../../../../../../platform/actions/browser/actionViewItemService.js';
 import { MenuEntryActionViewItem } from '../../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../../../platform/actions/browser/toolbar.js';
 import { MenuId, MenuItemAction } from '../../../../../../platform/actions/common/actions.js';
@@ -223,7 +224,11 @@ function getToolbarPickerResponsiveItems(toolbar: MenuWorkbenchToolBar, compactS
 	return items;
 }
 
-type ShowableActionViewItem = IActionViewItem & { show(): void };
+type ShowableActionViewItem = IActionViewItem & { show(anchor?: HTMLElement): void };
+
+function isShowableActionViewItem(item: IActionViewItem | undefined): item is ShowableActionViewItem {
+	return !!item && 'show' in item && typeof item.show === 'function';
+}
 
 function createOverflowAction(action: IAction, run: () => void): IAction {
 	return {
@@ -925,6 +930,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		@IChatService private readonly chatService: IChatService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IChatPetService private readonly chatPetService: IChatPetService,
+		@IActionViewItemService private readonly actionViewItemService: IActionViewItemService,
 	) {
 		super();
 		this._modelSelectionDiagnostics = new ChatModelSelectionDiagnostics(this.logService, this.storageService, () => ({
@@ -3417,8 +3423,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		const inputPickerCompactStates = new Map<string, ISettableObservable<boolean>>();
 		const secondaryPickerCompactStates = new Map<string, ISettableObservable<boolean>>();
-		const inputOverflowPickerHandlers = new Map<string, () => void>();
-		const secondaryOverflowPickerHandlers = new Map<string, () => void>();
+		const inputOverflowPickerHandlers = new Map<string, (anchor: HTMLElement) => void>();
+		const secondaryOverflowPickerHandlers = new Map<string, (anchor: HTMLElement) => void>();
 		const getCompactState = (states: Map<string, ISettableObservable<boolean>>, actionId: string): ISettableObservable<boolean> => {
 			let state = states.get(actionId);
 			if (!state) {
@@ -3437,31 +3443,54 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			actionContext: { widget },
 			compact: getCompactState(secondaryPickerCompactStates, actionId),
 		});
-		const showOverflowPicker = (factory: () => ShowableActionViewItem | undefined): void => {
+		const showOverflowPicker = (factory: () => ShowableActionViewItem | undefined, anchor: HTMLElement): void => {
 			const item = factory();
 			if (!item) {
 				return;
 			}
 			this.overflowPickerWidget.value = item;
 			item.render(dom.$('.chat-overflow-picker-item'));
-			item.show();
+			item.show(anchor);
+		};
+		const showRegisteredOverflowPicker = (factory: IActionViewItemFactory, action: IAction, anchor: HTMLElement): boolean => {
+			const item = factory(action, { hoverDelegate }, this.instantiationService, dom.getWindow(anchor).vscodeWindowId);
+			if (!isShowableActionViewItem(item)) {
+				item?.dispose();
+				return false;
+			}
+			this.overflowPickerWidget.value = item;
+			item.render(dom.$('.chat-overflow-picker-item'));
+			item.show(anchor);
+			return true;
 		};
 		const getOverflowAction = (
 			action: IAction,
-			handlers: ReadonlyMap<string, () => void>,
-			anchor: HTMLElement,
+			menuId: MenuId,
+			handlers: ReadonlyMap<string, (anchor: HTMLElement) => void>,
+			getAnchor: () => HTMLElement | undefined,
+			fallbackAnchor: HTMLElement,
 			hostHandler?: (actionId: string, anchor: HTMLElement) => boolean,
 		): IAction => {
 			const handler = handlers.get(action.id);
-			if (!handler && !hostHandler) {
+			const registeredFactory = this.actionViewItemService.lookUp(menuId, action.id);
+			if (!handler && !hostHandler && !registeredFactory) {
 				return action;
 			}
 			return createOverflowAction(action, () => {
-				if (handler) {
-					handler();
-				} else if (!hostHandler?.(action.id, anchor)) {
-					void action.run({ widget } satisfies IChatExecuteActionContext);
-				}
+				const overflowAnchor = getAnchor();
+				const anchor = overflowAnchor ?? fallbackAnchor;
+				dom.getWindow(anchor).setTimeout(() => {
+					overflowAnchor?.focus();
+					if (handler) {
+						handler(anchor);
+					} else if (hostHandler?.(action.id, anchor)) {
+						return;
+					} else if (registeredFactory && showRegisteredOverflowPicker(registeredFactory, action, anchor)) {
+						return;
+					} else {
+						void action.run({ widget } satisfies IChatExecuteActionContext);
+					}
+				}, 0);
 			});
 		};
 
@@ -3490,7 +3519,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				actionMinWidth: 48,
 				getActionMinWidth: getInputActionMinWidth,
 				allowOverflow: () => this._inputPickerResponsiveLayout?.areAllItemsCompact() === true,
-				getOverflowAction: action => getOverflowAction(action, inputOverflowPickerHandlers, toolbarsContainer),
+				getOverflowAction: (action, getAnchor) => getOverflowAction(action, MenuId.ChatInput, inputOverflowPickerHandlers, getAnchor, toolbarsContainer),
 			},
 			actionViewItemProvider: (action, options) => {
 				// Phone-layout branch: when an agents-window phone presenter
@@ -3521,12 +3550,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 					const itemDelegate: IModelPickerDelegate = this._createModelPickerDelegate();
 					const createPicker = () => this.instantiationService.createInstance(ModelPickerActionItem, action, itemDelegate, getInputPickerOptions(action.id));
-					inputOverflowPickerHandlers.set(action.id, () => showOverflowPicker(createPicker));
+					inputOverflowPickerHandlers.set(action.id, anchor => showOverflowPicker(createPicker, anchor));
 					return this.modelWidget = createPicker();
 				} else if (action.id === OpenModePickerAction.ID && action instanceof MenuItemAction) {
 					const delegate: IModePickerDelegate = this._createModePickerDelegate();
 					const createPicker = () => this.instantiationService.createInstance(ModePickerActionItem, action, delegate, getInputPickerOptions(action.id));
-					inputOverflowPickerHandlers.set(action.id, () => showOverflowPicker(createPicker));
+					inputOverflowPickerHandlers.set(action.id, anchor => showOverflowPicker(createPicker, anchor));
 					return this.modeWidget = createPicker();
 				} else if ((action.id === OpenSessionTargetPickerAction.ID || action.id === OpenDelegationPickerAction.ID) && action instanceof MenuItemAction) {
 					// Use provided delegate if available, otherwise create default delegate
@@ -3545,7 +3574,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					const isWelcomeViewMode = !!this.options.sessionTypePickerDelegate?.setActiveSessionProvider;
 					const Picker = (action.id === OpenSessionTargetPickerAction.ID || isWelcomeViewMode) ? SessionTypePickerActionItem : DelegationSessionPickerActionItem;
 					const createPicker = () => this.instantiationService.createInstance(Picker, action, location === ChatWidgetLocation.Editor ? 'editor' : 'sidebar', delegate, getInputPickerOptions(action.id));
-					inputOverflowPickerHandlers.set(action.id, () => showOverflowPicker(createPicker));
+					inputOverflowPickerHandlers.set(action.id, anchor => showOverflowPicker(createPicker, anchor));
 					const picker = createPicker();
 					if (picker instanceof DelegationSessionPickerActionItem) {
 						this.delegationWidget = picker;
@@ -3559,7 +3588,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 						const widgets = this.createChatSessionPickerWidgets(action, getInputPickerOptions(action.id));
 						return widgets.length === 0 ? undefined : this.instantiationService.createInstance(ChatSessionPickersContainerActionItem, action, widgets);
 					};
-					inputOverflowPickerHandlers.set(action.id, () => showOverflowPicker(createPicker));
+					inputOverflowPickerHandlers.set(action.id, anchor => showOverflowPicker(createPicker, anchor));
 					return createPicker() ?? new HiddenActionViewItem(action);
 				}
 				return undefined;
@@ -3727,7 +3756,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				observedElement: responsivePickerContainer,
 				getAvailableWidth: getSecondaryToolbarAvailableWidth,
 				allowOverflow: () => this._secondaryPickerResponsiveLayout?.areAllItemsCompact() === true,
-				getOverflowAction: action => getOverflowAction(action, secondaryOverflowPickerHandlers, responsivePickerContainer, this.options.secondaryToolbarOverflowActionHandler),
+				getOverflowAction: (action, getAnchor) => getOverflowAction(action, MenuId.ChatInputSecondary, secondaryOverflowPickerHandlers, getAnchor, responsivePickerContainer, this.options.secondaryToolbarOverflowActionHandler),
 			},
 			actionViewItemProvider: (action, options) => {
 				const agentHostPickerProperty = getAgentHostPickerProperty(action.id);
@@ -3752,7 +3781,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					const isWelcomeViewMode = !!this.options.sessionTypePickerDelegate?.setActiveSessionProvider;
 					const Picker = (action.id === OpenSessionTargetPickerAction.ID || isWelcomeViewMode) ? SessionTypePickerActionItem : DelegationSessionPickerActionItem;
 					const createPicker = () => this.instantiationService.createInstance(Picker, action, location === ChatWidgetLocation.Editor ? 'editor' : 'sidebar', delegate, getSecondaryPickerOptions(action.id));
-					secondaryOverflowPickerHandlers.set(action.id, () => showOverflowPicker(createPicker));
+					secondaryOverflowPickerHandlers.set(action.id, anchor => showOverflowPicker(createPicker, anchor));
 					const picker = createPicker();
 					if (picker instanceof DelegationSessionPickerActionItem) {
 						this.delegationWidget = picker;
@@ -3764,7 +3793,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					const workspacePickerDelegate = this.options.workspacePickerDelegate;
 					if (this.workspaceContextService.getWorkbenchState() === WorkbenchState.EMPTY && workspacePickerDelegate) {
 						const createPicker = () => this.instantiationService.createInstance(WorkspacePickerActionItem, action, workspacePickerDelegate, getSecondaryPickerOptions(action.id));
-						secondaryOverflowPickerHandlers.set(action.id, () => showOverflowPicker(createPicker));
+						secondaryOverflowPickerHandlers.set(action.id, anchor => showOverflowPicker(createPicker, anchor));
 						return createPicker();
 					} else {
 						return new HiddenActionViewItem(action);
@@ -3806,7 +3835,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 						isSandboxToggleApplicable: () => this.getEffectiveSessionType(this.getCurrentSessionResource()) === SessionType.Local,
 					};
 					const createPicker = () => this.instantiationService.createInstance(PermissionPickerActionItem, action, delegate, getSecondaryPickerOptions(action.id));
-					secondaryOverflowPickerHandlers.set(action.id, () => showOverflowPicker(createPicker));
+					secondaryOverflowPickerHandlers.set(action.id, anchor => showOverflowPicker(createPicker, anchor));
 					const widget = createPicker();
 					this.permissionWidget = widget;
 					this.permissionWidgetDisposeListener.value = widget.onDidDispose(() => {
@@ -3822,10 +3851,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					}
 					getCompactState(secondaryPickerCompactStates, action.id);
 					const createPicker = () => this.instantiationService.createInstance(AgentHostChatInputPicker, widget, agentHostPickerProperty);
-					secondaryOverflowPickerHandlers.set(action.id, () => {
+					secondaryOverflowPickerHandlers.set(action.id, anchor => {
 						const picker = createPicker();
 						this.overflowPickerWidget.value = picker;
-						picker.show(responsivePickerContainer);
+						picker.show(anchor);
 					});
 					return new AgentHostChatInputPickerActionViewItem(action, createPicker());
 				} else if (action.id === OpenAgentHostFolderPickerAction.ID && action instanceof MenuItemAction) {
@@ -3833,14 +3862,14 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 						return new HiddenActionViewItem(action);
 					}
 					const createPicker = () => this.instantiationService.createInstance(AgentHostFolderPickerActionItem, action, widget, getSecondaryPickerOptions(action.id));
-					secondaryOverflowPickerHandlers.set(action.id, () => showOverflowPicker(createPicker));
+					secondaryOverflowPickerHandlers.set(action.id, anchor => showOverflowPicker(createPicker, anchor));
 					return createPicker();
 				} else if (action.id === ChatSessionPrimaryPickerAction.ID && action instanceof MenuItemAction) {
 					const createPicker = () => {
 						const widgets = this.createChatSessionPickerWidgets(action, getSecondaryPickerOptions(action.id));
 						return widgets.length === 0 ? undefined : this.instantiationService.createInstance(ChatSessionPickersContainerActionItem, action, widgets);
 					};
-					secondaryOverflowPickerHandlers.set(action.id, () => showOverflowPicker(createPicker));
+					secondaryOverflowPickerHandlers.set(action.id, anchor => showOverflowPicker(createPicker, anchor));
 					return createPicker() ?? new HiddenActionViewItem(action);
 				}
 				return undefined;

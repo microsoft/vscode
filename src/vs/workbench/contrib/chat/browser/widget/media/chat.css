@@ -2040,12 +2040,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 /* When only the icon remains, keep the expanded control's leading inset so
  * the glyph does not move as the label disappears. */
-.interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.compact:not(:has(.chat-input-picker-label)),
-.interactive-session .chat-input-toolbar .chat-input-picker-item.compact .action-label:not(:has(.chat-input-picker-label)),
-.interactive-session .chat-secondary-input-toolbar .chat-input-picker-item .action-label.compact:not(:has(.chat-input-picker-label)),
-.interactive-session .chat-secondary-input-toolbar .chat-input-picker-item.compact .action-label:not(:has(.chat-input-picker-label)),
-.interactive-session .chat-input-toolbar .chat-sessionPicker-item .action-label.compact:not(:has(.chat-input-picker-label)),
-.interactive-session .chat-secondary-input-toolbar .chat-sessionPicker-item .action-label.compact:not(:has(.chat-input-picker-label)) {
+.interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.icon-only,
+.interactive-session .chat-secondary-input-toolbar .chat-input-picker-item .action-label.icon-only,
+.interactive-session .chat-input-toolbar .chat-sessionPicker-item .action-label.icon-only,
+.interactive-session .chat-secondary-input-toolbar .chat-sessionPicker-item .action-label.icon-only {
 	width: 22px;
 	min-width: 22px;
 	height: 22px;
@@ -2060,16 +2058,14 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 }
 
-.interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.compact:not(.model-picker-split):not(:has(.chat-input-picker-label)),
-.interactive-session .chat-input-toolbar .chat-input-picker-item.compact .action-label:not(.model-picker-split):not(:has(.chat-input-picker-label)),
-.interactive-session .chat-input-toolbar .chat-sessionPicker-item .action-label.compact:not(:has(.chat-input-picker-label)) {
+.interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.icon-only:not(.model-picker-split),
+.interactive-session .chat-input-toolbar .chat-sessionPicker-item .action-label.icon-only {
 	padding-left: var(--vscode-spacing-size60);
 	justify-content: flex-start;
 }
 
-.interactive-session .chat-secondary-input-toolbar .chat-input-picker-item .action-label.compact:not(:has(.chat-input-picker-label)),
-.interactive-session .chat-secondary-input-toolbar .chat-input-picker-item.compact .action-label:not(:has(.chat-input-picker-label)),
-.interactive-session .chat-secondary-input-toolbar .chat-sessionPicker-item .action-label.compact:not(:has(.chat-input-picker-label)) {
+.interactive-session .chat-secondary-input-toolbar .chat-input-picker-item .action-label.icon-only,
+.interactive-session .chat-secondary-input-toolbar .chat-sessionPicker-item .action-label.icon-only {
 	padding-left: var(--vscode-spacing-size80);
 	justify-content: flex-start;
 }

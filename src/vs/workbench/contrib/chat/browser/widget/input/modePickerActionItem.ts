@@ -305,6 +305,7 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 
 		const labelElements = [];
 		const collapsed = this.pickerOptions.compact.get();
+		element.classList.toggle('icon-only', collapsed && !!icon);
 		if (icon) {
 			labelElements.push(...renderLabelWithIcons(`$(${getCompactCodicon(icon).id})`));
 		}

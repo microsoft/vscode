@@ -990,6 +990,7 @@ class MobileAgentHostSessionConfigPicker extends AgentHostSessionConfigPicker {
 
 interface IConfigPickerWidget extends IDisposable {
 	render(container: HTMLElement): void;
+	showPicker?(anchor: HTMLElement, onHide?: () => void): boolean | void;
 }
 
 export class PickerActionViewItem extends BaseActionViewItem implements IChatInputPickerResponsiveState {
@@ -1015,6 +1016,13 @@ export class PickerActionViewItem extends BaseActionViewItem implements IChatInp
 	setCompact(compact: boolean): void {
 		this._compact = compact;
 		this.element?.classList.toggle('compact-picker', compact);
+	}
+
+	show(anchor?: HTMLElement): void {
+		const target = anchor ?? this.element;
+		if (target) {
+			this._picker.showPicker?.(target);
+		}
 	}
 
 	override dispose(): void {

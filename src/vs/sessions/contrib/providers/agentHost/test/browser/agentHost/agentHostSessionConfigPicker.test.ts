@@ -232,11 +232,17 @@ suite('Agent Host Session Config Picker', () => {
 	});
 
 	test('picker action view items expose responsive compact state', () => {
+		let pickerAnchor: HTMLElement | undefined;
 		const item = store.add(new PickerActionViewItem({
 			render: () => { },
+			showPicker: anchor => {
+				pickerAnchor = anchor;
+				return true;
+			},
 			dispose: () => { },
 		}));
 		const container = document.createElement('div');
+		const overflowAnchor = document.createElement('button');
 		item.render(container);
 		const expanded = {
 			compact: item.isCompact(),
@@ -244,14 +250,16 @@ suite('Agent Host Session Config Picker', () => {
 		};
 
 		item.setCompact(true);
+		item.show(overflowAnchor);
 		const compact = {
 			compact: item.isCompact(),
 			className: container.classList.contains('compact-picker'),
+			usesOverflowAnchor: pickerAnchor === overflowAnchor,
 		};
 
 		assert.deepStrictEqual({ expanded, compact }, {
 			expanded: { compact: false, className: false },
-			compact: { compact: true, className: true },
+			compact: { compact: true, className: true, usesOverflowAnchor: true },
 		});
 	});
 

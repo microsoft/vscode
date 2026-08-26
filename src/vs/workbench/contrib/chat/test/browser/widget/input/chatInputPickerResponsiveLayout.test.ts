@@ -315,6 +315,7 @@ suite('ChatInputPickerResponsiveLayout', () => {
 
 		const expandedOffset = icon.getBoundingClientRect().left - actionLabel.getBoundingClientRect().left;
 		item.classList.add('compact');
+		actionLabel.classList.add('icon-only');
 		pickerLabel.remove();
 		const compactOffset = icon.getBoundingClientRect().left - actionLabel.getBoundingClientRect().left;
 

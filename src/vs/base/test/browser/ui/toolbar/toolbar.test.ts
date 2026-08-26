@@ -518,6 +518,7 @@ suite('ToolBar', () => {
 
 	test('uses overflow-specific proxy actions', async () => {
 		const runs: string[] = [];
+		let overflowAnchor: HTMLElement | undefined;
 		const toolbar = store.add(new TestToolBar(container, contextMenuProvider, {
 			responsiveBehavior: {
 				enabled: true,
@@ -525,9 +526,12 @@ suite('ToolBar', () => {
 				minItems: 1,
 				actionMinWidth: 22,
 				getAvailableWidth: () => 50,
-				getOverflowAction: action => ({
+				getOverflowAction: (action, getAnchor) => ({
 					...action,
-					run: () => runs.push(`overflow:${action.id}`),
+					run: () => {
+						overflowAnchor = getAnchor();
+						runs.push(`overflow:${action.id}`);
+					},
 				}),
 			},
 			actionViewItemProvider: action => new FixedWidthActionViewItem(action, 22),
@@ -541,7 +545,15 @@ suite('ToolBar', () => {
 		const overflowAction = toolbar.getItemAction(toolbar.getItemsLength() - 1);
 		assert.strictEqual(overflowAction?.id, ToggleMenuAction.ID);
 		await (overflowAction as ToggleMenuAction).menuActions[0].run();
+		const overflowViewItem = toolbar.getItemViewItem(toolbar.getItemsLength() - 1);
+		const overflowButton = overflowViewItem instanceof BaseActionViewItem ? overflowViewItem.element : undefined;
 
-		assert.deepStrictEqual(runs, ['overflow:b']);
+		assert.deepStrictEqual({
+			runs,
+			usesOverflowButton: overflowAnchor === overflowButton,
+		}, {
+			runs: ['overflow:b'],
+			usesOverflowButton: true,
+		});
 	});
 });
