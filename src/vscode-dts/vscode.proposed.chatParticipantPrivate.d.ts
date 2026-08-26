@@ -57,6 +57,10 @@ declare module 'vscode' {
 		 * The attempt number of the request. The first request has attempt number 0.
 		 */
 		readonly attempt: number;
+		/**
+		 * The ID of the request that this request replaces after the user edited it.
+		 */
+		readonly editedRequestId?: string;
 
 		/**
 		 * The session identifier for this chat request.

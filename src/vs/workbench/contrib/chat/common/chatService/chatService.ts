@@ -1856,6 +1856,7 @@ export interface IChatSendRequestOptions {
 	locationData?: IChatLocationData;
 	parserContext?: IChatParserContext;
 	attempt?: number;
+	editedRequestId?: string;
 	noCommandDetection?: boolean;
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	acceptedConfirmationData?: any[];

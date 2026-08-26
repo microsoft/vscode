@@ -1598,6 +1598,7 @@ export class ChatService extends Disposable implements IChatService {
 							enableCommandDetection,
 							isParticipantDetected,
 							attempt,
+							editedRequestId: options?.editedRequestId,
 							location,
 							locationData: thisRequest.locationData,
 							acceptedConfirmationData: options?.acceptedConfirmationData,

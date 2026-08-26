@@ -147,6 +147,7 @@ export interface IChatAgentRequest {
 	command?: string;
 	message: string;
 	attempt?: number;
+	editedRequestId?: string;
 	enableCommandDetection?: boolean;
 	isParticipantDetected?: boolean;
 	variables: IChatRequestVariableData;

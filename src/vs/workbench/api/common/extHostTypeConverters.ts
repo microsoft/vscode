@@ -3489,6 +3489,7 @@ export namespace ChatAgentRequest {
 			prompt: request.message,
 			command: request.command,
 			attempt: request.attempt ?? 0,
+			editedRequestId: request.editedRequestId,
 			enableCommandDetection: request.enableCommandDetection ?? true,
 			isParticipantDetected: request.isParticipantDetected ?? false,
 			isVoiceModeInput: request.isVoiceModeInput,

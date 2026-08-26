@@ -204,20 +204,21 @@ Learn more about [GitHub Copilot](https://docs.github.com/copilot/using-github-c
 	}
 
 	private isFixOfPreviousFailedRequest(request: vscode.ChatRequest, context: vscode.ChatContext): boolean {
-		// TEST:
-		if (request.prompt.startsWith('TEST:')) {
-			return true;
+		// Ignore when running on autopilot
+		if (request.permissionLevel === 'autopilot') {
+			return false;
 		}
 		const sentRequests = context.history.filter((turn): turn is ChatRequestTurn => turn instanceof ChatRequestTurn);
 		const previousRequest = sentRequests.at(-1);
+		// If the user edited their previous request, we consider it a fix of the previous failed request
+		if (request.editedRequestId) {
+			return true;
+		}
 		// If previous request is mostly similar as the current request, we consider it a failed request and the current request is a fix of it
 		if (previousRequest && previousRequest.prompt.toLowerCase() === request.prompt.toLowerCase()) {
 			return true;
 		}
-		// If user rejected code suggestion and then sent a new request, we consider it a fix of the previous failed request
-		if (request.rejectedConfirmationData && request.rejectedConfirmationData.length > 0) {
-			return true;
-		}
+		// If user rejected the code suggestion and then sent a new request, we consider it a fix of the previous failed request
 		return false;
 	}
 
