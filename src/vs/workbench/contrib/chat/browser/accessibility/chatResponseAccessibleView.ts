@@ -17,7 +17,7 @@ import { ServicesAccessor } from '../../../../../platform/instantiation/common/i
 import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { migrateLegacyTerminalToolSpecificData } from '../../common/chat.js';
-import { autoModeRoutingDetail, autoModeRoutingTitle } from '../../common/chatAutoModeExplainability.js';
+import { autoModeRoutingTitle } from '../../common/chatAutoModeExplainability.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatAgentFeedbackReviewConfirmationData, IChatAutomationConfigurationData, IChatAutomationConfiguredData, IChatExtensionsContent, IChatGeneratedImageData, IChatModifiedFilesConfirmationData, IChatPullRequestContent, IChatSearchToolInvocationData, IChatSessionCreatedData, IChatSimpleToolInvocationData, IChatSubagentToolInvocationData, IChatTerminalToolInvocationData, IChatTodoListContent, IChatToolInputInvocationData, IChatToolInvocation, IChatToolResourcesInvocationData, ILegacyChatTerminalToolInvocationData, IToolResultOutputDetailsSerialized, isLegacyChatTerminalToolInvocationData } from '../../common/chatService/chatService.js';
 import { IChatResponseViewModel, isResponseVM } from '../../common/model/chatViewModel.js';
@@ -479,7 +479,7 @@ export function getChatResponsePlaintextParts(item: IChatResponseViewModel, incl
 				if (!part.resolved && item.isComplete) {
 					break;
 				}
-				contentParts.push({ partIndex, text: autoModeRoutingDetail(part) ?? autoModeRoutingTitle(part) });
+				contentParts.push({ partIndex, text: autoModeRoutingTitle(part) });
 				break;
 			}
 		}

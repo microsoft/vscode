@@ -46,7 +46,6 @@ import { AgentHostClientConnectionKind, toAgentHostClientMeta } from '../common/
 import type { OtlpExportLogsParams } from '../common/state/protocol/channels-otlp/notifications.js';
 import type { TelemetryCapabilities } from '../common/state/protocol/channels-otlp/state.js';
 import type { Implementation, InitializeResult } from '../common/state/protocol/common/commands.js';
-import { dirname } from '../../../base/common/resources.js';
 import { observableValue, type IObservable } from '../../../base/common/observable.js';
 import { isFileResourceRead } from '../common/resourceReadLogging.js';
 import { ResourceSet } from '../../../base/common/map.js';
@@ -1348,7 +1347,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			} catch {
 				continue;
 			}
-			this._grantImplicitRead(dirname(uri));
+			this._grantImplicitRead(uri);
 		}
 	}
 

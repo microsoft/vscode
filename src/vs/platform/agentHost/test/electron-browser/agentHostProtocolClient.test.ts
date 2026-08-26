@@ -1785,8 +1785,8 @@ suite('AgentHostProtocolClient', () => {
 			assert.deepStrictEqual(
 				calls.map(c => ({ address: c.address, uri: c.uri.toString() })),
 				[
-					{ address: 'test.example:1234', uri: 'file:///plugins' },
-					{ address: 'test.example:1234', uri: 'file:///other' },
+					{ address: 'test.example:1234', uri: 'file:///plugins/foo' },
+					{ address: 'test.example:1234', uri: 'file:///other/bar' },
 				],
 			);
 		});
@@ -1852,7 +1852,7 @@ suite('AgentHostProtocolClient', () => {
 			assert.deepStrictEqual(calls.map(call => call.uri.toString()), ['file:///attachments/queued.txt']);
 		});
 
-		test('multiple customizations in the same directory dedupe to one grant', () => {
+		test('multiple customizations in the same directory receive individual grants', () => {
 			const { service, calls } = createCapturingPermissionService();
 			const { client } = createClient(undefined, service);
 			const sessionUri = URI.parse('ahp-session:/test');
@@ -1871,7 +1871,7 @@ suite('AgentHostProtocolClient', () => {
 
 			assert.deepStrictEqual(
 				calls.map(c => c.uri.toString()),
-				['file:///plugins'],
+				['file:///plugins/foo', 'file:///plugins/bar'],
 			);
 		});
 
@@ -1960,7 +1960,7 @@ suite('AgentHostProtocolClient', () => {
 
 			assert.deepStrictEqual(
 				calls.map(c => c.uri.toString()),
-				['file:///plugins'],
+				['file:///plugins/foo'],
 			);
 		});
 	});
