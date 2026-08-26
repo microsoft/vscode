@@ -1285,6 +1285,7 @@ function makeInstalledPlugin(name: string, uri: URI, enablement: boolean | Contr
 		override readonly uri = uri;
 		override readonly format = PluginFormat.Copilot;
 		override readonly label = name;
+		override readonly version = constObservable('1.0.0');
 		override readonly enablement = constObservable(enablementState);
 		override readonly policyBlocked = constObservable(policyBlocked);
 		override readonly hooks = constObservable([]);
@@ -1591,6 +1592,7 @@ function renderEmbeddedMcpDetail(ctx: ComponentFixtureContext, server: IWorkbenc
 				override readonly local: IWorkbenchMcpServer[] = server ? [server] : [];
 				override async open() { /* no-op in fixture */ }
 			}());
+			reg.defineInstance(IFileService, new class extends mock<IFileService>() { }());
 		},
 	});
 
@@ -1673,6 +1675,7 @@ function makeMarketplacePluginItem(name: string, description: string): IAgentPlu
 		kind: AgentPluginItemKind.Marketplace,
 		name,
 		description,
+		version: '2.0.0',
 		source: 'GitHub',
 		sourceDescriptor: { kind: PluginSourceKind.GitHub, repo: `acme/${name.toLowerCase()}` },
 		marketplace: 'GitHub',

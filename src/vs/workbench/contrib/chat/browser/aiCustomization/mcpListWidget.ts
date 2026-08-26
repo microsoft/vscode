@@ -53,6 +53,7 @@ import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { IMcpServerConfiguration, McpServerType } from '../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { createWorkbenchMcpServerDetailInput, IMcpServerDetailInput } from './embeddedMcpServerDetail.js';
+import { createCustomizationCardPrimaryAction, CustomizationCardListController } from './customizationCardList.js';
 
 const $ = DOM.$;
 
@@ -679,6 +680,26 @@ export function getActiveSessionServerPresentation(server: AgentHostMcpServer): 
 	};
 }
 
+export function updateMcpCardRuntimePresentation(
+	statusBadge: HTMLElement,
+	primaryAction: HTMLElement,
+	description: HTMLElement,
+	statusKind: McpStatusKind | undefined,
+	disabledReason: CustomizationDisabledReason | undefined,
+	ariaLabel: string,
+	descriptionText: string,
+): void {
+	const statusPresentation = getMcpStatusPresentation(statusKind, disabledReason);
+	statusBadge.className = 'plugin-list-item-status mcp-runtime-status-badge';
+	statusBadge.style.display = statusPresentation ? '' : 'none';
+	statusBadge.textContent = statusPresentation?.label ?? '';
+	if (statusPresentation) {
+		statusBadge.classList.add(statusPresentation.className);
+	}
+	primaryAction.setAttribute('aria-label', ariaLabel);
+	description.textContent = descriptionText;
+}
+
 export function getActiveSessionServerLifecycleAction(server: AgentHostMcpServer): Action | undefined {
 	if (!getActiveSessionServerPresentation(server).enabled) {
 		return undefined;
@@ -1001,6 +1022,7 @@ export class McpListWidget extends Disposable {
 	private _layoutDeferred = false;
 	private galleryCts: CancellationTokenSource | undefined;
 	private readonly cardDisposables = this._register(new DisposableStore());
+	private readonly cardListControllers = new WeakMap<HTMLElement, CustomizationCardListController>();
 	private readonly delayedFilter = new Delayer<void>(200);
 	private readonly delayedGallerySearch = new Delayer<void>(400);
 
@@ -1144,7 +1166,6 @@ export class McpListWidget extends Disposable {
 			const servers = this.mcpService.servers.read(reader);
 			for (const server of servers) {
 				server.enablement.read(reader);
-				server.connectionState.read(reader);
 			}
 			this.refresh();
 		}));
@@ -1281,22 +1302,11 @@ export class McpListWidget extends Disposable {
 		this.emptySubtext.textContent = detail;
 	}
 
-	private addSurfaceActivation(surface: HTMLElement, label: string, callback: () => void): void {
-		surface.tabIndex = 0;
-		surface.setAttribute('role', 'button');
-		surface.setAttribute('aria-label', label);
-		this.firstCardFocusElement ??= surface;
-		this.cardDisposables.add(DOM.addDisposableListener(surface, 'click', () => callback()));
-		this.cardDisposables.add(DOM.addDisposableListener(surface, 'keydown', e => {
-			if (e.target === surface && (e.key === 'Enter' || e.key === ' ')) {
-				e.preventDefault();
-				callback();
-			}
-		}));
-	}
-
-	private isolateSurfaceActions(actions: HTMLElement): void {
-		this.cardDisposables.add(DOM.addDisposableListener(actions, 'click', e => e.stopPropagation()));
+	private addSurfaceActivation(surface: HTMLElement, label: string, callback: () => void, ...classNames: string[]): HTMLButtonElement {
+		const primaryAction = createCustomizationCardPrimaryAction(surface, label, ...classNames);
+		this.firstCardFocusElement ??= primaryAction;
+		this.cardDisposables.add(DOM.addDisposableListener(primaryAction, 'click', callback));
+		return primaryAction;
 	}
 
 	private renderCardSection(parent: HTMLElement, title: string, description: string | undefined, className: string, count?: number, renderActions?: (header: HTMLElement) => void): HTMLElement {
@@ -1316,7 +1326,9 @@ export class McpListWidget extends Disposable {
 			descriptionElement.textContent = description;
 		}
 		renderActions?.(header);
-		return DOM.append(section, $('.plugin-card-grid'));
+		const list = DOM.append(section, $('.plugin-card-grid'));
+		this.cardListControllers.set(list, this.cardDisposables.add(new CustomizationCardListController(list, title)));
+		return list;
 	}
 
 	private renderMcpHome(): void {
@@ -1425,36 +1437,51 @@ export class McpListWidget extends Disposable {
 		const enabled = this.isInstalledEntryEnabled(entry);
 		row.classList.toggle('disabled', !enabled);
 
-		this.addSurfaceActivation(row, getMcpEntryAriaLabel(entry, this.workspaceService.isSessionsWindow), () => this._onDidSelectServer.fire(createInstalledMcpServerDetailInput(entry)));
+		const primaryAction = this.addSurfaceActivation(row, getMcpEntryAriaLabel(entry, this.workspaceService.isSessionsWindow), () => this._onDidSelectServer.fire(createInstalledMcpServerDetailInput(entry)));
 
-		const details = DOM.append(row, $('.plugin-list-item-details'));
+		const details = DOM.append(primaryAction, $('.plugin-list-item-details'));
 		const nameRow = DOM.append(details, $('.plugin-list-item-name-row'));
 		const name = DOM.append(nameRow, $('.plugin-list-item-name'));
 		name.textContent = formatDisplayName(label);
 		name.title = label;
-		const statusPresentation = getMcpStatusPresentation(getMcpStatusKind(entry, this.workspaceService.isSessionsWindow), getMcpDisabledReason(entry));
-		if (statusPresentation) {
-			const statusBadge = DOM.append(nameRow, $('.plugin-list-item-status.mcp-runtime-status-badge'));
-			statusBadge.classList.add(statusPresentation.className);
-			statusBadge.textContent = statusPresentation.label;
-		}
+		const statusBadge = DOM.append(nameRow, $('.plugin-list-item-status.mcp-runtime-status-badge'));
 		const description = DOM.append(details, $('.plugin-list-item-description'));
-		description.textContent = this.getInstalledEntryDescription(entry);
 
 		const actions = DOM.append(row, $('.plugin-list-item-action'));
-		this.isolateSurfaceActions(actions);
-		this.appendInstalledServerSignIn(actions, entry);
-		this.appendInstalledServerToggle(actions, entry);
+		const signIn = this.appendInstalledServerSignIn(actions, entry);
+		const toggle = this.appendInstalledServerToggle(actions, entry);
 		const more = this.cardDisposables.add(new Button(actions, { ...getButtonStyles({ buttonSecondaryBackground: undefined, buttonSecondaryBorder: undefined }), secondary: true, supportIcons: true, ariaLabel: localize('mcpMoreActionsAria', "More actions for {0}", label) }));
 		more.element.classList.add('plugin-card-icon-button');
 		more.label = `$(${Codicon.ellipsis.id})`;
 		this.cardDisposables.add(more.onDidClick(() => this.showMcpServerActions(entry, more.element)));
+		this.cardListControllers.get(parent)?.addItem({
+			row,
+			primaryAction,
+			label,
+			actions: [signIn, toggle, more.element].filter((action): action is HTMLElement => action !== undefined),
+			contextMenuAction: more.element,
+		});
+
+		this.cardDisposables.add(autorun(reader => {
+			if (entry.type !== 'session-server-item') {
+				entry.localServer?.connectionState.read(reader);
+			}
+			updateMcpCardRuntimePresentation(
+				statusBadge,
+				primaryAction,
+				description,
+				getMcpStatusKind(entry, this.workspaceService.isSessionsWindow),
+				getMcpDisabledReason(entry),
+				getMcpEntryAriaLabel(entry, this.workspaceService.isSessionsWindow),
+				this.getInstalledEntryDescription(entry),
+			);
+		}));
 	}
 
-	private appendInstalledServerSignIn(parent: HTMLElement, entry: IMcpInstalledEntry): void {
+	private appendInstalledServerSignIn(parent: HTMLElement, entry: IMcpInstalledEntry): HTMLElement | undefined {
 		const activeSessionServer = getActiveSessionServer(entry);
 		if (activeSessionServer === undefined || getMcpStatusKind(entry, this.workspaceService.isSessionsWindow) !== McpServerStatus.AuthRequired) {
-			return;
+			return undefined;
 		}
 
 		const label = getMcpEntryLabel(entry);
@@ -1469,9 +1496,10 @@ export class McpListWidget extends Disposable {
 				signInButton.enabled = true;
 			}
 		});
+		return signInButton.element;
 	}
 
-	private appendInstalledServerToggle(parent: HTMLElement, entry: IMcpInstalledEntry): void {
+	private appendInstalledServerToggle(parent: HTMLElement, entry: IMcpInstalledEntry): HTMLButtonElement {
 		const label = getMcpEntryLabel(entry);
 		let enabled = this.isInstalledEntryEnabled(entry);
 		const blockedByPlugin = getMcpDisabledReason(entry)?.source === 'plugin';
@@ -1503,12 +1531,13 @@ export class McpListWidget extends Disposable {
 				? localize('mcpServerEnabledStatus', "{0} enabled.", label)
 				: localize('mcpServerDisabledStatus', "{0} disabled.", label));
 		}));
+		return switchElement;
 	}
 
 	private appendMarketplaceServerRow(parent: HTMLElement, server: IWorkbenchMcpServer): void {
 		const row = DOM.append(parent, $('.plugin-list-item.plugin-home-row.plugin-marketplace-home-row'));
-		this.addSurfaceActivation(row, localize('marketplaceMcpServerRowAriaLabel', "{0}. Available to install from the MCP marketplace.", server.label), () => this._onDidSelectServer.fire(createWorkbenchMcpServerDetailInput(server)));
-		const details = DOM.append(row, $('.plugin-list-item-details'));
+		const primaryAction = this.addSurfaceActivation(row, localize('marketplaceMcpServerRowAriaLabel', "{0}. Available to install from the MCP marketplace.", server.label), () => this._onDidSelectServer.fire(createWorkbenchMcpServerDetailInput(server)));
+		const details = DOM.append(primaryAction, $('.plugin-list-item-details'));
 		const nameRow = DOM.append(details, $('.plugin-list-item-name-row'));
 		const name = DOM.append(nameRow, $('.plugin-list-item-name'));
 		name.textContent = server.label;
@@ -1516,28 +1545,37 @@ export class McpListWidget extends Disposable {
 		const description = DOM.append(details, $('.plugin-list-item-description'));
 		description.textContent = truncateToFirstLine(server.description || localize('mcpNoDescription', "No description provided."));
 		const actions = DOM.append(row, $('.plugin-list-item-action'));
-		this.isolateSurfaceActions(actions);
 		const install = this.cardDisposables.add(new Button(actions, { ...defaultButtonStyles, ariaLabel: localize('installMcpServerAria', "Install {0}", server.label) }));
 		install.element.classList.add('plugin-list-item-install-button');
 		install.label = localize('install', "Install");
 		this.cardDisposables.add(install.onDidClick(() => this.installMarketplaceServer(server, install)));
+		this.cardListControllers.get(parent)?.addItem({
+			row,
+			primaryAction,
+			label: server.label,
+			actions: [install.element],
+		});
 	}
 
 	private appendMarketplaceServerCard(parent: HTMLElement, server: IWorkbenchMcpServer): void {
 		const card = DOM.append(parent, $('.plugin-card.plugin-marketplace-card'));
-		this.addSurfaceActivation(card, localize('marketplaceMcpServerCardAriaLabel', "{0}. Featured MCP server available to install.", server.label), () => this._onDidSelectServer.fire(createWorkbenchMcpServerDetailInput(server)));
 		const header = DOM.append(card, $('.plugin-card-header'));
-		const titleBlock = DOM.append(header, $('.plugin-card-title-block'));
+		const titleBlock = this.addSurfaceActivation(header, localize('marketplaceMcpServerCardAriaLabel', "{0}. Featured MCP server available to install.", server.label), () => this._onDidSelectServer.fire(createWorkbenchMcpServerDetailInput(server)), 'plugin-card-title-block');
 		const name = DOM.append(titleBlock, $('.plugin-card-title'));
 		name.textContent = server.label;
 		name.title = server.label;
 		const description = DOM.append(titleBlock, $('.plugin-card-subtitle'));
 		description.textContent = truncateToFirstLine(server.description || localize('mcpNoDescription', "No description provided."));
 		const actions = DOM.append(header, $('.plugin-card-actions'));
-		this.isolateSurfaceActions(actions);
 		const install = this.cardDisposables.add(new Button(actions, { ...defaultButtonStyles, ariaLabel: localize('installMcpServerAria', "Install {0}", server.label) }));
 		install.label = localize('install', "Install");
 		this.cardDisposables.add(install.onDidClick(() => this.installMarketplaceServer(server, install)));
+		this.cardListControllers.get(parent)?.addItem({
+			row: card,
+			primaryAction: titleBlock,
+			label: server.label,
+			actions: [install.element],
+		});
 	}
 
 	private async installMarketplaceServer(server: IWorkbenchMcpServer, button: Button): Promise<void> {
@@ -1545,7 +1583,6 @@ export class McpListWidget extends Disposable {
 		button.enabled = false;
 		try {
 			await this.mcpWorkbenchService.install(server);
-			button.label = localize('installed', "Installed");
 			status(localize('mcpServerInstalledStatus', "{0} installed.", server.label));
 			await this.refresh();
 		} catch (error) {

@@ -21,7 +21,7 @@ import { IAICustomizationWorkspaceService } from '../../../common/aiCustomizatio
 import { ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
 import { IAgentHostCustomizationService } from '../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
-import { IMcpService } from '../../../../mcp/common/mcpTypes.js';
+import { IMcpService, McpConnectionState } from '../../../../mcp/common/mcpTypes.js';
 import { DisableMcpServerForWorkspaceAction, DisableMcpServerGloballyAction, EnableMcpServerForWorkspaceAction, EnableMcpServerGloballyAction } from '../../../../mcp/browser/mcpServerActions.js';
 import {
 	AgentHostMcpServer,
@@ -42,6 +42,7 @@ import {
 	McpServerItemRenderer,
 	registerMcpInlineButtonAction,
 	type IMcpStatusRenderInput,
+	updateMcpCardRuntimePresentation,
 } from '../../../browser/aiCustomization/mcpListWidget.js';
 
 function createAgentHostServer(overrides: Partial<AgentHostMcpServer> = {}): AgentHostMcpServer {
@@ -138,6 +139,32 @@ suite('mcpListWidget', () => {
 			ContributionEnablementState.DisabledWorkspace,
 			ContributionEnablementState.EnabledWorkspace,
 		]);
+	});
+
+	test('updates card runtime status without replacing live nodes', () => {
+		const row = document.createElement('div');
+		const primaryAction = document.createElement('button');
+		const statusBadge = document.createElement('span');
+		const description = document.createElement('span');
+		row.append(primaryAction, statusBadge, description);
+
+		updateMcpCardRuntimePresentation(statusBadge, primaryAction, description, McpConnectionState.Kind.Starting, undefined, 'Server, Starting', 'First description');
+		const initialNodes = [...row.childNodes];
+		updateMcpCardRuntimePresentation(statusBadge, primaryAction, description, McpConnectionState.Kind.Error, undefined, 'Server, Error', 'Updated description');
+
+		assert.deepStrictEqual({
+			nodesPreserved: initialNodes.every((node, index) => row.childNodes[index] === node),
+			statusClass: statusBadge.className,
+			statusText: statusBadge.textContent,
+			ariaLabel: primaryAction.getAttribute('aria-label'),
+			description: description.textContent,
+		}, {
+			nodesPreserved: true,
+			statusClass: 'plugin-list-item-status mcp-runtime-status-badge error',
+			statusText: 'Error',
+			ariaLabel: 'Server, Error',
+			description: 'Updated description',
+		});
 	});
 
 	test('renders host-published disabled reasons without changing legacy rows', () => {

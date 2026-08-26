@@ -48,6 +48,7 @@ import { ICustomizationHarnessService } from '../../common/customizationHarnessS
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IAICustomizationListItem } from './aiCustomizationItemSource.js';
 import { IAICustomizationItemsModel, ItemsModelSection } from './aiCustomizationItemsModel.js';
+import { createCustomizationCardPrimaryAction, CustomizationCardListController } from './customizationCardList.js';
 
 export { truncateToFirstLine } from './aiCustomizationListWidgetUtils.js';
 
@@ -513,6 +514,10 @@ export function getAlwaysVisibleCustomizationGroupKeys(section: AICustomizationM
 		: [];
 }
 
+export function getTargetedCreateActionLabel(label: string, compactLabel?: string): string {
+	return compactLabel ?? label.replace(/^\$\([^)]+\)\s*/, '');
+}
+
 /**
  * Returns the ARIA status announcement string for a given section, item
  * count, and whether a search filter is active. Exported for testing.
@@ -573,6 +578,7 @@ export function getCountAnnouncement(section: AICustomizationManagementSection, 
  */
 interface ICreateAction {
 	readonly label: string;
+	readonly compactLabel?: string;
 	readonly enabled: boolean;
 	readonly tooltip?: string;
 	readonly kind?: 'generate';
@@ -1219,6 +1225,7 @@ export class AICustomizationListWidget extends Disposable {
 			if (hasWorkspace) {
 				actions.push({
 					label: localize('newHook', "New Hook"),
+					compactLabel: localize('newHook', "New Hook"),
 					enabled: true,
 					target: 'workspace',
 					run: () => { this._onDidRequestCreateManual.fire({ type: promptType, target: 'local' }); },
@@ -1226,6 +1233,7 @@ export class AICustomizationListWidget extends Disposable {
 			}
 			actions.push({
 				label: localize('newHook', "New Hook"),
+				compactLabel: localize('newHook', "New Hook"),
 				enabled: true,
 				target: 'user',
 				run: () => { this._onDidRequestCreateManual.fire({ type: promptType, target: 'user' }); },
@@ -1250,6 +1258,7 @@ export class AICustomizationListWidget extends Disposable {
 				// Sessions or non-local harness with workspace: workspace is primary
 				actions.push({
 					label: localize('newWorkspaceCustomization', "New {0} (Workspace)", createTypeLabel),
+					compactLabel: localize('newCustomization', "New {0}", createTypeLabel),
 					enabled: true,
 					target: 'workspace',
 					run: () => { this._onDidRequestCreateManual.fire({ type: promptType, target: 'local' }); },
@@ -1259,6 +1268,7 @@ export class AICustomizationListWidget extends Disposable {
 				// No workspace: user is primary
 				actions.push({
 					label: localize('newUserCustomization', "New {0} (User)", createTypeLabel),
+					compactLabel: localize('newCustomization', "New {0}", createTypeLabel),
 					enabled: true,
 					target: 'user',
 					run: () => { this._onDidRequestCreateManual.fire({ type: promptType, target: 'user' }); },
@@ -1271,6 +1281,7 @@ export class AICustomizationListWidget extends Disposable {
 		if (hasWorkspace && !addedTargets.has('workspace')) {
 			actions.push({
 				label: localize('newWorkspaceCustomization', "New {0} (Workspace)", createTypeLabel),
+				compactLabel: localize('newCustomization', "New {0}", createTypeLabel),
 				enabled: true,
 				target: 'workspace',
 				run: () => { this._onDidRequestCreateManual.fire({ type: promptType, target: 'local' }); },
@@ -1280,6 +1291,7 @@ export class AICustomizationListWidget extends Disposable {
 		if (!addedTargets.has('user')) {
 			actions.push({
 				label: localize('newUserCustomization', "New {0} (User)", createTypeLabel),
+				compactLabel: localize('newCustomization', "New {0}", createTypeLabel),
 				enabled: true,
 				target: 'user',
 				run: () => { this._onDidRequestCreateManual.fire({ type: promptType, target: 'user' }); },
@@ -1598,13 +1610,14 @@ export class AICustomizationListWidget extends Disposable {
 			}
 
 			const inventory = DOM.append(section, $('.plugin-card-grid.plugin-inventory-list.customization-inventory-list'));
+			const cardList = this.cardDisposables.add(new CustomizationCardListController(inventory, group.label));
 			if (group.items.length === 0) {
 				const empty = DOM.append(inventory, $('.plugin-inventory-empty'));
 				empty.textContent = this.getEmptyGroupMessage(group.groupKey);
 				continue;
 			}
 			for (const item of group.items) {
-				this.appendCustomizationCardRow(inventory, item, group.label);
+				this.appendCustomizationCardRow(inventory, item, group.label, cardList);
 			}
 		}
 		if (shouldRestoreFocus) {
@@ -1686,9 +1699,7 @@ export class AICustomizationListWidget extends Disposable {
 	}
 
 	private formatTargetedCreateActionLabel(action: ICreateAction): string {
-		return action.label
-			.replace(/^\$\([^)]+\)\s*/, '')
-			.replace(/\s+\((?:Workspace|User)\)$/, '');
+		return getTargetedCreateActionLabel(action.label, action.compactLabel);
 	}
 
 	private showCreateActionsMenu(createActions: readonly ICreateAction[], anchor: HTMLElement): void {
@@ -1764,7 +1775,7 @@ export class AICustomizationListWidget extends Disposable {
 		this.cardDisposables.add(button.onDidClick(() => this.executePrimaryCreateAction()));
 	}
 
-	private appendCustomizationCardRow(parent: HTMLElement, item: IAICustomizationListItem, groupLabel: string): void {
+	private appendCustomizationCardRow(parent: HTMLElement, item: IAICustomizationListItem, groupLabel: string, cardList: CustomizationCardListController): void {
 		const row = DOM.append(parent, $('.plugin-list-item.plugin-home-row.customization-home-row'));
 		row.classList.toggle('disabled', item.disabled);
 		const displayName = item.displayName ?? formatDisplayName(item.name);
@@ -1774,10 +1785,7 @@ export class AICustomizationListWidget extends Disposable {
 		const accessibleLabel = item.disabled
 			? localize('customizationCardAriaLabelDisabled', "{0}. {1}. Disabled", displayName, accessibleSecondaryText || groupLabel)
 			: localize('customizationCardAriaLabel', "{0}. {1}", displayName, accessibleSecondaryText || groupLabel);
-		const primary = DOM.append(row, $('.customization-row-primary'));
-		primary.tabIndex = 0;
-		primary.setAttribute('role', 'button');
-		primary.setAttribute('aria-label', accessibleLabel);
+		const primary = createCustomizationCardPrimaryAction(row, accessibleLabel, 'customization-row-primary');
 		this.firstCardFocusElement ??= primary;
 		if (!this.cardRowsByUri.has(item.uri.toString())) {
 			this.cardRowsByUri.set(item.uri.toString(), primary);
@@ -1787,12 +1795,6 @@ export class AICustomizationListWidget extends Disposable {
 			this.lastCardFocusItemId = item.id;
 		}));
 		this.cardDisposables.add(DOM.addDisposableListener(primary, 'click', () => this._onDidSelectItem.fire(item)));
-		this.cardDisposables.add(DOM.addDisposableListener(primary, 'keydown', e => {
-			if (e.key === 'Enter' || e.key === ' ') {
-				e.preventDefault();
-				this._onDidSelectItem.fire(item);
-			}
-		}));
 		this.cardDisposables.add(this.hoverService.setupDelayedHover(row, () => ({
 			content: `${displayName}\n${this.labelService.getUriLabel(item.uri, { relative: item.source === AICustomizationSources.local })}`,
 			appearance: { compact: true, skipFadeInAnimation: true },
@@ -1826,6 +1828,13 @@ export class AICustomizationListWidget extends Disposable {
 			this.lastCardFocusItemId = item.id;
 		}));
 		this.cardDisposables.add(more.onDidClick(() => this.showCardItemActions(item, more.element)));
+		cardList.addItem({
+			row,
+			primaryAction: primary,
+			label: displayName,
+			actions: [more.element],
+			contextMenuAction: more.element,
+		});
 	}
 
 	private getItemStatusLabel(item: IAICustomizationListItem): string | undefined {

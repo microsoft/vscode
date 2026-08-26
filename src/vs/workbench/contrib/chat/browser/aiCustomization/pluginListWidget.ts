@@ -46,11 +46,51 @@ import { INotificationService } from '../../../../../platform/notification/commo
 import { getErrorMessage } from '../../../../../base/common/errors.js';
 import { getPluginInclusionLabel } from './aiCustomizationPresentation.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
+import { createCustomizationCardPrimaryAction, CustomizationCardListController } from './customizationCardList.js';
 
 const $ = DOM.$;
 
 const PLUGIN_ITEM_HEIGHT = 66;
 const PLUGIN_MARKETPLACE_ITEM_HEIGHT = 68;
+
+type PluginMarketplaceSnapshotState = 'uninitialized' | 'loading' | 'loaded' | 'failed';
+
+export class PluginMarketplaceSnapshotModel {
+
+	private _state: PluginMarketplaceSnapshotState = 'uninitialized';
+	private _items: readonly IMarketplacePluginItem[] = [];
+
+	get state(): PluginMarketplaceSnapshotState {
+		return this._state;
+	}
+
+	get items(): readonly IMarketplacePluginItem[] {
+		return this._items;
+	}
+
+	beginLoading(): boolean {
+		if (this._state !== 'uninitialized') {
+			return false;
+		}
+		this._state = 'loading';
+		return true;
+	}
+
+	complete(items: readonly IMarketplacePluginItem[]): void {
+		this._items = items;
+		this._state = 'loaded';
+	}
+
+	fail(): void {
+		this._items = [];
+		this._state = 'failed';
+	}
+
+	reset(): void {
+		this._items = [];
+		this._state = 'uninitialized';
+	}
+}
 
 //#region Entry types
 
@@ -390,7 +430,7 @@ class PluginMarketplaceItemRenderer implements IListRenderer<IPluginMarketplaceI
 		const installUri = this.pluginInstallService.getPluginInstallUri({
 			name: element.item.name,
 			description: element.item.description,
-			version: '',
+			version: element.item.version ?? '',
 			sourceDescriptor: element.item.sourceDescriptor,
 			source: element.item.source,
 			marketplace: element.item.marketplace,
@@ -415,7 +455,7 @@ class PluginMarketplaceItemRenderer implements IListRenderer<IPluginMarketplaceI
 				await this.pluginInstallService.installPlugin({
 					name: element.item.name,
 					description: element.item.description,
-					version: '',
+					version: element.item.version ?? '',
 					sourceDescriptor: element.item.sourceDescriptor,
 					source: element.item.source,
 					marketplace: element.item.marketplace,
@@ -461,6 +501,7 @@ function marketplacePluginToItem(plugin: IMarketplacePlugin): IMarketplacePlugin
 		kind: AgentPluginItemKind.Marketplace,
 		name: plugin.name,
 		description: plugin.description,
+		version: plugin.version,
 		source: plugin.source,
 		sourceDescriptor: plugin.sourceDescriptor,
 		marketplace: plugin.marketplace,
@@ -478,7 +519,7 @@ function compareInstalledPluginItems(a: IInstalledPluginItem, b: IInstalledPlugi
 	return formatDisplayName(a.name).localeCompare(formatDisplayName(b.name));
 }
 
-function getInstalledPluginMetadata(item: IInstalledPluginItem): string {
+export function getInstalledPluginMetadata(item: IInstalledPluginItem): string {
 	const metadata: string[] = [];
 	const contributionSummary = getInstalledPluginContributionSummary(item);
 	if (contributionSummary) {
@@ -595,14 +636,15 @@ export class PluginListWidget extends Disposable {
 	private updatePluginsButton!: Button;
 	private readonly addDropdownActions = this._register(new DisposableStore());
 	private readonly cardDisposables = this._register(new DisposableStore());
+	private readonly cardListControllers = new WeakMap<HTMLElement, CustomizationCardListController>();
 
 	private installedItems: IInstalledPluginItem[] = [];
 	private remoteItems: ICustomizationItem[] = [];
 	private marketplaceItems: IMarketplacePluginItem[] = [];
+	private readonly marketplaceSnapshot = new PluginMarketplaceSnapshotModel();
 	private searchQuery: string = '';
 	private browseMode: boolean = false;
 	private firstCardFocusElement: HTMLElement | undefined;
-	private marketplaceSnapshotFailed = false;
 	private narrowLayout = false;
 	private wideLayout = false;
 	private lastHeight: number = 0;
@@ -611,6 +653,7 @@ export class PluginListWidget extends Disposable {
 	private _layoutDeferred = false;
 	private readonly collapsedGroups = new Set<string>();
 	private marketplaceCts: CancellationTokenSource | undefined;
+	private marketplaceSnapshotCts: CancellationTokenSource | undefined;
 	private readonly delayedFilter = new Delayer<void>(200);
 	private readonly delayedMarketplaceSearch = new Delayer<void>(400);
 
@@ -648,7 +691,10 @@ export class PluginListWidget extends Disposable {
 		}));
 		this._register({
 			dispose: () => {
-				this.marketplaceCts?.dispose();
+				this.marketplaceCts?.dispose(true);
+				this.marketplaceCts = undefined;
+				this.marketplaceSnapshotCts?.dispose(true);
+				this.marketplaceSnapshotCts = undefined;
 			}
 		});
 	}
@@ -700,7 +746,18 @@ export class PluginListWidget extends Disposable {
 		this.marketplaceBackContainer.style.display = 'none';
 		const backToInstalledLabel = localize('backToInstalledPlugins', "Back to Installed");
 		this.backButtonContainer = DOM.append(this.marketplaceBackContainer, $('.list-add-button-container'));
-		this.backButton = this._register(new Button(this.backButtonContainer, { ...defaultButtonStyles, secondary: true, supportIcons: true, title: backToInstalledLabel, ariaLabel: backToInstalledLabel }));
+		this.backButton = this._register(new Button(this.backButtonContainer, {
+			...getButtonStyles({
+				buttonSecondaryBackground: undefined,
+				buttonSecondaryForeground: undefined,
+				buttonSecondaryHoverBackground: undefined,
+				buttonSecondaryBorder: undefined,
+			}),
+			secondary: true,
+			supportIcons: true,
+			title: backToInstalledLabel,
+			ariaLabel: backToInstalledLabel,
+		}));
 		this.backButton.element.classList.add('list-add-button', 'plugin-card-ghost-button');
 		this.backButton.label = `$(${Codicon.arrowLeft.id}) ${backToInstalledLabel}`;
 		this._register(this.backButton.onDidClick(() => this.toggleBrowseMode(false)));
@@ -894,6 +951,8 @@ export class PluginListWidget extends Disposable {
 		}));
 		this._register(this.pluginMarketplaceService.onDidChangeMarketplaces(() => {
 			this.marketplaceItems = [];
+			this.marketplaceSnapshotCts?.dispose(true);
+			this.marketplaceSnapshot.reset();
 			void this.refresh();
 		}));
 		this._register(autorun(reader => {
@@ -1107,22 +1166,11 @@ export class PluginListWidget extends Disposable {
 		this.emptyContainer.style.display = 'flex';
 	}
 
-	private addSurfaceActivation(surface: HTMLElement, label: string, callback: () => void): void {
-		surface.tabIndex = 0;
-		surface.setAttribute('role', 'button');
-		surface.setAttribute('aria-label', label);
-		this.rememberCardFocusElement(surface);
-		this.cardDisposables.add(DOM.addDisposableListener(surface, 'click', () => callback()));
-		this.cardDisposables.add(DOM.addDisposableListener(surface, 'keydown', e => {
-			if (e.target === surface && (e.key === 'Enter' || e.key === ' ')) {
-				e.preventDefault();
-				callback();
-			}
-		}));
-	}
-
-	private isolateSurfaceActions(actions: HTMLElement): void {
-		this.cardDisposables.add(DOM.addDisposableListener(actions, 'click', e => e.stopPropagation()));
+	private addSurfaceActivation(surface: HTMLElement, label: string, callback: () => void, ...classNames: string[]): HTMLButtonElement {
+		const primaryAction = createCustomizationCardPrimaryAction(surface, label, ...classNames);
+		this.rememberCardFocusElement(primaryAction);
+		this.cardDisposables.add(DOM.addDisposableListener(primaryAction, 'click', callback));
+		return primaryAction;
 	}
 
 	private renderCardSection(parent: HTMLElement, title: string, description: string | undefined, className?: string, count?: number, renderActions?: (header: HTMLElement) => void): HTMLElement {
@@ -1144,7 +1192,9 @@ export class PluginListWidget extends Disposable {
 			descriptionEl.textContent = description;
 		}
 		renderActions?.(header);
-		return DOM.append(section, $('.plugin-card-grid'));
+		const list = DOM.append(section, $('.plugin-card-grid'));
+		this.cardListControllers.set(list, this.cardDisposables.add(new CustomizationCardListController(list, title)));
+		return list;
 	}
 
 	private renderPluginHome(): void {
@@ -1162,7 +1212,7 @@ export class PluginListWidget extends Disposable {
 		const installedPlugins = this.installedItems;
 
 		this.renderDiscoverySnapshot(content);
-		if (this.marketplaceItems.length === 0 && this.isBrowseMarketplaceAvailable()) {
+		if (this.marketplaceSnapshot.state === 'uninitialized' && this.isBrowseMarketplaceAvailable()) {
 			void this.queryMarketplaceSnapshot();
 		}
 
@@ -1200,7 +1250,7 @@ export class PluginListWidget extends Disposable {
 			}
 		}
 
-		this.renderAvailablePlugins(content, this.getUninstalledMarketplaceItems(), true);
+		this.renderAvailablePlugins(content, this.getUninstalledMarketplaceItems(this.marketplaceSnapshot.items), true);
 	}
 
 	private renderInstalledSectionActions(header: HTMLElement): void {
@@ -1279,9 +1329,9 @@ export class PluginListWidget extends Disposable {
 		const row = DOM.append(parent, $('.plugin-list-item.plugin-home-row.plugin-installed-item'));
 		const enabled = isContributionEnabled(item.plugin.enablement.get());
 		row.classList.toggle('disabled', !enabled || item.plugin.policyBlocked?.get() === true);
-		this.addSurfaceActivation(row, localize('installedPluginRowAriaLabel', "{0}. {1}", item.name, getPluginInclusionLabel(item.plugin)), () => this._onDidSelectPlugin.fire(item));
+		const primaryAction = this.addSurfaceActivation(row, localize('installedPluginRowAriaLabel', "{0}. {1}", item.name, getPluginInclusionLabel(item.plugin)), () => this._onDidSelectPlugin.fire(item));
 
-		const details = DOM.append(row, $('.plugin-list-item-details'));
+		const details = DOM.append(primaryAction, $('.plugin-list-item-details'));
 		const nameRow = DOM.append(details, $('.plugin-list-item-name-row'));
 		const name = DOM.append(nameRow, $('.plugin-list-item-name'));
 		name.textContent = formatDisplayName(item.name);
@@ -1295,18 +1345,25 @@ export class PluginListWidget extends Disposable {
 		const description = DOM.append(details, $('.plugin-list-item-description'));
 		description.textContent = truncateToFirstLine(item.description || localize('pluginNoDescription', "No description provided."));
 		const metadata = DOM.append(details, $('.plugin-list-item-metadata'));
-		metadata.textContent = [getPluginInclusionLabel(item.plugin), getInstalledPluginMetadata(item)].filter(Boolean).join(' • ');
+		metadata.textContent = getInstalledPluginMetadata(item);
+		metadata.style.display = metadata.textContent ? '' : 'none';
 
 		const actions = DOM.append(row, $('.plugin-list-item-action'));
-		this.isolateSurfaceActions(actions);
-		this.appendInstalledPluginToggle(actions, item);
+		const toggle = this.appendInstalledPluginToggle(actions, item);
 		const more = this.cardDisposables.add(new Button(actions, { ...getButtonStyles({ buttonSecondaryBackground: undefined, buttonSecondaryBorder: undefined }), secondary: true, supportIcons: true, ariaLabel: localize('pluginMoreActionsAria', "More actions for {0}", item.name) }));
 		more.element.classList.add('plugin-card-icon-button');
 		more.label = `$(${Codicon.ellipsis.id})`;
 		this.cardDisposables.add(more.onDidClick(() => this.showInstalledPluginActions(item, more.element)));
+		this.cardListControllers.get(parent)?.addItem({
+			row,
+			primaryAction,
+			label: item.name,
+			actions: [toggle, more.element],
+			contextMenuAction: more.element,
+		});
 	}
 
-	private appendInstalledPluginToggle(parent: HTMLElement, item: IInstalledPluginItem): void {
+	private appendInstalledPluginToggle(parent: HTMLElement, item: IInstalledPluginItem): HTMLButtonElement {
 		const current = item.plugin.enablement.get();
 		const checked = isContributionEnabled(current);
 		const workspaceScope = current === ContributionEnablementState.EnabledWorkspace || current === ContributionEnablementState.DisabledWorkspace;
@@ -1328,11 +1385,12 @@ export class PluginListWidget extends Disposable {
 			this.agentPluginService.enablementModel.setEnabled(item.plugin.uri.toString(), nextState);
 			status(localize('pluginInclusionChanged', "{0}. {1}.", item.name, getPluginInclusionLabel(item.plugin)));
 		}));
+		return switchElement;
 	}
 
 	private appendRemotePluginRow(parent: HTMLElement, item: ICustomizationItem): void {
 		const row = DOM.append(parent, $('.plugin-list-item.plugin-home-row.plugin-remote-item'));
-		row.setAttribute('role', 'group');
+		row.setAttribute('role', 'listitem');
 		row.setAttribute('aria-label', localize('pluginRemoteCardAria', "{0}. Remote plugin", item.name));
 		row.classList.toggle('disabled', item.enabled === false);
 
@@ -1356,50 +1414,60 @@ export class PluginListWidget extends Disposable {
 		} else {
 			status.style.display = 'none';
 		}
+		let more: Button | undefined;
 		if (item.actions?.length) {
 			const actions = DOM.append(row, $('.plugin-list-item-action'));
-			const more = this.cardDisposables.add(new Button(actions, { ...defaultButtonStyles, secondary: true, supportIcons: true, ariaLabel: localize('pluginMoreActionsAria', "More actions for {0}", item.name) }));
-			more.element.classList.add('plugin-card-icon-button');
-			more.label = `$(${Codicon.ellipsis.id})`;
-			this.rememberCardFocusElement(more.element);
-			this.cardDisposables.add(more.onDidClick(() => this.showRemotePluginActions(item, more.element)));
+			const moreButton = this.cardDisposables.add(new Button(actions, { ...defaultButtonStyles, secondary: true, supportIcons: true, ariaLabel: localize('pluginMoreActionsAria', "More actions for {0}", item.name) }));
+			moreButton.element.classList.add('plugin-card-icon-button');
+			moreButton.label = `$(${Codicon.ellipsis.id})`;
+			this.rememberCardFocusElement(moreButton.element);
+			this.cardDisposables.add(moreButton.onDidClick(() => this.showRemotePluginActions(item, moreButton.element)));
+			more = moreButton;
 		}
+		this.cardListControllers.get(parent)?.addItem({
+			row,
+			primaryAction: row,
+			label: item.name,
+			actions: more ? [more.element] : [],
+			contextMenuAction: more?.element,
+		});
 	}
 
 	private appendMarketplacePluginRow(parent: HTMLElement, item: IMarketplacePluginItem): void {
 		const row = DOM.append(parent, $('.plugin-list-item.plugin-home-row.plugin-marketplace-home-row'));
-		this.addSurfaceActivation(row, localize('marketplacePluginRowAriaLabel', "{0}. Available to install from {1}.", item.name, item.marketplace), () => this._onDidSelectPlugin.fire(item));
+		const primaryAction = this.addSurfaceActivation(row, localize('marketplacePluginRowAriaLabel', "{0}. Available to install from {1}.", item.name, item.marketplace), () => this._onDidSelectPlugin.fire(item));
 
-		const details = DOM.append(row, $('.plugin-list-item-details'));
+		const details = DOM.append(primaryAction, $('.plugin-list-item-details'));
 		const nameRow = DOM.append(details, $('.plugin-list-item-name-row'));
 		const name = DOM.append(nameRow, $('.plugin-list-item-name'));
 		name.textContent = item.name;
 		name.title = item.name;
 		const description = DOM.append(details, $('.plugin-list-item-description'));
 		description.textContent = truncateToFirstLine(item.description || localize('pluginNoDescription', "No description provided."));
-		const metadata = DOM.append(details, $('.plugin-list-item-metadata'));
-		metadata.textContent = localize('pluginAvailableFromMarketplace', "Available from {0}", item.marketplace);
 
 		const actions = DOM.append(row, $('.plugin-list-item-action'));
-		this.isolateSurfaceActions(actions);
 		const install = this.cardDisposables.add(new Button(actions, { ...defaultButtonStyles, ariaLabel: localize('installPluginAria', "Install {0}", item.name) }));
 		install.element.classList.add('plugin-list-item-install-button');
 		install.label = localize('install', "Install");
 		this.cardDisposables.add(install.onDidClick(() => this.installMarketplacePlugin(item, install)));
+		this.cardListControllers.get(parent)?.addItem({
+			row,
+			primaryAction,
+			label: item.name,
+			actions: [install.element],
+		});
 	}
 
 	private appendMarketplacePluginCard(parent: HTMLElement, item: IMarketplacePluginItem, showRecommendedBadge = true): void {
 		const card = DOM.append(parent, $('.plugin-card.plugin-marketplace-card'));
-		this.addSurfaceActivation(card, localize('marketplacePluginCardAriaLabel', "{0}. Available to install from {1}.", item.name, item.marketplace), () => this._onDidSelectPlugin.fire(item));
 		const header = DOM.append(card, $('.plugin-card-header'));
-		const titleBlock = DOM.append(header, $('.plugin-card-title-block'));
+		const titleBlock = this.addSurfaceActivation(header, localize('marketplacePluginCardAriaLabel', "{0}. Available to install from {1}.", item.name, item.marketplace), () => this._onDidSelectPlugin.fire(item), 'plugin-card-title-block');
 		const name = DOM.append(titleBlock, $('.plugin-card-title'));
 		name.textContent = item.name;
 		name.title = item.name;
 		const descriptionLine = DOM.append(titleBlock, $('.plugin-card-subtitle'));
 		descriptionLine.textContent = truncateToFirstLine(item.description || localize('pluginNoDescription', "No description provided."));
 		const actions = DOM.append(header, $('.plugin-card-actions'));
-		this.isolateSurfaceActions(actions);
 		const install = this.cardDisposables.add(new Button(actions, { ...defaultButtonStyles, ariaLabel: localize('installPluginAria', "Install {0}", item.name) }));
 		install.label = localize('install', "Install");
 		this.cardDisposables.add(install.onDidClick(() => this.installMarketplacePlugin(item, install)));
@@ -1407,6 +1475,12 @@ export class PluginListWidget extends Disposable {
 			const badges = DOM.append(card, $('.plugin-card-badges'));
 			this.appendCardBadge(badges, localize('recommendedBadge', "Recommended"));
 		}
+		this.cardListControllers.get(parent)?.addItem({
+			row: card,
+			primaryAction: titleBlock,
+			label: item.name,
+			actions: [install.element],
+		});
 	}
 
 	private rememberCardFocusElement(element: HTMLElement): void {
@@ -1419,9 +1493,9 @@ export class PluginListWidget extends Disposable {
 	}
 
 	private renderDiscoverySnapshot(parent: HTMLElement): void {
-		const marketplaceItems = this.getUninstalledMarketplaceItems();
+		const marketplaceItems = this.getUninstalledMarketplaceItems(this.marketplaceSnapshot.items);
 		if (marketplaceItems.length === 0) {
-			if (this.marketplaceSnapshotFailed) {
+			if (this.marketplaceSnapshot.state === 'failed') {
 				this.renderDiscoveryError(parent);
 			}
 			return;
@@ -1440,6 +1514,7 @@ export class PluginListWidget extends Disposable {
 		const description = DOM.append(text, $('.plugin-card-section-description'));
 		description.textContent = localize('discoverMorePluginsDescription', "Curated plugins that add tools and expertise.");
 		const grid = DOM.append(section, $('.plugin-card-grid'));
+		this.cardListControllers.set(grid, this.cardDisposables.add(new CustomizationCardListController(grid, localize('featuredPlugins', "Featured"))));
 		for (const item of snapshotItems) {
 			this.appendMarketplacePluginCard(grid, item, false);
 		}
@@ -1456,7 +1531,7 @@ export class PluginListWidget extends Disposable {
 		const retry = this.cardDisposables.add(new Button(header, { ...defaultButtonStyles, secondary: true, ariaLabel: localize('retryPluginDiscovery', "Retry Loading Plugins") }));
 		retry.label = localize('retry', "Retry");
 		this.cardDisposables.add(retry.onDidClick(() => {
-			this.marketplaceSnapshotFailed = false;
+			this.marketplaceSnapshot.reset();
 			void this.queryMarketplaceSnapshot();
 		}));
 	}
@@ -1501,13 +1576,13 @@ export class PluginListWidget extends Disposable {
 		}
 	}
 
-	private getUninstalledMarketplaceItems(): IMarketplacePluginItem[] {
+	private getUninstalledMarketplaceItems(items: readonly IMarketplacePluginItem[] = this.marketplaceItems): IMarketplacePluginItem[] {
 		const installedUris = new Set(this.agentPluginService.plugins.get().map(p => p.uri.toString()));
-		return this.marketplaceItems.filter(item => {
+		return items.filter(item => {
 			const expectedUri = this.pluginInstallService.getPluginInstallUri({
 				name: item.name,
 				description: item.description,
-				version: '',
+				version: item.version ?? '',
 				source: item.source,
 				sourceDescriptor: item.sourceDescriptor,
 				marketplace: item.marketplace,
@@ -1525,7 +1600,7 @@ export class PluginListWidget extends Disposable {
 			await this.pluginInstallService.installPlugin({
 				name: item.name,
 				description: item.description,
-				version: '',
+				version: item.version ?? '',
 				sourceDescriptor: item.sourceDescriptor,
 				source: item.source,
 				marketplace: item.marketplace,
@@ -1543,20 +1618,30 @@ export class PluginListWidget extends Disposable {
 	}
 
 	private async queryMarketplaceSnapshot(): Promise<void> {
-		this.marketplaceCts?.dispose(true);
-		const cts = this.marketplaceCts = new CancellationTokenSource();
+		if (!this.marketplaceSnapshot.beginLoading()) {
+			return;
+		}
+		this.marketplaceSnapshotCts?.dispose(true);
+		const cts = this.marketplaceSnapshotCts = new CancellationTokenSource();
 		try {
 			const plugins = await this.pluginMarketplaceService.fetchMarketplacePlugins(cts.token);
-			if (cts.token.isCancellationRequested || this.browseMode || this.searchQuery.trim()) {
+			if (this.marketplaceSnapshotCts !== cts) {
 				return;
 			}
-			this.marketplaceSnapshotFailed = false;
-			this.marketplaceItems = plugins.map(marketplacePluginToItem);
-			this.renderPluginHome();
-		} catch {
-			if (!cts.token.isCancellationRequested) {
-				this.marketplaceSnapshotFailed = true;
+			if (cts.token.isCancellationRequested) {
+				this.marketplaceSnapshot.reset();
+				return;
+			}
+			this.marketplaceSnapshot.complete(plugins.map(marketplacePluginToItem));
+			if (!this.browseMode && !this.searchQuery.trim()) {
 				this.renderPluginHome();
+			}
+		} catch {
+			if (this.marketplaceSnapshotCts === cts && !cts.token.isCancellationRequested) {
+				this.marketplaceSnapshot.fail();
+				if (!this.browseMode && !this.searchQuery.trim()) {
+					this.renderPluginHome();
+				}
 			}
 		}
 	}

@@ -31,6 +31,7 @@ export interface ICustomizationMigrationConfirmation {
  */
 export interface ICustomizationMigrationBanner {
 	readonly message: string;
+	readonly consequence?: string;
 }
 
 /**
@@ -306,6 +307,10 @@ const userDataMigrationCategory: ICustomizationMigrationCategory = {
 					"They are stored in user data, which only VS Code reads. Migrating moves them into the folders {0} reads, keeping their name, type, and content, so you can keep using them.",
 					harnessLabel,
 				),
+			consequence: localize(
+				'userDataMigrationBannerConsequence',
+				"Migrated files aren't currently included in Settings Sync.",
+			),
 		};
 	},
 

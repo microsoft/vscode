@@ -55,7 +55,7 @@ export class AICustomizationManagementEditorInput extends EditorInput implements
 
 	override getName(): string {
 		if (this._targetLabel) {
-			return localize('aiCustomizationManagementEditorNameWithTarget', "Agent Customizations – {0}", this._targetLabel);
+			return localize('aiCustomizationManagementEditorNameWithTarget', "Agent Customizations - {0}", this._targetLabel);
 		}
 		return localize('aiCustomizationManagementEditorName', "Agent Customizations");
 	}

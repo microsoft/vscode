@@ -14,14 +14,14 @@ import { Emitter } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { asText, IRequestService } from '../../../../../platform/request/common/request.js';
+import { asTextOrError, IRequestService } from '../../../../../platform/request/common/request.js';
 import { localize } from '../../../../../nls.js';
 import { AgentPluginItemKind, IAgentPluginItem } from '../agentPluginEditor/agentPluginItems.js';
-import { IMarketplacePlugin, PluginSourceKind } from '../../common/plugins/pluginMarketplaceService.js';
+import { IMarketplacePlugin } from '../../common/plugins/pluginMarketplaceService.js';
 import { IPluginInstallService } from '../../common/plugins/pluginInstallService.js';
 import { ContributionEnablementState, isContributionEnabled } from '../../common/enablement.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
-import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
+import { defaultButtonStyles, getButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
@@ -43,6 +43,51 @@ import { getErrorMessage } from '../../../../../base/common/errors.js';
 import { autorun } from '../../../../../base/common/observable.js';
 
 const $ = DOM.$;
+
+export interface IPluginReadme {
+	readonly content: string;
+	readonly baseUri: URI;
+}
+
+export class PluginReadmeRenderGuard {
+
+	private generation = 0;
+
+	begin(): number {
+		return ++this.generation;
+	}
+
+	isCurrent(generation: number): boolean {
+		return this.generation === generation;
+	}
+}
+
+export async function loadPluginReadme(
+	item: IAgentPluginItem,
+	fileService: Pick<IFileService, 'readFile'>,
+	requestService: Pick<IRequestService, 'request'>,
+): Promise<IPluginReadme | undefined> {
+	const readmeUri = item.kind === AgentPluginItemKind.Installed
+		? joinPath(item.plugin.uri, 'README.md')
+		: item.readmeUri;
+	if (!readmeUri) {
+		return undefined;
+	}
+	if (readmeUri.scheme === Schemas.file || readmeUri.scheme === Schemas.vscodeRemote) {
+		const content = await fileService.readFile(readmeUri);
+		return { content: content.value.toString(), baseUri: readmeUri };
+	}
+	if (readmeUri.scheme === Schemas.https) {
+		let fetchedUri = readmeUri;
+		const githubBlobMatch = readmeUri.toString().match(/^https:\/\/github\.com\/(?<owner>[^/]+)\/(?<repo>[^/]+)\/blob\/(?<rest>.+)$/);
+		if (githubBlobMatch?.groups) {
+			fetchedUri = URI.parse(`https://raw.githubusercontent.com/${githubBlobMatch.groups['owner']}/${githubBlobMatch.groups['repo']}/${githubBlobMatch.groups['rest']}`);
+		}
+		const context = await requestService.request({ type: 'GET', url: fetchedUri.toString(), callSite: 'aiCustomizationPluginDetail.fetchReadme' }, CancellationToken.None);
+		return { content: await asTextOrError(context) ?? '', baseUri: fetchedUri };
+	}
+	throw new Error(`Unsupported plugin README URI scheme: ${readmeUri.scheme}`);
+}
 
 /**
  * Compact detail view for an agent plugin inside the AI Customizations management editor's
@@ -82,6 +127,7 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 
 	private current: IAgentPluginItem | undefined;
 	private narrowLayout = false;
+	private readonly readmeRenderGuard = new PluginReadmeRenderGuard();
 
 	constructor(
 		parent: HTMLElement,
@@ -177,6 +223,7 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 			this.inputStateAutorun.value = autorun(reader => {
 				item.plugin.enablement.read(reader);
 				item.plugin.policyBlocked?.read(reader);
+				item.plugin.version?.read(reader);
 				this.renderItem();
 			});
 		} else {
@@ -192,6 +239,7 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 	}
 
 	private renderItem(): void {
+		const readmeRenderGeneration = this.readmeRenderGuard.begin();
 		this.renderDisposables.clear();
 		const item = this.current;
 		const hasItem = !!item;
@@ -227,7 +275,7 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 		this.renderTitleActions(item);
 		this.renderFacts(item);
 		this.renderContributions(item);
-		this.renderReadme(item);
+		this.renderReadme(item, readmeRenderGeneration);
 
 		const description = (item.description || '').trim();
 		this.descriptionEl.textContent = description || localize('pluginNoDescription', "No description provided.");
@@ -245,7 +293,7 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 					await this.pluginInstallService.installPlugin({
 						name: item.name,
 						description: item.description,
-						version: '',
+						version: item.version ?? '',
 						source: item.source,
 						sourceDescriptor: item.sourceDescriptor,
 						marketplace: item.marketplace,
@@ -270,7 +318,17 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 		const uninstallAction = createUninstallPluginAction(item.plugin);
 		if (uninstallAction) {
 			this.renderDisposables.add(uninstallAction);
-			const uninstallButton = this.renderDisposables.add(new Button(this.titleActionsEl, { ...defaultButtonStyles, secondary: true, supportIcons: true, ariaLabel: uninstallAction.label }));
+			const uninstallButton = this.renderDisposables.add(new Button(this.titleActionsEl, {
+				...getButtonStyles({
+					buttonSecondaryBackground: undefined,
+					buttonSecondaryForeground: undefined,
+					buttonSecondaryHoverBackground: undefined,
+					buttonSecondaryBorder: undefined,
+				}),
+				secondary: true,
+				supportIcons: true,
+				ariaLabel: uninstallAction.label,
+			}));
 			uninstallButton.element.classList.add('embedded-detail-uninstall-button');
 			uninstallButton.label = uninstallAction.label;
 			uninstallButton.enabled = uninstallAction.enabled;
@@ -338,7 +396,7 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 		const expectedUri = this.pluginInstallService.getPluginInstallUri({
 			name: item.name,
 			description: item.description,
-			version: '',
+			version: item.version ?? '',
 			source: item.source,
 			sourceDescriptor: item.sourceDescriptor,
 			marketplace: item.marketplace,
@@ -379,20 +437,23 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 	private renderFacts(item: IAgentPluginItem): void {
 		this.sourceFactsEl.style.display = '';
 		if (item.kind === AgentPluginItemKind.Marketplace) {
-			this.appendFact(this.factsEl, localize('pluginDetailSource', "Source"), formatSourceKind(item.sourceDescriptor.kind));
+			this.appendPluginVersionFact(item);
 			this.appendFact(this.factsEl, localize('pluginDetailMarketplace', "Marketplace"), this.renderMarketplaceLink(item.marketplace, getMarketplaceUri(item)));
 			return;
 		}
 
-		if (item.plugin.fromMarketplace) {
-			this.appendFact(this.factsEl, localize('pluginDetailSource', "Source"), formatSourceKind(item.plugin.fromMarketplace.sourceDescriptor.kind));
-		} else {
-			this.appendFact(this.factsEl, localize('pluginDetailSource', "Source"), localize('pluginDetailSourceLocal', "Local"));
-		}
+		this.appendPluginVersionFact(item);
 		if (item.marketplace) {
 			this.appendFact(this.factsEl, localize('pluginDetailMarketplace', "Marketplace"), this.renderMarketplaceLink(item.marketplace, item.plugin.fromMarketplace ? getMarketplaceUri(item.plugin.fromMarketplace) : undefined));
 		}
 		this.appendFact(this.factsEl, localize('pluginDetailLocation', "Location"), this.createLocationValue(item.plugin.uri));
+	}
+
+	private appendPluginVersionFact(item: IAgentPluginItem): void {
+		const version = getPluginVersion(item);
+		if (version) {
+			this.appendFact(this.factsEl, localize('pluginDetailVersion', "Version"), version);
+		}
 	}
 
 	private appendFact(parent: HTMLElement, label: string, value: string | HTMLElement): void {
@@ -415,7 +476,13 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 		label.title = uri.fsPath || uri.toString();
 		const copyPluginPathLabel = localize('copyPluginPath', "Copy Plugin Path");
 		let copyPluginPathTooltip = copyPluginPathLabel;
-		const copyButton = this.renderDisposables.add(new Button(container, { ...defaultButtonStyles, secondary: true, supportIcons: true, title: copyPluginPathLabel, ariaLabel: copyPluginPathLabel }));
+		const inlineButtonStyles = getButtonStyles({
+			buttonSecondaryBackground: undefined,
+			buttonSecondaryForeground: undefined,
+			buttonSecondaryHoverBackground: undefined,
+			buttonSecondaryBorder: undefined,
+		});
+		const copyButton = this.renderDisposables.add(new Button(container, { ...inlineButtonStyles, secondary: true, supportIcons: true, title: copyPluginPathLabel, ariaLabel: copyPluginPathLabel }));
 		copyButton.element.classList.add('embedded-detail-copy-button');
 		copyButton.label = `$(${Codicon.copy.id})`;
 		this.renderDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), copyButton.element, () => copyPluginPathTooltip));
@@ -432,7 +499,7 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 			}, 1200);
 		}));
 		const openPluginFolderLabel = localize('openPluginFolder', "Open Plugin Folder");
-		const openButton = this.renderDisposables.add(new Button(container, { ...defaultButtonStyles, secondary: true, supportIcons: true, title: openPluginFolderLabel, ariaLabel: openPluginFolderLabel }));
+		const openButton = this.renderDisposables.add(new Button(container, { ...inlineButtonStyles, secondary: true, supportIcons: true, title: openPluginFolderLabel, ariaLabel: openPluginFolderLabel }));
 		openButton.element.classList.add('embedded-detail-copy-button');
 		openButton.label = `$(${Codicon.folderOpened.id})`;
 		this.renderDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), openButton.element, openPluginFolderLabel));
@@ -446,20 +513,20 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 		return container;
 	}
 
-	private async renderReadme(item: IAgentPluginItem): Promise<void> {
+	private async renderReadme(item: IAgentPluginItem, renderGeneration: number): Promise<void> {
 		DOM.clearNode(this.readmeContentEl);
 		this.readmeEl.style.display = '';
-		let readme: string | undefined;
+		let readme: IPluginReadme | undefined;
 		try {
-			readme = await this.fetchReadme(item);
+			readme = await loadPluginReadme(item, this.fileService, this.requestService);
 		} catch {
-			if (this.current === item) {
+			if (this.current === item && this.readmeRenderGuard.isCurrent(renderGeneration)) {
 				const message = DOM.append(this.readmeContentEl, $('.plugin-detail-readme-message'));
 				message.textContent = localize('pluginReadmeLoadError', "The plugin README could not be loaded.");
 			}
 			return;
 		}
-		if (this.current !== item) {
+		if (this.current !== item || !this.readmeRenderGuard.isCurrent(renderGeneration)) {
 			return;
 		}
 		if (readme === undefined) {
@@ -467,36 +534,15 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 			message.textContent = localize('pluginReadmeMissing', "No README was provided for this plugin.");
 			return;
 		}
-		if (!readme.trim()) {
+		if (!readme.content.trim()) {
 			const message = DOM.append(this.readmeContentEl, $('.plugin-detail-readme-message'));
 			message.textContent = localize('pluginReadmeEmpty', "The plugin README is empty.");
 			return;
 		}
-		const rendered = this.renderDisposables.add(this.markdownRendererService.render(new MarkdownString(readme, { supportHtml: false })));
+		const markdown = new MarkdownString(readme.content, { supportHtml: false });
+		markdown.baseUri = readme.baseUri;
+		const rendered = this.renderDisposables.add(this.markdownRendererService.render(markdown));
 		this.readmeContentEl.appendChild(rendered.element);
-	}
-
-	private async fetchReadme(item: IAgentPluginItem): Promise<string | undefined> {
-		const readmeUri = item.kind === AgentPluginItemKind.Installed
-			? joinPath(item.plugin.uri, 'README.md')
-			: item.readmeUri;
-		if (!readmeUri) {
-			return undefined;
-		}
-		if (readmeUri.scheme === Schemas.file || readmeUri.scheme === Schemas.vscodeRemote) {
-			const content = await this.fileService.readFile(readmeUri);
-			return content.value.toString();
-		}
-		if (readmeUri.scheme === Schemas.https) {
-			let rawUrl = readmeUri.toString();
-			const githubBlobMatch = rawUrl.match(/^https:\/\/github\.com\/(?<owner>[^/]+)\/(?<repo>[^/]+)\/blob\/(?<rest>.+)$/);
-			if (githubBlobMatch?.groups) {
-				rawUrl = `https://raw.githubusercontent.com/${githubBlobMatch.groups['owner']}/${githubBlobMatch.groups['repo']}/${githubBlobMatch.groups['rest']}`;
-			}
-			const context = await this.requestService.request({ type: 'GET', url: rawUrl, callSite: 'aiCustomizationPluginDetail.fetchReadme' }, CancellationToken.None);
-			return await asText(context) ?? '';
-		}
-		throw new Error(`Unsupported plugin README URI scheme: ${readmeUri.scheme}`);
 	}
 
 	private renderContributions(item: IAgentPluginItem): void {
@@ -576,21 +622,11 @@ function appendContributionEntry(entries: IPluginContributionEntry[], kind: stri
 	}
 }
 
-function formatSourceKind(sourceKind: PluginSourceKind): string {
-	switch (sourceKind) {
-		case PluginSourceKind.GitHub:
-			return localize('pluginDetailSourceGitHub', "GitHub");
-		case PluginSourceKind.GitUrl:
-			return localize('pluginDetailSourceGitUrl', "Git URL");
-		case PluginSourceKind.Npm:
-			return localize('pluginDetailSourceNpm', "npm");
-		case PluginSourceKind.Pip:
-			return localize('pluginDetailSourcePip', "pip");
-		case PluginSourceKind.RelativePath:
-			return localize('pluginDetailSourceRelativePath', "Marketplace repository");
-		default:
-			return localize('pluginDetailSourceUnknown', "Unknown");
-	}
+export function getPluginVersion(item: IAgentPluginItem): string | undefined {
+	const version = item.kind === AgentPluginItemKind.Marketplace
+		? item.version
+		: item.plugin.version?.get() ?? item.plugin.fromMarketplace?.version;
+	return version?.trim() || undefined;
 }
 
 function getMarketplaceUri(item: Pick<IMarketplacePlugin | Extract<IAgentPluginItem, { kind: AgentPluginItemKind.Marketplace }>, 'marketplaceReference'>): URI | undefined {

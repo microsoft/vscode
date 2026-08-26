@@ -36,7 +36,7 @@ suite('aiCustomizationManagementEditor', () => {
 		names.push(input.getName());
 		assert.deepStrictEqual(names, [
 			'Agent Customizations',
-			'Agent Customizations – Copilot',
+			'Agent Customizations - Copilot',
 			'Agent Customizations',
 		]);
 	});
@@ -405,7 +405,7 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.editorPreviewDisposables.dispose();
 	});
 
-	test('migration banners contain only the message and learn more link', () => {
+	test('migration banners include destination consequences when applicable', () => {
 		const editor = createTestEditor(undefined, createConfigurationServiceStub({
 			[ChatConfiguration.ChatCustomizationsUserDataMigrationEnabled]: true,
 			[ChatConfiguration.ChatCustomizationsPromptMigrationEnabled]: true,
@@ -454,7 +454,7 @@ suite('aiCustomizationManagementEditor', () => {
 
 		const readBanner = () => ({
 			message: editor.migrationBannerContainer!.querySelector('.customization-migration-banner-message')?.textContent ?? '',
-			hasExtraContent: !!editor.migrationBannerContainer!.querySelector('.customization-migration-banner-title, .customization-migration-banner-icon, .customization-migration-banner-consequence'),
+			consequence: editor.migrationBannerContainer!.querySelector('.customization-migration-banner-consequence')?.textContent ?? '',
 			bannerHidden: editor.migrationBannerContainer!.style.display === 'none',
 			descriptionHidden: editor.migrationDescriptionElement!.style.display === 'none',
 			linkInBanner: editor.migrationLinkElement!.closest('.customization-migration-banner-content') !== null,
@@ -472,14 +472,14 @@ suite('aiCustomizationManagementEditor', () => {
 			assert.deepStrictEqual({ userData, prompts }, {
 				userData: {
 					message: 'They are stored in user data, which only VS Code reads. Move them to \'~/.copilot\' so both VS Code and this harness can use them, keeping their name, type, and content.',
-					hasExtraContent: false,
+					consequence: 'Migrated files aren\'t currently included in Settings Sync.',
 					bannerHidden: false,
 					descriptionHidden: true,
 					linkInBanner: true,
 				},
 				prompts: {
 					message: 'Prompts are no longer supported by Copilot. Convert them to skills to keep them available in both VS Code and this harness.',
-					hasExtraContent: false,
+					consequence: '',
 					bannerHidden: false,
 					descriptionHidden: true,
 					linkInBanner: true,

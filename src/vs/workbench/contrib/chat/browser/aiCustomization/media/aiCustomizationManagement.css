@@ -1040,22 +1040,10 @@ per-word capitalization does not survive translation. */
 }
 
 .ai-customization-management-editor .customization-migration-banner-consequence {
-	display: flex;
-	align-items: flex-start;
-	gap: var(--vscode-spacing-size60);
 	margin: 0;
-	font-size: var(--vscode-fontSize-body1);
+	font-size: var(--vscode-fontSize-body2);
 	line-height: 1.45;
 	color: var(--vscode-descriptionForeground);
-}
-
-.ai-customization-management-editor .customization-migration-banner-consequence-icon {
-	flex-shrink: 0;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	width: 16px;
-	height: 16px;
 }
 
 .ai-customization-management-editor .migration-learn-more-link {
@@ -1817,12 +1805,12 @@ per-word capitalization does not survive translation. */
 
 .ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-title-actions .embedded-detail-uninstall-button.monaco-button {
 	color: var(--vscode-errorForeground);
-	border-color: transparent !important;
-	background: transparent !important;
+	border-color: transparent;
+	background: transparent;
 }
 
 .ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-title-actions .embedded-detail-uninstall-button.monaco-button:hover {
-	background: var(--vscode-button-secondaryHoverBackground) !important;
+	background: var(--vscode-button-secondaryHoverBackground);
 }
 
 .ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-name {
@@ -1964,14 +1952,19 @@ per-word capitalization does not survive translation. */
 	min-width: 20px;
 	height: 20px;
 	padding: 0;
-	background: transparent !important;
-	border-color: transparent !important;
-	color: var(--vscode-descriptionForeground) !important;
+	background: transparent;
+	border-color: transparent;
+	color: var(--vscode-descriptionForeground);
 }
 
 .ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-copy-button.monaco-button:hover {
-	background: transparent !important;
-	color: var(--vscode-textLink-activeForeground) !important;
+	background: transparent;
+	color: var(--vscode-textLink-activeForeground);
+}
+
+.ai-customization-management-editor .mcp-detail-definition-empty:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: -1px;
 }
 
 .ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-section {
@@ -2454,8 +2447,8 @@ per-word capitalization does not survive translation. */
 	padding-top: var(--vscode-spacing-size160);
 }
 
-.plugin-list-widget .plugin-search-header:hover {
-	background: transparent !important;
+.plugin-list-widget .monaco-list-row.plugin-search-header:hover {
+	background: transparent;
 }
 
 .plugin-list-widget .plugin-search-header-label {
@@ -2503,6 +2496,25 @@ per-word capitalization does not survive translation. */
 	opacity: 0.6;
 }
 
+.plugin-list-widget .customization-card-primary-action {
+	appearance: none;
+	background: transparent;
+	border: 0;
+	color: inherit;
+	font: inherit;
+	padding: 0;
+	text-align: start;
+	min-width: 0;
+	cursor: pointer;
+}
+
+.plugin-list-widget .plugin-home-row > .customization-card-primary-action {
+	display: flex;
+	align-items: center;
+	align-self: stretch;
+	flex: 1;
+}
+
 .plugin-list-widget .customization-row-primary {
 	display: flex;
 	align-items: center;
@@ -2513,7 +2525,8 @@ per-word capitalization does not survive translation. */
 	cursor: pointer;
 }
 
-.plugin-list-widget .customization-row-primary:focus-visible {
+.plugin-list-widget .customization-card-primary-action:focus-visible,
+.plugin-list-widget .plugin-remote-item:focus-visible {
 	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
 	outline-offset: -1px;
 }
@@ -2526,15 +2539,11 @@ per-word capitalization does not survive translation. */
 	background: var(--vscode-list-hoverBackground);
 }
 
-.plugin-list-widget .plugin-home-row:focus-visible {
-	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
-	outline-offset: -1px;
-}
-
 .plugin-list-widget .plugin-home-row .plugin-list-item-action {
 	display: flex;
 	align-items: center;
 	gap: var(--vscode-spacing-size40);
+	margin-left: auto;
 }
 
 .plugin-list-widget .plugin-list-item:hover {
@@ -2889,6 +2898,10 @@ per-word capitalization does not survive translation. */
 	flex-direction: column;
 }
 
+.plugin-list-widget .plugin-marketplace-card .plugin-card-title-block.customization-card-primary-action {
+	width: 100%;
+}
+
 .plugin-list-widget .plugin-marketplace-card .plugin-card-header .plugin-card-actions {
 	justify-content: flex-start;
 	margin-top: auto;
@@ -2913,11 +2926,6 @@ per-word capitalization does not survive translation. */
 
 .plugin-list-widget .plugin-discovery-section .plugin-card:hover {
 	background: var(--vscode-list-hoverBackground);
-}
-
-.plugin-list-widget .plugin-card:focus-visible {
-	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
-	outline-offset: -1px;
 }
 
 .plugin-list-widget .plugin-card.disabled {
@@ -3001,18 +3009,18 @@ per-word capitalization does not survive translation. */
 .plugin-list-widget .plugin-card-actions .plugin-card-ghost-button.monaco-button,
 .plugin-list-widget .plugin-card-section-header .plugin-card-ghost-button.monaco-button,
 .plugin-list-widget .plugin-marketplace-page-header .plugin-card-ghost-button.monaco-button {
-	background: transparent !important;
-	color: var(--vscode-foreground) !important;
-	border-color: transparent !important;
-	width: auto !important;
+	background: transparent;
+	color: var(--vscode-foreground);
+	border-color: transparent;
+	width: auto;
 	flex: 0 0 auto;
 }
 
 .plugin-list-widget .plugin-card-actions .plugin-card-ghost-button.monaco-button:hover,
 .plugin-list-widget .plugin-card-section-header .plugin-card-ghost-button.monaco-button:hover,
 .plugin-list-widget .plugin-marketplace-page-header .plugin-card-ghost-button.monaco-button:hover {
-	background: var(--vscode-toolbar-hoverBackground) !important;
-	color: var(--vscode-foreground) !important;
+	background: var(--vscode-toolbar-hoverBackground);
+	color: var(--vscode-foreground);
 }
 
 .plugin-list-widget .plugin-home-empty-card {

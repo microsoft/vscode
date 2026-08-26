@@ -84,6 +84,7 @@ export class EmbeddedMcpServerDetail extends Disposable {
 
 		this.definitionEditorContainer = DOM.append(this.root, $('.embedded-editor-container.mcp-detail-definition-editor'));
 		this.definitionEmptyEl = DOM.append(this.root, $('.embedded-detail-empty.mcp-detail-definition-empty'));
+		this.definitionEmptyEl.tabIndex = -1;
 		this.definitionEmptyEl.textContent = localize('mcpDefinitionUnavailable', "No definition is available for this MCP server.");
 
 		this.definitionEditor = this._register(instantiationService.createInstance(
@@ -147,7 +148,11 @@ export class EmbeddedMcpServerDetail extends Disposable {
 	}
 
 	focus(): void {
-		this.definitionEditor.focus();
+		if (this.currentDefinition !== undefined) {
+			this.definitionEditor.focus();
+			return;
+		}
+		this.definitionEmptyEl.focus();
 	}
 
 	private renderItem(): void {

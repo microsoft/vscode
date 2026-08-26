@@ -1615,6 +1615,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 		container.style.display = '';
 		const content = DOM.append(container, $('.customization-migration-banner-content'));
 		DOM.append(content, $('p.customization-migration-banner-message')).textContent = banner.message;
+		if (banner.consequence) {
+			DOM.append(content, $('p.customization-migration-banner-consequence')).textContent = banner.consequence;
+		}
 		if (this.migrationLinkElement) {
 			content.appendChild(this.migrationLinkElement);
 		}

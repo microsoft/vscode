@@ -43,6 +43,10 @@ import './media/aiCustomizationManagement.css';
 
 const $ = DOM.$;
 
+export function isToolsTreeKeyboardTarget(target: HTMLElement, row: HTMLElement): boolean {
+	return target === row;
+}
+
 interface ITreeRow {
 	readonly kind: 'set' | 'tool';
 	readonly rowId: string;
@@ -909,7 +913,7 @@ export class ToolsListWidget extends Disposable {
 
 	private _onTreeKeyDown(e: IKeyboardEvent): void {
 		const row = this._rowFromTarget(e.target);
-		if (!row) {
+		if (!row || !isToolsTreeKeyboardTarget(e.target, row.element)) {
 			return;
 		}
 		let handled = true;
