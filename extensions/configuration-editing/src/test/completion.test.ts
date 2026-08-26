@@ -197,7 +197,25 @@ suite('Completions in settings.json', () => {
 			await testCompletion(testFile, 'jsonc', content, expected);
 		}
 	});
-	test('files.exclude', async () => {
+	 test('files.exclude', async () => {
+		{
+			const content = [
+				'{',
+				'  "files.exclude": {',
+				'    |',
+				'  }',
+				'}',
+			].join('\n');
+			const resultText = [
+				'{',
+				'  "files.exclude": {',
+				'    "**/*.${1:extension}": true',
+				'  }',
+				'}',
+			].join('\n');
+			const expected = { label: 'Files by Extension', resultText };
+			await testCompletion(testFile, 'jsonc', content, expected);
+		}
 		{
 			const content = [
 				'{',
@@ -216,6 +234,25 @@ suite('Completions in settings.json', () => {
 			const expected = { label: 'true', resultText };
 			await testCompletion(testFile, 'jsonc', content, expected);
 		}
+		{
+			const content = [
+				'{',
+				'  "files.exclude": {',
+				'    "**/*.extension": |true',
+				'  }',
+				'}',
+			].join('\n');
+			const resultText = [
+				'{',
+				'  "files.exclude": {',
+				'    "**/*.extension": { "when": "$(basename).${1:extension}" }',
+				'  }',
+				'}',
+			].join('\n');
+			const expected = { label: 'Files with Siblings by Name', resultText };
+			await testCompletion(testFile, 'jsonc', content, expected);
+		}
+	});
 		{
 			const content = [
 				'{',
