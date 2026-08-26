@@ -55,17 +55,11 @@
 
 .monaco-workbench .interactive-session.chat-session-state-indicator.chat-state-in-progress::before {
 	border-color: var(--vscode-charts-green);
-}
-
-.monaco-workbench .interactive-session.chat-session-state-indicator-glow.chat-state-in-progress::before {
 	animation: chat-session-working-glow 1.4s ease-in-out infinite;
 }
 
 .monaco-workbench .interactive-session.chat-session-state-indicator.chat-state-needs-input::before {
 	border-color: var(--vscode-errorForeground);
-}
-
-.monaco-workbench .interactive-session.chat-session-state-indicator-glow.chat-state-needs-input::before {
 	box-shadow: 0 0 var(--vscode-spacing-size80) color-mix(in srgb, var(--vscode-errorForeground) 60%, transparent);
 }
 
@@ -75,8 +69,8 @@
 	box-shadow: none;
 }
 
-.monaco-workbench.hc-black .interactive-session.chat-session-state-indicator-glow.chat-state-in-progress::before,
-.monaco-workbench.hc-light .interactive-session.chat-session-state-indicator-glow.chat-state-in-progress::before {
+.monaco-workbench.hc-black .interactive-session.chat-session-state-indicator.chat-state-in-progress::before,
+.monaco-workbench.hc-light .interactive-session.chat-session-state-indicator.chat-state-in-progress::before {
 	border: var(--vscode-strokeThickness) solid var(--vscode-contrastActiveBorder);
 	animation: none;
 }
@@ -86,8 +80,8 @@
 	transition: none;
 }
 
-.monaco-reduce-motion .interactive-session.chat-session-state-indicator-glow.chat-state-in-progress::before,
-.monaco-workbench.monaco-reduce-motion .interactive-session.chat-session-state-indicator-glow.chat-state-in-progress::before {
+.monaco-reduce-motion .interactive-session.chat-session-state-indicator.chat-state-in-progress::before,
+.monaco-workbench.monaco-reduce-motion .interactive-session.chat-session-state-indicator.chat-state-in-progress::before {
 	animation: none;
 }
 
@@ -96,7 +90,7 @@
 		transition: none;
 	}
 
-	.monaco-workbench .interactive-session.chat-session-state-indicator-glow.chat-state-in-progress::before {
+	.monaco-workbench .interactive-session.chat-session-state-indicator.chat-state-in-progress::before {
 		animation: none;
 	}
 }

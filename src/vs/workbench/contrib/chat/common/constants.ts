@@ -26,12 +26,6 @@ export const enum BYOKUtilityModelDefault {
 	Copilot = 'copilot',
 }
 
-export const enum ChatSessionStateIndicator {
-	Off = 'off',
-	Outline = 'outline',
-	Glow = 'glow',
-}
-
 export enum ChatConfiguration {
 	PluginsEnabled = 'chat.plugins.enabled',
 	PluginLocations = 'chat.pluginLocations',
@@ -87,7 +81,7 @@ export enum ChatConfiguration {
 	ChatContextUsageEnabled = 'chat.contextUsage.enabled',
 	Verbose = 'chat.verbose',
 	ProgressBorder = 'chat.progressBorder.enabled',
-	SessionStateIndicator = 'chat.sessionStateIndicator',
+	SessionStateIndicatorEnabled = 'chat.experimental.sessionStateIndicator.enabled',
 	SubagentToolCustomAgents = 'chat.customAgentInSubagent.enabled',
 	SubagentsAllowInvocationsFromSubagents = 'chat.subagents.allowInvocationsFromSubagents',
 	SubagentsUseRichRendering = 'chat.subagents.useRichRendering',

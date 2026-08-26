@@ -72,7 +72,7 @@ import { IChatTodoListService } from '../../common/tools/chatTodoListService.js'
 import { ChatRequestVariableSet, IChatRequestTranscriptContextVariableEntry, IChatRequestVariableEntry, isPastedTextArtifact, isPromptFileVariableEntry, isPromptTextVariableEntry, isWorkspaceVariableEntry, PromptFileVariableKind, toPromptFileVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { ChatViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
 import { ChatMessageRole, IChatMessage } from '../../common/languageModels.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, ChatSessionStateIndicator, IResolvedNewChatSessionType, ThinkingDisplayMode } from '../../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, IResolvedNewChatSessionType, ThinkingDisplayMode } from '../../common/constants.js';
 import { IChatGoalSummaryService } from '../chatGoalSummaryService.js';
 import { ILanguageModelToolsService, isToolSet } from '../../common/tools/languageModelToolsService.js';
 import { IHandOff, PromptHeader } from '../../common/promptSyntax/promptFileParser.js';
@@ -672,7 +672,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			if (e.affectsConfiguration(ChatConfiguration.ProgressBorder)) {
 				this.updateWorkingProgressBorder();
 			}
-			if (e.affectsConfiguration(ChatConfiguration.SessionStateIndicator)) {
+			if (e.affectsConfiguration(ChatConfiguration.SessionStateIndicatorEnabled)) {
 				this.updateWorkingProgressBorder();
 				this.updateSessionStateIndicator();
 			}
@@ -952,19 +952,19 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const enabled = this.configurationService.getValue<boolean>(ChatConfiguration.ProgressBorder) === true
 			&& !this.accessibilityService.isMotionReduced()
 			&& !isInlineChat(this)
-			&& this.getSessionStateIndicatorStyle() !== ChatSessionStateIndicator.Glow;
+			&& !this.isSessionStateIndicatorEnabled();
 		const inProgress = !!this.viewModel?.model.requestInProgress.get();
 		const working = enabled && inProgress;
 		inputContainer.classList.toggle('working', working);
 		setChatInputStackInputWorking(inputContainer, working);
 	}
 
-	private getSessionStateIndicatorStyle(): ChatSessionStateIndicator {
+	private isSessionStateIndicatorEnabled(): boolean {
 		if (isInlineChat(this) || isQuickChat(this) || this.viewOptions.showSessionStateIndicator === false) {
-			return ChatSessionStateIndicator.Off;
+			return false;
 		}
 
-		return this.configurationService.getValue<ChatSessionStateIndicator>(ChatConfiguration.SessionStateIndicator);
+		return this.configurationService.getValue<boolean>(ChatConfiguration.SessionStateIndicatorEnabled) === true;
 	}
 
 	/** Updates the whole-widget session state indicator. */
@@ -973,9 +973,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return;
 		}
 
-		const style = this.getSessionStateIndicatorStyle();
-		const enabled = style === ChatSessionStateIndicator.Outline || style === ChatSessionStateIndicator.Glow;
-		const glow = style === ChatSessionStateIndicator.Glow;
+		const enabled = this.isSessionStateIndicatorEnabled();
 		const modelNeedsInput = !!this.viewModel?.model.requestNeedsInput.get();
 		const modelInProgress = !modelNeedsInput && !!this.viewModel?.model.requestInProgress.get();
 		const requestActive = modelNeedsInput || modelInProgress;
@@ -996,7 +994,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const idleUnvisited = idle && this._hasUnvisitedCompletion;
 
 		this.container.classList.toggle('chat-session-state-indicator', enabled);
-		this.container.classList.toggle('chat-session-state-indicator-glow', glow);
 		this.container.classList.toggle('chat-state-needs-input', needsInput);
 		this.container.classList.toggle('chat-state-in-progress', inProgress);
 		this.container.classList.toggle('chat-state-idle', idle);

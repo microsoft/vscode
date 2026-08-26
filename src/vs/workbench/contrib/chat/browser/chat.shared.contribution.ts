@@ -62,7 +62,7 @@ import { ChatRequestOriginService, IChatRequestOriginService } from '../common/c
 import { ChatService } from '../common/chatService/chatServiceImpl.js';
 import { IChatSessionsService } from '../common/chatSessionsService.js';
 import { ChatSideChatService, IChatSideChatService } from '../common/chatSideChatService.js';
-import { BYOKUtilityModelDefault, ChatAIDisabledSettingId, ChatAgentLocation, ChatConfiguration, ChatDefaultPermissionLevel, ChatNotificationMode, ChatPermissionLevel, ChatSessionStateIndicator } from '../common/constants.js';
+import { BYOKUtilityModelDefault, ChatAIDisabledSettingId, ChatAgentLocation, ChatConfiguration, ChatDefaultPermissionLevel, ChatNotificationMode, ChatPermissionLevel } from '../common/constants.js';
 import { CodeMapperService, ICodeMapperService } from '../common/editing/chatCodeMapperService.js';
 import { IChatEditingService } from '../common/editing/chatEditingService.js';
 import { ILanguageModelIgnoredFilesService, LanguageModelIgnoredFilesService } from '../common/ignoredFiles.js';
@@ -963,16 +963,10 @@ configurationRegistry.registerConfiguration({
 			default: true,
 			markdownDescription: nls.localize('chat.progressBorder.enabled', "Show an animated gradient border around the chat input while the agent is working or thinking. Has no effect when reduced motion is enabled."),
 		},
-		[ChatConfiguration.SessionStateIndicator]: {
-			type: 'string',
-			enum: [ChatSessionStateIndicator.Off, ChatSessionStateIndicator.Outline, ChatSessionStateIndicator.Glow],
-			enumDescriptions: [
-				nls.localize('chat.sessionStateIndicator.off', "Do not show a state indicator around chat sessions."),
-				nls.localize('chat.sessionStateIndicator.outline', "Show a theme-aware state outline around each chat editor session."),
-				nls.localize('chat.sessionStateIndicator.glow', "Show a theme-aware state frame around each chat editor session, including an animated green glow while a request is running."),
-			],
-			default: ChatSessionStateIndicator.Off,
-			description: nls.localize('chat.sessionStateIndicator', "Controls the state indicator shown around each chat editor session."),
+		[ChatConfiguration.SessionStateIndicatorEnabled]: {
+			type: 'boolean',
+			default: false,
+			description: nls.localize('chat.experimental.sessionStateIndicator.enabled', "Enable state indicators around chat editor sessions."),
 			tags: ['experimental'],
 		},
 		[ChatConfiguration.NotifyWindowOnResponseReceived]: {
