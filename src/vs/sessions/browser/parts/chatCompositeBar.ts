@@ -15,7 +15,6 @@ import { autorun, IObservable } from '../../../base/common/observable.js';
 import { isLinux } from '../../../base/common/platform.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { Action } from '../../../base/common/actions.js';
-import { ActionBar } from '../../../base/browser/ui/actionbar/actionbar.js';
 import { InputBox } from '../../../base/browser/ui/inputbox/inputBox.js';
 import { defaultInputBoxStyles } from '../../../platform/theme/browser/defaultStyles.js';
 import { Codicon } from '../../../base/common/codicons.js';
@@ -80,9 +79,6 @@ export interface IChatCompositeBarDelegate {
 	/** Activate (show + focus) the given chat within this group. */
 	openChat(resource: URI): void;
 
-	/** Start a new chat within this group. */
-	newChat(): void;
-
 	/** A chat tab drag has started for the given chat. */
 	onTabDragStart?(resource: URI): void;
 
@@ -104,8 +100,6 @@ export class ChatCompositeBar extends Disposable {
 	private readonly _tabsRow: HTMLElement;
 	private readonly _tabsContainer: HTMLElement;
 	private readonly _tabsScrollbar: ScrollableElement;
-	private readonly _newChatAction: Action;
-	private readonly _newChatContainer: HTMLElement;
 	private readonly _sessionActionsContainer: HTMLElement;
 	private readonly _sessionToolbar: MenuWorkbenchToolBar;
 	private readonly _tabs: IChatTab[] = [];
@@ -165,18 +159,6 @@ export class ChatCompositeBar extends Disposable {
 			useShadows: false,
 		}));
 		this._tabsRow.appendChild(this._tabsScrollbar.getDomNode());
-
-		this._newChatAction = this._register(new Action(
-			'sessions.chatCompositeBar.addChat',
-			localize('chatCompositeBar.addChat', "New Chat in This Session"),
-			ThemeIcon.asClassName(Codicon.add),
-			true,
-			async () => this._delegate?.newChat(),
-		));
-		const newChatActionBar = this._register(new ActionBar(this._tabsRow));
-		newChatActionBar.push(this._newChatAction, { icon: true, label: false });
-		this._newChatContainer = newChatActionBar.getContainer();
-		this._newChatContainer.classList.add('chat-composite-bar-new-chat');
 
 		this._sessionActionsContainer = $('.session-chat-tabs-actions');
 		this._tabsRow.appendChild(this._sessionActionsContainer);
@@ -257,10 +239,6 @@ export class ChatCompositeBar extends Disposable {
 			const activeChatUri = delegate.activeChatResource.read(reader);
 			const mainChatUri = delegate.mainChatResource.read(reader);
 			this._rebuildTabs(chats, activeChatUri, mainChatUri);
-			const supportsMultipleChats = delegate.session.capabilities.read(reader).supportsMultipleChats;
-			const isQuickChat = delegate.session.isQuickChat?.read(reader) ?? false;
-			this._newChatContainer.classList.toggle('hidden', !supportsMultipleChats || isQuickChat);
-			this._newChatAction.enabled = supportsMultipleChats && !isQuickChat && !delegate.session.isArchived.read(reader);
 			this._showSessionActions = delegate.showSessionActions.read(reader);
 			this._sessionActionsContainer.classList.toggle('hidden', !this._showSessionActions);
 
