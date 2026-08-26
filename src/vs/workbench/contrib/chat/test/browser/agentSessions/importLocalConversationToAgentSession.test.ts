@@ -7,7 +7,7 @@ import assert from 'assert';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { getErrorResponsePart, ResponsePartKind, ToolResultContentType, TurnState, type ResponsePart, type ToolCallCompletedState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { getTurnError, ResponsePartKind, ToolResultContentType, TurnState, type ResponsePart, type ToolCallCompletedState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import type { IChatProgressResponseContent, IChatModel, IChatRequestModel, IChatResponseModel } from '../../../common/model/chatModel.js';
 import { importedTurnsFromChatModel } from '../../../browser/agentSessions/agentHost/importLocalConversationToAgentSession.js';
 
@@ -72,7 +72,7 @@ suite('importedTurnsFromChatModel', () => {
 		return importedTurnsFromChatModel(model).map(turn => ({
 			text: turn.message.text,
 			state: turn.state,
-			error: getErrorResponsePart(turn)?.error,
+			error: getTurnError(turn),
 			parts: turn.responseParts.map(part => {
 				if (part.kind === ResponsePartKind.Markdown || part.kind === ResponsePartKind.Reasoning) {
 					return { kind: part.kind, content: part.content };

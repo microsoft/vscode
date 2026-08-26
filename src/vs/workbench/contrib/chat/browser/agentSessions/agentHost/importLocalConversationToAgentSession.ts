@@ -8,7 +8,7 @@ import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { basename } from '../../../../../../base/common/resources.js';
 import { localize } from '../../../../../../nls.js';
-import { createErrorResponsePart, MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, type ErrorInfo, type ResponsePart, type ToolCallCompletedState, type ToolResultContent, type Turn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, type ErrorInfo, type ResponsePart, type ToolCallCompletedState, type ToolResultContent, type Turn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IChatToolInvocation, type IChatContentInlineReference, type IChatToolInvocationSerialized } from '../../../common/chatService/chatService.js';
 import type { IChatModel, IChatRequestModel } from '../../../common/model/chatModel.js';
 import { isToolResultInputOutputDetails } from '../../../common/tools/languageModelToolsService.js';
@@ -229,6 +229,9 @@ export function importedTurnsFromChatModel(model: IChatModel): Turn[] {
 	for (const request of model.getRequests()) {
 		const responseParts = responsePartsFromRequest(request);
 		const outcome = turnOutcomeFromRequest(request);
+		if (outcome.error) {
+			responseParts.push({ kind: ResponsePartKind.Error, error: outcome.error });
+		}
 		if (request.isSystemInitiated) {
 			// Not a genuine user message; append its output to the previous
 			// turn so the agent's continued work is preserved without surfacing
@@ -238,9 +241,6 @@ export function importedTurnsFromChatModel(model: IChatModel): Turn[] {
 			const previous = turns[turns.length - 1];
 			if (previous) {
 				previous.responseParts.push(...responseParts);
-				if (outcome.error) {
-					previous.responseParts.push(createErrorResponsePart(outcome.error));
-				}
 				previous.state = outcome.state;
 			}
 			continue;
@@ -248,7 +248,7 @@ export function importedTurnsFromChatModel(model: IChatModel): Turn[] {
 		turns.push({
 			id: generateUuid(),
 			message: { text: request.message.text, origin: { kind: MessageKind.User } },
-			responseParts: outcome.error ? [...responseParts, createErrorResponsePart(outcome.error)] : responseParts,
+			responseParts,
 			usage: undefined,
 			state: outcome.state,
 		} satisfies Turn);

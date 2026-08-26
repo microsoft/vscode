@@ -10,7 +10,6 @@ import { SessionServerToolName } from '../../common/serverToolNames.js';
 import {
 	MessageKind,
 	ResponsePartKind,
-	createErrorResponsePart,
 	ToolCallConfirmationReason,
 	ToolCallStatus,
 	ToolResultContentType,
@@ -207,6 +206,9 @@ function replayTurnToTurn(codexTurn: CodexTurn, model: ModelSelection | undefine
 	if (!userText && parts.length === 0) {
 		return undefined;
 	}
+	if (codexTurn.status === 'failed' && codexTurn.error) {
+		parts.push({ kind: ResponsePartKind.Error, error: mapCodexTurnError(codexTurn.error) });
+	}
 	return {
 		id: codexTurn.id,
 		...codexTurnTiming(codexTurn),
@@ -216,9 +218,7 @@ function replayTurnToTurn(codexTurn: CodexTurn, model: ModelSelection | undefine
 			...(model ? { model } : {}),
 			...(delegation ? { _meta: toAgentMessageDelegationMeta({ sourceThreadId: delegation.sourceThreadId }) } : {}),
 		},
-		responseParts: codexTurn.status === 'failed' && codexTurn.error
-			? [...parts, createErrorResponsePart(mapCodexTurnError(codexTurn.error))]
-			: parts,
+		responseParts: parts,
 		usage: model ? { model: model.id } : undefined,
 		state: turnStateFromStatus(codexTurn.status),
 	};

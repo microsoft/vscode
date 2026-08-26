@@ -304,6 +304,11 @@ export interface IChatProgressMessage {
 export interface IChatSystemNotificationPart {
 	content: IMarkdownString;
 	kind: 'systemNotification';
+	/**
+	 * Icon shown beside the notification. Defaults to a check, which only suits
+	 * notifications that report something completing.
+	 */
+	icon?: ThemeIcon;
 }
 
 export interface IChatTask extends IChatTaskDto {
