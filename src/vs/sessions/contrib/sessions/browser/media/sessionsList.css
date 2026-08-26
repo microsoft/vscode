@@ -30,6 +30,31 @@
 		display: none !important;
 	}
 
+	.monaco-list-row .session-chat-twistie {
+		position: absolute;
+		top: var(--vscode-spacing-size80);
+		left: var(--vscode-spacing-size120);
+		width: var(--vscode-spacing-size160);
+		height: var(--vscode-spacing-size160);
+		padding-right: 0;
+		font-size: 16px;
+		opacity: 0;
+		pointer-events: none;
+		transform: none;
+		z-index: 1;
+	}
+
+	.monaco-list-row:hover .session-chat-twistie.collapsible,
+	.monaco-list-row.focused .session-chat-twistie.collapsible {
+		opacity: 1;
+		pointer-events: auto;
+	}
+
+	.monaco-list-row:hover[aria-expanded] .session-item .session-icon,
+	.monaco-list-row.focused[aria-expanded] .session-item .session-icon {
+		visibility: hidden;
+	}
+
 	.monaco-list-row.selected .session-details-row {
 		color: unset;
 	}
@@ -121,6 +146,7 @@
 	flex-direction: row;
 	height: 100%;
 	box-sizing: border-box;
+	position: relative;
 	padding: 8px 6px 8px 12px;
 
 	&.archived {
@@ -223,7 +249,7 @@
 
 	.session-details-row {
 		gap: 4px;
-		font-size: var(--vscode-agents-fontSize-label2, 11px);
+		font-size: var(--vscode-fontSize-label2, 11px);
 		line-height: 15px;
 		max-height: 15px;
 		overflow: hidden;
@@ -293,7 +319,7 @@
 	}
 
 	.session-title {
-		font-size: var(--vscode-agents-fontSize-body1, 13px);
+		font-size: var(--vscode-fontSize-body1, 13px);
 	}
 
 	.session-title {
@@ -348,7 +374,7 @@
 				overflow: hidden;
 				white-space: nowrap;
 				text-overflow: ellipsis;
-				font-size: var(--vscode-agents-fontSize-label1, 12px);
+				font-size: var(--vscode-fontSize-label1, 12px);
 			}
 		}
 
@@ -357,7 +383,7 @@
 
 			.monaco-button {
 				padding: 2px 10px;
-				font-size: var(--vscode-agents-fontSize-label1, 12px);
+				font-size: var(--vscode-fontSize-label1, 12px);
 				white-space: nowrap;
 			}
 		}
@@ -393,7 +419,7 @@
 			overflow: hidden;
 			white-space: nowrap;
 			text-overflow: ellipsis;
-			font-size: var(--vscode-agents-fontSize-label1, 12px);
+			font-size: var(--vscode-fontSize-label1, 12px);
 		}
 
 		.session-ci-button {
@@ -401,10 +427,87 @@
 
 			.monaco-button {
 				padding: 2px 10px;
-				font-size: var(--vscode-agents-fontSize-label1, 12px);
+				font-size: var(--vscode-fontSize-label1, 12px);
 				white-space: nowrap;
 			}
 		}
+	}
+}
+
+.monaco-list-row[aria-expanded="true"] .session-item::after {
+	content: '';
+	position: absolute;
+	top: var(--vscode-spacing-size160);
+	bottom: 0;
+	left: var(--vscode-spacing-size200);
+	border-left: var(--vscode-strokeThickness) solid var(--vscode-tree-inactiveIndentGuidesStroke);
+}
+
+.session-chat-item {
+	display: flex;
+	align-items: center;
+	height: 100%;
+	box-sizing: border-box;
+	position: relative;
+	gap: var(--vscode-spacing-size60);
+	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size120) var(--vscode-spacing-size60) var(--vscode-spacing-size360);
+	color: var(--vscode-foreground);
+	font-size: var(--vscode-fontSize-body1);
+	font-weight: var(--vscode-fontWeight-regular);
+	line-height: 17px;
+
+	&::before {
+		content: '';
+		position: absolute;
+		top: 0;
+		bottom: 0;
+		left: var(--vscode-spacing-size200);
+		border-left: var(--vscode-strokeThickness) solid var(--vscode-tree-inactiveIndentGuidesStroke);
+	}
+
+	&::after {
+		content: '';
+		position: absolute;
+		top: 50%;
+		left: var(--vscode-spacing-size200);
+		width: var(--vscode-spacing-size240);
+		border-top: var(--vscode-strokeThickness) solid var(--vscode-tree-inactiveIndentGuidesStroke);
+	}
+
+	&.last-chat {
+		&::before {
+			bottom: 50%;
+			width: var(--vscode-spacing-size240);
+			border-bottom: var(--vscode-strokeThickness) solid var(--vscode-tree-inactiveIndentGuidesStroke);
+			border-bottom-left-radius: var(--vscode-cornerRadius-small);
+		}
+
+		&::after {
+			display: none;
+		}
+	}
+
+	.session-chat-icon {
+		flex-shrink: 0;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: var(--vscode-spacing-size160);
+		height: var(--vscode-spacing-size160);
+		font-size: var(--vscode-codiconFontSize-compact);
+
+		> .monaco-pixel-spinner {
+			width: var(--vscode-spacing-size120);
+			height: var(--vscode-spacing-size120);
+		}
+	}
+
+	.session-chat-title {
+		flex: 1;
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
 	}
 }
 
@@ -415,7 +518,7 @@
 	justify-content: center;
 	align-items: center;
 	padding: 0 10px;
-	font-size: var(--vscode-agents-fontSize-label2, 11px);
+	font-size: var(--vscode-fontSize-label2, 11px);
 	color: var(--vscode-descriptionForeground);
 	min-height: 26px;
 	cursor: pointer;
@@ -446,7 +549,7 @@
 	align-items: center;
 	/* Match .session-item: left padding (12px) + status icon (16px) + .session-main padding (6px). */
 	padding: 0 12px;
-	font-size: var(--vscode-agents-fontSize-label2, 11px);
+	font-size: var(--vscode-fontSize-label2, 11px);
 	color: var(--vscode-descriptionForeground);
 	min-height: 26px;
 	cursor: default;
@@ -465,7 +568,7 @@
 /* Folders show-more/show-less: align with workspace section headers. */
 .session-show-more.session-show-more-folders {
 	justify-content: flex-start;
-	font-weight: var(--vscode-agents-fontWeight-semiBold, 600);
+	font-weight: var(--vscode-fontWeight-semiBold, 600);
 
 	.session-show-more-label {
 		padding: 0;
@@ -483,8 +586,8 @@
 .session-section {
 	display: flex;
 	align-items: center;
-	font-size: var(--vscode-agents-fontSize-label2, 11px);
-	font-weight: var(--vscode-agents-fontWeight-semiBold, 600);
+	font-size: var(--vscode-fontSize-label2, 11px);
+	font-weight: var(--vscode-fontWeight-semiBold, 600);
 	color: var(--vscode-descriptionForeground);
 	padding: 0 10px;
 
@@ -629,7 +732,7 @@
 
 		.monaco-inputbox .input {
 			padding: 0 4px;
-			font-size: var(--vscode-agents-fontSize-label2, 11px);
+			font-size: var(--vscode-fontSize-label2, 11px);
 		}
 	}
 }
@@ -771,6 +874,28 @@
 		&.quick-chat {
 			align-items: flex-start;
 		}
+	}
+
+	.monaco-list-row[aria-expanded="true"] .session-item::after {
+		top: var(--vscode-spacing-size200);
+	}
+
+	.monaco-list-row .session-chat-twistie.collapsible {
+		opacity: 1;
+		pointer-events: auto;
+		top: var(--vscode-spacing-size100);
+		left: var(--vscode-spacing-size100);
+		width: var(--vscode-spacing-size200);
+		height: var(--vscode-spacing-size200);
+	}
+
+	.monaco-list-row[aria-expanded] .session-item .session-icon {
+		visibility: hidden;
+	}
+
+	.session-chat-item {
+		padding: var(--vscode-spacing-size120) var(--vscode-spacing-size120) var(--vscode-spacing-size120) var(--vscode-spacing-size360);
+		font-size: var(--vscode-fontSize-body1);
 	}
 
 	.session-item .session-icon {
