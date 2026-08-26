@@ -43,6 +43,73 @@ suite('Sessions - Chat View', () => {
 		assert.deepStrictEqual({ forwarded, petHostVisible: isVisible.get() }, { forwarded: [false, true], petHostVisible: true });
 	});
 
+	test('hides the phone combined picker label when compact', () => {
+		const toolbar = dom.append(document.body, dom.$('.sessions-chat-config-toolbar'));
+		disposables.add(toDisposable(() => toolbar.remove()));
+		const actionBar = dom.append(toolbar, dom.$('.monaco-action-bar'));
+		const item = dom.append(actionBar, dom.$('.action-item.compact-picker'));
+		const label = dom.append(item, dom.$('.chat-input-picker-label'));
+
+		assert.strictEqual(dom.getWindow(label).getComputedStyle(label).display, 'none');
+	});
+
+	test('keeps compact empty-state picker icons inside their action item', () => {
+		const toolbar = dom.append(document.body, dom.$('.sessions-chat-config-toolbar'));
+		disposables.add(toDisposable(() => toolbar.remove()));
+		const actionBar = dom.append(toolbar, dom.$('.monaco-action-bar'));
+		const item = dom.append(actionBar, dom.$('.action-item.compact-picker'));
+		const label = dom.append(item, dom.$('a.action-label'));
+		const icon = dom.append(label, dom.$('span.codicon'));
+		icon.style.width = '12px';
+		icon.style.height = '12px';
+
+		const itemBounds = item.getBoundingClientRect();
+		const labelBounds = label.getBoundingClientRect();
+		const iconBounds = icon.getBoundingClientRect();
+		assert.deepStrictEqual({
+			labelOffset: labelBounds.left - itemBounds.left,
+			iconOffset: iconBounds.left - itemBounds.left,
+			iconEscapes: iconBounds.left < itemBounds.left || iconBounds.right > itemBounds.right,
+		}, {
+			labelOffset: 0,
+			iconOffset: 8,
+			iconEscapes: false,
+		});
+	});
+
+	test('keeps compact bottom-row picker glyphs inside their action item', () => {
+		const workbench = dom.append(document.body, dom.$('.agent-sessions-workbench'));
+		disposables.add(toDisposable(() => workbench.remove()));
+		workbench.style.setProperty('--vscode-codiconFontSize-compact', '12px');
+		const widget = dom.append(workbench, dom.$('.new-chat-widget-container.revealed'));
+		const row = dom.append(widget, dom.$('.new-chat-bottom-container'));
+		const actionBar = dom.append(row, dom.$('.monaco-action-bar'));
+		const item = dom.append(actionBar, dom.$('.action-item.compact-picker'));
+		const label = dom.append(item, dom.$('a.action-label'));
+		const icon = dom.append(label, dom.$('span.codicon'));
+		icon.style.width = '12px';
+		icon.style.height = '12px';
+
+		const itemBounds = item.getBoundingClientRect();
+		const labelBounds = label.getBoundingClientRect();
+		const iconBounds = icon.getBoundingClientRect();
+		assert.deepStrictEqual({
+			itemWidth: itemBounds.width,
+			labelWidth: labelBounds.width,
+			labelOffset: labelBounds.left - itemBounds.left,
+			iconWidth: iconBounds.width,
+			iconOffset: iconBounds.left - itemBounds.left,
+			iconEscapes: iconBounds.left < itemBounds.left || iconBounds.right > itemBounds.right,
+		}, {
+			itemWidth: 22,
+			labelWidth: 22,
+			labelOffset: 0,
+			iconWidth: 12,
+			iconOffset: 8,
+			iconEscapes: false,
+		});
+	});
+
 	test('does not forward aquarium visibility to the peer chat composer', () => {
 		const isVisible = observableValue(disposables, true);
 		const view: NewChatView = Object.assign(Object.create(NewChatView.prototype), {
