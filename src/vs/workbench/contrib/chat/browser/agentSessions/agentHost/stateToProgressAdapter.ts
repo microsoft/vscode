@@ -36,7 +36,7 @@ import product from '../../../../../../platform/product/common/product.js';
 import { ConfigureAutomationToolReferenceName } from '../../../common/automations/automationService.js';
 import { formatCopilotCredits, ElicitationState, type ChatExternalEditKind, type ChatMcpAppData, type IChatAgentFeedbackReviewConfirmationData, type IChatAutomationConfiguredData, type IChatAutoModeResolutionPart, type IChatExternalEdit, type IChatGeneratedImageData, type IChatMcpAuthenticationRequiredServer, type IChatModifiedFilesConfirmationData, type IChatPlanReviewResult, type IChatProgress, type IChatQuestion, type IChatQuestionAnswerValue, type IChatQuestionAnswers, type IChatResponseErrorDetails, type IChatSearchToolInvocationData, type IChatSessionCreatedData, type IChatTerminalToolInvocationData, type IChatToolInputInvocationData, type IChatToolInvocationSerialized, type IChatUsage, type IChatUsagePromptTokenDetail, ToolConfirmKind, AgentFeedbackReviewCommandId } from '../../../common/chatService/chatService.js';
 import { isTerminalCommandPrompt, type IChatSessionHistoryItem } from '../../../common/chatSessionsService.js';
-import { type IQuotaSnapshot } from '../../../../../services/chat/common/chatEntitlementService.js';
+import { type IQuotaSnapshot, type IRateLimitSnapshot } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { ChatPlanReviewData } from '../../../common/model/chatProgressTypes/chatPlanReviewData.js';
 import { ChatQuestionCarouselData } from '../../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
@@ -774,6 +774,10 @@ export interface IAgentHostQuotaUpdate {
 	readonly premiumChat?: IQuotaSnapshot;
 	readonly additionalUsageEnabled?: boolean;
 	readonly additionalUsageCount?: number;
+	readonly additionalUsageEntitlement?: number;
+	readonly usageBasedBilling?: boolean;
+	readonly sessionRateLimit?: IRateLimitSnapshot;
+	readonly weeklyRateLimit?: IRateLimitSnapshot;
 	readonly resetDate?: string;
 }
 
@@ -803,9 +807,21 @@ function mapAccountQuotaSnapshot(snapshot: AccountQuotaSnapshot): IQuotaSnapshot
 	return {
 		percentRemaining: Math.min(100, Math.max(0, snapshot.remainingPercentage)),
 		unlimited,
+		usageBasedBilling: snapshot.tokenBasedBilling,
 		entitlement: !unlimited && entitlement !== undefined && entitlement >= 0 ? entitlement : undefined,
 		quotaRemaining: !unlimited && entitlement !== undefined && used !== undefined ? Math.max(0, entitlement - used) : undefined,
 		resetAt: Number.isFinite(resetAtMs) ? Math.floor(resetAtMs / 1000) : undefined,
+	};
+}
+
+function mapRateLimitSnapshot(snapshot: AccountQuotaSnapshot | undefined): IRateLimitSnapshot | undefined {
+	if (!snapshot || typeof snapshot.remainingPercentage !== 'number') {
+		return undefined;
+	}
+	return {
+		percentRemaining: Math.min(100, Math.max(0, snapshot.remainingPercentage)),
+		unlimited: snapshot.isUnlimitedEntitlement ?? false,
+		resetDate: snapshot.resetDate,
 	};
 }
 
@@ -824,7 +840,8 @@ export function usageInfoToQuotas(usage: UsageInfo | undefined): IAgentHostQuota
 	const update: Mutable<IAgentHostQuotaUpdate> = {};
 	let hasAny = false;
 
-	const chat = snapshots['chat'] && mapAccountQuotaSnapshot(snapshots['chat']);
+	const chatRaw = snapshots['chat'];
+	const chat = chatRaw && mapAccountQuotaSnapshot(chatRaw);
 	if (chat) {
 		update.chat = chat;
 		hasAny = true;
@@ -834,7 +851,9 @@ export function usageInfoToQuotas(usage: UsageInfo | undefined): IAgentHostQuota
 		update.completions = completions;
 		hasAny = true;
 	}
-	const premiumRaw = snapshots['premium_interactions'];
+	// The backend reports the premium allowance as `premium_models`, or `premium_interactions` on
+	// older backends. Missing the alias left agent-host quota stale, so no banners. #332787
+	const premiumRaw = snapshots['premium_models'] ?? snapshots['premium_interactions'];
 	const premiumChat = premiumRaw && mapAccountQuotaSnapshot(premiumRaw);
 	if (premiumChat) {
 		update.premiumChat = premiumChat;
@@ -843,10 +862,32 @@ export function usageInfoToQuotas(usage: UsageInfo | undefined): IAgentHostQuota
 	if (premiumRaw) {
 		update.additionalUsageEnabled = premiumRaw.overageAllowedWithExhaustedQuota ?? false;
 		update.additionalUsageCount = typeof premiumRaw.overage === 'number' ? premiumRaw.overage : 0;
+		if (typeof premiumRaw.overageEntitlement === 'number') {
+			update.additionalUsageEntitlement = premiumRaw.overageEntitlement;
+		}
 		hasAny = true;
 	}
 
-	const resetDate = premiumRaw?.resetDate ?? snapshots['chat']?.resetDate;
+	// Only set when the backend reported it, so we don't clear what the entitlement response knows.
+	const usageBasedBilling = premiumRaw?.tokenBasedBilling ?? chatRaw?.tokenBasedBilling;
+	if (usageBasedBilling !== undefined) {
+		update.usageBasedBilling = usageBasedBilling;
+		hasAny = true;
+	}
+
+	// Rate limits ride along on the same event but are tracked separately from account quotas.
+	const sessionRateLimit = mapRateLimitSnapshot(snapshots['session']);
+	if (sessionRateLimit) {
+		update.sessionRateLimit = sessionRateLimit;
+		hasAny = true;
+	}
+	const weeklyRateLimit = mapRateLimitSnapshot(snapshots['weekly']);
+	if (weeklyRateLimit) {
+		update.weeklyRateLimit = weeklyRateLimit;
+		hasAny = true;
+	}
+
+	const resetDate = premiumRaw?.resetDate ?? chatRaw?.resetDate;
 	if (resetDate) {
 		update.resetDate = resetDate;
 	}

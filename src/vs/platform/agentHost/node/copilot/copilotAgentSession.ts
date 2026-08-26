@@ -6307,6 +6307,8 @@ function normalizeQuotaSnapshots(raw: unknown): UsageInfoMeta['quotaSnapshots'] 
 			overage: typeof v.overage === 'number' ? v.overage : undefined,
 			overageAllowedWithExhaustedQuota: typeof v.overageAllowedWithExhaustedQuota === 'boolean' ? v.overageAllowedWithExhaustedQuota : undefined,
 			resetDate,
+			tokenBasedBilling: typeof v.tokenBasedBilling === 'boolean' ? v.tokenBasedBilling : undefined,
+			overageEntitlement: typeof v.overageEntitlement === 'number' ? v.overageEntitlement : undefined,
 		};
 		hasAny = true;
 	}
