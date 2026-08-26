@@ -320,7 +320,7 @@ export class PromptValidator {
 						}
 						break;
 					case PromptsType.skill:
-						report(toMarker(localize('promptValidator.unknownAttribute.skill', "Attribute '{0}' is not supported by VS Code agents. Supported: {1}.", attribute.key, supportedNames.value), attribute.range, MarkerSeverity.Hint, [MarkerTag.Unnecessary]));
+						report(toMarker(localize('promptValidator.unknownAttribute.skill', "Attribute '{0}' is not supported by VS Code skills. Supported: {1}.", attribute.key, supportedNames.value), attribute.range, MarkerSeverity.Hint, [MarkerTag.Unnecessary]));
 						break;
 				}
 			}
