@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { disposableTimeout, IntervalTimer } from '../../../../../base/common/async.js';
@@ -1026,7 +1025,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		// Reachable by the private claim command, which exists only in a window
 		// launched with a claim commitment.
 		agentStore.add(agentSessionClaimTargets.register(sessionType,
-			backendSession => sessionHandler.claimExternalSession(backendSession, CancellationToken.None)));
+			(backendSession, token) => sessionHandler.claimExternalSession(backendSession, token)));
 
 		// Language model provider.
 		// Order matters: `updateModels` must be called after

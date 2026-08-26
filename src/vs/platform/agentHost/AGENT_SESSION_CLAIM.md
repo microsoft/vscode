@@ -6,9 +6,14 @@ editor, language, terminal, and customization surfaces to a run the controller
 continues to drive.
 
 This is pin-specific plumbing, not a product feature. There is no CLI
-subcommand, claim URI, setting, menu, Command Palette entry, keybinding, command
-URI, URL handler, or extension API, and it changes nothing about ordinary
-authentication.
+subcommand, claim URI, setting, menu, Command Palette entry, or keybinding, and
+it changes nothing about ordinary authentication.
+
+A command URI or any `executeCommand` caller *can* address the handler once it
+exists — VS Code has no per-caller command ACL. What protects it is that the
+command is not registered at all without the launch argument, and that reaching
+the session still requires the nonce pre-image, which only the controller and
+its bridge hold.
 
 ## Shape
 
@@ -23,8 +28,8 @@ launch --agents --agent-session-claim-hash <hex>
 bridge invokes ------------------> workbench.action.agentHost.claimExternalSession
                                     { nonce, sessionType, sessionUri,
                                       bridgeExtensionId, bridgeExtensionVersion }
-                                  burn gate, re-hash, constant-time compare,
-                                  check bridge version, resolve handler,
+                                  burn gate (+ persist spent marker), re-hash,
+                                  compare, await the exact handler (bounded),
                                   require existing session, claim() + whenSettled
 observe activeClient inventory
 start the evaluated turn
@@ -48,18 +53,42 @@ different combination. A plain separator would let a crafted `sessionUri`
 impersonate a different `nonce`/`sessionType` split.
 
 The request must carry exactly the five fields, each a non-empty string; unknown
-or missing fields are rejected rather than ignored. The session URI must be
-canonical: it re-serializes to itself, has a lowercase scheme, and carries no
-query, fragment, or `..` segment. The host's registry is keyed by the exact
-string, so an equivalent-but-differently-spelled URI must not be accepted.
+or missing fields are rejected rather than ignored. The session URI must
+re-serialize to itself with a lowercase scheme, because the host's registry is
+keyed by the exact string; the handler then re-checks that it round-trips
+through the named session type.
+
+The commitment is compared with `===`. Both sides are non-secret at that point —
+the commitment is a public one-way hash and the pre-image is what the caller just
+supplied — and a timing-leaked prefix of a hash does not help forge the rest.
+
+The bridge's id and version are pinned *by the commitment*. There is no separate
+check that the extension is installed at that version: it would not add a
+guarantee, because any caller that can produce the pre-image has already been
+told it by the controller.
 
 ## One use
 
 The gate is a single in-memory value, taken and cleared as the first statement
-of the command handler — before parsing, before hashing, before any lookup. A
-claim is therefore one-use *even when it fails*: a wrong nonce, a malformed
-argument, or a missing handler all burn it. Without the launch argument the
-command is never registered, so an ordinary window has nothing to invoke.
+of the command handler — before parsing, before hashing, before any lookup — and
+the commitment is simultaneously written to storage as spent. A claim is
+therefore one-use *even when it fails*: a wrong nonce, a malformed argument, or
+a handler that never appears all burn it.
+
+The spent marker is what survives a window reload, which would otherwise
+re-arm the in-memory gate from the same unchanged argv. It is keyed by the
+commitment, so a new run with a new commitment is unaffected. Without the launch
+argument the command is never registered, so an ordinary window has nothing to
+invoke.
+
+## Racing the handler
+
+The bridge can invoke the command before `RemoteAgentHostContribution` has
+connected and registered its session handlers. Rather than fail on a race the
+caller cannot control, the command waits for the exact session type, bounded by
+a single 60s deadline that also cancels session hydration and the active-client
+settle. A claim that never finds its handler fails with a deterministic timeout
+instead of hanging.
 
 ## Claim
 
@@ -73,8 +102,36 @@ It opens no chat model, so there is no draft synchronization, no pending-message
 projection, no server-turn watcher, and no MCP authentication watcher. The only
 watcher it installs is the existing session-scoped `inputNeeded` watcher, which
 already runs from a bare `IAgentSubscription<SessionState>`; without it the
-published tool inventory could never be exercised. Releasing the claim publishes
-the active-client removal and drops the watcher and the subscription.
+published tool inventory could never be exercised.
+
+A chat opened on the same session addresses the same session resource, so the
+`inputNeeded` watcher, the `ActiveClientEntry`, and the session subscription are
+all shared. Each is reference-counted, and either holder may be released first
+without tearing the other down. The claim also binds the hydrated subscription to
+the active-client entry, so later inventory or remote state changes re-reconcile
+rather than publishing once and going stale.
+
+Releasing the claim publishes the active-client removal and drops its references.
+That removal is best effort: it also runs during shutdown, where the connection
+may already be gone, and a failure to say goodbye must not take the window down.
+
+## Client tool approval
+
+A claimed session has no chat surface, so nothing can answer a confirmation. A
+client tool that declares `canRequestPreApproval` would otherwise be denied once
+its grace window expired, which would make the published evaluation inventory
+unusable — the window would advertise tools it could never run.
+
+Such tools are therefore approved from the claim itself: a window launched with a
+claim commitment is an evaluation window whose effects are expected and
+sandboxed. The approval is locally derived and deliberately *not* read from the
+host's confirmation state, so the server still cannot approve its own tool calls,
+and it is unreachable for any session this window was not launched to claim —
+including an ordinary chat session open in the same window.
+
+This is a real capability grant: for the claimed session, the full evaluation
+inventory runs without prompting. It is safe only because of the operational
+constraints below.
 
 ## Authentication
 
@@ -102,6 +159,13 @@ enforces. The design is only as strong as they are.
 - **Controller-owned secrets.** The nonce and any evaluation credentials live in
   controller/bridge-owned `0600` state, are short-lived, and are never passed to
   VS Code on a command line or in settings.
+- **Sandboxed effects.** Everything the claimed session's tools can touch — the
+  workspace, the terminal, the browser profile, the network — is inside the
+  evaluation sandbox, because a claimed session auto-approves the full inventory.
+- **Workspace trust is not consulted.** The claim does not go through the
+  workspace-trust gate: it publishes an inventory rather than opening a folder,
+  and the evaluation workspace is untrusted content running in a sandbox by
+  construction. In a general-purpose window this would be a bypass.
 
 ## Remaining risk
 
@@ -118,3 +182,8 @@ enforces. The design is only as strong as they are.
 - **Token scope.** Any credential the controller forwards through the ordinary
   authentication flow is an ordinary bearer token to the host; nothing binds it
   to this claim or session beyond its own lifetime and scopes.
+- **Storage-backed replay gate.** The spent marker lives in profile storage. A
+  profile wiped between reloads within one run — or storage that fails to
+  persist — would re-arm the in-memory gate from the unchanged argv. The
+  evaluation profile is ephemeral per run, which is what makes a fresh commitment
+  per run the real boundary.

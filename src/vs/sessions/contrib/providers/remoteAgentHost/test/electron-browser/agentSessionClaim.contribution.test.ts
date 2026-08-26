@@ -7,10 +7,12 @@ import assert from 'assert';
 import { DisposableStore, toDisposable, type IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
+import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
+import { InMemoryStorageService, IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import type { NativeParsedArgs } from '../../../../../../platform/environment/common/argv.js';
 import {
 	AGENT_SESSION_CLAIM_COMMAND_ID,
@@ -20,7 +22,6 @@ import {
 	type IAgentSessionClaimRequest,
 } from '../../../../../../workbench/contrib/chat/common/agentHostSessionClaim.js';
 import { INativeWorkbenchEnvironmentService } from '../../../../../../workbench/services/environment/electron-browser/environmentService.js';
-import { IExtensionService } from '../../../../../../workbench/services/extensions/common/extensions.js';
 import { AgentSessionClaimContribution } from '../../electron-browser/agentSessionClaim.contribution.js';
 
 const SESSION_TYPE = 'remote-127-0-0-1-9001-copilot';
@@ -42,32 +43,30 @@ suite('AgentSessionClaimContribution', () => {
 
 	let claimedSessions: URI[];
 	let claimDisposeCount: number;
-	let installedBridgeVersion: string | undefined;
+	let storageService: InMemoryStorageService;
+	let targetRegistration: IDisposable | undefined;
 
 	setup(() => {
 		claimedSessions = [];
 		claimDisposeCount = 0;
-		installedBridgeVersion = BRIDGE_VERSION;
-		store.add(agentSessionClaimTargets.register(SESSION_TYPE, async backendSession => {
+		storageService = store.add(new InMemoryStorageService());
+		targetRegistration = store.add(registerTarget());
+	});
+
+	function registerTarget(sessionType = SESSION_TYPE): IDisposable {
+		return agentSessionClaimTargets.register(sessionType, async backendSession => {
 			claimedSessions.push(backendSession);
 			return toDisposable(() => { claimDisposeCount++; });
-		}));
-	});
+		});
+	}
 
 	function createContribution(commitment: string | undefined): { readonly disposables: DisposableStore } {
 		const disposables = store.add(new DisposableStore());
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IStorageService, storageService);
 		instantiationService.stub(INativeWorkbenchEnvironmentService, new class extends mock<INativeWorkbenchEnvironmentService>() {
 			override readonly args = { [AGENT_SESSION_CLAIM_HASH_ARG]: commitment } as NativeParsedArgs;
-		});
-		instantiationService.stub(IExtensionService, new class extends mock<IExtensionService>() {
-			override async whenInstalledExtensionsRegistered() { return true; }
-			override async getExtension(id: string) {
-				return id === BRIDGE_ID && installedBridgeVersion !== undefined
-					? { version: installedBridgeVersion } as Awaited<ReturnType<IExtensionService['getExtension']>>
-					: undefined;
-			}
 		});
 		disposables.add(instantiationService.createInstance(AgentSessionClaimContribution));
 		return { disposables };
@@ -152,17 +151,55 @@ suite('AgentSessionClaimContribution', () => {
 		await assert.rejects(() => command.run({ ...REQUEST }), /no unused claim/);
 	});
 
-	test('rejects when the reviewed bridge extension is absent or a different version', async () => {
-		installedBridgeVersion = '9.9.9';
+	test('a reload cannot replay a spent commitment', async () => {
+		const first = await gated();
+		await claimCommand().run({ ...REQUEST });
+		first.disposables.dispose();
+
+		// Same argv, fresh contribution: the spent marker is what stops it.
 		await gated();
-		await assert.rejects(() => claimCommand().run({ ...REQUEST }), /bridge extension is not installed at the expected version/);
-		assert.deepStrictEqual(claimedSessions, []);
+		assert.strictEqual(CommandsRegistry.getCommand(AGENT_SESSION_CLAIM_COMMAND_ID), undefined);
+		assert.strictEqual(claimedSessions.length, 1);
 	});
 
-	test('rejects when no handler is registered for the session type', async () => {
+	test('a reload cannot replay a commitment spent by a failed attempt', async () => {
+		const first = await gated();
+		await assert.rejects(() => claimCommand().run(undefined), /malformed request/);
+		first.disposables.dispose();
+
+		await gated();
+		assert.strictEqual(CommandsRegistry.getCommand(AGENT_SESSION_CLAIM_COMMAND_ID), undefined);
+	});
+
+	test('a different commitment is unaffected by a spent one', async () => {
+		const first = await gated();
+		await claimCommand().run({ ...REQUEST });
+		first.disposables.dispose();
+
+		const other = { ...REQUEST, nonce: 'FhV8bR2mQ1sX7dK0pT4uZh' };
+		await gated(other);
+		await claimCommand().run(other);
+		assert.strictEqual(claimedSessions.length, 2);
+	});
+
+	test('waits for a handler registered after the request', async () => {
+		targetRegistration?.dispose();
+		await gated();
+		const claimed = claimCommand().run({ ...REQUEST });
+		store.add(registerTarget());
+		await claimed;
+		assert.deepStrictEqual(claimedSessions.map(uri => uri.toString()), [SESSION_URI]);
+	});
+
+	test('times out deterministically when no handler ever registers', async () => {
 		const request = { ...REQUEST, sessionType: 'remote-unregistered-copilot' };
 		await gated(request);
-		await assert.rejects(() => claimCommand().run(request), /no handler for remote-unregistered-copilot/);
+		await runWithFakedTimers({ useFakeTimers: true }, async () => {
+			await assert.rejects(
+				() => claimCommand().run(request),
+				/timed out: no handler for remote-unregistered-copilot/);
+		});
+		assert.deepStrictEqual(claimedSessions, []);
 	});
 
 	test('releases the claim when the window is torn down', async () => {

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -13,8 +14,6 @@ import {
 	AGENT_SESSION_CLAIM_COMMAND_ID,
 	agentSessionClaimTargets,
 	computeAgentSessionClaimCommitment,
-	equalsConstantTime,
-	isCanonicalAgentSessionUri,
 	parseAgentSessionClaimCommitment,
 	parseAgentSessionClaimRequest,
 	type IAgentSessionClaimRequest,
@@ -77,14 +76,6 @@ suite('agentHostSessionClaim', () => {
 			assert.strictEqual(parseAgentSessionClaimCommitment(undefined), undefined);
 		});
 
-		test('comparison is exact and length independent', () => {
-			const digest = 'a'.repeat(64);
-			assert.strictEqual(equalsConstantTime(digest, digest), true);
-			assert.strictEqual(equalsConstantTime(digest, `${digest}a`), false);
-			assert.strictEqual(equalsConstantTime(digest, digest.slice(0, -1)), false);
-			assert.strictEqual(equalsConstantTime(digest, ''), false);
-			assert.strictEqual(equalsConstantTime('', ''), true);
-		});
 	});
 
 	suite('request validation', () => {
@@ -115,13 +106,10 @@ suite('agentHostSessionClaim', () => {
 			assert.strictEqual(parseAgentSessionClaimRequest([REQUEST]), undefined);
 		});
 
-		test('rejects a non-canonical session URI', () => {
+		test('rejects a session URI that is not its own canonical form', () => {
 			for (const sessionUri of [
-				'copilot:/session-abc#chat',
 				'copilot:/session-abc?x=1',
-				'copilot:/',
 				'COPILOT:/session-abc',
-				'copilot:/a/../b',
 				'/session-abc',
 				'not a uri',
 			]) {
@@ -130,20 +118,54 @@ suite('agentHostSessionClaim', () => {
 		});
 
 		test('accepts canonical backend session URIs', () => {
-			assert.strictEqual(isCanonicalAgentSessionUri('copilot:/abc'), true);
-			assert.strictEqual(isCanonicalAgentSessionUri('ahp-session:/abc-123'), true);
+			for (const sessionUri of ['copilot:/abc', 'ahp-session:/abc-123']) {
+				assert.ok(parseAgentSessionClaimRequest({ ...REQUEST, sessionUri }), sessionUri);
+			}
 		});
 	});
 
 	suite('claim targets', () => {
 
-		test('resolves a target by exact session type', async () => {
-			const target = async (_backendSession: URI) => toDisposable(() => { });
+		const target = async (_backendSession: URI) => toDisposable(() => { });
+
+		test('resolves a target by exact session type', () => {
 			const registration = agentSessionClaimTargets.register('remote-test-copilot', target);
 			assert.strictEqual(agentSessionClaimTargets.get('remote-test-copilot'), target);
 			assert.strictEqual(agentSessionClaimTargets.get('remote-test-claude'), undefined);
 			registration.dispose();
 			assert.strictEqual(agentSessionClaimTargets.get('remote-test-copilot'), undefined);
+		});
+
+		test('waits for a target registered after the request', async () => {
+			const pending = agentSessionClaimTargets.waitFor('remote-late-copilot', 5000, CancellationToken.None);
+			const registration = agentSessionClaimTargets.register('remote-late-copilot', target);
+			assert.strictEqual(await pending, target);
+			registration.dispose();
+		});
+
+		test('resolves immediately for an already-registered target', async () => {
+			const registration = agentSessionClaimTargets.register('remote-early-copilot', target);
+			assert.strictEqual(await agentSessionClaimTargets.waitFor('remote-early-copilot', 5000, CancellationToken.None), target);
+			registration.dispose();
+		});
+
+		test('gives up after the timeout rather than waiting forever', async () => {
+			assert.strictEqual(await agentSessionClaimTargets.waitFor('remote-absent-copilot', 1, CancellationToken.None), undefined);
+		});
+
+		test('gives up when cancelled', async () => {
+			const cts = new CancellationTokenSource();
+			const pending = agentSessionClaimTargets.waitFor('remote-cancelled-copilot', 5000, cts.token);
+			cts.cancel();
+			assert.strictEqual(await pending, undefined);
+			cts.dispose();
+		});
+
+		test('ignores registrations of a different session type', async () => {
+			const pending = agentSessionClaimTargets.waitFor('remote-wanted-copilot', 25, CancellationToken.None);
+			const other = agentSessionClaimTargets.register('remote-unwanted-copilot', target);
+			assert.strictEqual(await pending, undefined);
+			other.dispose();
 		});
 	});
 

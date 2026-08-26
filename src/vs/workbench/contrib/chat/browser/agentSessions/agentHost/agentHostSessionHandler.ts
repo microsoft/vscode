@@ -6,7 +6,7 @@
 import { Delayer, disposableTimeout, raceCancellation } from '../../../../../../base/common/async.js';
 import { decodeBase64, encodeBase64, VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
-import { getErrorCode, isCancellationError } from '../../../../../../base/common/errors.js';
+import { CancellationError, getErrorCode, isCancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { getChatErrorDetailsFromMeta, getCopilotPlanFromEntitlement, IChatErrorContext } from '../../../common/chatErrorMessages.js';
@@ -1007,6 +1007,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	private readonly _activeClientEntries = new ResourceMap<ActiveClientEntry>();
 	/** Backend sessions joined via {@link claimExternalSession}, by URI string. */
 	private readonly _externalClaims = new Set<string>();
+	/** Holders of each {@link ActiveClientEntry}: open chats plus any claim. */
+	private readonly _activeClientHolders = new ResourceMap<number>();
 	/** Historical turns with file edits, pending hydration into the editing session. */
 	private readonly _pendingHistoryTurns = new ResourceMap<readonly Turn[]>();
 	/**
@@ -1377,6 +1379,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (sessionResource.path.substring(1).startsWith('untitled-')) {
 			throw new Error(`Agent host chat sessions must be created by the sessions provider: ${sessionResource.toString()}`);
 		}
+
+		// One holder, released by the dispose callback below or the construction
+		// `catch` — never both. A claim may hold the same entry concurrently.
+		this._retainActiveClientEntry(sessionResource);
 
 		// For new sessions, defer backend session creation until the first request
 		// arrives so the user-selected model is available. The chat resource still
@@ -2231,7 +2237,22 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		entry.attach(backendSession, sessionSubscription);
 	}
 
+	/**
+	 * Records one holder of a session resource's {@link ActiveClientEntry}: a
+	 * chat and an external claim address the same resource, so the entry
+	 * outlives whichever is released first.
+	 */
+	private _retainActiveClientEntry(sessionResource: URI): void {
+		this._activeClientHolders.set(sessionResource, (this._activeClientHolders.get(sessionResource) ?? 0) + 1);
+	}
+
 	private _disposeActiveClientEntry(sessionResource: URI): void {
+		const remaining = (this._activeClientHolders.get(sessionResource) ?? 1) - 1;
+		if (remaining > 0) {
+			this._activeClientHolders.set(sessionResource, remaining);
+			return;
+		}
+		this._activeClientHolders.delete(sessionResource);
 		const entry = this._activeClientEntries.get(sessionResource);
 		if (entry) {
 			this._activeClientEntries.delete(sessionResource);
@@ -2241,25 +2262,22 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 	// ---- External session claim ---------------------------------------------
 
+	/** Reference this handler holds on a claimed session's `inputNeeded` watcher. */
+	private static readonly EXTERNAL_CLAIM_REF = 'external-claim';
+
 	/**
 	 * Joins an **existing** backend session as an additional active client,
 	 * without opening a chat model and without originating anything.
 	 *
-	 * An evaluation controller has already created and authenticated the
-	 * session and owns every turn; this window only contributes its inventory
-	 * and serves the client tools the host asks it for. Compared with
-	 * {@link provideChatSessionContent} it never creates or materializes a
-	 * session — one that has not hydrated is a hard failure — and it opens no
-	 * chat model, so there is no draft sync, no pending-message projection, no
-	 * server-turn watcher, and no MCP authentication watcher, all of which
-	 * dispatch client-side mutations.
-	 *
-	 * The one watcher it does install is {@link _watchForSessionInputNeeded},
-	 * which already runs from a bare `IAgentSubscription<SessionState>`:
-	 * `inputNeeded` is session-scoped, so serving client tools needs no chat.
-	 *
-	 * Disposing the result publishes the active-client removal, drops the tool
-	 * watcher, and releases the session subscription.
+	 * An evaluation controller owns every turn; this window only contributes its
+	 * inventory and serves the client tools the host asks for. Unlike
+	 * {@link provideChatSessionContent} it never creates a session — one that has
+	 * not hydrated is a hard failure — and opens no chat model, so nothing
+	 * dispatches a draft, pending message, or turn. The one watcher it installs,
+	 * {@link _watchForSessionInputNeeded}, already runs from a bare session
+	 * subscription. That watcher, the active-client entry, and the subscription
+	 * are shared with any chat on the same session and reference-counted, so
+	 * either holder may be released first.
 	 */
 	async claimExternalSession(backendSession: URI, token: CancellationToken): Promise<IDisposable> {
 		const sessionKey = backendSession.toString();
@@ -2280,7 +2298,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const store = new DisposableStore();
 		try {
 			const subscription = this._ensureSessionSubscription(sessionKey);
-			await this._whenSubscriptionHydrated(subscription, token);
+			await raceCancellation(this._whenSubscriptionHydrated(subscription, token), token);
+			if (token.isCancellationRequested) {
+				throw new CancellationError();
+			}
 			if (subscription.value instanceof Error) {
 				throw subscription.value;
 			}
@@ -2290,21 +2311,22 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 			// Arm tool serving before publishing, so a request the host queues
 			// the instant it sees this client is already being watched for.
-			this._watchForSessionInputNeeded(backendSession, sessionResource);
-			store.add(toDisposable(() => this._releaseSessionInputNeeded(sessionResource)));
+			this._watchForSessionInputNeeded(backendSession, sessionResource, AgentHostSessionHandler.EXTERNAL_CLAIM_REF);
+			store.add(toDisposable(() => this._releaseInputNeededRef(backendSession, AgentHostSessionHandler.EXTERNAL_CLAIM_REF)));
 
+			this._retainActiveClientEntry(sessionResource);
 			const entry = this._ensureActiveClient(sessionResource, backendSession);
+			// Bind the hydrated subscription too, so later inventory or remote
+			// state changes re-reconcile instead of publishing only once.
+			this._configureActiveClientReconciliation(sessionResource, backendSession, subscription);
 			store.add(toDisposable(() => {
-				// Publish the removal explicitly: the controller watches the
-				// active-client inventory, and the host's disconnect-based
-				// removal would not fire while the window stays open.
-				this._dispatchAction(backendSession, {
-					type: ActionType.SessionActiveClientRemoved,
-					clientId: this._config.connection.clientId,
-				});
+				this._publishActiveClientRemoval(backendSession);
 				this._disposeActiveClientEntry(sessionResource);
 			}));
-			await entry.whenSettled();
+			await raceCancellation(entry.whenSettled(), token);
+			if (token.isCancellationRequested) {
+				throw new CancellationError();
+			}
 			this._logService.info(`[AgentHost] Claimed existing session ${sessionKey} as client ${this._config.connection.clientId}`);
 		} catch (err) {
 			store.dispose();
@@ -2315,6 +2337,38 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// Added last so the subscription outlives the teardown above.
 		store.add(toDisposable(() => this._releaseExternalClaim(sessionKey)));
 		return store;
+	}
+
+	/**
+	 * Tells the host this client is leaving; the host's disconnect-based removal
+	 * would not fire while the window stays open. Best effort, because this also
+	 * runs during shutdown where the connection may already be gone.
+	 */
+	private _publishActiveClientRemoval(backendSession: URI): void {
+		if (this._store.isDisposed) {
+			return;
+		}
+		try {
+			this._dispatchAction(backendSession, {
+				type: ActionType.SessionActiveClientRemoved,
+				clientId: this._config.connection.clientId,
+			});
+		} catch (err) {
+			this._logService.warn(`[AgentHost] Could not publish active-client removal for ${backendSession.toString()}`, err);
+		}
+	}
+
+	/**
+	 * The locally-derived approval for a claimed session's client tools, or
+	 * `undefined` for every ordinary session. A claimed session has no chat that
+	 * could answer a confirmation, so the evaluation launch approves instead;
+	 * this is deliberately *not* read from the host's confirmation state. See
+	 * `AGENT_SESSION_CLAIM.md`.
+	 */
+	private _externalClaimToolApproval(backendSession: URI): ConfirmedReason | undefined {
+		return this._externalClaims.has(backendSession.toString())
+			? { type: ToolConfirmKind.ConfirmationNotNeeded, reason: localize('agentHost.claimedSessionApproval', "Approved by the evaluation session claim this window was launched for.") }
+			: undefined;
 	}
 
 	/** Drops the claim's hold and, if nothing else needs it, its subscription. */
@@ -2462,25 +2516,34 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		this._mcpAuthWatchers.set(sessionResource, disposables);
 	}
 
-	private _watchForSessionInputNeeded(backendSession: URI, sessionResource: URI): void {
+	private _watchForSessionInputNeeded(backendSession: URI, sessionResource: URI, refKey?: string): void {
 		// Record which backend session this resource's reference belongs to so
-		// teardown can release it even after provisional state is cleared.
-		this._inputNeededWatcherBackends.set(sessionResource, backendSession);
+		// teardown can release it even after provisional state is cleared. A
+		// caller with its own `refKey` (the external claim) owns its reference
+		// directly: it can share a session resource with an open chat.
+		if (refKey === undefined) {
+			this._inputNeededWatcherBackends.set(sessionResource, backendSession);
+		}
+		const ref = refKey ?? sessionResource.toString();
 
 		const sessionKey = backendSession.toString();
 		const existing = this._inputNeededWatchers.get(sessionKey);
 		if (existing) {
-			// Sibling resources against the same backend session share the one
+			// Sibling holders of the same backend session share the one
 			// watcher: only add a reference so the single session-level queue
 			// is not handled — and client tools not executed — more than once.
-			existing.refs.add(sessionResource.toString());
+			existing.refs.add(ref);
 			return;
 		}
 
 		const sessionSub = this._ensureSessionSubscription(sessionKey);
 		const state = observableFromSubscription(this, sessionSub);
 		const store = new DisposableStore();
-		this._inputNeededWatchers.set(sessionKey, { store, refs: new Set([sessionResource.toString()]) });
+		this._inputNeededWatchers.set(sessionKey, { store, refs: new Set([ref]) });
+		// Bound once per backend session: a claimed session has no chat surface
+		// that could answer a confirmation, so the launch's evaluation policy is
+		// what approves its client tools. See `_externalClaimToolApproval`.
+		const claimApproval = this._externalClaimToolApproval(backendSession);
 
 		// Requests that we own should be 'invoked' when pending confirmation immediately because
 		// we handle showing their UI directly. For simplicity in later tool call flows, rewrite them.
@@ -2607,6 +2670,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 						void this._executeClientTool(
 							request,
 							contextSessionResource,
+							claimApproval,
 							execution.source.token,
 							() => requestGeneration === generation && (invocationStarted || equals(request$.read(undefined), request)),
 							() => {
@@ -2627,7 +2691,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					};
 					if (claimant) {
 						execute(claimant);
-					} else if (!this._clientToolRequiresConfirmation(request.toolCall)) {
+					} else if (claimApproval || !this._clientToolRequiresConfirmation(request.toolCall)) {
 						execute(undefined);
 					} else if (!unobservedTimer.value) {
 						const requestGeneration = generation;
@@ -2652,15 +2716,23 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	private _releaseSessionInputNeeded(sessionResource: URI): void {
 		const backendSession = this._inputNeededWatcherBackends.get(sessionResource);
 		this._inputNeededWatcherBackends.delete(sessionResource);
-		if (!backendSession) {
-			return;
+		if (backendSession) {
+			this._releaseInputNeededRef(backendSession, sessionResource.toString());
 		}
+	}
+
+	/**
+	 * Drops one reference to a backend session's shared `inputNeeded` watcher,
+	 * disposing it only once no holder — chat resource or external claim —
+	 * remains.
+	 */
+	private _releaseInputNeededRef(backendSession: URI, ref: string): void {
 		const sessionKey = backendSession.toString();
 		const entry = this._inputNeededWatchers.get(sessionKey);
 		if (!entry) {
 			return;
 		}
-		entry.refs.delete(sessionResource.toString());
+		entry.refs.delete(ref);
 		if (entry.refs.size === 0) {
 			this._inputNeededWatchers.delete(sessionKey);
 			entry.store.dispose();
@@ -2752,7 +2824,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 * attribute to that observer's chat. Without it the tool runs headlessly,
 	 * independent of whether the owning turn is live.
 	 */
-	private async _executeClientTool(request: ClientToolExecutionRequest, contextSessionResource: URI | undefined, token: CancellationToken, isCurrent: () => boolean, markInvocationStarted: () => void): Promise<void> {
+	private async _executeClientTool(request: ClientToolExecutionRequest, contextSessionResource: URI | undefined, claimApproval: ConfirmedReason | undefined, token: CancellationToken, isCurrent: () => boolean, markInvocationStarted: () => void): Promise<void> {
 		const chatURI = request.chat.toString();
 		const toolCall = request.toolCall;
 		const toolName = toolCall.toolName;
@@ -2843,7 +2915,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				parameters,
 				context: contextSessionResource ? { sessionResource: contextSessionResource } : undefined,
 				chatStreamToolCallId: toolCall.toolCallId,
-				preApproved: toolCall.status === ToolCallStatus.PendingConfirmation ? undefined : getClientToolPreApproval(toolCall),
+				// A claimed session's approval is local — derived from the
+				// evaluation launch — and deliberately replaces, rather than
+				// falls back to, the host's own confirmation state.
+				preApproved: claimApproval ?? (toolCall.status === ToolCallStatus.PendingConfirmation ? undefined : getClientToolPreApproval(toolCall)),
 			}, async () => 0, token);
 		} catch (err) {
 			error = err;

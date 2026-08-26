@@ -3,7 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { disposableTimeout } from '../../../../base/common/async.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 
 /**
@@ -11,21 +14,13 @@ import { URI } from '../../../../base/common/uri.js';
  * Agents Window, for an evaluation controller that owns the session and drives
  * every turn itself.
  *
- * The controller and its reviewed bridge extension own the whole secret
- * lifecycle: they mint the nonce, keep it in private `0600` state, and hand it
- * to the bridge over their own channel. VS Code is told only a **commitment** —
- * a SHA-256 over the exact claim it will accept — on a private, unlisted launch
- * argument. Argv therefore carries nothing secret, and the product needs no
- * descriptor schema, credential store, or authentication changes of its own.
+ * The controller and its bridge own the whole secret lifecycle; VS Code is told
+ * only a **commitment** — a SHA-256 over the exact claim it will accept — on a
+ * private, unlisted launch argument, so argv carries nothing secret. The bridge
+ * later presents the pre-image, which pins the session type, session URI, and
+ * bridge identity as well as the nonce.
  *
- * The bridge later presents the pre-image. If it hashes to the commitment, the
- * window joins that one session as an additional active client; nothing else is
- * reachable, because the commitment fixes the session type, the session URI,
- * and the bridge identity as well as the nonce.
- *
- * Nothing here is reachable from settings, menus, the Command Palette, a
- * keybinding, a command URI, a URL handler, or extension API: without the launch
- * argument the command is never registered at all.
+ * See `src/vs/platform/agentHost/AGENT_SESSION_CLAIM.md`.
  */
 
 /**
@@ -59,32 +54,10 @@ export function parseAgentSessionClaimCommitment(value: string | undefined): str
 }
 
 /**
- * Whether {@link value} is the canonical serialization of an absolute session
- * URI: re-serializing the parse yields exactly the same string, the scheme is
- * lowercase (`URI.parse` preserves case, so `COPILOT:/x` would otherwise round
- * trip while addressing nothing), and the path carries no `..` segment. The
- * claim is pinned to one session, and the host's registry is keyed by the exact
- * string, so an equivalent-but-differently-spelled URI must not be accepted.
- */
-export function isCanonicalAgentSessionUri(value: string): boolean {
-	let parsed: URI;
-	try {
-		parsed = URI.parse(value);
-	} catch {
-		return false;
-	}
-	return !!parsed.scheme
-		&& parsed.scheme === parsed.scheme.toLowerCase()
-		&& !!parsed.path && parsed.path !== '/'
-		&& !parsed.query && !parsed.fragment
-		&& !parsed.path.split('/').includes('..')
-		&& parsed.toString() === value;
-}
-
-/**
- * Validates the shape of an untrusted command argument. Every field must be a
- * non-empty string, no field may be missing, and no unrecognized field may be
- * present — a caller must not be able to smuggle anything past a future reader.
+ * Validates the shape of an untrusted command argument: exactly these fields,
+ * each a non-empty string, so nothing can be smuggled past a future reader. The
+ * session URI must re-serialize to itself with a lowercase scheme, because the
+ * host's registry is keyed by the exact string.
  */
 export function parseAgentSessionClaimRequest(raw: unknown): IAgentSessionClaimRequest | undefined {
 	if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
@@ -101,7 +74,15 @@ export function parseAgentSessionClaimRequest(raw: unknown): IAgentSessionClaimR
 		}
 	}
 	const request = candidate as unknown as IAgentSessionClaimRequest;
-	return isCanonicalAgentSessionUri(request.sessionUri) ? request : undefined;
+	try {
+		const parsed = URI.parse(request.sessionUri);
+		if (parsed.toString() !== request.sessionUri || parsed.scheme !== parsed.scheme.toLowerCase()) {
+			return undefined;
+		}
+	} catch {
+		return undefined;
+	}
+	return request;
 }
 
 /**
@@ -119,26 +100,11 @@ export async function computeAgentSessionClaimCommitment(request: IAgentSessionC
 }
 
 /**
- * Length-independent comparison, so the commitment cannot be recovered by
- * timing the command. Written to touch every character of both inputs and to
- * avoid any early return.
- */
-export function equalsConstantTime(a: string, b: string): boolean {
-	let difference = a.length ^ b.length;
-	for (let i = 0; i < Math.max(a.length, b.length); i++) {
-		// `charCodeAt` past the end yields NaN, whose `| 0` is 0 — a stable
-		// stand-in that keeps the loop length independent of where inputs differ.
-		difference |= (a.charCodeAt(i) | 0) ^ (b.charCodeAt(i) | 0);
-	}
-	return difference === 0;
-}
-
-/**
  * Joins an existing backend session as an additional active client. Rejects
  * when the session does not exist; never creates one. The returned disposable
  * ends the claim.
  */
-export type AgentSessionClaimTarget = (backendSession: URI) => Promise<IDisposable>;
+export type AgentSessionClaimTarget = (backendSession: URI, token: CancellationToken) => Promise<IDisposable>;
 
 /**
  * The programmatic Agent Host session handlers a claim can be served by, keyed
@@ -148,9 +114,11 @@ export type AgentSessionClaimTarget = (backendSession: URI) => Promise<IDisposab
 class AgentSessionClaimTargetRegistry {
 
 	private readonly _targets = new Map<string, AgentSessionClaimTarget>();
+	private readonly _onDidRegister = new Emitter<string>();
 
 	register(sessionType: string, target: AgentSessionClaimTarget): IDisposable {
 		this._targets.set(sessionType, target);
+		this._onDidRegister.fire(sessionType);
 		return toDisposable(() => {
 			if (this._targets.get(sessionType) === target) {
 				this._targets.delete(sessionType);
@@ -160,6 +128,33 @@ class AgentSessionClaimTargetRegistry {
 
 	get(sessionType: string): AgentSessionClaimTarget | undefined {
 		return this._targets.get(sessionType);
+	}
+
+	/**
+	 * Resolves once {@link sessionType} has a handler, or `undefined` on timeout
+	 * or cancellation. The bridge can invoke the command before
+	 * `RemoteAgentHostContribution` has registered its handlers, so the command
+	 * waits rather than failing on a race it cannot control.
+	 */
+	waitFor(sessionType: string, timeoutMs: number, token: CancellationToken): Promise<AgentSessionClaimTarget | undefined> {
+		const existing = this._targets.get(sessionType);
+		if (existing || token.isCancellationRequested) {
+			return Promise.resolve(existing);
+		}
+		return new Promise(resolve => {
+			const store = new DisposableStore();
+			const settle = (target: AgentSessionClaimTarget | undefined) => {
+				store.dispose();
+				resolve(target);
+			};
+			store.add(this._onDidRegister.event(type => {
+				if (type === sessionType) {
+					settle(this._targets.get(sessionType));
+				}
+			}));
+			store.add(disposableTimeout(() => settle(undefined), timeoutMs));
+			store.add(token.onCancellationRequested(() => settle(undefined)));
+		});
 	}
 }
 

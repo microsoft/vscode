@@ -3344,6 +3344,92 @@ suite('AgentHostClientTools', () => {
 				assert.deepStrictEqual(toolsService.invokedToolCalls[0].parameters, { task: 'build' });
 			});
 
+			test('runs a confirmable client tool that no chat could have answered', async () => {
+				// `testConfirmTool` sets `canRequestPreApproval`, so an unclaimed
+				// call is denied after the grace window. A claimed session has no
+				// chat surface at all, so the evaluation launch approves it.
+				const { handler, connection, toolsService } = createHandlerWithMocks(disposables, [testConfirmTool]);
+
+				await claim(handler);
+				applyRunningClientExecution(connection, buildDefaultChatUri(claimedSession.toString()), 'turn-1', {
+					toolCallId: 'tool-call-1',
+					toolName: 'deleteAll',
+					displayName: 'Delete Everything',
+					invocationMessage: 'Delete Everything',
+					toolInput: '{}',
+				});
+				await waitForToolCompletion(connection, 'tool-call-1');
+
+				assert.strictEqual(toolsService.invokedToolCalls.length, 1, 'a claimed confirmable tool must run, not be denied');
+				assert.deepStrictEqual(
+					toolsService.invokedToolCalls[0].preApproved,
+					{ type: ToolConfirmKind.ConfirmationNotNeeded, reason: 'Approved by the evaluation session claim this window was launched for.' },
+					'approval must be locally derived, not read from the host confirmation');
+			});
+
+			test('an unclaimed confirmable client tool is still denied', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const { handler, connection, toolsService } = createHandlerWithMocks(disposables, [testConfirmTool]);
+
+				// Same handler, same tool, but this session was never claimed.
+				await handler.provideChatSessionContent(URI.parse('agent-host-copilotcli:/session-1'), CancellationToken.None);
+				applyRunningClientExecution(connection, buildDefaultChatUri(claimedSession.toString()), 'turn-1', {
+					toolCallId: 'tool-call-1',
+					toolName: 'deleteAll',
+					displayName: 'Delete Everything',
+					invocationMessage: 'Delete Everything',
+					toolInput: '{}',
+				});
+				await timeout(UNOBSERVED_CLIENT_TOOL_GRACE_MS + 1);
+
+				assert.deepStrictEqual(toolsService.invokedToolCalls, [], 'the claim approval must not leak to ordinary sessions');
+				const completion = connection.dispatchedActions.find(entry =>
+					isChatAction(entry.action) && entry.action.type === ActionType.ChatToolCallComplete);
+				assert.ok(completion && isChatAction(completion.action) && completion.action.type === ActionType.ChatToolCallComplete);
+				assert.strictEqual(completion.action.result.success, false, 'it must still be denied, not run');
+			}));
+
+			test('a chat opened on the claimed session keeps working after the claim is released', async () => {
+				const { handler, connection, toolsService } = createHandlerWithMocks(disposables, [testRunTaskTool]);
+
+				const claimDisposable = await claim(handler);
+				await handler.provideChatSessionContent(URI.parse('agent-host-copilotcli:/session-1'), CancellationToken.None);
+				claimDisposable.dispose();
+
+				applyRunningClientExecution(connection, buildDefaultChatUri(claimedSession.toString()), 'turn-1', {
+					toolCallId: 'tool-call-1',
+					toolName: 'runTask',
+					displayName: 'Run Task',
+					invocationMessage: 'Run Task',
+					toolInput: '{"task":"build"}',
+				});
+				await waitForToolCompletion(connection, 'tool-call-1');
+
+				assert.strictEqual(toolsService.invokedToolCalls.length, 1, 'releasing the claim must not tear down the chat\'s watcher');
+			});
+
+			test('the claim keeps working after a chat on the same session closes', async () => {
+				const { handler, connection, toolsService } = createHandlerWithMocks(disposables, [testRunTaskTool]);
+
+				await claim(handler);
+				const chatResource = URI.parse('agent-host-copilotcli:/session-1');
+				const chat = await handler.provideChatSessionContent(chatResource, CancellationToken.None);
+				chat.dispose();
+
+				applyRunningClientExecution(connection, buildDefaultChatUri(claimedSession.toString()), 'turn-1', {
+					toolCallId: 'tool-call-1',
+					toolName: 'runTask',
+					displayName: 'Run Task',
+					invocationMessage: 'Run Task',
+					toolInput: '{"task":"build"}',
+				});
+				await waitForToolCompletion(connection, 'tool-call-1');
+
+				assert.strictEqual(toolsService.invokedToolCalls.length, 1, 'closing the chat must not tear down the claim\'s watcher');
+				const removals = connection.dispatchedActions.filter(entry =>
+					isSessionAction(entry.action) && entry.action.type === ActionType.SessionActiveClientRemoved);
+				assert.deepStrictEqual(removals, [], 'the shared active client must survive while the claim holds it');
+			});
+
 			test('stops serving client tools once the claim is released', async () => {
 				const { handler, connection, toolsService } = createHandlerWithMocks(disposables, [testRunTaskTool]);
 
