@@ -79,7 +79,6 @@ const CLIENT_TOOL_CALL_DISCONNECT_TIMEOUT = 30_000;
 const UNSUPPORTED_CLIENT_ACTION_TYPES: ReadonlySet<ActionType> = new Set([
 	ActionType.ChatWorkingDirectorySet,
 	ActionType.ChatWorkingDirectoryRemoved,
-	ActionType.ChatTurnResume,
 ]);
 
 /** A client tool call in any of these statuses is still awaiting its result. */

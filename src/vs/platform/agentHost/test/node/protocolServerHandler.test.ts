@@ -1000,7 +1000,6 @@ suite('ProtocolServerHandler', () => {
 		const cases: readonly { readonly action: ChatAction; readonly channel: string }[] = [
 			{ action: { type: ActionType.ChatWorkingDirectorySet, directory: 'file:///tmp/extra-root' }, channel: defaultChatUri },
 			{ action: { type: ActionType.ChatWorkingDirectoryRemoved, directory: 'file:///tmp/extra-root' }, channel: defaultChatUri },
-			{ action: { type: ActionType.ChatTurnResume, turnId: 'turn-1' }, channel: defaultChatUri },
 		];
 
 		for (const [index, { action, channel }] of cases.entries()) {
@@ -1030,6 +1029,21 @@ suite('ProtocolServerHandler', () => {
 			assert.strictEqual(envelope.origin.clientId, clientId);
 			assert.strictEqual(envelope.origin.clientSeq, clientSeq);
 		}
+	});
+
+	test('turn resume reaches the agent service', () => {
+		stateManager.createSession(makeSessionSummary());
+		stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady });
+		const transport = connectClient('resume-client', [sessionUri, defaultChatUri]);
+		transport.sent.length = 0;
+
+		transport.simulateMessage(notification('dispatchAction', {
+			channel: defaultChatUri,
+			clientSeq: 1,
+			action: { type: ActionType.ChatTurnResume, turnId: 'turn-1' },
+		}));
+
+		assert.deepStrictEqual(agentService.handledActions.at(-1), { type: ActionType.ChatTurnResume, turnId: 'turn-1' });
 	});
 
 	test('session working-directory actions reach the agent service', () => {

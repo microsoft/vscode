@@ -52,6 +52,10 @@ export interface IChatResponseErrorDetailsConfirmationButton {
 	data: any;
 	label: string;
 	isSecondary?: boolean;
+	/** Replace and resend the request associated with this response instead of adding a new request. */
+	resend?: boolean;
+	/** Reuse the existing request model and identifier when resending. */
+	preserveRequestId?: boolean;
 }
 
 export interface IChatResponseErrorDetails {
@@ -2026,7 +2030,7 @@ export interface IChatService {
 	setSessionTitle(sessionResource: URI, title: string): void;
 
 	appendProgress(request: IChatRequestModel, progress: IChatProgress): void;
-	resendRequest(request: IChatRequestModel, options?: IChatSendRequestOptions): Promise<void>;
+	resendRequest(request: IChatRequestModel, options?: IChatSendRequestOptions, preserveRequestId?: boolean): Promise<void>;
 	adoptRequest(sessionResource: URI, request: IChatRequestModel): Promise<void>;
 	removeRequest(sessionResource: URI, requestId: string): Promise<void>;
 	cancelCurrentRequestForSession(sessionResource: URI, source?: string): Promise<void>;
