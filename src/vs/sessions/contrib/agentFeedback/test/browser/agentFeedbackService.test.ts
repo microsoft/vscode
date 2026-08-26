@@ -25,7 +25,7 @@ import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { whenChatWidgetForSession } from '../../../chat/browser/chatWidgetUtils.js';
 import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
-import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
 
@@ -62,6 +62,9 @@ suite('AgentFeedbackService - Ordering', () => {
 			override onDidDeleteSession = onDidDeleteSession.event;
 			override onDidChangeSessions = Event.None;
 			override getSession(_resource: URI) { return undefined; }
+		});
+		instantiationService.stub(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
+			override onDidChangeProviders = Event.None;
 		});
 		instantiationService.stub(ISessionsService, { activeSession: observableValue<IActiveSession | undefined>('activeSession', undefined) } as unknown as ISessionsService);
 
@@ -370,6 +373,7 @@ suite('AgentFeedbackService - getSessionForFile', () => {
 	let activeSessionObs: ISettableObservable<IActiveSession | undefined>;
 	let sessions: Map<string, ISession>;
 	let sessionsChangedEmitter: Emitter<ISessionsChangeEvent>;
+	let providersChangedEmitter: Emitter<ISessionsProvidersChangeEvent>;
 
 	let sessionS1: URI;
 	let sessionS2: URI;
@@ -419,6 +423,7 @@ suite('AgentFeedbackService - getSessionForFile', () => {
 		activeSessionObs = observableValue<IActiveSession | undefined>('activeSession', undefined);
 		sessions = new Map<string, ISession>();
 		sessionsChangedEmitter = store.add(new Emitter<ISessionsChangeEvent>());
+		providersChangedEmitter = store.add(new Emitter<ISessionsProvidersChangeEvent>());
 		managementLookups = 0;
 
 		const instantiationService = store.add(new TestInstantiationService());
@@ -436,6 +441,9 @@ suite('AgentFeedbackService - getSessionForFile', () => {
 				managementLookups++;
 				return sessions.get(resource.toString());
 			}
+		});
+		instantiationService.stub(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
+			override onDidChangeProviders = providersChangedEmitter.event;
 		});
 		instantiationService.stub(ISessionsService, { activeSession: activeSessionObs } as unknown as ISessionsService);
 
@@ -682,6 +690,33 @@ suite('AgentFeedbackService - getSessionForFile', () => {
 		});
 	});
 
+	test('looks a non-active session up again when providers are added or removed', () => {
+		const provider = {} as ISessionsProvider;
+		setActiveSession(sessions.get(sessionS1.toString())!);
+		setVisibleEditors([pane(fileA)]);
+		setActiveSession(sessions.get(sessionS2.toString())!);
+
+		// A registered provider is what makes a session resolvable, so a hit must
+		// not outlive its removal...
+		service.getSessionForFile(fileA);
+		sessions.delete(sessionS1.toString());
+		providersChangedEmitter.fire({ added: [], removed: [provider] });
+		const afterProviderRemoved = service.getSessionForFile(fileA);
+
+		// ...and a miss must not outlive a provider that starts reporting it.
+		sessions.set(sessionS1.toString(), makeSession(sessionS1));
+		providersChangedEmitter.fire({ added: [provider], removed: [] });
+		const afterProviderAdded = service.getSessionForFile(fileA);
+
+		assert.deepStrictEqual({
+			afterProviderRemoved: afterProviderRemoved?.resource.toString(),
+			afterProviderAdded: afterProviderAdded?.resource.toString(),
+		}, {
+			afterProviderRemoved: undefined,
+			afterProviderAdded: sessionS1.toString(),
+		});
+	});
+
 	test('returns undefined when the active session has Untitled status', () => {
 		sessions.set(sessionS1.toString(), makeSession(sessionS1, SessionStatus.Untitled));
 		setActiveSession(sessions.get(sessionS1.toString())!);
@@ -740,6 +775,7 @@ suite('AgentFeedbackService - State', () => {
 			override visibleEditorPanes = [];
 		});
 		instantiationService.stub(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
+			override onDidChangeProviders = Event.None;
 			override getProvider<T extends ISessionsProvider>(_providerId: string): T | undefined { return undefined; }
 		});
 		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
@@ -845,6 +881,7 @@ suite('AgentFeedbackService - Submit (agent host)', () => {
 			override visibleEditorPanes = [];
 		});
 		instantiationService.stub(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
+			override onDidChangeProviders = Event.None;
 			override getProvider<T extends ISessionsProvider>(_providerId: string): T | undefined { return undefined; }
 		});
 		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
