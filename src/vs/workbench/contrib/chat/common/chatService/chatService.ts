@@ -589,8 +589,7 @@ export interface IChatThinkingPart {
 }
 
 /**
- * Explains what the "Auto" model routed a turn to. Rendered as a collapsible
- * row: "Routing task…" while the router is deciding, then "Routed task".
+ * Explains what the "Auto" model routed a turn to, as a single status line.
  *
  * A resolved part replaces the row that is still routing; Auto can route more
  * than once per turn, and each later route gets its own row.
