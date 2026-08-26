@@ -294,8 +294,6 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 	}
 
 	protected override renderLabel(element: HTMLElement): IDisposable | null {
-		this.setAriaLabelAttributes(element);
-
 		const currentMode = this.delegate.currentMode.get();
 		const state = currentMode.label.get();
 		let icon = currentMode.icon.get();
@@ -307,6 +305,7 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 
 		const labelElements = [];
 		const collapsed = this.pickerOptions.compact.get();
+		element.classList.toggle('icon-only', collapsed && !!icon);
 		if (icon) {
 			labelElements.push(...renderLabelWithIcons(`$(${getCompactCodicon(icon).id})`));
 		}
@@ -315,6 +314,8 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 		}
 
 		dom.reset(element, ...labelElements);
+		this.setAriaLabelAttributes(element);
+		element.ariaLabel = state;
 		return null;
 	}
 }

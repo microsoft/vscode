@@ -394,10 +394,10 @@ export function getDefaultNewChatSessionType(
 	options?: IDefaultNewChatSessionTypeOptions,
 	managedSandboxEnforced = false
 ): string {
-	return getDefaultNewChatSessionTypeAndReason(configurationService, chatSessionsService, storageService, workspace, agentHostEnabled, options, managedSandboxEnforced).sessionType;
+	return getDefaultNewChatSessionTypeAndReasonFromServices(configurationService, chatSessionsService, storageService, workspace, agentHostEnabled, options, managedSandboxEnforced).sessionType;
 }
 
-export function getDefaultNewChatSessionTypeAndReason(
+export function getDefaultNewChatSessionTypeAndReasonFromServices(
 	configurationService: IConfigurationService,
 	chatSessionsService: Pick<IChatSessionsService, 'getChatSessionContribution' | 'getAllChatSessionContributions'>,
 	storageService: IStorageService,
@@ -414,19 +414,30 @@ export function getDefaultNewChatSessionTypeAndReason(
 		return { sessionType: localChatSessionType, selectionReason: 'virtualWorkspace' };
 	}
 
+	const preferCopilotHarness = agentHostEnabled && isCopilotHarnessPreferred(configurationService, managedSandboxEnforced);
 	const remembered = getUsableRememberedSessionType(storageService, configurationService, chatSessionsService, workspace, agentHostEnabled, managedSandboxEnforced);
-	if (remembered) {
+	if (remembered && (remembered !== localChatSessionType || !preferCopilotHarness)) {
 		return { sessionType: remembered, selectionReason: 'rememberedSelection' };
 	}
 
+	let resolved: IResolvedNewChatSessionType;
 	if (options?.currentSessionType && isNewChatSessionTypeUsable(options.currentSessionType, configurationService, chatSessionsService, workspace, agentHostEnabled, managedSandboxEnforced)) {
-		return { sessionType: options.currentSessionType, selectionReason: 'currentSession' };
+		resolved = { sessionType: options.currentSessionType, selectionReason: 'currentSession' };
+	} else if (remembered) {
+		resolved = { sessionType: remembered, selectionReason: 'rememberedSelection' };
+	} else {
+		resolved = {
+			sessionType: getComputedDefaultSessionType(configurationService, chatSessionsService, workspace, agentHostEnabled, managedSandboxEnforced),
+			selectionReason: 'computedDefault'
+		};
 	}
 
-	return { sessionType: getComputedDefaultSessionType(configurationService, chatSessionsService, workspace, agentHostEnabled, managedSandboxEnforced), selectionReason: 'computedDefault' };
+	return resolved.sessionType === localChatSessionType && preferCopilotHarness
+		? { sessionType: SessionType.AgentHostCopilot, selectionReason: 'copilotPreference' }
+		: resolved;
 }
 
-export function resolveDefaultNewChatSessionTypeWithReason(
+export function getDefaultNewChatSessionTypeAndReason(
 	accessor: ServicesAccessor,
 	options?: IDefaultNewChatSessionTypeOptions
 ): IResolvedNewChatSessionType {
@@ -438,30 +449,7 @@ export function resolveDefaultNewChatSessionTypeWithReason(
 	const agentHostEnabled = agentHostEnablementService.enabled.get();
 	const managedSandboxEnforced = agentHostEnablementService.managedSandboxEnforced.get();
 
-	if (options?.explicitOverride) {
-		return { sessionType: options.explicitOverride, selectionReason: 'explicitOverride' };
-	}
-
-	if (isVirtualWorkspace(workspace)) {
-		return { sessionType: localChatSessionType, selectionReason: 'virtualWorkspace' };
-	}
-
-	const remembered = getUsableRememberedSessionType(storageService, configurationService, chatSessionsService, workspace, agentHostEnabled, managedSandboxEnforced);
-	if (remembered && remembered !== localChatSessionType) {
-		return { sessionType: remembered, selectionReason: 'rememberedSelection' };
-	}
-
-	if (options?.currentSessionType === localChatSessionType
-		&& agentHostEnabled
-		&& isCopilotHarnessPreferred(configurationService, managedSandboxEnforced)) {
-		return { sessionType: SessionType.AgentHostCopilot, selectionReason: 'copilotPreference' };
-	}
-
-	return getDefaultNewChatSessionTypeAndReason(configurationService, chatSessionsService, storageService, workspace, agentHostEnabled, options, managedSandboxEnforced);
-}
-
-export function resolveDefaultNewChatSessionType(accessor: ServicesAccessor, options?: IDefaultNewChatSessionTypeOptions): { readonly sessionType: string } {
-	return { sessionType: resolveDefaultNewChatSessionTypeWithReason(accessor, options).sessionType };
+	return getDefaultNewChatSessionTypeAndReasonFromServices(configurationService, chatSessionsService, storageService, workspace, agentHostEnabled, options, managedSandboxEnforced);
 }
 
 function getUsableRememberedSessionType(

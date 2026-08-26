@@ -1491,11 +1491,6 @@ export interface ISessionGitHubState {
 	/** Pull requests explicitly associated through user intent, most recent first. */
 	readonly associatedPullRequestUrls?: readonly string[];
 	/**
-	 * URLs of the GitHub issues referenced by the session's user messages, in
-	 * order of first appearance.
-	 */
-	readonly issueUrls?: readonly string[];
-	/**
 	 * The name of the branch the most recent {@link pullRequestUrls} entry was found (or created) for.
 	 * A pull request always relates to a branch: when the working copy switches
 	 * to a different branch the host keeps reporting the known pull request but
@@ -1581,17 +1576,6 @@ export function withInitialSessionPullRequest(gitHubState: ISessionGitHubState |
 			...(pullRequestUrl ? [pullRequestUrl] : []),
 			...(gitHubState?.initialPullRequestUrls ?? [])
 		])
-	};
-}
-
-/** Returns state that records a user-referenced pull request without changing checkout PR state. */
-export function withMostRecentReferencedSessionPullRequest(gitHubState: ISessionGitHubState | undefined, pullRequestUrl: string): ISessionGitHubState {
-	const associatedPullRequestUrls = normalizeSessionPullRequestUrls([
-		pullRequestUrl,
-		...(gitHubState?.associatedPullRequestUrls ?? [])
-	]);
-	return {
-		associatedPullRequestUrls,
 	};
 }
 
@@ -1696,7 +1680,6 @@ export function readSessionGitHubState(meta: SessionSummaryMeta | undefined): IS
 		pullRequestUrls?: readonly string[];
 		initialPullRequestUrls?: readonly string[];
 		associatedPullRequestUrls?: readonly string[];
-		issueUrls?: readonly string[];
 		pullRequestBranchName?: string;
 	} = {};
 
@@ -1719,7 +1702,6 @@ export function readSessionGitHubState(meta: SessionSummaryMeta | undefined): IS
 			result.associatedPullRequestUrls = associatedPullRequestUrls;
 		}
 	}
-	if (Array.isArray(raw['issueUrls'])) { result.issueUrls = raw['issueUrls'].filter((url): url is string => typeof url === 'string'); }
 	if (typeof raw['pullRequestBranchName'] === 'string') { result.pullRequestBranchName = raw['pullRequestBranchName']; }
 	return result;
 }
