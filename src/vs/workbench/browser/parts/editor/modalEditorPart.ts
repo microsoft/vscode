@@ -298,8 +298,11 @@ export class ModalEditorPart {
 			const event = new StandardKeyboardEvent(e);
 			const resolved = this.keybindingService.softDispatch(event, event.target);
 			if (resolved.kind === ResultKind.KbFound && resolved.commandId === CLOSE_MODAL_EDITOR_COMMAND_ID) {
-				EventHelper.stop(event, true);
-				void editorPart.close();
+				const shouldPreventDefault = this.keybindingService.dispatchEvent(event, event.target);
+				event.stopPropagation();
+				if (shouldPreventDefault) {
+					event.preventDefault();
+				}
 			}
 		}, true));
 		disposables.add(Event.runAndSubscribe(editorPart.onDidChangeNavigation, ((navigation: IModalEditorNavigation | undefined) => {

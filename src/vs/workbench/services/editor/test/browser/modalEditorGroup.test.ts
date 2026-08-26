@@ -76,9 +76,16 @@ suite('Modal Editor Group', () => {
 
 	test('Escape closes modal before focused controls can stop propagation', async () => {
 		let resolvedCommand = 'test.otherCommand';
+		let dispatchClose: (() => void) | undefined;
+		let dispatchCount = 0;
 		const keybindingService = new class extends MockKeybindingService {
 			override softDispatch(): ResolutionResult {
 				return { kind: ResultKind.KbFound, commandId: resolvedCommand, commandArgs: undefined, isBubble: false };
+			}
+			override dispatchEvent(): boolean {
+				dispatchCount++;
+				dispatchClose?.();
+				return true;
 			}
 		}();
 		const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService) }, disposables);
@@ -88,6 +95,7 @@ suite('Modal Editor Group', () => {
 		instantiationService.stub(IEditorGroupsService, parts);
 
 		const modalPart = await parts.createModalEditorPart();
+		dispatchClose = () => void modalPart.close();
 		const modalElement = modalPart.modalElement as HTMLElement;
 		const control = modalElement.appendChild(document.createElement('button'));
 		let controlKeydownCount = 0;
@@ -95,19 +103,19 @@ suite('Modal Editor Group', () => {
 			controlKeydownCount++;
 			event.stopPropagation();
 		}));
-		const states: { modalAttached: boolean; controlKeydownCount: number }[] = [];
+		const states: { modalAttached: boolean; controlKeydownCount: number; dispatchCount: number }[] = [];
 
 		control.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }));
-		states.push({ modalAttached: !!modalElement.parentElement, controlKeydownCount });
+		states.push({ modalAttached: !!modalElement.parentElement, controlKeydownCount, dispatchCount });
 
 		resolvedCommand = CLOSE_MODAL_EDITOR_COMMAND_ID;
 		control.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }));
 		await timeout(0);
-		states.push({ modalAttached: !!modalElement.parentElement, controlKeydownCount });
+		states.push({ modalAttached: !!modalElement.parentElement, controlKeydownCount, dispatchCount });
 
 		assert.deepStrictEqual(states, [
-			{ modalAttached: true, controlKeydownCount: 1 },
-			{ modalAttached: false, controlKeydownCount: 1 },
+			{ modalAttached: true, controlKeydownCount: 1, dispatchCount: 0 },
+			{ modalAttached: false, controlKeydownCount: 1, dispatchCount: 1 },
 		]);
 	});
 
