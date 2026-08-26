@@ -16,7 +16,7 @@ import { SessionsChatPetAchievementContribution } from '../../browser/chatPetAch
 suite('Sessions - Chat Pet Achievements', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('unlocks request and archive achievements from existing local events', () => {
+	test('unlocks Agents window, request, and archive achievements from shared contribution', () => {
 		const onDidSendRequest = disposables.add(new Emitter<ISendRequestSentEvent>());
 		const onDidArchiveSession = disposables.add(new Emitter<ISession>());
 		const attemptedUnlocks: ChatPetAchievementId[] = [];
@@ -47,6 +47,7 @@ suite('Sessions - Chat Pet Achievements', () => {
 		onDidArchiveSession.fire(undefined!);
 
 		assert.deepStrictEqual(attemptedUnlocks, [
+			ChatPetAchievementIds.AgentsWindowOpened,
 			ChatPetAchievementIds.FirstChatMessage,
 			ChatPetAchievementIds.ImageRequest,
 			ChatPetAchievementIds.SessionArchived,
