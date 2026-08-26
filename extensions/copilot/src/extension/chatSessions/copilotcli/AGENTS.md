@@ -321,7 +321,7 @@ Orchestrates the start and end of each chat request turn, coordinating worktree 
 
 - **Steering mode**: When a session is already busy (`InProgress` or `NeedsInput`), use `send({ mode: 'immediate' })` to inject messages into the running conversation instead of starting a new request.
 
-- **External sessions are never listed**: `shouldShowSession()` in `node/copilotcliSessionService.ts` filters out every session whose `IChatSessionMetadataStore` origin is not `vscode` (e.g. started from the terminal CLI). There is no setting for this — the Agent Host owns external session visibility via `chat.agentSessions.showExternalAgentSessions`.
+- **External sessions are never listed**: `isExternalSession()` in `node/copilotcliSessionService.ts` filters out every session whose `IChatSessionMetadataStore` origin is not `vscode` (e.g. started from the terminal CLI). It is applied on *all* listing paths — `shouldShowSession()` (disk), `getSessionItemImpl()` (targeted refresh), and the in-progress wrapper fallback in `_getAllSessions()` — because `getSession()` can load an external session into `_sessionWrappers` without changing its origin. There is no setting for this — the Agent Host owns external session visibility via `chat.agentSessions.showExternalAgentSessions`.
 
 ## Commands & Slash Commands
 

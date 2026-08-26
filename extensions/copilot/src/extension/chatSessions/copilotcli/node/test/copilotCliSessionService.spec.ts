@@ -727,7 +727,7 @@ describe('CopilotCLISessionService', () => {
 			});
 		});
 
-		it('does not list sessions created outside VS Code', async () => {
+		it('does not list sessions created outside VS Code, even once loaded into memory', async () => {
 			const external = new MockCliSdkSession('external-cli', new Date(0));
 			external.summary = 'external-cli';
 			manager.sessions.set(external.sessionId, external);
@@ -737,9 +737,23 @@ describe('CopilotCLISessionService', () => {
 			local.summary = 'vscode-created';
 			manager.sessions.set(local.sessionId, local);
 
-			const result = await service.getAllSessions(CancellationToken.None);
+			const listedBeforeLoad = await service.getAllSessions(CancellationToken.None);
 
-			expect(result.map(item => item.id)).toEqual(['vscode-created']);
+			// Loading an external session into `_sessionWrappers` must not make it listable.
+			const loaded = await service.getSession({ sessionId: external.sessionId, ...sessionOptionsFor(URI.file('/tmp')) }, CancellationToken.None);
+			disposables.add(loaded!);
+
+			expect({
+				listedBeforeLoad: listedBeforeLoad.map(item => item.id),
+				listedAfterLoad: (await service.getAllSessions(CancellationToken.None)).map(item => item.id),
+				externalItem: await service.getSessionItem(external.sessionId, CancellationToken.None),
+				localItem: (await service.getSessionItem(local.sessionId, CancellationToken.None))?.id,
+			}).toEqual({
+				listedBeforeLoad: ['vscode-created'],
+				listedAfterLoad: ['vscode-created'],
+				externalItem: undefined,
+				localItem: 'vscode-created',
+			});
 		});
 
 		it('will not list created sessions', async () => {

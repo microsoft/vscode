@@ -155,6 +155,8 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 	private readonly _sessionWorkingDirectories = new Map<string, Uri | undefined>();
 	private readonly _cachedSessionItems = new Map<string, ICopilotCLISessionItem>();
 	private readonly _newSessionIds = new Set<string>();
+	/** Sessions created or forked by this window. The origin metadata write is async, so treat them as local right away. */
+	private readonly _vscodeOriginSessionIds = new Set<string>();
 	/** Bridge processor that forwards SDK native OTel spans to the debug panel. */
 	private _bridgeProcessor: CopilotCliBridgeSpanProcessor | undefined;
 	/** Whether we've attempted to install the bridge (only try once). */
@@ -312,6 +314,11 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 	}
 
 	public async getSessionItemImpl(sessionId: string, source: 'inMemorySession' | 'disk', token: CancellationToken): Promise<ICopilotCLISessionItem | undefined> {
+		// Checked up front so that a loaded external session cannot slip in via the wrapper below.
+		if (await this.isExternalSession(sessionId)) {
+			return;
+		}
+
 		const wrappedSession = this._sessionWrappers.get(sessionId);
 		// Give preference to the session we have in memory, as this contains the latest information.
 		if (wrappedSession && (source === 'inMemorySession' || wrappedSession.object.status === ChatSessionStatus.InProgress)) {
@@ -487,6 +494,9 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 				.filter(session => !diskSessionIds.has(session.object.sessionId))
 				.filter(session => session.object.status === ChatSessionStatus.InProgress)
 				.map(async (session): Promise<ICopilotCLISessionItem | undefined> => {
+					if (await this.isExternalSession(session.object.sessionId)) {
+						return;
+					}
 					const label = session.object.title ?? await this.customSessionTitleService.getCustomSessionTitle(session.object.sessionId) ?? labelFromPrompt(session.object.pendingPrompt ?? '');
 					if (!label) {
 						return;
@@ -605,6 +615,7 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 			session.object.add(mcpGateway);
 
 			// Set origin
+			this._vscodeOriginSessionIds.add(session.object.sessionId);
 			void this._chatSessionMetadataStore.setSessionOrigin(session.object.sessionId);
 
 			// Set session parent id
@@ -667,14 +678,24 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		}
 	}
 
+	/**
+	 * Sessions created outside VS Code (e.g. started from the terminal CLI) are never surfaced by
+	 * this provider. The Agent Host owns external session visibility via
+	 * `chat.agentSessions.showExternalAgentSessions`.
+	 */
+	private async isExternalSession(sessionId: string): Promise<boolean> {
+		if (isUntitledSessionId(sessionId) || this._vscodeOriginSessionIds.has(sessionId)) {
+			return false;
+		}
+		return await this._chatSessionMetadataStore.getSessionOrigin(sessionId) !== 'vscode';
+	}
+
 	private async shouldShowSession(sessionId: string, context?: SessionContext): Promise<boolean> {
 		if (isUntitledSessionId(sessionId)) {
 			return true;
 		}
 
-		// External sessions (e.g. started from the terminal CLI) are never listed by this provider.
-		const sessionOrigin = await this._chatSessionMetadataStore.getSessionOrigin(sessionId);
-		if (sessionOrigin !== 'vscode') {
+		if (await this.isExternalSession(sessionId)) {
 			return false;
 		}
 
@@ -1037,6 +1058,7 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		const { sessionId: newSessionId } = await sessionManager.forkSession(sessionId, toEventId);
 		const forkedTitlePrefix = l10n.t("Forked: ");
 		const customTitle = title.startsWith(forkedTitlePrefix) ? title : l10n.t("Forked: {0}", title);
+		this._vscodeOriginSessionIds.add(newSessionId);
 		await this._chatSessionMetadataStore.storeForkedSessionMetadata(sessionId, newSessionId, customTitle);
 
 		this._onDidChangeSessions.fire();
@@ -1166,6 +1188,7 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		this._sessionLabels.delete(sessionId);
 		this._partialSessionHistories.delete(sessionId);
 		this._sessionWorkingDirectories.delete(sessionId);
+		this._vscodeOriginSessionIds.delete(sessionId);
 		try {
 			{
 				const session = this._sessionWrappers.get(sessionId);
