@@ -432,7 +432,7 @@ function createLineBreaks(classifier: WrappingCharacterClassifier, _lineText: st
 	let prevCharCodeClass = classifier.get(prevCharCode);
 
 	for (let i = startOffset; i < len; i++) {
-		const fixedWidthRange = injectedTextWidthsInEm[fixedWidthRangeIndex];
+		const fixedWidthRange = injectedTextWidthsInEm.length > 0 && fixedWidthRangeIndex < injectedTextWidthsInEm.length ? injectedTextWidthsInEm[fixedWidthRangeIndex] : null;
 		const charStartOffset = i;
 		let charCode = lineText.charCodeAt(i);
 		let charCodeClass: CharacterClass;
