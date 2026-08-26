@@ -16,7 +16,9 @@ import { workbenchInstantiationService } from '../../../../../test/browser/workb
 import { AICustomizationListWidget } from '../../../browser/aiCustomization/aiCustomizationListWidget.js';
 import { IAICustomizationItemsModel } from '../../../browser/aiCustomization/aiCustomizationItemsModel.js';
 import { extractExtensionIdFromPath, getCustomizationSecondaryText, truncateToFirstLine } from '../../../browser/aiCustomization/aiCustomizationListWidgetUtils.js';
-import { AICustomizationManagementSection, IAICustomizationWorkspaceService } from '../../../common/aiCustomizationWorkspaceService.js';
+import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
+import { AICustomizationManagementSection, AICustomizationSources, IAICustomizationWorkspaceService } from '../../../common/aiCustomizationWorkspaceService.js';
+import { IAICustomizationListItem } from '../../../browser/aiCustomization/aiCustomizationItemSource.js';
 import { ICustomizationHarnessService, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
 import { ContributionEnablementState } from '../../../common/enablement.js';
 import { getChatSessionType } from '../../../common/model/chatUri.js';
@@ -281,6 +283,72 @@ suite('aiCustomizationListWidget', () => {
 			widget.layout(900, 320);
 
 			assert.strictEqual(widget.element.querySelector<HTMLElement>('.list-container')!.style.height, '830px');
+		});
+
+		test('groups local items by workspace folder in multi-root while preserving explicit groupKey', () => {
+			const folder1Uri = URI.file('/workspace/folder1');
+			const folder2Uri = URI.file('/workspace/folder2');
+			const folder1 = { uri: folder1Uri, name: 'Folder 1', index: 0, toResource: (sub: string) => URI.joinPath(folder1Uri, sub) };
+			const folder2 = { uri: folder2Uri, name: 'Folder 2', index: 1, toResource: (sub: string) => URI.joinPath(folder2Uri, sub) };
+
+			instaService.stub(IWorkspaceContextService, {
+				getWorkspace: () => ({ id: 'multi-root', folders: [folder1, folder2] }),
+				getWorkspaceFolder: (uri: URI) => {
+					if (uri.path.startsWith('/workspace/folder1')) { return folder1; }
+					if (uri.path.startsWith('/workspace/folder2')) { return folder2; }
+					return undefined;
+				},
+				onDidChangeWorkspaceFolders: Event.None,
+			});
+
+			const widget = disposables.add(instaService.createInstance(AICustomizationListWidget));
+
+			const itemInFolder1: IAICustomizationListItem = {
+				id: 'item1',
+				uri: URI.file('/workspace/folder1/skill.md'),
+				name: 'skill1',
+				filename: 'skill.md',
+				source: AICustomizationSources.local,
+				promptType: PromptsType.skill,
+				disabled: false,
+			};
+			const itemInFolder2: IAICustomizationListItem = {
+				id: 'item2',
+				uri: URI.file('/workspace/folder2/skill.md'),
+				name: 'skill2',
+				filename: 'skill.md',
+				source: AICustomizationSources.local,
+				promptType: PromptsType.skill,
+				disabled: false,
+			};
+			const itemWithExplicitGroup: IAICustomizationListItem = {
+				id: 'item3',
+				uri: URI.file('/workspace/folder1/agents.md'),
+				name: 'agent-instructions',
+				filename: 'agents.md',
+				source: AICustomizationSources.local,
+				groupKey: 'agent-instructions',
+				promptType: PromptsType.instruction,
+				disabled: false,
+			};
+
+			(widget as any).groupMatchedItems([itemInFolder1, itemInFolder2, itemWithExplicitGroup]);
+
+			const entries = (widget as any).displayEntries as Array<{ type: string; groupKey?: string; item?: IAICustomizationListItem }>;
+			const groupHeaders = entries.filter(e => e.type === 'group-header');
+
+			assert.ok(groupHeaders.some(g => g.groupKey === `workspace:${folder1Uri.toString()}`));
+			assert.ok(groupHeaders.some(g => g.groupKey === `workspace:${folder2Uri.toString()}`));
+			assert.ok(groupHeaders.some(g => g.groupKey === 'agent-instructions'));
+
+			const folder1HeaderIndex = entries.findIndex(e => e.type === 'group-header' && e.groupKey === `workspace:${folder1Uri.toString()}`);
+			assert.strictEqual(entries[folder1HeaderIndex + 1]?.item?.id, 'item1');
+
+			const folder2HeaderIndex = entries.findIndex(e => e.type === 'group-header' && e.groupKey === `workspace:${folder2Uri.toString()}`);
+			assert.strictEqual(entries[folder2HeaderIndex + 1]?.item?.id, 'item2');
+
+			const agentInstHeaderIndex = entries.findIndex(e => e.type === 'group-header' && e.groupKey === 'agent-instructions');
+			assert.strictEqual(entries[agentInstHeaderIndex + 1]?.item?.id, 'item3');
 		});
 	});
 });
