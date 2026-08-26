@@ -727,6 +727,21 @@ describe('CopilotCLISessionService', () => {
 			});
 		});
 
+		it('does not list sessions created outside VS Code', async () => {
+			const external = new MockCliSdkSession('external-cli', new Date(0));
+			external.summary = 'external-cli';
+			manager.sessions.set(external.sessionId, external);
+			metadataStore.setSessionOriginForTest(external.sessionId, 'other');
+
+			const local = new MockCliSdkSession('vscode-created', new Date(0));
+			local.summary = 'vscode-created';
+			manager.sessions.set(local.sessionId, local);
+
+			const result = await service.getAllSessions(CancellationToken.None);
+
+			expect(result.map(item => item.id)).toEqual(['vscode-created']);
+		});
+
 		it('will not list created sessions', async () => {
 			const session = await service.createSession({ model: 'gpt-test', ...sessionOptionsFor(URI.file('/tmp')) }, CancellationToken.None);
 			disposables.add(session);

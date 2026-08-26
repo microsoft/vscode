@@ -672,6 +672,12 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 			return true;
 		}
 
+		// External sessions (e.g. started from the terminal CLI) are never listed by this provider.
+		const sessionOrigin = await this._chatSessionMetadataStore.getSessionOrigin(sessionId);
+		if (sessionOrigin !== 'vscode') {
+			return false;
+		}
+
 		// If we're in an empty workspace then show all sessions.
 		if (this.workspaceService.getWorkspaceFolders().length === 0) {
 			return true;
