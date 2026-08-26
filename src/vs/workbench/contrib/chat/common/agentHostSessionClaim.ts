@@ -3,16 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { disposableTimeout } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { Emitter } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 
 /**
  * One-shot admission of an *already existing* remote Agent Host session into an
- * Agents Window, for an evaluation controller that owns the session and drives
- * every turn itself.
+ * Agents Window, for an evaluation controller that drives every turn itself.
  *
  * The controller and its bridge own the whole secret lifecycle; VS Code is told
  * only a **commitment** — a SHA-256 over the exact claim it will accept — on a
@@ -86,12 +84,10 @@ export function parseAgentSessionClaimRequest(raw: unknown): IAgentSessionClaimR
 }
 
 /**
- * Hashes the claim into the commitment the launch argument carries.
- *
- * The encoding is netstring-style — each field is prefixed with its UTF-16
- * length and a colon — so no combination of field contents can produce the same
- * byte sequence as a different combination. A plain separator would let a
- * crafted `sessionUri` impersonate a different `nonce`/`sessionType` split.
+ * Hashes the claim into the commitment the launch argument carries. The encoding
+ * is netstring-style — each field prefixed with its length and a colon — so no
+ * combination of field contents can produce the same bytes as a different one;
+ * a plain separator would let a crafted `sessionUri` shift the field split.
  */
 export async function computeAgentSessionClaimCommitment(request: IAgentSessionClaimRequest): Promise<string> {
 	const canonical = REQUEST_KEYS.map(key => `${request[key].length}:${request[key]}`).join('');
@@ -100,11 +96,21 @@ export async function computeAgentSessionClaimCommitment(request: IAgentSessionC
 }
 
 /**
- * Joins an existing backend session as an additional active client. Rejects
- * when the session does not exist; never creates one. The returned disposable
- * ends the claim.
+ * Joins an existing backend session as an additional active client. Rejects when
+ * the session does not exist; never creates one. Disposing ends the claim.
  */
 export type AgentSessionClaimTarget = (backendSession: URI, token: CancellationToken) => Promise<IDisposable>;
+
+/** Why a readiness wait ended. A closed vocabulary, safe to log and assert on. */
+export const enum AgentSessionClaimReadiness {
+	Ready = 'ready',
+	/** The caller's token was cancelled — including by its own budget guard. */
+	Cancelled = 'cancelled',
+}
+
+export type AgentSessionClaimReadinessResult =
+	| { readonly outcome: AgentSessionClaimReadiness.Ready; readonly target: AgentSessionClaimTarget }
+	| { readonly outcome: AgentSessionClaimReadiness.Cancelled };
 
 /**
  * The programmatic Agent Host session handlers a claim can be served by, keyed
@@ -114,11 +120,14 @@ export type AgentSessionClaimTarget = (backendSession: URI, token: CancellationT
 class AgentSessionClaimTargetRegistry {
 
 	private readonly _targets = new Map<string, AgentSessionClaimTarget>();
-	private readonly _onDidRegister = new Emitter<string>();
+	private readonly _onDidRegisterTarget = new Emitter<string>();
+
+	/** Fires with the exact session type each time a handler registers. */
+	readonly onDidRegisterTarget: Event<string> = this._onDidRegisterTarget.event;
 
 	register(sessionType: string, target: AgentSessionClaimTarget): IDisposable {
 		this._targets.set(sessionType, target);
-		this._onDidRegister.fire(sessionType);
+		this._onDidRegisterTarget.fire(sessionType);
 		return toDisposable(() => {
 			if (this._targets.get(sessionType) === target) {
 				this._targets.delete(sessionType);
@@ -126,34 +135,37 @@ class AgentSessionClaimTargetRegistry {
 		});
 	}
 
-	get(sessionType: string): AgentSessionClaimTarget | undefined {
+	getTarget(sessionType: string): AgentSessionClaimTarget | undefined {
 		return this._targets.get(sessionType);
 	}
 
 	/**
-	 * Resolves once {@link sessionType} has a handler, or `undefined` on timeout
-	 * or cancellation. The bridge can invoke the command before
-	 * `RemoteAgentHostContribution` has registered its handlers, so the command
-	 * waits rather than failing on a race it cannot control.
+	 * Resolves as soon as {@link sessionType} has a handler, driven purely by
+	 * {@link onDidRegisterTarget}: it schedules nothing and polls nothing, so an
+	 * already-registered handler resolves with no clock involved. The caller
+	 * supplies whatever deadline it wants through {@link token}.
 	 */
-	waitFor(sessionType: string, timeoutMs: number, token: CancellationToken): Promise<AgentSessionClaimTarget | undefined> {
-		const existing = this._targets.get(sessionType);
-		if (existing || token.isCancellationRequested) {
-			return Promise.resolve(existing);
+	whenTargetReady(sessionType: string, token: CancellationToken): Promise<AgentSessionClaimReadinessResult> {
+		const target = this._targets.get(sessionType);
+		if (target) {
+			return Promise.resolve({ outcome: AgentSessionClaimReadiness.Ready, target });
+		}
+		if (token.isCancellationRequested) {
+			return Promise.resolve({ outcome: AgentSessionClaimReadiness.Cancelled });
 		}
 		return new Promise(resolve => {
 			const store = new DisposableStore();
-			const settle = (target: AgentSessionClaimTarget | undefined) => {
+			const settle = (result: AgentSessionClaimReadinessResult) => {
 				store.dispose();
-				resolve(target);
+				resolve(result);
 			};
-			store.add(this._onDidRegister.event(type => {
-				if (type === sessionType) {
-					settle(this._targets.get(sessionType));
+			store.add(this.onDidRegisterTarget(registered => {
+				const ready = registered === sessionType ? this._targets.get(sessionType) : undefined;
+				if (ready) {
+					settle({ outcome: AgentSessionClaimReadiness.Ready, target: ready });
 				}
 			}));
-			store.add(disposableTimeout(() => settle(undefined), timeoutMs));
-			store.add(token.onCancellationRequested(() => settle(undefined)));
+			store.add(token.onCancellationRequested(() => settle({ outcome: AgentSessionClaimReadiness.Cancelled })));
 		});
 	}
 }

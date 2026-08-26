@@ -8,7 +8,9 @@ import { DisposableStore, toDisposable, type IDisposable } from '../../../../../
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
+import type { RecordedTimerEvent } from '../../../../../../base/test/common/virtualScheduling/index.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { timeout } from '../../../../../../base/common/async.js';
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
@@ -22,7 +24,7 @@ import {
 	type IAgentSessionClaimRequest,
 } from '../../../../../../workbench/contrib/chat/common/agentHostSessionClaim.js';
 import { INativeWorkbenchEnvironmentService } from '../../../../../../workbench/services/environment/electron-browser/environmentService.js';
-import { AgentSessionClaimContribution } from '../../electron-browser/agentSessionClaim.contribution.js';
+import { AGENT_SESSION_CLAIM_BUDGET_MS, AgentSessionClaimContribution } from '../../electron-browser/agentSessionClaim.contribution.js';
 
 const SESSION_TYPE = 'remote-127-0-0-1-9001-copilot';
 const SESSION_URI = 'copilot:/session-abc';
@@ -182,24 +184,58 @@ suite('AgentSessionClaimContribution', () => {
 		assert.strictEqual(claimedSessions.length, 2);
 	});
 
-	test('waits for a handler registered after the request', async () => {
+	test('waits for the registration event when the handler is not ready yet', async () => {
 		targetRegistration?.dispose();
 		await gated();
 		const claimed = claimCommand().run({ ...REQUEST });
+		// Registration is the only thing that can let this proceed.
 		store.add(registerTarget());
 		await claimed;
 		assert.deepStrictEqual(claimedSessions.map(uri => uri.toString()), [SESSION_URI]);
 	});
 
-	test('times out deterministically when no handler ever registers', async () => {
-		const request = { ...REQUEST, sessionType: 'remote-unregistered-copilot' };
-		await gated(request);
+	test('an unrelated handler registration does not satisfy the claim', async () => {
+		targetRegistration?.dispose();
+		await gated();
+		const claimed = claimCommand().run({ ...REQUEST });
+		store.add(registerTarget('remote-unrelated-copilot'));
+		assert.strictEqual(claimedSessions.length, 0, 'a different session type must not settle the wait');
+
+		store.add(registerTarget());
+		await claimed;
+		assert.deepStrictEqual(claimedSessions.map(uri => uri.toString()), [SESSION_URI]);
+	});
+
+	test('a successful claim requires no timer to fire', async () => {
+		await gated();
+		let history: readonly RecordedTimerEvent[] = [];
+		await runWithFakedTimers({ useFakeTimers: false, onHistory: recorded => { history = recorded; } }, async () => {
+			await claimCommand().run({ ...REQUEST });
+		});
+		assert.deepStrictEqual(claimedSessions.map(uri => uri.toString()), [SESSION_URI]);
+		assert.deepStrictEqual(history, [], 'the budget guard must never be a success condition');
+	});
+
+	test('reports budgetExceeded when no handler ever registers', async () => {
+		targetRegistration?.dispose();
+		await gated();
 		await runWithFakedTimers({ useFakeTimers: true }, async () => {
 			await assert.rejects(
-				() => claimCommand().run(request),
-				/timed out: no handler for remote-unregistered-copilot/);
+				() => claimCommand().run({ ...REQUEST }),
+				/budgetExceeded: no handler registered for remote-127-0-0-1-9001-copilot/);
 		});
 		assert.deepStrictEqual(claimedSessions, []);
+	});
+
+	test('the budget guard is released once the claim succeeds', async () => {
+		await gated();
+		await runWithFakedTimers({ useFakeTimers: true }, async () => {
+			await claimCommand().run({ ...REQUEST });
+			// If the guard were still armed it would cancel here and the run
+			// would not be idle; draining proves it was disposed.
+			await timeout(AGENT_SESSION_CLAIM_BUDGET_MS * 2);
+		});
+		assert.strictEqual(claimDisposeCount, 0, 'a released guard must not tear the claim down');
 	});
 
 	test('releases the claim when the window is torn down', async () => {

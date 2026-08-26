@@ -5,13 +5,16 @@
 
 import assert from 'assert';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
-import { toDisposable } from '../../../../../base/common/lifecycle.js';
+import { toDisposable, type IDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
+import type { RecordedTimerEvent } from '../../../../../base/test/common/virtualScheduling/index.js';
 import { MenuId, MenuRegistry, type IMenuItem, type ISubmenuItem } from '../../../../../platform/actions/common/actions.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import {
 	AGENT_SESSION_CLAIM_COMMAND_ID,
+	AgentSessionClaimReadiness,
 	agentSessionClaimTargets,
 	computeAgentSessionClaimCommitment,
 	parseAgentSessionClaimCommitment,
@@ -124,48 +127,87 @@ suite('agentHostSessionClaim', () => {
 		});
 	});
 
-	suite('claim targets', () => {
+	suite('target readiness', () => {
 
 		const target = async (_backendSession: URI) => toDisposable(() => { });
 
+		/** Runs `body` and reports every timer handler that actually fired. */
+		async function recordTimers(body: () => Promise<void>): Promise<readonly RecordedTimerEvent[]> {
+			let history: readonly RecordedTimerEvent[] = [];
+			await runWithFakedTimers({ useFakeTimers: false, onHistory: recorded => { history = recorded; } }, body);
+			return history;
+		}
+
 		test('resolves a target by exact session type', () => {
 			const registration = agentSessionClaimTargets.register('remote-test-copilot', target);
-			assert.strictEqual(agentSessionClaimTargets.get('remote-test-copilot'), target);
-			assert.strictEqual(agentSessionClaimTargets.get('remote-test-claude'), undefined);
+			assert.strictEqual(agentSessionClaimTargets.getTarget('remote-test-copilot'), target);
+			assert.strictEqual(agentSessionClaimTargets.getTarget('remote-test-claude'), undefined);
 			registration.dispose();
-			assert.strictEqual(agentSessionClaimTargets.get('remote-test-copilot'), undefined);
+			assert.strictEqual(agentSessionClaimTargets.getTarget('remote-test-copilot'), undefined);
 		});
 
-		test('waits for a target registered after the request', async () => {
-			const pending = agentSessionClaimTargets.waitFor('remote-late-copilot', 5000, CancellationToken.None);
-			const registration = agentSessionClaimTargets.register('remote-late-copilot', target);
-			assert.strictEqual(await pending, target);
-			registration.dispose();
-		});
-
-		test('resolves immediately for an already-registered target', async () => {
+		test('an already-registered target is ready with no timer involved', async () => {
 			const registration = agentSessionClaimTargets.register('remote-early-copilot', target);
-			assert.strictEqual(await agentSessionClaimTargets.waitFor('remote-early-copilot', 5000, CancellationToken.None), target);
+			const fired = await recordTimers(async () => {
+				const readiness = await agentSessionClaimTargets.whenTargetReady('remote-early-copilot', CancellationToken.None);
+				assert.strictEqual(readiness.outcome, AgentSessionClaimReadiness.Ready);
+				assert.strictEqual(readiness.outcome === AgentSessionClaimReadiness.Ready && readiness.target, target);
+			});
+			assert.deepStrictEqual(fired, [], 'readiness must not depend on any timer');
 			registration.dispose();
 		});
 
-		test('gives up after the timeout rather than waiting forever', async () => {
-			assert.strictEqual(await agentSessionClaimTargets.waitFor('remote-absent-copilot', 1, CancellationToken.None), undefined);
+		test('a target registered after the request is delivered by the event, with no timer involved', async () => {
+			let registration: IDisposable | undefined;
+			const fired = await recordTimers(async () => {
+				const pending = agentSessionClaimTargets.whenTargetReady('remote-late-copilot', CancellationToken.None);
+				// Registration is the only thing that can settle this wait.
+				registration = agentSessionClaimTargets.register('remote-late-copilot', target);
+				const readiness = await pending;
+				assert.strictEqual(readiness.outcome, AgentSessionClaimReadiness.Ready);
+				assert.strictEqual(readiness.outcome === AgentSessionClaimReadiness.Ready && readiness.target, target);
+			});
+			assert.deepStrictEqual(fired, [], 'readiness must not depend on any timer');
+			registration?.dispose();
 		});
 
-		test('gives up when cancelled', async () => {
+		test('fires the registration event with the exact session type', () => {
+			const seen: string[] = [];
+			const listener = agentSessionClaimTargets.onDidRegisterTarget(type => seen.push(type));
+			const registration = agentSessionClaimTargets.register('remote-observed-copilot', target);
+			assert.deepStrictEqual(seen, ['remote-observed-copilot']);
+			registration.dispose();
+			listener.dispose();
+		});
+
+		test('an unrelated registration does not settle the wait', async () => {
 			const cts = new CancellationTokenSource();
-			const pending = agentSessionClaimTargets.waitFor('remote-cancelled-copilot', 5000, cts.token);
+			const pending = agentSessionClaimTargets.whenTargetReady('remote-wanted-copilot', cts.token);
+			const other = agentSessionClaimTargets.register('remote-unwanted-copilot', target);
+
+			// Only cancellation can end it, which is what proves the unrelated
+			// registration was ignored rather than merely slow.
 			cts.cancel();
-			assert.strictEqual(await pending, undefined);
+			assert.strictEqual((await pending).outcome, AgentSessionClaimReadiness.Cancelled);
+			other.dispose();
 			cts.dispose();
 		});
 
-		test('ignores registrations of a different session type', async () => {
-			const pending = agentSessionClaimTargets.waitFor('remote-wanted-copilot', 25, CancellationToken.None);
-			const other = agentSessionClaimTargets.register('remote-unwanted-copilot', target);
-			assert.strictEqual(await pending, undefined);
-			other.dispose();
+		test('an unregistered target stays pending until cancelled', async () => {
+			const cts = new CancellationTokenSource();
+			const pending = agentSessionClaimTargets.whenTargetReady('remote-absent-copilot', cts.token);
+			cts.cancel();
+			assert.strictEqual((await pending).outcome, AgentSessionClaimReadiness.Cancelled);
+			cts.dispose();
+		});
+
+		test('an already-cancelled token resolves without waiting', async () => {
+			const cts = new CancellationTokenSource();
+			cts.cancel();
+			assert.strictEqual(
+				(await agentSessionClaimTargets.whenTargetReady('remote-absent-copilot', cts.token)).outcome,
+				AgentSessionClaimReadiness.Cancelled);
+			cts.dispose();
 		});
 	});
 

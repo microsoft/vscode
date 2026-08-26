@@ -85,10 +85,21 @@ invoke.
 
 The bridge can invoke the command before `RemoteAgentHostContribution` has
 connected and registered its session handlers. Rather than fail on a race the
-caller cannot control, the command waits for the exact session type, bounded by
-a single 60s deadline that also cancels session hydration and the active-client
-settle. A claim that never finds its handler fails with a deterministic timeout
-instead of hanging.
+caller cannot control, the command waits for the exact session type.
+
+That wait is event-driven end to end. The registry exposes
+`onDidRegisterTarget`, and `whenTargetReady` resolves either immediately (the
+handler is already there) or from that event, filtered to the exact session
+type. It schedules nothing and polls nothing: an unrelated registration does not
+settle it, and a handler that is already registered resolves with no clock
+involved at all. Session hydration and the active-client settle are likewise
+driven by the subscription's own change/error events and by observable state.
+
+`AGENT_SESSION_CLAIM_BUDGET_MS` is the single named budget covering all three
+waits, and it exists only as a terminal failure guard — never as a success
+condition. When it fires, the claim fails with the fixed-vocabulary outcome
+`budgetExceeded`; a cancellation from anywhere else reports `cancelled`. On
+success the guard is disposed without ever firing.
 
 ## Claim
 

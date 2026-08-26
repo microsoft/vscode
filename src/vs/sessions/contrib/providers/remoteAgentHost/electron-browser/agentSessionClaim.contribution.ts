@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { disposableTimeout } from '../../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
-import { Disposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -13,6 +14,7 @@ import { registerWorkbenchContribution2, WorkbenchPhase, type IWorkbenchContribu
 import {
 	AGENT_SESSION_CLAIM_COMMAND_ID,
 	AGENT_SESSION_CLAIM_HASH_ARG,
+	AgentSessionClaimReadiness,
 	agentSessionClaimTargets,
 	computeAgentSessionClaimCommitment,
 	parseAgentSessionClaimCommitment,
@@ -20,15 +22,19 @@ import {
 } from '../../../../../workbench/contrib/chat/common/agentHostSessionClaim.js';
 import { INativeWorkbenchEnvironmentService } from '../../../../../workbench/services/environment/electron-browser/environmentService.js';
 
-/** How long the claim waits for its handler, and for the session, in total. */
-const CLAIM_TIMEOUT_MS = 60_000;
+/**
+ * Terminal guard for a whole claim — handler readiness, session hydration, and
+ * the active-client settle. Each of those waits is event-driven; this only turns
+ * a wait that will never end into a failure, and is never a success condition.
+ */
+export const AGENT_SESSION_CLAIM_BUDGET_MS = 60_000;
+const BUDGET_EXCEEDED_OUTCOME = 'budgetExceeded';
 
 /** Storage key prefix marking a commitment as spent, so a reload cannot replay it. */
 const SPENT_CLAIM_STORAGE_PREFIX = 'agentHost.sessionClaim.spent.';
 
 /**
  * The private launch path for claiming an existing remote Agent Host session.
- *
  * Inert unless this window was started with the private, unlisted
  * `--agent-session-claim-hash` argument: the command is registered at runtime,
  * only when gated, so an ordinary window has no such command at all.
@@ -85,19 +91,24 @@ export class AgentSessionClaimContribution extends Disposable implements IWorkbe
 			throw new Error('Agent session claim rejected: request does not match this launch');
 		}
 
-		// Wait for the exact session type rather than failing on a race with
-		// `RemoteAgentHostContribution` that the caller cannot control.
-		const timeout = this._register(new CancellationTokenSource());
-		const timer = setTimeout(() => timeout.cancel(), CLAIM_TIMEOUT_MS);
+		// Driven by the registry's registration event, so a race with
+		// `RemoteAgentHostContribution` waits rather than failing.
+		const pending = new DisposableStore();
+		const budget = pending.add(new CancellationTokenSource());
+		let budgetExceeded = false;
+		pending.add(disposableTimeout(() => {
+			budgetExceeded = true;
+			budget.cancel();
+		}, AGENT_SESSION_CLAIM_BUDGET_MS));
 		try {
-			const target = await agentSessionClaimTargets.waitFor(request.sessionType, CLAIM_TIMEOUT_MS, timeout.token);
-			if (!target) {
-				throw new Error(`Agent session claim timed out: no handler for ${request.sessionType}`);
+			const readiness = await agentSessionClaimTargets.whenTargetReady(request.sessionType, budget.token);
+			if (readiness.outcome !== AgentSessionClaimReadiness.Ready) {
+				throw new Error(`Agent session claim ${budgetExceeded ? BUDGET_EXCEEDED_OUTCOME : readiness.outcome}: no handler registered for ${request.sessionType}`);
 			}
-			this._claim.value = await target(URI.parse(request.sessionUri), timeout.token);
+			this._claim.value = await readiness.target(URI.parse(request.sessionUri), budget.token);
 			this._logService.info(`[AgentSessionClaim] Claimed ${request.sessionUri}`);
 		} finally {
-			clearTimeout(timer);
+			pending.dispose();
 		}
 	}
 }

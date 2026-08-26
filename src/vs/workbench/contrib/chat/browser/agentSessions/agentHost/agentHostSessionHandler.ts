@@ -2239,8 +2239,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 	/**
 	 * Records one holder of a session resource's {@link ActiveClientEntry}: a
-	 * chat and an external claim address the same resource, so the entry
-	 * outlives whichever is released first.
+	 * chat and a claim address the same resource, so the entry outlives
+	 * whichever is released first.
 	 */
 	private _retainActiveClientEntry(sessionResource: URI): void {
 		this._activeClientHolders.set(sessionResource, (this._activeClientHolders.get(sessionResource) ?? 0) + 1);
@@ -2273,17 +2273,15 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 * inventory and serves the client tools the host asks for. Unlike
 	 * {@link provideChatSessionContent} it never creates a session — one that has
 	 * not hydrated is a hard failure — and opens no chat model, so nothing
-	 * dispatches a draft, pending message, or turn. The one watcher it installs,
+	 * dispatches a draft, pending message, or turn. Its one watcher,
 	 * {@link _watchForSessionInputNeeded}, already runs from a bare session
-	 * subscription. That watcher, the active-client entry, and the subscription
-	 * are shared with any chat on the same session and reference-counted, so
-	 * either holder may be released first.
+	 * subscription; that watcher, the active-client entry, and the subscription
+	 * are shared with any chat on the same session and reference-counted.
 	 */
 	async claimExternalSession(backendSession: URI, token: CancellationToken): Promise<IDisposable> {
 		const sessionKey = backendSession.toString();
-		// Derive the UI resource from the backend session and require the round
-		// trip to land back on it, so a claim whose scheme belongs to another
-		// handler is rejected rather than silently retargeted.
+		// Require the round trip to land back on the backend session, so a claim
+		// belonging to another handler is rejected rather than retargeted.
 		const sessionResource = URI.from({ scheme: this._config.sessionType, path: `/${AgentSession.id(backendSession)}` });
 		if (!isEqual(this._resolveSessionUri(sessionResource), backendSession)) {
 			throw new Error(`Agent host session ${sessionKey} does not belong to session type ${this._config.sessionType}`);
@@ -2310,7 +2308,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			}
 
 			// Arm tool serving before publishing, so a request the host queues
-			// the instant it sees this client is already being watched for.
+			// the instant it sees this client is already watched for.
 			this._watchForSessionInputNeeded(backendSession, sessionResource, AgentHostSessionHandler.EXTERNAL_CLAIM_REF);
 			store.add(toDisposable(() => this._releaseInputNeededRef(backendSession, AgentHostSessionHandler.EXTERNAL_CLAIM_REF)));
 
@@ -2519,8 +2517,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	private _watchForSessionInputNeeded(backendSession: URI, sessionResource: URI, refKey?: string): void {
 		// Record which backend session this resource's reference belongs to so
 		// teardown can release it even after provisional state is cleared. A
-		// caller with its own `refKey` (the external claim) owns its reference
-		// directly: it can share a session resource with an open chat.
+		// caller with its own `refKey` (the claim) owns its reference directly:
+		// it can share a session resource with an open chat.
 		if (refKey === undefined) {
 			this._inputNeededWatcherBackends.set(sessionResource, backendSession);
 		}
@@ -2723,8 +2721,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 	/**
 	 * Drops one reference to a backend session's shared `inputNeeded` watcher,
-	 * disposing it only once no holder — chat resource or external claim —
-	 * remains.
+	 * disposing it only once no holder — chat or claim — remains.
 	 */
 	private _releaseInputNeededRef(backendSession: URI, ref: string): void {
 		const sessionKey = backendSession.toString();

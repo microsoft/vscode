@@ -619,6 +619,9 @@ suite('AgentHostClientTools', () => {
 			private readonly _liveSubscriptions = new Map<string, { state: SessionState | ChatState; emitter: Emitter<SessionState | ChatState> }>();
 			public dispatchedActions: { channel: string; action: SessionAction | ChatAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction }[] = [];
 			public readonly createSessionCalls: unknown[] = [];
+			private readonly _onDidDispatch = disposables.add(new Emitter<void>());
+			/** Fires after every dispatch, so tests can await state instead of polling. */
+			public readonly onDidDispatch = this._onDidDispatch.event;
 			public readonly resourceReadUris: URI[] = [];
 			public resourceReadData = '{"task":"build"}';
 			public resourceReadEncoding = ContentEncoding.Utf8;
@@ -642,6 +645,7 @@ suite('AgentHostClientTools', () => {
 				if (isSessionAction(action) || isChatAction(action)) {
 					this.applySessionAction(channel, action);
 				}
+				this._onDidDispatch.fire();
 			}
 
 			applySessionAction(channel: string | URI, action: SessionAction | ChatAction): void {
@@ -3239,18 +3243,28 @@ suite('AgentHostClientTools', () => {
 				return claimDisposable;
 			}
 
-			/** Waits until the handler has dispatched the tool call's completion. */
-			async function waitForToolCompletion(connection: MockAgentHostConnection, toolCallId: string): Promise<void> {
-				for (let i = 0; i < 200; i++) {
-					if (connection.dispatchedActions.some(entry =>
-						isChatAction(entry.action)
-						&& entry.action.type === ActionType.ChatToolCallComplete
-						&& entry.action.toolCallId === toolCallId)) {
-						return;
-					}
-					await timeout(1);
+			/**
+			 * Resolves when the handler dispatches the tool call's completion,
+			 * driven by the connection's dispatch event — no polling, and no
+			 * delay standing in for the result.
+			 */
+			function whenToolCompleted(connection: MockAgentHostConnection, toolCallId: string): Promise<void> {
+				const completed = () => connection.dispatchedActions.some(entry =>
+					isChatAction(entry.action)
+					&& entry.action.type === ActionType.ChatToolCallComplete
+					&& entry.action.toolCallId === toolCallId);
+				if (completed()) {
+					return Promise.resolve();
 				}
-				assert.fail(`client tool ${toolCallId} never completed`);
+				return new Promise<void>(resolve => {
+					const listener = connection.onDidDispatch(() => {
+						if (completed()) {
+							listener.dispose();
+							resolve();
+						}
+					});
+					disposables.add(listener);
+				});
 			}
 
 			test('publishes the window inventory as an active client of the existing session', async () => {
@@ -3338,7 +3352,7 @@ suite('AgentHostClientTools', () => {
 					invocationMessage: 'Run Task',
 					toolInput: '{"task":"build"}',
 				});
-				await waitForToolCompletion(connection, 'tool-call-1');
+				await whenToolCompleted(connection, 'tool-call-1');
 
 				assert.strictEqual(toolsService.invokedToolCalls.length, 1);
 				assert.deepStrictEqual(toolsService.invokedToolCalls[0].parameters, { task: 'build' });
@@ -3358,7 +3372,7 @@ suite('AgentHostClientTools', () => {
 					invocationMessage: 'Delete Everything',
 					toolInput: '{}',
 				});
-				await waitForToolCompletion(connection, 'tool-call-1');
+				await whenToolCompleted(connection, 'tool-call-1');
 
 				assert.strictEqual(toolsService.invokedToolCalls.length, 1, 'a claimed confirmable tool must run, not be denied');
 				assert.deepStrictEqual(
@@ -3402,7 +3416,7 @@ suite('AgentHostClientTools', () => {
 					invocationMessage: 'Run Task',
 					toolInput: '{"task":"build"}',
 				});
-				await waitForToolCompletion(connection, 'tool-call-1');
+				await whenToolCompleted(connection, 'tool-call-1');
 
 				assert.strictEqual(toolsService.invokedToolCalls.length, 1, 'releasing the claim must not tear down the chat\'s watcher');
 			});
@@ -3422,7 +3436,7 @@ suite('AgentHostClientTools', () => {
 					invocationMessage: 'Run Task',
 					toolInput: '{"task":"build"}',
 				});
-				await waitForToolCompletion(connection, 'tool-call-1');
+				await whenToolCompleted(connection, 'tool-call-1');
 
 				assert.strictEqual(toolsService.invokedToolCalls.length, 1, 'closing the chat must not tear down the claim\'s watcher');
 				const removals = connection.dispatchedActions.filter(entry =>
@@ -3430,7 +3444,7 @@ suite('AgentHostClientTools', () => {
 				assert.deepStrictEqual(removals, [], 'the shared active client must survive while the claim holds it');
 			});
 
-			test('stops serving client tools once the claim is released', async () => {
+			test('stops serving client tools once the claim is released', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 				const { handler, connection, toolsService } = createHandlerWithMocks(disposables, [testRunTaskTool]);
 
 				(await claim(handler)).dispose();
@@ -3441,11 +3455,12 @@ suite('AgentHostClientTools', () => {
 					invocationMessage: 'Run Task',
 					toolInput: '{"task":"build"}',
 				});
-				await timeout(5);
-				await timeout(5);
+				// Virtual time drains every scheduled task, so this is a
+				// deterministic "nothing more will happen", not a short wait.
+				await timeout(UNOBSERVED_CLIENT_TOOL_GRACE_MS + 1);
 
 				assert.deepStrictEqual(toolsService.invokedToolCalls, []);
-			});
+			}));
 		});
 	});
 });
