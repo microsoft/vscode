@@ -1670,9 +1670,9 @@ function buildSessionCreatedToolData(tc: ToolCallState): IChatSessionCreatedData
 	if (!openLink || !backend) {
 		return undefined;
 	}
-	// A chat-scoped link (create_chat, or send_message targeting a specific chat)
-	// shows the conversation icon; a session-scoped link shows the agent icon.
-	const isChat = isCreateChatTool(tc.toolName) || (isSend && !!parseOpenSessionLinkChatId(openLink));
+	// A chat-scoped link shows the conversation icon; a session-scoped link shows the agent icon.
+	const isChat = isCreateChatTool(tc.toolName)
+		|| ((isCreateSessionTool(tc.toolName) || isSend) && !!parseOpenSessionLinkChatId(openLink));
 	const label = createSessionTitleFromArgs(getInlineToolInput(tc.toolInput)) ?? (backend.path.replace(/^\//, '') || backend.toString());
 	return { kind: 'sessionCreated', openLink, label, isChat };
 }

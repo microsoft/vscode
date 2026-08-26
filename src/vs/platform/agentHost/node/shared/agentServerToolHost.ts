@@ -59,6 +59,8 @@ export interface IServerToolExecutionContext {
 export interface IServerToolGroup {
 	/** Tool definitions this group advertises on the session's `serverTools`. */
 	readonly definitions: readonly IAgentServerToolDefinition[];
+	/** Retired tool names that remain executable but are not advertised. Remove after 2026-10-26. */
+	readonly legacyToolNames?: readonly string[];
 	/** Whether a contributed tool is currently enabled for advertisement and execution. */
 	isEnabled(toolName: string): boolean;
 	/**
@@ -130,6 +132,12 @@ export class AgentServerToolHost implements IAgentServerToolHost {
 				}
 				this._groupByToolName.set(def.name, group);
 			}
+			for (const legacyToolName of group.legacyToolNames ?? []) {
+				if (this._groupByToolName.has(legacyToolName)) {
+					throw new Error(`Duplicate server tool registered: ${legacyToolName}`);
+				}
+				this._groupByToolName.set(legacyToolName, group);
+			}
 		}
 	}
 
@@ -138,13 +146,20 @@ export class AgentServerToolHost implements IAgentServerToolHost {
 	}
 
 	getDefinitionsForSession(sessionUri: URI): readonly IAgentServerToolDefinition[] {
+		const materializedDefinitions = this._stateManager.getSessionState(sessionUri)?.serverTools;
+		if (materializedDefinitions) {
+			return materializedDefinitions.filter(definition => this._groupByToolName.has(definition.name));
+		}
 		return this._stateManager.isEphemeralSession(sessionUri)
 			? this.definitions.filter(definition => definition.enabledForEphemeralSessions)
 			: this.definitions;
 	}
 
 	get toolNames(): readonly string[] {
-		return this.definitions.map(definition => definition.name);
+		return [
+			...this.definitions.map(definition => definition.name),
+			...this._groups.flatMap(group => (group.legacyToolNames ?? []).filter(toolName => group.isEnabled(toolName))),
+		];
 	}
 
 	advertise(sessionUri: URI): void {
@@ -199,7 +214,7 @@ export class AgentServerToolHost implements IAgentServerToolHost {
 	private _isEnabledForSession(group: IServerToolGroup, chatUri: URI, toolName: string): boolean {
 		const advertisedTools = this._stateManager.getSessionState(chatUri)?.serverTools;
 		return advertisedTools
-			? advertisedTools.some(tool => tool.name === toolName)
+			? advertisedTools.some(tool => tool.name === toolName) || group.legacyToolNames?.includes(toolName) === true
 			: group.isEnabled(toolName);
 	}
 }

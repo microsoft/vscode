@@ -74,6 +74,11 @@ export function getServerToolDisplay(toolName: string, args: unknown, result?: I
 				return group.getDisplay(def.name, args, result);
 			}
 		}
+		for (const legacyToolName of group.legacyToolNames ?? []) {
+			if (matchesServerToolName(toolName, legacyToolName)) {
+				return group.getDisplay(legacyToolName, args, result);
+			}
+		}
 	}
 	return undefined;
 }
