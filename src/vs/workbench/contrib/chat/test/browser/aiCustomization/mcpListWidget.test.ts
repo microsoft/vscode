@@ -8,7 +8,7 @@ import * as DOM from '../../../../../../base/browser/dom.js';
 import { Button, unthemedButtonStyles } from '../../../../../../base/browser/ui/button/button.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { Action, IAction, Separator } from '../../../../../../base/common/actions.js';
-import { Emitter } from '../../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, isDisposable } from '../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -609,10 +609,12 @@ suite('mcpListWidget', () => {
 				async () => { },
 				{ isSessionsWindow: true } as IAICustomizationWorkspaceService,
 				{ plugins: observableValue<readonly never[]>('plugins', []) } as unknown as IAgentPluginService,
-				{ setupManagedHover: () => Disposable.None } as unknown as IHoverService,
+				{ setupDelayedHover: () => Disposable.None, setupManagedHover: () => Disposable.None } as unknown as IHoverService,
 				agentHostCustomizationService,
 				customizationHarnessService,
 				{ showChannel: async () => { } } as unknown as IOutputService,
+				{ getWorkspaceLabel: () => 'Test Workspace' } as unknown as ILabelService,
+				{ getWorkspace: () => ({ folders: [] }), getWorkspaceFolder: () => undefined } as unknown as IWorkspaceContextService,
 			);
 
 			const container = document.createElement('div');
@@ -769,6 +771,52 @@ suite('mcpListWidget', () => {
 				shownChannels: [],
 				localOutputCount: 1,
 			});
+		});
+
+		test('hover surfaces workspace name when server is disabled for workspace', () => {
+			let capturedHoverDelegate: (() => { content: string }) | undefined;
+			const hoverService = {
+				setupDelayedHover: (_element: HTMLElement, delegate: () => { content: string }) => {
+					capturedHoverDelegate = delegate;
+					return Disposable.None;
+				},
+				setupManagedHover: () => Disposable.None,
+			} as unknown as IHoverService;
+
+			const disabledServer = createAgentHostServer({
+				id: 'server-1',
+				name: 'My Workspace MCP',
+				status: McpServerStatus.Stopped,
+				disabledReason: { source: 'scope', scope: CustomizationEnablementKind.Workspace },
+				enablement: [{ kind: CustomizationEnablementKind.Workspace, enabled: false, uri: 'file:///workspace/project-a' }],
+			});
+
+			const workspaceContextService = {
+				getWorkspace: () => ({ folders: [] }),
+				getWorkspaceFolder: (uri: URI) => uri.path === '/workspace/project-a' ? { name: 'project-a' } : undefined,
+			} as unknown as IWorkspaceContextService;
+
+			const renderer = new McpServerItemRenderer(
+				async () => { },
+				{ isSessionsWindow: false } as IAICustomizationWorkspaceService,
+				{ plugins: observableValue<readonly never[]>('plugins', []) } as unknown as IAgentPluginService,
+				hoverService,
+				{ getMcpServers: () => [disabledServer], onDidChangeCustomizations: Event.None } as unknown as IAgentHostCustomizationService,
+				{ activeSessionResource: observableValue<URI>('activeSessionResource', URI.parse('vscode-agent-session:///session-1')) } as unknown as ICustomizationHarnessService,
+				{ showChannel: async () => { } } as unknown as IOutputService,
+				{ getWorkspaceLabel: () => 'Test Workspace' } as unknown as ILabelService,
+				workspaceContextService,
+			);
+
+			const container = document.createElement('div');
+			const templateData = renderer.renderTemplate(container);
+			renderer.renderElement(createBuiltinActiveSessionMcpEntries([disabledServer])[0], 0, templateData);
+
+			assert.ok(capturedHoverDelegate);
+			const hover = capturedHoverDelegate!();
+			assert.ok(hover.content.includes("Disabled in workspace 'project-a'"));
+
+			renderer.disposeTemplate(templateData);
 		});
 	});
 });
