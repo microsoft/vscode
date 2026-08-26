@@ -68,24 +68,26 @@ suite('AgentHostSessionOpenTelemetry', () => {
 	});
 
 	test('records warm subscriptions without restore or SDK resume milestones', async () => {
-		const telemetryService = new TestTelemetryService();
-		const service = disposables.add(new AgentHostSessionOpenTelemetry(telemetryService));
-		await service.withSubscription(session, async telemetry => telemetry.setServedFromMemory(true));
+		await runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const telemetryService = new TestTelemetryService();
+			const service = disposables.add(new AgentHostSessionOpenTelemetry(telemetryService));
+			await service.withSubscription(session, async telemetry => telemetry.setServedFromMemory(true));
 
-		assert.deepStrictEqual(telemetryService.events.map(event => event.data), [{
-			channel: 'session',
-			outcome: 'success',
-			servedFromMemory: true,
-			joinedRestore: undefined,
-			sdkResumeOutcome: 'notStarted',
-			sdkResumeAttemptCount: 0,
-			timeToRestoreStartMs: undefined,
-			timeToSdkResumeStartMs: undefined,
-			sdkResumeDurationMs: undefined,
-			timeToSdkResumeCompleteMs: undefined,
-			timeToRestoreCompleteMs: undefined,
-			totalDurationMs: 0,
-		}]);
+			assert.deepStrictEqual(telemetryService.events.map(event => event.data), [{
+				channel: 'session',
+				outcome: 'success',
+				servedFromMemory: true,
+				joinedRestore: undefined,
+				sdkResumeOutcome: 'notStarted',
+				sdkResumeAttemptCount: 0,
+				timeToRestoreStartMs: undefined,
+				timeToSdkResumeStartMs: undefined,
+				sdkResumeDurationMs: undefined,
+				timeToSdkResumeCompleteMs: undefined,
+				timeToRestoreCompleteMs: undefined,
+				totalDurationMs: 0,
+			}]);
+		});
 	});
 
 	test('accumulates retries and reports fallback creation without duplicate emission', async () => {
