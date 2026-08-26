@@ -3,22 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { URI } from '../../../base/common/uri.js';
 import { getSessionArtifactValue, isGitHubArtifactLink, SESSION_ARTIFACT_TYPES, SessionArtifactType, type ISessionArtifact } from './sessionArtifacts.js';
 
-/** The fields an agent supplies when adding an artifact. */
+/** The fields an agent supplies when adding an artifact or reference. */
 export interface ISessionArtifactInput {
 	readonly type: SessionArtifactType;
 	readonly label: string;
+	/** `true` for an artifact the session produced, `false` for a reference. */
+	readonly isArtifact: boolean;
 	readonly link?: string;
 	readonly uri?: string;
 	readonly commitHash?: string;
-	readonly createdByThisSession?: boolean;
 }
 
 export interface IAddSessionArtifactResult {
 	readonly artifacts: readonly ISessionArtifact[];
 	readonly artifact: ISessionArtifact;
-	/** `false` when an artifact with the same value already existed. */
+	/** `false` when an entry with the same value already existed. */
 	readonly added: boolean;
 }
 
@@ -57,7 +59,28 @@ function requireWebLink(value: unknown, field: string, toolName: string): string
 	return link;
 }
 
-/** Validates and normalizes raw `add_artifact` arguments. */
+/**
+ * The client opens a `uri` by parsing it strictly, so anything it cannot parse
+ * would be recorded, reported as added, and then quietly appear in no pill at
+ * all. Parsing it the same way here gives the agent an error it can act on
+ * instead. A single-letter scheme is a Windows drive path (`C:\repo\plan.md`),
+ * which parses into a nonsense URI rather than failing, so it is rejected too.
+ */
+function requireUri(value: unknown, field: string, toolName: string): string {
+	const uri = requireString(value, field, toolName);
+	let scheme: string | undefined;
+	try {
+		scheme = URI.parse(uri, /*strict*/ true).scheme;
+	} catch {
+		scheme = undefined;
+	}
+	if (!scheme || scheme.length === 1) {
+		throw new Error(`Invalid ${toolName} input: ${field} must be an absolute URI including its scheme, such as 'file:///path/to/file' — not a plain file system path.`);
+	}
+	return uri;
+}
+
+/** Validates and normalizes raw `add_artifact_or_reference` arguments. */
 export function parseSessionArtifactInput(rawArgs: unknown, toolName: string): ISessionArtifactInput {
 	if (!rawArgs || typeof rawArgs !== 'object' || Array.isArray(rawArgs)) {
 		throw new Error(`Invalid ${toolName} input: expected an object.`);
@@ -67,34 +90,33 @@ export function parseSessionArtifactInput(rawArgs: unknown, toolName: string): I
 	if (typeof type !== 'string' || !(SESSION_ARTIFACT_TYPES as readonly string[]).includes(type)) {
 		throw new Error(`Invalid ${toolName} input: type must be one of ${SESSION_ARTIFACT_TYPES.join(', ')}.`);
 	}
+	if (typeof args['isArtifact'] !== 'boolean') {
+		throw new Error(`Invalid ${toolName} input: isArtifact must be a boolean — true for something this session produced, false for a reference.`);
+	}
 
 	const artifactType = type as SessionArtifactType;
-	const input: { type: SessionArtifactType; label: string; link?: string; uri?: string; commitHash?: string; createdByThisSession?: boolean } = {
+	const input: { type: SessionArtifactType; label: string; isArtifact: boolean; link?: string; uri?: string; commitHash?: string } = {
 		type: artifactType,
 		label: requireString(args['label'], 'label', toolName),
+		isArtifact: args['isArtifact'],
 	};
 
 	if (linkTypes.has(artifactType)) {
 		input.link = requireWebLink(args['link'], 'link', toolName);
 	}
 	if (uriTypes.has(artifactType)) {
-		input.uri = requireString(args['uri'], 'uri', toolName);
+		input.uri = requireUri(args['uri'], 'uri', toolName);
 	}
 	if (artifactType === SessionArtifactType.Commit) {
 		input.commitHash = requireString(args['commitHash'], 'commitHash', toolName);
-	}
-	if (artifactType === SessionArtifactType.PullRequest) {
-		if (typeof args['createdByThisSession'] !== 'boolean') {
-			throw new Error(`Invalid ${toolName} input: createdByThisSession must be a boolean for pull request artifacts.`);
-		}
-		input.createdByThisSession = args['createdByThisSession'];
 	}
 	return input;
 }
 
 /**
- * The artifacts recorded on a session. Immutable: mutations return the next
- * list so callers stay in control of persisting and publishing it.
+ * The artifacts and references recorded on a session. Immutable: mutations
+ * return the next list so callers stay in control of persisting and publishing
+ * it.
  */
 export class SessionArtifactCollection {
 
@@ -105,8 +127,8 @@ export class SessionArtifactCollection {
 	}
 
 	/**
-	 * Adds an artifact unless one with the same value already exists, in which
-	 * case the existing artifact is returned unchanged.
+	 * Adds an artifact or reference unless one with the same value already
+	 * exists, in which case the existing entry is returned unchanged.
 	 */
 	add(input: ISessionArtifactInput, createId: () => string): IAddSessionArtifactResult {
 		const artifact = this._create(input, createId);
@@ -131,18 +153,17 @@ export class SessionArtifactCollection {
 			id: string;
 			type: SessionArtifactType;
 			label: string;
+			isArtifact: boolean;
 			link?: string;
 			uri?: string;
 			commitHash?: string;
 			isGitHub?: boolean;
-			createdByThisSession?: boolean;
-		} = { id: createId(), type: input.type, label: input.label };
+		} = { id: createId(), type: input.type, label: input.label, isArtifact: input.isArtifact };
 
 		if (input.link !== undefined) { artifact.link = input.link; }
 		if (input.uri !== undefined) { artifact.uri = input.uri; }
 		if (input.commitHash !== undefined) { artifact.commitHash = input.commitHash; }
 		if (input.link !== undefined && gitHubTypes.has(input.type)) { artifact.isGitHub = isGitHubArtifactLink(input.link); }
-		if (input.createdByThisSession !== undefined) { artifact.createdByThisSession = input.createdByThisSession; }
 		return artifact;
 	}
 }

@@ -11,6 +11,7 @@ import { getChatFindTextParts } from './chatFindContent.js';
 import { isRequestVM, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { annotateSpecialMarkdownContentWithSource } from '../../../common/widget/annotations.js';
 import { moveResponseOutcomeToolsAfterFinalResponse } from '../chatListRenderer.js';
+import { getAgentMergeRequestLabel } from '../chatContentParts/chatAgentMergeContentPart.js';
 
 /** Upper bound on tracked matches, mirroring `LIMIT_FIND_COUNT` in `textModelSearch.ts`, so a pathological regex can't pin the UI. */
 export const MAX_FIND_MATCHES = 9999;
@@ -60,8 +61,12 @@ function buildSegments(items: readonly ChatTreeItem[]): IChatFindSegment[] {
 	const segments: IChatFindSegment[] = [];
 	for (const item of items) {
 		if (isRequestVM(item)) {
-			if (item.messageText && item.messageText.trim().length > 0) {
-				segments.push({ itemId: item.id, itemKind: 'request', partIndex: -1, text: item.messageText });
+			// An Agent Merge request renders a summary widget instead of its own
+			// text, so index that summary: the protocol block behind it is never
+			// in the DOM and a match there could not be revealed.
+			const text = getAgentMergeRequestLabel(item) ?? item.messageText;
+			if (text && text.trim().length > 0) {
+				segments.push({ itemId: item.id, itemKind: 'request', partIndex: -1, text });
 			}
 		} else if (isResponseVM(item)) {
 			// A filtered response renders no content at all, so row-level text starts at 0.

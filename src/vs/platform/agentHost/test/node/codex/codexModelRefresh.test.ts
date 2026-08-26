@@ -5,8 +5,11 @@
 
 import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
+import { DeferredPromise } from '../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../base/common/event.js';
 import type { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { waitForState } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { INativeEnvironmentService } from '../../../../../platform/environment/common/environment.js';
@@ -16,6 +19,7 @@ import { IProductService } from '../../../../../platform/product/common/productS
 import { IAgentHostGitHubEndpointService } from '../../../node/agentHostGitHubEndpointService.js';
 import { IAgentHostProxyResolver } from '../../../node/agentHostProxyResolver.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../../node/agentConfigurationService.js';
+import { IAgentHostWorktreeIsolation, NullAgentHostWorktreeIsolation } from '../../../node/shared/worktreeIsolation.js';
 import { IAgentHostCustomizationEnablementService } from '../../../node/agentHostCustomizationEnablementService.js';
 import { AgentHostStateManager } from '../../../node/agentHostStateManager.js';
 import { IAgentHostSessionTitleSignal } from '../../../node/agentHostSessionTitleSignal.js';
@@ -23,6 +27,8 @@ import { IAgentSdkDownloader } from '../../../node/agentSdkDownloader.js';
 import { RecordingAgentSdkDownloader } from '../testAgentSdkDownloader.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../../common/agentHostCheckpointService.js';
 import { AGENT_SDK_SETUP_DOWNLOAD_REQUEST_KEY, AGENT_SDK_SETUP_RELOAD_REQUEST_KEY, readAgentSdkSetupInfos } from '../../../common/agentSdkSetup.js';
+import { AgentSession } from '../../../common/agent.js';
+import { buildDefaultChatUri } from '../../../common/state/sessionState.js';
 import { CodexAgent, toCodexModelSelectionId } from '../../../node/codex/codexAgent.js';
 import { ICodexProxyService } from '../../../node/codex/codexProxyService.js';
 import { ICopilotApiService } from '../../../node/shared/copilotApiService.js';
@@ -33,12 +39,16 @@ import { IAgentHostOTelService } from '../../../common/otel/agentHostOTelService
 import { AgentHostConfigKey } from '../../../common/agentHostCustomizationConfig.js';
 import { createNoopCustomizationEnablementService } from '../testCustomizationEnablementService.js';
 import { createTestAgentHostProxyResolver } from '../agentServiceTestUtils.js';
+import { readCodexAccountInfo } from '../../../common/codexAccount.js';
+import type { GetAccountResponse } from '../../../node/codex/protocol/generated/v2/GetAccountResponse.js';
+import type { GetAccountRateLimitsResponse } from '../../../node/codex/protocol/generated/v2/GetAccountRateLimitsResponse.js';
 
 interface ITestAgentContext {
 	readonly agent: CodexAgent;
 	readonly stateManager: AgentHostStateManager;
 	readonly configurationService: AgentConfigurationService;
 	readonly sdkDownloader: RecordingAgentSdkDownloader;
+	readonly runStartupAccountProbe: () => Promise<void>;
 }
 
 /**
@@ -57,6 +67,7 @@ function createAgentContext(disposables: Pick<DisposableStore, 'add'>, models: (
 	instantiationService.stub(ICopilotApiService, { _serviceBrand: undefined, models });
 	instantiationService.stub(ICodexProxyService, { _serviceBrand: undefined });
 	instantiationService.stub(IAgentConfigurationService, configurationService);
+	instantiationService.stub(IAgentHostWorktreeIsolation, new NullAgentHostWorktreeIsolation());
 	instantiationService.stub(IAgentHostCustomizationEnablementService, createNoopCustomizationEnablementService());
 	instantiationService.stub(IAgentHostGitHubEndpointService, createTestGitHubEndpointService());
 	instantiationService.stub(IAgentHostProxyResolver, createTestAgentHostProxyResolver());
@@ -68,7 +79,9 @@ function createAgentContext(disposables: Pick<DisposableStore, 'add'>, models: (
 	instantiationService.stub(INativeEnvironmentService, { userHome: URI.file('/tmp') });
 	instantiationService.stub(ILogService, logService);
 	const agent = disposables.add(instantiationService.createInstance(CodexAgent));
-	return { agent, stateManager, configurationService, sdkDownloader };
+	const runStartupAccountProbe = agent['_probeAccountAtStartup'].bind(agent);
+	agent['_probeAccountAtStartup'] = async () => { };
+	return { agent, stateManager, configurationService, sdkDownloader, runStartupAccountProbe };
 }
 
 function createAgent(disposables: Pick<DisposableStore, 'add'>, models: () => Promise<CCAModel[]>, rootConfig: Record<string, boolean> = {}, sdkDownloader = new RecordingAgentSdkDownloader()): CodexAgent {
@@ -136,28 +149,49 @@ suite('CodexAgent model refresh', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('eagerly enumerates the authoritative catalog at startup when the SDK is already local', async () => {
+	test('keeps the persistent app-server stopped until a Codex session is selected', async () => {
 		const agent = createAgent(disposables, async () => [], { [AgentHostConfigKey.AllowSignedOutWhenUsable]: true });
 		const requests: string[] = [];
-		let resolveConnection!: () => void;
-		const connectionPromise = new Promise<never>(resolve => { resolveConnection = () => resolve(createChatGPTConnection(undefined, requests) as never); });
+		const connection = createChatGPTConnection(undefined, requests);
 		let connectionRequested = false;
 		agent['_ensureConnection'] = async () => {
 			connectionRequested = true;
-			return connectionPromise;
+			agent['_connection'] = connection as never;
+			return connection as never;
 		};
 
+		// These are all ambient registration/startup paths in AgentService. None is
+		// an affirmative choice to use Codex.
+		const discoveryListener = agent.onDidDiscoverChats(() => { });
+		const migrated = await agent.listChatsToMigrate();
+		const session = AgentSession.uri('codex', 'existing-session');
+		const metadata = await agent.getChatMetadata(URI.parse(buildDefaultChatUri(session)), session);
+		await agent.authenticate(agent.getProtectedResources()[0].resource, 'token-replayed-at-registration');
 		await new Promise<void>(resolve => setTimeout(resolve, 0));
-		assert.deepStrictEqual({ connectionRequested, models: agent.models.get() }, { connectionRequested: true, models: [] });
+		discoveryListener.dispose();
+		assert.deepStrictEqual({ connectionRequested, metadata, migrated, models: agent.models.get() }, {
+			connectionRequested: false,
+			metadata: undefined,
+			migrated: [],
+			models: [],
+		});
 
-		resolveConnection();
+		// Even an ambient catalog refresh must not cross the session boundary.
+		await agent.refreshModels();
+		assert.strictEqual(connectionRequested, false);
+
+		// Session creation/restoration crosses the activation boundary; its catalog
+		// refresh may now retain the app-server connection.
+		agent['_activate']();
 		await agent.refreshModels();
 
 		assert.deepStrictEqual({
+			connectionRequested,
 			// One enumeration, not one per caller that happened to want the connection.
 			enumerations: requests.filter(method => method === 'model/list').length,
 			models: agent.models.get().map(model => ({ provider: model.provider, id: model.id, name: model.name, meta: model._meta })),
 		}, {
+			connectionRequested: true,
 			enumerations: 1,
 			models: [{
 				provider: 'chatgpt',
@@ -166,6 +200,474 @@ suite('CodexAgent model refresh', () => {
 				meta: { modelSourceId: 'chatgptSubscription' },
 			}],
 		});
+	});
+
+	test('queues a fresh model refresh when Codex activates during an ambient refresh', async () => {
+		const copilotModels = [{ id: 'copilot-model', name: 'Copilot Model', supported_endpoints: ['/responses'] }] as CCAModel[];
+		const ambientRefreshStarted = new DeferredPromise<void>();
+		const ambientCodexRefreshFinished = new DeferredPromise<void>();
+		const releaseAmbientRefresh = new DeferredPromise<void>();
+		let copilotRefreshes = 0;
+		const agent = createAgent(disposables, async () => {
+			copilotRefreshes++;
+			if (copilotRefreshes === 1) {
+				await ambientRefreshStarted.complete();
+				await releaseAmbientRefresh.p;
+			}
+			return copilotModels;
+		}, { [AgentHostConfigKey.AllowSignedOutWhenUsable]: true });
+		agent['_githubToken'] = 'token';
+		agent['_refreshProviderConfiguration'] = async () => { };
+		const refreshCodexModels = agent['_refreshCodexModels'].bind(agent);
+		let codexRefreshes = 0;
+		agent['_refreshCodexModels'] = async () => {
+			const result = await refreshCodexModels();
+			codexRefreshes++;
+			if (codexRefreshes === 1) {
+				await ambientCodexRefreshFinished.complete();
+			}
+			return result;
+		};
+		const requests: string[] = [];
+		const connection = createChatGPTConnection(undefined, requests);
+		agent['_ensureConnection'] = async () => {
+			agent['_connection'] = connection as never;
+			return connection as never;
+		};
+
+		const ambientRefresh = agent.refreshModels();
+		await Promise.all([ambientRefreshStarted.p, ambientCodexRefreshFinished.p]);
+		agent['_activate']();
+		const activatedRefresh = agent.refreshModels();
+		await releaseAmbientRefresh.complete();
+		await Promise.all([ambientRefresh, activatedRefresh]);
+
+		assert.deepStrictEqual({
+			copilotRefreshes,
+			codexRefreshes,
+			enumerations: requests.filter(method => method === 'model/list').length,
+			providers: agent.models.get().map(model => model.provider),
+		}, {
+			copilotRefreshes: 2,
+			codexRefreshes: 2,
+			enumerations: 1,
+			providers: ['copilot', 'chatgpt'],
+		});
+	});
+
+	test('an explicit session restore activates metadata reads while ambient listing stays passive', async () => {
+		const ctx = createAgentContext(disposables, async () => []);
+		const session = AgentSession.uri('codex', 'restore-activation');
+		const chat = URI.parse(buildDefaultChatUri(session));
+		let reads = 0;
+		ctx.agent['_refreshProviderConfiguration'] = async () => { };
+		ctx.agent['_readSession'] = async () => {
+			reads++;
+			return undefined;
+		};
+
+		const ambient = await ctx.agent.getChatMetadata(chat, session);
+		const activatedAfterAmbient = ctx.agent['_activated'];
+		const fallback = await ctx.agent.getChatMetadata(chat, session, undefined, { registryFallback: { startTime: 1, modifiedTime: 2 } });
+		const restored = await ctx.agent.getChatMetadata(chat, session, undefined, { activation: 'restore' });
+
+		assert.deepStrictEqual({
+			ambient,
+			activatedAfterAmbient,
+			fallback,
+			restored,
+			activatedAfterRestore: ctx.agent['_activated'],
+			reads,
+		}, {
+			ambient: undefined,
+			activatedAfterAmbient: false,
+			fallback: { chat, startTime: 1, modifiedTime: 2 },
+			restored: undefined,
+			activatedAfterRestore: true,
+			reads: 1,
+		});
+	});
+
+	test('startup account probe releases its one-off process before profile download finishes and still publishes complete details', async () => {
+		const ctx = createAgentContext(disposables, async () => []);
+		const requests: string[] = [];
+		const disposed: string[] = [];
+		const rateLimitStarted = new DeferredPromise<void>();
+		const releaseRateLimit = new DeferredPromise<void>();
+		const profileImageStarted = new DeferredPromise<void>();
+		const releaseProfileImage = new DeferredPromise<void>();
+		const profileImageStored = new DeferredPromise<void>();
+		const profileImageNonce = 'a'.repeat(64);
+		const profileImage = {
+			uri: `vscode-codex-profile-image:/profile-${profileImageNonce}.png`,
+			contentType: 'image/png',
+			sizeHint: 3,
+			nonce: profileImageNonce,
+		};
+		ctx.agent['_proxyResolver'].fetch = async () => {
+			await profileImageStarted.complete();
+			await releaseProfileImage.p;
+			return Response.json({ profile: { profile_picture_url: 'data:image/png;base64,AQID' } });
+		};
+		ctx.agent['_getProfileImageStore'] = () => ({
+			update: async () => {
+				await profileImageStored.complete();
+				return profileImage;
+			},
+			clear: async () => { },
+		}) as never;
+		ctx.agent['_startRawConnection'] = async () => ({
+			client: {
+				request: async (method: string) => {
+					requests.push(method);
+					if (method === 'account/read') {
+						return { account: { type: 'chatgpt', email: 'person@example.com', planType: 'plus' }, requiresOpenaiAuth: true };
+					}
+					if (method === 'account/rateLimits/read') {
+						await rateLimitStarted.complete();
+						await releaseRateLimit.p;
+						return {
+							rateLimits: {
+								primary: null,
+								secondary: { usedPercent: 1, windowDurationMins: 7 * 24 * 60, resetsAt: 123 },
+							},
+							rateLimitsByLimitId: null,
+							rateLimitResetCredits: null,
+						};
+					}
+					if (method === 'getAuthStatus') {
+						return { authMethod: 'chatgpt', authToken: 'header.payload.signature', requiresOpenaiAuth: true };
+					}
+					throw new Error(`Unexpected request: ${method}`);
+				},
+				dispose: () => { disposed.push('client'); },
+			},
+			proxyHandle: { dispose: () => { disposed.push('proxy'); } },
+			child: { kill: () => { disposed.push('child'); return true; } },
+		}) as never;
+
+		const probe = ctx.runStartupAccountProbe();
+		await Promise.all([rateLimitStarted.p, profileImageStarted.p]);
+		assert.deepStrictEqual(disposed, []);
+		await releaseRateLimit.complete();
+		await probe;
+		assert.deepStrictEqual(disposed, ['client', 'proxy', 'child']);
+		await releaseProfileImage.complete();
+		await profileImageStored.p;
+		await new Promise<void>(resolve => setImmediate(resolve));
+
+		assert.deepStrictEqual({
+			requests,
+			disposed,
+			account: readCodexAccountInfo(ctx.stateManager.rootState),
+			connection: ctx.agent['_connection'].kind,
+		}, {
+			requests: ['account/read', 'account/rateLimits/read', 'getAuthStatus'],
+			disposed: ['client', 'proxy', 'child'],
+			account: {
+				status: 'signedIn',
+				email: 'person@example.com',
+				planType: 'plus',
+				profileImage,
+				requiresOpenaiAuth: true,
+				rateLimit: { usedPercent: 1, windowDurationMins: 7 * 24 * 60, resetsAt: 123 },
+				authUrl: undefined,
+				authUrlNonce: undefined,
+			},
+			connection: 'idle',
+		});
+	});
+
+	test('startup account probe tears down its one-off connection when account details stall', async () => {
+		const ctx = createAgentContext(disposables, async () => []);
+		Object.defineProperty(ctx.agent, '_startupAccountProbeTimeoutMs', { value: 5 });
+		const disposed: string[] = [];
+		const rateLimitStarted = new DeferredPromise<void>();
+		const releaseRateLimit = new DeferredPromise<void>();
+		const authStatusStarted = new DeferredPromise<void>();
+		const releaseAuthStatus = new DeferredPromise<void>();
+		ctx.agent['_startRawConnection'] = async () => ({
+			client: {
+				request: async (method: string) => {
+					if (method === 'account/read') {
+						return { account: { type: 'chatgpt', email: 'person@example.com', planType: 'plus' }, requiresOpenaiAuth: true };
+					}
+					if (method === 'account/rateLimits/read') {
+						await rateLimitStarted.complete();
+						await releaseRateLimit.p;
+						return { rateLimits: { primary: null, secondary: null }, rateLimitsByLimitId: null, rateLimitResetCredits: null };
+					}
+					if (method === 'getAuthStatus') {
+						await authStatusStarted.complete();
+						await releaseAuthStatus.p;
+						return { authMethod: 'chatgpt', authToken: null, requiresOpenaiAuth: true };
+					}
+					throw new Error(`Unexpected request: ${method}`);
+				},
+				dispose: () => { disposed.push('client'); },
+			},
+			proxyHandle: { dispose: () => { disposed.push('proxy'); } },
+			child: { kill: () => { disposed.push('child'); return true; } },
+		}) as never;
+
+		const probe = ctx.runStartupAccountProbe();
+		await Promise.all([rateLimitStarted.p, authStatusStarted.p]);
+		await probe;
+
+		assert.deepStrictEqual({
+			disposed,
+			account: readCodexAccountInfo(ctx.stateManager.rootState),
+			connection: ctx.agent['_connection'].kind,
+		}, {
+			disposed: ['client', 'proxy', 'child'],
+			account: {
+				status: 'signedIn',
+				email: 'person@example.com',
+				planType: 'plus',
+				profileImage: undefined,
+				requiresOpenaiAuth: true,
+				rateLimit: undefined,
+				authUrl: undefined,
+				authUrlNonce: undefined,
+			},
+			connection: 'idle',
+		});
+
+		const persistentReadStarted = new DeferredPromise<void>();
+		const persistentClient = {
+			request: async (method: string) => {
+				assert.strictEqual(method, 'account/read');
+				await persistentReadStarted.complete(undefined);
+				return { account: null, requiresOpenaiAuth: true };
+			},
+		};
+		ctx.agent['_connection'] = {
+			kind: 'ready',
+			client: persistentClient,
+			proxyHandle: { dispose() { } },
+			child: { kill: () => true },
+		} as never;
+		const persistentRefresh = ctx.agent['_refreshAccount'](persistentClient as never, false);
+		await new Promise<void>(resolve => setImmediate(resolve));
+		const persistentReadStartedBeforeDetailsReleased = persistentReadStarted.isSettled;
+		await Promise.all([releaseRateLimit.complete(), releaseAuthStatus.complete()]);
+		await persistentRefresh;
+
+		assert.strictEqual(persistentReadStartedBeforeDetailsReleased, true);
+	});
+
+	test('startup account probe does not download a missing SDK', async () => {
+		const ctx = createAgentContext(disposables, async () => []);
+		ctx.agent['_isSdkResolvableWithoutDownload'] = async () => false;
+		let connectionRequests = 0;
+		ctx.agent['_startRawConnection'] = async () => {
+			connectionRequests++;
+			throw new Error('startup probe must not download');
+		};
+		await ctx.runStartupAccountProbe();
+
+		assert.deepStrictEqual({
+			connectionRequests,
+			account: readCodexAccountInfo(ctx.stateManager.rootState),
+		}, {
+			connectionRequests: 0,
+			account: { status: 'unknown', email: undefined, planType: undefined, profileImage: undefined, requiresOpenaiAuth: undefined, rateLimit: undefined, authUrl: undefined, authUrlNonce: undefined },
+		});
+	});
+
+	test('standalone ChatGPT sign-in uses a temporary connection until login completes', async () => {
+		const ctx = createAgentContext(disposables, async () => []);
+		const requests: string[] = [];
+		const disposed: string[] = [];
+		let signedIn = false;
+		let loginCompleted: ((params: { loginId: string | null; success: boolean; error: string | null }) => void) | undefined;
+		ctx.agent['_startRawConnection'] = async () => ({
+			client: {
+				onExit: Event.None,
+				request: async (method: string) => {
+					requests.push(method);
+					if (method === 'account/read') {
+						return { account: signedIn ? { type: 'chatgpt', email: 'person@example.com', planType: 'plus' } : null, requiresOpenaiAuth: true };
+					}
+					if (method === 'account/login/start') {
+						queueMicrotask(() => {
+							loginCompleted?.({ loginId: 'older-login', success: true, error: null });
+						});
+						setImmediate(() => {
+							signedIn = true;
+							loginCompleted?.({ loginId: 'login-1', success: true, error: null });
+						});
+						return { type: 'chatgpt', loginId: 'login-1', authUrl: 'https://example.com/login' };
+					}
+					if (method === 'account/rateLimits/read') {
+						return { rateLimits: { primary: null, secondary: null }, rateLimitsByLimitId: null, rateLimitResetCredits: null };
+					}
+					if (method === 'getAuthStatus') {
+						return { authMethod: 'chatgpt', authToken: null, requiresOpenaiAuth: true };
+					}
+					throw new Error(`Unexpected request: ${method}`);
+				},
+				onNotification: (_method: string, handler: typeof loginCompleted) => {
+					loginCompleted = handler;
+					return { dispose() { } };
+				},
+				dispose: () => { disposed.push('client'); },
+			},
+			proxyHandle: { dispose: () => { disposed.push('proxy'); } },
+			child: { kill: () => { disposed.push('child'); return true; } },
+		}) as never;
+
+		await ctx.agent['_signInToChatGPT']('request-1');
+
+		assert.deepStrictEqual({
+			requests,
+			disposed,
+			account: readCodexAccountInfo(ctx.stateManager.rootState),
+			connection: ctx.agent['_connection'].kind,
+		}, {
+			requests: ['account/read', 'account/login/start', 'account/read', 'account/rateLimits/read', 'getAuthStatus'],
+			disposed: ['client', 'proxy', 'child'],
+			account: { status: 'signedIn', email: 'person@example.com', planType: 'plus', profileImage: undefined, requiresOpenaiAuth: true, rateLimit: undefined, authUrl: undefined, authUrlNonce: undefined },
+			connection: 'idle',
+		});
+	});
+
+	test('persistent sign-in does not republish an auth URL after an early login completion', async () => {
+		const ctx = createAgentContext(disposables, async () => []);
+		const requests: string[] = [];
+		const client = {
+			request: async (method: string) => {
+				requests.push(method);
+				if (method === 'account/read') {
+					return { account: null, requiresOpenaiAuth: true };
+				}
+				if (method === 'account/login/start') {
+					// Model the persistent connection's global completion handler
+					// winning the race against this request's response.
+					ctx.agent['_setOpenAIAccountState']({
+						usageSource: 'openai',
+						status: 'signedIn',
+						authType: 'chatgpt',
+						email: 'person@example.com',
+						planType: 'plus',
+						requiresOpenaiAuth: true,
+					});
+					return { type: 'chatgpt', loginId: 'login-early', authUrl: 'https://example.com/obsolete-login' };
+				}
+				throw new Error(`Unexpected request: ${method}`);
+			},
+		};
+		ctx.agent['_connection'] = {
+			kind: 'ready',
+			client,
+			proxyHandle: { dispose() { } },
+			child: { kill: () => true },
+		} as never;
+
+		await ctx.agent['_signInToChatGPT']('request-early');
+
+		assert.deepStrictEqual({
+			requests,
+			account: readCodexAccountInfo(ctx.stateManager.rootState),
+		}, {
+			requests: ['account/read', 'account/login/start'],
+			account: {
+				status: 'signedIn',
+				email: 'person@example.com',
+				planType: 'plus',
+				profileImage: undefined,
+				requiresOpenaiAuth: true,
+				rateLimit: undefined,
+				authUrl: undefined,
+				authUrlNonce: undefined,
+			},
+		});
+	});
+
+	test('shutdown cancels a one-off account connection that is still starting', async () => {
+		const agent = createAgent(disposables, async () => []);
+		await agent['_startupAccountProbe'].complete(undefined);
+		const started = new DeferredPromise<void>();
+		const release = new DeferredPromise<void>();
+		const cancelled = new DeferredPromise<void>();
+		const disposed: string[] = [];
+		const ready = {
+			client: { dispose: () => disposed.push('client') },
+			proxyHandle: { dispose: () => disposed.push('proxy') },
+			child: { kill: () => { disposed.push('child'); return true; } },
+		};
+		agent['_startRawConnection'] = (async (_timeout?: number, token?: CancellationToken) => {
+			const cancellationListener = token?.onCancellationRequested(() => {
+				ready.client.dispose();
+				ready.proxyHandle.dispose();
+				ready.child.kill();
+				void cancelled.complete();
+			});
+			await started.complete();
+			await (token ? Promise.race([release.p, cancelled.p]) : release.p);
+			cancellationListener?.dispose();
+			if (token?.isCancellationRequested) {
+				throw new Error('start cancelled');
+			}
+			return ready;
+		}) as never;
+
+		const operation = agent['_withOnDemandConnection'](async () => undefined);
+		const rejected = assert.rejects(operation);
+		await started.p;
+		await agent.shutdown();
+		const disposedAtShutdown = [...disposed];
+		await release.complete();
+		await rejected;
+
+		assert.deepStrictEqual(disposedAtShutdown, ['client', 'proxy', 'child']);
+	});
+
+	test('shutdown suppresses a local-SDK model refresh queued before shutdown', async () => {
+		const agent = createAgent(disposables, async () => [], { [AgentHostConfigKey.AllowSignedOutWhenUsable]: true });
+		agent['_activated'] = true;
+		const sdkCheckStarted = new DeferredPromise<void>();
+		const releaseSdkCheck = new DeferredPromise<void>();
+		let refreshes = 0;
+		agent['_isSdkResolvableWithoutDownload'] = async () => {
+			await sdkCheckStarted.complete(undefined);
+			await releaseSdkCheck.p;
+			return true;
+		};
+		agent.refreshModels = async () => { refreshes++; };
+
+		agent['_startModelRefreshWhenSdkIsLocal']();
+		await sdkCheckStarted.p;
+		await agent.shutdown();
+		await releaseSdkCheck.complete(undefined);
+		await new Promise<void>(resolve => setImmediate(resolve));
+
+		assert.strictEqual(refreshes, 0);
+	});
+
+	test('shutdown suppresses chat discovery whose SDK check was already in flight', async () => {
+		const agent = createAgent(disposables, async () => []);
+		agent['_activated'] = true;
+		const sdkCheckStarted = new DeferredPromise<void>();
+		const releaseSdkCheck = new DeferredPromise<void>();
+		let catalogueReads = 0;
+		agent['_isSdkResolvableWithoutDownload'] = async () => {
+			await sdkCheckStarted.complete(undefined);
+			await releaseSdkCheck.p;
+			return true;
+		};
+		agent['_emitCodexChats'] = async () => {
+			catalogueReads++;
+			return true;
+		};
+
+		const discovery = agent['_startCodexChatDiscovery']();
+		await sdkCheckStarted.p;
+		await agent.shutdown();
+		await releaseSdkCheck.complete(undefined);
+		await discovery;
+
+		assert.strictEqual(catalogueReads, 0);
 	});
 
 	test('does not enumerate at startup while signed-out use is disabled', async () => {
@@ -242,7 +744,11 @@ suite('CodexAgent model refresh', () => {
 		const agent = createAgent(disposables, async () => [], {});
 		const connection = createChatGPTConnection();
 		let resolveConnection!: () => void;
-		agent['_connection'] = { kind: 'starting', promise: new Promise<never>(resolve => { resolveConnection = () => resolve(connection as never); }) };
+		const starting = new Promise<typeof connection>(resolve => { resolveConnection = () => resolve(connection); }).then(ready => {
+			agent['_connection'] = ready as never;
+			return ready;
+		});
+		agent['_connection'] = { kind: 'starting', promise: starting } as never;
 
 		agent['_configurationService'].updateRootConfig({ [AgentHostConfigKey.AllowSignedOutWhenUsable]: true });
 		await new Promise<void>(resolve => setTimeout(resolve, 0));
@@ -309,6 +815,38 @@ suite('CodexAgent model refresh', () => {
 		await agent.refreshModels();
 
 		assert.deepStrictEqual(agent.models.get().map(model => model.id), [toCodexModelSelectionId('vscode-proxy', 'gpt-5.5')]);
+	});
+
+	test('retries Copilot model discovery after a transient authentication refresh failure', async () => {
+		let attempts = 0;
+		const models = [{ id: 'gpt-5.5', name: 'GPT-5.5', supported_endpoints: ['/responses'] }] as CCAModel[];
+		const agent = createAgent(disposables, async () => {
+			attempts++;
+			if (attempts === 1) {
+				throw new Error('503 Service Unavailable');
+			}
+			return models;
+		});
+		agent['_isSdkResolvableWithoutDownload'] = async () => false;
+		Object.defineProperties(agent, {
+			_modelRefreshBaseDelayMs: { value: 1 },
+			_modelRefreshMaxDelayMs: { value: 1 },
+		});
+
+		await agent.authenticate(agent.getProtectedResources()[0].resource, 'token');
+		await agent.refreshModels();
+		const modelsAfterTransientFailure = agent.models.get().map(model => model.id);
+		await waitForState(agent.models, currentModels => currentModels.length > 0);
+
+		assert.deepStrictEqual({
+			attempts,
+			modelsAfterTransientFailure,
+			modelsAfterRetry: agent.models.get().map(model => model.id),
+		}, {
+			attempts: 2,
+			modelsAfterTransientFailure: [],
+			modelsAfterRetry: [toCodexModelSelectionId('vscode-proxy', 'gpt-5.5')],
+		});
 	});
 
 	test('uses the reasoning efforts advertised by Copilot models', async () => {
@@ -389,6 +927,318 @@ suite('CodexAgent model refresh', () => {
 		await connection;
 
 		assert.deepStrictEqual(appliedTokens, ['token-arriving-during-start']);
+	});
+
+	test('cancels an app-server that is still starting when shutdown begins', async () => {
+		const agent = createAgent(disposables, async () => []);
+		const started = new DeferredPromise<void>();
+		const release = new DeferredPromise<void>();
+		const cancelled = new DeferredPromise<void>();
+		const disposed: string[] = [];
+		const ready = {
+			client: { dispose: () => disposed.push('client') },
+			proxyHandle: { dispose: () => disposed.push('proxy') },
+			child: { kill: () => { disposed.push('child'); return true; } },
+		};
+		agent['_startConnection'] = (async (_generation: number, token?: CancellationToken) => {
+			const cancellationListener = token?.onCancellationRequested(() => {
+				ready.client.dispose();
+				ready.proxyHandle.dispose();
+				ready.child.kill();
+				void cancelled.complete();
+			});
+			await started.complete();
+			await (token ? Promise.race([release.p, cancelled.p]) : release.p);
+			cancellationListener?.dispose();
+			if (token?.isCancellationRequested) {
+				throw new Error('start cancelled');
+			}
+			return ready;
+		}) as never;
+
+		const connecting = agent['_ensureConnection']();
+		await started.p;
+		await agent.shutdown();
+		const disposedAtShutdown = [...disposed];
+		await release.complete();
+		await assert.rejects(connecting);
+
+		assert.deepStrictEqual(disposedAtShutdown, ['client', 'proxy', 'child']);
+	});
+
+	test('ignores a delayed connection-loss event from a replaced client', () => {
+		const agent = createAgent(disposables, async () => []);
+		const disposed: string[] = [];
+		const stale = {
+			client: { dispose: () => disposed.push('stale-client') },
+			proxyHandle: { dispose: () => disposed.push('stale-proxy') },
+			child: { kill: () => { disposed.push('stale-child'); return true; } },
+		};
+		const current = {
+			client: { dispose: () => disposed.push('current-client') },
+			proxyHandle: { dispose: () => disposed.push('current-proxy') },
+			child: { kill: () => { disposed.push('current-child'); return true; } },
+		};
+		agent['_connectionGeneration'] = 4;
+		agent['_connection'] = { kind: 'ready', ...current } as never;
+
+		// Both the generation and client identity protect the replacement: the
+		// first models a queued event from the prior generation; the second guards
+		// against a callback whose bookkeeping was stale but generation was not.
+		agent['_handleConnectionLost'](stale as never, 3);
+		agent['_handleConnectionLost'](stale as never, 4);
+
+		assert.deepStrictEqual({
+			isCurrentClient: agent['_isCurrentConnection'](current as never),
+			disposed,
+		}, {
+			isCurrentClient: true,
+			disposed: [],
+		});
+	});
+
+	test('does not promote a connection that dies while startup is completing', async () => {
+		const agent = createAgent(disposables, async () => []);
+		const disposed: string[] = [];
+		agent['_startConnection'] = async generation => {
+			// Let `_ensureConnection` publish its `starting` state before simulating
+			// an exit in the narrow window before this promise resolves.
+			await Promise.resolve();
+			const ready = {
+				client: { dispose: () => disposed.push('client') },
+				proxyHandle: { dispose: () => disposed.push('proxy') },
+				child: { kill: () => { disposed.push('child'); return true; } },
+				subscriptions: { dispose: () => disposed.push('subscriptions') },
+			};
+			agent['_handleConnectionLost'](ready as never, generation);
+			return ready as never;
+		};
+
+		await assert.rejects(agent['_ensureConnection'](), /replaced while starting/);
+
+		assert.strictEqual(agent['_connection'].kind, 'idle');
+		assert.deepStrictEqual(disposed, ['subscriptions', 'client', 'proxy', 'child']);
+	});
+
+	test('rejects an app-server that exited before persistent listeners were attached', async () => {
+		const agent = createAgent(disposables, async () => []);
+		const disposed: string[] = [];
+		const registration = () => ({ dispose() { } });
+		agent['_startRawConnection'] = async () => ({
+			client: {
+				onExit: Event.None,
+				onTransportError: Event.None,
+				onNotification: registration,
+				onRequest: registration,
+				dispose: () => { disposed.push('client'); },
+			},
+			proxyHandle: { dispose: () => { disposed.push('proxy'); } },
+			child: {
+				exitCode: 1,
+				signalCode: null,
+				kill: () => { disposed.push('child'); return false; },
+			},
+		}) as never;
+
+		await assert.rejects(agent['_startConnection'](0, CancellationToken.None), /exited before persistent startup completed/);
+
+		assert.deepStrictEqual(disposed, ['client', 'proxy', 'child']);
+	});
+
+	test('drops a model catalog returned by a replaced app-server', async () => {
+		const agent = createAgent(disposables, async () => []);
+		agent['_activated'] = true;
+		const modelListStarted = new DeferredPromise<void>();
+		const releaseModelList = new DeferredPromise<void>();
+		const staleConnection = {
+			kind: 'ready',
+			client: {
+				request: async (method: string) => {
+					if (method === 'account/read') {
+						return { account: { type: 'chatgpt', email: 'old@example.com', planType: 'plus' }, requiresOpenaiAuth: true };
+					}
+					if (method === 'config/read') {
+						return { config: { model_provider: 'openai' } };
+					}
+					if (method === 'model/list') {
+						await modelListStarted.complete();
+						await releaseModelList.p;
+						return modelListResponse;
+					}
+					throw new Error(`Unexpected request: ${method}`);
+				},
+			},
+			proxyHandle: { dispose() { } },
+			child: { kill: () => true },
+		};
+		agent['_connection'] = staleConnection as never;
+
+		const refreshing = agent['_refreshCodexModels']();
+		await modelListStarted.p;
+		const currentModels = [{ provider: 'chatgpt', id: toCodexModelSelectionId('openai', 'current-model'), name: 'Current Model', supportsVision: false }];
+		agent['_codexModels'] = currentModels;
+		agent['_connection'] = createChatGPTConnection() as never;
+		await releaseModelList.complete();
+		await refreshing;
+
+		assert.strictEqual(agent['_codexModels'], currentModels);
+	});
+
+	test('drops provider configuration returned by a replaced app-server', async () => {
+		const ctx = createAgentContext(disposables, async () => []);
+		ctx.agent['_activated'] = true;
+		const configReadStarted = new DeferredPromise<void>();
+		const releaseConfigRead = new DeferredPromise<void>();
+		ctx.agent['_connection'] = {
+			kind: 'ready',
+			client: {
+				request: async (method: string) => {
+					assert.strictEqual(method, 'config/read');
+					await configReadStarted.complete();
+					await releaseConfigRead.p;
+					return {
+						config: {},
+						layers: [{ name: { type: 'user', profile: null }, config: { personality: 'friendly', auto_review: { policy: 'always' } } }],
+					};
+				},
+			},
+			proxyHandle: { dispose() { } },
+			child: { kill: () => true },
+		} as never;
+
+		const refreshing = ctx.agent['_refreshProviderConfiguration']();
+		await configReadStarted.p;
+		ctx.agent['_connection'] = createChatGPTConnection() as never;
+		await releaseConfigRead.complete();
+		await refreshing;
+
+		assert.deepStrictEqual({
+			ready: ctx.agent['_providerConfigurationReady'],
+			values: ctx.agent['_providerConfigurationValues'],
+		}, {
+			ready: false,
+			values: {},
+		});
+	});
+
+	test('serializes account reads so later refreshes publish last', async () => {
+		const agent = createAgent(disposables, async () => []);
+		const firstStarted = new DeferredPromise<void>();
+		const secondStarted = new DeferredPromise<void>();
+		const requestStarted = [firstStarted, secondStarted];
+		const firstResponse = new DeferredPromise<GetAccountResponse>();
+		const secondResponse = new DeferredPromise<GetAccountResponse>();
+		const responses = [
+			firstResponse,
+			secondResponse,
+		];
+		let requestIndex = 0;
+		const client = {
+			request: async (method: string) => {
+				assert.strictEqual(method, 'account/read');
+				const index = requestIndex++;
+				await requestStarted[index].complete();
+				return responses[index].p;
+			},
+		} as never;
+		agent['_connection'] = {
+			kind: 'ready',
+			client,
+			proxyHandle: { dispose() { } },
+			child: { kill: () => true },
+		} as never;
+
+		const first = agent['_refreshAccount'](client, false);
+		const second = agent['_refreshAccount'](client, false);
+		await firstStarted.p;
+		assert.strictEqual(requestIndex, 1);
+		await firstResponse.complete({ account: null, requiresOpenaiAuth: true });
+		await first;
+
+		await secondStarted.p;
+		assert.strictEqual(requestIndex, 2);
+		await secondResponse.complete({
+			account: { type: 'chatgpt', email: 'new@example.com', planType: 'pro' },
+			requiresOpenaiAuth: true,
+		});
+		await second;
+
+		assert.deepStrictEqual(agent['_openAIAccountState'], {
+			usageSource: 'openai',
+			status: 'signedIn',
+			authType: 'chatgpt',
+			email: 'new@example.com',
+			planType: 'pro',
+			requiresOpenaiAuth: true,
+		});
+	});
+
+	test('drops a thread catalog returned by a replaced app-server', async () => {
+		const agent = createAgent(disposables, async () => []);
+		const listStarted = new DeferredPromise<void>();
+		const releaseList = new DeferredPromise<void>();
+		const staleConnection = {
+			kind: 'ready',
+			client: {
+				request: async (method: string) => {
+					assert.strictEqual(method, 'thread/list');
+					await listStarted.complete();
+					await releaseList.p;
+					return { data: [], nextCursor: null };
+				},
+			},
+			proxyHandle: { dispose() { } },
+			child: { kill: () => true },
+		};
+		agent['_connection'] = staleConnection as never;
+
+		const listing = agent['_listCodexChats']();
+		await listStarted.p;
+		agent['_connection'] = createChatGPTConnection() as never;
+		await releaseList.complete();
+
+		assert.strictEqual(await listing, undefined);
+	});
+
+	test('keeps the newest rate-limit response when reads complete out of order', async () => {
+		const agent = createAgent(disposables, async () => []);
+		let resolveFirst!: (value: GetAccountRateLimitsResponse) => void;
+		let resolveSecond!: (value: GetAccountRateLimitsResponse) => void;
+		const responses = [
+			new Promise<GetAccountRateLimitsResponse>(resolve => resolveFirst = resolve),
+			new Promise<GetAccountRateLimitsResponse>(resolve => resolveSecond = resolve),
+		];
+		let requestIndex = 0;
+		const client = {
+			request: async (method: string) => {
+				assert.strictEqual(method, 'account/rateLimits/read');
+				return responses[requestIndex++];
+			},
+		} as never;
+		agent['_connection'] = {
+			kind: 'ready',
+			client,
+			proxyHandle: { dispose() { } },
+			child: { kill: () => true },
+		} as never;
+		agent['_openAIAccountState'] = { usageSource: 'openai', status: 'signedIn', authType: 'chatgpt', email: 'person@example.com', planType: 'plus', requiresOpenaiAuth: true };
+
+		const first = agent['_refreshAccountRateLimits'](client, 'person@example.com');
+		const second = agent['_refreshAccountRateLimits'](client, 'person@example.com');
+		resolveSecond({
+			rateLimits: { limitId: null, limitName: null, primary: { usedPercent: 20, windowDurationMins: 300, resetsAt: 200 }, secondary: null, credits: null, individualLimit: null, spendControlReached: null, planType: null, rateLimitReachedType: null },
+			rateLimitsByLimitId: null,
+			rateLimitResetCredits: null,
+		});
+		await second;
+		resolveFirst({
+			rateLimits: { limitId: null, limitName: null, primary: { usedPercent: 90, windowDurationMins: 300, resetsAt: 100 }, secondary: null, credits: null, individualLimit: null, spendControlReached: null, planType: null, rateLimitReachedType: null },
+			rateLimitsByLimitId: null,
+			rateLimitResetCredits: null,
+		});
+		await first;
+
+		assert.deepStrictEqual(agent['_openAIAccountRateLimit'], { usedPercent: 20, windowDurationMins: 300, resetsAt: 200 });
 	});
 
 	test('surfaces current ChatGPT subscription models under the ChatGPT provider', async () => {
@@ -759,39 +1609,24 @@ suite('CodexAgent — agent SDK setup channel', () => {
 		});
 	});
 
-	test('a download that lands stays `downloading` until the catalog does, so the banner never flashes "no account"', async () => {
+	test('a download that lands publishes ready without starting a persistent catalog connection', async () => {
 		const sdkDownloader = createNotDownloaded();
 		sdkDownloader.loadSdkRootResult = async () => { sdkDownloader.resolvableWithoutDownload = true; return '/tmp/codex-sdk'; };
 		const ctx = createAgentContext(disposables, async () => [], {}, sdkDownloader);
-		let releaseEnumeration = () => { };
-		const enumerated = new Promise<void>(resolve => { releaseEnumeration = resolve; });
-		const connection = createChatGPTConnection();
-		ctx.agent['_ensureConnection'] = async () => ({
-			...connection,
-			client: {
-				request: async (method: string) => {
-					if (method === 'model/list') {
-						await enumerated;
-					}
-					return connection.client.request(method);
-				},
-			},
-		} as never);
+		let connectionRequests = 0;
+		ctx.agent['_ensureConnection'] = async () => {
+			connectionRequests++;
+			throw new Error('persistent connection should remain stopped');
+		};
 		await settle();
 
 		dispatchDownload(ctx);
 		await settle();
-		const enumerating = { download: readSetup(ctx)?.download, models: ctx.agent.models.get().length };
 
-		releaseEnumeration();
-		await settle();
-
-		assert.deepStrictEqual({ enumerating, after: readSetup(ctx)?.download, models: ctx.agent.models.get().length }, {
-			// `ready` while the catalog is still empty is precisely how the window
-			// renders "we looked and found no account".
-			enumerating: { download: 'downloading', models: 0 },
-			after: 'ready',
-			models: 1,
+		assert.deepStrictEqual({ download: readSetup(ctx)?.download, models: ctx.agent.models.get().length, connectionRequests }, {
+			download: 'ready',
+			models: 0,
+			connectionRequests: 0,
 		});
 	});
 

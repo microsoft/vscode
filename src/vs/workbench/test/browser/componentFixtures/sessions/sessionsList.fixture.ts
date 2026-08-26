@@ -13,6 +13,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { IListService, ListService } from '../../../../../platform/list/browser/listService.js';
 import { IMarkdownRendererService, MarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
+import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 // eslint-disable-next-line local/code-import-patterns
 import { IAgentHostFilterService } from '../../../../../sessions/services/agentHostFilter/common/agentHostFilter.js';
@@ -73,6 +74,9 @@ function createWorkspace(label: string): ISessionWorkspace {
 function createSession(spec: ISessionSpec): ISession {
 	const updatedAt = new Date(Date.now() - spec.minutesAgo * 60 * 1000);
 	const description: IMarkdownString | undefined = spec.description ? new MarkdownString(spec.description) : undefined;
+	const mainChat = new class extends mock<IChat>() {
+		override readonly resource = URI.parse(`vscode-session://session/${spec.id}/chat/main`);
+	}();
 	return new class extends mock<ISession>() {
 		override readonly sessionId = spec.id;
 		override readonly resource = URI.parse(`vscode-session://session/${spec.id}`);
@@ -91,6 +95,7 @@ function createSession(spec: ISessionSpec): ISession {
 		override readonly changesSummary: IObservable<ISessionChangesSummary | undefined> = constObservable(spec.changesSummary);
 		override readonly description: IObservable<IMarkdownString | undefined> = constObservable(description);
 		override readonly chats: IObservable<readonly IChat[]> = constObservable([]);
+		override readonly mainChat: IObservable<IChat> = constObservable(mainChat);
 		override readonly capabilities = constObservable({ supportsMultipleChats: false });
 	}();
 }
@@ -120,6 +125,7 @@ function renderSessionsList(ctx: ComponentFixtureContext, options: IRenderOption
 			registerWorkbenchServices(reg);
 			reg.define(IListService, ListService);
 			reg.define(IMarkdownRendererService, MarkdownRendererService);
+			reg.defineInstance(IAgentHostConnectionsService, new class extends mock<IAgentHostConnectionsService>() { }());
 			reg.defineInstance(IChatService, new class extends mock<IChatService>() {
 				override readonly chatModels: IObservable<Iterable<IChatModel>> = constObservable([]);
 			}());

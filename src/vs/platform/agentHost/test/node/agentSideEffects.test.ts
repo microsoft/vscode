@@ -44,7 +44,7 @@ import { IAgentHostChangesetService, StaticChangesetKind } from '../../common/ag
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
 import { AgentSideEffects, IAgentSideEffectsOptions } from '../../node/agentSideEffects.js';
-import { AgentHostLocalTurns } from '../../node/agentHostLocalTurns.js';
+import { AgentHostLocalTurns, IAgentHostLocalTurns } from '../../node/agentHostLocalTurns.js';
 import { AgentHostChatContributions } from '../../node/agentHostChatContributionsService.js';
 import { AgentHostProviderLocator, IAgentHostProviderLocator } from '../../node/agentHostProviderLocator.js';
 import { AgentHostSessionTitleController, IAgentHostSessionTitleController } from '../../node/agentHostSessionTitleController.js';
@@ -61,7 +61,7 @@ import { AgentHostCustomizationEnablementService, IAgentHostCustomizationEnablem
 import { AgentHostStorageService } from '../../node/agentHostStorageService.js';
 import { applyMcpServerEnablement } from '../../node/shared/mcpCustomizationController.js';
 import { customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
-import { IAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
+import { IAgentHostWorktreeIsolation, NullAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
 import { createNoopGitService, createNullSessionDataService, createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { MockAgent } from './mockAgent.js';
 import { TestAgentHostTerminalManager } from './testAgentHostTerminalManager.js';
@@ -119,26 +119,9 @@ class NoopGitStateService implements IAgentHostGitStateService {
 	async setSessionGitHubState(_sessionKey: string, _state: ISessionGitHubState): Promise<void> { }
 	async recordSessionMerge(_sessionKey: string, _commit: string): Promise<void> { }
 	async attachSessionGitHubPullRequest(_sessionKey: string, _workingDirectory?: URI): Promise<void> { }
-	async attachSessionGitHubReferences(_sessionKey: string, _text: string): Promise<void> { }
 }
 
-class RecordingGitStateService extends NoopGitStateService {
-	readonly attachedGitHubReferences: { session: string; text: string }[] = [];
-
-	override async attachSessionGitHubReferences(session: string, text: string): Promise<void> {
-		this.attachedGitHubReferences.push({ session, text });
-	}
-}
-
-class NoopWorktreeIsolation implements IAgentHostWorktreeIsolation {
-	declare readonly _serviceBrand: undefined;
-	readonly onDidChangeWorkingDirectoryPending = Event.None;
-
-	isWorkingDirectoryPending(_sessionId: string): boolean { return false; }
-	async applyRestoreAnnouncement(_sessionUri: URI, turns: readonly Turn[]): Promise<readonly Turn[]> {
-		return turns;
-	}
-}
+class NoopWorktreeIsolation extends NullAgentHostWorktreeIsolation { }
 
 function createNoopCustomizationEnablementService(): IAgentHostCustomizationEnablementService {
 	return {
@@ -168,7 +151,10 @@ let customizationEnablementService = createNoopCustomizationEnablementService();
 function createTestSideEffects(
 	disposables: DisposableStore,
 	stateManager: AgentHostStateManager,
-	options: Omit<IAgentSideEffectsOptions, 'localTurns'> & { localTurns?: AgentHostLocalTurns; gitStateService?: IAgentHostGitStateService },
+	options: Omit<IAgentSideEffectsOptions, 'localTurns'> & {
+		localTurns?: AgentHostLocalTurns;
+		gitStateService?: IAgentHostGitStateService;
+	},
 	_gitService?: IAgentHostGitService,
 	telemetryService: ITelemetryService = NullTelemetryService,
 	changesets: IAgentHostChangesetService = new FakeChangesetService(),
@@ -197,14 +183,15 @@ function createTestSideEffects(
 	services.set(IAgentHostSessionTitleController, titleController);
 	services.set(IAgentHostProviderLocator, new AgentHostProviderLocator(session => options.getAgent(typeof session === 'string' ? session : session.toString())));
 	const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
-	const chatContributions = disposables.add(new AgentHostChatContributions(logService, instantiationService));
+	const chatContributions: IAgentHostChatContributions = disposables.add(new AgentHostChatContributions(logService, instantiationService));
 	services.set(IAgentHostChatContributions, chatContributions);
 	const telemetryReporter = new AgentHostTelemetryReporter(telemetryService);
 	services.set(IAgentHostTelemetryReporter, telemetryReporter);
 	const turnTracker = disposables.add(instantiationService.createInstance(AgentHostTurnTracker));
 	services.set(IAgentHostTurnTracker, turnTracker);
 	const localTurns = options.localTurns ?? new AgentHostLocalTurns(options.sessionDataService, logService);
-	const localCommands = disposables.add(instantiationService.createInstance(AgentHostLocalCommands, localTurns));
+	services.set(IAgentHostLocalTurns, localTurns);
+	const localCommands = disposables.add(instantiationService.createInstance(AgentHostLocalCommands));
 	services.set(IAgentHostLocalCommands, localCommands);
 	disposables.add(registerBuiltInChatContributions(chatContributions));
 	const resolvedOptions: IAgentSideEffectsOptions = {
@@ -429,6 +416,7 @@ suite('AgentSideEffects', () => {
 				sessionDataService,
 				stateManager,
 				new NullLogService(),
+				new NoopWorktreeIsolation(),
 			));
 			customizationEnablementService = enablementService;
 			createTestSideEffects(disposables, stateManager, {
@@ -772,6 +760,7 @@ suite('AgentSideEffects', () => {
 				'- You\'re targeting Windows.',
 				'- The active shell is pwsh.',
 				'- Prefer single-line commands. Omit explanations unless the command is complex; then be concise.',
+				'- Always put each command in its own fenced Markdown code block using triple backticks, never in plain text or inline code. Use the shell type as the code block language when known.',
 				'- Use `{placeholder_text}` for required replacement text that the user did not provide.',
 				'- Prefer idiomatic PowerShell: use `Stop-Process` or `Get-NetTCPConnection` instead of `kill` or `lsof`.',
 				'- Prefer cross-platform PowerShell and use Unix utilities only when PowerShell has no equivalent.',
@@ -865,6 +854,7 @@ suite('AgentSideEffects', () => {
 					initiatorTransportKind: 'websocket',
 					agentSessionId: 'session-1',
 					source: 'direct',
+					messageOriginKind: 'user',
 					isSubagentSession: false,
 					turnCount: 0,
 					activeClientId: 'test-client',
@@ -1162,7 +1152,7 @@ suite('AgentSideEffects', () => {
 			const envelope = await error;
 			assert.deepStrictEqual({
 				sendMessageCalls: agent.sendMessageCalls.length,
-				errorType: envelope.action.type === ActionType.ChatError ? envelope.action.error.errorType : undefined,
+				errorType: envelope.action.type === ActionType.ChatError ? envelope.action.part.error.errorType : undefined,
 			}, {
 				sendMessageCalls: 0,
 				errorType: 'sendFailed',
@@ -1201,7 +1191,7 @@ suite('AgentSideEffects', () => {
 			const envelope = await error;
 			assert.deepStrictEqual({
 				sendMessageCalls: agent.sendMessageCalls.length,
-				errorType: envelope.action.type === ActionType.ChatError ? envelope.action.error.errorType : undefined,
+				errorType: envelope.action.type === ActionType.ChatError ? envelope.action.part.error.errorType : undefined,
 			}, {
 				sendMessageCalls: 0,
 				errorType: 'sendFailed',
@@ -1270,36 +1260,6 @@ suite('AgentSideEffects', () => {
 			const errorAction = envelopes.find(e => e.action.type === ActionType.ChatError);
 			assert.ok(errorAction, 'should dispatch a chat error for a read-only chat');
 			assert.deepStrictEqual(agent.sendMessageCalls, []);
-		});
-
-		test('does not attach GitHub references for read-only or archived messages', () => {
-			setupSession();
-			const gitStateService = new RecordingGitStateService();
-			const referenceSideEffects = createTestSideEffects(disposables, stateManager, {
-				getAgent: () => agent,
-				agents: agentList,
-				sessionDataService: createNullSessionDataService(),
-				hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess,
-				gitStateService,
-			});
-			const readOnlyChat = buildChatUri(sessionUri, 'peer-ro');
-			stateManager.addChat(sessionUri.toString(), readOnlyChat, { interactivity: ChatInteractivity.ReadOnly });
-
-			referenceSideEffects.handleAction(readOnlyChat, {
-				type: ActionType.ChatTurnStarted,
-				startedAt: '2025-01-01T00:00:00.000Z',
-				turnId: 'read-only-turn',
-				message: { text: 'Fix microsoft/vscode#42', origin: { kind: MessageKind.User } },
-			});
-			stateManager.dispatchServerAction(sessionUri.toString(), { type: ActionType.SessionIsArchivedChanged, isArchived: true });
-			referenceSideEffects.handleAction(defaultChatUri, {
-				type: ActionType.ChatTurnStarted,
-				startedAt: '2025-01-01T00:00:00.000Z',
-				turnId: 'archived-turn',
-				message: { text: 'Fix microsoft/vscode#43', origin: { kind: MessageKind.User } },
-			});
-
-			assert.deepStrictEqual(gitStateService.attachedGitHubReferences, []);
 		});
 	});
 
@@ -1590,7 +1550,7 @@ suite('AgentSideEffects', () => {
 				await originalSendMessage(...args);
 				agent.fireProgress({
 					kind: 'action', resource: URI.parse(defaultChatUri),
-					action: { type: ActionType.ChatError, turnId: 'turn-1', duration: 1, error: { errorType: 'CodexMaterializeFailed', message: 'workspace root rejected' } },
+					action: { type: ActionType.ChatError, turnId: 'turn-1', duration: 1, part: { kind: ResponsePartKind.Error, error: { errorType: 'CodexMaterializeFailed', message: 'workspace root rejected' } } },
 				});
 				agent.fireProgress({
 					kind: 'action', resource: URI.parse(defaultChatUri),
@@ -2372,7 +2332,7 @@ suite('AgentSideEffects', () => {
 
 			agent.fireProgress({
 				kind: 'action', resource: URI.parse(defaultChatUri),
-				action: { type: ActionType.ChatError, turnId: 'turn-1', duration: 1000, error: { errorType: 'Error', message: 'boom' } },
+				action: { type: ActionType.ChatError, turnId: 'turn-1', duration: 1000, part: { kind: ResponsePartKind.Error, error: { errorType: 'Error', message: 'boom' } } },
 			});
 
 			assert.deepStrictEqual({
@@ -3043,33 +3003,6 @@ suite('AgentSideEffects', () => {
 			});
 		});
 
-		test('attaches GitHub references when sending a queued message', async () => {
-			setupSession();
-			const gitStateService = new RecordingGitStateService();
-			const referenceSideEffects = createTestSideEffects(disposables, stateManager, {
-				getAgent: () => agent,
-				agents: agentList,
-				sessionDataService: createNullSessionDataService(),
-				hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess,
-				gitStateService,
-			});
-			const action = {
-				type: ActionType.ChatPendingMessageSet as const,
-				kind: PendingMessageKind.Queued,
-				id: 'q-github-reference',
-				message: { text: 'Fix microsoft/vscode#42', origin: { kind: MessageKind.User } },
-			};
-			stateManager.dispatchClientAction(defaultChatUri, action, { clientId: 'test', clientSeq: 1 });
-			referenceSideEffects.handleAction(defaultChatUri, action);
-
-			await waitForSendMessageCalls(1);
-
-			assert.deepStrictEqual(gitStateService.attachedGitHubReferences, [{
-				session: sessionUri.toString(),
-				text: 'Fix microsoft/vscode#42',
-			}]);
-		});
-
 		test('parses queued protocol attachment URI strings before passing them to the agent', async () => {
 			setupSession();
 			const fileUri = URI.file('/workspace/queued.ts');
@@ -3115,6 +3048,7 @@ suite('AgentSideEffects', () => {
 					initiatorTransportKind: 'unknown',
 					agentSessionId: 'session-1',
 					source: 'queued',
+					messageOriginKind: 'user',
 					isSubagentSession: false,
 					turnCount: 0,
 					attachmentCount: 0,
@@ -7125,7 +7059,7 @@ suite('AgentSideEffects', () => {
 
 			agent.fireProgress({
 				kind: 'action', resource: URI.parse(defaultChatUri),
-				action: { type: ActionType.ChatError, turnId: 'turn-1', duration: 100, error: { errorType: 'test', message: 'failed' } },
+				action: { type: ActionType.ChatError, turnId: 'turn-1', duration: 100, part: { kind: ResponsePartKind.Error, error: { errorType: 'test', message: 'failed' } } },
 			});
 			agent.fireProgress({
 				kind: 'action', resource: URI.parse(defaultChatUri),
@@ -7153,7 +7087,7 @@ suite('AgentSideEffects', () => {
 
 			agent.fireProgress({
 				kind: 'action', resource: URI.parse(defaultChatUri),
-				action: { type: ActionType.ChatError, turnId: 'turn-1', duration: 100, error: { errorType: 'terminal', message: 'failed' } },
+				action: { type: ActionType.ChatError, turnId: 'turn-1', duration: 100, part: { kind: ResponsePartKind.Error, error: { errorType: 'terminal', message: 'failed' } } },
 			});
 
 			await captured.p;

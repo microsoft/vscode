@@ -14,6 +14,8 @@ import { MarkUnreadContribution } from './markUnread/markUnreadContribution.js';
 import { PersistedTurnUsageContribution } from './persistedTurnUsage/persistedTurnUsageContribution.js';
 import { QueueDrainContribution } from './queueDrain/queueDrainContribution.js';
 import { SessionTitleContribution } from './sessionTitle/sessionTitleContribution.js';
+import { SideChatContribution } from './sideChat/sideChatContribution.js';
+import { TurnDelegationContribution } from './turnDelegation/turnDelegationContribution.js';
 import { WorktreeAnnouncementContribution } from './worktreeAnnouncement/worktreeAnnouncementContribution.js';
 
 /** Registers all built-in chat contribution constructors. */
@@ -21,6 +23,7 @@ export function registerBuiltInChatContributions(
 	contributions: IAgentHostChatContributions,
 ): IDisposable {
 	const registrations = new DisposableStore();
+	registrations.add(contributions.registerContribution(TurnDelegationContribution));
 	registrations.add(contributions.registerContribution(PersistedTurnUsageContribution));
 	registrations.add(contributions.registerContribution(WorktreeAnnouncementContribution));
 	registrations.add(contributions.registerContribution(CheckpointAndChangesetContribution));
@@ -31,5 +34,6 @@ export function registerBuiltInChatContributions(
 	registrations.add(contributions.registerContribution(MarkdownPlanRichLinksContribution));
 	registrations.add(contributions.registerContribution(ArtifactToolsContribution));
 	registrations.add(contributions.registerContribution(ChatSurfaceContribution));
+	registrations.add(contributions.registerContribution(SideChatContribution));
 	return registrations;
 }

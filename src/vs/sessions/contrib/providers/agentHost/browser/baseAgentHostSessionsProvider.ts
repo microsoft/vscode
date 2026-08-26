@@ -28,9 +28,9 @@ import { KNOWN_MODE_VALUES, SessionConfigKey } from '../../../../../platform/age
 import { migrateLegacyAutopilotConfig } from '../../../../../platform/agentHost/common/agentHostSchema.js';
 import type { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ResolveSessionConfigResult, type SessionConfigPropertySchema } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { AgentCustomization, ChangesSummary, ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, type ClientPluginCustomization, Customization, CustomizationEnablementKind, CustomizationType, type CustomizationEnablement, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, SessionState, SessionSummary, type Changeset } from '../../../../../platform/agentHost/common/state/protocol/state.js';
+import { AgentCustomization, ChangesSummary, ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, type ClientPluginCustomization, Customization, CustomizationEnablementKind, CustomizationType, type CustomizationEnablement, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, type SessionActiveClient, SessionState, SessionSummary, type Changeset } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, isChatAction, isSessionAction, NotificationType } from '../../../../../platform/agentHost/common/state/sessionActions.js';
-import { AgentCapabilities, AgentInfo, buildChatUri, buildDefaultChatUri, DEFAULT_CHAT_ID, getSessionChatResource, getSessionRelatedPullRequestUrls, isDefaultChatUri, isSessionStatusArchived, isSessionStatusRead, parseChatUri, readSessionEhcliAdoptable, readSessionExternal, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, ROOT_STATE_URI, SESSION_META_MULTI_ROOT_KEY, SessionMeta, SessionSourceControlOutcome, StateComponents, withSessionExternal, withSessionGitHubState, withSessionMultiRootMetadata, withSessionStatusFlag, withSessionWorkspaceless, type ChatState, type ChatSummary, type ISessionGitHubState, type ISessionGitState, type ISessionMultiRootMetadata } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { AgentCapabilities, AgentInfo, buildChatUri, buildDefaultChatUri, DEFAULT_CHAT_ID, getSessionChatResource, getSessionRelatedPullRequestUrls, isDefaultChatUri, isSessionStatusArchived, isSessionStatusRead, parseChatUri, readSessionCreationReference, readSessionEhcliAdoptable, readSessionExternal, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, ROOT_STATE_URI, SESSION_META_MULTI_ROOT_KEY, SessionMeta, SessionSourceControlOutcome, StateComponents, withSessionCreationReference, withSessionExternal, withSessionGitHubState, withSessionMultiRootMetadata, withSessionStatusFlag, withSessionWorkspaceless, type ChatState, type ChatSummary, type ISessionCreationReference as IProtocolSessionCreationReference, type ISessionGitHubState, type ISessionGitState, type ISessionMultiRootMetadata } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -50,7 +50,7 @@ import { getRegisteredLanguageModels, resolveConfiguredModel, resolveModelIdenti
 import { buildMutableConfigSchema, IAgentHostMcpServer, IAgentHostSessionsProvider, resolvedConfigsEqual } from '../../../../common/agentHostSessionsProvider.js';
 import { agentHostSessionWorkspaceKey } from '../../../../common/agentHostSessionWorkspace.js';
 import { isSessionConfigComplete } from '../../../../common/sessionConfig.js';
-import { ChatInteractivity, ChatModelSource, ChatOriginKind, DEFAULT_CHAT_CAPABILITIES, effectiveChatInteractivity, IChat, IChatCapabilities, IGitHubInfo, IGitHubIssueRef, IGitHubPullRequestRef, ISession, ISessionAgentRef, ISessionArtifact, ISessionCapabilities, ISessionChangeset, ISessionChangesSummary, ISessionChatCustomization, ISessionFile, ISessionFileChange, ISessionTurnFileChange, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection, sessionFileChangesEqual, sessionWorkspaceEqual, SessionStatus, SessionTypeAuthRequirement, toSessionId, TURN_CHANGES_CHANGESET_ID } from '../../../../services/sessions/common/session.js';
+import { ChatInteractivity, ChatModelSource, ChatOriginKind, DEFAULT_CHAT_CAPABILITIES, effectiveChatInteractivity, IChat, IChatCapabilities, IGitHubInfo, IGitHubIssueRef, IGitHubPullRequestRef, ISession, ISessionAgentRef, ISessionArtifact, ISessionCapabilities, ISessionChangeset, ISessionChangesSummary, ISessionChatCustomization, ISessionCreationReference, ISessionFileChange, ISessionTurnFileChange, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection, sessionFileChangesEqual, sessionWorkspaceEqual, SessionStatus, SessionTypeAuthRequirement, toSessionId, TURN_CHANGES_CHANGESET_ID } from '../../../../services/sessions/common/session.js';
 import { dedupeLinks, getPresentedArtifacts, linkKey, partitionSessionArtifacts } from './agentHostSessionArtifacts.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IDeleteChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration } from '../../../../services/sessions/common/sessionsProvider.js';
@@ -202,6 +202,7 @@ interface ISerializedSessionMetadata {
 	readonly workspaceless?: boolean;
 	readonly external?: boolean;
 	readonly multiRoot?: ISessionMultiRootMetadata;
+	readonly createdBySession?: IProtocolSessionCreationReference;
 }
 
 /**
@@ -225,6 +226,7 @@ function serializeMetadata(meta: IAgentSessionMetadata): ISerializedSessionMetad
 		workspaceless: readSessionWorkspaceless(meta._meta) || undefined,
 		external: readSessionExternal(meta._meta) || undefined,
 		multiRoot: readSessionMultiRootMetadata(meta._meta),
+		createdBySession: readSessionCreationReference(meta._meta),
 	};
 }
 
@@ -234,6 +236,9 @@ function deserializeMetadata(raw: ISerializedSessionMetadata): IAgentSessionMeta
 		_meta = withSessionExternal(_meta, raw.external === true);
 		_meta = withSessionMultiRootMetadata(_meta, readSessionMultiRootMetadata({ [SESSION_META_MULTI_ROOT_KEY]: raw.multiRoot }));
 		_meta = withSessionGitHubState(_meta, raw.github);
+		if (raw.createdBySession) {
+			_meta = withSessionCreationReference(_meta, raw.createdBySession);
+		}
 		return {
 			session: URI.parse(raw.session),
 			startTime: raw.startTime,
@@ -331,21 +336,33 @@ function toGitHubIssueRefs(issueUrls: readonly string[] | undefined): readonly I
 	return refs.length > 0 ? refs : undefined;
 }
 
-/** Maps session pull request URLs to references, preserving recency order. */
-function toGitHubPullRequestRefs(pullRequestUrls: readonly string[] | undefined): readonly IGitHubPullRequestRef[] | undefined {
+/**
+ * Maps session pull request URLs to references, preserving recency order.
+ *
+ * `titles` is keyed by {@link linkKey}; a URL missing from it simply carries no
+ * title. Every pull request published here belongs to the session — it either
+ * produced it or its branch relates to it — so all are marked as such.
+ */
+function toGitHubPullRequestRefs(pullRequestUrls: readonly string[] | undefined, titles: ReadonlyMap<string, string>): readonly IGitHubPullRequestRef[] | undefined {
 	const refs: IGitHubPullRequestRef[] = [];
 	for (const url of pullRequestUrls ?? []) {
 		const reference = parseGitHubPullRequestUrl(url);
 		if (reference) {
-			refs.push({ ...reference, uri: URI.parse(url) });
+			const title = titles.get(linkKey(url));
+			refs.push({
+				...reference,
+				uri: URI.parse(url),
+				...(title ? { title } : {}),
+				createdByThisSession: true,
+			});
 		}
 	}
 	return refs.length > 0 ? refs : undefined;
 }
 
 /**
- * The GitHub info for a session, plus the promoted artifact links it surfaced.
- * Anything it could not surface stays in the artifacts pill.
+ * The GitHub info for a session, plus the links its pills actually surfaced.
+ * Anything they could not surface stays in the artifacts or references pill.
  */
 interface IGitHubPromotion {
 	readonly info: IGitHubInfo | undefined;
@@ -355,12 +372,11 @@ interface IGitHubPromotion {
 function toGitHubPromotion(meta: SessionMeta | undefined): IGitHubPromotion {
 	const state = readSessionGitHubState(meta);
 	const gitState = readSessionGitState(meta);
-	const { createdPullRequestUrls, referencedPullRequestUrls, issueUrls } = partitionSessionArtifacts(meta);
+	const { pullRequestUrls, pullRequestTitles, issueUrls } = partitionSessionArtifacts(meta);
 
-	// Pull requests this session created outrank discovered ones for the main
-	// slot; referenced ones are listed and polled but never become main.
-	const mainEligibleUrls = dedupeLinks(createdPullRequestUrls, getSessionRelatedPullRequestUrls(state));
-	const allPullRequests = toGitHubPullRequestRefs(dedupeLinks(mainEligibleUrls, referencedPullRequestUrls));
+	// Only pull requests the session produced are promoted, so the ones it
+	// recorded lead the discovered ones and the first is the main pull request.
+	const allPullRequests = toGitHubPullRequestRefs(dedupeLinks(pullRequestUrls, getSessionRelatedPullRequestUrls(state)), pullRequestTitles);
 	const repository = state?.owner && state.repo
 		? { owner: state.owner, repo: state.repo }
 		: gitState?.githubOwner && gitState.githubRepo
@@ -371,21 +387,22 @@ function toGitHubPromotion(meta: SessionMeta | undefined): IGitHubPromotion {
 		return { info: undefined, surfacedLinks: new Set() };
 	}
 
-	// A session carries one repository, so a reference from another repository
-	// would be polled against the wrong coordinates. Leave those as artifacts.
+	// A session carries one repository, so a link from another repository would
+	// be polled against the wrong coordinates. Leave those in their own pill.
 	const belongsToRepository = (ref: { readonly owner: string; readonly repo: string }) =>
 		ref.owner.toLowerCase() === repository.owner.toLowerCase() && ref.repo.toLowerCase() === repository.repo.toLowerCase();
 
 	const pullRequests = allPullRequests?.filter(belongsToRepository);
-	const mainEligible = new Set(mainEligibleUrls.map(linkKey));
-	const pullRequest = pullRequests?.find(ref => mainEligible.has(linkKey(ref.uri.toString())));
-	const issues = toGitHubIssueRefs(dedupeLinks(state?.issueUrls, issueUrls))?.filter(belongsToRepository);
+	const pullRequest = pullRequests?.at(0);
+	const issues = toGitHubIssueRefs(dedupeLinks(issueUrls))?.filter(belongsToRepository);
 
-	const promotedLinks = new Set([...createdPullRequestUrls, ...referencedPullRequestUrls, ...issueUrls].map(linkKey));
+	// Everything the GitHub pills actually render, whichever source produced it.
+	// An entry standing for one of these links is left out of the artifacts and
+	// references pills, so the user is offered it exactly once.
 	const surfacedLinks = new Set([
 		...(pullRequests ?? []).map(ref => linkKey(ref.uri.toString())),
 		...(issues ?? []).map(ref => linkKey(ref.uri.toString())),
-	].filter(link => promotedLinks.has(link)));
+	]);
 
 	return {
 		info: {
@@ -531,6 +548,8 @@ export interface IAgentHostAdapterOptions {
 	 * (cloud sandbox: provider `copilot`, sessions `ahp-session:/<id>`). Defaults to the provider.
 	 */
 	readonly backendSessionScheme?: string;
+	/** Maps a backend session URI to the client resource used by this host. */
+	readonly mapBackendSessionResource: (resource: URI) => URI;
 }
 
 /**
@@ -706,6 +725,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	readonly isQuickChat: IObservable<boolean>;
 	readonly isAutomation = observableValue('isAutomation', false);
 	readonly isExternal: IObservable<boolean>;
+	readonly createdBySession: IObservable<ISessionCreationReference | undefined>;
 	/** See {@link ISession.worktreePending}. */
 	readonly worktreePending: IObservable<boolean>;
 	readonly title: ISettableObservable<string>;
@@ -714,7 +734,6 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	readonly completedStateIcon: IObservable<ThemeIcon | undefined>;
 	readonly changes: IObservable<readonly (IChatSessionFileChange | IChatSessionFileChange2)[]>;
 	readonly changesets: ISettableObservable<readonly ISessionChangeset[] | undefined>;
-	readonly externalChanges: IObservable<readonly ISessionFile[]>;
 	readonly modelId: ISettableObservable<string | undefined>;
 	readonly modelSource: ISettableObservable<ChatModelSource | undefined>;
 	modelSelection: ModelSelection | undefined;
@@ -750,8 +769,8 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	 */
 	private readonly _defaultChat: IChat;
 	/**
-	 * The session's live output observables (external files + per-chat last-turn
-	 * changes), parsed once from the active-session subscriptions and shared by
+	 * The session's live output observables (per-chat last-turn changes and
+	 * customizations), parsed from the active-session subscriptions and shared by
 	 * the default chat and every peer chat so each chat's status pills reflect
 	 * that chat's own last turn.
 	 */
@@ -924,6 +943,18 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		this._meta = metadata._meta;
 		this._metaObs = observableValue<SessionMeta | undefined>('agentHostSessionMeta', this._meta);
 		this.isExternal = derived(this, reader => readSessionExternal(this._metaObs.read(reader)));
+		this.createdBySession = derived(this, reader => {
+			const creationReference = readSessionCreationReference(this._metaObs.read(reader));
+			if (!creationReference) {
+				return undefined;
+			}
+			const session = this._options.mapBackendSessionResource(URI.parse(creationReference.session));
+			const parsedChat = creationReference.chat ? parseChatUri(creationReference.chat) : undefined;
+			const chat = parsedChat
+				? session.with({ fragment: parsedChat.chatId === DEFAULT_CHAT_ID ? '' : parsedChat.chatId })
+				: undefined;
+			return { session, chat, turnId: creationReference.turnId };
+		});
 		this.artifacts = derivedOpts<readonly ISessionArtifact[]>({ owner: this, equalsFn: structuralEquals }, reader => {
 			const meta = this._metaObs.read(reader);
 			return getPresentedArtifacts(partitionSessionArtifacts(meta), toGitHubPromotion(meta).surfacedLinks);
@@ -944,10 +975,15 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			const icon = computeSessionPullRequestIcon(reader, this._gitHubService, this._pullRequestIconCache, baseGitHubInfo);
 			return {
 				...baseGitHubInfo,
+				// Only the main pull request is polled live; the rest fall back to
+				// their last-known icon so the hover can still show their state.
 				pullRequests: baseGitHubInfo.pullRequests?.map((pullRequest, index) => index === 0 ? {
 					...pullRequest,
 					icon
-				} : pullRequest),
+				} : {
+					...pullRequest,
+					icon: this._pullRequestIconCache.get(pullRequest.uri.toString()) ?? pullRequest.icon
+				}),
 				pullRequest: {
 					...baseGitHubInfo.pullRequest,
 					icon
@@ -1013,9 +1049,9 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		// changeset.
 		this.changes = this._createChangesObs();
 
-		// Files created/edited/deleted outside the workspace, plus the last turn's
-		// changes, parsed from the chat-state turns. Computed lazily from the same
-		// active-session subscriptions used for changes.
+		// The last turn's changes and the chat customizations, parsed from the
+		// chat-state turns. Computed lazily from the same active-session
+		// subscriptions used for changes.
 		const sessionOutput = createSessionOutputObs(
 			this.backendUri,
 			this._options,
@@ -1026,7 +1062,6 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		);
 		this._sessionOutput = sessionOutput;
 		this._currentTurnChanges = this._createCurrentTurnChangesObservable();
-		this.externalChanges = sessionOutput.externalFiles;
 
 		const mainChat: IChat = {
 			resource: this.resource,
@@ -1134,9 +1169,13 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		// what takes a session back down to a single chat. Only chats this session had already
 		// materialized count as gone: a selection recorded for one that has never appeared is
 		// waiting for the state that creates it, which {@link setChatModelId} allows.
+		// The session-output caches are keyed by protocol chat URI and are released here too,
+		// so a removed peer does not retain its observables and parser state for the lifetime
+		// of this adapter.
 		for (const chatId of this._additionalChats.keys()) {
 			if (!survivingPeers.has(chatId)) {
 				this._chatModelSelections.delete(chatId);
+				this._sessionOutput.releaseChat(URI.parse(buildChatUri(this.backendUri, chatId)));
 			}
 		}
 
@@ -1799,7 +1838,7 @@ interface INewSessionConstructionContext {
 	 * takes over ownership of the same `sessionId` key.
 	 */
 	readonly onSessionState?: (sessionId: string, state: SessionState | undefined) => void;
-	readonly activeClientScope?: IAgentCustomizationScope;
+	readonly activeClientScope: IAgentCustomizationScope;
 }
 
 /**
@@ -1828,8 +1867,8 @@ class NewSession extends Disposable {
 	readonly session: ISession;
 	readonly sessionId: string;
 	readonly agentProvider: string;
-	/** This draft's URI as the host's registry would key it. See {@link AgentHostSessionAdapter.backendUri}. */
-	private readonly _backendSessionUri: URI;
+	/** This draft's URI as the host's registry is keyed by it. */
+	readonly backendUri: URI;
 	readonly workspaceUri: URI | undefined;
 	readonly requiresWorkspaceTrust: boolean;
 	/** `true` when this is a workspace-less quick chat. */
@@ -1865,7 +1904,7 @@ class NewSession extends Disposable {
 	}
 
 	getClientCustomAgents(): readonly AgentCustomization[] {
-		return this._activeClientScope?.customAgents.get() ?? [];
+		return this._activeClientScope.customAgents.get();
 	}
 
 	/**
@@ -1909,9 +1948,15 @@ class NewSession extends Disposable {
 	 * in {@link graduate} (handoff) and {@link dispose} (close-without-send).
 	 */
 	private readonly _stateListener = this._register(new MutableDisposable());
+	/**
+	 * Autorun republishing active-client changes for this draft. Cleared in
+	 * {@link graduate} so the session handler's own reconciliation owns
+	 * republishing from then on, and the two never race.
+	 */
+	private readonly _activeClientPublisher = this._register(new MutableDisposable());
 	private readonly _onSessionState: ((sessionId: string, state: SessionState | undefined) => void) | undefined;
 
-	private readonly _activeClientScope: IAgentCustomizationScope | undefined;
+	private readonly _activeClientScope: IAgentCustomizationScope;
 	private readonly _initialMetadata: Record<string, unknown> | undefined;
 
 	private readonly _logService: ILogService;
@@ -1936,16 +1981,14 @@ class NewSession extends Disposable {
 		this._logService = ctx.logService;
 		this._onSessionState = ctx.onSessionState;
 		this._activeClientScope = ctx.activeClientScope;
-		if (this._activeClientScope) {
-			this._register(this._activeClientScope);
-		}
+		this._register(this._activeClientScope);
 		this._initialMetadata = ctx.initialMetadata;
 
 		const resource = URI.from({ scheme: ctx.resourceScheme, path: `/${generateUuid()}` });
 		this._isActiveSessionObs = derived(this, reader => isEqual(sessionsService.activeSession.read(reader)?.resource, resource));
 		// Defaults to scheme == provider; only hosts that address sessions under a different
 		// scheme (cloud sandbox: provider `copilot`, scheme `ahp-session`) override it.
-		this._backendSessionUri = AgentSession.uri(ctx.backendSessionScheme ?? this.agentProvider, AgentSession.id(resource));
+		this.backendUri = AgentSession.uri(ctx.backendSessionScheme ?? this.agentProvider, AgentSession.id(resource));
 		this._status = observableValue<SessionStatus>(this, SessionStatus.Untitled);
 		this._title = observableValue<string>(this, '');
 		const title = this._title;
@@ -2238,7 +2281,7 @@ class NewSession extends Disposable {
 	 * no session state exists at send time.
 	 */
 	eagerCreate(connection: IAgentConnection, canCreate?: () => Promise<boolean>): void {
-		const backendUri = this._backendSessionUri;
+		const backendUri = this.backendUri;
 		if (this._eagerCreateTask || this._backendUri?.toString() === backendUri.toString() || this._subscription) {
 			return;
 		}
@@ -2261,12 +2304,18 @@ class NewSession extends Disposable {
 			this._backendUri = backendUri;
 			this._connection = connection;
 
+			// Seeds the publisher below so its first run is a no-op when nothing
+			// changed, without depending on the state subscription having
+			// hydrated by then.
+			let createdWithActiveClient: SessionActiveClient | undefined;
+
 			try {
-				await this._activeClientScope?.whenResolved();
+				await this._activeClientScope.whenResolved();
 				if (this._backendUri?.toString() !== backendUri.toString()) {
 					return;
 				}
-				const activeClient = this._activeClientScope?.activeClient(connection.clientId).get();
+				const activeClient = this._activeClientScope.activeClient(connection.clientId).get();
+				createdWithActiveClient = activeClient;
 				await connection.createSession({
 					provider: this.agentProvider,
 					session: backendUri,
@@ -2280,7 +2329,7 @@ class NewSession extends Disposable {
 					// `progress` frame so `_handleProgress` can correlate it.
 					progressToken: generateUuid(),
 					...(this._selectedAgent ? { agent: { uri: this._selectedAgent.uri } } : {}),
-					...(activeClient ? { activeClient } : {}),
+					activeClient,
 				});
 			} catch (err) {
 				this._logService.warn(`[${this._providerId}] Eager createSession failed for ${backendUri.toString()}: ${err}`);
@@ -2326,6 +2375,31 @@ class NewSession extends Disposable {
 					onSessionState(this.sessionId, state);
 				});
 			}
+
+			// Republishes this draft's contribution whenever the customization
+			// scope changes. Without it a client-owned decision made before the
+			// first send — notably disabling a standalone MCP server — would
+			// never reach the host, since `createSession` above only ever
+			// carried a one-shot snapshot.
+			let lastPublished: SessionActiveClient | undefined = createdWithActiveClient;
+			this._activeClientPublisher.value = autorun(reader => {
+				// Publishing an unresolved scope would transiently wipe the
+				// host's customization state for this session.
+				if (!this._activeClientScope.isResolved.read(reader)) {
+					return;
+				}
+				const activeClient = this._activeClientScope.activeClient(connection.clientId).read(reader);
+				const state = ref.object.value;
+				const existing = state instanceof Error ? undefined : state?.activeClients.find(client => client.clientId === activeClient.clientId);
+				if (equals(existing, activeClient) || equals(lastPublished, activeClient)) {
+					return;
+				}
+				lastPublished = activeClient;
+				connection.dispatch(backendUri.toString(), {
+					type: ActionType.SessionActiveClientSet,
+					activeClient,
+				});
+			});
 		})();
 	}
 
@@ -2340,7 +2414,7 @@ class NewSession extends Disposable {
 			return;
 		}
 
-		const changesets = createChangesets(this._backendSessionUri, this._options, this._isActiveSessionObs, changesetsMetadata);
+		const changesets = createChangesets(this.backendUri, this._options, this._isActiveSessionObs, changesetsMetadata);
 
 		this._changesets.set(changesets, undefined);
 	}
@@ -2358,6 +2432,7 @@ class NewSession extends Disposable {
 		// here hands ownership cleanly to `_ensureSessionStateSubscription`
 		// without a transient empty-read window or a duplicate writer.
 		this._stateListener.clear();
+		this._activeClientPublisher.clear();
 		this._subscription?.dispose();
 		this._subscription = undefined;
 		this._backendUri = undefined;
@@ -2378,6 +2453,7 @@ class NewSession extends Disposable {
 		// reached the post-`createSession` branch).
 		const hadListener = !!this._stateListener.value;
 		this._stateListener.clear();
+		this._activeClientPublisher.clear();
 		if (hadListener) {
 			this._onSessionState?.(this.sessionId, undefined);
 		}
@@ -2551,6 +2627,14 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	/** The in-flight new session with the given id, if any. */
 	protected _getNewSession(sessionId: string): NewSession | undefined {
 		return this._newSessions.get(sessionId);
+	}
+
+	private _getBackendSessionUri(sessionId: string): URI | undefined {
+		const rawId = this._rawIdFromChatId(sessionId);
+		if (!rawId) {
+			return undefined;
+		}
+		return this._sessionCache.get(rawId)?.backendUri ?? this._newSessions.get(sessionId)?.backendUri;
 	}
 
 	/**
@@ -2741,6 +2825,15 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		return agentProvider;
 	}
 
+	protected _logicalSessionTypeForBackendScheme(backendScheme: string): string {
+		return backendScheme;
+	}
+
+	private _mapBackendSessionResource(resource: URI): URI {
+		const sessionType = this._logicalSessionTypeForBackendScheme(resource.scheme);
+		return resource.with({ scheme: this.resourceSchemeForProvider(sessionType) });
+	}
+
 	/** Build an adapter for the given metadata. */
 	protected createAdapter(meta: IAgentSessionMetadata): AgentHostSessionAdapter {
 		const provider = AgentSession.provider(meta.session);
@@ -2758,6 +2851,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			getConnection: () => this.connection,
 			agentCapabilities: this._agentCapabilities,
 			backendSessionScheme: this._backendSessionScheme(provider),
+			mapBackendSessionResource: resource => this._mapBackendSessionResource(resource),
 			...this._adapterOptions(),
 		} satisfies IAgentHostAdapterOptions;
 
@@ -2937,11 +3031,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (!scope || this._activeSessionScopeSessionType !== sessionType || !this._activeClientService.areScopeRootsEqual(this._activeSessionScopeRoots, cached.workingDirectories)) {
 			scope = this._activeClientService.acquireScope(sessionType, cached.workingDirectories);
 			this._activeSessionScope.value = scope;
-			this._activeSessionScopeSessionType = scope ? sessionType : undefined;
-			this._activeSessionScopeRoots = scope ? [...cached.workingDirectories] : undefined;
-		}
-		if (!scope) {
-			return;
+			this._activeSessionScopeSessionType = sessionType;
+			this._activeSessionScopeRoots = [...cached.workingDirectories];
 		}
 
 		void this._dispatchActiveClientWhenResolved(cancellation.token, activeSession.sessionId, rawId, cached, connection, scope);
@@ -3136,14 +3227,15 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				instantiationService: this._instantiationService,
 				getConnection: () => this.connection,
 				agentCapabilities: this._agentCapabilities,
+				mapBackendSessionResource: resource => this._mapBackendSessionResource(resource),
 				...this._adapterOptions(),
 			} satisfies IAgentHostAdapterOptions);
 		} catch (err) {
-			activeClientScope?.dispose();
+			activeClientScope.dispose();
 			throw err;
 		}
 		this._newSessions.set(newSession.sessionId, newSession);
-		newSession.observeClientCustomAgents(activeClientScope?.customAgents ?? constObservable([]), () => {
+		newSession.observeClientCustomAgents(activeClientScope.customAgents, () => {
 			this._onDidChangeCustomAgents.fire();
 			this._onDidChangeCustomizations.fire();
 		});
@@ -3956,12 +4048,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (!sessionState) {
 			return [];
 		}
-		const rawId = this._rawIdFromChatId(sessionId);
-		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
-		if (!cached || !rawId) {
+		const sessionUri = this._getBackendSessionUri(sessionId);
+		if (!sessionUri) {
 			return [];
 		}
-		const sessionUri = cached.backendUri;
 		return (sessionState.customizations ?? [])
 			.flatMap(customization => customization.type === CustomizationType.McpServer
 				? [{ server: customization, plugin: undefined }]
@@ -4014,13 +4104,12 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	}
 
 	setCustomizationEnablement(sessionId: string, customizationId: string, enablement: readonly CustomizationEnablement[]): void {
-		const rawId = this._rawIdFromChatId(sessionId);
-		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
+		const sessionUri = this._getBackendSessionUri(sessionId);
 		const connection = this.connection;
-		if (!cached || !connection) {
+		if (!sessionUri || !connection) {
 			return;
 		}
-		connection.dispatch(cached.backendUri.toString(), {
+		connection.dispatch(sessionUri.toString(), {
 			type: ActionType.SessionCustomizationToggled,
 			id: customizationId,
 			enablement: [...enablement],
@@ -4045,33 +4134,30 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	// -- Session actions ------------------------------------------------------
 
 	async archiveSession(sessionId: string): Promise<void> {
-		const rawId = this._rawIdFromChatId(sessionId);
-		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
-		if (cached && rawId) {
-			cached.isArchived.set(true, undefined);
-			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [cached] });
-			const connection = this.connection;
-			if (connection) {
-				const sessionUri = cached.backendUri;
-				const action = { type: ActionType.SessionIsArchivedChanged as const, isArchived: true };
-				connection.dispatch(sessionUri.toString(), action);
-			}
-		}
+		this._setSessionArchived(sessionId, true);
 	}
 
 	async unarchiveSession(sessionId: string): Promise<void> {
+		this._setSessionArchived(sessionId, false);
+	}
+
+	/**
+	 * Flips a session's archived state locally and dispatches the owning action
+	 * so the host persists it and fans it out to other windows.
+	 *
+	 * Skips the local flip when disconnected: showing a session as archived when
+	 * the change can never be recorded is worse than appearing not to archive.
+	 */
+	private _setSessionArchived(sessionId: string, isArchived: boolean): void {
 		const rawId = this._rawIdFromChatId(sessionId);
 		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
-		if (cached && rawId) {
-			cached.isArchived.set(false, undefined);
-			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [cached] });
-			const connection = this.connection;
-			if (connection) {
-				const sessionUri = cached.backendUri;
-				const action = { type: ActionType.SessionIsArchivedChanged as const, isArchived: false };
-				connection.dispatch(sessionUri.toString(), action);
-			}
+		const connection = this.connection;
+		if (!cached || !rawId || !connection) {
+			return;
 		}
+		cached.isArchived.set(isArchived, undefined);
+		this._onDidChangeSessions.fire({ added: [], removed: [], changed: [cached] });
+		connection.dispatch(cached.backendUri.toString(), { type: ActionType.SessionIsArchivedChanged as const, isArchived });
 	}
 
 	async setSessionReadState(sessionId: string, isRead: boolean): Promise<void> {
@@ -4804,11 +4890,25 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 		const sessionUri = cached.backendUri;
 		const ref = connection.getSubscription(StateComponents.Session, sessionUri, 'BaseAgentHostSessionsProvider.summary');
+		// Do not cache failures, so a later pin can retry sessions addressed before host creation.
+		if (ref.object.value instanceof Error) {
+			ref.dispose();
+			return;
+		}
 		const store = new DisposableStore();
 		store.add(ref);
 		store.add(ref.object.onDidChange(state => {
 			this._applySessionStateUpdate(sessionId, state);
 		}));
+		// A subscribe that fails after this point settles via `onDidError`, never `onDidChange`.
+		const onDidError = ref.object.onDidError;
+		if (onDidError) {
+			store.add(onDidError(() => {
+				if (this._sessionStateSubscriptions.get(sessionId) === store) {
+					this._sessionStateSubscriptions.deleteAndDispose(sessionId);
+				}
+			}));
+		}
 		this._sessionStateSubscriptions.set(sessionId, store);
 
 		const value = ref.object.value;
@@ -5256,6 +5356,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			}
 
 			const removed: ISession[] = [];
+			this._onHostListedSessions(currentKeys);
 			// Some hosts briefly omit the just-sent eager session from listSessions.
 			// Keep the pending session visible until sendRequest graduates it.
 			const pendingRawId = this._pendingSession?.resource.path.replace(/^\//, '');
@@ -5273,6 +5374,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			for (const [key, cached] of this._sessionCache) {
 				if (!currentKeys.has(key)) {
 					if (key === pendingRawId) {
+						continue;
+					}
+					if (!this._isSessionEvictable(key)) {
 						continue;
 					}
 					if (!evictUnlistedAgents && !listedAgentProviders.has(cached.agentProvider)) {
@@ -5306,6 +5410,17 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			this._sessionRefreshInFlight = false;
 		}
 	}
+
+	/**
+	 * Whether a cached session the host did not list may be evicted. Subclasses override this to
+	 * protect a session that exists but that the host has not materialized yet.
+	 */
+	protected _isSessionEvictable(_rawId: string): boolean {
+		return true;
+	}
+
+	/** Raw ids the host listed, reported before eviction runs so subclasses can retire protections. */
+	protected _onHostListedSessions(_rawIds: ReadonlySet<string>): void { }
 
 	/**
 	 * Arm a backoff retry of {@link _refreshSessions}. Used after a failed
@@ -5424,6 +5539,12 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}));
 
 		store.add(connection.onDidAction(e => {
+			// A rejected action never reached host state, so it must not be applied
+			// here. This does not roll back the dispatcher's own optimistic write:
+			// the echo carries the value it already set.
+			if (e.rejectionReason) {
+				return;
+			}
 			if (e.action.type === ActionType.ChatTurnComplete && isChatAction(e.action)) {
 				this._refreshSessions();
 			} else if (e.action.type === ActionType.SessionTitleChanged && isSessionAction(e.action)) {

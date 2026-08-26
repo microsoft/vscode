@@ -7,7 +7,7 @@ import assert from 'assert';
 import type { PermissionRequest } from '@github/copilot-sdk';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { getEditFilePath, getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellIntention, getShellLanguage, getStreamingInvocationMessage, getToolDisplayName, getToolInputString, getToolKind, getToolMarkdownContent, isEditTool, isHiddenTool, isMarkdownRenderedTool, synthesizeSkillToolCall } from '../../node/copilot/copilotToolDisplay.js';
+import { getEditFilePath, getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellIntention, getShellLanguage, getStreamingInvocationMessage, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, getToolMarkdownContent, isEditTool, isHiddenTool, isMarkdownRenderedTool, synthesizeSkillToolCall } from '../../node/copilot/copilotToolDisplay.js';
 
 type CopilotShellPermissionRequest = Extract<PermissionRequest, { kind: 'shell' }>;
 type CopilotCustomToolPermissionRequest = Extract<PermissionRequest, { kind: 'custom-tool' }>;
@@ -143,6 +143,17 @@ suite('copilotToolDisplay — markdown-rendered tools', () => {
 
 	test('getToolMarkdownContent returns the task_complete summary when present', () => {
 		assert.strictEqual(getToolMarkdownContent('task_complete', { summary: 'All tests pass.' }), '\n\n**Task completed:** All tests pass.');
+	});
+
+	test('getTaskCompleteMarkdown prefers the input summary over truncated tool output', () => {
+		const truncatedOutput = 'Output too large to read at once (11.3 KB). Saved to: /tmp/task-complete.txt';
+		assert.deepStrictEqual({
+			withSummary: getTaskCompleteMarkdown({ summary: 'Completed the requested work.' }, truncatedOutput),
+			withoutSummary: getTaskCompleteMarkdown({}, 'Fallback summary.'),
+		}, {
+			withSummary: '\n\n**Task completed:** Completed the requested work.',
+			withoutSummary: '\n\n**Task completed:** Fallback summary.',
+		});
 	});
 
 	test('getToolMarkdownContent returns undefined for empty, missing, or non-string summaries', () => {
