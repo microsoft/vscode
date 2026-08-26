@@ -29,7 +29,8 @@ import { buildChatUri, buildDefaultChatUri, MessageKind, PendingMessageKind, Res
 import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostClientConnectionService, IAgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
 import { AgentHostChatContributions } from '../../node/agentHostChatContributionsService.js';
-import { IAgentHostProviderLocator } from '../../node/agentHostProviderLocator.js';
+import { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
+import { createTestAgentHostProviderService } from './testAgentHostProviderService.js';
 import { IAgentHostSessionTitleController } from '../../node/agentHostSessionTitleController.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
@@ -640,10 +641,7 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 	);
 	services.set(IAgentHostSessionTitleController, new RecordingTitleController(observed, enableSendInstructions ? 'rename instruction' : undefined));
 	const queueAgent = new MockAgent();
-	services.set(IAgentHostProviderLocator, {
-		_serviceBrand: undefined,
-		getAgent: () => queueAgent,
-	});
+	services.set(IAgentHostProviderService, createTestAgentHostProviderService(() => queueAgent));
 	services.set(IAgentHostLocalTurns, new AgentHostLocalTurns(sessionDataService, logService));
 	const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
 	const service = disposables.add(new AgentHostChatContributions(logService, instantiationService));
@@ -687,10 +685,7 @@ function createQueueDrainContributions(disposables: ReturnType<typeof ensureNoDi
 	let agent: MockAgent | undefined = mockAgent;
 	const pendingMessages: (PendingMessage | undefined)[] = [];
 	mockAgent.setPendingMessages = (_chat, steeringMessage) => pendingMessages.push(steeringMessage);
-	services.set(IAgentHostProviderLocator, {
-		_serviceBrand: undefined,
-		getAgent: () => agent,
-	});
+	services.set(IAgentHostProviderService, createTestAgentHostProviderService(() => agent));
 	services.set(IAgentHostLocalTurns, new AgentHostLocalTurns(sessionDataService, logService));
 	const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
 	const service = disposables.add(new AgentHostChatContributions(logService, instantiationService));
@@ -916,6 +911,38 @@ suite('AgentHostChatContributions', () => {
 		});
 	});
 
+	test('queue drain defers stale queued actions until a resumable turn completes', () => {
+		const queue = createQueueDrainContributions(disposables);
+		queue.stateManager.dispatchServerAction(queue.chat, {
+			type: ActionType.ChatTurnStarted,
+			turnId: 'resumable-turn',
+			startedAt: '2025-01-01T00:00:00.000Z',
+			message: { text: 'running', origin: { kind: MessageKind.User } },
+		});
+		queue.stateManager.dispatchServerAction(queue.chat, {
+			type: ActionType.ChatError,
+			turnId: 'resumable-turn',
+			duration: 1,
+			part: { kind: ResponsePartKind.Error, error: { errorType: 'requestFailed', message: 'failed' }, resumable: true },
+		});
+		const queued = queuedMessage('queued', 'queued');
+		queue.stateManager.dispatchServerAction(queue.chat, queued);
+		queue.service.action(observedAction(queue.chat, queue.session, queued));
+		const admittedWhileFailed = queue.admitted.map(admission => admission.message.text);
+
+		queue.stateManager.dispatchServerAction(queue.chat, { type: ActionType.ChatTurnResume, turnId: 'resumable-turn' });
+		queue.stateManager.dispatchServerAction(queue.chat, { type: ActionType.ChatTurnComplete, turnId: 'resumable-turn', duration: 2 });
+		queue.service.turnEnd({ session: queue.session, channel: queue.chat, turnId: 'resumable-turn', reason: { kind: 'success' } });
+
+		assert.deepStrictEqual({
+			admittedWhileFailed,
+			admittedAfterCompletion: queue.admitted.map(admission => admission.message.text),
+		}, {
+			admittedWhileFailed: [],
+			admittedAfterCompletion: ['queued'],
+		});
+	});
+
 	test('queue drain falls back after chat-memento eviction', () => {
 		const queue = createQueueDrainContributions(disposables);
 		queue.stateManager.dispatchServerAction(queue.chat, {
@@ -1011,6 +1038,26 @@ suite('AgentHostChatContributions', () => {
 		contributions.service.turnEnd(turnEnd('built-in-order'));
 
 		assert.deepStrictEqual(observed, ['checkpointAndChangeset', 'queueDrain', 'githubReferences', 'sessionTitle', 'markUnread']);
+	});
+
+	test('resumable errors defer checkpoint capture until the logical turn ends', () => {
+		const observed: string[] = [];
+		const contributions = createBuiltInContributions(disposables, observed);
+		contributions.service.turnEnd(turnEnd('resumable-error', {
+			kind: 'error',
+			error: { errorType: 'requestFailed', message: 'failed' },
+			resumable: true,
+		}));
+
+		assert.deepStrictEqual({
+			checkpointAndChangeset: observed.includes('checkpointAndChangeset'),
+			queueDrain: observed.includes('queueDrain'),
+			markUnread: observed.includes('markUnread'),
+		}, {
+			checkpointAndChangeset: false,
+			queueDrain: false,
+			markUnread: true,
+		});
 	});
 
 	test('drains the queue but skips other turn-end contributions for local commands', () => {
@@ -1400,7 +1447,7 @@ suite('AgentHostChatContributions', () => {
 
 	test('injects context after failed or cancelled first side-chat attempts', async () => {
 		const reasons: readonly ITurnEnd['reason'][] = [
-			{ kind: 'error', error: { errorType: 'test', message: 'failed' } },
+			{ kind: 'error', error: { errorType: 'test', message: 'failed' }, resumable: false },
 			{ kind: 'cancelled' },
 		];
 		for (const reason of reasons) {
@@ -1423,7 +1470,10 @@ suite('AgentHostChatContributions', () => {
 					type: ActionType.ChatError,
 					turnId: 'first-turn',
 					duration: 1,
-					part: { kind: ResponsePartKind.Error, error: reason.error },
+					part: {
+						kind: ResponsePartKind.Error,
+						error: reason.error,
+					},
 				});
 			} else {
 				sideChat.stateManager.dispatchServerAction(sideChat.sideChat, {

@@ -148,7 +148,7 @@ export const sessionServerToolDefinitions: IAgentServerToolDefinition[] = [
 	{
 		name: SessionServerToolName.CreateSession,
 		title: 'Create Session',
-		description: 'Create delegated work and start it with an initial prompt. Set `relationship` to `currentSession` when the task belongs to the current plan or deliverable; this creates a new chat that shares the current session\'s workspace, lifecycle, and aggregate diff. Set it to `independent` only for a separate deliverable that needs its own workspace, provider, or top-level lifecycle. The UI shows a creation confirmation with a button to open the result, so reply with a single short sentence and do NOT print the session URL or tell the user to click a button.',
+		description: 'Create delegated work and start it with an initial prompt. Set `relationship` to `currentSession` when the task belongs to the current plan or deliverable; this creates a new chat that shares the current session\'s workspace, lifecycle, and aggregate diff. Set it to `independent` only for a separate deliverable that needs its own workspace, provider, or top-level lifecycle. The UI shows the created chat or session as a link, so reply with a single short sentence and do NOT print the session URL or tell the user to click the link.',
 		inputSchema: createSessionInputSchema,
 		annotations: { readOnlyHint: false },
 	},
@@ -772,14 +772,14 @@ export async function applyCreateSessionTool(accessor: ISessionServerToolAccesso
 /**
  * Builds the model-facing `create_session` result. Keeps the machine-readable
  * `agent-host-session://` link (parsed client-side to render the deterministic
- * "Session Created" confirmation + button) but omits the raw backend session
- * URI so the model has nothing ugly to echo, and tells it to reply briefly.
+ * linked session title) but omits the raw backend session URI so the model has
+ * nothing ugly to echo, and tells it to reply briefly.
  */
 export function formatCreateSessionResult(result: ICreateSessionResult): string {
 	if (result.relationship === 'currentSession') {
-		return `Chat created in the current session (${result.openLink}). Reply with one short sentence confirming the chat was created; do not print the URL or mention a button.`;
+		return `Chat created in the current session (${result.openLink}). Reply with one short sentence confirming the chat was created; do not print the URL or mention a link.`;
 	}
-	return `New session created (${result.openLink}). Reply with one short sentence confirming the new session was created; do not print the URL or mention a button.`;
+	return `New session created (${result.openLink}). Reply with one short sentence confirming the new session was created; do not print the URL or mention a link.`;
 }
 
 interface ICreateChatArgs {
