@@ -12,6 +12,7 @@
  * `endpoints.ts` (loaded via an earlier `<script>` tag).
  */
 type EndpointDef = import('../endpoints').EndpointDef;
+type EndpointResponseMode = import('../endpoints').EndpointResponseMode;
 
 declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 
@@ -22,6 +23,7 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 		url?: string;
 		status?: number;
 		body?: unknown;
+		mode?: EndpointResponseMode;
 		active?: boolean;
 	}
 
@@ -80,6 +82,7 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 		endpoint: string;
 		status: number;
 		body: unknown;
+		mode: EndpointResponseMode;
 		active: boolean;
 		editorText: string;
 	}
@@ -90,6 +93,8 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 	const tabs = $('tabs');
 	const editor = $('editor') as HTMLTextAreaElement;
 	const responseStatusInput = $('response-status') as HTMLInputElement;
+	const responseModeSelect = $('response-mode') as HTMLSelectElement;
+	const responseConfiguration = $('response-configuration');
 	const responseStatusValidation = $('response-status-validation');
 	const presetSelect = $('preset') as HTMLSelectElement;
 	const endpointMeta = $('endpoint-meta');
@@ -402,6 +407,8 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 
 		endpointMeta.replaceChildren(routeSpan);
 		responseStatusInput.value = String(endpoint.status ?? 200);
+		responseModeSelect.value = endpoint.mode ?? 'json';
+		updateResponseConfigurationVisibility();
 		parseResponseStatus();
 		editor.value = drafts[id] ?? JSON.stringify(endpoint.body ?? {}, null, '\t');
 		renderTabs();
@@ -453,6 +460,34 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 		action.textContent = state.wired ? 'Restore Original' : 'Apply Overrides';
 		action.className = state.wired ? 'btn-secondary' : 'btn-primary';
 		updateReadiness();
+	}
+
+	function updateResponseConfigurationVisibility(): void {
+		responseConfiguration.hidden = responseModeSelect.value !== 'json';
+	}
+
+	async function setResponseMode(endpoint: Endpoint, mode: EndpointResponseMode): Promise<void> {
+		const previousMode = endpoint.mode ?? 'json';
+		endpoint.mode = mode;
+		updateResponseConfigurationVisibility();
+		const snapshot = captureSaveSnapshot();
+		clearPendingSave(endpoint.id);
+		if (snapshot) {
+			if (!await saveSnapshot(snapshot)) {
+				endpoint.mode = previousMode;
+				responseModeSelect.value = previousMode;
+				updateResponseConfigurationVisibility();
+			}
+			return;
+		}
+		try {
+			applyState(await updateState({ endpoint: endpoint.id, mode }));
+		} catch (error) {
+			endpoint.mode = previousMode;
+			responseModeSelect.value = previousMode;
+			updateResponseConfigurationVisibility();
+			toast(`Save failed: ${error instanceof Error ? error.message : String(error)}`, true);
+		}
 	}
 
 	function renderProxy(): void {
@@ -620,6 +655,7 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 			endpoint: endpoint.id,
 			status: responseStatus,
 			body: parsed,
+			mode: endpoint.mode ?? 'json',
 			active: endpoint.active === true,
 			editorText: editor.value
 		};
@@ -631,6 +667,7 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 				endpoint: snapshot.endpoint,
 				status: snapshot.status,
 				body: snapshot.body,
+				mode: snapshot.mode,
 				active: snapshot.active
 			});
 			applyState(state);
@@ -894,6 +931,13 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 			parseEditor();
 			debouncedSave();
 		});
+		responseModeSelect.addEventListener('change', () => {
+			const endpoint = activeEndpoint();
+			if (!endpoint) {
+				return;
+			}
+			void setResponseMode(endpoint, responseModeSelect.value as EndpointResponseMode);
+		});
 		presetSelect.addEventListener('change', applyPreset);
 		$('overrides-action').addEventListener('click', () => wire(!overridesWired));
 		$('copy-map').addEventListener('click', e => {
@@ -964,7 +1008,7 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 			selectSetupMethod('proxy');
 			// Fall back to the shared endpoint definitions so the GUI still shows
 			// what exists (read-only) rather than rendering a blank page.
-			endpoints = MOCK_POLICY_ENDPOINTS.map(def => ({ ...def, status: def.presets[0]?.status ?? 200, body: def.presets[0]?.body ?? {} }));
+			endpoints = MOCK_POLICY_ENDPOINTS.map(def => ({ ...def, status: def.presets[0]?.status ?? 200, body: def.presets[0]?.body ?? {}, mode: 'json' }));
 			renderTabs();
 			if (endpoints.length) {
 				selectEndpoint(endpoints[0].id);
