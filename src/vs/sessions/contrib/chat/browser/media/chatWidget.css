@@ -204,7 +204,7 @@
 .new-chat-widget-container .new-chat-bottom-container .action-label {
 	height: 16px;
 	padding: 3px 8px;
-	font-size: var(--vscode-agents-fontSize-label2, 11px);
+	font-size: var(--vscode-fontSize-label2, 11px);
 	color: var(--vscode-icon-foreground);
 }
 
@@ -267,7 +267,7 @@
 }
 
 .session-workspace-picker-label {
-	font-size: var(--vscode-agents-fontSize-heading2, 18px);
+	font-size: var(--vscode-fontSize-heading2, 18px);
 	line-height: 1.25;
 	color: var(--vscode-descriptionForeground);
 	white-space: nowrap;
@@ -282,7 +282,7 @@
 .sessions-chat-picker-slot.sessions-chat-session-type-picker .action-label {
 	height: auto;
 	padding: 4px;
-	font-size: var(--vscode-agents-fontSize-heading2, 18px);
+	font-size: var(--vscode-fontSize-heading2, 18px);
 	line-height: 1.25;
 	border: none;
 	background-color: transparent;
@@ -299,7 +299,7 @@
 
 .sessions-chat-picker-slot.sessions-chat-workspace-picker .action-label .sessions-chat-dropdown-label,
 .sessions-chat-picker-slot.sessions-chat-session-type-picker .action-label .sessions-chat-dropdown-label {
-	font-size: var(--vscode-agents-fontSize-heading2, 18px);
+	font-size: var(--vscode-fontSize-heading2, 18px);
 }
 
 .sessions-chat-picker-slot.sessions-chat-workspace-picker .action-label > .codicon:not(.sessions-chat-dropdown-chevron),
