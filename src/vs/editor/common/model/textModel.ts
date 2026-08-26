@@ -2472,7 +2472,7 @@ export class ModelDecorationInjectedTextOptions implements model.InjectedTextOpt
 		this.tokens = options.tokens ?? null;
 		this.inlineClassName = options.inlineClassName || null;
 		this.inlineClassNameAffectsLetterSpacing = options.inlineClassNameAffectsLetterSpacing || false;
-		this.widthInEm = options.widthInEm;
+		this.widthInEm = options.widthInEm !== undefined && Number.isFinite(options.widthInEm) && options.widthInEm >= 0 ? options.widthInEm : undefined;
 		this.attachedData = options.attachedData || null;
 		this.cursorStops = options.cursorStops || null;
 	}
