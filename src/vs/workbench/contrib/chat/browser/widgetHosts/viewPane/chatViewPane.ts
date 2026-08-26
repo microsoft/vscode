@@ -53,9 +53,9 @@ import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { IChatModel, IChatModelInputState } from '../../../common/model/chatModel.js';
 import { CHAT_PROVIDER_ID } from '../../../common/participants/chatParticipantContribTypes.js';
 import { IChatModelReference, IChatService } from '../../../common/chatService/chatService.js';
-import { IChatSessionsService, isAgentHostTarget, localChatSessionType } from '../../../common/chatSessionsService.js';
+import { IChatSessionsService, localChatSessionType } from '../../../common/chatSessionsService.js';
 import { LocalChatSessionUri, getChatSessionType, getNewChatSessionResource, isUntitledChatSession } from '../../../common/model/chatUri.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind, getDefaultNewChatSessionType, getDefaultNewChatSessionTypeAndReasonFromServices, SessionTypeSelectionReason } from '../../../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind, getDefaultNewChatSessionType, getDefaultNewChatSessionTypeAndReasonFromServices, getLocalFallbackSessionTypeSelectionReason, SessionTypeSelectionReason } from '../../../common/constants.js';
 import { AgentSessionsControl } from '../../agentSessions/agentSessionsControl.js';
 import { ACTION_ID_NEW_CHAT } from '../../actions/chatActions.js';
 import { ChatWidget, layoutChatWidgetForInputHeight } from '../../widget/chatWidget.js';
@@ -1317,7 +1317,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			const modelRef = await this.chatService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, token, 'ChatViewPane#acquireDefaultNewSession', defaultTypeAndReason.selectionReason);
 			return {
 				modelRef,
-				localFallbackSelectionReason: !modelRef && isAgentHostTarget(defaultTypeAndReason.sessionType) ? 'agentHostUnavailable' : localFallbackSelectionReason,
+				localFallbackSelectionReason: getLocalFallbackSessionTypeSelectionReason(defaultTypeAndReason.sessionType, !!modelRef, localFallbackSelectionReason),
 			};
 		} catch (error) {
 			// A cancellation means the caller (e.g. `startNewLocalSession`)
@@ -1329,7 +1329,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			this.logService.warn(`[ChatViewPane] Failed to acquire default agent-host session, falling back to local`, error);
 			return {
 				modelRef: undefined,
-				localFallbackSelectionReason: isAgentHostTarget(defaultTypeAndReason.sessionType) ? 'agentHostUnavailable' : localFallbackSelectionReason,
+				localFallbackSelectionReason: getLocalFallbackSessionTypeSelectionReason(defaultTypeAndReason.sessionType, false, localFallbackSelectionReason),
 			};
 		}
 	}
@@ -1344,7 +1344,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		if (!modelRef) {
 			return {
 				modelRef: undefined,
-				localFallbackSelectionReason: isAgentHostTarget(getChatSessionType(sessionResource)) ? 'agentHostUnavailable' : undefined,
+				localFallbackSelectionReason: getLocalFallbackSessionTypeSelectionReason(getChatSessionType(sessionResource), false),
 			};
 		}
 
@@ -1537,7 +1537,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 					return undefined;
 				}
 
-				const localFallbackSelectionReason = !newModelRef && isAgentHostTarget(getChatSessionType(sessionResource)) ? 'agentHostUnavailable' : undefined;
+				const localFallbackSelectionReason = getLocalFallbackSessionTypeSelectionReason(getChatSessionType(sessionResource), !!newModelRef);
 				const result = await this.showModel(token, newModelRef, true, false, inputBeforeLoad, localFallbackSelectionReason);
 				this.logService.trace(`[ChatViewPane] loadSession done total=${Date.now() - t0}ms uri=${sessionResource.toString()}`);
 				return result;
@@ -1554,7 +1554,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				// is not left in a broken state without title or back button.
 				this.logService.error(`Failed to load chat session '${sessionResource.toString()}'`, err);
 				this.notificationService.error(localize('chat.loadSessionFailed', "Failed to open chat session: {0}", toErrorMessage(err)));
-				const localFallbackSelectionReason = !didAcquireSession && isAgentHostTarget(getChatSessionType(sessionResource)) ? 'agentHostUnavailable' : undefined;
+				const localFallbackSelectionReason = getLocalFallbackSessionTypeSelectionReason(getChatSessionType(sessionResource), didAcquireSession);
 				const result = await this.showModel(token, undefined, true, false, inputBeforeLoad, localFallbackSelectionReason);
 				this.logService.trace(`[ChatViewPane] loadSession done total=${Date.now() - t0}ms uri=${sessionResource.toString()} error=true`);
 				return result;

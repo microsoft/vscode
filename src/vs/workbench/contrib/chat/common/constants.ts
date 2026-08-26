@@ -376,6 +376,10 @@ export type SessionTypeSelectionReason =
 	/** Settings and available capabilities determined the default type. */
 	| 'computedDefault';
 
+export function getLocalFallbackSessionTypeSelectionReason(sessionType: string, didAcquireSession: boolean, inheritedReason?: SessionTypeSelectionReason): SessionTypeSelectionReason | undefined {
+	return !didAcquireSession && isAgentHostTarget(sessionType) ? 'agentHostUnavailable' : inheritedReason;
+}
+
 export interface IDefaultNewChatSessionTypeOptions {
 	readonly explicitOverride?: string;
 	readonly currentSessionType?: string;
