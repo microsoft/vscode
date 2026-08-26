@@ -19,7 +19,7 @@ import { StorageScope, StorageTarget } from '../../../../../../platform/storage/
 import { NullTelemetryServiceShape } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
 import { IHostService } from '../../../../../services/host/browser/host.js';
-import { CHAT_PET_OPEN_ACHIEVEMENTS_COMMAND_ID, chatPetAchievements, ChatPetAccessoryIds, ChatPetAchievementIds, disabledChatPetAchievements, getChatPetAchievement, getChatPetAchievementPresentation, getChatPetCustomizationAchievementIds, getUnlockedChatPetAccessories, isUserAuthoredChatPetCustomization, shouldUnlockChatPetIntegratedBrowserShare } from '../../../browser/chatPetAchievements.js';
+import { CHAT_PET_OPEN_ACHIEVEMENTS_COMMAND_ID, chatPetAchievements, ChatPetAccessoryIds, ChatPetAchievementIds, didExplicitlyEnableChatPetAutopilot, disabledChatPetAchievements, getChatPetAchievement, getChatPetAchievementPresentation, getChatPetCustomizationAchievementIds, getUnlockedChatPetAccessories, isUserAuthoredChatPetCustomization, shouldUnlockChatPetIntegratedBrowserShare } from '../../../browser/chatPetAchievements.js';
 import { ChatPetService, getChatPetVariant } from '../../../browser/chatPetService.js';
 import { getChatPetAccessoryImageSource, hasChatPetAccessoryImageDimensions, hasChatPetBodyImageDimensions } from '../../../browser/widget/chatPetAccessoryRenderer.js';
 import { getChatPetAccessoryRigFrame, getChatPetAccessoryRigPose, getChatPetAccessoryTrack, getChatPetAntennaeOcclusionBounds, getChatPetEyeAccessoryAnchor, getChatPetReducedMotionRigFrame } from '../../../browser/widget/chatPetAccessoryRig.js';
@@ -105,6 +105,7 @@ suite('ChatPetWidget', () => {
 		const service = disposables.add(new ChatPetService(disposables.add(new TestStorageService()), new TestTelemetryService(), new NullLogService()));
 		disposables.add(new ChatPetWidget(
 			createPetHost(parent, dragBounds, movementBounds),
+			undefined,
 			service,
 			new TestAccessibilityService(),
 			new class extends mock<IContextMenuService>() { }(),
@@ -130,6 +131,46 @@ suite('ChatPetWidget', () => {
 		});
 	});
 
+	test('observes layout bounds only while visible and enabled', () => {
+		const observedTargets = new Set<Element>();
+		class TestResizeObserver implements ResizeObserver {
+			observe(target: Element): void { observedTargets.add(target); }
+			unobserve(target: Element): void { observedTargets.delete(target); }
+			disconnect(): void { observedTargets.clear(); }
+			takeRecords(): ResizeObserverEntry[] { return []; }
+		}
+		const parent = mainWindow.document.createElement('div');
+		const dragBounds = mainWindow.document.createElement('div');
+		const movementBounds = mainWindow.document.createElement('div');
+		mainWindow.document.body.append(parent, dragBounds, movementBounds);
+		disposables.add(toDisposable(() => {
+			parent.remove();
+			dragBounds.remove();
+			movementBounds.remove();
+		}));
+		const service = disposables.add(new ChatPetService(disposables.add(new TestStorageService()), new TestTelemetryService(), new NullLogService()));
+		disposables.add(new ChatPetWidget(
+			createPetHost(parent, dragBounds, movementBounds),
+			TestResizeObserver as unknown as typeof ResizeObserver,
+			service,
+			new TestAccessibilityService(),
+			new class extends mock<IContextMenuService>() { }(),
+			new class extends mock<ICommandService>() { }(),
+			new NullLogService(),
+			new class extends mock<IHostService>() {
+				override readonly hasFocus = true;
+				override readonly onDidChangeFocus = Event.None;
+				override readonly onDidChangeActiveWindow = Event.None;
+			}(),
+		));
+
+		assert.strictEqual(observedTargets.size, 0);
+		service.toggle();
+		assert.deepStrictEqual(observedTargets, new Set([dragBounds, movementBounds, parent]));
+		service.toggle();
+		assert.strictEqual(observedTargets.size, 0);
+	});
+
 	test('stacks the run cycle behind the input', () => {
 		const parent = mainWindow.document.createElement('div');
 		const input = mainWindow.document.createElement('div');
@@ -144,6 +185,7 @@ suite('ChatPetWidget', () => {
 		service.toggle();
 		disposables.add(new ChatPetWidget(
 			createPetHost(parent, input, movementBounds),
+			undefined,
 			service,
 			new class extends TestAccessibilityService {
 				override isMotionReduced(): boolean { return false; }
@@ -223,6 +265,7 @@ suite('ChatPetWidget', () => {
 		const service = disposables.add(new ChatPetService(disposables.add(new TestStorageService()), new TestTelemetryService(), new NullLogService()));
 		const widget = disposables.add(new ChatPetWidget(
 			createPetHost(firstParent, firstBounds, movementBounds),
+			undefined,
 			service,
 			new TestAccessibilityService(),
 			new class extends mock<IContextMenuService>() { }(),
@@ -449,6 +492,7 @@ suite('ChatPetWidget', () => {
 		const service = disposables.add(new ChatPetService(disposables.add(new TestStorageService()), new TestTelemetryService(), new NullLogService()));
 		disposables.add(new ChatPetWidget(
 			createPetHost(parent, dragBounds, movementBounds),
+			undefined,
 			service,
 			new TestAccessibilityService(),
 			new class extends mock<IContextMenuService>() { }(),
@@ -646,6 +690,7 @@ suite('ChatPetWidget', () => {
 		const service = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService()));
 		const widget = disposables.add(new ChatPetWidget(
 			createPetHost(parent, dragBounds, movementBounds),
+			undefined,
 			service,
 			new TestAccessibilityService(),
 			new class extends mock<IContextMenuService>() { }(),
@@ -839,7 +884,7 @@ suite('ChatPetWidget', () => {
 		service.setHorizontalPosition(0.3);
 		storageService.store('chat.vscodePet.achievement.chatFork', true, StorageScope.APPLICATION_SHARED, StorageTarget.USER);
 		storageService.store('chat.vscodePet.achievement.chatFork', true, StorageScope.APPLICATION, StorageTarget.USER);
-		const disabledUnlock = service.unlockAchievement(ChatPetAchievementIds.InstructionPresent);
+		const disabledUnlock = service.unlockAchievement(ChatPetAchievementIds.QueueOrSteeringMessage);
 		service.resetAchievements();
 		storageService.store('chat.vscodePet.achievementCatalogVersion', 3, StorageScope.APPLICATION_SHARED, StorageTarget.USER);
 		const migratedService = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService()));
@@ -1013,6 +1058,15 @@ suite('ChatPetWidget', () => {
 		], [false, false, false, true]);
 	});
 
+	test('recognizes only an explicit Interactive to Autopilot switch', () => {
+		assert.deepStrictEqual([
+			didExplicitlyEnableChatPetAutopilot('interactive', 'plan'),
+			didExplicitlyEnableChatPetAutopilot('plan', 'autopilot'),
+			didExplicitlyEnableChatPetAutopilot('interactive', 'autopilot'),
+			didExplicitlyEnableChatPetAutopilot('autopilot', 'autopilot'),
+		], [false, false, true, false]);
+	});
+
 	test('finds customization achievements from user-authored items and MCP servers', () => {
 		assert.deepStrictEqual([
 			getChatPetCustomizationAchievementIds([], [], 0),
@@ -1029,11 +1083,13 @@ suite('ChatPetWidget', () => {
 		]);
 	});
 
-	test('defines one unique covered-antennae reward for each achievement', () => {
+	test('defines unique covered-antennae rewards for each achievement', () => {
+		const accessoryIds = chatPetAchievements.flatMap(achievement => achievement.accessories.map(accessory => accessory.id));
 		assert.deepStrictEqual({
 			count: chatPetAchievements.length,
 			achievementIds: chatPetAchievements.map(achievement => achievement.id),
-			accessoryIds: chatPetAchievements.flatMap(achievement => achievement.accessories.map(accessory => accessory.id)),
+			accessoryIds,
+			uniqueAccessoryCount: new Set(accessoryIds).size,
 			atlasNames: chatPetAchievements.flatMap(achievement => achievement.accessories.map(accessory => accessory.atlasName)),
 			atlasCellSizes: chatPetAchievements.flatMap(achievement => achievement.accessories.map(accessory => accessory.atlasCellSize ?? 64)),
 			rewardCounts: chatPetAchievements.map(achievement => achievement.accessories.length),
@@ -1042,7 +1098,7 @@ suite('ChatPetWidget', () => {
 			disabledAchievementIds: disabledChatPetAchievements.map(achievement => achievement.id),
 			disabledAccessoryIds: disabledChatPetAchievements.flatMap(achievement => achievement.accessories.map(accessory => accessory.id)),
 		}, {
-			count: 6,
+			count: 14,
 			achievementIds: [
 				ChatPetAchievementIds.RequestRevision,
 				ChatPetAchievementIds.FirstChatMessage,
@@ -1050,6 +1106,14 @@ suite('ChatPetWidget', () => {
 				ChatPetAchievementIds.ModelSwitch,
 				ChatPetAchievementIds.McpServerPresent,
 				ChatPetAchievementIds.CustomSkillPresent,
+				ChatPetAchievementIds.AgentsWindowOpened,
+				ChatPetAchievementIds.CreatePullRequest,
+				ChatPetAchievementIds.AgentEditKept,
+				ChatPetAchievementIds.SessionArchived,
+				ChatPetAchievementIds.AgentChangesReviewed,
+				ChatPetAchievementIds.ChatReferenceOpened,
+				ChatPetAchievementIds.UsefulOutputCopied,
+				ChatPetAchievementIds.AutopilotEnabled,
 			],
 			accessoryIds: [
 				ChatPetAccessoryIds.TopHatMonocle,
@@ -1058,7 +1122,16 @@ suite('ChatPetWidget', () => {
 				ChatPetAccessoryIds.ConstructionHardHat,
 				ChatPetAccessoryIds.FirefighterHelmet,
 				ChatPetAccessoryIds.Crown,
+				ChatPetAccessoryIds.PropellerHat,
+				ChatPetAccessoryIds.DarkSailorHat,
+				ChatPetAccessoryIds.WhiteChefHat,
+				ChatPetAccessoryIds.SantaHat,
+				ChatPetAccessoryIds.RiceHat,
+				ChatPetAccessoryIds.StrawHat,
+				ChatPetAccessoryIds.PinkPartyHat,
+				ChatPetAccessoryIds.WizardHat,
 			],
+			uniqueAccessoryCount: 14,
 			atlasNames: [
 				'grand-top-hat-monocle',
 				'cowboy-hat',
@@ -1066,25 +1139,126 @@ suite('ChatPetWidget', () => {
 				'construction-hard-hat',
 				'firefighter-helmet',
 				'crown',
+				'propeller-hat',
+				'dark-sailor-hat',
+				'white-chef-hat',
+				'santa-hat',
+				'rice-hat',
+				'straw-hat',
+				'pink-party-hat',
+				'wizard-hat',
 			],
-			atlasCellSizes: Array(6).fill(96),
-			rewardCounts: Array(6).fill(1),
+			atlasCellSizes: Array(14).fill(96),
+			rewardCounts: Array(14).fill(1),
 			coversAntennae: true,
 			crownAccessoryId: 'crown',
 			disabledAchievementIds: [
 				ChatPetAchievementIds.InstructionPresent,
 				ChatPetAchievementIds.QueueOrSteeringMessage,
-				ChatPetAchievementIds.AgentsWindowOpened,
 				ChatPetAchievementIds.ChatOutputCopied,
 				ChatPetAchievementIds.ImageRequest,
 			],
 			disabledAccessoryIds: [
 				ChatPetAccessoryIds.SailorHat,
 				ChatPetAccessoryIds.SpinnerHat,
-				ChatPetAccessoryIds.VikingHelmet,
 				ChatPetAccessoryIds.PartyHat,
 				ChatPetAccessoryIds.ArtistBeret,
 			],
+		});
+	});
+
+	test('keeps legacy disabled hats out of the enabled catalog', () => {
+		const enabledAccessoryIds = new Set(chatPetAchievements.flatMap(achievement => achievement.accessories.map(accessory => accessory.id)));
+		const disabledAccessoryIds = new Set(disabledChatPetAchievements.flatMap(achievement => achievement.accessories.map(accessory => accessory.id)));
+		const legacyDisabledAccessoryIds = [
+			ChatPetAccessoryIds.SailorHat,
+			ChatPetAccessoryIds.SpinnerHat,
+			ChatPetAccessoryIds.PartyHat,
+			ChatPetAccessoryIds.ArtistBeret,
+		];
+
+		assert.deepStrictEqual(legacyDisabledAccessoryIds.map(id => ({
+			id,
+			enabled: enabledAccessoryIds.has(id),
+			disabled: disabledAccessoryIds.has(id),
+		})), legacyDisabledAccessoryIds.map(id => ({ id, enabled: false, disabled: true })));
+	});
+
+	test('maps every newly added hat to a distinct achievement', () => {
+		const achievementIds = [
+			ChatPetAchievementIds.SessionArchived,
+			ChatPetAchievementIds.AgentChangesReviewed,
+			ChatPetAchievementIds.ChatReferenceOpened,
+			ChatPetAchievementIds.UsefulOutputCopied,
+			ChatPetAchievementIds.AutopilotEnabled,
+			ChatPetAchievementIds.AgentsWindowOpened,
+			ChatPetAchievementIds.CreatePullRequest,
+			ChatPetAchievementIds.AgentEditKept,
+		];
+
+		assert.deepStrictEqual({
+			firstMessageRewards: getChatPetAchievement(ChatPetAchievementIds.FirstChatMessage).accessories.map(accessory => accessory.id),
+			newAchievements: achievementIds.map(id => {
+				const achievement = getChatPetAchievement(id);
+				return { title: achievement.title, reward: achievement.accessories[0].id };
+			}),
+		}, {
+			firstMessageRewards: [ChatPetAccessoryIds.CowboyHat],
+			newAchievements: [
+				{ title: 'Wrapped Up', reward: ChatPetAccessoryIds.SantaHat },
+				{ title: 'Trust but Verify', reward: ChatPetAccessoryIds.RiceHat },
+				{ title: 'Follow the Trail', reward: ChatPetAccessoryIds.StrawHat },
+				{ title: 'Copy That', reward: ChatPetAccessoryIds.PinkPartyHat },
+				{ title: 'Party Mode', reward: ChatPetAccessoryIds.WizardHat },
+				{ title: 'Mission Control', reward: ChatPetAccessoryIds.PropellerHat },
+				{ title: 'Ship it', reward: ChatPetAccessoryIds.DarkSailorHat },
+				{ title: 'Let it cook', reward: ChatPetAccessoryIds.WhiteChefHat },
+			],
+		});
+	});
+
+	test('rewards keeping agent edits with the white chef hat', () => {
+		const letItCook = getChatPetAchievement(ChatPetAchievementIds.AgentEditKept);
+
+		assert.deepStrictEqual({
+			title: letItCook.title,
+			description: letItCook.description,
+			hint: letItCook.hint,
+			accessoryIds: letItCook.accessories.map(accessory => accessory.id),
+		}, {
+			title: 'Let it cook',
+			description: 'You kept a change prepared by Chat.',
+			hint: 'Give a good idea time to come together.',
+			accessoryIds: [ChatPetAccessoryIds.WhiteChefHat],
+		});
+	});
+
+	test('rewards Create PR with the dark sailor hat and the Agents window with the propeller hat', () => {
+		const shipIt = getChatPetAchievement(ChatPetAchievementIds.CreatePullRequest);
+		const missionControl = getChatPetAchievement(ChatPetAchievementIds.AgentsWindowOpened);
+
+		assert.deepStrictEqual({
+			shipIt: {
+				title: shipIt.title,
+				description: shipIt.description,
+				hint: shipIt.hint,
+				accessoryIds: shipIt.accessories.map(accessory => accessory.id),
+			},
+			missionControl: {
+				title: missionControl.title,
+				accessoryIds: missionControl.accessories.map(accessory => accessory.id),
+			},
+		}, {
+			shipIt: {
+				title: 'Ship it',
+				description: 'You used Create PR in the Agents window.',
+				hint: 'When the changes are ready, send them on their way.',
+				accessoryIds: [ChatPetAccessoryIds.DarkSailorHat],
+			},
+			missionControl: {
+				title: 'Mission Control',
+				accessoryIds: [ChatPetAccessoryIds.PropellerHat],
+			},
 		});
 	});
 
@@ -1151,6 +1325,14 @@ suite('ChatPetWidget', () => {
 				ChatPetAccessoryIds.ConstructionHardHat,
 				ChatPetAccessoryIds.FirefighterHelmet,
 				ChatPetAccessoryIds.Crown,
+				ChatPetAccessoryIds.PropellerHat,
+				ChatPetAccessoryIds.DarkSailorHat,
+				ChatPetAccessoryIds.WhiteChefHat,
+				ChatPetAccessoryIds.SantaHat,
+				ChatPetAccessoryIds.RiceHat,
+				ChatPetAccessoryIds.StrawHat,
+				ChatPetAccessoryIds.PinkPartyHat,
+				ChatPetAccessoryIds.WizardHat,
 			],
 		});
 	});

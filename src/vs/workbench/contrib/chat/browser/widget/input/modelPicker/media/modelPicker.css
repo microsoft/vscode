@@ -51,14 +51,17 @@
 }
 
 .chat-input-picker-item .action-label.model-picker-split .model-picker-name {
-	min-width: 0;
-	flex-shrink: 1;
-	overflow: hidden;
+	flex-shrink: 0;
+	overflow: visible;
+}
+
+.interactive-session .chat-input-toolbar .chat-input-picker-item.compact-picker .action-label.model-picker-split.compact {
+	justify-content: flex-start;
 }
 
 .chat-input-picker-item .action-label.model-picker-split .model-picker-name .chat-input-picker-label {
-	overflow: hidden;
-	text-overflow: ellipsis;
+	overflow: visible;
+	text-overflow: clip;
 }
 
 .chat-input-picker-item .action-label.model-picker-split .model-picker-config {

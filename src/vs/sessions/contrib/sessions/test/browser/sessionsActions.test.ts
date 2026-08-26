@@ -54,12 +54,12 @@ suite('Sessions - Actions', () => {
 	test('groups session management actions before creation and close', () => {
 		const actions = MenuRegistry.getMenuItems(Menus.SessionBarToolbar)
 			.filter(isIMenuItem)
-			.filter(item => item.command.id === 'sessions.chatCompositeBar.togglePin' || item.command.id === 'sessionsViewPane.renameSession' || item.command.id === 'sessions.chatCompositeBar.addChat' || item.command.id === 'sessions.chatCompositeBar.close')
+			.filter(item => item.command.id === 'sessions.chatCompositeBar.togglePin' || item.command.id === 'sessions.sessionHeader.rename' || item.command.id === 'sessions.chatCompositeBar.addChat' || item.command.id === 'sessions.chatCompositeBar.close')
 			.sort((a, b) => (a.group ?? '').localeCompare(b.group ?? '') || (a.order ?? 0) - (b.order ?? 0))
 			.map(item => ({ id: item.command.id, group: item.group }));
 
 		assert.deepStrictEqual(actions, [
-			{ id: 'sessionsViewPane.renameSession', group: 'secondary/1_session' },
+			{ id: 'sessions.sessionHeader.rename', group: 'secondary/1_session' },
 			{ id: 'sessions.chatCompositeBar.addChat', group: 'secondary/2_chats' },
 			{ id: 'sessions.chatCompositeBar.togglePin', group: 'secondary/3_pin' },
 			{ id: 'sessions.chatCompositeBar.close', group: 'secondary/3_pin' },

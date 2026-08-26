@@ -55,6 +55,8 @@ import { ViewPane, IViewPaneOptions, ViewAction } from '../../../../workbench/br
 import { ViewPaneContainer } from '../../../../workbench/browser/parts/views/viewPaneContainer.js';
 import { IViewDescriptorService } from '../../../../workbench/common/views.js';
 import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
+import { ChatPetAchievementIds } from '../../../../workbench/contrib/chat/browser/chatPetAchievements.js';
+import { IChatPetService } from '../../../../workbench/contrib/chat/browser/chatPetService.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { createFileIconThemableTreeContainerScope } from '../../../../workbench/contrib/files/browser/views/explorerView.js';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../../workbench/services/editor/common/editorService.js';
@@ -103,12 +105,25 @@ const singlePaneChangesEditorHeader = ContextKeyExpr.and(
 	ActiveEditorContext.isEqualTo(SessionChangesEditorInput.EDITOR_ID)
 );
 const EMPTY_FILE_CHANGES_MIN_HEIGHT = 140;
+const CHAT_PET_CREATE_PULL_REQUEST_ACTION_IDS = new Set([
+	'create-pr',
+	'create-pr-auto-merge',
+	'create-pr-auto-squash',
+	'create-pr-auto-rebase',
+	'github.copilot.chat.createPullRequestCopilotCLIAgentSession.createPR',
+	'workbench.action.agentSessions.runSkill.createPR',
+]);
 
 /** Breathing room rendered beneath the last file row when the whole list fits. */
 const TREE_PANE_LIST_BOTTOM_PADDING = 12;
 
 /** The file changes section always reserves room for at least this many file rows. */
 const TREE_PANE_MIN_VISIBLE_ROWS = 5;
+
+export function unlockChatPetCreatePullRequestAchievement(actionId: string, chatPetService: IChatPetService): boolean {
+	return CHAT_PET_CREATE_PULL_REQUEST_ACTION_IDS.has(actionId)
+		&& chatPetService.unlockAchievement(ChatPetAchievementIds.CreatePullRequest);
+}
 
 // --- ButtonBar widget
 
@@ -140,7 +155,8 @@ class ChangesMenuWorkbenchButtonBarWidget extends Disposable implements IChanges
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IHoverService hoverService: IHoverService
+		@IHoverService hoverService: IHoverService,
+		@IChatPetService chatPetService: IChatPetService,
 	) {
 		super();
 
@@ -190,7 +206,10 @@ class ChangesMenuWorkbenchButtonBarWidget extends Disposable implements IChanges
 			);
 
 			// Set the running label override
-			reader.store.add(buttonBar.onWillRun(e => runningLabelObs.set(e.action.label, undefined)));
+			reader.store.add(buttonBar.onWillRun(e => {
+				runningLabelObs.set(e.action.label, undefined);
+				unlockChatPetCreatePullRequestAchievement(e.action.id, chatPetService);
+			}));
 
 			this._currentButtonBar = buttonBar;
 			reader.store.add(buttonBar.onDidChange(() => this._onDidChangeActions.fire()));
@@ -283,6 +302,7 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 		@IChangesViewService changesViewService: IChangesViewService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IChatPetService chatPetService: IChatPetService,
 	) {
 		super();
 
@@ -301,6 +321,7 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 				}
 			}
 		));
+		this._register(buttonBar.onWillRun(e => unlockChatPetCreatePullRequestAchievement(e.action.id, chatPetService)));
 		this.onDidChangeActions = Event.signal(buttonBar.onDidChange);
 
 		const menuActionsObs = observableFromEvent(menu.onDidChange, () => {
