@@ -95,6 +95,7 @@ import { IAutomationService } from '../../../../../workbench/contrib/chat/common
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
 import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../automationsConstants.js';
 import { Menus } from '../../../../browser/menus.js';
+import { getSessionConversationStatusAriaLabel } from '../../../../browser/sessionConversationGroups.js';
 
 const $ = DOM.$;
 
@@ -403,6 +404,10 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 		template.elementDisposables.add(this.hoverService.setupDelayedHover(template.title.element, () => ({
 			content: getChatTitle(element.chat),
 		}), { groupId: 'sessions-list' }));
+	}
+
+	disposeElement(_node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionChatItemTemplate): void {
+		template.elementDisposables.clear();
 	}
 
 	disposeTemplate(template: ISessionChatItemTemplate): void {
@@ -1544,9 +1549,10 @@ class SessionsAccessibilityProvider {
 		if (isSessionChatItem(element)) {
 			return derived(this, reader => localize(
 				'sessionChatItemAria',
-				"{0}, chat, updated {1}",
+				"{0}, chat, updated {1}, {2}",
 				getChatTitle(element.chat, reader),
 				fromNow(element.chat.updatedAt.read(reader), true),
+				getSessionConversationStatusAriaLabel(element.chat.status.read(reader)),
 			));
 		}
 		if (isSessionGroupItem(element)) {
@@ -2451,11 +2457,15 @@ export class SessionsList extends Disposable implements ISessionsList {
 			if (!e.affectsSome(phoneKeys)) {
 				return;
 			}
-			for (const session of this.sessions) {
-				if (this.tree.hasElement(session)) {
-					this.tree.updateElementHeight(session, delegate.getHeight(session));
+			const updateNodeHeights = (node: ITreeNode<SessionListItem | null, FuzzyScore>): void => {
+				if (node.element && (isSessionItem(node.element) || isSessionChatItem(node.element))) {
+					this.tree.updateElementHeight(node.element, delegate.getHeight(node.element));
 				}
-			}
+				for (const child of node.children) {
+					updateNodeHeights(child);
+				}
+			};
+			updateNodeHeights(this.tree.getNode());
 		}));
 
 		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
@@ -2554,6 +2564,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			this.activeSessionUpdate.value = DOM.scheduleAtNextAnimationFrame(DOM.getWindow(this.listContainer), () => {
 				if (this.visible) {
 					this.update();
+					this.syncActiveChatSelection(activeSession);
 				}
 			});
 		}));
@@ -2570,6 +2581,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		}));
 
 		this.refresh();
+		this.syncActiveChatSelection(this._sessionsService.activeSession.get());
 	}
 
 	/**
@@ -2939,7 +2951,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 		}
 
 		this.tree.setChildren(null, children);
-		this.syncActiveChatSelection(activeSession);
 		this._onDidUpdate.fire();
 	}
 

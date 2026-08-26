@@ -462,7 +462,7 @@ export class ChatGroupsView extends Themable {
 			if (source === target && source.resourceIds.get().length <= 1) {
 				return;
 			}
-			this._splitChatIntoNewGroup(resource, source, target, zone);
+			await this._splitChatIntoNewGroup(resource, source, target, zone);
 		}
 	}
 
@@ -481,7 +481,7 @@ export class ChatGroupsView extends Themable {
 		this._persistLayout();
 	}
 
-	private _splitChatIntoNewGroup(resource: URI, source: IGroupEntry, reference: IGroupEntry, zone: Exclude<ChatDropZone, 'center'>): void {
+	private async _splitChatIntoNewGroup(resource: URI, source: IGroupEntry, reference: IGroupEntry, zone: Exclude<ChatDropZone, 'center'>): Promise<void> {
 		if (!this._grid || !this._currentSessionStore || !this._session) {
 			return;
 		}
@@ -498,7 +498,7 @@ export class ChatGroupsView extends Themable {
 		});
 
 		this._setActiveGroup(newGroup);
-		this._sessionsService.openChat(this._session, resource).catch(onUnexpectedError);
+		await this._sessionsService.openChat(this._session, resource);
 		this._removeEmptyGroups();
 		this._applyLayout();
 		this._persistLayout();
@@ -530,7 +530,7 @@ export class ChatGroupsView extends Themable {
 		const existing = this._groups.find(g => g.resourceIds.get().includes(id));
 		if (existing) {
 			if (existing.resourceIds.get().length > 1) {
-				this._splitChatIntoNewGroup(resource, existing, existing, 'right');
+				await this._splitChatIntoNewGroup(resource, existing, existing, 'right');
 				return;
 			}
 			existing.activeResourceId.set(id, undefined);
@@ -610,7 +610,7 @@ export class ChatGroupsView extends Themable {
 				this._setActiveGroup(source);
 				return;
 			}
-			this._splitChatIntoNewGroup(resource, source, source, 'right');
+			this._splitChatIntoNewGroup(resource, source, source, 'right').catch(onUnexpectedError);
 			return;
 		}
 		// Not assigned yet: only open to the side when there is another chat to
@@ -727,7 +727,7 @@ export class ChatGroupsView extends Themable {
 		const source = this._activeGroup;
 		const resource = source?.activeResourceId.get();
 		if (source && resource && source.resourceIds.get().length > 1) {
-			this._splitChatIntoNewGroup(URI.parse(resource), source, source, direction);
+			this._splitChatIntoNewGroup(URI.parse(resource), source, source, direction).catch(onUnexpectedError);
 		}
 	}
 

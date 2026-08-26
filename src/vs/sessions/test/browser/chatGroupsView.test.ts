@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { mainWindow } from '../../../base/browser/window.js';
+import { DeferredPromise } from '../../../base/common/async.js';
 import { Event } from '../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { constObservable, derived, IObservable, ISettableObservable, observableValue } from '../../../base/common/observable.js';
@@ -115,8 +116,14 @@ class TestActiveSession extends mock<IActiveSession>() {
 
 class TestSessionsService extends mock<ISessionsService>() {
 	override readonly activeSession = observableValue<IActiveSession | undefined>(this, undefined);
+	openChatGate: Promise<void> | undefined;
+	openChatError: Error | undefined;
 
 	override async openChat(session: ISession, chatUri: URI): Promise<void> {
+		await this.openChatGate;
+		if (this.openChatError) {
+			throw this.openChatError;
+		}
 		if (!(session instanceof TestActiveSession)) {
 			return;
 		}
@@ -284,26 +291,45 @@ suite('Sessions - ChatGroupsView', () => {
 	});
 
 	test('opening an existing main-group tab to the side moves it into its own group', async () => {
-		const { view } = createHarness(disposables);
+		const { sessionsService, view } = createHarness(disposables);
 		const main = createChat('main');
 		const secondary = createChat('secondary');
 		const session = new TestActiveSession([main, secondary]);
 		view.setSession(session, options);
 
-		await view.openChatInNewGroup(secondary.resource);
+		const gate = new DeferredPromise<void>();
+		sessionsService.openChatGate = gate.p;
+		let settled = false;
+		const openPromise = view.openChatInNewGroup(secondary.resource).finally(() => settled = true);
+		await Promise.resolve();
+		const settledBeforeOpen = settled;
+		gate.complete();
+		await openPromise;
 		const afterSplit = Array.from(view.element.querySelectorAll('.chat-group-view'))
 			.map(group => Array.from(group.querySelectorAll<HTMLElement>('.chat-composite-bar-tab')).map(tab => tab.dataset.chatResource));
 		await view.openChatInNewGroup(secondary.resource);
 
 		assert.deepStrictEqual({
+			settledBeforeOpen,
 			afterSplit,
 			groupCountAfterRepeatedOpen: view.groupCount.get(),
 			activeChat: session.activeChat.get().resource.toString(),
 		}, {
+			settledBeforeOpen: false,
 			afterSplit: [[main.resource.toString()], [secondary.resource.toString()]],
 			groupCountAfterRepeatedOpen: 2,
 			activeChat: secondary.resource.toString(),
 		});
+	});
+
+	test('opening an existing tab to the side propagates open failures', async () => {
+		const { sessionsService, view } = createHarness(disposables);
+		const main = createChat('main');
+		const secondary = createChat('secondary');
+		view.setSession(new TestActiveSession([main, secondary]), options);
+		sessionsService.openChatError = new Error('open failed');
+
+		await assert.rejects(view.openChatInNewGroup(secondary.resource), /open failed/);
 	});
 
 	test('dropping a hidden subagent on an edge opens it in a new group', async () => {
