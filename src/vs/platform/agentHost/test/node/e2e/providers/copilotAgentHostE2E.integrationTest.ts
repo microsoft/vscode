@@ -25,43 +25,28 @@
  */
 
 import assert from 'assert';
-import { mkdtemp, rm, writeFile } from 'fs/promises';
+import { mkdtemp, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { MessageAttachmentKind, MessageKind, PendingMessageKind, ToolCallConfirmationReason, ToolCallContributorKind, buildDefaultChatUri, type MessageAttachment } from '../../../../common/state/sessionState.js';
-import { ActionType, type ChatToolCallDeltaAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatUsageAction } from '../../../../common/state/sessionActions.js';
+import { CollectAgentHostDebugLogsExtensionMethod, type IAgentHostExtensionCommandMap } from '../../../../common/agentHostExtensionProtocol.js';
+import { readToolCallMeta } from '../../../../common/meta/agentToolCallMeta.js';
+import { MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ROOT_STATE_URI, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, buildDefaultChatUri, getInlineToolInput, getTurnError, type MessageAttachment } from '../../../../common/state/sessionState.js';
+import { ActionType, type ChatErrorAction, type ChatToolCallCompleteAction, type ChatToolCallDeltaAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatUsageAction } from '../../../../common/state/sessionActions.js';
+import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
 import {
-	AgentHostE2EServerLease, createRealSession, dispatchTurn, driveTurnWithAttachmentsToCompletion,
-	runAhpSnapshotTest, type IAgentHostE2EProviderConfig,
+	AgentHostE2EServerLease, assertToolCallCompleteText, createRealSession, dispatchTurn,
+	driveTurnToCompletion, driveTurnWithAttachmentsToCompletion, removeTempDirs, resolveGitHubToken, runAhpSnapshotTest,
 } from '../harness/agentHostE2ETestHarness.js';
+import { assertRecordedAhpSnapshot } from '../harness/ahpSnapshot.js';
 import { defineAgentHostE2ETests } from '../suites/agentHostE2ESuites.js';
 import { fetchSessionWithChat, getActionEnvelope, isActionNotification, TestProtocolClient } from '../../serverIntegrationTestHelpers.js';
-
-const COPILOT_CONFIG: IAgentHostE2EProviderConfig = {
-	suiteTitle: 'Agent Host E2E — Copilot',
-	provider: 'copilotcli',
-	scheme: 'copilotcli',
-	shellToolName: 'bash',
-	subagentToolNames: ['task'],
-	exitPlanModeToolName: 'exit_plan_mode',
-	streamingFileCreateToolName: 'create',
-	// The shared suite runs by default in deterministic replay mode (tokenless,
-	// against committed fixtures). Recording new fixtures is opt-in via
-	// `AGENT_HOST_REPLAY_RECORD=1`. The Copilot CLI is always present (dev dep).
-	enabled: true,
-	supportsWorktreeIsolation: true,
-	supportsHostTerminalTool: true,
-	supportsSubagents: true,
-	supportsSideChats: true,
-	supportsPlanMode: true,
-	supportsMultipleChats: true,
-	supportsChatFork: true,
-	supportsChatForkE2E: true,
-	supportsFileTools: true,
-};
+import { COPILOT_CONFIG } from './copilotTestConfiguration.js';
 
 const RECORD_ONLY = process.env['AGENT_HOST_REPLAY_RECORD'] === '1';
+const RECORD = RECORD_ONLY || process.env['AGENT_HOST_UPDATE_SNAPSHOTS'] === '1';
+const isWindows = process.platform === 'win32';
+type DebugLogsArtifactResult = IAgentHostExtensionCommandMap[typeof CollectAgentHostDebugLogsExtensionMethod]['result'];
 
 defineAgentHostE2ETests(COPILOT_CONFIG);
 
@@ -90,23 +75,56 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 	});
 
 	teardown(async function () {
-		this.timeout(60_000);
+		this.timeout(120_000);
 		if (!lease) {
 			throw new Error('Agent Host E2E server lease was not initialized.');
 		}
-		await lease.release(createdSessions);
-
-		for (const dir of tempDirs) {
-			try {
-				await rm(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
-			} catch { /* best-effort */ }
+		const failed = this.currentTest?.state === 'failed';
+		if (failed) {
+			lease.dumpRuntimeLogsOnFailure(this.currentTest?.title ?? 'unknown');
 		}
-		tempDirs.length = 0;
+		const errors: Error[] = [];
+		try {
+			await lease.release(createdSessions, failed);
+		} catch (error) {
+			errors.push(error instanceof Error ? error : new Error(String(error)));
+		}
+		try {
+			await removeTempDirs(tempDirs);
+		} catch (error) {
+			errors.push(error instanceof Error ? error : new Error(String(error)));
+		}
+		if (errors.length > 0) {
+			throw new AggregateError(errors, 'Failed to dispose Copilot-specific E2E test resources');
+		}
+	});
+
+	test('materialized Copilot debug collection includes provider log entries', async function () {
+		this.timeout(180_000);
+		const workingDirectory = await mkdtemp(join(tmpdir(), 'ahp-copilot-debug-logs-'));
+		tempDirs.push(workingDirectory);
+		const sessionUri = await createRealSession(client, COPILOT_CONFIG, 'copilot-debug-logs', createdSessions, URI.file(workingDirectory));
+		await driveTurnToCompletion(client, sessionUri, 'turn-copilot-debug-logs', 'Reply exactly "ready".', 1);
+
+		const debugLogs = await client.call<DebugLogsArtifactResult>(CollectAgentHostDebugLogsExtensionMethod, {
+			kind: 'archive',
+			session: sessionUri,
+		});
+
+		assert.deepStrictEqual({
+			providerLogsIncluded: debugLogs.providerLogsIncluded,
+			hasProviderLogEntries: debugLogs.entries.some(entry => !/^agenthost(?:-server)?(?:\.\d+)?\.log$/.test(entry.path)),
+		}, {
+			providerLogsIncluded: true,
+			hasProviderLogEntries: true,
+		});
 	});
 
 	test('client tool reaches ready after start and completes', async function () {
 		this.timeout(180_000);
-		await runAhpSnapshotTest(client, COPILOT_CONFIG, this.test!, createdSessions, tempDirs);
+		await runAhpSnapshotTest(client, COPILOT_CONFIG, this.test!, createdSessions, tempDirs, {
+			ignoredActionTypes: [ActionType.ChatUsage],
+		});
 
 		const start = client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallStart'))
 			.map(n => getActionEnvelope(n).action as ChatToolCallStartAction)
@@ -127,6 +145,59 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 			startContributor: { kind: ToolCallContributorKind.Client, clientId: 'copilot-client-tool' },
 			readyContributor: { kind: ToolCallContributorKind.Client, clientId: 'copilot-client-tool' },
 			deltaCount: 0,
+		});
+	});
+
+	// Windows restores the failed turn as cancelled and drops its persisted request error.
+	(isWindows ? test.skip : test)('request error survives a host restart', async function () {
+		this.timeout(180_000);
+		const workingDirectory = await mkdtemp(join(tmpdir(), 'copilot-error-restart-'));
+		tempDirs.push(workingDirectory);
+		const clientId = 'copilot-error-restart';
+		const prompt = 'Reply exactly "unreachable".';
+		const sessionUri = await createRealSession(client, COPILOT_CONFIG, clientId, createdSessions, URI.file(workingDirectory));
+		const chatUri = buildDefaultChatUri(sessionUri);
+
+		await driveTurnToCompletion(client, sessionUri, 'turn-error-seed', 'Reply exactly "READY".', 1);
+		if (!lease) {
+			throw new Error('Agent Host E2E server lease was not initialized.');
+		}
+		if (RECORD) {
+			lease.setRecordingModelResponse({
+				status: 500,
+				headers: {
+					'content-type': 'application/json',
+					'x-request-id': 'agent-host-e2e-error',
+				},
+				body: '{"type":"error","error":{"type":"api_error","message":"deterministic Agent Host E2E failure"}}',
+			});
+		}
+
+		dispatchTurn(client, sessionUri, 'turn-error-restart', prompt, 2);
+		const liveNotification = await client.waitForNotification(notification =>
+			isActionNotification(notification, 'chat/error')
+			&& getActionEnvelope(notification).channel === chatUri,
+			90_000,
+		);
+		const liveError = (getActionEnvelope(liveNotification).action as ChatErrorAction).part.error;
+
+		client = await lease.restart();
+		client.setWorkingDirectory(workingDirectory);
+		await client.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: `${clientId}-reopened` }, 30_000);
+		await client.call('authenticate', {
+			channel: ROOT_STATE_URI,
+			resource: 'https://api.github.com',
+			token: COPILOT_CONFIG.githubToken ?? resolveGitHubToken(),
+		}, 30_000);
+
+		const reopened = await fetchSessionWithChat(client, sessionUri);
+		const restoredTurn = reopened.turns.find(turn => turn.message.text === prompt);
+		assert.deepStrictEqual({
+			state: restoredTurn?.state,
+			error: getTurnError(restoredTurn),
+		}, {
+			state: TurnState.Error,
+			error: liveError,
 		});
 	});
 
@@ -153,16 +224,19 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 				},
 			},
 		});
-		dispatchTurn(client, sessionUri, 'turn-client-tool-disconnect', 'Call the get_magic_word tool and then report whether it succeeded.', 2);
+		const turnId = 'turn-client-tool-disconnect';
+		const chatUri = buildDefaultChatUri(sessionUri);
+		dispatchTurn(client, sessionUri, turnId, 'Call the get_magic_word tool and then report whether it succeeded.', 2);
 
 		const toolStart = await client.waitForNotification(n => {
 			if (!isActionNotification(n, 'chat/toolCallStart')) {
 				return false;
 			}
-			const action = getActionEnvelope(n).action as { toolName: string };
-			return action.toolName === 'get_magic_word';
+			const envelope = getActionEnvelope(n);
+			const action = envelope.action as ChatToolCallStartAction;
+			return envelope.channel === chatUri && action.turnId === turnId && action.toolName === 'get_magic_word';
 		}, 90_000);
-		const toolCallId = (getActionEnvelope(toolStart).action as { toolCallId: string }).toolCallId;
+		const toolCallId = (getActionEnvelope(toolStart).action as ChatToolCallStartAction).toolCallId;
 
 		client.notify('unsubscribe', { channel: sessionUri });
 
@@ -170,22 +244,139 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 			if (!isActionNotification(n, 'chat/toolCallComplete')) {
 				return false;
 			}
-			const action = getActionEnvelope(n).action as { toolCallId: string; result: { success: boolean } };
-			return action.toolCallId === toolCallId && !action.result.success;
+			const envelope = getActionEnvelope(n);
+			const action = envelope.action as ChatToolCallCompleteAction;
+			return envelope.channel === chatUri && action.turnId === turnId && action.toolCallId === toolCallId && !action.result.success;
 		}, 30_000);
 		const failedCompletionSeq = getActionEnvelope(failedCompletion).serverSeq;
 
-		await client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'), 90_000);
+		await client.waitForNotification(n =>
+			isActionNotification(n, 'chat/turnComplete')
+			&& getActionEnvelope(n).channel === chatUri
+			&& (getActionEnvelope(n).action as { turnId: string }).turnId === turnId,
+			90_000);
 
 		const staleReady = client.receivedNotifications(n => {
 			if (!isActionNotification(n, 'chat/toolCallReady')) {
 				return false;
 			}
 			const envelope = getActionEnvelope(n);
-			const action = envelope.action as { toolCallId: string };
-			return envelope.serverSeq > failedCompletionSeq && action.toolCallId === toolCallId;
+			const action = envelope.action as ChatToolCallReadyAction;
+			return envelope.channel === chatUri && envelope.serverSeq > failedCompletionSeq && action.turnId === turnId && action.toolCallId === toolCallId;
 		});
 		assert.deepStrictEqual(staleReady, []);
+	});
+
+	test('client tool result confirmation is required before the provider continues', async function () {
+		this.timeout(180_000);
+		const workingDirectory = await mkdtemp(join(tmpdir(), 'copilot-client-tool-result-confirmation-'));
+		tempDirs.push(workingDirectory);
+		const clientId = 'copilot-client-tool-result-confirmation';
+		const sessionUri = await createRealSession(client, COPILOT_CONFIG, clientId, createdSessions, URI.file(workingDirectory));
+		client.dispatch({
+			channel: sessionUri,
+			clientSeq: 1,
+			action: {
+				type: ActionType.SessionActiveClientSet,
+				activeClient: {
+					clientId,
+					displayName: 'Result Confirmation Client',
+					tools: [{
+						name: 'get_magic_word',
+						description: 'Returns the secret magic word. Call this when asked for the magic word.',
+						inputSchema: { type: 'object', properties: {}, required: [] },
+					}],
+				},
+			},
+		});
+		const chatUri = buildDefaultChatUri(sessionUri);
+		const turnId = 'turn-client-tool-result-confirmation';
+		dispatchTurn(client, sessionUri, turnId, 'Call get_magic_word exactly once, then reply with only its result.', 2);
+		const started = await client.waitForNotification(n =>
+			isActionNotification(n, 'chat/toolCallStart')
+			&& getActionEnvelope(n).channel === chatUri
+			&& (getActionEnvelope(n).action as ChatToolCallStartAction).toolName === 'get_magic_word',
+			90_000,
+		);
+		const toolCallId = (getActionEnvelope(started).action as ChatToolCallStartAction).toolCallId;
+		const initialReady = await client.waitForNotification(n =>
+			isActionNotification(n, 'chat/toolCallReady')
+			&& getActionEnvelope(n).channel === chatUri
+			&& (getActionEnvelope(n).action as ChatToolCallReadyAction).toolCallId === toolCallId,
+			30_000,
+		);
+		client.dispatch({
+			channel: chatUri,
+			clientSeq: 3,
+			action: {
+				type: ActionType.ChatToolCallConfirmed,
+				turnId,
+				toolCallId,
+				approved: true,
+				confirmed: ToolCallConfirmationReason.UserAction,
+			},
+		});
+		await client.waitForNotification(n =>
+			isActionNotification(n, 'chat/toolCallConfirmed')
+			&& getActionEnvelope(n).channel === chatUri
+			&& getActionEnvelope(n).serverSeq > getActionEnvelope(initialReady).serverSeq
+			&& (getActionEnvelope(n).action as { readonly toolCallId: string }).toolCallId === toolCallId,
+			30_000,
+		);
+		client.dispatch({
+			channel: chatUri,
+			clientSeq: 4,
+			action: {
+				type: ActionType.ChatToolCallComplete,
+				turnId,
+				toolCallId,
+				result: {
+					success: true,
+					pastTenseMessage: 'Got the magic word',
+					content: [{ type: ToolResultContentType.Text, text: 'XYLOPHONE' }],
+				},
+				requiresResultConfirmation: true,
+			},
+		});
+		await client.waitForNotification(n =>
+			isActionNotification(n, 'chat/toolCallComplete')
+			&& getActionEnvelope(n).channel === chatUri
+			&& (getActionEnvelope(n).action as ChatToolCallCompleteAction).toolCallId === toolCallId,
+			30_000,
+		);
+		const paused = await fetchSessionWithChat(client, sessionUri);
+		const pendingToolCall = paused.activeTurn?.responseParts.find(part =>
+			part.kind === ResponsePartKind.ToolCall && part.toolCall.toolCallId === toolCallId,
+		);
+		assert.deepStrictEqual({
+			status: pendingToolCall?.kind === ResponsePartKind.ToolCall ? pendingToolCall.toolCall.status : undefined,
+			modelRequestCount: lease!.observedModelRequestBodies.length,
+		}, {
+			status: ToolCallStatus.PendingResultConfirmation,
+			modelRequestCount: 1,
+		});
+		client.dispatch({
+			channel: chatUri,
+			clientSeq: 5,
+			action: {
+				type: ActionType.ChatToolCallResultConfirmed,
+				turnId,
+				toolCallId,
+				approved: true,
+			},
+		});
+		await client.waitForNotification(n =>
+			isActionNotification(n, 'chat/turnComplete')
+			&& getActionEnvelope(n).channel === chatUri
+			&& (getActionEnvelope(n).action as { readonly turnId: string }).turnId === turnId,
+			90_000,
+		);
+
+		const resultConfirmed = client.receivedNotifications(n =>
+			isActionNotification(n, 'chat/toolCallResultConfirmed')
+			&& getActionEnvelope(n).channel === chatUri,
+		);
+		assert.strictEqual(resultConfirmed.length, 1);
 	});
 
 	(RECORD_ONLY ? test : test.skip)('accepted steering followed by abort does not block the replacement turn', async function () {
@@ -271,7 +462,7 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 	});
 
 	suiteTeardown(async function () {
-		this.timeout(90_000);
+		this.timeout(120_000);
 		await lease?.dispose();
 	});
 
@@ -283,7 +474,14 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 		const sessionUri = await createRealSession(client, COPILOT_CONFIG, 'real-sdk-usage', createdSessions, URI.file(workingDirectory));
 		dispatchTurn(client, sessionUri, 'turn-usage', 'Reply with exactly "usage-ok" and do not use tools.', 1);
 
-		const usageNotif = await client.waitForNotification(n => isActionNotification(n, 'chat/usage'), 90_000);
+		const usageNotif = await client.waitForNotification(n => {
+			if (!isActionNotification(n, 'chat/usage')) {
+				return false;
+			}
+			const envelope = getActionEnvelope(n);
+			const action = envelope.action as ChatUsageAction;
+			return envelope.channel === buildDefaultChatUri(sessionUri) && action.turnId === 'turn-usage';
+		}, 90_000);
 		const usageEnvelope = getActionEnvelope(usageNotif);
 		const usageAction = usageEnvelope.action as ChatUsageAction;
 		assert.strictEqual(usageEnvelope.channel, buildDefaultChatUri(sessionUri));
@@ -299,7 +497,11 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 		}
 		assert.ok(cost > 0, `expected usage._meta.cost to be positive: ${JSON.stringify(usageAction.usage)}`);
 
-		await client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'), 90_000);
+		await client.waitForNotification(n =>
+			isActionNotification(n, 'chat/turnComplete')
+			&& getActionEnvelope(n).channel === buildDefaultChatUri(sessionUri)
+			&& (getActionEnvelope(n).action as { turnId: string }).turnId === 'turn-usage',
+			90_000);
 		const state = await fetchSessionWithChat(client, sessionUri);
 		const turn = state.turns.find(t => t.id === 'turn-usage');
 		assert.strictEqual(turn?.usage?._meta?.cost, cost);
@@ -328,6 +530,14 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 		const result = await driveTurnWithAttachmentsToCompletion(client, sessionUri, 'turn-attachment', prompt, attachments, 1);
 
 		assert.match(result.responseText, /\badd\b/i, `expected the model to identify the attached file function; got: ${JSON.stringify(result.responseText)}`);
+		assertToolCallCompleteText(client, {
+			channel: buildDefaultChatUri(sessionUri),
+			turnId: 'turn-attachment',
+			toolNames: ['view'],
+			workspace: workingDirectory,
+			expected: [/def add\(a, b\):/, /return a \+ b/],
+			success: true,
+		});
 	});
 
 	test('attaches a text blob and reads its function names', async function () {
@@ -353,7 +563,78 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 		assert.match(result.responseText, /\bsubtract\b/i, `expected the model to identify the attached blob function; got: ${JSON.stringify(result.responseText)}`);
 	});
 
-	test('strips redundant `cd <workingDirectory> &&` prefix from shell tool calls', async function () {
+	(isWindows ? test.skip : test)('shell read helper remains a non-terminal tool', async function () {
+		this.timeout(180_000);
+
+		const workingDirectory = await mkdtemp(join(tmpdir(), 'copilot-read-shell-'));
+		tempDirs.push(workingDirectory);
+		const sessionUri = await createRealSession(client, COPILOT_CONFIG, 'real-sdk-read-shell', createdSessions, URI.file(workingDirectory));
+		const chatUri = buildDefaultChatUri(sessionUri);
+		const turnId = 'turn-read-shell';
+		const command = `node -e "setTimeout(() => console.log('READ_SHELL_E2E_VALUE'), 3000)"`;
+		const prompt = [
+			`First use the shell tool exactly once to run \`${command}\` in async mode with shellId "read-shell-e2e" and initial_wait 1.`,
+			'After that tool returns, use its matching read tool exactly once with shellId "read-shell-e2e" and delay 5 so the command finishes before the read returns.',
+			'Then reply with exactly "READ_SHELL_E2E_DONE".',
+		].join(' ');
+
+		const result = await driveTurnToCompletion(client, sessionUri, turnId, prompt, 1);
+		assert.match(result.responseText, /READ_SHELL_E2E_DONE/);
+
+		const start = client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallStart'))
+			.map(n => ({ envelope: getActionEnvelope(n), action: getActionEnvelope(n).action as ChatToolCallStartAction }))
+			.find(({ envelope, action }) => envelope.channel === chatUri && action.turnId === turnId && /^read_(?:bash|powershell)$/.test(action.toolName));
+		assert.ok(start, 'expected a shell read helper tool call');
+
+		const ready = client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallReady'))
+			.map(n => ({ envelope: getActionEnvelope(n), action: getActionEnvelope(n).action as ChatToolCallReadyAction }))
+			.find(({ envelope, action }) => envelope.channel === chatUri && action.turnId === turnId && action.toolCallId === start.action.toolCallId);
+		const complete = client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallComplete'))
+			.map(n => ({ envelope: getActionEnvelope(n), action: getActionEnvelope(n).action as ChatToolCallCompleteAction }))
+			.find(({ envelope, action }) => envelope.channel === chatUri && action.turnId === turnId && action.toolCallId === start.action.toolCallId);
+		assert.ok(ready, 'expected the shell read helper to become ready');
+		assert.ok(complete, 'expected the shell read helper to complete');
+
+		const toolInput = getInlineToolInput(ready.action.toolInput);
+		assert.deepStrictEqual({
+			displayName: start.action.displayName,
+			toolKinds: [
+				readToolCallMeta(start.action).toolKind,
+				readToolCallMeta(ready.action).toolKind,
+				readToolCallMeta(complete.action).toolKind,
+			],
+			invocationMessage: ready.action.invocationMessage,
+			toolInput: toolInput ? JSON.parse(toolInput) : undefined,
+			success: complete.action.result.success,
+			pastTenseMessage: complete.action.result.pastTenseMessage,
+			contentTypes: complete.action.result.content?.map(content => content.type),
+		}, {
+			displayName: 'Read Terminal',
+			toolKinds: [undefined, undefined, undefined],
+			invocationMessage: 'Reading Terminal',
+			toolInput: { shellId: 'read-shell-e2e', delay: 5 },
+			success: true,
+			pastTenseMessage: 'Read Terminal',
+			contentTypes: [ToolResultContentType.Text],
+		});
+		await assertRecordedAhpSnapshot(this.test!, client, {
+			profile: 'protocol',
+			ignoredActionTypes: [
+				ActionType.ChatUsage,
+				ActionType.ChatToolCallDelta,
+				ActionType.SessionChatUpdated,
+				ActionType.SessionTitleChanged,
+				ActionType.SessionServerToolsChanged,
+				ActionType.SessionReady,
+				ActionType.SessionInputNeededSet,
+				ActionType.SessionInputNeededRemoved,
+				ActionType.SessionChangesetsChanged,
+				ActionType.SessionMetaChanged,
+			],
+		});
+	});
+
+	(isWindows ? test.skip : test)('strips redundant `cd <workingDirectory> &&` prefix from shell tool calls', async function () {
 		this.timeout(180_000);
 
 		const workspaceDir = await mkdtemp(`${tmpdir()}/ahp-cd-strip-test-`);
@@ -362,21 +643,38 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 		const sessionUri = await createRealSession(client, COPILOT_CONFIG, 'real-sdk-cd-strip', createdSessions, URI.file(workspaceDir));
 
 		client.clearReceived();
-		dispatchTurn(client, sessionUri, 'turn-cd-strip',
+		const turnId = 'turn-cd-strip';
+		const chatUri = buildDefaultChatUri(sessionUri);
+		dispatchTurn(client, sessionUri, turnId,
 			`Run this exact shell command, do not modify it: cd ${expectedWorkingDirPath} && echo strip-me-please`,
 			1);
+
+		const toolStartNotif = await client.waitForNotification(n => {
+			if (!isActionNotification(n, 'chat/toolCallStart')) {
+				return false;
+			}
+			const envelope = getActionEnvelope(n);
+			const action = envelope.action as ChatToolCallStartAction;
+			return envelope.channel === chatUri && action.turnId === turnId && action.toolName === COPILOT_CONFIG.shellToolName;
+		}, 90_000);
+		const toolStartAction = getActionEnvelope(toolStartNotif).action as ChatToolCallStartAction;
 
 		const toolReadyNotif = await client.waitForNotification(n => {
 			if (!isActionNotification(n, 'chat/toolCallReady')) {
 				return false;
 			}
-			const action = getActionEnvelope(n).action as { toolInput?: string };
-			return typeof action.toolInput === 'string' && action.toolInput.includes('echo strip-me-please');
+			const envelope = getActionEnvelope(n);
+			const action = envelope.action as ChatToolCallReadyAction;
+			return envelope.channel === chatUri
+				&& action.turnId === turnId
+				&& action.toolCallId === toolStartAction.toolCallId
+				&& typeof action.toolInput === 'string';
 		}, 90_000);
 
 		const toolReadyEnvelope = getActionEnvelope(toolReadyNotif);
-		const toolReadyAction = toolReadyEnvelope.action as { toolCallId: string; toolInput?: string; confirmed?: string };
-		const toolInput = toolReadyAction.toolInput!;
+		const toolReadyAction = toolReadyEnvelope.action as ChatToolCallReadyAction;
+		const toolInput = getInlineToolInput(toolReadyAction.toolInput);
+		assert.ok(toolInput);
 
 		const escapedWorkingDirPath = expectedWorkingDirPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 		const redundantWorkingDirCdPrefix = new RegExp(
@@ -387,8 +685,8 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 			`toolInput should not contain a redundant cd-prefix targeting the working directory; got: ${JSON.stringify(toolInput)}`,
 		);
 		assert.ok(
-			toolInput.includes('echo strip-me-please'),
-			`toolInput should contain the rewritten command body; got: ${JSON.stringify(toolInput)}`,
+			toolInput.includes('strip-me-please'),
+			`toolInput should retain the command marker after rewriting; got: ${JSON.stringify(toolInput)}`,
 		);
 
 		if (!toolReadyAction.confirmed) {
@@ -397,7 +695,7 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 				clientSeq: 2,
 				action: {
 					type: ActionType.ChatToolCallConfirmed,
-					turnId: 'turn-cd-strip',
+					turnId,
 					toolCallId: toolReadyAction.toolCallId, approved: true,
 					confirmed: ToolCallConfirmationReason.UserAction,
 				},
@@ -416,23 +714,29 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 					if (!isActionNotification(n, 'chat/toolCallReady')) {
 						return false;
 					}
-					return !seenSeqs.has(getActionEnvelope(n).serverSeq);
+					const envelope = getActionEnvelope(n);
+					const action = envelope.action as ChatToolCallReadyAction;
+					return envelope.channel === chatUri && action.turnId === turnId && !seenSeqs.has(envelope.serverSeq);
 				},
 				90_000,
 			);
-			if (isActionNotification(next, 'chat/turnComplete') || isActionNotification(next, 'chat/error')) {
+			if (isActionNotification(next, 'chat/error')) {
+				const action = getActionEnvelope(next).action as ChatErrorAction;
+				throw new Error(`cd-strip turn failed: ${JSON.stringify(action.part.error)}`);
+			}
+			if (isActionNotification(next, 'chat/turnComplete')) {
 				break;
 			}
 			const envelope = getActionEnvelope(next);
 			seenSeqs.add(envelope.serverSeq);
-			const action = envelope.action as { turnId: string; toolCallId: string; confirmed?: string };
+			const action = envelope.action as ChatToolCallReadyAction;
 			if (!action.confirmed) {
 				client.dispatch({
 					channel: envelope.channel,
 					clientSeq: ++teardownSeq,
 					action: {
 						type: ActionType.ChatToolCallConfirmed,
-						turnId: action.turnId,
+						turnId,
 						toolCallId: action.toolCallId, approved: true,
 						confirmed: ToolCallConfirmationReason.UserAction,
 					},

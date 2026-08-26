@@ -8,7 +8,7 @@
 	height: 100%;
 	min-height: 0;
 
-	.monaco-list-row:has(.session-item) {
+	.monaco-list-row.session-list-inset-row {
 		border-radius: var(--vscode-cornerRadius-medium);
 		margin: 0 10px;
 		width: calc(100% - 20px);
@@ -28,6 +28,31 @@
 
 	.monaco-list-row .force-no-twistie {
 		display: none !important;
+	}
+
+	.monaco-list-row .session-chat-twistie {
+		position: absolute;
+		top: var(--vscode-spacing-size80);
+		left: var(--vscode-spacing-size120);
+		width: var(--vscode-spacing-size160);
+		height: var(--vscode-spacing-size160);
+		padding-right: 0;
+		font-size: 16px;
+		opacity: 0;
+		pointer-events: none;
+		transform: none;
+		z-index: 1;
+	}
+
+	.monaco-list-row:hover .session-chat-twistie.collapsible,
+	.monaco-list-row.focused .session-chat-twistie.collapsible {
+		opacity: 1;
+		pointer-events: auto;
+	}
+
+	.monaco-list-row:hover[aria-expanded] .session-item .session-icon,
+	.monaco-list-row.focused[aria-expanded] .session-item .session-icon {
+		visibility: hidden;
 	}
 
 	.monaco-list-row.selected .session-details-row {
@@ -67,6 +92,10 @@
 			right: 0;
 			top: 0;
 		}
+
+		.actions-container {
+			gap: var(--vscode-spacing-size40);
+		}
 	}
 
 	.monaco-list-row .session-pending-voice-indicator {
@@ -94,13 +123,9 @@
 		}
 	}
 
-	.monaco-list-row:has(.session-item.session-archive-animation) .session-title-toolbar {
-		display: block;
-	}
-
 	/* Pinned but not hovered/focused: show only the unpin action */
 	.monaco-list-row:not(:hover):not(.focused):has(.session-item.pinned) {
-		.session-item:not(.session-archive-animation) .session-title-toolbar {
+		.session-title-toolbar {
 			display: block;
 
 			.action-item:not(:last-child) {
@@ -114,18 +139,6 @@
 	}
 }
 
-.session-archive-catch-pulse {
-	position: fixed;
-	z-index: 1000;
-	width: var(--vscode-spacing-size240);
-	height: var(--vscode-spacing-size240);
-	box-sizing: border-box;
-	pointer-events: none;
-	border: var(--vscode-strokeThickness) solid var(--vscode-textLink-foreground);
-	border-radius: var(--vscode-cornerRadius-circle);
-	background-color: var(--vscode-toolbar-hoverBackground);
-}
-
 /* Session Item */
 
 .session-item {
@@ -133,6 +146,7 @@
 	flex-direction: row;
 	height: 100%;
 	box-sizing: border-box;
+	position: relative;
 	padding: 8px 6px 8px 12px;
 
 	&.archived {
@@ -420,6 +434,83 @@
 	}
 }
 
+.monaco-list-row[aria-expanded="true"] .session-item::after {
+	content: '';
+	position: absolute;
+	top: var(--vscode-spacing-size160);
+	bottom: 0;
+	left: var(--vscode-spacing-size200);
+	border-left: var(--vscode-strokeThickness) solid var(--vscode-tree-inactiveIndentGuidesStroke);
+}
+
+.session-chat-item {
+	display: flex;
+	align-items: center;
+	height: 100%;
+	box-sizing: border-box;
+	position: relative;
+	gap: var(--vscode-spacing-size60);
+	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size120) var(--vscode-spacing-size60) var(--vscode-spacing-size360);
+	color: var(--vscode-foreground);
+	font-size: var(--vscode-agents-fontSize-body1);
+	font-weight: var(--vscode-agents-fontWeight-regular);
+	line-height: 17px;
+
+	&::before {
+		content: '';
+		position: absolute;
+		top: 0;
+		bottom: 0;
+		left: var(--vscode-spacing-size200);
+		border-left: var(--vscode-strokeThickness) solid var(--vscode-tree-inactiveIndentGuidesStroke);
+	}
+
+	&::after {
+		content: '';
+		position: absolute;
+		top: 50%;
+		left: var(--vscode-spacing-size200);
+		width: var(--vscode-spacing-size240);
+		border-top: var(--vscode-strokeThickness) solid var(--vscode-tree-inactiveIndentGuidesStroke);
+	}
+
+	&.last-chat {
+		&::before {
+			bottom: 50%;
+			width: var(--vscode-spacing-size240);
+			border-bottom: var(--vscode-strokeThickness) solid var(--vscode-tree-inactiveIndentGuidesStroke);
+			border-bottom-left-radius: var(--vscode-cornerRadius-small);
+		}
+
+		&::after {
+			display: none;
+		}
+	}
+
+	.session-chat-icon {
+		flex-shrink: 0;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: var(--vscode-spacing-size160);
+		height: var(--vscode-spacing-size160);
+		font-size: var(--vscode-codiconFontSize-compact);
+
+		> .monaco-pixel-spinner {
+			width: var(--vscode-spacing-size120);
+			height: var(--vscode-spacing-size120);
+		}
+	}
+
+	.session-chat-title {
+		flex: 1;
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+}
+
 /* Show More */
 
 .session-show-more {
@@ -511,6 +602,11 @@
 	.session-section-icon {
 		flex-shrink: 0;
 		margin-right: 6px;
+		width: 16px;
+		height: 16px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
 		font-size: var(--vscode-codiconFontSize, 16px);
 	}
 
@@ -527,6 +623,10 @@
 		display: none;
 	}
 
+	.session-section-toolbar .actions-container {
+		gap: var(--vscode-spacing-size40);
+	}
+
 	.session-section-toolbar .monaco-action-bar .action-label {
 		border-radius: var(--vscode-cornerRadius-small);
 	}
@@ -536,25 +636,51 @@
 		display: none;
 		color: var(--vscode-descriptionForeground);
 		font-size: var(--vscode-codiconFontSize-compact, 12px);
-		width: 22px;
 		height: 22px;
+		margin-right: 6px;
 		border-radius: var(--vscode-cornerRadius-small);
 		justify-content: center;
 	}
 }
 
 .monaco-list-row:hover .session-section .session-section-toolbar,
-.monaco-list-row.focused .session-section .session-section-toolbar {
+.monaco-list-row.focused .session-section .session-section-toolbar,
+.monaco-list-row .session-section.dropdown-active .session-section-toolbar {
 	display: block;
 }
 
+/* Shortcut sections (Automations) only show toolbar on hover, not on focus */
+.monaco-list-row.focused .session-section.session-section-shortcut .session-section-toolbar {
+	visibility: hidden;
+}
+.session-section.session-section-shortcut .session-section-toolbar {
+	display: block;
+	visibility: hidden;
+}
+.monaco-list-row:hover .session-section.session-section-shortcut .session-section-toolbar {
+	visibility: visible;
+}
+
+/* Active background for shortcut sections when their editor is open */
+.session-section.session-section-shortcut.active {
+	background-color: var(--vscode-list-inactiveSelectionBackground);
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
 .monaco-list-row:hover .session-section .session-section-chevron.collapsible,
-.monaco-list-row.focused .session-section .session-section-chevron.collapsible {
+.sessions-list-control:not(.session-section-focus-from-pointer) .monaco-list:focus-within .monaco-list-row.focused .session-section .session-section-chevron.collapsible,
+.monaco-list-row .session-section.dropdown-active .session-section-chevron.collapsible {
 	display: flex;
 	align-items: center;
 }
 
-.monaco-list-row .session-section .session-section-chevron.collapsible:hover {
+.monaco-list-row:hover .session-section .session-section-chevron.collapsible + .session-section-icon,
+.sessions-list-control:not(.session-section-focus-from-pointer) .monaco-list:focus-within .monaco-list-row.focused .session-section .session-section-chevron.collapsible + .session-section-icon,
+.monaco-list-row .session-section.dropdown-active .session-section-chevron.collapsible + .session-section-icon {
+	display: none;
+}
+
+.session-section.dropdown-active .session-section-toolbar .monaco-dropdown-with-primary {
 	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
@@ -575,6 +701,12 @@
 	.monaco-list-row:hover .session-show-more-folders .session-show-more-label,
 	.monaco-list-row.focused .session-show-more-folders .session-show-more-label {
 		color: var(--vscode-strongForeground);
+	}
+
+	/* Shortcut sections only change label and icon color on hover, unless active. */
+	.monaco-list-row.focused:not(:hover) .session-section.session-section-shortcut:not(.active) .session-section-label,
+	.monaco-list-row.focused:not(:hover) .session-section.session-section-shortcut:not(.active) .session-section-icon {
+		color: var(--vscode-descriptionForeground);
 	}
 
 	&.session-section-focus-from-pointer {
@@ -658,7 +790,7 @@
 			background-clip: text;
 			-webkit-background-clip: text;
 			-webkit-text-fill-color: transparent;
-			animation: session-title-shimmer 3s steps(180, jump-none) infinite;
+			animation: session-title-shimmer 6s steps(90, jump-none) infinite;
 		}
 
 		.monaco-list-row:not(.selected) .session-item.in-progress .session-title.session-title-shimmer-paused {
@@ -684,6 +816,7 @@
 		background-position: 120% 0;
 	}
 
+	50%,
 	100% {
 		background-position: -120% 0;
 	}
@@ -716,7 +849,7 @@
  * keep these rules in sync if paddings/font sizes change here.
  */
 .agent-sessions-workbench.phone-layout .sessions-list-control {
-	.monaco-list-row:has(.session-item) {
+	.monaco-list-row.session-list-inset-row {
 		/* Horizontal-only margin: virtual list rows are absolutely
 		 * positioned with JS-set `top`/`height`, so vertical margins
 		 * here would not produce reliable inter-row spacing. Any gap
@@ -741,6 +874,28 @@
 		&.quick-chat {
 			align-items: flex-start;
 		}
+	}
+
+	.monaco-list-row[aria-expanded="true"] .session-item::after {
+		top: var(--vscode-spacing-size200);
+	}
+
+	.monaco-list-row .session-chat-twistie.collapsible {
+		opacity: 1;
+		pointer-events: auto;
+		top: var(--vscode-spacing-size100);
+		left: var(--vscode-spacing-size100);
+		width: var(--vscode-spacing-size200);
+		height: var(--vscode-spacing-size200);
+	}
+
+	.monaco-list-row[aria-expanded] .session-item .session-icon {
+		visibility: hidden;
+	}
+
+	.session-chat-item {
+		padding: var(--vscode-spacing-size120) var(--vscode-spacing-size120) var(--vscode-spacing-size120) var(--vscode-spacing-size360);
+		font-size: var(--vscode-agents-fontSize-body1);
 	}
 
 	.session-item .session-icon {

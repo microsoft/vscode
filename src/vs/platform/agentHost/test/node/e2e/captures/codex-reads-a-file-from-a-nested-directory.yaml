@@ -6,40 +6,40 @@ exchanges:
       system: ${system}
       messages:
         - role: user
-          content: Read nested/value.txt and reply with its exact contents only.
+          content: 'Run exactly this shell command, with no modifications: `node -e "process.stdout.write(require(''fs'').readFileSync(''nested/value.txt'',''utf8''))"`. Then reply with its exact output only.'
     response:
       content:
         - type: text
-          text: I’m reading `nested/value.txt` now and will return its contents exactly with no extra text.
+          text: Running the exact command now and I’ll return only its raw output.
         - type: tool_use
           id: toolcall_0
           name: exec_command
           input:
-            cmd: cat nested/value.txt
-            workdir: ${workdir}/ahp-coverage-nested-read-${temp}
+            cmd: node -e "process.stdout.write(require('fs').readFileSync('nested/value.txt','utf8'))"
+            workdir: ${workdir}
       stopReason: tool_use
   - request:
       model: gpt-5.3-codex
       system: ${system}
       messages:
         - role: user
-          content: Read nested/value.txt and reply with its exact contents only.
+          content: 'Run exactly this shell command, with no modifications: `node -e "process.stdout.write(require(''fs'').readFileSync(''nested/value.txt'',''utf8''))"`. Then reply with its exact output only.'
         - role: assistant
-          content: I’m reading `nested/value.txt` now and will return its contents exactly with no extra text.
+          content: Running the exact command now and I’ll return only its raw output.
         - role: assistant
           content:
             - type: tool_use
               name: exec_command
               input:
-                cmd: cat nested/value.txt
-                workdir: ${workdir}/ahp-coverage-nested-read-${temp}
+                cmd: node -e "process.stdout.write(require('fs').readFileSync('nested/value.txt','utf8'))"
+                workdir: ${workdir}
         - role: user
           content:
             - type: tool_result
               tool_use_id: toolcall_0
               content: |-
-                Chunk ID: 12dcaf
-                Wall time: 0.0000 seconds
+                Chunk ID: e9b22f
+                Wall time: 0.1643 seconds
                 Process exited with code 0
                 Original token count: 4
                 Output:

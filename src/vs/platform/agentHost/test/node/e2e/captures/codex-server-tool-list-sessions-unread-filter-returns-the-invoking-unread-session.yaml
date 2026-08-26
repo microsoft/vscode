@@ -1,0 +1,37 @@
+version: 1
+dialect: responses
+exchanges:
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Call list_sessions exactly once with unread true, then reply exactly "filtered".
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: list_sessions
+          input:
+            unread: true
+      stopReason: tool_use
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Call list_sessions exactly once with unread true, then reply exactly "filtered".
+        - role: assistant
+          content:
+            - type: tool_use
+              name: list_sessions
+              input:
+                unread: true
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: '{"sessions":[{"session":"codex:/${uuid_0}","title":"Call list_sessions exactly once with unread true, then reply exactly \"filtered\".","status":"inProgress","workingDirectory":"file://${workdir}","unread":true,"createdAt":"2026-08-02T04:44:02.000Z","modifiedAt":"2026-08-02T04:44:02.482Z","changesets":[{"label":"All Changes","changeKind":"session","uriTemplate":"codex:/${uuid_0}/changeset/session","description":"Show all changes made in this session"},{"label":"This Turn","changeKind":"turn","uriTemplate":"codex:/${uuid_0}/changeset/turn/{turnId}","description":"Show changes made in this turn"}]}]}'
+    response:
+      content: filtered
+      stopReason: end_turn

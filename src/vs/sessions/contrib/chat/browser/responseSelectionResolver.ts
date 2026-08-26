@@ -47,7 +47,27 @@ function contributingTextEndpoints(range: Range): { first: Text; last: Text } | 
 		return undefined;
 	}
 
-	const walker = doc.createTreeWalker(scope, NodeFilter.SHOW_TEXT);
+	// Prune unrendered subtrees: the transcript contains `<style>` elements and
+	// display:none metadata (a response's file-change summary) that the range
+	// spans but the user cannot see or select. Their text would otherwise look
+	// like an endpoint outside the response's markdown and reject the selection.
+	// Rejecting at the element level also skips their subtrees wholesale.
+	const walker = doc.createTreeWalker(scope, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT, {
+		acceptNode: node => {
+			if (node.nodeType !== Node.ELEMENT_NODE) {
+				return NodeFilter.FILTER_ACCEPT;
+			}
+			const element = node as Element;
+			if (element.checkVisibility()) {
+				return NodeFilter.FILTER_SKIP;
+			}
+			// A `display: contents` element has no box of its own — so it reads
+			// as invisible — but its descendants do render and are selectable.
+			// Only read the computed style on this rare branch.
+			const display = dom.getWindow(element).getComputedStyle(element).display;
+			return display === 'contents' ? NodeFilter.FILTER_SKIP : NodeFilter.FILTER_REJECT;
+		},
+	});
 	let first: Text | undefined;
 	let last: Text | undefined;
 	for (let node = walker.nextNode(); node; node = walker.nextNode()) {

@@ -27,12 +27,12 @@ import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../
 import { ISessionsProvidersService } from '../../../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IActiveSession } from '../../../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvider } from '../../../../../../services/sessions/common/sessionsProvider.js';
-import { AgentHostSessionConfigPicker, IConfigPickerItem } from '../../../browser/agentHostSessionConfigPicker.js';
+import { AgentHostSessionConfigPicker, IConfigPickerItem, PickerActionViewItem } from '../../../browser/agentHostSessionConfigPicker.js';
 
 const SESSION_ID = 'local-agent-host:s1';
 
 /** A config exposing the two shared repo-config chips (isolation + branch). */
-function makeRepoConfig(branchValue?: string): ResolveSessionConfigResult {
+function makeRepoConfig(branchValue?: string, isolation: 'folder' | 'worktree' = 'worktree'): ResolveSessionConfigResult {
 	return {
 		schema: {
 			type: 'object',
@@ -48,7 +48,7 @@ function makeRepoConfig(branchValue?: string): ResolveSessionConfigResult {
 				},
 			},
 		},
-		values: { [SessionConfigKey.Isolation]: 'worktree', ...(branchValue ? { [SessionConfigKey.Branch]: branchValue } : {}) },
+		values: { [SessionConfigKey.Isolation]: isolation, ...(branchValue ? { [SessionConfigKey.Branch]: branchValue } : {}) },
 	} as ResolveSessionConfigResult;
 }
 
@@ -231,6 +231,38 @@ suite('Agent Host Session Config Picker', () => {
 		});
 	});
 
+	test('picker action view items expose responsive compact state', () => {
+		let pickerAnchor: HTMLElement | undefined;
+		const item = store.add(new PickerActionViewItem({
+			render: () => { },
+			showPicker: anchor => {
+				pickerAnchor = anchor;
+				return true;
+			},
+			dispose: () => { },
+		}));
+		const container = document.createElement('div');
+		const overflowAnchor = document.createElement('button');
+		item.render(container);
+		const expanded = {
+			compact: item.isCompact(),
+			className: container.classList.contains('compact-picker'),
+		};
+
+		item.setCompact(true);
+		item.show(overflowAnchor);
+		const compact = {
+			compact: item.isCompact(),
+			className: container.classList.contains('compact-picker'),
+			usesOverflowAnchor: pickerAnchor === overflowAnchor,
+		};
+
+		assert.deepStrictEqual({ expanded, compact }, {
+			expanded: { compact: false, className: false },
+			compact: { compact: true, className: true, usesOverflowAnchor: true },
+		});
+	});
+
 	test('a picker recreated on a session switch still renders the provider-seeded chips (disabled) while resolving', () => {
 		const services = setupServices(store);
 		const { provider } = services;
@@ -252,15 +284,73 @@ suite('Agent Host Session Config Picker', () => {
 		const second = renderPicker(store, services);
 		assert.ok(isolationSlot(second.container), 'isolation visible on a freshly created picker');
 		assert.ok(branchSlot(second.container), 'branch visible on a freshly created picker');
-		assert.strictEqual(isolationSlot(second.container)!.classList.contains('disabled'), true, 'isolation disabled while resolving');
-		assert.strictEqual(branchSlot(second.container)!.classList.contains('disabled'), true, 'branch disabled while resolving');
+		assert.strictEqual(isolationSlot(second.container)!.classList.contains('resolving'), true, 'isolation blocks interaction without dimming while resolving');
+		assert.strictEqual(isolationSlot(second.container)!.classList.contains('disabled'), false, 'isolation keeps its normal presentation while resolving');
+		assert.strictEqual(branchSlot(second.container)!.classList.contains('resolving'), true, 'branch blocks interaction without dimming while resolving');
+		assert.strictEqual(branchSlot(second.container)!.classList.contains('disabled'), false, 'branch keeps its normal presentation while resolving');
+		assert.strictEqual(isolationSlot(second.container)!.querySelector('.monaco-checkbox')?.getAttribute('aria-disabled'), 'true');
 		assert.strictEqual(branchSlot(second.container)!.querySelector('a.action-label')?.getAttribute('aria-disabled'), 'true');
 
 		// Resolve lands → chips re-enable and reflect the resolved value.
 		provider.set(makeRepoConfig('dev'), false);
-		assert.strictEqual(isolationSlot(second.container)!.classList.contains('disabled'), false, 'isolation re-enables after resolve');
-		assert.strictEqual(branchSlot(second.container)!.classList.contains('disabled'), false, 'branch re-enables after resolve');
+		assert.strictEqual(isolationSlot(second.container)!.classList.contains('resolving'), false, 'isolation re-enables after resolve');
+		assert.strictEqual(branchSlot(second.container)!.classList.contains('resolving'), false, 'branch re-enables after resolve');
 		assert.strictEqual(branchLabel(second.container), 'dev', 'branch label reflects the resolved value');
+	});
+
+	test('keeps the isolation checkbox node and focus stable while config resolves', () => {
+		const services = setupServices(store);
+		const { provider } = services;
+		provider.set(makeRepoConfig('main'), false);
+		const { container } = renderPicker(store, services);
+		document.body.appendChild(container);
+		store.add({ dispose: () => container.remove() });
+
+		const checkbox = isolationSlot(container)!.querySelector<HTMLElement>('.monaco-checkbox')!;
+		checkbox.focus();
+		provider.set(makeRepoConfig('main', 'folder'), true);
+		const resolvingCheckbox = isolationSlot(container)!.querySelector<HTMLElement>('.monaco-checkbox')!;
+		const resolvingState = {
+			sameNode: resolvingCheckbox === checkbox,
+			focused: document.activeElement === checkbox,
+			checked: resolvingCheckbox.getAttribute('aria-checked'),
+			disabled: resolvingCheckbox.getAttribute('aria-disabled'),
+			disabledPalette: resolvingCheckbox.classList.contains('disabled'),
+			resolving: isolationSlot(container)!.classList.contains('resolving'),
+			dimmed: isolationSlot(container)!.classList.contains('disabled'),
+		};
+
+		provider.set(makeRepoConfig('main', 'folder'), false);
+		const resolvedCheckbox = isolationSlot(container)!.querySelector<HTMLElement>('.monaco-checkbox')!;
+		assert.deepStrictEqual({
+			resolving: resolvingState,
+			resolved: {
+				sameNode: resolvedCheckbox === checkbox,
+				focused: document.activeElement === checkbox,
+				checked: resolvedCheckbox.getAttribute('aria-checked'),
+				disabled: resolvedCheckbox.getAttribute('aria-disabled'),
+				resolving: isolationSlot(container)!.classList.contains('resolving'),
+				count: container.querySelectorAll('.sessions-chat-isolation-checkbox').length,
+			},
+		}, {
+			resolving: {
+				sameNode: true,
+				focused: true,
+				checked: 'false',
+				disabled: 'true',
+				disabledPalette: false,
+				resolving: true,
+				dimmed: false,
+			},
+			resolved: {
+				sameNode: true,
+				focused: true,
+				checked: 'false',
+				disabled: 'false',
+				resolving: false,
+				count: 1,
+			},
+		});
 	});
 
 	test('branch picker keeps the display label for a dynamic (enumDynamic) selection, not just the persisted value', async () => {
@@ -334,7 +424,7 @@ suite('Agent Host Session Config Picker', () => {
 		assert.strictEqual(isolationSlot(container), null);
 	});
 
-	test('never renders a chip for the hidden worktreeBranchTrack carrier property', () => {
+	test('never renders chips for hidden worktree branch carrier properties', () => {
 		const services = setupServices(store);
 		services.provider.config = {
 			schema: {
@@ -349,14 +439,18 @@ suite('Agent Host Session Config Picker', () => {
 						title: 'Track Branch', description: '', type: 'boolean',
 						default: false, readOnly: true, sessionMutable: false,
 					},
+					[SessionConfigKey.WorktreeCreateNewBranch]: {
+						title: 'Create New Branch', description: '', type: 'boolean',
+						default: true, readOnly: true, sessionMutable: false,
+					},
 				},
 			},
-			values: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.WorktreeBranchTrack]: false },
+			values: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.WorktreeBranchTrack]: false, [SessionConfigKey.WorktreeCreateNewBranch]: true },
 		} as ResolveSessionConfigResult;
 		const picker = store.add(services.instantiationService.createInstance(AlwaysRenderConfigPicker, services.sessionObs));
 		const container = document.createElement('div');
 		picker.render(container);
 
-		assert.strictEqual(container.querySelectorAll('.sessions-chat-picker-slot').length, 1, 'only the isolation checkbox renders, not a worktreeBranchTrack chip');
+		assert.strictEqual(container.querySelectorAll('.sessions-chat-picker-slot').length, 1, 'only the isolation checkbox renders');
 	});
 });

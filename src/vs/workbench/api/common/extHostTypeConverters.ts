@@ -43,7 +43,7 @@ import { DEFAULT_EDITOR_ASSOCIATION, SaveReason } from '../../common/editor.js';
 import { IViewBadge } from '../../common/views.js';
 import { IChatAgentRequest, IChatAgentResult } from '../../contrib/chat/common/participants/chatAgents.js';
 import { IChatRequestModeInstructions } from '../../contrib/chat/common/model/chatModel.js';
-import { IChatAgentMarkdownContentWithVulnerability, IChatAutoModeResolutionPart, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatExtensionsContent, IChatExternalToolInvocationUpdate, IChatFollowup, IChatHookPart, IChatMarkdownContent, IChatMoveMessage, IChatMultiDiffDataSerialized, IChatProgressMessage, IChatPullRequestContent, IChatQuestionCarousel, IChatResponseCodeblockUriPart, IChatTaskDto, IChatTaskResult, IChatTerminalToolInvocationData, IChatTextEdit, IChatThinkingPart, IChatToolInvocationSerialized, IChatTreeData, IChatUserActionEvent, IChatWarningMessage, IChatInfoMessage, IChatWorkspaceEdit } from '../../contrib/chat/common/chatService/chatService.js';
+import { IChatAgentMarkdownContentWithVulnerability, IChatAutoModeResolutionPart, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatExtensionsContent, IChatExternalToolInvocationUpdate, IChatFollowup, IChatHookPart, IChatMarkdownContent, IChatMoveMessage, IChatMultiDiffDataSerialized, IChatProgressMessage, IChatPullRequestContent, IChatQuestionCarousel, IChatResponseCodeblockUriPart, IChatTaskDto, IChatTaskResult, IChatTerminalToolInvocationData, IChatTextEdit, IChatThinkingPart, IChatToolInvocationSerialized, IChatTreeData, IChatUserActionEvent, IChatVoiceProgressPart, IChatWarningMessage, IChatInfoMessage, IChatWorkspaceEdit } from '../../contrib/chat/common/chatService/chatService.js';
 import { LocalChatSessionUri } from '../../contrib/chat/common/model/chatUri.js';
 import { ChatRequestToolReferenceEntry, IChatRequestVariableEntry, isElementVariableEntry, isImageVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry } from '../../contrib/chat/common/attachments/chatVariableEntries.js';
 import { coerceImageBuffer } from '../../contrib/chat/common/chatImageExtraction.js';
@@ -2855,6 +2855,16 @@ export namespace ChatResponseHookPart {
 	}
 }
 
+export namespace ChatResponseVoiceProgressPart {
+	export function from(part: vscode.ChatResponseVoiceProgressPart): Dto<IChatVoiceProgressPart> {
+		return {
+			kind: 'voiceProgress',
+			id: part.id,
+			value: part.value,
+		};
+	}
+}
+
 export namespace ChatResponseAutoModeResolutionPart {
 	const validLabels = new Set<IChatAutoModeResolutionPart['predictedLabel']>(['needs_reasoning', 'no_reasoning', 'fallback']);
 
@@ -3386,6 +3396,8 @@ export namespace ChatResponsePart {
 			return ChatResponseThinkingProgressPart.from(part);
 		} else if (part instanceof types.ChatResponseHookPart) {
 			return ChatResponseHookPart.from(part);
+		} else if (part instanceof types.ChatResponseVoiceProgressPart) {
+			return ChatResponseVoiceProgressPart.from(part);
 		} else if (part instanceof types.ChatResponseFileTreePart) {
 			return ChatResponseFilesPart.from(part);
 		} else if (part instanceof types.ChatResponseMultiDiffPart) {
@@ -3479,6 +3491,7 @@ export namespace ChatAgentRequest {
 			attempt: request.attempt ?? 0,
 			enableCommandDetection: request.enableCommandDetection ?? true,
 			isParticipantDetected: request.isParticipantDetected ?? false,
+			isVoiceModeInput: request.isVoiceModeInput,
 			sessionId,
 			sessionResource: request.sessionResource,
 			references: variableReferences
@@ -3513,6 +3526,8 @@ export namespace ChatAgentRequest {
 			delete (requestWithAllProps as any).enableCommandDetection;
 			// eslint-disable-next-line local/code-no-any-casts
 			delete (requestWithAllProps as any).isParticipantDetected;
+			// eslint-disable-next-line local/code-no-any-casts
+			delete (requestWithAllProps as any).isVoiceModeInput;
 			// eslint-disable-next-line local/code-no-any-casts
 			delete (requestWithAllProps as any).location;
 			// eslint-disable-next-line local/code-no-any-casts

@@ -14,7 +14,7 @@ function renderReadOnlyBanner({ container, disposableStore, theme }: ComponentFi
 	container.style.width = '480px';
 
 	const instantiationService = createEditorServices(disposableStore, { colorTheme: theme });
-	const banner = disposableStore.add(instantiationService.createInstance(ChatReadOnlyBanner));
+	const banner = disposableStore.add(instantiationService.createInstance(ChatReadOnlyBanner, undefined));
 	banner.setVisible(true);
 	container.appendChild(banner.domNode);
 }

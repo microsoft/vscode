@@ -31,6 +31,7 @@ const minimist = require('minimist');
  * grep: string;
  * run: string | string[];
  * runGlob: string;
+ * excludeRunGlob: string;
  * testSplit: string;
  * dev: boolean;
  * reporter: string;
@@ -48,7 +49,7 @@ const minimist = require('minimist');
  * }}
  */
 const args = minimist(process.argv.slice(2), {
-	string: ['grep', 'run', 'runGlob', 'reporter', 'reporter-options', 'waitServer', 'timeout', 'crash-reporter-directory', 'tfs', 'coveragePath', 'coverageFormats', 'testSplit'],
+	string: ['grep', 'run', 'runGlob', 'excludeRunGlob', 'reporter', 'reporter-options', 'waitServer', 'timeout', 'crash-reporter-directory', 'tfs', 'coveragePath', 'coverageFormats', 'testSplit'],
 	boolean: ['build', 'coverage', 'help', 'dev', 'per-test-coverage'],
 	alias: {
 		'grep': ['g', 'f'],
@@ -72,6 +73,7 @@ Options:
 --grep, -g, -f <pattern>      only run tests matching <pattern>
 --run <file>                  only run tests from <file>
 --runGlob, --glob, --runGrep <file_pattern> only run tests matching <file_pattern>
+--excludeRunGlob <file_pattern> exclude tests matching <file_pattern> from --runGlob
 --testSplit <i>/<n>           split tests into <n> parts and run the <i>th part
 --build                       run with build output (out-build)
 --coverage                    generate coverage report
@@ -127,7 +129,7 @@ if (crashReporterDirectory) {
 }
 
 if (!args.dev) {
-	app.setPath('userData', path.join(tmpdir(), `vscode-tests-${Date.now()}`));
+	app.setPath('userData', path.join(tmpdir(), `vscode-tests-${Date.now()}-${process.pid}`));
 }
 
 function deserializeSuite(suite) {

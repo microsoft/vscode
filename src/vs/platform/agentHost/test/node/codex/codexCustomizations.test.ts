@@ -4,15 +4,27 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { VSBuffer } from '../../../../../base/common/buffer.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../../base/common/network.js';
+import { sep } from '../../../../../base/common/path.js';
+import { isLinux } from '../../../../../base/common/platform.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { FileService } from '../../../../files/common/fileService.js';
+import { InMemoryFileSystemProvider } from '../../../../files/common/inMemoryFilesystemProvider.js';
+import { NullLogService } from '../../../../log/common/log.js';
 import { CustomizationType } from '../../../common/state/protocol/channels-session/state.js';
-import { codexHooksToContainers, codexSkillsToContainers } from '../../../node/codex/codexCustomizations.js';
+import { codexHooksToContainers, codexSelectedCapabilityRootCandidates, codexSkillsToContainers, discoverCodexWorkspaceAgents } from '../../../node/codex/codexCustomizations.js';
 import type { HookMetadata } from '../../../node/codex/protocol/generated/v2/HookMetadata.js';
 import type { SkillMetadata } from '../../../node/codex/protocol/generated/v2/SkillMetadata.js';
 import type { SkillScope } from '../../../node/codex/protocol/generated/v2/SkillScope.js';
 import type { SkillsListResponse } from '../../../node/codex/protocol/generated/v2/SkillsListResponse.js';
 
 suite('codexCustomizations', () => {
+
+	const disposables = new DisposableStore();
+	teardown(() => disposables.clear());
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -23,7 +35,80 @@ suite('codexCustomizations', () => {
 		({ data: entries.map(e => ({ cwd: e.cwd, skills: e.skills, errors: [] })) });
 
 	const hook = (key: string, eventName: HookMetadata['eventName'], sourcePath: string, displayOrder = 0, enabled = true): HookMetadata =>
-		({ key, eventName, handlerType: 'command', matcher: null, command: 'echo hi', timeoutSec: 5n, statusMessage: null, sourcePath, source: 'project', pluginId: null, displayOrder: BigInt(displayOrder), enabled, isManaged: false, currentHash: 'h', trustStatus: 'trusted' });
+		({ key, eventName, handlerType: 'command', matcher: null, command: 'echo hi', timeoutSec: 5n, statusMessage: null, additionalContextLimit: null, sourcePath, source: 'project', pluginId: null, displayOrder: BigInt(displayOrder), enabled, isManaged: false, currentHash: 'h', trustStatus: 'trusted' });
+
+	test('discovers workspace agents without client-pushed local customizations', async () => {
+		const fileService = disposables.add(new FileService(new NullLogService()));
+		disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
+		const workspace = URI.from({ scheme: Schemas.inMemory, path: '/workspace' });
+		const agentsDirectory = URI.joinPath(workspace, '.github', 'agents');
+		const agent = URI.joinPath(agentsDirectory, 'reviewer.agent.md');
+		await fileService.createFolder(agentsDirectory);
+		await Promise.all([
+			fileService.writeFile(agent, VSBuffer.fromString('---\nname: Reviewer\ndescription: Reviews carefully\nmodel: [gpt-first, gpt-second]\ntools: [read_file, search]\ninfer: true\ndisable-model-invocation: true\n---\nReview every change.')),
+			fileService.writeFile(URI.joinPath(agentsDirectory, 'README.md'), VSBuffer.fromString('---\nname: Reviewer\n---\nDocumentation only.')),
+		]);
+
+		const discovered = await discoverCodexWorkspaceAgents([workspace], fileService);
+
+		assert.deepStrictEqual({
+			agents: discovered.agents.map(item => ({ name: item.name, uri: item.uri.toString(), agentInvocable: item.disableModelInvocation !== true })),
+			containers: discovered.containers.map(container => ({
+				uri: container.uri,
+				contents: container.contents,
+				writable: container.writable,
+				children: container.children?.map(child => ({ name: child.name, uri: child.uri, model: child.type === CustomizationType.Agent ? child.model : undefined, tools: child.type === CustomizationType.Agent ? child.tools : undefined })),
+			})),
+		}, {
+			agents: [{ name: 'Reviewer', uri: agent.toString(), agentInvocable: true }],
+			containers: [{
+				uri: agentsDirectory.toString(),
+				contents: CustomizationType.Agent,
+				writable: true,
+				children: [{ name: 'Reviewer', uri: agent.toString(), model: 'gpt-first', tools: ['read_file', 'search'] }],
+			}],
+		});
+	});
+
+	test('discovers every workspace root with primary-root name precedence', async () => {
+		const fileService = disposables.add(new FileService(new NullLogService()));
+		disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
+		const primaryWorkspace = URI.from({ scheme: Schemas.inMemory, path: '/primary' });
+		const secondaryWorkspace = URI.from({ scheme: Schemas.inMemory, path: '/secondary' });
+		const primaryDirectory = URI.joinPath(primaryWorkspace, '.github', 'agents');
+		const secondaryDirectory = URI.joinPath(secondaryWorkspace, '.github', 'agents');
+		const primaryAgent = URI.joinPath(primaryDirectory, 'reviewer.agent.md');
+		const secondaryAgent = URI.joinPath(secondaryDirectory, 'reviewer.agent.md');
+		const secondaryOnlyAgent = URI.joinPath(secondaryDirectory, 'secondary.agent.md');
+		await Promise.all([
+			fileService.createFolder(primaryDirectory),
+			fileService.createFolder(secondaryDirectory),
+		]);
+		await Promise.all([
+			fileService.writeFile(primaryAgent, VSBuffer.fromString('---\nname: Shared Reviewer\n---\nUse the primary workspace instructions.')),
+			fileService.writeFile(secondaryAgent, VSBuffer.fromString('---\nname: Shared Reviewer\n---\nDo not use the duplicate.')),
+			fileService.writeFile(secondaryOnlyAgent, VSBuffer.fromString('---\nname: Secondary Agent\n---\nUse the secondary workspace instructions.')),
+		]);
+
+		const discovered = await discoverCodexWorkspaceAgents([primaryWorkspace, secondaryWorkspace, primaryWorkspace], fileService);
+
+		assert.deepStrictEqual({
+			agents: discovered.agents.map(agent => ({ name: agent.name, uri: agent.uri.toString() })),
+			containers: discovered.containers.map(container => ({
+				uri: container.uri,
+				children: container.children?.map(child => ({ name: child.name, uri: child.uri })),
+			})),
+		}, {
+			agents: [
+				{ name: 'Shared Reviewer', uri: primaryAgent.toString() },
+				{ name: 'Secondary Agent', uri: secondaryOnlyAgent.toString() },
+			],
+			containers: [
+				{ uri: primaryDirectory.toString(), children: [{ name: 'Shared Reviewer', uri: primaryAgent.toString() }] },
+				{ uri: secondaryDirectory.toString(), children: [{ name: 'Secondary Agent', uri: secondaryOnlyAgent.toString() }] },
+			],
+		});
+	});
 
 	test('groups skills by scope into read-only containers, sorted by name', () => {
 		const containers = codexSkillsToContainers(skillsResponse({
@@ -100,5 +185,76 @@ suite('codexCustomizations', () => {
 
 	test('empty / undefined hooks responses yield no containers', () => {
 		assert.deepStrictEqual([codexHooksToContainers(undefined), codexHooksToContainers({ data: [] }), codexHooksToContainers({ data: [{ cwd: '/x', hooks: [], warnings: [], errors: [] }] })], [[], [], []]);
+	});
+
+	test('builds both secondary skill conventions in workspace order', () => {
+		const rootA = URI.file('/workspace/a');
+		const rootB = URI.file('/workspace/b');
+		const rootC = URI.file('/workspace/c');
+
+		assert.deepStrictEqual(
+			codexSelectedCapabilityRootCandidates([rootA, rootB, rootC]).map(root => root.location.path),
+			[
+				URI.joinPath(rootB, '.agents', 'skills').fsPath,
+				URI.joinPath(rootB, '.codex', 'skills').fsPath,
+				URI.joinPath(rootC, '.agents', 'skills').fsPath,
+				URI.joinPath(rootC, '.codex', 'skills').fsPath,
+			],
+		);
+	});
+
+	test('excludes primary-equivalent and duplicate secondary roots', () => {
+		const rootA = URI.file('/workspace/a');
+		const rootB = URI.file('/workspace/b');
+		const primaryEquivalent = URI.file(`${rootA.fsPath}${sep}`);
+		const duplicateB = URI.file(`${rootB.fsPath}${sep}`);
+		const caseVariantA = URI.file(rootA.fsPath.toUpperCase());
+		const caseVariantB = URI.file(rootB.fsPath.toUpperCase());
+
+		const candidates = codexSelectedCapabilityRootCandidates([
+			rootA,
+			primaryEquivalent,
+			...(!isLinux ? [caseVariantA] : []),
+			rootB,
+			duplicateB,
+			...(!isLinux ? [caseVariantB] : []),
+		]);
+
+		assert.deepStrictEqual(candidates.map(root => root.location.path), [
+			URI.joinPath(rootB, '.agents', 'skills').fsPath,
+			URI.joinPath(rootB, '.codex', 'skills').fsPath,
+		]);
+	});
+
+	test('rejects non-file secondary roots', () => {
+		const rootA = URI.file('/workspace/a');
+
+		assert.deepStrictEqual(codexSelectedCapabilityRootCandidates([
+			rootA,
+			URI.from({ scheme: Schemas.vscodeRemote, authority: 'host', path: '/workspace/b' }),
+		]), []);
+	});
+
+	test('produces stable versioned ids for equivalent roots and distinct conventions', () => {
+		const rootA = URI.file('/workspace/a');
+		const rootB = URI.file('/workspace/b');
+		const rootC = URI.file('/workspace/c');
+		const first = codexSelectedCapabilityRootCandidates([rootA, rootB]);
+		const second = codexSelectedCapabilityRootCandidates([rootA, URI.file(`${rootB.fsPath}${sep}`)]);
+		const distinctRoot = codexSelectedCapabilityRootCandidates([rootA, rootC]);
+
+		assert.deepStrictEqual({
+			firstIds: first.map(root => root.id),
+			secondIds: second.map(root => root.id),
+			versioned: first.every(root => /^codex-selected-capability-root-v1-[0-9a-f]{64}$/.test(root.id)),
+			distinctConventions: first[0].id !== first[1].id,
+			distinctRoots: first[0].id !== distinctRoot[0].id,
+		}, {
+			firstIds: second.map(root => root.id),
+			secondIds: second.map(root => root.id),
+			versioned: true,
+			distinctConventions: true,
+			distinctRoots: true,
+		});
 	});
 });

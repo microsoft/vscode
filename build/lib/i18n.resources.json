@@ -83,6 +83,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/services/agentEditorComments",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/services/assignment",
 			"project": "vscode-workbench"
 		},
@@ -104,6 +108,10 @@
 		},
 		{
 			"name": "vs/workbench/contrib/folding",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/github",
 			"project": "vscode-workbench"
 		},
 		{
@@ -231,7 +239,7 @@
 			"project": "vscode-workbench"
 		},
 		{
-			"name": "vs/workbench/contrib/styleOverrides",
+			"name": "vs/workbench/contrib/modernUI",
 			"project": "vscode-workbench"
 		},
 		{
@@ -367,6 +375,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/services/agentHost",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/services/authToken",
 			"project": "vscode-workbench"
 		},
@@ -392,6 +404,10 @@
 		},
 		{
 			"name": "vs/workbench/services/configurationResolver",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/services/dataChannel",
 			"project": "vscode-workbench"
 		},
 		{

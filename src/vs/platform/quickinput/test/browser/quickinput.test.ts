@@ -140,7 +140,7 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 			visible: controller.isVisible(),
 		});
 
-		fixture.classList.add('style-override', 'monaco-reduce-motion');
+		fixture.classList.add('modern-ui', 'monaco-reduce-motion');
 		quickpick.show();
 		quickpick.hide();
 		recordState();
@@ -168,7 +168,7 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 	test('overlay picker aligns its input with the anchor and bypasses motion', () => {
 		fixture.style.width = '600px';
 		fixture.style.height = '400px';
-		fixture.classList.add('style-override', 'monaco-enable-motion');
+		fixture.classList.add('modern-ui', 'monaco-enable-motion');
 		controller.layout({ width: 600, height: 400 }, 0);
 
 		const anchor = document.createElement('div');

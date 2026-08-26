@@ -10,11 +10,13 @@ import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { IChatSessionFileChange } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { SessionHasChangesContext, SessionHasGitRepositoryContext, SessionHasMultipleCommittedChatsContext, SessionSupportsSideChatContext } from '../../../../common/contextkeys.js';
-import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionStatus } from '../../common/session.js';
+import { SessionActiveChatHasSubagentsContext, SessionHasCachedChangesContext, SessionHasChangesContext, SessionHasGitRepositoryContext, SessionHasMultipleCommittedChatsContext, SessionIsActiveContext, SessionSupportsSideChatContext } from '../../../../common/contextkeys.js';
+import { ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionChangeset, SessionStatus } from '../../common/session.js';
 import { IActiveSession } from '../../common/sessionsManagement.js';
 import { setActiveSessionContextKeys, setSessionContextKeys } from '../../common/sessionContextKeys.js';
+import { SessionChangesStatsCache } from '../../common/sessionChangesStatsCache.js';
 
 function createSession(hasGitRepository: ISettableObservable<boolean>): ISession {
 	return upcastPartial<ISession>({
@@ -25,6 +27,7 @@ function createSession(hasGitRepository: ISettableObservable<boolean>): ISession
 		hasGitRepository,
 		isArchived: constObservable(false),
 		isRead: constObservable(true),
+		status: constObservable(SessionStatus.Completed),
 		capabilities: constObservable({ supportsMultipleChats: false }),
 		changesets: constObservable(undefined),
 		changes: constObservable([]),
@@ -40,6 +43,7 @@ const stubChat: IChat = {
 	changes: constObservable([]),
 	checkpoints: constObservable(undefined),
 	modelId: constObservable(undefined),
+	modelSource: constObservable(undefined),
 	mode: constObservable(undefined),
 	isArchived: constObservable(false),
 	isRead: constObservable(true),
@@ -108,6 +112,28 @@ suite('Session Context Keys', () => {
 			second: true,
 		});
 	});
+
+	test('publishes whether the scoped session is active', () => {
+		const contextKeyService = store.add(new MockContextKeyService());
+		const status = observableValue('status', SessionStatus.Completed);
+		const session = stubSession({ sessionId: 'a', status });
+
+		store.add(autorun(reader => setSessionContextKeys(session, contextKeyService, reader)));
+		const completed = SessionIsActiveContext.getValue(contextKeyService);
+		status.set(SessionStatus.InProgress, undefined);
+		const inProgress = SessionIsActiveContext.getValue(contextKeyService);
+		status.set(SessionStatus.NeedsInput, undefined);
+		const needsInput = SessionIsActiveContext.getValue(contextKeyService);
+		status.set(SessionStatus.Error, undefined);
+		const error = SessionIsActiveContext.getValue(contextKeyService);
+
+		assert.deepStrictEqual({ completed, inProgress, needsInput, error }, {
+			completed: false,
+			inProgress: true,
+			needsInput: true,
+			error: false,
+		});
+	});
 });
 
 suite('setSessionContextKeys - changes', () => {
@@ -128,6 +154,24 @@ suite('setSessionContextKeys - changes', () => {
 		assert.deepStrictEqual({ whilePending, afterWorktreeCreated: SessionHasChangesContext.getValue(contextKeyService) }, {
 			whilePending: false,
 			afterWorktreeCreated: true,
+		});
+	});
+
+	test('reports the cached changes of a session until it reports its own', () => {
+		const contextKeyService = disposables.add(new MockContextKeyService());
+		const cache = disposables.add(new SessionChangesStatsCache(disposables.add(new TestStorageService())));
+		cache.set('a', { files: 2, insertions: 5, deletions: 1 });
+		const changesets = observableValue<readonly ISessionChangeset[] | undefined>('changesets', undefined);
+		const session = stubSession({ sessionId: 'a', changesets, changes: constObservable([]) });
+
+		disposables.add(autorun(reader => setSessionContextKeys(session, contextKeyService, reader, cache)));
+		const beforeReported = SessionHasCachedChangesContext.getValue(contextKeyService);
+
+		changesets.set([], undefined);
+
+		assert.deepStrictEqual({ beforeReported, afterReportedNoChanges: SessionHasCachedChangesContext.getValue(contextKeyService) }, {
+			beforeReported: true,
+			afterReportedNoChanges: false,
 		});
 	});
 });
@@ -179,7 +223,7 @@ suite('setSessionContextKeys - side chat', () => {
 			shouldShowChatTabs: constObservable(true),
 		});
 		setActiveSessionContextKeys(withSideChat, contextKeyService, undefined);
-		assert.strictEqual(SessionHasMultipleCommittedChatsContext.getValue(contextKeyService), true);
+		const withSideChatCommittedChats = SessionHasMultipleCommittedChatsContext.getValue(contextKeyService);
 
 		const withToolChat = upcastPartial<IActiveSession>({
 			...stubSession({ sessionId: 'tool', chats: constObservable([mainChat, toolChat]), mainChat: constObservable(mainChat) }),
@@ -190,6 +234,41 @@ suite('setSessionContextKeys - side chat', () => {
 			shouldShowChatTabs: constObservable(false),
 		});
 		setActiveSessionContextKeys(withToolChat, contextKeyService, undefined);
-		assert.strictEqual(SessionHasMultipleCommittedChatsContext.getValue(contextKeyService), false);
+		assert.deepStrictEqual({
+			withSideChatCommittedChats,
+			withToolChatCommittedChats: SessionHasMultipleCommittedChatsContext.getValue(contextKeyService),
+		}, {
+			withSideChatCommittedChats: true,
+			withToolChatCommittedChats: false,
+		});
+	});
+
+	test('shows subagents only for the active chat scope', () => {
+		const contextKeyService = disposables.add(new MockContextKeyService());
+		const mainChat = { ...stubChat, resource: URI.parse('test:///chat/main') };
+		const otherChat = { ...stubChat, resource: URI.parse('test:///chat/other') };
+		const firstSubagent = { ...stubChat, resource: URI.parse('test:///chat/tool-1'), origin: { kind: ChatOriginKind.Tool, parentChat: mainChat.resource } };
+		const secondSubagent = { ...stubChat, resource: URI.parse('test:///chat/tool-2'), origin: { kind: ChatOriginKind.Tool, parentChat: mainChat.resource } };
+		const createActiveSession = (activeChat: IChat) => upcastPartial<IActiveSession>({
+			...stubSession({ sessionId: 'tool', chats: constObservable([mainChat, otherChat, firstSubagent, secondSubagent]), mainChat: constObservable(mainChat) }),
+			isCreated: constObservable(true),
+			sticky: constObservable(false),
+			activeChat: constObservable(activeChat),
+			visibleChatTabs: constObservable([mainChat]),
+			shouldShowChatTabs: constObservable(true),
+		});
+
+		setActiveSessionContextKeys(createActiveSession(mainChat), contextKeyService, undefined);
+		const parentActive = SessionActiveChatHasSubagentsContext.getValue(contextKeyService);
+		setActiveSessionContextKeys(createActiveSession(otherChat), contextKeyService, undefined);
+		const unrelatedChatActive = SessionActiveChatHasSubagentsContext.getValue(contextKeyService);
+		setActiveSessionContextKeys(createActiveSession(firstSubagent), contextKeyService, undefined);
+		const subagentActive = SessionActiveChatHasSubagentsContext.getValue(contextKeyService);
+
+		assert.deepStrictEqual({ parentActive, unrelatedChatActive, subagentActive }, {
+			parentActive: true,
+			unrelatedChatActive: false,
+			subagentActive: true,
+		});
 	});
 });

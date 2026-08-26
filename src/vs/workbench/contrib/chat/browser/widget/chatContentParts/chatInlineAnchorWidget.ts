@@ -38,13 +38,14 @@ import { FolderThemeIcon, IThemeService } from '../../../../../../platform/theme
 import { fillEditorsDragData } from '../../../../../browser/dnd.js';
 import { StaticResourceContextKey } from '../../../../../common/contextkeys.js';
 import { IEditorService, SIDE_GROUP } from '../../../../../services/editor/common/editorService.js';
-import { globMatchesResource } from '../../../../../services/editor/common/editorResolverService.js';
 import { INotebookDocumentService } from '../../../../../services/notebook/common/notebookDocumentService.js';
 import { ExplorerFolderContext } from '../../../../files/common/files.js';
 import { IWorkspaceSymbol } from '../../../../search/common/search.js';
 import { IChatContentInlineReference } from '../../../common/chatService/chatService.js';
 import { IChatWidgetService } from '../../chat.js';
 import { IChatImageCarouselService } from '../../chatImageCarouselService.js';
+import { ChatPetAchievementIds } from '../../chatPetAchievements.js';
+import { IChatPetService } from '../../chatPetService.js';
 import { chatAttachmentResourceContextKey, hookUpSymbolAttachmentDragAndContextMenu } from '../../attachments/chatAttachmentWidgets.js';
 import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -54,22 +55,7 @@ import { Schemas } from '../../../../../../base/common/network.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { BrowserEditorInput } from '../../../../browserView/common/browserEditorInput.js';
-
-/**
- * Returns the editor ID to use when opening a resource from chat pills (inline anchors), based on the
- * `chat.editorAssociations` setting. Returns undefined if no association matches.
- */
-export function getEditorOverrideForChatResource(resource: URI, configurationService: IConfigurationService): string | undefined {
-	const associations = configurationService.getValue<Record<string, string>>(ChatConfiguration.EditorAssociations) ?? {};
-	// Sort patterns by length (longer patterns are more specific)
-	const sortedPatterns = Object.keys(associations).sort((a, b) => b.length - a.length);
-	for (const pattern of sortedPatterns) {
-		if (globMatchesResource(pattern, resource)) {
-			return associations[pattern];
-		}
-	}
-	return undefined;
-}
+import { getEditorOverrideForChatResource } from '../chatEditorAssociations.js';
 
 type ContentRefData =
 	| { readonly kind: 'symbol'; readonly symbol: IWorkspaceSymbol }
@@ -169,6 +155,7 @@ export class InlineAnchorWidget extends Disposable {
 		@INotebookDocumentService private readonly notebookDocumentService: INotebookDocumentService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IEditorService private readonly editorService: IEditorService,
+		@IChatPetService private readonly chatPetService: IChatPetService,
 	) {
 		super();
 
@@ -324,8 +311,10 @@ export class InlineAnchorWidget extends Disposable {
 				selection: location.range,
 			};
 
+			let opened = false;
 			const open = async () => {
 				if (this.options?.openResource && await this.options.openResource(location.uri, editorOptions)) {
+					opened = true;
 					return;
 				}
 
@@ -333,10 +322,11 @@ export class InlineAnchorWidget extends Disposable {
 				const mimeType = getMediaMime(location.uri.path);
 				if (mimeType?.startsWith('image/') && this.configurationService.getValue<boolean>(ChatConfiguration.ImageCarouselEnabled)) {
 					await this.chatImageCarouselService.openCarouselAtResource(location.uri);
+					opened = true;
 					return;
 				}
 
-				await this.openerService.open(location.uri, {
+				opened = await this.openerService.open(location.uri, {
 					fromUserGesture: true,
 					editorOptions
 				});
@@ -346,6 +336,9 @@ export class InlineAnchorWidget extends Disposable {
 				await this.options.trackOpen(open);
 			} else {
 				await open();
+			}
+			if (opened) {
+				this.chatPetService.unlockAchievement(ChatPetAchievementIds.ChatReferenceOpened);
 			}
 		}));
 	}

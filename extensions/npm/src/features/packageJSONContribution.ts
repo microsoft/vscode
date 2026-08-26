@@ -11,6 +11,7 @@ import { Location } from 'jsonc-parser';
 import type * as cp from 'child_process';
 import { dirname } from 'path';
 import { fromNow } from './date';
+import { parseNpmViewOutput, ViewPackageInfo } from './npmViewParser';
 
 const LIMIT = 40;
 
@@ -325,21 +326,7 @@ export class PackageJSONContribution implements IJSONContribution {
 	private async npmView(npmCommandPath: string, pack: string, resource: Uri | undefined): Promise<ViewPackageInfo | undefined> {
 		const args = ['view', '--json', '--', pack, 'description', 'dist-tags.latest', 'homepage', 'version', 'time'];
 		const stdout = await this.runNpmCommand(npmCommandPath, args, resource);
-		if (stdout) {
-			try {
-				const content = JSON.parse(stdout);
-				const version = content['dist-tags.latest'] || content['version'];
-				return {
-					description: content['description'],
-					version,
-					time: content.time?.[version],
-					homepage: content['homepage']
-				};
-			} catch (e) {
-				// ignore
-			}
-		}
-		return undefined;
+		return stdout ? parseNpmViewOutput(stdout) : undefined;
 	}
 
 	private async npmjsView(pack: string): Promise<ViewPackageInfo | undefined> {
@@ -428,12 +415,4 @@ interface SearchPackageInfo {
 	description?: string;
 	version?: string;
 	links?: { homepage?: string };
-}
-
-interface ViewPackageInfo {
-	description: string;
-	version?: string;
-	time?: string;
-	homepage?: string;
-	installedVersion?: string;
 }

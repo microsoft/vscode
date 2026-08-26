@@ -8,9 +8,9 @@ import { extUri } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { DEFAULT_EDITOR_ASSOCIATION, EditorResourceAccessor, SideBySideEditor, isDiffEditorInput } from '../../../common/editor.js';
+import { DEFAULT_EDITOR_ASSOCIATION, EditorResourceAccessor, SideBySideEditor, isDiffEditorInput, isEditorInputWithDiffResources } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
-import { IEditorResolverService, RegisteredEditorInfo, RegisteredEditorPriority, priorityToRank } from '../../../services/editor/common/editorResolverService.js';
+import { IEditorResolverService, RegisteredEditorInfo } from '../../../services/editor/common/editorResolverService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { REOPEN_ACTIVE_EDITOR_WITH_COMMAND_ID } from './editorCommands.js';
 
@@ -32,40 +32,34 @@ export interface IAvailableEditorTypes {
  * there is nothing meaningful to switch between: no resource, only the default text editor, or an
  * exclusive editor (e.g. the hex editor, for which `getEditors` returns an empty list).
  */
-export function getAvailableEditorTypes(activeEditor: EditorInput | null | undefined, editorResolverService: IEditorResolverService): IAvailableEditorTypes | undefined {
-	const resource = EditorResourceAccessor.getOriginalUri(activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
+export function getAvailableEditorTypes(activeEditor: EditorInput | null | undefined, editorResolverService: IEditorResolverService, hiddenEditorIds?: readonly string[]): IAvailableEditorTypes | undefined {
+	const standardDiffResources = isDiffEditorInput(activeEditor) ? {
+		original: activeEditor.original.resource,
+		modified: activeEditor.modified.resource,
+	} : undefined;
+	const diffResources = standardDiffResources ?? (isEditorInputWithDiffResources(activeEditor) ? activeEditor.diffResources : undefined);
+	const resource = diffResources?.modified ?? EditorResourceAccessor.getOriginalUri(activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
 	if (!resource) {
 		return undefined;
 	}
-	const editors = editorResolverService.getEditors(resource);
+	const currentId = activeEditor?.editorId ?? DEFAULT_EDITOR_ASSOCIATION.id;
+	const hiddenEditorIdSet = new Set(hiddenEditorIds);
+	const editors = editorResolverService.getEditors(resource, {
+		excludeUnconfiguredUniversalOptionalEditors: true,
+		currentEditorId: currentId,
+		isDiffEditor: !!diffResources,
+	}).filter(editor => editor.id === currentId || !hiddenEditorIdSet.has(editor.id));
 	if (editors.length <= 1) {
 		return undefined;
 	}
-	const isDiffEditor = isDiffEditorInput(activeEditor);
 	return {
 		resource,
-		isDiffEditor,
-		originalResource: isDiffEditor ? activeEditor.original.resource : undefined,
-		modifiedResource: isDiffEditor ? activeEditor.modified.resource : undefined,
-		currentId: activeEditor?.editorId ?? DEFAULT_EDITOR_ASSOCIATION.id,
+		isDiffEditor: !!diffResources,
+		originalResource: diffResources?.original,
+		modifiedResource: diffResources?.modified,
+		currentId,
 		editors
 	};
-}
-
-/** Whether a custom editor can be selected by default for the resource. */
-export function hasDefaultEditorAssociation(available: IAvailableEditorTypes, configuredDefaultEditor: string | undefined): boolean {
-	if (configuredDefaultEditor !== undefined && configuredDefaultEditor !== DEFAULT_EDITOR_ASSOCIATION.id) {
-		return true;
-	}
-
-	return available.editors.some(editor => {
-		if (editor.id === DEFAULT_EDITOR_ASSOCIATION.id) {
-			return false;
-		}
-
-		const priority = available.isDiffEditor ? editor.priority.diff : editor.priority.editor;
-		return priorityToRank(priority) >= priorityToRank(RegisteredEditorPriority.builtin);
-	});
 }
 
 /**
