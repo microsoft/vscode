@@ -40,12 +40,6 @@ import { Position } from '../../../common/core/position.js';
 
 // --- hint caching service (per session)
 
-export interface IInlayHintsCache {
-	readonly _serviceBrand: undefined;
-	get(model: ITextModel): InlayHintItem[] | undefined;
-	set(model: ITextModel, value: InlayHintItem[]): void;
-}
-
 class InlayHintsCache {
 
 	declare readonly _serviceBrand: undefined;
@@ -67,7 +61,8 @@ class InlayHintsCache {
 	}
 }
 
-export const IInlayHintsCache = createDecorator<IInlayHintsCache>('IInlayHintsCache');
+interface IInlayHintsCache extends InlayHintsCache { }
+const IInlayHintsCache = createDecorator<IInlayHintsCache>('IInlayHintsCache');
 registerSingleton(IInlayHintsCache, InlayHintsCache, InstantiationType.Delayed);
 
 // --- rendered label
