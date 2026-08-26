@@ -130,6 +130,8 @@ export function mergeLogicalTurnUsage(previous: UsageInfo | undefined, current: 
 	const cost = sumDefined(previousMeta.cost, currentMeta.cost);
 	const totalNanoAiu = sumDefined(previousMeta.copilotUsage?.totalNanoAiu, currentMeta.copilotUsage?.totalNanoAiu);
 	const turnTokenTotals = mergeTurnTokenTotals(previousMeta.turnTokenTotals, currentMeta.turnTokenTotals);
+	const directTotalNanoAiu = sumDefined(previousMeta.directCopilotUsage?.totalNanoAiu, currentMeta.directCopilotUsage?.totalNanoAiu);
+	const directTurnTokenTotals = mergeTurnTokenTotals(previousMeta.directTurnTokenTotals, currentMeta.directTurnTokenTotals);
 	const meta = previous._meta !== undefined || current._meta !== undefined ? {
 		...previous._meta,
 		...current._meta,
@@ -142,6 +144,8 @@ export function mergeLogicalTurnUsage(previous: UsageInfo | undefined, current: 
 			},
 		} : {}),
 		...(turnTokenTotals ? { turnTokenTotals } : {}),
+		...(directTotalNanoAiu !== undefined ? { directCopilotUsage: { totalNanoAiu: directTotalNanoAiu } } : {}),
+		...(directTurnTokenTotals ? { directTurnTokenTotals } : {}),
 	} : undefined;
 
 	return {

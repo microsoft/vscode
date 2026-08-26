@@ -935,6 +935,7 @@ export class AgentSideEffects extends Disposable {
 				return;
 			}
 		}
+		const attemptUsage = action.type === ActionType.ChatUsage ? action.usage : undefined;
 		const resumedExecution = this._resumedTurnExecutions.get(this._resumedTurnExecutionKey(sessionKey, turnId));
 		if (resumedExecution) {
 			if (action.type === ActionType.ChatUsage) {
@@ -958,7 +959,7 @@ export class AgentSideEffects extends Disposable {
 			}
 		}
 		if (action.type === ActionType.ChatUsage) {
-			const usageMeta = readUsageInfoMeta(action.usage);
+			const usageMeta = readUsageInfoMeta(attemptUsage ?? action.usage);
 			this._turnTracker.updateDirectUsage(
 				sessionKey,
 				action.turnId,

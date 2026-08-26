@@ -3050,11 +3050,17 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			const store = new DisposableStore();
 			const chatSubscription = this._ensureChatSubscription(session.toString(), chatURI);
 			if (shouldDispatchResume) {
+				let acceptedConcurrentResume = false;
 				store.add(chatSubscription.onDidApplyAction(envelope => {
 					if (envelope.action.type !== ActionType.ChatTurnResume
-						|| envelope.action.turnId !== turnId
-						|| envelope.origin?.clientId !== this._config.connection.clientId
-						|| !envelope.rejectionReason) {
+						|| envelope.action.turnId !== turnId) {
+						return;
+					}
+					if (!envelope.rejectionReason) {
+						acceptedConcurrentResume ||= envelope.origin?.clientId !== this._config.connection.clientId;
+						return;
+					}
+					if (envelope.origin?.clientId !== this._config.connection.clientId || acceptedConcurrentResume) {
 						return;
 					}
 					store.dispose();

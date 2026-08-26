@@ -6257,6 +6257,70 @@ suite('AgentHostChatContribution', () => {
 			});
 		}));
 
+		test('a rejected local retry keeps observing a concurrently accepted resume', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			agentHostService.setRootState({
+				agents: [{ provider: 'copilot', displayName: 'Agent Host - Copilot', description: 'test', models: [] }],
+				activeSessions: 1,
+			});
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/rejected-racing-retry' });
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, { sessionResource });
+			fire({
+				type: ActionType.ChatError,
+				turnId,
+				duration: 100,
+				part: { kind: ResponsePartKind.Error, error: { errorType: 'requestFailed', message: 'failed' }, resumable: true },
+			});
+			const retryButton = (await turnPromise).errorDetails?.confirmationButtons?.at(-1);
+			assert.ok(retryButton);
+
+			agentHostService.dispatchedActions.length = 0;
+			const registered = chatAgentService.registeredAgents.get('agent-host-copilot');
+			assert.ok(registered);
+			const retryProgress: IChatProgress[][] = [];
+			const retryPromise = registered.impl.invoke(
+				makeRequest({
+					sessionResource,
+					requestId: turnId,
+					acceptedConfirmationData: [retryButton.data],
+				}),
+				parts => retryProgress.push(parts),
+				[],
+				CancellationToken.None,
+			);
+			await timeout(10);
+			const resumeDispatch = agentHostService.dispatchedActions.find(entry => entry.action.type === ActionType.ChatTurnResume);
+			assert.ok(resumeDispatch?.action.type === ActionType.ChatTurnResume);
+			agentHostService.fireAction({
+				channel: session,
+				action: { type: ActionType.ChatTurnResume, turnId },
+				serverSeq: 100,
+				origin: { clientId: 'other-client', clientSeq: 1 },
+			});
+			agentHostService.fireAction({
+				channel: resumeDispatch.channel.toString(),
+				action: resumeDispatch.action,
+				serverSeq: 101,
+				origin: { clientId: agentHostService.clientId, clientSeq: resumeDispatch.clientSeq },
+				rejectionReason: 'Already resumed',
+			});
+			fire({
+				type: ActionType.ChatResponsePart,
+				turnId,
+				part: { kind: ResponsePartKind.Markdown, id: 'new-part', content: 'continued response' },
+			});
+			fire({ type: ActionType.ChatTurnComplete, turnId, duration: 200 });
+
+			const retryResult = await retryPromise;
+			assert.deepStrictEqual({
+				errorDetails: retryResult.errorDetails,
+				progress: retryProgress.flat().filter(part => part.kind === 'markdownContent').map(part => (part as IChatMarkdownContent).content.value),
+			}, {
+				errorDetails: undefined,
+				progress: ['continued response'],
+			});
+		}));
+
 		test('rejected resume resolves the retry invocation with an error', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 			agentHostService.setRootState({

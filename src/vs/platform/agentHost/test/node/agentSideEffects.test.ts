@@ -28,7 +28,7 @@ import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import type { RootConfigChangedAction } from '../../common/state/protocol/actions.js';
 import { ChangesSummary, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ChatOriginKind, CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, SessionInputRequestKind } from '../../common/state/protocol/state.js';
 import { ActionType, ActionEnvelope, AuthRequiredReason, type ChatAction, type INotification, type SessionAction } from '../../common/state/sessionActions.js';
-import { buildSubagentChatUri, buildChatUri, buildDefaultChatUri, ChatInteractivity, createErrorResponsePart, CustomizationLoadStatus, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, customizationId, type ChatInputRequest, type ClientPluginCustomization, type Customization, type ISessionGitHubState, type PluginCustomization, type Turn } from '../../common/state/sessionState.js';
+import { buildSubagentChatUri, buildChatUri, buildDefaultChatUri, ChatInteractivity, createErrorResponsePart, CustomizationLoadStatus, MessageAttachmentKind, MessageKind, PendingMessageKind, readUsageInfoMeta, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, customizationId, type ChatInputRequest, type ClientPluginCustomization, type Customization, type ISessionGitHubState, type PluginCustomization, type Turn } from '../../common/state/sessionState.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
@@ -392,6 +392,89 @@ suite('AgentSideEffects', () => {
 		);
 
 		assert.deepStrictEqual(startedProviders, ['mock']);
+	});
+
+	test('reports only the resumed attempt usage to turn telemetry', () => {
+		setupSession();
+		stateManager.dispatchServerAction(defaultChatUri, {
+			type: ActionType.ChatTurnStarted,
+			turnId: 'turn-1',
+			startedAt: '2025-01-01T00:00:00.000Z',
+			message: { text: 'hello', origin: { kind: MessageKind.User } },
+		});
+		stateManager.dispatchServerAction(defaultChatUri, {
+			type: ActionType.ChatUsage,
+			turnId: 'turn-1',
+			usage: {
+				_meta: {
+					copilotUsage: { totalNanoAiu: 2 },
+					directCopilotUsage: { totalNanoAiu: 1 },
+					directTurnTokenTotals: [{ model: 'model-1', inputTokens: 10, cachedTokens: 2, outputTokens: 3 }],
+				},
+			},
+		});
+		stateManager.dispatchServerAction(defaultChatUri, {
+			type: ActionType.ChatError,
+			turnId: 'turn-1',
+			duration: 100,
+			part: createErrorResponsePart({ errorType: 'requestFailed', message: 'failed' }, true),
+		});
+		const resumedTurn = stateManager.getChatState(defaultChatUri)?.turns.at(-1);
+		assert.ok(resumedTurn);
+		stateManager.dispatchServerAction(defaultChatUri, { type: ActionType.ChatTurnResume, turnId: 'turn-1' });
+		agent.chats.resumeTurn = async () => { };
+
+		sideEffects.handleAction(
+			defaultChatUri,
+			{ type: ActionType.ChatTurnResume, turnId: 'turn-1' },
+			'client-1',
+			AgentHostClientType.EditorWindow,
+			resumedTurn,
+		);
+		disposables.add(sideEffects.registerProgressListener(agent));
+		agent.fireProgress({
+			kind: 'action',
+			resource: URI.parse(defaultChatUri),
+			action: {
+				type: ActionType.ChatUsage,
+				turnId: 'turn-1',
+				usage: {
+					_meta: {
+						copilotUsage: { totalNanoAiu: 4 },
+						directCopilotUsage: { totalNanoAiu: 3 },
+						directTurnTokenTotals: [{ model: 'model-1', inputTokens: 20, cachedTokens: 4, outputTokens: 6 }],
+					},
+				},
+			},
+		});
+		agent.fireProgress({
+			kind: 'action',
+			resource: URI.parse(defaultChatUri),
+			action: { type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 50 },
+		});
+
+		const completedEvent = telemetryService.events.find(event => event.eventName === 'agentHost.turnCompleted');
+		const completedEventData = completedEvent?.data as Record<string, unknown> | undefined;
+		const persistedUsage = readUsageInfoMeta(stateManager.getChatState(defaultChatUri)?.turns.at(-1)?.usage);
+		assert.deepStrictEqual({
+			billedNanoAiu: completedEventData?.billedNanoAiu,
+			directBilledNanoAiu: completedEventData?.directBilledNanoAiu,
+			directPromptTokenCount: completedEventData?.directPromptTokenCount,
+			directPromptCacheTokenCount: completedEventData?.directPromptCacheTokenCount,
+			directCompletionTokenCount: completedEventData?.directCompletionTokenCount,
+			persistedNanoAiu: persistedUsage.copilotUsage?.totalNanoAiu,
+			persistedDirectNanoAiu: persistedUsage.directCopilotUsage?.totalNanoAiu,
+			persistedDirectTurnTokenTotals: persistedUsage.directTurnTokenTotals,
+		}, {
+			billedNanoAiu: 4,
+			directBilledNanoAiu: 3,
+			directPromptTokenCount: 20,
+			directPromptCacheTokenCount: 4,
+			directCompletionTokenCount: 6,
+			persistedNanoAiu: 6,
+			persistedDirectNanoAiu: 4,
+			persistedDirectTurnTokenTotals: [{ model: 'model-1', inputTokens: 30, cachedTokens: 6, outputTokens: 9 }],
+		});
 	});
 
 	test('preserves the original turn-start checkpoint identity across resume and completion', async () => {
