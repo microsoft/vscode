@@ -61,7 +61,7 @@ import { AgentServerToolHost } from './shared/agentServerToolHost.js';
 import { type IChatContextSnapshot, type IRenameTitleResult, type ISessionCreationDefaults, type ISessionServerToolAccessor, validateRenameTitle } from './shared/sessionServerTools.js';
 import { AGENT_HOST_TITLE_SOURCE_AGENT, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, persistSessionMetadata, persistSessionMetadataValues, SESSION_ARTIFACTS_KEY, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from './shared/persistSessionMetadata.js';
 import { type IArtifactServerToolAccessor } from './shared/artifactServerTools.js';
-import { parseSessionArtifacts, stringifySessionArtifacts, withSessionArtifacts } from '../common/sessionArtifacts.js';
+import { parseSessionArtifacts, stringifySessionArtifacts, withSessionArtifacts, type ISessionArtifact } from '../common/sessionArtifacts.js';
 
 import { buildWorktreeFailureNotification, IAgentHostWorktreeIsolation, WORKTREE_META_REPOSITORY_ROOT, worktreeProjectFromRepositoryRoot } from './shared/worktreeIsolation.js';
 import { IAgentHostCheckpointService } from '../common/agentHostCheckpointService.js';
@@ -438,6 +438,8 @@ export class AgentService extends Disposable implements IAgentService {
 	 */
 	private readonly _sessionRegistry: AgentSessionRegistry;
 	private readonly _orchestratorDatabase: IAgentHostDatabase;
+	/** Serializes durable last-modified advances emitted by live session state. */
+	private _sessionModifiedTimeWrites: Promise<void> = Promise.resolve();
 
 	private readonly _providerMigrations = new Map<AgentProvider, IProviderDiscoveryState>();
 	private readonly _initialProviderMigrations = new Map<AgentProvider, Promise<void>>();
@@ -671,6 +673,9 @@ export class AgentService extends Disposable implements IAgentService {
 		this._register(this._stateManager.onDidRemoveSession(session => this._pendingAgentMergeNotices.delete(session)));
 		this._register(this._stateManager.onDidChangeSessionSummary(({ session, changes }) => {
 			const meta = this._stateManager.getSessionSummary(session)?._meta;
+			if (changes.modifiedAt !== undefined) {
+				this._writeSessionModifiedTime(URI.parse(session), Date.parse(changes.modifiedAt));
+			}
 			if (changes.modifiedAt !== undefined
 				&& this._getExternalSessionsMode() === AgentHostExternalSessionsMode.Recent
 				&& readSessionExternal(meta)
@@ -1140,6 +1145,21 @@ export class AgentService extends Disposable implements IAgentService {
 		return this._configurationService.getRootValue(platformRootSchema, AgentHostArtifactToolsConfigKey) === true;
 	}
 
+	/**
+	 * Reads a session's persisted artifacts and references, warning when any are
+	 * lost. A corrupt row would otherwise empty a session's artifacts pill with
+	 * no trace of why the agent's recorded work disappeared.
+	 */
+	private _readPersistedArtifacts(value: string | undefined, session: string, logPrefix: string): readonly ISessionArtifact[] {
+		const { artifacts, error, dropped } = parseSessionArtifacts(value);
+		if (error) {
+			this._logService.warn(`${logPrefix} Failed to parse artifacts for ${session}: ${toErrorMessage(error)}`);
+		} else if (dropped > 0) {
+			this._logService.warn(`${logPrefix} Dropped ${dropped} malformed artifact(s) for ${session}`);
+		}
+		return artifacts;
+	}
+
 	private _getServerToolCreationDefaults(source: URI): ISessionCreationDefaults | undefined {
 		const session = this._stateManager.getSessionState(source.toString());
 		if (!session) {
@@ -1161,7 +1181,7 @@ export class AgentService extends Disposable implements IAgentService {
 
 	/**
 	 * Starts a turn requested by the session orchestration server tools
-	 * (`create_session`, `create_chat`, `send_message`) by dispatching a
+	 * (`create_session`, `send_message`) by dispatching a
 	 * `ChatTurnStarted` and routing it through the same side-effects path a
 	 * client-initiated turn takes (which sends the message to the provider).
 	 */
@@ -1344,15 +1364,26 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	/**
-	 * Registry metadata for one session. Returns `undefined` when the agent
-	 * cannot describe the session yet; {@link listSessions} still overlays
-	 * active provisional sessions from state-manager data.
+	 * Registry metadata for one session. The host offers its stable timestamps
+	 * as a fallback, but the provider decides whether a passive metadata miss
+	 * means "not initialized yet" or "not found".
 	 */
-	private async _registeredSessionMetadata(agent: IAgent, session: URI, external: boolean): Promise<IAgentSessionMetadata | undefined> {
+	private async _registeredSessionMetadata(agent: IAgent, session: URI, external: boolean, fallback?: Pick<IRegisteredSession, 'startTime' | 'modifiedTime'>): Promise<IAgentSessionMetadata | undefined> {
 		const chat = URI.parse(buildDefaultChatUri(session));
-		const metadata = await agent.getChatMetadata(chat, this._chatContext(session, chat), await this._readDefaultChatProviderData(session));
+		const metadata = await agent.getChatMetadata(
+			chat,
+			this._chatContext(session, chat),
+			await this._readDefaultChatProviderData(session),
+			fallback ? { registryFallback: { startTime: fallback.startTime, modifiedTime: fallback.modifiedTime } } : undefined,
+		);
 		if (!metadata) {
 			return undefined;
+		}
+		if (fallback && metadata.modifiedTime > fallback.modifiedTime) {
+			// This computation already returns the fresher metadata, and settled
+			// list computations are not cached. Persist without invalidating the
+			// in-flight computation into a redundant second pass.
+			await this._advanceSessionModifiedTime(session, metadata.modifiedTime, false);
 		}
 		const sessionMetadata = this._toSessionMetadata(metadata);
 		return {
@@ -1370,7 +1401,7 @@ export class AgentService extends Disposable implements IAgentService {
 		const liveSummary = this._stateManager.getSessionSummary(session.toString());
 		if (liveSummary) {
 			const metadata = (liveSummary.workingDirectories === undefined && agent
-				? await this._registeredSessionMetadata(agent, session, registered.external)
+				? await this._registeredSessionMetadata(agent, session, registered.external, registered)
 				: undefined) ?? {
 				session,
 				startTime: registered.startTime,
@@ -1381,7 +1412,7 @@ export class AgentService extends Disposable implements IAgentService {
 		if (!agent) {
 			return undefined;
 		}
-		return this._registeredSessionMetadata(agent, session, registered.external);
+		return this._registeredSessionMetadata(agent, session, registered.external, registered);
 	}
 
 	private _withLiveSessionMetadata(metadata: IAgentSessionMetadata, liveSummary: SessionSummary): IAgentSessionMetadata {
@@ -1653,9 +1684,11 @@ export class AgentService extends Disposable implements IAgentService {
 			const sessionMetadata = this._toSessionMetadata(metadata);
 			const session = sessionMetadata.session;
 			try {
-				// Matching registry entries need no per-session I/O.
+				// Matching registry entries still advance their durable recency from
+				// the provider catalog, but need no per-session metadata I/O.
 				if (registeredKeys.has(session.toString())) {
 					alreadyRegistered++;
+					await this._advanceSessionModifiedTime(session, sessionMetadata.modifiedTime);
 					return false;
 				}
 				if (isSubagentSession(session.toString()) || await this._isChatBacking(session)) {
@@ -1666,7 +1699,7 @@ export class AgentService extends Disposable implements IAgentService {
 					skippedAsStale++;
 					return false;
 				}
-				const identity: IRegisteredSession = { session, provider: provider.id, startTime: metadata.startTime, external, source: external ? 'discovery' : 'restore' };
+				const identity: IRegisteredSession = { session, provider: provider.id, startTime: metadata.startTime, modifiedTime: metadata.modifiedTime, external, source: external ? 'discovery' : 'restore' };
 				const registered = await this._retryRegistryMutation(
 					() => this._sessionRegistry.register(session, identity, { checkTombstone: true }),
 					`discovery registration for ${session.toString()}`,
@@ -1735,7 +1768,7 @@ export class AgentService extends Disposable implements IAgentService {
 				return undefined;
 			}
 			const external = !facts.hostCreated;
-			return { session: s.session, provider: provider.id, startTime: s.startTime, external, source: external ? 'discovery' : 'restore' };
+			return { session: s.session, provider: provider.id, startTime: s.startTime, modifiedTime: s.modifiedTime, external, source: external ? 'discovery' : 'restore' };
 		})));
 		let registeredExternal = false;
 		const untitledExternal: IAgentSessionMetadata[] = [];
@@ -1837,6 +1870,25 @@ export class AgentService extends Disposable implements IAgentService {
 
 	private _listRegisteredSessions(): Promise<readonly IRegisteredSession[]> {
 		return this._sessionRegistry.list(entry => this._migrateRegisteredSession(entry));
+	}
+
+	private async _advanceSessionModifiedTime(session: URI, modifiedTime: number, invalidate = true): Promise<void> {
+		if (!Number.isFinite(modifiedTime)) {
+			return;
+		}
+		const changed = await this._retryRegistryMutation(
+			() => this._sessionRegistry.updateModifiedTime(session, modifiedTime),
+			`modified-time update for ${session.toString()}`,
+		);
+		if (changed && invalidate) {
+			this._invalidateSessionList();
+		}
+	}
+
+	private _writeSessionModifiedTime(session: URI, modifiedTime: number): void {
+		this._sessionModifiedTimeWrites = this._sessionModifiedTimeWrites
+			.then(() => this._advanceSessionModifiedTime(session, modifiedTime))
+			.catch(err => this._logService.warn(`[AgentService] Failed to persist the modified time for ${session.toString()}`, err));
 	}
 
 	private async _retryRegistryMutation<T>(operation: () => Promise<T>, description: string): Promise<T> {
@@ -1962,7 +2014,7 @@ export class AgentService extends Disposable implements IAgentService {
 				return undefined;
 			}
 			try {
-				return await this._registeredSessionMetadata(agent, session, external);
+				return await this._registeredSessionMetadata(agent, session, external, registeredSession);
 			} catch (err) {
 				this._logService.warn(`[AgentService] listSessions: failed to read metadata for ${session}`, err);
 				return undefined;
@@ -2058,7 +2110,7 @@ export class AgentService extends Disposable implements IAgentService {
 					if (multiRoot) {
 						updated = { ...updated, _meta: withSessionMultiRootMetadata(updated._meta, multiRoot) };
 					}
-					const artifacts = parseSessionArtifacts(m[SESSION_ARTIFACTS_KEY]);
+					const artifacts = this._readPersistedArtifacts(m[SESSION_ARTIFACTS_KEY], sessionStr, '[AgentService][listSessions]');
 					if (artifacts.length > 0) {
 						updated = { ...updated, _meta: withSessionArtifacts(updated._meta, artifacts) };
 					}
@@ -2639,8 +2691,9 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 		} else {
 			try {
+				const registeredAt = Date.now();
 				await this._retryRegistryMutation(
-					() => this._sessionRegistry.register(session, { provider: provider.id, startTime: Date.now(), source: 'explicit' }, { checkTombstone: false }),
+					() => this._sessionRegistry.register(session, { provider: provider.id, startTime: registeredAt, modifiedTime: registeredAt, source: 'explicit' }, { checkTombstone: false }),
 					`registration for ${session.toString()}`,
 				);
 				this._invalidateSessionList();
@@ -4776,8 +4829,9 @@ export class AgentService extends Disposable implements IAgentService {
 			// list at all. A registration that cannot be made durable fails the
 			// migration: continuing would leave exactly the orphan this prevents.
 			if (adopted && !registeredSession) {
+				const registeredAt = Date.now();
 				await this._retryRegistryMutation(
-					() => this._sessionRegistry.register(session, { provider: agent.id, startTime: Date.now(), source: 'restore' }, { checkTombstone: true }),
+					() => this._sessionRegistry.register(session, { provider: agent.id, startTime: registeredAt, modifiedTime: registeredAt, source: 'restore' }, { checkTombstone: true }),
 					`adoption registration for ${sessionStr}`,
 				);
 				registeredAfterAdoption = true;
@@ -5090,7 +5144,7 @@ export class AgentService extends Disposable implements IAgentService {
 							sessionMetadata = withSessionCreationReference(sessionMetadata, creationReference);
 						}
 						sessionMetadata = withSessionMultiRootMetadata(sessionMetadata, parseSessionMultiRootMetadata(m[SESSION_META_MULTI_ROOT_KEY]));
-						sessionMetadata = withSessionArtifacts(sessionMetadata, parseSessionArtifacts(m[SESSION_ARTIFACTS_KEY]));
+						sessionMetadata = withSessionArtifacts(sessionMetadata, this._readPersistedArtifacts(m[SESSION_ARTIFACTS_KEY], sessionStr, '[AgentService]'));
 						sessionMetadata = withSessionFolderPickerDecision(sessionMetadata, parseSessionFolderPickerDecision(m[SESSION_META_FOLDER_PICKER_KEY]));
 
 						if (m.configValues) {
@@ -5145,7 +5199,7 @@ export class AgentService extends Disposable implements IAgentService {
 			: defaultDraft;
 		const mergedTurns = await this._interleaveLocalTurns(sessionStr, defaultChatUri.toString(), turns);
 		const registered = await this._retryRegistryMutation(
-			() => this._sessionRegistry.register(session, { provider: agent.id, startTime: meta.startTime, source: registrationSource }, { checkTombstone: true }),
+			() => this._sessionRegistry.register(session, { provider: agent.id, startTime: meta.startTime, modifiedTime: meta.modifiedTime, source: registrationSource }, { checkTombstone: true }),
 			`registration for restored session ${session.toString()}`,
 		);
 		if (!registered) {
@@ -5737,7 +5791,7 @@ export class AgentService extends Disposable implements IAgentService {
 		const sessionStr = session.toString();
 		const chat = URI.parse(buildDefaultChatUri(session));
 		try {
-			const metadata = await agent.getChatMetadata(chat, this._chatContext(session, chat), await this._readDefaultChatProviderData(session));
+			const metadata = await agent.getChatMetadata(chat, this._chatContext(session, chat), await this._readDefaultChatProviderData(session), { activation: 'restore' });
 			return await this._withWorktreeProject(session, metadata ? this._toSessionMetadata(metadata) : undefined);
 		} catch (err) {
 			if (err instanceof ProtocolError) {
