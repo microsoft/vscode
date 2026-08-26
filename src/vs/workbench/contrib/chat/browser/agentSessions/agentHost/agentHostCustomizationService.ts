@@ -212,6 +212,8 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 				disabledReason: getCustomizationDisabledReason(server, plugin),
 				status: server.state.kind,
 				state: server.state,
+				sourceUri: URI.parse(server.uri),
+				sourceRange: server.range,
 				logOutputChannelId: channelIdForMcpServer(sessionResource.toString(), server.id),
 				setEnabled: (enabled: boolean) => target.setCustomizationEnablement(server.id, withCustomizationEnablement(server.enablement, CustomizationEnablementKind.Session, { kind: CustomizationEnablementKind.Session, enabled })),
 				start: () => target.startMcpServer(server.id),

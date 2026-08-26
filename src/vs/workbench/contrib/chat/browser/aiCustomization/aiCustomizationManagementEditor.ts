@@ -94,10 +94,9 @@ import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quic
 import { defaultButtonStyles, defaultCheckboxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
-import { IWorkbenchMcpServer } from '../../../mcp/common/mcpTypes.js';
 import { IAgentPluginItem } from '../agentPluginEditor/agentPluginItems.js';
 import { IExtension } from '../../../extensions/common/extensions.js';
-import { EmbeddedMcpServerDetail } from './embeddedMcpServerDetail.js';
+import { EmbeddedMcpServerDetail, IMcpServerDetailInput } from './embeddedMcpServerDetail.js';
 import { EmbeddedAgentPluginDetail } from './embeddedAgentPluginDetail.js';
 import { EmbeddedExtensionToolsDetail } from './embeddedExtensionToolsDetail.js';
 import { ICustomizationHarnessService, type ICustomizationSourceFolder } from '../../common/customizationHarnessService.js';
@@ -1495,15 +1494,15 @@ export class AICustomizationManagementEditor extends EditorPane {
 			const groupCheckboxContainer = DOM.append(groupControls, $('.item-sync-checkbox.prompt-migration-group-checkbox'));
 			groupCheckboxContainer.replaceChildren(groupCheckbox.domNode);
 			this.migrationFirstFocusableElement ??= groupCheckbox.domNode;
-			DOM.append(groupControls, $('span.prompt-migration-select-all-label')).textContent = localize('customizationMigrationSelectAll', "Select all");
+			const selectAllLabel = DOM.append(groupControls, $('span.prompt-migration-select-all-label'));
+			selectAllLabel.textContent = localize('customizationMigrationSelectAll', "Select all");
 			const setGroupCheckboxState = (state: boolean | 'mixed'): void => {
 				groupCheckbox.checked = state;
 				groupCheckbox.domNode.setAttribute('aria-checked', String(state));
 			};
 			setGroupCheckboxState(initialGroupState);
 			const itemCheckboxes: Checkbox[] = [];
-			this.migrationPageDisposables.add(groupCheckbox.onChange(() => {
-				const selected = groupCheckbox.checked === true;
+			const setGroupSelection = (selected: boolean): void => {
 				for (const customization of customizations) {
 					this.setCustomizationSelectedForMigration(customization, selected);
 				}
@@ -1511,6 +1510,14 @@ export class AICustomizationManagementEditor extends EditorPane {
 					itemCheckbox.checked = selected;
 				}
 				this.updateCustomizationMigrationActionState();
+			};
+			this.migrationPageDisposables.add(groupCheckbox.onChange(() => setGroupSelection(groupCheckbox.checked === true)));
+			this.migrationPageDisposables.add(DOM.addDisposableListener(selectAllLabel, 'click', e => {
+				DOM.EventHelper.stop(e, true);
+				const selected = groupCheckbox.checked !== true;
+				setGroupCheckboxState(selected);
+				setGroupSelection(selected);
+				groupCheckbox.focus();
 			}));
 			const updateGroupCheckboxState = (): void => {
 				const selectedCount = customizations.filter(customization => this.isCustomizationSelectedForMigration(customization)).length;
@@ -3254,7 +3261,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}));
 	}
 
-	private async showEmbeddedMcpDetail(server: IWorkbenchMcpServer): Promise<void> {
+	private async showEmbeddedMcpDetail(server: IMcpServerDetailInput): Promise<void> {
 		if (!this.embeddedMcpDetail) {
 			return;
 		}

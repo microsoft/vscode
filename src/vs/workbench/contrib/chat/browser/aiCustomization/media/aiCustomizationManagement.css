@@ -1006,7 +1006,7 @@ per-word capitalization does not survive translation. */
 /* Migration banner — an Inner-tier callout for customizations needing attention. */
 .ai-customization-management-editor .customization-migration-banner {
 	flex-shrink: 0;
-	margin: 0 0 var(--vscode-spacing-size120) 0;
+	margin: var(--vscode-spacing-size120) 0;
 	padding: var(--vscode-spacing-size120);
 	background: color-mix(in srgb, var(--vscode-inputValidation-warningBackground) 35%, var(--vscode-agentsPanel-background));
 	border: var(--vscode-strokeThickness) solid color-mix(in srgb, var(--vscode-inputValidation-warningBorder) 70%, var(--vscode-widget-border));
@@ -1119,9 +1119,14 @@ per-word capitalization does not survive translation. */
 	flex: 0 0 auto;
 }
 
+.ai-customization-management-editor .prompt-migration-group-controls .monaco-checkbox {
+	margin-right: 0;
+}
+
 .ai-customization-management-editor .prompt-migration-select-all-label {
 	font-size: var(--vscode-agents-fontSize-body2);
 	color: var(--vscode-descriptionForeground);
+	cursor: pointer;
 }
 
 .ai-customization-management-editor .prompt-migration-group-checkbox {
@@ -1701,7 +1706,6 @@ per-word capitalization does not survive translation. */
 }
 
 .ai-customization-management-editor .ai-customization-embedded-detail.is-empty .embedded-detail-header,
-.ai-customization-management-editor .ai-customization-embedded-detail.is-empty .plugin-detail-state-summary,
 .ai-customization-management-editor .ai-customization-embedded-detail.is-empty .embedded-detail-description,
 .ai-customization-management-editor .ai-customization-embedded-detail.is-empty .embedded-detail-tools {
 	display: none;
@@ -1748,6 +1752,16 @@ per-word capitalization does not survive translation. */
 
 .ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-title-actions .monaco-button {
 	width: auto;
+}
+
+.ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-title-actions .monaco-button-dropdown:focus-within {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-title-actions .monaco-button-dropdown > .monaco-button:focus {
+	outline: 0;
 }
 
 .ai-customization-management-editor .embedded-plugin-detail.narrow-layout .embedded-detail-header {
@@ -1848,20 +1862,6 @@ per-word capitalization does not survive translation. */
 	margin-bottom: var(--vscode-spacing-size40);
 }
 
-.ai-customization-management-editor .embedded-plugin-detail .plugin-detail-state-summary {
-	padding: var(--vscode-spacing-size100) var(--vscode-spacing-size120);
-	border: var(--vscode-strokeThickness) solid transparent;
-	border-radius: var(--vscode-cornerRadius-medium);
-	background: var(--vscode-textBlockQuote-background);
-	color: var(--vscode-foreground);
-	font-size: var(--vscode-agents-fontSize-body1);
-	line-height: 1.4;
-}
-
-.vscode-high-contrast .ai-customization-management-editor .embedded-plugin-detail .plugin-detail-state-summary {
-	border-color: var(--vscode-contrastBorder);
-}
-
 .ai-customization-management-editor .ai-customization-embedded-detail.embedded-plugin-detail .embedded-detail-description,
 .ai-customization-management-editor .ai-customization-embedded-detail.embedded-plugin-detail .embedded-detail-section {
 	padding-inline-start: 0;
@@ -1872,7 +1872,6 @@ per-word capitalization does not survive translation. */
 	margin-bottom: 0;
 }
 
-.ai-customization-management-editor .embedded-plugin-detail .plugin-detail-applicability,
 .ai-customization-management-editor .embedded-plugin-detail .plugin-detail-source-facts {
 	display: flex;
 	flex-direction: column;
@@ -1890,15 +1889,23 @@ per-word capitalization does not survive translation. */
 }
 
 .ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-facts {
-	display: grid;
-	grid-template-columns: minmax(96px, max-content) minmax(0, 1fr);
-	gap: var(--vscode-spacing-size60) var(--vscode-spacing-size120);
+	display: flex;
+	flex-direction: column;
+	gap: 0;
 	padding-inline-start: 32px;
 	margin-bottom: var(--vscode-spacing-size80);
 }
 
 .ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-fact-row {
-	display: contents;
+	display: grid;
+	grid-template-columns: minmax(96px, max-content) minmax(0, 1fr);
+	gap: var(--vscode-spacing-size120);
+	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size120);
+	min-width: 0;
+}
+
+.ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-fact-row:not(:last-child) {
+	box-shadow: inset 0 calc(-1 * var(--vscode-strokeThickness)) var(--vscode-widget-border);
 }
 
 .ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-fact-label,
@@ -1919,7 +1926,7 @@ per-word capitalization does not survive translation. */
 	white-space: nowrap;
 }
 
-.ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-fact-value:has(.embedded-detail-location-value) {
+.ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-fact-value.has-actions {
 	overflow: visible;
 }
 
@@ -1982,11 +1989,13 @@ per-word capitalization does not survive translation. */
 .ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-chip-list {
 	display: flex;
 	flex-direction: column;
-	gap: var(--vscode-spacing-size40);
+	gap: 0;
 }
 
-.ai-customization-management-editor .ai-customization-embedded-detail .plugin-detail-contribution-chip {
-	line-height: 18px;
+.ai-customization-management-editor .ai-customization-embedded-detail .plugin-detail-flat-list {
+	border: var(--vscode-strokeThickness) solid var(--vscode-widget-border);
+	border-radius: var(--vscode-cornerRadius-medium);
+	overflow: hidden;
 }
 
 .ai-customization-management-editor .ai-customization-embedded-detail .plugin-detail-contribution-section {
@@ -1994,10 +2003,11 @@ per-word capitalization does not survive translation. */
 	flex-direction: column;
 	gap: var(--vscode-spacing-size60);
 	min-width: 0;
+	padding: var(--vscode-spacing-size100) var(--vscode-spacing-size120);
 }
 
 .ai-customization-management-editor .ai-customization-embedded-detail .plugin-detail-contribution-section + .plugin-detail-contribution-section {
-	margin-top: var(--vscode-spacing-size160);
+	box-shadow: inset 0 var(--vscode-strokeThickness) var(--vscode-widget-border);
 }
 
 .ai-customization-management-editor .ai-customization-embedded-detail .plugin-detail-contribution-group {
@@ -2078,13 +2088,17 @@ per-word capitalization does not survive translation. */
 	color: var(--vscode-descriptionForeground);
 }
 
+.ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-chip-list > .plugin-detail-contribution-empty {
+	padding: var(--vscode-spacing-size100) var(--vscode-spacing-size120);
+}
+
 .ai-customization-management-editor .ai-customization-embedded-detail .plugin-detail-contribution-description {
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
 }
 
-.vscode-high-contrast .ai-customization-management-editor .ai-customization-embedded-detail .plugin-detail-contribution-group {
+.vscode-high-contrast .ai-customization-management-editor .ai-customization-embedded-detail .plugin-detail-flat-list {
 	border-color: var(--vscode-contrastBorder);
 }
 
@@ -2371,7 +2385,8 @@ per-word capitalization does not survive translation. */
 	gap: var(--vscode-spacing-size40);
 }
 
-.mcp-server-item .mcp-server-sign-in.monaco-button {
+.mcp-server-item .mcp-server-sign-in.monaco-button,
+.plugin-list-widget .mcp-installed-home-row .mcp-server-sign-in.monaco-button {
 	min-width: 0;
 	min-height: var(--vscode-spacing-size240);
 	padding: 0 var(--vscode-spacing-size80);
@@ -2482,10 +2497,6 @@ per-word capitalization does not survive translation. */
 	background: transparent;
 	border-radius: 0;
 	cursor: pointer;
-}
-
-.plugin-list-widget .plugin-home-row.mcp-static-row {
-	cursor: default;
 }
 
 .plugin-list-widget .plugin-home-row.customization-home-row.disabled {

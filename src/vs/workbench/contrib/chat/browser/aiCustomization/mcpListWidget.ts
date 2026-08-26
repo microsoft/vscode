@@ -17,7 +17,7 @@ import { defaultButtonStyles, defaultInputBoxStyles, getButtonStyles } from '../
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { mcpAccessConfig, McpAccessValue } from '../../../../../platform/mcp/common/mcpManagement.js';
-import { IMcpWorkbenchService, IWorkbenchMcpServer, McpConnectionState, McpServerInstallState, IMcpService, IMcpServer } from '../../../../contrib/mcp/common/mcpTypes.js';
+import { IMcpWorkbenchService, IWorkbenchMcpServer, McpConnectionState, McpServerDefinition, McpServerInstallState, IMcpService, IMcpServer, McpServerTransportType } from '../../../../contrib/mcp/common/mcpTypes.js';
 import { IMcpRegistry } from '../../../mcp/common/mcpRegistryTypes.js';
 import { MCP_PLUGIN_COLLECTION_ID_PREFIX } from '../../../mcp/common/discovery/pluginMcpDiscovery.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
@@ -50,6 +50,9 @@ import { createAgentHostEnablePluginAction } from '../agentPluginActions.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { getErrorMessage } from '../../../../../base/common/errors.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
+import { Range } from '../../../../../editor/common/core/range.js';
+import { IMcpServerConfiguration, McpServerType } from '../../../../../platform/mcp/common/mcpPlatformTypes.js';
+import { createWorkbenchMcpServerDetailInput, IMcpServerDetailInput } from './embeddedMcpServerDetail.js';
 
 const $ = DOM.$;
 
@@ -348,16 +351,7 @@ export class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry 
 			? (beforeShow?: () => Promise<void>) => this.agentHostCustomizationService.showMcpServerLog(activeSessionResource, activeSessionServer.id, beforeShow)
 			: undefined;
 		if (state === McpServerStatus.AuthRequired && activeSessionServer !== undefined) {
-			const signInLabel = localize('signInToMcpServer', "Sign in to {0}", label);
-			const signInButton = templateData.actionDisposables.add(new Button(templateData.actions, {
-				...defaultButtonStyles,
-				secondary: true,
-				small: true,
-				title: signInLabel,
-				ariaLabel: signInLabel,
-			}));
-			signInButton.label = localize('signIn', "Sign In");
-			signInButton.element.classList.add('mcp-server-sign-in');
+			const signInButton = createMcpSignInButton(templateData.actions, templateData.actionDisposables, label);
 			registerMcpInlineButtonAction(templateData.actionDisposables, signInButton, async () => {
 				signInButton.enabled = false;
 				try {
@@ -397,6 +391,20 @@ export class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry 
 		templateData.elementDisposables.dispose();
 		templateData.actionDisposables.dispose();
 	}
+}
+
+function createMcpSignInButton(parent: HTMLElement, store: Pick<DisposableStore, 'add'>, serverLabel: string): Button {
+	const signInLabel = localize('signInToMcpServer', "Sign in to {0}", serverLabel);
+	const signInButton = store.add(new Button(parent, {
+		...defaultButtonStyles,
+		secondary: true,
+		small: true,
+		title: signInLabel,
+		ariaLabel: signInLabel,
+	}));
+	signInButton.label = localize('signIn', "Sign In");
+	signInButton.element.classList.add('mcp-server-sign-in');
+	return signInButton;
 }
 
 /** Registers an inline MCP button without allowing its pointer or click events to open the containing list row. */
@@ -887,6 +895,61 @@ function createBuiltinEntry(server: IMcpServer, activeSessionServer?: AgentHostM
 	};
 }
 
+function createInstalledMcpServerDetailInput(entry: IMcpInstalledEntry): IMcpServerDetailInput {
+	if (entry.type === 'server-item') {
+		return createWorkbenchMcpServerDetailInput(entry.server);
+	}
+
+	const activeSessionServer = getActiveSessionServer(entry);
+	const localServer = entry.type === 'session-server-item' ? undefined : entry.localServer;
+	const localDefinition = localServer?.readDefinitions().get().server;
+	const localSource = localDefinition?.presentation?.origin;
+	const activeSessionSource = activeSessionServer?.sourceUri
+		? {
+			uri: activeSessionServer.sourceUri,
+			range: activeSessionServer.sourceRange
+				? new Range(
+					activeSessionServer.sourceRange.start.line + 1,
+					activeSessionServer.sourceRange.start.character + 1,
+					activeSessionServer.sourceRange.end.line + 1,
+					activeSessionServer.sourceRange.end.character + 1,
+				)
+				: undefined,
+		}
+		: undefined;
+
+	return {
+		id: getMcpRowKey(entry),
+		name: getMcpEntryLabel(entry),
+		label: getMcpEntryLabel(entry),
+		config: localDefinition ? getMcpServerConfiguration(localDefinition) : undefined,
+		source: localSource ?? activeSessionSource,
+	};
+}
+
+function getMcpServerConfiguration(definition: McpServerDefinition): IMcpServerConfiguration {
+	const launch = definition.launch;
+	if (launch.type === McpServerTransportType.HTTP) {
+		return {
+			type: McpServerType.REMOTE,
+			url: launch.uri.toString(true),
+			headers: launch.headers.length > 0 ? Object.fromEntries(launch.headers) : undefined,
+			oauth: launch.oauth,
+			dev: definition.devMode,
+		};
+	}
+	return {
+		type: McpServerType.LOCAL,
+		command: launch.command,
+		args: launch.args,
+		env: launch.env,
+		envFile: launch.envFile,
+		cwd: launch.cwd,
+		sandboxEnabled: definition.sandboxEnabled,
+		dev: definition.devMode,
+	};
+}
+
 /**
  * Widget that displays a list of MCP servers with marketplace browsing.
  */
@@ -894,7 +957,7 @@ export class McpListWidget extends Disposable {
 
 	readonly element: HTMLElement;
 
-	private readonly _onDidSelectServer = this._register(new Emitter<IWorkbenchMcpServer>());
+	private readonly _onDidSelectServer = this._register(new Emitter<IMcpServerDetailInput>());
 	readonly onDidSelectServer = this._onDidSelectServer.event;
 
 	private readonly _onDidChangeItemCount = this._register(new Emitter<number>());
@@ -1362,16 +1425,7 @@ export class McpListWidget extends Disposable {
 		const enabled = this.isInstalledEntryEnabled(entry);
 		row.classList.toggle('disabled', !enabled);
 
-		if (entry.type === 'server-item') {
-			this.addSurfaceActivation(row, getMcpEntryAriaLabel(entry, this.workspaceService.isSessionsWindow), () => this._onDidSelectServer.fire(entry.server));
-		} else if (entry.type === 'session-server-item' || entry.activeSessionServer) {
-			const activeSessionServer = entry.type === 'session-server-item' ? entry.server : entry.activeSessionServer;
-			this.addSurfaceActivation(row, getMcpEntryAriaLabel(entry, this.workspaceService.isSessionsWindow), () => this.openActiveSessionServerOptions(activeSessionServer!));
-		} else {
-			row.classList.add('mcp-static-row');
-			row.setAttribute('role', 'group');
-			row.setAttribute('aria-label', getMcpEntryAriaLabel(entry, this.workspaceService.isSessionsWindow));
-		}
+		this.addSurfaceActivation(row, getMcpEntryAriaLabel(entry, this.workspaceService.isSessionsWindow), () => this._onDidSelectServer.fire(createInstalledMcpServerDetailInput(entry)));
 
 		const details = DOM.append(row, $('.plugin-list-item-details'));
 		const nameRow = DOM.append(details, $('.plugin-list-item-name-row'));
@@ -1389,11 +1443,32 @@ export class McpListWidget extends Disposable {
 
 		const actions = DOM.append(row, $('.plugin-list-item-action'));
 		this.isolateSurfaceActions(actions);
+		this.appendInstalledServerSignIn(actions, entry);
 		this.appendInstalledServerToggle(actions, entry);
 		const more = this.cardDisposables.add(new Button(actions, { ...getButtonStyles({ buttonSecondaryBackground: undefined, buttonSecondaryBorder: undefined }), secondary: true, supportIcons: true, ariaLabel: localize('mcpMoreActionsAria', "More actions for {0}", label) }));
 		more.element.classList.add('plugin-card-icon-button');
 		more.label = `$(${Codicon.ellipsis.id})`;
 		this.cardDisposables.add(more.onDidClick(() => this.showMcpServerActions(entry, more.element)));
+	}
+
+	private appendInstalledServerSignIn(parent: HTMLElement, entry: IMcpInstalledEntry): void {
+		const activeSessionServer = getActiveSessionServer(entry);
+		if (activeSessionServer === undefined || getMcpStatusKind(entry, this.workspaceService.isSessionsWindow) !== McpServerStatus.AuthRequired) {
+			return;
+		}
+
+		const label = getMcpEntryLabel(entry);
+		const signInButton = createMcpSignInButton(parent, this.cardDisposables, label);
+		registerMcpInlineButtonAction(this.cardDisposables, signInButton, async () => {
+			signInButton.enabled = false;
+			try {
+				await authenticateMcpServer(this.agentHostCustomizationService, this.customizationHarnessService.activeSessionResource.get(), activeSessionServer.id);
+			} catch (error) {
+				this.notificationService.error(localize('mcpAuthenticationFailed', "Unable to sign in to {0}: {1}", label, getErrorMessage(error)));
+			} finally {
+				signInButton.enabled = true;
+			}
+		});
 	}
 
 	private appendInstalledServerToggle(parent: HTMLElement, entry: IMcpInstalledEntry): void {
@@ -1432,7 +1507,7 @@ export class McpListWidget extends Disposable {
 
 	private appendMarketplaceServerRow(parent: HTMLElement, server: IWorkbenchMcpServer): void {
 		const row = DOM.append(parent, $('.plugin-list-item.plugin-home-row.plugin-marketplace-home-row'));
-		this.addSurfaceActivation(row, localize('marketplaceMcpServerRowAriaLabel', "{0}. Available to install from the MCP marketplace.", server.label), () => this._onDidSelectServer.fire(server));
+		this.addSurfaceActivation(row, localize('marketplaceMcpServerRowAriaLabel', "{0}. Available to install from the MCP marketplace.", server.label), () => this._onDidSelectServer.fire(createWorkbenchMcpServerDetailInput(server)));
 		const details = DOM.append(row, $('.plugin-list-item-details'));
 		const nameRow = DOM.append(details, $('.plugin-list-item-name-row'));
 		const name = DOM.append(nameRow, $('.plugin-list-item-name'));
@@ -1450,7 +1525,7 @@ export class McpListWidget extends Disposable {
 
 	private appendMarketplaceServerCard(parent: HTMLElement, server: IWorkbenchMcpServer): void {
 		const card = DOM.append(parent, $('.plugin-card.plugin-marketplace-card'));
-		this.addSurfaceActivation(card, localize('marketplaceMcpServerCardAriaLabel', "{0}. Featured MCP server available to install.", server.label), () => this._onDidSelectServer.fire(server));
+		this.addSurfaceActivation(card, localize('marketplaceMcpServerCardAriaLabel', "{0}. Featured MCP server available to install.", server.label), () => this._onDidSelectServer.fire(createWorkbenchMcpServerDetailInput(server)));
 		const header = DOM.append(card, $('.plugin-card-header'));
 		const titleBlock = DOM.append(header, $('.plugin-card-title-block'));
 		const name = DOM.append(titleBlock, $('.plugin-card-title'));
@@ -1763,10 +1838,6 @@ export class McpListWidget extends Disposable {
 		if (this.installedAddButton) {
 			this.installedAddButton.label = narrow ? localize('addServerNarrow', "Add") : localize('addServer', "Add Server");
 		}
-	}
-
-	private openActiveSessionServerOptions(server: AgentHostMcpServer): void {
-		void this.commandService.executeCommand(McpCommandIds.AgentHostServerOptions, this.customizationHarnessService.activeSessionResource.get(), server.id);
 	}
 
 	private showMcpServerActions(entry: IMcpInstalledEntry, anchor: HTMLElement): void {

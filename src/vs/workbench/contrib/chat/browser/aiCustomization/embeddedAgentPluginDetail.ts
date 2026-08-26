@@ -29,7 +29,7 @@ import { createPolicyBlockedEnableAction, createUninstallPluginAction, isPluginP
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { basename, dirname, joinPath } from '../../../../../base/common/resources.js';
-import { AICustomizationManagementSection, IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
+import { AICustomizationManagementSection } from '../../common/aiCustomizationWorkspaceService.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
@@ -38,8 +38,7 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import type { IContextMenuProvider } from '../../../../../base/browser/contextmenu.js';
 import { AnchorAlignment } from '../../../../../base/browser/ui/contextview/contextview.js';
-import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
-import { getActiveCustomizationTargetLabel, getPluginInclusionLabel, getPluginScopeLabel, getPluginStateSummary } from './aiCustomizationPresentation.js';
+import { getPluginInclusionLabel } from './aiCustomizationPresentation.js';
 import { getErrorMessage } from '../../../../../base/common/errors.js';
 import { autorun } from '../../../../../base/common/observable.js';
 
@@ -67,12 +66,8 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 	private readonly nameRowEl: HTMLElement;
 	private readonly nameEl: HTMLElement;
 	private readonly statusBadgeEl: HTMLElement;
-	private readonly sourceEl: HTMLElement;
 	private readonly titleActionsEl: HTMLElement;
-	private readonly stateSummaryEl: HTMLElement;
 	private readonly descriptionEl: HTMLElement;
-	private readonly applicabilityEl: HTMLElement;
-	private readonly applicabilityFactsEl: HTMLElement;
 	private readonly sourceFactsEl: HTMLElement;
 	private readonly factsEl: HTMLElement;
 	private readonly contributionsEl: HTMLElement;
@@ -102,8 +97,6 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 		@IFileService private readonly fileService: IFileService,
 		@IRequestService private readonly requestService: IRequestService,
 		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
-		@ICustomizationHarnessService private readonly harnessService: ICustomizationHarnessService,
-		@IAICustomizationWorkspaceService private readonly workspaceService: IAICustomizationWorkspaceService,
 	) {
 		super();
 
@@ -130,26 +123,19 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 		this.nameEl = DOM.append(this.nameRowEl, $('h2.embedded-detail-name'));
 		this.nameEl.setAttribute('role', 'heading');
 		this.statusBadgeEl = DOM.append(this.nameRowEl, $('.inline-badge.embedded-detail-status-badge'));
-		this.sourceEl = DOM.append(headerText, $('.embedded-detail-scope'));
 		this.titleActionsEl = DOM.append(this.headerEl, $('.embedded-detail-title-actions'));
 
-		this.stateSummaryEl = DOM.append(this.root, $('.plugin-detail-state-summary'));
 		this.descriptionEl = DOM.append(this.root, $('.embedded-detail-description'));
-
-		this.applicabilityEl = DOM.append(this.root, $('.embedded-detail-section.plugin-detail-applicability'));
-		const applicabilityTitle = DOM.append(this.applicabilityEl, $('h3.embedded-detail-section-title'));
-		applicabilityTitle.textContent = localize('pluginApplicabilityTitle', "Applies to");
-		this.applicabilityFactsEl = DOM.append(this.applicabilityEl, $('.embedded-detail-facts'));
 
 		this.sourceFactsEl = DOM.append(this.root, $('.embedded-detail-section.plugin-detail-source-facts'));
 		const sourceFactsTitle = DOM.append(this.sourceFactsEl, $('h3.embedded-detail-section-title'));
-		sourceFactsTitle.textContent = localize('pluginSourceFactsTitle', "Source and location");
-		this.factsEl = DOM.append(this.sourceFactsEl, $('.embedded-detail-facts'));
+		sourceFactsTitle.textContent = localize('pluginSourceFactsTitle', "Details");
+		this.factsEl = DOM.append(this.sourceFactsEl, $('.embedded-detail-facts.plugin-detail-flat-list'));
 
 		this.contributionsEl = DOM.append(this.root, $('.embedded-detail-section.plugin-detail-contributions'));
 		const contributionsTitle = DOM.append(this.contributionsEl, $('h3.embedded-detail-section-title'));
 		contributionsTitle.textContent = localize('pluginContributionsTitle', "Contains");
-		this.contributionsListEl = DOM.append(this.contributionsEl, $('.embedded-detail-chip-list'));
+		this.contributionsListEl = DOM.append(this.contributionsEl, $('.embedded-detail-chip-list.plugin-detail-flat-list'));
 		this.readmeEl = DOM.append(this.root, $('.embedded-detail-section.plugin-detail-readme'));
 		const readmeTitle = DOM.append(this.readmeEl, $('h3.plugin-detail-contribution-group-title'));
 		const readmeLabel = DOM.append(readmeTitle, $('span.plugin-detail-contribution-title-label'));
@@ -159,11 +145,6 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 		this.emptyEl = DOM.append(this.root, $('.embedded-detail-empty'));
 		this.emptyEl.textContent = localize('pluginDetailEmpty', "No plugin selected.");
 
-		this._register(autorun(reader => {
-			this.harnessService.activeHarness.read(reader);
-			this.workspaceService.activeProjectRoot.read(reader);
-			this.renderItem();
-		}));
 	}
 
 	private updateNarrowLayout(narrow: boolean): void {
@@ -220,12 +201,8 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 			this.nameEl.textContent = '';
 			this.statusBadgeEl.textContent = '';
 			this.statusBadgeEl.style.display = 'none';
-			this.sourceEl.textContent = '';
 			DOM.clearNode(this.titleActionsEl);
-			this.stateSummaryEl.textContent = '';
 			this.descriptionEl.textContent = '';
-			DOM.clearNode(this.applicabilityFactsEl);
-			this.applicabilityEl.style.display = 'none';
 			DOM.clearNode(this.factsEl);
 			this.sourceFactsEl.style.display = 'none';
 			DOM.clearNode(this.contributionsListEl);
@@ -244,30 +221,10 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 			this.statusBadgeEl.style.display = 'none';
 		}
 		DOM.clearNode(this.titleActionsEl);
-		DOM.clearNode(this.applicabilityFactsEl);
 		DOM.clearNode(this.factsEl);
 		DOM.clearNode(this.contributionsListEl);
 
-		const isMarketplace = item.kind === AgentPluginItemKind.Marketplace;
-		const targetLabel = getActiveCustomizationTargetLabel(this.harnessService, this.workspaceService);
-
-		const sourceLabel = item.marketplace
-			? (isMarketplace
-				? localize('pluginSourceMarketplace', "From {0}", item.marketplace)
-				: localize('pluginSourceInstalled', "Installed from {0}", item.marketplace))
-			: (isMarketplace
-				? localize('pluginSourceMarketplaceUnknown', "Marketplace plugin")
-				: localize('pluginSourceLocal', "Installed plugin"));
-		this.sourceEl.textContent = sourceLabel;
-		if (item.kind === AgentPluginItemKind.Installed) {
-			this.stateSummaryEl.textContent = getPluginStateSummary(item.plugin, targetLabel);
-			this.stateSummaryEl.style.display = '';
-		} else {
-			this.stateSummaryEl.textContent = '';
-			this.stateSummaryEl.style.display = 'none';
-		}
 		this.renderTitleActions(item);
-		this.renderApplicability(item, targetLabel);
 		this.renderFacts(item);
 		this.renderContributions(item);
 		this.renderReadme(item);
@@ -340,8 +297,8 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 		const current = item.plugin.enablement.get();
 		const isEnabled = isContributionEnabled(current);
 		const isWorkspaceScope = current === ContributionEnablementState.EnabledWorkspace || current === ContributionEnablementState.DisabledWorkspace;
-		const profileLabel = isEnabled ? localize('excludePluginProfile', "Exclude from Profile") : localize('includePluginProfile', "Include for Profile");
-		const workspaceLabel = isEnabled ? localize('excludePluginWorkspace', "Exclude from Workspace") : localize('includePluginWorkspace', "Include in Workspace");
+		const profileLabel = isEnabled ? localize('disablePlugin', "Disable") : localize('enablePlugin', "Enable");
+		const workspaceLabel = isEnabled ? localize('disablePluginWorkspace', "Disable (Workspace)") : localize('enablePluginWorkspace', "Enable (Workspace)");
 		const profileState = isEnabled ? ContributionEnablementState.DisabledProfile : ContributionEnablementState.EnabledProfile;
 		const workspaceState = isEnabled ? ContributionEnablementState.DisabledWorkspace : ContributionEnablementState.EnabledWorkspace;
 		const primaryLabel = isWorkspaceScope ? workspaceLabel : profileLabel;
@@ -419,24 +376,6 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 		}
 	}
 
-	private renderApplicability(item: IAgentPluginItem, targetLabel: string): void {
-		this.applicabilityEl.style.display = '';
-		this.appendFact(this.applicabilityFactsEl, localize('pluginDetailTarget', "Target"), targetLabel);
-		const projectRoot = this.workspaceService.getActiveProjectRoot();
-		this.appendFact(
-			this.applicabilityFactsEl,
-			this.workspaceService.isSessionsWindow ? localize('pluginDetailSessionProject', "Session project") : localize('pluginDetailWorkspace', "Workspace"),
-			projectRoot ? this.labelService.getUriLabel(projectRoot, { relative: true }) : localize('pluginDetailNoProject', "No project selected"),
-		);
-		if (item.kind === AgentPluginItemKind.Installed) {
-			this.appendFact(this.applicabilityFactsEl, localize('pluginDetailScope', "Inclusion scope"), getPluginScopeLabel(item.plugin));
-			this.appendFact(this.applicabilityFactsEl, localize('pluginDetailRuntimeStatus', "Runtime status"), localize('pluginDetailRuntimeStatusUnknown', "Not reported by {0}", targetLabel));
-		} else {
-			this.appendFact(this.applicabilityFactsEl, localize('pluginDetailInstallState', "Install state"), localize('pluginDetailNotInstalled', "Not installed"));
-			this.appendFact(this.applicabilityFactsEl, localize('pluginDetailRuntimeStatus', "Runtime status"), localize('pluginDetailRuntimeUnavailable', "Unavailable before installation"));
-		}
-	}
-
 	private renderFacts(item: IAgentPluginItem): void {
 		this.sourceFactsEl.style.display = '';
 		if (item.kind === AgentPluginItemKind.Marketplace) {
@@ -464,6 +403,7 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 		if (typeof value === 'string') {
 			valueEl.textContent = value;
 		} else {
+			valueEl.classList.add('has-actions');
 			valueEl.appendChild(value);
 		}
 	}

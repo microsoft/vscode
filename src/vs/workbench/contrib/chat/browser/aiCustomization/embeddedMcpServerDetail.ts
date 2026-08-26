@@ -6,17 +6,42 @@
 import * as DOM from '../../../../../base/browser/dom.js';
 import { Disposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { basename } from '../../../../../base/common/resources.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { CodeEditorWidget } from '../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
+import { IRange } from '../../../../../editor/common/core/range.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IMcpServerConfiguration } from '../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { getSimpleEditorOptions } from '../../../codeEditor/browser/simpleEditorOptions.js';
 import { IMcpWorkbenchService, IWorkbenchMcpServer } from '../../../mcp/common/mcpTypes.js';
 
 const $ = DOM.$;
+
+export interface IMcpServerDetailInput {
+	readonly id: string;
+	readonly name: string;
+	readonly label: string;
+	readonly config?: IMcpServerConfiguration;
+	readonly source?: {
+		readonly uri: URI;
+		readonly range?: IRange;
+	};
+}
+
+export function createWorkbenchMcpServerDetailInput(server: IWorkbenchMcpServer): IMcpServerDetailInput {
+	return {
+		id: server.id,
+		name: server.name,
+		label: server.label,
+		config: server.config,
+		source: server.local?.mcpResource ? { uri: server.local.mcpResource } : undefined,
+	};
+}
 
 /**
  * Detail view for an MCP server inside the AI Customizations management editor.
@@ -34,8 +59,9 @@ export class EmbeddedMcpServerDetail extends Disposable {
 	private readonly definitionModel = this._register(new MutableDisposable<ITextModel>());
 	private readonly emptyEl: HTMLElement;
 
-	private current: IWorkbenchMcpServer | undefined;
+	private current: IMcpServerDetailInput | undefined;
 	private currentDefinition: string | undefined;
+	private renderGeneration = 0;
 
 	constructor(
 		parent: HTMLElement,
@@ -44,6 +70,7 @@ export class EmbeddedMcpServerDetail extends Disposable {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IModelService private readonly modelService: IModelService,
 		@ILanguageService private readonly languageService: ILanguageService,
+		@IFileService private readonly fileService: IFileService,
 	) {
 		super();
 
@@ -85,7 +112,7 @@ export class EmbeddedMcpServerDetail extends Disposable {
 		// Refresh when the underlying server changes (install state, enablement, etc.).
 		this._register(this.mcpWorkbenchService.onChange(server => {
 			if (this.current && server && server.id === this.current.id) {
-				this.current = server;
+				this.current = createWorkbenchMcpServerDetailInput(server);
 				this.renderItem();
 			}
 		}));
@@ -109,7 +136,7 @@ export class EmbeddedMcpServerDetail extends Disposable {
 		return this.leadingSlotEl;
 	}
 
-	setInput(server: IWorkbenchMcpServer): void {
+	setInput(server: IMcpServerDetailInput): void {
 		this.current = server;
 		this.renderItem();
 	}
@@ -124,6 +151,7 @@ export class EmbeddedMcpServerDetail extends Disposable {
 	}
 
 	private renderItem(): void {
+		const renderGeneration = ++this.renderGeneration;
 		const server = this.current;
 		const hasItem = !!server;
 		this.emptyEl.style.display = hasItem ? 'none' : '';
@@ -137,17 +165,39 @@ export class EmbeddedMcpServerDetail extends Disposable {
 		}
 
 		this.nameEl.textContent = server.label || server.name;
-		this.pathEl.textContent = server.local?.mcpResource ? basename(server.local.mcpResource) : 'mcp.json';
+		this.pathEl.textContent = server.source ? basename(server.source.uri) : 'mcp.json';
 		this.definitionEditor.updateOptions({
 			ariaLabel: localize('mcpDefinitionEditorAriaLabelWithName', "MCP server definition for {0}", server.label || server.name),
 		});
-		this.setDefinition(server.config ? `${JSON.stringify({ servers: { [server.name]: server.config } }, null, '\t')}\n` : undefined);
+		if (server.config) {
+			this.setDefinition(`${JSON.stringify({ servers: { [server.name]: server.config } }, null, '\t')}\n`);
+		} else if (server.source) {
+			this.setDefinition(undefined, localize('mcpDefinitionLoading', "Loading MCP server definition..."));
+			void this.loadSourceDefinition(server, server.source, renderGeneration);
+		} else {
+			this.setDefinition(undefined);
+		}
 	}
 
-	private setDefinition(definition: string | undefined): void {
+	private async loadSourceDefinition(server: IMcpServerDetailInput, source: NonNullable<IMcpServerDetailInput['source']>, renderGeneration: number): Promise<void> {
+		try {
+			const content = (await this.fileService.readFile(source.uri)).value.toString();
+			if (this.current !== server || this.renderGeneration !== renderGeneration) {
+				return;
+			}
+			this.setDefinition(source.range ? getTextInRange(content, source.range) : content);
+		} catch {
+			if (this.current === server && this.renderGeneration === renderGeneration) {
+				this.setDefinition(undefined, localize('mcpDefinitionLoadFailed', "The MCP server definition could not be loaded."));
+			}
+		}
+	}
+
+	private setDefinition(definition: string | undefined, emptyMessage = localize('mcpDefinitionUnavailable', "No definition is available for this MCP server.")): void {
 		const hasDefinition = definition !== undefined;
 		this.definitionEditorContainer.style.display = hasDefinition ? '' : 'none';
 		this.definitionEmptyEl.style.display = hasDefinition ? 'none' : '';
+		this.definitionEmptyEl.textContent = emptyMessage;
 
 		if (this.currentDefinition === definition) {
 			return;
@@ -165,4 +215,21 @@ export class EmbeddedMcpServerDetail extends Disposable {
 		this.definitionEditor.setModel(model);
 		this.definitionModel.value = model;
 	}
+}
+
+function getTextInRange(content: string, range: IRange): string {
+	const lines = content.split(/\r\n|\r|\n/);
+	const startLineIndex = range.startLineNumber - 1;
+	const endLineIndex = range.endLineNumber - 1;
+	if (startLineIndex < 0 || endLineIndex >= lines.length || startLineIndex > endLineIndex) {
+		throw new Error('MCP server source range is outside the source document.');
+	}
+	if (startLineIndex === endLineIndex) {
+		return lines[startLineIndex].slice(range.startColumn - 1, range.endColumn - 1);
+	}
+	return [
+		lines[startLineIndex].slice(range.startColumn - 1),
+		...lines.slice(startLineIndex + 1, endLineIndex),
+		lines[endLineIndex].slice(0, range.endColumn - 1),
+	].join('\n');
 }
