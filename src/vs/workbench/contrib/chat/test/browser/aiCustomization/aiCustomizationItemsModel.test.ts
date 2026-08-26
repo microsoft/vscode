@@ -215,6 +215,18 @@ suite('AICustomizationItemsModel', () => {
 			assert.strictEqual(providerA_callCount, before + 1);
 		});
 
+		test('unrelated harness changes do not refetch observed sections', async () => {
+			const model = disposables.add(instaService.createInstance(AICustomizationItemsModel));
+			model.getItems(AICustomizationManagementSection.Agents);
+			await timeout(0);
+			const before = providerA_callCount;
+
+			availableHarnesses.set([...availableHarnesses.get(), createDescriptor('C', descriptorA.itemProvider)], undefined);
+			await timeout(0);
+
+			assert.strictEqual(providerA_callCount, before);
+		});
+
 		test('switching harness re-binds and refetches observed sections', async () => {
 			const model = disposables.add(instaService.createInstance(AICustomizationItemsModel));
 			model.getItems(AICustomizationManagementSection.Agents);
@@ -224,6 +236,29 @@ suite('AICustomizationItemsModel', () => {
 			await timeout(0);
 			const sourceB = model.getActiveItemSource();
 			assert.notStrictEqual(sourceA, sourceB);
+		});
+
+		test('reuses an empty source until its harness is registered', async () => {
+			activeSessionResource.set(URI.parse('C:///session'), undefined);
+			const model = disposables.add(instaService.createInstance(AICustomizationItemsModel));
+			model.getItems(AICustomizationManagementSection.Agents);
+			await model.whenSectionLoaded(AICustomizationManagementSection.Agents);
+
+			const missingSource = model.getActiveItemSource();
+			const repeatedMissingSource = model.getActiveItemSource();
+			availableHarnesses.set([...availableHarnesses.get(), createDescriptor('C', descriptorA.itemProvider)], undefined);
+			await timeout(0);
+			await model.whenSectionLoaded(AICustomizationManagementSection.Agents);
+
+			assert.deepStrictEqual({
+				reusedMissingSource: repeatedMissingSource === missingSource,
+				replacedAfterRegistration: model.getActiveItemSource() !== missingSource,
+				providerCallCount: providerA_callCount,
+			}, {
+				reusedMissingSource: true,
+				replacedAfterRegistration: true,
+				providerCallCount: 1,
+			});
 		});
 
 		test('preserves provider-supplied plugin storage when pluginUri is omitted', async () => {

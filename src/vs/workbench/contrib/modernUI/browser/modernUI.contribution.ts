@@ -4,7 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { localize, localize2 } from '../../../../nls.js';
+import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchLayoutService, LayoutSettings, ModernUIDensity } from '../../../services/layout/browser/layoutService.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { DEFAULT_SCROLLBAR_SIZE, setGlobalDefaultScrollbarSize } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
@@ -53,6 +57,41 @@ const MODERN_UI_COMPACT_CLASS = 'modern-ui-compact';
 const MODERN_UI_TABS_CLASS = 'modern-ui-tabs';
 const MODERN_UI_NOTIFICATIONS_DIALOGS_CLASS = 'modern-ui-notifications-dialogs';
 const MODERN_UI_UPPERCASE_VIEW_HEADERS_CLASS = 'modern-ui-uppercase-view-headers';
+
+const LayoutDensityMenu = new MenuId('LayoutDensityMenu');
+const layoutDensityOptions = [
+	{ density: ModernUIDensity.Default, title: localize2('layoutDensityDefault', "Default") },
+	{ density: ModernUIDensity.Compact, title: localize2('layoutDensityCompact', "Compact") },
+] as const;
+
+MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
+	title: localize('layoutDensity', "Layout Density"),
+	submenu: LayoutDensityMenu,
+	group: '2_configuration',
+	order: 8,
+	when: ContextKeyExpr.equals(`config.${LayoutSettings.MODERN_UI}`, true),
+});
+
+for (let index = 0; index < layoutDensityOptions.length; index++) {
+	const option = layoutDensityOptions[index];
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: `workbench.action.setLayoutDensity.${option.density}`,
+				title: option.title,
+				toggled: ContextKeyExpr.equals(`config.${LayoutSettings.MODERN_UI_DENSITY}`, option.density),
+				menu: {
+					id: LayoutDensityMenu,
+					order: index + 1,
+				},
+			});
+		}
+
+		override run(accessor: ServicesAccessor): Promise<void> {
+			return accessor.get(IConfigurationService).updateValue(LayoutSettings.MODERN_UI_DENSITY, option.density);
+		}
+	});
+}
 
 /**
  * The fixed catalog of built-in Modern UI modules. The CSS for each module

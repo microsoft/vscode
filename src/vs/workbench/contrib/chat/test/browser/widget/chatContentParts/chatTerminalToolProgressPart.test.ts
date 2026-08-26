@@ -41,7 +41,6 @@ function listenerCount<T>(emitter: Emitter<T>): number {
 
 class TestTerminalChatService extends mock<ITerminalChatService>() {
 	override readonly onDidRegisterTerminalInstanceWithToolSession = Event.None;
-	override readonly onDidRegisterOutputSource = Event.None;
 	override readonly onDidContinueInBackground: Event<string>;
 
 	private readonly progressParts = new Set<IChatTerminalToolProgressPart>();
