@@ -76,7 +76,6 @@ suite('Modal Editor Group', () => {
 
 	test('Escape closes modal before focused controls can stop propagation', async () => {
 		let resolvedCommand = 'test.otherCommand';
-		let dispatchClose: (() => void) | undefined;
 		let dispatchCount = 0;
 		const keybindingService = new class extends MockKeybindingService {
 			override softDispatch(): ResolutionResult {
@@ -95,7 +94,7 @@ suite('Modal Editor Group', () => {
 		instantiationService.stub(IEditorGroupsService, parts);
 
 		const modalPart = await parts.createModalEditorPart();
-		dispatchClose = () => void modalPart.close();
+		const dispatchClose = () => void modalPart.close();
 		const modalElement = modalPart.modalElement as HTMLElement;
 		const control = modalElement.appendChild(document.createElement('button'));
 		let controlKeydownCount = 0;
