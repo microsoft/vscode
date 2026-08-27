@@ -7,7 +7,7 @@ import assert from 'assert';
 import sinon from 'sinon';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ChatSpeechToTextService, createDictationCleanupSystemPrompt, isDictationEntitled, stripDictationFillers } from '../../browser/speechToText/chatSpeechToTextService.js';
+import { ChatSpeechToTextService, createDictationCleanupSystemPrompt, isDictationEntitled, selectFinalDictationTranscript, stripDictationFillers } from '../../browser/speechToText/chatSpeechToTextService.js';
 import { resolveDictationLanguage } from '../../browser/speechToText/dictationLanguage.js';
 import { ChatEntitlement } from '../../../../services/chat/common/chatEntitlementService.js';
 import { ILanguageModelChatRequestOptions, ILanguageModelChatResponse, ILanguageModelChatSelector, ILanguageModelsService } from '../../common/languageModels.js';
@@ -110,6 +110,24 @@ suite('ChatSpeechToTextService', () => {
 				'one thing. another thing',
 			]
 		);
+	});
+
+	test('preserves a visible live transcript when the backend final hypothesis is incomplete', () => {
+		assert.deepStrictEqual({
+			shorterFinal: selectFinalDictationTranscript('complete visible transcript', 'complete visible', true),
+			emptyFinal: selectFinalDictationTranscript('complete visible transcript', '', true),
+			extendedFinal: selectFinalDictationTranscript('complete visible transcript', 'complete visible transcript with tail', true),
+			differentFinal: selectFinalDictationTranscript('complete visible transcript', 'rewritten complete visible transcript', true),
+			noLiveTranscript: selectFinalDictationTranscript('', 'backend transcript', true),
+			hiddenLiveTranscript: selectFinalDictationTranscript('interim transcript', 'backend transcript', false),
+		}, {
+			shorterFinal: 'complete visible transcript',
+			emptyFinal: 'complete visible transcript',
+			extendedFinal: 'complete visible transcript with tail',
+			differentFinal: 'complete visible transcript',
+			noLiveTranscript: 'backend transcript',
+			hiddenLiveTranscript: 'backend transcript',
+		});
 	});
 
 	test('cleanup prompt guides list formatting with ordering cues', () => {

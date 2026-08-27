@@ -63,6 +63,13 @@ export function stripDictationFillers(text: string): string {
 		.replace(/^[ \t]+|[ \t]+$/g, '');
 }
 
+export function selectFinalDictationTranscript(liveTranscript: string, backendTranscript: string | undefined, preserveLiveTranscript: boolean): string {
+	if (preserveLiveTranscript && liveTranscript && !backendTranscript?.startsWith(liveTranscript)) {
+		return liveTranscript;
+	}
+	return backendTranscript || liveTranscript;
+}
+
 function isRefusalLikeCleanupOutput(text: string): boolean {
 	return /^(?:i(?:\s+am|'m)?\s+(?:sorry|unable)|i\s+can(?:not|'t)|sorry[,.\s]|unable\s+to|cannot\s+assist|can't\s+help)/i.test(text);
 }
@@ -265,6 +272,11 @@ export interface IChatDictationTranscript {
 	readonly finalizedText: string;
 }
 
+export interface IChatSpeechToTextStopOptions {
+	/** Keep the cumulative transcript emitted while recording unless the backend's post-stop hypothesis extends it. */
+	readonly preserveLiveTranscript?: boolean;
+}
+
 export interface IChatSpeechToTextService {
 	readonly _serviceBrand: undefined;
 
@@ -343,7 +355,7 @@ export interface IChatSpeechToTextService {
 	 * Stop capturing, flush the final utterance, and resolve with the complete
 	 * cumulative transcript (or `undefined` when nothing was transcribed).
 	 */
-	stopAndTranscribe(): Promise<string | undefined>;
+	stopAndTranscribe(options?: IChatSpeechToTextStopOptions): Promise<string | undefined>;
 
 	/** Abort an in-progress recording without keeping the transcript. */
 	cancel(): Promise<void>;
@@ -1306,13 +1318,13 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		this._failSession('audio', localize('chatStt.audioError', "Speech-to-text stopped because audio could not be sent for transcription: {0}", toErrorMessage(err instanceof Error ? err : new Error(String(err)))));
 	}
 
-	async stopAndTranscribe(): Promise<string | undefined> {
+	async stopAndTranscribe(options?: IChatSpeechToTextStopOptions): Promise<string | undefined> {
 		if (this._state !== ChatSpeechToTextState.Recording || this._pendingStop) {
 			return undefined;
 		}
 
 		const generation = this._sessionGeneration;
-		const operation = this._stopAndTranscribe(generation);
+		const operation = this._stopAndTranscribe(generation, options);
 		const pendingStop = operation.then(() => undefined, () => undefined);
 		this._pendingStop = pendingStop;
 		try {
@@ -1324,7 +1336,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		}
 	}
 
-	private async _stopAndTranscribe(generation: number): Promise<string | undefined> {
+	private async _stopAndTranscribe(generation: number, options?: IChatSpeechToTextStopOptions): Promise<string | undefined> {
 		this._setState(ChatSpeechToTextState.Transcribing);
 		// Flush trailing audio before stopping the backend so transport ordering is preserved.
 		await this._flushCapture?.();
@@ -1332,15 +1344,14 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		this._accessibilitySignalService.playSignal(AccessibilitySignal.voiceRecordingStopped);
 
 		const stopMs = Date.now();
-		let text = this._transcript;
+		const liveTranscript = this._transcript;
+		let text = liveTranscript;
 		try {
 			const finalText = await this._finishBackend();
 			if (generation !== this._sessionGeneration) {
 				return undefined;
 			}
-			if (finalText) {
-				text = finalText;
-			}
+			text = selectFinalDictationTranscript(liveTranscript, finalText, options?.preserveLiveTranscript === true);
 		} catch (err) {
 			if (generation !== this._sessionGeneration) {
 				return undefined;
