@@ -200,10 +200,8 @@ export interface UsageInfoMeta {
 		[key: string]: unknown;
 	};
 	/**
-	 * Per-category account quota snapshots reported by the backend on the
-	 * model-call usage event, keyed by quota type (e.g. `chat`,
-	 * `premium_interactions`). Clients MAY use these to keep the account quota
-	 * UI current without a separate quota fetch.
+	 * Per-category account quota snapshots from the model-call usage event. Keyed by quota type:
+	 * `premium_models` (or `premium_interactions` on older backends), `chat`, `session`, `weekly`.
 	 */
 	quotaSnapshots?: {
 		[quotaType: string]: {
@@ -215,6 +213,10 @@ export interface UsageInfoMeta {
 			readonly overageAllowedWithExhaustedQuota?: boolean;
 			/** ISO 8601 date when the quota resets, if applicable. */
 			readonly resetDate?: string;
+			/** Whether this snapshot is billed against an AI-credits allocation. */
+			readonly tokenBasedBilling?: boolean;
+			/** Additional-usage budget cap in AI credits, when the backend reports one. */
+			readonly overageEntitlement?: number;
 		} | undefined;
 	};
 	/**
@@ -321,6 +323,8 @@ function readAccountQuotaSnapshot(value: unknown): AccountQuotaSnapshot | undefi
 	if (typeof raw['overage'] === 'number') { snapshot.overage = raw['overage']; }
 	if (typeof raw['overageAllowedWithExhaustedQuota'] === 'boolean') { snapshot.overageAllowedWithExhaustedQuota = raw['overageAllowedWithExhaustedQuota']; }
 	if (typeof raw['resetDate'] === 'string') { snapshot.resetDate = raw['resetDate']; }
+	if (typeof raw['tokenBasedBilling'] === 'boolean') { snapshot.tokenBasedBilling = raw['tokenBasedBilling']; }
+	if (typeof raw['overageEntitlement'] === 'number') { snapshot.overageEntitlement = raw['overageEntitlement']; }
 	return snapshot;
 }
 

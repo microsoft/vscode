@@ -13,10 +13,10 @@
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/027e97161e9d3347e891acf82cf0775854e5379ee09bdf9572fcc7d8b2dc6ba2)
 
 #### chat/chatPetAccessoryRig/chatPetAccessoryRig/AllAccessoriesFacing/Dark
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/f80557da23a56b2a35a580be984ecc168b4ea1434e2320f43563014413ce68b9)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/4cc1460fb1925cee3a2de5e5ae60770984f0490780e294bdcf56fac47c2d1490)
 
 #### chat/chatPetAccessoryRig/chatPetAccessoryRig/AllAccessoriesFacing/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/879a0ea1e9e176db00263651434f28173bdaac465524e16d307cc233d8012329)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/53dc97e97d4f9e8d02d144012794cce528d3d25d659149df8c854f7c42e54d74)
 
 #### chat/chatPetAccessoryRig/chatPetAccessoryRig/AllRuntimeStates/Dark
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/5a3aac45723f1c2c9b91aed7942ef321283cc4fb9efdd9418d87db7fa53a92d4)
@@ -25,10 +25,10 @@
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/52a7631f8a6714054e07db345ae85b18029e958476e99d6b79d0741d07784bee)
 
 #### chat/chatPetAccessoryRig/chatPetAccessoryRig/CoveredAntennaeComparison/Dark
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/ea75efef839b33d33c39e2b11b79a56cecf2ac1e0456e938121e4fe909e6a8f6)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/77cf7dadb17a2e556a5dee26f9e2e1dbf41e9c651a7c0448990dbad6615bd579)
 
 #### chat/chatPetAccessoryRig/chatPetAccessoryRig/CoveredAntennaeComparison/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/e9c81aa755f1701c0409ba5d55e0010b3285a70faf511b8fc15a6429df11c9d5)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/8ce92ebc6cc359112d5e8e356f3556ca99906901736105c3b3af5d1840348b0c)
 
 #### chat/chatPetAccessoryRig/chatPetAccessoryRig/CriticalPoses/Dark
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/35b8feb0149c04b7cc6e040a2f3708ee6a5b0f9f45955faddcefa4d712c3e9ca)
@@ -43,10 +43,10 @@
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/28743055f10abdf3c0a7809b2b3e830b7a04dc65157febf48215eecdf8b03772)
 
 #### chat/petAchievements/standaloneModal/chatPetAchievementsEditor/MixedSelected/Dark
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/c50e9db57717e9e78b21f3ec4b61741bd5a5a05ef4d376bf057ff6b782edcc86)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/2bd9c5e744b514d97d1ff309a1692f239c4f880464507430f9458946853f3db1)
 
 #### chat/petAchievements/standaloneModal/chatPetAchievementsEditor/MixedSelected/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/203f75a7c70b45f4ace8c5d99e9e297ad4fa7925c2fef3d1ecf4d760598cf044)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/b4e697f87416c5f384d7dd0338fcf76ca128bf695efa96ed885abc124a8736e1)
 
 #### editor/codeEditor/CodeEditor/Dark
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/09075b2f4715fa8a8ad426165bb85ba96a15b7174259c7da7ef0c2d5e74f7f79)
@@ -91,7 +91,7 @@
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/a29cfc0bf4510b57c82d9eae0d974babe7035042456326be861308cae609a1b5)
 
 #### sessions/accountMenu/petAchievementBadges/chatPetAchievementBadges/AllBadges/Dark
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/b9f5ae7b36d3cbe5a128eb12c3c5d7354a26359f7d5de4a49740dbe873d934f5)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/2f3f859c302172469115f4e7c5245b7006bdb5cad9b43d2a69c9046a99ec88ce)
 
 #### sessions/accountMenu/petAchievementBadges/chatPetAchievementBadges/AllBadges/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/65649d41958895794c543351b6235c70f7b0f40c0c2b68f8ab24c6ec391e5508)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/fe4b95bf8348637bba9f8c0dda791924e6c67fd7b5d173398f9b2c0bfc9f7071)

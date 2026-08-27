@@ -1098,7 +1098,7 @@ suite('ChatPetWidget', () => {
 			disabledAchievementIds: disabledChatPetAchievements.map(achievement => achievement.id),
 			disabledAccessoryIds: disabledChatPetAchievements.flatMap(achievement => achievement.accessories.map(accessory => accessory.id)),
 		}, {
-			count: 14,
+			count: 13,
 			achievementIds: [
 				ChatPetAchievementIds.RequestRevision,
 				ChatPetAchievementIds.FirstChatMessage,
@@ -1109,7 +1109,6 @@ suite('ChatPetWidget', () => {
 				ChatPetAchievementIds.AgentsWindowOpened,
 				ChatPetAchievementIds.CreatePullRequest,
 				ChatPetAchievementIds.AgentEditKept,
-				ChatPetAchievementIds.SessionArchived,
 				ChatPetAchievementIds.AgentChangesReviewed,
 				ChatPetAchievementIds.ChatReferenceOpened,
 				ChatPetAchievementIds.UsefulOutputCopied,
@@ -1125,13 +1124,12 @@ suite('ChatPetWidget', () => {
 				ChatPetAccessoryIds.PropellerHat,
 				ChatPetAccessoryIds.DarkSailorHat,
 				ChatPetAccessoryIds.WhiteChefHat,
-				ChatPetAccessoryIds.SantaHat,
-				ChatPetAccessoryIds.RiceHat,
+				ChatPetAccessoryIds.BambooHat,
 				ChatPetAccessoryIds.StrawHat,
 				ChatPetAccessoryIds.PinkPartyHat,
 				ChatPetAccessoryIds.WizardHat,
 			],
-			uniqueAccessoryCount: 14,
+			uniqueAccessoryCount: 13,
 			atlasNames: [
 				'grand-top-hat-monocle',
 				'cowboy-hat',
@@ -1142,14 +1140,13 @@ suite('ChatPetWidget', () => {
 				'propeller-hat',
 				'dark-sailor-hat',
 				'white-chef-hat',
-				'santa-hat',
-				'rice-hat',
+				'bamboo-hat',
 				'straw-hat',
 				'pink-party-hat',
 				'wizard-hat',
 			],
-			atlasCellSizes: Array(14).fill(96),
-			rewardCounts: Array(14).fill(1),
+			atlasCellSizes: Array(13).fill(96),
+			rewardCounts: Array(13).fill(1),
 			coversAntennae: true,
 			crownAccessoryId: 'crown',
 			disabledAchievementIds: [
@@ -1186,7 +1183,6 @@ suite('ChatPetWidget', () => {
 
 	test('maps every newly added hat to a distinct achievement', () => {
 		const achievementIds = [
-			ChatPetAchievementIds.SessionArchived,
 			ChatPetAchievementIds.AgentChangesReviewed,
 			ChatPetAchievementIds.ChatReferenceOpened,
 			ChatPetAchievementIds.UsefulOutputCopied,
@@ -1205,8 +1201,7 @@ suite('ChatPetWidget', () => {
 		}, {
 			firstMessageRewards: [ChatPetAccessoryIds.CowboyHat],
 			newAchievements: [
-				{ title: 'Wrapped Up', reward: ChatPetAccessoryIds.SantaHat },
-				{ title: 'Trust but Verify', reward: ChatPetAccessoryIds.RiceHat },
+				{ title: 'Trust but Verify', reward: ChatPetAccessoryIds.BambooHat },
 				{ title: 'Follow the Trail', reward: ChatPetAccessoryIds.StrawHat },
 				{ title: 'Copy That', reward: ChatPetAccessoryIds.PinkPartyHat },
 				{ title: 'Party Mode', reward: ChatPetAccessoryIds.WizardHat },
@@ -1328,8 +1323,7 @@ suite('ChatPetWidget', () => {
 				ChatPetAccessoryIds.PropellerHat,
 				ChatPetAccessoryIds.DarkSailorHat,
 				ChatPetAccessoryIds.WhiteChefHat,
-				ChatPetAccessoryIds.SantaHat,
-				ChatPetAccessoryIds.RiceHat,
+				ChatPetAccessoryIds.BambooHat,
 				ChatPetAccessoryIds.StrawHat,
 				ChatPetAccessoryIds.PinkPartyHat,
 				ChatPetAccessoryIds.WizardHat,

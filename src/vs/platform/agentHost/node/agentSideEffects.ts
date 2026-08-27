@@ -41,20 +41,17 @@ import {
 	isAhpChatChannel,
 	buildDefaultChatUri,
 	isSubagentChatUri,
-	isChatReadOnly,
 	mergeLogicalTurnUsage,
 	AH_META_IS_ARCHIVED_DB_KEY,
 	AH_META_IS_READ_DB_KEY,
 	MessageAttachmentKind,
 	MessageKind,
-	parseChatUri,
 	parseRequiredSessionUriFromChatUri,
 	PendingMessageKind,
 	ResponsePartKind,
 	readUsageInfoMeta,
 	ROOT_STATE_URI,
 	SessionLifecycle,
-	SessionStatus,
 	CustomizationType,
 	ToolCallStatus,
 	ToolResultContentType,
@@ -78,13 +75,13 @@ import { IAgentHostSessionTitleController } from './agentHostSessionTitleControl
 import { AgentHostStateManager, resolveChatStateForUri } from './agentHostStateManager.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { createAgentChatContext, getSessionChatsForFanOut } from './agentChatContext.js';
-import { AgentHostTelemetryReporter, getMessageOriginTelemetryKind, IAgentHostTelemetryReporter, type AgentHostTurnFailureStage, type AgentHostTurnResult, type IAgentHostTurnFailure } from './agentHostTelemetryReporter.js';
+import { AgentHostTelemetryReporter, IAgentHostTelemetryReporter, type AgentHostTurnFailureStage, type AgentHostTurnResult, type IAgentHostTurnFailure } from './agentHostTelemetryReporter.js';
 import { AgentHostToolCallTracker } from './agentHostToolCallTracker.js';
 import { updateAgentHostTelemetryLevelFromConfig } from './agentHostTelemetryService.js';
 import { getConfiguredSessionMode, getModelTelemetryContext, getTurnTelemetryContext } from './agentHostTurnTelemetryContext.js';
 import { AgentHostTurnTracker, IAgentHostTurnTracker } from './agentHostTurnTracker.js';
 import type { IAgentHostCustomizationEnablementService } from './agentHostCustomizationEnablementService.js';
-import { AgentHostLocalCommands, IAgentHostLocalCommands } from './localCommands/localChatCommand.js';
+import { startTurn } from './agentHostTurnStarter.js';
 import './localCommands/localChatCommands.contribution.js';
 import { SessionPermissionManager } from './sessionPermissions.js';
 import { stripProxyErrorMarker, toChatErrorMeta, tryParseForwardedChatError } from './shared/proxyChatError.js';
@@ -232,7 +229,7 @@ export class AgentSideEffects extends Disposable {
 		private readonly _stateManager: AgentHostStateManager,
 		private readonly _customizationEnablementService: IAgentHostCustomizationEnablementService,
 		private readonly _options: IAgentSideEffectsOptions,
-		@IInstantiationService instantiationService: IInstantiationService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
 		@IAgentHostChangesetService private readonly _changesets: IAgentHostChangesetService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
@@ -242,14 +239,13 @@ export class AgentSideEffects extends Disposable {
 		@IAgentHostSessionTitleController private readonly _titleController: IAgentHostSessionTitleController,
 		@IAgentHostTelemetryReporter private readonly _telemetryReporter: AgentHostTelemetryReporter,
 		@IAgentHostTurnTracker private readonly _turnTracker: AgentHostTurnTracker,
-		@IAgentHostLocalCommands private readonly _localCommands: AgentHostLocalCommands,
 		@IAgentHostWorktreeIsolation private readonly _worktree: IAgentHostWorktreeIsolation,
 	) {
 		super();
 		this.onDidStartTurn = this._turnTracker.onDidStartTurn;
 		this._toolCallTracker = this._register(new AgentHostToolCallTracker(this._telemetryReporter, (session, turnId) => this._turnTracker.getClientTelemetryContext(session, turnId)));
 		this._inputRequestTracker = new AgentHostInputRequestTracker(this._telemetryReporter, undefined, (session, turnId) => this._turnTracker.getClientTelemetryContext(session, turnId));
-		this._permissionManager = this._register(instantiationService.createInstance(SessionPermissionManager, this._stateManager, {}));
+		this._permissionManager = this._register(this._instantiationService.createInstance(SessionPermissionManager, this._stateManager, {}));
 		this._register(this._stateManager.onDidSnapshotDefaultChatTitle(event => this._persistDefaultChatTitleSnapshot(event.session, event.chat, event.title)));
 		this._register(this._chatContributions.registerHost({
 			hostLaunchKind: this._options.hostLaunchKind ?? AgentHostLaunchKind.Unknown,
@@ -370,9 +366,6 @@ export class AgentSideEffects extends Disposable {
 				}
 				const sessionChannel = parseRequiredSessionUriFromChatUri(envelope.channel);
 				this._notifyClientToolCallComplete(sessionChannel, envelope.channel, action.toolCallId, action.result, 'server-envelope');
-			}
-			if (envelope.action.type === ActionType.ChatDraftChanged) {
-				this._persistChatDraft(envelope.channel, envelope.action.draft);
 			}
 			// A chat joining the catalog changes the session's authoritative
 			// membership, so every already-contributing client is re-fanned-out
@@ -1539,41 +1532,22 @@ export class AgentSideEffects extends Disposable {
 					throw new Error(`ChatTurnStarted must be handled on an AHP chat channel: ${channel}`);
 				}
 				const turnStopWatch = StopWatch.create(false);
-				// Per-turn streaming part tracking is owned by the agent
-				// (e.g. CopilotAgentSession) and reset on its `send()` call.
-				const state = this._stateManager.getSessionState(channel);
-
-				// Generic, agent-agnostic host commands (`/rename`, `!command`,
-				// …) are intercepted here and handled by the local-command
-				// dispatcher rather than forwarded to the agent SDK.
-				const handled = this._localCommands.tryHandle({ turnChannel: channel, turnId: action.turnId, text: action.message.text });
-				if (handled) {
-					if (handled.suggestedTitle !== undefined) {
-						this._titleController.seedProvisionalTitle(sessionChannel, handled.suggestedTitle, chatChannel);
-					}
+				const started = this._instantiationService.invokeFunction(startTurn, {
+					session: sessionChannel,
+					chat: channel,
+					turnChannel: channel,
+					turnId: action.turnId,
+					message: action.message,
+					source: 'direct',
+					clientId,
+					clientContext,
+					turnStopWatch,
+				});
+				if (!started) {
 					break;
 				}
-
-				if (!state) {
-					this._logService.info(`[AgentSideEffects] Turn started for session not in state manager: ${channel}, turnId=${action.turnId} - status/summary updates may be dropped unless the session is restored`);
-				}
-				this._titleController.seedTitleFromFirstMessage(sessionChannel, action.message.text, chatChannel);
-
-				const agent = this._options.getAgent(sessionChannel);
-				if (!agent) {
-					this._stateManager.dispatchServerAction(channel, {
-						type: ActionType.ChatError,
-						turnId: action.turnId,
-						duration: this._turnDuration(turnStopWatch),
-						part: createErrorResponsePart({ errorType: 'noAgent', message: 'No agent found for session' }),
-					});
-					return;
-				}
-				this._telemetryReporter.userMessageSent(agent.id, clientId, clientContext, channel, action.turnId, state, 'direct', action.message);
-				const { model, modelTelemetryKind, modelSelectionKind, permissionLevel, interactionMode } = getTurnTelemetryContext(agent, channel, this._chatContext(sessionChannel, channel), state, action.message.model?.id);
-				this._turnTracker.turnStarted(agent, channel, action.turnId, model, modelTelemetryKind, modelSelectionKind, permissionLevel, interactionMode, clientContext, clientId, undefined, undefined, getMessageOriginTelemetryKind(action.message));
 				void this._sendTurnMessage({
-					agent,
+					agent: started.agent,
 					sessionChannel,
 					turnChannel: channel,
 					chat: channel,
@@ -1619,7 +1593,7 @@ export class AgentSideEffects extends Disposable {
 						type: ActionType.ChatError,
 						turnId: action.turnId,
 						duration: execution.duration + execution.stopWatch.elapsed(),
-						part: createErrorResponsePart(failure.error, true),
+						part: createErrorResponsePart(failure.error),
 					});
 					this._completeTurn(channel, action.turnId, 'error', failure);
 					this._toolCallTracker.clearSession(channel);
@@ -1938,25 +1912,6 @@ export class AgentSideEffects extends Disposable {
 		}).finally(() => ref.dispose());
 	}
 
-	private _persistChatDraft(channel: ProtocolURI, draft: Message | undefined): void {
-		if (!isAhpChatChannel(channel)) {
-			return;
-		}
-
-		const parsed = parseChatUri(channel);
-		if (!parsed) {
-			return;
-		}
-
-		const session = URI.parse(parsed.session);
-		const ref = this._options.sessionDataService.openDatabase(session);
-		ref.object.setChatDraft(URI.parse(channel), draft).catch(err => {
-			this._logService.warn(`[AgentSideEffects] Failed to persist chat draft for ${channel.toString()}`, err);
-		}).finally(() => {
-			ref.dispose();
-		});
-	}
-
 	/**
 	 * Applies a turn message's model/agent selection (see
 	 * {@link _applyMessageSelection}) and forwards it to the agent's
@@ -1966,32 +1921,6 @@ export class AgentSideEffects extends Disposable {
 	 */
 	private async _sendTurnMessage(options: ISendTurnMessageOptions): Promise<void> {
 		const { agent, sessionChannel, turnChannel, chat, message, turnId, senderClientId, clientContext, turnStopWatch } = options;
-
-		// Read-only chats reject user-dispatched turns. `interactivity` is the
-		// general signal (e.g. subagent worker chats are `ReadOnly`), and an
-		// archived session downgrades its interactive chats to read-only too — so
-		// enforce off the chat's effective interactivity rather than special-casing
-		// archived. This is the enforcement behind the UI hiding the composer, so a
-		// buggy or remote client cannot run work in a read-only or archived session
-		// (which may no longer have its isolated worktree on disk).
-		const chatState = this._stateManager.getChatState(chat);
-		const sessionStatus = this._stateManager.getSessionSummary(options.sessionChannel)?.status ?? 0;
-		const sessionArchived = (sessionStatus & SessionStatus.IsArchived) === SessionStatus.IsArchived;
-		if (isChatReadOnly(chatState?.interactivity, sessionArchived)) {
-			const error = sessionArchived
-				? { errorType: 'archived', message: 'This session is archived and read-only. Restore the session to continue the conversation.' }
-				: { errorType: 'readOnly', message: 'This chat is read-only.' };
-			this._logService.warn(`[AgentSideEffects] Rejecting turn on read-only chat=${chat} (archived=${sessionArchived}), turnId=${turnId}`);
-			this._stateManager.dispatchServerAction(turnChannel, {
-				type: ActionType.ChatError,
-				turnId,
-				duration: this._turnDuration(turnStopWatch),
-				part: createErrorResponsePart(error),
-			});
-			this._completeTurn(turnChannel, turnId, 'error', { stage: 'validation', error });
-			this._toolCallTracker.clearSession(turnChannel);
-			return;
-		}
 
 		const chatUri = URI.parse(chat);
 

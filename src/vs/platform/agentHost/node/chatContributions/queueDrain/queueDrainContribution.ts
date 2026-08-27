@@ -7,20 +7,16 @@ import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { StopWatch } from '../../../../../base/common/stopwatch.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
+import { IInstantiationService } from '../../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../../log/common/log.js';
 import { AgentHostClientType } from '../../../common/agentHostClientInfo.js';
 import { createUnknownAgentHostClientTelemetryContext } from '../../../common/agentHostTelemetry.js';
 import { IAgentHostChatContributions, createChatMementoKey, type IAgentHostChatContribution, type IAgentHostChatContributionContext, type IAgentHostChatContributionHost, type IObservedAction, type IQueuedMessageSender, type ITurnEnd } from '../../../common/agentHostChatContributionsService.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
-import { createErrorResponsePart, getErrorResponsePart, isAhpChatChannel, parseRequiredSessionUriFromChatUri, PendingMessageKind, TurnState, type Message, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
+import { getErrorResponsePart, isAhpChatChannel, parseRequiredSessionUriFromChatUri, PendingMessageKind, TurnState, type Message, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../agentHostStateManager.js';
-import { createAgentChatContext } from '../../agentChatContext.js';
 import { IAgentHostProviderService } from '../../agentHostProviderService.js';
-import { IAgentHostSessionTitleController } from '../../agentHostSessionTitleController.js';
-import { AgentHostTelemetryReporter, getMessageOriginTelemetryKind, IAgentHostTelemetryReporter } from '../../agentHostTelemetryReporter.js';
-import { getTurnTelemetryContext } from '../../agentHostTurnTelemetryContext.js';
-import { AgentHostTurnTracker, IAgentHostTurnTracker } from '../../agentHostTurnTracker.js';
-import { AgentHostLocalCommands, IAgentHostLocalCommands } from '../../localCommands/localChatCommand.js';
+import { startTurn } from '../../agentHostTurnStarter.js';
 
 const QueuedSender = createChatMementoKey<IQueuedMessageSender | undefined, [messageId: string]>('queueDrain.sender', () => undefined);
 
@@ -36,10 +32,7 @@ export class QueueDrainContribution extends Disposable implements IAgentHostChat
 		@ILogService private readonly _logService: ILogService,
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
 		@IAgentHostProviderService private readonly _providerService: IAgentHostProviderService,
-		@IAgentHostSessionTitleController private readonly _titleController: IAgentHostSessionTitleController,
-		@IAgentHostTelemetryReporter private readonly _telemetryReporter: AgentHostTelemetryReporter,
-		@IAgentHostTurnTracker private readonly _turnTracker: AgentHostTurnTracker,
-		@IAgentHostLocalCommands private readonly _localCommands: AgentHostLocalCommands,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
 	}
@@ -136,32 +129,22 @@ export class QueueDrainContribution extends Disposable implements IAgentHostChat
 			queuedMessageId: messageId,
 		});
 		const turnStopWatch = StopWatch.create(false);
-		const handled = this._localCommands.tryHandle({ turnChannel: channel, turnId, text: message.text });
-		if (handled) {
-			if (handled.suggestedTitle !== undefined) {
-				this._titleController.seedProvisionalTitle(sessionChannel, handled.suggestedTitle, channel);
-			}
+		const started = this._instantiationService.invokeFunction(startTurn, {
+			session: sessionChannel,
+			chat: channel,
+			turnChannel: channel,
+			turnId,
+			message,
+			source: 'queued',
+			clientId: sender.clientId,
+			clientContext: sender.clientContext,
+			turnStopWatch,
+		});
+		if (!started) {
 			return;
 		}
-
-		this._titleController.seedTitleFromFirstMessage(sessionChannel, message.text, channel);
-		const agent = this._providerService.getProviderForSession(sessionChannel);
-		if (!agent) {
-			this._stateManager.dispatchServerAction(channel, {
-				type: ActionType.ChatError,
-				turnId,
-				duration: Math.max(0, turnStopWatch.elapsed()),
-				part: createErrorResponsePart({ errorType: 'noAgent', message: 'No agent found for session' }),
-			});
-			return;
-		}
-
-		const state = this._stateManager.getSessionState(channel);
-		this._telemetryReporter.userMessageSent(agent.id, sender.clientId, sender.clientContext, channel, turnId, state, 'queued', message);
-		const { model, modelTelemetryKind, modelSelectionKind, permissionLevel, interactionMode } = getTurnTelemetryContext(agent, channel, createAgentChatContext(this._stateManager, sessionChannel, channel), state, message.model?.id);
-		this._turnTracker.turnStarted(agent, channel, turnId, model, modelTelemetryKind, modelSelectionKind, permissionLevel, interactionMode, sender.clientContext, sender.clientId, undefined, undefined, getMessageOriginTelemetryKind(message));
 		host.sendTurnMessage({
-			agent,
+			agent: started.agent,
 			sessionChannel,
 			turnChannel: channel,
 			chat: channel,
