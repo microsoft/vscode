@@ -146,6 +146,7 @@ suite('AgentHostCatalogSyncService', () => {
 			title: await local.getMetadata('customTitle'),
 			snapshot,
 			catalogTitle: catalog && summaryOf(catalog.payload),
+			payloadDirty: catalog?.payloadDirty,
 			receiptMatchesCatalog: snapshot?.sessionGeneration === catalog?.sessionGeneration
 				&& snapshot?.sourceRevision === catalog?.sourceRevision
 				&& snapshot?.projectionVersion === catalog?.payloadVersion
@@ -165,6 +166,7 @@ suite('AgentHostCatalogSyncService', () => {
 				state: 'acknowledged',
 			},
 			catalogTitle: 'one',
+			payloadDirty: 2,
 			receiptMatchesCatalog: true,
 		});
 	});

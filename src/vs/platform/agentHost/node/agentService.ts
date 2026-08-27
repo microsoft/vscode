@@ -1638,9 +1638,7 @@ export class AgentService extends Disposable implements IAgentService {
 			return { status: 'providerUnavailable' };
 		}
 		const isChatBacking = await this._isChatBacking(registered.session);
-		const metadata = isChatBacking
-			? await this._registeredSessionMetadata(agent, registered.session, registered.external)
-			: await this._getSessionMetadata(registered.session);
+		const metadata = await this._getCatalogReconciliationMetadata(agent, registered, isChatBacking);
 		if (!metadata) {
 			return { status: 'providerUnavailable' };
 		}
@@ -1669,6 +1667,22 @@ export class AgentService extends Disposable implements IAgentService {
 				],
 			}, {}, true),
 		};
+	}
+
+	private async _getCatalogReconciliationMetadata(agent: IAgent, registered: IRegisteredSession, isChatBacking: boolean): Promise<IAgentSessionMetadata | undefined> {
+		const providerMetadata = await this._registeredSessionMetadata(agent, registered.session, registered.external);
+		const liveSummary = this._stateManager.getSessionSummary(registered.session.toString());
+		if (!providerMetadata) {
+			return liveSummary ? this._withLiveSessionMetadata({
+				session: registered.session,
+				startTime: registered.startTime,
+				modifiedTime: Date.parse(liveSummary.modifiedAt),
+			}, liveSummary) : undefined;
+		}
+		if (isChatBacking || !liveSummary) {
+			return providerMetadata;
+		}
+		return this._withLiveSessionMetadata(providerMetadata, liveSummary);
 	}
 
 	private _catalogChatsFromState(state: NonNullable<ReturnType<AgentHostStateManager['getSessionState']>>): ICatalogChat[] {
@@ -2334,7 +2348,7 @@ export class AgentService extends Disposable implements IAgentService {
 			? allRegistered.filter(entry => !hiddenExternal.has(entry.session.toString()))
 			: allRegistered;
 		const metadataLimiter = new Limiter<IAgentSessionMetadata | undefined>(4);
-		let repairNeeded = false;
+		const repairSessions = new Set<string>();
 		const results = await Promise.all(registered.map(registeredSession => metadataLimiter.queue(async (): Promise<IAgentSessionMetadata | undefined> => {
 			const { session } = registeredSession;
 			// Idle provisional sessions stay hidden until they materialize or gain
@@ -2354,7 +2368,7 @@ export class AgentService extends Disposable implements IAgentService {
 			if (central.chatBacking) {
 				return undefined;
 			}
-			repairNeeded = true;
+			repairSessions.add(session.toString());
 			if (central.error) {
 				this._logService.warn(`[AgentService] Failed to read central catalog row for ${session.toString()}`, central.error);
 			} else {
@@ -2371,10 +2385,14 @@ export class AgentService extends Disposable implements IAgentService {
 		// A late listing can still find catalog misses after disposal (a
 		// queued reconciliation resolves after teardown); scheduling a repair
 		// then would leak the timer, since a disposed holder drops its value.
-		if (repairNeeded && !this._store.isDisposed) {
+		if (repairSessions.size > 0 && !this._store.isDisposed) {
 			this._catalogListRepair.value = disposableTimeout(() => {
 				this._catalogListRepair.clear();
-				this._catalogReconciliationService.start();
+				void Promise.allSettled([...repairSessions].map(session => this._markCatalogPayloadDirty(session))).then(() => {
+					if (!this._store.isDisposed) {
+						this._catalogReconciliationService.start();
+					}
+				});
 			}, 0);
 		}
 		const result = results.filter((s): s is IAgentSessionMetadata => s !== undefined);
@@ -2644,7 +2662,7 @@ export class AgentService extends Disposable implements IAgentService {
 	private readonly _broadcastExternalSessions = new Set<string>();
 	private _sessionListReconciliation = Promise.resolve();
 	private _sessionListReconciliationActive = false;
-	private readonly _sessionListReconciliationRequests: Array<AgentHostExternalSessionsMode | undefined> = [];
+	private readonly _sessionListReconciliationRequests: Array<{ readonly previousMode: AgentHostExternalSessionsMode | undefined; readonly forceCatalogRefresh: boolean }> = [];
 
 	/** Tracks the migrate-legacy setting so the config listener acts only on transitions. */
 	private _lastMigrateLegacyEnabled = false;
@@ -2719,8 +2737,8 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 	}
 
-	private _queueSessionListReconciliation(previousMode?: AgentHostExternalSessionsMode): void {
-		this._sessionListReconciliationRequests.push(previousMode);
+	private _queueSessionListReconciliation(previousMode?: AgentHostExternalSessionsMode, forceCatalogRefresh = previousMode !== undefined): void {
+		this._sessionListReconciliationRequests.push({ previousMode, forceCatalogRefresh });
 		if (this._sessionListReconciliationActive) {
 			return;
 		}
@@ -2728,9 +2746,9 @@ export class AgentService extends Disposable implements IAgentService {
 			this._sessionListReconciliationActive = true;
 			try {
 				while (this._sessionListReconciliationRequests.length > 0) {
-					const requestedPreviousMode = this._sessionListReconciliationRequests.shift();
+					const request = this._sessionListReconciliationRequests.shift()!;
 					try {
-						await this._reconcileExternalSessions(requestedPreviousMode);
+						await this._reconcileExternalSessions(request.previousMode, request.forceCatalogRefresh);
 					} catch (error) {
 						this._logService.warn('[AgentService] External session reconciliation failed', error);
 					}
@@ -2741,8 +2759,17 @@ export class AgentService extends Disposable implements IAgentService {
 		})();
 	}
 
-	private async _reconcileExternalSessions(previousMode?: AgentHostExternalSessionsMode): Promise<void> {
+	private async _reconcileExternalSessions(previousMode: AgentHostExternalSessionsMode | undefined, forceCatalogRefresh: boolean): Promise<void> {
 		const startedAt = Date.now();
+		if (this._getExternalSessionsMode() !== AgentHostExternalSessionsMode.None) {
+			try {
+				await (forceCatalogRefresh
+					? this._catalogReconciliationService.runFullPass()
+					: this._catalogReconciliationService.runPass());
+			} catch (error) {
+				this._logService.warn('[AgentService] Catalog verification before external session reconciliation failed; continuing with cached rows', error);
+			}
+		}
 		const previouslyBroadcast = new Set(this._broadcastExternalSessions);
 		const previouslyExposed = new Set(previouslyBroadcast);
 		for (const session of this._stateManager.getExposedExternalSessionKeys()) {
@@ -5944,17 +5971,27 @@ export class AgentService extends Disposable implements IAgentService {
 		try {
 			await write();
 			this._unpersistedChatBackings.delete(backingSessionStr);
+			await this._markCatalogPayloadDirty(backingSessionStr);
 			this._catalogReconciliationService.schedule();
 		} catch (err) {
 			this._logService.warn(`[AgentService] failed to mark backing session ${backingSessionStr} for chat ${chat.toString()}, retrying`, err);
 			try {
 				await write();
 				this._unpersistedChatBackings.delete(backingSessionStr);
+				await this._markCatalogPayloadDirty(backingSessionStr);
 				this._catalogReconciliationService.schedule();
 			} catch (retryErr) {
 				this._logService.warn(`[AgentService] retry failed to mark backing session ${backingSessionStr} for chat ${chat.toString()}; suppressing it in-process instead`, retryErr);
 				this._unpersistedChatBackings.add(backingSessionStr);
 			}
+		}
+	}
+
+	private async _markCatalogPayloadDirty(session: string): Promise<void> {
+		try {
+			await this._orchestratorDatabase.markSessionV2PayloadDirty(session);
+		} catch (error) {
+			this._logService.warn(`[AgentService] Failed to mark catalog payload dirty for ${session}`, error);
 		}
 	}
 

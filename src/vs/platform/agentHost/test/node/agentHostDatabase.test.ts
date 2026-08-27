@@ -78,7 +78,7 @@ function createEnvelope(
 
 /** The stored row a verified envelope produces for a session registered with `registration`. */
 function storedRow(envelope: IAgentHostDatabaseSessionV2Envelope, registration: object, isChatBacking = false) {
-	return { ...envelope, ...registration, isChatBacking };
+	return { ...envelope, ...registration, isChatBacking, payloadDirty: 0 };
 }
 
 async function createPublishedSessionsV2Database(path: string, version: 4 | 5 | 6): Promise<void> {
@@ -315,6 +315,46 @@ suite('AgentHostDatabase sessions_v2', () => {
 				payload: null,
 				is_chat_backing: 1,
 			}],
+		});
+	});
+
+	test('increments dirty markers and clears only the observed marker', async () => {
+		database = new AgentHostDatabase(':memory:');
+		const session = 'session://dirty-marker';
+		await database.registerSessionV2(session, { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+		await database.upsertSessionV2(createEnvelope(session, 'generation-1', 1), undefined);
+
+		const first = await database.markSessionV2PayloadDirty(session);
+		const second = await database.markSessionV2PayloadDirty(session);
+		const staleClear = await database.markSessionV2PayloadClean(session, first!);
+		const currentClear = await database.markSessionV2PayloadClean(session, second!);
+		const receipt = (await database.listSessionsV2Receipts())[0];
+		const { payload: _payload, ...expectedReceipt } = storedRow(
+			createEnvelope(session, 'generation-1', 1),
+			{ provider: 'copilot', startTime: 1, external: false, source: 'explicit' },
+		);
+		void _payload;
+		await database.unregisterSessionV2(session);
+		await database.registerSessionV2(session, { provider: 'copilot', startTime: 2, source: 'explicit' }, { checkTombstone: false });
+		const recreatedDirty = await database.markSessionV2PayloadDirty(session);
+
+		assert.deepStrictEqual({
+			first,
+			second,
+			staleClear,
+			currentClear,
+			receipt,
+			recreatedDirty,
+		}, {
+			first: 1,
+			second: 2,
+			staleClear: false,
+			currentClear: true,
+			receipt: {
+				...expectedReceipt,
+				payloadDirty: 0,
+			},
+			recreatedDirty: 1,
 		});
 	});
 

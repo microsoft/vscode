@@ -67,6 +67,8 @@ export interface IAgentHostDatabaseSessionV2Envelope {
 export interface IAgentHostDatabaseSessionV2Receipt extends Omit<IAgentHostDatabaseSessionV2Envelope, 'payload'>, IAgentHostDatabaseSession {
 	/** Derived from the validated payload so the catalog can hide chat-backing rows without decoding. */
 	readonly isChatBacking: boolean;
+	/** `0` when clean; positive values are monotonic dirty markers used for compare-and-set repair. */
+	readonly payloadDirty: number;
 }
 
 export interface IAgentHostDatabaseSessionV2 extends IAgentHostDatabaseSessionV2Receipt {
@@ -161,6 +163,12 @@ export interface IAgentHostDatabase extends IDisposable {
 	listSessionsV2(): Promise<readonly IAgentHostDatabaseSessionV2[]>;
 	/** Lists catalog receipts without materializing payloads, for startup scans. */
 	listSessionsV2Receipts(): Promise<readonly IAgentHostDatabaseSessionV2Receipt[]>;
+	/** Marks one cached payload dirty and returns the marker repair must compare-and-set. */
+	markSessionV2PayloadDirty(session: string): Promise<number | undefined>;
+	/** Marks every cached payload dirty once so mutations made by older builds are rechecked. */
+	markAllSessionsV2PayloadsDirty(): Promise<void>;
+	/** Clears a dirty marker only when no newer mutation superseded it. */
+	markSessionV2PayloadClean(session: string, expectedDirty: number): Promise<boolean>;
 	upsertSessionV2(envelope: IAgentHostDatabaseSessionV2Envelope, expectedSessionGeneration: string | undefined): Promise<AgentHostDatabaseSessionV2UpsertResult>;
 	close(): Promise<void>;
 }
@@ -374,6 +382,7 @@ function sessionsV2BackfillKey(provider: AgentProvider, payloadVersion: number):
 }
 
 const sessionsV2ExcludedKeyPrefix = 'sessionsV2Excluded:';
+const sessionsV2PayloadDirtyKeyPrefix = 'sessionsV2PayloadDirty:';
 
 function sessionsV2ExcludedProviderPrefix(provider: AgentProvider): string {
 	return `${sessionsV2ExcludedKeyPrefix}${provider}:`;
@@ -381,6 +390,10 @@ function sessionsV2ExcludedProviderPrefix(provider: AgentProvider): string {
 
 function sessionsV2ExcludedKey(provider: AgentProvider, session: string): string {
 	return `${sessionsV2ExcludedProviderPrefix(provider)}${session}`;
+}
+
+function sessionsV2PayloadDirtyKey(session: string): string {
+	return `${sessionsV2PayloadDirtyKeyPrefix}${session}`;
 }
 
 /** Metadata key for a session's durable "explicitly deleted" tombstone. */
@@ -466,6 +479,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 				await run(database, `INSERT INTO metadata (key, value) VALUES (?, 'true')
 					ON CONFLICT(key) DO UPDATE SET value = excluded.value`, [tombstoneKey(session)]);
 				await run(database, 'DELETE FROM metadata WHERE key = ?', [agentMergeEnabledKey(session)]);
+				await run(database, 'DELETE FROM metadata WHERE key = ?', [sessionsV2PayloadDirtyKey(session)]);
 				await run(database, 'DELETE FROM sessions WHERE session_uri = ?', [session]);
 				await run(database, 'DELETE FROM sessions_v2 WHERE session_uri = ?', [session]);
 				await exec(database, 'COMMIT');
@@ -607,6 +621,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 					sessionsV2ExcludedKey(exclusion.provider, exclusion.session),
 					JSON.stringify({ reason: exclusion.reason, fingerprint: exclusion.fingerprint }),
 				]);
+				await run(database, 'DELETE FROM metadata WHERE key = ?', [sessionsV2PayloadDirtyKey(exclusion.session)]);
 				await run(database, 'DELETE FROM sessions_v2 WHERE session_uri = ?', [exclusion.session]);
 				await exec(database, 'COMMIT');
 			} catch (error) {
@@ -736,6 +751,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 				await run(database, 'DELETE FROM sessions_v2 WHERE session_uri = ?', [session]);
 				await run(database, 'DELETE FROM sessions WHERE session_uri = ?', [session]);
 				await run(database, 'DELETE FROM metadata WHERE key = ?', [agentMergeEnabledKey(session)]);
+				await run(database, 'DELETE FROM metadata WHERE key = ?', [sessionsV2PayloadDirtyKey(session)]);
 				await exec(database, 'COMMIT');
 			} catch (error) {
 				await this._rollback(database, error, `Failed to unregister mirrored runtime session ${session}`);
@@ -848,6 +864,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 			try {
 				await run(database, 'DELETE FROM sessions_v2 WHERE session_uri = ?', [session]);
 				await run(database, 'DELETE FROM metadata WHERE key = ?', [agentMergeEnabledKey(session)]);
+				await run(database, 'DELETE FROM metadata WHERE key = ?', [sessionsV2PayloadDirtyKey(session)]);
 				await exec(database, 'COMMIT');
 			} catch (error) {
 				await this._rollback(database, error, `Failed to unregister sessions_v2 identity ${session}`);
@@ -944,7 +961,9 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 	async getSessionV2(session: string): Promise<IAgentHostDatabaseSessionV2 | undefined> {
 		const row = await get(
 			await this._ensureDatabase(),
-			`SELECT *
+			`SELECT sessions_v2.*, COALESCE(CAST((
+					SELECT value FROM metadata WHERE key = '${sessionsV2PayloadDirtyKeyPrefix}' || sessions_v2.session_uri
+				) AS INTEGER), 0) AS payload_dirty
 				FROM sessions_v2
 				WHERE sessions_v2.session_uri = ? AND sessions_v2.verified = 1
 					AND NOT EXISTS (SELECT 1 FROM metadata WHERE key = ? AND value = 'true')
@@ -958,16 +977,70 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 	}
 
 	async listSessionsV2(): Promise<readonly IAgentHostDatabaseSessionV2[]> {
-		const rows = await all(await this._ensureDatabase(), this._selectVerifiedSessionsV2('*'), []);
+		const rows = await all(await this._ensureDatabase(), this._selectVerifiedSessionsV2(
+			`sessions_v2.*, COALESCE(CAST((
+				SELECT value FROM metadata WHERE key = '${sessionsV2PayloadDirtyKeyPrefix}' || sessions_v2.session_uri
+			) AS INTEGER), 0) AS payload_dirty`,
+		), []);
 		return rows.map(row => ({ ...this._toSessionV2Receipt(row), payload: row.payload as string }));
 	}
 
 	async listSessionsV2Receipts(): Promise<readonly IAgentHostDatabaseSessionV2Receipt[]> {
 		const rows = await all(await this._ensureDatabase(), this._selectVerifiedSessionsV2(
 			`session_uri, provider, start_time, external, registration_source,
-				session_generation, source_revision, payload_version, payload_hash, is_chat_backing`,
+				session_generation, source_revision, payload_version, payload_hash, is_chat_backing,
+				COALESCE(CAST((
+					SELECT value FROM metadata WHERE key = '${sessionsV2PayloadDirtyKeyPrefix}' || sessions_v2.session_uri
+				) AS INTEGER), 0) AS payload_dirty`,
 		), []);
 		return rows.map(row => this._toSessionV2Receipt(row));
+	}
+
+	async markSessionV2PayloadDirty(session: string): Promise<number | undefined> {
+		return this._transactionSequencer.queue(async () => {
+			const database = await this._ensureDatabase();
+			await exec(database, 'BEGIN IMMEDIATE');
+			try {
+				const exists = await get(database, 'SELECT 1 AS present FROM sessions_v2 WHERE session_uri = ?', [session]);
+				if (exists) {
+					await run(database, `INSERT INTO metadata (key, value) VALUES (?, '1')
+						ON CONFLICT(key) DO UPDATE SET value = CAST(value AS INTEGER) + 1`, [sessionsV2PayloadDirtyKey(session)]);
+				}
+				const row = exists
+					? await get(database, 'SELECT CAST(value AS INTEGER) AS payload_dirty FROM metadata WHERE key = ?', [sessionsV2PayloadDirtyKey(session)])
+					: undefined;
+				await exec(database, 'COMMIT');
+				return row?.payload_dirty as number | undefined;
+			} catch (error) {
+				return this._rollback(database, error, `Failed to mark sessions_v2 payload dirty for ${session}`);
+			}
+		});
+	}
+
+	async markAllSessionsV2PayloadsDirty(): Promise<void> {
+		return this._transactionSequencer.queue(async () => {
+			await run(await this._ensureDatabase(), `INSERT INTO metadata (key, value)
+				SELECT '${sessionsV2PayloadDirtyKeyPrefix}' || session_uri, '1' FROM sessions_v2
+				WHERE verified = 1
+					AND NOT EXISTS (
+						SELECT 1 FROM metadata
+						WHERE key = 'sessionTombstone:' || sessions_v2.session_uri AND value = 'true'
+					)
+					AND NOT EXISTS (
+						SELECT 1 FROM metadata
+						WHERE key = '${sessionsV2ExcludedKeyPrefix}' || sessions_v2.provider || ':' || sessions_v2.session_uri
+					)
+				ON CONFLICT(key) DO UPDATE SET value = CAST(value AS INTEGER) + 1`, []);
+		});
+	}
+
+	async markSessionV2PayloadClean(session: string, expectedDirty: number): Promise<boolean> {
+		this._validatePayloadDirty(expectedDirty);
+		return this._transactionSequencer.queue(async () => {
+			const changes = await runReturningChanges(await this._ensureDatabase(), `DELETE FROM metadata
+				WHERE key = ? AND CAST(value AS INTEGER) = ?`, [sessionsV2PayloadDirtyKey(session), expectedDirty]);
+			return changes > 0;
+		});
 	}
 
 	async upsertSessionV2(envelope: IAgentHostDatabaseSessionV2Envelope, expectedSessionGeneration: string | undefined): Promise<AgentHostDatabaseSessionV2UpsertResult> {
@@ -1154,7 +1227,14 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 			payloadHash: row.payload_hash as string,
 			verified: true,
 			isChatBacking: row.is_chat_backing === 1,
+			payloadDirty: row.payload_dirty as number,
 		};
+	}
+
+	private _validatePayloadDirty(payloadDirty: number): void {
+		if (!Number.isSafeInteger(payloadDirty) || payloadDirty <= 0) {
+			throw new Error('Catalog payload dirty marker must be a positive safe integer');
+		}
 	}
 
 	private _toSessionRegistration(row: Record<string, unknown>): IAgentHostDatabaseSession {

@@ -601,6 +601,28 @@ class TransientRegistryWriteDatabase implements IAgentHostDatabase {
 	async listSessionsV2Receipts(): Promise<readonly IAgentHostDatabaseSessionV2Receipt[]> {
 		return [...this._sessionsV2.values()].map(({ payload, ...receipt }) => receipt);
 	}
+	async markSessionV2PayloadDirty(session: string): Promise<number | undefined> {
+		const current = this._sessionsV2.get(session);
+		if (!current) {
+			return undefined;
+		}
+		const payloadDirty = current.payloadDirty + 1;
+		this._sessionsV2.set(session, { ...current, payloadDirty });
+		return payloadDirty;
+	}
+	async markAllSessionsV2PayloadsDirty(): Promise<void> {
+		for (const [session, current] of this._sessionsV2) {
+			this._sessionsV2.set(session, { ...current, payloadDirty: current.payloadDirty + 1 });
+		}
+	}
+	async markSessionV2PayloadClean(session: string, expectedDirty: number): Promise<boolean> {
+		const current = this._sessionsV2.get(session);
+		if (!current || current.payloadDirty !== expectedDirty) {
+			return false;
+		}
+		this._sessionsV2.set(session, { ...current, payloadDirty: 0 });
+		return true;
+	}
 	async upsertSessionV2(envelope: IAgentHostDatabaseSessionV2Envelope, expectedSessionGeneration: string | undefined): Promise<AgentHostDatabaseSessionV2UpsertResult> {
 		this.sessionV2UpsertAttempts++;
 		const session = this._sessionV2Registrations.get(envelope.session);
@@ -611,7 +633,7 @@ class TransientRegistryWriteDatabase implements IAgentHostDatabase {
 		if (current?.sessionGeneration !== expectedSessionGeneration) {
 			return 'generationMismatch';
 		}
-		this._sessionsV2.set(envelope.session, { ...session, ...envelope, isChatBacking: isChatBackingPayload(envelope.payload) });
+		this._sessionsV2.set(envelope.session, { ...session, ...envelope, isChatBacking: isChatBackingPayload(envelope.payload), payloadDirty: current?.payloadDirty ?? 1 });
 		return 'applied';
 	}
 
@@ -847,6 +869,28 @@ class TestAgentHostOrchestratorDatabase implements IAgentHostDatabase {
 		this.catalogListCalls++;
 		return [...this._sessionsV2.values()].map(({ payload, ...receipt }) => receipt);
 	}
+	async markSessionV2PayloadDirty(session: string): Promise<number | undefined> {
+		const current = this._sessionsV2.get(session);
+		if (!current) {
+			return undefined;
+		}
+		const payloadDirty = current.payloadDirty + 1;
+		this._sessionsV2.set(session, { ...current, payloadDirty });
+		return payloadDirty;
+	}
+	async markAllSessionsV2PayloadsDirty(): Promise<void> {
+		for (const [session, current] of this._sessionsV2) {
+			this._sessionsV2.set(session, { ...current, payloadDirty: current.payloadDirty + 1 });
+		}
+	}
+	async markSessionV2PayloadClean(session: string, expectedDirty: number): Promise<boolean> {
+		const current = this._sessionsV2.get(session);
+		if (!current || current.payloadDirty !== expectedDirty) {
+			return false;
+		}
+		this._sessionsV2.set(session, { ...current, payloadDirty: 0 });
+		return true;
+	}
 	async upsertSessionV2(envelope: IAgentHostDatabaseSessionV2Envelope, expectedSessionGeneration: string | undefined): Promise<AgentHostDatabaseSessionV2UpsertResult> {
 		const session = this._sessionV2Registrations.get(envelope.session);
 		if (!session) {
@@ -859,7 +903,7 @@ class TestAgentHostOrchestratorDatabase implements IAgentHostDatabase {
 		if (current?.sessionGeneration === envelope.sessionGeneration && current.sourceRevision === envelope.sourceRevision) {
 			return current.payloadVersion === envelope.payloadVersion && current.payloadHash === envelope.payloadHash ? 'replayed' : 'conflict';
 		}
-		this._sessionsV2.set(envelope.session, { ...session, ...envelope, isChatBacking: isChatBackingPayload(envelope.payload) });
+		this._sessionsV2.set(envelope.session, { ...session, ...envelope, isChatBacking: isChatBackingPayload(envelope.payload), payloadDirty: current?.payloadDirty ?? 1 });
 		return 'applied';
 	}
 
@@ -3330,7 +3374,7 @@ suite('AgentService (node dispatcher)', () => {
 				const envelope = this._catalogs.get(session);
 				const registered = await this.getSessionV2Registration(session);
 				return envelope && registered
-					? { ...registered, ...envelope, isChatBacking: isChatBackingPayload(envelope.payload) }
+					? { ...registered, ...envelope, isChatBacking: isChatBackingPayload(envelope.payload), payloadDirty: 0 }
 					: undefined;
 			}
 		}
@@ -4117,7 +4161,7 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
-		testWithExternalSessionClock('a mode that hides every external session skips the catalog work for them', async () => {
+		testWithExternalSessionClock('clean catalog rows avoid session DB opens in every visibility mode', async () => {
 			const now = Date.now();
 			const perSession = createPerSessionDataService();
 			const svc = createExternalSessionService(perSession.service);
@@ -4126,9 +4170,8 @@ suite('AgentService (node dispatcher)', () => {
 			agent.addSession('external-two', now);
 			svc.registerProvider(agent);
 			await svc.listSessions(AgentHostExternalSessionsMode.Last30Days);
+			await svc.whenCatalogReconciliationIdle();
 
-			// A catalog pass otherwise opens every registered session's database,
-			// so a mode that discards the row regardless must not pay for it.
 			const opened: string[] = [];
 			const dataService = perSession.service as { tryOpenDatabase(session: URI): Promise<unknown> };
 			const originalTryOpen = dataService.tryOpenDatabase;
@@ -4146,11 +4189,41 @@ suite('AgentService (node dispatcher)', () => {
 					hidden: [],
 					openedWhileHidden: [],
 					visible: ['external-one', 'external-two'],
-					openedWhileVisible: ['external-one', 'external-two'],
+					openedWhileVisible: [],
 				});
 			} finally {
 				dataService.tryOpenDatabase = originalTryOpen;
 			}
+		});
+
+		testWithExternalSessionClock('external visibility reconciliation continues when cache verification fails', async () => {
+			class FailingDirtyMarkerDatabase extends TransientRegistryWriteDatabase {
+				failNextDirtySweep = false;
+
+				override async markAllSessionsV2PayloadsDirty(): Promise<void> {
+					if (this.failNextDirtySweep) {
+						this.failNextDirtySweep = false;
+						throw new Error('dirty marker unavailable');
+					}
+					return super.markAllSessionsV2PayloadsDirty();
+				}
+			}
+
+			const database = new FailingDirtyMarkerDatabase();
+			const svc = createExternalSessionService(createPerSessionDataService().service, database);
+			const agent = disposables.add(new TimedExternalAgent('copilot'));
+			agent.addSession('external', Date.now());
+			svc.registerProvider(agent);
+			setExternalSessionsMode(svc, AgentHostExternalSessionsMode.Last30Days, 1);
+			await waitForSessionListReconciliation(svc);
+			await svc.whenCatalogReconciliationIdle();
+
+			database.failNextDirtySweep = true;
+			await (svc as unknown as {
+				_reconcileExternalSessions(previousMode: AgentHostExternalSessionsMode | undefined, forceCatalogRefresh: boolean): Promise<void>;
+			})._reconcileExternalSessions(undefined, true);
+
+			assert.deepStrictEqual((await svc.listSessions()).map(session => AgentSession.id(session.session)), ['external']);
 		});
 
 		testWithExternalSessionClock('a mode change reconciles with a single catalog pass', async () => {
@@ -4243,7 +4316,7 @@ suite('AgentService (node dispatcher)', () => {
 			}
 			await database.markProviderBackfilled('copilot');
 
-			const svc = createExternalSessionService(createSessionDataService(), database);
+			const svc = createExternalSessionService(createPerSessionDataService().service, database);
 			setExternalSessionsMode(svc, AgentHostExternalSessionsMode.Recent, 1);
 			await waitForSessionListReconciliation(svc);
 			const agent = disposables.add(new TimedExternalAgent('copilot'));
@@ -4264,10 +4337,10 @@ suite('AgentService (node dispatcher)', () => {
 			}));
 
 			agent.addSession('third', now);
-			(svc as unknown as { _queueSessionListReconciliation(): void })._queueSessionListReconciliation();
+			(svc as unknown as { _queueSessionListReconciliation(previousMode?: AgentHostExternalSessionsMode, forceCatalogRefresh?: boolean): void })._queueSessionListReconciliation(undefined, true);
 			await waitForSessionListReconciliation(svc);
 			agent.addSession('second', now + 1);
-			(svc as unknown as { _queueSessionListReconciliation(): void })._queueSessionListReconciliation();
+			(svc as unknown as { _queueSessionListReconciliation(previousMode?: AgentHostExternalSessionsMode, forceCatalogRefresh?: boolean): void })._queueSessionListReconciliation(undefined, true);
 			await waitForSessionListReconciliation(svc);
 
 			assert.deepStrictEqual({

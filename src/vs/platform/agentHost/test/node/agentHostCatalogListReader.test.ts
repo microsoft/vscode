@@ -101,6 +101,7 @@ suite('AgentHostCatalogListReader', () => {
 			verified: true,
 			payload: encoded.payload,
 			isChatBacking: catalogData.isChatBacking === true,
+			payloadDirty: 0,
 			provider: registered.provider,
 			startTime: registered.startTime,
 			external: registered.external,

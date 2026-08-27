@@ -97,13 +97,25 @@ normalizes all data before canonical serialization and hashing. Per-session
 databases continue to own turns, drafts, annotations, detailed changesets, and
 opaque provider backing required when a session or chat is opened.
 
+The row has two different ownership contracts. Registry identity and provenance
+(`session_uri`, provider, start time, external state, and registration source)
+remain authoritative. The list payload is a derived, rebuildable cache: provider
+state plus per-session metadata can reproduce its canonical bytes and hash.
+
 Catalog persistence is legacy-first during the compatibility window: one
 per-session transaction updates downgrade-compatible metadata and a durable
 pending catalog snapshot before the host-wide catalog is updated. Catalog
 updates are serialized per session, guarded by session incarnation and source
 revision, and acknowledged only after the central transaction succeeds.
 Background reconciliation replays interrupted writes and detects metadata
-written by older builds.
+written by older builds. A central monotonic dirty marker lets periodic passes
+skip clean rows before opening their per-session databases. The first pass after
+host startup marks every payload dirty once so writes made by older builds,
+which do not know about the marker, are still rechecked. Repair clears only the
+marker it observed; a concurrent mutation leaves the row dirty for another pass.
+Because provider state has no complete change signal, an infrequent safety sweep
+marks clean rows dirty after the normal dirty queue drains; ordinary periodic
+passes remain central-only.
 
 The per-session snapshot retains the canonical payload only while the central
 write is pending. Exact acknowledgement promotes its hash to the compact receipt

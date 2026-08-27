@@ -70,14 +70,24 @@ export class AgentHostCatalogSyncService {
 	) { }
 
 	synchronize(session: URI, request: IAgentHostCatalogSyncRequest): Promise<AgentHostCatalogSyncResult> {
-		return this.runExclusive(session, () => this._synchronizeNow(session, request));
+		return this.runExclusive(session, async synchronize => {
+			await this._markPayloadDirty(session);
+			const result = await synchronize(request);
+			await this._markPayloadDirty(session);
+			return result;
+		});
 	}
 
 	synchronizeWithFactory(session: URI, requestFactory: () => Promise<IAgentHostCatalogSyncRequest>): Promise<AgentHostCatalogSyncResult> {
-		return this.runExclusive(session, async () => this._synchronizeNow(session, await requestFactory()));
+		return this.runExclusive(session, async synchronize => {
+			await this._markPayloadDirty(session);
+			const result = await synchronize(await requestFactory());
+			await this._markPayloadDirty(session);
+			return result;
+		});
 	}
 
-	runExclusive<T>(session: URI, operation: () => Promise<T>): Promise<T> {
+	runExclusive<T>(session: URI, operation: (synchronize: (request: IAgentHostCatalogSyncRequest) => Promise<AgentHostCatalogSyncResult>) => Promise<T>): Promise<T> {
 		const sessionKey = session.toString();
 		return new Promise((resolve, reject) => {
 			let queue = this._queues.get(sessionKey);
@@ -89,7 +99,7 @@ export class AgentHostCatalogSyncService {
 			queue.pending.push({
 				run: async () => {
 					try {
-						resolve(await operation());
+						resolve(await operation(request => this._synchronizeNow(session, request)));
 					} catch (error) {
 						reject(error instanceof Error ? error : new Error(String(error)));
 					}
@@ -269,4 +279,14 @@ export class AgentHostCatalogSyncService {
 		}
 		return result.value;
 	}
+
+	private async _markPayloadDirty(session: URI): Promise<number | undefined> {
+		try {
+			return await this._catalogDatabase.markSessionV2PayloadDirty(session.toString());
+		} catch (error) {
+			this._logService.warn(`[AgentHostCatalogSync] Failed to mark sessions_v2 payload dirty for ${session.toString()}`, error);
+			return undefined;
+		}
+	}
+
 }

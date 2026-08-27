@@ -11,7 +11,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import type { ISessionDataService } from '../../common/sessionDataService.js';
-import { AgentHostCatalogReconciliationService, AgentHostCatalogReconciliationSourceResult } from '../../node/agentHostCatalogReconciliationService.js';
+import { AgentHostCatalogReconciliationService, AgentHostCatalogReconciliationSourceResult, IAgentHostCatalogReconciliationOptions } from '../../node/agentHostCatalogReconciliationService.js';
 import { AgentHostCatalogSyncService } from '../../node/agentHostCatalogSyncService.js';
 import { AgentHostCatalogData, AGENT_HOST_CATALOG_PAYLOAD_VERSION } from '../../node/agentHostCatalogProjection.js';
 import { AgentHostDatabase, AgentHostDatabaseSessionV2UpsertResult, IAgentHostDatabaseSessionV2Envelope } from '../../node/agentHostDatabase.js';
@@ -75,6 +75,8 @@ class TestStorageService implements IAgentHostStorageService {
 class RecordingCatalogDatabase extends AgentHostDatabase {
 	upsertCalls = 0;
 	failUpsert = false;
+	failUpsertCount = 0;
+	failMarkAll = 0;
 
 	constructor() {
 		super(':memory:');
@@ -82,10 +84,19 @@ class RecordingCatalogDatabase extends AgentHostDatabase {
 
 	override async upsertSessionV2(envelope: IAgentHostDatabaseSessionV2Envelope, expectedSessionGeneration: string | undefined): Promise<AgentHostDatabaseSessionV2UpsertResult> {
 		this.upsertCalls++;
-		if (this.failUpsert) {
+		if (this.failUpsert || this.failUpsertCount > 0) {
+			this.failUpsertCount = Math.max(0, this.failUpsertCount - 1);
 			throw new Error('central unavailable');
 		}
 		return super.upsertSessionV2(envelope, expectedSessionGeneration);
+	}
+
+	override async markAllSessionsV2PayloadsDirty(): Promise<void> {
+		if (this.failMarkAll > 0) {
+			this.failMarkAll--;
+			throw new Error('dirty marker unavailable');
+		}
+		return super.markAllSessionsV2PayloadsDirty();
 	}
 }
 
@@ -93,7 +104,8 @@ interface ITestHarness {
 	readonly central: RecordingCatalogDatabase;
 	readonly locals: Map<string, TestSessionDatabase>;
 	readonly sync: AgentHostCatalogSyncService;
-	createService(resolveSource?: (session: IRegisteredSession) => Promise<AgentHostCatalogReconciliationSourceResult>): AgentHostCatalogReconciliationService;
+	readonly getDatabaseOpenAttempts: () => number;
+	createService(resolveSource?: (session: IRegisteredSession) => Promise<AgentHostCatalogReconciliationSourceResult>, options?: IAgentHostCatalogReconciliationOptions): AgentHostCatalogReconciliationService;
 }
 
 suite('AgentHostCatalogReconciliationService', () => {
@@ -110,6 +122,7 @@ suite('AgentHostCatalogReconciliationService', () => {
 			}, { checkTombstone: false });
 		}
 		const locals = new Map<string, TestSessionDatabase>();
+		let databaseOpenAttempts = 0;
 		for (const session of sessions) {
 			if (!missing.has(session.session.toString())) {
 				locals.set(session.session.toString(), new TestSessionDatabase());
@@ -121,6 +134,7 @@ suite('AgentHostCatalogReconciliationService', () => {
 			getSessionDataDirById: sessionId => URI.from({ scheme: Schemas.inMemory, path: `/session-data/${sessionId}` }),
 			openDatabase: session => reference(requiredLocal(locals, session)),
 			tryOpenDatabase: async session => {
+				databaseOpenAttempts++;
 				const database = locals.get(session.toString());
 				return database ? reference(database) : undefined;
 			},
@@ -135,10 +149,11 @@ suite('AgentHostCatalogReconciliationService', () => {
 			central,
 			locals,
 			sync,
+			getDatabaseOpenAttempts: () => databaseOpenAttempts,
 			createService: (resolveSource = async session => ({
 				status: 'available',
 				request: { data: catalogData(session.session.path), legacyMetadata: { customTitle: session.session.path } },
-			})) => store.add(new AgentHostCatalogReconciliationService(
+			}), options) => store.add(new AgentHostCatalogReconciliationService(
 				sessionDataService,
 				central,
 				sync,
@@ -146,28 +161,43 @@ suite('AgentHostCatalogReconciliationService', () => {
 				async () => sessions,
 				resolveSource,
 				new NullLogService(),
+				options,
 			)),
 		};
 	}
 
-	test('skips only an exact sessions_v2 row, compact receipt, and canonical legacy match', async () => {
+	test('opens and re-projects dirty rows once, then skips clean rows before session.db', async () => {
 		const harness = await createHarness(['one']);
 		const session = registered('one');
 		await harness.sync.synchronize(session.session, { data: catalogData('one'), legacyMetadata: { customTitle: 'one' } });
 		harness.central.upsertCalls = 0;
-		const service = harness.createService();
+		let sourceResolutions = 0;
+		const service = harness.createService(async registeredSession => {
+			sourceResolutions++;
+			return {
+				status: 'available',
+				request: { data: catalogData(registeredSession.session.path), legacyMetadata: { customTitle: registeredSession.session.path } },
+			};
+		});
 
 		const first = await service.runPass();
+		const firstDatabaseOpenAttempts = harness.getDatabaseOpenAttempts();
 		const second = await service.runPass();
 
 		assert.deepStrictEqual({
 			first: first.outcomes,
 			second: second.outcomes,
 			upsertCalls: harness.central.upsertCalls,
+			firstDatabaseOpenAttempts,
+			finalDatabaseOpenAttempts: harness.getDatabaseOpenAttempts(),
+			sourceResolutions,
 		}, {
 			first: [{ session: 'agenthost:one', status: 'skipped', reason: 'synchronized' }],
-			second: [{ session: 'agenthost:one', status: 'skipped', reason: 'synchronized' }],
+			second: [],
 			upsertCalls: 0,
+			firstDatabaseOpenAttempts: 1,
+			finalDatabaseOpenAttempts: 1,
+			sourceResolutions: 1,
 		});
 	});
 
@@ -179,20 +209,69 @@ suite('AgentHostCatalogReconciliationService', () => {
 		const pending = await requiredLocal(harness.locals, session.session).getCatalogSyncSnapshot();
 		harness.central.failUpsert = false;
 
-		const report = await harness.createService().runPass();
+		const service = harness.createService();
+		const report = await service.runPass();
+		const converged = await service.runPass();
 		const acknowledged = await requiredLocal(harness.locals, session.session).getCatalogSyncSnapshot();
 
 		assert.deepStrictEqual({
 			before: { state: pending?.state, hasPayload: pending?.payload !== undefined },
 			outcomes: report.outcomes,
+			converged: converged.outcomes,
 			after: { state: acknowledged?.state, payload: acknowledged?.payload },
 			catalogTitle: summaryOf((await harness.central.getSessionV2(session.session.toString()))!.payload),
 		}, {
 			before: { state: 'pending', hasPayload: true },
-			outcomes: [{ session: 'agenthost:one', status: 'succeeded', reason: 'pendingReplayed', sourceRevision: 0 }],
+			outcomes: [{ session: 'agenthost:one', status: 'retry', reason: 'superseded' }],
+			converged: [{ session: 'agenthost:one', status: 'skipped', reason: 'synchronized' }],
 			after: { state: 'acknowledged', payload: undefined },
 			catalogTitle: 'one',
 		});
+	});
+
+	test('periodically verifies clean rows when provider state has no dirty event', async () => {
+		const harness = await createHarness(['one']);
+		const session = registered('one');
+		await harness.sync.synchronize(session.session, { data: catalogData('one'), legacyMetadata: { customTitle: 'one' } });
+		let now = 0;
+		let sourceResolutions = 0;
+		const service = harness.createService(async () => {
+			sourceResolutions++;
+			return { status: 'available', request: { data: catalogData('one'), legacyMetadata: { customTitle: 'one' } } };
+		}, {
+			fullVerificationIntervalMs: 100,
+			now: () => now,
+		});
+
+		await service.runPass();
+		const clean = await service.runPass();
+		now = 100;
+		const safetySweep = await service.runPass();
+
+		assert.deepStrictEqual({
+			clean: clean.outcomes,
+			safetySweep: safetySweep.outcomes,
+			databaseOpenAttempts: harness.getDatabaseOpenAttempts(),
+			sourceResolutions,
+		}, {
+			clean: [],
+			safetySweep: [{ session: 'agenthost:one', status: 'skipped', reason: 'synchronized' }],
+			databaseOpenAttempts: 2,
+			sourceResolutions: 2,
+		});
+	});
+
+	test('retries the startup dirty sweep after a transient central failure', async () => {
+		const harness = await createHarness(['one']);
+		harness.central.failMarkAll = 1;
+		const service = harness.createService();
+
+		await assert.rejects(service.runPass(), /dirty marker unavailable/);
+		const retried = await service.runPass();
+
+		assert.deepStrictEqual(retried.outcomes, [
+			{ session: 'agenthost:one', status: 'succeeded', reason: 'synchronized', sourceRevision: 0 },
+		]);
 	});
 
 	test('rebuilds from legacy/provider state and advances revision after an old-build mutation', async () => {
@@ -289,6 +368,150 @@ suite('AgentHostCatalogReconciliationService', () => {
 		assert.deepStrictEqual((await harness.createService().runPass()).outcomes, [
 			{ session: 'agenthost:missing', status: 'retry', reason: 'missingDatabase' },
 		]);
+	});
+
+	test('keeps provider-unavailable payloads dirty without evicting the cached row', async () => {
+		const harness = await createHarness(['one']);
+		const session = registered('one');
+		await harness.sync.synchronize(session.session, { data: catalogData('cached'), legacyMetadata: { customTitle: 'cached' } });
+		const service = harness.createService(async () => ({ status: 'providerUnavailable' }));
+
+		const first = await service.runPass();
+		const second = await service.runPass();
+		const cached = await harness.central.getSessionV2(session.session.toString());
+
+		assert.deepStrictEqual({
+			first: first.outcomes,
+			second: second.outcomes,
+			databaseOpenAttempts: harness.getDatabaseOpenAttempts(),
+			cachedSummary: cached && summaryOf(cached.payload),
+			payloadDirty: cached?.payloadDirty,
+		}, {
+			first: [{ session: 'agenthost:one', status: 'retry', reason: 'providerUnavailable' }],
+			second: [{ session: 'agenthost:one', status: 'retry', reason: 'providerUnavailable' }],
+			databaseOpenAttempts: 2,
+			cachedSummary: 'cached',
+			payloadDirty: 3,
+		});
+	});
+
+	test('runs the safety sweep even while another row remains permanently dirty', async () => {
+		const harness = await createHarness(['clean', 'stuck']);
+		for (const name of ['clean', 'stuck']) {
+			const session = registered(name);
+			await harness.sync.synchronize(session.session, { data: catalogData(name), legacyMetadata: { customTitle: name } });
+		}
+		let now = 0;
+		const service = harness.createService(async session => session.session.path === 'stuck'
+			? { status: 'providerUnavailable' }
+			: { status: 'available', request: { data: catalogData('clean'), legacyMetadata: { customTitle: 'clean' } } }, {
+			fullVerificationIntervalMs: 100,
+			now: () => now,
+		});
+
+		await service.runPass();
+		now = 100;
+		const safetySweep = await service.runPass();
+
+		assert.deepStrictEqual(safetySweep.outcomes, [
+			{ session: 'agenthost:clean', status: 'skipped', reason: 'synchronized' },
+			{ session: 'agenthost:stuck', status: 'retry', reason: 'providerUnavailable' },
+		]);
+	});
+
+	test('serializes source verification and repair behind an in-flight writer', async () => {
+		const harness = await createHarness(['one']);
+		const session = registered('one');
+		let currentTitle = 'one';
+		const service = harness.createService(async () => ({
+			status: 'available',
+			request: { data: catalogData(currentTitle), legacyMetadata: { customTitle: currentTitle } },
+		}));
+		await harness.sync.synchronize(session.session, { data: catalogData(currentTitle), legacyMetadata: { customTitle: currentTitle } });
+		await service.runPass();
+
+		let writerStarted!: () => void;
+		const started = new Promise<void>(resolve => writerStarted = resolve);
+		let releaseWriter!: () => void;
+		const writerGate = new Promise<void>(resolve => releaseWriter = resolve);
+		harness.central.failUpsertCount = 1;
+		const writer = harness.sync.synchronizeWithFactory(session.session, async () => {
+			writerStarted();
+			await writerGate;
+			currentTitle = 'new-title';
+			return { data: catalogData(currentTitle), legacyMetadata: { customTitle: currentTitle } };
+		});
+		await started;
+		const repair = service.runPass();
+		releaseWriter();
+
+		const [writerResult, repairResult] = await Promise.all([writer, repair]);
+		const dirty = await harness.central.getSessionV2(session.session.toString());
+		const converged = await service.runPass();
+		const cached = await harness.central.getSessionV2(session.session.toString());
+
+		assert.deepStrictEqual({
+			writerResult,
+			repair: repairResult.outcomes,
+			dirtySummary: dirty && summaryOf(dirty.payload),
+			dirtyMarker: dirty?.payloadDirty,
+			converged: converged.outcomes,
+			cachedSummary: cached && summaryOf(cached.payload),
+			payloadDirty: cached?.payloadDirty,
+		}, {
+			writerResult: { status: 'pending', sourceRevision: 1, reason: 'upsertFailed' },
+			repair: [{ session: 'agenthost:one', status: 'retry', reason: 'superseded' }],
+			dirtySummary: 'one',
+			dirtyMarker: 2,
+			converged: [{ session: 'agenthost:one', status: 'succeeded', reason: 'pendingReplayed', sourceRevision: 1 }],
+			cachedSummary: 'new-title',
+			payloadDirty: 0,
+		});
+	});
+
+	test('does not clear an unobserved dirty epoch on an incomplete row', async () => {
+		const harness = await createHarness(['one']);
+		const session = registered('one');
+		let currentTitle = 'old-title';
+		let sourceStarted!: () => void;
+		const started = new Promise<void>(resolve => sourceStarted = resolve);
+		let releaseSource!: () => void;
+		const sourceGate = new Promise<void>(resolve => releaseSource = resolve);
+		const service = harness.createService(async () => {
+			sourceStarted();
+			await sourceGate;
+			return { status: 'available', request: { data: catalogData(currentTitle), legacyMetadata: { customTitle: currentTitle } } };
+		});
+		const repair = service.runPass();
+		await started;
+
+		currentTitle = 'new-title';
+		harness.central.failUpsertCount = 1;
+		const writerResult = await harness.sync.synchronize(session.session, {
+			data: catalogData(currentTitle),
+			legacyMetadata: { customTitle: currentTitle },
+		});
+		releaseSource();
+		const firstRepair = await repair;
+		const dirty = await harness.central.getSessionV2(session.session.toString());
+		const converged = await service.runPass();
+		const cached = await harness.central.getSessionV2(session.session.toString());
+
+		assert.deepStrictEqual({
+			writerResult,
+			firstRepair: firstRepair.outcomes,
+			dirtyMarker: dirty?.payloadDirty,
+			converged: converged.outcomes,
+			cachedSummary: cached && summaryOf(cached.payload),
+			payloadDirty: cached?.payloadDirty,
+		}, {
+			writerResult: { status: 'pending', sourceRevision: 0, reason: 'upsertFailed' },
+			firstRepair: [{ session: 'agenthost:one', status: 'retry', reason: 'superseded' }],
+			dirtyMarker: 2,
+			converged: [{ session: 'agenthost:one', status: 'skipped', reason: 'synchronized' }],
+			cachedSummary: 'new-title',
+			payloadDirty: 0,
+		});
 	});
 
 	test('does not resurrect a tombstoned session', async () => {
