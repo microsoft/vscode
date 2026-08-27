@@ -56,6 +56,31 @@ const ORDINAL_UUID_RE = /\$\{uuid_\d+\}/g;
 const PATH_PLACEHOLDER = '${path}';
 
 /**
+ * A `<tools_changed_notice>` preamble block. The `@github/copilot` runtime — not
+ * the VS Code host — composes this block and prepends it to the next user turn
+ * whenever the model, or the set of available tools, changed since the previous
+ * turn (e.g. `exit_plan_mode` becoming unavailable after leaving plan mode, or a
+ * model switch between turns). It is runtime-authored preamble, so like the
+ * model id and reasoning blocks it is not host-authored structure and cannot be
+ * asserted: whether the runtime emits it moves with the runtime's own behavior
+ * and its version, not with anything the host composes. The trailing newlines
+ * that separate the block from the user's actual message are consumed with it so
+ * the retained user text projects identically whether or not a notice preceded
+ * it.
+ */
+const TOOLS_CHANGED_NOTICE_RE = /<tools_changed_notice>\n[\s\S]*?\n<\/tools_changed_notice>\n*/g;
+
+/**
+ * Removes the runtime-authored `<tools_changed_notice>` preamble so captures
+ * that predate the notice and live runs that now emit it project to the same
+ * host-authored user text. Applied symmetrically to both the recorded and the
+ * live side, so a capture that legitimately records the notice keeps matching.
+ */
+function elideToolsChangedNotice(text: string): string {
+	return text.replace(TOOLS_CHANGED_NOTICE_RE, '');
+}
+
+/**
  * A path: a recorder placeholder root (`${workdir}`, with or without a
  * trailing segment), a Windows absolute path (`C:\x\y`), or a POSIX absolute
  * path (`/x/y`). Stops at whitespace and at the punctuation that typically
@@ -105,7 +130,7 @@ export interface IProjectedModelRequest {
 }
 
 function elideRuntimeIds(text: string): string {
-	return elidePaths(text.replace(RAW_UUID_RE, RUNTIME_ID_PLACEHOLDER).replace(ORDINAL_UUID_RE, RUNTIME_ID_PLACEHOLDER));
+	return elidePaths(elideToolsChangedNotice(text).replace(RAW_UUID_RE, RUNTIME_ID_PLACEHOLDER).replace(ORDINAL_UUID_RE, RUNTIME_ID_PLACEHOLDER));
 }
 
 function projectValue(value: unknown): unknown {
