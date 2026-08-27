@@ -15,7 +15,7 @@ import { IGitHubService } from '../../github/common/githubService.js';
 import { PullRequestRef, PullRequestSnapshot, PullRequestSubscription } from '../../github/common/githubPullRequestService.js';
 import { GitHubRequestError } from '../../github/common/githubTransport.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentMergeConfigKey, AgentMergeConfiguration, AgentMergeDisableReason, AgentMergeSessionState, AgentMergeTarget, agentMergeDisableReasons, agentMergeDisabledNotice, agentMergeEnabledNotice, agentMergeGateFragments, agentMergeRootConfigSchema, defaultAgentMergeConfiguration, evaluateAgentMerge, readAgentMergeSessionState, resolveAgentMergeConfiguration } from '../common/agentMerge.js';
+import { AgentMergeConfigKey, AgentMergeConfiguration, AgentMergeDisableReason, AgentMergeSessionState, AgentMergeTarget, agentMergeDisableReasons, agentMergeDisabledNotice, agentMergeEnabledNotice, agentMergeGateFragments, agentMergeMergePullRequestDemotedNotice, agentMergeRootConfigSchema, defaultAgentMergeConfiguration, evaluateAgentMerge, readAgentMergeSessionState, resolveAgentMergeConfiguration, resolveMergeMethod, shouldStopMergingAfterAgentChanges } from '../common/agentMerge.js';
 import { buildAgentMergePrompt } from '../common/agentMergePrompt.js';
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
 import { AgentSystemNotificationKind } from '../common/meta/agentSystemNotificationMeta.js';
@@ -445,6 +445,11 @@ export class AgentMergeController extends Disposable {
 		}
 		const snapshot = subscription.resource.snapshot.get();
 		const configuration = this._getConfiguration(agentMerge);
+		if (this._demoteMergePullRequestIfChanged(session, agentMerge, configuration, snapshot)) {
+			// The config write re-enters evaluation with the demoted value, so
+			// this pass must not go on to merge under the old one.
+			return;
+		}
 		const gate = evaluateAgentMerge(snapshot, configuration, target.commentWatermark);
 		this._logGateResult(session, gate);
 		if (gate.kind !== 'indeterminate') {
@@ -511,6 +516,7 @@ export class AgentMergeController extends Disposable {
 					lastPromptAt: new Date().toISOString(),
 					repeatedPromptCount,
 					totalPromptCount,
+					repairHeadSha: gate.context.headSha,
 				});
 				return;
 			}
@@ -758,6 +764,39 @@ export class AgentMergeController extends Disposable {
 		this._schedule(session, 0);
 	}
 
+	/**
+	 * Turns automatic merging off once a repair turn has landed a commit, for
+	 * sessions that only authorized merging while the pull request is unchanged.
+	 *
+	 * The chosen value is rewritten rather than merely gated so the dropdown
+	 * always shows what will actually happen, and so re-selecting the option
+	 * establishes a fresh baseline. Returns whether the value was demoted.
+	 */
+	private _demoteMergePullRequestIfChanged(
+		session: string,
+		agentMerge: AgentMergeSessionState,
+		configuration: AgentMergeConfiguration,
+		snapshot: PullRequestSnapshot,
+	): boolean {
+		const headSha = snapshot.core.value?.headSha;
+		if (!shouldStopMergingAfterAgentChanges(configuration, agentMerge, headSha)) {
+			return false;
+		}
+		this._logService.info(`[AgentMergeController] Turning automatic merge off because a repair turn changed the pull request: session=${session}, repairHeadSha=${agentMerge.repairHeadSha}, headSha=${headSha}`);
+		this._postNotice(session, AgentSystemNotificationKind.AgentMergeDisabled, agentMergeMergePullRequestDemotedNotice());
+		this._configurationService.updateSessionConfig(session, {
+			[SessionConfigKey.AgentMerge]: {
+				enabled: agentMerge.enabled,
+				overrides: { ...agentMerge.overrides, mergePullRequest: 'never' },
+			},
+			// Dropping the baseline is what makes re-selecting the option start
+			// fresh: without it the next evaluation would demote again against
+			// this very same commit.
+			[SessionConfigKey.AgentMergeController]: toControllerState(agentMerge, { repairHeadSha: undefined }),
+		});
+		return true;
+	}
+
 	private _updateAgentMergeState(session: string, current: AgentMergeSessionState, patch: Partial<AgentMergeSessionState>): void {
 		this._configurationService.updateSessionConfig(session, {
 			[SessionConfigKey.AgentMergeController]: toControllerState(current, patch),
@@ -960,14 +999,6 @@ function shouldRunFingerprint(state: AgentMergeSessionState, fingerprint: string
 	return !Number.isFinite(lastPromptAt) || Date.now() - lastPromptAt >= backstopInterval;
 }
 
-function resolveMergeMethod(configured: AgentMergeConfiguration['mergeMethod'], allowed: readonly ('MERGE' | 'SQUASH' | 'REBASE')[]): 'MERGE' | 'SQUASH' | 'REBASE' | undefined {
-	if (configured !== 'auto') {
-		const method = configured.toUpperCase() as 'MERGE' | 'SQUASH' | 'REBASE';
-		return allowed.includes(method) ? method : undefined;
-	}
-	return (['SQUASH', 'MERGE', 'REBASE'] as const).find(method => allowed.includes(method));
-}
-
 function toControllerState(current: AgentMergeSessionState, patch: Partial<AgentMergeSessionState>): Omit<AgentMergeSessionState, 'enabled' | 'overrides'> {
 	const next = { ...current, ...patch };
 	return {
@@ -977,6 +1008,7 @@ function toControllerState(current: AgentMergeSessionState, patch: Partial<Agent
 		...(next.lastPromptAt ? { lastPromptAt: next.lastPromptAt } : {}),
 		...(next.repeatedPromptCount !== undefined ? { repeatedPromptCount: next.repeatedPromptCount } : {}),
 		...(next.totalPromptCount !== undefined ? { totalPromptCount: next.totalPromptCount } : {}),
+		...(next.repairHeadSha ? { repairHeadSha: next.repairHeadSha } : {}),
 	};
 }
 

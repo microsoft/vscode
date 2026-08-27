@@ -77,6 +77,18 @@ export const AutomationsHasItemsContext = new RawContextKey<boolean>('automation
 
 //#endregion
 
+//#region < --- Changes --- >
+
+/**
+ * Id of the first pull request operation the agent host currently advertises
+ * for the active session (for example `pr-merge`), or the empty string when
+ * none is advertised. Lets client-side contributions to the changes button bar
+ * react to the pull request's live state without duplicating it.
+ */
+export const SessionPrimaryPullRequestOperationContext = new RawContextKey<string>('sessionPrimaryPullRequestOperation', '', localize('sessionPrimaryPullRequestOperation', "The id of the first pull request operation advertised for the active session, or empty when there is none"));
+
+//#endregion
+
 //#region < --- Welcome --- >
 
 export const SessionsWelcomeVisibleContext = new RawContextKey<boolean>('sessionsWelcomeVisible', false, localize('sessionsWelcomeVisible', "Whether the sessions welcome overlay is visible"));

@@ -17,6 +17,7 @@ import { Action2, MenuId, MenuItemAction, registerAction2 } from '../../../../pl
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { ActiveEditorContext } from '../../../../workbench/common/contextkeys.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
@@ -27,7 +28,8 @@ import { DiffEditorWidget } from '../../../../editor/browser/widget/diffEditor/d
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { Menus } from '../../../browser/menus.js';
 import { ChatPillActionViewItem } from '../../../../workbench/browser/chatPills.js';
-import { SessionHasCachedChangesContext, SessionHasChangesContext, SessionHasWorkspaceContext } from '../../../common/contextkeys.js';
+import { AGENT_HOST_PULL_REQUEST_OPERATION_IDS } from '../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
+import { SessionHasCachedChangesContext, SessionHasChangesContext, SessionHasWorkspaceContext, SessionPrimaryPullRequestOperationContext } from '../../../common/contextkeys.js';
 import { ISessionContext } from '../../../services/sessions/browser/sessionContext.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { SessionChangesetOperationScope } from '../../../services/sessions/common/session.js';
@@ -408,7 +410,8 @@ class ChangesetOperationsActionControllerContribution extends Disposable impleme
 
 	constructor(
 		@IChangesViewService changesViewService: IChangesViewService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@ILogService logService: ILogService
 	) {
 		super();
 
@@ -438,6 +441,19 @@ class ChangesetOperationsActionControllerContribution extends Disposable impleme
 
 		this._register(bindContextKey<string[]>(SessionChangesReviewedFilesContext, contextKeyService, reader => {
 			return clientReviewedFilesObs.read(reader) ?? agentHostReviewedFilesObs.read(reader);
+		}));
+
+		let lastPullRequestOperation: string | undefined;
+		this._register(bindContextKey<string>(SessionPrimaryPullRequestOperationContext, contextKeyService, reader => {
+			const operations = changesViewService.activeSessionChangesetObs.read(reader)?.operations.read(reader) ?? [];
+			const primary = operations.find(op => AGENT_HOST_PULL_REQUEST_OPERATION_IDS.has(op.id))?.id ?? '';
+			if (lastPullRequestOperation !== primary) {
+				lastPullRequestOperation = primary;
+				// Gates which Agent Merge entries the dropdown offers, so it is
+				// logged alongside the button bar itself.
+				logService.info(`[ChangesetOperationsActionController] Primary pull request operation: ${primary || 'none'}`);
+			}
+			return primary;
 		}));
 
 		this._register(autorun(reader => {

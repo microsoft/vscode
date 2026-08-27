@@ -328,6 +328,9 @@ export class MenuId {
 	static readonly AgentsTitleBarControlMenu = new MenuId('AgentsTitleBarControlMenu');
 	static readonly AgentsChangesToolbar = new MenuId('AgentsChangesToolbar');
 	static readonly AgentsChangesPrimaryActionSubMenu = new MenuId('AgentsChangesPrimaryActionSubMenu');
+	static readonly AgentsChangesOperationsDropdown = new MenuId('AgentsChangesOperationsDropdown');
+	static readonly AgentsChangesAgentMerge = new MenuId('AgentsChangesAgentMerge');
+	static readonly AgentsChangesAgentMergeMergePullRequest = new MenuId('AgentsChangesAgentMergeMergePullRequest');
 	static readonly AgentsChangeInlineToolbar = new MenuId('AgentsChangeInlineToolbar');
 	static readonly ChatViewSessionTitleNavigationToolbar = new MenuId('ChatViewSessionTitleNavigationToolbar');
 	static readonly ChatViewSessionTitleToolbar = new MenuId('ChatViewSessionTitleToolbar');

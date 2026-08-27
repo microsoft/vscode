@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { AgentMergeConfiguration, evaluateAgentMerge, getNonMergeSessionConfigValues, readAgentMergeSessionState } from '../../common/agentMerge.js';
+import { AgentMergeConfiguration, evaluateAgentMerge, getNonMergeSessionConfigValues, readAgentMergeSessionState, shouldStopMergingAfterAgentChanges } from '../../common/agentMerge.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { PullRequestSnapshot } from '../../../github/common/githubPullRequestService.js';
 
@@ -16,7 +16,7 @@ suite('Agent Merge gate', () => {
 		addressReviews: true,
 		fixCI: true,
 		resolveConflicts: true,
-		mergePullRequest: true,
+		mergePullRequest: 'always',
 		mergeMethod: 'auto',
 		replyAttribution: true,
 	};
@@ -189,6 +189,60 @@ suite('Agent Merge gate', () => {
 				commentWatermark: '2026-08-02T00:00:00.000Z',
 			},
 			lastPromptFingerprint: 'fingerprint',
+		});
+	});
+
+	test('reads the merge choice as an enum, migrating the retired boolean form', () => {
+		const overridesFor = (mergePullRequest: unknown) => readAgentMergeSessionState({
+			[SessionConfigKey.AgentMerge]: { enabled: true, overrides: { mergePullRequest } },
+		})?.overrides;
+
+		assert.deepStrictEqual({
+			legacyTrue: overridesFor(true),
+			legacyFalse: overridesFor(false),
+			ifUnchanged: overridesFor('ifUnchanged'),
+			unknown: overridesFor('bogus'),
+		}, {
+			legacyTrue: { mergePullRequest: 'always' },
+			legacyFalse: { mergePullRequest: 'never' },
+			ifUnchanged: { mergePullRequest: 'ifUnchanged' },
+			unknown: undefined,
+		});
+	});
+
+	test('only merges automatically when the merge choice is not "never"', () => {
+		const gateFor = (mergePullRequest: AgentMergeConfiguration['mergePullRequest']) =>
+			evaluateAgentMerge(readySnapshot(), { ...configuration, mergePullRequest }, '2026-08-02T00:00:00.000Z').kind;
+
+		assert.deepStrictEqual({
+			always: gateFor('always'),
+			ifUnchanged: gateFor('ifUnchanged'),
+			never: gateFor('never'),
+		}, {
+			always: 'merge',
+			ifUnchanged: 'merge',
+			never: 'noWork',
+		});
+	});
+
+	test('stops merging automatically once a repair turn lands a commit', () => {
+		const ifUnchanged: AgentMergeConfiguration = { ...configuration, mergePullRequest: 'ifUnchanged' };
+		const enabled = { enabled: true };
+
+		assert.deepStrictEqual({
+			noRepairYet: shouldStopMergingAfterAgentChanges(ifUnchanged, enabled, 'sha1'),
+			repairPushedNothing: shouldStopMergingAfterAgentChanges(ifUnchanged, { ...enabled, repairHeadSha: 'sha1' }, 'sha1'),
+			repairLandedCommit: shouldStopMergingAfterAgentChanges(ifUnchanged, { ...enabled, repairHeadSha: 'sha1' }, 'sha2'),
+			headUnknown: shouldStopMergingAfterAgentChanges(ifUnchanged, { ...enabled, repairHeadSha: 'sha1' }, undefined),
+			always: shouldStopMergingAfterAgentChanges({ ...configuration, mergePullRequest: 'always' }, { ...enabled, repairHeadSha: 'sha1' }, 'sha2'),
+			never: shouldStopMergingAfterAgentChanges({ ...configuration, mergePullRequest: 'never' }, { ...enabled, repairHeadSha: 'sha1' }, 'sha2'),
+		}, {
+			noRepairYet: false,
+			repairPushedNothing: false,
+			repairLandedCommit: true,
+			headUnknown: false,
+			always: false,
+			never: false,
 		});
 	});
 

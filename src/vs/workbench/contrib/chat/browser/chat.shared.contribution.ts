@@ -2420,6 +2420,11 @@ function migrateChatDefaultConfiguration(value: unknown): Record<string, unknown
 	return { ...value, approvals };
 }
 
+/** Maps the retired boolean form of the Agent Merge merge setting onto its enum. */
+function migrateAgentMergeMergePullRequest(value: unknown): unknown {
+	return typeof value === 'boolean' ? (value ? 'always' : 'never') : value;
+}
+
 Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration).registerConfigurationMigrations([
 	{
 		key: 'chat.agentSessions.defaultConfiguration',
@@ -2525,12 +2530,23 @@ Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration).
 				// Never clobber an explicitly configured new key (e.g. after settings
 				// sync brought both keys across versions).
 				if (accessor(settingId) === undefined) {
-					pairs.push([settingId, { value }]);
+					pairs.push([settingId, { value: settingId === AgentMergeSettingId.MergePullRequest ? migrateAgentMergeMergePullRequest(value) : value }]);
 				}
 				return pairs;
 			}
 		};
 	}),
+	{
+		// `chat.agentMerge.mergePullRequest` became a three-way enum. An explicit
+		// `true` must keep merging rather than fall back to the `never` default.
+		key: AgentMergeSettingId.MergePullRequest,
+		migrateFn: (value: unknown): ConfigurationKeyValuePairs => {
+			if (typeof value !== 'boolean') {
+				return [];
+			}
+			return [[AgentMergeSettingId.MergePullRequest, { value: migrateAgentMergeMergePullRequest(value) }]];
+		}
+	},
 	{
 		// The on-device dictation runtime moved to Foundry Local; the old
 		// transformers.js/onnxruntime model IDs no longer resolve and would fail
