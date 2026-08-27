@@ -4905,11 +4905,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 		const sessionUri = AgentSession.uri(this.id, sessionId);
 		const storedMetadata = await this._readSessionMetadata(sessionUri);
-		const sessionMetadata = storedMetadata.workingDirectory ? undefined : await client.getSessionMetadata(sessionId).catch(err => {
+		const storedWorkingDirectory = storedMetadata.workingDirectory ?? storedMetadata.workingDirectories?.[0];
+		const sessionMetadata = storedWorkingDirectory ? undefined : await client.getSessionMetadata(sessionId).catch(err => {
 			this._logService.warn(`[Copilot:${sessionId}] getSessionMetadata failed`, err);
 			return undefined;
 		});
-		const workingDirectory = storedMetadata.workingDirectory ?? (typeof sessionMetadata?.context?.workingDirectory === 'string' ? URI.file(sessionMetadata.context.workingDirectory) : undefined);
+		const workingDirectory = storedWorkingDirectory ?? (typeof sessionMetadata?.context?.workingDirectory === 'string' ? URI.file(sessionMetadata.context.workingDirectory) : undefined);
 		if (!workingDirectory) {
 			throw new Error(`workingDirectory is required to resume Copilot session '${sessionId}'`);
 		}

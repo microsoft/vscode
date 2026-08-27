@@ -11192,7 +11192,7 @@ suite('CopilotAgent', () => {
 			const session = AgentSession.uri('copilotcli', 's1');
 			const dbRef = sessionDataService.openDatabase(session);
 			try {
-				await dbRef.object.setMetadata('copilot.workingDirectory', URI.file(workingDirectory).toString());
+				await dbRef.object.setMetadata('copilot.workingDirectories', JSON.stringify([URI.file(workingDirectory).toString()]));
 				await dbRef.object.setMetadata('copilot.agent', JSON.stringify({ uri: 'file:///old-client/data.md' }));
 			} finally {
 				dbRef.dispose();
