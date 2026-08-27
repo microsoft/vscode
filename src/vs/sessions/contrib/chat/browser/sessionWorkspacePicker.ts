@@ -470,11 +470,14 @@ export class WorkspacePicker extends Disposable {
 		this._activeTriggerElement = triggerElement;
 		this._setDirectPickerFilter(preferredGroup, attachesContext);
 		if (preferredGroup === SESSION_WORKSPACE_GROUP_GITHUB && attachesContext === false && !this._getCurrentRepositoryId()) {
-			const repositoryActions = this._getAllBrowseActions();
-			if (repositoryActions.length === 1) {
+			const items = this._buildItems();
+			const directBrowseItem = items.length === 1 && items[0].kind === ActionListItemKind.Action
+				? items[0].item
+				: undefined;
+			if (directBrowseItem?.browseActionIndex !== undefined && !items[0].disabled) {
 				this._activeTriggerElement = undefined;
 				triggerElement.setAttribute('aria-expanded', 'false');
-				void this._dispatchPickerItem({ browseActionIndex: 0 }).finally(() => {
+				void this._dispatchPickerItem(directBrowseItem).finally(() => {
 					this._directPickerGroup = undefined;
 					this._directPickerAttachesContext = undefined;
 					triggerElement.focus();

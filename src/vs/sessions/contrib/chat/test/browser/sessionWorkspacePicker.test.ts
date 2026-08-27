@@ -1568,6 +1568,67 @@ suite('WorkspacePicker - Category Triggers', () => {
 		});
 	});
 
+	test('repository trigger respects the GitHub sign-in action before direct browsing', () => {
+		class CapturingActionWidgetService extends mock<IActionWidgetService>() {
+			override isVisible = false;
+			readonly shownLabels: string[][] = [];
+
+			override show<T>(_user: string, _supportsPreview: boolean, items: readonly IActionListItem<T>[]): void {
+				this.shownLabels.push(items.flatMap(item => item.label ? [item.label] : []));
+				this.isVisible = true;
+			}
+
+			override hide(): void {
+				this.isVisible = false;
+			}
+		}
+
+		let browseCalls = 0;
+		const actionWidgetService = new CapturingActionWidgetService();
+		const providersService = disposables.add(new MockSessionsProvidersService());
+		providersService.setProviders([createMockProvider('default-copilot', {
+			browseActions: [{
+				...makeBrowseAction('default-copilot', SESSION_WORKSPACE_GROUP_GITHUB, 'Repository...'),
+				attachesContext: false,
+				run: async () => {
+					browseCalls++;
+					return undefined;
+				},
+			}],
+		})]);
+		const picker = createTestPicker(
+			disposables,
+			providersService,
+			undefined,
+			new TestNotificationService(),
+			WorkspacePicker,
+			{},
+			undefined,
+			undefined,
+			{
+				getWorkspaceGroupAction: group => group === SESSION_WORKSPACE_GROUP_GITHUB ? {
+					label: 'Sign in to GitHub',
+					icon: Codicon.signIn,
+					commandId: AGENTIC_SIGN_IN_COMMAND_ID,
+					hideWorkspaceItems: true,
+				} : undefined,
+			},
+			undefined,
+			actionWidgetService,
+		);
+		const trigger = document.createElement('button');
+
+		picker.showPicker(false, trigger, SESSION_WORKSPACE_GROUP_GITHUB, false);
+
+		assert.deepStrictEqual({
+			browseCalls,
+			shownLabels: actionWidgetService.shownLabels,
+		}, {
+			browseCalls: 0,
+			shownLabels: [['Sign in to GitHub']],
+		});
+	});
+
 	test('shows a GitHub loading state and refreshes when its provider registers', () => {
 		class CapturingActionWidgetService extends mock<IActionWidgetService>() {
 			override isVisible = false;
