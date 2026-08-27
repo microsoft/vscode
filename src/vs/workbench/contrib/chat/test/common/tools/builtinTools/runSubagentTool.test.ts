@@ -1016,7 +1016,7 @@ suite('RunSubagentTool', () => {
 					chatSessionResource: URI.parse('test://session/allowlist'),
 				}, CancellationToken.None),
 				(err: Error) => {
-					assert.ok(err.message.includes("Requested agent 'Forbidden' is not allowed"));
+					assert.ok(err.message.includes('Requested agent \'Forbidden\' is not allowed'));
 					return true;
 				}
 			);
@@ -1037,7 +1037,7 @@ suite('RunSubagentTool', () => {
 				result: result.content[0].kind === 'text' ? result.content[0].value : undefined,
 			}, {
 				requestCount: 0,
-				result: "Error invoking subagent: Requested agent 'Forbidden' is not allowed by the current agent.",
+				result: 'Error invoking subagent: Requested agent \'Forbidden\' is not allowed by the current agent.',
 			});
 		});
 
