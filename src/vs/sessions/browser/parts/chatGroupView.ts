@@ -188,7 +188,9 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 
 			let desiredKind: ChatViewKind;
 			if (session.isCreated.read(reader) === false) {
-				desiredKind = 'newSession';
+				desiredKind = session.isNewSessionRequestInProgress?.read(reader) === true
+					? 'chat'
+					: 'newSession';
 			} else if (!chat || (chat.status.read(reader) === SessionStatus.Untitled && chat.interactivity.read(reader) === ChatInteractivity.Full)) {
 				desiredKind = 'newChatInSession';
 			} else {
