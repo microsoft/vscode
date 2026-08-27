@@ -20,7 +20,7 @@ import { getResolvedShellEnv } from '../../shell/node/shellEnv.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../telemetry/common/telemetryUtils.js';
 import { UtilityProcess } from '../../utilityProcess/electron-main/utilityProcess.js';
-import { AgentHostStartError, IAgentHostConnection, IAgentHostShutdownRequest, IAgentHostStarter, IAgentHostStartRequest } from '../common/agent.js';
+import { AgentHostStartError, IAgentHostConnection, IAgentHostShutdownRequest, IAgentHostStarter, IAgentHostStartRequest, isFatalAgentHostStartError, toFatalAgentHostStartError } from '../common/agent.js';
 import { buildAgentHostTelemetryIdEnv, IAgentHostForwardedTelemetryIds } from '../common/agentHostTelemetryEnv.js';
 import { AgentHostLaunchKind, AgentHostLaunchKindEnvVar, telemetryLevelToAgentHostValue } from '../common/agentHostTelemetry.js';
 import { AgentHostClaudeAgentEnabledSettingId, AgentHostCodexAgentBinaryArgsSettingId, AgentHostCodexAgentEnabledSettingId, AgentHostCodexAgentSdkRootSettingId, AgentHostCodexAgentCodexHomeSettingId, AgentHostIpcChannels, AgentHostOTelCaptureContentSettingId, AgentHostOTelDbSpanExporterEnabledSettingId, AgentHostOTelEnabledSettingId, AgentHostOTelExporterTypeSettingId, AgentHostOTelOtlpEndpointSettingId, AgentHostOTelOtlpProtocolSettingId, AgentHostOTelOutfileSettingId, AgentHostOTelResourceAttributesSettingId, AgentHostOTelServiceNameSettingId, AgentHostOTelPolicyIpcChannel, AgentHostRestartIpcChannel, AgentHostWillRestartIpcChannel, buildAgentHostOTelEnv, buildAgentSdkEnv, IAgentHostManagementService, IAgentHostOTelSettings, sanitizeAgentHostOTelPolicySettings } from '../common/agentService.js';
@@ -218,6 +218,9 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 			};
 		} catch (error) {
 			this._disposeUtilityProcess(utilityProcess);
+			if (isFatalAgentHostStartError(error)) {
+				throw toFatalAgentHostStartError(error);
+			}
 			throw error;
 		}
 	}

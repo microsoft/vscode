@@ -11,7 +11,6 @@
 	padding: 0;
 	overflow: visible;
 	height: auto;
-	border-radius: 0;
 	position: relative;
 	cursor: default;
 }
@@ -19,13 +18,21 @@
 .chat-input-picker-item .action-label.model-picker-split .model-picker-section {
 	display: flex;
 	align-items: center;
-	height: 16px;
-	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size60);
-	border-radius: 4px;
+	box-sizing: border-box;
+	height: 22px;
+	padding: 0 var(--vscode-spacing-size60);
+	border-radius: inherit;
 	cursor: pointer;
 	text-decoration: none;
 	color: inherit;
 	white-space: nowrap;
+}
+
+.interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.model-picker-split.icon-only .model-picker-section {
+	width: 100%;
+	height: 100%;
+	padding: 0;
+	justify-content: center;
 }
 
 .chat-input-picker-item .action-label.model-picker-split:hover,
@@ -44,14 +51,17 @@
 }
 
 .chat-input-picker-item .action-label.model-picker-split .model-picker-name {
-	min-width: 0;
-	flex-shrink: 1;
-	overflow: hidden;
+	flex-shrink: 0;
+	overflow: visible;
+}
+
+.interactive-session .chat-input-toolbar .chat-input-picker-item.compact-picker .action-label.model-picker-split.compact {
+	justify-content: flex-start;
 }
 
 .chat-input-picker-item .action-label.model-picker-split .model-picker-name .chat-input-picker-label {
-	overflow: hidden;
-	text-overflow: ellipsis;
+	overflow: visible;
+	text-overflow: clip;
 }
 
 .chat-input-picker-item .action-label.model-picker-split .model-picker-config {
@@ -59,7 +69,7 @@
 }
 
 .chat-input-picker-item .action-label.model-picker-split .model-picker-section .codicon {
-	font-size: 12px;
+	font-size: var(--vscode-codiconFontSize-compact);
 }
 
 .chat-input-picker-item .action-label.model-picker-split .model-picker-section .codicon + .chat-input-picker-label {
@@ -139,6 +149,7 @@
 }
 
 .chat-model-hover-warning-text,
+.chat-model-hover-info-text,
 .chat-model-hover-promo-text {
 	display: flex;
 	gap: 6px;
@@ -149,17 +160,25 @@
 	padding: 6px 8px;
 }
 
+.chat-model-hover-warning-text > .codicon,
+.chat-model-hover-info-text > .codicon,
+.chat-model-hover-promo-text > .codicon {
+	font-size: var(--vscode-codiconFontSize-compact);
+}
+
 .chat-model-hover-warning-text > .codicon {
 	flex-shrink: 0;
 	color: var(--vscode-notificationsWarningIcon-foreground);
 }
 
+.chat-model-hover-info-text > .codicon,
 .chat-model-hover-promo-text > .codicon {
 	flex-shrink: 0;
 	color: var(--vscode-notificationsInfoIcon-foreground);
 }
 
 .chat-model-hover-warning-text p,
+.chat-model-hover-info-text p,
 .chat-model-hover-promo-text p,
 .chat-model-hover-description p {
 	margin: 0;

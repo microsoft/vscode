@@ -16,10 +16,6 @@ export function getSessionConversationActionId(sessionId: string, chatResource: 
 	return `sessions.openChat.${sessionId}.${hash(chatResource.toString())}`;
 }
 
-export function getSelectedSessionConversationActionId(sessionId: string, activeChat: IChat): string {
-	return getSessionConversationActionId(sessionId, activeChat.resource);
-}
-
 export function getSessionConversationStatusLabel(status: SessionStatus): string {
 	switch (status) {
 		case SessionStatus.Untitled:
@@ -39,12 +35,11 @@ export function getSessionConversationStatusAriaLabel(status: SessionStatus): st
 	return localize('sessionConversationStatus.ariaLabel', "State: {0}", getSessionConversationStatusLabel(status));
 }
 
-export function getSessionConversationStatusDescription(status: SessionStatus): string | undefined {
-	return status === SessionStatus.Completed ? undefined : getSessionConversationStatusLabel(status);
-}
-
 /** Returns the contributed menu group for a chat in the scoped session. */
 export function getSessionConversationGroupId(chat: IChat, activeChat: IChat, extUri: IExtUri): string | undefined {
+	if (chat.origin?.kind === ChatOriginKind.SideChat) {
+		return undefined;
+	}
 	if (chat.origin?.kind === ChatOriginKind.Tool) {
 		const activeChatScope = activeChat.origin?.kind === ChatOriginKind.Tool && activeChat.origin.parentChat
 			? activeChat.origin.parentChat

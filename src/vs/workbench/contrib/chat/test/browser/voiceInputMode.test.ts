@@ -102,7 +102,6 @@ suite('VoiceInputModeService', () => {
 		assert.strictEqual(matches(SegmentedVoiceInputModePillActive), false);
 		assert.strictEqual(matches(SegmentedVoiceInputModePillInactive), true);
 
-		values['config.agents.voice.handsFree'] = false;
 		values[AGENTS_VOICE_CONNECTED.key] = true;
 		assert.strictEqual(matches(SegmentedVoiceInputModePillActive), true);
 		assert.strictEqual(matches(SegmentedVoiceInputModePillInactive), false);

@@ -12,6 +12,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IChatInputNotificationService } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputNotificationService.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
@@ -106,10 +107,6 @@ class TestSessionTypePicker extends SessionTypePicker {
 	pick(p: IPickedSessionType): void {
 		this._handleSelectedSessionType(p);
 	}
-
-	showPicker(): void {
-		this._showPicker();
-	}
 }
 
 function createPicker(
@@ -137,6 +134,7 @@ function createPicker(
 		lookupLanguageModel: () => undefined,
 	});
 	instantiationService.stub(IConfigurationService, new TestConfigurationService());
+	instantiationService.stub(IChatInputNotificationService, { getActiveNotification: () => undefined });
 	instantiationService.stub(IContextKeyService, new MockContextKeyService());
 	return disposables.add(instantiationService.createInstance(TestSessionTypePicker, session, options));
 }

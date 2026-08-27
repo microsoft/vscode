@@ -14,6 +14,8 @@ import { IMenu, IMenuItem, IMenuService, MenuId, MenuItemAction } from '../../..
 import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IListService, ListService } from '../../../../../platform/list/browser/listService.js';
+import { IChatModelFeedbackSurveyService } from '../../../../contrib/chat/browser/feedbackSurvey/chatModelFeedbackSurveyService.js';
+import { MockChatModelFeedbackSurveyService } from '../../../../contrib/chat/test/browser/feedbackSurvey/mockChatModelFeedbackSurveyService.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { ILinkPresentationService } from '../../../../../platform/dataChannel/common/dataChannel.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
@@ -50,6 +52,7 @@ import { IVoiceModeOnboardingService } from '../../../../contrib/agentsVoice/bro
 import { IChatAccessibilityService, IChatWidget, IChatWidgetService } from '../../../../contrib/chat/browser/chat.js';
 import { IChatResponseFileChangesService } from '../../../../contrib/chat/browser/chatResponseFileChangesService.js';
 import { IChatPetService } from '../../../../contrib/chat/browser/chatPetService.js';
+import { ChatPetWidgetService, IChatPetWidgetService } from '../../../../contrib/chat/browser/widget/chatPetWidgetService.js';
 import { IChatOutputRendererService } from '../../../../contrib/chat/browser/chatOutputItemRenderer.js';
 import { IAiEditTelemetryService } from '../../../../contrib/editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
 import { EditSuggestionId } from '../../../../../editor/common/textModelEditSource.js';
@@ -139,6 +142,7 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 	reg.define(IMenuService, FixtureMenuService);
 	reg.define(IMarkdownRendererService, MarkdownRendererService);
 	reg.define(IListService, ListService);
+	reg.defineInstance(IChatModelFeedbackSurveyService, new MockChatModelFeedbackSurveyService());
 	reg.defineInstance(ILinkPresentationService, new class extends mock<ILinkPresentationService>() {
 		override getLinkPresentationRule() { return undefined; }
 		override createLinkPresentationWatcher() { return undefined; }
@@ -195,18 +199,26 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 	reg.defineInstance(IVoiceSessionController, new class extends mock<IVoiceSessionController>() {
 		override readonly targetSession = constObservable<URI | undefined>(undefined);
 		override readonly hasDraftTarget = constObservable(false);
-		override readonly omniInputOpen = constObservable(false);
 	}());
 	reg.defineInstance(IChatPetService, new class extends mock<IChatPetService>() {
 		override readonly enabled = observableValue('chatPetEnabled', false);
 		override readonly variant = observableValue('chatPetVariant', 'stable' as const);
 		override readonly onTheRun = observableValue('chatPetOnTheRun', false);
 		override readonly scale = observableValue('chatPetScale', 1);
+		override readonly unlockedAchievements = observableValue('chatPetUnlockedAchievements', []);
+		override readonly unseenAchievements = observableValue('chatPetUnseenAchievements', []);
+		override readonly selectedAccessory = observableValue('chatPetSelectedAccessory', undefined);
+		override readonly onDidUnlockAchievement = Event.None;
 		override readonly horizontalPosition = observableValue<number | undefined>('chatPetHorizontalPosition', undefined);
 		override toggle() { return false; }
 		override setVariant() { }
 		override setOnTheRun() { }
 		override setScale(scale: number) { this.scale.set(scale, undefined); }
+		override resetScale() { this.scale.set(1, undefined); }
+		override unlockAchievement() { return false; }
+		override markAchievementSeen() { return false; }
+		override setAccessory() { }
+		override resetAchievements() { }
 		override setHorizontalPosition(position: number) { this.horizontalPosition.set(position, undefined); }
 	}());
 	reg.defineInstance(IChatWidgetService, new class extends mock<IChatWidgetService>() {
@@ -221,6 +233,7 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 		override getWidgetsByLocations() { return []; }
 		override register() { return { dispose() { } }; }
 	}());
+	reg.define(IChatPetWidgetService, ChatPetWidgetService);
 	reg.defineInstance(IChatAccessibilityService, new class extends mock<IChatAccessibilityService>() {
 		override acceptRequest() { }
 		override disposeRequest() { }
@@ -364,6 +377,7 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 	}());
 	reg.defineInstance(IAgentHostEnablementService, new class extends mock<IAgentHostEnablementService>() {
 		override readonly enabled = constObservable(false);
+		override readonly managedSandboxEnforced = constObservable(false);
 	}());
 
 	const artifactGroups = options.artifactGroups ?? observableValue<readonly IArtifactSourceGroup[]>('artifactGroups', []);

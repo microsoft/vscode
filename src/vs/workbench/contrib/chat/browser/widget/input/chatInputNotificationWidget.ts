@@ -21,6 +21,8 @@ import { IMarkdownRendererService } from '../../../../../../platform/markdown/br
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { defaultButtonStyles } from '../../../../../../platform/theme/browser/defaultStyles.js';
 import { IChatInputNoticeFocusTarget } from './chatInputNoticeHost.js';
+import { isByokModel } from '../../../common/chatSelectedModel.js';
+import { ILanguageModelChatMetadataAndIdentifier } from '../../../common/languageModels.js';
 import { ChatInputNoticeVariant, ChatInputNoticeWidget } from './chatInputNoticeWidget.js';
 import { ChatInputStackSlot, setChatInputStackSlot } from './chatInputStack.js';
 import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotification, IChatInputNotificationAction, IChatInputNotificationCommandAction, IChatInputNotificationService, isChatInputNotificationApplicableToSession } from './chatInputNotificationService.js';
@@ -69,6 +71,12 @@ export interface IChatInputNotificationDelegate {
 	readonly modelTargetChatSessionType?: IObservable<string | undefined>;
 	readonly sessionResource?: IObservable<URI | undefined>;
 	readonly deferredNotificationsEnabled?: IObservable<boolean>;
+	/** Whether this input is a transient surface (inline, terminal, quick chat, chat input window). */
+	readonly isTransientChat?: boolean;
+	/** Whether the session this input is bound to already has a request. */
+	readonly sessionStarted?: IObservable<boolean>;
+	/** This input's own selected model. Omit when the surface has no model of its own. */
+	readonly selectedLanguageModel?: IObservable<ILanguageModelChatMetadataAndIdentifier | undefined>;
 	readonly openModelPicker?: () => void;
 	/** Returns false to open this input's model picker as a fallback. */
 	readonly switchToModel?: (modelIdentifier: string) => boolean;
@@ -102,6 +110,8 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 	private _modelTargetChatSessionType: string | undefined;
 	private _sessionResource: URI | undefined;
 	private _deferredNotificationsEnabled = true;
+	private _sessionStarted = false;
+	private _selectedLanguageModel: ILanguageModelChatMetadataAndIdentifier | undefined;
 	private _visible = false;
 	private _slot: HTMLElement | undefined;
 
@@ -130,6 +140,8 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 			this._modelTargetChatSessionType = this._delegate?.modelTargetChatSessionType?.read(reader);
 			this._sessionResource = this._delegate?.sessionResource?.read(reader);
 			this._deferredNotificationsEnabled = this._delegate?.deferredNotificationsEnabled?.read(reader) ?? true;
+			this._sessionStarted = this._delegate?.sessionStarted?.read(reader) ?? false;
+			this._selectedLanguageModel = this._delegate?.selectedLanguageModel?.read(reader);
 			this._render();
 		}));
 	}
@@ -199,7 +211,16 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 
 	private _matchesSession(notification: IChatInputNotification): boolean {
 		return (!notification.deferForNewUsers || this._deferredNotificationsEnabled)
+			&& !(notification.hideInTransientChats && this._delegate?.isTransientChat)
+			&& !(notification.hideInStartedSessions && this._sessionStarted)
+			&& !(notification.hideForByokModels && this._isByokModelSelected())
 			&& isChatInputNotificationApplicableToSession(notification, this._modelTargetChatSessionType, this._sessionResource);
+	}
+
+	/** A model that hasn't resolved yet counts as not-BYOK, so banners aren't held back. */
+	private _isByokModelSelected(): boolean {
+		const model = this._selectedLanguageModel;
+		return !!model && isByokModel(model.metadata);
 	}
 
 	private _renderNotification(notification: IChatInputNotification): void {

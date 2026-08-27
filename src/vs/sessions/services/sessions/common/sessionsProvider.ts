@@ -23,6 +23,9 @@ export interface ISessionChangeEvent {
 	readonly changed: readonly ISession[];
 }
 
+/** Why a session resource is being resolved, so a provider can pick a latency budget. */
+export type SessionResourceResolveReason = 'open' | 'restore';
+
 /**
  * Options for sending a request to a session.
  */
@@ -47,6 +50,7 @@ export interface ISessionsProviderCreateSessionOptions {
 export interface ISessionWorktreeConfiguration {
 	readonly isolationMode?: string;
 	readonly worktreeBranchTrack?: boolean;
+	readonly worktreeCreateNewBranch?: boolean;
 	readonly branch?: string;
 }
 
@@ -168,6 +172,21 @@ export interface ISessionsProvider {
 	 * Event that fires when sessions are added, removed, or changed. Consumers should update their session lists and any related UI when this occurs.
 	 */
 	readonly onDidChangeSessions: Event<ISessionChangeEvent>;
+
+	/**
+	 * Optional. Redirects a resource that this provider supersedes to the one it
+	 * should actually be opened as, or `undefined` to leave it unchanged.
+	 *
+	 * Open paths address a session by URI — restored editors, links, and commands
+	 * all bypass the session list — so a provider that adopts another provider's
+	 * sessions must be consulted here, not only when the list is built.
+	 * Implementations must return quickly and synchronously decline resources
+	 * they do not own.
+	 *
+	 * `reason` says why the resource is being resolved so a provider can pick its
+	 * own latency budget; it carries no provider-specific policy.
+	 */
+	resolveSessionResource?(resource: URI, reason?: SessionResourceResolveReason): Promise<URI | undefined>;
 	/**
 	 * Optional. Fires when a temporary (untitled) session is atomically replaced
 	 * by a committed session after the first turn.
@@ -347,6 +366,9 @@ export interface ISessionsProvider {
 	 * @param enabled Whether branch tracking is enabled.
 	 */
 	setWorktreeBranchTrack?(sessionId: string, enabled: boolean): Promise<void>;
+
+	/** Set whether the worktree creates a new branch for a session. */
+	setWorktreeCreateNewBranch?(sessionId: string, enabled: boolean): Promise<void>;
 
 	/**
 	 * Set the git branch for a session.

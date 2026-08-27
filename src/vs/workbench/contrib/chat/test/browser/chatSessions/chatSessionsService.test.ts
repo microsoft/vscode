@@ -4,15 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ContextKeyService } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
 import { ContextKeyExpr, IContextKey, RawContextKey } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { applyCodexAgentHostPreference, ChatSessionsService } from '../../../browser/chatSessions/chatSessions.contribution.js';
-import { ChatSessionOptionsMap, IChatSessionHistoryItem, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionsExtensionPoint, ReadonlyChatSessionOptionsMap, SessionType } from '../../../common/chatSessionsService.js';
+import { ChatSessionOptionsMap, ChatSessionStatus, IChatSessionHistoryItem, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionsExtensionPoint, ReadonlyChatSessionOptionsMap, SessionType } from '../../../common/chatSessionsService.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { AGENT_HOST_ENABLED_CONTEXT_KEY } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { AgentHostCodexAgentEnabledSettingId, CodexPreferAgentHostEditorSettingId, GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE, protectedResourcesRequireGitHubCopilotSignIn } from '../../../../../../platform/agentHost/common/agentService.js';
@@ -247,6 +249,148 @@ suite('ChatSessionsService - getChatSessionItems availability', () => {
 
 		gatedEnabled.set(false);
 		assert.deepStrictEqual(await resolvedTypes(), [UNGATED_TYPE]);
+	});
+});
+
+suite('ChatSessionsService - in-progress lifecycle', () => {
+
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('removes in-progress state when its controller is disposed', async () => {
+		const changed = store.add(new Emitter<IChatSessionItemsDelta>());
+		const sessionType = 'test-provider';
+		const controller: IChatSessionItemController = {
+			onDidChangeChatSessionItems: changed.event,
+			items: [{
+				resource: URI.from({ scheme: sessionType, path: '/session-1' }),
+				label: 'In-progress session',
+				status: ChatSessionStatus.InProgress,
+				timing: { created: 0, lastRequestStarted: 0, lastRequestEnded: undefined },
+			}],
+			async refresh(): Promise<void> { },
+		};
+		const instantiationService = store.add(workbenchInstantiationService(undefined, store));
+		const service = store.add(instantiationService.createInstance(ChatSessionsService));
+		const registration = service.registerChatSessionItemController(sessionType, controller);
+
+		const progressAdded = Event.toPromise(service.onDidChangeInProgress);
+		changed.fire({ addedOrUpdated: controller.items });
+		await progressAdded;
+
+		const progressRemoved = Event.toPromise(service.onDidChangeInProgress);
+		registration.dispose();
+		await progressRemoved;
+
+		assert.deepStrictEqual(service.getInProgress(), []);
+	});
+
+	test('does not dispose a replacement controller or publish stale progress', async () => {
+		const firstRefresh = new DeferredPromise<void>();
+		const sessionType = 'test-provider';
+		const firstController: IChatSessionItemController = {
+			onDidChangeChatSessionItems: Event.None,
+			items: [{
+				resource: URI.from({ scheme: sessionType, path: '/session-1' }),
+				label: 'In-progress session',
+				status: ChatSessionStatus.InProgress,
+				timing: { created: 0, lastRequestStarted: 0, lastRequestEnded: undefined },
+			}],
+			refresh: () => firstRefresh.p,
+		};
+		const replacementController: IChatSessionItemController = {
+			onDidChangeChatSessionItems: Event.None,
+			items: [],
+			async refresh(): Promise<void> { },
+		};
+		const instantiationService = store.add(workbenchInstantiationService(undefined, store));
+		const service = store.add(instantiationService.createInstance(ChatSessionsService));
+		const firstRegistration = service.registerChatSessionItemController(sessionType, firstController);
+
+		type ServiceWithUpdateInProgressStatus = {
+			updateInProgressStatus(chatSessionType: string): Promise<void>;
+		};
+		const staleUpdate = (service as unknown as ServiceWithUpdateInProgressStatus).updateInProgressStatus(sessionType);
+		store.add(service.registerChatSessionItemController(sessionType, replacementController));
+		firstRegistration.dispose();
+		await firstRefresh.complete();
+		await staleUpdate;
+
+		assert.deepStrictEqual({
+			registeredProviders: service.getRegisteredChatSessionItemProviders(),
+			inProgress: service.getInProgress(),
+		}, {
+			registeredProviders: [sessionType],
+			inProgress: [],
+		});
+	});
+});
+
+suite('ChatSessionsService - deletion lifecycle', () => {
+
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	let service: ChatSessionsService;
+
+	setup(() => {
+		const instantiationService = store.add(workbenchInstantiationService(undefined, store));
+		service = store.add(instantiationService.createInstance(ChatSessionsService));
+	});
+
+	test('disposes cached content only after controller deletion succeeds', async () => {
+		const sessionType = 'delete-provider';
+		const resource = URI.from({ scheme: sessionType, path: '/session-1' });
+		const counters = { deleted: 0, provided: 0, disposed: 0 };
+		let deletionError: Error | undefined = new Error('delete failed');
+
+		store.add(service.registerChatSessionContribution({
+			type: sessionType,
+			name: sessionType,
+			displayName: sessionType,
+			description: '',
+		}));
+		store.add(service.registerChatSessionItemController(sessionType, {
+			onDidChangeChatSessionItems: Event.None,
+			items: [],
+			async refresh(): Promise<void> { },
+			async deleteChatSessionItem(): Promise<void> {
+				counters.deleted++;
+				if (deletionError) {
+					throw deletionError;
+				}
+			},
+		}));
+		store.add(service.registerChatSessionContentProvider(sessionType, {
+			provideChatSessionContent: async sessionResource => {
+				counters.provided++;
+				const disposable = store.add(toDisposable(() => {
+					counters.disposed++;
+				}));
+				return {
+					sessionResource,
+					history: [],
+					onWillDispose: Event.None,
+					dispose: () => disposable.dispose(),
+				};
+			},
+		}));
+
+		const initialSession = await service.getOrCreateChatSession(resource, CancellationToken.None);
+		await assert.rejects(service.deleteChatSessionItem(resource, CancellationToken.None), deletionError);
+		const sessionAfterFailure = await service.getOrCreateChatSession(resource, CancellationToken.None);
+
+		deletionError = undefined;
+		await service.deleteChatSessionItem(resource, CancellationToken.None);
+		const sessionAfterSuccess = await service.getOrCreateChatSession(resource, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			counters,
+			cachedAfterFailure: sessionAfterFailure === initialSession,
+			recreatedAfterSuccess: sessionAfterSuccess !== initialSession,
+		}, {
+			counters: { deleted: 2, provided: 2, disposed: 1 },
+			cachedAfterFailure: true,
+			recreatedAfterSuccess: true,
+		});
 	});
 });
 

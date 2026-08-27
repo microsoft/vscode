@@ -32,8 +32,8 @@ export interface IChatInputPickerOptions {
 
 export function withChatInputPickerMotion(listOptions: IActionListOptions | undefined): IActionListOptions {
 	return {
-		anchorPosition: AnchorPosition.ABOVE,
 		...withActionWidgetDropdownMotion(listOptions),
+		anchorPosition: AnchorPosition.ABOVE,
 	};
 }
 
@@ -42,6 +42,7 @@ export function withChatInputPickerMotion(listOptions: IActionListOptions | unde
  * Provides common anchor resolution logic for dropdown positioning.
  */
 export abstract class ChatInputPickerActionViewItem extends ActionWidgetDropdownActionViewItem {
+	private _externalAnchor: HTMLElement | undefined;
 
 	constructor(
 		action: IAction,
@@ -80,10 +81,18 @@ export abstract class ChatInputPickerActionViewItem extends ActionWidgetDropdown
 	 * Falls back to the overflow anchor if this element is not in the DOM.
 	 */
 	protected getAnchorElement(): HTMLElement {
+		if (this._externalAnchor?.isConnected) {
+			return this._externalAnchor;
+		}
 		if (this.element && getActiveWindow().document.contains(this.element)) {
 			return this.element;
 		}
 		return this.pickerOptions.getOverflowAnchor?.() ?? this.element!;
+	}
+
+	override show(anchor?: HTMLElement): void {
+		this._externalAnchor = anchor;
+		super.show();
 	}
 
 	override render(container: HTMLElement): void {

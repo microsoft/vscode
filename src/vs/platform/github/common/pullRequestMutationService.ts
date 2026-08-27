@@ -67,32 +67,30 @@ const maximumWorkflowLogBytes = 2 * 1024 * 1024;
 const workflowLogTimeout = 30_000;
 const mergePreparationLifetime = 5 * 60_000;
 
+// GitHub exposes `rateLimit` on the `Query` root only, so mutations must not select it. Mutation rate
+// limits are still tracked from the `x-ratelimit-*` response headers by the transport.
 const addReviewThreadReplyMutation = `mutation AgentHostAddPullRequestReviewThreadReply($threadId: ID!, $body: String!) {
 	addPullRequestReviewThreadReply(input: { pullRequestReviewThreadId: $threadId, body: $body }) {
 		comment { id databaseId body url createdAt updatedAt author { login ... on User { databaseId } } }
 	}
-	rateLimit { limit remaining used resetAt }
 }`;
 
 const resolveReviewThreadMutation = `mutation AgentHostResolvePullRequestReviewThread($threadId: ID!) {
 	resolveReviewThread(input: { threadId: $threadId }) {
 		thread { id isResolved }
 	}
-	rateLimit { limit remaining used resetAt }
 }`;
 
 const enqueuePullRequestMutation = `mutation AgentHostEnqueuePullRequest($pullRequestId: ID!, $expectedHeadOid: GitObjectID!) {
 	enqueuePullRequest(input: { pullRequestId: $pullRequestId, expectedHeadOid: $expectedHeadOid }) {
 		mergeQueueEntry { id }
 	}
-	rateLimit { limit remaining used resetAt }
 }`;
 
 const enableAutoMergeMutation = `mutation AgentHostEnablePullRequestAutoMerge($pullRequestId: ID!, $mergeMethod: PullRequestMergeMethod!) {
 	enablePullRequestAutoMerge(input: { pullRequestId: $pullRequestId, mergeMethod: $mergeMethod }) {
 		pullRequest { id }
 	}
-	rateLimit { limit remaining used resetAt }
 }`;
 
 export class PullRequestMutationService extends Disposable implements IPullRequestMutations {

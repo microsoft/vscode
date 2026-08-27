@@ -4,13 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { mainWindow } from '../../../../../base/browser/window.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ExtUri } from '../../../../../base/common/resources.js';
-import { constObservable, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
+import { TestAccessibilityService } from '../../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
+import { IMenuService } from '../../../../../platform/actions/common/actions.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -20,10 +24,17 @@ import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IAutomationRun } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { getSessionChatDragData, isSessionChatDrag, SessionsDataTransfers } from '../../../../browser/dnd.js';
+import { IsPhoneLayoutContext } from '../../../../common/contextkeys.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
-import { IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
-import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsListModelService } from '../../../../services/sessions/browser/sessionsListModelService.js';
+import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { computeReorderSortChanges, groupByDate, groupByWorkspace, groupSessionsForList, ISessionSection, limitSessionsForList, SessionSectionRenderer, SessionsFlatList, SessionsList, sortSessions, SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
+import { AgentSessionApprovalKind, AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
+import { getSessionSummaryHoverData } from '../../browser/sessionHoverContent.js';
 import { createListHarness, createTestSession } from './sessionsListTestUtils.js';
 import '../../browser/views/sessionsViewActions.js';
 
@@ -101,6 +112,7 @@ suite('Sessions - SessionsList', () => {
 					override readonly extUri = new ExtUri(() => true);
 				},
 				new class extends mock<ICustomViewService>() { },
+				new class extends mock<IMenuService>() { },
 			);
 			const container = document.createElement('div');
 			const template = renderer.renderTemplate(container);
@@ -118,6 +130,64 @@ suite('Sessions - SessionsList', () => {
 			action.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, button: 2 }));
 
 			assert.deepStrictEqual(selectedSections, [section]);
+		});
+
+		test('renders in-progress automation status in the leading icon slot', () => {
+			const instantiationService = disposables.add(new TestInstantiationService());
+			instantiationService.stubInstance(MenuWorkbenchToolBar, new class extends mock<MenuWorkbenchToolBar>() {
+				override set context(_context: unknown) { }
+				override dispose(): void { }
+			});
+			instantiationService.stub(IAccessibilityService, new class extends TestAccessibilityService {
+				override isMotionReduced(): boolean { return false; }
+			}());
+			instantiationService.stub(ISessionsListModelService, new class extends mock<ISessionsListModelService>() { });
+			const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
+			const automationService = new class extends mock<IAutomationService>() {
+				override readonly runs = constObservable<readonly IAutomationRun[]>([{
+					id: 'pending',
+					automationId: 'automation',
+					status: 'pending',
+					trigger: 'schedule',
+					startedAt: '2026-08-14T00:00:00.000Z',
+					leaderWindowId: 1,
+				}]);
+			};
+			const renderer = new SessionSectionRenderer(
+				true,
+				() => { },
+				instantiationService,
+				contextKeyService,
+				automationService,
+				constObservable([]),
+				new class extends mock<IUriIdentityService>() {
+					override readonly extUri = new ExtUri(() => true);
+				},
+				new class extends mock<ICustomViewService>() {
+					override readonly activeCustomView = constObservable(undefined);
+				},
+				new class extends mock<IMenuService>() { },
+			);
+			const container = document.createElement('div');
+			const template = renderer.renderTemplate(container);
+			disposables.add(template.disposables);
+
+			renderer.renderElement(upcastPartial<Parameters<SessionSectionRenderer['renderElement']>[0]>({
+				element: { id: 'automations', label: 'Automations', sessions: [] },
+				collapsible: false,
+				collapsed: false,
+			}), 0, template);
+
+			const spinner = container.querySelector('.monaco-pixel-spinner');
+			assert.deepStrictEqual({
+				watchIcon: !!container.querySelector('.session-section-icon.codicon-watch'),
+				spinnerParent: spinner?.parentElement?.className,
+				trailingStatusIndicator: !!container.querySelector('.session-section-status-indicator'),
+			}, {
+				watchIcon: false,
+				spinnerParent: 'session-section-icon',
+				trailingStatusIndicator: false,
+			});
 		});
 
 		test('derives terminal automation status from the supplied session snapshot', () => {
@@ -155,6 +225,7 @@ suite('Sessions - SessionsList', () => {
 				automationSessions,
 				uriIdentityService,
 				new class extends mock<ICustomViewService>() { },
+				new class extends mock<IMenuService>() { },
 			);
 			const runResource = URI.parse('test-session:/workspace/automation');
 			const statuses: (SessionStatus | undefined)[] = [];
@@ -211,6 +282,7 @@ suite('Sessions - SessionsList', () => {
 				constObservable([runningSession, needsInputSession]),
 				uriIdentityService,
 				new class extends mock<ICustomViewService>() { },
+				new class extends mock<IMenuService>() { },
 			);
 			runs.set([
 				{
@@ -465,6 +537,26 @@ suite('Sessions - SessionsList', () => {
 				sessions: ['1', '2', '3'],
 				showMore: undefined,
 			});
+		});
+	});
+
+	test('created session hover includes its creator action', () => {
+		const createdSession = createSession('Created', { workspaceLabel: 'Workspace' });
+		const onOpen = () => { };
+		const hover = getSessionSummaryHoverData(
+			createdSession,
+			new class extends mock<ISessionsProvidersService>() {
+				override getProvider() { return undefined; }
+			},
+			{
+				title: 'Creator session',
+				onOpen,
+			},
+		);
+
+		assert.deepStrictEqual(hover.createdBy, {
+			title: 'Creator session',
+			onOpen,
 		});
 	});
 
@@ -724,6 +816,638 @@ suite('Sessions - SessionsList', () => {
 		});
 	});
 
+	suite('session chat rows', () => {
+
+		function createChat(title: string, origin?: ChatOriginKind, interactivity = ChatInteractivity.Full, status = SessionStatus.Completed): IChat {
+			return upcastPartial<IChat>({
+				resource: URI.parse(`test-chat://${title.replaceAll(' ', '-')}`),
+				title: constObservable(title),
+				updatedAt: constObservable(new Date()),
+				status: constObservable(status),
+				interactivity: constObservable(interactivity),
+				origin: origin ? { kind: origin } : undefined,
+			});
+		}
+
+		function renderSessionChats(session: ISession, onChatOpen?: (session: ISession, chat: IChat, preserveFocus: boolean, sideBySide: boolean) => void, enableMotion = false): HTMLElement {
+			const harness = createListHarness(disposables, [session], enableMotion
+				? instantiationService => instantiationService.stub(IAccessibilityService, new class extends TestAccessibilityService {
+					override isMotionReduced(): boolean { return false; }
+				})
+				: {});
+			const container = harness.createContainer();
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => SessionsGrouping.Date,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+				onChatOpen,
+			}));
+			list.layout(300, 400);
+			return container;
+		}
+
+		function chatRowTitles(container: HTMLElement): string[] {
+			return [...container.querySelectorAll<HTMLElement>('.session-chat-title')].map(element => element.textContent ?? '');
+		}
+
+		test('shows non-main and side chats and excludes the main chat, subagents, and hidden chats', () => {
+			const main = createChat('Main chat');
+			const peer = createChat('Peer chat', ChatOriginKind.User);
+			const fork = createChat('Forked chat', ChatOriginKind.Fork);
+			const subagent = createChat('Subagent chat', ChatOriginKind.Tool);
+			const side = createChat('Side chat', ChatOriginKind.SideChat);
+			const hidden = createChat('Hidden chat', undefined, ChatInteractivity.Hidden);
+			const base = createTestSession('Session').session;
+			const session: ISession = {
+				...base,
+				chats: constObservable([main, peer, fork, subagent, side, hidden]),
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			};
+
+			const container = renderSessionChats(session);
+
+			assert.deepStrictEqual(
+				[...container.querySelectorAll<HTMLElement>('.session-chat-item')].map(item => ({
+					title: item.querySelector('.session-chat-title')?.textContent,
+					last: item.classList.contains('last-chat'),
+				})),
+				[
+					{ title: 'Peer chat', last: false },
+					{ title: 'Forked chat', last: false },
+					{ title: 'Side chat', last: true },
+				]
+			);
+		});
+
+		test('updates nested chat rows when the session chat catalog changes', () => {
+			const main = createChat('Main chat');
+			const peer = createChat('Peer chat', ChatOriginKind.User);
+			const chats = observableValue<readonly IChat[]>('session-chats', [main]);
+			const base = createTestSession('Session').session;
+			const session: ISession = {
+				...base,
+				chats,
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			};
+			const container = renderSessionChats(session);
+			const before = chatRowTitles(container);
+
+			chats.set([main, peer], undefined);
+
+			assert.deepStrictEqual({
+				before,
+				after: chatRowTitles(container),
+			}, {
+				before: [],
+				after: ['Peer chat'],
+			});
+		});
+
+		test('hides the main chat even when its title matches the session title', () => {
+			const main = createChat('Session');
+			const peer = createChat('Peer chat', ChatOriginKind.User);
+			const base = createTestSession('Session').session;
+			const session: ISession = {
+				...base,
+				chats: constObservable([main, peer]),
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			};
+
+			const container = renderSessionChats(session);
+
+			assert.deepStrictEqual({
+				chats: chatRowTitles(container),
+				hasTwistie: container.querySelector('.session-chat-twistie')?.classList.contains('collapsible'),
+			}, {
+				chats: ['Peer chat'],
+				hasTwistie: true,
+			});
+		});
+
+		test('shows progress for active chats and a dot for inactive chats', () => {
+			const main = createChat('Main chat');
+			const active = createChat('Active chat', ChatOriginKind.User, ChatInteractivity.Full, SessionStatus.InProgress);
+			const base = createTestSession('Session').session;
+			const session: ISession = {
+				...base,
+				chats: constObservable([main, active]),
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			};
+			const container = renderSessionChats(session, undefined, true);
+
+			assert.deepStrictEqual(Object.fromEntries(
+				[...container.querySelectorAll<HTMLElement>('.session-chat-item')].map(item => [
+					item.querySelector('.session-chat-title')?.textContent,
+					{
+						hasProgress: !!item.querySelector('.session-chat-icon > .monaco-pixel-spinner'),
+						hasDot: !!item.querySelector('.session-chat-icon > .codicon-circle-small-filled'),
+						hasDiscussion: !!item.querySelector('.session-chat-icon > .codicon-comment-discussion'),
+						ariaLabel: item.closest('.monaco-list-row')?.getAttribute('aria-label'),
+					},
+				])
+			), {
+				'Active chat': { hasProgress: true, hasDot: false, hasDiscussion: false, ariaLabel: 'Active chat, chat, updated now, State: In Progress' },
+			});
+		});
+
+		test('updates rendered chat row heights across phone layout changes', () => {
+			const main = createChat('Main chat');
+			const peer = createChat('Peer chat', ChatOriginKind.User);
+			const base = createTestSession('Session').session;
+			const session: ISession = { ...base, chats: constObservable([main, peer]), mainChat: constObservable(main) };
+			const harness = createListHarness(disposables, [session], instantiationService => {
+				instantiationService.stub(IContextKeyService, disposables.add(new ContextKeyService(new TestConfigurationService())));
+			});
+			const phoneLayout = IsPhoneLayoutContext.bindTo(harness.instantiationService.get(IContextKeyService));
+			const container = harness.createContainer();
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => SessionsGrouping.Date,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+			}));
+			list.layout(300, 400);
+			const chatRow = container.querySelector<HTMLElement>('.session-chat-item')?.closest<HTMLElement>('.monaco-list-row');
+			assert.ok(chatRow);
+			const desktopHeight = chatRow.style.height;
+
+			phoneLayout.set(true);
+			const phoneChatRow = container.querySelector<HTMLElement>('.session-chat-item')?.closest<HTMLElement>('.monaco-list-row');
+			assert.ok(phoneChatRow);
+
+			assert.deepStrictEqual({ desktopHeight, phoneHeight: phoneChatRow.style.height }, {
+				desktopHeight: '28px',
+				phoneHeight: '44px',
+			});
+		});
+
+		test('opens the selected nested chat', () => {
+			const main = createChat('Main chat');
+			const peer = createChat('Peer chat', ChatOriginKind.User);
+			const base = createTestSession('Session').session;
+			const session: ISession = {
+				...base,
+				chats: constObservable([main, peer]),
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			};
+			const opened: { session: ISession; chat: IChat; preserveFocus: boolean; sideBySide: boolean }[] = [];
+			const container = renderSessionChats(session, (openedSession, chat, preserveFocus, sideBySide) => {
+				opened.push({ session: openedSession, chat, preserveFocus, sideBySide });
+			});
+			const peerRow = [...container.querySelectorAll<HTMLElement>('.session-chat-item')]
+				.find(element => element.textContent === 'Peer chat');
+			assert.ok(peerRow);
+
+			peerRow.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
+
+			assert.deepStrictEqual(opened, [{
+				session,
+				chat: peer,
+				preserveFocus: false,
+				sideBySide: false,
+			}]);
+		});
+
+		test('opens a nested chat to the side with the session row modifier gesture', () => {
+			const main = createChat('Main chat');
+			const peer = createChat('Peer chat', ChatOriginKind.User);
+			const base = createTestSession('Session').session;
+			const session: ISession = {
+				...base,
+				chats: constObservable([main, peer]),
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			};
+			const opened: { chat: IChat; preserveFocus: boolean; sideBySide: boolean }[] = [];
+			const container = renderSessionChats(session, (_session, chat, preserveFocus, sideBySide) => {
+				opened.push({ chat, preserveFocus, sideBySide });
+			});
+			const peerRow = [...container.querySelectorAll<HTMLElement>('.session-chat-item')]
+				.find(element => element.textContent === 'Peer chat');
+			assert.ok(peerRow);
+
+			peerRow.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0, altKey: true }));
+
+			assert.deepStrictEqual(opened, [{
+				chat: peer,
+				preserveFocus: false,
+				sideBySide: true,
+			}]);
+		});
+
+		test('coalesces restored active chat selection without flashing the parent session', async () => {
+			const main = createChat('Main chat');
+			const first = createChat('First chat', ChatOriginKind.User);
+			const second = createChat('Second chat', ChatOriginKind.User);
+			const side = createChat('Side chat', ChatOriginKind.SideChat);
+			const activeChat = observableValue<IChat>('active-chat', first);
+			const base = createTestSession('Session').session;
+			const session: ISession = {
+				...base,
+				chats: constObservable([main, first, second, side]),
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			};
+			const activeSession = upcastPartial<IActiveSession>({
+				...session,
+				activeChat,
+				sticky: constObservable(false),
+				isCreated: constObservable(true),
+				visibleChatTabs: constObservable([main, first, second, side]),
+			});
+			const harness = createListHarness(disposables, [session], instantiationService => {
+				instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+					override readonly activeSession = constObservable(activeSession);
+					override readonly visibleSessions = constObservable([activeSession]);
+				});
+			});
+
+			const container = harness.createContainer();
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => SessionsGrouping.Date,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+			}));
+			list.layout(300, 400);
+			const initiallySelected = container.querySelector('.monaco-list-row.selected .session-chat-title')?.textContent;
+			const twistie = container.querySelector<HTMLElement>('.session-chat-twistie');
+			assert.ok(twistie);
+			twistie.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
+			const focusTarget = mainWindow.document.createElement('button');
+			mainWindow.document.body.appendChild(focusTarget);
+			disposables.add({ dispose: () => focusTarget.remove() });
+			focusTarget.focus();
+
+			activeChat.set(main, undefined);
+			const selectionDuringRestore = container.querySelector('.monaco-list-row.selected .session-chat-title')?.textContent;
+			const parentDuringRestore = container.querySelector('.monaco-list-row.selected .session-title')?.textContent;
+			activeChat.set(second, undefined);
+			const selectionBeforeFrame = container.querySelector('.monaco-list-row.selected .session-chat-title')?.textContent;
+			const parentBeforeFrame = container.querySelector('.monaco-list-row.selected .session-title')?.textContent;
+			await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+			const selectedChat = container.querySelector('.monaco-list-row.selected .session-chat-title')?.textContent;
+			activeChat.set(side, undefined);
+			await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+			const selectedSideChat = container.querySelector('.monaco-list-row.selected .session-chat-title')?.textContent;
+			activeChat.set(main, undefined);
+			await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+
+			assert.deepStrictEqual({
+				initiallySelected,
+				selectionDuringRestore,
+				parentDuringRestore,
+				selectionBeforeFrame,
+				parentBeforeFrame,
+				selectedChat,
+				selectedSideChat,
+				mainSelection: container.querySelector('.monaco-list-row.selected .session-title')?.textContent,
+				expanded: twistie.closest('.monaco-list-row')?.getAttribute('aria-expanded'),
+				activeElement: mainWindow.document.activeElement,
+			}, {
+				initiallySelected: 'First chat',
+				selectionDuringRestore: undefined,
+				parentDuringRestore: undefined,
+				selectionBeforeFrame: undefined,
+				parentBeforeFrame: undefined,
+				selectedChat: 'Second chat',
+				selectedSideChat: 'Side chat',
+				mainSelection: 'Session',
+				expanded: 'true',
+				activeElement: focusTarget,
+			});
+		});
+
+		test('ordinary list updates preserve a collapsed active session and user selection', () => {
+			const main = createChat('Main chat');
+			const peer = createChat('Peer chat', ChatOriginKind.User);
+			const activeSessionBase = createTestSession('Session').session;
+			const session: ISession = { ...activeSessionBase, chats: constObservable([main, peer]), mainChat: constObservable(main) };
+			const activeSession = upcastPartial<IActiveSession>({
+				...session,
+				activeChat: constObservable(peer),
+				sticky: constObservable(false),
+				isCreated: constObservable(true),
+				visibleChatTabs: constObservable([main, peer]),
+			});
+			const harness = createListHarness(disposables, [session], instantiationService => {
+				instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+					override readonly activeSession = constObservable(activeSession);
+					override readonly visibleSessions = constObservable([activeSession]);
+				});
+			});
+			const container = harness.createContainer();
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => SessionsGrouping.Date,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+			}));
+			list.layout(300, 400);
+			list.reveal(session.resource);
+			const twistie = container.querySelector<HTMLElement>('.session-chat-twistie');
+			assert.ok(twistie);
+			twistie.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
+
+			list.update();
+
+			assert.deepStrictEqual({
+				expanded: twistie.closest('.monaco-list-row')?.getAttribute('aria-expanded'),
+				selected: container.querySelector('.monaco-list-row.selected .session-title')?.textContent,
+			}, {
+				expanded: 'false',
+				selected: 'Session',
+			});
+		});
+
+		test('drags a nested chat with the chat-group payload instead of a session payload', () => {
+			const main = createChat('Main chat');
+			const peer = createChat('Peer chat', ChatOriginKind.User);
+			const base = createTestSession('Session').session;
+			const session: ISession = {
+				...base,
+				chats: constObservable([main, peer]),
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			};
+			const container = renderSessionChats(session);
+			const peerRow = [...container.querySelectorAll<HTMLElement>('.session-chat-item')]
+				.find(element => element.textContent === 'Peer chat')
+				?.closest<HTMLElement>('.monaco-list-row');
+			assert.ok(peerRow);
+			const dataTransfer = new DataTransfer();
+			const dragStart = new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer });
+
+			peerRow.dispatchEvent(dragStart);
+
+			assert.deepStrictEqual({
+				isChatDrag: isSessionChatDrag(dragStart),
+				isSameSessionDrag: isSessionChatDrag(dragStart, session.sessionId),
+				sessionPayload: dataTransfer.getData(SessionsDataTransfers.SESSION),
+				chatPayload: getSessionChatDragData(dragStart),
+			}, {
+				isChatDrag: true,
+				isSameSessionDrag: true,
+				sessionPayload: '',
+				chatPayload: { sessionId: session.sessionId, resource: peer.resource.toString() },
+			});
+		});
+
+		test('uses the native twistie only for sessions with nested chats', () => {
+			const main = createChat('Main chat');
+			const peer = createChat('Peer chat', ChatOriginKind.User);
+			const multiChatBase = createTestSession('Multi-chat session').session;
+			const multiChatSession: ISession = {
+				...multiChatBase,
+				chats: constObservable([main, peer]),
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			};
+			const singleChatBase = createTestSession('Single-chat session').session;
+			const singleChatSession: ISession = {
+				...singleChatBase,
+				chats: constObservable([main]),
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			};
+			const harness = createListHarness(disposables, [multiChatSession, singleChatSession]);
+			const container = harness.createContainer();
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => SessionsGrouping.Date,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+			}));
+			list.layout(300, 400);
+			const rows = Object.fromEntries([...container.querySelectorAll<HTMLElement>('.session-item')].map(item => {
+				const row = item.closest<HTMLElement>('.monaco-list-row');
+				const twistie = row?.querySelector<HTMLElement>('.monaco-tl-twistie');
+				row?.classList.add('focused');
+				const twistieStyle = twistie?.classList.contains('session-chat-twistie')
+					? mainWindow.getComputedStyle(twistie)
+					: undefined;
+				return [item.querySelector('.session-title')?.textContent, {
+					expanded: row?.getAttribute('aria-expanded'),
+					hasSessionChatTwistie: twistie?.classList.contains('session-chat-twistie'),
+					hasHiddenTwistie: twistie?.classList.contains('force-no-twistie'),
+					hasNativeGlyph: twistie?.classList.contains('codicon-tree-item-expanded'),
+					isCollapsible: twistie?.classList.contains('collapsible'),
+					isCollapsed: twistie?.classList.contains('collapsed'),
+					fontSize: twistieStyle?.fontSize,
+					opacity: twistieStyle?.opacity,
+					paddingLeft: twistie?.style.paddingLeft,
+					pointerEvents: twistieStyle?.pointerEvents,
+				}];
+			}));
+
+			assert.deepStrictEqual(rows, {
+				'Multi-chat session': {
+					expanded: 'true',
+					hasSessionChatTwistie: true,
+					hasHiddenTwistie: false,
+					hasNativeGlyph: true,
+					isCollapsible: true,
+					isCollapsed: false,
+					fontSize: '16px',
+					opacity: '1',
+					paddingLeft: '0px',
+					pointerEvents: 'auto',
+				},
+				'Single-chat session': {
+					expanded: null,
+					hasSessionChatTwistie: false,
+					hasHiddenTwistie: true,
+					hasNativeGlyph: false,
+					isCollapsible: false,
+					isCollapsed: false,
+					fontSize: undefined,
+					opacity: undefined,
+					paddingLeft: '0px',
+					pointerEvents: undefined,
+				},
+			});
+
+			const multiChatItem = [...container.querySelectorAll<HTMLElement>('.session-item')]
+				.find(item => item.querySelector('.session-title')?.textContent === 'Multi-chat session');
+			assert.ok(multiChatItem);
+			multiChatItem.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0, detail: 1 }));
+			multiChatItem.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0, detail: 2 }));
+			assert.strictEqual(multiChatItem.closest('.monaco-list-row')?.getAttribute('aria-expanded'), 'true');
+
+			const twistie = multiChatItem.closest('.monaco-list-row')?.querySelector<HTMLElement>('.monaco-tl-twistie');
+			assert.ok(twistie);
+			twistie.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
+
+			assert.deepStrictEqual({
+				expanded: twistie.closest('.monaco-list-row')?.getAttribute('aria-expanded'),
+				isCollapsed: twistie.classList.contains('collapsed'),
+				visibleChats: chatRowTitles(container),
+			}, {
+				expanded: 'false',
+				isCollapsed: true,
+				visibleChats: [],
+			});
+		});
+
+		function createApprovalModel(approvals: ReadonlyMap<string, IAgentSessionApprovalInfo>): AgentSessionApprovalModel {
+			return new class extends mock<AgentSessionApprovalModel>() {
+				override getApproval(resource: URI): IObservable<IAgentSessionApprovalInfo | undefined> {
+					return constObservable(approvals.get(resource.toString()));
+				}
+			}();
+		}
+
+		function terminalApproval(chat: IChat, command: string): IAgentSessionApprovalInfo {
+			return { approvalId: chat.resource.toString(), kind: AgentSessionApprovalKind.Terminal, label: command, languageId: 'shellscript', since: new Date(), confirm: () => { } };
+		}
+
+		function renderSessionChatsWithApprovals(session: ISession, approvalModel: AgentSessionApprovalModel): { container: HTMLElement; list: SessionsList } {
+			const harness = createListHarness(disposables, [session]);
+			const container = harness.createContainer();
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => SessionsGrouping.Date,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+				approvalModel,
+			}));
+			list.layout(400, 400);
+			return { container, list };
+		}
+
+		function approvalRowFor(container: HTMLElement, title: string): HTMLElement | undefined {
+			return [...container.querySelectorAll<HTMLElement>('.session-chat-item')]
+				.find(item => item.querySelector('.session-chat-title')?.textContent === title)
+				?.querySelector<HTMLElement>('.session-approval-row') ?? undefined;
+		}
+
+		test('renders a pending approval on the owning chat row only, not on its siblings', () => {
+			const main = createChat('Main chat');
+			const withApproval = createChat('Task A', ChatOriginKind.User);
+			const withoutApproval = createChat('Task B', ChatOriginKind.User);
+			const base = createTestSession('Session').session;
+			const session: ISession = {
+				...base,
+				chats: constObservable([main, withApproval, withoutApproval]),
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			};
+			const approvals = new Map([[withApproval.resource.toString(), terminalApproval(withApproval, 'npm run build')]]);
+			const { container } = renderSessionChatsWithApprovals(session, createApprovalModel(approvals));
+
+			const taskA = approvalRowFor(container, 'Task A');
+			const taskB = approvalRowFor(container, 'Task B');
+			assert.deepStrictEqual({
+				taskAVisible: taskA?.classList.contains('visible'),
+				taskAHasAllow: taskA?.querySelector('.session-approval-button .monaco-button')?.textContent,
+				taskBVisible: taskB?.classList.contains('visible'),
+				sessionRowApprovalVisible: container.querySelector<HTMLElement>('.session-item .session-approval-row')?.classList.contains('visible'),
+			}, {
+				taskAVisible: true,
+				taskAHasAllow: 'Allow',
+				taskBVisible: false,
+				sessionRowApprovalVisible: false,
+			});
+		});
+
+		test('renders the main chat approval on the session row, not on any chat row', () => {
+			const main = createChat('Main chat');
+			const peer = createChat('Task A', ChatOriginKind.User);
+			const base = createTestSession('Session').session;
+			const session: ISession = {
+				...base,
+				chats: constObservable([main, peer]),
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			};
+			const approvals = new Map([[main.resource.toString(), terminalApproval(main, 'git push --force')]]);
+			const { container } = renderSessionChatsWithApprovals(session, createApprovalModel(approvals));
+
+			assert.deepStrictEqual({
+				sessionRowApprovalVisible: container.querySelector<HTMLElement>('.session-item .session-approval-row')?.classList.contains('visible'),
+				chatRowApprovalVisible: approvalRowFor(container, 'Task A')?.classList.contains('visible'),
+			}, {
+				sessionRowApprovalVisible: true,
+				chatRowApprovalVisible: false,
+			});
+		});
+
+		test('reserves extra row height for a chat with a pending approval', () => {
+			const main = createChat('Main chat');
+			const withApproval = createChat('Task A', ChatOriginKind.User);
+			const withoutApproval = createChat('Task B', ChatOriginKind.User);
+			const base = createTestSession('Session').session;
+			const session: ISession = {
+				...base,
+				chats: constObservable([main, withApproval, withoutApproval]),
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			};
+			const approvals = new Map([[withApproval.resource.toString(), terminalApproval(withApproval, 'npm run build')]]);
+			const { container } = renderSessionChatsWithApprovals(session, createApprovalModel(approvals));
+
+			const rowHeight = (title: string) => [...container.querySelectorAll<HTMLElement>('.session-chat-item')]
+				.find(item => item.querySelector('.session-chat-title')?.textContent === title)
+				?.closest<HTMLElement>('.monaco-list-row')?.style.height;
+
+			const heights = { taskA: rowHeight('Task A'), taskB: rowHeight('Task B') };
+			assert.ok(heights.taskA && heights.taskB && parseInt(heights.taskA) > parseInt(heights.taskB), `expected Task A (${heights.taskA}) taller than Task B (${heights.taskB})`);
+		});
+
+		test('confirms the chat approval when its Allow button is clicked', () => {
+			const main = createChat('Main chat');
+			const peer = createChat('Task A', ChatOriginKind.User);
+			const base = createTestSession('Session').session;
+			const session: ISession = {
+				...base,
+				chats: constObservable([main, peer]),
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			};
+			let confirmed = 0;
+			const approval: IAgentSessionApprovalInfo = { ...terminalApproval(peer, 'npm run build'), confirm: () => { confirmed++; } };
+			const { container } = renderSessionChatsWithApprovals(session, createApprovalModel(new Map([[peer.resource.toString(), approval]])));
+
+			const allow = approvalRowFor(container, 'Task A')?.querySelector<HTMLElement>('.session-approval-button .monaco-button');
+			assert.ok(allow);
+			allow.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+			assert.strictEqual(confirmed, 1);
+		});
+
+		test('grows a chat row height when its approval is replaced with a taller one', () => {
+			const main = createChat('Main chat');
+			const peer = createChat('Task A', ChatOriginKind.User);
+			const base = createTestSession('Session').session;
+			const session: ISession = {
+				...base,
+				chats: constObservable([main, peer]),
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			};
+			// A settable approval so we can swap one pending approval directly for
+			// another with a taller (multi-line) label — the row must re-reserve
+			// height on that change, not only when an approval appears/clears.
+			const pending = observableValue<IAgentSessionApprovalInfo | undefined>('pending', terminalApproval(peer, 'npm run build'));
+			const approvalModel = new class extends mock<AgentSessionApprovalModel>() {
+				override getApproval(resource: URI): IObservable<IAgentSessionApprovalInfo | undefined> {
+					return resource.toString() === peer.resource.toString() ? pending : constObservable(undefined);
+				}
+			}();
+			const { container } = renderSessionChatsWithApprovals(session, approvalModel);
+
+			const taskARowHeight = () => [...container.querySelectorAll<HTMLElement>('.session-chat-item')]
+				.find(item => item.querySelector('.session-chat-title')?.textContent === 'Task A')
+				?.closest<HTMLElement>('.monaco-list-row')?.style.height;
+
+			const singleLineHeight = taskARowHeight();
+			pending.set(terminalApproval(peer, 'line one\nline two\nline three'), undefined);
+			const multiLineHeight = taskARowHeight();
+
+			assert.ok(singleLineHeight && multiLineHeight && parseInt(multiLineHeight) > parseInt(singleLineHeight), `expected taller row after multi-line approval (${singleLineHeight} -> ${multiLineHeight})`);
+		});
+	});
+
 	suite('SessionsFlatList quick-chat presentation', () => {
 
 		function renderQuickChat(useCompactQuickChatRows: boolean) {
@@ -773,11 +1497,68 @@ suite('Sessions - SessionsList', () => {
 					isShorterThanStandardRow: false,
 					hasCompactClass: false,
 					hasChatIcon: true,
-					badge: 'Chat',
+					badge: 'No workspace',
 					time: 'now',
 					hasDiff: false,
 					ariaLabel: 'Investigate failure, chat, updated now',
 				},
+			});
+		});
+
+		function createChat(id: string): IChat {
+			return upcastPartial<IChat>({
+				resource: URI.parse(`test-chat://${id}`),
+				title: constObservable(id),
+				updatedAt: constObservable(new Date()),
+				status: constObservable(SessionStatus.Completed),
+				interactivity: constObservable(ChatInteractivity.Full),
+			});
+		}
+
+		function flatApprovalModel(approvals: ReadonlyMap<string, IAgentSessionApprovalInfo>): AgentSessionApprovalModel {
+			return new class extends mock<AgentSessionApprovalModel>() {
+				override getApproval(resource: URI): IObservable<IAgentSessionApprovalInfo | undefined> {
+					return constObservable(approvals.get(resource.toString()));
+				}
+			}();
+		}
+
+		test('aggregates a non-main chat approval onto the flat session row and reserves height', () => {
+			// The blocked-sessions / automations flat list renders no nested chat
+			// rows, so an approval on any of a session's chats — including a
+			// non-main one — must surface on the session row itself.
+			const main = createChat('main');
+			const worker = createChat('worker');
+			const base = createTestSession('Session', { isQuickChat: false }).session;
+			const session: ISession = {
+				...base,
+				chats: constObservable([main, worker]),
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			};
+			const approval: IAgentSessionApprovalInfo = { approvalId: worker.resource.toString(), kind: AgentSessionApprovalKind.Terminal, label: 'npm run build', languageId: 'shellscript', since: new Date(), confirm: () => { } };
+			const approvalModel = flatApprovalModel(new Map([[worker.resource.toString(), approval]]));
+
+			const harness = createListHarness(disposables, [session]);
+			const container = harness.createContainer();
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsFlatList, container, {
+				showSessionHover: false,
+				onSessionOpen: () => { },
+				approvalModel,
+			}));
+			list.setSessions([session]);
+			const contentHeight = list.getContentHeight();
+			list.layout(contentHeight, 400);
+
+			const approvalRow = container.querySelector<HTMLElement>('.session-item .session-approval-row');
+			assert.deepStrictEqual({
+				approvalVisible: approvalRow?.classList.contains('visible'),
+				hasAllowButton: !!approvalRow?.querySelector('.session-approval-button .monaco-button'),
+				reservesHeight: contentHeight > list.getRowHeight(),
+			}, {
+				approvalVisible: true,
+				hasAllowButton: true,
+				reservesHeight: true,
 			});
 		});
 	});
@@ -886,6 +1667,96 @@ suite('Sessions - SessionsList', () => {
 			assert.deepStrictEqual(clear, []);
 			assert.strictEqual(set.size, 2);
 			assert.ok(set.get('a')! > set.get('b')!);
+		});
+	});
+
+	suite('open trust gate', () => {
+
+		function findSessionRow(container: HTMLElement, title: string): HTMLElement {
+			const item = [...container.querySelectorAll<HTMLElement>('.session-item')]
+				.find(el => el.querySelector('.session-title')?.textContent === title);
+			const row = item?.closest<HTMLElement>('.monaco-list-row');
+			assert.ok(row, `expected a rendered row for "${title}"`);
+			return row;
+		}
+
+		// Mirrors the tree's open gesture (see objectTree.test.ts): a plain single
+		// left click opens the row under the list's single-click open mode.
+		function clickRow(row: HTMLElement): void {
+			row.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
+			row.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
+		}
+
+		// Drains the microtask queue so the asynchronous open gate settles.
+		async function settle(): Promise<void> {
+			for (let i = 0; i < 50; i++) {
+				await Promise.resolve();
+			}
+		}
+
+		function renderGatedList(title: string, canOpenSession?: (session: ISession) => Promise<boolean>) {
+			const { session } = createTestSession(title);
+			const harness = createListHarness(disposables, [session]);
+			const container = harness.createContainer();
+			const opened: string[] = [];
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => SessionsGrouping.Date,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: (resource: URI) => opened.push(resource.toString()),
+				canOpenSession,
+			}));
+			list.layout(300, 400);
+			return { session, harness, container, opened };
+		}
+
+		// Control: proves the click gesture actually reaches `onDidOpen`, so the
+		// "no side effects" assertions in the gated tests below are meaningful.
+		test('opens and marks read when no trust gate is configured', async () => {
+			const { session, harness, container, opened } = renderGatedList('Ungated');
+
+			clickRow(findSessionRow(container, 'Ungated'));
+			await settle();
+
+			assert.deepStrictEqual({ opened, markedRead: harness.managementService.readSessions.length }, {
+				opened: [session.resource.toString()],
+				markedRead: 1,
+			});
+		});
+
+		test('refuses to open when the trust gate returns false: no mark-read, no open', async () => {
+			const { harness, container, opened } = renderGatedList('Untrusted', async () => false);
+
+			clickRow(findSessionRow(container, 'Untrusted'));
+			await settle();
+
+			assert.deepStrictEqual({ opened, markedRead: harness.managementService.readSessions.length }, {
+				opened: [],
+				markedRead: 0,
+			});
+		});
+
+		test('marks read and opens only after the trust gate resolves true', async () => {
+			let allowOpen: (value: boolean) => void;
+			const gate = new Promise<boolean>(resolve => { allowOpen = resolve; });
+			const { session, harness, container, opened } = renderGatedList('Deferred', () => gate);
+
+			clickRow(findSessionRow(container, 'Deferred'));
+			await settle();
+
+			// Gate still pending — the open must not have produced any side effects.
+			assert.deepStrictEqual({ opened, markedRead: harness.managementService.readSessions.length }, {
+				opened: [],
+				markedRead: 0,
+			});
+
+			allowOpen!(true);
+			await settle();
+
+			// Gate resolved true — the session is now marked read and opened.
+			assert.deepStrictEqual({ opened, markedRead: harness.managementService.readSessions.length }, {
+				opened: [session.resource.toString()],
+				markedRead: 1,
+			});
 		});
 	});
 });

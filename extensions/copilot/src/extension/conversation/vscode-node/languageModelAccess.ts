@@ -45,7 +45,7 @@ import { IExtensionContribution } from '../../common/contributions';
 import { PromptRenderer } from '../../prompts/node/base/promptRenderer';
 import { isImageDataPart } from '../common/languageModelChatMessageHelpers';
 import { LanguageModelAccessPrompt } from './languageModelAccessPrompt';
-import { formatPricingLabel, formatTokenCount, getAutoModelDescription, getAutoModelDiscountLabel, getModelCapabilitiesDescription, buildReasoningEffortSchemaProperty, buildAutoModeTierSchemaProperty } from '../common/languageModelAccess';
+import { formatPricingLabel, formatTokenCount, getAutoModelDescription, getAutoModelDiscountLabel, getModelCapabilitiesDescription, resolveModelWarnings, buildReasoningEffortSchemaProperty, buildAutoModeTierSchemaProperty } from '../common/languageModelAccess';
 
 /**
  * Builds a configurationSchema for the model picker based on the endpoint's supported capabilities.
@@ -339,9 +339,13 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 			const sanitizedModelName = endpoint.name
 				.replace(/\([^)]*\bcontext\)/gi, '')
 				.trim();
+
+			// Auto wraps another endpoint, so it must not inherit that model's warnings.
+			const warnings = endpoint instanceof AutoChatEndpoint ? undefined : resolveModelWarnings(endpoint);
+
 			let modelTooltip: string | undefined;
-			if (endpoint.degradationReason) {
-				modelTooltip = endpoint.degradationReason;
+			if (warnings?.rowWarning) {
+				modelTooltip = warnings.rowWarning;
 			} else if (endpoint instanceof AutoChatEndpoint) {
 				modelTooltip = getAutoModelDescription(endpoint.discountRange);
 			} else {
@@ -384,7 +388,7 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 				priceCategory: endpoint instanceof AutoChatEndpoint ? undefined : endpoint.priceCategory,
 				category: endpoint instanceof AutoChatEndpoint ? undefined : endpoint.modelPickerCategory,
 				detail: modelDetail,
-				statusIcon: endpoint.degradationReason ? new vscode.ThemeIcon('warning') : undefined,
+				statusIcon: warnings?.rowWarning ? new vscode.ThemeIcon('warning') : undefined,
 				version: endpoint.version,
 				maxInputTokens: endpoint.modelMaxPromptTokens - baseCount - BaseTokensPerCompletion,
 				maxOutputTokens: endpoint.maxOutputTokens,
@@ -396,13 +400,8 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 					[ApiChatLocation.Editor]: endpoint instanceof AutoChatEndpoint, // inline chat gets 'Auto' by default
 				},
 				isUserSelectable: endpoint.showInModelPicker,
-				warningText: endpoint instanceof AutoChatEndpoint ? undefined : (() => {
-					const texts: Record<string, string> = { ...endpoint.warningText };
-					if (endpoint.degradationReason) {
-						texts['degradation'] = endpoint.degradationReason;
-					}
-					return Object.keys(texts).length > 0 ? texts : undefined;
-				})(),
+				warningText: warnings?.texts,
+				infoText: endpoint instanceof AutoChatEndpoint ? undefined : endpoint.infoText,
 				promo: endpoint instanceof AutoChatEndpoint ? undefined : endpoint.promo,
 				capabilities: {
 					imageInput: endpoint instanceof AutoChatEndpoint ? true : endpoint.supportsVision,
@@ -812,6 +811,7 @@ export class CopilotLanguageModelWrapper extends Disposable {
 			source: { extensionId },
 			requestOptions: options,
 			userInitiatedRequest: !!extensionId,
+			conversationId: internalModelOptions?._conversationId,
 			telemetryProperties,
 			modelCapabilities: {
 				enableThinking: internalModelOptions?._enableThinking,

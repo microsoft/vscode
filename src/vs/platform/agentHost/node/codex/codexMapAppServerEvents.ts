@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { generateUuid } from '../../../../base/common/uuid.js';
+import type { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
+import type { IAgentModelCallCompletedSignal } from '../../common/agent.js';
 import { toToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { ActionType, type SessionAction, type ChatAction } from '../../common/state/sessionActions.js';
-import { MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolResultContentType, TurnState, type ErrorInfo } from '../../common/state/sessionState.js';
+import { createErrorResponsePart, MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolResultContentType, TurnState, type ErrorInfo } from '../../common/state/sessionState.js';
 import { extractForwardedErrorInfo } from '../shared/proxyChatError.js';
 import { getServerToolDisplay } from '../shared/serverToolGroups.js';
 import { ActiveClientToolSet } from '../activeClientState.js';
@@ -501,6 +503,27 @@ export function mapTokenUsageUpdated(params: ThreadTokenUsageUpdatedNotification
 			},
 		},
 	}];
+}
+
+/**
+ * Codex does not expose its exact response-completion event on resumed threads, so cumulative
+ * usage changes are the closest lifecycle signal available across the full session population.
+ */
+export function mapTokenUsageModelCallCompleted(params: ThreadTokenUsageUpdatedNotification, resource: URI): IAgentModelCallCompletedSignal {
+	const total = params.tokenUsage.total;
+	return {
+		kind: 'model_call_completed',
+		resource,
+		turnId: params.turnId,
+		modelCallId: [
+			total.inputTokens,
+			total.cachedInputTokens,
+			total.cacheWriteInputTokens,
+			total.outputTokens,
+			total.reasoningOutputTokens,
+			total.totalTokens,
+		].join(':'),
+	};
 }
 
 /**
@@ -1216,7 +1239,7 @@ export function mapTurnCompleted(
 				type: ActionType.ChatError,
 				turnId,
 				duration,
-				error: mapCodexTurnError(params.turn.error),
+				part: createErrorResponsePart(mapCodexTurnError(params.turn.error)),
 			},
 			{
 				type: ActionType.ChatTurnComplete,

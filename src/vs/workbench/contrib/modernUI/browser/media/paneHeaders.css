@@ -11,9 +11,9 @@
  *   - rounds the header corners, and
  *   - adds a background tint on hover.
  *
- * The pane border (`border-top`) and the pane's left border are applied as
- * inline styles by the PaneView (src/vs/base/browser/ui/splitview/paneview.ts),
- * so the resets below must use `!important` to win over those inline values.
+ * The pane header border (`border-top`) is applied as an inline style by the
+ * PaneView (src/vs/base/browser/ui/splitview/paneview.ts), so the reset below
+ * must use `!important` to win over that inline value.
  *
  * All rules are gated behind the `.modern-ui` class, which the
  * ModernUIContribution toggles onto the workbench container(s) when the
@@ -22,19 +22,17 @@
  */
 
 /*
- * Remove the full-width separator lines / borders (set inline by the PaneView)
- * so we can redraw them inset below.
+ * Remove the full-width header separator line (set inline by the PaneView) so
+ * we can redraw it inset below. The pane's inline left border is retained
+ * because it separates horizontally stacked panel sections.
  */
-.modern-ui .monaco-pane-view .pane > .pane-header,
-.modern-ui .monaco-pane-view .pane {
+.modern-ui .monaco-pane-view .pane > .pane-header {
 	border: none !important;
 }
 
 /*
  * Redraw the section separator as a shorter, inset line at the top of each
- * header (the header is already `position: relative`). It uses the same section
- * header border color the PaneView would, falling back across sidebar / panel
- * tokens so it is visible in both locations.
+ * header (the header is already `position: relative`).
  */
 .modern-ui .monaco-pane-view .pane > .pane-header::before {
 	content: "";
@@ -44,18 +42,33 @@
 	right: var(--vscode-spacing-size40);
 	height: var(--vscode-strokeThickness);
 	pointer-events: none;
-	background-color: var(--vscode-sideBarSectionHeader-border, var(--vscode-panelSectionHeader-border, var(--vscode-panel-border)));
 }
 
-/* The first section in a pane has no separator above it. */
-.modern-ui .monaco-pane-view .split-view-view:first-of-type > .pane > .pane-header::before {
+.modern-ui :is(.part.sidebar, .part.auxiliarybar) .monaco-pane-view .pane > .pane-header::before {
+	background-color: var(--vscode-sideBarSectionHeader-border);
+}
+
+.modern-ui .part.panel .monaco-pane-view .pane > .pane-header::before {
+	background-color: var(--vscode-panelSectionHeader-border, var(--vscode-panel-border));
+}
+
+/*
+ * The first section in a vertical stack has no separator above it. Horizontally
+ * arranged panes are the only section in their column, so their left pane border
+ * separates columns without an additional horizontal line above the header.
+ */
+.modern-ui .monaco-pane-view .split-view-view:first-of-type > .pane > .pane-header::before,
+.modern-ui .monaco-pane-view .pane.horizontal > .pane-header::before {
 	display: none;
 }
 
-.modern-ui .monaco-pane-view .pane,
-.modern-ui.floating-panels .part.sidebar,
-.modern-ui.floating-panels .part.auxiliarybar {
-	background-color: var(--vscode-sideBar-background, var(--vscode-panel-background)) !important;
+.modern-ui :is(.part.sidebar, .part.auxiliarybar) .monaco-pane-view .pane,
+.modern-ui.floating-panels :is(.part.sidebar, .part.auxiliarybar) {
+	background-color: var(--vscode-sideBar-background) !important;
+}
+
+.modern-ui .part.panel .monaco-pane-view .pane {
+	background-color: var(--vscode-panel-background) !important;
 }
 
 /* Round the header corners and let the header match its surface at rest so it
@@ -64,7 +77,14 @@
  * below still wins via its higher specificity. */
 .modern-ui .monaco-pane-view .pane > .pane-header {
 	border-radius: var(--vscode-cornerRadius-small);
-	background-color: var(--vscode-sideBar-background, var(--vscode-panel-background)) !important;
+}
+
+.modern-ui :is(.part.sidebar, .part.auxiliarybar) .monaco-pane-view .pane > .pane-header {
+	background-color: var(--vscode-sideBar-background) !important;
+}
+
+.modern-ui .part.panel .monaco-pane-view .pane > .pane-header {
+	background-color: var(--vscode-panel-background) !important;
 }
 
 /*
@@ -72,7 +92,7 @@
  * MODERN_UI_PANE_HEADER_SIZE so CSS presentation and split-view layout agree.
  */
 .modern-ui .monaco-pane-view {
-	--pane-header-size: 28px;
+	--pane-header-size: var(--vscode-spacing-size280, 28px);
 }
 
 /* Tint the header background on hover (overrides the inline header background). */

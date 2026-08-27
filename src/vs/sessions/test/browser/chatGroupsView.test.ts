@@ -25,6 +25,7 @@ import { IActiveSession, ISessionsManagementService } from '../../services/sessi
 
 class TestChatView extends AbstractChatView {
 	private readonly _focusTarget = mainWindow.document.createElement('button');
+	layoutCount = 0;
 
 	constructor(readonly kind: ChatViewKind) {
 		super();
@@ -36,7 +37,9 @@ class TestChatView extends AbstractChatView {
 		return {};
 	}
 
-	protected doLayout(): void { }
+	protected doLayout(): void {
+		this.layoutCount++;
+	}
 
 	focus(): void {
 		this._focusTarget.focus();
@@ -44,12 +47,20 @@ class TestChatView extends AbstractChatView {
 }
 
 class TestChatViewFactory extends mock<IChatViewFactory>() {
+	readonly views: TestChatView[] = [];
+
 	override createNewChatView(isNewChatInSession: boolean): AbstractChatView {
-		return new TestChatView(isNewChatInSession ? 'newChatInSession' : 'newSession');
+		return this._createView(isNewChatInSession ? 'newChatInSession' : 'newSession');
 	}
 
 	override createChatView(): AbstractChatView {
-		return new TestChatView('chat');
+		return this._createView('chat');
+	}
+
+	private _createView(kind: ChatViewKind): TestChatView {
+		const view = new TestChatView(kind);
+		this.views.push(view);
+		return view;
 	}
 }
 
@@ -105,9 +116,14 @@ class TestActiveSession extends mock<IActiveSession>() {
 
 class TestSessionsService extends mock<ISessionsService>() {
 	override readonly activeSession = observableValue<IActiveSession | undefined>(this, undefined);
-	newChatGate: Promise<void> | undefined;
+	openChatGate: Promise<void> | undefined;
+	openChatError: Error | undefined;
 
 	override async openChat(session: ISession, chatUri: URI): Promise<void> {
+		await this.openChatGate;
+		if (this.openChatError) {
+			throw this.openChatError;
+		}
 		if (!(session instanceof TestActiveSession)) {
 			return;
 		}
@@ -122,29 +138,21 @@ class TestSessionsService extends mock<ISessionsService>() {
 		this.activeSession.set(session, undefined);
 	}
 
-	override async openNewChatInSession(session: ISession): Promise<void> {
-		if (!(session instanceof TestActiveSession)) {
-			return;
-		}
-		await this.newChatGate;
-		const chat = createChat(`new-${session.allChats.get().length}`, SessionStatus.Untitled);
-		session.allChats.set([...session.allChats.get(), chat], undefined);
-		session.visibleChatTabs.set([...session.visibleChatTabs.get(), chat], undefined);
-		session.activeChat.set(chat, undefined);
-	}
 }
 
 interface IChatGroupsHarness {
 	readonly instantiationService: TestInstantiationService;
 	readonly sessionsService: TestSessionsService;
+	readonly chatViewFactory: TestChatViewFactory;
 	readonly view: ChatGroupsView;
 }
 
-function createHarness(disposables: Pick<DisposableStore, 'add'>): IChatGroupsHarness {
+function createHarness(disposables: Pick<DisposableStore, 'add'>, tabsReplaceHeader = true): IChatGroupsHarness {
 	const store = disposables.add(new DisposableStore());
 	const instantiationService = workbenchInstantiationService(undefined, store);
 	const sessionsService = new TestSessionsService();
-	instantiationService.stub(IChatViewFactory, new TestChatViewFactory());
+	const chatViewFactory = new TestChatViewFactory();
+	instantiationService.stub(IChatViewFactory, chatViewFactory);
 	instantiationService.stub(ISessionsService, sessionsService);
 	instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 		override readonly onDidChangeSessions = Event.None;
@@ -156,14 +164,48 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>): IChatGroupsHa
 	}());
 
 	const view = store.add(instantiationService.createInstance(ChatGroupsView));
+	view.setSingleGroupTabsReplaceHeader(tabsReplaceHeader);
 	mainWindow.document.body.appendChild(view.element);
 	store.add(toDisposable(() => view.element.remove()));
-	return { instantiationService, sessionsService, view };
+	return { instantiationService, sessionsService, chatViewFactory, view };
 }
 
 suite('Sessions - ChatGroupsView', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const options = { renderSessionTypePickerInControls: constObservable(false) };
+
+	test('opens a session with an active child chat after initial layout', () => {
+		const { view, chatViewFactory } = createHarness(disposables);
+		const main = createChat('main');
+		const child = createChat('child', SessionStatus.Completed, main.resource);
+		const session = new TestActiveSession([main, child]);
+		session.activeChat.set(child, undefined);
+		view.layout(800, 600, 0, 0);
+
+		view.setSession(session, options);
+		view.focus();
+
+		const renderedView = view.element.querySelector<HTMLElement>('.chat-view');
+		const renderedChatView = chatViewFactory.views.find(createdView => createdView.kind === 'chat');
+		const transientComposerView = chatViewFactory.views.find(createdView => createdView.kind === 'newChatInSession');
+		assert.deepStrictEqual({
+			renderedKind: renderedView?.dataset.kind,
+			renderedWidth: renderedView?.style.width,
+			renderedLayoutCount: renderedChatView?.layoutCount,
+			transientLayoutCount: transientComposerView?.layoutCount ?? 0,
+			focusedKind: view.element.ownerDocument.activeElement?.closest<HTMLElement>('.chat-view')?.dataset.kind,
+			activeTab: view.element.querySelector<HTMLElement>('.chat-composite-bar-tab.active')?.dataset.chatResource,
+			tabs: Array.from(view.element.querySelectorAll<HTMLElement>('.chat-composite-bar-tab')).map(tab => tab.dataset.chatResource),
+		}, {
+			renderedKind: 'chat',
+			renderedWidth: '800px',
+			renderedLayoutCount: 1,
+			transientLayoutCount: 0,
+			focusedKind: 'chat',
+			activeTab: child.resource.toString(),
+			tabs: [main.resource.toString(), child.resource.toString()],
+		});
+	});
 
 	test('focusing another group updates the session active chat', () => {
 		const { sessionsService, view } = createHarness(disposables);
@@ -246,6 +288,48 @@ suite('Sessions - ChatGroupsView', () => {
 			groupTabs: [[main.resource.toString()], [hidden.resource.toString()]],
 			groupLabels: ['Chat Group 1 of 2', 'Chat Group 2 of 2'],
 		});
+	});
+
+	test('opening an existing main-group tab to the side moves it into its own group', async () => {
+		const { sessionsService, view } = createHarness(disposables);
+		const main = createChat('main');
+		const secondary = createChat('secondary');
+		const session = new TestActiveSession([main, secondary]);
+		view.setSession(session, options);
+
+		const gate = new DeferredPromise<void>();
+		sessionsService.openChatGate = gate.p;
+		let settled = false;
+		const openPromise = view.openChatInNewGroup(secondary.resource).finally(() => settled = true);
+		await Promise.resolve();
+		const settledBeforeOpen = settled;
+		gate.complete();
+		await openPromise;
+		const afterSplit = Array.from(view.element.querySelectorAll('.chat-group-view'))
+			.map(group => Array.from(group.querySelectorAll<HTMLElement>('.chat-composite-bar-tab')).map(tab => tab.dataset.chatResource));
+		await view.openChatInNewGroup(secondary.resource);
+
+		assert.deepStrictEqual({
+			settledBeforeOpen,
+			afterSplit,
+			groupCountAfterRepeatedOpen: view.groupCount.get(),
+			activeChat: session.activeChat.get().resource.toString(),
+		}, {
+			settledBeforeOpen: false,
+			afterSplit: [[main.resource.toString()], [secondary.resource.toString()]],
+			groupCountAfterRepeatedOpen: 2,
+			activeChat: secondary.resource.toString(),
+		});
+	});
+
+	test('opening an existing tab to the side propagates open failures', async () => {
+		const { sessionsService, view } = createHarness(disposables);
+		const main = createChat('main');
+		const secondary = createChat('secondary');
+		view.setSession(new TestActiveSession([main, secondary]), options);
+		sessionsService.openChatError = new Error('open failed');
+
+		await assert.rejects(view.openChatInNewGroup(secondary.resource), /open failed/);
 	});
 
 	test('dropping a hidden subagent on an edge opens it in a new group', async () => {
@@ -356,49 +440,34 @@ suite('Sessions - ChatGroupsView', () => {
 		});
 	});
 
-	test('new chat action focuses its group composer', async () => {
+	test('shows session actions in a single tab row and hides them for split groups', () => {
 		const { view } = createHarness(disposables);
-		const main = createChat('main');
-		const session = new TestActiveSession([main]);
-		view.setSession(session, options);
-		const group = view.element.querySelector<HTMLElement>('.chat-group-view')!;
-
-		group.querySelector<HTMLElement>('.chat-composite-bar-new-chat .action-label')!.click();
-		await Promise.resolve();
-		await Promise.resolve();
-
-		assert.strictEqual(group.contains(mainWindow.document.activeElement), true);
-	});
-
-	test('new chat remains assigned to the group where creation started', async () => {
-		const { sessionsService, view } = createHarness(disposables);
 		const main = createChat('main');
 		const secondary = createChat('secondary');
 		const session = new TestActiveSession([main, secondary]);
 		view.setSession(session, options);
+
+		const singleGroupActions = view.element.querySelector<HTMLElement>('.session-chat-tabs-actions');
+		const singleGroupHidden = singleGroupActions?.classList.contains('hidden');
 		view.splitChatToSide(secondary.resource);
-		view.focusAdjacentGroup('previous');
-		const groups = Array.from(view.element.querySelectorAll<HTMLElement>('.chat-group-view'));
-		const mainGroup = groups.find(group => group.querySelector<HTMLElement>('.chat-composite-bar-tab')?.dataset.chatResource === main.resource.toString())!;
-		const gate = new DeferredPromise<void>();
-		sessionsService.newChatGate = gate.p;
+		const splitGroupActions = Array.from(view.element.querySelectorAll<HTMLElement>('.session-chat-tabs-actions'));
 
-		mainGroup.querySelector<HTMLElement>('.chat-composite-bar-new-chat .action-label')!.click();
-		view.focusAdjacentGroup('next');
-		gate.complete();
-		await gate.p;
-		await Promise.resolve();
-		await Promise.resolve();
-
-		const newChat = session.activeChat.get();
 		assert.deepStrictEqual({
-			mainGroupTabs: Array.from(mainGroup.querySelectorAll<HTMLElement>('.chat-composite-bar-tab')).map(tab => tab.dataset.chatResource),
-			secondaryGroupTabs: Array.from(groups.find(group => group !== mainGroup)!.querySelectorAll<HTMLElement>('.chat-composite-bar-tab')).map(tab => tab.dataset.chatResource),
-			focusInMainGroup: mainGroup.contains(mainWindow.document.activeElement),
+			singleGroupHidden,
+			splitGroupsHidden: splitGroupActions.map(actions => actions.classList.contains('hidden')),
 		}, {
-			mainGroupTabs: [main.resource.toString(), newChat.resource.toString()],
-			secondaryGroupTabs: [secondary.resource.toString()],
-			focusInMainGroup: true,
+			singleGroupHidden: false,
+			splitGroupsHidden: [true, true],
 		});
 	});
+
+	test('hides session actions when tabs do not replace the header', () => {
+		const { view } = createHarness(disposables, false);
+		const main = createChat('main');
+		const secondary = createChat('secondary');
+		view.setSession(new TestActiveSession([main, secondary]), options);
+
+		assert.strictEqual(view.element.querySelector<HTMLElement>('.session-chat-tabs-actions')?.classList.contains('hidden'), true);
+	});
+
 });

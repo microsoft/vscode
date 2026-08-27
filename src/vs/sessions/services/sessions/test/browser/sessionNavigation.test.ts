@@ -155,11 +155,16 @@ class MockSessionStore implements ISessionsManagementService {
 	}
 
 	getSessions(): ISession[] { return [...this._sessions.values()]; }
+	getInFlightNewSessionRequests(): readonly ISession[] { return []; }
 
 	getRecentlyOpenedSessions(): IRecentlyOpenedSessions { return { recent: [...this._sessions.values()], other: [] }; }
 
 	getSession(resource: URI): ISession | undefined {
 		return this._sessions.get(resource.toString());
+	}
+
+	async resolveSessionResource(resource: URI): Promise<URI> {
+		return resource;
 	}
 
 	getSessionForChatResource(resource: URI): { session: ISession; chat: IChat } | undefined {
