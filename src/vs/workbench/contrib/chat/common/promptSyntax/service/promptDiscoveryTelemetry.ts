@@ -10,10 +10,10 @@ import { ITelemetryService } from '../../../../../../platform/telemetry/common/t
 import { countConfigurationValue, getKeyedChanges, IConfigurationPresenceCounts } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { PromptsConfig } from '../config/config.js';
 import { PromptFileFormat, PromptFileSource, PromptRootKind, PromptsType } from '../promptTypes.js';
-import { AgentInstructionFileType, IPromptDiscoveryInfo } from './promptsService.js';
+import { AgentInstructionFileSource, AgentInstructionFileType, IAgentInstructionFile, IPromptDiscoveryInfo } from './promptsService.js';
 
-export type PromptDiscoveryTelemetryEventName = 'promptFilesFound' | 'customAgentsFound';
-export type PromptConfigurationTelemetryEventName = 'promptFileLocationsConfigured' | 'customAgentLocationsConfigured' | 'legacyModeLocationsConfigured';
+export type PromptDiscoveryTelemetryEventName = 'promptFilesFound' | 'customAgentsFound' | 'agentSkillsFound' | 'instructionsFound';
+export type PromptConfigurationTelemetryEventName = 'promptFileLocationsConfigured' | 'customAgentLocationsConfigured' | 'legacyModeLocationsConfigured' | 'agentSkillLocationsConfigured' | 'instructionLocationsConfigured' | 'instructionEntryPointsConfigured';
 export type InstructionConsumer = 'agent' | 'voice' | 'dictation';
 export type PromptDiscoveryKind = 'reusable' | 'automatic' | 'nestedAutomatic' | 'speech';
 export type PromptDiscoveryOrigin = 'githubWorkspace' | 'copilotPersonal' | 'claudePersonal' | 'claudeWorkspace' | 'claudeWorkspaceLocal' | 'agentsWorkspace' | 'agentsPersonal' | 'configWorkspace' | 'configPersonal' | 'userData' | 'extensionContribution' | 'extensionAPI' | 'plugin' | 'builtIn' | 'workspaceRoot' | 'parentRepository' | 'all';
@@ -81,6 +81,12 @@ interface IMutableDiscoveryRow {
 	parseErrorCount: number;
 	otherRejectedCount: number;
 }
+
+export type SpeechInstructionOutcome = {
+	readonly origin: 'githubWorkspace' | 'copilotPersonal';
+	readonly rootKind: PromptRootKind.Workspace | PromptRootKind.UserHome;
+	readonly status: 'loaded' | 'rejected';
+};
 
 const sourceNames: Record<PromptFileSource, Exclude<PromptDiscoveryOrigin, 'workspaceRoot' | 'parentRepository' | 'all'>> = {
 	[PromptFileSource.GitHubWorkspace]: 'githubWorkspace',
@@ -166,6 +172,111 @@ export function aggregatePromptDiscovery(info: IPromptDiscoveryInfo, type: Promp
 	return sortDiscoveryRows([...rows.values()]);
 }
 
+function automaticInstructionOrigin(file: IAgentInstructionFile): PromptDiscoveryOrigin | undefined {
+	if (file.rootKind === PromptRootKind.ParentRepository) {
+		return 'parentRepository';
+	}
+	switch (file.source) {
+		case AgentInstructionFileSource.WorkspaceRoot: return 'workspaceRoot';
+		case AgentInstructionFileSource.ParentRepository: return 'parentRepository';
+		case AgentInstructionFileSource.ClaudeWorkspace: return 'claudeWorkspace';
+		case AgentInstructionFileSource.ClaudePersonal: return 'claudePersonal';
+		case AgentInstructionFileSource.GitHubWorkspace: return 'githubWorkspace';
+		case AgentInstructionFileSource.CopilotPersonal: return 'copilotPersonal';
+		default: return undefined;
+	}
+}
+
+export function aggregateAutomaticInstructions(files: readonly IAgentInstructionFile[]): IPromptDiscoveryTelemetryRow[] {
+	const rows = new Map<string, IMutableDiscoveryRow>();
+	for (const file of files) {
+		const origin = automaticInstructionOrigin(file);
+		if (!origin || !file.rootKind) {
+			continue;
+		}
+		const format = file.type;
+		const key = `${origin}\0${format}\0${file.rootKind}`;
+		let row = rows.get(key);
+		if (!row) {
+			row = {
+				origin,
+				format,
+				rootKind: file.rootKind,
+				consumer: 'agent',
+				discoveryKind: 'automatic',
+				candidateCount: 0,
+				loadedCount: 0,
+				disabledCount: 0,
+				parseErrorCount: 0,
+				otherRejectedCount: 0,
+			};
+			rows.set(key, row);
+		}
+		row.candidateCount++;
+		row.loadedCount++;
+	}
+	if (rows.size === 0) {
+		return [{
+			origin: 'all',
+			format: 'all',
+			rootKind: 'all',
+			consumer: 'agent',
+			discoveryKind: 'automatic',
+			candidateCount: 0,
+			loadedCount: 0,
+			disabledCount: 0,
+			parseErrorCount: 0,
+			otherRejectedCount: 0,
+		}];
+	}
+	return sortDiscoveryRows([...rows.values()]);
+}
+
+export function aggregateSpeechInstructions(consumer: Exclude<InstructionConsumer, 'agent'>, outcomes: readonly SpeechInstructionOutcome[]): IPromptDiscoveryTelemetryRow[] {
+	const rows = new Map<string, IMutableDiscoveryRow>();
+	for (const outcome of outcomes) {
+		const format: PromptDiscoveryFormat = consumer === 'voice' ? 'voiceMarkdown' : 'dictationMarkdown';
+		const key = `${outcome.origin}\0${format}\0${outcome.rootKind}`;
+		let row = rows.get(key);
+		if (!row) {
+			row = {
+				origin: outcome.origin,
+				format,
+				rootKind: outcome.rootKind,
+				consumer,
+				discoveryKind: 'speech',
+				candidateCount: 0,
+				loadedCount: 0,
+				disabledCount: 0,
+				parseErrorCount: 0,
+				otherRejectedCount: 0,
+			};
+			rows.set(key, row);
+		}
+		row.candidateCount++;
+		if (outcome.status === 'loaded') {
+			row.loadedCount++;
+		} else {
+			row.otherRejectedCount++;
+		}
+	}
+	if (rows.size === 0) {
+		return [{
+			origin: 'all',
+			format: 'all',
+			rootKind: 'all',
+			consumer,
+			discoveryKind: 'speech',
+			candidateCount: 0,
+			loadedCount: 0,
+			disabledCount: 0,
+			parseErrorCount: 0,
+			otherRejectedCount: 0,
+		}];
+	}
+	return sortDiscoveryRows([...rows.values()]);
+}
+
 function configurationRow(scope: PromptConfigurationScope, entryPoint: PromptConfigurationEntryPoint, value: unknown): IPromptConfigurationTelemetryRow {
 	return {
 		scope,
@@ -213,6 +324,15 @@ export class PromptDiscoveryTelemetry {
 		}]);
 	}
 
+	logAutomaticInstructions(files: readonly IAgentInstructionFile[], channel: 'automatic' | 'nestedAutomatic' = 'automatic'): void {
+		const rows = aggregateAutomaticInstructions(files).map(row => ({ ...row, discoveryKind: channel }));
+		this.logDiscoveryRows('instructionsFound', channel, rows);
+	}
+
+	logSpeechInstructions(consumer: Exclude<InstructionConsumer, 'agent'>, outcomes: readonly SpeechInstructionOutcome[]): void {
+		this.logDiscoveryRows('instructionsFound', consumer, aggregateSpeechInstructions(consumer, outcomes));
+	}
+
 	private logDiscoveryRows(eventName: PromptDiscoveryTelemetryEventName, channel: string, rows: readonly IPromptDiscoveryTelemetryRow[]): void {
 		const snapshotKey = `${eventName}:${channel}`;
 		const previous = this.lastDiscoveryRows.get(snapshotKey);
@@ -253,9 +373,24 @@ export class PromptDiscoveryTelemetry {
 			...this.lockdownRows(),
 		]);
 		this.logConfigurationRows('legacyModeLocationsConfigured', userWorkspaceRows(this.configurationService.inspect(PromptsConfig.MODE_LOCATION_KEY), 'locations'));
+		this.logConfigurationRows('agentSkillLocationsConfigured', [
+			...userWorkspaceRows(this.configurationService.inspect(PromptsConfig.SKILLS_LOCATION_KEY), 'locations'),
+			...userWorkspaceRows(this.configurationService.inspect(PromptsConfig.USE_AGENT_SKILLS), 'useAgentSkills'),
+			this.storageRow(PromptsType.skill),
+			...this.lockdownRows(),
+		]);
+		this.logConfigurationRows('instructionLocationsConfigured', userWorkspaceRows(this.configurationService.inspect(PromptsConfig.INSTRUCTIONS_LOCATION_KEY), 'locations'));
+		this.logConfigurationRows('instructionEntryPointsConfigured', [
+			...userWorkspaceRows(this.configurationService.inspect(PromptsConfig.USE_AGENT_MD), 'useAgentsMdFile'),
+			...userWorkspaceRows(this.configurationService.inspect(PromptsConfig.USE_NESTED_AGENT_MD), 'useNestedAgentsMdFiles'),
+			...userWorkspaceRows(this.configurationService.inspect(PromptsConfig.USE_CLAUDE_MD), 'useClaudeMdFile'),
+			...userWorkspaceRows(this.configurationService.inspect(PromptsConfig.USE_COPILOT_INSTRUCTION_FILES), 'useInstructionFiles'),
+			...userWorkspaceRows(this.configurationService.inspect(PromptsConfig.USE_CUSTOMIZATIONS_IN_PARENT_REPOS), 'useParentRepositories'),
+			...this.lockdownRows(),
+		]);
 	}
 
-	private storageRow(type: PromptsType.agent): IPromptConfigurationTelemetryRow {
+	private storageRow(type: PromptsType.agent | PromptsType.skill): IPromptConfigurationTelemetryRow {
 		const raw = this.storageService.get(`chat.disabledPromptFiles.${type}`, StorageScope.PROFILE);
 		if (raw === undefined) {
 			return configurationRow('profile', 'profileDisablement', undefined);

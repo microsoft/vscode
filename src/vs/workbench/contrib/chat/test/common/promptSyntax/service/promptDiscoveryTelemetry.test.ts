@@ -13,8 +13,8 @@ import { StorageScope, StorageTarget } from '../../../../../../../platform/stora
 import { NullTelemetryServiceShape } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { TestStorageService } from '../../../../../../test/common/workbenchTestServices.js';
 import { PromptFileFormat, PromptFileSource, PromptRootKind, PromptsType } from '../../../../common/promptSyntax/promptTypes.js';
-import { ILocalPromptPath, IPromptDiscoveryInfo, IPromptFileDiscoveryResult, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
-import { aggregatePromptDiscovery, PromptDiscoveryTelemetry } from '../../../../common/promptSyntax/service/promptDiscoveryTelemetry.js';
+import { AgentInstructionFileSource, AgentInstructionFileType, ILocalPromptPath, IPromptDiscoveryInfo, IPromptFileDiscoveryResult, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
+import { aggregateAutomaticInstructions, aggregatePromptDiscovery, aggregateSpeechInstructions, PromptDiscoveryTelemetry } from '../../../../common/promptSyntax/service/promptDiscoveryTelemetry.js';
 
 class TestTelemetryService extends NullTelemetryServiceShape {
 	readonly events: { readonly name: string; readonly data: unknown }[] = [];
@@ -65,6 +65,16 @@ suite('PromptDiscoveryTelemetry', () => {
 			candidate(10, PromptsType.agent, PromptFileSource.CopilotPersonal, PromptFileFormat.PlainMarkdown, PromptRootKind.UserHome),
 			candidate(11, PromptsType.agent, PromptFileSource.ClaudePersonal, PromptFileFormat.PlainMarkdown, PromptRootKind.UserHome),
 			candidate(12, PromptsType.agent, PromptFileSource.Plugin, PromptFileFormat.PluginAgentMarkdown, PromptRootKind.Plugin, 'skipped', 'disabled'),
+			candidate(13, PromptsType.skill, PromptFileSource.AgentsWorkspace, PromptFileFormat.SkillMarkdown, PromptRootKind.Workspace),
+			candidate(14, PromptsType.skill, PromptFileSource.AgentsPersonal, PromptFileFormat.SkillMarkdown, PromptRootKind.UserHome),
+			candidate(15, PromptsType.skill, PromptFileSource.BuiltIn, PromptFileFormat.SkillMarkdown, PromptRootKind.BuiltIn),
+			candidate(16, PromptsType.skill, PromptFileSource.ExtensionContribution, PromptFileFormat.SkillMarkdown, PromptRootKind.Extension, 'skipped', 'parse-error'),
+			candidate(17, PromptsType.instructions, PromptFileSource.GitHubWorkspace, PromptFileFormat.InstructionsMarkdown, PromptRootKind.Workspace),
+			candidate(18, PromptsType.instructions, PromptFileSource.CopilotPersonal, PromptFileFormat.CopilotInstructionsMarkdown, PromptRootKind.UserHome),
+			candidate(19, PromptsType.instructions, PromptFileSource.ClaudeWorkspace, PromptFileFormat.ClaudeRuleMarkdown, PromptRootKind.ParentRepository),
+			candidate(20, PromptsType.instructions, PromptFileSource.Plugin, PromptFileFormat.PluginInstructionsMarkdown, PromptRootKind.Plugin),
+			candidate(21, PromptsType.instructions, PromptFileSource.Plugin, PromptFileFormat.PluginMdc, PromptRootKind.Plugin),
+			candidate(22, PromptsType.instructions, PromptFileSource.Plugin, PromptFileFormat.PluginMarkdown, PromptRootKind.Plugin, 'skipped', 'duplicate-name'),
 		];
 		const info: IPromptDiscoveryInfo = { type: PromptsType.prompt, files, durationInMillis: 1 };
 		const summarize = (type: PromptsType) => aggregatePromptDiscovery(info, type, type === PromptsType.instructions ? 'agent' : 'notApplicable')
@@ -73,6 +83,8 @@ suite('PromptDiscoveryTelemetry', () => {
 		assert.deepStrictEqual({
 			prompts: summarize(PromptsType.prompt),
 			agents: summarize(PromptsType.agent),
+			skills: summarize(PromptsType.skill),
+			instructions: summarize(PromptsType.instructions),
 		}, {
 			prompts: [
 				['configPersonal', 'promptMarkdown', 'userHome', 1, 1, 0, 0, 0],
@@ -90,10 +102,33 @@ suite('PromptDiscoveryTelemetry', () => {
 				['githubWorkspace', 'agentMarkdown', 'workspace', 1, 1, 0, 0, 0],
 				['plugin', 'pluginAgentMarkdown', 'plugin', 1, 0, 1, 0, 0],
 			],
+			skills: [
+				['agentsPersonal', 'skillMarkdown', 'userHome', 1, 1, 0, 0, 0],
+				['agentsWorkspace', 'skillMarkdown', 'workspace', 1, 1, 0, 0, 0],
+				['builtIn', 'skillMarkdown', 'builtIn', 1, 1, 0, 0, 0],
+				['extensionContribution', 'skillMarkdown', 'extension', 1, 0, 0, 1, 0],
+			],
+			instructions: [
+				['claudeWorkspace', 'claudeRuleMarkdown', 'parentRepository', 1, 1, 0, 0, 0],
+				['copilotPersonal', 'copilotInstructionsMarkdown', 'userHome', 1, 1, 0, 0, 0],
+				['githubWorkspace', 'instructionsMarkdown', 'workspace', 1, 1, 0, 0, 0],
+				['plugin', 'pluginInstructionsMarkdown', 'plugin', 1, 1, 0, 0, 0],
+				['plugin', 'pluginMarkdown', 'plugin', 1, 0, 0, 0, 1],
+				['plugin', 'pluginMdc', 'plugin', 1, 1, 0, 0, 0],
+			],
 		});
 	});
 
-	test('emits one zero row and suppresses duplicate snapshots', () => {
+	test('covers automatic, speech, zero rows, and duplicate suppression', () => {
+		const automatic = aggregateAutomaticInstructions([
+			{ uri: URI.file('/workspace/AGENTS.md'), realPath: undefined, type: AgentInstructionFileType.agentsMd, source: AgentInstructionFileSource.WorkspaceRoot, rootKind: PromptRootKind.Workspace },
+			{ uri: URI.file('/parent/CLAUDE.md'), realPath: undefined, type: AgentInstructionFileType.claudeMd, source: AgentInstructionFileSource.ParentRepository, rootKind: PromptRootKind.ParentRepository },
+			{ uri: URI.file('/home/.copilot/copilot-instructions.md'), realPath: undefined, type: AgentInstructionFileType.copilotInstructionsMd, source: AgentInstructionFileSource.CopilotPersonal, rootKind: PromptRootKind.UserHome },
+		]);
+		const speech = aggregateSpeechInstructions('voice', [
+			{ origin: 'githubWorkspace', rootKind: PromptRootKind.Workspace, status: 'loaded' },
+			{ origin: 'copilotPersonal', rootKind: PromptRootKind.UserHome, status: 'rejected' },
+		]);
 		const telemetryService = new TestTelemetryService();
 		const reporter = new PromptDiscoveryTelemetry(telemetryService, new TestConfigurationService(), store.add(new TestStorageService()));
 		reporter.logEmptyDiscovery('promptFilesFound', 'test');
@@ -102,11 +137,22 @@ suite('PromptDiscoveryTelemetry', () => {
 		reporter.logConfiguration();
 
 		assert.deepStrictEqual({
+			automatic: automatic.map(row => [row.origin, row.format, row.rootKind]),
+			speech: speech.map(row => [row.origin, row.format, row.loadedCount, row.otherRejectedCount]),
 			zeroEventCount: telemetryService.events.filter(event => event.name === 'promptFilesFound').length,
 			configurationEventCount: telemetryService.events.filter(event => event.name.endsWith('Configured')).length,
 		}, {
+			automatic: [
+				['copilotPersonal', 'copilotInstructionsMd', 'userHome'],
+				['parentRepository', 'claudeMd', 'parentRepository'],
+				['workspaceRoot', 'agentsMd', 'workspace'],
+			],
+			speech: [
+				['copilotPersonal', 'voiceMarkdown', 0, 1],
+				['githubWorkspace', 'voiceMarkdown', 1, 0],
+			],
 			zeroEventCount: 1,
-			configurationEventCount: 3,
+			configurationEventCount: 6,
 		});
 	});
 
@@ -114,6 +160,7 @@ suite('PromptDiscoveryTelemetry', () => {
 		const telemetryService = new TestTelemetryService();
 		const storageService = store.add(new TestStorageService());
 		storageService.store('chat.disabledPromptFiles.agent', JSON.stringify([{ path: '/agent' }]), StorageScope.PROFILE, StorageTarget.USER);
+		storageService.store('chat.disabledPromptFiles.skill', JSON.stringify([{ path: '/skill' }]), StorageScope.PROFILE, StorageTarget.USER);
 		const reporter = new PromptDiscoveryTelemetry(
 			telemetryService,
 			new LayeredConfigurationService({
@@ -135,14 +182,20 @@ suite('PromptDiscoveryTelemetry', () => {
 			enabledEntryCount: row.enabledEntryCount,
 			disabledEntryCount: row.disabledEntryCount,
 		});
+		const skillProfile = telemetryService.events
+			.filter(event => event.name === 'agentSkillLocationsConfigured' && event.data && typeof event.data === 'object')
+			.map(event => event.data as Record<string, unknown>)
+			.find(row => row.entryPoint === 'profileDisablement');
 		assert.deepStrictEqual({
 			agents: rows.map(summarize),
+			skillProfile: skillProfile && summarize(skillProfile),
 		}, {
 			agents: [
 				{ scope: 'profile', entryPoint: 'profileDisablement', configurationPresent: 1, configuredEntryCount: 1, enabledEntryCount: 0, disabledEntryCount: 1 },
 				{ scope: 'application', entryPoint: 'standaloneLockdown', configurationPresent: 1, configuredEntryCount: 1, enabledEntryCount: 1, disabledEntryCount: 0 },
 				{ scope: 'policy', entryPoint: 'standaloneLockdown', configurationPresent: 1, configuredEntryCount: 1, enabledEntryCount: 1, disabledEntryCount: 0 },
 			],
+			skillProfile: { scope: 'profile', entryPoint: 'profileDisablement', configurationPresent: 1, configuredEntryCount: 1, enabledEntryCount: 0, disabledEntryCount: 1 },
 		});
 	});
 

@@ -240,20 +240,28 @@ suite('PromptsService', () => {
 	});
 
 	test('cancellation does not emit parse-error discovery snapshots', async () => {
+		testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
+		testConfigService.setUserConfiguration(PromptsConfig.SKILLS_LOCATION_KEY, {});
 		const extension = { identifier: { value: 'test.cancellation' } } as IExtensionDescription;
 		const registrations = [
 			service.registerPromptFileProvider(extension, PromptsType.prompt, { providePromptFiles: async () => [{ uri: URI.file('/extension/cancel.prompt.md') }] }),
 			service.registerPromptFileProvider(extension, PromptsType.agent, { providePromptFiles: async () => [{ uri: URI.file('/extension/cancel.agent.md') }] }),
+			service.registerPromptFileProvider(extension, PromptsType.skill, { providePromptFiles: async () => [{ uri: URI.file('/extension/cancel/SKILL.md') }] }),
+			service.registerPromptFileProvider(extension, PromptsType.instructions, { providePromptFiles: async () => [{ uri: URI.file('/extension/cancel.instructions.md') }] }),
 		];
 		registrations.forEach(registration => disposables.add(registration));
 		sinon.stub(service, 'parseNew').rejects(new CancellationError());
 
 		await service.getPromptSlashCommands(CancellationToken.None);
 		await service.getCustomAgents(CancellationToken.None);
+		await service.findAgentSkills(CancellationToken.None);
+		await service.getInstructionFiles(CancellationToken.None);
 
 		assert.deepStrictEqual(telemetryService.events.filter(event =>
 			event.name === 'promptFilesFound'
 			|| event.name === 'customAgentsFound'
+			|| event.name === 'agentSkillsFound'
+			|| event.name === 'instructionsFound'
 		), []);
 	});
 
@@ -274,6 +282,26 @@ suite('PromptsService', () => {
 			parseErrorCount: event.parseErrorCount,
 		}, {
 			disabledCount: 1,
+			parseErrorCount: 0,
+		});
+	});
+
+	test('rejected extension skills honor false and invalid when clauses', async () => {
+		testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
+		testConfigService.setUserConfiguration(PromptsConfig.SKILLS_LOCATION_KEY, {});
+		const extension = { identifier: { value: 'test.rejected-skills' } } as IExtensionDescription;
+		disposables.add(service.registerContributedFile(PromptsType.skill, URI.file('/missing/false/SKILL.md'), extension, undefined, undefined, 'never.enabled'));
+		disposables.add(service.registerContributedFile(PromptsType.skill, URI.file('/missing/invalid/SKILL.md'), extension, undefined, undefined, '('));
+
+		await service.findAgentSkills(CancellationToken.None);
+
+		const event = telemetryService.events.filter(candidate => candidate.name === 'agentSkillsFound').at(-1)?.data;
+		assert.ok(isDiscoveryCountEvent(event));
+		assert.deepStrictEqual({
+			candidateCount: event.candidateCount,
+			parseErrorCount: event.parseErrorCount,
+		}, {
+			candidateCount: 0,
 			parseErrorCount: 0,
 		});
 	});
