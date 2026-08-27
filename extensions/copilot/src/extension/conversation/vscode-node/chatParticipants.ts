@@ -282,6 +282,7 @@ Learn more about [GitHub Copilot](https://docs.github.com/copilot/using-github-c
 							"comment": "Reports detected attempts to recover from an unsuccessful chat interaction.",
 							"modelId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The model used to handle the recovery attempt." },
 							"scoringVersion": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The version of the recovery scoring rules." },
+							"documentUserDeleted": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the user deleted a generated document. Present only when true." },
 							"documentUserRejected": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the user rejected a generated document change. Present only when true." },
 							"documentUserModified": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the user modified a generated document change. Present only when true." },
 							"documentHasMergeConflicts": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether a generated document contains merge conflicts. Present only when true." },
