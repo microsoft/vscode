@@ -60,7 +60,8 @@ suite('copilot', () => {
 			'prebuilds/linux-x64/runtime.node',
 			'prebuilds/linux-x64/pty.node',
 		]);
-		assertCopilotExecutablesExcluded(files, 'node_modules/@github/copilot-linux-x64');
+		assertCopilotStandaloneExecutableExcluded(files, 'node_modules/@github/copilot-linux-x64');
+		assertCopilotOutOfProcessRuntimeExecutablesExcluded(files, 'node_modules/@github/copilot-linux-x64');
 		assertOptionalCopilotNativeDependenciesExcluded(files, 'node_modules/@github/copilot-linux-x64');
 	});
 
@@ -91,11 +92,12 @@ suite('copilot', () => {
 			'app.js',
 			'prebuilds/linuxmusl-x64/runtime.node',
 		]);
-		assertCopilotExecutablesExcluded(files, 'node_modules/@github/copilot-linuxmusl-x64');
+		assertCopilotStandaloneExecutableExcluded(files, 'node_modules/@github/copilot-linuxmusl-x64');
+		assertCopilotOutOfProcessRuntimeExecutablesExcluded(files, 'node_modules/@github/copilot-linuxmusl-x64');
 		assertOptionalCopilotNativeDependenciesExcluded(files, 'node_modules/@github/copilot-linuxmusl-x64');
 	});
 
-	test('uses the Windows platform package runtime for windows builds', () => {
+	test('uses the .exe package runtime for windows builds', () => {
 		assert.deepStrictEqual(getCopilotRuntimePrebuildFiles('win32', 'x64'), [
 			'node_modules/@github/copilot-win32-x64/**',
 			'!node_modules/@github/copilot-win32-x64/copilot',
@@ -124,7 +126,8 @@ suite('copilot', () => {
 			'prebuilds/win32-x64/conpty/OpenConsole.exe',
 			'prebuilds/win32-x64/conpty/conpty.dll',
 		]);
-		assertCopilotExecutablesExcluded(getCopilotRuntimePrebuildFiles('win32', 'x64'), 'node_modules/@github/copilot-win32-x64');
+		assertCopilotStandaloneExecutableExcluded(getCopilotRuntimePrebuildFiles('win32', 'x64'), 'node_modules/@github/copilot-win32-x64');
+		assertCopilotOutOfProcessRuntimeExecutablesExcluded(getCopilotRuntimePrebuildFiles('win32', 'x64'), 'node_modules/@github/copilot-win32-x64');
 
 		assert.deepStrictEqual(getCopilotRuntimePrebuildFiles('win32', 'arm64'), [
 			'node_modules/@github/copilot-win32-arm64/**',
@@ -145,7 +148,8 @@ suite('copilot', () => {
 			'!node_modules/@github/copilot-win32-arm64/prebuilds/*/mediaremote-adapter/**',
 		]);
 		assertOptionalCopilotNativeDependenciesExcluded(getCopilotRuntimePrebuildFiles('win32', 'x64'), 'node_modules/@github/copilot-win32-x64');
-		assertCopilotExecutablesExcluded(getCopilotRuntimePrebuildFiles('win32', 'arm64'), 'node_modules/@github/copilot-win32-arm64');
+		assertCopilotStandaloneExecutableExcluded(getCopilotRuntimePrebuildFiles('win32', 'arm64'), 'node_modules/@github/copilot-win32-arm64');
+		assertCopilotOutOfProcessRuntimeExecutablesExcluded(getCopilotRuntimePrebuildFiles('win32', 'arm64'), 'node_modules/@github/copilot-win32-arm64');
 	});
 
 	test('keeps macOS runtime prebuilds in the selected platform package', () => {
@@ -160,7 +164,8 @@ suite('copilot', () => {
 			'prebuilds/darwin-arm64/pty.node',
 			'prebuilds/darwin-arm64/spawn-helper',
 		]);
-		assertCopilotExecutablesExcluded(files, 'node_modules/@github/copilot-darwin-arm64');
+		assertCopilotStandaloneExecutableExcluded(files, 'node_modules/@github/copilot-darwin-arm64');
+		assertCopilotOutOfProcessRuntimeExecutablesExcluded(files, 'node_modules/@github/copilot-darwin-arm64');
 		assertOptionalCopilotNativeDependenciesExcluded(files, 'node_modules/@github/copilot-darwin-arm64');
 	});
 
@@ -196,7 +201,7 @@ suite('copilot', () => {
 		}
 	});
 
-	test('excludes unused copilot executables from the platform package dependency stream', () => {
+	test('excludes standalone copilot executables from the platform package dependency stream', () => {
 		const files = getCopilotExcludeFilter('linux', 'x64');
 
 		assert(files.includes('**'));
@@ -388,11 +393,14 @@ function assertCopilotPlatformPackageIncludes(patterns: string[], packageDir: st
 	}
 }
 
-function assertCopilotExecutablesExcluded(patterns: string[], packageDir: string): void {
+function assertCopilotStandaloneExecutableExcluded(patterns: string[], packageDir: string): void {
 	for (const executable of ['copilot', 'copilot.exe']) {
 		assert(patterns.includes(`!${packageDir}/${executable}`), executable);
 		assert(!matchesGlob(`${packageDir}/${executable}`, patterns), executable);
 	}
+}
+
+function assertCopilotOutOfProcessRuntimeExecutablesExcluded(patterns: string[], packageDir: string): void {
 	for (const executable of ['copilot-runtime', 'copilot-runtime-bin', 'copilot-runtime.exe', 'copilot-runtime-bin.exe']) {
 		assert(patterns.includes(`!${packageDir}/prebuilds/*/${executable}`), executable);
 		assert(!matchesGlob(`${packageDir}/prebuilds/test-platform/${executable}`, patterns), executable);

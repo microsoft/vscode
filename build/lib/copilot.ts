@@ -323,8 +323,9 @@ function materializeBuiltInCopilotSdkPlatformFiles(copilotPackagePlatformArch: s
 			`Copilot SDK native prebuilds for ${copilotPackagePlatformArch}`
 		);
 		// Built-in materialization copies the whole prebuilds tree (not the gulp
-		// exclude globs above), so drop unused payloads explicitly afterward.
+		// exclude globs above), so drop mediaremote-adapter explicitly afterward.
 		fs.rmSync(path.join(sdkPrebuildsTarget, 'mediaremote-adapter'), { recursive: true, force: true });
+		// The out-of-process runtime wrappers are not used by the built-in extension.
 		for (const executable of copilotOutOfProcessRuntimeExecutables) {
 			fs.rmSync(path.join(sdkPrebuildsTarget, executable), { force: true });
 		}
