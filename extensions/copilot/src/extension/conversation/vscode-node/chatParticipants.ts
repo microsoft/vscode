@@ -275,6 +275,8 @@ Learn more about [GitHub Copilot](https://docs.github.com/copilot/using-github-c
 				}
 
 				if (recoveryAttempt) {
+					// TODO: Remove - Show notification with metrics
+					vscode.window.showInformationMessage(`[ChatAgentService/FailedRequest] Detected a chat recovery attempt. ${JSON.stringify(recoveryAttempt)}`);
 					this.logService.info(`[ChatAgentService/FailedRequest] Detected a chat recovery attempt. ${JSON.stringify(recoveryAttempt)}`);
 					/* __GDPR__
 						"chatRecoveryAttempt" : {
