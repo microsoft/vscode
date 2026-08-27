@@ -18,9 +18,10 @@ import { ILogService, NullLogService } from '../../../../../../../platform/log/c
 import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService, NullTelemetryServiceShape } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
-import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotification, IChatInputNotificationService } from '../../../../browser/widget/input/chatInputNotificationService.js';
+import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotification, IChatInputNotificationBody, IChatInputNotificationContext, IChatInputNotificationService, matchesModelIdentifier } from '../../../../browser/widget/input/chatInputNotificationService.js';
 import { ChatInputPart } from '../../../../browser/widget/input/chatInputPart.js';
 import { ChatInputNotificationWidget, IChatInputNotificationDelegate } from '../../../../browser/widget/input/chatInputNotificationWidget.js';
+import { isByokModel } from '../../../../common/chatSelectedModel.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../../../../common/languageModels.js';
 import { localChatSessionType, SessionType } from '../../../../common/chatSessionsService.js';
 import { getChatSessionType } from '../../../../common/model/chatUri.js';
@@ -65,6 +66,23 @@ class RecordingTelemetryService extends NullTelemetryServiceShape {
 
 suite('ChatInputNotificationWidget', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function context(overrides: Partial<IChatInputNotificationContext> = {}): IChatInputNotificationContext {
+		return {
+			sessionType: undefined,
+			sessionResource: undefined,
+			deferredNotificationsEnabled: true,
+			isTransientChat: false,
+			sessionStarted: false,
+			selectedLanguageModel: undefined,
+			availableLanguageModels: [],
+			...overrides,
+		};
+	}
+
+	function showForNonByokModels(context: IChatInputNotificationContext): boolean {
+		return !context.selectedLanguageModel || !isByokModel(context.selectedLanguageModel.metadata);
+	}
 
 	function createNotificationService(): IChatInputNotificationService {
 		const descriptor = getSingletonServiceDescriptors().find(([id]) => id === IChatInputNotificationService)?.[1];
@@ -198,7 +216,7 @@ suite('ChatInputNotificationWidget', () => {
 			actions: [],
 			dismissible: false,
 			autoDismissOnMessage: false,
-			deferForNewUsers: true,
+			when: context => context.deferredNotificationsEnabled,
 		});
 
 		const renderedText = () => widget.domNode.querySelector('.chat-input-notification-header')?.textContent;
@@ -212,21 +230,17 @@ suite('ChatInputNotificationWidget', () => {
 	});
 
 	test('skips notifications that opt out of transient chats without hiding others', () => {
-		const transient = createWidget({ delegate: { isTransientChat: true } });
-		const persistent = createWidget({ delegate: { isTransientChat: false } });
-		const rendered = (widget: ChatInputNotificationWidget) => widget.domNode.querySelector('.chat-input-notification-header')?.textContent;
+		const isTransientChat = observableValue('isTransientChat', false);
+		const { notificationService, widget } = createWidget({ delegate: { isTransientChat } });
+		showNotification(notificationService, { id: 'ordinary', message: 'Ordinary notification', actions: [] });
+		showNotification(notificationService, { id: 'promotion', message: 'Model promotion', actions: [], when: context => !context.isTransientChat });
 
-		for (const { notificationService } of [transient, persistent]) {
-			showNotification(notificationService, { id: 'ordinary', message: 'Ordinary notification', actions: [] });
-			showNotification(notificationService, { id: 'promotion', message: 'Model promotion', actions: [], hideInTransientChats: true });
-		}
+		const persistent = widget.domNode.querySelector('.chat-input-notification-header')?.textContent;
+		isTransientChat.set(true, undefined);
 
-		assert.deepStrictEqual({
-			transient: rendered(transient.widget),
-			persistent: rendered(persistent.widget),
-		}, {
-			transient: 'Ordinary notification',
+		assert.deepStrictEqual({ persistent, transient: widget.domNode.querySelector('.chat-input-notification-header')?.textContent }, {
 			persistent: 'Model promotion',
+			transient: 'Ordinary notification',
 		});
 	});
 
@@ -234,7 +248,7 @@ suite('ChatInputNotificationWidget', () => {
 		const sessionStarted = observableValue('sessionStarted', false);
 		const { widget, notificationService } = createWidget({ delegate: { sessionStarted } });
 		showNotification(notificationService, { id: 'ordinary', message: 'Ordinary notification', actions: [] });
-		showNotification(notificationService, { id: 'promotion', message: 'Model promotion', actions: [], hideInStartedSessions: true });
+		showNotification(notificationService, { id: 'promotion', message: 'Model promotion', actions: [], when: context => !context.sessionStarted });
 
 		const rendered = () => widget.domNode.querySelector('.chat-input-notification-header')?.textContent;
 		const before = rendered();
@@ -250,7 +264,7 @@ suite('ChatInputNotificationWidget', () => {
 		const selectedLanguageModel = observableValue<ILanguageModelChatMetadataAndIdentifier | undefined>('selectedLanguageModel', undefined);
 		const { widget, notificationService } = createWidget({ delegate: { selectedLanguageModel } });
 		showNotification(notificationService, { id: 'ordinary', message: 'Ordinary notification', actions: [] });
-		showNotification(notificationService, { id: 'quota', message: 'Credits at 88%', actions: [], hideForByokModels: true });
+		showNotification(notificationService, { id: 'quota', message: 'Credits at 88%', actions: [], when: showForNonByokModels });
 
 		const rendered = () => widget.domNode.querySelector('.chat-input-notification-header')?.textContent;
 		// An unresolved selection must not withhold the notification.
@@ -266,39 +280,6 @@ suite('ChatInputNotificationWidget', () => {
 			copilot: 'Credits at 88%',
 			byok: 'Ordinary notification',
 			backToCopilot: 'Credits at 88%',
-		});
-	});
-
-	test('an input without its own model selection still renders BYOK-gated notifications', () => {
-		const { widget, notificationService } = createWidget({ delegate: {} });
-		showNotification(notificationService, { id: 'quota', message: 'Credits at 88%', actions: [], hideForByokModels: true });
-
-		assert.strictEqual(widget.domNode.querySelector('.chat-input-notification-header')?.textContent, 'Credits at 88%');
-	});
-
-	test('hides BYOK-gated notifications for an agent-host copy of a BYOK model', () => {
-		const { widget, notificationService } = createWidget({ delegate: { selectedLanguageModel: constObservable(makeBridgedByokModel()) } });
-		showNotification(notificationService, { id: 'ordinary', message: 'Ordinary notification', actions: [] });
-		showNotification(notificationService, { id: 'quota', message: 'Credits at 88%', actions: [], hideForByokModels: true });
-
-		assert.strictEqual(widget.domNode.querySelector('.chat-input-notification-header')?.textContent, 'Ordinary notification');
-	});
-
-	test('BYOK gating is per input, so one input can hide what another shows', () => {
-		const byokInput = createWidget({ delegate: { selectedLanguageModel: constObservable(makeModel('customendpoint', true)) } });
-		const agentHostInput = createWidget({ delegate: { selectedLanguageModel: constObservable(makeModel('agent-host-copilotcli', false)) } });
-		const rendered = (widget: ChatInputNotificationWidget) => widget.domNode.querySelector('.chat-input-notification-header')?.textContent;
-
-		for (const { notificationService } of [byokInput, agentHostInput]) {
-			showNotification(notificationService, { id: 'quota', message: 'Credits at 88%', actions: [], hideForByokModels: true });
-		}
-
-		assert.deepStrictEqual({
-			byok: rendered(byokInput.widget),
-			agentHost: rendered(agentHostInput.widget),
-		}, {
-			byok: undefined,
-			agentHost: 'Credits at 88%',
 		});
 	});
 
@@ -407,7 +388,7 @@ suite('ChatInputNotificationWidget', () => {
 			});
 		}
 
-		notificationService.handleMessageSent({ sessionType: SessionType.AgentHostCopilot, sessionResource: firstSession });
+		notificationService.handleMessageSent(context({ sessionType: SessionType.AgentHostCopilot, sessionResource: firstSession }));
 
 		assert.deepStrictEqual({
 			inFirstSession: notificationService.getActiveNotification(n => n.id === 'first')?.id,
@@ -415,6 +396,40 @@ suite('ChatInputNotificationWidget', () => {
 		}, {
 			inFirstSession: undefined,
 			inSecondSession: 'second',
+		});
+	});
+
+	test('auto-dismiss on message applies the sending input predicate', () => {
+		const notificationService = createNotificationService();
+		const notification: IChatInputNotification = {
+			id: 'quota',
+			severity: ChatInputNotificationSeverity.Info,
+			message: 'Credits at 90%',
+			description: undefined,
+			actions: [],
+			dismissible: true,
+			autoDismissOnMessage: true,
+			when: showForNonByokModels,
+		};
+		notificationService.setNotification(notification);
+		notificationService.announceRendered(notification, notification);
+		const announcedById = Reflect.get(notificationService, '_announcedById') as Map<string, string>;
+
+		notificationService.handleMessageSent(context({ selectedLanguageModel: makeModel('customendpoint', true) }));
+		const afterByokMessage = notificationService.getActiveNotification()?.id;
+		const announcedAfterByokMessage = announcedById.has(notification.id);
+		notificationService.handleMessageSent(context({ selectedLanguageModel: makeModel('copilot', false) }));
+
+		assert.deepStrictEqual({
+			afterByokMessage,
+			announcedAfterByokMessage,
+			afterCopilotMessage: notificationService.getActiveNotification()?.id,
+			announcedAfterCopilotMessage: announcedById.has(notification.id),
+		}, {
+			afterByokMessage: 'quota',
+			announcedAfterByokMessage: true,
+			afterCopilotMessage: undefined,
+			announcedAfterCopilotMessage: false,
 		});
 	});
 
@@ -426,7 +441,7 @@ suite('ChatInputNotificationWidget', () => {
 	 */
 	function createRecordingNotificationService() {
 		const notifications = new Map<string, IChatInputNotification>();
-		const announced: (IChatInputNotification | undefined)[] = [];
+		const announced: { notification: IChatInputNotification | undefined; body: IChatInputNotificationBody | undefined }[] = [];
 		const dismissed: string[] = [];
 		const onDidChange = store.add(new Emitter<void>());
 		const onDidDismiss = store.add(new Emitter<string>());
@@ -448,7 +463,7 @@ suite('ChatInputNotificationWidget', () => {
 				return active;
 			},
 			handleMessageSent() { },
-			announceRendered(notification) { announced.push(notification); },
+			announceRendered(notification, body) { announced.push({ notification, body }); },
 		};
 		return { service, announced, dismissed, set: (notification: IChatInputNotification) => service.setNotification(notification) };
 	}
@@ -471,23 +486,10 @@ suite('ChatInputNotificationWidget', () => {
 		return { notificationService, widget };
 	}
 
-	function makeModel(vendor: string, isBYOK: boolean): ILanguageModelChatMetadataAndIdentifier {
+	function makeModel(vendor: string, isBYOK: boolean, id = 'test-model'): ILanguageModelChatMetadataAndIdentifier {
 		return {
-			identifier: `${vendor}/test-model`,
-			metadata: { id: 'test-model', vendor, family: 'test-model', isBYOK } as ILanguageModelChatMetadata,
-		};
-	}
-
-	/** An agent-host copy of an extension BYOK model: `byokModelIdentifier` set, `isBYOK` unset. */
-	function makeBridgedByokModel(): ILanguageModelChatMetadataAndIdentifier {
-		return {
-			identifier: 'agent-host-copilotcli:openrouter/aion-labs/aion-3.0',
-			metadata: {
-				id: 'openrouter/aion-labs/aion-3.0',
-				vendor: 'agent-host-copilotcli',
-				family: 'openrouter/aion-labs/aion-3.0',
-				byokModelIdentifier: 'openrouter/OpenRouter 2/aion-labs/aion-3.0',
-			} as ILanguageModelChatMetadata,
+			identifier: `${vendor}/${id}`,
+			metadata: { id, vendor, family: id, isBYOK } as ILanguageModelChatMetadata,
 		};
 	}
 
@@ -594,9 +596,11 @@ suite('ChatInputNotificationWidget', () => {
 		const telemetryService = new RecordingTelemetryService();
 		const switchedModels: string[] = [];
 		let pickerOpenCount = 0;
+		const model = makeModel('vendor', false, 'model');
 		const { notificationService, widget } = createWidget({
 			telemetryService,
 			delegate: {
+				availableLanguageModels: constObservable([model]),
 				switchToModel: modelIdentifier => {
 					switchedModels.push(modelIdentifier);
 					return true;
@@ -608,7 +612,7 @@ suite('ChatInputNotificationWidget', () => {
 		showNotification(notificationService, {
 			id: 'promo',
 			message: 'Promo',
-			actions: [{ label: 'Try Model', kind: ChatInputNotificationActionKind.SwitchToModel, modelIdentifier: 'vendor/model' }],
+			actions: [{ label: 'Try Model', kind: ChatInputNotificationActionKind.SwitchToModel, matchesModel: matchesModelIdentifier(model.identifier) }],
 		});
 
 		clickAction(widget);
@@ -625,11 +629,84 @@ suite('ChatInputNotificationWidget', () => {
 		});
 	});
 
+	test('resolves and announces body changes from the input model', () => {
+		const autoModel = makeModel('copilot', false, 'auto');
+		const manualModel = makeModel('copilot', false, 'manual');
+		const selectedLanguageModel = observableValue<ILanguageModelChatMetadataAndIdentifier | undefined>('selectedLanguageModel', manualModel);
+		const { notificationService, widget } = createWidget({
+			delegate: {
+				selectedLanguageModel,
+				availableLanguageModels: constObservable([autoModel, manualModel]),
+				switchToModel: () => true,
+			},
+		});
+		const defaultBody = {
+			description: 'Set additional budget.',
+			actions: [{ kind: ChatInputNotificationActionKind.Command, label: 'Manage Budget', commandId: 'test.manageBudget' }],
+		} as const;
+		const switchBody = {
+			description: 'Switch to Auto.',
+			actions: [{ kind: ChatInputNotificationActionKind.SwitchToModel, label: 'Switch to Auto', matchesModel: (model: ILanguageModelChatMetadataAndIdentifier) => model.metadata.id === 'auto' }],
+		} as const;
+		const notification = {
+			id: 'quota',
+			message: 'Credits at 90%',
+			...defaultBody,
+			resolveBody: (context: IChatInputNotificationContext) => context.selectedLanguageModel?.metadata.id === 'auto' ? defaultBody : switchBody,
+		} as const;
+
+		showNotification(notificationService, notification);
+
+		const result = (widget: ChatInputNotificationWidget) => ({
+			description: widget.domNode.querySelector('.chat-input-notification-description')?.textContent,
+			action: widget.domNode.querySelector('.chat-input-notification-action-button')?.textContent,
+		});
+		const manual = result(widget);
+		selectedLanguageModel.set(autoModel, undefined);
+		const auto = result(widget);
+		selectedLanguageModel.set(manualModel, undefined);
+		assert.deepStrictEqual({
+			manual,
+			auto,
+			backToManual: result(widget),
+			announced: notificationService.announced.filter(entry => entry.notification).map(entry => entry.body?.description),
+		}, {
+			manual: { description: 'Switch to Auto.', action: 'Switch to Auto' },
+			auto: { description: 'Set additional budget.', action: 'Manage Budget' },
+			backToManual: { description: 'Switch to Auto.', action: 'Switch to Auto' },
+			announced: ['Switch to Auto.', 'Set additional budget.', 'Switch to Auto.'],
+		});
+	});
+
+	test('uses the default body when its resolver fails', async () => {
+		const logService = store.add(new RecordingLogService());
+		const { notificationService, widget } = createWidget({ logService });
+		const didLogError = Event.toPromise(logService.onError);
+
+		showNotification(notificationService, {
+			id: 'promo',
+			message: 'Promo',
+			description: 'Ends soon',
+			actions: [],
+			resolveBody: () => { throw new Error('resolver failed'); },
+		});
+		await didLogError;
+
+		assert.deepStrictEqual({
+			description: widget.domNode.querySelector('.chat-input-notification-description')?.textContent,
+			action: widget.domNode.querySelector('.chat-input-notification-action-button'),
+		}, {
+			description: 'Ends soon',
+			action: null,
+		});
+	});
+
 	test('opens the local model picker when the requested model is unavailable', async () => {
 		let pickerOpenCount = 0;
 		const { notificationService, widget } = createWidget({
 			delegate: {
-				switchToModel: () => false,
+				availableLanguageModels: constObservable([]),
+				switchToModel: () => true,
 				openModelPicker: () => pickerOpenCount++,
 			},
 		});
@@ -637,7 +714,8 @@ suite('ChatInputNotificationWidget', () => {
 		showNotification(notificationService, {
 			id: 'promo',
 			message: 'Promo',
-			actions: [{ label: 'Try Model', kind: ChatInputNotificationActionKind.SwitchToModel, modelIdentifier: 'missing/model' }],
+			description: 'Ends soon',
+			actions: [{ label: 'Try Model', kind: ChatInputNotificationActionKind.SwitchToModel, matchesModel: matchesModelIdentifier('missing/model') }],
 		});
 
 		clickAction(widget);
@@ -648,10 +726,12 @@ suite('ChatInputNotificationWidget', () => {
 
 	test('opens the local model picker when direct selection fails', async () => {
 		let pickerOpenCount = 0;
+		const model = makeModel('vendor', false, 'model');
 		const logService = store.add(new RecordingLogService());
 		const { notificationService, widget } = createWidget({
 			logService,
 			delegate: {
+				availableLanguageModels: constObservable([model]),
 				switchToModel: () => { throw new Error('selection failed'); },
 				openModelPicker: () => pickerOpenCount++,
 			},
@@ -660,7 +740,7 @@ suite('ChatInputNotificationWidget', () => {
 		showNotification(notificationService, {
 			id: 'promo',
 			message: 'Promo',
-			actions: [{ label: 'Try Model', kind: ChatInputNotificationActionKind.SwitchToModel, modelIdentifier: 'vendor/model' }],
+			actions: [{ label: 'Try Model', kind: ChatInputNotificationActionKind.SwitchToModel, matchesModel: matchesModelIdentifier(model.identifier) }],
 		});
 
 		const didLogError = Event.toPromise(logService.onError);
@@ -673,9 +753,11 @@ suite('ChatInputNotificationWidget', () => {
 	test('attempts the model picker fallback only once when it fails', async () => {
 		const logService = store.add(new RecordingLogService());
 		let pickerOpenCount = 0;
+		const model = makeModel('vendor', false, 'model');
 		const { notificationService, widget } = createWidget({
 			logService,
 			delegate: {
+				availableLanguageModels: constObservable([model]),
 				switchToModel: () => false,
 				openModelPicker: () => {
 					pickerOpenCount++;
@@ -686,7 +768,7 @@ suite('ChatInputNotificationWidget', () => {
 		showNotification(notificationService, {
 			id: 'promo',
 			message: 'Promo',
-			actions: [{ label: 'Try Model', kind: ChatInputNotificationActionKind.SwitchToModel, modelIdentifier: 'missing/model' }],
+			actions: [{ label: 'Try Model', kind: ChatInputNotificationActionKind.SwitchToModel, matchesModel: matchesModelIdentifier(model.identifier) }],
 		});
 
 		const didLogError = Event.toPromise(logService.onError);
@@ -702,10 +784,16 @@ suite('ChatInputNotificationWidget', () => {
 		showNotification(notificationService, {
 			id: 'promo',
 			message: 'Promo',
-			actions: [{ label: 'Try Model', kind: ChatInputNotificationActionKind.SwitchToModel, modelIdentifier: 'vendor/model' }],
+			actions: [{ label: 'Try Model', kind: ChatInputNotificationActionKind.SwitchToModel, matchesModel: matchesModelIdentifier('vendor/model') }],
 		});
 
-		assert.strictEqual(widget.domNode.querySelector('.chat-input-notification-action-button'), null);
+		assert.deepStrictEqual({
+			header: widget.domNode.querySelector('.chat-input-notification-header')?.textContent,
+			action: widget.domNode.querySelector('.chat-input-notification-action-button'),
+		}, {
+			header: 'Promo',
+			action: null,
+		});
 	});
 
 	test('matches Agent Host notifications against the resource scheme', () => {
@@ -768,15 +856,22 @@ suite('ChatInputNotificationWidget', () => {
 			id: 'copilot-promo',
 			severity: ChatInputNotificationSeverity.Info,
 			message: 'Copilot promo',
-			description: undefined,
+			description: 'Default body',
 			actions: [],
+			resolveBody: () => ({ description: 'Agent Host body', actions: [] }),
 			dismissible: true,
 			autoDismissOnMessage: false,
 			sessionTypes: [SessionType.AgentHostCopilot],
 		});
-		assert.strictEqual(lastAnnounced(), undefined, 'nothing should be announced in a non-matching session');
+		assert.strictEqual(lastAnnounced()?.notification, undefined, 'nothing should be announced in a non-matching session');
 
 		currentSessionType.set(SessionType.AgentHostCopilot, undefined);
-		assert.strictEqual(lastAnnounced()?.id, 'copilot-promo', 'the promo should be announced once its session is active');
+		assert.deepStrictEqual({
+			id: lastAnnounced()?.notification?.id,
+			description: lastAnnounced()?.body?.description,
+		}, {
+			id: 'copilot-promo',
+			description: 'Agent Host body',
+		});
 	});
 });

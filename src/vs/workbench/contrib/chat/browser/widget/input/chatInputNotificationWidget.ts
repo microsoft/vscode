@@ -21,11 +21,10 @@ import { IMarkdownRendererService } from '../../../../../../platform/markdown/br
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { defaultButtonStyles } from '../../../../../../platform/theme/browser/defaultStyles.js';
 import { IChatInputNoticeFocusTarget } from './chatInputNoticeHost.js';
-import { isByokModel } from '../../../common/chatSelectedModel.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../common/languageModels.js';
 import { ChatInputNoticeVariant, ChatInputNoticeWidget } from './chatInputNoticeWidget.js';
 import { ChatInputStackSlot, setChatInputStackSlot } from './chatInputStack.js';
-import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotification, IChatInputNotificationAction, IChatInputNotificationCommandAction, IChatInputNotificationService, isChatInputNotificationApplicableToSession } from './chatInputNotificationService.js';
+import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, getChatInputNotificationAnnouncementSignature, IChatInputNotification, IChatInputNotificationAction, IChatInputNotificationBody, IChatInputNotificationCommandAction, IChatInputNotificationContext, IChatInputNotificationService, isChatInputNotificationApplicableToSession, resolveChatInputNotificationBody } from './chatInputNotificationService.js';
 import './media/chatInputNotificationWidget.css';
 
 const $ = dom.$;
@@ -72,11 +71,12 @@ export interface IChatInputNotificationDelegate {
 	readonly sessionResource?: IObservable<URI | undefined>;
 	readonly deferredNotificationsEnabled?: IObservable<boolean>;
 	/** Whether this input is a transient surface (inline, terminal, quick chat, chat input window). */
-	readonly isTransientChat?: boolean;
+	readonly isTransientChat?: IObservable<boolean>;
 	/** Whether the session this input is bound to already has a request. */
 	readonly sessionStarted?: IObservable<boolean>;
 	/** This input's own selected model. Omit when the surface has no model of its own. */
 	readonly selectedLanguageModel?: IObservable<ILanguageModelChatMetadataAndIdentifier | undefined>;
+	readonly availableLanguageModels?: IObservable<readonly ILanguageModelChatMetadataAndIdentifier[]>;
 	readonly openModelPicker?: () => void;
 	/** Returns false to open this input's model picker as a fallback. */
 	readonly switchToModel?: (modelIdentifier: string) => boolean;
@@ -112,6 +112,9 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 	private _deferredNotificationsEnabled = true;
 	private _sessionStarted = false;
 	private _selectedLanguageModel: ILanguageModelChatMetadataAndIdentifier | undefined;
+	private _availableLanguageModels: readonly ILanguageModelChatMetadataAndIdentifier[] = [];
+	private _isTransientChat = false;
+	private _lastAnnouncementSignature: string | undefined;
 	private _visible = false;
 	private _slot: HTMLElement | undefined;
 
@@ -142,6 +145,8 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 			this._deferredNotificationsEnabled = this._delegate?.deferredNotificationsEnabled?.read(reader) ?? true;
 			this._sessionStarted = this._delegate?.sessionStarted?.read(reader) ?? false;
 			this._selectedLanguageModel = this._delegate?.selectedLanguageModel?.read(reader);
+			this._availableLanguageModels = this._delegate?.availableLanguageModels?.read(reader) ?? [];
+			this._isTransientChat = this._delegate?.isTransientChat?.read(reader) ?? false;
 			this._render();
 		}));
 	}
@@ -155,12 +160,23 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 		dom.clearNode(this.domNode);
 		this.domNode.classList.remove(...Object.values(severityToClass));
 
-		const notification = this._notificationService.getActiveNotification(n => this._matchesSession(n));
-		this._setVisible(!!notification);
-		// Announce what this chat input actually renders, so session-scoped
-		// notifications are only spoken in a matching session (de-duped by the service).
-		this._notificationService.announceRendered(notification);
-		if (!notification) {
+		const bodies = new Map<string, IChatInputNotificationBody>();
+		const notification = this._notificationService.getActiveNotification(candidate => {
+			const body = this._resolveBody(candidate);
+			if (body) {
+				bodies.set(candidate.id, body);
+				return true;
+			}
+			return false;
+		});
+		const body = notification ? bodies.get(notification.id) : undefined;
+		this._setVisible(!!notification && !!body);
+		const announcementSignature = notification && body ? getChatInputNotificationAnnouncementSignature(notification, body) : undefined;
+		if (announcementSignature !== this._lastAnnouncementSignature) {
+			this._lastAnnouncementSignature = announcementSignature;
+			this._notificationService.announceRendered(body ? notification : undefined, body);
+		}
+		if (!notification || !body) {
 			setChatInputStackSlot(this._slot, ChatInputStackSlot.Empty);
 			this._lastShownTelemetryData = undefined;
 			if (hadFocus) {
@@ -170,7 +186,7 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 		}
 
 		setChatInputStackSlot(this._slot, ChatInputStackSlot.Docked);
-		this._renderNotification(notification);
+		this._renderNotification(notification, body);
 		this._logShownTelemetry(notification);
 		if (hadFocus) {
 			// The region is rebuilt on every render; keep focus inside it.
@@ -209,21 +225,27 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 		this._notice.focus();
 	}
 
-	private _matchesSession(notification: IChatInputNotification): boolean {
-		return (!notification.deferForNewUsers || this._deferredNotificationsEnabled)
-			&& !(notification.hideInTransientChats && this._delegate?.isTransientChat)
-			&& !(notification.hideInStartedSessions && this._sessionStarted)
-			&& !(notification.hideForByokModels && this._isByokModelSelected())
-			&& isChatInputNotificationApplicableToSession(notification, this._modelTargetChatSessionType, this._sessionResource);
+	private _resolveBody(notification: IChatInputNotification): IChatInputNotificationBody | undefined {
+		const context = this._getContext();
+		if (!isChatInputNotificationApplicableToSession(notification, context.sessionType, context.sessionResource)) {
+			return undefined;
+		}
+		return resolveChatInputNotificationBody(notification, context, error => this._logError(error));
 	}
 
-	/** A model that hasn't resolved yet counts as not-BYOK, so banners aren't held back. */
-	private _isByokModelSelected(): boolean {
-		const model = this._selectedLanguageModel;
-		return !!model && isByokModel(model.metadata);
+	private _getContext(): IChatInputNotificationContext {
+		return {
+			sessionType: this._modelTargetChatSessionType,
+			sessionResource: this._sessionResource,
+			deferredNotificationsEnabled: this._deferredNotificationsEnabled,
+			isTransientChat: this._isTransientChat,
+			sessionStarted: this._sessionStarted,
+			selectedLanguageModel: this._selectedLanguageModel,
+			availableLanguageModels: this._availableLanguageModels,
+		};
 	}
 
-	private _renderNotification(notification: IChatInputNotification): void {
+	private _renderNotification(notification: IChatInputNotification, body: IChatInputNotificationBody): void {
 		const container = this.domNode;
 		container.classList.add(severityToClass[notification.severity]);
 
@@ -290,19 +312,19 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 		}
 
 		// Body row: description + actions on the same line
-		const actions = notification.actions.filter(action => this._supportsAction(action));
-		const hasBody = notification.description || actions.length > 0;
+		const actions = body.actions.filter(action => this._supportsAction(action));
+		const hasBody = body.description || actions.length > 0;
 		if (hasBody) {
 			const bodyRow = dom.append(container, $('.chat-input-notification-body'));
 
-			if (notification.description) {
+			if (body.description) {
 				const descriptionElement = dom.append(bodyRow, $('.chat-input-notification-description'));
-				if (isMarkdownString(notification.description)) {
-					const rendered = this._contentDisposables.add(this._markdownRendererService.render(notification.description));
+				if (isMarkdownString(body.description)) {
+					const rendered = this._contentDisposables.add(this._markdownRendererService.render(body.description));
 					rendered.element.classList.add('chat-input-notification-description-markdown');
 					descriptionElement.appendChild(rendered.element);
 				} else {
-					descriptionElement.textContent = notification.description;
+					descriptionElement.textContent = body.description;
 				}
 			}
 
@@ -360,14 +382,14 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 				try {
 					await this._executeCommandAction(action);
 				} catch (error) {
-					this._logActionError(error);
+					this._logError(error);
 				}
 				break;
 			case ChatInputNotificationActionKind.OpenModelPicker:
 				this._openModelPicker();
 				break;
 			case ChatInputNotificationActionKind.SwitchToModel:
-				this._switchToModel(action.modelIdentifier);
+				this._switchToModel(this._resolveModel(action)?.identifier);
 				break;
 		}
 		if (!action.keepOpen) {
@@ -375,12 +397,25 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 		}
 	}
 
-	private _switchToModel(modelIdentifier: string): void {
+	private _resolveModel(action: Extract<IChatInputNotificationAction, { kind: ChatInputNotificationActionKind.SwitchToModel }>): ILanguageModelChatMetadataAndIdentifier | undefined {
+		return this._availableLanguageModels.find(model => this._matchesModel(action, model));
+	}
+
+	private _matchesModel(action: Extract<IChatInputNotificationAction, { kind: ChatInputNotificationActionKind.SwitchToModel }>, model: ILanguageModelChatMetadataAndIdentifier): boolean {
+		try {
+			return action.matchesModel(model);
+		} catch (error) {
+			this._logError(error);
+			return false;
+		}
+	}
+
+	private _switchToModel(modelIdentifier: string | undefined): void {
 		let switched = false;
 		try {
-			switched = this._delegate?.switchToModel?.(modelIdentifier) ?? false;
+			switched = modelIdentifier ? this._delegate?.switchToModel?.(modelIdentifier) ?? false : false;
 		} catch (error) {
-			this._logActionError(error);
+			this._logError(error);
 		}
 		if (!switched) {
 			this._openModelPicker();
@@ -391,12 +426,12 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 		try {
 			this._delegate?.openModelPicker?.();
 		} catch (error) {
-			this._logActionError(error);
+			this._logError(error);
 		}
 	}
 
-	private _logActionError(error: unknown): void {
-		this._logService.error('[ChatInputNotificationWidget] Failed to execute notification action', error);
+	private _logError(error: unknown): void {
+		this._logService.error('[ChatInputNotificationWidget] Failed to process notification', error);
 	}
 
 	private async _executeCommandAction(action: IChatInputNotificationCommandAction): Promise<void> {

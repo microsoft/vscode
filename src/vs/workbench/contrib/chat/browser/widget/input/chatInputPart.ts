@@ -30,7 +30,7 @@ import { ResourceSet } from '../../../../../../base/common/map.js';
 import { MarshalledId } from '../../../../../../base/common/marshallingIds.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { mixin } from '../../../../../../base/common/objects.js';
-import { autorun, derived, derivedOpts, IObservable, ISettableObservable, ITransaction, observableFromEvent, observableValue, transaction } from '../../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, derivedOpts, IObservable, ISettableObservable, ITransaction, observableFromEvent, observableSignalFromEvent, observableValue, transaction } from '../../../../../../base/common/observable.js';
 import { isMacintosh } from '../../../../../../base/common/platform.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { ScrollbarVisibility } from '../../../../../../base/common/scrollable.js';
@@ -154,7 +154,7 @@ import { ChatDynamicVariableModel } from '../../attachments/chatDynamicVariables
 import { ChatDragAndDrop } from '../chatDragAndDrop.js';
 import { getChatPetPillPlatformTop, getChatPetStackPlatformTop } from '../chatPetWidget.js';
 import { ChatFollowups } from './chatFollowups.js';
-import { IChatInputNotificationService } from './chatInputNotificationService.js';
+import { IChatInputNotificationContext, IChatInputNotificationService } from './chatInputNotificationService.js';
 import { ChatGoalBannerWidget } from './chatGoalBannerWidget.js';
 import { ChatInputNotificationWidget } from './chatInputNotificationWidget.js';
 import { ChatInputNoticeHost, ChatInputNoticeLane } from './chatInputNoticeHost.js';
@@ -725,7 +725,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return this._currentLanguageModel;
 	}
 
-	/** Models the current input can select, for frontend-owned voice actions. */
+	/** Models the current input can select. */
 	get availableLanguageModels(): readonly ILanguageModelChatMetadataAndIdentifier[] {
 		return this.getModels();
 	}
@@ -844,6 +844,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private readonly _currentSessionResourceObservable = observableValue<URI | undefined>(this, undefined);
 	private readonly _currentSessionModelObservable = observableValue<IChatModel | undefined>(this, undefined);
 	private readonly _deferredNotificationsEnabled = observableValue(this, true);
+	private readonly _notificationAvailableLanguageModels = observableValue<readonly ILanguageModelChatMetadataAndIdentifier[]>(this, []);
 	private _isFirstWorkbenchSession: boolean | undefined;
 
 	/** Whether the session this input is bound to already has a request. */
@@ -963,6 +964,16 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._currentChatModes.value = localModes;
 		this._currentChatModesObservable = observableValue<IChatModes>('currentChatModes', localModes);
 		this._currentPermissionLevel = observableValue<ChatPermissionLevel>('permissionLevel', this.getDefaultPermissionLevel());
+		const languageModelListChanged = observableSignalFromEvent(this, Event.any(
+			this.languageModelsService.onDidChangeLanguageModels,
+			this.languageModelsService.onDidChangeModelVisibility,
+		));
+		this._register(autorun(reader => {
+			languageModelListChanged.read(reader);
+			const sessionType = this._currentSessionTypeObservable.read(reader) ?? this.getCurrentSessionType();
+			this._currentModeObservable.read(reader);
+			this._notificationAvailableLanguageModels.set(this.getModelsForSessionType(sessionType), undefined);
+		}));
 		this._register(this.editorService.onDidActiveEditorChange(() => {
 			this._indexOfLastOpenedContext = -1;
 			this.refreshChatSessionPickers();
@@ -2337,10 +2348,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		// Auto-dismiss notifications that requested it. Scope to this input's
 		// session so a message here doesn't hide notifications for other sessions.
-		this.chatInputNotificationService.handleMessageSent({
-			sessionType: this._notificationModelTargetChatSessionType.get(),
-			sessionResource: this._currentSessionResourceObservable.get(),
-		});
+		this.chatInputNotificationService.handleMessageSent(this.getNotificationContext());
 
 		if (this._chatSessionIsEmpty) {
 			this._chatSessionIsEmpty = false;
@@ -2849,9 +2857,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				modelTargetChatSessionType: this._notificationModelTargetChatSessionType,
 				sessionResource: this._currentSessionResourceObservable,
 				deferredNotificationsEnabled: this._deferredNotificationsEnabled,
-				isTransientChat: this.options.isTransientChat,
+				isTransientChat: constObservable(this.options.isTransientChat ?? false),
 				sessionStarted: this._sessionStarted,
 				selectedLanguageModel: this.selectedLanguageModel,
+				availableLanguageModels: this._notificationAvailableLanguageModels,
 				openModelPicker: () => this.openModelPicker(),
 				switchToModel: modelIdentifier => this.switchModelByIdentifier(modelIdentifier, /* storeSelection */ true, /* isUserAction */ true),
 				onDidChangeVisibility: (visible, focusTarget) => this.noticeHost.setOccupied(ChatInputNoticeLane.Notification, visible, focusTarget),
@@ -2859,6 +2868,18 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			});
 			this._notificationWidget.value.attachTo(this.chatInputNotificationContainer);
 		}
+	}
+
+	private getNotificationContext(): IChatInputNotificationContext {
+		return {
+			sessionType: this._notificationModelTargetChatSessionType.get(),
+			sessionResource: this._currentSessionResourceObservable.get(),
+			deferredNotificationsEnabled: this._deferredNotificationsEnabled.get(),
+			isTransientChat: this.options.isTransientChat ?? false,
+			sessionStarted: this._sessionStarted.get(),
+			selectedLanguageModel: this.selectedLanguageModel.get(),
+			availableLanguageModels: this._notificationAvailableLanguageModels.get(),
+		};
 	}
 
 	/**

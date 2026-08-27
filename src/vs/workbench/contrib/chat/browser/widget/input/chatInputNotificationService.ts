@@ -12,6 +12,8 @@ import { isEqual } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { ILogService } from '../../../../../../platform/log/common/log.js';
+import { ILanguageModelChatMetadataAndIdentifier } from '../../../common/languageModels.js';
 
 export const enum ChatInputNotificationSeverity {
 	Info = 0,
@@ -42,7 +44,8 @@ export interface IChatInputNotificationOpenModelPickerAction extends IChatInputN
 
 export interface IChatInputNotificationSwitchToModelAction extends IChatInputNotificationActionBase {
 	readonly kind: ChatInputNotificationActionKind.SwitchToModel;
-	readonly modelIdentifier: string;
+	/** Matches the target against models available to the rendering input. */
+	readonly matchesModel: (model: ILanguageModelChatMetadataAndIdentifier) => boolean;
 }
 
 export type IChatInputNotificationAction =
@@ -58,6 +61,23 @@ export interface IChatInputNotificationMuteAction {
 	readonly tooltip: string;
 }
 
+/** Input state used to choose notification content. */
+export interface IChatInputNotificationContext {
+	readonly sessionType: string | undefined;
+	readonly sessionResource: URI | undefined;
+	readonly deferredNotificationsEnabled: boolean;
+	readonly isTransientChat: boolean;
+	readonly sessionStarted: boolean;
+	readonly selectedLanguageModel: ILanguageModelChatMetadataAndIdentifier | undefined;
+	readonly availableLanguageModels: readonly ILanguageModelChatMetadataAndIdentifier[];
+}
+
+/** A complete notification body selected for one input. */
+export interface IChatInputNotificationBody {
+	readonly description: string | IMarkdownString | undefined;
+	readonly actions: readonly IChatInputNotificationAction[];
+}
+
 export interface IChatInputNotification {
 	readonly id: string;
 	readonly telemetryId?: string;
@@ -65,22 +85,12 @@ export interface IChatInputNotification {
 	readonly message: string | IMarkdownString;
 	readonly description: string | IMarkdownString | undefined;
 	readonly actions: readonly IChatInputNotificationAction[];
+	/** Controls whether this notification applies to an input. */
+	readonly when?: (context: IChatInputNotificationContext) => boolean;
+	/** Resolves the description and actions for an input. */
+	readonly resolveBody?: (context: IChatInputNotificationContext) => IChatInputNotificationBody;
 	readonly dismissible: boolean;
 	readonly autoDismissOnMessage: boolean;
-	/** Whether this notification should be hidden until the user has prior chat usage. */
-	readonly deferForNewUsers?: boolean;
-	/**
-	 * Whether to hide this notification in transient chat surfaces (inline,
-	 * terminal, quick chat, floating chat input window).
-	 */
-	readonly hideInTransientChats?: boolean;
-	/** Whether to hide this notification once its session has a request. */
-	readonly hideInStartedSessions?: boolean;
-	/**
-	 * Whether to hide this notification while the input's own selected model is BYOK.
-	 * Checked per input, since a producer only sees the panel's globally persisted model.
-	 */
-	readonly hideForByokModels?: boolean;
 	/**
 	 * Optional allow-list of chat session types that should display this
 	 * notification. When undefined, the notification renders in every chat
@@ -98,6 +108,50 @@ export interface IChatInputNotification {
 	readonly mute?: IChatInputNotificationMuteAction;
 }
 
+/** Creates a matcher for a fixed model identifier. */
+export function matchesModelIdentifier(identifier: string): (model: ILanguageModelChatMetadataAndIdentifier) => boolean {
+	return model => model.identifier === identifier;
+}
+
+/** Evaluates notification code without letting it break rendering or sending. */
+function evaluateChatInputNotificationPredicate(predicate: () => boolean, onError: (error: unknown) => void): boolean {
+	try {
+		return predicate();
+	} catch (error) {
+		onError(error);
+		return false;
+	}
+}
+
+/** Resolves one complete notification body for an input. */
+export function resolveChatInputNotificationBody(
+	notification: IChatInputNotification,
+	context: IChatInputNotificationContext,
+	onError: (error: unknown) => void,
+): IChatInputNotificationBody | undefined {
+	if (!evaluateChatInputNotificationPredicate(() => notification.when?.(context) ?? true, onError)) {
+		return undefined;
+	}
+
+	if (!notification.resolveBody) {
+		return notification;
+	}
+
+	try {
+		return notification.resolveBody(context);
+	} catch (error) {
+		onError(error);
+		return notification;
+	}
+}
+
+/** Returns the text signature used to de-duplicate announcements. */
+export function getChatInputNotificationAnnouncementSignature(notification: IChatInputNotification, body: IChatInputNotificationBody): string {
+	const message = typeof notification.message === 'string' ? notification.message : notification.message.value;
+	const description = typeof body.description === 'string' ? body.description : body.description?.value ?? '';
+	return `${notification.id}\u0000${message}\u0000${description}`;
+}
+
 /** Returns whether a notification applies to the concrete model-target session type. */
 export function isChatInputNotificationApplicableToSessionType(notification: IChatInputNotification, sessionType: string | undefined): boolean {
 	return !notification.sessionTypes?.length || (!!sessionType && notification.sessionTypes.includes(sessionType));
@@ -109,12 +163,6 @@ export function isChatInputNotificationApplicableToSession(notification: IChatIn
 }
 
 export const IChatInputNotificationService = createDecorator<IChatInputNotificationService>('chatInputNotificationService');
-
-/** Identifies the chat session a message was sent in. */
-export interface IChatInputNotificationSessionContext {
-	readonly sessionType: string | undefined;
-	readonly sessionResource: URI | undefined;
-}
 
 export interface IChatInputNotificationService {
 	readonly _serviceBrand: undefined;
@@ -156,7 +204,7 @@ export interface IChatInputNotificationService {
 	 * doesn't hide session-scoped notifications belonging to another. When no
 	 * context is given, all such notifications are dismissed.
 	 */
-	handleMessageSent(context?: IChatInputNotificationSessionContext): void;
+	handleMessageSent(context?: IChatInputNotificationContext): void;
 
 	/**
 	 * Announce a notification that a chat input is about to render to screen
@@ -165,7 +213,7 @@ export interface IChatInputNotificationService {
 	 * once and session-scoped notifications are only announced when a chat input
 	 * in a matching session actually renders them. Passing `undefined` is a no-op.
 	 */
-	announceRendered(notification: IChatInputNotification | undefined): void;
+	announceRendered(notification: IChatInputNotification | undefined, body?: IChatInputNotificationBody): void;
 }
 
 class ChatInputNotificationService extends Disposable implements IChatInputNotificationService {
@@ -184,13 +232,11 @@ class ChatInputNotificationService extends Disposable implements IChatInputNotif
 	private readonly _onDidDismiss = this._register(new Emitter<string>());
 	readonly onDidDismiss = this._onDidDismiss.event;
 
-	/**
-	 * Last ARIA-announced signature per notification id. Lets us skip
-	 * re-announcing unchanged content (e.g. a notification re-pushed on every
-	 * quota tick, or the same notification rendered by several mounted chat
-	 * inputs) while still announcing when a notification's content changes.
-	 */
 	private readonly _announcedById = new Map<string, string>();
+
+	constructor(@ILogService private readonly _logService: ILogService) {
+		super();
+	}
 
 	setNotification(notification: IChatInputNotification): void {
 		this._notifications.set(notification.id, notification);
@@ -244,7 +290,7 @@ class ChatInputNotificationService extends Disposable implements IChatInputNotif
 		return best;
 	}
 
-	handleMessageSent(context?: IChatInputNotificationSessionContext): void {
+	handleMessageSent(context?: IChatInputNotificationContext): void {
 		let changed = false;
 		for (const notification of this._notifications.values()) {
 			if (!notification.autoDismissOnMessage || this._dismissed.has(notification.id)) {
@@ -253,7 +299,14 @@ class ChatInputNotificationService extends Disposable implements IChatInputNotif
 			if (context && !isChatInputNotificationApplicableToSession(notification, context.sessionType, context.sessionResource)) {
 				continue;
 			}
+			if (context && !evaluateChatInputNotificationPredicate(
+				() => notification.when?.(context) ?? true,
+				error => this._logService.error('[ChatInputNotificationService] Failed to evaluate notification', error),
+			)) {
+				continue;
+			}
 			this._dismissed.add(notification.id);
+			this._announcedById.delete(notification.id);
 			changed = true;
 		}
 		if (changed) {
@@ -265,7 +318,7 @@ class ChatInputNotificationService extends Disposable implements IChatInputNotif
 		this._onDidChange.fire();
 	}
 
-	announceRendered(notification: IChatInputNotification | undefined): void {
+	announceRendered(notification: IChatInputNotification | undefined, body?: IChatInputNotificationBody): void {
 		// Announcements are driven from the chat input's render path (rather than
 		// eagerly on every change) so that session-scoped notifications are only
 		// spoken when a chat input in a matching session actually shows them. The
@@ -274,9 +327,8 @@ class ChatInputNotificationService extends Disposable implements IChatInputNotif
 		if (!notification) {
 			return;
 		}
-		const rawMessage = typeof notification.message === 'string' ? notification.message : notification.message.value;
-		const rawDescription = typeof notification.description === 'string' ? notification.description : notification.description?.value ?? '';
-		const signature = `${notification.id}\u0000${rawMessage}\u0000${rawDescription}`;
+		const resolvedBody = body ?? notification;
+		const signature = getChatInputNotificationAnnouncementSignature(notification, resolvedBody);
 		if (this._announcedById.get(notification.id) === signature) {
 			return;
 		}
@@ -285,7 +337,7 @@ class ChatInputNotificationService extends Disposable implements IChatInputNotif
 		// targets, etc. verbatim. Done after the de-dupe check so we don't pay
 		// the parse cost on unrelated re-renders.
 		const message = renderAsPlaintext(notification.message);
-		const description = notification.description ? renderAsPlaintext(notification.description) : '';
+		const description = resolvedBody.description ? renderAsPlaintext(resolvedBody.description) : '';
 		const text = description ? `${message}. ${description}` : message;
 		status(text);
 	}
