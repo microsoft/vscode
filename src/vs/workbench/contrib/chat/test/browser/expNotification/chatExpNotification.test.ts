@@ -292,15 +292,12 @@ suite('ChatExpNotification', () => {
 			});
 		});
 
-		test('a treatment that resolves to nothing leaves what is showing in place', async () => {
+		test('removing the assignment clears what is showing', async () => {
 			const test = createContribution([payload(validNotification), undefined]);
 			await test.settled();
 			await test.refetch();
 
-			assert.deepStrictEqual({ ids: test.ids(), setCalls: test.setCalls }, {
-				ids: ['chat.expNotification.auto-tier-nudge'],
-				setCalls: ['chat.expNotification.auto-tier-nudge'],
-			});
+			assert.deepStrictEqual(test.ids(), []);
 		});
 
 		test('stops matching when AI features are disabled, without unregistering', async () => {

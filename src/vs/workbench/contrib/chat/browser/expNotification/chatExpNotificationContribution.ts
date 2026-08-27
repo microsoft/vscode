@@ -69,17 +69,13 @@ export class ChatExpNotificationContribution extends Disposable implements IWork
 			return;
 		}
 
-		if (payload === undefined) {
-			// The client returns nothing while it rebuilds, which is not a retired assignment.
-			// A running experiment retires its notification with an empty `notifications` list.
-			return;
-		}
-
-		const result = parseChatExpNotifications(payload);
-		if (result.error) {
+		// An absent treatment is how an assignment is removed, so it clears what is showing.
+		// Only a thrown lookup is treated as transient.
+		const result = payload === undefined ? undefined : parseChatExpNotifications(payload);
+		if (result?.error) {
 			this._logService.warn(`[chatExpNotification] ignoring invalid payload: ${result.error}`);
 		}
-		this._notifications = result.notifications ?? [];
+		this._notifications = result?.notifications ?? [];
 
 		this._update();
 	}
