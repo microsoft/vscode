@@ -6,6 +6,8 @@
 import assert from 'assert';
 import { addDisposableListener, EventType } from '../../../../../base/browser/dom.js';
 import { timeout } from '../../../../../base/common/async.js';
+import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
 import { workbenchInstantiationService, registerTestEditor, TestFileEditorInput, createEditorParts } from '../../../../test/browser/workbenchTestServices.js';
 import { GroupsOrder, IEditorGroupsService } from '../../common/editorGroupsService.js';
 import { EditorExtensions, EditorInputCapabilities, IEditorFactoryRegistry } from '../../../../common/editor.js';
@@ -116,6 +118,55 @@ suite('Modal Editor Group', () => {
 			{ modalAttached: true, controlKeydownCount: 1, dispatchCount: 0 },
 			{ modalAttached: false, controlKeydownCount: 1, dispatchCount: 1 },
 		]);
+	});
+
+	test('bubble close keybindings reach focused controls and dispatch once', async () => {
+		let dispatchCount = 0;
+		const keybindingService = new class extends MockKeybindingService {
+			override softDispatch(): ResolutionResult {
+				return { kind: ResultKind.KbFound, commandId: CLOSE_MODAL_EDITOR_COMMAND_ID, commandArgs: undefined, isBubble: true };
+			}
+			override dispatchEvent(): boolean {
+				dispatchCount++;
+				return false;
+			}
+		}();
+		const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService) }, disposables);
+		instantiationService.stub(IKeybindingService, keybindingService);
+		instantiationService.invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
+		const parts = await createEditorParts(instantiationService, disposables);
+		instantiationService.stub(IEditorGroupsService, parts);
+		disposables.add(addDisposableListener(mainWindow, EventType.KEY_DOWN, e => {
+			const event = new StandardKeyboardEvent(e);
+			keybindingService.dispatchEvent(event, event.target);
+		}));
+
+		const modalPart = await parts.createModalEditorPart();
+		const control = (modalPart.modalElement as HTMLElement).appendChild(document.createElement('button'));
+		let controlKeydownCount = 0;
+		let stopPropagation = false;
+		disposables.add(addDisposableListener(control, EventType.KEY_DOWN, event => {
+			controlKeydownCount++;
+			if (stopPropagation) {
+				event.stopPropagation();
+			}
+		}));
+		const states: { controlKeydownCount: number; dispatchCount: number }[] = [];
+
+		control.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }));
+		await timeout(0);
+		states.push({ controlKeydownCount, dispatchCount });
+
+		stopPropagation = true;
+		control.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }));
+		await timeout(0);
+		states.push({ controlKeydownCount, dispatchCount });
+
+		assert.deepStrictEqual(states, [
+			{ controlKeydownCount: 1, dispatchCount: 1 },
+			{ controlKeydownCount: 2, dispatchCount: 2 },
+		]);
+		await modalPart.close();
 	});
 
 	test('modal editor part has correct initial state', async () => {
