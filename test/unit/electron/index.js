@@ -10,7 +10,7 @@
 // come before any mocha imports.
 process.env.MOCHA_COLORS = '1';
 
-const { app, BrowserWindow, ipcMain, crashReporter, session } = require('electron');
+const { app, BrowserWindow, ipcMain, crashReporter, net: electronNet, session } = require('electron');
 const product = require('../../../product.json');
 const { tmpdir } = require('os');
 const { existsSync, mkdirSync, promises } = require('fs');
@@ -237,9 +237,13 @@ class IPCRunner extends events.EventEmitter {
 app.on('ready', () => {
 
 	// needed when loading resources from the renderer, e.g xterm.js or the encoding lib
-	session.defaultSession.protocol.registerFileProtocol('vscode-file', (request, callback) => {
+	session.defaultSession.protocol.handle('vscode-file', request => {
 		const path = new URL(request.url).pathname;
-		callback({ path });
+		return electronNet.fetch(url.pathToFileURL(path).toString(), {
+			method: request.method,
+			headers: request.headers,
+			bypassCustomProtocolHandlers: true
+		});
 	});
 
 	ipcMain.on('error', (_, err) => {
