@@ -1052,15 +1052,20 @@ export class AgentService extends Disposable implements IAgentService {
 	private _onDidRegisterProvider(provider: IAgent): void {
 		this._registerSkillCompletionProvider();
 		const initialMigration = this._ensureLegacyChatsMigrated(provider);
-		this._initialProviderMigrations.set(provider.id, initialMigration);
-		void initialMigration.catch(err =>
-			this._logService.warn(`[AgentService] registry migration: failed for late-registered provider ${provider.id}`, err));
+		this._trackInitialProviderMigration(provider, initialMigration);
 		// Persisted enablement must resume without a client opening the session.
 		this._agentMergeRestore = this._agentMergeRestore
 			.then(() => initialMigration)
 			.then(() => this._restoreAgentMergeMonitoredSessions())
 			.catch(err => this._logService.warn('[AgentService] Failed to restore Agent-Merge-enabled sessions', err));
-		this._automationService.handleAgentsChanged();
+	}
+
+	private _trackInitialProviderMigration(provider: IAgent, migration: Promise<void>): Promise<void> {
+		this._initialProviderMigrations.set(provider.id, migration);
+		void migration
+			.then(() => this._automationService.handleAgentsChanged())
+			.catch(err => this._logService.warn(`[AgentService] provider initialization failed before Automations could refresh for ${provider.id}`, err));
+		return migration;
 	}
 
 	private _registerSkillCompletionProvider(): void {
@@ -1603,8 +1608,7 @@ export class AgentService extends Disposable implements IAgentService {
 			return current ?? Promise.resolve();
 		}
 		const retry = this._ensureLegacyChatsMigrated(provider, true);
-		this._initialProviderMigrations.set(provider.id, retry);
-		return retry;
+		return this._trackInitialProviderMigration(provider, retry);
 	}
 
 	/**
