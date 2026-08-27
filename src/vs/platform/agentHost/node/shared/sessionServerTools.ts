@@ -769,6 +769,7 @@ export async function applyCreateSessionTool(accessor: ISessionServerToolAccesso
 	return { relationship: args.relationship, session: session.toString(), chat: chat.toString(), openLink: buildOpenSessionLinkUri(session) };
 }
 
+/** Builds the model-facing `create_session` result. */
 export function formatCreateSessionResult(result: ICreateSessionResult): string {
 	if (result.relationship === 'currentSession') {
 		return `Chat created in the current session (${result.openLink}).`;
