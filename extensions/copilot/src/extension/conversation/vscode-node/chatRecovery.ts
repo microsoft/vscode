@@ -167,9 +167,7 @@ function addResponseSignals(recoveryAttempt: ChatRecoveryAttempt, previousRespon
 		addSignal(recoveryAttempt, ChatRecoverySignal.DocumentUserDeleted);
 	}
 	const documentUserRejected = changedFiles.some(entry =>
-		request.editedFileEvents?.some(event =>
-			event.eventKind === vscode.ChatRequestEditedFileEventKind.Undo && isEqual(event.uri, entry.document.uri)
-		) === true
+		entry.state === WorkingSetEntryState.Rejected
 	);
 	if (documentUserRejected) {
 		addSignal(recoveryAttempt, ChatRecoverySignal.DocumentUserRejected);
