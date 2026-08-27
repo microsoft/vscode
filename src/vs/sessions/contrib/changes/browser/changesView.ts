@@ -45,7 +45,7 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { SessionIsActiveContext, SinglePaneLayoutEnabledContext } from '../../../common/contextkeys.js';
+import { SessionAgentMergeEnabledContext, SessionIsActiveContext, SinglePaneLayoutEnabledContext } from '../../../common/contextkeys.js';
 import { SessionChangesEditorInput } from './sessionChangesEditorInput.js';
 import { defaultCountBadgeStyles, defaultProgressBarStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IWorkspaceContextService, WorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
@@ -321,6 +321,11 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 		const menu = this._register(menuService.createMenu(MenuId.AgentsChangesToolbar, contextKeyService, { emitEventsForSubmenuChanges: true }));
 		const dropdownMenu = this._register(menuService.createMenu(Menus.ChangesOperationsDropdown, contextKeyService, { emitEventsForSubmenuChanges: true }));
 
+		// Whether the primary button's work is in flight. Read by the button
+		// config provider below, which `buttonBar.update` calls synchronously
+		// from the same autorun that computes it.
+		let primaryIsBusy = false;
+
 		const buttonBar = this._buttonBar = this._register(instantiationService.createInstance(
 			WorkbenchButtonBar,
 			container,
@@ -329,7 +334,7 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 				renderSecondaryActions: false,
 				buttonConfigProvider: (action, index) => {
 					return index === 0
-						? { showIcon: false, showLabel: true, customLabel: stripIcons(action.label) }
+						? { showIcon: false, showLabel: true, customLabel: stripIcons(action.label), showSpinner: primaryIsBusy }
 						: { showIcon: true, showLabel: false };
 				}
 			}
@@ -340,6 +345,9 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 		const menuActionsObs = observableFromEvent(menu.onDidChange, () => {
 			return getActionBarActions(menu.getActions({ shouldForwardArgs: true }));
 		});
+
+		const agentMergeEnabledObs = observableFromEvent(contextKeyService.onDidChangeContext, () =>
+			contextKeyService.getContextKeyValue<boolean>(SessionAgentMergeEnabledContext.key) === true);
 
 		// Client-side entries that belong *inside* the operations dropdown rather
 		// than beside it. The `primary` group is special: an action contributed
@@ -380,13 +388,11 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 
 			const toOperationAction = (op: ISessionChangesetOperation) => toAction({
 				id: op.id,
-				label: op.icon
-					? op.status === SessionChangesetOperationStatus.Running
-						? `$(loading) ${op.label}`
-						: `$(${op.icon.id}) ${op.label}`
-					: op.status === SessionChangesetOperationStatus.Running
-						? `$(loading) ${op.label}`
-						: op.label,
+				// A running operation shows the animated spinner on the primary
+				// button instead of an icon, so no `$(loading)` prefix here.
+				label: op.icon && op.status !== SessionChangesetOperationStatus.Running
+					? `$(${op.icon.id}) ${op.label}`
+					: op.label,
 				tooltip: op.description ?? op.label,
 				enabled: op.status !== SessionChangesetOperationStatus.Disabled && op.status !== SessionChangesetOperationStatus.Running,
 				run: () => {
@@ -474,9 +480,16 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 			}
 
 			primaryActions.push(...menuActions.primary);
+
+			// A contributed primary is a group label rather than an action, so
+			// it cannot report progress itself. Agent Merge is busy for as long
+			// as it is enabled, since it watches the pull request continuously.
+			primaryIsBusy = usesContributedPrimary
+				? agentMergeEnabledObs.read(reader)
+				: operations.hasRunning;
 			buttonBar.update(primaryActions, menuActions.secondary);
 
-			this._logButtonBar(primaryAction, usesContributedPrimary, operations.hasRunning, groups, menuActions.primary);
+			this._logButtonBar(primaryAction, usesContributedPrimary, operations.hasRunning, primaryIsBusy, groups, menuActions.primary);
 		}));
 	}
 
@@ -489,12 +502,13 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 		primaryAction: IAction | undefined,
 		usesContributedPrimary: boolean,
 		hasRunningOperation: boolean,
+		showsSpinner: boolean,
 		dropdownGroups: readonly IAction[][],
 		trailingActions: readonly IAction[],
 	): void {
 		const primaryLabel = primaryAction ? stripIcons(primaryAction.label) : undefined;
 		const dropdownIds = dropdownGroups.flat().map(action => action.id);
-		const signature = JSON.stringify([primaryAction?.id, primaryLabel, usesContributedPrimary, hasRunningOperation, dropdownIds, trailingActions.map(action => action.id)]);
+		const signature = JSON.stringify([primaryAction?.id, primaryLabel, usesContributedPrimary, hasRunningOperation, showsSpinner, dropdownIds, trailingActions.map(action => action.id)]);
 		if (this._lastLoggedButtonBar === signature) {
 			return;
 		}
@@ -511,7 +525,7 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 		const source = hasRunningOperation
 			? 'running-operation'
 			: usesContributedPrimary ? 'contributed-menu' : 'advertised-operation';
-		this.logService.info(`[ChangesWorkbenchButtonBarWidget] Title bar button: label="${primaryLabel}", id=${primaryAction.id}, source=${source}, dropdown=[${dropdownIds.join(', ')}]`);
+		this.logService.info(`[ChangesWorkbenchButtonBarWidget] Title bar button: label="${primaryLabel}", id=${primaryAction.id}, source=${source}, spinner=${showsSpinner}, dropdown=[${dropdownIds.join(', ')}]`);
 	}
 }
 

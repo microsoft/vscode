@@ -22,7 +22,7 @@ import { IsSessionsWindowContext } from '../../../../../workbench/common/context
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IPreferencesService } from '../../../../../workbench/services/preferences/common/preferences.js';
 import { ANY_AGENT_HOST_PROVIDER_RE, isAgentHostProvider } from '../../../../common/agentHostSessionsProvider.js';
-import { SessionIsArchivedContext, SessionHasOpenPullRequestContext, SessionPrimaryPullRequestOperationContext, SessionProviderIdContext } from '../../../../common/contextkeys.js';
+import { SessionIsArchivedContext, SessionAgentMergeEnabledContext, SessionHasOpenPullRequestContext, SessionPrimaryPullRequestOperationContext, SessionProviderIdContext } from '../../../../common/contextkeys.js';
 import { CHANGES_OPERATIONS_DROPDOWN_PRIMARY_GROUP } from '../../../changes/browser/changesView.js';
 import { Menus } from '../../../../browser/menus.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
@@ -63,12 +63,6 @@ const agentMergeOwnsPrimaryButton = ContextKeyExpr.or(
 	ContextKeyExpr.equals(SessionPrimaryPullRequestOperationContext.key, AgentHostPullRequestOperationId.DisableAutoMerge),
 	ContextKeyExpr.and(SessionHasOpenPullRequestContext, ContextKeyExpr.equals(SessionPrimaryPullRequestOperationContext.key, '')),
 );
-
-/** Whether Agent Merge is currently enabled on the active session. */
-const AgentMergeSessionEnabledContext = new RawContextKey<boolean>('sessionAgentMergeEnabled', false, {
-	type: 'boolean',
-	description: localize('sessionAgentMergeEnabled', "True when Agent Merge is enabled for the active agent session."),
-});
 
 /**
  * The repair actions authorized for the active session, as a context key per
@@ -125,7 +119,7 @@ class AgentMergeContextContribution extends Disposable implements IWorkbenchCont
 		@ILogService logService: ILogService,
 	) {
 		super();
-		const enabledKey = AgentMergeSessionEnabledContext.bindTo(contextKeyService);
+		const enabledKey = SessionAgentMergeEnabledContext.bindTo(contextKeyService);
 		const actionKeys = new Map(agentMergeRepairActions.map(action => [action, AgentMergeSessionActionContexts[action].bindTo(contextKeyService)]));
 		const mergePullRequestKey = AgentMergeSessionMergePullRequestContext.bindTo(contextKeyService);
 		const providerListener = this._register(new MutableDisposable());
@@ -215,7 +209,7 @@ MenuRegistry.appendMenuItem(Menus.ChangesOperationsDropdown, {
 	title: localize2('agentMerge.primary', "Agent Merge"),
 	group: CHANGES_OPERATIONS_DROPDOWN_PRIMARY_GROUP,
 	order: 1,
-	when: ContextKeyExpr.and(agentMergeMenuPrecondition, agentMergeOwnsPrimaryButton, AgentMergeSessionEnabledContext),
+	when: ContextKeyExpr.and(agentMergeMenuPrecondition, agentMergeOwnsPrimaryButton, SessionAgentMergeEnabledContext),
 });
 
 /** Menus the Agent Merge entries appear on: the operations dropdown, and their own context menu. */
@@ -233,7 +227,7 @@ registerAction2(class EnableAgentMergeInSessionAction extends AgentMergeActionBa
 				id,
 				group: '1_agentMerge',
 				order: 1,
-				when: ContextKeyExpr.and(agentMergeMenuPrecondition, AgentMergeSessionEnabledContext.negate()),
+				when: ContextKeyExpr.and(agentMergeMenuPrecondition, SessionAgentMergeEnabledContext.negate()),
 			})),
 		});
 	}
@@ -259,7 +253,7 @@ registerAction2(class DisableAgentMergeInSessionAction extends AgentMergeActionB
 				id,
 				group: '1_agentMerge',
 				order: 1,
-				when: ContextKeyExpr.and(agentMergeMenuPrecondition, AgentMergeSessionEnabledContext),
+				when: ContextKeyExpr.and(agentMergeMenuPrecondition, SessionAgentMergeEnabledContext),
 			})),
 		});
 	}
@@ -374,7 +368,7 @@ registerAction2(class EnableAgentMergeAction extends AgentMergeActionBase {
 			id: 'sessions.agentHost.agentMerge.enable',
 			title: localize2('agentMerge.enable', "Enable Agent Merge for Active Session"),
 			f1: true,
-			precondition: ContextKeyExpr.and(agentMergeCommandPrecondition, AgentMergeSessionEnabledContext.negate()),
+			precondition: ContextKeyExpr.and(agentMergeCommandPrecondition, SessionAgentMergeEnabledContext.negate()),
 		});
 	}
 
@@ -397,7 +391,7 @@ registerAction2(class DisableAgentMergeAction extends AgentMergeActionBase {
 			id: 'sessions.agentHost.agentMerge.disable',
 			title: localize2('agentMerge.disable', "Disable Agent Merge for Active Session"),
 			f1: true,
-			precondition: ContextKeyExpr.and(agentMergeCommandPrecondition, AgentMergeSessionEnabledContext),
+			precondition: ContextKeyExpr.and(agentMergeCommandPrecondition, SessionAgentMergeEnabledContext),
 		});
 	}
 

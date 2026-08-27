@@ -87,6 +87,9 @@ export const AutomationsHasItemsContext = new RawContextKey<boolean>('automation
  */
 export const SessionPrimaryPullRequestOperationContext = new RawContextKey<string>('sessionPrimaryPullRequestOperation', '', localize('sessionPrimaryPullRequestOperation', "The id of the first pull request operation advertised for the active session, or empty when there is none"));
 
+/** Whether Agent Merge is currently enabled on the active session. */
+export const SessionAgentMergeEnabledContext = new RawContextKey<boolean>('sessionAgentMergeEnabled', false, localize('sessionAgentMergeEnabled', "True when Agent Merge is enabled for the active agent session"));
+
 /**
  * Whether the active session has an open pull request, independent of whether
  * the agent host has any operation to offer for it. A pull request that is
