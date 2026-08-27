@@ -525,6 +525,25 @@ suite('InjectedTextInlineDecorationsComputer', () => {
 		]);
 	});
 
+	test('spacing-only injection at a wrap boundary belongs to the following line', () => {
+		const injectionOptions: InjectedTextOptions[] = [
+			{ content: '', inlineClassName: 'spacer', widthInEm: 1 }
+		];
+		const context: IInjectedTextInlineDecorationsComputerContext = {
+			getInjectionOptions: () => injectionOptions,
+			getInjectionOffsets: () => [5],
+			getBreakOffsets: () => [5, 10],
+			getWrappedTextIndentLength: () => 0,
+			getBaseViewLineNumber: () => 1,
+		};
+		const computer = new InjectedTextInlineDecorationsComputer(context);
+		const result = computer.getInlineDecorations(1);
+		assert.deepStrictEqual(result, [
+			[],
+			[new InlineDecoration(new Range(2, 1, 2, 1), 'spacer', InlineDecorationType.WidthOnly)]
+		]);
+	});
+
 	test('spacing-only injection at the end of a line', () => {
 		const injectionOptions: InjectedTextOptions[] = [
 			{ content: '', inlineClassName: 'spacer', widthInEm: 1 }

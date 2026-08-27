@@ -242,8 +242,10 @@ export class InjectedTextInlineDecorationsComputer implements IInlineDecorations
 				const length = options.content.length;
 				const injectedTextStartOffsetInInputWithInjections = injectionOffsets[currentInjectedOffset] + totalInjectedTextLengthBefore;
 				const injectedTextEndOffsetInInputWithInjections = injectedTextStartOffsetInInputWithInjections + length;
+				const isWidthOnly = (length === 0 && options.widthInEm !== undefined);
+				const isAtWrapBoundary = injectedTextStartOffsetInInputWithInjections === lineEndOffsetInInputWithInjections && outputLineIndex < breakOffsets.length - 1;
 
-				if (injectedTextStartOffsetInInputWithInjections > lineEndOffsetInInputWithInjections) {
+				if (injectedTextStartOffsetInInputWithInjections > lineEndOffsetInInputWithInjections || (isWidthOnly && isAtWrapBoundary)) {
 					// Injected text only starts in later wrapped lines.
 					break;
 				}
