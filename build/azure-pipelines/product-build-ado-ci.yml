@@ -88,6 +88,10 @@ parameters:
 variables:
   - name: VSCODE_PRIVATE_BUILD
     value: ${{ ne(variables['Build.Repository.Uri'], 'https://github.com/microsoft/vscode.git') }}
+  # Ensure test suites (e.g. test/smoke) are always compiled, regardless of
+  # any "step on it" fast-path that would otherwise skip this compile step.
+  - name: VSCODE_STEP_ON_IT
+    value: false
   - name: NPM_REGISTRY
     value: ${{ parameters.NPM_REGISTRY }}
   # Normalize the canary sentinels ('none'/'auto') back to empty so the gated
