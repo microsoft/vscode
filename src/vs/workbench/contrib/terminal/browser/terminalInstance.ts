@@ -555,11 +555,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			// to hang in resolver extensions
 			let os: OperatingSystem | undefined;
 			if (!this.shellLaunchConfig.customPtyImplementation && this._terminalConfigurationService.config.shellIntegration?.enabled && !this.shellLaunchConfig.executable) {
-				// This is a best-effort optimization: resolving the backend OS requires the remote
-				// agent environment, which may not be available yet for a remote terminal whose
-				// connection is still being established. In that case `getBackendOS` rejects; skip
-				// the ahead-of-time resolution rather than failing terminal creation, since the
-				// executable is resolved again through the normal path in `_createProcess`.
+				// Best-effort: the backend OS may be unavailable while a remote connection is still establishing; the executable is re-resolved later in `_createProcess`.
 				try {
 					os = await this._processManager.getBackendOS();
 					const defaultProfile = (await this._terminalProfileResolverService.getDefaultProfile({ remoteAuthority: this.remoteAuthority, os }));
