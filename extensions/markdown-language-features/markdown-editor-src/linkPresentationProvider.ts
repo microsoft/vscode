@@ -13,30 +13,44 @@ import type {
 import { Disposable, observableValue, type ISettableObservable } from '@vscode/observables';
 
 interface LinkPresentationEntry {
-	readonly presentation: ISettableObservable<LinkPresentation | undefined>;
+	readonly presentation: ISettableObservable<WebviewLinkPresentation | undefined>;
 	references: number;
 }
 
+type WebviewLinkPresentation = LinkPresentation & { readonly isLoading?: boolean };
+
 export class WebviewLinkPresentationProvider extends Disposable implements ILinkPresentationProvider {
 	readonly #entries = new Map<string, LinkPresentationEntry>();
+	readonly #rules: readonly { id: string; uriPattern: RegExp; kind: LinkPresentationKind }[];
 	readonly #postMessage: (message: unknown) => void;
 	#syncScheduled = false;
 
-	constructor(postMessage: (message: unknown) => void) {
+	constructor(
+		rules: readonly { id: string; source: string; flags: string; kind: LinkPresentationKind }[],
+		postMessage: (message: unknown) => void,
+	) {
 		super();
+		this.#rules = rules.map(rule => ({
+			id: rule.id,
+			uriPattern: new RegExp(rule.source, rule.flags),
+			kind: rule.kind,
+		}));
 		this.#postMessage = postMessage;
 	}
 
 	createLinkPresentation(url: string): ILinkPresentation | undefined {
-		const initialPresentation = createInitialPresentation(url);
-		if (!initialPresentation) {
+		const rule = this.#rules.find(rule => matchesRule(rule.uriPattern, url));
+		if (!rule) {
 			return undefined;
 		}
 
 		let entry = this.#entries.get(url);
 		if (!entry) {
 			entry = {
-				presentation: observableValue(`linkPresentation:${url}`, initialPresentation),
+				presentation: observableValue(`linkPresentation:${url}`, {
+					kind: rule.kind,
+					isLoading: true,
+				}),
 				references: 0,
 			};
 			this.#entries.set(url, entry);
@@ -99,69 +113,12 @@ export class WebviewLinkPresentationProvider extends Disposable implements ILink
 	}
 }
 
-function createInitialPresentation(url: string): LinkPresentation | undefined {
-	const target = classifyLink(url);
-	return target ? {
-		...target,
-		status: { kind: 'pending', label: 'Loading' },
-	} : undefined;
+function matchesRule(rule: RegExp, value: string): boolean {
+	rule.lastIndex = 0;
+	return rule.test(value);
 }
 
-interface InitialLinkTarget {
-	readonly kind: LinkPresentationKind;
-	readonly title?: string;
-}
-
-function classifyLink(url: string): InitialLinkTarget | undefined {
-	if (url.startsWith('agent-host-session://')) {
-		return { kind: 'session' };
-	}
-	if (!/^[a-z][a-z0-9+.-]*:/i.test(url)) {
-		return url.startsWith('#') ? undefined : { kind: 'file' };
-	}
-
-	let parsed: URL;
-	try {
-		parsed = new URL(url);
-	} catch {
-		return undefined;
-	}
-	if (parsed.protocol === 'commit:') {
-		return parsed.hostname || parsed.pathname ? { kind: 'commit' } : undefined;
-	}
-	if (parsed.protocol === 'file:') {
-		return { kind: 'file' };
-	}
-	const segments = parsed.pathname.split('/').filter(Boolean);
-	const commitIndex = segments.lastIndexOf('commit');
-	if ((parsed.protocol === 'https:' || parsed.protocol === 'http:')
-		&& commitIndex >= 1
-		&& commitIndex < segments.length - 1
-	) {
-		return { kind: 'commit' };
-	}
-	if (parsed.protocol !== 'https:' || parsed.hostname.toLowerCase() !== 'github.com') {
-		return undefined;
-	}
-	if (segments.length < 2) {
-		return undefined;
-	}
-	switch (segments[2]) {
-		case 'issues': return { kind: segments[3] ? 'issue' : 'repository' };
-		case 'pull': return segments[3]
-			? {
-				kind: 'pullRequest',
-				...(/^\d+$/.test(segments[3]) ? { title: `#${segments[3]}` } : {}),
-			}
-			: { kind: 'repository' };
-		case 'commit': return { kind: segments[3] ? 'commit' : 'repository' };
-		case 'tree': return { kind: segments[4] ? 'resource' : segments[3] ? 'branch' : 'repository' };
-		case 'blob': return { kind: segments[3] && segments[4] ? 'file' : 'repository' };
-		default: return segments.length === 2 ? { kind: 'repository' } : undefined;
-	}
-}
-
-function readLinkPresentation(value: unknown): LinkPresentation | undefined {
+function readLinkPresentation(value: unknown): WebviewLinkPresentation | undefined {
 	if (!isRecord(value) || !isLinkPresentationKind(value.kind)) {
 		return undefined;
 	}
@@ -172,6 +129,7 @@ function readLinkPresentation(value: unknown): LinkPresentation | undefined {
 	const ariaLabel = typeof value.ariaLabel === 'string' ? value.ariaLabel : undefined;
 	const status = readStatus(value.status);
 	const secondaryStatus = readStatus(value.secondaryStatus);
+	const isLoading = value.isLoading === true;
 	return {
 		kind: value.kind,
 		...(title ? { title } : {}),
@@ -181,6 +139,7 @@ function readLinkPresentation(value: unknown): LinkPresentation | undefined {
 		...(secondaryStatus ? { secondaryStatus } : {}),
 		...(tooltip ? { tooltip } : {}),
 		...(ariaLabel ? { ariaLabel } : {}),
+		...(isLoading ? { isLoading: true } : {}),
 	};
 }
 

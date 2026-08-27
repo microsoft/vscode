@@ -47,7 +47,7 @@ import { extractCodeblockUrisFromText, extractVulnerabilitiesFromText } from '..
 import { IEditSessionEntryDiff } from '../../../common/editing/chatEditingService.js';
 import { IChatProgressRenderableResponseContent } from '../../../common/model/chatModel.js';
 import { IChatContentInlineReference, IChatMarkdownContent, IChatService, IChatUndoStop } from '../../../common/chatService/chatService.js';
-import { IChatSessionsService } from '../../../common/chatSessionsService.js';
+import { IChatSessionsService, isAgentHostSessionResource } from '../../../common/chatSessionsService.js';
 import { isRequestVM, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { IChatCodeBlockInfo } from '../../chat.js';
@@ -189,6 +189,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		}
 
 		const renderStore = this._register(new MutableDisposable<DisposableStore>());
+		const markdownDecorationsRenderer = this._register(instantiationService.createInstance(ChatMarkdownDecorationsRenderer));
 
 		const doRenderMarkdown = () => {
 			if (this._store.isDisposed) {
@@ -383,12 +384,12 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 							applyCodeBlockSuggestionId: undefined,
 							source: undefined,
 							sourceRequestId: undefined,
+							isAgentHostSession: isAgentHostSessionResource(element.sessionResource),
 						})
 					};
 				}));
 			}
 
-			const markdownDecorationsRenderer = instantiationService.createInstance(ChatMarkdownDecorationsRenderer);
 			store.add(markdownDecorationsRenderer.walkTreeAndAnnotateReferenceLinks(this.markdown, result.element));
 
 			const layoutParticipants = new Lazy(() => {

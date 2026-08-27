@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { Mutable } from '../../../../base/common/types.js';
-import type { Annotation } from '../state/protocol/state.js';
+import type { Annotation, AnnotationEntry } from '../state/protocol/state.js';
 
 /**
  * Shared convention for carrying agent-feedback semantics inside an
@@ -104,6 +104,68 @@ function isAgentFeedbackKindValue(value: unknown): value is AgentFeedbackKindVal
 
 function isAgentFeedbackStateValue(value: unknown): value is AgentFeedbackStateValue {
 	return value === 'created' || value === 'accepted' || value === 'submitted' || value === 'resolved';
+}
+
+/**
+ * Who wrote a specific {@link AnnotationEntry} within a feedback comment.
+ *
+ * A comment's origin ({@link AgentFeedbackKindValue}) describes where the
+ * thread came from; an author describes each individual message in it, so a
+ * thread the user started can carry agent replies and vice versa. `unknown` is
+ * used when provenance cannot be established rather than assuming the user.
+ */
+export type AgentFeedbackAuthorValue = 'user' | 'agent' | 'prReviewer' | 'unknown';
+
+/** Author semantics carried in an {@link AnnotationEntry._meta}. */
+export interface IFeedbackAnnotationEntryMeta {
+	readonly author: AgentFeedbackAuthorValue;
+}
+
+function isAgentFeedbackAuthorValue(value: unknown): value is AgentFeedbackAuthorValue {
+	return value === 'user' || value === 'agent' || value === 'prReviewer' || value === 'unknown';
+}
+
+/**
+ * The author of a comment's opening entry, derived from the thread's origin:
+ * code review comments are written by an agent and PR review comments by a
+ * reviewer.
+ */
+export function authorForFeedbackKind(kind: AgentFeedbackKindValue | undefined): AgentFeedbackAuthorValue {
+	switch (kind) {
+		case 'user': return 'user';
+		case 'codeReview': return 'agent';
+		case 'prReview': return 'prReviewer';
+		default: return 'unknown';
+	}
+}
+
+/** Builds the `_meta` bag stamping {@link author} onto an annotation entry. */
+export function feedbackAnnotationEntryMeta(author: AgentFeedbackAuthorValue): Record<string, unknown> {
+	return { [FEEDBACK_ANNOTATION_META_KEY]: { author } satisfies IFeedbackAnnotationEntryMeta };
+}
+
+/**
+ * Reads the author stamped onto an annotation entry, or `undefined` for
+ * entries written before authors were recorded.
+ */
+export function readFeedbackAnnotationEntryAuthor(entry: AnnotationEntry): AgentFeedbackAuthorValue | undefined {
+	const meta = entry._meta;
+	const slot = meta?.[FEEDBACK_ANNOTATION_META_KEY];
+	if (!slot || typeof slot !== 'object' || Array.isArray(slot)) {
+		return undefined;
+	}
+	const author = (slot as Record<string, unknown>)['author'];
+	return isAgentFeedbackAuthorValue(author) ? author : undefined;
+}
+
+/**
+ * Resolves the author of the entry at {@link index} within a comment of
+ * {@link kind}. Entries written before authors were recorded fall back to the
+ * thread's origin for the opening entry and to the user for replies — at that
+ * time replies could only be typed by the user.
+ */
+export function resolveFeedbackEntryAuthor(entry: AnnotationEntry, index: number, kind: AgentFeedbackKindValue | undefined): AgentFeedbackAuthorValue {
+	return readFeedbackAnnotationEntryAuthor(entry) ?? (index === 0 ? authorForFeedbackKind(kind) : 'user');
 }
 
 /**

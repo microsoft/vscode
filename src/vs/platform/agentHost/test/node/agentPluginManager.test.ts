@@ -220,6 +220,23 @@ suite('AgentPluginManager', () => {
 			assert.deepStrictEqual(await readCacheNonces(), new Set(['nonce-2']));
 		});
 
+		test('drops a stale cache entry when its directory is already gone', async () => {
+			await seedPluginDir('rev', { 'index.js': 'v1' });
+			const r1 = await manager.syncCustomizations('test-client', [makeRef('rev', 'nonce-1')]);
+			const dir1 = r1[0].pluginDir!;
+			provider.lockedPaths.add(dir1.path);
+
+			await seedPluginDir('rev', { 'index.js': 'v2' });
+			await manager.syncCustomizations('test-client', [makeRef('rev', 'nonce-2')]);
+
+			provider.lockedPaths.clear();
+			await fileService.del(dir1, { recursive: true });
+			const manager2 = new AgentPluginManager(basePath, fileService, new NullLogService());
+			await manager2.syncCustomizations('test-client', [makeRef('rev', 'nonce-2')]);
+
+			assert.deepStrictEqual(await readCacheNonces(), new Set(['nonce-2']));
+		});
+
 		test('serializes concurrent syncs of the same URI', async () => {
 			await seedPluginDir('concurrent', { 'index.js': 'v1' });
 			const ref = makeRef('concurrent', 'n1');

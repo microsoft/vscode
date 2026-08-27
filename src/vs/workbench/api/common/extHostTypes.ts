@@ -49,18 +49,6 @@ export { SymbolInformation, SymbolKind, SymbolTag } from './extHostTypes/symbolI
 export { EndOfLine, TextEdit } from './extHostTypes/textEdit.js';
 export { FileEditType, WorkspaceEdit } from './extHostTypes/workspaceEdit.js';
 
-export enum DataWatcherKind {
-	AgentSession,
-}
-
-export enum AgentSessionStatus {
-	Untitled,
-	InProgress,
-	NeedsInput,
-	Completed,
-	Error,
-}
-
 export enum TerminalOutputAnchor {
 	Top = 0,
 	Bottom = 1
@@ -3295,15 +3283,9 @@ export class ChatResponseVoiceProgressPart {
 }
 
 export class ChatResponseAutoModeResolutionPart {
-	resolvedModel: string;
-	resolvedModelName: string;
-	predictedLabel: string;
-	confidence: number;
-	constructor(resolvedModel: string, resolvedModelName: string, predictedLabel: string, confidence: number) {
+	resolvedModel: { id: string; name: string } | undefined;
+	constructor(resolvedModel?: { id: string; name: string }) {
 		this.resolvedModel = resolvedModel;
-		this.resolvedModelName = resolvedModelName;
-		this.predictedLabel = predictedLabel;
-		this.confidence = confidence;
 	}
 }
 

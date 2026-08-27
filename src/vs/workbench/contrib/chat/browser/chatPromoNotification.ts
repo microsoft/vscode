@@ -16,9 +16,10 @@ const DISMISSED_PROMOS_STORAGE_KEY = 'chat.dismissedPromoIds';
 
 /**
  * Surfaces a model's promo as a chat input notification, scoped to the harness
- * (chat session type) of the model that carries it. Dismissals are persisted by
- * promo id in application storage, so they survive reloads and apply to every
- * open window.
+ * (chat session type) of the model that carries it. Promos only render where a
+ * model switch is still plausible: persistent chat surfaces whose session has
+ * not started yet. Dismissals are persisted by promo id in application storage,
+ * so they survive reloads and apply to every open window.
  */
 export class ChatPromoNotificationContribution extends Disposable implements IWorkbenchContribution {
 
@@ -99,6 +100,9 @@ export class ChatPromoNotificationContribution extends Disposable implements IWo
 				dismissible: true,
 				autoDismissOnMessage: false,
 				deferForNewUsers: true,
+				// Only actionable while the user is still choosing how to start work.
+				hideInTransientChats: true,
+				hideInStartedSessions: true,
 				sessionTypes: [harness],
 			});
 		}

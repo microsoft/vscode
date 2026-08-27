@@ -72,6 +72,7 @@ suite('Agent Host - session type auth requirement', () => {
 		const ready = {
 			allowSignedOutWhenUsable: true,
 			accountResolved: true,
+			entitlementResolved: true,
 			signedIn: false,
 			hasCopilotHarness: true,
 			hasModels: false,
@@ -84,6 +85,7 @@ suite('Agent Host - session type auth requirement', () => {
 			loading: getSignedOutModelsNotificationState({ ...ready, localModelsLoaded: false }),
 			loadingPastGracePeriod: getSignedOutModelsNotificationState({ ...ready, localModelsLoaded: false, gracePeriodElapsed: true }),
 			accountUnresolved: getSignedOutModelsNotificationState({ ...ready, accountResolved: false }),
+			entitlementUnresolved: getSignedOutModelsNotificationState({ ...ready, entitlementResolved: false }),
 			harnessUnavailable: getSignedOutModelsNotificationState({ ...ready, hasCopilotHarness: false }),
 			visible: getSignedOutModelsNotificationState(ready),
 			modelsAvailable: getSignedOutModelsNotificationState({ ...ready, hasModels: true }),
@@ -94,6 +96,7 @@ suite('Agent Host - session type auth requirement', () => {
 			loading: SignedOutModelsNotificationState.Waiting,
 			loadingPastGracePeriod: SignedOutModelsNotificationState.Visible,
 			accountUnresolved: SignedOutModelsNotificationState.Hidden,
+			entitlementUnresolved: SignedOutModelsNotificationState.Hidden,
 			harnessUnavailable: SignedOutModelsNotificationState.Hidden,
 			visible: SignedOutModelsNotificationState.Visible,
 			modelsAvailable: SignedOutModelsNotificationState.Hidden,

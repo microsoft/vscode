@@ -33,8 +33,8 @@ import { ISerializedModelContentChangedEvent } from '../../../editor/common/text
 import { IAccessibilityInformation } from '../../../platform/accessibility/common/accessibility.js';
 import { ILocalizedString } from '../../../platform/action/common/action.js';
 import { ConfigurationTarget, IConfigurationChange, IConfigurationData, IConfigurationOverrides } from '../../../platform/configuration/common/configuration.js';
+import { LinkPresentationKind } from '../../../platform/dataChannel/common/dataChannel.js';
 import { ConfigurationScope } from '../../../platform/configuration/common/configurationRegistry.js';
-import { DataWatcherKind } from '../../../platform/dataChannel/common/dataChannel.js';
 import { IEditorOptions } from '../../../platform/editor/common/editor.js';
 import { IExtensionIdWithVersion } from '../../../platform/extensionManagement/common/extensionStorage.js';
 import { ExtensionIdentifier, IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
@@ -341,7 +341,7 @@ export interface ITextDocumentShowOptions {
 }
 
 export interface MainThreadBulkEditsShape extends IDisposable {
-	$tryApplyWorkspaceEdit(workspaceEditDto: SerializableObjectWithBuffers<IWorkspaceEditDto>, undoRedoGroupId?: number, respectAutoSaveConfig?: boolean): Promise<boolean>;
+	$tryApplyWorkspaceEdit(workspaceEditDto: SerializableObjectWithBuffers<IWorkspaceEditDto>, undoRedoGroupId?: number, isRefactoring?: boolean): Promise<boolean>;
 }
 
 export interface MainThreadTextEditorsShape extends IDisposable {
@@ -3738,22 +3738,20 @@ export interface MainThreadMcpShape {
 }
 
 export interface MainThreadDataChannelsShape extends IDisposable {
-	$createDataWatcher(handle: number, params: IDataWatcherParamsDto): void;
-	$disposeDataWatcher(handle: number): void;
+	$createLinkPresentationWatcher(handle: number, providerId: string, kind: LinkPresentationKind, resource: UriComponents): void;
+	$disposeLinkPresentationWatcher(handle: number): void;
+	$registerLinkPresentationProvider(handle: number, extensionId: string, providerId: string): void;
+	$unregisterLinkPresentationProvider(handle: number): void;
+	$acceptLinkPresentationProviderData(handle: number, data: unknown): void;
 }
 
 export interface ExtHostDataChannelsShape {
 	$onDidReceiveData(channelId: string, data: unknown): void;
-	$acceptDataWatcherData(handle: number, data: unknown): void;
+	$acceptLinkPresentationRules(rules: readonly { id: string; source: string; flags: string; kind: LinkPresentationKind }[]): void;
+	$acceptLinkPresentation(handle: number, data: unknown): void;
+	$createLinkPresentationWatcher(handle: number, providerHandle: number, resource: UriComponents): Promise<unknown>;
+	$disposeLinkPresentationWatcher(handle: number): void;
 }
-
-export interface IAgentSessionDataWatcherParamsDto {
-	readonly kind: DataWatcherKind.AgentSession;
-	readonly resource: UriComponents;
-}
-
-export type IDataWatcherParamsDto =
-	| IAgentSessionDataWatcherParamsDto;
 
 export interface ExtHostLocalizationShape {
 	getMessage(extensionId: string, details: IStringDetails): string;

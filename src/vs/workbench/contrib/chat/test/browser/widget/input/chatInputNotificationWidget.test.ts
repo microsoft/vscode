@@ -21,6 +21,7 @@ import { workbenchInstantiationService } from '../../../../../../test/browser/wo
 import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotification, IChatInputNotificationService } from '../../../../browser/widget/input/chatInputNotificationService.js';
 import { ChatInputPart } from '../../../../browser/widget/input/chatInputPart.js';
 import { ChatInputNotificationWidget, IChatInputNotificationDelegate } from '../../../../browser/widget/input/chatInputNotificationWidget.js';
+import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../../../../common/languageModels.js';
 import { localChatSessionType, SessionType } from '../../../../common/chatSessionsService.js';
 import { getChatSessionType } from '../../../../common/model/chatUri.js';
 
@@ -210,11 +211,101 @@ suite('ChatInputNotificationWidget', () => {
 		});
 	});
 
+	test('skips notifications that opt out of transient chats without hiding others', () => {
+		const transient = createWidget({ delegate: { isTransientChat: true } });
+		const persistent = createWidget({ delegate: { isTransientChat: false } });
+		const rendered = (widget: ChatInputNotificationWidget) => widget.domNode.querySelector('.chat-input-notification-header')?.textContent;
+
+		for (const { notificationService } of [transient, persistent]) {
+			showNotification(notificationService, { id: 'ordinary', message: 'Ordinary notification', actions: [] });
+			showNotification(notificationService, { id: 'promotion', message: 'Model promotion', actions: [], hideInTransientChats: true });
+		}
+
+		assert.deepStrictEqual({
+			transient: rendered(transient.widget),
+			persistent: rendered(persistent.widget),
+		}, {
+			transient: 'Ordinary notification',
+			persistent: 'Model promotion',
+		});
+	});
+
+	test('reactively hides notifications that opt out of started sessions', () => {
+		const sessionStarted = observableValue('sessionStarted', false);
+		const { widget, notificationService } = createWidget({ delegate: { sessionStarted } });
+		showNotification(notificationService, { id: 'ordinary', message: 'Ordinary notification', actions: [] });
+		showNotification(notificationService, { id: 'promotion', message: 'Model promotion', actions: [], hideInStartedSessions: true });
+
+		const rendered = () => widget.domNode.querySelector('.chat-input-notification-header')?.textContent;
+		const before = rendered();
+		sessionStarted.set(true, undefined);
+
+		assert.deepStrictEqual({ before, after: rendered() }, {
+			before: 'Model promotion',
+			after: 'Ordinary notification',
+		});
+	});
+
+	test('reactively hides notifications that opt out of BYOK models', () => {
+		const selectedLanguageModel = observableValue<ILanguageModelChatMetadataAndIdentifier | undefined>('selectedLanguageModel', undefined);
+		const { widget, notificationService } = createWidget({ delegate: { selectedLanguageModel } });
+		showNotification(notificationService, { id: 'ordinary', message: 'Ordinary notification', actions: [] });
+		showNotification(notificationService, { id: 'quota', message: 'Credits at 88%', actions: [], hideForByokModels: true });
+
+		const rendered = () => widget.domNode.querySelector('.chat-input-notification-header')?.textContent;
+		// An unresolved selection must not withhold the notification.
+		const unresolved = rendered();
+		selectedLanguageModel.set(makeModel('copilot', false), undefined);
+		const copilot = rendered();
+		selectedLanguageModel.set(makeModel('customendpoint', true), undefined);
+		const byok = rendered();
+		selectedLanguageModel.set(makeModel('copilot', false), undefined);
+
+		assert.deepStrictEqual({ unresolved, copilot, byok, backToCopilot: rendered() }, {
+			unresolved: 'Credits at 88%',
+			copilot: 'Credits at 88%',
+			byok: 'Ordinary notification',
+			backToCopilot: 'Credits at 88%',
+		});
+	});
+
+	test('an input without its own model selection still renders BYOK-gated notifications', () => {
+		const { widget, notificationService } = createWidget({ delegate: {} });
+		showNotification(notificationService, { id: 'quota', message: 'Credits at 88%', actions: [], hideForByokModels: true });
+
+		assert.strictEqual(widget.domNode.querySelector('.chat-input-notification-header')?.textContent, 'Credits at 88%');
+	});
+
+	test('hides BYOK-gated notifications for an agent-host copy of a BYOK model', () => {
+		const { widget, notificationService } = createWidget({ delegate: { selectedLanguageModel: constObservable(makeBridgedByokModel()) } });
+		showNotification(notificationService, { id: 'ordinary', message: 'Ordinary notification', actions: [] });
+		showNotification(notificationService, { id: 'quota', message: 'Credits at 88%', actions: [], hideForByokModels: true });
+
+		assert.strictEqual(widget.domNode.querySelector('.chat-input-notification-header')?.textContent, 'Ordinary notification');
+	});
+
+	test('BYOK gating is per input, so one input can hide what another shows', () => {
+		const byokInput = createWidget({ delegate: { selectedLanguageModel: constObservable(makeModel('customendpoint', true)) } });
+		const agentHostInput = createWidget({ delegate: { selectedLanguageModel: constObservable(makeModel('agent-host-copilotcli', false)) } });
+		const rendered = (widget: ChatInputNotificationWidget) => widget.domNode.querySelector('.chat-input-notification-header')?.textContent;
+
+		for (const { notificationService } of [byokInput, agentHostInput]) {
+			showNotification(notificationService, { id: 'quota', message: 'Credits at 88%', actions: [], hideForByokModels: true });
+		}
+
+		assert.deepStrictEqual({
+			byok: rendered(byokInput.widget),
+			agentHost: rendered(agentHostInput.widget),
+		}, {
+			byok: undefined,
+			agentHost: 'Credits at 88%',
+		});
+	});
+
 	test('standard workbench defers notifications for the first session only', () => {
 		const deferredNotificationsEnabled = observableValue('deferredNotificationsEnabled', true);
 		let hasSessions = false;
 		const harness = {
-			options: {},
 			environmentService: { isSessionsWindow: false },
 			chatService: { hasSessions: () => hasSessions },
 			_deferredNotificationsEnabled: deferredNotificationsEnabled,
@@ -249,7 +340,6 @@ suite('ChatInputNotificationWidget', () => {
 	test('Agents window bypasses the workbench first-session gate', () => {
 		const deferredNotificationsEnabled = observableValue('deferredNotificationsEnabled', false);
 		const harness = {
-			options: {},
 			environmentService: { isSessionsWindow: true },
 			chatService: { hasSessions: () => false },
 			_deferredNotificationsEnabled: deferredNotificationsEnabled,
@@ -263,25 +353,6 @@ suite('ChatInputNotificationWidget', () => {
 		update.call(harness);
 
 		assert.strictEqual(deferredNotificationsEnabled.get(), true);
-	});
-
-	test('widget option disables deferred notifications', () => {
-		const deferredNotificationsEnabled = observableValue('deferredNotificationsEnabled', true);
-		const harness = {
-			options: { deferredNotificationsEnabled: false },
-			environmentService: { isSessionsWindow: true },
-			chatService: { hasSessions: () => true },
-			_deferredNotificationsEnabled: deferredNotificationsEnabled,
-			_isFirstWorkbenchSession: undefined as boolean | undefined,
-		};
-		const update = Reflect.get(ChatInputPart.prototype, 'updateDeferredNotificationsEligibility') as (
-			this: typeof harness,
-			event?: { previousSessionResource: URI | undefined; currentSessionResource: URI | undefined },
-		) => void;
-
-		update.call(harness);
-
-		assert.strictEqual(deferredNotificationsEnabled.get(), false);
 	});
 
 	test('renders markdown descriptions as rich content', () => {
@@ -398,6 +469,26 @@ suite('ChatInputNotificationWidget', () => {
 		}
 		const widget = store.add(instantiationService.createInstance(ChatInputNotificationWidget, options.delegate));
 		return { notificationService, widget };
+	}
+
+	function makeModel(vendor: string, isBYOK: boolean): ILanguageModelChatMetadataAndIdentifier {
+		return {
+			identifier: `${vendor}/test-model`,
+			metadata: { id: 'test-model', vendor, family: 'test-model', isBYOK } as ILanguageModelChatMetadata,
+		};
+	}
+
+	/** An agent-host copy of an extension BYOK model: `byokModelIdentifier` set, `isBYOK` unset. */
+	function makeBridgedByokModel(): ILanguageModelChatMetadataAndIdentifier {
+		return {
+			identifier: 'agent-host-copilotcli:openrouter/aion-labs/aion-3.0',
+			metadata: {
+				id: 'openrouter/aion-labs/aion-3.0',
+				vendor: 'agent-host-copilotcli',
+				family: 'openrouter/aion-labs/aion-3.0',
+				byokModelIdentifier: 'openrouter/OpenRouter 2/aion-labs/aion-3.0',
+			} as ILanguageModelChatMetadata,
+		};
 	}
 
 	function clickAction(widget: ChatInputNotificationWidget): void {

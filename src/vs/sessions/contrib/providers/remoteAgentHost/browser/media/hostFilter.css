@@ -84,7 +84,7 @@
 	cursor: pointer;
 	color: var(--vscode-titleBar-activeForeground);
 	border-radius: var(--vscode-cornerRadius-small);
-	font-size: var(--vscode-agents-fontSize-label1);
+	font-size: var(--vscode-fontSize-label1);
 	user-select: none;
 	-webkit-user-select: none;
 	touch-action: manipulation;

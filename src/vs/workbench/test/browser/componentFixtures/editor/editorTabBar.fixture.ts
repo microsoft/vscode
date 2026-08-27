@@ -57,7 +57,7 @@ import { LayoutSettings } from '../../../../services/layout/browser/layoutServic
 import { TestContextService } from '../../../common/workbenchTestServices.js';
 import { workbenchInstantiationService } from '../../workbenchTestServices.js';
 import { ComponentFixtureAdditionalTheme, ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
-import '../../../../contrib/styleOverrides/browser/media/tabs.css';
+import '../../../../contrib/modernUI/browser/media/tabs.css';
 import './editorTabBar.fixture.css';
 
 // ============================================================================
@@ -465,6 +465,7 @@ export function renderEditorTabBarFixture(ctx: ComponentFixtureContext, options:
 		override get activeEditorPane() { return undefined; }
 		override get selectedEditors() { return model.selectedEditors; }
 		override get ariaLabel() { return 'Editor Group 1'; }
+		override get groupsView(): IEditorGroupsView { return groupsView; }
 		override getEditorByIndex(index: number) { return model.getEditorByIndex(index); }
 		override getIndexOfEditor(editor: EditorInput) { return model.indexOf(editor); }
 		override getEditors(order: EditorsOrder, opts?: { excludeSticky?: boolean }) { return model.getEditors(order, opts); }
@@ -485,8 +486,8 @@ export function renderEditorTabBarFixture(ctx: ComponentFixtureContext, options:
 
 	const groupsView = new class extends mock<IEditorGroupsView>() {
 		override get partOptions() { return partOptions; }
-		override get activeGroup() { return isGroupActive ? groupView : otherActiveGroup; }
-		override get groups() { return [groupView]; }
+		override get activeGroup(): IEditorGroupView { return isGroupActive ? groupView : otherActiveGroup; }
+		override get groups(): IEditorGroupView[] { return [groupView]; }
 		override readonly onDidChangeEditorPartOptions = Event.None;
 		override readonly onDidVisibilityChange = Event.None;
 	};

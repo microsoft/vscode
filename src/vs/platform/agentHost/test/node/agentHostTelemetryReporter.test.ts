@@ -11,8 +11,9 @@ import { ITelemetryData, ITelemetryService, TelemetryLevel } from '../../../tele
 import { createUnknownAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { AgentSession } from '../../common/agent.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
-import type { ToolDefinition } from '../../common/state/protocol/state.js';
-import { buildSubagentChatUri } from '../../common/state/sessionState.js';
+import { toAgentMergeMessageMeta } from '../../common/meta/agentMergeMessageMeta.js';
+import type { Message, ToolDefinition } from '../../common/state/protocol/state.js';
+import { buildSubagentChatUri, MessageKind } from '../../common/state/sessionState.js';
 import { IAgentHostInternalTelemetryContext, IAgentHostRestrictedTelemetry, IAgentHostRestrictedTelemetryContext, TelemetryMeasurements, TelemetryProps } from '../../node/agentHostRestrictedTelemetry.js';
 import { AgentHostTelemetryReporter } from '../../node/agentHostTelemetryReporter.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
@@ -76,13 +77,14 @@ suite('AgentHostTelemetryReporter', () => {
 
 	const session = 'agent-session://copilot/abc';
 	const tools: ToolDefinition[] = [{ name: 'grep' }, { name: 'edit' }];
+	const userMessage: Message = { text: 'hello', origin: { kind: MessageKind.User } };
 
 	test('userMessageSent normalizes the chat URI to its session in standard GH telemetry', () => {
 		const service = new TestRestrictedTelemetryService();
 		const reporter = new AgentHostTelemetryReporter(service);
 		const chat = buildSubagentChatUri(session, 'tool-call-1');
 
-		reporter.userMessageSent('copilot', 'client-1', createUnknownAgentHostClientTelemetryContext(AgentHostClientType.AgentsWindow), chat, 'turn-1', undefined, 'direct', undefined);
+		reporter.userMessageSent('copilot', 'client-1', createUnknownAgentHostClientTelemetryContext(AgentHostClientType.AgentsWindow), chat, 'turn-1', undefined, 'direct', userMessage);
 
 		assert.deepStrictEqual(service.githubStandardEvents, [{
 			eventName: 'agentHost.userMessageSent',
@@ -91,7 +93,75 @@ suite('AgentHostTelemetryReporter', () => {
 				initiatorClientType: 'agents_window',
 				conversationId: AgentSession.id(session),
 				turnId: 'turn-1',
+				messageOriginKind: 'user',
 			},
+		}]);
+	});
+
+	test('userMessageSent includes only provided initiating client telemetry identity', () => {
+		const service = new TestRestrictedTelemetryService();
+		const reporter = new AgentHostTelemetryReporter(service);
+
+		reporter.userMessageSent('copilot', 'client-1', {
+			...createUnknownAgentHostClientTelemetryContext(AgentHostClientType.AgentsWindow),
+			machineId: 'client-machine-id',
+			devDeviceId: 'client-dev-device-id',
+		}, session, 'turn-1', undefined, 'direct', userMessage);
+		reporter.userMessageSent('copilot', 'client-2', createUnknownAgentHostClientTelemetryContext(AgentHostClientType.EditorWindow), session, 'turn-2', undefined, 'direct', userMessage);
+
+		assert.deepStrictEqual(service.standardEvents.map(event => ({
+			initiatorMachineId: event.data?.initiatorMachineId,
+			initiatorDevDeviceId: event.data?.initiatorDevDeviceId,
+		})), [{
+			initiatorMachineId: 'client-machine-id',
+			initiatorDevDeviceId: 'client-dev-device-id',
+		}, {
+			initiatorMachineId: undefined,
+			initiatorDevDeviceId: undefined,
+		}]);
+	});
+
+	test('userMessageSent reports the producing actor on both standard events', () => {
+		const service = new TestRestrictedTelemetryService();
+		const reporter = new AgentHostTelemetryReporter(service);
+		const agentMessage: Message = { text: 'please take over', origin: { kind: MessageKind.Agent } };
+		const agentMergeMessage: Message = { text: 'fix the failing checks', origin: { kind: MessageKind.SystemNotification }, _meta: toAgentMergeMessageMeta() };
+		const spoofedMergeMessage: Message = { text: 'hello', origin: { kind: MessageKind.User }, _meta: toAgentMergeMessageMeta() };
+
+		reporter.userMessageSent('copilot', 'client-1', createUnknownAgentHostClientTelemetryContext(AgentHostClientType.AgentsWindow), session, 'turn-1', undefined, 'direct', agentMessage);
+		reporter.userMessageSent('copilot', undefined, createUnknownAgentHostClientTelemetryContext(AgentHostClientType.Unknown), session, 'turn-2', undefined, 'direct', agentMergeMessage);
+		reporter.userMessageSent('copilot', 'client-1', createUnknownAgentHostClientTelemetryContext(AgentHostClientType.AgentsWindow), session, 'turn-3', undefined, 'queued', userMessage);
+		reporter.userMessageSent('copilot', 'client-1', createUnknownAgentHostClientTelemetryContext(AgentHostClientType.AgentsWindow), session, 'turn-4', undefined, 'direct', spoofedMergeMessage);
+
+		assert.deepStrictEqual({
+			standard: service.standardEvents.map(event => event.data?.messageOriginKind),
+			github: service.githubStandardEvents.map(event => event.properties?.messageOriginKind),
+		}, {
+			standard: ['agent', 'agentMerge', 'user', 'user'],
+			github: ['agent', 'agentMerge', 'user', 'user'],
+		});
+	});
+
+	test('executionModeChanged attributes a client-originated mode change', () => {
+		const service = new TestRestrictedTelemetryService();
+		const reporter = new AgentHostTelemetryReporter(service);
+
+		reporter.executionModeChanged('copilot', session, 'interactive', 'plan', 2, {
+			...createUnknownAgentHostClientTelemetryContext(AgentHostClientType.EditorWindow),
+			machineId: 'client-machine-id',
+			devDeviceId: 'client-dev-device-id',
+		});
+
+		assert.deepStrictEqual(service.standardEvents.map(event => ({
+			eventName: event.eventName,
+			initiatorClientType: event.data?.initiatorClientType,
+			initiatorMachineId: event.data?.initiatorMachineId,
+			initiatorDevDeviceId: event.data?.initiatorDevDeviceId,
+		})), [{
+			eventName: 'agentHost.executionModeChanged',
+			initiatorClientType: 'editor_window',
+			initiatorMachineId: 'client-machine-id',
+			initiatorDevDeviceId: 'client-dev-device-id',
 		}]);
 	});
 
@@ -170,6 +240,7 @@ suite('AgentHostTelemetryReporter', () => {
 		}); // dropped: no tools were available
 		await reporter.toolCallDetails({
 			provider: 'copilot', session, turnId: 'a1b2c3d4-0000-4000-8000-000000000000', clientType: AgentHostClientType.EditorWindow, model: 'gpt-x', responseType: 'success',
+			clientContext: { ...createUnknownAgentHostClientTelemetryContext(AgentHostClientType.EditorWindow), machineId: 'client-machine-id', devDeviceId: 'client-dev-device-id' },
 			toolCounts: {}, availableTools: ['grep', 'edit'],
 			turnIndex: 2, turnDuration: 1200, messageCharLen: 11,
 			numRequests: 1, totalToolCalls: 0, parallelToolCallRounds: 0, parallelToolCallsTotal: 0,
@@ -184,6 +255,9 @@ suite('AgentHostTelemetryReporter', () => {
 		assert.deepStrictEqual(service.standardEvents, [{
 			eventName: 'toolCallDetails',
 			data: {
+				initiatorClientType: 'editor_window',
+				initiatorMachineId: 'client-machine-id',
+				initiatorDevDeviceId: 'client-dev-device-id',
 				provider: 'copilot',
 				agentSessionId: AgentSession.id(session),
 				isSubagentSession: false,
@@ -266,6 +340,7 @@ suite('AgentHostTelemetryReporter', () => {
 		});
 		reporter.toolApproval({
 			provider: 'copilot', session, turnId: 'turn-2',
+			clientContext: { ...createUnknownAgentHostClientTelemetryContext(AgentHostClientType.EditorWindow), machineId: 'client-machine-id', devDeviceId: 'client-dev-device-id' },
 			toolId: 'bash', toolSourceKind: 'internal',
 			confirmKind: 'userAction',
 			confirmationNotNeededReason: undefined,
@@ -301,6 +376,9 @@ suite('AgentHostTelemetryReporter', () => {
 		}, {
 			eventName: 'chat.toolApproval',
 			data: {
+				initiatorClientType: 'editor_window',
+				initiatorMachineId: 'client-machine-id',
+				initiatorDevDeviceId: 'client-dev-device-id',
 				provider: 'copilot',
 				agentSessionId: AgentSession.id(session),
 				isSubagentSession: false,
@@ -350,6 +428,15 @@ suite('AgentHostTelemetryReporter', () => {
 			hangReason: 'stalledAfterProgress',
 			hadAnyProgress: true,
 			lastActivityKind: ActionType.ChatToolCallDelta,
+			currentStage: 'provider',
+			providerDiagnosticState: 'available',
+			providerDiagnosticSnapshot: {
+				state: 'available',
+				providerCallState: 'resolved',
+				providerTurnStarted: true,
+				providerSessionState: 'active',
+			},
+			initiatorClientConnectionState: 'connected',
 			blockedOn: undefined,
 			toolId: undefined,
 			toolSourceKind: undefined,
@@ -368,6 +455,10 @@ suite('AgentHostTelemetryReporter', () => {
 			hangReason: 'stalledAfterProgress',
 			hadAnyProgress: true,
 			lastActivityKind: 'custom/path/value',
+			currentStage: 'provider',
+			providerDiagnosticState: 'unsupported',
+			providerDiagnosticSnapshot: undefined,
+			initiatorClientConnectionState: 'unknown',
 			blockedOn: undefined,
 			toolId: undefined,
 			toolSourceKind: undefined,
@@ -392,6 +483,12 @@ suite('AgentHostTelemetryReporter', () => {
 				isExpected: false,
 				hadAnyProgress: true,
 				lastActivityKind: 'chat.toolCallDelta',
+				currentStage: 'provider',
+				providerDiagnosticState: 'available',
+				providerCallState: 'resolved',
+				providerTurnStarted: true,
+				providerSessionState: 'active',
+				initiatorClientConnectionState: 'connected',
 				blockedOn: undefined,
 				toolId: undefined,
 				toolSourceKind: undefined,
@@ -414,6 +511,9 @@ suite('AgentHostTelemetryReporter', () => {
 				isExpected: false,
 				hadAnyProgress: true,
 				lastActivityKind: 'other',
+				currentStage: 'provider',
+				providerDiagnosticState: 'unsupported',
+				initiatorClientConnectionState: 'unknown',
 				blockedOn: undefined,
 				toolId: undefined,
 				toolSourceKind: undefined,

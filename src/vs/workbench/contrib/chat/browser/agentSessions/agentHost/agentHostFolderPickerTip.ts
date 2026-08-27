@@ -11,12 +11,12 @@ import { IActionWidgetDropdownListOptionsProvider } from '../../../../../../plat
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 
 export const FOLDER_PICKER_TIP_DISMISSED_STORAGE_KEY = 'chat.agentHost.folderPickerTipDismissed1';
-export const FOLDER_PICKER_TIP_LEARN_MORE_URL = 'https://aka.ms/vscode-session-primary-directory';
+export const FOLDER_PICKER_TIP_LEARN_MORE_URL = 'https://aka.ms/vscodeMultirootWorkspaceChatFolderPicker';
 export const FOLDER_PICKER_TIP_CLASS = 'agent-host-folder-picker-tip';
 
 /** Provides dynamic list options for the dismissible folder picker tip. */
 export function createFolderPickerTip(storageService: IStorageService): IActionWidgetDropdownListOptionsProvider {
-	const headerText = localize('chat.agentHost.folderPickerTip.text', "Primary directory");
+	const headerText = localize('chat.agentHost.folderPickerTip.text', "Select a primary directory");
 	const headerLink = {
 		label: localize('chat.agentHost.folderPickerTip.learnMore', "Learn more"),
 		uri: URI.parse(FOLDER_PICKER_TIP_LEARN_MORE_URL),
@@ -42,7 +42,7 @@ export function createFolderPickerTip(storageService: IStorageService): IActionW
 	return {
 		getListOptions: () => {
 			// To be fixed once we have a proper URI for the link.
-			if (isDismissed() || (false as unknown as boolean)) {
+			if (isDismissed()) {
 				return { widgetClassName: FOLDER_PICKER_TIP_CLASS };
 			}
 			return {

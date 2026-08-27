@@ -23,6 +23,8 @@ import { IAgentConfigurationService } from '../../../node/agentConfigurationServ
 import { IAgentHostGitService } from '../../../common/agentHostGitService.js';
 import { buildSubagentChatUri } from '../../../common/state/sessionState.js';
 import { IDetailedDiffResult, IDiffComputeService } from '../../../common/diffComputeService.js';
+import { AgentHostClientType } from '../../../common/agentHostClientInfo.js';
+import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind } from '../../../common/agentHostTelemetry.js';
 
 class CountingFileService extends FileService {
 	watcherCount = 0;
@@ -78,6 +80,14 @@ suite('Agent Host Edit ARC Reporter', () => {
 		const service = disposables.add(new EditArcReporterService([0, 30, 60], fileService, new TestDiffComputeService(), createNoopGitService(), config, new NullLogService(), telemetry));
 
 		await service.reportEdit({
+			clientContext: {
+				clientType: AgentHostClientType.EditorWindow,
+				connectionKind: AgentHostClientConnectionKind.RemoteExtensionHost,
+				transportKind: AgentHostTransportKind.MessagePort,
+				hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess,
+				machineId: 'client-machine-id',
+				devDeviceId: 'client-dev-device-id',
+			},
 			sessionUri: 'copilotcli:/session-1',
 			turnId: 'turn-1',
 			toolCallId: 'tool-1',
@@ -96,9 +106,19 @@ suite('Agent Host Edit ARC Reporter', () => {
 			name: event.name,
 			data: { ...event.data, uniqueEditId: '<uuid>' },
 			githubName: telemetry.githubEvents[0]?.name,
+			githubIdentity: {
+				initiatorMachineId: telemetry.githubEvents[0]?.properties?.initiatorMachineId,
+				initiatorDevDeviceId: telemetry.githubEvents[0]?.properties?.initiatorDevDeviceId,
+			},
 		}, {
 			name: 'editTelemetry.reportEditArc',
 			data: {
+				initiatorClientType: 'editor_window',
+				initiatorConnectionKind: 'remote_extension_host',
+				initiatorTransportKind: 'message_port',
+				hostLaunchKind: 'vscode_main_process',
+				initiatorMachineId: 'client-machine-id',
+				initiatorDevDeviceId: 'client-dev-device-id',
 				sourceKeyCleaned: 'source:Chat.applyEdits',
 				extensionId: undefined,
 				extensionVersion: undefined,
@@ -122,6 +142,10 @@ suite('Agent Host Edit ARC Reporter', () => {
 				currentDeletedLineCount: 1,
 			},
 			githubName: 'vscode.editTelemetry.reportEditArc',
+			githubIdentity: {
+				initiatorMachineId: undefined,
+				initiatorDevDeviceId: undefined,
+			},
 		});
 	});
 
@@ -453,16 +477,12 @@ interface TestAgentConfigurationService extends IAgentConfigurationService {
 
 function createConfigurationService(enabled: boolean, disposables: DisposableStore): TestAgentConfigurationService {
 	const rootConfigChange = disposables.add(new Emitter<void>());
-	const workingDirectoryPendingChange = disposables.add(new Emitter<string>());
 	return {
 		_serviceBrand: undefined,
 		onDidRootConfigChange: rootConfigChange.event,
 		onDidSessionConfigChange: Event.None,
-		onDidChangeWorkingDirectoryPending: workingDirectoryPendingChange.event,
 		getEffectiveValue: () => undefined,
 		getEffectiveWorkingDirectories: () => undefined,
-		isWorkingDirectoryPending: () => false,
-		resolveWorkingDirectoryForResume: async (_session, workingDirectory) => workingDirectory,
 		updateSessionConfig: () => { },
 		getSessionConfigValues: () => undefined,
 		getRootValue: (schema, key) => schema.validate(key, enabled) ? enabled : undefined,

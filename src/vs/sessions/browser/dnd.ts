@@ -13,7 +13,7 @@ import { DraggedChatReferenceIdentifier, fillInChatReferenceDragData, LocalSelec
 export const SessionsDataTransfers = {
 	/** Mime type used to identify a session being dragged within the application. */
 	SESSION: 'application/vnd.code.session',
-	/** Mime type used to identify a chat being dragged between groups within a session. */
+	/** Mime type used to identify a chat being dragged into or between groups within a session. */
 	CHAT: 'application/vnd.code.session.chat',
 };
 
@@ -31,13 +31,13 @@ export class DraggedSessionIdentifier {
 }
 
 /**
- * The group-move payload carried on a chat-tab drag via the
+ * The group-placement payload carried on a chat drag via the
  * {@link SessionsDataTransfers.CHAT} `dataTransfer` mime. Used to move/split a
- * chat between chat groups within a session.
+ * visible chat between groups or open a hidden chat in a group within a session.
  *
  * This is deliberately carried on the drag event's `dataTransfer` (not on the
- * shared {@link LocalSelectionTransfer} singleton) because a chat-tab drag also
- * offers a chat *reference* payload, and that reference uses the singleton. The
+ * shared {@link LocalSelectionTransfer} singleton) because a chat-tab drag can
+ * also offer a chat *reference* payload, and that reference uses the singleton. The
  * singleton holds only one payload at a time, so relying on it here would let
  * the reference payload clobber the group-move payload (and vice versa). The
  * `dataTransfer` mime keeps the two independent: its `types` are readable during
@@ -49,7 +49,7 @@ export interface IDraggedSessionChat {
 }
 
 /**
- * Attaches the {@link IDraggedSessionChat} group-move payload to a chat-tab drag.
+ * Attaches the {@link IDraggedSessionChat} group-placement payload to a chat drag.
  */
 export function fillSessionChatDragData(e: DragEvent, sessionId: string, resource: URI): void {
 	const data: IDraggedSessionChat = { sessionId, resource: resource.toString() };

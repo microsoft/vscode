@@ -15,7 +15,7 @@ import { IContextKeyService } from '../../../../../../platform/contextkey/common
 import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
+import { ChatEntitlement, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IExtensionService } from '../../../../../services/extensions/common/extensions.js';
 import { AgentHostSignedOutModelsNotificationContribution } from '../../../browser/agentSessions/agentHost/agentHostSignedOutModelsNotification.js';
 import { type IChatInputNotification, IChatInputNotificationService } from '../../../browser/widget/input/chatInputNotificationService.js';
@@ -83,6 +83,26 @@ suite('AgentHostSignedOutModelsNotification', () => {
 		fixture.clock.restore();
 	});
 
+	test('never shows while a signed-in entitlement resolves after startup', async () => {
+		const fixture = await createFixture({ entitlement: ChatEntitlement.Unresolved });
+		const shownWhileUnresolved = fixture.notifications.isShown();
+
+		fixture.setEntitlement(ChatEntitlement.Pro);
+
+		assert.deepStrictEqual([shownWhileUnresolved, fixture.notifications.isShown()], [false, false]);
+		fixture.clock.restore();
+	});
+
+	test('shows once an unresolved entitlement resolves signed out', async () => {
+		const fixture = await createFixture({ entitlement: ChatEntitlement.Unresolved });
+		const shownWhileUnresolved = fixture.notifications.isShown();
+
+		fixture.setEntitlement(ChatEntitlement.Unknown);
+
+		assert.deepStrictEqual([shownWhileUnresolved, fixture.notifications.isShown()], [false, true]);
+		fixture.clock.restore();
+	});
+
 	test('gives a later wait its own grace period instead of the remainder of an earlier one', async () => {
 		const fixture = await createFixture({ configuredVendors: ['anthropic'], resolvedVendors: [] });
 		assert.strictEqual(fixture.notifications.isShown(), false);
@@ -119,12 +139,13 @@ suite('AgentHostSignedOutModelsNotification', () => {
 		fixture.clock.restore();
 	});
 
-	async function createFixture(options: { configuredVendors?: string[]; resolvedVendors?: string[] } = {}) {
+	async function createFixture(options: { configuredVendors?: string[]; resolvedVendors?: string[]; entitlement?: ChatEntitlement } = {}) {
 		const clock = sinon.useFakeTimers({ shouldAdvanceTime: false });
 		const notifications = new TestChatInputNotificationService();
 		const languageModels = new TestLanguageModelsService(options.resolvedVendors ?? ['anthropic']);
 		const languageModelsConfiguration = new TestLanguageModelsConfigurationService(options.configuredVendors ?? []);
 		const account = new TestDefaultAccountService();
+		const chatEntitlement = new TestChatEntitlementService(options.entitlement ?? ChatEntitlement.Unknown);
 		const configuration = new TestConfigurationService();
 		configuration.setUserConfiguration(AgentHostAllowSignedOutWhenUsableSettingId, true);
 
@@ -138,7 +159,7 @@ suite('AgentHostSignedOutModelsNotification', () => {
 			rootState: new TestRootStateSubscription({ agents: [{ provider: 'copilotcli' }] } as RootState),
 		});
 		instantiationService.stub(IConfigurationService, configuration);
-		instantiationService.stub(IChatEntitlementService, { clientByokEnabled: true });
+		instantiationService.stub(IChatEntitlementService, chatEntitlement);
 		instantiationService.stub(IContextKeyService, store.add(new MockContextKeyService()));
 		instantiationService.stub(IExtensionService, { whenInstalledExtensionsRegistered: () => Promise.resolve(true) });
 
@@ -153,6 +174,7 @@ suite('AgentHostSignedOutModelsNotification', () => {
 			resolveVendor: (vendor: string) => languageModels.resolveVendor(vendor),
 			addConfiguredVendor: (vendor: string) => languageModelsConfiguration.addVendor(vendor),
 			signIn: () => account.setSignedIn(),
+			setEntitlement: (entitlement: ChatEntitlement) => chatEntitlement.setEntitlement(entitlement),
 		};
 	}
 });
@@ -245,6 +267,23 @@ class TestDefaultAccountService implements Partial<IDefaultAccountService> {
 	setSignedIn(): void {
 		this._account = { sessionId: 'session' } as NonNullable<IDefaultAccountService['currentDefaultAccount']>;
 		this._onDidChangeDefaultAccount.fire(undefined as never);
+	}
+}
+
+class TestChatEntitlementService implements Partial<IChatEntitlementService> {
+	declare readonly _serviceBrand: undefined;
+	private readonly _onDidChangeEntitlement = new Emitter<void>();
+	readonly onDidChangeEntitlement = this._onDidChangeEntitlement.event;
+	readonly clientByokEnabled = true;
+
+	constructor(private _entitlement: ChatEntitlement) { }
+
+	get entitlement(): ChatEntitlement {
+		return this._entitlement;
+	}
+	setEntitlement(entitlement: ChatEntitlement): void {
+		this._entitlement = entitlement;
+		this._onDidChangeEntitlement.fire();
 	}
 }
 

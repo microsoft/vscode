@@ -12,14 +12,15 @@ import { Delayer } from '../../../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { isWindows } from '../../../../../../base/common/platform.js';
+import { autorun } from '../../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { IActionListOptions, ActionListItemKind, IActionListDelegate, IActionListItem, IActionListItemInlineToggle } from '../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { getCodexApprovalsPickerListOptions } from '../../../../../../platform/agentHost/browser/codexApprovalsPicker.js';
-import { AgentHostSdkSandboxEnabledSettingId, AgentHostSdkSandboxWindowsEnabledSettingId, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
+import { AgentHostCopilotSandboxSettingId, getAgentHostCopilotSandboxSettingId, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { AgentHostCustomTerminalToolEnabledSettingId } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { KNOWN_AUTO_APPROVE_VALUES, SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { ClaudeSessionConfigKey } from '../../../../../../platform/agentHost/common/claudeSessionConfigKeys.js';
@@ -33,7 +34,7 @@ import { IHoverService } from '../../../../../../platform/hover/browser/hover.js
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
-import { AgentSandboxEnabledSettingValue, AgentSandboxEnabledValue, AgentSandboxSettingId, isAgentSandboxEnabledValue } from '../../../../../../platform/sandbox/common/settings.js';
+import { AgentSandboxEnabledSettingValue, AgentSandboxEnabledValue, isAgentSandboxEnabledValue } from '../../../../../../platform/sandbox/common/settings.js';
 import type { IAction } from '../../../../../../base/common/actions.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
@@ -48,6 +49,7 @@ import { IAgentHostSessionWorkingDirectoryResolver } from './agentHostSessionWor
 import { IAgentHostNewSessionFolderService } from './agentHostNewSessionFolderService.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { toAgentHostBackendSessionUri } from './agentHostSessionUri.js';
+import { getCompactCodicon } from '../../chatIcons.js';
 
 const FILTER_THRESHOLD = 10;
 
@@ -102,7 +104,7 @@ function getConfigIcon(property: string, value: unknown | undefined): ThemeIcon 
 }
 
 function toActionItems(property: string, items: readonly IConfigPickerItem[], currentValue: unknown | undefined, policyRestricted = false, sandboxToggle?: IActionListItemInlineToggle): IActionListItem<IConfigPickerItem>[] {
-	return items.map(item => {
+	const actionItems: IActionListItem<IConfigPickerItem>[] = items.map(item => {
 		const disabled = property === SessionConfigKey.AutoApprove && isAutoApproveValuePolicyRestricted(item.value, policyRestricted);
 		const hover = getConfigPickerItemHover(property, item, disabled);
 		return {
@@ -112,30 +114,47 @@ function toActionItems(property: string, items: readonly IConfigPickerItem[], cu
 			group: { title: '', icon: getConfigIcon(property, item.value) },
 			disabled,
 			...(hover ? { hover: { content: hover } } : {}),
-			...(isAgentHostSandboxToggleItem(property, item.value) && sandboxToggle ? { inlineToggle: sandboxToggle } : {}),
 			item: { ...item, checked: isSelectedValue(currentValue, item.value) },
 		};
 	});
+	if (property === SessionConfigKey.AutoApprove && sandboxToggle) {
+		actionItems.push({
+			kind: ActionListItemKind.Separator,
+			label: '',
+		});
+		actionItems.push({
+			kind: ActionListItemKind.Action,
+			label: sandboxToggle.label,
+			group: { title: '', icon: Codicon.blank },
+			standaloneToggle: sandboxToggle,
+			item: { value: '__sandboxToggle', label: sandboxToggle.label, checked: false },
+		});
+	}
+	return actionItems;
 }
 
-export function isAgentHostSandboxToggleItem(property: string, value: string): boolean {
-	return property === SessionConfigKey.AutoApprove && value === ChatPermissionLevel.Default;
-}
-
-type AgentHostSandboxSettingId =
-	| AgentSandboxSettingId.AgentSandboxEnabled
-	| AgentSandboxSettingId.AgentSandboxWindowsEnabled
-	| typeof AgentHostSdkSandboxEnabledSettingId
-	| typeof AgentHostSdkSandboxWindowsEnabledSettingId;
-
-export function getAgentHostSandboxSettingId(sessionType: string | undefined, customTerminalToolEnabled: boolean, windows = isWindows): AgentHostSandboxSettingId | undefined {
+export function getAgentHostSandboxSettingId(sessionType: string | undefined, customTerminalToolEnabled: boolean, windows?: boolean): AgentHostCopilotSandboxSettingId | undefined {
 	if (sessionType !== SessionType.AgentHostCopilot) {
 		return undefined;
 	}
-	if (customTerminalToolEnabled) {
-		return windows ? AgentSandboxSettingId.AgentSandboxWindowsEnabled : AgentSandboxSettingId.AgentSandboxEnabled;
+	return getAgentHostCopilotSandboxSettingId(customTerminalToolEnabled, windows);
+}
+
+export function getConfigPickerTriggerLabel(schema: SessionConfigPropertySchema, value: unknown | undefined, sandboxed: boolean): string {
+	let label: string;
+	if (schema.type === 'boolean') {
+		label = value === true
+			? localize('agentHostChatInputPicker.boolean.onLabel', "On")
+			: localize('agentHostChatInputPicker.boolean.offLabel', "Off");
+	} else if (typeof value === 'string') {
+		const index = schema.enum?.indexOf(value) ?? -1;
+		label = index >= 0 ? schema.enumLabels?.[index] ?? value : value;
+	} else {
+		label = schema.title;
 	}
-	return windows ? AgentHostSdkSandboxWindowsEnabledSettingId : AgentHostSdkSandboxEnabledSettingId;
+	return sandboxed
+		? localize('agentHostChatInputPicker.sandboxedLabel', "{0} (sandboxed)", label)
+		: label;
 }
 
 function isSelectedValue(currentValue: unknown | undefined, itemValue: string): boolean {
@@ -268,10 +287,8 @@ export function isWellKnownAutoApproveSchema(schema: SessionConfigPropertySchema
  * `Permissions` has no chip — it is surfaced through other UI — but is
  * included so the generic lane does not invent a chip for it.
  *
- * `WorktreeBranchPrefix` likewise has no chip: it is a carrier value seeded by
- * the client (from `git.branchPrefix`) and consumed by the agent for worktree
- * isolation, never edited by the user. Including it here keeps the generic lane
- * from surfacing it as a chip in the chat input.
+ * Host-owned worktree configuration also has no chip. Including those properties
+ * here keeps the generic lane from surfacing them in the chat input.
  */
 export const WELL_KNOWN_PICKER_PROPERTIES: ReadonlySet<string> = new Set<string>([
 	SessionConfigKey.Mode,
@@ -281,6 +298,7 @@ export const WELL_KNOWN_PICKER_PROPERTIES: ReadonlySet<string> = new Set<string>
 	SessionConfigKey.Permissions,
 	SessionConfigKey.WorktreeBranchPrefix,
 	SessionConfigKey.WorktreeBranchTrack,
+	SessionConfigKey.WorktreeCreateNewBranch,
 	SessionConfigKey.WorktreeIncludeFiles,
 	ClaudeSessionConfigKey.PermissionMode,
 	CodexSessionConfigKey.PermissionsPreset,
@@ -353,6 +371,7 @@ export class AgentHostChatInputPicker extends Disposable {
 		@IAgentHostNewSessionFolderService private readonly _newSessionFolderService: IAgentHostNewSessionFolderService,
 		@IDialogService private readonly _dialogService: IDialogService,
 		@IStorageService private readonly _storageService: IStorageService,
+		@IAgentHostEnablementService private readonly _agentHostEnablementService: IAgentHostEnablementService,
 	) {
 		super();
 
@@ -374,6 +393,10 @@ export class AgentHostChatInputPicker extends Disposable {
 			}
 		}));
 		this._reattach();
+		this._register(autorun(reader => {
+			this._agentHostEnablementService.managedSandboxEnforced.read(reader);
+			this._refreshTrigger();
+		}));
 	}
 
 	private _registerInitialResolveCts(): MutableDisposable<CancellationTokenSource> {
@@ -391,6 +414,10 @@ export class AgentHostChatInputPicker extends Disposable {
 		container.classList.add('agent-host-chat-input-picker-host');
 		container.classList.add(`agent-host-chat-input-picker-host-${this._property}`);
 		this._renderChip();
+	}
+
+	show(anchor: HTMLElement): void {
+		void this._showPicker(anchor);
 	}
 
 	private _reattach(): void {
@@ -481,6 +508,7 @@ export class AgentHostChatInputPicker extends Disposable {
 		this._trigger = undefined;
 		this._renderDisposables.clear();
 		dom.clearNode(this._container);
+		this._container.classList.remove('agent-host-chat-input-picker-has-icon');
 
 		const ctx = this._readContext();
 		// For sessions that have already started (i.e. no longer untitled —
@@ -525,8 +553,9 @@ export class AgentHostChatInputPicker extends Disposable {
 		dom.clearNode(trigger);
 
 		const icon = getConfigIcon(this._property, value);
+		this._container?.classList.toggle('agent-host-chat-input-picker-has-icon', !!icon);
 		if (icon) {
-			dom.append(trigger, renderIcon(icon));
+			dom.append(trigger, renderIcon(getCompactCodicon(icon)));
 		}
 		// Mirror the sessions-side picker: elevated approval levels get themed colors.
 		if (this._property === SessionConfigKey.AutoApprove) {
@@ -554,22 +583,10 @@ export class AgentHostChatInputPicker extends Disposable {
 	}
 
 	private _labelFor(schema: SessionConfigPropertySchema, value: unknown | undefined): string {
-		if (this._property === SessionConfigKey.AutoApprove
-			&& value === ChatPermissionLevel.Default
+		const sandboxed = this._property === SessionConfigKey.AutoApprove
 			&& this._isSandboxToggleSettingEnabled()
-			&& this._isSandboxingEnabled()) {
-			return localize('agentHostChatInputPicker.manualSandboxedLabel', "Manual permissions (sandboxed)");
-		}
-		if (schema.type === 'boolean') {
-			return value === true
-				? localize('agentHostChatInputPicker.boolean.onLabel', "On")
-				: localize('agentHostChatInputPicker.boolean.offLabel', "Off");
-		}
-		if (typeof value === 'string') {
-			const index = schema.enum?.indexOf(value) ?? -1;
-			return index >= 0 ? schema.enumLabels?.[index] ?? value : value;
-		}
-		return schema.title;
+			&& this._isSandboxingEnabled();
+		return getConfigPickerTriggerLabel(schema, value, sandboxed);
 	}
 
 	private _readContext(): { backendSession: URI; schema: SessionConfigPropertySchema; value: unknown | undefined } | undefined {
@@ -631,7 +648,7 @@ export class AgentHostChatInputPicker extends Disposable {
 		}
 		const currentValue = ctx.value;
 		const policyRestricted = isAutoApprovePolicyRestricted(this._configurationService);
-		const actionItems = toActionItems(this._property, items, currentValue, policyRestricted, this._getSandboxInlineToggle());
+		const actionItems = toActionItems(this._property, items, currentValue, policyRestricted, this._getSandboxStandaloneToggle());
 		const permissionsLearnMoreUrl = getPermissionsLearnMoreUrl(this._property);
 		if (permissionsLearnMoreUrl) {
 			const learnMoreLabel = localize('agentHostChatInputPicker.learnMorePermissions', "Learn more about permissions");
@@ -664,7 +681,7 @@ export class AgentHostChatInputPicker extends Disposable {
 					if (!refreshed) {
 						return [];
 					}
-					return toActionItems(this._property, await this._getItems(refreshed.schema, query), refreshed.value, isAutoApprovePolicyRestricted(this._configurationService), this._getSandboxInlineToggle());
+					return toActionItems(this._property, await this._getItems(refreshed.schema, query), refreshed.value, isAutoApprovePolicyRestricted(this._configurationService), this._getSandboxStandaloneToggle());
 				})
 				: undefined,
 			onHide: () => trigger.focus(),
@@ -703,20 +720,30 @@ export class AgentHostChatInputPicker extends Disposable {
 	}
 
 	private _isSandboxingEnabled(): boolean {
+		if (this._agentHostEnablementService.managedSandboxEnforced.get()) {
+			return true;
+		}
 		const settingId = this._getSandboxSettingId();
 		return settingId !== undefined && isAgentSandboxEnabledValue(this._configurationService.getValue<AgentSandboxEnabledSettingValue>(settingId));
 	}
 
-	private _getSandboxInlineToggle(): IActionListItemInlineToggle | undefined {
+	private _getSandboxStandaloneToggle(): IActionListItemInlineToggle | undefined {
 		const settingId = this._getSandboxSettingId();
 		if (this._property !== SessionConfigKey.AutoApprove || !this._isSandboxToggleSettingEnabled() || !settingId) {
 			return undefined;
 		}
+		const managed = this._agentHostEnablementService.managedSandboxEnforced.get();
 		return {
 			label: localize('agentHostChatInputPicker.defaultSandboxToggle', "Sandboxing for terminal"),
-			title: localize('agentHostChatInputPicker.defaultSandboxToggleTitle', "Run terminal commands inside a sandbox that restricts file system and network access"),
+			title: managed
+				? localize('agentHostChatInputPicker.managedSandboxToggleTitle', "Sandboxing is managed by your organization")
+				: localize('agentHostChatInputPicker.defaultSandboxToggleTitle', "Run terminal commands inside a sandbox that restricts file system and network access"),
 			checked: this._isSandboxingEnabled(),
+			disabled: managed,
 			onChange: checked => {
+				if (this._agentHostEnablementService.managedSandboxEnforced.get()) {
+					return;
+				}
 				const target = checked ? AgentSandboxEnabledValue.On : AgentSandboxEnabledValue.Off;
 				void this._configurationService.updateValue(settingId, target);
 			},

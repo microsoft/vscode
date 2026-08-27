@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
@@ -12,7 +13,7 @@ import { ILanguageModelChatMetadataAndIdentifier } from '../../../../workbench/c
 import { ModelIdentifierResolution } from '../../../../workbench/contrib/chat/common/modelSelection.js';
 import { IAutomationDescriptor, IAutomationRun } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationStore } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
-import { IChat, ISession, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection } from './session.js';
+import { ChatModelSource, IChat, ISession, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection } from './session.js';
 
 /**
  * Event fired when sessions change within a provider.
@@ -21,6 +22,15 @@ export interface ISessionChangeEvent {
 	readonly added: readonly ISession[];
 	readonly removed: readonly ISession[];
 	readonly changed: readonly ISession[];
+}
+
+/** Why a session resource is being resolved, so a provider can pick a latency budget. */
+export type SessionResourceResolveReason = 'open' | 'restore';
+
+/** A provider-prepared replacement draft and its rollback operation. */
+export interface IPreparedNewSession {
+	readonly session: ISession;
+	discard?(): Promise<void>;
 }
 
 /**
@@ -47,6 +57,7 @@ export interface ISessionsProviderCreateSessionOptions {
 export interface ISessionWorktreeConfiguration {
 	readonly isolationMode?: string;
 	readonly worktreeBranchTrack?: boolean;
+	readonly worktreeCreateNewBranch?: boolean;
 	readonly branch?: string;
 }
 
@@ -168,6 +179,21 @@ export interface ISessionsProvider {
 	 * Event that fires when sessions are added, removed, or changed. Consumers should update their session lists and any related UI when this occurs.
 	 */
 	readonly onDidChangeSessions: Event<ISessionChangeEvent>;
+
+	/**
+	 * Optional. Redirects a resource that this provider supersedes to the one it
+	 * should actually be opened as, or `undefined` to leave it unchanged.
+	 *
+	 * Open paths address a session by URI — restored editors, links, and commands
+	 * all bypass the session list — so a provider that adopts another provider's
+	 * sessions must be consulted here, not only when the list is built.
+	 * Implementations must return quickly and synchronously decline resources
+	 * they do not own.
+	 *
+	 * `reason` says why the resource is being resolved so a provider can pick its
+	 * own latency budget; it carries no provider-specific policy.
+	 */
+	resolveSessionResource?(resource: URI, reason?: SessionResourceResolveReason): Promise<URI | undefined>;
 	/**
 	 * Optional. Fires when a temporary (untitled) session is atomically replaced
 	 * by a committed session after the first turn.
@@ -226,6 +252,13 @@ export interface ISessionsProvider {
 	 * @param options Optional metadata and other provider creation inputs.
 	 */
 	createNewSession(workspaceUri: URI, sessionTypeId: string, options?: ISessionsProviderCreateSessionOptions): ISession;
+
+	/**
+	 * Asynchronously replace a draft before its first chat is created.
+	 * Providers use this to materialize execution environments that can change
+	 * the provider or workspace backing the session.
+	 */
+	prepareNewSession?(sessionId: string, token: CancellationToken): Promise<IPreparedNewSession>;
 
 	/**
 	 * Mark a new session as preparing its first request before asynchronous
@@ -301,11 +334,19 @@ export interface ISessionsProvider {
 	readonly onDidChangeModels: Event<void>;
 
 	/**
-	 * Set the model for a session.
+	 * Set the model for one of a session's chats.
 	 * @param sessionId The ID of the session.
-	 * @param modelId The ID of the model to set for the session.
+	 * @param chatResource The chat to set the model on. Passed explicitly because a session id
+	 * cannot identify one of its chats, and a picker is always scoped to the chat it is shown in —
+	 * inferring the chat from whichever session is active would let a visible peer chat's picker
+	 * write to a different conversation.
+	 * @param modelId The ID of the model to set.
+	 * @param source Whether this is the chat's own model, surfaced back as
+	 * {@link IChat.modelSource}. A client picking a model for the chat must say
+	 * {@link ChatModelSource.CarriedOver}, or the chat becomes indistinguishable from one the user
+	 * chose a model for.
 	 */
-	setModel(sessionId: string, modelId: string): void;
+	setModel(sessionId: string, chatResource: URI, modelId: string, source: ChatModelSource): void;
 
 	/**
 	 * Set the chat mode for a session.
@@ -339,6 +380,9 @@ export interface ISessionsProvider {
 	 * @param enabled Whether branch tracking is enabled.
 	 */
 	setWorktreeBranchTrack?(sessionId: string, enabled: boolean): Promise<void>;
+
+	/** Set whether the worktree creates a new branch for a session. */
+	setWorktreeCreateNewBranch?(sessionId: string, enabled: boolean): Promise<void>;
 
 	/**
 	 * Set the git branch for a session.

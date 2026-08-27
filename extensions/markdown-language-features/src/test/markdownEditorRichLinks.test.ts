@@ -4,123 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { autorun } from '@vscode/observables';
+import { autorun, derived, observableValue } from '@vscode/observables';
 import 'mocha';
 import * as vscode from 'vscode';
-import {
-	getGitHubIssueStatus,
-	getGitHubLookupFailurePresentation,
-	getGitHubPullRequestStatus,
-	GitHubLookupError,
-	resolveGitHubTreePath,
-	shouldShowGitHubPullRequestChecks,
-} from '../preview/githubLinkPresentationResolver';
-import { getSessionLinkPresentation } from '../preview/agentSessionLinkPresentationResolver';
-import { getGitCommitPresentation, GitLinkPresentationResolver, normalizeGitRemoteUrl } from '../preview/gitLinkPresentationResolver';
-import { createAsyncLinkPresentation, ImmutableLinkPresentationCache, LinkPresentationCache } from '../preview/linkPresentationResolver';
+import { getGitCommitPresentation, GitLinkPresentationResolver, normalizeGitRemoteUrl } from '../preview/linkPresentation/gitLinkPresentationResolver';
+import { createAsyncLinkPresentation, ImmutableLinkPresentationCache } from '../preview/linkPresentation/linkPresentationResolver';
+import { LinkPresentationService } from '../preview/linkPresentation/linkPresentationService';
 
 suite('Markdown editor rich links', () => {
-	test('separates GitHub branch names from folder paths', () => {
-		const refs = [
-			{ ref: 'refs/heads/main' },
-			{ ref: 'refs/heads/feature/rich-links' },
-		];
-
-		assert.deepStrictEqual(resolveGitHubTreePath(['main'], refs), {
-			branch: 'main',
-		});
-		assert.deepStrictEqual(resolveGitHubTreePath(['main', 'src', 'vs'], refs), {
-			branch: 'main',
-			path: 'src/vs',
-		});
-		assert.deepStrictEqual(resolveGitHubTreePath(['feature', 'rich-links'], refs), {
-			branch: 'feature/rich-links',
-		});
-		assert.deepStrictEqual(resolveGitHubTreePath(['feature', 'rich-links', 'src'], refs), {
-			branch: 'feature/rich-links',
-			path: 'src',
-		});
-	});
-
-	test('maps GitHub issue lifecycle states', () => {
-		assert.deepStrictEqual(getGitHubIssueStatus('open', undefined), { kind: 'open', label: 'Open' });
-		assert.deepStrictEqual(getGitHubIssueStatus('closed', 'completed'), { kind: 'closed', label: 'Closed' });
-		assert.deepStrictEqual(getGitHubIssueStatus('closed', 'not_planned'), { kind: 'notPlanned', label: 'Not planned' });
-	});
-
-	test('maps GitHub pull request lifecycle states', () => {
-		const open = getGitHubPullRequestStatus('open', false, false);
-		const draft = getGitHubPullRequestStatus('open', true, false);
-		const closed = getGitHubPullRequestStatus('closed', false, false);
-		const merged = getGitHubPullRequestStatus('closed', false, true);
-
-		assert.deepStrictEqual(open, { kind: 'open', label: 'Open' });
-		assert.deepStrictEqual(draft, { kind: 'draft', label: 'Draft' });
-		assert.deepStrictEqual(closed, { kind: 'closed', label: 'Closed' });
-		assert.deepStrictEqual(merged, { kind: 'merged', label: 'Merged' });
-		assert.strictEqual(shouldShowGitHubPullRequestChecks(open), true);
-		assert.strictEqual(shouldShowGitHubPullRequestChecks(draft), true);
-		assert.strictEqual(shouldShowGitHubPullRequestChecks(closed), false);
-		assert.strictEqual(shouldShowGitHubPullRequestChecks(merged), false);
-	});
-
-	test('keeps GitHub lookup failures visible and actionable', () => {
-		assert.deepStrictEqual(
-			getGitHubLookupFailurePresentation(
-				'https://github.com/hediet/demo-json-schema-validator/pull/5',
-				new GitHubLookupError('authenticationRequired', 'No GitHub session.'),
-			),
-			{
-				kind: 'pullRequest',
-				status: { kind: 'error', label: 'Authorization required' },
-				tooltip: 'Authorize GitHub repository access in VS Code to load this link. No GitHub session.',
-				ariaLabel: 'GitHub pullRequest lookup failed: Authorization required',
-			},
-		);
-		assert.deepStrictEqual(
-			getGitHubLookupFailurePresentation(
-				'https://github.com/hediet/demo-json-schema-validator/issues/1',
-				new GitHubLookupError('rateLimited', '403 Forbidden'),
-			)?.status,
-			{ kind: 'error', label: 'Rate limited' },
-		);
-		assert.strictEqual(
-			getGitHubLookupFailurePresentation('https://example.com/issues/1', new Error('offline')),
-			undefined,
-		);
-	});
-
-	test('publishes complete data-driven session presentations', () => {
-		assert.deepStrictEqual(
-			getSessionLinkPresentation({
-				title: 'Implement rich-link metadata',
-				description: 'Updating the Markdown extension',
-				status: vscode.AgentSessionStatus.InProgress,
-			}),
-			{
-				kind: 'session',
-				title: 'Implement rich-link metadata',
-				detail: 'Updating the Markdown extension',
-				status: { kind: 'pending', label: 'Working' },
-				tooltip: 'Implement rich-link metadata · Working',
-				ariaLabel: 'Agent session Implement rich-link metadata, Working',
-			},
-		);
-		assert.deepStrictEqual(
-			getSessionLinkPresentation({
-				title: 'Implement rich-link metadata',
-				status: vscode.AgentSessionStatus.NeedsInput,
-			}),
-			{
-				kind: 'session',
-				title: 'Implement rich-link metadata',
-				status: { kind: 'warning', label: 'Needs input' },
-				tooltip: 'Implement rich-link metadata · Needs input',
-				ariaLabel: 'Agent session Implement rich-link metadata, Needs input',
-			},
-		);
-	});
-
 	test('normalizes common Git remote URL formats', () => {
 		assert.deepStrictEqual([
 			normalizeGitRemoteUrl('https://github.com/microsoft/vscode.git'),
@@ -164,13 +55,6 @@ suite('Markdown editor rich links', () => {
 		}
 	});
 
-	test('ignores malformed GitHub paths', () => {
-		assert.strictEqual(
-			getGitHubLookupFailurePresentation('https://github.com/microsoft/vscode/issues/%', new Error('failed')),
-			undefined,
-		);
-	});
-
 	test('shows Git commit metadata', () => {
 		assert.deepStrictEqual(getGitCommitPresentation({
 			hash: '1234567890abcdef',
@@ -210,6 +94,43 @@ suite('Markdown editor rich links', () => {
 		refresh.fire();
 		assert.strictEqual(resolveCount, 2);
 		refresh.dispose();
+	});
+
+	test('shares one live resolver observable per canonical URL', () => {
+		const source = observableValue('presentation', { kind: 'pullRequest' as const, title: 'Shared presentation' });
+		let resolveCount = 0;
+		let activeSubscriptions = 0;
+		let resolverDisposeCount = 0;
+		const resolver = {
+			refreshOnInterval: false,
+			resolve: () => {
+				resolveCount++;
+				return derived(reader => {
+					activeSubscriptions++;
+					reader.store.add({
+						dispose: () => activeSubscriptions--,
+					});
+					return source.read(reader);
+				});
+			},
+			dispose: () => resolverDisposeCount++,
+		};
+		const service = new LinkPresentationService([resolver], { trace: () => { } });
+
+		const first = service.watch('https://example.com/pull/1')!;
+		const second = service.watch('https://example.com/pull/1')!;
+		assert.deepStrictEqual({ resolveCount, activeSubscriptions }, { resolveCount: 1, activeSubscriptions: 1 });
+
+		first.dispose();
+		assert.strictEqual(activeSubscriptions, 1);
+		second.dispose();
+		assert.strictEqual(activeSubscriptions, 0);
+
+		const third = service.watch('https://example.com/pull/1')!;
+		assert.deepStrictEqual({ resolveCount, activeSubscriptions }, { resolveCount: 2, activeSubscriptions: 1 });
+		third.dispose();
+		service.dispose();
+		assert.deepStrictEqual({ activeSubscriptions, resolverDisposeCount }, { activeSubscriptions: 0, resolverDisposeCount: 1 });
 	});
 
 	test('caches immutable Git commit presentations without expiry', async () => {
@@ -257,20 +178,71 @@ suite('Markdown editor rich links', () => {
 		});
 	});
 
-	test('expires mutable link presentations after one minute', async () => {
-		const cache = new LinkPresentationCache();
+	test('keeps a restored presentation visible while loading in the background', async () => {
+		const requestRefresh = new vscode.EventEmitter<void>();
+		let completeRefresh!: (value: { kind: 'issue'; title: string }) => void;
+		const refresh = new Promise<{ kind: 'issue'; title: string }>(resolve => completeRefresh = resolve);
+		const presentation = createAsyncLinkPresentation(
+			'https://example.com/issues/1',
+			{ kind: 'issue', title: 'Cached issue', isLoading: true },
+			{
+				onDidRequestRefresh: requestRefresh.event,
+				logger: { trace: () => { } },
+			},
+			() => refresh,
+			() => ({ kind: 'issue', status: { kind: 'error', label: 'Error' } }),
+			[],
+		);
+		const values: unknown[] = [];
+		const observer = autorun(reader => values.push(presentation.read(reader)));
+		completeRefresh({ kind: 'issue', title: 'Fresh issue' });
+		await refresh;
+		await Promise.resolve();
+		observer.dispose();
+		requestRefresh.dispose();
+
+		assert.deepStrictEqual(values, [
+			{ kind: 'issue', title: 'Cached issue', isLoading: true },
+			{ kind: 'issue', title: 'Fresh issue', isLoading: undefined },
+		]);
+	});
+
+	test('does not mark a fresh presentation loading during background refresh', async () => {
+		const requestRefresh = new vscode.EventEmitter<void>();
 		let resolveCount = 0;
-		const resolve = async () => ({ kind: 'issue' as const, title: String(++resolveCount) });
+		let completeRefresh!: (value: { kind: 'issue'; title: string }) => void;
+		const presentation = createAsyncLinkPresentation(
+			'https://example.com/issues/1',
+			{ kind: 'issue', status: { kind: 'pending', label: 'Loading' } },
+			{
+				onDidRequestRefresh: requestRefresh.event,
+				logger: { trace: () => { } },
+			},
+			() => {
+				resolveCount++;
+				return resolveCount === 1
+					? Promise.resolve({ kind: 'issue', title: 'Fresh issue' })
+					: new Promise(resolve => completeRefresh = resolve);
+			},
+			() => ({ kind: 'issue', status: { kind: 'error', label: 'Error' } }),
+			[requestRefresh.event],
+		);
+		const values: unknown[] = [];
+		const observer = autorun(reader => values.push(presentation.read(reader)));
+		await Promise.resolve();
+		await Promise.resolve();
+		requestRefresh.fire();
+		await Promise.resolve();
+		completeRefresh({ kind: 'issue', title: 'Refreshed issue' });
+		await Promise.resolve();
+		await Promise.resolve();
+		observer.dispose();
+		requestRefresh.dispose();
 
-		const first = await cache.get('https://github.com/microsoft/vscode/issues/1', resolve, 0);
-		const cached = await cache.get('https://github.com/microsoft/vscode/issues/1', resolve, 59_999);
-		const refreshed = await cache.get('https://github.com/microsoft/vscode/issues/1', resolve, 60_000);
-
-		assert.deepStrictEqual({ first, cached, refreshed, resolveCount }, {
-			first: { kind: 'issue', title: '1' },
-			cached: { kind: 'issue', title: '1' },
-			refreshed: { kind: 'issue', title: '2' },
-			resolveCount: 2,
-		});
+		assert.deepStrictEqual(values, [
+			{ kind: 'issue', status: { kind: 'pending', label: 'Loading' } },
+			{ kind: 'issue', title: 'Fresh issue', isLoading: undefined },
+			{ kind: 'issue', title: 'Refreshed issue', isLoading: undefined },
+		]);
 	});
 });

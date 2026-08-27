@@ -150,8 +150,8 @@
 	flex-shrink: 0;
 	min-width: 14px;
 	color: var(--vscode-descriptionForeground);
-	font-size: var(--vscode-agents-fontSize-label2);
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	font-size: var(--vscode-fontSize-label2);
+	font-weight: var(--vscode-fontWeight-semiBold);
 	line-height: 16px;
 	text-align: right;
 }
@@ -202,8 +202,8 @@
 
 .ai-customization-management-editor .section-list-item .section-count {
 	flex-shrink: 0;
-	font-size: var(--vscode-agents-fontSize-label2);
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	font-size: var(--vscode-fontSize-label2);
+	font-weight: var(--vscode-fontWeight-semiBold);
 	color: var(--vscode-descriptionForeground);
 	border-radius: 8px;
 	min-width: 14px;
@@ -335,7 +335,7 @@
 }
 
 .ai-customization-management-editor .harness-dropdown-chevron {
-	font-size: 12px;
+	font-size: var(--vscode-codiconFontSize-compact);
 	flex-shrink: 0;
 	opacity: 0.7;
 }
@@ -403,13 +403,13 @@
 .ai-customization-list-widget .list-empty-state .empty-state-text,
 .ai-customization-management-editor .tools-list-widget .list-empty-state .empty-state-text {
 	font-size: 16px;
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	font-weight: var(--vscode-fontWeight-semiBold);
 	color: var(--vscode-foreground);
 }
 
 .ai-customization-list-widget .list-empty-state .empty-state-subtext,
 .ai-customization-management-editor .tools-list-widget .list-empty-state .empty-state-subtext {
-	font-size: var(--vscode-agents-fontSize-body1);
+	font-size: var(--vscode-fontSize-body1);
 	color: var(--vscode-descriptionForeground);
 	max-width: 250px;
 	line-height: 1.4;
@@ -461,7 +461,7 @@
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	font-size: 12px;
+	font-size: var(--vscode-codiconFontSize-compact);
 	opacity: 0.7;
 	order: 10;
 	margin-left: auto;
@@ -479,9 +479,10 @@
 	min-width: 0;
 }
 
+/* No text-transform: these labels are localized strings that are already cased correctly, and
+per-word capitalization does not survive translation. */
 .ai-customization-group-header .group-label {
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
-	text-transform: capitalize;
+	font-weight: var(--vscode-fontWeight-semiBold);
 	color: var(--vscode-sideBarSectionHeader-foreground, var(--vscode-foreground));
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -490,8 +491,8 @@
 
 .ai-customization-group-header .group-count {
 	flex-shrink: 0;
-	font-size: var(--vscode-agents-fontSize-label2);
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	font-size: var(--vscode-fontSize-label2);
+	font-weight: var(--vscode-fontWeight-semiBold);
 	color: var(--vscode-descriptionForeground);
 	text-align: right;
 	margin-top: 2px;
@@ -581,7 +582,7 @@
 /* Shared inline badge style — used by MCP "Bridged" badge and item badges */
 .inline-badge {
 	flex-shrink: 0;
-	font-size: var(--vscode-agents-fontSize-label3);
+	font-size: var(--vscode-fontSize-label3);
 	padding: 0 4px;
 	border-radius: 3px;
 	color: var(--vscode-descriptionForeground);
@@ -636,7 +637,7 @@
 }
 
 .ai-customization-list-item .item-name {
-	font-size: var(--vscode-agents-fontSize-body1);
+	font-size: var(--vscode-fontSize-body1);
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
@@ -644,7 +645,7 @@
 }
 
 .ai-customization-list-item .item-description {
-	font-size: var(--vscode-agents-fontSize-body2);
+	font-size: var(--vscode-fontSize-body2);
 	color: var(--vscode-descriptionForeground);
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -654,7 +655,7 @@
 
 .ai-customization-list-item .item-description.is-filename {
 	font-family: monospace;
-	font-size: var(--vscode-agents-fontSize-label3);
+	font-size: var(--vscode-fontSize-label3);
 	opacity: 0.7;
 }
 
@@ -711,8 +712,8 @@
 .ai-customization-list-widget .section-title-header .section-title,
 .mcp-list-widget .section-title-header .section-title,
 .ai-customization-management-editor .tools-list-widget .section-title-header .section-title {
-	font-size: var(--vscode-agents-fontSize-heading2);
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	font-size: var(--vscode-fontSize-heading2);
+	font-weight: var(--vscode-fontWeight-semiBold);
 	margin: 0;
 	color: var(--vscode-foreground);
 }
@@ -720,7 +721,7 @@
 .ai-customization-list-widget .section-title-header .section-title-description,
 .mcp-list-widget .section-title-header .section-title-description,
 .ai-customization-management-editor .tools-list-widget .section-title-header .section-title-description {
-	font-size: var(--vscode-agents-fontSize-body1);
+	font-size: var(--vscode-fontSize-body1);
 	line-height: 1.45;
 	color: var(--vscode-descriptionForeground);
 	margin: 0 0 8px 0;
@@ -735,7 +736,7 @@
 .ai-customization-management-editor .prompt-migration-content-container > .section-title-link,
 .mcp-list-widget .section-title-header .section-title-link,
 .ai-customization-management-editor .tools-list-widget .section-title-header .section-title-link {
-	font-size: var(--vscode-agents-fontSize-body1);
+	font-size: var(--vscode-fontSize-body1);
 	/* Match the description's line-height so the link's inline-flex line-box */
 	/* does not change the total header height between sections. */
 	line-height: 1.45;
@@ -770,13 +771,13 @@
 }
 
 .ai-customization-list-widget .section-footer .section-footer-description {
-	font-size: var(--vscode-agents-fontSize-body1);
+	font-size: var(--vscode-fontSize-body1);
 	color: var(--vscode-descriptionForeground);
 	margin: 0 0 8px 0;
 }
 
 .ai-customization-list-widget .section-footer .section-footer-link {
-	font-size: var(--vscode-agents-fontSize-body1);
+	font-size: var(--vscode-fontSize-body1);
 	color: var(--vscode-textLink-foreground);
 	text-decoration: none;
 	cursor: pointer;
@@ -842,8 +843,8 @@
 }
 
 .ai-customization-overview .overview-section .section-label {
-	font-size: var(--vscode-agents-fontSize-label1);
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	font-size: var(--vscode-fontSize-label1);
+	font-weight: var(--vscode-fontWeight-semiBold);
 	color: var(--vscode-foreground);
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -855,7 +856,7 @@
 .ai-customization-overview .overview-section .section-count {
 	flex-shrink: 0;
 	font-size: 9px;
-	font-weight: 500;
+	font-weight: var(--vscode-fontWeight-semiBold);
 	padding: 1px 5px;
 	background-color: var(--vscode-list-inactiveSelectionBackground);
 	color: var(--vscode-list-inactiveSelectionForeground, var(--vscode-foreground));
@@ -930,14 +931,14 @@
 
 .ai-customization-management-editor .customization-migration-banner-title {
 	margin: 0;
-	font-size: var(--vscode-agents-fontSize-body1);
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	font-size: var(--vscode-fontSize-body1);
+	font-weight: var(--vscode-fontWeight-semiBold);
 	color: var(--vscode-foreground);
 }
 
 .ai-customization-management-editor .customization-migration-banner-message {
 	margin: 0;
-	font-size: var(--vscode-agents-fontSize-body1);
+	font-size: var(--vscode-fontSize-body1);
 	line-height: 1.45;
 	color: var(--vscode-foreground);
 }
@@ -947,7 +948,7 @@
 	align-items: flex-start;
 	gap: var(--vscode-spacing-size60);
 	margin: 0;
-	font-size: var(--vscode-agents-fontSize-body1);
+	font-size: var(--vscode-fontSize-body1);
 	line-height: 1.45;
 	color: var(--vscode-descriptionForeground);
 }
@@ -1086,7 +1087,7 @@
 	margin: 0;
 	padding: 8px 12px;
 	color: var(--vscode-descriptionForeground);
-	font-size: var(--vscode-agents-fontSize-body2);
+	font-size: var(--vscode-fontSize-body2);
 }
 
 .ai-customization-management-editor .prompt-migration-button {
@@ -1162,8 +1163,8 @@
 }
 
 .ai-customization-management-editor .gallery-item-name {
-	font-size: var(--vscode-agents-fontSize-body1);
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	font-size: var(--vscode-fontSize-body1);
+	font-weight: var(--vscode-fontWeight-semiBold);
 	line-height: 18px;
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -1172,7 +1173,7 @@
 
 .ai-customization-management-editor .gallery-item-description,
 .ai-customization-management-editor .gallery-item-publisher {
-	font-size: var(--vscode-agents-fontSize-body2);
+	font-size: var(--vscode-fontSize-body2);
 	color: var(--vscode-descriptionForeground);
 	line-height: 16px;
 	overflow: hidden;
@@ -1186,7 +1187,7 @@
 
 .ai-customization-management-editor .gallery-item-action .monaco-button {
 	white-space: nowrap;
-	font-size: var(--vscode-agents-fontSize-body2);
+	font-size: var(--vscode-fontSize-body2);
 	padding: 2px 10px;
 }
 
@@ -1242,7 +1243,7 @@
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
-	font-size: 12px;
+	font-size: var(--vscode-codiconFontSize-compact);
 	color: var(--vscode-foreground);
 	opacity: 0.7;
 	cursor: pointer;
@@ -1287,7 +1288,7 @@
 }
 
 .ai-customization-management-editor .tools-list-row-label {
-	font-size: var(--vscode-agents-fontSize-body1);
+	font-size: var(--vscode-fontSize-body1);
 	line-height: 18px;
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -1295,17 +1296,17 @@
 }
 
 .ai-customization-management-editor .tools-list-setrow .tools-list-row-label {
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	font-weight: var(--vscode-fontWeight-semiBold);
 }
 
 /* Search match highlighting in tool set / tool names */
 .ai-customization-management-editor .tools-list-row-label .highlight {
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	font-weight: var(--vscode-fontWeight-semiBold);
 	color: var(--vscode-list-highlightForeground);
 }
 
 .ai-customization-management-editor .tools-list-row-subtext {
-	font-size: var(--vscode-agents-fontSize-body2);
+	font-size: var(--vscode-fontSize-body2);
 	line-height: 14px;
 	color: var(--vscode-descriptionForeground);
 	overflow: hidden;
@@ -1316,7 +1317,7 @@
 /* Enabled/total tool count shown at the right of a tool-set row */
 .ai-customization-management-editor .tools-list-row-count {
 	flex: none;
-	font-size: var(--vscode-agents-fontSize-body2);
+	font-size: var(--vscode-fontSize-body2);
 	color: var(--vscode-descriptionForeground);
 	font-variant-numeric: tabular-nums;
 	white-space: nowrap;
@@ -1440,9 +1441,9 @@
 
 .ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-name {
 	margin: 0;
-	font-size: var(--vscode-agents-fontSize-heading2);
+	font-size: var(--vscode-fontSize-heading2);
 	line-height: 22px;
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	font-weight: var(--vscode-fontWeight-semiBold);
 	word-break: break-word;
 }
 
@@ -1455,12 +1456,12 @@
 }
 
 .ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-scope .codicon {
-	font-size: 12px;
+	font-size: var(--vscode-codiconFontSize-compact);
 }
 
 .ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-description {
 	color: var(--vscode-foreground);
-	font-size: var(--vscode-agents-fontSize-body1);
+	font-size: var(--vscode-fontSize-body1);
 	line-height: 1.4;
 	white-space: pre-wrap;
 	word-break: break-word;
@@ -1469,7 +1470,7 @@
 
 .ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-empty {
 	color: var(--vscode-descriptionForeground);
-	font-size: var(--vscode-agents-fontSize-body1);
+	font-size: var(--vscode-fontSize-body1);
 	padding: 8px 0;
 }
 
@@ -1483,15 +1484,15 @@
 }
 
 .ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-tools-heading {
-	font-size: var(--vscode-agents-fontSize-body1);
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	font-size: var(--vscode-fontSize-body1);
+	font-weight: var(--vscode-fontWeight-semiBold);
 	color: var(--vscode-foreground);
 	margin: 0;
 }
 
 .ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-tools-message {
 	color: var(--vscode-descriptionForeground);
-	font-size: var(--vscode-agents-fontSize-body1);
+	font-size: var(--vscode-fontSize-body1);
 }
 
 .ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-tools-list {
@@ -1509,14 +1510,14 @@
 }
 
 .ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-tool-name {
-	font-size: var(--vscode-agents-fontSize-body1);
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	font-size: var(--vscode-fontSize-body1);
+	font-weight: var(--vscode-fontWeight-semiBold);
 	color: var(--vscode-foreground);
 	word-break: break-word;
 }
 
 .ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-tool-description {
-	font-size: var(--vscode-agents-fontSize-body2);
+	font-size: var(--vscode-fontSize-body2);
 	color: var(--vscode-descriptionForeground);
 	line-height: 1.4;
 	word-break: break-word;
@@ -1536,14 +1537,14 @@
 }
 
 .ai-customization-management-editor .models-content-container .section-footer-description {
-	font-size: var(--vscode-agents-fontSize-body1);
+	font-size: var(--vscode-fontSize-body1);
 	color: var(--vscode-descriptionForeground);
 	line-height: 1.5;
 	margin: 0 0 8px 0;
 }
 
 .ai-customization-management-editor .models-content-container .section-footer-link {
-	font-size: var(--vscode-agents-fontSize-body1);
+	font-size: var(--vscode-fontSize-body1);
 	color: var(--vscode-textLink-foreground);
 	text-decoration: none;
 	cursor: pointer;
@@ -1593,12 +1594,12 @@
 
 .mcp-list-widget .mcp-empty-state .empty-text {
 	font-size: 16px;
-	font-weight: 500;
+	font-weight: var(--vscode-fontWeight-semiBold);
 	color: var(--vscode-foreground);
 }
 
 .mcp-list-widget .mcp-empty-state .empty-subtext {
-	font-size: var(--vscode-agents-fontSize-body1);
+	font-size: var(--vscode-fontSize-body1);
 	color: var(--vscode-descriptionForeground);
 	max-width: 250px;
 	line-height: 1.4;
@@ -1657,12 +1658,12 @@
 
 .mcp-list-widget .mcp-disabled-state .empty-text {
 	font-size: 16px;
-	font-weight: 500;
+	font-weight: var(--vscode-fontWeight-semiBold);
 	color: var(--vscode-foreground);
 }
 
 .mcp-list-widget .mcp-disabled-state .empty-subtext {
-	font-size: var(--vscode-agents-fontSize-body1);
+	font-size: var(--vscode-fontSize-body1);
 	color: var(--vscode-descriptionForeground);
 	max-width: 420px;
 	line-height: 1.5;
@@ -1727,7 +1728,7 @@
 }
 
 .mcp-server-item .mcp-server-name {
-	font-size: var(--vscode-agents-fontSize-body1);
+	font-size: var(--vscode-fontSize-body1);
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
@@ -1735,7 +1736,7 @@
 }
 
 .mcp-server-item .mcp-server-description {
-	font-size: var(--vscode-agents-fontSize-body2);
+	font-size: var(--vscode-fontSize-body2);
 	color: var(--vscode-descriptionForeground);
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -1754,7 +1755,7 @@
 	min-width: 0;
 	min-height: var(--vscode-spacing-size240);
 	padding: 0 var(--vscode-spacing-size80);
-	font-size: var(--vscode-agents-fontSize-label1);
+	font-size: var(--vscode-fontSize-label1);
 	border-radius: var(--vscode-cornerRadius-small);
 }
 
@@ -1879,7 +1880,7 @@
 
 .ai-customization-management-editor .editor-item-name {
 	font-size: 14px;
-	font-weight: 500;
+	font-weight: var(--vscode-fontWeight-semiBold);
 	color: var(--vscode-foreground);
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -1887,7 +1888,7 @@
 }
 
 .ai-customization-management-editor .editor-item-path {
-	font-size: var(--vscode-agents-fontSize-body2);
+	font-size: var(--vscode-fontSize-body2);
 	color: var(--vscode-descriptionForeground);
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -2029,7 +2030,7 @@
 }
 
 .ai-customization-management-editor .editor-preview-row-value {
-	font-size: var(--vscode-agents-fontSize-body1);
+	font-size: var(--vscode-fontSize-body1);
 	line-height: 1.5;
 	color: var(--vscode-foreground);
 	white-space: pre-wrap;

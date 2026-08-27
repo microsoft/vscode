@@ -6,7 +6,7 @@
 /** Local mock and passthrough proxy for the Copilot policy endpoints. */
 
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import type { EndpointDef } from './endpoints';
+import type { EndpointDef, EndpointResponseMode } from './endpoints';
 
 const http = require('node:http') as typeof import('node:http');
 const https = require('node:https') as typeof import('node:https');
@@ -30,6 +30,8 @@ const DEFAULT_SCHEMA_SOURCE = resolveDefaultSchemaSource();
 /** Real API that un-mocked requests are forwarded to. */
 const DEFAULT_UPSTREAM = 'https://api.github.com';
 const PORT = 3000;
+const SETUP_PROBE_PARAM = 'mockPolicySetupProbe';
+const MOCK_SERVER_HEADER = 'X-Mock-Policy-Server';
 
 const args = parseArgs(process.argv.slice(2));
 const HOST = args.host || '127.0.0.1';
@@ -54,6 +56,7 @@ const GUI_ASSETS = new Map<string, string>([
 interface EndpointState {
 	status: number;
 	body: unknown;
+	mode: EndpointResponseMode;
 	/** When false the endpoint is proxied upstream instead of mocked. */
 	active: boolean;
 }
@@ -66,6 +69,7 @@ interface EndpointUpdate {
 	preset?: string;
 	status?: number;
 	body?: unknown;
+	mode?: EndpointResponseMode;
 	active?: boolean;
 }
 
@@ -109,22 +113,31 @@ const server = http.createServer((req, res) => {
 			return;
 		}
 
+		// A credential-free browser probe to the upstream URL is redirected here
+		// by a correctly configured system proxy. Keep it out of the request log
+		// so setup checks are not mistaken for real client traffic.
+		const endpoint = endpoints.find(endpoint => pathname === endpoint.path);
+		if (endpoint && url.searchParams.has(SETUP_PROBE_PARAM)) {
+			setMockResponseHeaders(res);
+			if (req.method === 'OPTIONS' || req.method === 'GET') {
+				res.writeHead(204);
+				res.end();
+				return;
+			}
+		}
+
 		// Mocked Copilot endpoints. Only these get permissive CORS, so the web
 		// build (browser) of Code OSS can call them cross-origin.
-		const endpoint = endpoints.find(endpoint => pathname === endpoint.path);
 		if (endpoint && state.get(endpoint.id)?.active) {
 			const entry = state.get(endpoint.id)!;
-			res.setHeader('Access-Control-Allow-Origin', '*');
-			res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-			res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type, Editor-Version, Copilot-Runtime-Version');
+			setMockResponseHeaders(res);
 			if (req.method === 'OPTIONS') {
 				res.writeHead(204);
 				res.end();
 				return;
 			}
 			if (req.method === 'GET') {
-				record(req, pathname, 'mocked', entry.status);
-				return sendJson(res, entry.status, entry.body);
+				return sendMockedResponse(req, res, pathname, entry);
 			}
 		}
 
@@ -136,6 +149,14 @@ const server = http.createServer((req, res) => {
 	}
 });
 
+function setMockResponseHeaders(res: ServerResponse): void {
+	res.setHeader(MOCK_SERVER_HEADER, 'true');
+	res.setHeader('Access-Control-Allow-Origin', '*');
+	res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+	res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type, Editor-Version, Copilot-Runtime-Version');
+	res.setHeader('Access-Control-Expose-Headers', MOCK_SERVER_HEADER);
+}
+
 /** Same-origin control API used by the GUI. */
 function handleControlApi(req: IncomingMessage, res: ServerResponse, pathname: string): void {
 	if (pathname === '/api/state' && req.method === 'GET') {
@@ -146,7 +167,7 @@ function handleControlApi(req: IncomingMessage, res: ServerResponse, pathname: s
 		return sendJson(res, 200, {
 			name: 'Mock Policy Server Control API',
 			stateUpdate: {
-				single: { endpoint: 'managedSettings', preset: 'empty', status: 200, body: {}, active: true },
+				single: { endpoint: 'managedSettings', preset: 'empty', status: 200, body: {}, mode: 'json', active: true },
 				bulk: { endpoints: [{ endpoint: 'managedSettings', active: true }, { endpoint: 'entitlements', active: false }] }
 			},
 			routes: [
@@ -258,7 +279,7 @@ function applyEndpointUpdates(payload: unknown): { ok: true } | { ok: false; err
 			return { ok: false, error: `${prefix} must be a JSON object.` };
 		}
 
-		const unknownKeys = Object.keys(rawUpdate).filter(key => !['endpoint', 'preset', 'status', 'body', 'active'].includes(key));
+		const unknownKeys = Object.keys(rawUpdate).filter(key => !['endpoint', 'preset', 'status', 'body', 'mode', 'active'].includes(key));
 		if (unknownKeys.length) {
 			return { ok: false, error: `${prefix} has unknown field${unknownKeys.length > 1 ? 's' : ''}: ${unknownKeys.join(', ')}.` };
 		}
@@ -274,8 +295,8 @@ function applyEndpointUpdates(payload: unknown): { ok: true } | { ok: false; err
 		if (!def) {
 			return { ok: false, error: `Unknown endpoint "${rawUpdate.endpoint}". Valid endpoints: ${endpoints.map(endpoint => endpoint.id).join(', ')}.` };
 		}
-		if (!['preset', 'status', 'body', 'active'].some(key => Object.hasOwn(rawUpdate, key))) {
-			return { ok: false, error: `${prefix} must include preset, status, body, or active.` };
+		if (!['preset', 'status', 'body', 'mode', 'active'].some(key => Object.hasOwn(rawUpdate, key))) {
+			return { ok: false, error: `${prefix} must include preset, status, body, mode, or active.` };
 		}
 		if (Object.hasOwn(rawUpdate, 'preset')) {
 			if (typeof rawUpdate.preset !== 'string') {
@@ -293,6 +314,9 @@ function applyEndpointUpdates(payload: unknown): { ok: true } | { ok: false; err
 		if (Object.hasOwn(rawUpdate, 'active') && typeof rawUpdate.active !== 'boolean') {
 			return { ok: false, error: `${prefix}.active must be a boolean.` };
 		}
+		if (Object.hasOwn(rawUpdate, 'mode') && !isEndpointResponseMode(rawUpdate.mode)) {
+			return { ok: false, error: `${prefix}.mode must be one of: json, malformed-json, disconnect, timeout.` };
+		}
 
 		const update: EndpointUpdate = { endpoint: rawUpdate.endpoint };
 		if (typeof rawUpdate.preset === 'string') {
@@ -304,6 +328,9 @@ function applyEndpointUpdates(payload: unknown): { ok: true } | { ok: false; err
 		if (Object.hasOwn(rawUpdate, 'body')) {
 			update.body = rawUpdate.body;
 		}
+		if (isEndpointResponseMode(rawUpdate.mode)) {
+			update.mode = rawUpdate.mode;
+		}
 		if (typeof rawUpdate.active === 'boolean') {
 			update.active = rawUpdate.active;
 		}
@@ -312,7 +339,7 @@ function applyEndpointUpdates(payload: unknown): { ok: true } | { ok: false; err
 
 	const nextState = new Map<string, EndpointState>();
 	for (const [id, entry] of state) {
-		nextState.set(id, { status: entry.status, body: clone(entry.body), active: entry.active });
+		nextState.set(id, { status: entry.status, body: clone(entry.body), mode: entry.mode, active: entry.active });
 	}
 
 	for (const update of updates) {
@@ -329,6 +356,9 @@ function applyEndpointUpdates(payload: unknown): { ok: true } | { ok: false; err
 		}
 		if (Object.hasOwn(update, 'body')) {
 			entry.body = clone(update.body);
+		}
+		if (update.mode !== undefined) {
+			entry.mode = update.mode;
 		}
 		if (update.active !== undefined) {
 			entry.active = update.active;
@@ -348,6 +378,7 @@ function resetEndpointState(): void {
 		state.set(endpoint.id, {
 			status: preset?.status ?? 200,
 			body: preset ? clone(preset.body) : {},
+			mode: 'json',
 			active: endpoint.mockedByDefault === true
 		});
 	}
@@ -633,6 +664,7 @@ function getState() {
 			presets: e.presets,
 			status: state.get(e.id)!.status,
 			body: state.get(e.id)!.body,
+			mode: state.get(e.id)!.mode,
 			active: state.get(e.id)!.active
 		})),
 		wired: isWired(),
@@ -806,6 +838,35 @@ function contentType(filePath: string): string {
 function sendJson(res: ServerResponse, status: number, obj: unknown): void {
 	res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
 	res.end(JSON.stringify(obj, null, 2));
+}
+
+function sendMockedResponse(req: IncomingMessage, res: ServerResponse, pathname: string, entry: EndpointState): void {
+	switch (entry.mode) {
+		case 'json':
+			record(req, pathname, 'mocked', entry.status);
+			sendJson(res, entry.status, entry.body);
+			return;
+		case 'malformed-json':
+			record(req, pathname, 'mocked', entry.status);
+			res.writeHead(entry.status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+			res.end('{"unterminated":');
+			return;
+		case 'disconnect':
+			record(req, pathname, 'mocked', 0);
+			res.destroy();
+			return;
+		case 'timeout': {
+			record(req, pathname, 'mocked', 0);
+			const timer = setTimeout(() => res.destroy(), 10_000);
+			timer.unref();
+			res.on('close', () => clearTimeout(timer));
+			return;
+		}
+	}
+}
+
+function isEndpointResponseMode(value: unknown): value is EndpointResponseMode {
+	return value === 'json' || value === 'malformed-json' || value === 'disconnect' || value === 'timeout';
 }
 
 function readBody(req: IncomingMessage, cb: (err: Error | null, raw: string) => void): void {

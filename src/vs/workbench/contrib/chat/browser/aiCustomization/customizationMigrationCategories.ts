@@ -66,8 +66,8 @@ export interface ICustomizationMigrationCategory {
 	getCardDescription(customizations: readonly IPromptPath[], harnessLabel: string): string;
 	getPageDescription(customizations: readonly IPromptPath[], harnessLabel: string): string;
 	/** When present, replaces the page description with a prominent banner. */
-	getBanner?(customizations: readonly IPromptPath[], harnessLabel: string): ICustomizationMigrationBanner;
-	getConfirmation(customizations: readonly IPromptPath[], harnessLabel: string): ICustomizationMigrationConfirmation;
+	getBanner?(customizations: readonly IPromptPath[], harnessLabel: string, destinationLabel?: string): ICustomizationMigrationBanner;
+	getConfirmation(customizations: readonly IPromptPath[], harnessLabel: string, destinationLabel?: string): ICustomizationMigrationConfirmation;
 	getMigratedMessage(migratedCount: number): string;
 	getMigratedWithReviewMessage?(migratedCount: number, unsupportedHeaderKeys: string): string;
 	getFailedMessage(failedFileNames: readonly string[], hiddenFileCount: number): string;
@@ -290,7 +290,7 @@ const userDataMigrationCategory: ICustomizationMigrationCategory = {
 			);
 	},
 
-	getBanner(customizations, harnessLabel) {
+	getBanner(customizations, harnessLabel, destinationLabel) {
 		const { totalCount } = countUserDataTypes(customizations);
 
 		return {
@@ -299,14 +299,20 @@ const userDataMigrationCategory: ICustomizationMigrationCategory = {
 				: localize('userDataMigrationBannerTitle', "{0} customizations are not available to {1}", totalCount, harnessLabel),
 			// The grouped list below already breaks these down by type, so the
 			// message explains the move rather than repeating the counts.
-			message: localize(
-				'userDataMigrationBannerMessage',
-				"They are stored in user data, which only VS Code reads. Migrating moves them into the folders {0} reads, keeping their name, type, and content, so you can keep using them.",
-				harnessLabel,
-			),
+			message: destinationLabel
+				? localize(
+					'userDataMigrationBannerMessageWithDestination',
+					"They are stored in user data, which only VS Code reads. Move them to '{0}' so both VS Code and this harness can use them, keeping their name, type, and content.",
+					destinationLabel,
+				)
+				: localize(
+					'userDataMigrationBannerMessage',
+					"They are stored in user data, which only VS Code reads. Migrating moves them into the folders {0} reads, keeping their name, type, and content, so you can keep using them.",
+					harnessLabel,
+				),
 			consequence: localize(
 				'userDataMigrationBannerConsequence',
-				"Migrated files won't use Settings Sync. Commit them to a repository to share them.",
+				"Migrated files aren't currently included in Settings Sync.",
 			),
 		};
 	},
@@ -349,7 +355,7 @@ const userDataMigrationCategory: ICustomizationMigrationCategory = {
 			);
 	},
 
-	getConfirmation(customizations, harnessLabel) {
+	getConfirmation(customizations, harnessLabel, destinationLabel) {
 		const { agentCount, instructionsCount, totalCount } = countUserDataTypes(customizations);
 		let detail: string;
 		if (agentCount > 0 && instructionsCount > 0) {
@@ -364,7 +370,9 @@ const userDataMigrationCategory: ICustomizationMigrationCategory = {
 				: localize('userDataMigrationConfirmDetailInstructions', "This moves {0} instruction files out of user data.", instructionsCount);
 		}
 		return {
-			message: localize('userDataMigrationConfirmMessage', "Migrate user data customizations to {0}?", harnessLabel),
+			message: destinationLabel
+				? localize('userDataMigrationConfirmMessageWithDestination', "Migrate user data customizations to '{0}'?", destinationLabel)
+				: localize('userDataMigrationConfirmMessage', "Migrate user data customizations to {0}?", harnessLabel),
 			detail,
 			primaryButton: localize('userDataMigrationConfirmButton', "Migrate"),
 			deleteOriginalsLabel: localize('userDataMigrationDeleteOriginalFilesCheckbox', "Delete the original files from user data after migration"),
