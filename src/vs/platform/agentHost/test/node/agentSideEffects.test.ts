@@ -2828,6 +2828,31 @@ suite('AgentSideEffects', () => {
 			await waitForState(stateManager, () => changed.length >= 2 || undefined);
 			assert.strictEqual(changed.length, 2, 'restored session must receive its customizations');
 		});
+
+		test('does not publish customizations after the session is removed during discovery', async () => {
+			setupSession();
+			const discoveryStarted = new DeferredPromise<void>();
+			const discoveryResult = new DeferredPromise<readonly Customization[]>();
+			agent.getSessionCustomizations = async () => {
+				discoveryStarted.complete();
+				return discoveryResult.p;
+			};
+			const changed: ActionEnvelope[] = [];
+			disposables.add(stateManager.onDidEmitEnvelope(e => {
+				if (e.action.type === ActionType.SessionCustomizationsChanged) {
+					changed.push(e);
+				}
+			}));
+			disposables.add(sideEffects.registerProgressListener(agent));
+
+			agent.fireCustomizationsChange();
+			await discoveryStarted.p;
+			stateManager.removeSession(sessionUri.toString());
+			discoveryResult.complete([]);
+			await sideEffects['_pendingSessionCustomizationPublishes'].get(sessionUri.toString());
+
+			assert.deepStrictEqual(changed, []);
+		});
 	});
 
 	// ---- agents observable --------------------------------------------------

@@ -448,8 +448,12 @@ export class AgentSideEffects extends Disposable {
 	}
 
 	private async _publishSessionCustomizations(agent: IAgent, session: ProtocolURI, supersededRetries: number): Promise<void> {
-		const currentBeforeFetch = this._stateManager.getSessionState(session)?.customizations;
-		const chat = URI.parse(this._stateManager.getSessionState(session)?.defaultChat ?? buildDefaultChatUri(session));
+		const stateBeforeFetch = this._stateManager.getSessionState(session);
+		if (!stateBeforeFetch) {
+			return;
+		}
+		const currentBeforeFetch = stateBeforeFetch.customizations;
+		const chat = URI.parse(stateBeforeFetch.defaultChat ?? buildDefaultChatUri(session));
 		const customizations = await agent.getChatCustomizations(chat, this._chatContext(session, chat.toString()), currentBeforeFetch);
 
 		// Skip the dispatch when the resolved customizations match what the
@@ -465,7 +469,11 @@ export class AgentSideEffects extends Disposable {
 		// It also needs no cleanup on session teardown. `undefined` (never
 		// published) never equals a resolved array, so the initial publish
 		// always goes through.
-		const current = this._stateManager.getSessionState(session)?.customizations;
+		const currentState = this._stateManager.getSessionState(session);
+		if (!currentState) {
+			return;
+		}
+		const current = currentState.customizations;
 		// Agent progress received during the fetch is newer than this snapshot.
 		if (current !== currentBeforeFetch) {
 			if (supersededRetries < MAX_SUPERSEDED_CUSTOMIZATION_PUBLISH_RETRIES) {
