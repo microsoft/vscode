@@ -96,7 +96,6 @@ function activate(context) {
   const watcher = vscode.workspace.createFileSystemWatcher('**/*.test.js');
   watcher.onDidCreate(discoverTests, undefined, context.subscriptions);
   watcher.onDidDelete(discoverTests, undefined, context.subscriptions);
-  watcher.onDidChange(() => controller.invalidateTestResults(), undefined, context.subscriptions);
   context.subscriptions.push(controller, profile, watcher);
   void discoverTests();
 }
@@ -374,9 +373,9 @@ export const value = 2;
 
 ### 10. Failed Tests for a Generated Change
 
-1. Prepare a small test file whose test command is available to the chat test tool.
+1. Generate and open the JavaScript demo workspace described above.
 2. Start a new chat in Agent mode.
-3. Ask the agent to change that test file so one assertion fails, run that specific test, and leave the failure in place.
+3. Submit: `Change calculator.test.js to expect add(2, 3) to equal 6, run that specific test with the test tool, and leave the failing assertion in place.`
 4. Confirm the response includes a test-tool result with a nonzero failed count.
 5. Select **Retry** on the response.
 6. Confirm `documentGeneratedTestsFail` and `requestRetried` are present.
