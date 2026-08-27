@@ -2313,11 +2313,14 @@ export class AgentService extends Disposable implements IAgentService {
 		now = Date.now(),
 		recentSessionKeys?: ReadonlySet<string>,
 	): boolean {
-		// While migration is off, un-adopted adoptable-legacy sessions belong to the extension-host provider — exclude so a refresh cannot re-surface an unopenable row.
-		if (readSessionEhcliAdoptable(session._meta) && !this._isMigrateLegacyEnabled()) {
+		// An un-adopted adoptable-legacy session belongs to the extension-host provider
+		// until it is opened (and thereby adopted): the agent host never surfaces it, so it
+		// keeps showing under the legacy Copilot CLI provider. Adoption clears this marker
+		// (and sets `ehcliAdopted`), so an adopted session surfaces normally below.
+		if (readSessionEhcliAdoptable(session._meta)) {
 			return false;
 		}
-		if (!readSessionExternal(session._meta) || readSessionEhcliAdoptable(session._meta)) {
+		if (!readSessionExternal(session._meta)) {
 			return true;
 		}
 		switch (mode) {
@@ -2340,14 +2343,12 @@ export class AgentService extends Disposable implements IAgentService {
 	 * external session under `mode`, letting {@link _computeSessions} drop them
 	 * on the registry's `external` flag alone.
 	 *
-	 * `None` is the only mode that rejects external sessions outright. The
-	 * adoptable-legacy exemption is the single way one could still be visible,
-	 * and while migration is off that marker forces exclusion as well — which
-	 * matters because the marker is only discoverable from the provider
-	 * metadata read this skip avoids.
+	 * `None` is the only mode that rejects external sessions outright. Adoptable-legacy
+	 * rows are always excluded now (they belong to the extension host until opened), so
+	 * they can never keep an external session visible.
 	 */
 	private _hidesAllExternalSessions(mode: AgentHostExternalSessionsMode): boolean {
-		return mode === AgentHostExternalSessionsMode.None && !this._isMigrateLegacyEnabled();
+		return mode === AgentHostExternalSessionsMode.None;
 	}
 
 	/**
@@ -2527,7 +2528,7 @@ export class AgentService extends Disposable implements IAgentService {
 				this._announcedSurfacedKeys.delete(key);
 				return;
 			}
-			// The migrate setting may have flipped off during the await above; re-check so an adoptable-legacy session is never surfaced while migration is off.
+			// The external-sessions mode may have changed during the await above; re-check so a row that is no longer visible is not surfaced.
 			if (!this._shouldIncludeSession(meta)) {
 				this._announcedSurfacedKeys.delete(key);
 				return;

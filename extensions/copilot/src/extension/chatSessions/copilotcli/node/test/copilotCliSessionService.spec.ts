@@ -728,31 +728,24 @@ describe('CopilotCLISessionService', () => {
 			});
 		});
 
-		it('stands down for non-archived legacy sessions when migration is enabled, keeping archived ones', async () => {
+		it('lists all legacy sessions when migration is enabled (extension owns them until opened)', async () => {
 			await (configurationService as InMemoryConfigurationService).setNonExtensionConfig('chat.agentSessions.migrateLegacyCopilotCli', true);
-			const fileSystem = new MockFileSystemService();
-			fileSystem.mockDirectory(URI.file('/workspace/project'), []);
-			const migrateService = disposables.add(createSessionService({ fileSystem }));
+			const migrateService = disposables.add(createSessionService());
 			const migrateManager = await migrateService.getSessionManager() as unknown as MockCliSdkSessionManager;
 
-			for (const id of ['legacy-active', 'legacy-archived', 'legacy-orphaned']) {
+			for (const id of ['legacy-active', 'legacy-archived']) {
 				const sdkSession = new MockCliSdkSession(id, new Date(0));
 				sdkSession.clientName = 'vscode';
 				sdkSession.summary = id;
 				migrateManager.sessions.set(id, sdkSession);
 			}
-			// Only a session with a resumable target (an existing cwd) is surfaced by the
-			// agent host; `legacy-orphaned` has a working directory that no longer exists.
-			migrateManager.sessions.get('legacy-active')!.context = { cwd: URI.file('/workspace/project').fsPath };
-			migrateManager.sessions.get('legacy-orphaned')!.context = { cwd: URI.file('/workspace/gone').fsPath };
 			await metadataStore.setSessionArchived('legacy-archived', true);
 
 			const result = await migrateService.getAllSessions(CancellationToken.None);
 
-			// Non-archived legacy with a resumable target stands down (agent host surfaces it);
-			// archived legacy stays, and an orphaned legacy (dead working directory) stays so it
-			// is never absent from both lists.
-			expect(result.map(item => item.id).sort()).toEqual(['legacy-archived', 'legacy-orphaned']);
+			// The agent host no longer surfaces un-adopted legacy rows, so this list keeps
+			// every legacy session (archived or not) until it is opened and thereby adopted.
+			expect(result.map(item => item.id).sort()).toEqual(['legacy-active', 'legacy-archived']);
 		});
 
 		it('does not list sessions created outside VS Code, even once loaded into memory', async () => {

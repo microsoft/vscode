@@ -161,8 +161,6 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 	private _bridgeProcessor: CopilotCliBridgeSpanProcessor | undefined;
 	/** Whether we've attempted to install the bridge (only try once). */
 	private _bridgeInstalled = false;
-	/** Snapshotted at startup: when on, the agent host surfaces legacy sessions, so this list stands down for non-archived legacy ones. A change requires a window reload. */
-	private readonly _migrateLegacyEnabled: boolean;
 	private _customAgentLookupChanged: boolean = false;
 	private _customAgentLookupRebuild: Promise<void> | undefined;
 	private readonly _customAgentLookup = new Map<string, [ChatCustomAgent, Lazy<Promise<string>>]>();
@@ -191,8 +189,6 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		@IVSCodeExtensionContext private readonly _vscodeExtensionContext?: IVSCodeExtensionContext,
 	) {
 		super();
-		// Core (non-`github.copilot`) setting, so it must be read via getNonExtensionConfig.
-		this._migrateLegacyEnabled = this.configurationService.getNonExtensionConfig<boolean>('chat.agentSessions.migrateLegacyCopilotCli') === true;
 		this._register(this._promptsService.onDidChangeCustomAgents(() => {
 			this._customAgentLookupChanged = true;
 			if (this._cachedSessionItems.size > 0) {
@@ -463,7 +459,6 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 				: new Set<string>();
 
 			// Convert SessionMetadata to ICopilotCLISession
-			let migrationStoodDown = 0;
 			const limiter = new Limiter<ICopilotCLISessionItem | undefined>(SESSION_LIST_MAX_PARALLELISM);
 			const diskSessions: ICopilotCLISessionItem[] = coalesce(await Promise.all(
 				sessionMetadataList.map(metadata => limiter.queue(async (): Promise<ICopilotCLISessionItem | undefined> => {
@@ -476,21 +471,10 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 					if (!await this.shouldShowSession(metadata.sessionId, metadata.context)) {
 						return;
 					}
-					// When migrating legacy CLI sessions is enabled, the agent host surfaces
-					// them, so stand down here for non-archived legacy (origin 'vscode')
-					// sessions to avoid double-showing. Archived legacy sessions stay in this
-					// list — their archive / worktree lifecycle lives here — until opened.
-					// Live wrappers (freshly created sessions) are left to the in-progress path.
-					// Only stand down when the host would actually surface the row (a resumable
-					// target exists); otherwise a dead session would be orphaned from both lists.
-					if (this._migrateLegacyEnabled
-						&& !this._sessionWrappers.has(metadata.sessionId)
-						&& await this._chatSessionMetadataStore.getSessionOrigin(metadata.sessionId) === 'vscode'
-						&& !await this._chatSessionMetadataStore.getSessionArchived(metadata.sessionId)
-						&& await this._hostWouldSurfaceLegacySession(metadata)) {
-						migrationStoodDown++;
-						return;
-					}
+					// A legacy session stays in this list until it is opened: opening adopts it
+					// into the agent host, which then owns it (and this provider drops it via
+					// `agentHostOwnedSessionIds` above). Until then the agent host does not
+					// surface un-adopted legacy rows, so there is nothing to stand down for here.
 					const id = metadata.sessionId;
 					const startTime = metadata.startTime.getTime();
 					const endTime = metadata.modifiedTime.getTime();
@@ -515,10 +499,6 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 					};
 				}))
 			));
-
-			if (migrationStoodDown > 0) {
-				this.logService.trace(`[CopilotCLISession] Migration enabled: stood down for ${migrationStoodDown} non-archived legacy session(s); the agent host surfaces these.`);
-			}
 
 			const diskSessionIds = new Set(diskSessions.map(s => s.id));
 			// If we have a new session that has started, then return that as well.
@@ -708,35 +688,6 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 			}
 		} catch (err) {
 			this.logService.warn(`[CopilotCLISession] Failed to install bridge SpanProcessor: ${err}`);
-		}
-	}
-
-	/**
-	 * Whether the Agent Host would surface this legacy session, mirroring its
-	 * discovery gate (`copilotAgent` classify): a session is surfaced only when it
-	 * has a resumable target — an existing working directory, or a recorded worktree
-	 * whose repository still exists (the host recreates the worktree). Standing down
-	 * only for these avoids orphaning a dead session (worktree and repo both gone)
-	 * that the host would never surface, which `shouldShowSession` still admits in an
-	 * empty / Agents-window workspace.
-	 */
-	private async _hostWouldSurfaceLegacySession(metadata: LocalSessionMetadata): Promise<boolean> {
-		const cwd = metadata.context?.cwd;
-		if (cwd && await this._isExistingDirectory(URI.file(cwd))) {
-			return true;
-		}
-		const worktree = await this.worktreeManager.getWorktreeProperties(metadata.sessionId);
-		if (worktree?.repositoryPath && await this._isExistingDirectory(URI.file(worktree.repositoryPath))) {
-			return true;
-		}
-		return false;
-	}
-
-	private async _isExistingDirectory(uri: URI): Promise<boolean> {
-		try {
-			return ((await this.fileSystem.stat(uri)).type & FileType.Directory) !== 0;
-		} catch {
-			return false;
 		}
 	}
 
