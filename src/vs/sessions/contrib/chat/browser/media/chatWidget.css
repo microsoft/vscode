@@ -452,14 +452,13 @@
 }
 
 /* Session control pills (mode "Interactive", permission "Manual permissions")
- * render the icon and label as sibling spans inside a monaco action-label. Unlike
- * the .sessions-chat-picker-slot pills they are not wrapped in a slot, so the
- * icon/label gap rule above does not reach them — set the gap on the flex label
- * here so the icon does not smash into the text. Matches the session-type picker. */
-.new-chat-widget-container .new-chat-session-controls .action-label.chat-session-option-picker,
-.new-chat-widget-container .new-chat-repo-config-container .action-label.chat-session-option-picker {
-	display: flex;
-	align-items: center;
+ * and the repo-config pills render an icon span directly before their
+ * .sessions-chat-dropdown-label inside a flex .action-label. Unlike the
+ * workspace category pills they have no `gap`, so the icon smashes into the
+ * label. Add the same small gap here (scoped to these toolbars so the model
+ * picker and workspace category pills keep their own spacing). */
+.new-chat-widget-container .new-chat-session-controls .sessions-chat-picker-slot .action-label,
+.new-chat-widget-container .new-chat-repo-config-container .sessions-chat-picker-slot .action-label {
 	gap: var(--vscode-spacing-size40);
 }
 
