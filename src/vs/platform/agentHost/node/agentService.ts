@@ -1770,8 +1770,6 @@ export class AgentService extends Disposable implements IAgentService {
 			this._readableProviderCatalogs.delete(provider.id);
 			return;
 		}
-		this._deferredProviderMigrations.delete(provider.id);
-		this._readableProviderCatalogs.add(provider.id);
 		const existing = new Map((await this._listRegisteredSessions()).map(session => [session.session.toString(), session.external]));
 		const migrationLimiter = new Limiter<IRegisteredSession | undefined>(4);
 		const identities = await Promise.all(sessions.map(s => migrationLimiter.queue(async (): Promise<IRegisteredSession | undefined> => {
@@ -1814,6 +1812,8 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 		}
 		await this._sessionRegistry.markProviderBackfilled(provider.id);
+		this._deferredProviderMigrations.delete(provider.id);
+		this._readableProviderCatalogs.add(provider.id);
 		if (registeredExternal) {
 			this._queueSessionListReconciliation();
 		}

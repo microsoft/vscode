@@ -4832,6 +4832,44 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('a failed deferred migration remains retryable on the next list refresh', async () => {
+			class DeferredCatalogAgent extends MockAgent {
+				ready = false;
+				catalogCalls = 0;
+
+				override async listChatsToMigrate(): Promise<readonly IAgentChatMetadata[] | typeof AgentChatMigrationDeferred> {
+					this.catalogCalls++;
+					return this.ready ? this.listExternalChats() : AgentChatMigrationDeferred;
+				}
+			}
+
+			const db = new TransientRegistryWriteDatabase();
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, db));
+			getConfigurationService(svc).updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.Last30Days });
+			const agent = disposables.add(new DeferredCatalogAgent('claude'));
+			const session = AgentSession.uri('claude', 'retry-after-write-failure');
+			registerTestAgentProvider(svc, agent);
+
+			assert.deepStrictEqual(await svc.listSessions(), []);
+
+			agent.ready = true;
+			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(session), session);
+			db.failRegistryWrites(1);
+			await assert.rejects(svc.listSessions(), /transient registry write failure/);
+
+			assert.deepStrictEqual({
+				markerAfterFailure: await db.isProviderBackfilled('claude'),
+				listedAfterRetry: (await svc.listSessions()).map(candidate => candidate.session.toString()),
+				markerAfterRetry: await db.isProviderBackfilled('claude'),
+				catalogCalls: agent.catalogCalls,
+			}, {
+				markerAfterFailure: false,
+				listedAfterRetry: [session.toString()],
+				markerAfterRetry: true,
+				catalogCalls: 3,
+			});
+		});
+
 		test('listSessions rejects an unavailable catalog and retries it on the next call', async () => {
 			class NotYetMigratableAgent extends MockAgent {
 				override readonly onDidDiscoverChats = Event.None;
