@@ -7952,7 +7952,7 @@ suite('AgentService (node dispatcher)', () => {
 				}
 			}
 
-			const surface = (svc: IAgentService, session: URI) => getStateManager(svc).announceSurfacedSession({
+			const surface = (svc: AgentService, session: URI) => getStateManager(svc).announceSurfacedSession({
 				resource: session.toString(),
 				provider: 'copilot',
 				title: 'Legacy',

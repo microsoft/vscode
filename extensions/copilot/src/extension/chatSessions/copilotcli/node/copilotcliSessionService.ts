@@ -481,10 +481,13 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 					// sessions to avoid double-showing. Archived legacy sessions stay in this
 					// list — their archive / worktree lifecycle lives here — until opened.
 					// Live wrappers (freshly created sessions) are left to the in-progress path.
+					// Only stand down when the host would actually surface the row (a resumable
+					// target exists); otherwise a dead session would be orphaned from both lists.
 					if (this._migrateLegacyEnabled
 						&& !this._sessionWrappers.has(metadata.sessionId)
 						&& await this._chatSessionMetadataStore.getSessionOrigin(metadata.sessionId) === 'vscode'
-						&& !await this._chatSessionMetadataStore.getSessionArchived(metadata.sessionId)) {
+						&& !await this._chatSessionMetadataStore.getSessionArchived(metadata.sessionId)
+						&& await this._hostWouldSurfaceLegacySession(metadata)) {
 						migrationStoodDown++;
 						return;
 					}
@@ -705,6 +708,35 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 			}
 		} catch (err) {
 			this.logService.warn(`[CopilotCLISession] Failed to install bridge SpanProcessor: ${err}`);
+		}
+	}
+
+	/**
+	 * Whether the Agent Host would surface this legacy session, mirroring its
+	 * discovery gate (`copilotAgent` classify): a session is surfaced only when it
+	 * has a resumable target — an existing working directory, or a recorded worktree
+	 * whose repository still exists (the host recreates the worktree). Standing down
+	 * only for these avoids orphaning a dead session (worktree and repo both gone)
+	 * that the host would never surface, which `shouldShowSession` still admits in an
+	 * empty / Agents-window workspace.
+	 */
+	private async _hostWouldSurfaceLegacySession(metadata: LocalSessionMetadata): Promise<boolean> {
+		const cwd = metadata.context?.cwd;
+		if (cwd && await this._isExistingDirectory(URI.file(cwd))) {
+			return true;
+		}
+		const worktree = await this.worktreeManager.getWorktreeProperties(metadata.sessionId);
+		if (worktree?.repositoryPath && await this._isExistingDirectory(URI.file(worktree.repositoryPath))) {
+			return true;
+		}
+		return false;
+	}
+
+	private async _isExistingDirectory(uri: URI): Promise<boolean> {
+		try {
+			return ((await this.fileSystem.stat(uri)).type & FileType.Directory) !== 0;
+		} catch {
+			return false;
 		}
 	}
 

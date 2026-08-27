@@ -137,6 +137,7 @@ suite('ChatEditorInput', () => {
 			{ _serviceBrand: undefined, enabled: constObservable(false), managedSandboxEnforced: constObservable(false) },
 			{ ambientConnection: undefined } as unknown as IAgentHostConnectionsService,
 			NullTelemetryService,
+			{ withProgress: (_options: unknown, task: (progress: unknown) => unknown) => task({ report() { } }) } as unknown as IProgressService,
 		);
 
 		try {
@@ -191,6 +192,7 @@ suite('ChatEditorInput', () => {
 			{ _serviceBrand: undefined, enabled: constObservable(true), managedSandboxEnforced: constObservable(false) },
 			{ ambientConnection: undefined } as unknown as IAgentHostConnectionsService,
 			NullTelemetryService,
+			{ withProgress: (_options: unknown, task: (progress: unknown) => unknown) => task({ report() { } }) } as unknown as IProgressService,
 		);
 
 		try {
@@ -236,6 +238,7 @@ suite('ChatEditorInput', () => {
 			{ _serviceBrand: undefined, enabled: constObservable(true), managedSandboxEnforced: constObservable(false) },
 			{ ambientConnection: undefined } as unknown as IAgentHostConnectionsService,
 			NullTelemetryService,
+			{ withProgress: (_options: unknown, task: (progress: unknown) => unknown) => task({ report() { } }) } as unknown as IProgressService,
 		);
 
 		try {
