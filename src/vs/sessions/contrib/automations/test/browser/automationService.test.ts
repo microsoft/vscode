@@ -440,12 +440,16 @@ suite('AutomationService', () => {
 		const restored = secondService.getAutomation(created.id);
 		const updated = await secondService.updateAutomation(created.id, { target: workspaceTarget(FOLDER, { kind: 'folder' }) });
 
+		const comparableTarget = (target: AutomationTarget | undefined) =>
+			target && target.kind === 'workspace'
+				? { ...target, folderUri: target.folderUri.toString() }
+				: target;
 		assert.deepStrictEqual({
-			restoredTarget: restored?.target,
-			updatedTarget: updated.target,
+			restoredTarget: comparableTarget(restored?.target),
+			updatedTarget: comparableTarget(updated.target),
 		}, {
-			restoredTarget: workspaceTarget(FOLDER, { kind: 'worktree', branch: 'feature/saved' }),
-			updatedTarget: workspaceTarget(FOLDER, { kind: 'folder' }),
+			restoredTarget: comparableTarget(workspaceTarget(FOLDER, { kind: 'worktree', branch: 'feature/saved' })),
+			updatedTarget: comparableTarget(workspaceTarget(FOLDER, { kind: 'folder' })),
 		});
 	});
 
@@ -684,11 +688,23 @@ suite('AutomationService', () => {
 		});
 	});
 
-	test('reading a corrupt ledger leaves observables empty without throwing', () => {
+	test('reading a corrupt ledger leaves observables empty and blocks destructive writes', async () => {
 		const storage = teardown.add(new InMemoryStorageService());
 		storage.store('chat.automations.ledger', 'not json', -1, 1);
 		const service = teardown.add(createAutomationService(storage, new NullLogService(), NullTelemetryService));
-		assert.deepStrictEqual(service.automations.get(), []);
+		await assert.rejects(
+			service.createAutomation({ name: 'A', prompt: 'p', schedule: dailySchedule(), target: workspaceTarget() }),
+			/cannot safely interpret/,
+		);
+		assert.deepStrictEqual({
+			automations: service.automations.get(),
+			canCompleteMigration: service.canCompleteMigration(),
+			persisted: storage.get('chat.automations.ledger', -1),
+		}, {
+			automations: [],
+			canCompleteMigration: false,
+			persisted: 'not json',
+		});
 	});
 
 	test('drops a malformed schema v3 row without discarding valid rows', () => {
@@ -717,13 +733,15 @@ suite('AutomationService', () => {
 		assert.deepStrictEqual({
 			automationIds: service.automations.get().map(automation => automation.id),
 			runIds: service.runs.get().map(run => run.id),
+			canCompleteMigration: service.canCompleteMigration(),
 		}, {
 			automationIds: ['keep'],
 			runIds: ['r-keep'],
+			canCompleteMigration: true,
 		});
 	});
 
-	test('migrates valid schema v1 records to v3 while dropping malformed targets', async () => {
+	test('reads valid schema v1 rows and drops malformed rows on rewrite', async () => {
 		const storage = teardown.add(new InMemoryStorageService());
 		const ledger = {
 			schemaVersion: 1,
@@ -754,15 +772,19 @@ suite('AutomationService', () => {
 		});
 
 		await service.updateAutomation('keep', { name: 'Updated' });
-		const migrated = JSON.parse(storage.get('chat.automations.ledger', -1)!);
+		const persisted = JSON.parse(storage.get('chat.automations.ledger', -1)!);
 		assert.deepStrictEqual({
-			schemaVersion: migrated.schemaVersion,
-			automationIds: migrated.automations.map((automation: { id: string }) => automation.id),
-			runIds: migrated.runs.map((run: { id: string }) => run.id),
+			schemaVersion: persisted.schemaVersion,
+			automationIds: persisted.automations.map((automation: { id: string }) => automation.id),
+			keepName: persisted.automations.find((automation: { id: string }) => automation.id === 'keep')?.name,
+			runIds: persisted.runs.map((run: { id: string }) => run.id),
+			canCompleteMigration: service.canCompleteMigration(),
 		}, {
 			schemaVersion: 3,
 			automationIds: ['keep', 'quick'],
+			keepName: 'Updated',
 			runIds: ['r-keep', 'r-quick'],
+			canCompleteMigration: true,
 		});
 	});
 

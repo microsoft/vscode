@@ -28,7 +28,7 @@ import { execSync } from 'child_process';
 import * as ts from 'typescript';
 
 const ROOT = path.resolve(__dirname, '..');
-const PROTOCOL_REPO = path.resolve(ROOT, '../agent-host-protocol');
+const PROTOCOL_REPO = process.env['AHP_PROTOCOL_REPO'] ?? path.resolve(ROOT, '../agent-host-protocol');
 const TYPES_DIR = path.join(PROTOCOL_REPO, 'types');
 const DEST_DIR = path.join(ROOT, 'src/vs/platform/agentHost/common/state/protocol');
 
@@ -219,9 +219,22 @@ function mergeDuplicateImports(content: string): string {
 	}).join('\n');
 }
 
-
-
-
+function applyGeneratedSourceFixes(content: string, dest: string): string {
+	const replaceRequired = (search: string | RegExp, replacement: string): void => {
+		const next = content.replace(search, replacement);
+		if (next === content) {
+			throw new Error(`Required generated-source compatibility fix no longer matches ${dest}`);
+		}
+		content = next;
+	};
+	if (dest === 'channels-automation/state.ts') {
+		replaceRequired(
+			'import type { AutomationCreateRequestedAction, AutomationRemovedAction, AutomationSetAction, AutomationUpdateRequestedAction } from \'./actions.js\';',
+			'import type { AutomationRemovedAction, AutomationSetAction, AutomationUpdateRequestedAction } from \'./actions.js\';',
+		);
+	}
+	return content;
+}
 
 function processFile(src: string, dest: string): void {
 	let content = fs.readFileSync(src, 'utf-8');
@@ -229,6 +242,7 @@ function processFile(src: string, dest: string): void {
 
 	// Merge duplicate imports from the same module
 	content = mergeDuplicateImports(content);
+	content = applyGeneratedSourceFixes(content, dest);
 
 	content = convertIndentation(content);
 	content = content.split('\n').map(line => line.trimEnd()).join('\n');
