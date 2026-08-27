@@ -731,8 +731,8 @@ export function getActiveSessionServerLifecycleAction(server: AgentHostMcpServer
 
 type AgentHostMcpServerEnablementScope = 'global' | 'workspace' | 'session';
 
-function isHostOwnedPluginMcpServer(server: AgentHostMcpServer | undefined): server is AgentHostMcpServer {
-	return server?.isPluginProvided === true && !server.isClientBundled;
+function isHostOwnedPluginMcpServer(server: AgentHostMcpServer): boolean {
+	return server.isPluginProvided === true && !server.isClientBundled;
 }
 
 const agentHostMcpServerEnablementActionInfo = {
@@ -789,7 +789,7 @@ export function setPrimaryMcpServerEnablement(
 	activeSessionServer: AgentHostMcpServer | undefined,
 	enabled: boolean,
 ): void {
-	if (isHostOwnedPluginMcpServer(activeSessionServer)) {
+	if (activeSessionServer && isHostOwnedPluginMcpServer(activeSessionServer)) {
 		agentHostCustomizations.setCustomizationEnablement(
 			sessionResource,
 			activeSessionServer.id,
@@ -825,7 +825,7 @@ export function isPrimaryMcpServerEnabled(
 	localServerId: string | undefined,
 	activeSessionServer: AgentHostMcpServer | undefined,
 ): boolean {
-	if (isHostOwnedPluginMcpServer(activeSessionServer)) {
+	if (activeSessionServer && isHostOwnedPluginMcpServer(activeSessionServer)) {
 		return getCustomizationScopeEnablement(activeSessionServer).global;
 	}
 	if (localServerId) {
