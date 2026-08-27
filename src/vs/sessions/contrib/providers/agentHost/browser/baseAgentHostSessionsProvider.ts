@@ -2646,7 +2646,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * the provider itself is disposed.
 	 */
 	private readonly _newSessions = this._register(new DisposableMap<string, NewSession>());
-	private readonly _firstSendModelReferences = this._register(new DisposableMap<string, IChatModelReference>());
 
 	/** The in-flight new session with the given id, if any. */
 	protected _getNewSession(sessionId: string): NewSession | undefined {
@@ -4464,7 +4463,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		cached.setChatModelId(chat.resource, selectedModelId, ChatModelSource.CarriedOver);
 		cached.setChatAgent(chat.resource, selectedAgentUri ? { uri: selectedAgentUri, name: '' } : undefined);
 
-		await this._prepareFirstSendChatModel(chat.resource, selectedModelId, selectedAgentUri);
+		await this._chatSessionsService.getOrCreateChatSession(chat.resource, CancellationToken.None);
+		await this._updateChatSessionState(chat.resource, selectedModelId, selectedAgentUri);
 		return chat;
 	}
 
@@ -4527,8 +4527,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			hideFromTranscript: options.hideFromTranscript,
 		};
 
-		const modelRef = this._firstSendModelReferences.deleteAndLeak(chatResource.toString())
-			?? await this._chatService.acquireOrLoadSession(chatResource, ChatAgentLocation.Chat, CancellationToken.None);
+		const modelRef = await this._chatService.acquireOrLoadSession(chatResource, ChatAgentLocation.Chat, CancellationToken.None);
 		if (!modelRef) {
 			throw new Error(`[${this.id}] Unable to load chat session ${chatResource.toString()}`);
 		}
@@ -4550,15 +4549,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		cached.markChatAsSent(chatResource.fragment);
 
 		return cached;
-	}
-
-	private async _prepareFirstSendChatModel(chatResource: URI, modelId: string | undefined, agentUri: string | undefined): Promise<void> {
-		const modelRef = await this._chatService.acquireOrLoadSession(chatResource, ChatAgentLocation.Chat, CancellationToken.None);
-		if (!modelRef) {
-			return;
-		}
-		this._applyChatSessionState(modelRef, modelId, agentUri);
-		this._firstSendModelReferences.set(chatResource.toString(), modelRef);
 	}
 
 	private async _updateChatSessionState(chatResource: URI, modelId: string | undefined, agentUri: string | undefined, options?: { readonly clearDraft?: boolean }): Promise<void> {

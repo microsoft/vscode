@@ -5159,49 +5159,6 @@ suite('LocalAgentHostSessionsProvider', () => {
 			});
 		}));
 
-		test('createSideChat retains its prepared model through the first send', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-			agentHost.setAgents([{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: { multipleChats: { fork: true, sideChat: true } } } as AgentInfo]);
-			let acquireCount = 0;
-			let disposeCount = 0;
-			const provider = createProvider(disposables, agentHost, undefined, {
-				acquireOrLoadSession: async () => {
-					acquireCount++;
-					const inputModel = new class extends mock<IInputModel>() {
-						override readonly state = constObservable<IChatModelInputState | undefined>(undefined);
-						override setState(): void { }
-						override clearState(): void { }
-						override toJSON(): undefined { return undefined; }
-					}();
-					return {
-						object: new class extends mock<IChatModel>() {
-							override readonly inputModel = inputModel;
-						}(),
-						dispose: () => { disposeCount++; },
-					};
-				},
-			});
-			const session = setupMultiChatSession(provider, 'retained-side-chat');
-			const sessionUri = AgentSession.uri('copilotcli', 'retained-side-chat').toString();
-			const defaultChat = buildDefaultChatUri(sessionUri);
-			agentHost.setSessionState('retained-side-chat', 'copilotcli', makeState([
-				makeChatSummary(defaultChat, ''),
-			], { defaultChat }));
-
-			const sideChat = await provider.createSideChat(session.sessionId, session.resource, 'turn-1');
-			const disposedBeforeSend = disposeCount;
-			await provider.sendRequest(session.sessionId, sideChat.resource, { query: 'Side question' });
-
-			assert.deepStrictEqual({
-				acquireCount,
-				disposedBeforeSend,
-				disposeCount,
-			}, {
-				acquireCount: 1,
-				disposedBeforeSend: 0,
-				disposeCount: 1,
-			});
-		}));
-
 		test('createSideChat rejects when the session capability is not advertised', async () => {
 			const provider = createProvider(disposables, agentHost);
 			const session = setupMultiChatSession(provider, 'multi-side-chat-unsupported');
