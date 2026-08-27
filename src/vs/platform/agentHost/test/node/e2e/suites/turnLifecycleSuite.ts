@@ -66,7 +66,7 @@ export function defineTurnLifecycleTests(context: IAgentHostE2ETestContext): voi
 		assert.match(followupTurn.responseText, /hello world/i, 'follow-up turn should retain the original plan context');
 		if (config.planModeStyle === 'session-state') {
 			const requestBody = context.observedModelRequestBodies.at(-1);
-			const request = requestBody && (summarizeAnthropicRequest(requestBody) ?? summarizeResponsesRequest(requestBody));
+			const request = requestBody ? (summarizeAnthropicRequest(requestBody) ?? summarizeResponsesRequest(requestBody)) : undefined;
 			assert.ok(
 				request?.messages.some(message => typeof message.content === 'string' && message.content.includes(planPrompt)),
 				'follow-up model request should retain the original planning turn',
