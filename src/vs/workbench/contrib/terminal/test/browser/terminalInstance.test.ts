@@ -865,4 +865,29 @@ suite('Workbench - TerminalInstance', () => {
 			strictEqual(result, undefined);
 		});
 	});
+
+	suite('attachToElement and detachFromElement', () => {
+		test('should clear drag and drop observer on detachFromElement', () => {
+			const wrapper = document.createElement('div');
+			const container = document.createElement('div');
+			container.appendChild(wrapper);
+
+			let cleared = false;
+			const instance = {
+				_wrapperElement: wrapper,
+				_container: container,
+				_dndObserver: {
+					clear() {
+						cleared = true;
+					}
+				},
+				detachFromElement: TerminalInstance.prototype.detachFromElement
+			};
+
+			instance.detachFromElement();
+			strictEqual(instance._container, undefined);
+			strictEqual(cleared, true);
+			strictEqual(container.contains(wrapper), false);
+		});
+	});
 });
