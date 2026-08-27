@@ -221,7 +221,7 @@ export interface IAgentHostChangesetService {
 	 * Drains static changeset refreshes (`branch` / `session` /
 	 * `uncommitted`) that were deferred because the session's working
 	 * directory was not yet known. Called when a session is materialized or
-	 * restored. Recomputes every changeset currently subscribed for the
+	 * restored. Recomputes every mutable changeset currently subscribed for the
 	 * session via {@link recomputeSubscribedChangesets}; subscriptions that
 	 * dropped while the working directory was unknown are naturally skipped.
 	 * Idempotent.
@@ -229,12 +229,12 @@ export interface IAgentHostChangesetService {
 	onWorkingDirectoryAvailable(session: ProtocolURI): void;
 
 	/**
-	 * Recomputes every changeset currently subscribed for `session`, read
-	 * from the shared changeset subscription service. Each subscribed changeset
-	 * is dispatched to its kind-specific recompute (branch / session / uncommitted
-	 * / turn); the individual recomputes self-defer when the working directory is
-	 * not yet known. Used as the session-level refresh entry point (drain on
-	 * materialization, git-state change).
+	 * Recomputes every mutable changeset currently subscribed for `session`, read
+	 * from the shared changeset subscription service. Branch / session /
+	 * uncommitted changesets are dispatched to their kind-specific recompute;
+	 * completed turn changesets remain fixed at their turn boundary. Used as the
+	 * session-level refresh entry point (drain on materialization, git-state
+	 * change).
 	 */
 	recomputeSubscribedChangesets(session: ProtocolURI): void;
 
