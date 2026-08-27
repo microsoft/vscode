@@ -440,12 +440,16 @@ suite('AutomationService', () => {
 		const restored = secondService.getAutomation(created.id);
 		const updated = await secondService.updateAutomation(created.id, { target: workspaceTarget(FOLDER, { kind: 'folder' }) });
 
+		const comparableTarget = (target: AutomationTarget | undefined) =>
+			target && target.kind === 'workspace'
+				? { ...target, folderUri: target.folderUri.toString() }
+				: target;
 		assert.deepStrictEqual({
-			restoredTarget: restored?.target,
-			updatedTarget: updated.target,
+			restoredTarget: comparableTarget(restored?.target),
+			updatedTarget: comparableTarget(updated.target),
 		}, {
-			restoredTarget: workspaceTarget(FOLDER, { kind: 'worktree', branch: 'feature/saved' }),
-			updatedTarget: workspaceTarget(FOLDER, { kind: 'folder' }),
+			restoredTarget: comparableTarget(workspaceTarget(FOLDER, { kind: 'worktree', branch: 'feature/saved' })),
+			updatedTarget: comparableTarget(workspaceTarget(FOLDER, { kind: 'folder' })),
 		});
 	});
 
@@ -733,11 +737,11 @@ suite('AutomationService', () => {
 		}, {
 			automationIds: ['keep'],
 			runIds: ['r-keep'],
-			canCompleteMigration: false,
+			canCompleteMigration: true,
 		});
 	});
 
-	test('reads valid schema v1 rows but refuses to rewrite while malformed rows remain', async () => {
+	test('reads valid schema v1 rows and drops malformed rows on rewrite', async () => {
 		const storage = teardown.add(new InMemoryStorageService());
 		const ledger = {
 			schemaVersion: 1,
@@ -767,18 +771,20 @@ suite('AutomationService', () => {
 			runs: ['r-keep', 'r-quick'],
 		});
 
-		await assert.rejects(service.updateAutomation('keep', { name: 'Updated' }), /cannot safely interpret/);
+		await service.updateAutomation('keep', { name: 'Updated' });
 		const persisted = JSON.parse(storage.get('chat.automations.ledger', -1)!);
 		assert.deepStrictEqual({
 			schemaVersion: persisted.schemaVersion,
 			automationIds: persisted.automations.map((automation: { id: string }) => automation.id),
+			keepName: persisted.automations.find((automation: { id: string }) => automation.id === 'keep')?.name,
 			runIds: persisted.runs.map((run: { id: string }) => run.id),
 			canCompleteMigration: service.canCompleteMigration(),
 		}, {
-			schemaVersion: 1,
-			automationIds: ['orphan', 'orphan-quick', 'keep', 'quick'],
-			runIds: ['r-orphan', 'r-orphan-quick', 'r-keep', 'r-quick'],
-			canCompleteMigration: false,
+			schemaVersion: 3,
+			automationIds: ['keep', 'quick'],
+			keepName: 'Updated',
+			runIds: ['r-keep', 'r-quick'],
+			canCompleteMigration: true,
 		});
 	});
 

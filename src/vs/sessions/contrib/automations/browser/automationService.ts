@@ -543,7 +543,8 @@ export class AutomationStore extends Disposable implements IAutomationStore {
 				return { kind: 'invalid', ledger: EMPTY_LEDGER, revision: 0 };
 			}
 			const automations: IAutomationDescriptor[] = [];
-			let invalid = !Array.isArray(parsed.automations) || !Array.isArray(parsed.runs);
+			// Malformed rows are dropped individually; only structurally invalid ledgers remain read-only.
+			const invalid = !Array.isArray(parsed.automations) || !Array.isArray(parsed.runs);
 			if (parsed.schemaVersion === CURRENT_SCHEMA_VERSION) {
 				const entries = Array.isArray(parsed.automations) ? parsed.automations : [];
 				for (const entry of entries) {
@@ -552,11 +553,9 @@ export class AutomationStore extends Disposable implements IAutomationStore {
 						if (automation) {
 							automations.push(automation);
 						} else {
-							invalid = true;
 							this.logService.warn(`[AutomationService] Dropping persisted automation ${entry?.id} with an invalid target.`);
 						}
 					} catch (err) {
-						invalid = true;
 						this.logService.warn(`[AutomationService] Dropping malformed persisted automation ${entry?.id}.`, err);
 					}
 				}
@@ -568,11 +567,9 @@ export class AutomationStore extends Disposable implements IAutomationStore {
 						if (automation) {
 							automations.push(automation);
 						} else {
-							invalid = true;
 							this.logService.warn(`[AutomationService] Dropping persisted automation ${entry?.id} with an invalid legacy target.`);
 						}
 					} catch (err) {
-						invalid = true;
 						this.logService.warn(`[AutomationService] Dropping malformed persisted automation ${entry?.id}.`, err);
 					}
 				}
@@ -583,7 +580,6 @@ export class AutomationStore extends Disposable implements IAutomationStore {
 				.filter((run): run is ISerializedAutomationRun => isSerializedAutomationRun(run) && validIds.has(run.automationId))
 				.map(r => Object.freeze({ ...r, sessionResource: r.sessionResource ? URI.parse(r.sessionResource) : undefined }));
 			const revision = typeof parsed.revision === 'number' ? parsed.revision : 0;
-			invalid ||= runs.length !== serializedRuns.length;
 			return { kind: invalid ? 'invalid' : 'ledger', ledger: { automations, runs: trimRunsPerAutomation(runs, MAX_RUNS_PER_AUTOMATION) }, revision };
 		} catch (err) {
 			this.logService.error('[AutomationService] Failed to parse automations ledger; resetting.', err);
