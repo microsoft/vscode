@@ -66,7 +66,7 @@ The provider cache owns adapter identity. Catalog notifications describe members
 
 Provider-specific metadata such as pull-request provenance, changesets, agent configuration, and external visibility is translated inside this provider. Shared Sessions code consumes only provider-neutral fields and capabilities.
 
-Agent-recorded artifacts are persisted with the session and projected through `ISession.artifacts`. Pull request and issue artifacts that shared GitHub surfaces can represent are promoted into the existing GitHub metadata without duplicating them. Customizations used or read by the agent are derived per chat and projected through `IChat.customizations`.
+Agent-recorded artifacts and references are persisted with the session and projected together through `ISession.artifacts`, where `isArtifact` distinguishes them. Only artifacts are promoted into the existing GitHub metadata, so a pull request or issue the session produced is polled and shown on the shared GitHub surfaces rather than duplicated; a reference keeps its link identity so anything those surfaces already show is offered exactly once. Customizations used or read by the agent are derived per chat and projected through `IChat.customizations`.
 
 ## Draft and send lifecycle
 

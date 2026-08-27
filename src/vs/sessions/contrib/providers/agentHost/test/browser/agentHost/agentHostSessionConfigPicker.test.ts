@@ -27,7 +27,7 @@ import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../
 import { ISessionsProvidersService } from '../../../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IActiveSession } from '../../../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvider } from '../../../../../../services/sessions/common/sessionsProvider.js';
-import { AgentHostSessionConfigPicker, IConfigPickerItem } from '../../../browser/agentHostSessionConfigPicker.js';
+import { AgentHostSessionConfigPicker, IConfigPickerItem, PickerActionViewItem } from '../../../browser/agentHostSessionConfigPicker.js';
 
 const SESSION_ID = 'local-agent-host:s1';
 
@@ -238,6 +238,38 @@ suite('Agent Host Session Config Picker', () => {
 				{ id: 'sessions.agentHost.runningSessionConfigPicker', order: 10 },
 				{ id: 'sessions.agentHost.runningSessionPermissionModePicker', order: 11 },
 			],
+		});
+	});
+
+	test('picker action view items expose responsive compact state', () => {
+		let pickerAnchor: HTMLElement | undefined;
+		const item = store.add(new PickerActionViewItem({
+			render: () => { },
+			showPicker: anchor => {
+				pickerAnchor = anchor;
+				return true;
+			},
+			dispose: () => { },
+		}));
+		const container = document.createElement('div');
+		const overflowAnchor = document.createElement('button');
+		item.render(container);
+		const expanded = {
+			compact: item.isCompact(),
+			className: container.classList.contains('compact-picker'),
+		};
+
+		item.setCompact(true);
+		item.show(overflowAnchor);
+		const compact = {
+			compact: item.isCompact(),
+			className: container.classList.contains('compact-picker'),
+			usesOverflowAnchor: pickerAnchor === overflowAnchor,
+		};
+
+		assert.deepStrictEqual({ expanded, compact }, {
+			expanded: { compact: false, className: false },
+			compact: { compact: true, className: true, usesOverflowAnchor: true },
 		});
 	});
 

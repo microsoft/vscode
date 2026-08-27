@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.136.0",
-  "distro": "406e12a29f51487d7c905069d25636a6e641097a",
+  "distro": "ebabac9aa9cfb4c9351977aa0d1cab83b357ffaa",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -101,8 +101,8 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.82.0",
     "@devcontainers/cli": "0.88.0",
-    "@github/copilot": "1.0.81-0",
-    "@github/copilot-sdk": "1.0.11",
+    "@github/copilot": "1.0.81-12",
+    "@github/copilot-sdk": "1.0.13-preview.0",
     "@microsoft/1ds-core-js": "^3.2.13",
     "@microsoft/1ds-post-js": "^3.2.13",
     "@microsoft/dev-tunnels-connections": "^1.3.41",
@@ -120,7 +120,7 @@
     "@vscode/fs-copyfile": "2.0.0",
     "@vscode/iconv-lite-umd": "0.7.1",
     "@vscode/native-watchdog": "^1.4.6",
-    "@vscode/os-proxy-resolver": "^0.3.0",
+    "@vscode/os-proxy-resolver": "^0.4.0",
     "@vscode/policy-watcher": "^1.4.0",
     "@vscode/proxy-agent": "^0.44.0",
     "@vscode/ripgrep-universal": "^1.18.0",

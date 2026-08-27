@@ -476,6 +476,122 @@ suite('GitHubTransport', () => {
 		});
 	});
 
+	test('parks the account when a secondary rate limit gives no usable retry hint', async () => {
+		await withServer(async server => {
+			const scheduler = new FakeGitHubScheduler({ now: 1_000_000 });
+			const transport = disposables.add(new GitHubTransport(nodeFetch, scheduler));
+			server.enqueue(
+				gitHubRestStep({
+					method: 'GET',
+					path: '/repos/o/r/unhinted',
+					response: gitHubRateLimitResponse({ status: 403, resource: 'core' }),
+				}),
+				gitHubRestStep({ method: 'GET', path: '/repos/o/r/afterUnhinted', response: gitHubJsonResponse({ ok: true }) }),
+				gitHubRestStep({
+					method: 'GET',
+					path: '/repos/o/r/stale',
+					// A secondary limit often reports the primary quota window,
+					// which can already have elapsed.
+					response: gitHubRateLimitResponse({ status: 403, resource: 'core', resetAt: 1_000 }),
+				}),
+				gitHubRestStep({ method: 'GET', path: '/repos/o/r/afterStale', response: gitHubJsonResponse({ ok: true }) }),
+				gitHubRestStep({
+					method: 'GET',
+					path: '/repos/o/r/primaryWindow',
+					// A secondary limit reports the primary quota window, which
+					// is far in the future while that quota is still unspent.
+					response: gitHubRateLimitResponse({ status: 403, resource: 'core', resetAt: 4_600_000, remaining: 4_000 }),
+				}),
+				gitHubRestStep({ method: 'GET', path: '/repos/o/r/afterPrimaryWindow', response: gitHubJsonResponse({ ok: true }) }),
+			);
+
+			const observed: number[] = [];
+			for (const [limited, after] of [['unhinted', 'afterUnhinted'], ['stale', 'afterStale'], ['primaryWindow', 'afterPrimaryWindow']]) {
+				await assert.rejects(
+					() => transport.rest(accountA, 'token-a', { method: 'GET', url: `${server.apiBaseUrl}/repos/o/r/${limited}` }, signal()),
+					error => error instanceof GitHubRequestError && error.kind === 'rateLimit',
+				);
+				const startedAt = scheduler.now();
+				const pending = transport.rest(accountA, 'token-a', { method: 'GET', url: `${server.apiBaseUrl}/repos/o/r/${after}` }, signal());
+				await Promise.resolve();
+				scheduler.flushAll();
+				await pending;
+				observed.push(scheduler.now() - startedAt);
+			}
+
+			assert.deepStrictEqual(observed, [60_000, 60_000, 60_000]);
+			server.assertSatisfied();
+		});
+	});
+
+	test('parks a primary rate limit that GitHub reports as 403 rather than 429', async () => {
+		await withServer(async server => {
+			const scheduler = new FakeGitHubScheduler({ now: 1_000_000 });
+			const transport = disposables.add(new GitHubTransport(nodeFetch, scheduler));
+			server.enqueue(
+				gitHubRestStep({
+					method: 'GET',
+					path: '/repos/o/r/spentNoReset',
+					// Primary exhaustion carries no `retry-after`, and a proxy can
+					// strip the reset, leaving nothing to wait on but the floor.
+					response: gitHubRateLimitResponse({ status: 403, resource: 'core', remaining: 0, message: 'API rate limit exceeded for user ID 1.' }),
+				}),
+				gitHubRestStep({ method: 'GET', path: '/repos/o/r/afterSpentNoReset', response: gitHubJsonResponse({ ok: true }) }),
+				gitHubRestStep({
+					method: 'GET',
+					path: '/repos/o/r/spentWithReset',
+					response: gitHubRateLimitResponse({ status: 403, resource: 'core', remaining: 0, resetAt: 1_180_000, message: 'API rate limit exceeded for user ID 1.' }),
+				}),
+				gitHubRestStep({ method: 'GET', path: '/repos/o/r/afterSpentWithReset', response: gitHubJsonResponse({ ok: true }) }),
+			);
+
+			const observed: number[] = [];
+			for (const [limited, after] of [['spentNoReset', 'afterSpentNoReset'], ['spentWithReset', 'afterSpentWithReset']]) {
+				await assert.rejects(
+					() => transport.rest(accountA, 'token-a', { method: 'GET', url: `${server.apiBaseUrl}/repos/o/r/${limited}` }, signal()),
+					error => error instanceof GitHubRequestError && error.kind === 'rateLimit',
+				);
+				const startedAt = scheduler.now();
+				const pending = transport.rest(accountA, 'token-a', { method: 'GET', url: `${server.apiBaseUrl}/repos/o/r/${after}` }, signal());
+				await Promise.resolve();
+				scheduler.flushAll();
+				await pending;
+				observed.push(scheduler.now() - startedAt);
+			}
+
+			// The floor when nothing usable was given, then the remainder of the
+			// absolute reset window (1_180_000) from where the first park left off.
+			assert.deepStrictEqual(observed, [60_000, 120_000]);
+			server.assertSatisfied();
+		});
+	});
+
+	test('does not park an authorization failure that merely shares the 403 status', async () => {
+		await withServer(async server => {
+			const scheduler = new FakeGitHubScheduler({ now: 1_000_000 });
+			const transport = disposables.add(new GitHubTransport(nodeFetch, scheduler));
+			server.enqueue(
+				gitHubRestStep({
+					method: 'GET',
+					path: '/repos/o/r/forbidden',
+					response: gitHubJsonResponse({ message: 'Resource not accessible by integration' }, { status: 403 }),
+				}),
+				gitHubRestStep({ method: 'GET', path: '/repos/o/r/afterForbidden', response: gitHubJsonResponse({ ok: true }) }),
+			);
+
+			await assert.rejects(
+				() => transport.rest(accountA, 'token-a', { method: 'GET', url: `${server.apiBaseUrl}/repos/o/r/forbidden` }, signal()),
+				error => error instanceof GitHubRequestError && error.kind === 'authorization',
+			);
+			const startedAt = scheduler.now();
+			await transport.rest(accountA, 'token-a', { method: 'GET', url: `${server.apiBaseUrl}/repos/o/r/afterForbidden` }, signal());
+
+			// A credential problem must surface at once rather than being parked.
+			assert.deepStrictEqual({ waited: scheduler.now() - startedAt, pending: scheduler.pendingCount }, { waited: 0, pending: 0 });
+			server.assertSatisfied();
+		});
+	});
+
 	test('GraphQL RATE_LIMITED errors establish shared account backoff', async () => {
 		await withServer(async server => {
 			const scheduler = new FakeGitHubScheduler({ now: 1_000 });

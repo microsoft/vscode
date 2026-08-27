@@ -12,15 +12,35 @@ import { AgentSession, type AgentTurnProviderCallState, type AgentTurnProviderSe
 import type { SessionMode } from '../common/agentHostSchema.js';
 import { getTelemetryChatSessionId } from '../common/agentTelemetryCorrelation.js';
 import { readAgentErrorTelemetryMeta } from '../common/meta/agentErrorMeta.js';
-import type { ErrorInfo, Message, MessageKind, SessionInputRequestKind, ToolDefinition } from '../common/state/protocol/state.js';
+import { isAgentMergeMessage } from '../common/meta/agentMergeMessageMeta.js';
+import { MessageKind, type ErrorInfo, type Message, type SessionInputRequestKind, type ToolDefinition } from '../common/state/protocol/state.js';
 import { ActionType } from '../common/state/sessionActions.js';
 import { isAhpChatChannel, isSubagentChatUri, isSubagentSession, parseRequiredSessionUriFromChatUri, type ISessionWithDefaultChat } from '../common/state/sessionState.js';
 import type { ToolInvokedResult } from './agentHostToolCallTracker.js';
 import { multiplexProperties, type IAgentHostRestrictedTelemetry, type IAgentHostRestrictedTelemetryContext } from './agentHostRestrictedTelemetry.js';
 import { AgentHostClientType } from '../common/agentHostClientInfo.js';
-import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
+import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, type AgentHostTurnFailureStage, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
 
 export type AgentHostUserMessageSentSource = 'direct' | 'queued';
+
+/**
+ * Who produced the message that started a turn. Extends the protocol's
+ * {@link MessageKind} with `agentMerge`: Agent Merge drives its repair turns
+ * with a host-generated message that carries the `systemNotification` origin,
+ * and reporting those under their own value keeps automated merge work
+ * separable from turns a person or an agent asked for.
+ */
+export type AgentHostMessageOriginTelemetryKind = MessageKind | 'agentMerge';
+
+/** Classifies the actor that produced a turn's message for telemetry. */
+export function getMessageOriginTelemetryKind(message: Message): AgentHostMessageOriginTelemetryKind {
+	// The marker only counts on the origin the host stamps it with, so a client
+	// cannot dress a user message up as automated merge work.
+	if (message.origin.kind === MessageKind.SystemNotification && isAgentMergeMessage(message)) {
+		return 'agentMerge';
+	}
+	return message.origin.kind;
+}
 
 export interface IAgentHostInitiatorTelemetry {
 	initiatorClientType?: AgentHostClientType;
@@ -71,7 +91,7 @@ export interface IAgentHostUserMessageSentEvent {
 	initiatorDevDeviceId?: string;
 	agentSessionId: string;
 	source: AgentHostUserMessageSentSource;
-	messageOriginKind: MessageKind;
+	messageOriginKind: AgentHostMessageOriginTelemetryKind;
 	isSubagentSession: boolean;
 	turnCount: number;
 	activeClientId?: string;
@@ -91,7 +111,7 @@ export type IAgentHostUserMessageSentClassification = {
 	initiatorDevDeviceId?: { classification: 'EndUserPseudonymizedInformation'; purpose: 'BusinessInsight'; endpoint: 'SqmMachineId'; comment: 'The initiating VS Code client development device identifier.' };
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host session identifier.' };
 	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the message was sent directly or from the queued-message flow.' };
-	messageOriginKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The kind of actor that produced the message: a user, an agent (session orchestration tools such as create_session/create_chat/send_message), a tool, an automation, or a system notification.' };
+	messageOriginKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The kind of actor that produced the message: a user, an agent (session orchestration tools such as create_session/send_message), Agent Merge, a tool, an automation, or a system notification.' };
 	isSubagentSession: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the message was sent to a subagent session.' };
 	turnCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of completed turns in the session when the message was sent.' };
 	activeClientId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The identifier of the first active client for the session, if any.' };
@@ -164,7 +184,7 @@ export interface IAgentHostClientConnectionReport {
 export type AgentHostTurnResult = 'success' | 'error' | 'cancelled';
 export type AgentHostModelTelemetryKind = 'trusted' | 'byok' | 'unknown';
 type AgentHostModelSelectionKind = 'default' | 'auto' | 'explicit';
-export type AgentHostTurnFailureStage = 'validation' | 'workingDirectory' | 'modelSelection' | 'sendMessage' | 'provider';
+export type { AgentHostTurnFailureStage };
 export type AgentHostInitiatorClientConnectionState = 'connected' | 'disconnected' | 'unknown';
 export type AgentHostProviderDiagnosticState = 'available' | 'error' | 'missingChat' | 'missingTurn' | 'unavailable' | 'unsupported';
 
@@ -188,6 +208,7 @@ export interface IAgentHostTurnCompletedEvent extends IAgentHostInitiatorTelemet
 	isBYOK: boolean | undefined;
 	permissionLevel: string | undefined;
 	interactionMode: SessionMode | undefined;
+	messageOriginKind: AgentHostMessageOriginTelemetryKind | undefined;
 	errorType: string | undefined;
 	failureStage: AgentHostTurnFailureStage | undefined;
 	isMultiRoot: boolean;
@@ -216,6 +237,7 @@ export type IAgentHostTurnCompletedClassification = IAgentHostInitiatorClassific
 	isBYOK: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the selected model is a bring-your-own-key model, when model context is available.' };
 	permissionLevel: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The tool auto-approval level configured for the session at turn start (e.g. default, autoApprove, autopilot).' };
 	interactionMode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host interaction mode configured at turn start.' };
+	messageOriginKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The kind of actor that started the turn: a user, an agent (session orchestration tools such as create_session/create_chat/send_message), Agent Merge, a tool, an automation, or a system notification.' };
 	errorType: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The structured agent host or provider error type when the turn fails.' };
 	failureStage: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The bounded stage at which the agent host turn failed.' };
 	isMultiRoot: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the session spans more than one working directory.' };
@@ -286,6 +308,7 @@ export interface IAgentHostTurnCompletedReport extends IAgentHostTurnAttributedR
 	modelSelectionKind: AgentHostModelSelectionKind;
 	permissionLevel: string | undefined;
 	interactionMode: SessionMode | undefined;
+	messageOriginKind: AgentHostMessageOriginTelemetryKind | undefined;
 	failure: IAgentHostTurnFailure | undefined;
 	isMultiRoot: boolean;
 	folderCount: number;
@@ -862,7 +885,7 @@ export class AgentHostTelemetryReporter {
 			...(clientContext.devDeviceId ? { initiatorDevDeviceId: clientContext.devDeviceId } : {}),
 			agentSessionId: AgentSession.id(sessionUri),
 			source,
-			messageOriginKind: message.origin.kind,
+			messageOriginKind: getMessageOriginTelemetryKind(message),
 			isSubagentSession: isSubagentSession(sessionUri),
 			turnCount: sessionState?.turns.length ?? 0,
 			...(activeClients.length > 0 ? {
@@ -877,7 +900,7 @@ export class AgentHostTelemetryReporter {
 			initiatorClientType: clientContext.clientType,
 			conversationId: AgentSession.id(sessionUri),
 			turnId,
-			messageOriginKind: message.origin.kind,
+			messageOriginKind: getMessageOriginTelemetryKind(message),
 		});
 	}
 
@@ -1210,6 +1233,7 @@ export class AgentHostTelemetryReporter {
 			isBYOK: report.modelTelemetryKind === undefined ? undefined : report.modelTelemetryKind === 'byok',
 			permissionLevel: report.permissionLevel,
 			interactionMode: report.interactionMode,
+			messageOriginKind: report.messageOriginKind,
 			errorType: report.failure?.error.errorType,
 			failureStage: report.failure?.stage,
 			isMultiRoot: report.isMultiRoot,

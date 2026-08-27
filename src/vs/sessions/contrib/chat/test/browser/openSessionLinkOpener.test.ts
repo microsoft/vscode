@@ -52,7 +52,9 @@ suite('OpenSessionLinkOpenerContribution', () => {
 			}
 		};
 		const sessionResource = URI.parse('copilotcli:/session-1');
-		const session = upcastPartial<ISession>({ resource: sessionResource });
+		const chatResource = sessionResource.with({ fragment: 'chat-2' });
+		const chat = upcastPartial<IChat>({ resource: chatResource });
+		const session = upcastPartial<ISession>({ resource: sessionResource, chats: observableValue('chats', [chat]) });
 		const sessionsManagementService = new class extends mock<ISessionsManagementService>() {
 			override getSessions(): ISession[] {
 				return [session];
@@ -96,7 +98,7 @@ suite('OpenSessionLinkOpenerContribution', () => {
 		assert.deepStrictEqual({
 			results: [
 				await registeredOpener.open(buildOpenSessionLinkUri(sessionResource)),
-				await registeredOpener.open(buildOpenSessionLinkUri(sessionResource, 'chat-2')),
+				await registeredOpener.open(buildOpenSessionLinkUri(sessionResource, 'chat-2', 'turn-1')),
 			],
 			opened,
 		}, {
@@ -229,6 +231,7 @@ suite('OpenSessionLinkOpenerContribution', () => {
 				title: 'Fix authentication redirect loop',
 				location: undefined,
 				pullRequests: undefined,
+				createdBy: undefined,
 				providerLabels: ['Local Agent Host'],
 			},
 			unknown: undefined,
