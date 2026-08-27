@@ -23,6 +23,7 @@ import { IAgentConnection } from '../../../../../platform/agentHost/common/agent
 import type { AgentHostUriMapper } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { getCustomizationDisabledReason, isCustomizationEnabled, withCustomizationEnablement } from '../../../../../platform/agentHost/common/customizationEnablement.js';
 import { buildAnnotationsUri } from '../../../../../platform/agentHost/common/annotationsUri.js';
+import { ChangesetKind } from '../../../../../platform/agentHost/common/changesetUri.js';
 import { parseGitHubIssueUrl } from '../../../../../platform/agentHost/common/githubIssueReferences.js';
 import { getEffectiveAgents } from '../../../../../platform/agentHost/common/customAgents.js';
 import { KNOWN_MODE_VALUES, SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
@@ -551,6 +552,8 @@ export interface IAgentHostAdapterOptions {
 	readonly backendSessionScheme?: string;
 	/** Maps a backend session URI to the client resource used by this host. */
 	readonly mapBackendSessionResource: (resource: URI) => URI;
+	/** `Changeset.changeKind` the Changes view selects by default. Defaults to `branch`. */
+	readonly defaultChangesetKind?: ChangesetKind.Branch | ChangesetKind.Uncommitted | ChangesetKind.Session;
 }
 
 /**
@@ -2798,7 +2801,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * the bits that are uniform across hosts (`icon`, `loading`,
 	 * `mapDiffUri`) from the corresponding hooks.
 	 */
-	protected abstract _adapterOptions(): Pick<IAgentHostAdapterOptions, 'buildWorkspace' | 'readOnly'>;
+	protected abstract _adapterOptions(): Pick<IAgentHostAdapterOptions, 'buildWorkspace' | 'readOnly' | 'defaultChangesetKind'>;
 
 	/**
 	 * Hook to normalize a session's metadata before it is cached, keyed, or
