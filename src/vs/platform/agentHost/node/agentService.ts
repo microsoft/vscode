@@ -2383,10 +2383,22 @@ export class AgentService extends Disposable implements IAgentService {
 
 	private _migrateLegacyEnabledSnapshot: boolean | undefined;
 
+	/**
+	 * Freezes the migrate-legacy gate at host startup. The host is a shared
+	 * process that survives window reloads, so a setting toggled without a full
+	 * restart is live-propagated into its config; capturing the value once at
+	 * bootstrap (before any such live change can arrive) is what makes the
+	 * "requires a restart" contract hold. Called once from {@link agentHostBootstrap};
+	 * tests never call it and keep the lazy first-read fallback.
+	 */
+	primeMigrateLegacyGate(): void {
+		this._isMigrateLegacyEnabled();
+	}
+
 	private _isMigrateLegacyEnabled(): boolean {
-		// Frozen at startup: changing the setting requires a window reload, so the
-		// gate never flips mid-process and there is no live discovery re-run /
-		// retract storm to reconcile.
+		// Frozen at host startup (see `primeMigrateLegacyGate`): the gate never
+		// flips mid-process, so there is no live discovery re-run / retract storm
+		// to reconcile.
 		return this._migrateLegacyEnabledSnapshot ??= this._configurationService.getRootValue(platformRootSchema, AgentHostMigrateLegacyCopilotCliEnabledConfigKey) === true;
 	}
 

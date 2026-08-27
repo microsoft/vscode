@@ -8423,6 +8423,27 @@ suite('AgentService (node dispatcher)', () => {
 			assert.strictEqual(included, false);
 		});
 
+		test('primeMigrateLegacyGate freezes the gate at startup, ignoring later runtime toggles', () => {
+			const read = (svc: AgentService) => (svc as unknown as { _isMigrateLegacyEnabled(): boolean })._isMigrateLegacyEnabled();
+
+			// Disabled at startup: a later runtime enable (a setting toggled without a
+			// host restart) must not flip the frozen gate.
+			const frozenOff = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			frozenOff.primeMigrateLegacyGate();
+			getConfigurationService(frozenOff).updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
+
+			// Enabled at startup: a later runtime disable must likewise be ignored.
+			const frozenOn = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			getConfigurationService(frozenOn).updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
+			frozenOn.primeMigrateLegacyGate();
+			getConfigurationService(frozenOn).updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: false });
+
+			assert.deepStrictEqual(
+				{ frozenOff: read(frozenOff), frozenOn: read(frozenOn) },
+				{ frozenOff: false, frozenOn: true },
+			);
+		});
+
 		test('restores known session without listing all provider sessions', async () => {
 			registerTestAgentProvider(service, copilotAgent);
 			const { session } = await createAgentSession(copilotAgent);
