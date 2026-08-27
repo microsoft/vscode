@@ -26,8 +26,9 @@ import {
 	type IAgentSessionClaimRequest,
 } from '../../../../../../workbench/contrib/chat/common/agentHostSessionClaim.js';
 import { INativeWorkbenchEnvironmentService } from '../../../../../../workbench/services/environment/electron-browser/environmentService.js';
+import { observableValue, type ISettableObservable } from '../../../../../../base/common/observable.js';
 import type { ISession } from '../../../../../services/sessions/common/session.js';
-import { ISessionsManagementService, type ISessionsChangeEvent } from '../../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsManagementService, type IActiveSession, type ISessionsChangeEvent } from '../../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
 import { AGENT_SESSION_CLAIM_BUDGET_MS, AgentSessionClaimContribution } from '../../electron-browser/agentSessionClaim.contribution.js';
 
@@ -64,6 +65,12 @@ suite('AgentSessionClaimContribution', () => {
 	let openedSessions: IRecordedOpen[];
 	let listedSessions: Set<string>;
 	let sessionsChanged: Emitter<ISessionsChangeEvent>;
+	let activeSession: ISettableObservable<IActiveSession | undefined>;
+	/** Whether the stubbed `openSession` also makes the session active. */
+	let activatesOnOpen: boolean;
+	/** Resolves when the stubbed `openSession` has been called. */
+	let whenOpened: Promise<void>;
+	let signalOpened: () => void;
 
 	setup(() => {
 		claimedSessions = [];
@@ -72,6 +79,9 @@ suite('AgentSessionClaimContribution', () => {
 		openedSessions = [];
 		listedSessions = new Set([SESSION_RESOURCE.toString()]);
 		sessionsChanged = store.add(new Emitter<ISessionsChangeEvent>());
+		activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
+		activatesOnOpen = true;
+		whenOpened = new Promise<void>(resolve => { signalOpened = resolve; });
 		storageService = store.add(new InMemoryStorageService());
 		targetRegistration = store.add(registerTarget());
 	});
@@ -96,8 +106,13 @@ suite('AgentSessionClaimContribution', () => {
 		// Only the members the claim may touch are implemented, so anything else
 		// throws rather than passing silently.
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			override readonly activeSession = activeSession;
 			override async openSession(resource: URI, options?: { preserveFocus?: boolean }): Promise<void> {
 				openedSessions.push({ resource: resource.toString(), options });
+				signalOpened();
+				if (activatesOnOpen) {
+					activeSession.set({ resource } as IActiveSession, undefined);
+				}
 			}
 		});
 		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
@@ -353,6 +368,46 @@ suite('AgentSessionClaimContribution', () => {
 			});
 			assert.strictEqual(openedSessions.length, 1);
 			assert.deepStrictEqual(history, [], 'the budget guard must never be a success condition');
+		});
+
+		test('waits for the session to become active, not just for the open', async () => {
+			// `openSession` resolving is not the signal: session-scoped tools are
+			// registered off the active-session observable, so a claim that
+			// returned here would publish an inventory that is about to change.
+			activatesOnOpen = false;
+			await gated();
+			const claimed = claimCommand().run({ ...REQUEST });
+			await whenOpened;
+			assert.strictEqual(openedSessions.length, 1, 'the open itself must still happen');
+			assert.strictEqual(activatedSessions.length, 0, 'the claim must not proceed past the open');
+
+			activeSession.set({ resource: SESSION_RESOURCE } as IActiveSession, undefined);
+			await claimed;
+			assert.deepStrictEqual(activatedSessions.map(uri => uri.toString()), [SESSION_RESOURCE.toString()]);
+		});
+
+		test('another session becoming active does not satisfy the claim', async () => {
+			activatesOnOpen = false;
+			await gated();
+			const claimed = claimCommand().run({ ...REQUEST });
+			await whenOpened;
+			activeSession.set({ resource: URI.from({ scheme: SESSION_TYPE, path: '/other' }) } as IActiveSession, undefined);
+			assert.strictEqual(activatedSessions.length, 0, 'a different active session must not settle the wait');
+
+			activeSession.set({ resource: SESSION_RESOURCE } as IActiveSession, undefined);
+			await claimed;
+			assert.strictEqual(activatedSessions.length, 1);
+		});
+
+		test('reports budgetExceeded when the session never becomes active', async () => {
+			activatesOnOpen = false;
+			await gated();
+			await runWithFakedTimers({ useFakeTimers: true }, async () => {
+				await assert.rejects(
+					() => claimCommand().run({ ...REQUEST }),
+					/budgetExceeded: remote-127-0-0-1-9001-copilot did not become claimable/);
+			});
+			assert.strictEqual(claimDisposeCount, 0);
 		});
 
 		test('reports budgetExceeded when the session is never listed', async () => {

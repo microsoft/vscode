@@ -7,6 +7,8 @@ import { disposableTimeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../../base/common/observable.js';
+import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -39,6 +41,7 @@ const enum AgentSessionClaimPhase {
 	Hydration = 'hydration',
 	Listing = 'listing',
 	Open = 'open',
+	Active = 'active',
 	Publish = 'publish',
 }
 
@@ -140,6 +143,13 @@ export class AgentSessionClaimContribution extends Disposable implements IWorkbe
 	 * bridge can invoke the claim before the remote session list has caught up,
 	 * so the exact resource is awaited first.
 	 *
+	 * It resolves once the session has *loaded*, which is not the same as
+	 * everything derived from `activeSession` having observed it — and the
+	 * session-scoped tools this claim exists to publish are registered from a
+	 * context key bound to that observable. So the observable itself is awaited
+	 * too; the continuation runs after that binding's autorun, which is what
+	 * makes the inventory the claim then publishes the final one.
+	 *
 	 * The services are resolved on use rather than injected: this contribution
 	 * is constructed in every window at `BlockStartup`, and an ungated one must
 	 * not pull the sessions view up with it.
@@ -153,6 +163,10 @@ export class AgentSessionClaimContribution extends Disposable implements IWorkbe
 				.then(() => {
 					enter(AgentSessionClaimPhase.Open);
 					return sessionsService.openSession(sessionResource, { preserveFocus: false });
+				})
+				.then(() => {
+					enter(AgentSessionClaimPhase.Active);
+					return whenSessionActive(sessionsService, sessionResource, token);
 				})
 				.then(() => enter(AgentSessionClaimPhase.Publish));
 		});
@@ -181,6 +195,31 @@ function whenSessionListed(managementService: ISessionsManagementService, sessio
 			settle(() => reject(new CancellationError()));
 		}
 	});
+}
+
+/**
+ * Resolves once {@link sessionResource} is the window's active session, read
+ * from the observable the session-scoped context keys are bound to rather than
+ * from `openSession` returning.
+ */
+async function whenSessionActive(sessionsService: ISessionsService, sessionResource: URI, token: CancellationToken): Promise<void> {
+	const store = new DisposableStore();
+	try {
+		await new Promise<void>((resolve, reject) => {
+			store.add(autorun(reader => {
+				const active = sessionsService.activeSession.read(reader);
+				if (active && isEqual(active.resource, sessionResource)) {
+					resolve();
+				}
+			}));
+			store.add(token.onCancellationRequested(() => reject(new CancellationError())));
+			if (token.isCancellationRequested) {
+				reject(new CancellationError());
+			}
+		});
+	} finally {
+		store.dispose();
+	}
 }
 
 // Ahead of `RemoteAgentHostContribution` (`AfterRestored`) so the command
