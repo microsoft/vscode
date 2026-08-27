@@ -121,6 +121,11 @@ interface IRestoredWorkspaceSelection {
 	readonly source: NewSessionWorkspacePreselectionSource;
 }
 
+interface IWorkspacePickerTriggerElements {
+	icon?: HTMLElement;
+	label?: HTMLElement;
+}
+
 type IWorkspacePickerAction = IAction & { icon?: ThemeIcon; hoverContent?: string; onRemove?: () => void };
 
 /**
@@ -184,6 +189,7 @@ export class WorkspacePicker extends Disposable {
 	/** All live trigger elements. Label updates fan out to every entry. */
 	private readonly _triggerElements = new Set<HTMLElement>();
 	private readonly _triggerOptions = new Map<HTMLElement, IWorkspacePickerTrigger>();
+	private readonly _triggerContents = new Map<HTMLElement, IWorkspacePickerTriggerElements>();
 	private readonly _contextSelections = new Map<string, ISessionWorkspace[]>();
 	private readonly _renderDisposables = this._register(new DisposableStore());
 	private readonly _additionalRepositoryTriggerDisposables = this._register(new DisposableStore());
@@ -400,6 +406,7 @@ export class WorkspacePicker extends Disposable {
 		trigger.setAttribute('aria-expanded', 'false');
 
 		this._triggerElements.add(trigger);
+		this._triggerContents.set(trigger, {});
 		if (options) {
 			this._triggerOptions.set(trigger, options);
 		}
@@ -429,6 +436,7 @@ export class WorkspacePicker extends Disposable {
 			dispose: () => {
 				this._triggerElements.delete(trigger);
 				this._triggerOptions.delete(trigger);
+				this._triggerContents.delete(trigger);
 				if (this._triggerElement === trigger) {
 					// Demote to any other live trigger so subclasses that read
 					// `_triggerElement` (e.g. WebWorkspacePicker's mobile sheet
@@ -1345,6 +1353,10 @@ export class WorkspacePicker extends Disposable {
 
 	protected _renderTriggerLabel(trigger: HTMLElement): void {
 		const options = this._triggerOptions.get(trigger);
+		const contents = this._triggerContents.get(trigger);
+		if (!contents) {
+			return;
+		}
 		if (options) {
 			const workspace = this._selectedResolved?.workspace;
 			const isSelectedCategory = options.attachesContext !== true
@@ -1368,24 +1380,23 @@ export class WorkspacePicker extends Disposable {
 			const icon = selectedWorkspace?.icon
 				?? (contextCount > 0 ? Codicon.attach : undefined)
 				?? (relatedGitHubInfo ? Codicon.repo : (isSelectedCategory && workspace ? workspace.icon : options.icon));
-			let iconElement = trigger.querySelector<HTMLElement>(':scope > .codicon');
-			if (!iconElement) {
-				iconElement = renderIcon(icon);
-				trigger.prepend(iconElement);
+			if (!contents.icon) {
+				contents.icon = renderIcon(icon);
+				trigger.prepend(contents.icon);
 			}
-			iconElement.className = ThemeIcon.asClassName(icon);
+			contents.icon.className = ThemeIcon.asClassName(icon);
 			const label = selectedWorkspace?.label
 				?? (contextCount > 0 ? localize('workspacePicker.attachedContextCount', "Attached {0}", contextCount) : undefined)
 				?? (relatedGitHubInfo ? `${relatedGitHubInfo.owner}/${relatedGitHubInfo.repo}` : (isSelectedCategory && workspace ? workspace.label : options.label));
 			trigger.setAttribute('aria-label', label && label !== options.label && !selectedWorkspace
 				? localize('workspacePicker.categorySelectionAriaLabel', "{0}: {1}", options.label ?? options.ariaLabel, label)
 				: options.ariaLabel);
-			let labelSpan = trigger.querySelector<HTMLElement>(':scope > .sessions-chat-dropdown-label');
 			if (label) {
-				labelSpan ??= dom.append(trigger, dom.$('span.sessions-chat-dropdown-label'));
-				labelSpan.textContent = label;
+				contents.label ??= dom.append(trigger, dom.$('span.sessions-chat-dropdown-label'));
+				contents.label.textContent = label;
 			} else {
-				labelSpan?.remove();
+				contents.label?.remove();
+				contents.label = undefined;
 			}
 			return;
 		}
@@ -1399,9 +1410,9 @@ export class WorkspacePicker extends Disposable {
 			? localize('workspacePicker.selectedAriaLabel', "New session in {0}", label)
 			: localize('workspacePicker.pickAriaLabel', "Start by picking a workspace"));
 
-		dom.append(trigger, renderIcon(icon));
-		const labelSpan = dom.append(trigger, dom.$('span.sessions-chat-dropdown-label'));
-		labelSpan.textContent = label;
+		contents.icon = dom.append(trigger, renderIcon(icon));
+		contents.label = dom.append(trigger, dom.$('span.sessions-chat-dropdown-label'));
+		contents.label.textContent = label;
 		dom.append(trigger, renderIcon(Codicon.chevronDownCompact)).classList.add('sessions-chat-dropdown-chevron');
 	}
 
