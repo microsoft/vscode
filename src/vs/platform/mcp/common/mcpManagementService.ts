@@ -8,7 +8,7 @@ import { VSBuffer } from '../../../base/common/buffer.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../base/common/htmlContent.js';
-import { Disposable, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../base/common/map.js';
 import { equals } from '../../../base/common/objects.js';
 import { isString } from '../../../base/common/types.js';
@@ -19,6 +19,7 @@ import { IEnvironmentService } from '../../environment/common/environment.js';
 import { FileOperationResult, IFileService, toFileOperationResult } from '../../files/common/files.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
+import { McpDiscoveryHost } from './mcpDiscoveryMetadata.js';
 import { IUriIdentityService } from '../../uriIdentity/common/uriIdentity.js';
 import { IUserDataProfilesService } from '../../userDataProfile/common/userDataProfile.js';
 import { DidUninstallMcpServerEvent, IGalleryMcpServer, ILocalMcpServer, IMcpGalleryService, IMcpManagementService, IMcpServerInput, IGalleryMcpServerConfiguration, InstallMcpServerEvent, InstallMcpServerResult, RegistryType, UninstallMcpServerEvent, InstallOptions, UninstallOptions, IInstallableMcpServer, IAllowedMcpServersService, IMcpServerArgument, IMcpServerKeyValueInput, McpServerConfigurationParseResult } from './mcpManagement.js';
@@ -309,6 +310,7 @@ export abstract class AbstractMcpResourceManagementService extends AbstractCommo
 	private initializePromise: Promise<void> | undefined;
 	private readonly reloadConfigurationScheduler: RunOnceScheduler;
 	private local = new Map<string, ILocalMcpServer>();
+	private readonly configurationRegistration = this._register(new MutableDisposable());
 
 	protected readonly _onInstallMcpServer = this._register(new Emitter<InstallMcpServerEvent>());
 	readonly onInstallMcpServer = this._onInstallMcpServer.event;
@@ -328,6 +330,7 @@ export abstract class AbstractMcpResourceManagementService extends AbstractCommo
 	constructor(
 		protected readonly mcpResource: URI,
 		protected readonly target: McpResourceTarget,
+		protected readonly discoveryHost: McpDiscoveryHost,
 		@IMcpGalleryService protected readonly mcpGalleryService: IMcpGalleryService,
 		@IFileService protected readonly fileService: IFileService,
 		@IUriIdentityService protected readonly uriIdentityService: IUriIdentityService,
@@ -437,6 +440,9 @@ export abstract class AbstractMcpResourceManagementService extends AbstractCommo
 	}
 
 	async getInstalled(): Promise<ILocalMcpServer[]> {
+		if (!this.configurationRegistration.value) {
+			this.configurationRegistration.value = this.mcpResourceScannerService.registerConfigurationResource(this.mcpResource, this.target, this.discoveryHost);
+		}
 		await this.initialize();
 		return Array.from(this.local.values());
 	}
@@ -518,6 +524,7 @@ export class McpUserResourceManagementService extends AbstractMcpResourceManagem
 
 	constructor(
 		mcpResource: URI,
+		discoveryHost: McpDiscoveryHost,
 		@IMcpGalleryService mcpGalleryService: IMcpGalleryService,
 		@IFileService fileService: IFileService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
@@ -526,7 +533,7 @@ export class McpUserResourceManagementService extends AbstractMcpResourceManagem
 		@IAllowedMcpServersService allowedMcpServersService: IAllowedMcpServersService,
 		@IEnvironmentService environmentService: IEnvironmentService
 	) {
-		super(mcpResource, ConfigurationTarget.USER, mcpGalleryService, fileService, uriIdentityService, logService, mcpResourceScannerService, allowedMcpServersService);
+		super(mcpResource, ConfigurationTarget.USER, discoveryHost, mcpGalleryService, fileService, uriIdentityService, logService, mcpResourceScannerService, allowedMcpServersService);
 		this.mcpLocation = uriIdentityService.extUri.joinPath(environmentService.userRoamingDataHome, 'mcp');
 	}
 
@@ -660,6 +667,7 @@ export class McpManagementService extends AbstractMcpManagementService implement
 	private readonly mcpResourceManagementServices = new ResourceMap<{ service: McpUserResourceManagementService } & IDisposable>();
 
 	constructor(
+		protected readonly discoveryHost: McpDiscoveryHost,
 		@IAllowedMcpServersService allowedMcpServersService: IAllowedMcpServersService,
 		@ILogService logService: ILogService,
 		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
@@ -714,7 +722,7 @@ export class McpManagementService extends AbstractMcpManagementService implement
 	}
 
 	protected createMcpResourceManagementService(mcpResource: URI): McpUserResourceManagementService {
-		return this.instantiationService.createInstance(McpUserResourceManagementService, mcpResource);
+		return this.instantiationService.createInstance(McpUserResourceManagementService, mcpResource, this.discoveryHost);
 	}
 
 }

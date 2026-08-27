@@ -72,6 +72,7 @@ import { ExtensionGalleryManifestService } from '../../platform/extensionManagem
 import { IAllowedMcpServersService, IMcpGalleryService, IMcpManagementService } from '../../platform/mcp/common/mcpManagement.js';
 import { McpManagementService } from '../../platform/mcp/node/mcpManagementService.js';
 import { IMcpResourceScannerService, McpResourceScannerService } from '../../platform/mcp/common/mcpResourceScannerService.js';
+import { McpDiscoveryHost } from '../../platform/mcp/common/mcpDiscoveryMetadata.js';
 import { McpGalleryService } from '../../platform/mcp/common/mcpGalleryService.js';
 import { AllowedMcpServersService } from '../../platform/mcp/common/allowedMcpServersService.js';
 import { IMcpGalleryManifestService } from '../../platform/mcp/common/mcpGalleryManifest.js';
@@ -244,7 +245,7 @@ class CliMain extends Disposable {
 		services.set(IMcpResourceScannerService, new SyncDescriptor(McpResourceScannerService, undefined, true));
 		services.set(IMcpGalleryManifestService, new SyncDescriptor(McpGalleryManifestService, undefined, true));
 		services.set(IMcpGalleryService, new SyncDescriptor(McpGalleryService, undefined, true));
-		services.set(IMcpManagementService, new SyncDescriptor(McpManagementService, undefined, true));
+		services.set(IMcpManagementService, new SyncDescriptor(McpManagementService, [McpDiscoveryHost.Local], true));
 
 		// Telemetry
 		const appenders: ITelemetryAppender[] = [];

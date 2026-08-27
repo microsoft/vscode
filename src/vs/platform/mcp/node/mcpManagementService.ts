@@ -6,15 +6,19 @@
 import { URI } from '../../../base/common/uri.js';
 import { IEnvironmentService } from '../../environment/common/environment.js';
 import { IFileService } from '../../files/common/files.js';
+import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
+import { IUserDataProfilesService } from '../../userDataProfile/common/userDataProfile.js';
 import { IUriIdentityService } from '../../uriIdentity/common/uriIdentity.js';
 import { IGalleryMcpServer, IMcpGalleryService, IMcpManagementService, InstallOptions, ILocalMcpServer, RegistryType, IInstallableMcpServer, IAllowedMcpServersService } from '../common/mcpManagement.js';
 import { McpUserResourceManagementService as CommonMcpUserResourceManagementService, McpManagementService as CommonMcpManagementService } from '../common/mcpManagementService.js';
 import { IMcpResourceScannerService } from '../common/mcpResourceScannerService.js';
+import { McpDiscoveryHost } from '../common/mcpDiscoveryMetadata.js';
 
 export class McpUserResourceManagementService extends CommonMcpUserResourceManagementService {
 	constructor(
 		mcpResource: URI,
+		discoveryHost: McpDiscoveryHost,
 		@IMcpGalleryService mcpGalleryService: IMcpGalleryService,
 		@IFileService fileService: IFileService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
@@ -23,7 +27,7 @@ export class McpUserResourceManagementService extends CommonMcpUserResourceManag
 		@IAllowedMcpServersService allowedMcpServersService: IAllowedMcpServersService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 	) {
-		super(mcpResource, mcpGalleryService, fileService, uriIdentityService, logService, mcpResourceScannerService, allowedMcpServersService, environmentService);
+		super(mcpResource, discoveryHost, mcpGalleryService, fileService, uriIdentityService, logService, mcpResourceScannerService, allowedMcpServersService, environmentService);
 	}
 
 	override async installFromGallery(server: IGalleryMcpServer, options?: InstallOptions): Promise<ILocalMcpServer> {
@@ -74,7 +78,17 @@ export class McpUserResourceManagementService extends CommonMcpUserResourceManag
 }
 
 export class McpManagementService extends CommonMcpManagementService implements IMcpManagementService {
+	constructor(
+		discoveryHost: McpDiscoveryHost,
+		@IAllowedMcpServersService allowedMcpServersService: IAllowedMcpServersService,
+		@ILogService logService: ILogService,
+		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService,
+		@IInstantiationService instantiationService: IInstantiationService,
+	) {
+		super(discoveryHost, allowedMcpServersService, logService, userDataProfilesService, instantiationService);
+	}
+
 	protected override createMcpResourceManagementService(mcpResource: URI): McpUserResourceManagementService {
-		return this.instantiationService.createInstance(McpUserResourceManagementService, mcpResource);
+		return this.instantiationService.createInstance(McpUserResourceManagementService, mcpResource, this.discoveryHost);
 	}
 }

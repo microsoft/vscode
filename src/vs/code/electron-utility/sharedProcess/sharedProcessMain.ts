@@ -137,6 +137,7 @@ import { SharedWebContentExtractorService } from '../../../platform/webContentEx
 import { McpManagementService } from '../../../platform/mcp/node/mcpManagementService.js';
 import { IAllowedMcpServersService, IMcpGalleryService, IMcpManagementService } from '../../../platform/mcp/common/mcpManagement.js';
 import { IMcpResourceScannerService, McpResourceScannerService } from '../../../platform/mcp/common/mcpResourceScannerService.js';
+import { McpDiscoveryHost } from '../../../platform/mcp/common/mcpDiscoveryMetadata.js';
 import { McpGalleryService } from '../../../platform/mcp/common/mcpGalleryService.js';
 import { McpManagementChannel } from '../../../platform/mcp/common/mcpManagementIpc.js';
 import { AllowedMcpServersService } from '../../../platform/mcp/common/allowedMcpServersService.js';
@@ -371,7 +372,7 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 		services.set(IMcpGalleryManifestService, new McpGalleryManifestIPCService(this.server));
 		services.set(IMcpGalleryService, new SyncDescriptor(McpGalleryService, undefined, true));
 		services.set(IMcpResourceScannerService, new SyncDescriptor(McpResourceScannerService, undefined, true));
-		services.set(IMcpManagementService, new SyncDescriptor(McpManagementService, undefined, true));
+		services.set(IMcpManagementService, new SyncDescriptor(McpManagementService, [McpDiscoveryHost.Local], true));
 
 		// Extension Gallery
 		services.set(IExtensionGalleryManifestService, new ExtensionGalleryManifestIPCService(this.server, logService, productService));

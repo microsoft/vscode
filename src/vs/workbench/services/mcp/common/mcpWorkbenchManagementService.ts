@@ -18,6 +18,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
 import { IChannel } from '../../../../base/parts/ipc/common/ipc.js';
 import { McpManagementChannelClient } from '../../../../platform/mcp/common/mcpManagementIpc.js';
+import { McpDiscoveryHost } from '../../../../platform/mcp/common/mcpDiscoveryMetadata.js';
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { IRemoteUserDataProfilesService } from '../../userDataProfile/common/remoteUserDataProfiles.js';
 import { AbstractMcpManagementService, AbstractMcpResourceManagementService, ILocalMcpServerInfo } from '../../../../platform/mcp/common/mcpManagementService.js';
@@ -443,6 +444,7 @@ class WorkspaceMcpResourceManagementService extends AbstractMcpResourceManagemen
 	constructor(
 		mcpResource: URI,
 		target: McpResourceTarget,
+		discoveryHost: McpDiscoveryHost,
 		@IMcpGalleryService mcpGalleryService: IMcpGalleryService,
 		@IFileService fileService: IFileService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
@@ -450,7 +452,7 @@ class WorkspaceMcpResourceManagementService extends AbstractMcpResourceManagemen
 		@IMcpResourceScannerService mcpResourceScannerService: IMcpResourceScannerService,
 		@IAllowedMcpServersService allowedMcpServersService: IAllowedMcpServersService,
 	) {
-		super(mcpResource, target, mcpGalleryService, fileService, uriIdentityService, logService, mcpResourceScannerService, allowedMcpServersService);
+		super(mcpResource, target, discoveryHost, mcpGalleryService, fileService, uriIdentityService, logService, mcpResourceScannerService, allowedMcpServersService);
 	}
 
 	override async installFromGallery(server: IGalleryMcpServer, options?: InstallOptions): Promise<ILocalMcpServer> {
@@ -551,15 +553,18 @@ class WorkspaceMcpManagementService extends AbstractMcpManagementService impleme
 
 	private workspaceConfiguration?: URI | null;
 	private readonly workspaceMcpManagementServices = new ResourceMap<{ service: WorkspaceMcpResourceManagementService } & IDisposable>();
+	private readonly discoveryHost: McpDiscoveryHost;
 
 	constructor(
 		@IAllowedMcpServersService allowedMcpServersService: IAllowedMcpServersService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@ILogService logService: ILogService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super(allowedMcpServersService, logService);
+		this.discoveryHost = remoteAgentService.getConnection() ? McpDiscoveryHost.Remote : McpDiscoveryHost.Local;
 		this.initialize();
 	}
 
@@ -603,7 +608,7 @@ class WorkspaceMcpManagementService extends AbstractMcpManagementService impleme
 		}
 
 		const disposables = new DisposableStore();
-		const service = disposables.add(this.instantiationService.createInstance(WorkspaceMcpResourceManagementService, mcpResource, target));
+		const service = disposables.add(this.instantiationService.createInstance(WorkspaceMcpResourceManagementService, mcpResource, target, this.discoveryHost));
 
 		try {
 			const installedServers = await service.getInstalled();

@@ -99,6 +99,7 @@ import { ExtensionGalleryManifestIPCService } from '../../platform/extensionMana
 import { IAllowedMcpServersService, IMcpGalleryService, IMcpManagementService } from '../../platform/mcp/common/mcpManagement.js';
 import { McpManagementService } from '../../platform/mcp/node/mcpManagementService.js';
 import { McpGalleryService } from '../../platform/mcp/common/mcpGalleryService.js';
+import { McpDiscoveryHost } from '../../platform/mcp/common/mcpDiscoveryMetadata.js';
 import { IMcpResourceScannerService, McpResourceScannerService } from '../../platform/mcp/common/mcpResourceScannerService.js';
 import { McpManagementChannel } from '../../platform/mcp/common/mcpManagementIpc.js';
 import { AllowedMcpServersService } from '../../platform/mcp/common/allowedMcpServersService.js';
@@ -371,7 +372,7 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 	services.set(IAllowedMcpServersService, new SyncDescriptor(AllowedMcpServersService));
 	services.set(IMcpResourceScannerService, new SyncDescriptor(McpResourceScannerService));
 	services.set(IMcpGalleryService, new SyncDescriptor(McpGalleryService));
-	services.set(IMcpManagementService, new SyncDescriptor(McpManagementService));
+	services.set(IMcpManagementService, new SyncDescriptor(McpManagementService, [McpDiscoveryHost.Remote]));
 
 	instantiationService.invokeFunction(accessor => {
 		const mcpManagementService = accessor.get(IMcpManagementService);

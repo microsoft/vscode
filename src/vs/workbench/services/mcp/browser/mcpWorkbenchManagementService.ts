@@ -13,6 +13,7 @@ import { IUserDataProfilesService } from '../../../../platform/userDataProfile/c
 import { IRemoteUserDataProfilesService } from '../../userDataProfile/common/remoteUserDataProfiles.js';
 import { WorkbenchMcpManagementService as BaseWorkbenchMcpManagementService, IWorkbenchMcpManagementService } from '../common/mcpWorkbenchManagementService.js';
 import { McpManagementService } from '../../../../platform/mcp/common/mcpManagementService.js';
+import { McpDiscoveryHost } from '../../../../platform/mcp/common/mcpDiscoveryMetadata.js';
 import { IAllowedMcpServersService } from '../../../../platform/mcp/common/mcpManagement.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 
@@ -29,7 +30,7 @@ export class WorkbenchMcpManagementService extends BaseWorkbenchMcpManagementSer
 		@IRemoteUserDataProfilesService remoteUserDataProfilesService: IRemoteUserDataProfilesService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
-		const mMcpManagementService = instantiationService.createInstance(McpManagementService);
+		const mMcpManagementService = instantiationService.createInstance(McpManagementService, McpDiscoveryHost.Local);
 		super(mMcpManagementService, allowedMcpServersService, logService, userDataProfileService, uriIdentityService, workspaceContextService, remoteAgentService, userDataProfilesService, remoteUserDataProfilesService, instantiationService);
 		this._register(mMcpManagementService);
 	}
