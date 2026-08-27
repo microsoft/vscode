@@ -14,6 +14,7 @@ const enum TelemetryDestination {
 const targetDestinations = new Map<string, TelemetryDestination>([
 	['engine.messages', TelemetryDestination.EnhancedGH],
 	['engine.messages.length', TelemetryDestination.EnhancedGH | TelemetryDestination.InternalMSFT],
+	['conversation.repetition.detected', TelemetryDestination.EnhancedGH],
 	['model.message.added', TelemetryDestination.InternalMSFT],
 	['model.modelCall.input', TelemetryDestination.InternalMSFT],
 	['model.modelCall.output', TelemetryDestination.InternalMSFT],

@@ -435,10 +435,10 @@ class ESRPReleaseService {
 		const message: ReleaseRequestMessage = {
 			customerCorrelationId: correlationId,
 			esrpCorrelationId: correlationId,
-			driEmail: ['joao.moreno@microsoft.com'],
-			createdBy: { userPrincipalName: 'jomo@microsoft.com' },
-			owners: [{ owner: { userPrincipalName: 'jomo@microsoft.com' } }],
-			approvers: [{ approver: { userPrincipalName: 'jomo@microsoft.com' }, isAutoApproved: true, isMandatory: false }],
+			driEmail: ['lszomoru@microsoft.com'],
+			createdBy: { userPrincipalName: 'lszomoru@microsoft.com' },
+			owners: [{ owner: { userPrincipalName: 'lszomoru@microsoft.com' } }],
+			approvers: [{ approver: { userPrincipalName: 'lszomoru@microsoft.com' }, isAutoApproved: true, isMandatory: false }],
 			releaseInfo: {
 				title: 'VS Code',
 				properties: {

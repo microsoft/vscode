@@ -6,13 +6,18 @@
 import assert from 'assert';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
-import { Event } from '../../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import type { IByokLmChatRequest } from '../../../../../../platform/agentHost/common/agentHostByokLm.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ContextKeyService } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
+import { IContextKey, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { ChatEntitlementContextKeys, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { AgentHostByokLmHandler } from '../../../browser/agentSessions/agentHost/agentHostByokLmHandler.js';
+import { SessionType } from '../../../common/chatSessionsService.js';
 import { ChatMessageRole, IChatMessage, IChatResponsePart, ILanguageModelChatMetadata, ILanguageModelChatRequestOptions, ILanguageModelChatResponse, ILanguageModelsService } from '../../../common/languageModels.js';
 
 interface ICapturedRequest {
@@ -32,12 +37,16 @@ class TestLanguageModelsService extends mock<ILanguageModelsService>() {
 	captured: ICapturedRequest | undefined;
 
 	override readonly onDidChangeLanguageModels = Event.None;
+	override readonly onDidChangeModelVisibility: Event<void>;
 
 	constructor(
 		private readonly _models: ReadonlyMap<string, ILanguageModelChatMetadata>,
 		private readonly _respond: (request: ICapturedRequest) => ILanguageModelChatResponse,
+		onDidChangeModelVisibility = Event.None,
+		private readonly _isModelHidden: (identifier: string) => boolean = () => false,
 	) {
 		super();
+		this.onDidChangeModelVisibility = onDidChangeModelVisibility;
 	}
 
 	override getLanguageModelIds(): string[] {
@@ -48,9 +57,23 @@ class TestLanguageModelsService extends mock<ILanguageModelsService>() {
 		return this._models.get(modelId);
 	}
 
+	override isModelHidden(identifier: string): boolean {
+		return this._isModelHidden(identifier);
+	}
+
 	override async sendChatRequest(modelId: string, _from: ExtensionIdentifier | undefined, messages: IChatMessage[], options: ILanguageModelChatRequestOptions, _token: CancellationToken): Promise<ILanguageModelChatResponse> {
 		this.captured = { modelId, messages, options };
 		return this._respond(this.captured);
+	}
+}
+
+class TestChatEntitlementService extends mock<IChatEntitlementService>() {
+	constructor(private readonly _contextKeyService: IContextKeyService) {
+		super();
+	}
+
+	override get clientByokEnabled(): boolean {
+		return this._contextKeyService.getContextKeyValue<boolean>(ChatEntitlementContextKeys.clientByokEnabled.key) === true;
 	}
 }
 
@@ -85,9 +108,54 @@ suite('AgentHostByokLmHandler', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createHandler(service: ILanguageModelsService): AgentHostByokLmHandler {
-		return store.add(new AgentHostByokLmHandler(service, new NullLogService()));
+	function createPolicyContext(enabled: boolean): { contextKeyService: IContextKeyService; clientByokEnabled: IContextKey<boolean> } {
+		const contextKeyService = store.add(new ContextKeyService(new TestConfigurationService()));
+		const clientByokEnabled = ChatEntitlementContextKeys.clientByokEnabled.bindTo(contextKeyService);
+		clientByokEnabled.set(enabled);
+		return { contextKeyService, clientByokEnabled };
 	}
+
+	function createHandler(service: ILanguageModelsService): AgentHostByokLmHandler {
+		const { contextKeyService } = createPolicyContext(true);
+		return store.add(new AgentHostByokLmHandler(service, new NullLogService(), new TestChatEntitlementService(contextKeyService), contextKeyService));
+	}
+
+	test('updates model discovery and blocks requests when BYOK policy changes', async () => {
+		const service = new TestLanguageModelsService(
+			new Map([['id-acme', byokModel('acme', 'claude')]]),
+			() => responseOf([]),
+		);
+		const { contextKeyService, clientByokEnabled } = createPolicyContext(true);
+		const handler = store.add(new AgentHostByokLmHandler(service, new NullLogService(), new TestChatEntitlementService(contextKeyService), contextKeyService));
+		let modelChangeCount = 0;
+		store.add(handler.onDidChangeModels(() => modelChangeCount++));
+
+		clientByokEnabled.set(false);
+		const disabledModels = await handler.listModels(CancellationToken.None);
+		const disabledResult = await handler.chat({
+			vendor: 'acme',
+			modelId: 'claude',
+			input: [],
+		}, CancellationToken.None);
+		clientByokEnabled.set(true);
+		const enabledModels = await handler.listModels(CancellationToken.None);
+
+		assert.deepStrictEqual({
+			modelChangeCount,
+			disabledModels,
+			disabledResult,
+			enabledModels,
+			requestSent: service.captured !== undefined,
+		}, {
+			modelChangeCount: 2,
+			disabledModels: [],
+			disabledResult: { output: [], error: 'BYOK models are disabled by policy.' },
+			enabledModels: [
+				{ vendor: 'acme', id: 'claude', name: 'acme claude', modelIdentifier: 'id-acme', maxContextWindowTokens: 2000, supportsVision: false },
+			],
+			requestSent: false,
+		});
+	});
 
 	test('listModels enumerates renderer BYOK models and excludes agent-host copies', async () => {
 		const service = new TestLanguageModelsService(
@@ -127,6 +195,62 @@ suite('AgentHostByokLmHandler', () => {
 			{ vendor: 'openrouter', id: 'ai21/jamba-large-1.7', name: 'openrouter ai21/jamba-large-1.7', modelIdentifier: groupedId, maxContextWindowTokens: 2000, supportsVision: false },
 			{ vendor: 'openrouter', id: 'gpt-4', name: 'openrouter gpt-4', modelIdentifier: 'openrouter/gpt-4', maxContextWindowTokens: 2000, supportsVision: false },
 		]);
+	});
+
+	test('listModels excludes hidden BYOK sources and Agent Host copies', async () => {
+		const sourceIdentifier = 'openrouter/OpenRouter 2/ai21/jamba-large-1.7';
+		const agentHostIdentifier = `${SessionType.AgentHostCopilot}:openrouter/OpenRouter 2/ai21/jamba-large-1.7`;
+		const hidden = new Set<string>();
+		const visibilityChanges = store.add(new Emitter<void>());
+		const service = new TestLanguageModelsService(
+			new Map([[sourceIdentifier, byokModel('openrouter', 'ai21/jamba-large-1.7')]]),
+			() => responseOf([]),
+			visibilityChanges.event,
+			identifier => hidden.has(identifier),
+		);
+		const handler = createHandler(service);
+		let modelChangeCount = 0;
+		store.add(handler.onDidChangeModels(() => modelChangeCount++));
+
+		const visibleModels = await handler.listModels(CancellationToken.None);
+		hidden.add(sourceIdentifier);
+		visibilityChanges.fire();
+		const sourceHiddenModels = await handler.listModels(CancellationToken.None);
+		hidden.delete(sourceIdentifier);
+		hidden.add(agentHostIdentifier);
+		visibilityChanges.fire();
+		const copyHiddenModels = await handler.listModels(CancellationToken.None);
+		hidden.clear();
+		visibilityChanges.fire();
+		const restoredModels = await handler.listModels(CancellationToken.None);
+
+		assert.deepStrictEqual({
+			modelChangeCount,
+			visibleModels,
+			sourceHiddenModels,
+			copyHiddenModels,
+			restoredModels,
+		}, {
+			modelChangeCount: 3,
+			visibleModels: [{
+				vendor: 'openrouter',
+				id: 'ai21/jamba-large-1.7',
+				name: 'openrouter ai21/jamba-large-1.7',
+				modelIdentifier: sourceIdentifier,
+				maxContextWindowTokens: 2000,
+				supportsVision: false,
+			}],
+			sourceHiddenModels: [],
+			copyHiddenModels: [],
+			restoredModels: [{
+				vendor: 'openrouter',
+				id: 'ai21/jamba-large-1.7',
+				name: 'openrouter ai21/jamba-large-1.7',
+				modelIdentifier: sourceIdentifier,
+				maxContextWindowTokens: 2000,
+				supportsVision: false,
+			}],
+		});
 	});
 
 	test('listModels carries string reasoning effort metadata from renderer BYOK schemas', async () => {
@@ -180,6 +304,26 @@ suite('AgentHostByokLmHandler', () => {
 		]);
 	});
 
+	test('chat resolves the configured provider group when models share a vendor and id', async () => {
+		const workIdentifier = 'google/Gemini Work/gemini-2.5-pro';
+		const service = new TestLanguageModelsService(
+			new Map([
+				['google/Gemini Personal/gemini-2.5-pro', byokModel('google', 'gemini-2.5-pro')],
+				[workIdentifier, byokModel('google', 'gemini-2.5-pro')],
+			]),
+			() => responseOf([]),
+		);
+		const handler = createHandler(service);
+
+		await handler.chat({
+			vendor: 'google',
+			modelId: 'Gemini Work/gemini-2.5-pro',
+			input: [],
+		}, CancellationToken.None);
+
+		assert.strictEqual(service.captured?.modelId, workIdentifier);
+	});
+
 	test('buffers ordered thinking, text, tool calls, continuation and usage', async () => {
 		const service = new TestLanguageModelsService(
 			new Map([['id-acme-claude', byokModel('acme', 'claude')]]),
@@ -224,6 +368,61 @@ suite('AgentHostByokLmHandler', () => {
 		});
 	});
 
+	test('combines streamed thinking chunks into one summary entry', async () => {
+		const service = new TestLanguageModelsService(
+			new Map([['id-deepseek', byokModel('customendpoint', 'deepseek')]]),
+			() => responseOf([
+				{ type: 'thinking', value: 'Analy' },
+				{ type: 'thinking', value: 'zing' },
+			]),
+		);
+		const handler = createHandler(service);
+
+		const result = await handler.chat({
+			vendor: 'customendpoint',
+			modelId: 'deepseek',
+			input: [{ type: 'message', role: 'user', content: [{ type: 'text', text: 'hi' }] }],
+		}, CancellationToken.None);
+
+		assert.deepStrictEqual(result.output, [{
+			type: 'reasoning',
+			id: undefined,
+			summary: ['Analyzing'],
+			encryptedContent: undefined,
+			metadata: undefined,
+		}]);
+	});
+
+	test('preserves streamed reasoning summary part boundaries', async () => {
+		const service = new TestLanguageModelsService(
+			new Map([['id', byokModel('customendpoint', 'reasoning')]]),
+			() => responseOf([
+				{ type: 'thinking', value: 'fir', id: 'rs_1' },
+				{ type: 'thinking', value: 'st', id: 'rs_1' },
+				{ type: 'thinking', value: '', id: 'rs_1', metadata: { vscode_reasoning_summary_part_done: true } },
+				{ type: 'thinking', value: 'sec', id: 'rs_1' },
+				{ type: 'thinking', value: 'ond', id: 'rs_1' },
+				{ type: 'thinking', value: '', id: 'rs_1', metadata: { vscode_reasoning_summary_part_done: true } },
+				{ type: 'thinking', value: '', id: 'rs_1', metadata: { encrypted_content: 'opaque' } },
+			]),
+		);
+		const handler = createHandler(service);
+
+		const result = await handler.chat({
+			vendor: 'customendpoint',
+			modelId: 'reasoning',
+			input: [],
+		}, CancellationToken.None);
+
+		assert.deepStrictEqual(result.output, [{
+			type: 'reasoning',
+			id: 'rs_1',
+			summary: ['first', 'second'],
+			encryptedContent: 'opaque',
+			metadata: { encrypted_content: 'opaque' },
+		}]);
+	});
+
 	test('maps ordered Responses input and options to LM API chat messages', async () => {
 		const service = new TestLanguageModelsService(
 			new Map([['id', byokModel('acme', 'claude')]]),
@@ -251,7 +450,14 @@ suite('AgentHostByokLmHandler', () => {
 					{ type: 'custom_tool_call', callId: 't2', name: 'apply_patch', input: 'patch' },
 					{ type: 'function_call_output', callId: 't1', output: 'sunny' },
 					{ type: 'custom_tool_call_output', callId: 't2', output: 'Done!' },
-					{ type: 'message', role: 'user', content: [{ type: 'text', text: 'hi' }] },
+					{
+						type: 'message',
+						role: 'user',
+						content: [
+							{ type: 'text', text: 'hi' },
+							{ type: 'image', mimeType: 'image/png', data: 'aW1hZ2U=' },
+						],
+					},
 				],
 			},
 			CancellationToken.None,
@@ -280,7 +486,13 @@ suite('AgentHostByokLmHandler', () => {
 				},
 				{ role: ChatMessageRole.User, content: [{ type: 'tool_result', toolCallId: 't1', value: [{ type: 'text', value: 'sunny' }] }] },
 				{ role: ChatMessageRole.User, content: [{ type: 'tool_result', toolCallId: 't2', value: [{ type: 'text', value: 'Done!' }] }] },
-				{ role: ChatMessageRole.User, content: [{ type: 'text', value: 'hi' }] },
+				{
+					role: ChatMessageRole.User,
+					content: [
+						{ type: 'text', value: 'hi' },
+						{ type: 'image_url', value: { mimeType: 'image/png', data: VSBuffer.fromString('image') } },
+					],
+				},
 			],
 			options: {
 				modelOptions: { temperature: 0.5 },

@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
-import { AutomationRunTrigger, IAutomation, IAutomationRun } from './automation.js';
+import { AutomationRunTrigger, IAutomationDescriptor, IAutomationRun } from './automation.js';
 
 export const IAutomationRunner = createDecorator<IAutomationRunner>('automationRunner');
 
@@ -23,7 +24,7 @@ export type AutomationDispatchFailure =
 /** Outcome of the dispatch phase of {@link IAutomationRunner.runOnce}. */
 export type IAutomationRunDispatch =
 	/** This call claimed the automation's run slot and a session was created for it. */
-	| { readonly kind: 'started'; readonly run: IAutomationRun; readonly sessionResource: string }
+	| { readonly kind: 'started'; readonly run: IAutomationRun; readonly sessionResource: URI }
 	/** Another run already held the automation's run slot, so nothing was dispatched. */
 	| { readonly kind: 'alreadyRunning'; readonly activeRun: IAutomationRun }
 	/** Dispatch ended without a session. `run` is set when a run row was recorded first. */
@@ -50,7 +51,7 @@ export interface IAutomationRunner {
 	 * Never throws. Failures are recorded on the run row in {@link IAutomationService}.
 	 */
 	runOnce(
-		automation: IAutomation,
+		automation: IAutomationDescriptor,
 		trigger: AutomationRunTrigger,
 		leaderWindowId: number,
 		token?: CancellationToken,

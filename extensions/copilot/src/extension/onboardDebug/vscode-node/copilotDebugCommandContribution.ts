@@ -13,8 +13,6 @@ import { ConfigKey, IConfigurationService } from '../../../platform/configuratio
 import { IVSCodeExtensionContext } from '../../../platform/extContext/common/extensionContext';
 import { IFileSystemService } from '../../../platform/filesystem/common/fileSystemService';
 import { IGitExtensionService } from '../../../platform/git/common/gitExtensionService';
-import { IGitService } from '../../../platform/git/common/gitService';
-import { IOctoKitService } from '../../../platform/github/common/githubService';
 import { ILogService } from '../../../platform/log/common/logService';
 import { ITasksService } from '../../../platform/tasks/common/tasksService';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
@@ -61,8 +59,6 @@ export class CopilotDebugCommandContribution extends Disposable implements vscod
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ITasksService private readonly tasksService: ITasksService,
 		@ITerminalService private readonly terminalService: ITerminalService,
-		@IOctoKitService private readonly _octoKitService: IOctoKitService,
-		@IGitService private readonly _gitService: IGitService,
 		@IGitExtensionService private readonly _gitExtensionService: IGitExtensionService,
 		@IFileSystemService private readonly fileSystemService: IFileSystemService,
 	) {
@@ -83,7 +79,7 @@ export class CopilotDebugCommandContribution extends Disposable implements vscod
 
 		this.registerSerializer = this.registerEnvironment();
 		// Initialize ChatSessionsUriHandler with extension context for storage
-		this.chatSessionsUriHandler = new ChatSessionsUriHandler(this._octoKitService, this._gitService, this._gitExtensionService, this.context, this.logService, this.fileSystemService, this.telemetryService);
+		this.chatSessionsUriHandler = new ChatSessionsUriHandler(this._gitExtensionService, this.context, this.logService, this.fileSystemService, this.telemetryService);
 		// Check for pending chat sessions when this contribution is initialized
 		(this.chatSessionsUriHandler as ChatSessionsUriHandler).openPendingSession().catch((err) => {
 			this.logService.error('Failed to check for pending chat sessions from debug command contribution:', err);

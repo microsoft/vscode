@@ -19,9 +19,10 @@ import { TestInstantiationService } from '../../../instantiation/test/common/ins
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { IAgentPluginManager } from '../../common/agentPluginManager.js';
 import { DiscoveredType, SessionCustomizationDiscovery } from '../../node/copilot/sessionCustomizationDiscovery.js';
-import type { AgentsDiscoverRequest } from '../../node/copilot/copilotRCP.js';
 import { SessionPluginBundler } from '../../node/shared/sessionPluginBundler.js';
 import { mapToParsedPlugin, toDiscoveredDirectoryCustomizations } from '../../node/copilot/copilotAgent.js';
+
+type AgentsDiscoverRequest = Parameters<CopilotClient['rpc']['agents']['discover']>[0];
 
 suite('SessionCustomizationDiscovery', () => {
 

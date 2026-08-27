@@ -67,7 +67,7 @@ suite('CopilotGitHubTelemetryForwarder', () => {
 		});
 
 		assert.deepStrictEqual(telemetryService.events, [{
-			eventName: 'copilotCli/tool_call_executed',
+			eventName: 'copilotSdk/tool_call_executed',
 			data: {
 				cli_version: '1.0.69',
 				os_platform: 'win32',
@@ -109,7 +109,7 @@ suite('CopilotGitHubTelemetryForwarder', () => {
 		forwarder.forward(notification);
 
 		assert.deepStrictEqual(telemetryService.events, [{
-			eventName: 'copilotCli/restricted_event',
+			eventName: 'copilotSdk/restricted_event',
 			data: {
 				created_at: undefined,
 				model_call_id: undefined,
@@ -121,5 +121,66 @@ suite('CopilotGitHubTelemetryForwarder', () => {
 				restricted: true,
 			},
 		}]);
+	});
+
+	test('adds Agent Host turn correlation only to response events', () => {
+		const telemetryService = new TestTelemetryService();
+		const forwarder = new CopilotGitHubTelemetryForwarder(() => false, telemetryService);
+		const notification = (kind: string, properties: Record<string, string> = {}, metrics: Record<string, number> = {}): GitHubTelemetryNotification => ({
+			sessionId: 'session',
+			restricted: false,
+			event: {
+				kind,
+				properties,
+				metrics,
+			},
+		});
+
+		forwarder.forward(notification('response.success', { turnId: 'runtime-turn' }), 'turn-1');
+		forwarder.forward(notification('response.error', {}, { turnId: 42 }));
+		forwarder.forward(notification('tool_call_executed', { turnId: 'runtime-turn' }), 'turn-1');
+		forwarder.forward(notification('response.success', { turnId: 'runtime-turn' }));
+
+		assert.deepStrictEqual(telemetryService.events.map(event => ({
+			eventName: event.eventName,
+			turnId: event.data?.turnId,
+		})), [
+			{ eventName: 'copilotSdk/response.success', turnId: 'turn-1' },
+			{ eventName: 'copilotSdk/response.error', turnId: undefined },
+			{ eventName: 'copilotSdk/tool_call_executed', turnId: 'runtime-turn' },
+			{ eventName: 'copilotSdk/response.success', turnId: undefined },
+		]);
+	});
+
+	test('forwards tool_call_executed outcome and token-count columns', () => {
+		const telemetryService = new TestTelemetryService();
+		const forwarder = new CopilotGitHubTelemetryForwarder(() => false, telemetryService);
+
+		forwarder.forward({
+			sessionId: 'session',
+			restricted: false,
+			event: {
+				kind: 'tool_call_executed',
+				properties: {
+					tool_name: 'grep',
+					result_type: 'SUCCESS',
+					invoke_outcome: 'success',
+					model: 'gpt-5.5',
+					tool_call_id: 'call-1',
+				},
+				metrics: {
+					duration_ms: 12,
+					result_token_count: 34,
+				},
+			},
+		});
+
+		const event = telemetryService.events[0];
+		assert.strictEqual(event.eventName, 'copilotSdk/tool_call_executed');
+		assert.strictEqual(event.data?.invoke_outcome, 'success');
+		assert.strictEqual(event.data?.result_type, 'SUCCESS');
+		assert.strictEqual(event.data?.result_token_count, 34);
+		assert.strictEqual(event.data?.duration_ms, 12);
+		assert.strictEqual(event.data?.tool_call_id, 'call-1');
 	});
 });

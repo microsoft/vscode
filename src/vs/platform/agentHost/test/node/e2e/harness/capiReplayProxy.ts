@@ -40,7 +40,7 @@ import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from
 import { basename, dirname } from '../../../../../../base/common/path.js';
 import { aggregateAnthropicSse, anthropicMessageToSse, ANTHROPIC_MESSAGES_PATH, aggregateResponsesSse, responsesMessageToSse, RESPONSES_PATH, summarizeResponsesRequest, deserializeAnthropicContent, serializeAnthropicContent, summarizeAnthropicRequest, type AnthropicContentBlock, type IAnthropicMessage, type IReadableAnthropicRequest } from './capiWireCodec.js';
 import { getAncillaryStub } from './capiStubs.js';
-import { findPosixOnlyCommands, formatPosixCommandError, type IRecordedCommand } from './posixCommandLint.js';
+import { findPosixOnlyCommands, formatPosixCommandError, getRecordedShellCommand, type IRecordedCommand } from './posixCommandLint.js';
 import { formatModelRequestMismatch, modelRequestsMatch, projectModelRequest } from './modelRequestProjection.js';
 import { expandShellToolName, normalizeShellToolNameForCapture } from './shellToolNames.js';
 import { scrubUserName, USER_NAME_PLACEHOLDER } from './userNameScrub.js';
@@ -57,11 +57,16 @@ const yamlModule = nodeRequire('js-yaml') as { load(input: string): unknown; dum
  * cache miss (reusing a stale turn could spin the agent loop forever), whereas
  * idempotent endpoints (`/models`, token) may be safely re-served. */
 const MODEL_ENDPOINTS = new Set(['/chat/completions', '/responses', '/v1/messages']);
+const STORED_RESPONSE_HEADERS = new Set(['content-type']);
 
 const WORKDIR_PLACEHOLDER = '${workdir}';
 const HOMEDIR_PLACEHOLDER = '${homedir}';
+const COPIED_PLUGIN_DIR_PLACEHOLDER = '${plugin_copy}';
+const COPIED_PLUGIN_DIR_RE = /\$\{homedir\}(?:\/|\\\\)user-data(?:\/|\\\\)agentPlugins(?:\/|\\\\)[^\/\\"]+/g;
 const TEMP_DIR_SUFFIX_PLACEHOLDER = '${temp}';
 const TEMP_DIR_SUFFIX_RE = /(\$\{workdir\}(?:\/|\\\\)(?:ahp-(?:snapshot|perm-test|plan-test|abort|test|wt-test|subagent-test|subagent-replay|attachment-test|cd-strip-test|coverage-[a-z-]+)-|copilot-(?:cost-report|text-blob)-|read-sdk-simple))[A-Za-z0-9]{6}/g;
+const UUID_PLACEHOLDER_RE = /\$\{uuid_\d+\}/g;
+const UUID_PATTERN = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
 const FILE_LISTING_DATE_RE = /\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}\s+(?:\d{2}:\d{2}|\d{4})\b/g;
 
 /**
@@ -104,7 +109,7 @@ const GITHUB_API_PREFIXES = ['/copilot_internal', '/telemetry', '/copilot/mcp_re
 
 export type CapiReplayMode = 'record' | 'replay';
 
-interface IRecordedResponse {
+export interface ICapiReplayResponse {
 	readonly status: number;
 	readonly headers: Readonly<Record<string, string>>;
 	readonly body: string;
@@ -115,7 +120,7 @@ interface IRecordedExchange {
 	readonly path: string;
 	/** Normalized request body, stored for human review of fixture diffs. */
 	readonly requestBody: string;
-	readonly response: IRecordedResponse;
+	readonly response: ICapiReplayResponse;
 }
 
 /** Wire dialect the fixture's model turns were captured in. Drives SSE
@@ -160,7 +165,7 @@ interface ITurnExchange {
 interface IRawFixtureExchange {
 	readonly method: string;
 	readonly path: string;
-	readonly response: IRecordedResponse;
+	readonly response: ICapiReplayResponse;
 }
 
 type IFixtureExchange = ITurnExchange | IRawFixtureExchange;
@@ -218,11 +223,13 @@ export interface ICapiReplayProxyOptions {
 	 * `STALE_RECORDED_REQUEST_EXCEPTIONS` in `agentHostE2ETestHarness.ts`.
 	 */
 	readonly allowStaleRecordedRequest?: boolean;
+	/** Synthetic first model response used by deterministic provider-error recordings. */
+	readonly recordingModelResponse?: ICapiReplayResponse;
 }
 
 /** A replayable item: raw bytes (ancillary) or a model reply to regenerate. */
 type IReplayItem =
-	| { readonly kind: 'raw'; readonly response: IRecordedResponse }
+	| { readonly kind: 'raw'; readonly response: ICapiReplayResponse }
 	| { readonly kind: 'turn'; readonly dialect: TurnDialect; readonly message: IAnthropicMessage; readonly request: IReadableAnthropicRequest };
 
 /** Sequence cursor for one `(method, path)` bucket during replay. */
@@ -247,8 +254,10 @@ export class CapiReplayProxy {
 	private readonly _observedModelRequestBodies: string[] = [];
 	private readonly _cacheMisses: string[] = [];
 	private readonly _requestMismatches: string[] = [];
+	private readonly _replayPlaceholderValues = new Map<string, string>();
 	private _modelTurnCount = 0;
 	private _workingDirectory: string | undefined;
+	private _recordingModelResponse: { readonly response: ICapiReplayResponse; readonly path?: string } | undefined;
 
 	/**
 	 * Fixture currently being replayed. Mutable so a single long-lived proxy can
@@ -272,6 +281,7 @@ export class CapiReplayProxy {
 		const fixtureExists = existsSync(this._fixturePath);
 		this._mode = _options.mode ?? 'replay';
 		this._strict = _options.strict ?? true;
+		this._recordingModelResponse = _options.recordingModelResponse ? { response: _options.recordingModelResponse } : undefined;
 
 		if (this._mode === 'replay' && !fixtureExists) {
 			throw new Error(`[capi-replay] replay mode requires a fixture but none exists at ${this._fixturePath}`);
@@ -357,12 +367,20 @@ export class CapiReplayProxy {
 		this._observedModelRequestBodies.length = 0;
 		this._cacheMisses.length = 0;
 		this._requestMismatches.length = 0;
+		this._replayPlaceholderValues.clear();
 		this._modelTurnCount = 0;
 		this._loadFixture();
 	}
 
 	setWorkingDirectory(workingDirectory: string): void {
 		this._workingDirectory = workingDirectory;
+	}
+
+	setRecordingModelResponse(response: ICapiReplayResponse, path?: string): void {
+		if (this._isReplaying) {
+			throw new Error('[capi-replay] setRecordingModelResponse is only valid in record mode');
+		}
+		this._recordingModelResponse = { response, path };
 	}
 
 	get observedModelRequestBodies(): readonly string[] {
@@ -458,7 +476,7 @@ export class CapiReplayProxy {
 
 		// Ancillary bootstrap endpoints are never recorded — serve them from
 		// hardcoded stubs (keeps identity/model-catalog out of fixtures).
-		const stub = getAncillaryStub(method, path);
+		const stub = getAncillaryStub(method, path, body);
 		if (stub) {
 			res.writeHead(stub.status, { ...stub.headers });
 			res.end(replaceAll(stub.body, CAPI_PLACEHOLDER, this.url));
@@ -515,26 +533,63 @@ export class CapiReplayProxy {
 	 */
 	private _assertRecordedRequest(dialect: TurnDialect, recorded: IReadableAnthropicRequest, body: string): void {
 		const turnIndex = this._modelTurnCount++;
-		if (this._allowStaleRecordedRequest) {
-			return;
-		}
 		const summarize = dialect === 'responses' ? summarizeResponsesRequest : summarizeAnthropicRequest;
-		const observed = summarize(this._normalize(body));
+		const normalizedBody = this._normalize(body);
+		const observed = summarize(normalizedBody);
 		if (!observed) {
 			return;
 		}
+		captureReplayPlaceholderValues(recorded, observed, this._replayPlaceholderValues);
+		if (this._allowStaleRecordedRequest) {
+			return;
+		}
+		const normalizedObserved = summarize(this._normalizeReplayPlaceholderValues(normalizedBody));
+		if (!normalizedObserved) {
+			return;
+		}
 		const expected = projectModelRequest(recorded);
-		const actual = projectModelRequest(observed);
+		const actual = projectModelRequest(normalizedObserved);
 		if (!modelRequestsMatch(expected, actual)) {
 			this._requestMismatches.push(formatModelRequestMismatch(turnIndex, expected, actual));
 		}
 	}
 
+	private _normalizeReplayPlaceholderValues(text: string): string {
+		let result = text;
+		for (const [placeholder, value] of this._replayPlaceholderValues) {
+			result = replaceAll(result, value, placeholder);
+		}
+		return result;
+	}
+
 	private _record(req: http.IncomingMessage, body: string, res: http.ServerResponse): void {
 		const method = req.method ?? 'GET';
 		const path = new URL(req.url ?? '/', 'http://localhost').pathname;
+		const stub = getAncillaryStub(method, path, body);
+		if (stub) {
+			res.writeHead(stub.status, { ...stub.headers });
+			res.end(replaceAll(stub.body, CAPI_PLACEHOLDER, this.url));
+			return;
+		}
 		if (MODEL_ENDPOINTS.has(path)) {
 			this._observedModelRequestBodies.push(this._normalize(body));
+		}
+		if (MODEL_ENDPOINTS.has(path) && this._recordingModelResponse && (!this._recordingModelResponse.path || this._recordingModelResponse.path === path)) {
+			const response = this._recordingModelResponse.response;
+			this._recordingModelResponse = undefined;
+			res.writeHead(response.status, response.headers);
+			res.end(response.body);
+			this._recorded.push({
+				method,
+				path,
+				requestBody: this._normalize(body),
+				response: {
+					...response,
+					headers: filterRecordedResponseHeaders(response.headers),
+					body: this._normalize(response.body),
+				},
+			});
+			return;
 		}
 		const upstreamBase = this._upstreamFor(path);
 		const upstream = new URL(req.url ?? '/', upstreamBase);
@@ -567,15 +622,14 @@ export class CapiReplayProxy {
 					res.end();
 					// Ancillary bootstrap endpoints are forwarded (so the live run
 					// works) but never stored — they are served from stubs on replay.
-					if (getAncillaryStub(method, path)) {
+					if (getAncillaryStub(method, path, body)) {
 						return;
 					}
 					// Decompress so stored bodies are readable text and the model
 					// filters / codecs can parse them. The live client already
 					// received the original (compressed) chunks above.
 					const decoded = decodeBody(Buffer.concat(respChunks), headers['content-encoding']);
-					const storedHeaders = { ...headers };
-					delete storedHeaders['content-encoding'];
+					const storedHeaders = filterRecordedResponseHeaders(headers);
 					// Rewrite the CAPI origin to a placeholder (so replay re-points
 					// discovery at the proxy), normalize local paths, and redact
 					// response-side secrets.
@@ -698,8 +752,8 @@ export class CapiReplayProxy {
 				if (block.type !== 'tool_use') {
 					continue;
 				}
-				const command = (block.input as { command?: unknown } | undefined)?.command;
-				if (typeof command === 'string' && command) {
+				const command = getRecordedShellCommand(block.input as { command?: unknown; cmd?: unknown } | undefined);
+				if (command) {
 					commands.push({ command, toolName: block.name });
 				}
 			}
@@ -869,6 +923,7 @@ export class CapiReplayProxy {
 		if (this._options.userName) {
 			result = scrubUserName(result, this._options.userName);
 		}
+		result = result.replace(COPIED_PLUGIN_DIR_RE, `${HOMEDIR_PLACEHOLDER}/user-data/agentPlugins/${COPIED_PLUGIN_DIR_PLACEHOLDER}`);
 		result = result.replace(TEMP_DIR_SUFFIX_RE, `$1${TEMP_DIR_SUFFIX_PLACEHOLDER}`);
 		result = replaceAll(result, `/private${WORKDIR_PLACEHOLDER}`, WORKDIR_PLACEHOLDER);
 		result = result.replace(FILE_LISTING_DATE_RE, '${timestamp}');
@@ -943,8 +998,67 @@ export class CapiReplayProxy {
 		if (this._options.userName) {
 			result = replaceAll(result, USER_PLACEHOLDER, this._options.userName);
 		}
+		for (const [placeholder, value] of this._replayPlaceholderValues) {
+			result = replaceAll(result, placeholder, value);
+		}
 		return result;
 	}
+}
+
+function captureReplayPlaceholderValues(recorded: unknown, observed: unknown, values: Map<string, string>): void {
+	if (typeof recorded === 'string' && typeof observed === 'string') {
+		captureReplayPlaceholderValuesFromString(recorded, observed, values);
+		return;
+	}
+	if (Array.isArray(recorded) && Array.isArray(observed)) {
+		for (let index = 0; index < Math.min(recorded.length, observed.length); index++) {
+			captureReplayPlaceholderValues(recorded[index], observed[index], values);
+		}
+		return;
+	}
+	if (!isRecord(recorded) || !isRecord(observed)) {
+		return;
+	}
+	for (const [key, value] of Object.entries(recorded)) {
+		captureReplayPlaceholderValues(value, observed[key], values);
+	}
+}
+
+function captureReplayPlaceholderValuesFromString(recorded: string, observed: string, values: Map<string, string>): void {
+	const placeholders: string[] = [];
+	let pattern = '^';
+	let offset = 0;
+	for (const match of recorded.matchAll(UUID_PLACEHOLDER_RE)) {
+		pattern += escapeRegExpCharacters(recorded.slice(offset, match.index));
+		pattern += `(${UUID_PATTERN})`;
+		placeholders.push(match[0]);
+		offset = match.index + match[0].length;
+	}
+	if (placeholders.length === 0) {
+		return;
+	}
+	pattern += `${escapeRegExpCharacters(recorded.slice(offset))}$`;
+	const match = new RegExp(pattern, 'i').exec(observed);
+	if (!match) {
+		return;
+	}
+	const captured = new Map<string, string>();
+	for (let index = 0; index < placeholders.length; index++) {
+		const placeholder = placeholders[index];
+		const value = match[index + 1];
+		if ((captured.has(placeholder) && captured.get(placeholder) !== value)
+			|| (values.has(placeholder) && values.get(placeholder) !== value)) {
+			return;
+		}
+		captured.set(placeholder, value);
+	}
+	for (const [placeholder, value] of captured) {
+		values.set(placeholder, value);
+	}
+}
+
+function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
+	return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
 function replaceAll(text: string, search: string, replacement: string): string {
@@ -987,4 +1101,8 @@ function flattenHeaders(headers: http.IncomingHttpHeaders): Record<string, strin
 		result[key] = Array.isArray(value) ? value.join(', ') : value;
 	}
 	return result;
+}
+
+function filterRecordedResponseHeaders(headers: Readonly<Record<string, string>>): Record<string, string> {
+	return Object.fromEntries(Object.entries(headers).filter(([key]) => STORED_RESPONSE_HEADERS.has(key.toLowerCase())));
 }

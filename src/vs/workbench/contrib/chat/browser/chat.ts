@@ -8,12 +8,15 @@ import { Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
+import { IRange } from '../../../../editor/common/core/range.js';
 import { Selection } from '../../../../editor/common/core/selection.js';
 import { EditDeltaInfo } from '../../../../editor/common/textModelEditSource.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { PreferredGroup } from '../../../services/editor/common/editorService.js';
+import { IChatRequestVariableEntry } from '../common/attachments/chatVariableEntries.js';
+import { IDynamicVariable } from '../common/attachments/chatVariables.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentCommand, IChatAgentData } from '../common/participants/chatAgents.js';
 import { IChatResponseModel, IChatModelInputState } from '../common/model/chatModel.js';
 import { IChatMode } from '../common/chatModes.js';
@@ -22,7 +25,7 @@ import { IHandOff } from '../common/promptSyntax/promptFileParser.js';
 import { CHAT_PROVIDER_ID } from '../common/participants/chatParticipantContribTypes.js';
 import { ChatRequestQueueKind, IChatElicitationRequest, IChatLocationData, IChatSendRequestOptions } from '../common/chatService/chatService.js';
 import { IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, IChatPendingDividerViewModel } from '../common/model/chatViewModel.js';
-import { ChatAgentLocation, ChatModeKind } from '../common/constants.js';
+import { ChatAgentLocation, ChatModeKind, IResolvedNewChatSessionType } from '../common/constants.js';
 import { ChatAttachmentModel } from './attachments/chatAttachmentModel.js';
 import { IChatEditorOptions } from './widgetHosts/editor/chatEditor.js';
 import { ChatInputPart } from './widget/input/chatInputPart.js';
@@ -123,6 +126,7 @@ export interface IChatWidgetService {
 	readonly lastFocusedWidget: IChatWidget | undefined;
 
 	readonly onDidAddWidget: Event<IChatWidget>;
+	readonly onDidRemoveWidget: Event<IChatWidget>;
 
 	readonly onDidChangeWidgetVisibility: Event<IChatWidget>;
 
@@ -251,17 +255,20 @@ export interface IChatListItemRendererOptions {
 export interface IChatWidgetViewOptions {
 	autoScroll?: boolean | ((mode: ChatModeKind) => boolean);
 	renderInputOnTop?: boolean;
+	/** Show the read-only status banner above the transcript instead of beside the composer. */
+	readOnlyBannerAtTop?: boolean;
 	renderFollowups?: boolean;
 	renderStyle?: 'compact' | 'minimal';
 	renderInputToolbarBelowInput?: boolean;
+	renderGettingStartedTip?: boolean | (() => boolean);
 	supportsFileReferences?: boolean;
 	filter?: (item: ChatTreeItem) => boolean;
 	/**
 	 * Action triggered when 'clear' is called on the widget. The optional
-	 * `targetSessionType` carries the already-resolved new session type so the
-	 * host can open a session of that type instead of recomputing the default.
+	 * `resolvedSessionType` carries the already-resolved new session type and
+	 * selection reason so the host does not recompute either value.
 	 */
-	clear?: (targetSessionType?: string) => Promise<void>;
+	clear?: (resolvedSessionType?: IResolvedNewChatSessionType) => Promise<void>;
 	rendererOptions?: IChatListItemRendererOptions;
 	menus?: {
 		/**
@@ -307,14 +314,28 @@ export interface IChatWidgetViewOptions {
 	 * If it returns true (handled), the normal submission is skipped.
 	 * This is useful for contexts like the welcome view where submission should
 	 * redirect to a different workspace rather than executing locally.
+	 *
+	 * `attachedContext` carries the explicit attachments (paste/drop/pick) present
+	 * on the input so a host that routes the request elsewhere can forward them
+	 * instead of silently dropping them.
 	 */
-	submitHandler?: (query: string, mode: ChatModeKind) => Promise<boolean>;
-
+	submitHandler?: (query: string, mode: ChatModeKind, attachedContext?: IChatRequestVariableEntry[], isVoiceModeInput?: boolean) => Promise<boolean>;
 	/**
 	 * Whether we are running in the sessions window.
 	 * When true, the secondary toolbar (permissions picker) is hidden.
 	 */
 	isSessionsWindow?: boolean;
+
+	/** Enables the transcript Find widget (`Ctrl/Cmd+F`) for this chat widget. Off by default. */
+	enableFind?: boolean;
+
+	/**
+	 * Height of the content this host mounts into
+	 * {@link ChatInputPart.persistentContentContainerElement}. Setting it floats that
+	 * content above the input, so the transcript scrolls underneath it, and reserves
+	 * the same space below the transcript. Must match the content's rendered height.
+	 */
+	persistentContentHeight?: number;
 }
 
 export interface IChatViewViewContext {
@@ -371,6 +392,17 @@ export interface IChatWidgetViewModelChangeEvent {
 	readonly currentSessionResource: URI | undefined;
 }
 
+/**
+ * Visual presentation state restored when a widget is rebound to a chat.
+ * Composer data such as text, attachments, mode, and model belongs in {@link IChatModelInputState}.
+ */
+export interface IChatWidgetViewState {
+	readonly scrollTop: number;
+	readonly isAtBottom?: boolean;
+}
+
+export const CHAT_WIDGET_VIEW_STATE_CACHE_LIMIT = 100;
+
 export interface IChatWidget {
 	readonly domNode: HTMLElement;
 	/** DOM node of the scrollable transcript area, excluding the input part. */
@@ -419,6 +451,7 @@ export interface IChatWidget {
 	acceptInput(query?: string, options?: IChatAcceptInputOptions): Promise<IChatResponseModel | undefined>;
 	getSelectedModelRequestOptions(): Pick<IChatSendRequestOptions, 'userSelectedModelId' | 'userSelectedModelConfiguration'>;
 	startEditing(requestId: string): void;
+	cancelEditing(): Promise<void>;
 	finishedEditing(completedEdit?: boolean): void;
 	rerunLastRequest(): Promise<void>;
 	setInputPlaceholder(placeholder: string): void;
@@ -464,12 +497,6 @@ export interface IChatWidget {
 	 * @returns Whether the operation succeeded (i.e., a terminal was found and focused).
 	 */
 	focusQuestionCarouselTerminal(): boolean;
-	/**
-	 * Toggles focus between the tip widget and the chat input.
-	 * Returns false if no tip is visible.
-	 * @returns Whether the operation succeeded (i.e., the focus was toggled).
-	 */
-	toggleTipFocus(): boolean;
 	hasInputFocus(): boolean;
 	getModeRequestOptions(): Partial<IChatSendRequestOptions>;
 	getCodeBlockInfoForEditor(uri: URI): IChatCodeBlockInfo | undefined;
@@ -486,14 +513,34 @@ export interface IChatWidget {
 	 * clobber each other.
 	 */
 	holdAutoScroll(): IDisposable;
-	clear(targetSessionType?: string): Promise<void>;
-	getViewState(): IChatModelInputState | undefined;
+	clear(resolvedSessionType?: IResolvedNewChatSessionType): Promise<void>;
+	getInputState(): IChatModelInputState | undefined;
+	getViewState(): IChatWidgetViewState;
+	restoreViewState(state: IChatWidgetViewState): void;
 	lockToCodingAgent(name: string, displayName: string, agentId?: string, agentHostProviderId?: string): void;
 	unlockFromCodingAgent(): void;
 	handleDelegationExitIfNeeded(sourceAgent: Pick<IChatAgentData, 'id' | 'name'> | undefined, targetAgent: IChatAgentData | undefined): Promise<void>;
 	executeHandoff(handoff: IHandOff, agentId?: string): Promise<void>;
 
 	delegateScrollFromMouseWheelEvent(event: IMouseWheelEvent): void;
+
+	/** Returns the widget's transcript Find controller, or `undefined` if `enableFind` was not set. */
+	getFindController(): IChatFindController | undefined;
+}
+
+/** Minimal surface used to route `Ctrl/Cmd+F` and Find Next/Previous to a chat widget's transcript Find widget. */
+export interface IChatFindController {
+	readonly visible: boolean;
+	/** Shows the Find widget, optionally seeding the query and focusing the input. */
+	show(seedText?: string, focus?: boolean): void;
+	hide(): void;
+	next(): void;
+	previous(): void;
+	toggleCaseSensitive(): void;
+	toggleWholeWord(): void;
+	toggleRegex(): void;
+	/** Focuses the Find widget's last-focused element (defaults to the input). */
+	focus(): void;
 }
 
 /**
@@ -534,3 +581,52 @@ export const ChatViewContainerId = 'workbench.panel.chat';
 
 export const HasInstalledAgentPluginsContext = new RawContextKey<boolean>('hasInstalledAgentPlugins', false);
 export const InstalledAgentPluginsViewId = 'workbench.views.agentPlugins.installed';
+
+/**
+ * A surface that can receive chat context attachments.
+ */
+export interface IChatAttachmentTarget {
+	readonly attachments: readonly IChatRequestVariableEntry[];
+
+	addAttachments(entries: readonly IChatRequestVariableEntry[]): void;
+}
+
+/**
+ * A chat input surface that paste providers can attach context to. Implemented
+ * by both the workbench chat widget and the Agents window composer so the paste
+ * pipeline does not depend on {@link IChatWidget}.
+ */
+export interface IChatPasteTarget extends IChatAttachmentTarget {
+
+	/** Scopes resources created for this input, so they are cleaned up with the session. */
+	readonly sessionResource: URI;
+
+	/** Inline references currently present in the input. */
+	readonly inlineReferences: readonly IDynamicVariable[];
+
+	removeAttachments(ids: readonly string[]): void;
+
+	/** Attaches `entry` and binds it to the inline `text` inserted at `range`. */
+	addInlineAttachment(entry: IChatRequestVariableEntry, text: string, range: IRange): void;
+
+	/** Adds an inline reference that is not backed by an attachment, such as a symbol. */
+	addInlineReference(reference: IDynamicVariable): void;
+
+	/** Whether pasting `text` over `range` would turn the input into a terminal command. */
+	isTerminalCommandPaste(text: string, range: IRange): boolean;
+}
+
+export const IChatPasteTargetService = createDecorator<IChatPasteTargetService>('chatPasteTargetService');
+
+export interface IChatPasteTargetService {
+	readonly _serviceBrand: undefined;
+
+	registerTarget(inputUri: URI, target: IChatPasteTarget): IDisposable;
+
+	getTarget(inputUri: URI): IChatPasteTarget | undefined;
+}
+
+export const UpdateAgentPluginsCommandId = 'workbench.agentPlugins.checkForUpdates';
+export const ForceUpdateAgentPluginsCommandId = 'workbench.agentPlugins.forceUpdate';
+export const RefreshAgentPluginMarketplacesCommandId = 'workbench.agentPlugins.refreshMarketplaces';
+export const UpdatingAgentPluginsContext = new RawContextKey<boolean>('agentPluginsUpdating', false);

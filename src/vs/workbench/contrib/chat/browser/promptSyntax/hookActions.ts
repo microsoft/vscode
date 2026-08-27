@@ -10,14 +10,12 @@ import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { ChatViewId } from '../chat.js';
-import { CHAT_CATEGORY, CHAT_CONFIG_MENU_ID } from '../actions/chatActions.js';
+import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { PromptsType, Target, getSourceDescription } from '../../common/promptSyntax/promptTypes.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
@@ -400,7 +398,7 @@ export async function showConfigureHooksQuickPick(
 							.filter(([hookType]) => targetHookTypes.has(hookType))
 							.map(makeItem);
 					} else {
-						// No target: group into Default (shared), VS Code Only, Copilot CLI Only
+						// No target: group into Default (shared), VS Code Only, Copilot Only
 						const vscodeTypes = new Set(Object.values(HOOKS_BY_TARGET[Target.VSCode]));
 						const copilotTypes = new Set(Object.values(HOOKS_BY_TARGET[Target.GitHubCopilot]));
 						const allEntries = Object.entries(HOOK_METADATA) as [HookType, IHookTypeMeta][];
@@ -411,7 +409,7 @@ export async function showConfigureHooksQuickPick(
 
 						pickerItems = [];
 						if (shared.length > 0) {
-							pickerItems.push({ type: 'separator', label: localize('hookSection.default', "Local/Copilot CLI Agents") });
+							pickerItems.push({ type: 'separator', label: localize('hookSection.default', "Local/Copilot Agents") });
 							pickerItems.push(...shared.map(makeItem));
 						}
 						if (vscodeOnly.length > 0) {
@@ -419,7 +417,7 @@ export async function showConfigureHooksQuickPick(
 							pickerItems.push(...vscodeOnly.map(makeItem));
 						}
 						if (copilotOnly.length > 0) {
-							pickerItems.push({ type: 'separator', label: localize('hookSection.copilotCliOnly', "Copilot CLI Agents") });
+							pickerItems.push({ type: 'separator', label: localize('hookSection.copilotCliOnly', "Copilot Agents") });
 							pickerItems.push(...copilotOnly.map(makeItem));
 						}
 					}
@@ -838,13 +836,7 @@ class ManageHooksAction extends Action2 {
 			icon: Codicon.zap,
 			f1: true,
 			precondition: ChatContextKeys.enabled,
-			category: CHAT_CATEGORY,
-			menu: {
-				id: CHAT_CONFIG_MENU_ID,
-				when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('view', ChatViewId)),
-				order: 12,
-				group: '1_level'
-			}
+			category: CHAT_CATEGORY
 		});
 	}
 

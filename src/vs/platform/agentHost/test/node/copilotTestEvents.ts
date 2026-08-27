@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { Attachment, SessionEvent, SessionEventPayload, ToolExecutionCompleteContent } from '@github/copilot-sdk';
+import type { Attachment, SessionEvent, SessionEventPayload, SkillInvokedData, ToolExecutionCompleteContent } from '@github/copilot-sdk';
 
 // =============================================================================
 // Minimal session-event shapes for tests
@@ -82,17 +82,12 @@ export interface ISessionEventMessage {
 	};
 }
 
-/** Minimal event shape for `skill.invoked`, used to synthesize a tool-style render. */
 export interface ISessionEventSkillInvoked {
 	type: 'skill.invoked';
 	id?: string;
 	/** Envelope-level sub-agent instance id. */
 	agentId?: string;
-	data: {
-		name: string;
-		path?: string;
-		description?: string;
-	};
+	data: SkillInvokedData;
 }
 
 export interface ISessionEventSubagentStarted {
@@ -135,6 +130,15 @@ export interface ISessionEventSystemNotification {
 	data: SessionEventPayload<'system.notification'>['data'];
 }
 
+export interface ISessionEventError {
+	type: 'session.error';
+	id?: string;
+	agentId?: string;
+	/** ISO 8601 envelope timestamp; the mapper uses it to restore turn timing. */
+	timestamp?: string;
+	data: SessionEventPayload<'session.error'>['data'];
+}
+
 /** Minimal event shape for session history mapping. */
 export type ISessionEvent =
 	| ISessionEventToolStart
@@ -145,6 +149,7 @@ export type ISessionEvent =
 	| ISessionEventAbort
 	| ISessionEventAssistantTurn
 	| ISessionEventSystemNotification
+	| ISessionEventError
 	| { type: string; timestamp?: string; data?: unknown };
 
 /**

@@ -37,6 +37,14 @@ export interface IPosixCommandFinding {
 	readonly reason: string;
 }
 
+/** Extracts the shell command field used by supported provider tool inputs. */
+export function getRecordedShellCommand(input: { readonly command?: unknown; readonly cmd?: unknown } | undefined): string | undefined {
+	if (typeof input?.command === 'string' && input.command) {
+		return input.command;
+	}
+	return typeof input?.cmd === 'string' && input.cmd ? input.cmd : undefined;
+}
+
 interface IPosixPattern {
 	readonly pattern: RegExp;
 	readonly reason: string;

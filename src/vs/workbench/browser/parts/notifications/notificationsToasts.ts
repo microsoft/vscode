@@ -29,6 +29,7 @@ import { IWorkbenchEnvironmentService } from '../../../services/environment/comm
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { DEFAULT_CUSTOM_TITLEBAR_HEIGHT } from '../../../../platform/window/common/window.js';
 import { PendingNotificationToasts } from './pendingNotificationToasts.js';
+import { onDidChangeNotificationRowHeight } from './notificationsViewer.js';
 
 interface INotificationToast {
 	readonly item: INotificationViewItem;
@@ -101,8 +102,18 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 			callback => scheduleAtNextAnimationFrame(getWindow(this.container), callback)
 		));
 		this._register(toDisposable(() => this.removeToasts()));
+		this._register(onDidChangeNotificationRowHeight(() => this.updateNotificationHeights()));
 
 		this.registerListeners();
+	}
+
+	private updateNotificationHeights(): void {
+		this.mapNotificationToToast.forEach(({ list }) => list.updateNotificationHeights());
+
+		const maxDimensions = this.computeMaxDimensions();
+		if (maxDimensions.height) {
+			this.layoutContainer(maxDimensions.height);
+		}
 	}
 
 	private registerListeners(): void {
@@ -650,15 +661,20 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 		let singleToastHeightToGive = heightToGive;
 		let multipleToastsHeightToGive = Math.round(heightToGive * 0.618);
 
-		let visibleToasts = 0;
-		for (const toast of this.getToasts(ToastVisibility.HIDDEN_OR_VISIBLE)) {
-
+		const toasts = this.getToasts(ToastVisibility.HIDDEN_OR_VISIBLE);
+		for (const toast of toasts) {
 			// In order to measure the client height, the element cannot have display: none
 			toast.container.style.opacity = '0';
 			this.updateToastVisibility(toast, true);
+		}
 
-			singleToastHeightToGive -= toast.container.offsetHeight;
-			multipleToastsHeightToGive -= toast.container.offsetHeight;
+		const toastHeights = toasts.map(toast => toast.container.offsetHeight);
+		let visibleToasts = 0;
+		for (let i = 0; i < toasts.length; i++) {
+			const toast = toasts[i];
+			const toastHeight = toastHeights[i];
+			singleToastHeightToGive -= toastHeight;
+			multipleToastsHeightToGive -= toastHeight;
 
 			let makeVisible = false;
 			if (visibleToasts === NotificationsToasts.MAX_NOTIFICATIONS) {

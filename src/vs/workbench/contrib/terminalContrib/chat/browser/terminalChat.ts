@@ -44,6 +44,7 @@ export const enum TerminalChatContextKeyStrings {
 	ChatResponseContainsMultipleCodeBlocks = 'terminalChatResponseContainsMultipleCodeBlocks',
 	ChatResponseSupportsIssueReporting = 'terminalChatResponseSupportsIssueReporting',
 	ChatSessionResponseVote = 'terminalChatSessionResponseVote',
+	ChatUsesAgentHost = 'terminalChatUsesAgentHost',
 	ChatHasTerminals = 'hasChatTerminals',
 	ChatHasHiddenTerminals = 'hasHiddenChatTerminals',
 	ChatToolHasInstance = 'chatTerminalToolHasInstance',
@@ -77,6 +78,9 @@ export namespace TerminalChatContextKeys {
 
 	/** A chat agent exists for the terminal location */
 	export const hasChatAgent = new RawContextKey<boolean>(TerminalChatContextKeyStrings.ChatAgentRegistered, false, localize('chatAgentRegisteredContextKey', "Whether a chat agent is registered for the terminal location."));
+
+	/** Whether the chat session is backed by the Agent Host */
+	export const usesAgentHost = new RawContextKey<boolean>(TerminalChatContextKeyStrings.ChatUsesAgentHost, false, localize('terminalChatUsesAgentHostContextKey', "Whether the terminal chat session is backed by the Agent Host."));
 
 	/** Has terminals created via chat */
 	export const hasChatTerminals = new RawContextKey<boolean>(TerminalChatContextKeyStrings.ChatHasTerminals, false, localize('terminalHasChatTerminals', "Whether there are any chat terminals."));

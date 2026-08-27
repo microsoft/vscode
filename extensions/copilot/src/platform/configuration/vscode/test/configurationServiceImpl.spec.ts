@@ -42,6 +42,7 @@ vi.mock('vscode', () => {
 });
 
 import { ICopilotTokenStore } from '../../../authentication/common/copilotTokenStore';
+import { NullExperimentationService } from '../../../telemetry/common/nullExperimentationService';
 import { ConfigKey } from '../../common/configurationService';
 import { ConfigurationServiceImpl } from '../configurationServiceImpl';
 
@@ -71,5 +72,56 @@ describe('ConfigurationServiceImpl - migrated chat.advanced setting fallback', (
 		const value = svc.getConfig(ConfigKey.Advanced.InlineEditsXtabProviderModelConfiguration);
 
 		expect(value).toEqual(userValue);
+	});
+});
+
+describe('ConfigurationServiceImpl - externally configurable advanced settings', () => {
+	test('reads advanced inline edit settings for external users', () => {
+		mockConfigStore.user = {
+			[ConfigKey.TeamInternal.InlineEditsUnification.fullyQualifiedId]: true,
+			[ConfigKey.TeamInternal.InlineEditsExcludedProviders.fullyQualifiedId]: 'completions,github.copilot',
+			[ConfigKey.TeamInternal.InlineEditsXtabProviderPatchModelPredictionKind.fullyQualifiedId]: 'currentLineCompleted',
+			[ConfigKey.TeamInternal.InlineEditsXtabSplitPatchOnDiff.fullyQualifiedId]: true,
+			[ConfigKey.TeamInternal.InlineEditsXtabProviderPatchFastYieldLineWithCursor.fullyQualifiedId]: false,
+			[ConfigKey.TeamInternal.InlineEditsNesMimicGhostTextBehavior.fullyQualifiedId]: true,
+			[ConfigKey.TeamInternal.InlineEditsRebasedCacheDelay.fullyQualifiedId]: 100,
+			[ConfigKey.TeamInternal.InlineEditsExtraDebounceEndOfLine.fullyQualifiedId]: 0,
+			[ConfigKey.TeamInternal.InlineEditsDebounce.fullyQualifiedId]: 0,
+			[ConfigKey.TeamInternal.InlineEditsCacheDelay.fullyQualifiedId]: 0,
+			[ConfigKey.TeamInternal.InlineEditsXtabProviderNLinesAbove.fullyQualifiedId]: 0,
+			[ConfigKey.TeamInternal.InlineEditsXtabProviderNLinesBelow.fullyQualifiedId]: 7,
+		};
+		mockConfigStore.defaults = {};
+
+		const service = new ConfigurationServiceImpl(fakeTokenStore);
+		const experimentationService = new NullExperimentationService();
+
+		expect({
+			unification: service.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsUnification, experimentationService),
+			excludedProviders: service.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsExcludedProviders, experimentationService),
+			patchModelPredictionKind: service.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabProviderPatchModelPredictionKind, experimentationService),
+			splitOnDiff: service.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabSplitPatchOnDiff, experimentationService),
+			patchFastYieldLineWithCursor: service.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabProviderPatchFastYieldLineWithCursor, experimentationService),
+			nesMimicGhostTextBehavior: service.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsNesMimicGhostTextBehavior, experimentationService),
+			rebasedCacheDelay: service.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsRebasedCacheDelay, experimentationService),
+			extraDebounceEndOfLine: service.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsExtraDebounceEndOfLine, experimentationService),
+			debounce: service.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsDebounce, experimentationService),
+			cacheDelay: service.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsCacheDelay, experimentationService),
+			nLinesAbove: service.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabProviderNLinesAbove, experimentationService),
+			nLinesBelow: service.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabProviderNLinesBelow, experimentationService),
+		}).toEqual({
+			unification: true,
+			excludedProviders: 'completions,github.copilot',
+			patchModelPredictionKind: 'currentLineCompleted',
+			splitOnDiff: true,
+			patchFastYieldLineWithCursor: false,
+			nesMimicGhostTextBehavior: true,
+			rebasedCacheDelay: 100,
+			extraDebounceEndOfLine: 0,
+			debounce: 0,
+			cacheDelay: 0,
+			nLinesAbove: 0,
+			nLinesBelow: 7,
+		});
 	});
 });
