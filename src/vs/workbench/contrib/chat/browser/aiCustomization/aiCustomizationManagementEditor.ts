@@ -984,7 +984,6 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 			// Embedded MCP server detail view
 			this.mcpDetailContainer = DOM.append(contentInner, $('.mcp-detail-container'));
-			this.createEmbeddedMcpDetail();
 
 			this.editorDisposables.add(this.mcpListWidget.onDidSelectServer(server => {
 				this.showEmbeddedMcpDetail(server);
@@ -2045,12 +2044,14 @@ export class AICustomizationManagementEditor extends EditorPane {
 		if (this.mcpContentContainer) {
 			this.mcpContentContainer.style.display = !isEditorMode && !isMigrationMode && !isDetailMode && isMcpSection ? '' : 'none';
 		}
+		this.mcpListWidget?.setVisible(!isEditorMode && !isMigrationMode && !isDetailMode && isMcpSection);
 		if (this.mcpDetailContainer) {
 			this.mcpDetailContainer.style.display = isMcpDetailMode ? '' : 'none';
 		}
 		if (this.pluginContentContainer) {
 			this.pluginContentContainer.style.display = !isEditorMode && !isMigrationMode && !isDetailMode && isPluginsSection ? '' : 'none';
 		}
+		this.pluginListWidget?.setVisible(!isEditorMode && !isMigrationMode && !isDetailMode && isPluginsSection);
 		if (this.pluginDetailContainer) {
 			this.pluginDetailContainer.style.display = isPluginDetailMode ? '' : 'none';
 		}
@@ -3265,6 +3266,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	private async showEmbeddedMcpDetail(server: IMcpServerDetailInput): Promise<void> {
+		if (!this.embeddedMcpDetail) {
+			this.createEmbeddedMcpDetail();
+		}
 		if (!this.embeddedMcpDetail) {
 			return;
 		}

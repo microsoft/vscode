@@ -1619,6 +1619,7 @@ export class AICustomizationListWidget extends Disposable {
 			for (const item of group.items) {
 				this.appendCustomizationCardRow(inventory, item, group.label, cardList);
 			}
+			cardList.finalize();
 		}
 		if (shouldRestoreFocus) {
 			DOM.getWindow(this.element).requestAnimationFrame(() => {
@@ -1795,6 +1796,10 @@ export class AICustomizationListWidget extends Disposable {
 			this.lastCardFocusItemId = item.id;
 		}));
 		this.cardDisposables.add(DOM.addDisposableListener(primary, 'click', () => this._onDidSelectItem.fire(item)));
+		this.cardDisposables.add(DOM.addDisposableListener(row, 'contextmenu', event => {
+			event.preventDefault();
+			this.showCardItemActions(item, row);
+		}));
 		this.cardDisposables.add(this.hoverService.setupDelayedHover(row, () => ({
 			content: `${displayName}\n${this.labelService.getUriLabel(item.uri, { relative: item.source === AICustomizationSources.local })}`,
 			appearance: { compact: true, skipFadeInAnimation: true },

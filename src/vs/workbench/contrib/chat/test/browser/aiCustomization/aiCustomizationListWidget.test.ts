@@ -103,6 +103,7 @@ suite('aiCustomizationListWidget', () => {
 		remoteRow.appendChild(remoteAction);
 		list.appendChild(remoteRow);
 		controller.addItem({ row: remoteRow, primaryAction: remoteRow, label: 'Remote', actions: [remoteAction], contextMenuAction: remoteAction });
+		controller.finalize();
 
 		try {
 			alpha.primaryAction.focus();

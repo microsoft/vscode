@@ -92,6 +92,10 @@ export class PluginMarketplaceSnapshotModel {
 	}
 }
 
+export function shouldLoadPluginMarketplaceSnapshot(visible: boolean, state: PluginMarketplaceSnapshotState, marketplaceAvailable: boolean): boolean {
+	return visible && state === 'uninitialized' && marketplaceAvailable;
+}
+
 //#region Entry types
 
 /**
@@ -644,6 +648,7 @@ export class PluginListWidget extends Disposable {
 	private readonly marketplaceSnapshot = new PluginMarketplaceSnapshotModel();
 	private searchQuery: string = '';
 	private browseMode: boolean = false;
+	private visible = false;
 	private firstCardFocusElement: HTMLElement | undefined;
 	private narrowLayout = false;
 	private wideLayout = false;
@@ -1212,7 +1217,7 @@ export class PluginListWidget extends Disposable {
 		const installedPlugins = this.installedItems;
 
 		this.renderDiscoverySnapshot(content);
-		if (this.marketplaceSnapshot.state === 'uninitialized' && this.isBrowseMarketplaceAvailable()) {
+		if (shouldLoadPluginMarketplaceSnapshot(this.visible, this.marketplaceSnapshot.state, this.isBrowseMarketplaceAvailable())) {
 			void this.queryMarketplaceSnapshot();
 		}
 
@@ -1233,6 +1238,7 @@ export class PluginListWidget extends Disposable {
 				this.appendInstalledPluginRow(installedList, item);
 			}
 		}
+		this.cardListControllers.get(installedList)?.finalize();
 
 		const installedNames = new Set(this.installedItems.map(item => item.name.toLowerCase()));
 		const remoteItems = this.remoteItems.filter(item => item.groupKey !== 'remote-client' && (!item.name || !installedNames.has(item.name.toLowerCase())));
@@ -1248,6 +1254,7 @@ export class PluginListWidget extends Disposable {
 			for (const item of remoteItems) {
 				this.appendRemotePluginRow(remoteList, item);
 			}
+			this.cardListControllers.get(remoteList)?.finalize();
 		}
 
 		this.renderAvailablePlugins(content, this.getUninstalledMarketplaceItems(this.marketplaceSnapshot.items), true);
@@ -1282,11 +1289,13 @@ export class PluginListWidget extends Disposable {
 		if (items.length === 0) {
 			const empty = DOM.append(availableList, $('.plugin-inventory-empty'));
 			empty.textContent = localize('noAvailablePlugins', "No marketplace plugins are available.");
+			this.cardListControllers.get(availableList)?.finalize();
 			return;
 		}
 		for (const item of items) {
 			this.appendMarketplacePluginRow(availableList, item);
 		}
+		this.cardListControllers.get(availableList)?.finalize();
 	}
 
 	private renderAvailableSectionActions(header: HTMLElement): void {
@@ -1518,6 +1527,7 @@ export class PluginListWidget extends Disposable {
 		for (const item of snapshotItems) {
 			this.appendMarketplacePluginCard(grid, item, false);
 		}
+		this.cardListControllers.get(grid)?.finalize();
 	}
 
 	private renderDiscoveryError(parent: HTMLElement): void {
@@ -1564,6 +1574,7 @@ export class PluginListWidget extends Disposable {
 			for (const item of recommended) {
 				this.appendMarketplacePluginCard(recommendedGrid, item);
 			}
+			this.cardListControllers.get(recommendedGrid)?.finalize();
 		}
 		const allGrid = this.renderCardSection(
 			content,
@@ -1574,6 +1585,7 @@ export class PluginListWidget extends Disposable {
 		for (const item of allPlugins) {
 			this.appendMarketplacePluginCard(allGrid, item);
 		}
+		this.cardListControllers.get(allGrid)?.finalize();
 	}
 
 	private getUninstalledMarketplaceItems(items: readonly IMarketplacePluginItem[] = this.marketplaceItems): IMarketplacePluginItem[] {
@@ -1652,6 +1664,16 @@ export class PluginListWidget extends Disposable {
 		}
 		if (!this.browseMode) {
 			this.toggleBrowseMode(true);
+		}
+	}
+
+	setVisible(visible: boolean): void {
+		if (this.visible === visible) {
+			return;
+		}
+		this.visible = visible;
+		if (visible) {
+			void this.refresh();
 		}
 	}
 
@@ -1822,6 +1844,7 @@ export class PluginListWidget extends Disposable {
 			for (const item of remoteItems) {
 				this.appendRemotePluginRow(installedList, item);
 			}
+			this.cardListControllers.get(installedList)?.finalize();
 		}
 		if (this.marketplaceItems.length > 0) {
 			this.renderAvailablePlugins(content, this.marketplaceItems, false, localize('availableSearchHeader', "Available to install"), undefined);

@@ -55,7 +55,7 @@ export class EmbeddedMcpServerDetail extends Disposable {
 	private readonly pathEl: HTMLElement;
 	private readonly definitionEditorContainer: HTMLElement;
 	private readonly definitionEmptyEl: HTMLElement;
-	private readonly definitionEditor: CodeEditorWidget;
+	private definitionEditor: CodeEditorWidget | undefined;
 	private readonly definitionModel = this._register(new MutableDisposable<ITextModel>());
 	private readonly emptyEl: HTMLElement;
 
@@ -66,8 +66,8 @@ export class EmbeddedMcpServerDetail extends Disposable {
 	constructor(
 		parent: HTMLElement,
 		@IMcpWorkbenchService private readonly mcpWorkbenchService: IMcpWorkbenchService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IConfigurationService configurationService: IConfigurationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IModelService private readonly modelService: IModelService,
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IFileService private readonly fileService: IFileService,
@@ -86,26 +86,6 @@ export class EmbeddedMcpServerDetail extends Disposable {
 		this.definitionEmptyEl = DOM.append(this.root, $('.embedded-detail-empty.mcp-detail-definition-empty'));
 		this.definitionEmptyEl.tabIndex = -1;
 		this.definitionEmptyEl.textContent = localize('mcpDefinitionUnavailable', "No definition is available for this MCP server.");
-
-		this.definitionEditor = this._register(instantiationService.createInstance(
-			CodeEditorWidget,
-			this.definitionEditorContainer,
-			{
-				...getSimpleEditorOptions(configurationService),
-				readOnly: true,
-				domReadOnly: true,
-				minimap: { enabled: false },
-				lineNumbers: 'on',
-				wordWrap: 'on',
-				scrollBeyondLastLine: false,
-				automaticLayout: true,
-				folding: true,
-				renderLineHighlight: 'all',
-				scrollbar: { vertical: 'auto', horizontal: 'auto' },
-				ariaLabel: localize('mcpDefinitionEditorAriaLabel', "MCP server definition"),
-			},
-			{ isSimpleWidget: false }
-		));
 
 		this.emptyEl = DOM.append(this.root, $('.embedded-detail-empty'));
 		this.emptyEl.textContent = localize('mcpDetailEmpty', "No MCP server selected.");
@@ -149,7 +129,7 @@ export class EmbeddedMcpServerDetail extends Disposable {
 
 	focus(): void {
 		if (this.currentDefinition !== undefined) {
-			this.definitionEditor.focus();
+			this.ensureDefinitionEditor().focus();
 			return;
 		}
 		this.definitionEmptyEl.focus();
@@ -171,9 +151,6 @@ export class EmbeddedMcpServerDetail extends Disposable {
 
 		this.nameEl.textContent = server.label || server.name;
 		this.pathEl.textContent = server.source ? basename(server.source.uri) : 'mcp.json';
-		this.definitionEditor.updateOptions({
-			ariaLabel: localize('mcpDefinitionEditorAriaLabelWithName', "MCP server definition for {0}", server.label || server.name),
-		});
 		if (server.config) {
 			this.setDefinition(`${JSON.stringify({ servers: { [server.name]: server.config } }, null, '\t')}\n`);
 		} else if (server.source) {
@@ -211,14 +188,43 @@ export class EmbeddedMcpServerDetail extends Disposable {
 		this.currentDefinition = definition;
 
 		if (!hasDefinition) {
-			this.definitionEditor.setModel(null);
+			this.definitionEditor?.setModel(null);
 			this.definitionModel.clear();
 			return;
 		}
 
+		const definitionEditor = this.ensureDefinitionEditor();
+		definitionEditor.updateOptions({
+			ariaLabel: localize('mcpDefinitionEditorAriaLabelWithName', "MCP server definition for {0}", this.current?.label || this.current?.name || ''),
+		});
 		const model = this.modelService.createModel(definition, this.languageService.createById('jsonc'), undefined, true);
-		this.definitionEditor.setModel(model);
+		definitionEditor.setModel(model);
 		this.definitionModel.value = model;
+	}
+
+	private ensureDefinitionEditor(): CodeEditorWidget {
+		if (!this.definitionEditor) {
+			this.definitionEditor = this._register(this.instantiationService.createInstance(
+				CodeEditorWidget,
+				this.definitionEditorContainer,
+				{
+					...getSimpleEditorOptions(this.configurationService),
+					readOnly: true,
+					domReadOnly: true,
+					minimap: { enabled: false },
+					lineNumbers: 'on',
+					wordWrap: 'on',
+					scrollBeyondLastLine: false,
+					automaticLayout: true,
+					folding: true,
+					renderLineHighlight: 'all',
+					scrollbar: { vertical: 'auto', horizontal: 'auto' },
+					ariaLabel: localize('mcpDefinitionEditorAriaLabel', "MCP server definition"),
+				},
+				{ isSimpleWidget: false }
+			));
+		}
+		return this.definitionEditor;
 	}
 }
 

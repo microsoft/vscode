@@ -30,7 +30,7 @@ import { INotificationService } from '../../../../../platform/notification/commo
 import { URI } from '../../../../../base/common/uri.js';
 import { basename, dirname, joinPath } from '../../../../../base/common/resources.js';
 import { AICustomizationManagementSection } from '../../common/aiCustomizationWorkspaceService.js';
-import { IFileService } from '../../../../../platform/files/common/files.js';
+import { FileOperationError, FileOperationResult, IFileService } from '../../../../../platform/files/common/files.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { Action } from '../../../../../base/common/actions.js';
@@ -74,8 +74,15 @@ export async function loadPluginReadme(
 		return undefined;
 	}
 	if (readmeUri.scheme === Schemas.file || readmeUri.scheme === Schemas.vscodeRemote) {
-		const content = await fileService.readFile(readmeUri);
-		return { content: content.value.toString(), baseUri: readmeUri };
+		try {
+			const content = await fileService.readFile(readmeUri);
+			return { content: content.value.toString(), baseUri: readmeUri };
+		} catch (error) {
+			if (error instanceof FileOperationError && error.fileOperationResult === FileOperationResult.FILE_NOT_FOUND) {
+				return undefined;
+			}
+			throw error;
+		}
 	}
 	if (readmeUri.scheme === Schemas.https) {
 		let fetchedUri = readmeUri;
@@ -128,6 +135,10 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 	private current: IAgentPluginItem | undefined;
 	private narrowLayout = false;
 	private readonly readmeRenderGuard = new PluginReadmeRenderGuard();
+	private updateEnablementAction: (() => void) | undefined;
+	private pluginVersionRowEl: HTMLElement | undefined;
+	private pluginVersionValueEl: HTMLElement | undefined;
+	private renderedPolicyBlocked = false;
 
 	constructor(
 		parent: HTMLElement,
@@ -219,16 +230,26 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 
 	setInput(item: IAgentPluginItem): void {
 		this.current = item;
+		this.renderItem();
 		if (item.kind === AgentPluginItemKind.Installed) {
+			this.renderedPolicyBlocked = isPluginPolicyBlocked(item.plugin);
 			this.inputStateAutorun.value = autorun(reader => {
 				item.plugin.enablement.read(reader);
 				item.plugin.policyBlocked?.read(reader);
 				item.plugin.version?.read(reader);
-				this.renderItem();
+				if (this._store.isDisposed || this.current !== item) {
+					return;
+				}
+				const policyBlocked = isPluginPolicyBlocked(item.plugin);
+				if (policyBlocked !== this.renderedPolicyBlocked) {
+					this.renderedPolicyBlocked = policyBlocked;
+					this.renderItem();
+					return;
+				}
+				this.updateInstalledState(item);
 			});
 		} else {
 			this.inputStateAutorun.clear();
-			this.renderItem();
 		}
 	}
 
@@ -241,6 +262,9 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 	private renderItem(): void {
 		const readmeRenderGeneration = this.readmeRenderGuard.begin();
 		this.renderDisposables.clear();
+		this.updateEnablementAction = undefined;
+		this.pluginVersionRowEl = undefined;
+		this.pluginVersionValueEl = undefined;
 		const item = this.current;
 		const hasItem = !!item;
 		this.emptyEl.style.display = hasItem ? 'none' : '';
@@ -282,6 +306,18 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 		this.descriptionEl.style.display = '';
 	}
 
+	private updateInstalledState(item: Extract<IAgentPluginItem, { kind: AgentPluginItemKind.Installed }>): void {
+		if (!isContributionEnabled(item.plugin.enablement.get()) || isPluginPolicyBlocked(item.plugin)) {
+			this.statusBadgeEl.textContent = getPluginInclusionLabel(item.plugin);
+			this.statusBadgeEl.style.display = '';
+		} else {
+			this.statusBadgeEl.textContent = '';
+			this.statusBadgeEl.style.display = 'none';
+		}
+		this.updateEnablementAction?.();
+		this.updatePluginVersionFact(item);
+	}
+
 	private renderTitleActions(item: IAgentPluginItem): void {
 		if (item.kind === AgentPluginItemKind.Marketplace) {
 			const installButton = this.renderDisposables.add(new Button(this.titleActionsEl, { ...defaultButtonStyles, ariaLabel: localize('installPluginAria', "Install {0}", item.name) }));
@@ -301,12 +337,18 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 						marketplaceType: item.marketplaceType,
 						readmeUri: item.readmeUri,
 					});
+					if (this._store.isDisposed || this.current !== item) {
+						return;
+					}
 					const installed = this.getInstalledPluginForMarketplaceItem(item);
 					if (installed) {
+						installButton.label = localize('installed', "Installed");
 						this.setInput(installed);
 					}
-					installButton.label = localize('installed', "Installed");
 				} catch (error) {
+					if (this._store.isDisposed || this.current !== item) {
+						return;
+					}
 					installButton.label = localize('install', "Install");
 					installButton.enabled = true;
 					this.notificationService.error(localize('pluginInstallFailed', "Unable to install plugin: {0}", getErrorMessage(error)));
@@ -334,7 +376,9 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 			uninstallButton.enabled = uninstallAction.enabled;
 			this.renderDisposables.add(uninstallButton.onDidClick(async () => {
 				await uninstallAction.run();
-				this._onDidUninstall.fire();
+				if (!this._store.isDisposed && this.current === item) {
+					this._onDidUninstall.fire();
+				}
 			}));
 		}
 
@@ -352,17 +396,6 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 			return;
 		}
 
-		const current = item.plugin.enablement.get();
-		const isEnabled = isContributionEnabled(current);
-		const isWorkspaceScope = current === ContributionEnablementState.EnabledWorkspace || current === ContributionEnablementState.DisabledWorkspace;
-		const profileLabel = isEnabled ? localize('disablePlugin', "Disable") : localize('enablePlugin', "Enable");
-		const workspaceLabel = isEnabled ? localize('disablePluginWorkspace', "Disable (Workspace)") : localize('enablePluginWorkspace', "Enable (Workspace)");
-		const profileState = isEnabled ? ContributionEnablementState.DisabledProfile : ContributionEnablementState.EnabledProfile;
-		const workspaceState = isEnabled ? ContributionEnablementState.DisabledWorkspace : ContributionEnablementState.EnabledWorkspace;
-		const primaryLabel = isWorkspaceScope ? workspaceLabel : profileLabel;
-		const primaryState = isWorkspaceScope ? workspaceState : profileState;
-		const alternateLabel = isWorkspaceScope ? profileLabel : workspaceLabel;
-		const alternateState = isWorkspaceScope ? profileState : workspaceState;
 		const key = item.plugin.uri.toString();
 		const setEnablement = (state: ContributionEnablementState) => {
 			this.agentPluginService.enablementModel.setEnabled(key, state);
@@ -381,15 +414,24 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 			contextMenuProvider,
 			addPrimaryActionToDropdown: false,
 			actions: {
-				getActions: () => [
-					this.renderDisposables.add(new Action(`plugin.${isEnabled ? 'exclude' : 'include'}AlternateScope`, alternateLabel, undefined, true, async () => setEnablement(alternateState)))
-				]
+				getActions: () => {
+					const state = getPluginEnablementActionState(item.plugin.enablement.get());
+					return [
+						this.renderDisposables.add(new Action(`plugin.${state.isEnabled ? 'exclude' : 'include'}AlternateScope`, state.alternateLabel, undefined, true, async () => setEnablement(state.alternateState)))
+					];
+				},
 			},
-			ariaLabel: primaryLabel,
+			ariaLabel: '',
 		}));
-		splitButton.element.classList.add(isEnabled ? 'embedded-detail-disable-button' : 'embedded-detail-enable-button');
-		splitButton.label = primaryLabel;
-		this.renderDisposables.add(splitButton.onDidClick(() => setEnablement(primaryState)));
+		this.updateEnablementAction = () => {
+			const state = getPluginEnablementActionState(item.plugin.enablement.get());
+			splitButton.element.classList.toggle('embedded-detail-disable-button', state.isEnabled);
+			splitButton.element.classList.toggle('embedded-detail-enable-button', !state.isEnabled);
+			splitButton.label = state.primaryLabel;
+			splitButton.element.setAttribute('aria-label', state.primaryLabel);
+		};
+		this.updateEnablementAction();
+		this.renderDisposables.add(splitButton.onDidClick(() => setEnablement(getPluginEnablementActionState(item.plugin.enablement.get()).primaryState)));
 	}
 
 	private getInstalledPluginForMarketplaceItem(item: Extract<IAgentPluginItem, { kind: AgentPluginItemKind.Marketplace }>): IAgentPluginItem | undefined {
@@ -450,9 +492,18 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 	}
 
 	private appendPluginVersionFact(item: IAgentPluginItem): void {
+		const row = DOM.append(this.factsEl, $('.embedded-detail-fact-row'));
+		DOM.append(row, $('.embedded-detail-fact-label')).textContent = localize('pluginDetailVersion', "Version");
+		this.pluginVersionValueEl = DOM.append(row, $('.embedded-detail-fact-value'));
+		this.pluginVersionRowEl = row;
+		this.updatePluginVersionFact(item);
+	}
+
+	private updatePluginVersionFact(item: IAgentPluginItem): void {
 		const version = getPluginVersion(item);
-		if (version) {
-			this.appendFact(this.factsEl, localize('pluginDetailVersion', "Version"), version);
+		if (this.pluginVersionRowEl && this.pluginVersionValueEl) {
+			this.pluginVersionRowEl.style.display = version ? '' : 'none';
+			this.pluginVersionValueEl.textContent = version ?? '';
 		}
 	}
 
@@ -520,13 +571,13 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 		try {
 			readme = await loadPluginReadme(item, this.fileService, this.requestService);
 		} catch {
-			if (this.current === item && this.readmeRenderGuard.isCurrent(renderGeneration)) {
+			if (!this._store.isDisposed && this.current === item && this.readmeRenderGuard.isCurrent(renderGeneration)) {
 				const message = DOM.append(this.readmeContentEl, $('.plugin-detail-readme-message'));
 				message.textContent = localize('pluginReadmeLoadError', "The plugin README could not be loaded.");
 			}
 			return;
 		}
-		if (this.current !== item || !this.readmeRenderGuard.isCurrent(renderGeneration)) {
+		if (this._store.isDisposed || this.current !== item || !this.readmeRenderGuard.isCurrent(renderGeneration)) {
 			return;
 		}
 		if (readme === undefined) {
@@ -543,6 +594,12 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 		markdown.baseUri = readme.baseUri;
 		const rendered = this.renderDisposables.add(this.markdownRendererService.render(markdown));
 		this.readmeContentEl.appendChild(rendered.element);
+	}
+
+	override dispose(): void {
+		this.current = undefined;
+		this.readmeRenderGuard.begin();
+		super.dispose();
 	}
 
 	private renderContributions(item: IAgentPluginItem): void {
@@ -627,6 +684,28 @@ export function getPluginVersion(item: IAgentPluginItem): string | undefined {
 		? item.version
 		: item.plugin.version?.get() ?? item.plugin.fromMarketplace?.version;
 	return version?.trim() || undefined;
+}
+
+function getPluginEnablementActionState(current: ContributionEnablementState): {
+	readonly isEnabled: boolean;
+	readonly primaryLabel: string;
+	readonly primaryState: ContributionEnablementState;
+	readonly alternateLabel: string;
+	readonly alternateState: ContributionEnablementState;
+} {
+	const isEnabled = isContributionEnabled(current);
+	const isWorkspaceScope = current === ContributionEnablementState.EnabledWorkspace || current === ContributionEnablementState.DisabledWorkspace;
+	const profileLabel = isEnabled ? localize('disablePlugin', "Disable") : localize('enablePlugin', "Enable");
+	const workspaceLabel = isEnabled ? localize('disablePluginWorkspace', "Disable (Workspace)") : localize('enablePluginWorkspace', "Enable (Workspace)");
+	const profileState = isEnabled ? ContributionEnablementState.DisabledProfile : ContributionEnablementState.EnabledProfile;
+	const workspaceState = isEnabled ? ContributionEnablementState.DisabledWorkspace : ContributionEnablementState.EnabledWorkspace;
+	return {
+		isEnabled,
+		primaryLabel: isWorkspaceScope ? workspaceLabel : profileLabel,
+		primaryState: isWorkspaceScope ? workspaceState : profileState,
+		alternateLabel: isWorkspaceScope ? profileLabel : workspaceLabel,
+		alternateState: isWorkspaceScope ? profileState : workspaceState,
+	};
 }
 
 function getMarketplaceUri(item: Pick<IMarketplacePlugin | Extract<IAgentPluginItem, { kind: AgentPluginItemKind.Marketplace }>, 'marketplaceReference'>): URI | undefined {

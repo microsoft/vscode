@@ -9,13 +9,14 @@ import { Event } from '../../../../../../base/common/event.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IRequestContext } from '../../../../../../base/parts/request/common/request.js';
-import { IFileService } from '../../../../../../platform/files/common/files.js';
+import { FileOperationError, FileOperationResult, IFileService } from '../../../../../../platform/files/common/files.js';
 import { IRequestService } from '../../../../../../platform/request/common/request.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
-import { AgentPluginItemKind, IMarketplacePluginItem } from '../../../browser/agentPluginEditor/agentPluginItems.js';
+import { AgentPluginItemKind, IAgentPluginItem, IMarketplacePluginItem } from '../../../browser/agentPluginEditor/agentPluginItems.js';
 import { getPluginVersion, loadPluginReadme, PluginReadmeRenderGuard } from '../../../browser/aiCustomization/embeddedAgentPluginDetail.js';
 import { MarketplaceType, PluginSourceKind } from '../../../common/plugins/pluginMarketplaceService.js';
 import { parseMarketplaceReference } from '../../../common/plugins/marketplaceReference.js';
+import { IAgentPlugin } from '../../../common/plugins/agentPluginService.js';
 
 class StatusRequestService extends mock<IRequestService>() {
 	override readonly onDidCompleteRequest = Event.None;
@@ -69,13 +70,13 @@ suite('embeddedAgentPluginDetail', () => {
 			firstCurrent: false,
 			secondCurrent: true,
 		});
+	});
 
-		test('reads marketplace plugin versions', () => {
-			assert.strictEqual(
-				getPluginVersion(createMarketplaceItem(URI.parse('https://example.test/README.md'))),
-				'1.2.3',
-			);
-		});
+	test('reads marketplace plugin versions', () => {
+		assert.strictEqual(
+			getPluginVersion(createMarketplaceItem(URI.parse('https://example.test/README.md'))),
+			'1.2.3',
+		);
 	});
 
 	test('uses the fetched README URI as the Markdown base URI', async () => {
@@ -95,6 +96,28 @@ suite('embeddedAgentPluginDetail', () => {
 			baseUri: 'https://raw.githubusercontent.com/owner/repo/main/plugins/example/README.md',
 			requests: ['https://raw.githubusercontent.com/owner/repo/main/plugins/example/README.md'],
 		});
+	});
+
+	test('treats a missing installed README as expected absence', async () => {
+		const item = {
+			kind: AgentPluginItemKind.Installed,
+			name: 'example',
+			description: 'Example plugin',
+			plugin: new class extends mock<IAgentPlugin>() {
+				override readonly uri = URI.file('/plugins/example');
+			}(),
+		} satisfies IAgentPluginItem;
+		const readme = await loadPluginReadme(
+			item,
+			{
+				readFile: async () => {
+					throw new FileOperationError('Not found', FileOperationResult.FILE_NOT_FOUND);
+				},
+			},
+			new StatusRequestService(200, ''),
+		);
+
+		assert.strictEqual(readme, undefined);
 	});
 
 	test('rejects HTTP error response bodies', async () => {

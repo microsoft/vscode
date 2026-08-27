@@ -349,7 +349,7 @@ export async function showConfigureHooksQuickPick(
 		userHome,
 		targetOS,
 		CancellationToken.None,
-		{ includeAgentHooks: true }
+		{ includeAgentHooks: true, preferredStorage: options?.preferredStorage }
 	);
 
 	// Count hooks per type

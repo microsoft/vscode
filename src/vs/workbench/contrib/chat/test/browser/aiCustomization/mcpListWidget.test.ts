@@ -43,6 +43,8 @@ import {
 	registerMcpInlineButtonAction,
 	type IMcpStatusRenderInput,
 	updateMcpCardRuntimePresentation,
+	hasSameMcpMembership,
+	shouldLoadMcpGallerySnapshot,
 } from '../../../browser/aiCustomization/mcpListWidget.js';
 
 function createAgentHostServer(overrides: Partial<AgentHostMcpServer> = {}): AgentHostMcpServer {
@@ -165,6 +167,22 @@ suite('mcpListWidget', () => {
 			ariaLabel: 'Server, Error',
 			description: 'Updated description',
 		});
+	});
+
+	test('loads gallery snapshots only for visible MCP sections', () => {
+		assert.deepStrictEqual([
+			shouldLoadMcpGallerySnapshot(false, '', 0, false, false),
+			shouldLoadMcpGallerySnapshot(true, '', 0, false, false),
+			shouldLoadMcpGallerySnapshot(true, 'search', 0, false, false),
+			shouldLoadMcpGallerySnapshot(true, '', 1, false, false),
+		], [false, true, false, false]);
+	});
+
+	test('distinguishes membership changes from state-only changes', () => {
+		assert.deepStrictEqual([
+			hasSameMcpMembership('server:one:session', 'server:one:session'),
+			hasSameMcpMembership('server:one:session', 'server:one:session|server:two:session'),
+		], [true, false]);
 	});
 
 	test('renders host-published disabled reasons without changing legacy rows', () => {

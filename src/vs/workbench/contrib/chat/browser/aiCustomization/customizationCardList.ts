@@ -53,6 +53,7 @@ export class CustomizationCardListController extends Disposable {
 		};
 		this.items.push(entry);
 		entry.row.setAttribute('role', 'listitem');
+		entry.row.setAttribute('aria-posinset', String(this.items.length));
 		entry.primaryAction.tabIndex = this.items.length === 1 ? 0 : -1;
 		this.setActionsTabbable(entry, false);
 
@@ -62,7 +63,7 @@ export class CustomizationCardListController extends Disposable {
 			const mutationDisposables = this._register(new DisposableStore());
 			this._register(DOM.sharedMutationObserver.observe(action, mutationDisposables, {
 				attributes: true,
-				attributeFilter: ['aria-disabled', 'disabled', 'tabindex'],
+				attributeFilter: ['aria-disabled', 'disabled', 'style', 'tabindex'],
 			})(() => this.updateActionTabIndex(entry, action)));
 			this._register(DOM.addDisposableListener(action, 'focus', () => {
 				this.setActiveItem(entry);
@@ -87,7 +88,13 @@ export class CustomizationCardListController extends Disposable {
 			}));
 		}
 
-		this.updateSetMetadata();
+	}
+
+	finalize(): void {
+		const setSize = String(this.items.length);
+		for (const item of this.items) {
+			item.row.setAttribute('aria-setsize', setSize);
+		}
 	}
 
 	private onPrimaryActionKeyDown(entry: ICardListItem, event: KeyboardEvent): void {
@@ -187,13 +194,7 @@ export class CustomizationCardListController extends Disposable {
 	}
 
 	private isFocusableAction(action: HTMLElement): boolean {
-		return action.getAttribute('aria-disabled') !== 'true' && !action.matches(':disabled');
+		return action.style.display !== 'none' && action.getAttribute('aria-disabled') !== 'true' && !action.matches(':disabled');
 	}
 
-	private updateSetMetadata(): void {
-		for (const [index, item] of this.items.entries()) {
-			item.row.setAttribute('aria-posinset', String(index + 1));
-			item.row.setAttribute('aria-setsize', String(this.items.length));
-		}
-	}
 }
