@@ -5,7 +5,6 @@
 
 import { disposableTimeout, raceTimeout } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
@@ -18,7 +17,6 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { localize } from '../../../../nls.js';
-import { COPILOT_CLI_EH_SCHEME } from '../../../../workbench/contrib/chat/browser/copilotCliEventsUri.js';
 import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionStatus } from '../common/session.js';
 import { IActiveSession, ICreateNewChatInSessionOptions, ICreateNewSessionOptions, inheritableSessionTarget, IRecentlyOpenedSessions, ISessionsChangeEvent, ISessionsManagementService, IToggleSessionStickinessEvent } from '../common/sessionsManagement.js';
 import { ISessionsProvidersService } from './sessionsProvidersService.js';
@@ -186,6 +184,9 @@ export interface ISessionsService {
 
 	/** Place a session to the right of the last visible session and activate it. */
 	openSessionToSide(session: ISession, options?: IOpenSessionOptions & { chatResource?: URI }): Promise<void>;
+
+	/** Open a chat to the side of its session view, redirecting a superseded resource first. */
+	openChatToSide(session: ISession, chatResource: URI, options?: { preserveFocus?: boolean }): Promise<void>;
 
 	/**
 	 * Whether the given session may be opened, honoring workspace trust. Prompts
@@ -736,16 +737,15 @@ export class SessionsService extends Disposable implements ISessionsService {
 		const t0 = Date.now();
 		this._cancelRestore();
 		const token = this._startOpenSession();
-		// Migrate-on-open: opening a legacy Copilot CLI session by object (the
-		// sessions-list path) must adopt it into its agent-host twin first, the same
-		// way `openSession` does for a URI. Without this the extension-host session
-		// is activated as-is and never migrates.
-		const adopted = await this._adoptLegacySessionForOpen(session, chatUri);
+		// Redirect a superseded resource (e.g. a legacy session adopted into another
+		// provider) before activating, the same way `openSession` does for a URI, so
+		// opening by object migrates rather than activating the old facade as-is.
+		const resolved = await this._resolveSessionForOpen(session, chatUri);
 		if (token.isCancellationRequested) {
 			return;
 		}
-		session = adopted.session;
-		chatUri = adopted.chatUri ?? chatUri;
+		session = resolved.session;
+		chatUri = resolved.chatUri ?? chatUri;
 		if (options?.source) {
 			await this.sessionOpenTelemetryService.withOpenRequest(options.source, token, telemetryAttempt =>
 				this._openChat(session, chatUri, options.preserveFocus, token, t0, telemetryAttempt));
@@ -853,12 +853,11 @@ export class SessionsService extends Disposable implements ISessionsService {
 		this._cancelRestore();
 		const token = this._startOpenSession();
 		await this.sessionOpenTelemetryService.withOpenRequest(options?.source ?? 'unknown', token, async telemetryAttempt => {
-			// Redirect a superseded resource (legacy Copilot CLI) before lookup, so an
-			// open by URI migrates rather than reaching the old provider. Only a legacy
-			// resource can redirect, so skip the resolve round-trip for everything else.
-			const resolved = sessionResource.scheme === COPILOT_CLI_EH_SCHEME
-				? await this.sessionsManagementService.resolveSessionResource(sessionResource, 'open')
-				: sessionResource;
+			// Redirect a superseded resource (legacy session adopted into another
+			// provider) before lookup, so an open by URI migrates rather than reaching
+			// the old provider. Providers decline unfamiliar resources and the caller
+			// keeps the original resource.
+			const resolved = await this.sessionsManagementService.resolveSessionResource(sessionResource, 'open');
 			if (token.isCancellationRequested) {
 				return;
 			}
@@ -875,45 +874,10 @@ export class SessionsService extends Disposable implements ISessionsService {
 		});
 	}
 
-	async openSessionToSide(session: ISession, options?: IOpenSessionOptions & { chatResource?: URI }): Promise<void> {
-		// Adopt a legacy Copilot CLI session into its twin before inserting a slot,
-		// so the side-by-side view/terminal never briefly binds to the legacy session.
-		const adopted = await this._adoptLegacySessionForOpen(session, options?.chatResource);
-		session = adopted.session;
-		if (options?.chatResource && adopted.chatUri) {
-			options = { ...options, chatResource: adopted.chatUri };
-		}
-		const visible = this.visibleSessions.get();
-		const lastVisible = visible[visible.length - 1];
-		if (lastVisible && lastVisible.sessionId !== session.sessionId) {
-			this.insertAt(session, lastVisible.sessionId, 'right');
-		}
-		if (options?.chatResource) {
-			await this.openChat(session, options.chatResource, { preserveFocus: options.preserveFocus, source: options.source });
-		} else {
-			await this.openSession(session.resource, { preserveFocus: options?.preserveFocus, source: options?.source });
-		}
-	}
-
-	/**
-	 * Adopts a legacy Copilot CLI session into its agent-host twin before it is
-	 * shown, so every open path migrates (mirrors `openSession`'s URI resolution).
-	 * Returns the twin session (and its main chat) when adoption redirects,
-	 * otherwise the inputs unchanged.
-	 */
-	private async _adoptLegacySessionForOpen(session: ISession, chatUri: URI | undefined): Promise<{ session: ISession; chatUri: URI | undefined }> {
-		if (session.resource.scheme !== COPILOT_CLI_EH_SCHEME) {
-			return { session, chatUri };
-		}
-		const resolved = await this.sessionsManagementService.resolveSessionResource(session.resource, 'open');
-		if (this.uriIdentityService.extUri.isEqual(resolved, session.resource)) {
-			return { session, chatUri };
-		}
-		const twin = this.sessionsManagementService.getSession(resolved);
-		if (!twin) {
-			return { session, chatUri };
-		}
-		return { session: twin, chatUri: chatUri ? twin.mainChat.get().resource : undefined };
+	showSession(sessionResource: URI, options?: { preserveFocus?: boolean }): void {
+		this._cancelRestore();
+		this._startOpenSession();
+		this._showSession(this._getSession(sessionResource), options);
 	}
 
 	async canOpenSession(session: ISession): Promise<boolean> {
@@ -959,22 +923,69 @@ export class SessionsService extends Disposable implements ISessionsService {
 		return true;
 	}
 
-	showSession(sessionResource: URI, options?: { preserveFocus?: boolean }): void {
-		this._cancelRestore();
+	async openSessionToSide(session: ISession, options?: IOpenSessionOptions & { chatResource?: URI }): Promise<void> {
 		const token = this._startOpenSession();
-		// Legacy Copilot CLI resource: adopt into its agent-host twin first (async),
-		// mirroring openChat/openSession, so this entry point migrates too. Non-legacy
-		// resources keep the synchronous path callers here depend on.
-		if (sessionResource.scheme === COPILOT_CLI_EH_SCHEME) {
-			this.sessionsManagementService.resolveSessionResource(sessionResource, 'open').then(resolved => {
-				if (token.isCancellationRequested) {
-					return;
-				}
-				this._showSession(this._getSession(resolved), options);
-			}).catch(onUnexpectedError);
+		// Redirect a superseded resource before inserting a slot, so the side-by-side
+		// view/terminal never briefly binds to the old facade.
+		const resolved = await this._resolveSessionForOpen(session, options?.chatResource);
+		if (token.isCancellationRequested) {
 			return;
 		}
-		this._showSession(this._getSession(sessionResource), options);
+		session = resolved.session;
+		if (options?.chatResource && resolved.chatUri) {
+			options = { ...options, chatResource: resolved.chatUri };
+		}
+		const visible = this.visibleSessions.get();
+		const lastVisible = visible[visible.length - 1];
+		if (lastVisible && lastVisible.sessionId !== session.sessionId) {
+			this.insertAt(session, lastVisible.sessionId, 'right');
+		}
+		if (options?.chatResource) {
+			await this.openChat(session, options.chatResource, { preserveFocus: options.preserveFocus, source: options.source });
+		} else {
+			await this.openSession(session.resource, { preserveFocus: options?.preserveFocus, source: options?.source });
+		}
+	}
+
+	/**
+	 * Opens a chat to the side of its session view, redirecting a superseded
+	 * resource first so a migrating session opens its adopted twin to the side
+	 * rather than the old facade. Provider-neutral: the redirect is the
+	 * `resolveSessionResource` hook, not a scheme check.
+	 */
+	async openChatToSide(session: ISession, chatResource: URI, options?: { preserveFocus?: boolean }): Promise<void> {
+		const token = this._startOpenSession();
+		const resolved = await this._resolveSessionForOpen(session, chatResource);
+		if (token.isCancellationRequested) {
+			return;
+		}
+		session = resolved.session;
+		chatResource = resolved.chatUri ?? chatResource;
+		this._showSession(this._getSession(session.resource), options);
+		const sessionView = this.sessionsPartService.getSessionView(session.sessionId);
+		if (!sessionView) {
+			throw new Error(`Unable to open chat to the side because session view '${session.sessionId}' is not mounted`);
+		}
+		await sessionView.openChatToSide(chatResource);
+	}
+
+	/**
+	 * Redirects a superseded session to its authoritative facade before it is
+	 * shown (mirrors `openSession`'s URI resolution). Provider-neutral: it asks
+	 * `resolveSessionResource`, which declines unfamiliar resources, rather than
+	 * inspecting the provider's URI scheme. Returns the redirected session (and
+	 * its main chat) when it changes, otherwise the inputs unchanged.
+	 */
+	private async _resolveSessionForOpen(session: ISession, chatUri: URI | undefined): Promise<{ session: ISession; chatUri: URI | undefined }> {
+		const resolved = await this.sessionsManagementService.resolveSessionResource(session.resource, 'open');
+		if (this.uriIdentityService.extUri.isEqual(resolved, session.resource)) {
+			return { session, chatUri };
+		}
+		const superseding = this.sessionsManagementService.getSession(resolved);
+		if (!superseding) {
+			return { session, chatUri };
+		}
+		return { session: superseding, chatUri: chatUri ? superseding.mainChat.get().resource : undefined };
 	}
 
 	private _getSession(sessionResource: URI): ISession {

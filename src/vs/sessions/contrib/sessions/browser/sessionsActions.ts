@@ -20,7 +20,6 @@ import { ServicesAccessor } from '../../../../platform/instantiation/common/inst
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
-import { COPILOT_CLI_EH_SCHEME } from '../../../../workbench/contrib/chat/browser/copilotCliEventsUri.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
 import { EditorAreaFocusContext, IsAuxiliaryWindowContext, IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
@@ -594,23 +593,10 @@ registerAction2(class OpenSessionListChatToSideAction extends Action2 {
 			return;
 		}
 		const sessionsService = accessor.get(ISessionsService);
-		const sessionsPartService = accessor.get(ISessionsPartService);
 		if (!await sessionsService.canOpenSession(context.session)) {
 			return;
 		}
-		// A legacy Copilot CLI session adopts asynchronously on open, so the
-		// synchronous showSession + getSessionView path below cannot mount its
-		// (twin) view in time. Open it normally, which migrates it.
-		if (context.session.resource.scheme === COPILOT_CLI_EH_SCHEME) {
-			await sessionsService.openChat(context.session, context.chat.resource, { preserveFocus: true });
-			return;
-		}
-		sessionsService.showSession(context.session.resource);
-		const sessionView = sessionsPartService.getSessionView(context.session.sessionId);
-		if (!sessionView) {
-			throw new Error(`Unable to open chat to the side because session view '${context.session.sessionId}' is not mounted`);
-		}
-		await sessionView.openChatToSide(context.chat.resource);
+		await sessionsService.openChatToSide(context.session, context.chat.resource);
 	}
 });
 

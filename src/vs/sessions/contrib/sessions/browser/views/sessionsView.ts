@@ -10,7 +10,6 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { isWeb } from '../../../../../base/common/platform.js';
-import { COPILOT_CLI_EH_SCHEME } from '../../../../../workbench/contrib/chat/browser/copilotCliEventsUri.js';
 import { Orientation } from '../../../../../base/browser/ui/sash/sash.js';
 import { IView, Sizing, SplitView } from '../../../../../base/browser/ui/splitview/splitview.js';
 import { Color } from '../../../../../base/common/color.js';
@@ -40,7 +39,6 @@ import { IWorkbenchLayoutService, Parts } from '../../../../../workbench/service
 import { PANEL_SECTION_BORDER } from '../../../../../workbench/common/theme.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { Menus } from '../../../../browser/menus.js';
 import { MobileSessionFilterChips } from '../../../../browser/parts/mobile/mobileSessionFilterChips.js';
@@ -97,7 +95,6 @@ export class SessionsView extends ViewPane {
 		@IHoverService hoverService: IHoverService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionsService private readonly sessionsService: ISessionsService,
-		@ISessionsPartService private readonly sessionsPartService: ISessionsPartService,
 		@IHostService private readonly hostService: IHostService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IStorageService private readonly storageService: IStorageService,
@@ -229,20 +226,7 @@ export class SessionsView extends ViewPane {
 					}
 				};
 				if (sideBySide) {
-					// A legacy Copilot CLI session adopts asynchronously on open, so the
-					// synchronous showSession + getSessionView path below cannot mount its
-					// (twin) view in time. Open it normally, which migrates it.
-					if (session.resource.scheme === COPILOT_CLI_EH_SCHEME) {
-						this.sessionsService.openChat(session, chat.resource, { preserveFocus }).then(onOpened).catch(onUnexpectedError);
-						return;
-					}
-					this.sessionsService.showSession(session.resource, { preserveFocus });
-					const sessionView = this.sessionsPartService.getSessionView(session.sessionId);
-					if (!sessionView) {
-						onUnexpectedError(new Error(`Unable to open chat to the side because session view '${session.sessionId}' is not mounted`));
-						return;
-					}
-					sessionView.openChatToSide(chat.resource).then(onOpened).catch(onUnexpectedError);
+					this.sessionsService.openChatToSide(session, chat.resource, { preserveFocus }).then(onOpened).catch(onUnexpectedError);
 					return;
 				}
 				this.sessionsService.openChat(session, chat.resource, { preserveFocus }).then(onOpened).catch(onUnexpectedError);
