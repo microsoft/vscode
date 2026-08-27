@@ -32,7 +32,7 @@ import { ISearchService } from '../../../../../workbench/services/search/common/
 import { registerChatFixtureServices } from '../../../../../workbench/test/browser/componentFixtures/chat/chatFixtureUtils.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { activeSessionViewBackground } from '../../../../common/theme.js';
-import { IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
+import { AgentHostFilterConnectionStatus, IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
 import { ISessionsChatBackgroundService } from '../../../../services/chatBackground/browser/chatBackgroundService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
@@ -162,7 +162,17 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 			reg.defineInstance(IAgentHostFilterService, new class extends mock<IAgentHostFilterService>() {
 				override readonly onDidChange = Event.None;
 				override readonly onDidChangeDiscovering = Event.None;
-				override readonly selectedProviderId = provider.id;
+				override readonly selectedHostId = provider.id;
+				override readonly selectedHost = {
+					id: provider.id,
+					providerIds: [provider.id],
+					label: provider.label,
+					grouped: false,
+					address: undefined,
+					icon: provider.icon,
+					status: AgentHostFilterConnectionStatus.Connected,
+					connectable: true,
+				};
 				override readonly hosts = [];
 				override readonly isDiscovering = false;
 				override async rediscover(): Promise<void> { }
