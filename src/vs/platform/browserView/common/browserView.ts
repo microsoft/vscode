@@ -158,6 +158,12 @@ export interface IBrowserViewWindowConfiguration {
 
 	/** Whether AI features are disabled for this window. */
 	readonly aiFeaturesDisabled?: boolean;
+	/**
+	 * Whether the Integrated Browser may select page elements for chat
+	 * (inspect overlay, Add Element to Chat, Comment on Elements).
+	 * Independent of agent browser tools. Defaults to true when omitted.
+	 */
+	readonly sendElementsToChatEnabled?: boolean;
 	/** Maximum number of entries to retain per browser session history. */
 	readonly maxHistoryEntries?: number;
 	/**

@@ -508,7 +508,7 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		}
 
 		const windowConfiguration = this._windowConfigurations.get(view.hostWindowId);
-		const inspectTarget = windowConfiguration?.aiFeaturesDisabled
+		const inspectTarget = windowConfiguration?.aiFeaturesDisabled || windowConfiguration?.sendElementsToChatEnabled === false
 			? undefined
 			: params.frame && await view.inspector.getElementHandle(BrowserViewInspectElementId.ContextMenuTarget, params.frame);
 		const menu = new Menu();

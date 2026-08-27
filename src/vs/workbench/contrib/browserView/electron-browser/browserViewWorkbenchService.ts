@@ -150,7 +150,7 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 			}
 		}));
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(BrowserMaxHistoryEntriesSettingId) || e.affectsConfiguration(BrowserRemoteProxyEnabledSettingId)) {
+			if (e.affectsConfiguration(BrowserMaxHistoryEntriesSettingId) || e.affectsConfiguration(BrowserRemoteProxyEnabledSettingId) || e.affectsConfiguration('workbench.browser.sendElementsToChat.enabled') || e.affectsConfiguration('chat.sendElementsToChat.enabled')) {
 				this._updateWindowConfiguration();
 			}
 		}));
@@ -534,6 +534,7 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 			theme: this._getTheme(),
 			keybindings: this._getKeybindings(),
 			aiFeaturesDisabled: !this.contextKeyService.contextMatchesRules(ChatContextKeys.enabled),
+			sendElementsToChatEnabled: this.configurationService.getValue<boolean>('workbench.browser.sendElementsToChat.enabled') !== false && this.configurationService.getValue<boolean>('chat.sendElementsToChat.enabled') !== false,
 			maxHistoryEntries: this.configurationService.getValue<number>(BrowserMaxHistoryEntriesSettingId),
 			proxyInfo: this._remoteProxyInfo,
 			trustedFileRoots: this._getTrustedFileRoots(),

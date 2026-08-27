@@ -53,10 +53,20 @@ import { IChatPetService } from '../../../chat/browser/chatPetService.js';
 import '../tools/browserTools.contribution.js';
 
 /**
+ * Master switch for the Integrated Browser "Add Element to Chat" inspector
+ * (blue highlight overlay, toolbar split button, and page context items).
+ * `workbench.browser.enableChatTools` only gates agent tools, not this UI.
+ */
+const BrowserSendElementsToChatEnabledSettingId = 'workbench.browser.sendElementsToChat.enabled';
+
+/**
  * Setting that controls whether a screenshot of the selected element is attached
  * to the chat when sending elements from the Integrated Browser.
  */
 const BrowserSendElementsToChatAttachImagesSettingId = 'workbench.browser.sendElementsToChat.attachImages';
+
+const sendElementsToChatEnabled = ContextKeyExpr.has(`config.${BrowserSendElementsToChatEnabledSettingId}`);
+const chatElementsWhen = ContextKeyExpr.and(ChatContextKeys.enabled, sendElementsToChatEnabled);
 
 /**
  * Format an array of element ancestors into a CSS-selector-like path string.
@@ -877,13 +887,13 @@ class AddElementToChatAction extends Action2 {
 			category: BrowserCategory,
 			icon: Codicon.inspect,
 			f1: true,
-			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate(), ChatContextKeys.enabled),
+			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate(), chatElementsWhen),
 			toggled: CONTEXT_BROWSER_ELEMENT_SELECTION_MODE.isEqualTo(BrowserElementSelectionMode.Select),
 			menu: {
 				id: MenuId.BrowserChatActionsMenu,
 				group: '1_element',
 				order: 1,
-				when: ChatContextKeys.enabled
+				when: chatElementsWhen
 			},
 			keybinding: [{
 				weight: KeybindingWeight.WorkbenchContrib + 50, // Priority over terminal
@@ -917,13 +927,13 @@ class AddElementCommentToChatAction extends Action2 {
 			category: BrowserCategory,
 			icon: Codicon.comment,
 			f1: true,
-			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate(), ChatContextKeys.enabled),
+			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate(), chatElementsWhen),
 			toggled: CONTEXT_BROWSER_ELEMENT_SELECTION_MODE.isEqualTo(BrowserElementSelectionMode.Comment),
 			menu: {
 				id: MenuId.BrowserChatActionsMenu,
 				group: '1_element',
 				order: 2,
-				when: ChatContextKeys.enabled
+				when: chatElementsWhen
 			},
 			keybinding: [{
 				weight: KeybindingWeight.WorkbenchContrib + 50,
@@ -979,12 +989,12 @@ class AddConsoleLogsToChatAction extends Action2 {
 			category: BrowserActionCategory,
 			icon: Codicon.output,
 			f1: true,
-			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate(), ChatContextKeys.enabled),
+			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate(), chatElementsWhen),
 			menu: {
 				id: MenuId.BrowserChatActionsMenu,
 				group: '2_logs',
 				order: 1,
-				when: ChatContextKeys.enabled
+				when: chatElementsWhen
 			}
 		});
 	}
@@ -1006,12 +1016,12 @@ class AddScreenshotToChatAction extends Action2 {
 			category: BrowserActionCategory,
 			icon: Codicon.deviceCamera,
 			f1: true,
-			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate(), ChatContextKeys.enabled),
+			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate(), chatElementsWhen),
 			menu: {
 				id: MenuId.BrowserChatActionsMenu,
 				group: '3_screenshots',
 				order: 1,
-				when: ChatContextKeys.enabled
+				when: chatElementsWhen
 			}
 		});
 	}
@@ -1033,13 +1043,13 @@ class AddAreaScreenshotToChatAction extends Action2 {
 			category: BrowserActionCategory,
 			icon: Codicon.screenFull,
 			f1: true,
-			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate(), ChatContextKeys.enabled),
+			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate(), chatElementsWhen),
 			toggled: CONTEXT_BROWSER_AREA_SELECTION_ACTIVE,
 			menu: {
 				id: MenuId.BrowserChatActionsMenu,
 				group: '3_screenshots',
 				order: 2,
-				when: ChatContextKeys.enabled
+				when: chatElementsWhen
 			}
 		});
 	}
@@ -1062,12 +1072,12 @@ class AddFullPageScreenshotToChatAction extends Action2 {
 			category: BrowserActionCategory,
 			icon: Codicon.deviceCamera,
 			f1: true,
-			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate(), ChatContextKeys.enabled, enabledSetting),
+			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate(), chatElementsWhen, enabledSetting),
 			menu: {
 				id: MenuId.BrowserChatActionsMenu,
 				group: '3_screenshots',
 				order: 3,
-				when: ContextKeyExpr.and(ChatContextKeys.enabled, enabledSetting)
+				when: ContextKeyExpr.and(chatElementsWhen, enabledSetting)
 			}
 		});
 	}
@@ -1095,7 +1105,7 @@ MenuRegistry.appendMenuItem(MenuId.BrowserActionsToolbar, {
 	icon: Codicon.inspect,
 	group: BrowserActionGroup.Tools,
 	order: 1,
-	when: ChatContextKeys.enabled,
+	when: chatElementsWhen,
 	isSplitButton: {
 		togglePrimaryAction: true,
 		primaryActionIds: [AddElementToChatAction.ID, AddElementCommentToChatAction.ID]
@@ -1135,6 +1145,14 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 				"When enabled, experimental user-facing tools are available in the Integrated Browser's Add to Chat menu."
 			),
 		},
+		[BrowserSendElementsToChatEnabledSettingId]: {
+			type: 'boolean',
+			default: true,
+			markdownDescription: localize(
+				{ comment: ['This is the description for a setting.'], key: 'browser.sendElementsToChat.enabled' },
+				"Controls whether the Integrated Browser can select page elements to add to chat. When disabled, the inspect overlay, Add Element to Chat, and Comment on Elements actions are hidden. This is independent of `#workbench.browser.enableChatTools#`, which only gates agent browser tools."
+			),
+		},
 		[BrowserSendElementsToChatAttachImagesSettingId]: {
 			type: 'boolean',
 			default: true,
@@ -1144,6 +1162,18 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 });
 
 Registry.as<IConfigurationMigrationRegistry>(ConfigurationMigrationExtensions.ConfigurationMigration).registerConfigurationMigrations([
+	{
+		key: 'chat.sendElementsToChat.enabled',
+		migrateFn: value => {
+			const result: [string, { value: unknown | undefined }][] = [
+				['chat.sendElementsToChat.enabled', { value: undefined }],
+			];
+			if (typeof value === 'boolean') {
+				result.push([BrowserSendElementsToChatEnabledSettingId, { value }]);
+			}
+			return result;
+		}
+	},
 	{
 		key: 'chat.sendElementsToChat.attachImages',
 		migrateFn: value => {
