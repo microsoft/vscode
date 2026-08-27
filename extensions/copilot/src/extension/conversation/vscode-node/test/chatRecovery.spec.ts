@@ -67,10 +67,10 @@ function chatResponse(metadata?: Partial<IResultMetadata>, hasError = false): Ch
 	} as ChatResponseTurn;
 }
 
-function metadataWithChangedFile(uri: vscode.Uri, metadata: Partial<IResultMetadata> = {}): Partial<IResultMetadata> {
+function metadataWithChangedFile(uri: vscode.Uri, metadata: Partial<IResultMetadata> = {}, state = WorkingSetEntryState.Undecided): Partial<IResultMetadata> {
 	return { ...metadata, ...new PreviousEditCodeStep([{
 		document: { uri, languageId: 'typescript', version: 1, text: '' },
-		state: WorkingSetEntryState.Undecided,
+		state,
 	}], 'request', 'response', []).toChatResultMetaData() };
 }
 
@@ -115,9 +115,33 @@ suite('Chat recovery', () => {
 		]).toEqual([
 			undefined,
 			undefined,
-			{ modelId: 'model', scoringVersion: '1', totalScore: 1, requestRetried: true, requestEdited: true, requestChangedModel: true },
-			{ modelId: 'model', scoringVersion: '1', totalScore: 1.25, requestRetried: true, requestEdited: true, requestTurnedOffAutopilot: true },
+			{ modelId: 'model', scoringVersion: '2', totalScore: 1, requestRetried: true, requestEdited: true, requestChangedModel: true },
+			{ modelId: 'model', scoringVersion: '2', totalScore: 1.25, requestRetried: true, requestEdited: true, requestReducedPermissions: true },
 		]);
+	});
+
+	test('detects reduced permission levels', () => {
+		const previousResponse = chatResponse(undefined, true);
+		const request = (permissionLevel?: string) => chatRequest({ permissionLevel });
+		const previousRequest = (permissionLevel?: string) => ({ prompt: 'previous request', modelId: 'model', permissionLevel }) as ChatRequestTurn2;
+
+		expect({
+			autopilotToAutoApprove: getChatRecoveryAttempt(previousRequest('autopilot'), previousResponse, request('autoApprove')),
+			autoApproveToAssisted: getChatRecoveryAttempt(previousRequest('autoApprove'), previousResponse, request('assisted')),
+			assistedToDefault: getChatRecoveryAttempt(previousRequest('assisted'), previousResponse, request()),
+			unchanged: getChatRecoveryAttempt(previousRequest('assisted'), previousResponse, request('assisted')),
+			increased: getChatRecoveryAttempt(previousRequest('assisted'), previousResponse, request('autoApprove')),
+			unknownPrevious: getChatRecoveryAttempt(previousRequest('unknown'), previousResponse, request()),
+			unknownCurrent: getChatRecoveryAttempt(previousRequest('autoApprove'), previousResponse, request('unknown')),
+		}).toEqual({
+			autopilotToAutoApprove: { modelId: 'model', scoringVersion: '2', totalScore: 1.25, requestReducedPermissions: true, lastResponseErrored: true },
+			autoApproveToAssisted: { modelId: 'model', scoringVersion: '2', totalScore: 1.25, requestReducedPermissions: true, lastResponseErrored: true },
+			assistedToDefault: { modelId: 'model', scoringVersion: '2', totalScore: 1.25, requestReducedPermissions: true, lastResponseErrored: true },
+			unchanged: undefined,
+			increased: undefined,
+			unknownPrevious: undefined,
+			unknownCurrent: undefined,
+		});
 	});
 
 	test('excludes requests that are not user-driven recovery attempts', () => {
@@ -146,13 +170,13 @@ suite('Chat recovery', () => {
 			failedTests: getChatRecoveryAttempt(previousRequest, chatResponse(metadataWithChangedFile(changedTestFile, metadataWithTestRuns({ failedCount: 1 }))), chatRequest(retry), noWorkspaceSignals),
 			rejectedPlan: getChatRecoveryAttempt(previousRequest, chatResponse(metadataWithPlanReviews('{"rejected":true}')), chatRequest(retry)),
 		}).toEqual({
-			editedRequest: { modelId: 'model', scoringVersion: '1', totalScore: 1.25, requestEdited: true, lastResponseErrored: true },
-			changedModel: { modelId: 'model', scoringVersion: '1', totalScore: 1, requestChangedModel: true, lastResponseErrored: true },
-			turnedOffAutopilot: { modelId: 'model', scoringVersion: '1', totalScore: 1.25, requestTurnedOffAutopilot: true, lastResponseErrored: true },
-			repeatedRequest: { modelId: 'model', scoringVersion: '1', totalScore: 1, lastRequestRepeated: true, lastResponseErrored: true },
-			responseError: { modelId: 'model', scoringVersion: '1', totalScore: 1, requestRetried: true, lastResponseErrored: true },
-			failedTests: { modelId: 'model', scoringVersion: '1', totalScore: 1, requestRetried: true, documentGeneratedTestsFail: true },
-			rejectedPlan: { modelId: 'model', scoringVersion: '1', totalScore: 1, requestRetried: true, planReviewRejected: true },
+			editedRequest: { modelId: 'model', scoringVersion: '2', totalScore: 1.25, requestEdited: true, lastResponseErrored: true },
+			changedModel: { modelId: 'model', scoringVersion: '2', totalScore: 1, requestChangedModel: true, lastResponseErrored: true },
+			turnedOffAutopilot: { modelId: 'model', scoringVersion: '2', totalScore: 1.25, requestReducedPermissions: true, lastResponseErrored: true },
+			repeatedRequest: { modelId: 'model', scoringVersion: '2', totalScore: 1, lastRequestRepeated: true, lastResponseErrored: true },
+			responseError: { modelId: 'model', scoringVersion: '2', totalScore: 1, requestRetried: true, lastResponseErrored: true },
+			failedTests: { modelId: 'model', scoringVersion: '2', totalScore: 1, requestRetried: true, documentGeneratedTestsFail: true },
+			rejectedPlan: { modelId: 'model', scoringVersion: '2', totalScore: 1, requestRetried: true, planReviewRejected: true },
 		});
 	});
 
@@ -168,15 +192,15 @@ suite('Chat recovery', () => {
 		const previousRequest = { prompt: 'previous request', modelId: 'model' } as ChatRequestTurn2;
 
 		expect({
-			userRejected: getChatRecoveryAttempt(previousRequest, chatResponse(metadataWithChangedFile(changedDocument)), chatRequest({ attempt: 1, editedFileEvents: [{ uri: changedDocument, eventKind: ChatRequestEditedFileEventKind.Undo }] }), noWorkspaceSignals),
+			userRejected: getChatRecoveryAttempt(previousRequest, chatResponse(metadataWithChangedFile(changedDocument, {}, WorkingSetEntryState.Rejected)), chatRequest({ attempt: 1 }), noWorkspaceSignals),
 			userModified: getChatRecoveryAttempt(previousRequest, chatResponse(metadataWithChangedFile(changedDocument)), chatRequest({ attempt: 1, editedRequestId: 'request-id', editedFileEvents: [{ uri: changedDocument, eventKind: ChatRequestEditedFileEventKind.UserModification }] }), noWorkspaceSignals),
 			generatedProblems: getChatRecoveryAttempt(previousRequest, chatResponse(metadataWithChangedFile(changedDocument)), chatRequest({ attempt: 1, editedRequestId: 'request-id' }), diagnosticSignals),
 			mergeConflicts: getChatRecoveryAttempt(previousRequest, chatResponse(metadataWithChangedFile(conflictDocument)), chatRequest({ attempt: 1 }), conflictSignals),
 		}).toEqual({
-			userRejected: { modelId: 'model', scoringVersion: '1', totalScore: 1, requestRetried: true, documentUserRejected: true },
-			userModified: { modelId: 'model', scoringVersion: '1', totalScore: 1.25, requestRetried: true, requestEdited: true, documentUserModified: true },
-			generatedProblems: { modelId: 'model', scoringVersion: '1', totalScore: 1.25, requestRetried: true, requestEdited: true, documentGeneratedProblems: true },
-			mergeConflicts: { modelId: 'model', scoringVersion: '1', totalScore: 1, requestRetried: true, documentHasMergeConflicts: true },
+			userRejected: { modelId: 'model', scoringVersion: '2', totalScore: 1, requestRetried: true, documentUserRejected: true },
+			userModified: { modelId: 'model', scoringVersion: '2', totalScore: 1.25, requestRetried: true, requestEdited: true, documentUserModified: true },
+			generatedProblems: { modelId: 'model', scoringVersion: '2', totalScore: 1.25, requestRetried: true, requestEdited: true, documentGeneratedProblems: true },
+			mergeConflicts: { modelId: 'model', scoringVersion: '2', totalScore: 1, requestRetried: true, documentHasMergeConflicts: true },
 		});
 	});
 });

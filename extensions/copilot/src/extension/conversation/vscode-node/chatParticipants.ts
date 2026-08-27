@@ -293,7 +293,7 @@ Learn more about [GitHub Copilot](https://docs.github.com/copilot/using-github-c
 							"requestRetried": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the request was retried. Present only when true." },
 							"requestEdited": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the previous request was edited. Present only when true." },
 							"requestChangedModel": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the user changed models. Present only when true." },
-							"requestTurnedOffAutopilot": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the user turned off autopilot. Present only when true." },
+							"requestReducedPermissions": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the user selected a more restrictive permission level. Present only when true." },
 							"planReviewRejected": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the latest plan review was rejected. Present only when true." },
 							"totalScore": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The weighted recovery-attempt score." }
 						}
