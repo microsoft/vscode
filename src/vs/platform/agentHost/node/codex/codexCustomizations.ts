@@ -150,7 +150,7 @@ export async function discoverCodexWorkspaceInstructions(
 			name: basename(workingDirectory),
 			enabled: true,
 			contents: CustomizationType.Rule,
-			writable: true,
+			writable: false,
 			load: { kind: CustomizationLoadStatus.Loaded },
 			children: [rule],
 		});

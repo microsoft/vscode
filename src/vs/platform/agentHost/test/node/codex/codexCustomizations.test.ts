@@ -130,7 +130,7 @@ suite('codexCustomizations', () => {
 		})), [{
 			uri: workspace.toString(),
 			contents: CustomizationType.Rule,
-			writable: true,
+			writable: false,
 			children: [{ type: CustomizationType.Rule, name: 'AGENTS.md', uri: URI.joinPath(workspace, 'AGENTS.md').toString(), alwaysApply: true }],
 		}]);
 	});

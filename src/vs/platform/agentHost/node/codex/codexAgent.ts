@@ -688,7 +688,7 @@ interface ICodexSession {
 	disposed: boolean;
 	/** In-flight background or foreground materialization, shared across callers. */
 	materializePromise: Promise<void> | undefined;
-	/** Whether the workbench-facing materialize event has been emitted. */
+	/** Whether the workbench-facing materialize event has been emitted for the current backing. */
 	materializedEventFired: boolean;
 	/** TTL timer for a materialized-but-unused prewarmed thread. */
 	prewarmTimer: ReturnType<typeof setTimeout> | undefined;
@@ -1390,7 +1390,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 		const oldThreadId = session.threadId;
 		this._logService.info(`[Codex:${session.sessionId}] replacing thread ${oldThreadId} with a fresh ${modelProvider} thread`);
-		this._sessionIdByThreadId.delete(oldThreadId);
+		this._removeThreadRouteIfOwned(oldThreadId, session.sessionId);
 		this._mcpInventory.deleteThread(oldThreadId);
 		session.threadId = undefined;
 		this._applyMcpInventoryToSession(session);
@@ -3232,6 +3232,13 @@ export class CodexAgent extends Disposable implements IAgent {
 			return;
 		}
 		this._sessionIdByThreadId.set(threadId, sessionId);
+	}
+
+	/** Remove a notification route only when it is still owned by this runtime. */
+	private _removeThreadRouteIfOwned(threadId: string, sessionId: string): void {
+		if (this._sessionIdByThreadId.get(threadId) === sessionId) {
+			this._sessionIdByThreadId.delete(threadId);
+		}
 	}
 
 	private _dispatchByThread(threadId: string, mapFn: (s: ICodexSession) => ReturnType<typeof mapTurnStarted>): void {
@@ -5184,7 +5191,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		const oldThreadId = session.threadId;
 		this._logService.info(`[Codex:${session.sessionId}] restarting thread ${oldThreadId} to apply client tools [${session.clientToolSet.merged().map(t => t.name).join(', ') || '(none)'}]`);
 		if (oldThreadId !== undefined) {
-			this._sessionIdByThreadId.delete(oldThreadId);
+			this._removeThreadRouteIfOwned(oldThreadId, session.sessionId);
 			this._mcpInventory.deleteThread(oldThreadId);
 			if (conn.kind === 'ready') {
 				try {
@@ -5271,7 +5278,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 		const threadId = session.threadId;
 		session.threadId = undefined;
-		this._sessionIdByThreadId.delete(threadId);
+		this._removeThreadRouteIfOwned(threadId, session.sessionId);
 		this._mcpInventory.deleteThread(threadId);
 		this._applyMcpInventoryToSession(session);
 		try {
@@ -5361,7 +5368,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		const threadId = session.threadId;
 		if (threadId !== undefined) {
 			session.threadId = undefined;
-			this._sessionIdByThreadId.delete(threadId);
+			this._removeThreadRouteIfOwned(threadId, session.sessionId);
 			this._mcpInventory.deleteThread(threadId);
 			const conn = this._connection;
 			if (conn.kind === 'ready') {
@@ -5875,7 +5882,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			});
 		}
 		if (session.threadId !== undefined) {
-			this._sessionIdByThreadId.delete(session.threadId);
+			this._removeThreadRouteIfOwned(session.threadId, sessionId);
 			this._mcpInventory.deleteThread(session.threadId);
 		}
 		// Unpark any pending approvals so codex doesn't deadlock waiting
@@ -6096,7 +6103,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			return;
 		}
 		this._logService.info(`[Codex:${session.sessionId}] replacing unpersisted thread ${missingThreadId}`);
-		this._sessionIdByThreadId.delete(missingThreadId);
+		this._removeThreadRouteIfOwned(missingThreadId, session.sessionId);
 		this._mcpInventory.deleteThread(missingThreadId);
 		session.threadId = undefined;
 		session.needsResume = false;

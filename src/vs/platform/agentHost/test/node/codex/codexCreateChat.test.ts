@@ -2584,6 +2584,7 @@ suite('CodexAgent chat backing durability', () => {
 				sessionId: AgentSession.id(runtime),
 				model: { id: COPILOT_TEST_MODEL },
 			}));
+			const materializedBeforeReplacement = agent['_sessions'].get(AgentSession.id(runtime))?.materializedEventFired;
 			const reading = agent.chats.getMessages(chat, context);
 			const resume = await readNextRequest(peer.outbound);
 			peer.push({ id: resume.id, error: { code: -32000, message: 'no rollout found for thread id missing-rollout-thread' } });
@@ -2597,6 +2598,8 @@ suite('CodexAgent chat backing durability', () => {
 			const restored = receipts[0].result;
 
 			assert.deepStrictEqual({
+				materializedBeforeReplacement,
+				rematerializationReceipts: receipts.length,
 				resume: { method: resume.method, threadId: resume.params.threadId },
 				start: { method: start.method, cwd: start.params.cwd },
 				read: { method: read.method, threadId: read.params.threadId },
@@ -2607,6 +2610,8 @@ suite('CodexAgent chat backing durability', () => {
 				persistedThreadId: await database.getMetadata('codex.threadId'),
 				turns,
 			}, {
+				materializedBeforeReplacement: true,
+				rematerializationReceipts: 1,
 				resume: { method: 'thread/resume', threadId: 'missing-rollout-thread' },
 				start: { method: 'thread/start', cwd: folder.fsPath },
 				read: { method: 'thread/read', threadId: 'replacement-thread' },
@@ -2725,6 +2730,21 @@ suite('CodexAgent chat backing durability', () => {
 			secondPeer.push({ id: discoveryRead.id, result: { thread: { id: 'codex-thread', cwd: folder.fsPath, modelProvider: 'vscode-proxy', turns: [] } } });
 			await discovering;
 
+			// Cleaning up the unbound ambient entry must leave the route owned by
+			// the materialized host chat intact. Exercise the same in-memory teardown
+			// used by chat release, then dispatch a synthetic thread notification
+			// through the production routing seam.
+			const ambient = second['_sessions'].get('codex-thread')!;
+			const cleaningAmbient = second['_teardownSessionInMemory'](ambient, ambient.sessionId, false);
+			const ambientUnsubscribe = await readNextRequest(secondPeer.outbound);
+			secondPeer.push({ id: ambientUnsubscribe.id, result: {} });
+			await cleaningAmbient;
+			let notificationSession: string | undefined;
+			second['_dispatchByThread']('codex-thread', routed => {
+				notificationSession = routed.sessionId;
+				return [];
+			});
+
 			// Drive a turn on the restored chat and fail it at `turn/start`, so
 			// the runtime also has to route the resulting actions to its bound chat.
 			const resending = second.chats.sendMessage(chat, 'again', [folder], undefined, 'turn-2', undefined, undefined, { configurationResource: session, resource: chat });
@@ -2745,6 +2765,9 @@ suite('CodexAgent chat backing durability', () => {
 				restoredThreadId: restored?.threadId,
 				restoredSessionUri: restored?.sessionUri.toString(),
 				restoredChatChannel: restored?.chatChannel?.toString(),
+				hasAmbientRuntime: second['_sessions'].has('codex-thread'),
+				ambientUnsubscribe: { method: ambientUnsubscribe.method, threadId: ambientUnsubscribe.params.threadId },
+				notificationSession,
 				routedSession: second['_sessionIdByThreadId'].get('codex-thread'),
 				discovery: { method: discoveryRead.method, threadId: discoveryRead.params.threadId },
 				unsubscribe: { method: unsubscribe.method, threadId: unsubscribe.params.threadId },
@@ -2761,6 +2784,9 @@ suite('CodexAgent chat backing durability', () => {
 				restoredThreadId: 'codex-thread',
 				restoredSessionUri: session.toString(),
 				restoredChatChannel: chat.toString(),
+				hasAmbientRuntime: false,
+				ambientUnsubscribe: { method: 'thread/unsubscribe', threadId: 'codex-thread' },
+				notificationSession: 'host-session',
 				routedSession: 'host-session',
 				discovery: { method: 'thread/read', threadId: 'codex-thread' },
 				unsubscribe: { method: 'thread/unsubscribe', threadId: 'codex-thread' },

@@ -70,11 +70,15 @@ export function resolveCodexInput(
 						? `@${uri.fsPath}`
 						: uri.toString();
 					const range = att.selection?.range;
-					const selectionSuffix = range
-						? range.start.line === range.end.line
+					let selectionSuffix = '';
+					if (range) {
+						const endLine = range.end.character === 0 && range.end.line > range.start.line
+							? range.end.line - 1
+							: range.end.line;
+						selectionSuffix = range.start.line === endLine
 							? ` (line ${range.start.line + 1})`
-							: ` (lines ${range.start.line + 1}-${range.end.line + 1})`
-						: '';
+							: ` (lines ${range.start.line + 1}-${endLine + 1})`;
+					}
 					const selectedMention = mention + selectionSuffix;
 					// A host-created snapshot (pasted content, unsaved editor, git: diff, …) is
 					// read-only context. Annotate the path inline so the model doesn't edit the copy

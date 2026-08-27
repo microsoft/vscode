@@ -196,9 +196,11 @@ export interface IAgentCreateSessionResult extends IAgentCreateChatResult {
 }
 
 /**
- * Payload of {@link IAgent.onDidMaterializeChat}. Fired once a previously
+ * Payload of {@link IAgent.onDidMaterializeChat}. Fired when a previously
  * {@link IAgentCreateSessionResult.provisional} chat has its SDK session,
- * worktree (if any), and on-disk metadata in place.
+ * worktree (if any), and on-disk metadata in place. A provider may fire the
+ * event again when it replaces or rematerializes an already-backed chat;
+ * consumers must treat each event as the chat's latest materialization receipt.
  */
 export interface IAgentMaterializeChatEvent {
 	readonly chat: URI;
